@@ -19,6 +19,46 @@ the policy is forward-going only.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`m3 embedder install` and `m3 embedder start` reported a stopped embed server
+  as running, and exited 0.** A zero exit from the service manager means only that
+  it accepted the start request — launchd, systemd and the Windows SCM all return
+  success the moment they fork the child — so a daemon that cannot bind its port
+  exits 0 as well. Separately, the already-registered path inferred "already
+  serving" from a port probe, which says nothing about *whose* process is
+  answering: a stray in-process embedder holding the port was enough to make a
+  freshly registered service look healthy while it was dead. Since OS restart
+  actions fire only on an abnormal exit, nothing would ever have restarted it, and
+  `m3 doctor` would report "REGISTERED but STOPPED" about a state the installer
+  had just called success. Both commands now confirm the outcome with the service
+  manager before printing anything, and exit non-zero when it is not running. A
+  held port gets a named diagnosis with a platform-correct command for finding the
+  holder, rather than generic start advice; setup no longer folds this state into
+  its benign "SKIPPED (not installed)" message; and the messages honour
+  `M3_EMBED_SERVER_PORT` instead of hardcoding 8082.
+- **A stopped service could be read as running because the status check matched a
+  bare substring.** `"running"` also matches "not running", so the one probe whose
+  job is to refuse to claim health without evidence could do exactly the opposite.
+  The same check read the SCM's transitional `START_PENDING` as "never
+  registered", which would have re-installed over a service that was still coming
+  up. Negative states are now matched before positive ones, and an unrecognised
+  status is treated as not running.
+- **`chatlog_rescrub` reported a partial sweep as a complete one.** It examines at
+  most `limit` rows (default 10,000) and said nothing about the remainder, so on a
+  larger store the result read as "nothing left to scrub" while most rows had
+  never been examined — and because the query had no `ORDER BY`, the rows it did
+  examine were an arbitrary slice that successive runs need not extend. The result
+  now reports `scanned`, `limit` and `truncated`, and when truncated also the
+  number of rows left and the limit that would cover them; rows are examined
+  oldest-first so a larger re-run makes progress. Truncation is detected without
+  an extra aggregate query, so a complete sweep costs nothing more than before.
+- **The redaction warning's own fix command did not run.** It printed
+  `chatlog_set_redaction --enabled true`, which argparse rejects with
+  "unrecognized arguments: true" because `--enabled` is a boolean flag, and it
+  recommended a bare `chatlog_rescrub` — the capped call described above. It now
+  emits a command that works, with a limit sized from the store's row count.
+
 ## [2026.9.21.0] — 2026-09-21 — one leaked environment variable, and the failures it was hiding
 
 ### Fixed
