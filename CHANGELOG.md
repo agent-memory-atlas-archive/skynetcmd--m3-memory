@@ -53,6 +53,15 @@ the policy is forward-going only.
   number of rows left and the limit that would cover them; rows are examined
   oldest-first so a larger re-run makes progress. Truncation is detected without
   an extra aggregate query, so a complete sweep costs nothing more than before.
+- **Running the test suite could redirect the developer's own chatlog capture.**
+  `chatlog_config.CONFIG_PATH` is resolved when the module is imported, so it is
+  not covered by the environment-variable half of the test sandbox: a test that
+  saved chatlog config wrote the real `~/.m3/config/.chatlog_config.json`,
+  persisting a temporary `db_path` into it. Afterwards `m3 chat status` reported
+  the live chatlog as empty and capture pointed at a pytest temporary directory
+  that is later deleted — with nothing failing and the suite green. The sandbox
+  now re-points that constant per test, as it already did for the migration
+  config.
 - **The redaction warning's own fix command did not run.** It printed
   `chatlog_set_redaction --enabled true`, which argparse rejects with
   "unrecognized arguments: true" because `--enabled` is a boolean flag, and it
