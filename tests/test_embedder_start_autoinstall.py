@@ -26,6 +26,13 @@ def _patch_common(monkeypatch, service_calls):
     monkeypatch.setattr(ea, "_locate_gguf_or_explain", lambda: Path("/fake.gguf"))
     monkeypatch.setattr(ea, "_gguf_size_bytes", lambda p: 1024 * 1024)
     monkeypatch.setattr(ea, "_server_binary", lambda: Path("/fake/bin"))
+    # Since 2026-09-27 both cmd_start and cmd_install CONFIRM the service is up
+    # rather than trusting `start`'s exit code (0 from launchd/systemd/SCM means
+    # only that the request was accepted). In this fake world the start succeeds,
+    # so the probe says so; without it these control-flow tests would fail on the
+    # verification step for reasons that have nothing to do with the flow they
+    # pin. The dead-service path is covered in test_embedder_start_verification.
+    monkeypatch.setattr(ea, "_service_reports_running", lambda *a, **k: True)
 
     def fake_service_cmd(binary, gguf, action, *extra):
         service_calls.append((action, list(extra)))

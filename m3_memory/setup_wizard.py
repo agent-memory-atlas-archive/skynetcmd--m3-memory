@@ -1782,6 +1782,9 @@ def _step_cpu_sovereign_embedder() -> bool:
       4. starts it
     """
     _say("Step 2/5: installing sovereign CPU embedder (BGE-M3 on port 8082)")
+    # Lazy import: setup_wizard is imported during install, and embedder_admin
+    # pulls in the payload-root helpers (§2 cycle-breaking via lazy imports).
+    from m3_memory.embedder_admin import EXIT_REGISTERED_NOT_RUNNING
     cmd = [sys.executable, "-m", "m3_memory.cli", "embedder", "install",
            "--concurrency", "2"]
     try:
@@ -1789,6 +1792,19 @@ def _step_cpu_sovereign_embedder() -> bool:
         _ok("sovereign CPU embedder registered and running on port 8082")
         return True
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        # One nonzero code is NOT benign: the service got registered but is not
+        # running (port held, or it refused to start). Folding that into the
+        # "SKIPPED (not installed) — this is fine" message below would bury a
+        # service nothing will ever start, and would contradict the diagnostic
+        # `m3 embedder install` just printed. Surface it instead (§3).
+        if getattr(e, "returncode", None) == EXIT_REGISTERED_NOT_RUNNING:
+            _warn("sovereign CPU embedder is REGISTERED but NOT running — see the "
+                  "diagnosis above.")
+            _say("  Tier-1 in-process embedding still works, so setup continues,")
+            _say("  but the shared :8082 server will stay down until it is fixed:")
+            _say("    m3 embedder status     # what the service manager thinks")
+            _say("    m3 embedder start      # after freeing the port")
+            return False
         # NOT a failure — this OPTIONAL always-on CPU embedder was skipped (its
         # GGUF/binary or admin rights aren't present). m3 embeds fine WITHOUT it:
         # the cascade uses the in-process Tier-1 (GPU/CPU) or an HTTP tier. Frame

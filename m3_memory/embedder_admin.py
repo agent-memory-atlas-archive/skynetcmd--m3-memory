@@ -23,8 +23,16 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Optional
+
+# Exit code for "the service is REGISTERED but is not running". Distinct from 1
+# (no binary) and 2 (no model) because both the remedy and the SEVERITY differ:
+# those two mean the optional tier-2 server was never installed and tier-1 covers
+# the gap, while this means a service exists that nothing will ever start. Setup
+# must not fold it into the benign "SKIPPED (not installed)" message (§3).
+EXIT_REGISTERED_NOT_RUNNING = 3
 
 # ── locations ─────────────────────────────────────────────────────────────────
 
@@ -466,7 +474,12 @@ def _service_reports_installed(binary: Path, gguf: Path) -> bool:
     blob = f"{out.stdout}\n{out.stderr}".lower()
     if "not installed" in blob:
         return False
-    return "running" in blob or "stopped" in blob
+    # Any state word at all means the manager knows about the service. Matching
+    # only running/stopped read SCM's transitional START_PENDING as "never
+    # registered" and would re-install over a service that was merely still
+    # coming up, so accept the whole vocabulary (§3, same seam as
+    # _status_says_running).
+    return any(token in blob for token in _STATUS_REGISTERED)
 
 
 def _service_binary_is_stale(binary: Path) -> bool:
@@ -537,7 +550,120 @@ def _service_reports_running(binary: Path, gguf: Path) -> bool:
         )
     except Exception:  # noqa: BLE001 — probe must never raise into setup (§3)
         return False
-    return "running" in f"{proc.stdout}\n{proc.stderr}".lower()
+    return _status_says_running(f"{proc.stdout}\n{proc.stderr}")
+
+
+# Phrases that mean NOT running. Checked before the positive tokens because a
+# coarse `"running" in blob` also matches "not running", and "active" matches
+# "inactive" — a screening substring standing in for the precise state, which is
+# the trap SUBSTRING_HIT_IS_NOT_A_LIVE_ROW records. Reporting a DEAD service as
+# healthy is the exact inversion this probe exists to prevent, and it is now
+# load-bearing for the post-start verification.
+_STATUS_NOT_RUNNING = (
+    "not installed", "not running", "isn't running", "is not running",
+    "not started", "stopped", "inactive", "activating", "start_pending",
+    "dead", "failed", "unknown",
+)
+_STATUS_RUNNING = ("running", "active", "started")
+# Every state word a registered service can be reported in — transitional ones
+# included. "not installed" is handled separately, before this is consulted.
+_STATUS_REGISTERED = _STATUS_RUNNING + (
+    "stopped", "inactive", "activating", "start_pending", "stop_pending",
+    "paused", "dead", "failed", "disabled", "loaded",
+)
+
+
+def _status_says_running(blob: str) -> bool:
+    """Interpret a service-manager `status` blob. Negatives beat positives.
+
+    Four vocabularies reach this one function — launchd, systemd, Windows SCM
+    and m3-embed-server's own wording — so match the explicit negatives first
+    and accept a positive token only once none of them appear. Anything
+    unrecognised is NOT running: absence of evidence is never evidence of
+    health (§3).
+    """
+    text = blob.lower()
+    if any(token in text for token in _STATUS_NOT_RUNNING):
+        return False
+    return any(token in text for token in _STATUS_RUNNING)
+
+
+def _port_holder_hint(port: int) -> str:
+    """OS-correct command for finding what already owns the embed port.
+
+    Attributing a listening socket to a PID in-process is not portable —
+    psutil.net_connections() needs root on macOS — so hand the operator the one
+    command that works on their platform rather than guessing or staying silent.
+    """
+    if sys.platform == "win32":
+        return f"    netstat -ano | findstr :{port}"
+    if sys.platform == "darwin":
+        return f"    lsof -nP -iTCP:{port} -sTCP:LISTEN"
+    return f"    ss -lptn 'sport = :{port}'   (or: lsof -nP -iTCP:{port} -sTCP:LISTEN)"
+
+
+def _confirm_started(binary: Path, gguf: Path, *,
+                     attempts: int = 6, delay: float = 0.5) -> bool:
+    """True once the service manager itself reports RUNNING.
+
+    Startup is asynchronous on all three platforms, so a single probe fired
+    straight after `start` races the daemon and reads `stopped` on a service
+    that is merely still coming up. Poll briefly, and believe only `status`.
+    """
+    for attempt in range(attempts):
+        if _service_reports_running(binary, gguf):
+            return True
+        if attempt + 1 < attempts:
+            time.sleep(delay)
+    return False
+
+
+def _verify_started_or_explain(binary: Path, gguf: Path, *, start_rc: int = 0) -> int:
+    """Confirm the embedder is really up; explain loudly if it is not (§3).
+
+    A success line must never rest on an exit code alone. On 2026-09-27
+    `m3 embedder install` printed "[OK] sovereign CPU embedder running on port
+    8082" while `m3 embedder status` said `stopped`: a stray
+    `embed_server_inproc.py` left by the same install still held the port, so
+    the freshly registered service could not bind and exited. Because OS restart
+    actions fire only on an ABNORMAL exit, nothing would ever have revived it.
+    doctor reported the contradiction ("REGISTERED but STOPPED") minutes later —
+    a state the installer should never have called success.
+    """
+    port = _embed_server_port()
+    if _confirm_started(binary, gguf):
+        print(f"[OK] sovereign CPU embedder running on port {port}")
+        return 0
+    # The underlying `start` rc is reported in the message below; the RETURN code
+    # is the specific one so callers can tell this apart from "never installed".
+    rc = EXIT_REGISTERED_NOT_RUNNING
+    # A held port is the usual cause and needs a different fix than a service
+    # that simply will not start, so diagnose it instead of printing generic
+    # start advice.
+    if _port_in_use(port):
+        print(
+            f"[!] m3-embed-server is REGISTERED but NOT running, and port {port} is "
+            "already held by another process.\n"
+            "  The service cannot bind, so tier-2 embedding is down and the OS will\n"
+            "  not revive it (restart actions fire only on an abnormal exit).\n"
+            "  Find what holds the port:\n"
+            f"{_port_holder_hint(port)}\n"
+            "  A stray `embed_server_inproc.py` from an earlier install is the usual\n"
+            "  culprit: it answers the port, but no service manager owns it.\n"
+            "  Stop it, then run: m3 embedder start\n"
+            "  Tier-1 in-process GGUF embedding keeps working meanwhile.",
+            file=sys.stderr,
+        )
+        return rc
+    exited = f" (`start` exited {start_rc})" if start_rc else ""
+    print(
+        f"[!] m3-embed-server is REGISTERED but `status` does not report it "
+        f"running{exited}.\n"
+        f"{_start_failure_hint(gguf)}\n"
+        "  Tier-1 in-process GGUF embedding keeps working meanwhile.",
+        file=sys.stderr,
+    )
+    return rc
 
 
 def _start_failure_hint(gguf: Path) -> str:
@@ -595,14 +721,20 @@ def _install_failure_hint(gguf: Path) -> str:
 
 
 def _warn_if_port_busy(action: str) -> None:
-    """Print a heads-up if the embed-server port is already in use. Non-fatal —
-    the underlying service manager owns the real start/stop; this just makes an
-    already-running instance visible instead of a confusing bind failure."""
+    """Print a heads-up if the embed-server port is already in use.
+
+    Non-fatal — the service manager owns the real start/stop. But a busy port is
+    NOT evidence that the holder is ours: when it is anything else (a stray
+    in-process embedder, an unrelated app) the service cannot bind and ends up
+    registered-but-stopped, so this must not imply the situation is fine. The
+    post-start verification is what actually decides (§3).
+    """
     port = _embed_server_port()
     if _port_in_use(port):
-        print(f"[i] a process is already listening on port {port} — an m3-embed-server "
-              f"may already be running. `{action}` will hand off to the service "
-              "manager, which is idempotent; use `m3 embedder status` to check.")
+        print(f"[i] port {port} is already in use. If that is an existing "
+              f"m3-embed-server, `{action}` is idempotent; if it is any other "
+              f"process, the service will not be able to bind. Confirmed after "
+              "start — check anytime with `m3 embedder status`.")
 
 
 def _locate_gguf_or_explain() -> Optional[Path]:
@@ -766,13 +898,16 @@ def cmd_install(args: argparse.Namespace) -> int:
                 print("[!] restart failed — the service is still on the OLD binary.\n"
                       f"{_install_failure_hint(gguf)}", file=sys.stderr)
                 return rc
-            if _port_in_use(_embed_server_port()):
-                print(f"[OK] sovereign CPU embedder already serving on port {_embed_server_port()}")
-                return 0
-            print("[~] starting the existing service")
-            if _service_cmd(binary, gguf, "start") == 0:
-                print(f"[OK] sovereign CPU embedder running on port {_embed_server_port()}")
-                return 0
+            # Whether the port answers says nothing about OUR service — a stray
+            # in-process embedder answers it too. Concluding "already serving"
+            # from the probe alone is how a registered-but-STOPPED service was
+            # shipped as success (2026-09-27); ask the manager, and start it only
+            # when it says the service is down.
+            start_rc = 0
+            if not _service_reports_running(binary, gguf):
+                print("[~] starting the existing service")
+                start_rc = _service_cmd(binary, gguf, "start")
+            return _verify_started_or_explain(binary, gguf, start_rc=start_rc)
         print(
             f"[!] `m3-embed-server install` exited {rc}\n"
             f"{_install_failure_hint(gguf)}\n"
@@ -782,28 +917,18 @@ def cmd_install(args: argparse.Namespace) -> int:
         return rc
 
     print("[~] starting m3-embed-server")
-    rc = _service_cmd(binary, gguf, "start")
-    if rc != 0:
-        # `start` against an ALREADY-RUNNING service is the desired end state,
-        # not a failure. Older m3-embed-server builds (<= 3.7.28) return
-        # ERROR_SERVICE_ALREADY_RUNNING flattened into the opaque "IO error in
-        # winapi call" and exit 1, so setup printed "`m3-embed-server start`
-        # exited 1" about a service that was Automatic, running, and serving
-        # :8082. Ask `status` what is actually true rather than trusting the
-        # exit code — the same lesson as the `install` idempotency fix. Newer
-        # binaries report this themselves; this keeps old ones honest too.
-        if _service_reports_running(binary, gguf):
-            print("[OK] sovereign CPU embedder already running on port 8082")
-            return 0
-        print(
-            f"[!] `m3-embed-server start` exited {rc}\n"
-            f"{_start_failure_hint(gguf)}",
-            file=sys.stderr,
-        )
-        return rc
-
-    print("[OK] sovereign CPU embedder running on port 8082")
-    return 0
+    start_rc = _service_cmd(binary, gguf, "start")
+    # Do not trust the exit code in EITHER direction; ask `status`.
+    #   nonzero  — may mean "already running": builds <= 3.7.28 flatten
+    #              ERROR_SERVICE_ALREADY_RUNNING into an opaque "IO error in
+    #              winapi call" and exit 1, which once made setup report a
+    #              service that was Automatic, running and serving :8082 as a
+    #              failure.
+    #   zero     — means only that the start REQUEST was accepted. launchd,
+    #              systemd and SCM all return success the moment they fork the
+    #              child, so a daemon that dies on a port conflict exits 0 too
+    #              (2026-09-27).
+    return _verify_started_or_explain(binary, gguf, start_rc=start_rc)
 
 
 def _binary_and_gguf_or_fail() -> Optional[tuple[Path, Path]]:
@@ -836,7 +961,8 @@ def cmd_start(args: argparse.Namespace) -> int:
         print("[~] m3-embed-server is not registered as a service — installing it now.")
         return cmd_install(args)
     _warn_if_port_busy("start")
-    return _service_cmd(binary, gguf, "start")
+    start_rc = _service_cmd(binary, gguf, "start")
+    return _verify_started_or_explain(binary, gguf, start_rc=start_rc)
 
 
 def cmd_stop(args: argparse.Namespace) -> int:
