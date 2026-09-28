@@ -460,8 +460,19 @@ def _compute_warnings(
         # Surfacing it here is the only place they reliably look.
         warnings.append(
             "redaction is OFF (chat turns stored verbatim, secrets included)"
-            " -> fix: m3 chat chatlog_set_redaction --enabled true"
+            # `--enabled` is a BooleanOptionalAction flag: the old hint said
+            # `--enabled true`, which argparse rejects outright with
+            # "unrecognized arguments: true". A fix line that does not run is
+            # worse than none -- it reads as authoritative and fails.
+            " -> fix: m3 chat chatlog_set_redaction --enabled"
             " ; retro-clean existing rows with m3 chat chatlog_rescrub"
+            # _as_count, not the raw value: on a PostgreSQL primary the count
+            # is the display STRING "n/a (primary store is PostgreSQL)" (see
+            # _get_row_counts, and line ~174 which copies it into chatlog_rows),
+            # which would render as `--limit n/a (primary store is ...)`.
+            f" --limit {_as_count(row_counts.get('chatlog_rows')) or 10000}"
+            " (the default cap examines only 10k rows; the result reports"
+            " truncated=true when rows were left unexamined)"
         )
 
     # The config is cached per-process and only invalidated by edits made

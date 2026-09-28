@@ -1348,7 +1348,7 @@ Re-apply redaction to existing chat_log rows. Requires redaction.enabled=true.
 | `conversation_id` | `string` | No | Filter by conversation. | `` |
 | `since` | `string` | No | ISO-8601 lower bound. | `` |
 | `until` | `string` | No | ISO-8601 upper bound. | `` |
-| `limit` | `integer` | No | Max rows to process. | `10000` |
+| `limit` | `integer` | No | Max rows to EXAMINE (oldest id first). When the range is larger, the result reports truncated=true with the remaining count -- rows beyond the cap are NOT scrubbed. | `10000` |
 | `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. | `` |
 | `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
 

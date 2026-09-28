@@ -1178,10 +1178,18 @@ async def chatlog_rescrub_impl(
         updated = 0
         matched_rows = 0
         with ctx.get_chatlog_conn() as conn:
+            # Fetch limit+1: the extra row is how we learn the scan was CAPPED,
+            # without paying for a COUNT on the common uncapped path (§4).
+            # ORDER BY id makes the slice deterministic. Without it the cap took
+            # an ARBITRARY subset, so a capped run could re-examine the same rows
+            # on every invocation and never converge on the rest of the store.
             rows = conn.execute(
-                f"SELECT id, content, metadata_json FROM {_T} WHERE {where} LIMIT {_p}",
-                params + [limit],
+                f"SELECT id, content, metadata_json FROM {_T} WHERE {where} "
+                f"ORDER BY id LIMIT {_p}",
+                params + [limit + 1],
             ).fetchall()
+            truncated = len(rows) > limit
+            rows = rows[:limit]
             for r in rows:
                 if not r["content"]:
                     continue
@@ -1203,7 +1211,30 @@ async def chatlog_rescrub_impl(
                 )
                 updated += 1
             conn.commit()
-        return {"matched_rows": matched_rows, "updated": updated}
+            result = {
+                "matched_rows": matched_rows,
+                "updated": updated,
+                "scanned": len(rows),
+                "limit": limit,
+                "truncated": truncated,
+            }
+            # A cap that is not reported is a silent no-op over the rest of the
+            # store: the caller sees "updated: 1" and believes the whole log was
+            # covered. Say what was NOT examined, and what to pass to cover it
+            # (§3 fail loud, never silent).
+            if truncated:
+                total_row = conn.execute(
+                    f"SELECT COUNT(*) AS n FROM {_T} WHERE {where}", params
+                ).fetchone()
+                candidates = int(total_row["n"]) if total_row else len(rows)
+                result["candidates"] = candidates
+                result["remaining"] = max(0, candidates - len(rows))
+                result["note"] = (
+                    f"CAPPED at limit={limit}: {result['remaining']} row(s) in "
+                    f"range were never examined. Re-run with limit={candidates} "
+                    f"(or higher) to cover the whole store."
+                )
+        return result
 
     loop = asyncio.get_running_loop()
     result = await loop.run_in_executor(None, _run)

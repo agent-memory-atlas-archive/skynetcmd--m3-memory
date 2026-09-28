@@ -236,7 +236,7 @@ TOOLS: list[ToolSpec] = [
                 "conversation_id": {"type": "string",  "description": "Filter by conversation.", "default": ""},
                 "since":           {"type": "string",  "description": "ISO-8601 lower bound.",  "default": ""},
                 "until":           {"type": "string",  "description": "ISO-8601 upper bound.",  "default": ""},
-                "limit":           {"type": "integer", "description": "Max rows to process.",   "default": 10000},
+                "limit":           {"type": "integer", "description": "Max rows to EXAMINE (oldest id first). When the range is larger, the result reports truncated=true with the remaining count -- rows beyond the cap are NOT scrubbed.", "default": 10000},
             },
             "required": [],
         },
