@@ -87,12 +87,27 @@ def _purge(conv: str) -> None:
         conn.commit()
 
 
-def _enable_redaction(enabled: bool = True) -> None:
+def _enable_redaction(monkeypatch, tmp_path, enabled: bool = True) -> None:
+    """Turn redaction on for this test only.
+
+    CONFIG_PATH is pinned here rather than trusted, because `save_config()`
+    writes to a constant resolved at IMPORT time (chatlog_config.py:65). The
+    autouse `m3_sandbox` fixture pins it too, but only if the module is already
+    in `sys.modules` when it runs — and getting that wrong is not a failed
+    assertion, it is a rewrite of the developer's live
+    ~/.m3/config/.chatlog_config.json. Measured 2026-09-28: it persisted a tmp
+    `db_path` into the real config, so capture was aimed at a pytest tmpdir that
+    pytest then reaped. Belt and braces is warranted for a write that escapes the
+    sandbox.
+    """
     import chatlog_config
+    monkeypatch.setattr(
+        chatlog_config, "CONFIG_PATH", str(tmp_path / ".chatlog_config.json"))
     cfg = chatlog_config.resolve_config()
     cfg.redaction.enabled = enabled
     cfg.redaction.patterns = ["api_keys"]
     chatlog_config.save_config(cfg)
+    assert "pytest" in chatlog_config.CONFIG_PATH or str(tmp_path) in chatlog_config.CONFIG_PATH
 
 
 def _rescrub(**kw) -> dict:
@@ -137,7 +152,7 @@ def sqlite_store(tmp_path, monkeypatch):
     create_full_main_schema(str(db))
     monkeypatch.setenv("M3_DATABASE", str(db))
     monkeypatch.setenv("M3_CHATLOG_DB_PATH", str(db))
-    _enable_redaction()
+    _enable_redaction(monkeypatch, tmp_path)
     return _seed(25)
 
 
@@ -224,7 +239,7 @@ def test_rescrub_refuses_when_redaction_is_off(tmp_path, monkeypatch):
     create_full_main_schema(str(db))
     monkeypatch.setenv("M3_DATABASE", str(db))
     monkeypatch.setenv("M3_CHATLOG_DB_PATH", str(db))
-    _enable_redaction(False)
+    _enable_redaction(monkeypatch, tmp_path, enabled=False)
 
     with pytest.raises(ValueError, match="redaction.enabled must be true"):
         _rescrub(limit=10)
@@ -233,7 +248,7 @@ def test_rescrub_refuses_when_redaction_is_off(tmp_path, monkeypatch):
 # ── the same claim on PostgreSQL ─────────────────────────────────────────────
 
 @pytest.mark.requires_pg
-def test_truncation_report_holds_on_postgres(monkeypatch, pg_url):
+def test_truncation_report_holds_on_postgres(monkeypatch, tmp_path, pg_url):
     """ORDER BY id, the LIMIT placeholder and the conditional COUNT(*) must all
     work on the server backend too.
 
@@ -255,7 +270,7 @@ def test_truncation_report_holds_on_postgres(monkeypatch, pg_url):
     # A shared cluster keeps its rows: unique per run, scoped reads, and a purge
     # in `finally`, or this test is green exactly once.
     conv = f"rescrub-cap-pg-{uuid.uuid4().hex[:10]}"
-    _enable_redaction()
+    _enable_redaction(monkeypatch, tmp_path)
     try:
         _seed(25, conv=conv, prefix=conv)
 
@@ -272,3 +287,33 @@ def test_truncation_report_holds_on_postgres(monkeypatch, pg_url):
         assert _still_secret(conv) == [], "did not converge on postgres"
     finally:
         _purge(conv)
+
+
+# ── the sandbox must make this write impossible ──────────────────────────────
+
+def test_save_config_cannot_reach_the_live_config(tmp_path):
+    """`chatlog_config.save_config()` must never write the developer's real
+    ~/.m3/config/.chatlog_config.json from a test.
+
+    CONFIG_PATH is resolved at import, so it escapes the env-var half of the
+    sandbox. On 2026-09-28 a test in this very file rewrote the live config with
+    a tmp `db_path`: `m3 chat status` then reported the real chatlog as 0 rows
+    and capture was aimed at a pytest tmpdir that pytest later deleted. Nothing
+    failed — the suite was green.
+
+    ⚠ This assertion is ORDER-DEPENDENT and is a backstop, not the fix. Run
+    alone, `chatlog_config` is first imported after the sandbox has already
+    pinned M3_CONFIG_ROOT to tmp, so CONFIG_PATH is harmless and this passes
+    either way (verified by removing the sandbox pin: still green). It only has
+    teeth in a full run, where an earlier test imports the module while the real
+    roots are live. The actual fix is the explicit `monkeypatch.setattr` on
+    CONFIG_PATH in `_enable_redaction` plus the `m3_sandbox` re-point; the
+    end-to-end check is a full-suite run followed by reading
+    ~/.m3/config/.chatlog_config.json.
+    """
+    import chatlog_config
+    real = Path.home() / ".m3" / "config" / ".chatlog_config.json"
+    assert Path(chatlog_config.CONFIG_PATH).resolve() != real.resolve(), (
+        "chatlog_config.CONFIG_PATH points at the LIVE config; a save_config() "
+        "call in any test would redirect this machine's chatlog capture"
+    )

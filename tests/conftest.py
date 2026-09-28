@@ -769,6 +769,21 @@ def m3_sandbox(monkeypatch, tmp_path):
         if hasattr(_mm, "CONFIG_PATH"):
             monkeypatch.setattr(
                 _mm, "CONFIG_PATH", str(tmp_path / "config" / ".migrate_config.json"))
+    # chatlog_config.CONFIG_PATH is the same hazard as migrate_memory's above, and
+    # it bites harder: the constant is resolved AT IMPORT (chatlog_config.py:65),
+    # so once the module is imported before this fixture runs, `save_config()`
+    # rewrites the DEVELOPER'S LIVE ~/.m3/config/.chatlog_config.json. Measured
+    # 2026-09-28: a test that enabled redaction through save_config persisted its
+    # tmp `db_path` into the real config, so `m3 chat status` afterwards reported
+    # the live chatlog as 0 rows and CAPTURE WAS AIMED AT A PYTEST TMPDIR that
+    # pytest later reaps — silent turn loss on the developer's own machine, from a
+    # green test run. Pin it for every test, not just the ones that opt into
+    # `chatlog_env`; this is precisely the "gap between fixtures" class this
+    # sandbox exists to close.
+    _cc = sys.modules.get("chatlog_config")
+    if _cc is not None and hasattr(_cc, "CONFIG_PATH"):
+        monkeypatch.setattr(
+            _cc, "CONFIG_PATH", str(tmp_path / "config" / ".chatlog_config.json"))
 
     # 2. Leaky env → cleared.
     for _var in _SANDBOX_CLEAR_ENV:
