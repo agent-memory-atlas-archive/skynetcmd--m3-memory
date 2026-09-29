@@ -53,6 +53,13 @@ the policy is forward-going only.
   number of rows left and the limit that would cover them; rows are examined
   oldest-first so a larger re-run makes progress. Truncation is detected without
   an extra aggregate query, so a complete sweep costs nothing more than before.
+- **Two FIPS tests reported a missing crypto library on a machine where it was
+  present.** A test that simulates another OS sets `sys.platform` process-wide,
+  and the suite restored `os.name` before a test's teardown but never
+  `sys.platform` — so the simulated value reached an unrelated fixture's teardown
+  and sent the library resolver after the wrong per-OS filename. POSIX hosts
+  only. Both guards now cover `sys.platform`, and both restore the identity
+  captured at startup rather than whatever the previous test left behind.
 - **Running the test suite could redirect the developer's own chatlog capture.**
   `chatlog_config.CONFIG_PATH` is resolved when the module is imported, so it is
   not covered by the environment-variable half of the test sandbox: a test that
