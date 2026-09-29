@@ -53,6 +53,30 @@ the policy is forward-going only.
   number of rows left and the limit that would cover them; rows are examined
   oldest-first so a larger re-run makes progress. Truncation is detected without
   an extra aggregate query, so a complete sweep costs nothing more than before.
+- **Iterating a query result raised `RecursionError` on PostgreSQL.** The cursor
+  wrapper's `__iter__` delegated to the driver's, which returns the cursor itself,
+  so iteration re-entered the wrapper until the interpreter stopped it.
+  `.fetchall()` was unaffected, so the two ways of reading a result had different
+  correctness — and 31 places in the codebase read one by iterating, including
+  backend-agnostic maintenance paths. Iteration now drives the driver's own
+  batched fetch, keeps both index and key access on each row, and is covered by
+  backend-conformance tests that assert iteration and `fetchall` agree.
+- **Promoting a chat log entry could silently drop a column, and re-read every
+  row to do it.** The SQLite cross-file path selected all columns, rebuilt each
+  row in Python, and inserted them one at a time — substituting NULL for any
+  column it could not find, per row, without reporting it. It is now a single
+  `INSERT ... SELECT` between the two attached databases, and a store missing a
+  promoted column names the column and points at `m3 doctor` instead. The column
+  list, previously written out three times, now has one owner, so the writer and
+  both promote paths cannot drift apart.
+- **PostgreSQL parity tests could connect to the production warehouse.** They
+  accepted the warehouse DSN as a fallback when no test DSN was configured, and
+  treated the variable being *present* as the cluster being *reachable* — so an
+  unreachable one cost a connect timeout per test rather than a skip. They now use
+  the standard reachability gate and the shared DSN resolver, which never names a
+  warehouse variable, and a new check fails the suite if any test reads one at
+  import time, in a class body, or in class setup, where the environment sandbox
+  cannot reach.
 - **A live-PostgreSQL test reported a cleanup error instead of why it skipped,
   and never exercised the code it covers.** Its cleanup reassigned `autocommit`
   while an aborted transaction was still open, so a second error replaced the
