@@ -260,11 +260,12 @@ def pg_url() -> str:
 
 
 _REAL_OS_NAME = _os.name
+_REAL_SYS_PLATFORM = sys.platform
 
 
 @pytest.hookimpl(hookwrapper=True, tryfirst=True)
 def pytest_runtest_makereport(item, call):
-    """Restore `os.name` BEFORE pytest renders a test report.
+    """Restore `os.name` and `sys.platform` BEFORE pytest renders a test report.
 
     A fixture cannot do this: pytest builds the report inside
     ``pytest_runtest_makereport``, which runs while the test's fixtures are
@@ -275,42 +276,81 @@ def pytest_runtest_makereport(item, call):
     INTERNALERROR that never names the failing test.
 
     Restoring here — first, and around the report call — means a leaked
-    ``os.name`` can no longer poison the reporter. See ``_restore_os_name``
-    below for the fixture-level half (which keeps the leak from reaching the
-    *next* test).
+    ``os.name`` can no longer poison the reporter. See
+    ``_restore_platform_identity`` below for the fixture-level half (which keeps
+    the leak from reaching the *next* test).
+
+    ``sys.platform`` is restored here for a second reason, found 2026-09-28: this
+    hook fires for the ``call`` phase BEFORE any teardown fixture runs, so it is
+    the only place that can stop a simulated platform from reaching *another
+    fixture's teardown*. It was reaching one. `test_fips_integrity.py`'s
+    crypto-repair finalizer reloads `crypto_provider`, and the two tests that set
+    ``sys.platform = "linux"`` left it live through that reload: on a macOS host
+    the resolver then looked for ``libwolfssl.so`` instead of the real
+    ``libwolfssl.dylib``, found nothing, and under ``M3_FIPS_MODE=1`` failed
+    closed — two teardown ERRORs reporting a machine state that did not exist.
+    The ``os.name`` half of those same tests was already harmless because this
+    hook had always restored it; the asymmetry was the whole bug.
     """
     if _os.name != _REAL_OS_NAME:
         _os.name = _REAL_OS_NAME
+    if sys.platform != _REAL_SYS_PLATFORM:
+        sys.platform = _REAL_SYS_PLATFORM
     yield
 
 
 @pytest.fixture(autouse=True)
-def _restore_os_name():
-    """Guarantee `os.name` is restored after every test.
+def _restore_platform_identity():
+    """Guarantee `os.name` AND `sys.platform` are restored after every test.
 
     Several tests simulate a different OS with
-    ``monkeypatch.setattr(<mod>.os, "name", "nt")``. Because ``<mod>.os`` IS the
-    global ``os`` module, that override is process-wide, and ``pathlib.Path()``
-    chooses PosixPath vs WindowsPath from ``os.name`` *at construction time*.
-    While it is live, every ``Path(...)`` on a POSIX host becomes a
-    ``WindowsPath`` — which raises ``NotImplementedError``.
+    ``monkeypatch.setattr(<mod>.os, "name", "nt")`` or
+    ``monkeypatch.setattr(<mod>.sys, "platform", "linux")``. Because ``<mod>.os``
+    and ``<mod>.sys`` ARE the global modules, both overrides are process-wide.
 
-    pytest constructs one in ``repr_failure`` (``Path(os.getcwd())``), so a leak
-    does not fail the leaking test: it turns the next *unrelated* failure into a
-    session-aborting INTERNALERROR that never names the culprit. CI was red on
-    ubuntu+macos py3.11 for ~30 straight runs this way, green on Windows (where
-    WindowsPath is native) and on py3.12 (where the guard sits elsewhere).
+    **os.name** — ``pathlib.Path()`` chooses PosixPath vs WindowsPath from
+    ``os.name`` *at construction time*, so while an ``nt`` override is live every
+    ``Path(...)`` on a POSIX host becomes a ``WindowsPath``, which raises
+    ``NotImplementedError``. pytest constructs one in ``repr_failure``
+    (``Path(os.getcwd())``), so a leak does not fail the leaking test: it turns
+    the next *unrelated* failure into a session-aborting INTERNALERROR that never
+    names the culprit. CI was red on ubuntu+macos py3.11 for ~30 straight runs
+    this way, green on Windows (where WindowsPath is native) and on py3.12 (where
+    the guard sits elsewhere).
 
-    monkeypatch's own teardown restores it, but only *after* the test's report is
-    built — too late. This fixture closes that window for every test at once, so
-    no future ``os.name`` patch can reopen it.
+    **sys.platform** — the same window, found 2026-09-28 because only the
+    ``os.name`` half had ever been closed. Any fixture whose teardown runs before
+    monkeypatch's sees the SIMULATED platform, and code that picks a per-OS
+    filename then picks the wrong one. Measured: in
+    ``test_fips_integrity.py::TestSecureWolfsslDiscovery``, the two tests that set
+    ``sys.platform = "linux"`` entered that file's crypto-repair finalizer with the
+    override still live, so the reload looked for ``libwolfssl.so`` on a macOS host
+    whose real library is ``libwolfssl.dylib``, found nothing, and — correctly,
+    under ``M3_FIPS_MODE=1`` — failed closed. Two teardown ERRORs whose message
+    ("no wolfSSL library was found in any TRUSTED location") described a real
+    machine state that did not exist. The ``os.name`` half of those same tests was
+    already harmless precisely because this fixture handled it.
+
+    monkeypatch's own teardown restores both, but only *after* the test's report
+    is built — too late. This fixture closes that window for every test at once,
+    so no future ``os.name`` / ``sys.platform`` patch can reopen it. Restoring
+    both here, rather than in the fixture that tripped over it, is what keeps the
+    other 43 ``sys.platform`` call sites across 8 files from each needing to know.
     """
-    saved = _os.name
+    # Restore from the SESSION constants captured at conftest import, never from
+    # a per-test snapshot of the current value. A per-test `saved = os.name`
+    # records whatever this test INHERITED, so if a leak ever reaches here the
+    # fixture faithfully restores the polluted value and makes it permanent —
+    # the guard would endorse the leak instead of healing it. Reading the
+    # session value is the same rule `test_fips_integrity.py` states for env
+    # vars ("read the session values captured at import, never os.environ").
     try:
         yield
     finally:
-        if _os.name != saved:
-            _os.name = saved
+        if _os.name != _REAL_OS_NAME:
+            _os.name = _REAL_OS_NAME
+        if sys.platform != _REAL_SYS_PLATFORM:
+            sys.platform = _REAL_SYS_PLATFORM
 
 
 @pytest.fixture(autouse=True)
