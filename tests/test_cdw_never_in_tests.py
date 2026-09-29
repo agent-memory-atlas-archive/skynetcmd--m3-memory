@@ -97,3 +97,98 @@ def test_the_conftest_scrub_list_still_covers_the_warehouse():
         f"conftest no longer scrubs {missing}; a developer's real warehouse DSN "
         f"would reach the test suite"
     )
+
+
+# ── the blind spot: the sandbox cannot reach import time or setUpClass ────────
+
+def _warehouse_reads_outside_functions(path) -> list[str]:
+    """`os.environ[...]` / `.get(...)` of a warehouse var at module or class scope.
+
+    Read INSIDE a test function, a warehouse var is already scrubbed — that is
+    what `test_warehouse_env_is_scrubbed` covers. Read at module scope, in a class
+    body, or in a class DECORATOR, it resolves before any function-scoped fixture
+    has run, so the scrub cannot help and the assertions above cannot see it.
+    """
+    import ast
+
+    src = path.read_text(encoding="utf-8")
+    tree = ast.parse(src, filename=str(path))
+    hits: list[str] = []
+
+    def _names_in(node) -> list[str]:
+        found = []
+        for sub in ast.walk(node):
+            # os.environ["X"]  /  os.environ.get("X")
+            target = None
+            if isinstance(sub, ast.Subscript) and isinstance(sub.value, ast.Attribute):
+                target = sub.value
+                key = sub.slice
+            elif (isinstance(sub, ast.Call) and isinstance(sub.func, ast.Attribute)
+                    and sub.func.attr == "get"
+                    and isinstance(sub.func.value, ast.Attribute)):
+                target = sub.func.value
+                key = sub.args[0] if sub.args else None
+            if target is None or target.attr != "environ":
+                continue
+            if isinstance(key, ast.Constant) and key.value in _WAREHOUSE_VARS:
+                found.append(f"{key.value} (line {sub.lineno})")
+        return found
+
+    # module scope: every top-level statement that is not a function/class body,
+    # plus class bodies and class decorators, which also run at import.
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if isinstance(node, ast.ClassDef):
+            for dec in node.decorator_list:
+                hits += _names_in(dec)
+            for stmt in node.body:
+                if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    # a classmethod body still runs before function fixtures
+                    if any(getattr(d, "id", getattr(d, "attr", "")) == "classmethod"
+                           for d in stmt.decorator_list) or stmt.name in (
+                               "setUpClass", "tearDownClass"):
+                        hits += _names_in(stmt)
+                    continue
+                hits += _names_in(stmt)
+            continue
+        hits += _names_in(node)
+    return hits
+
+
+def test_no_test_reads_the_warehouse_before_the_sandbox_runs():
+    """The gap that let two files connect to the production warehouse.
+
+    Measured 2026-09-29: `test_date_bound_parity.py` and `test_lease_parity.py`
+    gated their PG classes on `skipUnless(os.environ.get("M3_PRIMARY_PG_URL") or
+    os.environ.get("M3_CDW_PG_URL"))` and then resolved `cls.url` the same way in
+    `setUpClass`. On a box where M3_CDW_PG_URL is exported and no primary DSN is
+    set, that CONNECTED TO THE WAREHOUSE — 10 tests, ~101s of connect timeouts.
+
+    Every assertion above ran green throughout, because all of them execute
+    inside a test body where the sandbox has already scrubbed the variable. A
+    class decorator is evaluated at IMPORT and `setUpClass` runs BEFORE
+    function-scoped fixtures, so neither is reachable that way. This check reads
+    the SOURCE instead, which is the only place the difference is visible.
+
+    Use `conftest.pg_dsn()` (primary DSNs only) plus the `requires_pg` marker,
+    which probes reachability once per session and auto-skips.
+    """
+    from pathlib import Path
+
+    tests_dir = Path(__file__).resolve().parent
+    # conftest owns the scrub list, and this file names the vars deliberately.
+    exempt = {"conftest.py", Path(__file__).name}
+    offenders: dict[str, list[str]] = {}
+    for path in sorted(tests_dir.glob("test_*.py")):
+        if path.name in exempt:
+            continue
+        found = _warehouse_reads_outside_functions(path)
+        if found:
+            offenders[path.name] = found
+
+    assert not offenders, (
+        "warehouse env var read where the sandbox cannot scrub it (module scope, "
+        f"class body, class decorator, or setUpClass): {offenders}. "
+        "Use conftest.pg_dsn() + @pytest.mark.requires_pg instead."
+    )

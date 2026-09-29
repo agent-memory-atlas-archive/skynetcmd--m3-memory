@@ -35,12 +35,13 @@ portability wherever PG is reachable.
 """
 from __future__ import annotations
 
-import os
 import re
 import sqlite3
 import sys
 import unittest
 from pathlib import Path
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bin"))
 
@@ -392,10 +393,6 @@ class TestSweepExpiredLeasesSqlite(unittest.TestCase):
         self.assertEqual(second, (0, 0))
 
 
-@unittest.skipUnless(
-    os.environ.get("M3_PRIMARY_PG_URL") or os.environ.get("M3_CDW_PG_URL"),
-    "no PostgreSQL URL configured (M3_PRIMARY_PG_URL / M3_CDW_PG_URL)",
-)
 class TestSweepExpiredLeasesPostgresLive(unittest.TestCase):
     """The leg that does not exist today.
 
@@ -404,13 +401,40 @@ class TestSweepExpiredLeasesPostgresLive(unittest.TestCase):
     only way to know they agree is to run both.
     """
 
+    # Reachability, not presence, and NEVER the warehouse.
+    #
+    # This class used to be gated by
+    #   @unittest.skipUnless(os.environ.get("M3_PRIMARY_PG_URL")
+    #                        or os.environ.get("M3_CDW_PG_URL"), ...)
+    # and then resolved `cls.url` the same way. Two consequences, both measured
+    # 2026-09-29 on a developer box where M3_CDW_PG_URL is exported:
+    #
+    #   1. With no primary DSN configured it fell through to the PRODUCTION
+    #      WAREHOUSE and connected to it. `tests/test_cdw_never_in_tests.py`
+    #      exists to prevent exactly that, and structurally could not see this:
+    #      it asserts the env is scrubbed inside a test BODY, while a class-body
+    #      `skipUnless` is evaluated at IMPORT and `setUpClass` runs BEFORE the
+    #      function-scoped sandbox fixture that does the scrubbing.
+    #   2. Presence is not reachability, so with an unreachable DSN each test
+    #      waited out its own connect timeout -- 10 failures and 101 seconds for
+    #      a resource that simply is not there, which is the §3 alarm that
+    #      trains you to ignore the suite.
+    #
+    # `requires_pg` is the established gate: conftest probes ONCE per session and
+    # auto-skips, and `conftest.pg_dsn()` is the single owner of the precedence
+    # rule (M3_PRIMARY_PG_URL > M3_PG_URL, never a warehouse name).
+    pytestmark = pytest.mark.requires_pg
+
     @classmethod
     def setUpClass(cls):
         try:
             import psycopg  # noqa: F401
         except ImportError:  # pragma: no cover
             raise unittest.SkipTest("psycopg not installed")
-        cls.url = os.environ.get("M3_PRIMARY_PG_URL") or os.environ["M3_CDW_PG_URL"]
+        from conftest import pg_dsn
+        cls.url = pg_dsn()
+        if not cls.url:  # requires_pg should already have skipped us
+            raise unittest.SkipTest("no throwaway PostgreSQL DSN configured")
 
     def setUp(self):
         import psycopg
