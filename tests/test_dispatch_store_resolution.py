@@ -206,13 +206,54 @@ class TestBootstrapSchema(unittest.TestCase):
                          "a completed row was completed twice")
 
     def test_the_hot_path_queries_use_an_index(self):
-        """§8: the waiter runs one of these per agent every few seconds."""
+        """§8: the waiter runs one of these per agent every few seconds.
+
+        The row SHAPE is load-bearing, not incidental. An earlier fixture wrote
+        500 rows that were ALL sweep candidates (`claim_expires_at` past,
+        `read_at` NULL), then ran ANALYZE — so the statistics said the partial
+        index matched 100% of the table, and SQLite correctly chose `SCAN`,
+        because an index traversal returning every row is strictly more work.
+        The assertion then failed on a schema that was perfectly fine: the
+        planner was right and the fixture was wrong.
+
+        A partial index earns its place only when the rows it covers are a small
+        fraction of the table, which is the real shape of this queue: work
+        completes and is retained, so candidates trend toward zero while the
+        table grows. Model that — mostly completed rows, some never leased, a
+        handful actually expired — and the guard tests what it claims to: that
+        the sweeper does not degrade to a scan. Same realistic shape the lease
+        partial-index measurement used (queue trends to zero, archive retains).
+        """
+        # completed work: excluded by the index's `read_at IS NULL` term
+        self.conn.executemany(
+            "INSERT INTO notification_dispatch "
+            "(agent_id, kind, claim_expires_at, read_at) VALUES (?,?,?,?)",
+            [(f"a@{i % 5}", "ping", "2020-01-01T00:00:00Z", "2020-01-02T00:00:00Z")
+             for i in range(2000)])
+        # never leased: excluded by `claim_expires_at IS NOT NULL`
+        self.conn.executemany(
+            "INSERT INTO notification_dispatch (agent_id, kind) VALUES (?,?)",
+            [(f"a@{i % 5}", "ping") for i in range(400)])
+        # the actual sweep candidates — a small minority, as in production
         self.conn.executemany(
             "INSERT INTO notification_dispatch (agent_id, kind, claim_expires_at) "
             "VALUES (?,?,?)",
-            [(f"a@{i % 5}", "ping", "2020-01-01T00:00:00Z") for i in range(500)])
+            [(f"a@{i % 5}", "ping", "2020-01-01T00:00:00Z") for i in range(20)])
         self.conn.commit()
         self.conn.execute("ANALYZE")
+
+        # Guard the premise itself: if a future edit makes candidates the bulk of
+        # the table again, SCAN becomes correct and the assertions below would be
+        # testing the fixture rather than the schema.
+        covered, total = self.conn.execute(
+            "SELECT (SELECT count(*) FROM notification_dispatch "
+            "        WHERE claim_expires_at IS NOT NULL AND read_at IS NULL), "
+            "       count(*) FROM notification_dispatch").fetchone()
+        self.assertLess(
+            covered * 10, total,
+            f"fixture no longer models a selective index: {covered}/{total} rows "
+            "are sweep candidates, so a full scan is the CORRECT plan and the "
+            "index assertions below would be meaningless")
 
         d = SqliteDialect()
         for label, sql in (
