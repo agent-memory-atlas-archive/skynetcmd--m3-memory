@@ -341,6 +341,55 @@ async def _flush_once() -> int:
         return 0
 
 
+# The columns that make up a chat_log row, in the order the canonical writer
+# binds them. SINGLE OWNER for three call sites that MUST agree: the writer
+# (`_executemany_insert`) and both promote paths (PostgreSQL cross-table, SQLite
+# cross-file). It was spelled out separately in all three, which is the §10a
+# defect independent of correctness -- promote copies exactly what the writer
+# wrote, so a column added to one copy and not the others silently stops being
+# promoted, with no error on any backend. Same argument as
+# `Dialect.lease_expired_predicate`'s docstring makes for a copied predicate.
+_ROW_COLUMNS: "tuple[str, ...]" = (
+    "id", "type", "title", "content", "metadata_json", "agent_id", "model_id",
+    "change_agent", "importance", "source", "origin_device", "user_id", "scope",
+    "expires_at", "created_at", "valid_from", "valid_to", "conversation_id",
+    "refresh_on", "refresh_reason", "content_hash", "variant",
+)
+
+
+def _assert_promotable(conn, dialect_, table: str) -> None:
+    """Fail LOUDLY when the chatlog table lacks a column promote must copy.
+
+    The previous cross-file implementation read every row with `SELECT *` and
+    then did `try: values.append(r[c]) except (KeyError, IndexError): None` per
+    column, so a chatlog store missing a column promoted it as NULL and said
+    nothing -- data loss shaped like success. A single INSERT ... SELECT cannot
+    paper over it, which is the point: migrations own that schema, so a gap is a
+    migration that did not run and the operator needs to know which column and
+    what to do (§3).
+
+    Routed through the seam (`Dialect.columns_of` / `table_exists`) rather than a
+    bare `PRAGMA table_info`, which is SQLite-only AND puts the column name at
+    `row[1]` -- `columns_of` exists precisely so the name is at `row[0]` on both
+    backends. That is what lets BOTH promote paths share this one check: a
+    catalog read done directly would have made it SQLite-only and left the
+    PostgreSQL path reporting the driver's bare "column does not exist" instead.
+    """
+    sql, args = dialect_.table_exists(table)
+    if conn.execute(sql, args).fetchone() is None:
+        return  # table absent entirely -- the caller's own query reports that
+    sql, args = dialect_.columns_of(table)
+    have = {r[0] for r in conn.execute(sql, args)}
+    missing = [c for c in _ROW_COLUMNS if c not in have]
+    if missing:
+        raise RuntimeError(
+            f"chatlog table {table!r} is missing column(s) promote must copy: "
+            f"{', '.join(missing)}. cause: a schema migration has not been "
+            f"applied to the chatlog store. inspect: `m3 doctor`, then "
+            f"`m3 doctor --fix` to run pending migrations."
+        )
+
+
 def _executemany_insert(batch: list[dict]) -> int:
     """Synchronous bulk INSERT into chatlog DBs. Called from executor thread.
 
@@ -358,13 +407,11 @@ def _executemany_insert(batch: list[dict]) -> int:
     # file), chat_log_items/%s on PG (chat_log_* tables in the one core database).
     _d = dialect()
     _T = chatlog_table("items")
+    # Column list and placeholder count both derive from _ROW_COLUMNS, so they
+    # cannot drift apart from each other or from the promote paths.
     sql = (
-        f"INSERT INTO {_T} ("
-        "id, type, title, content, metadata_json, agent_id, model_id, "
-        "change_agent, importance, source, origin_device, user_id, scope, expires_at, "
-        "created_at, valid_from, valid_to, conversation_id, refresh_on, refresh_reason, "
-        "content_hash, variant) "
-        f"VALUES ({_d.placeholder(22)})"
+        f"INSERT INTO {_T} ({', '.join(_ROW_COLUMNS)}) "
+        f"VALUES ({_d.placeholder(len(_ROW_COLUMNS))})"
     )
 
     groups: dict[str, list[tuple]] = {}
@@ -884,12 +931,7 @@ async def chatlog_promote_impl(
             # memory_items with type=target_type (same-DB cross-table INSERT ...
             # SELECT), then optionally delete from chat_log_items when copy=False.
             _CL = chatlog_table("items")  # chat_log_items
-            col_names = [
-                "id", "type", "title", "content", "metadata_json", "agent_id", "model_id",
-                "change_agent", "importance", "source", "origin_device", "user_id", "scope",
-                "expires_at", "created_at", "valid_from", "valid_to", "conversation_id",
-                "refresh_on", "refresh_reason", "content_hash", "variant",
-            ]
+            col_names = _ROW_COLUMNS
             cols_sql = ", ".join(col_names)
             # SELECT list overrides type with the bound target_type, keeps the rest.
             select_cols = ", ".join(_p if c == "type" else c for c in col_names)
@@ -898,6 +940,12 @@ async def chatlog_promote_impl(
                 row_ids = [r["id"] for r in found]
                 if not row_ids:
                     return {"promoted": 0, "ids": [], "unified": False}
+                # Same guard as the SQLite path: a column promote must copy that
+                # the store does not have is a migration that has not run, and the
+                # actionable message beats the driver's "column does not exist".
+                # `columns_of`/`table_exists` are seam methods, so this is not a
+                # SQLite-only check that happens to live in a shared function.
+                _assert_promotable(conn, _d, _CL)
                 # INSERT ... SELECT: target_type first (the overridden type slot),
                 # then the WHERE params. ON CONFLICT DO NOTHING mirrors OR IGNORE.
                 conn.execute(
@@ -926,45 +974,41 @@ async def chatlog_promote_impl(
                 return {"promoted": len(row_ids), "ids": row_ids, "unified": True}
 
         # Cross-DB: ATTACH the main DB onto a chatlog connection and copy.
+        #
+        # Only the IDS come back to Python; the copy is one INSERT ... SELECT run
+        # inside the connection that has BOTH databases attached, exactly as the
+        # PostgreSQL branch above does it. The previous implementation did
+        # `SELECT *` (29 chatlog columns fetched to use 22), rebuilt each row in
+        # Python with a per-column try/except, and issued one INSERT per row --
+        # O(rows) round trips and a silent NULL for any column it could not find
+        # (§4 no SELECT *, no Python-side processing of a result set; §3 no silent
+        # degradation). `_assert_promotable` now reports a missing column instead.
         with ctx.get_chatlog_conn() as conn:
-            rows = conn.execute(
-                f"SELECT * FROM memory_items WHERE {where}", params,
+            found = conn.execute(
+                f"SELECT id FROM memory_items WHERE {where}", params,
             ).fetchall()
-            row_ids = [r["id"] for r in rows]
+            row_ids = [r["id"] for r in found]
             if not row_ids:
                 return {"promoted": 0, "ids": [], "unified": False}
 
-            conn.execute("ATTACH DATABASE ? AS main_db", (main_path,))
+            _assert_promotable(conn, _d, "memory_items")
+            col_names = _ROW_COLUMNS
+            cols_sql = ", ".join(col_names)
+            # SELECT list overrides type with the bound target_type, keeps the rest.
+            select_cols = ", ".join(_p if c == "type" else c for c in col_names)
+            placeholders = _d.placeholder(len(row_ids))
+
+            conn.execute(f"ATTACH DATABASE {_p} AS main_db", (main_path,))
             try:
-                # Main DB has more columns than chatlog — copy by explicit column list
-                col_names = [
-                    "id", "type", "title", "content", "metadata_json", "agent_id", "model_id",
-                    "change_agent", "importance", "source", "origin_device", "user_id", "scope",
-                    "expires_at", "created_at", "valid_from", "valid_to", "conversation_id",
-                    "refresh_on", "refresh_reason", "content_hash", "variant",
-                ]
-                cols_sql = ", ".join(col_names)
-                placeholders = ",".join("?" for _ in row_ids)
-                # Override type via the SELECT
-                ", ".join(
-                    "? as type" if c == "type" else c for c in col_names
+                # Seam-routed conflict handling: SQLite gets the OR IGNORE prefix
+                # and an empty suffix, so this reads the same as the PostgreSQL
+                # branch above rather than hard-coding one backend's spelling.
+                conn.execute(
+                    f"{_d.insert_or_ignore()} main_db.memory_items ({cols_sql}) "
+                    f"SELECT {select_cols} FROM memory_items WHERE {where} "
+                    f"{_d.on_conflict_ignore(conflict_target='(id)')}",
+                    [target_type, *params],
                 )
-                # Simpler: build rows in Python, insert into main with target_type
-                for r in rows:
-                    values = []
-                    for c in col_names:
-                        if c == "type":
-                            values.append(target_type)
-                        else:
-                            try:
-                                values.append(r[c])
-                            except (KeyError, IndexError):
-                                values.append(None)
-                    conn.execute(
-                        f"INSERT OR IGNORE INTO main_db.memory_items ({cols_sql}) "
-                        f"VALUES ({','.join('?' for _ in col_names)})",
-                        values,
-                    )
 
                 if not copy:
                     conn.execute(
