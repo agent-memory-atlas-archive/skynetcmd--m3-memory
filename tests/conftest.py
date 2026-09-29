@@ -1159,6 +1159,10 @@ def _warn_if_dispatch_backends_disagree(table=None) -> None:
             return
         name = str(table)
         qualified = "." in name
+        # Annotated `str`: `.name` is Literal["sqlite","postgres"], so without it
+        # mypy narrows the variable to that Literal from the first assignment and
+        # rejects the "unavailable (...)" fallback below.
+        conn_side: str
         try:
             from memory.backends import active_backend
             conn_side = active_backend().name
