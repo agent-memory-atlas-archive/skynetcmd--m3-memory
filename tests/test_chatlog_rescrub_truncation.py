@@ -301,15 +301,19 @@ def test_save_config_cannot_reach_the_live_config(tmp_path):
     and capture was aimed at a pytest tmpdir that pytest later deleted. Nothing
     failed — the suite was green.
 
-    ⚠ This assertion is ORDER-DEPENDENT and is a backstop, not the fix. Run
-    alone, `chatlog_config` is first imported after the sandbox has already
-    pinned M3_CONFIG_ROOT to tmp, so CONFIG_PATH is harmless and this passes
-    either way (verified by removing the sandbox pin: still green). It only has
-    teeth in a full run, where an earlier test imports the module while the real
-    roots are live. The actual fix is the explicit `monkeypatch.setattr` on
-    CONFIG_PATH in `_enable_redaction` plus the `m3_sandbox` re-point; the
-    end-to-end check is a full-suite run followed by reading
-    ~/.m3/config/.chatlog_config.json.
+    ⚠ This assertion is ORDER-DEPENDENT and is a backstop, not the fix. Measured
+    2026-09-28 with the `m3_sandbox` CONFIG_PATH re-point removed:
+
+        single test file          -> CONFIG_PATH is tmp   (harmless)
+        full-suite collection     -> CONFIG_PATH is the LIVE ~/.m3 config
+
+    Collection imports every test module before any fixture runs, so in a full
+    run the constant is already the real file and any `save_config()` writes it.
+    Run alone this test therefore passes with or without the fix and proves
+    nothing; it only has teeth in a full run. The fix is the `m3_sandbox`
+    re-point (verified load-bearing by the measurement above) plus the explicit
+    `monkeypatch.setattr` in `_enable_redaction`; the end-to-end check is a full
+    suite followed by reading ~/.m3/config/.chatlog_config.json.
     """
     import chatlog_config
     real = Path.home() / ".m3" / "config" / ".chatlog_config.json"
