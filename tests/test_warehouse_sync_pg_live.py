@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import sys
+import urllib.parse
 import uuid
 
 import pytest
@@ -36,6 +37,70 @@ def _connect():
     conn = psycopg2.connect(_dsn(), connect_timeout=5)
     conn.autocommit = True
     return conn
+
+
+def _server_side_dsn(conn) -> str:
+    """The configured DSN rewritten to the address the SERVER can dial itself.
+
+    postgres_fdw opens its connection from inside the postgres backend, NOT from
+    the client, so a client-side address is meaningless there — an SSH tunnel's
+    `localhost:15432`, a pgbouncer port, a container-published port. The foreign
+    server then fails with `could not connect to server "cdw_wh"`, the test skips,
+    and the FDW path is never exercised at all on such a host. Measured
+    2026-09-29 over a tunnel: skipped 100% of the time; with this rewrite the same
+    test reads a real foreign table.
+
+    `inet_server_port()` is the port the backend actually listens on, and loopback
+    is the right host because this FDW deliberately points back at the SAME
+    database. Credentials are carried over verbatim (slicing `netloc` rather than
+    re-assembling from parsed parts) so a password needing percent-encoding
+    survives untouched.
+
+    Falls back to the DSN unchanged when the port cannot be determined — a
+    unix-socket connection reports NULL — so the skip path still protects hosts
+    where FDW genuinely is unavailable.
+    """
+    with conn.cursor() as c:
+        c.execute("SELECT inet_server_port()")
+        row = c.fetchone()
+    port = row[0] if row else None
+    dsn = _dsn()
+    if not port:
+        return dsn
+    parts = urllib.parse.urlsplit(dsn)
+    host_part = parts.netloc.rsplit("@", 1)[-1]          # host[:port]
+    credentials = parts.netloc[: len(parts.netloc) - len(host_part)]
+    return urllib.parse.urlunsplit((
+        parts.scheme, f"{credentials}127.0.0.1:{port}",
+        parts.path, parts.query, parts.fragment))
+
+
+def _end_tx(conn) -> None:
+    """Close any open transaction so `autocommit` can be reassigned.
+
+    psycopg2 refuses `conn.autocommit = True` while a transaction is open
+    ("set_session cannot be used inside a transaction"), and a statement that
+    FAILED leaves an aborted-but-open transaction behind. So a `finally` that
+    reassigns autocommit without rolling back first raises a SECOND error that
+    REPLACES the first one — the cleanup destroys the diagnosis.
+
+    Measured 2026-09-29: `_ensure_fdw_wired` raised `FdwUnavailable` (the foreign
+    server dials the DSN from INSIDE the postgres backend, so a client-side
+    tunnel address is unreachable there), the test's `except` called
+    `pytest.skip("FDW self-wiring not supported here")` as designed — and this
+    `finally` then turned that deliberate SKIP into a FAILED whose message
+    ("set_session cannot be used inside a transaction") described the cleanup
+    rather than anything the test was about.
+
+    The rollback itself is best-effort: if it also fails, the ORIGINAL exception
+    is the one worth keeping, so it is not allowed to raise from cleanup. That is
+    the opposite of swallowing an alarm — it stops a cleanup error from silencing
+    the real one.
+    """
+    try:
+        conn.rollback()
+    except Exception:  # noqa: BLE001 — never let cleanup replace the real error
+        pass
 
 
 @pytest.fixture
@@ -222,6 +287,7 @@ class TestSearchPathLive:
                 assert "m3_warehouse" in c.fetchone()[0]
             conn.rollback()
         finally:
+            _end_tx(conn)
             conn.autocommit = True
             cur.execute("DROP TABLE IF EXISTS m3_warehouse.memory_items")
             conn.close()
@@ -241,6 +307,42 @@ class TestSearchPathLive:
         conn.close()
 
 
+class TestAbortedTransactionCleanup:
+    """The cleanup hazard that hid a real signal (2026-09-29)."""
+
+    def test_autocommit_cannot_be_reassigned_until_the_tx_is_ended(self):
+        """Pins BOTH directions of the `_end_tx` contract in one test.
+
+        A statement that FAILED leaves an aborted-but-open transaction, and the
+        driver then refuses to reassign `autocommit`. A cleanup `finally` that
+        reassigns it without rolling back therefore raises a SECOND error that
+        REPLACES the first — which is exactly how a deliberate
+        `pytest.skip("FDW self-wiring not supported here")` was reported as a
+        FAILED test whose message ("set_session cannot be used inside a
+        transaction") described the cleanup and not the cause.
+        """
+        conn = _connect()
+        try:
+            conn.autocommit = False
+            with conn.cursor() as c:
+                with pytest.raises(Exception):
+                    c.execute("SELECT 1 FROM m3_no_such_table_for_this_test")
+
+            # 1. THE HAZARD: the transaction is aborted but still open.
+            #    Deliberately broad — psycopg2 raises ProgrammingError here and
+            #    psycopg3 its own; the point is that it raises at all.
+            with pytest.raises(Exception):
+                conn.autocommit = True
+
+            # 2. THE FIX: end the transaction first, and it is allowed.
+            _end_tx(conn)
+            conn.autocommit = True
+            assert conn.autocommit is True
+        finally:
+            _end_tx(conn)
+            conn.close()
+
+
 class TestFdwCrossDatabaseLive:
     """Real postgres_fdw wiring: two DATABASES on the same cluster, primary
     reaches the 'warehouse' DB as a foreign server. Exercises the actual
@@ -248,7 +350,6 @@ class TestFdwCrossDatabaseLive:
 
     def test_ensure_fdw_wired_and_read_foreign(self):
         import pg_fdw_sync as F
-        dsn = _dsn()
         # need postgres_fdw available on the primary; skip if not
         conn = _connect()
         cur = conn.cursor()
@@ -271,13 +372,15 @@ class TestFdwCrossDatabaseLive:
         try:
             conn.autocommit = False
             with conn.cursor() as c:
-                F._ensure_fdw_wired(c, dsn)  # server + mapping + IMPORT
+                # the SERVER dials this, not us — see _server_side_dsn
+                F._ensure_fdw_wired(c, _server_side_dsn(conn))
                 c.execute(f"SELECT count(*) FROM {F.FDW_SCHEMA}.memory_items")
                 assert c.fetchone()[0] >= 1   # read warehouse via FDW
             conn.rollback()
         except F.FdwUnavailable as e:
             pytest.skip(f"FDW self-wiring not supported here: {e}")
         finally:
+            _end_tx(conn)
             conn.autocommit = True
             cur.execute(f"DROP SCHEMA IF EXISTS {F.FDW_SCHEMA} CASCADE")
             cur.execute("DROP SCHEMA IF EXISTS m3_warehouse CASCADE")
