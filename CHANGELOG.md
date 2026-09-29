@@ -53,6 +53,20 @@ the policy is forward-going only.
   number of rows left and the limit that would cover them; rows are examined
   oldest-first so a larger re-run makes progress. Truncation is detected without
   an extra aggregate query, so a complete sweep costs nothing more than before.
+- **A live-PostgreSQL test reported a cleanup error instead of why it skipped,
+  and never exercised the code it covers.** Its cleanup reassigned `autocommit`
+  while an aborted transaction was still open, so a second error replaced the
+  first and a deliberate skip surfaced as a failure. The skip was also permanent:
+  `postgres_fdw` dials from inside the server, and the test handed it a
+  client-side address, so on any host reached through a tunnel or proxy the
+  foreign-server path was never run. It now gets an address the server can reach,
+  and reads a real foreign table.
+- **A schema guard failed on a schema that was correct.** The test asserting the
+  notification sweeper uses its partial index built a fixture in which every row
+  was a sweep candidate, so the index covered the whole table and a full scan was
+  genuinely the cheaper plan. The fixture now models the queue's real shape —
+  candidates are a small minority — and also checks that premise, so it cannot
+  quietly go back to asserting nothing.
 - **Two FIPS tests reported a missing crypto library on a machine where it was
   present.** A test that simulates another OS sets `sys.platform` process-wide,
   and the suite restored `os.name` before a test's teardown but never
