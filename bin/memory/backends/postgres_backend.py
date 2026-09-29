@@ -116,9 +116,27 @@ def _make_compat_cursor_factory():
             return [_DualRow(r, cols) for r in rows]
 
         def __iter__(self):
+            # Drive the BASE fetchmany, never super().__iter__().
+            #
+            # psycopg2's C cursor implements __iter__ by returning SELF, so
+            # `for r in super().__iter__()` iterates this _DualCursor again and
+            # re-enters this very method: unbounded recursion, surfacing as
+            # `RecursionError: maximum recursion depth exceeded` from whatever
+            # innocent line did `for r in conn.execute(...)`. Measured 2026-09-29;
+            # 31 call sites in bin/ iterate a cursor that way, so every one of
+            # them was broken on a PostgreSQL primary while `.fetchall()` worked
+            # -- which is why it stayed hidden.
+            #
+            # super().fetchmany() is the driver's own, NOT this class's override,
+            # so the rows come back as plain tuples and get wrapped exactly once.
+            # Batched rather than fetchall() so a large result still streams.
             cols = self._colmap()
-            for r in super().__iter__():
-                yield _DualRow(r, cols)
+            while True:
+                rows = super().fetchmany()
+                if not rows:
+                    return
+                for r in rows:
+                    yield _DualRow(r, cols)
 
     return _DualCursor
 

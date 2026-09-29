@@ -286,6 +286,68 @@ def test_postgres_floor_write_then_retrieve_both_ways():
     assert mid in {h.memory_id for h in vhits}
 
 
+# ── 2b. ITERATING A RESULT IS PART OF THE FLOOR ──────────────────────────────
+#
+# `for row in conn.execute(...)` is used at 31 sites in bin/. It worked on SQLite
+# and, on PostgreSQL, recursed until the interpreter gave up: psycopg2's C cursor
+# implements __iter__ by returning SELF, so the _DualCursor override that wrapped
+# `super().__iter__()` iterated itself. `.fetchall()` was fine, which is exactly
+# why it stayed hidden — the two access styles had different correctness.
+# Measured 2026-09-29 via `Dialect.columns_of`, whose documented contract is that
+# a caller reads `{r[0] for r in db.execute(sql, params)}` unchanged on both
+# backends.
+
+
+def _iter_probe(conn, dialect_, table: str) -> tuple[set, set]:
+    """(iterated, fetched) column-name sets for `table`, through the seam."""
+    sql, args = dialect_.columns_of(table)
+    iterated = {r[0] for r in conn.execute(sql, args)}
+    fetched = {r[0] for r in conn.execute(sql, args).fetchall()}
+    return iterated, fetched
+
+
+def test_sqlite_result_can_be_iterated_and_fetched_alike():
+    import sqlite3
+
+    from memory.backends.sqlite_backend import SqliteBackend
+
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.execute("CREATE TABLE t (a TEXT, b TEXT)")
+    d = SqliteBackend().dialect()
+    iterated, fetched = _iter_probe(conn, d, "t")
+    assert iterated == fetched == {"a", "b"}
+    conn.close()
+
+
+@pytest.mark.requires_pg  # auto-skips unless a Postgres cluster is REACHABLE
+def test_postgres_result_can_be_iterated_and_fetched_alike():
+    """The regression: iterating recursed while fetchall() worked.
+
+    Also checks a row yielded by ITERATION still supports key access, since the
+    wrapper exists to give both — a fix that returned bare tuples would pass the
+    set comparison above and break every `row["col"]` caller.
+    """
+    from memory.backends.postgres_backend import PostgresBackend
+
+    backend = PostgresBackend()
+    backend.ensure_schema()
+    d = backend.dialect()
+    with backend.connection() as conn:
+        iterated, fetched = _iter_probe(conn, d, "memory_items")
+        assert iterated, "iterating a PostgreSQL result yielded nothing"
+        assert iterated == fetched, (
+            "iteration and fetchall disagree on PostgreSQL: "
+            f"only-iterated={iterated - fetched}, only-fetched={fetched - iterated}"
+        )
+        sql, args = d.columns_of("memory_items")
+        for row in conn.execute(sql, args):
+            assert row[0] == row["column_name"], (
+                "an iterated row lost key access; the wrapper must provide both"
+            )
+            break
+
+
 # ── 3. FAIL-LOUD ─────────────────────────────────────────────────────────────
 
 
