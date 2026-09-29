@@ -47,10 +47,9 @@ def pg_no_dispatch(monkeypatch, pg_url):
 
     from memory.backends import selector as _selector
     _selector._reset_for_tests()
-    from memory.backends.postgres_backend import PostgresBackend
-
     from m3_core.context import _DISPATCH_PG_READY
     from m3_core.paths import dispatch_pg_schema
+    from memory.backends.postgres_backend import PostgresBackend
 
     schema = dispatch_pg_schema()
     b = PostgresBackend(dsn=pg_url)
@@ -130,9 +129,8 @@ def test_the_schema_name_is_configurable(monkeypatch, pg_url):
 
     from memory.backends import selector as _selector
     _selector._reset_for_tests()
-    from memory.backends.postgres_backend import PostgresBackend
-
     from m3_core.context import _DISPATCH_PG_READY, M3Context
+    from memory.backends.postgres_backend import PostgresBackend
     _DISPATCH_PG_READY.discard("m3_dispatch_alt")
 
     backend = PostgresBackend(dsn=pg_url)
