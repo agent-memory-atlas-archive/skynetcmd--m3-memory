@@ -53,6 +53,19 @@ the policy is forward-going only.
   number of rows left and the limit that would cover them; rows are examined
   oldest-first so a larger re-run makes progress. Truncation is detected without
   an extra aggregate query, so a complete sweep costs nothing more than before.
+- **Three tests reported a state the machine was not in, on any host without a
+  full build toolchain.** `test_elbow_trim` errored at setup with a missing
+  `torch` in a full run while passing alone: its fixture calls `hasattr` on every
+  loaded module, and `hasattr` executes imports when a module defines a lazy
+  `__getattr__` — as `transformers` does. `test_rust_core_install` asserted on the
+  wrong subprocess call wherever `cargo` is absent, because the function under
+  test probes for build tools first and returns early, and the test kept only the
+  last call. `test_raw_connection_drift` failed outright when a virtualenv inside
+  the tree was named anything other than `.venv`, counting third-party code
+  against its budget; virtualenvs are now recognised by containing a
+  `pyvenv.cfg` rather than by name. None of these were product defects, and all
+  three were invisible on a developer machine that happened to have the missing
+  pieces installed.
 - **Iterating a query result raised `RecursionError` on PostgreSQL.** The cursor
   wrapper's `__iter__` delegated to the driver's, which returns the cursor itself,
   so iteration re-entered the wrapper until the interpreter stopped it.
