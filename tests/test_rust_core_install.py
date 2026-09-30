@@ -133,13 +133,42 @@ def test_install_prebuilt_argv(monkeypatch):
     assert "m3-core-rs-windows-cuda==3.5.30" in argv
 
 
-def test_install_from_source_passes_features(monkeypatch):
-    captured = {}
+def _capture_pip_argv(monkeypatch) -> list:
+    """Record EVERY subprocess.run argv and hand back the list.
+
+    Two host dependencies to neutralise, both measured 2026-09-29 (green on a
+    developer Mac, red on a Linux box without cargo):
+
+      * `install_from_source` runs `_check_build_tools()` FIRST, which probes
+        cmake / c++ / cargo through `subprocess.run`. On a host missing any of
+        them it prints the toolchain advice and returns EARLY — pip is never
+        invoked, so a test asserting on the pip argv was asserting on whatever
+        the last probe happened to be (`/usr/bin/c++ --version`). Stub the probe
+        so the path under test is reached deterministically.
+      * capturing into a single slot means last-call-wins, so any extra
+        subprocess call silently replaces the one being asserted on. Keep them
+        all and pick the pip invocation by name.
+    """
+    calls: list = []
+    monkeypatch.setattr(rci, "_check_build_tools", lambda: [])
     monkeypatch.setattr(rci.subprocess, "run",
-                        lambda argv, env=None, **kwargs: captured.update(argv=argv) or _FakeProc(0))
+                        lambda argv, env=None, **kwargs: calls.append(argv) or _FakeProc(0))
+    return calls
+
+
+def _pip_argv(calls: list) -> list:
+    """The pip install invocation, not whichever call ran last."""
+    for argv in calls:
+        if any("m3-core-rs.git" in str(a) or a == "install" for a in argv):
+            return argv
+    raise AssertionError(f"no pip install invocation among {calls!r}")
+
+
+def test_install_from_source_passes_features(monkeypatch):
+    calls = _capture_pip_argv(monkeypatch)
     choice = rci.BackendChoice("linux", "vulkan", "test")
     rci.install_from_source(choice, git_tag="v2026.05.30")
-    argv = captured["argv"]
+    argv = _pip_argv(calls)
     joined = " ".join(argv)
     assert "git+https://github.com/skynetcmd/m3-core-rs.git@v2026.05.30" in joined
     assert "--config-settings" in argv
@@ -149,13 +178,12 @@ def test_install_from_source_passes_features(monkeypatch):
 def test_install_from_source_cpu_passes_embedded_feature(monkeypatch):
     # CPU now builds --features embedded (in-process BGE-M3), so the source
     # fallback passes it to maturin via pip config-settings.
-    captured = {}
-    monkeypatch.setattr(rci.subprocess, "run",
-                        lambda argv, env=None, **kwargs: captured.update(argv=argv) or _FakeProc(0))
+    calls = _capture_pip_argv(monkeypatch)
     rci.install_from_source(rci.BackendChoice("linux", "cpu", "test"))
-    assert "--config-settings" in captured["argv"]
-    idx = captured["argv"].index("--config-settings")
-    assert captured["argv"][idx + 1] == "build-args=--features embedded"
+    argv = _pip_argv(calls)
+    assert "--config-settings" in argv
+    idx = argv.index("--config-settings")
+    assert argv[idx + 1] == "build-args=--features embedded"
 
 
 def test_install_rust_core_github_release_success_skips_fallbacks(monkeypatch):

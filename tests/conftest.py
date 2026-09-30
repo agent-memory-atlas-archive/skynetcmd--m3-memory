@@ -197,11 +197,24 @@ def _memory_core_importable() -> bool:
     """
     import importlib
 
-    try:
-        importlib.import_module("memory_core")
-        return True
-    except Exception:  # noqa: BLE001 — ANY import failure means "cannot run here"
-        return False
+    # Probe EVERY module the guarded fixtures import, not just the one this
+    # marker is named after. Measured 2026-09-29 on a fresh Linux environment
+    # built from the current requirements: `memory_core` imported fine, the
+    # marker did not skip, and `test_elbow_trim`'s fixture then ERRORED at setup
+    # with `ModuleNotFoundError: No module named 'torch'` — because that fixture
+    # also does `from memory import search`, and THAT is the import on the heavy
+    # chain. A probe narrower than the code it guards does not guard it.
+    #
+    # torch left requirements.txt recently, so this only shows up in an
+    # environment built after that change; it stayed invisible on a developer box
+    # whose venv still had torch installed from before (§3 hermeticity: green
+    # because a leftover dependency rescued the unprobed path).
+    for name in ("memory_core", "memory.search"):
+        try:
+            importlib.import_module(name)
+        except Exception:  # noqa: BLE001 — ANY import failure means "cannot run here"
+            return False
+    return True
 
 
 # Marker -> probe. A marked test is skipped (with the given reason) when its
@@ -220,8 +233,9 @@ _CAPABILITY_PROBES = {
     "requires_llm": (_llm_chat_reachable,
                      "no reachable local chat model (set M3_WIKI_DRIFT_URL / load a model in LM Studio)"),
     "requires_memory_core": (_memory_core_importable,
-                             "memory_core is not importable here (a transitive ML dep is "
-                             "broken in this environment — see _memory_core_importable)"),
+                             "memory_core / memory.search are not importable here (a "
+                             "transitive ML dep such as torch is absent or broken in this "
+                             "environment — see _memory_core_importable)"),
 }
 
 

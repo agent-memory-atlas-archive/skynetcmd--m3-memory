@@ -221,10 +221,25 @@ PROSE_FSTRING = 'x = f"Do not use ' + "sqlite3.connect" + ' here {var}"\n'
 REAL_FSTRING = 'conn = ' + "sqlite3.connect" + '(f"{root}/a.db")\n'
 
 
+def _venv_dirs() -> "set[str]":
+    """Directory names of any virtualenv INSIDE the tree, found structurally.
+
+    `_SKIP_DIRS` names `.venv`, which is one convention among several: measured
+    2026-09-29, a venv at `.v` (the name used by the existing checkouts on the
+    Linux dev box) put ~thousands of third-party `sqlite3.connect` sites inside
+    the walk and blew the budget — a FALSE failure of a guard whose whole value is
+    that a rise means real debt. A guard that cries wolf on a directory-naming
+    choice is one people learn to ignore (§3), so detect the thing itself:
+    a virtualenv is any directory containing `pyvenv.cfg`.
+    """
+    return {cfg.parent.name for cfg in _ROOT.rglob("pyvenv.cfg")}
+
+
 def _iter_py():
+    skip = _SKIP_DIRS | _venv_dirs()
     for p in _ROOT.rglob("*.py"):
         rel = p.relative_to(_ROOT).as_posix()
-        if set(p.relative_to(_ROOT).parts) & _SKIP_DIRS:
+        if set(p.relative_to(_ROOT).parts) & skip:
             continue
         yield rel, p
 
