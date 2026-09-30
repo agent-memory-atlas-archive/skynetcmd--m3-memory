@@ -53,6 +53,14 @@ the policy is forward-going only.
   number of rows left and the limit that would cover them; rows are examined
   oldest-first so a larger re-run makes progress. Truncation is detected without
   an extra aggregate query, so a complete sweep costs nothing more than before.
+- **A test left a directory in the repository when run on Windows.** A mocked
+  `subprocess.run` treated the last argument of every intercepted command as a
+  path to create; on Windows the installer also queries a scheduled task, whose
+  last argument is the task's name, so the mock created a directory named after
+  it in the working tree. The mock now matches on the command rather than assuming
+  it sees only one call, and the suite fails if a run leaves new entries in the
+  repository root — previously nothing checked, so this was found by looking at
+  `git status` rather than by any test.
 - **Three tests reported a state the machine was not in, on any host without a
   full build toolchain.** `test_elbow_trim` errored at setup with a missing
   `torch` in a full run while passing alone: its fixture calls `hasattr` on every
