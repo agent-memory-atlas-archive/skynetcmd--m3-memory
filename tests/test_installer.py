@@ -234,12 +234,28 @@ def test_install_m3_fails_if_bridge_missing_in_fetched_repo(tmp_path, monkeypatc
     # "fetched repo lacks the bridge" error is the one under test.
     monkeypatch.setattr(installer, "bin_dir", lambda: None)
 
+    class _R: returncode = 0
+
     def fake_run(cmd, **kwargs):
-        # Simulate a successful clone that happens to NOT contain the bridge.
-        dest = Path(cmd[-1])
-        dest.mkdir(parents=True)
+        """Simulate a successful clone that happens to NOT contain the bridge.
+
+        Guarded on the COMMAND rather than assuming this mock only ever sees the
+        clone. `monkeypatch.setattr(subprocess, "run", ...)` replaces it
+        process-wide, so every subprocess call the installer makes arrives here —
+        and on Windows one of them is
+        `["schtasks", "/Query", "/TN", "AgentOS_Dashboard"]`. Treating `cmd[-1]`
+        as a destination path then did
+        `Path("AgentOS_Dashboard").mkdir(parents=True)` RELATIVE TO CWD, creating
+        that directory in the REPO WORKING TREE and writing a README into it
+        (measured 2026-09-29 on SkyPC; macOS never runs the schtasks branch, so it
+        stayed invisible there).
+        """
+        argv = [str(c) for c in cmd]
+        if not (argv and argv[0].endswith("git") and "clone" in argv):
+            return _R()          # not the call under test: touch nothing
+        dest = Path(argv[-1])
+        dest.mkdir(parents=True, exist_ok=True)
         (dest / "README.md").write_text("no bin/ here")
-        class _R: returncode = 0
         return _R()
     monkeypatch.setattr(subprocess, "run", fake_run)
 

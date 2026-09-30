@@ -313,6 +313,41 @@ def pytest_runtest_makereport(item, call):
     yield
 
 
+# Entries a test run is ALLOWED to create in the repo root.
+_ROOT_WRITE_ALLOWED = {".pytest_cache", "__pycache__", ".coverage", ".ruff_cache",
+                       ".mypy_cache", ".hypothesis"}
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _repo_root_stays_clean():
+    """Fail the SESSION if the suite leaves new entries in the repo working tree.
+
+    Tests write to tmp_path; the repo is read-only to them. Nothing enforced that,
+    and it broke twice in the same shape — a `subprocess.run` mock that assumed it
+    only saw the one call it cared about, then treated `cmd[-1]` as a path:
+
+      * 2026-09-29, `test_installer.py`: on Windows the mock also intercepted
+        `["schtasks", "/Query", "/TN", "AgentOS_Dashboard"]` and created
+        `AgentOS_Dashboard/README.md` in the CHECKOUT. Invisible on macOS, which
+        never runs that branch, and invisible to every assertion in the suite —
+        found only by running `git status` on the test box afterwards.
+
+    Reported at session end rather than per test: the cost is one directory
+    listing, and a leak is a property of the run, not of whichever test happened
+    to be executing. Root-level only — deep artifacts (generated docs pages) are
+    already covered by their own freshness tests.
+    """
+    root = Path(__file__).resolve().parent.parent
+    before = {e.name for e in root.iterdir()}
+    yield
+    added = {e.name for e in root.iterdir()} - before - _ROOT_WRITE_ALLOWED
+    assert not added, (
+        f"the test run created {sorted(added)} in the repo working tree at {root}. "
+        "Tests must write under tmp_path; a path built from mocked subprocess argv "
+        "is the usual cause (see this fixture's docstring)."
+    )
+
+
 @pytest.fixture(autouse=True)
 def _restore_platform_identity():
     """Guarantee `os.name` AND `sys.platform` are restored after every test.
