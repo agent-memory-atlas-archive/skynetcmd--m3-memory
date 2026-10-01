@@ -3280,7 +3280,19 @@ def _step_verify_daemons(plan=None) -> bool:
         _say("  restarting stopped services...")
         started = [r for r in missing if _start_service_for_role(r)]
         for role in started:
-            _ok(f"  {role}: restarted")
+            # Report the ACTION, not an outcome. `_start_service_for_role`
+            # returns True when the start was ISSUED (see its docstring) — and
+            # install_schedules guards on `_service_exists`, so when no unit is
+            # installed it silently does nothing and still returns True. This
+            # line used to read `[OK] {role}: restarted`, which claimed a
+            # success the function never checked: on a Linux box with no
+            # cognitive-loop unit, `m3 setup --cognitive-loop` printed
+            #   [OK]   cognitive-loop: restarted
+            #   [!]    cognitive-loop: NOT running
+            # back to back (measured 2026-09-30, claude-dev). The verified
+            # verdict is printed below from the re-read registry; this is only
+            # the attempt.
+            _say(f"  {role}: start issued (verifying below)")
         # Starting a service only LAUNCHES it. The registry entry is written by
         # the child, from inside its own process, once the interpreter has
         # booted — so re-reading the registry immediately reports a service that

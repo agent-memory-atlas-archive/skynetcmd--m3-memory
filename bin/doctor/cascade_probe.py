@@ -58,11 +58,24 @@ def run(brief: bool = False) -> int:
         rt = out.get("roundtrip", {})
         glyph = "✅" if summary == "healthy" else "⚠️" if summary == "degraded" else "❌"
         lat = f", {rt.get('latency_ms')}ms" if rt.get("latency_ms") is not None else ""
-        if out.get("tier_1", {}).get("shared_mode"):
+        if out.get("tier_1", {}).get("shared_mode") and summary == "healthy":
             # Reassuring, accurate phrasing for the shipped default: the shared
             # server is the fast path; per-process tier-1 is off by design.
+            # GATED ON `healthy` — see below.
             print(f"{glyph} embedding-cascade: {summary} — shared tier-2 embedder "
                   f"online (tier-1 appropriately offline{lat})")
+        elif out.get("tier_1", {}).get("shared_mode"):
+            # Shared mode but NOT healthy. The reassuring text above used to
+            # print unconditionally, so a broken cascade rendered as:
+            #   ❌ embedding-cascade: broken — shared tier-2 embedder online
+            #                                 (tier-1 appropriately offline, 156ms)
+            # — a ❌ beside the words "online" and "appropriately", naming no
+            # cause and no remedy. Observed 2026-09-30 on claude-dev. Report the
+            # STATE and what to do instead; tier-1 being off is still by design
+            # here, so say that without implying everything is fine.
+            print(f"{glyph} embedding-cascade: {summary} — shared mode, tier-2 "
+                  f"{t2}{lat} (tier-1 off by design) — fix: `m3 doctor --fix` "
+                  f"restarts the shared embedder; `--verbose` for detail")
         else:
             print(f"{glyph} embedding-cascade: {summary} (tier1 {t1}, tier2 {t2}{lat})")
         return 0 if summary != "broken" else 1

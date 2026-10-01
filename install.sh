@@ -17,6 +17,7 @@
 #   --skip-prereqs                               assume pipx/git/sqlite3 already present
 #   --no-setup                                   stop after pipx install (skip the wizard)
 #   --no-native-wheel                            skip the Project Oxidation native wheel (pure-Python only)
+#   --no-cognitive-loop                          do not install the background cognitive-loop service
 #   --allow-native-source-build                  if no prebuilt wheel matches, build from source (slow)
 #   --install-gpu-embedder                       (back-compat) force the native wheel on; now the default
 
@@ -31,6 +32,14 @@ RUN_SETUP=1
 # is NOT attempted unless explicitly opted in.
 NO_NATIVE_WHEEL=0
 ALLOW_NATIVE_SOURCE_BUILD=0
+# The cognitive loop is the background engine that turns captured memories into
+# DERIVED knowledge (entity extraction, consolidation, reflection). The wizard
+# calls it recommended and defaults to YES when it can ask. Non-interactive
+# setup defaults it OFF, so this script passed nothing and every scripted
+# install silently ended up WITHOUT it — entity search stays empty, the
+# knowledge graph never fills, and the only hint is an `m3 doctor` warning.
+# Same convention as the native wheel above: on by default, flag to OPT OUT.
+NO_COGNITIVE_LOOP=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -40,6 +49,7 @@ while [[ $# -gt 0 ]]; do
         --no-setup)                   RUN_SETUP=0; shift ;;
         --no-native-wheel)            NO_NATIVE_WHEEL=1; shift ;;
         --allow-native-source-build)  ALLOW_NATIVE_SOURCE_BUILD=1; shift ;;
+        --no-cognitive-loop)          NO_COGNITIVE_LOOP=1; shift ;;
         --install-gpu-embedder)       NO_NATIVE_WHEEL=0; shift ;;
         -h|--help)
             # Self-contained heredoc, not `sed "$0"`: when the script is run
@@ -63,6 +73,7 @@ Flags:
   --skip-prereqs                               assume pipx/git/sqlite3 already present
   --no-setup                                   stop after pipx install (skip the wizard)
   --no-native-wheel                            skip the Project Oxidation native wheel (pure-Python only)
+  --no-cognitive-loop                          do not install the background cognitive-loop service
   --allow-native-source-build                  if no prebuilt wheel matches, build from source (slow)
   --install-gpu-embedder                       (back-compat) force the native wheel on; now the default
 USAGE
@@ -311,6 +322,13 @@ if [[ $NO_NATIVE_WHEEL -eq 1 ]]; then
 fi
 if [[ $ALLOW_NATIVE_SOURCE_BUILD -eq 1 ]]; then
     SETUP_ARGS+=(--allow-native-source-build)
+fi
+# Mirror the wizard's interactive default (yes) instead of inheriting
+# non-interactive's off. --no-cognitive-loop opts out.
+if [[ $NO_COGNITIVE_LOOP -eq 1 ]]; then
+    SETUP_ARGS+=(--no-cognitive-loop)
+else
+    SETUP_ARGS+=(--cognitive-loop)
 fi
 
 say "Running: m3 setup ${SETUP_ARGS[*]}"
