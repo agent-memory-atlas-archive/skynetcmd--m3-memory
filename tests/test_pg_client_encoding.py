@@ -84,9 +84,9 @@ def test_the_dsn_is_still_passed_through(captured):
     "postgresql://u:p@h:5432/db?client_encoding=LATIN1",
     "postgresql://u:p@h:5432/db?client_encoding=UTF8",
     "host=h dbname=db client_encoding=LATIN1",
-    # case must not decide it: libpq keywords are lowercase, but an operator
-    # writing CLIENT_ENCODING still means to choose the encoding themselves
-    "host=h dbname=db CLIENT_ENCODING=LATIN1",
+    # NOT tested: an uppercase CLIENT_ENCODING keyword. libpq conninfo keywords
+    # are lowercase-only, so it is an invalid DSN that connect() rejects however
+    # we behave — asserting anything there would pin undefined behaviour.
 ])
 def test_an_explicit_choice_in_the_dsn_wins(dsn, captured):
     """Never override the operator. Passing it twice would also hand libpq a

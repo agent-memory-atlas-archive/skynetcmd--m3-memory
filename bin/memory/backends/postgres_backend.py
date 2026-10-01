@@ -803,8 +803,21 @@ class PostgresBackend:
             # server transcodes, and SQL_ASCII passes bytes through — so this
             # is a portability fix, not a patch for one box. An explicit
             # client_encoding in the DSN wins: never override the operator.
+            # Ask libpq's own parser whether the operator set it, rather than
+            # looking for the substring: a DSN whose DATABASE is named
+            # `client_encoding_notes` contains it without setting anything, and
+            # the substring check then silently skipped the pin — caught by
+            # test_a_dsn_mentioning_encoding_elsewhere_is_not_mistaken_for_a_choice.
+            # A DSN libpq cannot parse is left to fail in connect(), where the
+            # error is actionable; we still pin, since that is the safe default.
             connect_kwargs = {}
-            if "client_encoding" not in (self._dsn or "").lower():
+            try:
+                from psycopg2.extensions import parse_dsn
+
+                already_set = "client_encoding" in parse_dsn(self._dsn or "")
+            except Exception:
+                already_set = False
+            if not already_set:
                 connect_kwargs["client_encoding"] = "UTF8"
             self._pool = ThreadedConnectionPool(
                 minconn, maxconn, dsn=self._dsn, **connect_kwargs
