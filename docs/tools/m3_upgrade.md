@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_upgrade.py
-sha1: 1677760b9819
-mtime_utc: 2026-10-01T04:02:01.038257+00:00
-generated_utc: 2026-10-01T04:02:01.485236+00:00
+sha1: 6415bf3e46c1
+mtime_utc: 2026-10-01T10:29:40.894813+00:00
+generated_utc: 2026-10-01T10:30:06.813743+00:00
 private: false
 ---
 
@@ -53,8 +53,8 @@ against a pip install exits 0 having upgraded NOTHING, which reads as success.
 
 ## Entry points
 
-- `def run()` (line 188)
-- `def main()` (line 204)
+- `def run()` (line 235)
+- `def main()` (line 251)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -86,7 +86,8 @@ _(none detected)_
 **subprocess**
 
 - `subprocess.run()  → `[exe, '--version']`` (line 76)
-- `subprocess.run()  → `cmd`` (line 195)
+- `subprocess.run()  → `[sys.executable, '-c', code]`` (line 155)
+- `subprocess.run()  → `cmd`` (line 242)
 - `subprocess.run()` (line 101)
 
 

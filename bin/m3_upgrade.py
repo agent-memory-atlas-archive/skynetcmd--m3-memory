@@ -117,6 +117,53 @@ def find_m3_package(exe: str) -> pathlib.Path | None:
     return None
 
 
+
+def cognitive_loop_installed(exe: str) -> "bool | None":
+    """Is the cognitive loop installed on this host RIGHT NOW?
+
+    Needed because `m3 setup --non-interactive` defaults `plan.cognitive_loop`
+    to False, and `_step_verify_daemons` only adds a role to `expected` when its
+    plan field is TRUE. So an upgrade that passes neither flag STOPS the loop
+    (step 1, and again at step 3) and then never restarts or verifies it — the
+    loop stays down until its watchdog fires. Passing the flag that matches the
+    CURRENT state preserves the operator's choice and gets the loop back on the
+    NEW version, which is the whole point of restarting it.
+
+    Delegates to ``governor_migration``, the single owner of per-OS service/task
+    detection (systemd --user unit, launchd plist, schtasks) — a second copy of
+    that here would drift (§10a). Runs it in a SUBPROCESS against the CURRENT
+    payload, BEFORE the upgrade replaces it, and never imports it into this
+    process: this script must keep working while the package it would import is
+    being deleted.
+
+    Returns True / False, or None when it cannot be determined — in which case
+    the caller passes neither flag and SAYS so, rather than guessing.
+    """
+    pkg = find_m3_package(exe)
+    if pkg is None:
+        return None
+    for bd in (pkg / "bin", pkg.parent / "bin"):
+        if (bd / "governor_migration.py").is_file():
+            code = (
+                "import sys; sys.path.insert(0, %r);"
+                "import governor_migration as gm;"
+                "d = gm.detect_scheduled_tasks();"
+                "print('YES' if 'AgentOS_CognitiveLoop' in "
+                "(d.get('not_migratable_present') or []) else 'NO')"
+            ) % str(bd)
+            try:
+                r = subprocess.run(  # nosec B603 - argv list, no shell
+                    [sys.executable, "-c", code],
+                    capture_output=True, text=True, timeout=60,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                return None
+            out = (r.stdout or "").strip().splitlines()
+            if r.returncode == 0 and out and out[-1] in ("YES", "NO"):
+                return out[-1] == "YES"
+            return None
+    return None
+
 def detect_install_method(pkg_dir: pathlib.Path | None) -> tuple[str, str]:
     """Return ``(method, evidence)``.
 
@@ -274,6 +321,14 @@ def main(argv: list[str] | None = None) -> int:
 
     dry = args.dry_run
 
+    # Read the current choice BEFORE anything is stopped or replaced: detection
+    # looks for an installed SERVICE (unit / plist / scheduled task), which a
+    # stop does not remove, but the payload that owns the detector is about to
+    # be deleted.
+    loop_was_installed = cognitive_loop_installed(m3)
+    print(f"\ncognitive loop currently installed: "
+          f"{'yes' if loop_was_installed else 'no' if loop_was_installed is False else 'unknown'}")
+
     if not args.skip_stop:
         print("\n[1/5] stopping m3 DB writers ...")
         # Non-fatal: nothing may be running, and that is a fine state to upgrade from.
@@ -314,7 +369,21 @@ def main(argv: list[str] | None = None) -> int:
     # a quiesce that never completes -- an unattended upgrade that hangs instead
     # of finishing. Reported by antigravity-agent in review of this script.
     print("\n[4/5] finalizing (agent configs, migrations, services) ...")
-    rc = run([m3, "setup", "--non-interactive", "--force-quiesce"], dry=dry)
+    setup_cmd = [m3, "setup", "--non-interactive", "--force-quiesce"]
+    # Carry the CURRENT cognitive-loop choice across the upgrade. Without this,
+    # `--non-interactive` leaves plan.cognitive_loop False, the role never
+    # reaches `expected`, and setup neither restarts nor verifies the loop we
+    # just stopped — so a host that had it running comes back WITHOUT it until a
+    # watchdog fires. Detected before step 2 replaced the payload.
+    if loop_was_installed is True:
+        setup_cmd.append("--cognitive-loop")
+    elif loop_was_installed is False:
+        setup_cmd.append("--no-cognitive-loop")
+    else:
+        print("  note: could not determine whether the cognitive loop is "
+              "installed; leaving that choice untouched. If it was running, "
+              "`m3 doctor --fix` or `m3 schedules repair` will bring it back.")
+    rc = run(setup_cmd, dry=dry)
     if rc != 0:
         print(
             f"\n`m3 setup` failed (exit {rc}). The package IS upgraded; re-run\n"
