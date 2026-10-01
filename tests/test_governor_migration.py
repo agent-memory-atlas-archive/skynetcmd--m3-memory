@@ -1,13 +1,25 @@
 """Tests for governor_migration — detect + remove + privileged-command logic.
 
-Subprocess calls (schtasks / crontab) are mocked so the tests are deterministic
-and never touch the real host scheduler.
+Subprocess calls (schtasks / crontab) are mocked so the tests are deterministic.
+
+⚠ Mocking `subprocess` is NOT sufficient to isolate detection, and this
+docstring used to claim it was ("never touch the real host scheduler"). Unix
+detection has a SECOND path: the cognitive loop is a launchd agent / systemd
+--user unit, found with `os.path.exists()` on the live service file. A test that
+mocks only `subprocess.run` therefore reads the real machine, and
+`test_detect_never_raises_without_scheduler` did exactly that — passing on hosts
+without m3's loop installed and failing on hosts with it, i.e. on a correctly
+configured box (measured 2026-09-30). Patch `_unix_service_paths` too when the
+premise is "nothing is installed".
 """
 from __future__ import annotations
 
 import os
 import re
 import sys
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parents[1]
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
@@ -327,6 +339,49 @@ def test_detect_reports_the_loop_when_its_service_file_EXISTS(monkeypatch, tmp_p
         "the isolation fix must not break"
     )
     assert out["eligible"] == []
+
+
+def test_service_filenames_match_what_the_INSTALLER_writes(monkeypatch):
+    """Detection and installation must agree on the service FILENAME.
+
+    The name is spelled in two places: `_unix_service_paths()` here (detection,
+    via `os.path.exists`) and `install_schedules.py` (installation — it copies
+    `bin/<name>` to the user's launchd/systemd directory under the same
+    basename). Nothing tied them together, so renaming the unit on either side
+    would leave detection looking for a file that is never written: `m3 doctor`
+    and `m3 governor migrate` would report the cognitive loop as absent while it
+    ran perfectly well, and no test would fail.
+
+    This is the gap the two tests above do NOT cover — both patch
+    `_unix_service_paths`, so they verify the detection LOGIC and say nothing
+    about the string. Asserted against the template files actually present in
+    `bin/`, which is the thing the installer copies, so a rename on either side
+    breaks this test.
+
+    Pure file existence, so it runs on every OS regardless of host state — the
+    defect this file already had once was a test that read the live machine.
+    """
+    bin_dir = REPO / "bin"
+    for os_name in ("Darwin", "Linux"):
+        monkeypatch.setattr(gm, "_os_name", lambda _o=os_name: _o)
+        paths = gm._unix_service_paths()
+        assert paths, f"{os_name}: no service paths declared"
+        for task, path in paths.items():
+            template = bin_dir / os.path.basename(path)
+            assert template.is_file(), (
+                f"{os_name}: detection looks for {os.path.basename(path)!r} "
+                f"(task {task}), but bin/ has no such template for the "
+                f"installer to copy. Detection and install_schedules.py have "
+                f"drifted apart; one of them was renamed."
+            )
+
+
+def test_windows_declares_no_unix_service_paths(monkeypatch):
+    """Guards the branch shape: Windows tasks are schtasks entries, so the Unix
+    service map must be empty there rather than falling through to a Linux path
+    that can never exist on that host."""
+    monkeypatch.setattr(gm, "_os_name", lambda: "Windows")
+    assert gm._unix_service_paths() == {}
 
 
 def test_not_migratable_lines_have_reasons():
