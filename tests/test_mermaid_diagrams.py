@@ -111,6 +111,25 @@ def _mermaid_cli() -> list[str] | None:
     return None
 
 
+def _render(cli: list[str], src: Path, cfg: Path) -> tuple[bool, subprocess.CompletedProcess]:
+    """Render one .mmd and report whether an SVG actually came out.
+
+    Success is the OUTPUT FILE, not the exit code: mermaid-cli has been observed
+    to exit 0 while writing nothing. Single owner so the canary and the real
+    blocks are judged by identical rules — if they could drift, a canary that
+    "passed" would prove nothing about the blocks.
+    """
+    out = src.with_suffix(".svg")
+    try:
+        proc = subprocess.run(
+            [*cli, "-i", str(src), "-o", str(out), "-p", str(cfg)],
+            capture_output=True, text=True, timeout=180,
+        )
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        pytest.skip(f"mermaid-cli unusable: {exc}")
+    return (out.exists() and out.stat().st_size > 0), proc
+
+
 @pytest.mark.slow
 def test_every_mermaid_block_renders() -> None:
     """Authoritative check: hand each block to the real Mermaid parser."""
@@ -127,28 +146,39 @@ def test_every_mermaid_block_renders() -> None:
         cfg = tmp / "pptr.json"
         cfg.write_text(json.dumps({"args": ["--no-sandbox"]}), encoding="utf-8")
 
+        # Does the TOOLCHAIN work at all? Answered once, with a diagram whose
+        # correctness is not in question, BEFORE any real block is judged.
+        #
+        # This used to be inferred per block from the error text, matching
+        # "MODULE_NOT_FOUND" / "command not found". That list could only ever
+        # name the spellings already seen: under WSL, `npx` resolved to the
+        # WINDOWS shim on the inherited Windows PATH, a /bin/sh script whose
+        # `exec node` failed as `exec: node: not found` — a spelling absent from
+        # the list. Every block then "failed to parse", and the suite reported
+        # ten documentation defects on a machine whose docs were fine.
+        #
+        # A canary removes the guesswork instead of extending it: if a diagram
+        # known to be valid will not render, the environment is broken and the
+        # test has nothing to say about our docs. Anything that fails after the
+        # canary passed is a genuine documentation defect.
+        canary = tmp / "_canary.mmd"
+        canary.write_text("graph TD\n  A[a] --> B[b]\n", encoding="utf-8")
+        ok, proc = _render(cli, canary, cfg)
+        if not ok:
+            err = (proc.stderr or proc.stdout or "").strip().splitlines()
+            pytest.skip("mermaid-cli cannot render a known-good diagram, so this "
+                        "environment cannot judge ours: "
+                        + (err[-1][:200] if err else "no output and no error"))
+
         for path, idx, body in _blocks():
             src = tmp / f"{Path(path).stem}_{idx}.mmd"
-            out = src.with_suffix(".svg")
             src.write_text(body, encoding="utf-8")
-            try:
-                proc = subprocess.run(
-                    [*cli, "-i", str(src), "-o", str(out), "-p", str(cfg)],
-                    capture_output=True,
-                    text=True,
-                    timeout=180,
-                )
-            except (subprocess.TimeoutExpired, OSError) as exc:
-                pytest.skip(f"mermaid-cli unusable: {exc}")
-
-            if not out.exists() or out.stat().st_size == 0:
-                err_str = proc.stderr or proc.stdout or ""
-                err = err_str.strip().splitlines()
-                detail = next((ln for ln in err if "Parse error" in ln), "")
-                if "MODULE_NOT_FOUND" in err_str or "command not found" in err_str:
-                    pytest.skip("mermaid-cli is broken in this environment")
-                if not detail and not err:
-                    pytest.skip("mermaid-cli produced no output and no error")
-                failures.append(f"{path} block {idx}: {detail or err[-1][:160]}")
+            ok, proc = _render(cli, src, cfg)
+            if ok:
+                continue
+            err_str = proc.stderr or proc.stdout or ""
+            err = err_str.strip().splitlines()
+            detail = next((ln for ln in err if "Parse error" in ln), "")
+            failures.append(f"{path} block {idx}: {detail or (err[-1][:160] if err else 'no output and no error')}")
 
     assert not failures, "mermaid blocks that do not parse:\n  " + "\n  ".join(failures)
