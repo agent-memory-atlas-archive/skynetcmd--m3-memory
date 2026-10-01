@@ -381,7 +381,23 @@ def test_a_stopped_daemon_is_restarted_not_just_reported(wizard, monkeypatch, ca
         "a service that comes back after the restart must not fail verification"
     )
     assert started == ["cognitive-loop"], f"did not restart the down service: {started}"
-    assert "restarted" in "".join(capsys.readouterr()).lower()
+
+    # This used to assert the word "restarted". That wording was the FALSE
+    # SUCCESS fixed on 2026-09-30: `_start_service_for_role` returns True when
+    # the start was merely ISSUED, so setup printed "[OK] cognitive-loop:
+    # restarted" and then "[!] cognitive-loop: NOT running" back to back on a
+    # Linux box where no unit was installed. Assert the two things that are
+    # actually true and distinguishable now — the ATTEMPT, and the VERIFIED
+    # outcome read back from the registry — which is a stronger check than the
+    # single word was.
+    out = "".join(capsys.readouterr()).lower()
+    assert "start issued" in out, (
+        f"the restart attempt must still be reported, or an unexplained pause "
+        f"looks like a hang: {out!r}"
+    )
+    assert "cognitive-loop: running" in out, (
+        f"the VERIFIED outcome must be reported after the restart: {out!r}"
+    )
 
 
 def test_a_daemon_that_stays_down_still_fails(wizard, monkeypatch, capsys):
