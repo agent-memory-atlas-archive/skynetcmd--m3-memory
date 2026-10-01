@@ -310,7 +310,92 @@ def pytest_runtest_makereport(item, call):
         _os.name = _REAL_OS_NAME
     if sys.platform != _REAL_SYS_PLATFORM:
         sys.platform = _REAL_SYS_PLATFORM
-    yield
+    outcome = yield
+    _annotate_backend_mismatch(item, call, outcome)
+
+
+def _backend_diagnosis(item, call) -> "str | None":
+    """Explain a `requires_pg` failure that happened on the WRONG BACKEND.
+
+    THE CLASS, not one instance. `requires_pg` asks "is a PostgreSQL cluster
+    REACHABLE?" (see `_pg_reachable`). The test bodies assume something stronger:
+    "the storage seam IS PostgreSQL". Those are different questions, and when
+    they disagree the test runs PG SQL against a SQLite connection. What the
+    operator sees is:
+
+        E   sqlite3.OperationalError: near "%": syntax error
+        E   sqlite3.OperationalError: no such table: memory_items
+
+    Neither mentions a backend, a DSN, or `M3_DB_BACKEND`. Measured 2026-09-30:
+    23 failures and 1 error across 10 `*_pg_live` files on Windows, every message
+    of that shape, and the file passed 3/3 when run alone — so the output pointed
+    at the schema, the SQL, and the test, and never at the one thing that was
+    actually wrong. Diagnosing it took far longer than fixing it would have.
+
+    This adds the missing context to the report instead of changing behaviour,
+    which matters for two reasons:
+      * It CANNOT create a false failure. A pre-emptive assertion would have to
+        call `resolve_backend_name()`, and that MEMOIZES — forcing resolution
+        from a hook would itself cache a backend and break the dual-backend
+        parity tests that deliberately flip `M3_DB_BACKEND` mid-test.
+      * It is read-only: the env and the selector's already-resolved name are
+        inspected without importing or resolving anything.
+    """
+    import sqlite3 as _sqlite3
+
+    if call.when != "call" or call.excinfo is None:
+        return None
+    if not any(m.name == "requires_pg" for m in item.iter_markers()):
+        return None
+
+    exc = call.excinfo.value
+    on_sqlite = isinstance(exc, _sqlite3.Error) or type(exc).__module__ == "sqlite3"
+
+    # Never import or resolve — read what is already there.
+    env_backend = (_os.environ.get("M3_DB_BACKEND")
+                   or _os.environ.get("DB_BACKEND") or "").strip() or "(unset -> default sqlite)"
+    _sel = sys.modules.get("memory.backends.selector")
+    resolved = getattr(_sel, "_resolved_name", None) if _sel is not None else None
+    dsn = pg_dsn()
+    dsn_shown = "present" if dsn else "ABSENT"
+
+    lines = [
+        "observed: a test marked `requires_pg` failed"
+        + (" while executing against SQLite" if on_sqlite else ""),
+        f"           exception          : {type(exc).__module__}.{type(exc).__name__}",
+        f"           M3_DB_BACKEND      : {env_backend}",
+        f"           selector resolved  : {resolved!r}"
+        + ("  <- NOT postgres" if resolved not in (None, "postgres") else ""),
+        f"           PG DSN (pg_dsn())  : {dsn_shown}",
+    ]
+    if on_sqlite:
+        lines += [
+            "cause:    `requires_pg` gates on PostgreSQL being REACHABLE, not on the",
+            "          seam being PostgreSQL. With a reachable DSN but a non-postgres",
+            "          seam, PG SQL is handed to a SQLite connection — hence a sqlite3",
+            "          error naming missing tables or `%` placeholders.",
+            "inspect:  run this file ALONE (`pytest <file> -q`). If it passes alone, the",
+            "          backend was decided elsewhere in the session: a test that resolved",
+            "          the seam before this one, or a fixture that set M3_DB_BACKEND",
+            "          without calling `selector._reset_for_tests()`. If it also fails",
+            "          alone, set M3_DB_BACKEND=postgres for the run.",
+        ]
+    else:
+        lines.append("inspect:  if this is not a backend problem, ignore this section.")
+    return "\n".join(lines)
+
+
+def _annotate_backend_mismatch(item, call, outcome) -> None:
+    """Attach `_backend_diagnosis` to the report. Never raises: a diagnostic that
+    can fail a test is worse than no diagnostic."""
+    try:
+        msg = _backend_diagnosis(item, call)
+        if not msg:
+            return
+        report = outcome.get_result()
+        report.sections.append(("m3 backend diagnosis", msg))
+    except Exception:  # noqa: BLE001 — hygiene must never fail a test
+        pass
 
 
 # Entries a test run is ALLOWED to create in the repo root.
