@@ -23,7 +23,57 @@ import os
 import sys
 import tempfile
 
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
+
+
+@pytest.fixture(autouse=True)
+def _guard_repo_writes(monkeypatch):
+    """Apply the repo-write guard to EVERY test in this module.
+
+    Wiring it per test was whack-a-mole: three different tests reach
+    `generate_configs()` (two of them indirectly, through
+    `install_claude_settings`), and per-test bisection missed one because the
+    write only happens on some orderings. Every test here touches that code path,
+    so the guard belongs on all of them — and a test added later is covered
+    without the author having to know about `.mcp.json` at all.
+    """
+    import generate_configs as gc
+
+    _no_repo_writes(monkeypatch, gc)
+
+
+def _no_repo_writes(monkeypatch, gc):
+    """Let `_write_json` write anywhere EXCEPT inside the repo checkout.
+
+    `generate_configs()` emits `.mcp.json` into the REPO ROOT unconditionally
+    (generate_configs.py:410, `os.path.join(m3_repo_root, ".mcp.json")`), and no
+    fixture sandboxes that path — so any test that calls it, directly or through
+    `install_claude_settings`, overwrites the developer's own file.
+
+    A blanket stub is NOT usable here: `install_claude_settings` also persists the
+    live settings with `_write_json(settings_path, live)`, and these tests assert
+    on that file. So filter by destination instead of suppressing the writer.
+
+    Why it hid for so long — the leak is doubly masked. `.mcp.json` is gitignored,
+    so `git status` never shows it; and it already exists on a developer box, so a
+    "did this run create new entries?" check sees nothing new. It surfaced on
+    2026-09-30 only when the repo-root guard ran against a FRESH clone on Linux,
+    where the file did not yet exist.
+    """
+    import os
+
+    real_write = gc._write_json
+    repo = os.path.realpath(gc._m3_repo_root())
+
+    def _guarded(path, data):
+        target = os.path.realpath(str(path))
+        if target == repo or target.startswith(repo + os.sep):
+            return  # a template write into the checkout: drop it
+        return real_write(path, data)
+
+    monkeypatch.setattr(gc, "_write_json", _guarded)
 
 
 # ── generate_configs.install_claude_settings ────────────────────────────────
@@ -66,6 +116,7 @@ def test_prunes_m3_mcpservers_and_disables_plugin(monkeypatch):
 
 def test_disabled_list_is_idempotent(monkeypatch):
     import generate_configs as gc
+
 
     d = tempfile.mkdtemp()
     sp = os.path.join(d, "settings.json")
@@ -205,7 +256,7 @@ def test_add_terminates_options_before_the_positionals(monkeypatch):
 _LEGACY_NAMES = {"custom_pc_tool", "grok_intel", "web_research", "debug_agent"}
 
 
-def test_generate_configs_registers_only_memory():
+def test_generate_configs_registers_only_memory(monkeypatch):
     import generate_configs as gc
 
     gc.generate_configs()
@@ -231,9 +282,10 @@ def test_legacy_prune_set_covers_every_retired_name():
     )
 
 
-def test_install_claude_settings_removes_legacy_and_keeps_foreign(tmp_path):
+def test_install_claude_settings_removes_legacy_and_keeps_foreign(tmp_path, monkeypatch):
     """A legacy config is cleaned; a server the USER added is untouched."""
     import generate_configs as gc
+
 
     settings = tmp_path / "settings.json"
     live = {"mcpServers": {name: {"command": "old"} for name in _LEGACY_NAMES}}
