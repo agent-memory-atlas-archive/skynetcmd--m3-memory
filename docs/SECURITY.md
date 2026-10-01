@@ -4,7 +4,7 @@
 
 | Version | Supported |
 |---------|-----------|
-| 2026.9.x (latest) | ✅ Yes |
+| 2026.10.x (latest) | ✅ Yes |
 
 ---
 

@@ -19,7 +19,38 @@ the policy is forward-going only.
 
 ## [Unreleased]
 
+## [2026.10.1.0] — 2026-10-01 — four commands that reported success they had not checked
+
 ### Fixed
+
+- **PostgreSQL could fail on m3's own text.** The connection pool adopted the
+  server's `client_encoding` instead of pinning its own, so against a
+  `SQL_ASCII` cluster every non-ASCII character m3 writes raised
+  `UnicodeEncodeError` inside the driver — and m3's own schema and messages
+  contain them, so the first schema load died pointing at the driver rather than
+  at the encoding. The pool now requests UTF-8, which is correct against any
+  server encoding; an explicit `client_encoding` in the DSN still wins.
+
+- **`m3 doctor` told you the native extension was stale without telling you how
+  to fix it.** The default (brief) output said only "reinstall"; the command
+  lived in `--verbose`, and `--fix` cannot repair this probe. A stale extension
+  is reached by an ordinary upgrade, because the native wheel is a separate
+  distribution that `pip`/`pipx` does not touch. The line now names
+  `m3 embedder install-gpu`.
+
+- **`m3 doctor` could report a broken embedding cascade in reassuring words.**
+  In shared-embedder mode it printed "shared tier-2 embedder online (tier-1
+  appropriately offline)" regardless of health, so a failure arrived as a ❌
+  beside the word "online", naming no cause and no remedy. That phrasing is now
+  used only when the cascade is actually healthy; otherwise it reports the
+  failing tier and names `m3 doctor --fix`.
+
+- **`m3 setup` reported a background service as restarted when it had only
+  requested a start.** On a host where the service was not installed, setup
+  printed "[OK] cognitive-loop: restarted" immediately followed by
+  "[!] cognitive-loop: NOT running". It now reports the attempt, and the verdict
+  comes from re-reading the service registry.
+
 
 - **`m3 embedder install` and `m3 embedder start` reported a stopped embed server
   as running, and exited 0.** A zero exit from the service manager means only that
@@ -141,6 +172,37 @@ the policy is forward-going only.
   "unrecognized arguments: true" because `--enabled` is a boolean flag, and it
   recommended a bare `chatlog_rescrub` — the capped call described above. It now
   emits a command that works, with a limit sized from the store's row count.
+
+### Changed
+
+- **Scripted installs now enable the cognitive loop by default.** `install.sh`
+  passed no preference, so an unattended install silently got no background
+  engine — entity extraction, consolidation and reflection never ran, entity
+  search stayed empty, and the only hint was an `m3 doctor` warning. This now
+  matches the interactive wizard, which has always recommended it. Pass
+  `--no-cognitive-loop` to decline.
+
+- **`m3 upgrade` now repairs as well as verifies, and cannot leave a daemon on
+  the old code.** The final step was a report-only `m3 doctor`, which left
+  self-repairable state broken behind a warning — and hook entries still
+  pointing at the payload the upgrade had just replaced. It now runs
+  `m3 doctor --fix --fix-hooks` (which backs up `~/.claude/settings.json` before
+  writing). A second stop was added after the package is replaced: anything
+  still running at that point is the old code, and the previous flow only
+  restarted services it found stopped, so a survivor kept serving stale code.
+
+### Security
+
+- **Pinned the Pillow floor.** Pillow reaches m3 only transitively, and the
+  floor was pinned on an optional extra while core `fpdf2` permitted
+  `Pillow>=8.3.2` — a resolver taking the lowest satisfying version lands on a
+  release with 37 known CVEs. `pip install` takes the newest and was never
+  affected; this closes the constrained-resolver and stale-lockfile cases.
+
+- **Restored a scanner that had never run on this repository.** The security
+  pipeline passes `--config <repo>/trivy.yaml`; both config files were absent,
+  so trivy exited fatally and wrote no report while the run still reported
+  success. The configs are now committed, with no suppressions.
 
 ## [2026.9.21.0] — 2026-09-21 — one leaked environment variable, and the failures it was hiding
 
