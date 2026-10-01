@@ -265,14 +265,68 @@ def test_remove_empty_is_noop():
 
 
 def test_detect_never_raises_without_scheduler(monkeypatch):
+    """No scheduler at all -> every list empty, and no exception.
+
+    "No scheduler" has TWO halves on Unix and this test used to simulate only
+    one. Mocking `subprocess.run` covers `crontab -l`, but the cognitive loop is
+    a launchd agent / systemd --user unit, so `_unix_installed_from_cron` also
+    probes `os.path.exists()` on the REAL service paths. With that half
+    unmocked the test read host state: on a Linux box where m3 is installed the
+    way we recommend, `~/.config/systemd/user/m3-cognitive-loop.service` exists
+    and detection correctly returned `AgentOS_CognitiveLoop`, failing a test
+    whose premise is that nothing is installed.
+
+    Measured 2026-09-30 on claude-dev, and it fails identically on the
+    pre-change commit, so it is a latent isolation defect rather than a
+    regression. It stayed hidden because the test pins `_os_name` to "Linux":
+    macOS then checks the LINUX path (absent there, even though that host has
+    the launchd plist), and a Linux box with no m3 install has nothing to find.
+    So it only failed on a correctly-configured Linux host — the one
+    configuration we most want green.
+    """
     monkeypatch.setattr(gm, "_os_name", lambda: "Linux")
 
     def boom(*a, **k):
         raise FileNotFoundError("crontab")
 
     monkeypatch.setattr(gm.subprocess, "run", boom)
+    # The other half: point service detection at paths that cannot exist, so
+    # "no scheduler" is actually simulated instead of inherited from the host.
+    # Capture the ORIGINAL first -- reading gm._unix_service_paths() from inside
+    # the replacement calls the replacement (RecursionError; hit on the first
+    # draft of this fix). Derive the key set from the real function so a newly
+    # added service is covered automatically.
+    real_paths = gm._unix_service_paths()
+    monkeypatch.setattr(
+        gm, "_unix_service_paths",
+        lambda: {name: "/nonexistent/m3-test/%s.service" % name
+                 for name in real_paths},
+    )
     out = gm.detect_scheduled_tasks()
     assert out == {"eligible": [], "not_migratable_present": [], "keep_scheduled_floor": []}
+
+
+def test_detect_reports_the_loop_when_its_service_file_EXISTS(monkeypatch, tmp_path):
+    """The positive case, which nothing covered — so the detection path the bug
+    above rode in on had no test of its own.
+
+    Without this, isolating the path above could be "fixed" by breaking service
+    detection entirely and both tests would still pass.
+    """
+    monkeypatch.setattr(gm, "_os_name", lambda: "Linux")
+    monkeypatch.setattr(gm.subprocess, "run",
+                        lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError("crontab")))
+    svc = tmp_path / "m3-cognitive-loop.service"
+    svc.write_text("[Unit]\n", encoding="utf-8")
+    monkeypatch.setattr(gm, "_unix_service_paths",
+                        lambda: {"AgentOS_CognitiveLoop": str(svc)})
+
+    out = gm.detect_scheduled_tasks()
+    assert out["not_migratable_present"] == ["AgentOS_CognitiveLoop"], (
+        "a present service file must still be detected; this is the behaviour "
+        "the isolation fix must not break"
+    )
+    assert out["eligible"] == []
 
 
 def test_not_migratable_lines_have_reasons():
