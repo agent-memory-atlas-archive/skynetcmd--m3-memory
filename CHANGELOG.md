@@ -53,6 +53,14 @@ the policy is forward-going only.
   number of rows left and the limit that would cover them; rows are examined
   oldest-first so a larger re-run makes progress. Truncation is detected without
   an extra aggregate query, so a complete sweep costs nothing more than before.
+- **Running the test suite overwrote the developer's own `.mcp.json`.** The
+  config generator writes that file into the repository root unconditionally, and
+  three tests reach the generator — directly or through the Claude settings
+  installer — so a test run replaced it. The writer is now filtered by
+  destination during those tests: writes inside the checkout are dropped, writes
+  elsewhere still happen, so the tests keep the output they assert on. It had been
+  invisible because the file is git-ignored and already exists on a developer
+  machine; it surfaced only on a fresh clone.
 - **A test left a directory in the repository when run on Windows.** A mocked
   `subprocess.run` treated the last argument of every intercepted command as a
   path to create; on Windows the installer also queries a scheduled task, whose
