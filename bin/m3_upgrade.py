@@ -17,8 +17,22 @@ The steps mirror what the CLI's own help already tells you to do:
   1. ``m3 stop``   -- release DB-writer file locks. ``m3 stop --help`` says to do
                       this before upgrading on Windows.
   2. upgrade       -- pipx / pip / pip --user, chosen by DETECTION, never assumed.
-  3. ``m3 setup``  -- rewire agent configs, migrate schemas, restart services.
-  4. ``m3 doctor`` -- verify, and exit nonzero if it is unhappy.
+  3. ``m3 stop``   -- AGAIN, now that the package is replaced. Anything still up
+                      is running OLD code, and step 4 only restarts what it finds
+                      STOPPED, so a survivor would be reported "running" and keep
+                      serving stale code. The cognitive loop is the one that
+                      matters: stale code there writes stale derived knowledge.
+  4. ``m3 setup``  -- rewire agent configs, migrate schemas, restart services --
+                      which brings the daemons back on the NEW version.
+  5. ``m3 doctor --fix --fix-hooks``
+                   -- verify AND repair, exiting nonzero if still unhappy. An
+                      upgrade is the one moment repair is unambiguously wanted:
+                      the user asked for a new version and is waiting. A bare
+                      verify left self-repairable state broken behind a warning
+                      (embed-server exec bit, dead agent MCP configs, a wedged
+                      dashboard), and --fix-hooks matters because hook entries
+                      point at the payload step 2 just REPLACED and nothing else
+                      in the upgrade rewires them.
 
 There is no ``m3 upgrade`` subcommand. Guessing one (or guessing ``pipx`` for a
 pip install) is the failure this script exists to prevent: ``pipx upgrade``
@@ -244,8 +258,9 @@ def main(argv: list[str] | None = None) -> int:
         print("\nPlan:")
         print("  1. m3 stop            (release DB-writer file locks)")
         print(f"  2. {' '.join(up)}")
-        print("  3. m3 setup           (agent configs, schema migrations, services)")
-        print("  4. m3 doctor          (verify)")
+        print("  3. m3 stop            (again: no daemon may survive on OLD code)")
+        print("  4. m3 setup           (agent configs, schema migrations, services)")
+        print("  5. m3 doctor --fix --fix-hooks   (verify AND repair)")
         try:
             answer = input("\nProceed? [y/N] ").strip().lower()
         except EOFError:
@@ -260,11 +275,11 @@ def main(argv: list[str] | None = None) -> int:
     dry = args.dry_run
 
     if not args.skip_stop:
-        print("\n[1/4] stopping m3 DB writers ...")
+        print("\n[1/5] stopping m3 DB writers ...")
         # Non-fatal: nothing may be running, and that is a fine state to upgrade from.
         run([m3, "stop"], dry=dry, timeout=180)
 
-    print("\n[2/4] upgrading the package ...")
+    print("\n[2/5] upgrading the package ...")
     rc = run(up, dry=dry)
     if rc != 0:
         print(
@@ -276,11 +291,29 @@ def main(argv: list[str] | None = None) -> int:
     # Re-resolve: step 2 may have replaced the executable we started with.
     m3 = shutil.which("m3") or shutil.which("mcp-memory") or m3
 
+    # A long-lived daemon that SURVIVED step 1 now runs the OLD code against a
+    # NEW package, and step 4's verify only restarts services it finds STOPPED —
+    # so a survivor is reported "running" and keeps serving stale code
+    # indefinitely. That is exactly what setup warns about for the embedder
+    # ("these keep running their OLD binary until restarted"), and the cognitive
+    # loop is the one that matters most: it is the engine that writes derived
+    # knowledge, so stale code there silently produces stale derivations.
+    #
+    # Step 1 is best-effort AND --skip-stop-able, so it cannot be relied on.
+    # Stop again now that the package is replaced: whatever is still up is
+    # old-code by definition, and step 4 restarts everything it finds stopped —
+    # on the new version. Cross-platform, no elevation, no new platform logic
+    # (`m3 stop` already owns the per-OS mechanism), and non-fatal because
+    # "nothing running" is a fine state.
+    if not args.skip_stop:
+        print("\n[3/5] stopping any daemon that survived on OLD code ...")
+        run([m3, "stop"], dry=dry, timeout=180)
+
     # --force-quiesce: step 1's `m3 stop` is best-effort and non-fatal, so a
     # writer that did not exit would leave `setup --non-interactive` waiting on
     # a quiesce that never completes -- an unattended upgrade that hangs instead
     # of finishing. Reported by antigravity-agent in review of this script.
-    print("\n[3/4] finalizing (agent configs, migrations, services) ...")
+    print("\n[4/5] finalizing (agent configs, migrations, services) ...")
     rc = run([m3, "setup", "--non-interactive", "--force-quiesce"], dry=dry)
     if rc != 0:
         print(
@@ -289,12 +322,23 @@ def main(argv: list[str] | None = None) -> int:
         )
         return rc
 
-    print("\n[4/4] verifying ...")
-    rc = run([m3, "doctor"], dry=dry, timeout=300)
+    # --fix --fix-hooks, not a bare `doctor`. An upgrade is the one moment when
+    # repairing is unambiguously wanted: the user asked for a new version and is
+    # waiting on this command. A report-only verify left self-repairable state
+    # broken behind a warning the user had no reason to act on — the embed-server
+    # exec bit (a packaging defect in m3's OWN file), a dead agent MCP config, a
+    # wedged dashboard. --fix-hooks is included deliberately: hook entries point
+    # at the payload that was just REPLACED, and nothing else in the upgrade
+    # rewires them, so skipping it is how an upgrade leaves capture silently
+    # pointing at the old install. It backs ~/.claude/settings.json up with a
+    # timestamp before writing (see environment_probe.repair).
+    print("\n[5/5] verifying and repairing ...")
+    rc = run([m3, "doctor", "--fix", "--fix-hooks"], dry=dry, timeout=300)
     if rc != 0:
         print(
-            f"\n`m3 doctor` reported problems (exit {rc}). The upgrade completed;\n"
-            "read the doctor output above before relying on this install."
+            f"\n`m3 doctor --fix --fix-hooks` reported problems (exit {rc}). The\n"
+            "upgrade completed and repairs were attempted; read the doctor output\n"
+            "above before relying on this install."
         )
         return rc
 

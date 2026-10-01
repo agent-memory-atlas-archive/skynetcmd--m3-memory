@@ -172,6 +172,77 @@ def test_setup_step_forces_quiesce():
     )
 
 
+def test_the_verify_step_repairs_and_rewires_hooks():
+    """An upgrade must REPAIR, not just report.
+
+    The final step was a bare `m3 doctor`, which left every self-repairable
+    thing broken behind a warning the user had no reason to act on: the
+    embed-server exec bit (a packaging defect in m3's OWN file), a dead agent
+    MCP config, a wedged dashboard. An upgrade is the one moment repair is
+    unambiguously wanted — the user asked for a new version and is waiting on
+    this command.
+
+    `--fix-hooks` is the load-bearing half: hook entries point at the payload
+    step 2 just REPLACED, and NOTHING else in the upgrade rewires them, so
+    omitting it is how an upgrade leaves chatlog capture pointing at the old
+    install. It is normally gated because it writes ~/.claude/settings.json (the
+    user's own file) — it backs that up with a timestamp first.
+    """
+    src = (_BIN / "m3_upgrade.py").read_text(encoding="utf-8")
+    assert '"doctor", "--fix", "--fix-hooks"' in src, (
+        "the verify step no longer runs `m3 doctor --fix --fix-hooks`; an upgrade "
+        "would report repairable state instead of repairing it, and would leave "
+        "hooks pointing at the replaced payload"
+    )
+
+
+def test_daemons_are_stopped_AFTER_the_package_is_replaced():
+    """Whatever survives step 1 is old-code by definition.
+
+    Step 1's `m3 stop` is best-effort AND --skip-stop-able, and the setup step
+    only restarts services it finds STOPPED — so a daemon that survived step 1
+    is reported "running" and keeps serving the OLD code against the NEW
+    package, indefinitely. The cognitive loop is the one that matters: it is the
+    engine that writes derived knowledge, so stale code there quietly produces
+    stale derivations.
+
+    Asserting the ORDER, not just the presence: a second stop before the upgrade
+    would be useless.
+    """
+    src = (_BIN / "m3_upgrade.py").read_text(encoding="utf-8")
+    assert src.count('run([m3, "stop"]') >= 2, (
+        "only one `m3 stop` remains; a daemon that survived it now runs OLD code "
+        "and the setup step will not restart it because it looks healthy"
+    )
+    upgrade_at = src.index("[2/5] upgrading the package")
+    second_stop = src.index("survived on OLD code")
+    setup_at = src.index("[4/5] finalizing")
+    assert upgrade_at < second_stop < setup_at, (
+        "the post-upgrade stop must come AFTER the package is replaced and "
+        "BEFORE setup restarts the daemons, or it restarts them on old code"
+    )
+
+
+def test_the_step_count_in_the_plan_matches_the_steps_run():
+    """The plan printed before the prompt is a promise. It said 4 steps while 5
+    ran once this was extended — and a user who approves a 4-step plan should
+    not be surprised by a fifth."""
+    src = (_BIN / "m3_upgrade.py").read_text(encoding="utf-8")
+    import re
+    labels = set(re.findall(r"\[(\d)/(\d)\]", src))
+    totals = {t for _, t in labels}
+    assert totals == {"5"}, f"inconsistent step totals in progress labels: {totals}"
+    assert len({n for n, _ in labels}) == 5, (
+        f"expected 5 distinct step numbers, found {sorted(n for n, _ in labels)}"
+    )
+    # `print(f"  2. {' '.join(up)}")` is an f-string, so the prefix is optional —
+    # omitting `f?` made this find only 1,3,4,5 and fail on the code being right.
+    plan_lines = re.findall(r'print\(f?"  (\d)\. ', src)
+    assert plan_lines == ["1", "2", "3", "4", "5"], (
+        f"the printed plan does not list 5 steps in order: {plan_lines}"
+    )
+
+
 def test_package_dir_is_resolved_before_comparison():
     """Both sides of every path comparison must be resolved."""
     src = (_BIN / "m3_upgrade.py").read_text(encoding="utf-8")

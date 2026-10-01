@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_upgrade.py
-sha1: 2908f6aad86f
-mtime_utc: 2026-09-12T00:56:28.221221+00:00
-generated_utc: 2026-09-12T00:56:37.204624+00:00
+sha1: 1677760b9819
+mtime_utc: 2026-10-01T04:02:01.038257+00:00
+generated_utc: 2026-10-01T04:02:01.485236+00:00
 private: false
 ---
 
@@ -28,8 +28,22 @@ The steps mirror what the CLI's own help already tells you to do:
   1. ``m3 stop``   -- release DB-writer file locks. ``m3 stop --help`` says to do
                       this before upgrading on Windows.
   2. upgrade       -- pipx / pip / pip --user, chosen by DETECTION, never assumed.
-  3. ``m3 setup``  -- rewire agent configs, migrate schemas, restart services.
-  4. ``m3 doctor`` -- verify, and exit nonzero if it is unhappy.
+  3. ``m3 stop``   -- AGAIN, now that the package is replaced. Anything still up
+                      is running OLD code, and step 4 only restarts what it finds
+                      STOPPED, so a survivor would be reported "running" and keep
+                      serving stale code. The cognitive loop is the one that
+                      matters: stale code there writes stale derived knowledge.
+  4. ``m3 setup``  -- rewire agent configs, migrate schemas, restart services --
+                      which brings the daemons back on the NEW version.
+  5. ``m3 doctor --fix --fix-hooks``
+                   -- verify AND repair, exiting nonzero if still unhappy. An
+                      upgrade is the one moment repair is unambiguously wanted:
+                      the user asked for a new version and is waiting. A bare
+                      verify left self-repairable state broken behind a warning
+                      (embed-server exec bit, dead agent MCP configs, a wedged
+                      dashboard), and --fix-hooks matters because hook entries
+                      point at the payload step 2 just REPLACED and nothing else
+                      in the upgrade rewires them.
 
 There is no ``m3 upgrade`` subcommand. Guessing one (or guessing ``pipx`` for a
 pip install) is the failure this script exists to prevent: ``pipx upgrade``
@@ -39,8 +53,8 @@ against a pip install exits 0 having upgraded NOTHING, which reads as success.
 
 ## Entry points
 
-- `def run()` (line 174)
-- `def main()` (line 190)
+- `def run()` (line 188)
+- `def main()` (line 204)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -71,9 +85,9 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `[exe, '--version']`` (line 62)
-- `subprocess.run()  → `cmd`` (line 181)
-- `subprocess.run()` (line 87)
+- `subprocess.run()  → `[exe, '--version']`` (line 76)
+- `subprocess.run()  → `cmd`` (line 195)
+- `subprocess.run()` (line 101)
 
 
 ---
