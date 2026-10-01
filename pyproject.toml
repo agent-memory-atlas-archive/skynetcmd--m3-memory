@@ -156,6 +156,14 @@ dependencies = [
     # (bin/files_memory/chunkers/html.py -- added 2026-09-17, when .html was
     # found to be resolving to a filetype with no chunker).
     "fpdf2>=2.8.8,<3",
+    # fpdf2 declares `Pillow!=9.2.*,>=8.3.2` — a 2021 floor. A resolver that
+    # takes the lowest satisfying version lands on Pillow 9.5.0, which carries
+    # 37 known CVEs (measured by osv-scanner 2.4.0 against requirements.txt,
+    # 2026-09-30). pip takes the newest, so the common install is fine; this
+    # pins the floor so the unlucky resolution is not reachable either.
+    # Same reasoning as the `iwork` extra below, and as defusedxml above: a
+    # security-relevant version reached by luck is not pinned.
+    "pillow>=12.3.0",
     "beautifulsoup4>=4.15.0,<5",
     # PDF READING (distinct from fpdf2, which only writes). Undeclared until
     # 2026-09-17, so chunkers/pdf.py silently fell back to the text chunker on
@@ -195,9 +203,12 @@ postgres = ["psycopg[binary]>=3.3.5,<4"]
 iwork = [
     "keynote-parser>=1.14.5",
     # keynote-parser declares `Pillow>=7.1.0` — a 2020 floor that resolves to a
-    # release carrying 14 known CVEs, one Critical (GHSA-3f63-hfp8-52jq). Pinned
-    # here because the extra is the only path that pulls Pillow into m3 at all:
-    # nothing in the codebase imports PIL.
+    # release carrying 14 known CVEs, one Critical (GHSA-3f63-hfp8-52jq).
+    # Nothing in the codebase imports PIL; it arrives only transitively.
+    # ⚠ This extra is NOT the only path that pulls it, despite what this comment
+    # said until 2026-09-30: core `fpdf2` pulls Pillow too, on a floor of
+    # >=8.3.2. The floor is now pinned in the base dependencies as well, so this
+    # one is a belt-and-braces restatement for the extra's own resolution.
     "pillow>=12.3.0",
 ]
 # Web surfaces: the FastAPI dashboard (bin/dashboard_server.py) and the

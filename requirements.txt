@@ -184,6 +184,17 @@ transformers>=5.17.0,<6
 python-dotenv>=1.2.3,<2
 PyYAML>=6.0.3,<7
 fpdf2>=2.8.8,<3
+# fpdf2 declares `Pillow!=9.2.*,>=8.3.2` — a 2021 floor. Resolved to its LOWEST
+# satisfying version that is Pillow 9.5.0, carrying 37 known CVEs (osv-scanner
+# 2.4.0 against this file, 2026-09-30; the finding is attributed to this file
+# with no Pillow line in it, because osv resolves transitively). `pip install`
+# takes the newest and is unaffected, so this guards the constrained-resolver
+# and stale-lockfile cases rather than the common one.
+#
+# Nothing in m3 imports PIL. Pinned for the same reason as defusedxml above: a
+# security-relevant version that is correct only by luck is not pinned. Kept in
+# agreement with pyproject's base dependencies.
+pillow>=12.3.0
 # PDF ingestion backend for bin/files_memory/chunkers/pdf.py. UNDECLARED until
 # 2026-09-17: the chunker probes PyMuPDF then pypdf and sets available=False if
 # neither is importable, so on a clean install PDFs fell back to the TEXT

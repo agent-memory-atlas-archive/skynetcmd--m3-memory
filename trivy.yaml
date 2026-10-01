@@ -1,0 +1,30 @@
+# Trivy configuration for m3-memory.
+#
+# WHY THIS FILE EXISTS: the DefectDojo scanner invokes trivy as
+#   trivy fs --scanners vuln,secret,misconfig \
+#     --secret-config <repo>/trivy-secret.yaml --config <repo>/trivy.yaml <repo>
+# passing both paths UNCONDITIONALLY. With the files absent trivy exits
+#   FATAL config file "<repo>/trivy.yaml" loading error: ... no such file
+# and writes NO report. The scan then completes, every other scanner uploads,
+# and the run looks clean — so trivy contributed nothing to any scan of this
+# repo, silently, until it was noticed on 2026-09-30 by checking which
+# artifacts were actually present rather than reading the summary.
+#
+# Keep this file even if it only ever holds defaults: its ABSENCE is what
+# breaks the scan.
+
+scan:
+  skip-dirs:
+    - .git
+    # Vendored JS with no lockfile we control; trivy already warns that it
+    # needs `npm install` to say anything useful about it.
+    - examples/homelab-dashboard/frontend/node_modules
+
+# Report everything. m3 has no accepted-risk severity floor, and a floor here
+# would silently narrow what reaches DefectDojo.
+severity:
+  - UNKNOWN
+  - LOW
+  - MEDIUM
+  - HIGH
+  - CRITICAL
