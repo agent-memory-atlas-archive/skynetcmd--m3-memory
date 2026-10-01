@@ -785,7 +785,30 @@ class PostgresBackend:
             maxconn = int(getenv_compat("M3_PG_POOL_MAX", "", str(_DEFAULT_MAXCONN)) or _DEFAULT_MAXCONN)
             if maxconn < minconn:
                 raise ValueError(f"M3_PG_POOL_MAX ({maxconn}) < M3_PG_POOL_MIN ({minconn})")
-            self._pool = ThreadedConnectionPool(minconn, maxconn, dsn=self._dsn)
+            # Pin the CLIENT encoding instead of inheriting the server's.
+            # psycopg2 adopts the server encoding, so against a SQL_ASCII
+            # cluster every non-ASCII character m3 writes raises
+            # UnicodeEncodeError inside the driver — far from the code that
+            # produced the text, and for m3 that means its OWN payload: the
+            # schema file and the error strings are full of em dashes, so the
+            # very first schema load dies.
+            #
+            # How a cluster ends up SQL_ASCII without anyone choosing it
+            # (measured 2026-09-30, minimal Debian 13 LXC): the image ships no
+            # UTF-8 locale, so `apt install postgresql` runs initdb under
+            # LC_CTYPE=C and the cluster comes up SQL_ASCII. The only hint is a
+            # perl locale warning in the apt output.
+            #
+            # UTF-8 on the wire is correct against ANY server encoding — the
+            # server transcodes, and SQL_ASCII passes bytes through — so this
+            # is a portability fix, not a patch for one box. An explicit
+            # client_encoding in the DSN wins: never override the operator.
+            connect_kwargs = {}
+            if "client_encoding" not in (self._dsn or "").lower():
+                connect_kwargs["client_encoding"] = "UTF8"
+            self._pool = ThreadedConnectionPool(
+                minconn, maxconn, dsn=self._dsn, **connect_kwargs
+            )
             return self._pool
 
     def close(self) -> None:
