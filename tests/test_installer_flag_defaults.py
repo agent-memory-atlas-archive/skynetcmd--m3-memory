@@ -19,10 +19,10 @@ is invisible — the install succeeds either way.
 """
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -85,10 +85,22 @@ def test_defaults_are_declared_as_opt_out_shaped():
 # is passed", but it cannot catch a script that no longer PARSES — and this
 # change edited both usage blocks and the arg-parse case. These two run it.
 
-_NEED_BASH = pytest.mark.skipif(shutil.which("bash") is None, reason="no bash")
+# install.sh is the LINUX + macOS installer — it exits "Unsupported OS" on
+# Windows by design, and Windows users follow docs/install_windows.md. So these
+# must not merely require *a* bash; they must not run on Windows at all.
+#
+# `shutil.which("bash")` is NOT a sufficient guard: Windows ships a `bash.exe`
+# shim (WSL) and Git Bash puts another on PATH, so the guard passed and the
+# tests then handed a `C:\Users\...` path to a bash that cannot resolve it.
+# Three green tests on macOS, three failures on Windows — caught by the matrix,
+# 2026-10-01. Gate on the PLATFORM, which is the real precondition.
+_POSIX_ONLY = pytest.mark.skipif(
+    os.name == "nt" or shutil.which("bash") is None,
+    reason="install.sh is the POSIX installer; Windows uses docs/install_windows.md",
+)
 
 
-@_NEED_BASH
+@_POSIX_ONLY
 def test_install_sh_is_syntactically_valid():
     """`bash -n` on the real file. A broken installer is invisible to the Python
     suite otherwise — nothing else here executes this script."""
@@ -97,7 +109,7 @@ def test_install_sh_is_syntactically_valid():
     assert r.returncode == 0, f"bash -n failed: {r.stderr.strip()}"
 
 
-@_NEED_BASH
+@_POSIX_ONLY
 def test_help_runs_and_lists_the_new_flag():
     """--help must work via `curl | bash` too, which is why the usage text is a
     self-contained heredoc rather than `sed "$0"` ($0 is "bash" there, with no
@@ -114,7 +126,7 @@ def test_help_runs_and_lists_the_new_flag():
     assert "--no-native-wheel" in r.stdout, "usage block looks truncated"
 
 
-@_NEED_BASH
+@_POSIX_ONLY
 def test_an_unknown_flag_does_not_silently_proceed():
     """Pins that arg parsing still rejects typos. A `--no-cognitive-lop` typo
     must not quietly install the service the user tried to decline."""
