@@ -6,7 +6,6 @@ Bitemporal history · GDPR Article 17/20 · Cross-device sync · 100% local
 """
 
 import os as _os
-import sys as _sys
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
 
@@ -43,15 +42,9 @@ def _resolve_version() -> str:
     pyproject = _os.path.join(_os.path.dirname(here), "pyproject.toml")
     if _os.path.isfile(pyproject):
         try:
-            if _sys.version_info >= (3, 11):
-                import tomllib
-                with open(pyproject, "rb") as fh:
-                    v = tomllib.load(fh).get("project", {}).get("version")
-            else:  # pragma: no cover — 3.10 and older
-                import re
-                with open(pyproject, encoding="utf-8") as fh:
-                    m = re.search(r'^version\s*=\s*"([^"]+)"', fh.read(), re.M)
-                v = m.group(1) if m else None
+            import tomllib
+            with open(pyproject, "rb") as fh:
+                v = tomllib.load(fh).get("project", {}).get("version")
             if v:
                 return str(v)
         except Exception:  # noqa: BLE001 — a bad pyproject falls through, never raises

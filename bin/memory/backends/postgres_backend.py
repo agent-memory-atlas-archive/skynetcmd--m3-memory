@@ -1377,10 +1377,11 @@ class PostgresBackend:
         """
         from ._vector import score_and_rank
 
+        d = self.dialect()
         params: list = []
         model_sql = ""
         if embed_models:
-            model_sql = " AND me.embed_model IN (%s)" % ", ".join(["%s"] * len(embed_models))
+            model_sql = f" AND me.embed_model IN ({d.placeholder(len(embed_models))})"
             params.extend(embed_models)
         params.extend(tenancy_params)
         cur = conn.cursor()  # type: ignore[attr-defined]
@@ -1389,7 +1390,7 @@ class PostgresBackend:
             SELECT mi.id AS id, me.embedding AS embedding
             FROM memory_items mi
             JOIN memory_embeddings me ON mi.id = me.memory_id
-            WHERE mi.is_deleted = 0 AND me.dim = %s{model_sql}{tenancy_sql}
+            WHERE mi.is_deleted = 0 AND me.dim = {d.param()}{model_sql}{tenancy_sql}
             """,
             (dim, *params),
         )

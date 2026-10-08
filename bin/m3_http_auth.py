@@ -35,7 +35,7 @@ Design notes
   independent of whether either copy is correct.
 
 Portability: ``secrets`` and ``hmac`` are stdlib and behave identically across
-the supported matrix (Windows/macOS/Linux, Python 3.11-3.14). The vault probe
+the supported matrix (Windows/macOS/Linux, Python 3.12 and newer). The vault probe
 goes through the backend seam, so it is correct on SQLite and PostgreSQL alike.
 """
 from __future__ import annotations

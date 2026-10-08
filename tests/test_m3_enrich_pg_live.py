@@ -133,7 +133,7 @@ def test_reflector_read_having_count_on_pg(pg):
             cur.execute(
                 "INSERT INTO memory_items (id,type,content,user_id,scope,metadata_json) "
                 "VALUES (%s,'observation','o','u1','agent',%s)",
-                (str(uuid.uuid4()), '{"conversation_id":"%s"}' % conv),
+                (str(uuid.uuid4()), f'{{"conversation_id":"{conv}"}}'),
             )
     try:
         with mc._db() as conn:

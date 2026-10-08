@@ -75,7 +75,7 @@ def test_query_eligible_rows_on_pg(pg):
         c.cursor().execute(
             "INSERT INTO memory_items (id,type,content,conversation_id,scope,metadata_json) "
             "VALUES (%s,'message','Alice met Bob in Tokyo.',%s,'agent',%s)",
-            (mid, conv, '{"conversation_id":"%s"}' % conv),
+            (mid, conv, f'{{"conversation_id":"{conv}"}}'),
         )
     try:
         rows = me._query_eligible_rows(

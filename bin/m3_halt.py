@@ -1019,7 +1019,7 @@ def read_lock_events(engine_root: str | None = None,
     return out[-limit:] if limit and limit > 0 else out
 
 
-class LockStatus(str, enum.Enum):
+class LockStatus(enum.StrEnum):
     """Categorical outcome of an acquire attempt. Different causes need different
     downstream handling — a caller must NOT collapse every non-ACQUIRED into
     "already running" (a wedged lock or a config error is not a live peer)."""

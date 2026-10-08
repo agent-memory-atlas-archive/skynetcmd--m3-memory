@@ -1032,7 +1032,7 @@ async def memory_search_scored_impl(
     _compat = sorted(_compatible_model_names())
     if _compat:
         where_clauses.append(
-            "me.embed_model IN (%s)" % _dl_m().placeholder(len(_compat)))
+            f"me.embed_model IN ({_dl_m().placeholder(len(_compat))})")
         params.extend(_compat)
     where_clauses.append("me.dim = ?")
     params.append(config.EMBED_DIM)

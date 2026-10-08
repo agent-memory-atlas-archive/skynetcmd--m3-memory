@@ -119,7 +119,7 @@ def test_scope_on_filters_out_other_variant(tmp_path, monkeypatch):
     )
     twin_ids = {r[0] for r in related}
     assert twin_id not in twin_ids, (
-        "scope ON must exclude cross-variant candidate twin; got related=%r" % related
+        f"scope ON must exclude cross-variant candidate twin; got related={related!r}"
     )
     assert superseded == [], "no supersedes expected (identical-content case skipped)"
 
@@ -154,7 +154,7 @@ def test_scope_off_includes_other_variant(tmp_path, monkeypatch):
     )
     twin_ids = {r[0] for r in related}
     assert twin_id in twin_ids, (
-        "scope OFF must restore legacy variant-blind behavior; got related=%r" % related
+        f"scope OFF must restore legacy variant-blind behavior; got related={related!r}"
     )
 
 
@@ -186,5 +186,5 @@ def test_variant_none_preserves_legacy(tmp_path, monkeypatch):
     )
     other_ids = {r[0] for r in related}
     assert other_id in other_ids, (
-        "variant=None must preserve legacy variant-blind candidate scan; got related=%r" % related
+        f"variant=None must preserve legacy variant-blind candidate scan; got related={related!r}"
     )

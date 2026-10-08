@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_embed_sweeper.py
-sha1: 2923eded264a
-mtime_utc: 2026-10-08T22:11:14.515208+00:00
-generated_utc: 2026-10-08T22:11:47.711603+00:00
+sha1: ff36dd4a6471
+mtime_utc: 2026-10-08T22:15:22.447374+00:00
+generated_utc: 2026-10-08T22:17:29.158975+00:00
 private: false
 ---
 

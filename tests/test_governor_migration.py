@@ -317,7 +317,7 @@ def test_detect_never_raises_without_scheduler(monkeypatch):
     real_paths = gm._unix_service_paths()
     monkeypatch.setattr(
         gm, "_unix_service_paths",
-        lambda: {name: "/nonexistent/m3-test/%s.service" % name
+        lambda: {name: f"/nonexistent/m3-test/{name}.service"
                  for name in real_paths},
     )
     out = gm.detect_scheduled_tasks()

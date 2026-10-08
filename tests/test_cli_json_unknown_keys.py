@@ -75,9 +75,8 @@ def test_valid_keys_still_pass():
 def test_cli_level_extras_are_allowed(extra):
     """`database` and `timeout` are CLI-level knobs, not tool properties, but
     the impls accept them -- they must not be rejected as unknown."""
-    payload = '{"title":"t","created_by":"c","%s":%s}' % (
-        extra, '"x.db"' if extra == "database" else "30",
-    )
+    value = '"x.db"' if extra == "database" else "30"
+    payload = f'{{"title":"t","created_by":"c","{extra}":{value}}}'
     r = _run(["tasks", "task_create", "--json", payload, "--dry-run", "--yes"])
     assert "unknown key" not in r.stderr, r.stderr
 

@@ -673,7 +673,7 @@ def run_gui() -> int:
                 #                 (the user opens the file to see the detail).
                 # No stderr content is ever dumped into the pretty window.
                 proc = subprocess.run(
-                    argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                    argv, capture_output=True,
                     text=True, encoding="utf-8", errors="replace", timeout=180,
                 )
                 out = proc.stdout or "(no output)"

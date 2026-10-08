@@ -141,7 +141,7 @@ def _quarantine_spill(spill_path: str, reason: str, attempts: int) -> bool:
         os.makedirs(qdir, exist_ok=True)
         dest = os.path.join(qdir, os.path.basename(spill_path))
         if os.path.exists(dest):  # keep both rather than clobber
-            dest = "%s.%s" % (dest, datetime.now(UTC).strftime("%Y%m%dT%H%M%S"))
+            dest = f"{dest}.{datetime.now(UTC):%Y%m%dT%H%M%S}"
         os.replace(spill_path, dest)
         try:
             os.remove(_attempts_path(spill_path))
@@ -284,7 +284,7 @@ async def drain_spill(conn=None) -> int:
                         "re-point or remove the stale rows to drain it.",
                         db_path, spill_path)
                     had_error = True
-                    last_error = "stale target %s (parent directory missing)" % db_path
+                    last_error = f"stale target {db_path} (parent directory missing)"
                     continue
 
                 # The directory check above is necessary but NOT sufficient: a
@@ -302,7 +302,7 @@ async def drain_spill(conn=None) -> int:
                         "Keeping %s; re-point or remove the stale rows to drain it.",
                         db_path, spill_path)
                     had_error = True
-                    last_error = "target %s has no chatlog schema" % db_path
+                    last_error = f"target {db_path} has no chatlog schema"
                     continue
 
                 # Reuse the CANONICAL chatlog writer rather than a second INSERT
@@ -332,7 +332,7 @@ async def drain_spill(conn=None) -> int:
                     logger.error("Failed to insert drained rows from %s into %s: %s: %s",
                                  spill_path, db_path, type(e).__name__, e)
                     had_error = True
-                    last_error = "%s: %s" % (type(e).__name__, e)
+                    last_error = f"{type(e).__name__}: {e}"
 
             total_drained += file_drained
 
