@@ -311,9 +311,8 @@ async def _flush_once() -> int:
         return 0
 
     # Run SQLite insert off the event loop
-    loop = asyncio.get_running_loop()
     try:
-        written = await loop.run_in_executor(None, _executemany_insert, batch)
+        written = await asyncio.to_thread(_executemany_insert, batch)
         _WROTE_COUNT += written
         _update_state_after_flush(q.qsize(), written)
         return written
@@ -863,8 +862,7 @@ async def _chatlog_search_separate(
                 })
             return {"results": results, "count": len(results)}
 
-    loop = asyncio.get_running_loop()
-    result = await loop.run_in_executor(None, _run)
+    result = await asyncio.to_thread(_run)
     return json.dumps({
         **result,
         "db_path": db_path,
@@ -1021,8 +1019,7 @@ async def chatlog_promote_impl(
 
             return {"promoted": len(row_ids), "ids": row_ids, "unified": False}
 
-    loop = asyncio.get_running_loop()
-    result = await loop.run_in_executor(None, _run)
+    result = await asyncio.to_thread(_run)
     return json.dumps(result)
 
 
@@ -1154,8 +1151,7 @@ async def chatlog_cost_report_impl(
             for r in rows
         ]
 
-    loop = asyncio.get_running_loop()
-    buckets = await loop.run_in_executor(None, _run)
+    buckets = await asyncio.to_thread(_run)
     return json.dumps({"group_by": group_by, "buckets": buckets})
 
 
@@ -1280,8 +1276,7 @@ async def chatlog_rescrub_impl(
                 )
         return result
 
-    loop = asyncio.get_running_loop()
-    result = await loop.run_in_executor(None, _run)
+    result = await asyncio.to_thread(_run)
     return json.dumps(result)
 
 
