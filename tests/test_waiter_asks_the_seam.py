@@ -107,3 +107,37 @@ def test_seam_failure_degrades_loudly_not_silently(monkeypatch, capsys):
     monkeypatch.setenv("DB_BACKEND", "postgres")
     assert not waiter._has_change_signal("agent_memory.db"), "env fallback ignored DB_BACKEND"
     assert warned, "the seam failed and nothing was logged -- silent degradation"
+
+
+def _seam_unimportable(monkeypatch, *, also_m3_core=False):
+    import builtins
+
+    real_import = builtins.__import__
+    blocked = ("memory", "m3_core") if also_m3_core else ("memory",)
+
+    def boom(name, *a, **k):
+        if name.startswith(blocked):
+            raise ImportError("simulated stripped payload")
+        return real_import(name, *a, **k)
+
+    monkeypatch.setattr(builtins, "__import__", boom)
+    monkeypatch.setattr(waiter, "_warn", lambda m: None)
+
+
+@pytest.mark.parametrize("name", ["mariadb", "postgre"])
+def test_seam_failure_sends_only_sqlite_to_the_file_lane(name, monkeypatch):
+    """The fallback gates on `== "sqlite"`, never `!= "postgres"` (§10a): a
+    future backend or a typo must not get the SQLite file-signal lane, where it
+    would watch files nobody writes. It takes the polling lane and fails loud."""
+    _seam_unimportable(monkeypatch)
+    monkeypatch.setenv("M3_DB_BACKEND", name)
+    assert not waiter._has_change_signal("agent_memory.db"), (
+        f"M3_DB_BACKEND={name!r} with no seam got the SQLite file-signal lane")
+
+
+@pytest.mark.parametrize("also_m3_core", [False, True])
+def test_seam_failure_keeps_sqlite_on_the_file_lane(also_m3_core, monkeypatch):
+    """The fail-closed default the docstring defends: an unset backend (SQLite)
+    stays on the file-signal lane, with or without m3_core importable."""
+    _seam_unimportable(monkeypatch, also_m3_core=also_m3_core)
+    assert waiter._has_change_signal("agent_memory.db")

@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_notification_waiter.py
-sha1: 777064cc09f0
-mtime_utc: 2026-10-08T03:47:58.961149+00:00
-generated_utc: 2026-10-08T03:49:36.828226+00:00
+sha1: d68ba895d4b9
+mtime_utc: 2026-10-08T16:28:46.417012+00:00
+generated_utc: 2026-10-08T16:28:53.635939+00:00
 private: false
 ---
 
@@ -33,7 +33,7 @@ is the whole point: on-change delivery to the agent, without a turn per tick.
 
 ## Entry points
 
-- `def main()` (line 502)
+- `def main()` (line 512)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -79,6 +79,7 @@ _(none detected)_
 ## Notable external imports
 
 - `m3_core.paths (notification_store_paths)`
+- `m3_core.paths (resolve_backend_name)`
 - `memory (db)`
 - `memory.backends (dialect)`
 - `memory.orchestration (agent_list_impl)`

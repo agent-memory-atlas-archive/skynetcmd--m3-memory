@@ -482,21 +482,31 @@ def _has_change_signal(probe_store: str) -> bool:
     The import is DEFERRED: the supervisor must stay stdlib-only at import time
     to survive `pipx upgrade` (#163).
 
-    Fails CLOSED to the file-signal lane when the seam cannot be imported: a
-    stripped supervisor payload is almost certainly SQLite-only, and guessing
-    the polling lane would spawn a child that cannot connect. The env read is
-    the fallback, not the source of truth, and it is logged.
+    Fails CLOSED to the file-signal lane when the seam cannot be imported and
+    the configured backend is SQLite (the default): a stripped supervisor
+    payload is almost certainly SQLite-only, and guessing the polling lane would
+    spawn a child that cannot connect. The backend name comes from the selector's
+    single owner (`m3_core.paths.resolve_backend_name`); a raw env read is used
+    only when even `m3_core` is missing. Gated `== "sqlite"`, never
+    `!= "postgres"`: any other backend, or an unrecognised name, takes the
+    polling lane and fails loud there rather than watching files nobody writes.
     """
     try:
         from memory.backends import dialect  # deferred: see docstring
         return dialect().store_change_token(probe_store) is not None
     except Exception as exc:
-        env = (os.environ.get("M3_DB_BACKEND")
-               or os.environ.get("DB_BACKEND") or "sqlite").strip().lower()
+        try:
+            from m3_core.paths import resolve_backend_name  # the selector's single owner
+            env = resolve_backend_name()
+        except ImportError:  # stripped payload: no m3_core either
+            env = (os.environ.get("M3_DB_BACKEND")
+                   or os.environ.get("DB_BACKEND") or "sqlite").strip().lower()
+        except ValueError as sel_exc:  # an unrecognised name; the selector says which
+            env = f"unrecognised ({sel_exc})"
         _warn(f"could not ask the backend seam for a change signal "
-              f"(observed: {exc!r}); falling back to env backend={env!r}. "
+              f"(observed: {exc!r}); falling back to backend={env!r}. "
               f"inspect: memory.backends.dialect().store_change_token")
-        return env != "postgres"
+        return env == "sqlite"
 
 
 def main() -> int:
