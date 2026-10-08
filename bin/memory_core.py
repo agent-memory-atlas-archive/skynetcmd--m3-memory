@@ -56,7 +56,11 @@ import logging
 import os  # noqa: F401 — re-export
 import uuid
 from collections.abc import Awaitable, Callable  # noqa: F401 (used in annotations)
-from datetime import UTC, datetime
+from datetime import (
+    UTC,
+    datetime,
+    timezone,  # noqa: F401 (memory_core's namespace is snapshotted API: test_memory_core_parity)
+)
 
 # Legacy back-compat: `_lru_cache` was imported inline in the FTS block
 # (used internally by `_compile_fts_query`'s @decorator). Preserved as a

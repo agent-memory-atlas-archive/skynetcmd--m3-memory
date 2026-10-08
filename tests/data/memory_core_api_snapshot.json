@@ -1,7 +1,7 @@
 {
   "module": "memory_core",
   "module_doc_present": true,
-  "n_symbols": 322,
+  "n_symbols": 323,
   "symbols": {
     "ARCHIVE_DB_PATH": {
       "kind": "constant",
@@ -24,7 +24,7 @@
       "value_repr": null
     },
     "Awaitable": {
-      "kind": "constant",
+      "kind": "class",
       "signature": null,
       "value_repr": null
     },
@@ -49,7 +49,7 @@
       "value_repr": "frozenset({'conversation'})"
     },
     "Callable": {
-      "kind": "constant",
+      "kind": "class",
       "signature": null,
       "value_repr": null
     },
@@ -368,6 +368,11 @@
       "signature": null,
       "value_repr": "0.15"
     },
+    "UTC": {
+      "kind": "constant",
+      "signature": null,
+      "value_repr": "datetime.timezone.utc"
+    },
     "VALID_AGENT_STATUSES": {
       "kind": "constant",
       "signature": null,
@@ -391,7 +396,7 @@
     "VALID_RELATIONSHIP_TYPES": {
       "kind": "constant",
       "signature": null,
-      "value_repr": "set({'consolidates', 'contradicts', 'extends', 'follows', 'handoff', 'message', 'precedes', 'references', 'related', 'supersedes', 'supports'})"
+      "value_repr": "frozenset({'consolidates', 'contradicts', 'extends', 'follows', 'handoff', 'message', 'precedes', 'references', 'related', 'supersedes', 'supports'})"
     },
     "VALID_SCOPES": {
       "kind": "constant",
@@ -421,7 +426,7 @@
     "_CPU_FALLBACK_BREAKER": {
       "kind": "constant",
       "signature": null,
-      "value_repr": "None"
+      "value_repr": "<builtins.CircuitBreaker object at 0x<ADDR>>"
     },
     "_DATE_MONTHS": {
       "kind": "constant",
@@ -456,7 +461,7 @@
     "_EMBEDDED_BREAKER": {
       "kind": "constant",
       "signature": null,
-      "value_repr": "None"
+      "value_repr": "<builtins.CircuitBreaker object at 0x<ADDR>>"
     },
     "_EMBED_BACKEND_STATS": {
       "kind": "constant",
@@ -646,7 +651,7 @@
     "_OXIDATION_DISABLED": {
       "kind": "constant",
       "signature": null,
-      "value_repr": "True"
+      "value_repr": "False"
     },
     "_PENDING_ENTITY_TASKS": {
       "kind": "constant",
@@ -666,7 +671,7 @@
     "_PRIMARY_BREAKER": {
       "kind": "constant",
       "signature": null,
-      "value_repr": "None"
+      "value_repr": "<builtins.CircuitBreaker object at 0x<ADDR>>"
     },
     "_RERANKER_MODEL": {
       "kind": "constant",
@@ -1432,7 +1437,7 @@
     },
     "memory_search_multi_db_impl": {
       "kind": "async_function",
-      "signature": "(query: 'str', databases: \"'list[str] | str'\", k: 'int' = 8, mmr: 'bool' = True, type_filter: 'str' = '', agent_filter: 'str' = '', search_mode: 'str' = 'hybrid', user_id: 'str' = '', scope: 'str' = '', as_of: 'str' = '', conversation_id: 'str' = '', extra_columns: \"'list[str] | None'\" = None, recency_bias: 'float' = 0.0, adaptive_k: 'bool' = False, variant: \"'str | list'\" = '', fan_out_limit: \"'int | None'\" = None, requesting_agent: 'str' = '')",
+      "signature": "(query: 'str', databases: 'list[str] | str', k: 'int' = 8, mmr: 'bool' = True, type_filter: 'str' = '', agent_filter: 'str' = '', search_mode: 'str' = 'hybrid', user_id: 'str' = '', scope: 'str' = '', as_of: 'str' = '', conversation_id: 'str' = '', extra_columns: 'list[str] | None' = None, recency_bias: 'float' = 0.0, adaptive_k: 'bool' = False, variant: 'str | list' = '', fan_out_limit: 'int | None' = None, requesting_agent: 'str' = '')",
       "value_repr": null
     },
     "memory_search_routed_impl": {
@@ -1482,7 +1487,7 @@
     },
     "memory_write_bulk_impl": {
       "kind": "async_function",
-      "signature": "(items: 'list[dict]', *, enrich: 'bool | None' = None, check_contradictions: 'bool | None' = None, emit_conversation: 'bool | None' = None, variant: 'str | None' = None, embed_key_enricher: \"'Callable[[str, dict], Awaitable[str]] | None'\" = None, embed_key_enricher_concurrency: 'int' = 4, dual_embed: 'bool' = False, fact_enricher: \"'Callable[[str], Awaitable[list[dict]]] | None'\" = None, fact_enricher_concurrency: 'int' = 2, fact_enricher_variant_allowlist: 'set[str] | None' = None, entity_extractor: \"'Callable[[str], Awaitable[dict]] | None'\" = None, entity_extractor_concurrency: 'int' = 2, entity_extractor_variant_allowlist: \"'set[str] | None'\" = None) -> 'list[str]'",
+      "signature": "(items: 'list[dict]', *, enrich: 'bool | None' = None, check_contradictions: 'bool | None' = None, emit_conversation: 'bool | None' = None, variant: 'str | None' = None, embed_key_enricher: 'Callable[[str, dict], Awaitable[str]] | None' = None, embed_key_enricher_concurrency: 'int' = 4, dual_embed: 'bool' = False, fact_enricher: 'Callable[[str], Awaitable[list[dict]]] | None' = None, fact_enricher_concurrency: 'int' = 2, fact_enricher_variant_allowlist: 'set[str] | None' = None, entity_extractor: 'Callable[[str], Awaitable[dict]] | None' = None, entity_extractor_concurrency: 'int' = 2, entity_extractor_variant_allowlist: 'set[str] | None' = None) -> 'list[str]'",
       "value_repr": null
     },
     "memory_write_from_file_impl": {
@@ -1492,7 +1497,7 @@
     },
     "memory_write_impl": {
       "kind": "async_function",
-      "signature": "(type, content, title='', metadata='{}', agent_id='', model_id='', change_agent='', importance=0.5, source='agent', embed=True, user_id='', scope='agent', valid_from='', valid_to='', auto_classify=False, conversation_id='', refresh_on='', refresh_reason='', variant=None, embed_text=None, confidence: 'float' = -1.0, fact_enricher: \"'Callable[[str], Awaitable[list[dict]]] | None'\" = None, fact_enricher_variant_allowlist: \"'set[str] | None'\" = None, entity_extractor: \"'Callable[[str], Awaitable[dict]] | None'\" = None, entity_extractor_variant_allowlist: \"'set[str] | None'\" = None, check_contradictions: 'bool' = True)",
+      "signature": "(type, content, title='', metadata='{}', agent_id='', model_id='', change_agent='', importance=0.5, source='agent', embed=True, user_id='', scope='agent', valid_from='', valid_to='', auto_classify=False, conversation_id='', refresh_on='', refresh_reason='', variant=None, embed_text=None, confidence: 'float' = -1.0, fact_enricher: 'Callable[[str], Awaitable[list[dict]]] | None' = None, fact_enricher_variant_allowlist: 'set[str] | None' = None, entity_extractor: 'Callable[[str], Awaitable[dict]] | None' = None, entity_extractor_variant_allowlist: 'set[str] | None' = None, check_contradictions: 'bool' = True)",
       "value_repr": null
     },
     "notifications_ack_all_impl": {
