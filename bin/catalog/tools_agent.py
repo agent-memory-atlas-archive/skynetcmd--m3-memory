@@ -50,7 +50,10 @@ TOOLS: list[ToolSpec] = [
     ),
     ToolSpec(
         name="agent_list",
-        description="List registered agents, optionally filtered by status and/or role.",
+        description=("List registered agents, optionally filtered by status and/or role. "
+                     "Each carries a derived membership: member (touched within 24h), idle "
+                     "(client process still alive on its node) or left — judge liveness by "
+                     "membership, not status."),
         parameters={
             "type": "object",
             "properties": {

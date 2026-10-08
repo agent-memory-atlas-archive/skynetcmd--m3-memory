@@ -22,6 +22,7 @@ See `docs/MEMORY_CORE_MODULARIZATION.md` for the migration plan.
 """
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import uuid
@@ -61,6 +62,85 @@ def _validate_task_transition(prev: str, new: str):
         return (f"Error: cannot transition task from '{prev}' to '{new}'. "
                 f"Allowed from '{prev}': {sorted(allowed) or '(terminal)'}")
     return None
+
+# ── Agent activity ("touch") and team membership ─────────────────────────────────
+
+# How recently an agent must have touched the registry to count as a team
+# member (user decision c6aebe9e). Distinct from _NODE_ACTIVE_WINDOW_MINUTES,
+# which asks "active right now?" for the topology decision.
+TEAM_MEMBERSHIP_WINDOW_HOURS = 24
+
+
+@functools.cache
+def _own_client() -> "tuple[int, float | None] | None":
+    """(pid, create_time) of this process's agent client; cached, it cannot change.
+
+    Transport-blind: walks up from whichever process runs m3 — MCP server or
+    CLI — past m3's own launch chain (`m3_core.process.agent_client`).
+    """
+    from m3_core.process import agent_client
+
+    client = agent_client()
+    return None if client is None else (client.pid, client.create_time)
+
+
+_OWN_CLIENT = object()
+
+
+def _touch(db, agent_id: str, *, client=_OWN_CLIENT) -> int:
+    """Record that ``agent_id`` showed activity. The single owner; returns rowcount.
+
+    Stamps last_seen from the DATABASE clock (one clock and one format across
+    hosts), plus node_id, hostname and the client pid. When the client cannot be
+    resolved the pid is CLEARED, never left stale: a pid recorded on another node
+    or by an earlier session would otherwise be checked against this one.
+    ``client`` — ``(pid, create_time)`` or None — defaults to this process's own.
+    """
+    import socket
+
+    _d = dialect()
+    p = _d.param()
+    if client is _OWN_CLIENT:
+        client = _own_client()
+    pid, create_time = client if client else (None, None)
+    cur = db.execute(
+        f"UPDATE agents SET last_seen = {_d.now()}, status = 'active', "
+        f"node_id = {p}, hostname = {p}, pid = {p}, pid_create_time = {p} "
+        f"WHERE agent_id = {p}",
+        (node_id(), socket.gethostname(), pid, create_time, agent_id),
+    )
+    return cur.rowcount
+
+
+def _membership(row, here: str) -> "tuple[str, str]":
+    """(state, basis) for one registry row: 'member', 'idle' or 'left'.
+
+    ``row`` must carry the ``recent`` flag computed in SQL against the database
+    clock (see :func:`_membership_columns`). A PID is checked only on its own
+    node; a remote agent is judged by its last touch alone.
+    """
+    from m3_core.process import pid_is_live_owner
+
+    w = TEAM_MEMBERSHIP_WINDOW_HOURS
+    host = row["hostname"] or row["node_id"] or "unknown host"
+    pid = row["pid"]
+    if row["recent"]:
+        return "member", f"touched within {w}h"
+    if row["node_id"] and row["node_id"] != here:
+        return "left", f"no touch in {w}h; on {host}, where its pid cannot be checked from here"
+    if pid and pid_is_live_owner(pid, row["pid_create_time"]):
+        return "idle", f"no touch in {w}h but pid {pid} is alive on {host}"
+    why = f"pid {pid} not running on {host}" if pid else "no client pid recorded"
+    return "left", f"no touch in {w}h; {why}"
+
+
+def _membership_columns() -> "tuple[str, tuple]":
+    """SELECT fragment + params adding ``recent`` (touched inside the window, DB clock)."""
+    _d = dialect()
+    return (f"node_id, hostname, pid, pid_create_time, "
+            f"CASE WHEN last_seen >= {_d.now_minus_minutes(_d.param())} THEN 1 ELSE 0 END AS recent",
+            (TEAM_MEMBERSHIP_WINDOW_HOURS * 60,))
+
 
 def _agent_exists(agent_id: str) -> bool:
     """Checks if an agent is registered in the agents table."""
@@ -103,6 +183,7 @@ def agent_register_impl(agent_id: str, role: str = "", capabilities: list | None
                  last_seen=excluded.last_seen""",
             (agent_id, role, caps_json, meta_json, now, now)
         )
+        _touch(db, agent_id)
 
     from memory_core import _refresh_hint
     return f"Registered: {agent_id} (role={role}, status=active)" + _refresh_hint(agent_id)
@@ -113,21 +194,14 @@ def agent_heartbeat_impl(agent_id: str) -> str:
     Note: calling this explicitly is now optional. `notifications_poll` performs
     an implicit heartbeat automatically when an agent checks its mail.
     """
-    now = datetime.now(timezone.utc).isoformat()
-
     with _db() as db:
+        if _touch(db, agent_id) == 0:
+            return f"Error: agent '{agent_id}' not registered"
         p = dialect().param()
-        cur = db.execute(
-            f"UPDATE agents SET last_seen = {p}, status = 'active', "
-            f"node_id = {p} WHERE agent_id = {p}",
-            (now, node_id(), agent_id)
-        )
-        rowcount = cur.rowcount
+        row = db.execute(f"SELECT last_seen FROM agents WHERE agent_id = {p}",
+                         (agent_id,)).fetchone()
 
-    if rowcount == 0:
-        return f"Error: agent '{agent_id}' not registered"
-
-    return f"Heartbeat: {agent_id} (last_seen={now})"
+    return f"Heartbeat: {agent_id} (last_seen={row['last_seen']})"
 
 def agent_list_impl(status: str = "", role: str = "", as_records: bool = False) -> str:
     """Lists agents, optionally filtered by status and/or role."""
@@ -143,11 +217,13 @@ def agent_list_impl(status: str = "", role: str = "", as_records: bool = False) 
         params.append(role)
 
     where = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+    member_cols, member_params = _membership_columns()
 
     with _db() as db:
         rows = db.execute(
-            f"SELECT agent_id, role, status, last_seen FROM agents {where} ORDER BY last_seen DESC",
-            params
+            f"SELECT agent_id, role, status, last_seen, {member_cols} "
+            f"FROM agents {where} ORDER BY last_seen DESC",
+            (*member_params, *params)
         ).fetchall()
 
     if not rows:
@@ -156,12 +232,24 @@ def agent_list_impl(status: str = "", role: str = "", as_records: bool = False) 
         # result set was empty -- that is the branch a parser forgets to handle.
         return records.emit("(no agents)", records.as_records_payload(()), as_records)
 
-    lines = [f"Agents ({len(rows)}):"]
+    # `status` is what an agent last CLAIMED; `membership` is derived from its
+    # activity and client process, so a session that ended without saying so
+    # still reads as gone.
+    here = node_id()
+    out = []
     for row in rows:
-        lines.append(f"  [{row['agent_id']}] role={row['role']} status={row['status']} last_seen={row['last_seen']}")
+        state, basis = _membership(row, here)
+        out.append({"agent_id": row["agent_id"], "role": row["role"], "status": row["status"],
+                    "last_seen": row["last_seen"], "node_id": row["node_id"],
+                    "hostname": row["hostname"], "pid": row["pid"],
+                    "membership": state, "membership_basis": basis})
+
+    lines = [f"Agents ({len(out)}):"]
+    lines += [f"  [{r['agent_id']}] role={r['role']} membership={r['membership']} "
+              f"({r['membership_basis']}) last_seen={r['last_seen']}" for r in out]
 
     return records.emit("\n".join(lines),
-                        records.as_records_payload(rows), as_records)
+                        records.as_records_payload(out), as_records)
 
 def agent_get_impl(agent_id: str) -> str:
     """Retrieves detailed information about a single agent."""
@@ -567,6 +655,13 @@ def notify_impl(agent_id: str, kind: str, payload: dict = None,
         new_id = _d.last_insert_id(cur)
         db.commit()
 
+    # Sending is activity by the SENDER. The registry lives in the main store,
+    # not the dispatch store the message went to. An unregistered sender is
+    # simply not touched (0 rows), as before.
+    if from_agent:
+        with _db() as reg:
+            _touch(reg, from_agent)
+
     return f"Notified {agent_id}: {kind} (id={new_id})"
 
 
@@ -944,16 +1039,9 @@ def notifications_poll_impl(agent_id: str, unread_only: bool = True, limit: int 
         # own clocks reach different verdicts about the same agent. It also
         # keeps ONE format in the column -- a Python isoformat() writes
         # microseconds and a +00:00 offset where the DB writes ...Z.
-        _hb = db.execute(
-            # node_id rides the heartbeat so the fleet's TOPOLOGY ages out
-            # exactly as liveness does. A registry row is forever; a heartbeat
-            # is recent, and the dispatch-backend decision must count only
-            # agents that are actually active.
-            f"UPDATE agents SET last_seen = {_d.now()}, status = 'active', "
-            f"node_id = {p} WHERE agent_id = {p}",
-            (node_id(), agent_id)
-        )
-        heartbeat_seen = bool(_hb.rowcount)
+        # node_id rides the heartbeat so the fleet's TOPOLOGY ages out exactly
+        # as liveness does; _touch owns that and the client-process stamp.
+        heartbeat_seen = bool(_touch(db, agent_id))
 
     # The heartbeat above belongs to the MAIN store (the agents table lives
     # there); the mail does not. Reading it must span every notification store

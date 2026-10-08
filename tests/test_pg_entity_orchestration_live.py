@@ -65,13 +65,19 @@ def pg_backend(monkeypatch):
     # shapes; ensure_schema()'s CREATE TABLE IF NOT EXISTS would then skip them and
     # leave columns missing (e.g. agents.agent_id). Drop the tables this suite owns
     # first so ensure_schema rebuilds the FULL shape deterministically.
+    #
+    # schema_versions goes too: dropping tables while keeping the record of the
+    # migrations applied to them rebuilt `agents` at the v39 baseline while the
+    # record still claimed pg_057 (node_id) and later -- a schema no real install
+    # can have. ensure_schema then re-stamps the baseline and re-applies every
+    # pg_NNN, which the migration rules require to be idempotent.
     with b.connection() as c:
         c.cursor().execute(
             "DROP TABLE IF EXISTS notifications, tasks, bypass_surface, "
             "memory_item_entities, entity_relationships, entity_extraction_queue, "
             "entity_embeddings, fact_enrichment_queue, entities, agents, "
             "memory_history, memory_corroborations, memory_relationships, "
-            "memory_embeddings, memory_items CASCADE"
+            "memory_embeddings, memory_items, schema_versions CASCADE"
         )
     b._schema_ready = False
     b.ensure_schema()

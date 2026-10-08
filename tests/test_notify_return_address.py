@@ -45,12 +45,29 @@ def _payload_of(monkeypatch, **kw) -> dict:
         def __exit__(self, *a):
             return False
 
+    class _RegistryCur:
+        rowcount = 0  # sender not registered: the touch updates nothing
+
+    class _Registry:
+        """The sender's touch goes to the agents table in the MAIN store; it
+        must not overwrite the dispatch INSERT this harness captures."""
+
+        def execute(self, sql, params):
+            return _RegistryCur()
+
+    class _RegistryCtx:
+        def __enter__(self):
+            return _Registry()
+
+        def __exit__(self, *a):
+            return False
+
     # notify_impl writes through M3Context.get_dispatch_conn, not `_db()`:
     # delivery records live in their own store. Patch the connection the write
     # path actually uses, or this harness captures nothing and the test fails
     # for a reason that has nothing to do with the return address.
     import m3_core.context as _ctx
-    monkeypatch.setattr(orchestration, "_db", lambda: _Ctx())
+    monkeypatch.setattr(orchestration, "_db", lambda: _RegistryCtx())
     monkeypatch.setattr(_ctx.M3Context, "get_dispatch_conn",
                         lambda self: _Ctx(), raising=False)
     d = orchestration.dialect()

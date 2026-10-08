@@ -60,7 +60,7 @@ This document provides a comprehensive inventory of all 118 MCP tools available 
 | `task_update` | Task Management | Partial update for a task. Validates state transitions. On terminal state, sets completed_at. |
 | `agent_get` | Agent Registry & Notifications | Get full record for one registered agent. |
 | `agent_heartbeat` | Agent Registry & Notifications | Update last_seen and set status=active. Errors if not registered. |
-| `agent_list` | Agent Registry & Notifications | List registered agents, optionally filtered by status and/or role. |
+| `agent_list` | Agent Registry & Notifications | List registered agents, optionally filtered by status and/or role. Each carries a derived membership: member (touched within 24h), idle (client process still alive on its node) or left — judge liveness by membership, not status. |
 | `agent_offline` | Agent Registry & Notifications | Mark an agent as offline. |
 | `agent_register` | Agent Registry & Notifications | Register an agent (UPSERT). Sets status=active, last_seen=now. |
 | `agent_set_trust` | Agent Registry & Notifications | Set an agent's trust score (0.5-1.0, clamped). Trust weights that agent's assertions in memory confidence aggregation; 1.0 is neutral. Upserts the agent if absent. |
@@ -1070,7 +1070,7 @@ Update last_seen and set status=active. Errors if not registered.
 
 ### `agent_list`
 
-List registered agents, optionally filtered by status and/or role.
+List registered agents, optionally filtered by status and/or role. Each carries a derived membership: member (touched within 24h), idle (client process still alive on its node) or left — judge liveness by membership, not status.
 
 **Source:** mcp_tool_catalog.py
 
