@@ -33,7 +33,6 @@ from __future__ import annotations
 
 import json
 import logging
-import math
 import sqlite3
 import time
 import uuid as _uuid
@@ -85,18 +84,13 @@ def _cosine_packed(a_bytes: bytes, b_bytes: bytes, dim: int) -> float:
             return 0.0
         return float(_np.dot(a, b) / (na * nb))
     except ImportError:
-        # Pure-Python fallback (slow but works without numpy).
-        from embedding_utils import unpack
+        # Pure-Python fallback (slow but works without numpy): the one owner.
+        from embedding_utils import cosine, unpack
         va = unpack(a_bytes)
         vb = unpack(b_bytes)
         if not va or not vb:
             return 0.0
-        dot = sum(x * y for x, y in zip(va, vb))
-        na = math.sqrt(sum(x * x for x in va))
-        nb = math.sqrt(sum(y * y for y in vb))
-        if na == 0.0 or nb == 0.0:
-            return 0.0
-        return dot / (na * nb)
+        return cosine(va, vb)
 
 
 def files_dedup(

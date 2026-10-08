@@ -9,6 +9,7 @@ Consolidates embedding helpers used by memory_bridge.py:
 """
 
 import logging
+import math
 import re
 import struct
 import unicodedata
@@ -92,9 +93,12 @@ def cosine(a: list[float], b: list[float]) -> float:
         vb = _np.array(b, dtype=_np.float32)
         denom = float(_np.linalg.norm(va) * _np.linalg.norm(vb))
         return float(_np.dot(va, vb) / denom) if denom > 0 else 0.0
-    dot = sum(x * y for x, y in zip(a, b))
-    mag_a = sum(x * x for x in a) ** 0.5
-    mag_b = sum(x * x for x in b) ** 0.5
+    # The one pure-Python fallback (files_memory.dedup delegates here). sumprod
+    # raises ValueError on a length mismatch, as np.dot does above; zip() used to
+    # truncate and score the overlap as if it were the whole vector.
+    dot = math.sumprod(a, b)
+    mag_a = math.sqrt(math.sumprod(a, a))
+    mag_b = math.sqrt(math.sumprod(b, b))
     return dot / (mag_a * mag_b) if (mag_a and mag_b) else 0.0
 
 
