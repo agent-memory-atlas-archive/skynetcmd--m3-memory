@@ -155,11 +155,13 @@ def main() -> int:
             },
             "crewai": {
                 "supported": True,
-                "install_extra": "pip install m3-memory[crewai]",
+                "install_extra": ('uv pip install "m3-memory[crewai]" --override overrides.txt '
+                                  '(overrides.txt: mcp>=1.30.0,<2; crewai pins mcp<1.29, so '
+                                  'plain pip cannot resolve)'),
                 "crewai_version": ">=1.10,<2",
                 "storage_backend": True,       # implements CrewAI's StorageBackend protocol
                 "cross_agent_searchable": True,  # a CrewAI memory stays searchable by every other m3 agent
-                "python": "3.10-3.13 default (CrewAI's cap); 3.14 via a documented escape hatch",
+                "python": "3.12-3.13 default (CrewAI's <3.14 cap); 3.14 via a documented escape hatch",
                 "docs": "m3_memory/integrations/crewai/README.md",
                 "note": (
                     "Native StorageBackend for CrewAI's unified memory (v1.x). No mem0 "

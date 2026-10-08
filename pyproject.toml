@@ -283,7 +283,7 @@ langchain = [
 # shipped there (PR #4420, Feb 2026) — v1.0 GA predates it. NO mem0 dependency:
 # CrewAI reads the "memory" result key natively; m3 never imports mem0.
 # NOTE: CrewAI 1.x requires Python >=3.10,<3.14 — so this extra resolves only on a
-# 3.10-3.13 interpreter, even though m3 itself runs on 3.14. Run the crew on a
+# 3.12-3.13 interpreter (m3's floor is 3.12), even though m3 itself runs on 3.14. Run the crew on a
 # supported Python; it talks to the same m3 store regardless.
 # ⚠ PLAIN pip CANNOT RESOLVE THIS EXTRA: crewai 1.15.25 pins mcp>=1.28.1,<1.29,
 # m3 requires mcp>=1.30.0. Measured 2026-10-08, crewai works on mcp 1.30.0 (its

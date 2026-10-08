@@ -5,8 +5,14 @@ Give your CrewAI crew **persistent, local-first, cross-agent memory** — a drop
 memory system (v1.10+).
 
 ```bash
-pip install "m3-memory[crewai]"
+echo "mcp>=1.30.0,<2" > overrides.txt
+uv pip install "m3-memory[crewai]" --override overrides.txt
 ```
+
+Plain `pip install "m3-memory[crewai]"` cannot resolve: crewai 1.15.25 pins
+`mcp>=1.28.1,<1.29` and m3 requires `mcp>=1.30.0`. crewai works on mcp 1.30.0
+(m3's crewai tests pass there, measured 2026-10-08), so the override is safe;
+it is what m3's CI installs.
 
 ```python
 from crewai import Crew
@@ -65,9 +71,9 @@ M3StorageBackend(
 - **CrewAI ≥ 1.10** (the unified-memory `StorageBackend` protocol shipped in
   v1.10, Feb 2026; v1.0 GA predates it). Older versions fail loud with an upgrade
   hint. This adapter targets CrewAI **v1.x** only.
-- **Python 3.12–3.13 (default path).** CrewAI 1.x (through 1.15.4) declares
-  `>=3.10,<3.14` and m3 requires `>=3.12`, so a plain
-  `pip install m3-memory[crewai]` can only resolve on 3.12 or 3.13. m3 itself
+- **Python 3.12–3.13 (default path).** CrewAI 1.x (through 1.15.25) declares
+  `>=3.10,<3.14` and m3 requires `>=3.12`, so the extra (installed as above)
+  can only resolve on 3.12 or 3.13. m3 itself
   runs on 3.14; the simplest path is a 3.12–3.13 environment for the crew that
   talks to it.
 - No mem0 dependency — m3 satisfies CrewAI's contract natively.
