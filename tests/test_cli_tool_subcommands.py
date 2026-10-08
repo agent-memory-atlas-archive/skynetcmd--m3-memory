@@ -12,8 +12,7 @@ can assert on real process exit codes, and compare the structured `result`
 against an in-process `execute_tool_structured` call for round-trip parity.
 
 Conventions mirrored from test_lazy_tool_loading.py: bin/ is on sys.path via
-conftest.py; we resolve the shipped DB at an absolute path relative to the repo
-root.
+conftest.py; the files DB is built fresh per test by the `files_db` fixture.
 """
 from __future__ import annotations
 
@@ -35,7 +34,33 @@ if _BIN not in sys.path:
 import mcp_tool_catalog  # noqa: E402
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_FILES_DB = _REPO_ROOT / "memory" / "files_database.db"
+
+
+@pytest.fixture
+def files_db(tmp_path, monkeypatch) -> Path:
+    """A fresh files DB built by the real files migrations.
+
+    These tests used the developer-machine artifact memory/files_database.db
+    (gitignored), so they skipped in every lane. `--database <file>` names a
+    SQLite file, so the backend is pinned to sqlite for the build and for the
+    CLI child, which inherits this environment."""
+    import importlib
+    import sqlite3
+
+    monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
+    for var in ("M3_PRIMARY_PG_URL", "M3_PG_URL"):
+        monkeypatch.delenv(var, raising=False)
+    importlib.import_module("memory.backends.selector")._reset_for_tests()
+    from files_memory.migrate import run_pending
+
+    path = tmp_path / "files_database.db"
+    conn = sqlite3.connect(str(path))
+    try:
+        assert run_pending(conn), "no files migrations applied to a fresh DB"
+        conn.commit()
+    finally:
+        conn.close()
+    return path
 
 
 def _run_cli(*argv: str) -> subprocess.CompletedProcess:
@@ -69,19 +94,17 @@ def _run_cli_force_reexec(*argv: str) -> subprocess.CompletedProcess:
 
 # ── files_stats: happy path ──────────────────────────────────────────────────
 
-@pytest.mark.requires_files_db  # auto-skips when the shipped files_database.db is absent
-def test_files_stats_returns_json_with_file_nodes_total():
+def test_files_stats_returns_json_with_file_nodes_total(files_db):
     """`m3 files files_stats --database <db>` exits 0 and emits parseable JSON
     carrying the corpus counter `file_nodes_total`."""
-    proc = _run_cli("files", "files_stats", "--database", str(_FILES_DB))
+    proc = _run_cli("files", "files_stats", "--database", str(files_db))
     assert proc.returncode == 0, f"stderr={proc.stderr}\nstdout={proc.stdout}"
     data = json.loads(proc.stdout)
     assert "file_nodes_total" in data, data
     assert isinstance(data["file_nodes_total"], int)
 
 
-@pytest.mark.requires_files_db  # auto-skips when the shipped files_database.db is absent
-def test_files_stats_roundtrip_parity_with_execute_tool_structured():
+def test_files_stats_roundtrip_parity_with_execute_tool_structured(files_db):
     """The `result` from the CLI surface must equal what the m3_call path
     (execute_tool_structured) returns for the same tool + args. Both surfaces
     share the impl, so any divergence is a dispatch bug.
@@ -89,14 +112,14 @@ def test_files_stats_roundtrip_parity_with_execute_tool_structured():
     The catalog mutates the args dict it's handed (pops `database`), so the
     in-process comparison call gets its own copy.
     """
-    proc = _run_cli("files", "files_stats", "--database", str(_FILES_DB))
+    proc = _run_cli("files", "files_stats", "--database", str(files_db))
     assert proc.returncode == 0, proc.stderr
     cli_result = json.loads(proc.stdout)
 
     spec = next(t for t in mcp_tool_catalog.TOOLS if t.name == "files_stats")
     direct = asyncio.run(
         mcp_tool_catalog.execute_tool_structured(
-            spec, {"database": str(_FILES_DB)}, agent_id="", dry_run=False
+            spec, {"database": str(files_db)}, agent_id="", dry_run=False
         )
     )
     # Normalize through json so dict/tuple coercion matches the CLI's
@@ -106,6 +129,38 @@ def test_files_stats_roundtrip_parity_with_execute_tool_structured():
         f"CLI surface diverged from m3_call path:\n"
         f"cli={cli_result}\ndirect={direct_norm}"
     )
+
+
+@pytest.mark.xfail(strict=True, reason=(
+    "known defect, m3 to-do e03425ec: files tools ignore the universal `database` "
+    "argument (dispatch sets the core-store ContextVar; files_memory.db resolves "
+    "its own store). strict: this turns red when the defect is fixed, so the "
+    "marker cannot outlive it."))
+def test_files_tools_honor_the_database_argument(files_db):
+    """`--database` must route a FILES tool to the named files store.
+
+    Parity alone cannot catch this: when both surfaces ignore the argument they
+    agree, on the wrong store. So the fixture DB is made distinguishable (one
+    corpus row the default store lacks) and the CLI must find it. Measured
+    2026-10-08 with the installed m3: `m3 files files_stats --database <new
+    path>` returned the live store's counts and created nothing at the path."""
+    import sqlite3
+
+    from memory.backends.dialect import dialect_for
+
+    p = dialect_for("sqlite").param()
+    conn = sqlite3.connect(str(files_db))
+    try:
+        conn.execute(f"INSERT INTO corpus_settings (corpus_id) VALUES ({p})", ("routing-probe",))
+        conn.commit()
+    finally:
+        conn.close()
+    proc = _run_cli("files", "files_corpus_get", "--corpus_id", "routing-probe",
+                    "--database", str(files_db))
+    assert proc.returncode == 0, f"stderr={proc.stderr}\nstdout={proc.stdout}"
+    result = json.loads(proc.stdout)
+    assert result and result.get("corpus_id") == "routing-probe", (
+        f"files_corpus_get did not read the --database store: {result}")
 
 
 # ── --help lists generated tools ─────────────────────────────────────────────

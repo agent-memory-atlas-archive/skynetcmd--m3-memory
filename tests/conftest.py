@@ -1226,6 +1226,19 @@ def m3_sandbox(monkeypatch, tmp_path):
     monkeypatch.setenv("M3_ENGINE_ROOT", str(tmp_path / "engine"))
     monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path / "config"))
     monkeypatch.setenv("M3_MEMORY_ROOT", str(tmp_path))
+    # The FILES store, too. memory.config.FILES_DB_PATH (re-exported as
+    # files_memory.config.FILES_DB_PATH) is resolved AT IMPORT, so once either
+    # module is imported the roots above do not move it, and files tools that
+    # fall through to it read the developer's real files_database.db: measured
+    # 2026-10-08, a files_stats test returned the live store's 20 files and
+    # 218 leaves. files_memory.db._resolve_path reads M3_FILES_DB_PATH per call;
+    # readers of the constant get the re-pointed attribute.
+    _files_db = str(tmp_path / "engine" / "files_database.db")
+    monkeypatch.setenv("M3_FILES_DB_PATH", _files_db)
+    for _mod_name in ("memory.config", "files_memory.config"):
+        _mod = sys.modules.get(_mod_name)
+        if _mod is not None and hasattr(_mod, "FILES_DB_PATH"):
+            monkeypatch.setattr(_mod, "FILES_DB_PATH", _files_db)
     # Pinning M3_MEMORY_ROOT to tmp also blinds discovery of SHIPPED read-only
     # payload that derives from <M3_MEMORY_ROOT>/config/ — notably the SLM profiles
     # (bin/slm_intent._profile_search_dirs → <root>/config/slm). Those are part of
