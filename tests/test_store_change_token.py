@@ -19,22 +19,40 @@ if _BIN not in sys.path:
 
 from memory.backends.dialect import Dialect, dialect_for  # noqa: E402
 
+# Same-size commits, many of them. A file-stat token misses ~25-30% of these
+# (mtime moves at the clock tick, and a same-size write keeps the size), so a
+# handful of commits passes by luck: the old 1-5 commit versions of these tests
+# were flaky, not green. At 200 commits a stat-only token fails with near
+# certainty, which is what lets these tests catch that regression.
+_COMMITS = 200
+
+
+def _assert_every_commit_moves(con, db, write):
+    d = dialect_for("sqlite")
+    for i in range(_COMMITS):
+        before = d.store_change_token(db)
+        write(con, i)
+        con.commit()
+        assert d.store_change_token(db) != before, f"commit {i} left the token unchanged"
+
 
 def test_sqlite_token_moves_on_every_commit_in_wal_mode(tmp_path):
     db = str(tmp_path / "s.db")
     con = sqlite3.connect(db)
     con.execute("PRAGMA journal_mode=WAL")
+    # Checkpoint every 2 pages, so commits OVERWRITE reused frames at constant
+    # -wal size: the long-running store's steady state. Without it each commit
+    # appends, the size grows, and a stat-only token passes this test.
+    con.execute("PRAGMA wal_autocheckpoint=2")
     con.execute("CREATE TABLE t (x)")
+    # Start at 'z' so every UPDATE changes the value: SQLite writes no WAL frame
+    # for a same-value UPDATE (measured), which is no write, so an unchanged
+    # token there would be correct, not a miss.
+    con.execute("INSERT INTO t VALUES ('z')")
     con.commit()
-    d = dialect_for("sqlite")
     try:
-        seen = {d.store_change_token(db)}
-        for i in range(5):
-            con.execute("INSERT INTO t VALUES (?)", (i,))
-            con.commit()
-            tok = d.store_change_token(db)
-            assert tok not in seen, f"commit {i} left the token unchanged: {tok}"
-            seen.add(tok)
+        _assert_every_commit_moves(
+            con, db, lambda c, i: c.execute("UPDATE t SET x = ?", ("ab"[i % 2],)))
     finally:
         con.close()
 
@@ -46,12 +64,9 @@ def test_sqlite_token_moves_on_a_commit_in_rollback_journal_mode(tmp_path):
     con.execute("PRAGMA journal_mode=DELETE")
     con.execute("CREATE TABLE t (x)")
     con.commit()
-    d = dialect_for("sqlite")
     try:
-        before = d.store_change_token(db)
-        con.execute("INSERT INTO t VALUES (1)")
-        con.commit()
-        assert d.store_change_token(db) != before
+        _assert_every_commit_moves(
+            con, db, lambda c, i: c.execute("INSERT INTO t VALUES (?)", (i,)))
     finally:
         con.close()
 
@@ -65,7 +80,7 @@ def test_sqlite_token_is_stable_without_a_write(tmp_path):
 
 def test_sqlite_token_never_creates_the_store(tmp_path):
     db = tmp_path / "absent.db"
-    assert dialect_for("sqlite").store_change_token(str(db)) == ((), ())
+    assert dialect_for("sqlite").store_change_token(str(db)) == ((), (), ())
     assert not db.exists(), "a change probe created the store it was watching"
 
 
