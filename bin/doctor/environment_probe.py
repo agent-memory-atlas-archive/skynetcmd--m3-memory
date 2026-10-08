@@ -76,8 +76,11 @@ def _capture_support_gap(agent: str) -> "str | None":
     try:
         import chatlog_ingest
         import chatlog_init
+        from chatlog_config import LIBRARY_HOST_AGENTS
     except Exception:  # noqa: BLE001 — probe context, never fatal
         return None
+    if agent in LIBRARY_HOST_AGENTS:
+        return None  # submits turns through the API: no parser or hook to need
 
     reasons = []
     if agent not in getattr(chatlog_ingest, "PARSERS", {}):

@@ -32,6 +32,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from chatlog_config import (
     CONFIG_PATH,
     DEFAULT_DB_PATH,
+    LIBRARY_HOST_AGENTS,
     MAIN_DB_PATH,
     VALID_HOST_AGENTS,
     ChatlogConfig,
@@ -103,6 +104,13 @@ def get_hook_path_for_agent(agent: str) -> tuple[str, str, str]:
     # below and the user is handed a path to a file that has never existed.
     # tests/test_host_agent_capture_parity.py fails on a missing row rather than
     # letting it surface as silently-absent capture.
+    #
+    # A library integration has no hook BY DESIGN: empty paths and a desc that
+    # says why, never the unknown.sh fallback (which `m3 chat init` used to
+    # store and tell the user to source for langchain).
+    if agent in LIBRARY_HOST_AGENTS:
+        return ("", "", f"no hook: {agent} is a library integration; the "
+                        f"application submits turns through m3's API")
     agent_map = {
         "claude-code": ("claude_code_precompact", "claude-code pre-compaction hook"),
         "gemini-cli": ("gemini_cli_onexit", "Gemini CLI session exit hook"),
@@ -126,7 +134,9 @@ def show_hook_wiring_instructions(agent: str, hook_spec: HookSpec) -> None:
     sh_path, ps1_path, desc = get_hook_path_for_agent(agent)
     is_windows = sys.platform == "win32"
     print(f"\n  {agent} ({desc}):")
-    if agent == "claude-code":
+    if agent in LIBRARY_HOST_AGENTS:
+        print("    - Nothing to wire: call m3's chatlog write API from your application.")
+    elif agent == "claude-code":
         print("    - Follow the 'Claude Code Settings' section below to add hooks to ~/.claude/settings.json")
     elif agent in ("gemini-cli", "antigravity-cli"):
         config_file = "~/.gemini/antigravity-cli/settings.json" if agent == "antigravity-cli" else "~/.gemini/settings.json"

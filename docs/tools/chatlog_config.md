@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_config.py
-sha1: f20a7d189d5e
-mtime_utc: 2026-10-05T11:28:54.746748+00:00
-generated_utc: 2026-10-05T11:29:43.351792+00:00
+sha1: aa9a3b29a60a
+mtime_utc: 2026-10-08T20:07:26.033463+00:00
+generated_utc: 2026-10-08T20:08:26.842200+00:00
 private: false
 ---
 
@@ -79,7 +79,7 @@ _(no argparse arguments detected)_
 
 **sqlite**
 
-- `sqlite3.connect()  → `db_path`` (line 456)
+- `sqlite3.connect()  → `db_path`` (line 462)
 
 
 ---

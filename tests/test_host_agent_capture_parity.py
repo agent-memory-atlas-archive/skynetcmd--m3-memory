@@ -39,19 +39,14 @@ import chatlog_core  # noqa: E402
 import chatlog_ingest  # noqa: E402
 import chatlog_init  # noqa: E402
 
-# Agents whose capture is genuinely not implemented yet. An entry here is a
-# DECLARED gap with a reason, which is the opposite of the silent omission this
-# file was written after: it still shows up, it just does not fail the build.
-_KNOWN_GAPS = {
-    "langchain": (
-        "library integration, not a CLI with a session lifecycle — turns are "
-        "submitted by the embedding application, so there is no hook to wire"
-    ),
-    # opencode and aider were exempt here until 2026-09-20. Both are now
-    # implemented against real local installs (OpenCode 1.18.0 SQLite +
-    # legacy JSON, Aider 0.86.1 markdown), so the exemptions are gone and the
-    # parametrized sweep covers them like any other agent.
-}
+# Agents with a session lifecycle to capture. Library integrations
+# (chatlog_config.LIBRARY_HOST_AGENTS, e.g. langchain) submit turns through the
+# API and are pinned by test_library_agents_are_registered_and_hookless instead
+# of being skipped here: the old "known gap" skip hid that langchain was handed
+# the nonexistent unknown.sh hook.
+# opencode and aider were exempt until 2026-09-20; both are now implemented
+# against real local installs and covered like any other agent.
+_CAPTURED_AGENTS = sorted(chatlog_config.VALID_HOST_AGENTS - chatlog_config.LIBRARY_HOST_AGENTS)
 
 
 def test_the_agent_allowlist_has_exactly_one_owner():
@@ -72,24 +67,22 @@ def test_the_agent_allowlist_has_exactly_one_owner():
     )
 
 
-@pytest.mark.parametrize("agent", sorted(chatlog_config.VALID_HOST_AGENTS))
+@pytest.mark.parametrize("agent", _CAPTURED_AGENTS)
 def test_a_registered_agent_can_be_ingested(agent):
     """Every agent needs a parser, or `--format <agent>` is an argparse error.
 
     This is the defect the user hit: the OpenCode hook has shipped for months
     passing a --format value that chatlog_ingest rejects.
     """
-    if agent in _KNOWN_GAPS:
-        pytest.skip(f"known gap: {_KNOWN_GAPS[agent]}")
     assert agent in chatlog_ingest.PARSERS, (
         f"'{agent}' is a registered host agent with no parser in "
         f"chatlog_ingest.PARSERS, so `--format {agent}` fails argparse and "
         f"capture silently never runs. Add a parser, or declare it in "
-        f"_KNOWN_GAPS with a reason."
+        f"chatlog_config.LIBRARY_HOST_AGENTS if it submits turns through the API."
     )
 
 
-@pytest.mark.parametrize("agent", sorted(chatlog_config.VALID_HOST_AGENTS))
+@pytest.mark.parametrize("agent", _CAPTURED_AGENTS)
 def test_a_registered_agent_has_a_hook_on_disk(agent):
     """get_hook_path_for_agent must not hand back a path to nothing.
 
@@ -97,35 +90,33 @@ def test_a_registered_agent_has_a_hook_on_disk(agent):
     bin/hooks/chatlog/unknown.sh for any unmapped agent — a file that has never
     existed. The wiring instructions then told the user to install it.
     """
-    if agent in _KNOWN_GAPS:
-        pytest.skip(f"known gap: {_KNOWN_GAPS[agent]}")
     sh_path, ps1_path, desc = chatlog_init.get_hook_path_for_agent(agent)
     assert "unknown" not in desc, (
         f"'{agent}' falls through get_hook_path_for_agent's unknown-hook "
         f"fallback, which yields {os.path.basename(sh_path)} — a file that "
-        f"does not exist. Map it, or declare it in _KNOWN_GAPS."
+        f"does not exist. Map it, or declare it a library integration."
     )
     assert os.path.exists(sh_path), f"{agent}: {sh_path} does not exist"
     assert os.path.exists(ps1_path), f"{agent}: {ps1_path} does not exist"
 
 
-def test_every_known_gap_is_still_registered():
-    """Keep the exemption list honest.
-
-    A stale exemption is as bad as a missing one: it suppresses a test for an
-    agent that has since been implemented (or removed), and nothing says so.
-    """
-    stale = sorted(set(_KNOWN_GAPS) - set(chatlog_config.VALID_HOST_AGENTS))
-    assert not stale, (
-        f"_KNOWN_GAPS names agent(s) that are no longer registered: {stale}. "
-        f"Drop the exemption."
-    )
-    for agent in sorted(set(_KNOWN_GAPS) & set(chatlog_config.VALID_HOST_AGENTS)):
-        if agent in chatlog_ingest.PARSERS:
-            pytest.fail(
-                f"'{agent}' now HAS a parser but is still exempted in "
-                f"_KNOWN_GAPS — remove the exemption so it is really tested"
-            )
+def test_library_agents_are_registered_and_hookless():
+    """A library integration is a registered agent with NO hook and NO parser,
+    and every consumer must say so instead of inventing one: before
+    LIBRARY_HOST_AGENTS existed, `m3 chat init` stored bin/hooks/chatlog/unknown.sh
+    for langchain and told the user to source it."""
+    lib = chatlog_config.LIBRARY_HOST_AGENTS
+    assert lib <= chatlog_config.VALID_HOST_AGENTS, (
+        f"library agent(s) not registered: {sorted(lib - chatlog_config.VALID_HOST_AGENTS)}")
+    from doctor.environment_probe import _capture_support_gap
+    for agent in sorted(lib):
+        sh_path, ps1_path, desc = chatlog_init.get_hook_path_for_agent(agent)
+        assert (sh_path, ps1_path) == ("", ""), f"{agent}: handed a hook path {sh_path!r}"
+        assert "library" in desc and "unknown" not in desc, f"{agent}: desc {desc!r}"
+        assert agent not in chatlog_ingest.PARSERS, (
+            f"'{agent}' has a transcript parser, so it is not a library integration: "
+            f"remove it from LIBRARY_HOST_AGENTS so the capture sweeps test it")
+        assert _capture_support_gap(agent) is None, f"doctor reports {agent} as a capture gap"
 
 
 def test_openclaw_is_registered_and_wired():

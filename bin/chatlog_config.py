@@ -83,6 +83,12 @@ VALID_HOST_AGENTS: frozenset[str] = frozenset((
     "claude-code", "gemini-cli", "antigravity-cli", "opencode", "openclaw",
     "aider", "langchain",
 ))
+# Host agents that are LIBRARIES, not CLIs with a session lifecycle: the
+# embedding application submits turns through m3's API, so there is no hook to
+# wire and no transcript to parse. The single owner of that distinction: hook
+# paths, ingest, the setup prompts and doctor all read it, instead of each
+# treating such an agent as a missing hook (which handed users unknown.sh).
+LIBRARY_HOST_AGENTS: frozenset[str] = frozenset(("langchain",))
 VALID_PROVIDERS: frozenset[str] = frozenset((
     "anthropic", "google", "openai", "local", "xai",
     "deepseek", "mistral", "meta", "other",
