@@ -120,12 +120,10 @@ def ensure_governor_config() -> str:
             "initial_threshold": initial,
             "limit_threshold": limit,
         }
-        tmp = f"{path}.{os.getpid()}.tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            _json.dump(payload, f, indent=2)
-        # os.replace is atomic; if another process raced us, last-writer-wins on
-        # identical default content is harmless.
-        os.replace(tmp, path)
+        from m3_core.atomic_io import atomic_write
+        # Atomic; if another process raced us, last-writer-wins on identical
+        # default content is harmless.
+        atomic_write(path, _json.dumps(payload, indent=2))
         logger.info("Seeded governor config at %s (initial=%d limit=%d)", path, initial, limit)
     except Exception as e:
         logger.debug("Could not seed governor config (%s); using env+defaults", e)

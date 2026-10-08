@@ -271,10 +271,8 @@ def _load_cursor() -> dict:
 def _save_cursor(state: dict) -> None:
     path = _cursor_path()
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(state, f)
-    os.replace(tmp, path)
+    from m3_core.atomic_io import atomic_write
+    atomic_write(path, json.dumps(state))
 
 
 def _filter_new_items(items: list[dict], session_id: str, cursor: dict) -> list[dict]:

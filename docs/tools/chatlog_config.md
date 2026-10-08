@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_config.py
-sha1: 3bc0861b4a4c
-mtime_utc: 2026-10-08T22:11:14.466094+00:00
-generated_utc: 2026-10-08T22:11:47.686442+00:00
+sha1: 77f3297a041b
+mtime_utc: 2026-10-08T23:42:29.738127+00:00
+generated_utc: 2026-10-08T23:42:44.940001+00:00
 private: false
 ---
 
@@ -79,13 +79,14 @@ _(no argparse arguments detected)_
 
 **sqlite**
 
-- `sqlite3.connect()  → `db_path`` (line 462)
+- `sqlite3.connect()  → `db_path`` (line 458)
 
 
 ---
 
 ## Notable external imports
 
+- `m3_core.atomic_io (atomic_write)`
 - `m3_core.paths (resolve_config_file)`
 - `m3_core.paths (resolve_engine_file)`
 

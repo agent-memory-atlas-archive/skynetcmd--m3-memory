@@ -252,9 +252,6 @@ def write_starter_config(path: str | None = None,
         "startup_tools": list(names or DEFAULT_STARTUP_TOOLS),
     }
     os.makedirs(os.path.dirname(target), exist_ok=True)
-    tmp = target + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2)
-        f.write("\n")
-    os.replace(tmp, target)  # atomic, like chatlog_config.save_config
+    from m3_core.atomic_io import atomic_write
+    atomic_write(target, json.dumps(payload, indent=2) + "\n")
     return target

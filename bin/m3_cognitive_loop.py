@@ -539,15 +539,13 @@ def _write_heartbeat(cycle: int, interval: int) -> None:
     try:
         path = _loop_heartbeat_path()
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        tmp = f"{path}.{os.getpid()}.tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump({
-                "ts": datetime.now(UTC).isoformat(),
-                "pid": os.getpid(),
-                "cycle": cycle,
-                "interval_s": interval,
-            }, f)
-        os.replace(tmp, path)
+        from m3_core.atomic_io import atomic_write
+        atomic_write(path, json.dumps({
+            "ts": datetime.now(UTC).isoformat(),
+            "pid": os.getpid(),
+            "cycle": cycle,
+            "interval_s": interval,
+        }))
     except OSError as e:
         logger.debug("Could not write heartbeat: %s", e)
 
@@ -572,10 +570,8 @@ def _record_pass_run(pass_name: str) -> None:
         runs[pass_name] = datetime.now(UTC).isoformat()
         path = _loop_pass_runs_path()
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        tmp = f"{path}.{os.getpid()}.tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(runs, f)
-        os.replace(tmp, path)
+        from m3_core.atomic_io import atomic_write
+        atomic_write(path, json.dumps(runs))
     except OSError as e:
         logger.debug("Could not record pass-run for %s: %s", pass_name, e)
 

@@ -1,8 +1,8 @@
 ---
 tool: bin/generate_configs.py
-sha1: cbc872b173d8
-mtime_utc: 2026-10-06T07:10:28.566639+00:00
-generated_utc: 2026-10-06T07:10:30.545673+00:00
+sha1: e34afce803b7
+mtime_utc: 2026-10-08T23:44:51.272687+00:00
+generated_utc: 2026-10-08T23:44:58.320206+00:00
 private: false
 ---
 
@@ -59,6 +59,7 @@ _(no subprocess / http / sqlite calls detected)_
 ## Notable external imports
 
 - `difflib`
+- `m3_core.atomic_io (atomic_write)`
 - `m3_core.paths (get_m3_models_root)`
 - `ntpath`
 - `posixpath`

@@ -54,9 +54,6 @@ def write_llm_setting(name: str, value: str) -> str:
     data = read_llm_config()
     data[name] = value
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = f"{path}.tmp"
-    with open(tmp, "w", encoding="utf-8", newline="\n") as f:
-        json.dump(data, f, indent=2, sort_keys=True)
-        f.write("\n")
-    os.replace(tmp, path)
+    from m3_core.atomic_io import atomic_write
+    atomic_write(path, json.dumps(data, indent=2, sort_keys=True) + "\n")
     return path

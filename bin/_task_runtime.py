@@ -209,10 +209,8 @@ def ensure_log_config() -> str:
             ),
             "max_bytes": _log_max_bytes(),
         }
-        tmp = f"{path}.{os.getpid()}.tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            _json.dump(payload, f, indent=2)
-        os.replace(tmp, path)
+        from m3_core.atomic_io import atomic_write
+        atomic_write(path, _json.dumps(payload, indent=2))
     except OSError:
         pass  # env+defaults still apply; seeding is a convenience, not a bound
     return path

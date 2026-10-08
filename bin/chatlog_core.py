@@ -524,10 +524,8 @@ def _read_state() -> dict:
 def _write_state(state: dict) -> None:
     """Atomic write: tmp file + os.replace."""
     os.makedirs(os.path.dirname(chatlog_config.STATE_FILE), exist_ok=True)
-    tmp = chatlog_config.STATE_FILE + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(state, f, ensure_ascii=False)
-    os.replace(tmp, chatlog_config.STATE_FILE)
+    from m3_core.atomic_io import atomic_write
+    atomic_write(chatlog_config.STATE_FILE, json.dumps(state, ensure_ascii=False))
 
 
 # ---------------------------------------------------------------------------

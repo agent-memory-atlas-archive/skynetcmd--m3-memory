@@ -1365,9 +1365,8 @@ def acquire_single_instance(
                 try:
                     payload = _build_registry_payload(role, engine_root, extra, pid=my_pid)
                     op = _owner_sidecar_path(path)
-                    tmp = op.with_suffix(op.suffix + f".{my_pid}.tmp")
-                    tmp.write_text(json.dumps(payload), encoding="utf-8")
-                    os.replace(str(tmp), str(op))
+                    from m3_core.atomic_io import atomic_write
+                    atomic_write(op, json.dumps(payload))
                 except OSError as e:
                     logger.warning("m3_halt: owner-sidecar write failed for %s: %s "
                                    "(lock still held)", path, e)

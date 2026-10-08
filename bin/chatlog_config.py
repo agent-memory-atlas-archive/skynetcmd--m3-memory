@@ -185,10 +185,8 @@ def _load_file() -> dict:
 def save_config(cfg: ChatlogConfig) -> None:
     """Persist cfg to CONFIG_PATH as pretty JSON (atomic rename)."""
     os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
-    tmp = CONFIG_PATH + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(cfg.to_dict(), f, indent=2)
-    os.replace(tmp, CONFIG_PATH)
+    from m3_core.atomic_io import atomic_write
+    atomic_write(CONFIG_PATH, json.dumps(cfg.to_dict(), indent=2))
     invalidate_cache()
 
 
@@ -234,10 +232,8 @@ def pin_split_path() -> str | None:
         return None
     data["db_path"] = DEFAULT_DB_PATH
     os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
-    tmp = CONFIG_PATH + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
-    os.replace(tmp, CONFIG_PATH)
+    from m3_core.atomic_io import atomic_write
+    atomic_write(CONFIG_PATH, json.dumps(data, indent=2))
     invalidate_cache()
     return DEFAULT_DB_PATH
 

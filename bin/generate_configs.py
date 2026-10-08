@@ -430,23 +430,18 @@ def generate_configs(write: bool = True):
 
 
 def _write_json(path, data):
-    # encoding="utf-8" is load-bearing on Windows, not decoration. Without it
-    # Python uses the locale codec (cp1252 on most Windows installs, and on any
+    # UTF-8 (atomic_write's default encoding) is load-bearing on Windows, not
+    # decoration. Without it Python uses the locale codec (cp1252 on most Windows installs, and on any
     # Python before 3.15 made UTF-8 the default). These configs embed user home
     # paths, so a non-ASCII username decodes or encodes through the wrong codec.
     # The CLI forces UTF-8 mode via cli._ensure_utf8(), but this module also runs
     # as a subprocess and under `python bin/generate_configs.py`, neither of
     # which inherits that re-exec. See tests/test_cross_platform_config.py.
-    tmp = path + ".tmp"
+    from m3_core.atomic_io import atomic_write
     try:
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-            f.write("\n")
-        os.replace(tmp, path)
-    except Exception as e:
+        atomic_write(path, json.dumps(data, indent=2) + "\n")
+    except Exception as e:  # atomic_write already removed its temp file
         print(f"Failed to write {os.path.basename(path)}: {e}")
-        if os.path.exists(tmp):
-            os.remove(tmp)
 
 
 def _m3_repo_root():

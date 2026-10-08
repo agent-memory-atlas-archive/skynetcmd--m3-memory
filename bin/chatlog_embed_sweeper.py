@@ -486,11 +486,9 @@ def save_state(state: dict) -> None:
     """Save state atomically with rename."""
     state_dir = os.path.dirname(chatlog_config.STATE_FILE)
     os.makedirs(state_dir, exist_ok=True)
-    tmp_path = chatlog_config.STATE_FILE + ".tmp"
+    from m3_core.atomic_io import atomic_write
     try:
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            json.dump(state, f, indent=2)
-        os.replace(tmp_path, chatlog_config.STATE_FILE)
+        atomic_write(chatlog_config.STATE_FILE, json.dumps(state, indent=2))
     except OSError as e:
         logger.error("Failed to save state: %s", e)
 
