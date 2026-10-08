@@ -1,7 +1,6 @@
 ---
 paths:
   - "bin/mcp_tool_catalog.py"
-  - "bin/mcp_catalog/**/*.py"
   - "bin/tool_domains.py"
 ---
 
