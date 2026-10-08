@@ -23,6 +23,16 @@ for _p in (_REPO, os.path.join(_REPO, "bin")):
 pytest.importorskip("pydantic_ai", reason="requires `pip install pydantic-ai`")
 
 
+def _run(agent, prompt, **kw):
+    """Run the agent through its async API. Agent.run_sync goes through
+    pydantic_graph's asyncio.get_event_loop() with no loop running: measured
+    2026-10-08 (pydantic-ai 2.54.0, Python 3.12) it emits a DeprecationWarning,
+    which the suite treats as an error, and the stdlib raises there from 3.14.
+    These tests are about m3's toolset inside an Agent, not that sync wrapper."""
+    import asyncio
+    return asyncio.run(agent.run(prompt, **kw))
+
+
 def test_toolset_is_a_pydantic_ai_abstract_toolset():
     from pydantic_ai.toolsets import AbstractToolset
 
@@ -50,7 +60,7 @@ def test_agent_accepts_toolset_and_runs_via_testmodel():
     # tool-schema resolution (the annotation-resolution path that string-annotated
     # RunContext broke during development) end-to-end.
     agent = Agent(TestModel(), deps_type=M3Deps, toolsets=[M3MemoryToolset()])
-    res = agent.run_sync("go", deps=M3Deps(user_id="alice"))
+    res = _run(agent, "go", deps=M3Deps(user_id="alice"))
     assert res.output is not None
 
 
@@ -63,7 +73,7 @@ def test_register_m3_tools_attaches_to_agent():
     agent = Agent(TestModel(), deps_type=M3Deps)
     returned = register_m3_tools(agent)
     assert returned is agent  # chainable
-    res = agent.run_sync("go", deps=M3Deps(user_id="alice"))
+    res = _run(agent, "go", deps=M3Deps(user_id="alice"))
     assert res.output is not None
 
 
