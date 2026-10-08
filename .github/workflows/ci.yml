@@ -323,10 +323,10 @@ jobs:
 
   # ── Optional integrations lane ──────────────────────────────────────────────
   # Integration extras are installed nowhere else, so their tests skipped in
-  # every environment and the pydantic-ai suite had never run. crewai is NOT
-  # here: no crewai 1.x release can be co-installed with m3's requirements
-  # (it pins python-dotenv<1.1.1 and mcp<1.30), so its tests stay skipped
-  # until that is resolved (m3 to-do 0854a947).
+  # every environment and neither suite had ever run. crewai 1.15.25 pins
+  # mcp>=1.28.1,<1.29 while m3 requires mcp>=1.30.0, which plain pip cannot
+  # reconcile; uv's --override holds mcp at m3's floor (measured: crewai's 12
+  # m3 tests pass on mcp 1.30.0). Python 3.12: crewai supports <3.14.
   test-extras:
     name: Test optional integrations (ubuntu, py3.12)
     needs: [lint, typecheck]
@@ -340,13 +340,15 @@ jobs:
       with:
         python-version: "3.12"
         cache: 'pip'
-    - name: Install Dependencies (+ pydantic-ai extra)
+    - name: Install Dependencies (+ pydantic-ai and crewai extras, mcp held at m3's floor)
       run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt ".[pydantic-ai]"
+        python -m pip install --upgrade pip uv
+        echo "mcp>=1.30.0,<2" > overrides.txt
+        uv pip install --system -r requirements.txt ".[pydantic-ai,crewai]" --override overrides.txt
+        python -c "import importlib.metadata as m; print('mcp', m.version('mcp'), '| crewai', m.version('crewai'), '| pydantic-ai-slim', m.version('pydantic-ai-slim'))"
     - name: Run the integration tests (must not skip)
       run: |
-        pytest tests/test_pydantic_ai_conformance.py -rs -q -p no:cacheprovider > extras.log 2>&1; rc=$?
+        pytest tests/test_pydantic_ai_conformance.py tests/test_crewai_conformance.py tests/test_crewai_live.py -rs -q -p no:cacheprovider > extras.log 2>&1; rc=$?
         cat extras.log
         if grep -q "^SKIPPED" extras.log; then echo "::error::an integration test skipped in the lane that installs its extra"; exit 1; fi
         exit $rc

@@ -28,6 +28,15 @@ for _p in (_REPO, os.path.join(_REPO, "bin")):
 
 crewai = pytest.importorskip("crewai", reason="requires `pip install crewai`")
 
+# crewai 1.15.25 builds its records with datetime.utcnow (e.g. a pydantic
+# default_factory on crewai.memory.types.MemoryRecord). pydantic-core is compiled,
+# so the warning is attributed to the TEST line that constructs the record, and a
+# module-scoped filter on "crewai" cannot match it. Scoped to this file so m3's
+# own utcnow() calls still fail everywhere else.
+pytestmark = pytest.mark.filterwarnings(
+    r"ignore:datetime.datetime.utcnow\(\) is deprecated:DeprecationWarning")
+
+
 
 def _backend_cls():
     # Import the class directly (bypasses the package __getattr__ version guard,
