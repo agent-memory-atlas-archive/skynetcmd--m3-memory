@@ -30,7 +30,7 @@ import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, override
 
 from m3_sdk import getenv_compat, resolve_primary_pg_dsn
 
@@ -90,6 +90,7 @@ def _make_compat_cursor_factory():
             self._columns = columns
             return self
 
+        @override
         def __getitem__(self, key):
             if isinstance(key, str):
                 return tuple.__getitem__(self, self._columns[key])
@@ -525,10 +526,12 @@ class PostgresDialect(Dialect):
     backend: BackendName = "postgres"
     param_style: ParamStyle = "format"
 
+    @override
     def insert_or_ignore(self) -> str:
         # postgres has no verb form — the arbiter goes in a trailing clause.
         return "INSERT INTO"
 
+    @override
     def on_conflict_ignore(
         self, *, conflict_target: str = "", index_predicate: str = ""
     ) -> str:
@@ -540,37 +543,45 @@ class PostgresDialect(Dialect):
         pred = f" WHERE {index_predicate}" if index_predicate else ""
         return f"ON CONFLICT{tgt}{pred} DO NOTHING"
 
+    @override
     def now(self) -> str:
         return "NOW()"
 
+    @override
     def now_minus_days(self, days_placeholder: str) -> str:
         # %s binds an int number of days; multiply a 1-day interval.
         return f"NOW() - ({days_placeholder} * INTERVAL '1 day')"
 
+    @override
     def now_plus_seconds(self, seconds_placeholder: str) -> str:
         # make_interval takes a bound int; `NOW() + %s * INTERVAL '1 second'`
         # would also work but multiplies a literal interval by a bind, which
         # some drivers type-infer badly.
         return f"NOW() + make_interval(secs => {seconds_placeholder})"
 
+    @override
     def now_minus_minutes(self, minutes_placeholder: str) -> str:
         # %s binds an int number of minutes; multiply a 1-minute interval.
         return f"NOW() - ({minutes_placeholder} * INTERVAL '1 minute')"
 
+    @override
     def age_days_gt(self, ts_column: str, days_expr: str) -> str:
         # "row older than N days": col < now - N*1day. Mirrors SQLite's
         # julianday('now')-julianday(col) > N without PG-absent julianday().
         return f"{ts_column} < NOW() - ({days_expr} * INTERVAL '1 day')"
 
+    @override
     def age_minutes_lt(self, ts_column: str, minutes_expr: str) -> str:
         # Interval arithmetic on a real timestamptz — format-agnostic by
         # construction, same reasoning as the SQLite julianday form.
         return f"{ts_column} > NOW() - ({minutes_expr} * INTERVAL '1 minute')"
 
+    @override
     def all_rows_after_offset(self, offset_placeholder: str) -> str:
         # PG spells "no upper bound" as LIMIT ALL (vs SQLite's LIMIT -1).
         return f"LIMIT ALL OFFSET {offset_placeholder}"
 
+    @override
     def group_concat(self, expr: str, separator: str = ",") -> str:
         # PG's string_agg is the GROUP_CONCAT analogue. string_agg requires a text
         # arg; ids/columns used here are already TEXT, so no cast needed.
@@ -580,14 +591,17 @@ class PostgresDialect(Dialect):
     #   42703 undefined_column, 42P01 undefined_table, 42704 undefined_object,
     #   42883 undefined_function. Stable across PG versions/locales — far more
     #   robust than matching the English message.
+    @override
     def greatest(self, *exprs: str) -> str:
         return f"GREATEST({', '.join(exprs)})"
 
+    @override
     def least(self, *exprs: str) -> str:
         return f"LEAST({', '.join(exprs)})"
 
     _UNDEFINED_SQLSTATES = frozenset({"42703", "42P01", "42704", "42883"})
 
+    @override
     def is_undefined_object_error(self, exc: BaseException) -> bool:
         for e in (exc, getattr(exc, "__cause__", None)):
             if e is None:
@@ -601,6 +615,7 @@ class PostgresDialect(Dialect):
                 return True
         return False
 
+    @override
     def is_integrity_error(self, exc: BaseException) -> bool:
         # Integrity violations are SQLSTATE class 23 (23505 unique_violation,
         # 23503 foreign_key_violation, 23502 not_null_violation, 23514
@@ -613,6 +628,7 @@ class PostgresDialect(Dialect):
                 return True
         return False
 
+    @override
     def day_bucket(self, column: str) -> str:
         # to_char keeps the TEXT 'YYYY-MM-DD' shape identical to SQLite's substr;
         # ::date would return a PG date type and change the bucket value shape.
@@ -627,21 +643,26 @@ class PostgresDialect(Dialect):
         # Etc/UTC -- agreement by configuration, not by contract.
         return f"to_char({column} AT TIME ZONE 'UTC', 'YYYY-MM-DD')"
 
+    @override
     def byte_length(self, column: str) -> str:
         # Native on PG. NOTE: length() on PG counts CHARACTERS, not bytes, so
         # the SQLite idiom would be silently wrong here (a CJK row would report
         # ~1/3 its true byte size).
         return f"octet_length({column})"
 
+    @override
     def has_content(self, column: str) -> str:
         return f"LENGTH(TRIM(COALESCE({column}, ''))) > 0"
 
+    @override
     def empty_json_default(self) -> str | None:
         return "{}"  # metadata_json is JSONB; '' is rejected, '{}' is the empty obj
 
+    @override
     def returning_id_clause(self) -> str:
         return " RETURNING id"  # no last_insert_rowid on PG; RETURNING is the way
 
+    @override
     def claim_message(
         self, conn: object, *, table: str, where_sql: str, where_params: tuple,
         claimant: str, lease_ttl: int = 300,
@@ -680,6 +701,7 @@ class PostgresDialect(Dialect):
         # needed here: RETURNING hands both columns out of the one statement.
         return (row[0], row[1]) if row else None
 
+    @override
     def sweep_expired_leases(
         self, conn: object, *, table: str, max_attempts: int = 5,
         limit: int = 100,
@@ -721,9 +743,11 @@ class PostgresDialect(Dialect):
         conn.commit()  # type: ignore[attr-defined]
         return (back, dead)
 
+    @override
     def last_insert_id(self, cursor: object) -> object:
         return cursor.fetchone()[0]  # type: ignore[attr-defined]
 
+    @override
     def store_change_token(self, store: str) -> None:
         """No connection-free change signal; callers poll by query.
 
@@ -732,12 +756,15 @@ class PostgresDialect(Dialect):
         """
         return None
 
+    @override
     def _json_extract_text_expr(self, column: str, json_path: str) -> str:
         return f"{column} ->> '{json_path}'"
 
+    @override
     def _json_extract_int_expr(self, column: str, json_path: str) -> str:
         return f"({column} ->> '{json_path}')::int"
 
+    @override
     def _json_is_valid_expr(self, column: str) -> str:
         # metadata_json is JSONB here (pg_primary_v1.sql), so validity is
         # enforced by the COLUMN TYPE: Postgres parses on write and rejects
@@ -755,17 +782,21 @@ class PostgresDialect(Dialect):
         # scanning, which is the correct outcome: nothing to repair.
         return "TRUE"
 
+    @override
     def _temporal_open_clause_expr(self, column: str, op: str, p: str) -> str:
         return f"({column} IS NULL OR {column} {op} {p})"
 
+    @override
     def coalesce_open_timestamp(self, column: str, fill_placeholder: str) -> str:
         return f"COALESCE({column}, {fill_placeholder})"
 
+    @override
     def _table_exists_query(self, table: str) -> tuple[str, tuple]:
         # to_regclass returns NULL for a non-existent relation; the WHERE keeps the
         # result shape (0 or 1 rows) identical to the sqlite probe.
         return ("SELECT 1 WHERE to_regclass(%s) IS NOT NULL", (table,))
 
+    @override
     def _columns_of_query(self, table: str) -> tuple[str, tuple]:
         sql = (
             "SELECT column_name FROM information_schema.columns "
@@ -773,6 +804,7 @@ class PostgresDialect(Dialect):
         )
         return (sql, (table,))
 
+    @override
     def _column_exists_query(self, table: str, column: str) -> tuple[str, tuple]:
         sql = (
             "SELECT 1 FROM information_schema.columns "
@@ -780,12 +812,14 @@ class PostgresDialect(Dialect):
         )
         return (sql, (table, column))
 
+    @override
     def _qualified_table_expr(self, name: str, schema: str) -> str:
         # A separate logical store is a SCHEMA namespace in the one primary
         # database on PG (single DSN) — qualify the name so it resolves there
         # regardless of search_path. Identifiers are pre-validated in the base.
         return f"{schema}.{name}"
 
+    @override
     def _glob_fragment(self, column: str, placeholder: str, pattern: str) -> tuple[str, str]:
         # PG has no GLOB; use case-sensitive LIKE and translate the glob wildcards
         # to LIKE ones. Escape literal % and _ (LIKE wildcards) in the SOURCE first
@@ -799,6 +833,7 @@ class PostgresDialect(Dialect):
         )
         return (f"{column} LIKE {placeholder}", translated)
 
+    @override
     def compact_storage(self, *, sqlite_path: str | None = None,
                         max_bytes: int = 500 * 1024 * 1024) -> str:
         # No client-issued compaction: autovacuum reclaims dead tuples in the
@@ -809,6 +844,7 @@ class PostgresDialect(Dialect):
 
 
 
+    @override
     def set_statement_timeout(self, conn: object, ms: int) -> None:
         # See the SQLite sibling: int() coercion, and SET takes no bound
         # parameter either.

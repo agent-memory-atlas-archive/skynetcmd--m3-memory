@@ -386,6 +386,14 @@ strict_optional = false
 warn_unused_ignores = false
 
 # ── Per-module overrides ──────────────────────────────────────────────────────
+# The backend dialects mark every Dialect override with typing.override, so a
+# base-class rename or typo'd method name fails the type check instead of
+# silently adding an unused method. Extend the module list as other subclass
+# hierarchies are decorated.
+[[tool.mypy.overrides]]
+module = ["memory.backends.sqlite_backend", "memory.backends.postgres_backend"]
+enable_error_code = ["explicit-override"]
+
 # memory_bridge.py exposes every tool from mcp_tool_catalog at import time via
 # `globals()[name] = fn`. Mypy can't see these, so any module that imports a
 # tool-shaped name from memory_bridge will light up with attr-defined errors

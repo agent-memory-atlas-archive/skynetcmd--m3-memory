@@ -15,6 +15,7 @@ from __future__ import annotations
 import uuid
 from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass
+from typing import override
 
 from .base import (
     BackendName,
@@ -47,17 +48,21 @@ class SqliteDialect(Dialect):
     backend: BackendName = "sqlite"
     param_style: ParamStyle = "qmark"
 
+    @override
     def insert_or_ignore(self) -> str:
         return "INSERT OR IGNORE INTO"
 
+    @override
     def on_conflict_ignore(
         self, *, conflict_target: str = "", index_predicate: str = ""
     ) -> str:
         return ""  # the OR IGNORE prefix already handled it
 
+    @override
     def now(self) -> str:
         return "strftime('%Y-%m-%dT%H:%M:%SZ','now')"
 
+    @override
     def now_minus_days(self, days_placeholder: str) -> str:
         # `?` binds an int; build the '-N days' modifier string in SQL.
         # strftime, not datetime(): see now_minus_minutes for why a bare
@@ -65,6 +70,7 @@ class SqliteDialect(Dialect):
         return (f"strftime('%Y-%m-%dT%H:%M:%SZ', 'now', "
                 f"'-' || {days_placeholder} || ' days')")
 
+    @override
     def now_plus_seconds(self, seconds_placeholder: str) -> str:
         # strftime (not datetime) so the result matches the ISO-8601 'Z' shape
         # the other timestamp columns use; datetime() would emit a space-
@@ -80,6 +86,7 @@ class SqliteDialect(Dialect):
         return (f"strftime('%Y-%m-%dT%H:%M:%SZ','now',"
                 f"{seconds_placeholder} || ' seconds')")
 
+    @override
     def now_minus_minutes(self, minutes_placeholder: str) -> str:
         # strftime with the SAME format `now()` writes, NOT bare datetime().
         #
@@ -98,26 +105,33 @@ class SqliteDialect(Dialect):
         return (f"strftime('%Y-%m-%dT%H:%M:%SZ', 'now', "
                 f"'-' || {minutes_placeholder} || ' minutes')")
 
+    @override
     def age_days_gt(self, ts_column: str, days_expr: str) -> str:
         return f"(julianday('now') - julianday({ts_column})) > {days_expr}"
 
+    @override
     def age_minutes_lt(self, ts_column: str, minutes_expr: str) -> str:
         # julianday() PARSES the timestamp, so the stored format (ISO+offset,
         # space-separated, or ...Z) does not matter. See the base docstring.
         return f"((julianday('now') - julianday({ts_column})) * 1440.0) < {minutes_expr}"
 
+    @override
     def all_rows_after_offset(self, offset_placeholder: str) -> str:
         return f"LIMIT -1 OFFSET {offset_placeholder}"
 
+    @override
     def group_concat(self, expr: str, separator: str = ",") -> str:
         return f"GROUP_CONCAT({expr}, '{separator}')"
 
+    @override
     def greatest(self, *exprs: str) -> str:
         return f"MAX({', '.join(exprs)})"
 
+    @override
     def least(self, *exprs: str) -> str:
         return f"MIN({', '.join(exprs)})"
 
+    @override
     def is_undefined_object_error(self, exc: BaseException) -> bool:
         # SQLite has no SQLSTATE for this; classify by the OperationalError text.
         for e in (exc, getattr(exc, "__cause__", None)):
@@ -129,6 +143,7 @@ class SqliteDialect(Dialect):
                 return True
         return False
 
+    @override
     def is_integrity_error(self, exc: BaseException) -> bool:
         # SQLite raises sqlite3.IntegrityError for unique/PK/NOT NULL/FK conflicts.
         import sqlite3 as _sqlite3
@@ -137,24 +152,30 @@ class SqliteDialect(Dialect):
                 return True
         return False
 
+    @override
     def day_bucket(self, column: str) -> str:
         return f"substr({column},1,10)"
 
+    @override
     def byte_length(self, column: str) -> str:
         # LENGTH(CAST(x AS BLOB)) is the SQLite byte-length idiom and works on
         # every SQLite version; octet_length() needs 3.43+, which is newer than
         # the interpreters m3 supports.
         return f"LENGTH(CAST({column} AS BLOB))"
 
+    @override
     def has_content(self, column: str) -> str:
         return f"LENGTH(TRIM(COALESCE({column}, ''))) > 0"
 
+    @override
     def empty_json_default(self) -> str | None:
         return ""  # metadata_json is TEXT on SQLite; '' is fine (historical value)
 
+    @override
     def returning_id_clause(self) -> str:
         return ""  # id read afterward via last_insert_id (cur.lastrowid)
 
+    @override
     def claim_message(
         self, conn: object, *, table: str, where_sql: str, where_params: tuple,
         claimant: str, lease_ttl: int = 300,
@@ -226,9 +247,11 @@ class SqliteDialect(Dialect):
             conn.rollback()  # type: ignore[attr-defined]
             raise
 
+    @override
     def last_insert_id(self, cursor: object) -> object:
         return cursor.lastrowid  # type: ignore[attr-defined]
 
+    @override
     def store_change_token(self, store: str) -> tuple:
         """``(main, wal, shm)`` signals for the store; ``()`` for an absent file.
 
@@ -274,44 +297,54 @@ class SqliteDialect(Dialect):
         shm = _read(store + "-shm", 0, 48)
         return (main, _stat(store + "-wal"), (shm,) if shm else ())
 
+    @override
     def _json_extract_text_expr(self, column: str, json_path: str) -> str:
         return f"json_extract({column}, '$.{json_path}')"
 
+    @override
     def _json_extract_int_expr(self, column: str, json_path: str) -> str:
         return f"CAST(json_extract({column}, '$.{json_path}') AS INTEGER)"
 
+    @override
     def _json_is_valid_expr(self, column: str) -> str:
         # json_valid() ships with SQLite's JSON1 extension, compiled in by
         # default since 3.38 and present in every interpreter m3 supports.
         # Returns NULL (not 0) for a NULL input — see json_is_valid's docstring.
         return f"json_valid({column})"
 
+    @override
     def _temporal_open_clause_expr(self, column: str, op: str, p: str) -> str:
         return f"({column} IS NULL OR {column} = '' OR {column} {op} {p})"
 
+    @override
     def coalesce_open_timestamp(self, column: str, fill_placeholder: str) -> str:
         return f"COALESCE(NULLIF({column}, ''), {fill_placeholder})"
 
+    @override
     def _table_exists_query(self, table: str) -> tuple[str, tuple]:
         return (
             "SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?",
             (table,),
         )
 
+    @override
     def _columns_of_query(self, table: str) -> tuple[str, tuple]:
         # pragma_table_info('t') is a table-valued function (SQLite >= 3.16);
         # its `name` column is the column name. Caller reads row[0].
         return (f"SELECT name FROM pragma_table_info('{table}')", ())
 
+    @override
     def _column_exists_query(self, table: str, column: str) -> tuple[str, tuple]:
         # pragma_table_info takes the table inline (can't bind); the column name
         # IS bound. Zero rows for a missing table or missing column.
         return (f"SELECT 1 FROM pragma_table_info('{table}') WHERE name = ?", (column,))
 
+    @override
     def _glob_fragment(self, column: str, placeholder: str, pattern: str) -> tuple[str, str]:
         # SQLite has a native case-sensitive GLOB; the pattern passes through.
         return (f"{column} GLOB {placeholder}", pattern)
 
+    @override
     def _qualified_table_expr(self, name: str, schema: str) -> str:
         # A separate logical store is a separate DB FILE on SQLite — opened
         # directly — so there is no schema to qualify: the reference is bare.
@@ -319,12 +352,14 @@ class SqliteDialect(Dialect):
         # privileged as "the default". `schema` is intentionally unused here.
         return name
 
+    @override
     def begin_immediate(self, conn: object) -> None:
         # Take the RESERVED lock now. A deferred BEGIN takes it at the first
         # write, so two read-modify-write passes can both read and then one
         # fails "database is locked" after doing its work.
         conn.execute("BEGIN IMMEDIATE")  # type: ignore[attr-defined]
 
+    @override
     def compact_storage(self, *, sqlite_path: str | None = None,
                         max_bytes: int = 500 * 1024 * 1024) -> str:
         # VACUUM rewrites the file to reclaim free pages. It needs a fresh
@@ -353,6 +388,7 @@ class SqliteDialect(Dialect):
 
 
 
+    @override
     def set_statement_timeout(self, conn: object, ms: int) -> None:
         # int() is a hard coercion, so the f-string carries no injection
         # vector -- and it MUST be an f-string: PRAGMA takes no bound
