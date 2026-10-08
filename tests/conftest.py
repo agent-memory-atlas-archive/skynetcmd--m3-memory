@@ -290,6 +290,32 @@ def pg_url() -> str:
     return dsn
 
 
+@pytest.fixture(params=["sqlite", pytest.param("postgres", marks=pytest.mark.requires_pg)])
+def each_backend(request, monkeypatch):
+    """Run the test once per shipped backend; yields the active StorageBackend.
+
+    The sandbox clears M3_DB_BACKEND for every test, so a test runs on SQLite
+    unless it selects PostgreSQL itself, and a PG lane alone does not put a
+    plain test on PG. Request this fixture to cover both: the `postgres` case
+    carries `requires_pg`, so it skips (never silently runs SQLite) when no
+    cluster is reachable. Prefer it to a per-file `pg` fixture; 16 files carry
+    their own copy today.
+    """
+    from memory.backends import selector
+
+    name = request.param
+    monkeypatch.setenv("M3_DB_BACKEND", name)
+    if name == "postgres":
+        monkeypatch.setenv("M3_PRIMARY_PG_URL", pg_dsn() or "")
+        monkeypatch.delenv("M3_DATABASE", raising=False)
+    selector._reset_for_tests()
+    backend = selector.active_backend()
+    assert backend.name == name, f"asked for {name}, the seam resolved {backend.name}"
+    backend.ensure_schema()
+    yield backend
+    selector._reset_for_tests()
+
+
 _REAL_OS_NAME = _os.name
 _REAL_SYS_PLATFORM = sys.platform
 

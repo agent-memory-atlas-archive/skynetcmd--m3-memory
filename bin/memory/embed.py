@@ -1734,18 +1734,23 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
     # batch.
     _CACHE_LOOKUP_CHUNK = 500
     try:
+        from .backends import dialect as _dialect
+
+        _d = _dialect()
         with _db() as db:
             for chunk in batched(uniq_hashes, _CACHE_LOOKUP_CHUNK):
-                placeholders = ",".join("?" * len(chunk))
                 rows = db.execute(
                     f"SELECT content_hash, embedding, embed_model FROM memory_embeddings "
-                    f"WHERE embed_model = ? AND content_hash IN ({placeholders})",
+                    f"WHERE embed_model = {_d.param()} AND content_hash IN ({_d.placeholder(len(chunk))})",
                     (cache_model, *chunk),
                 ).fetchall()
                 for r in rows:
                     cached_vecs[r["content_hash"]] = (_unpack(r["embedding"]), r["embed_model"])
     except Exception as e:
-        logger.debug(f"Bulk embed cache lookup failed: {e}")
+        # WARNING, not debug: a failing lookup silently re-embeds everything (it
+        # hid a hardcoded '?' that PostgreSQL rejects, so the PG cache never hit).
+        logger.warning(f"Bulk embed cache lookup failed; embedding all {len(uniq_hashes)} "
+                       f"text(s) uncached: {type(e).__name__}: {e}")
 
     miss_indices: list[int] = []
     miss_texts: list[str] = []
