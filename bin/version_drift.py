@@ -147,38 +147,13 @@ def check_and_record() -> dict:
 
 
 def _pid_is_alive(pid: int) -> bool:
-    """Cross-platform liveness probe. Best-effort; returns False on any error."""
-    if pid <= 0:
-        return False
+    """Liveness probe; single owner is `m3_core.process.pid_is_alive`.
+
+    Never raises: an exception here once escaped `check_and_record` and froze the
+    boot record for months (see tests/test_version_drift_records_the_boot.py).
+    """
     try:
-        if os.name == "nt":
-            # Windows: tasklist filter by PID
-            import subprocess
-
-            # ⚠ tasklist is a CONSOLE-subsystem exe, and this is a liveness
-            # probe called from scheduled-task paths — so without the flag it
-            # flashes a window every time it runs. no_window_kwargs is safe
-            # here because output is captured (its documented precondition);
-            # with inherited handles the flag would swallow the stdout this
-            # function parses.
-            from _task_runtime import no_window_kwargs
-
-            out = subprocess.run(
-                ["tasklist", "/fi", f"PID eq {pid}", "/fo", "csv", "/nh"],
-                capture_output=True, text=True, timeout=5, check=False,
-                **no_window_kwargs(),
-            )
-            return f'"{pid}"' in out.stdout or f",{pid}," in out.stdout
-        else:
-            # Unix: kill(pid, 0) signals nothing but raises on no-such-process
-            os.kill(pid, 0)
-            return True
-    except Exception:
-        # NOT `(OSError, subprocess.TimeoutExpired, Exception)`: `subprocess` is
-        # imported inside the Windows branch only, so on Unix evaluating that
-        # tuple raised UnboundLocalError the moment `os.kill` reported a dead
-        # PID. That propagated out of `check_and_record`, whose caller swallows
-        # it at DEBUG -- so the boot record silently stopped updating and the
-        # drift warning named a PID that had been dead for months, on every
-        # boot. `Exception` already covers both of the others.
+        from m3_core.process import pid_is_alive
+        return pid_is_alive(pid)
+    except Exception:  # noqa: BLE001 -- see docstring
         return False

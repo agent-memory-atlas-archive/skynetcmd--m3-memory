@@ -3,7 +3,6 @@ import os
 import time
 from contextlib import contextmanager
 
-from m3_core.gpu import _no_window
 from m3_core.paths import get_m3_config_root
 from m3_core.runtime import M3_CORE_RS_DISABLE
 
@@ -100,30 +99,13 @@ def _lock_owner_stamp() -> str:
 
 
 def _pid_alive(pid: int) -> bool:
-    """True if a process with this PID exists. Conservative: on any uncertainty
-    we return True (assume alive) so we never steal a live lock."""
-    if pid <= 0:
-        return False
-    if os.name == "nt":
-        # No os.kill(pid, 0) semantics on Windows; query the task list.
-        import subprocess
-        try:
-            out = subprocess.run(
-                ["tasklist", "/fi", f"PID eq {pid}", "/nh"],
-                capture_output=True, text=True, timeout=5, **_no_window(),
-            )
-            return str(pid) in (out.stdout or "")
-        except (OSError, subprocess.SubprocessError):
-            return True  # can't tell -> assume alive (safe)
-    try:
-        os.kill(pid, 0)
-        return True
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True  # exists but owned by another user -> alive
-    except OSError:
-        return True  # unknown -> assume alive
+    """True if a process with this PID exists; single owner `m3_core.process`.
+
+    Conservative by that owner's contract: anything that cannot disprove
+    existence reads as alive, so a live lock is never stolen.
+    """
+    from m3_core.process import pid_is_alive
+    return pid_is_alive(pid)
 
 
 def _reclaim_stale_lock(lock_path: str) -> bool:

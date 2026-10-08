@@ -42,6 +42,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Iterable, List, Optional
 
+from m3_core import process as _process
+
 # The coordination-file schema is a shared contract in m3_core (so writers,
 # readers, and a future dashboard lock panel can't drift). m3_halt owns the
 # runtime ACTIONS (stamp current process, O_EXCL acquire, registry dir); the
@@ -109,80 +111,22 @@ def _halt_path(engine_root: Optional[str] = None) -> Path:
 # ──────────────────────────────────────────────────────────────────────────
 # Liveness — cross-platform PID probe with a start-time reuse guard.
 # ──────────────────────────────────────────────────────────────────────────
-def _pid_is_alive(pid: int) -> bool:
-    """True if a process with ``pid`` currently exists. Cross-platform, no deps.
-
-    NOTE on identity: liveness alone can't tell the ORIGINAL owner from a process
-    that REUSED the pid (and on Windows GetExitCodeProcess==STILL_ACTIVE(259) is
-    ambiguous). For a stale-vs-owner decision, pair this with a create_time match
-    (see _proc_create_time / _read_lock_owner). This function answers only
-    "does *a* process with this pid exist right now".
-    """
-    if pid <= 0:
-        return False
-    if os.name == "nt":
-        # Windows: OpenProcess via ctypes; STILL_ACTIVE means running.
-        import ctypes  # local import keeps non-Windows clean
-
-        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
-        ERROR_ACCESS_DENIED = 5
-        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined]
-        handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
-        if not handle:
-            # Access denied means the process EXISTS but runs elevated or as
-            # another user (an SCM service). Read as "gone", such a process is
-            # reported stopped without any kill being attempted.
-            return ctypes.get_last_error() == ERROR_ACCESS_DENIED  # type: ignore[attr-defined]
-        try:
-            exit_code = ctypes.c_ulong()
-            if kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
-                STILL_ACTIVE = 259
-                return exit_code.value == STILL_ACTIVE
-            return True  # couldn't read exit code but the handle opened → alive
-        finally:
-            kernel32.CloseHandle(handle)
-    # POSIX: signal 0 probes existence without delivering a signal.
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True  # exists but owned by another user
-    return True
+# Single owner: m3_core.process. Bound to the private name because callers in
+# this module (and tests) patch `m3_halt._pid_is_alive`.
+_pid_is_alive = _process.pid_is_alive
 
 
-# Max allowed difference (seconds) between a registry entry's recorded
-# create_time and the live process's create_time for them to be the SAME process.
-# Used by the PID REGISTRY (_pid_is_live_owner / list_live_processes) to detect a
-# reused PID. (The single-instance LOCK no longer needs this — it uses an OS
-# advisory lock the kernel releases on death, so there's no stale-lock reclaim to
-# guard; this is purely for the registry's liveness reads.) Tight enough to catch
-# a reused PID, loose enough to absorb create_time read-rounding (~10ms on Linux).
-_CREATE_TIME_MATCH_TOLERANCE_S = 0.1
+_CREATE_TIME_MATCH_TOLERANCE_S = _process.CREATE_TIME_MATCH_TOLERANCE_S
 
 
 def _pid_is_live_owner(pid: int, recorded_create_time: "float | None") -> bool:
-    """True iff ``pid`` is alive AND is the SAME process that recorded
-    ``recorded_create_time`` — i.e. the pid was not reused.
+    """Reuse-safe identity check; logic in `m3_core.process.pid_is_live_owner`.
 
-    This is the reuse-safe identity check both the PID registry
-    (``list_live_processes``) and the single-instance lock (``_read_lock_owner``)
-    go through, so they can't disagree. Pairing liveness with create_time closes
-    two gaps that bare ``_pid_is_alive`` has: OS PID reuse, and the Windows
-    ``GetExitCodeProcess``/STILL_ACTIVE(259) ambiguity (a process that exited
-    with code 259 reads as alive). If ``recorded_create_time`` is None (older
-    entry that predates the create_time field) we fall back to liveness-only —
-    no worse than before, and the entry gets rewritten with create_time on the
-    owner's next registration.
+    Passes this module's probes at CALL time so a patched `_pid_is_alive` /
+    `_proc_create_time` is honoured, as the PID registry and lock tests rely on.
     """
-    if not _pid_is_alive(pid):
-        return False
-    if recorded_create_time is None:
-        return True  # legacy entry without create_time → liveness-only fallback
-    live_ct = _proc_create_time(pid)
-    if live_ct is None:
-        return True  # can't read create_time (perm) → don't wrongly reap a live pid
-    return abs(live_ct - recorded_create_time) <= _CREATE_TIME_MATCH_TOLERANCE_S
+    return _process.pid_is_live_owner(
+        pid, recorded_create_time, alive=_pid_is_alive, create_time=_proc_create_time)
 
 
 # Public alias: cross-module callers (pg_sync, doctor, services) should use the
@@ -641,41 +585,14 @@ def list_blocking_db_writers(engine_root: Optional[str] = None) -> list[ProcInfo
 
 
 def _ancestor_pids(pid: int, *, max_depth: int = 24) -> set:
-    """Every ancestor pid of `pid`, walking up until init/System or the walk ends.
+    """Every ancestor pid of `pid`; walk owned by `m3_core.process.ancestor_pids`.
 
-    Used to protect this process's whole branch from a tree-kill. `os.getppid()`
-    alone only covers one generation, and on Windows `taskkill /T` kills the
-    target's entire descendant tree — so an ancestor N levels up is just as fatal
-    as the direct parent.
-
-    Bounded by `max_depth` and by a seen-set so a cycle or a recycled pid can
-    never spin. Returns what it managed to resolve; psutil missing or a lookup
-    failing yields a partial (never wrong) set — callers treat this as
-    best-effort protection, not a guarantee.
+    Used to protect this process's whole branch from a tree-kill: on Windows
+    `taskkill /T` kills the target's entire descendant tree, so an ancestor N
+    levels up is as fatal as the direct parent. Best-effort: a partial set is
+    possible, a wrong one is not.
     """
-    out: set = set()
-    try:
-        import psutil  # type: ignore
-    except ImportError:
-        try:
-            out.add(os.getppid())
-        except Exception:  # noqa: BLE001
-            pass
-        return out
-    seen = {pid}
-    cur = pid
-    for _ in range(max_depth):
-        try:
-            parent = psutil.Process(cur).ppid()
-        except Exception:  # noqa: BLE001 — gone/denied → stop climbing
-            break
-        # pid 0 (System Idle) and a self-parent both mean "top of the chain".
-        if not parent or parent in seen:
-            break
-        out.add(parent)
-        seen.add(parent)
-        cur = parent
-    return out
+    return set(_process.ancestor_pids(pid, max_depth=max_depth))
 
 
 def kill_stale_daemons(
@@ -1139,18 +1056,7 @@ _RUNNABLE = frozenset({LockStatus.ACQUIRED, LockStatus.REENTRANT,
                        LockStatus.CONFIG_ERROR, LockStatus.LOCK_ERROR})
 
 
-def _proc_create_time(pid: int) -> "float | None":
-    """The process create time (epoch seconds) for pid, or None if unknown.
-    Cross-platform via psutil (a hard dependency). Recorded in the sidecar so
-    doctor/dashboard can show it; NOT load-bearing for the lock (the OS lock is)."""
-    try:
-        import psutil
-    except Exception:  # noqa: BLE001
-        return None
-    try:
-        return float(psutil.Process(pid).create_time())
-    except Exception:  # noqa: BLE001
-        return None
+_proc_create_time = _process.proc_create_time
 
 
 # Public name for callers outside this module (the loop watchdog).
