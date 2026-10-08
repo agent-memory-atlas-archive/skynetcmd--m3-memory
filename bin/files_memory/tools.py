@@ -16,7 +16,6 @@ tool catalog.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from .db import integrity_check, rebuild_fts
 from .index import files_get, files_index, files_stats
@@ -59,16 +58,16 @@ def _serialize_ingest_result(r: IngestResult) -> dict:
 
 def files_ingest_impl(
     path: str,
-    include: Optional[list[str]] = None,
-    exclude: Optional[list[str]] = None,
-    max_depth: Optional[int] = None,
-    corpus: Optional[str] = None,
+    include: list[str] | None = None,
+    exclude: list[str] | None = None,
+    max_depth: int | None = None,
+    corpus: str | None = None,
     dry_run: bool = False,
     force_size: bool = False,
     record_noops: bool = False,
-    follow_symlinks: Optional[bool] = None,
-    extract_mode: Optional[str] = None,
-    original_path: Optional[str] = None,
+    follow_symlinks: bool | None = None,
+    extract_mode: str | None = None,
+    original_path: str | None = None,
 ) -> dict:
     """Walk PATH and ingest every supported file.
 
@@ -118,8 +117,8 @@ def files_extract_pending_impl(limit: int = 100) -> dict:
 def files_promote_impl(
     source_uuid: str,
     reason: str = "",
-    mapped_type: Optional[str] = None,
-    scope: Optional[str] = None,
+    mapped_type: str | None = None,
+    scope: str | None = None,
     importance: float = 0.6,
 ) -> dict:
     """Promote a fact / leaf / file_summary from files.db to memory.db.
@@ -136,8 +135,8 @@ def files_promote_impl(
 
 
 def files_promotion_list_impl(
-    source_file_node: Optional[str] = None,
-    source_superseded: Optional[bool] = None,
+    source_file_node: str | None = None,
+    source_superseded: bool | None = None,
     limit: int = 100,
 ) -> list[dict]:
     """List existing promotions. Filter to a file_node or to drifted-source items."""
@@ -152,7 +151,7 @@ def files_promotion_list_impl(
 def files_promotable_impl(
     limit: int = 20,
     min_score: float = 0.30,
-    corpus: Optional[str] = None,
+    corpus: str | None = None,
     include_already_promoted: bool = False,
 ) -> list[dict]:
     """Surface top promotion candidates by usage-weighted heuristic score.
@@ -172,7 +171,7 @@ def files_dedup_impl(
     threshold: float = 0.92,
     max_pairs: int = 500,
     leaf_limit: int = 10000,
-    corpus: Optional[str] = None,
+    corpus: str | None = None,
     include_already_detected: bool = False,
 ) -> dict:
     """Scan leaf embeddings for near-duplicates above cosine threshold.
@@ -189,9 +188,9 @@ def files_dedup_impl(
 
 
 def files_dedup_list_impl(
-    reviewed: Optional[bool] = False,
+    reviewed: bool | None = False,
     limit: int = 100,
-    min_cosine: Optional[float] = None,
+    min_cosine: float | None = None,
 ) -> list[dict]:
     """List near-duplicate candidate pairs detected by files_dedup."""
     from .dedup import list_dedup_candidates
@@ -217,7 +216,7 @@ def files_dedup_review_impl(
 def files_entity_coalesce_impl(
     max_pairs: int = 1000,
     dry_run: bool = False,
-    corpus: Optional[str] = None,
+    corpus: str | None = None,
 ) -> dict:
     """Detect provisional-entity coalescing candidates (v1: detect + quarantine
     + review only — never merges, never auto-applies).
@@ -233,9 +232,9 @@ def files_entity_coalesce_impl(
 
 
 def files_entity_coalesce_list_impl(
-    reviewed: Optional[bool] = False,
+    reviewed: bool | None = False,
     limit: int = 100,
-    min_cosine: Optional[float] = None,
+    min_cosine: float | None = None,
 ) -> list[dict]:
     """List entity-coalescing candidate pairs detected by files_entity_coalesce."""
     from .entity_coalesce import list_coalesce_candidates
@@ -255,9 +254,9 @@ def files_entity_coalesce_review_impl(
 
 
 def files_entity_coalesce_apply_impl(
-    candidate_uuids: Optional[list] = None,
+    candidate_uuids: list | None = None,
     include_auto_merge: bool = False,
-    resolution_run: Optional[str] = None,
+    resolution_run: str | None = None,
     dry_run: bool = False,
     confirm: bool = False,
 ) -> dict:
@@ -294,8 +293,8 @@ def files_entity_coalesce_unapply_impl(cluster_id: str) -> dict:
 
 
 def files_staleness_review_impl(
-    directory: Optional[str] = None,
-    corpus: Optional[str] = None,
+    directory: str | None = None,
+    corpus: str | None = None,
     include_failed_extraction: bool = True,
     include_drifted_promotions: bool = True,
     include_rename_candidates: bool = True,
@@ -383,7 +382,7 @@ def files_staleness_review_impl(
 def files_link_rename_impl(
     missing_file_node_uuid: str,
     new_path: str,
-    expect_sha256: Optional[str] = None,
+    expect_sha256: str | None = None,
 ) -> dict:
     """Re-point an existing file_node at a new path (rename / move).
 
@@ -416,9 +415,9 @@ def _corpus_info_to_dict(info) -> dict:
 
 def files_corpus_create_impl(
     corpus_id: str,
-    description: Optional[str] = None,
-    extract_mode: Optional[str] = None,
-    scope: Optional[str] = None,
+    description: str | None = None,
+    extract_mode: str | None = None,
+    scope: str | None = None,
     default: bool = False,
 ) -> dict:
     """Register a new corpus."""
@@ -436,7 +435,7 @@ def files_corpus_list_impl() -> list[dict]:
     return [_corpus_info_to_dict(i) for i in corpus_list()]
 
 
-def files_corpus_get_impl(corpus_id: str) -> Optional[dict]:
+def files_corpus_get_impl(corpus_id: str) -> dict | None:
     """Fetch a single corpus's settings + counts. None if unknown."""
     from .corpora import corpus_get
     info = corpus_get(corpus_id)
@@ -445,11 +444,11 @@ def files_corpus_get_impl(corpus_id: str) -> Optional[dict]:
 
 def files_corpus_set_impl(
     corpus_id: str,
-    description: Optional[str] = None,
-    extract_mode: Optional[str] = None,
-    scope: Optional[str] = None,
-    default: Optional[bool] = None,
-    retention_days: Optional[int] = None,
+    description: str | None = None,
+    extract_mode: str | None = None,
+    scope: str | None = None,
+    default: bool | None = None,
+    retention_days: int | None = None,
 ) -> dict:
     """Update settings on an existing corpus (creates settings row if absent)."""
     from .corpora import corpus_set
@@ -471,8 +470,8 @@ def files_corpus_delete_impl(corpus_id: str, cascade: bool = False) -> dict:
 # Watch-mode impls (phase 4)
 # ──────────────────────────────────────────────────────────────────────────────
 def files_watch_once_impl(
-    directory: Optional[str] = None,
-    corpus: Optional[str] = None,
+    directory: str | None = None,
+    corpus: str | None = None,
     agent_id: str = "files_memory.watch",
     cooldown_seconds: float = 3600.0,
 ) -> dict:
@@ -497,12 +496,12 @@ def files_watch_once_impl(
 
 
 def files_watch_loop_impl(
-    directory: Optional[str] = None,
-    corpus: Optional[str] = None,
+    directory: str | None = None,
+    corpus: str | None = None,
     interval_seconds: float = 300.0,
     agent_id: str = "files_memory.watch",
     cooldown_seconds: float = 3600.0,
-    max_cycles: Optional[int] = None,
+    max_cycles: int | None = None,
 ) -> dict:
     """Blocking polling loop. Long-running; suitable for `python -m … watch`.
     Returns the cycle count after KeyboardInterrupt or max_cycles."""
@@ -516,11 +515,11 @@ def files_watch_loop_impl(
 
 
 def files_index_impl(
-    corpus: Optional[str] = None,
-    corpora: Optional[list[str]] = None,
-    filetype: Optional[str] = None,
-    directory: Optional[str] = None,
-    filename_glob: Optional[str] = None,
+    corpus: str | None = None,
+    corpora: list[str] | None = None,
+    filetype: str | None = None,
+    directory: str | None = None,
+    filename_glob: str | None = None,
     include_history: bool = False,
     limit: int = 500,
 ) -> list[dict]:
@@ -563,9 +562,9 @@ def files_index_impl(
 def files_search_impl(
     query: str,
     limit: int = 10,
-    corpus: Optional[str] = None,
-    corpora: Optional[list[str]] = None,
-    filetype: Optional[str] = None,
+    corpus: str | None = None,
+    corpora: list[str] | None = None,
+    filetype: str | None = None,
     include_history: bool = False,
 ) -> list[dict]:
     """Hybrid search over leaves: FTS5 + vector cosine + RRF.
@@ -603,12 +602,12 @@ def files_search_impl(
     ]
 
 
-def files_get_impl(uuid: str) -> Optional[dict]:
+def files_get_impl(uuid: str) -> dict | None:
     """Fetch one record by UUID (file_node or leaf)."""
     return files_get(uuid)
 
 
-def files_stats_impl(corpus: Optional[str] = None) -> dict:
+def files_stats_impl(corpus: str | None = None) -> dict:
     """Corpus-level counters: file_nodes, leaves, embed coverage, by-filetype."""
     return files_stats(corpus_id=corpus)
 
@@ -640,15 +639,15 @@ def register(mcp) -> None:
     @mcp.tool()
     def files_ingest(
         path: str,
-        include: Optional[list[str]] = None,
-        exclude: Optional[list[str]] = None,
-        max_depth: Optional[int] = None,
-        corpus: Optional[str] = None,
+        include: list[str] | None = None,
+        exclude: list[str] | None = None,
+        max_depth: int | None = None,
+        corpus: str | None = None,
         dry_run: bool = False,
         force_size: bool = False,
         record_noops: bool = False,
-        extract_mode: Optional[str] = None,
-        original_path: Optional[str] = None,
+        extract_mode: str | None = None,
+        original_path: str | None = None,
     ) -> dict:
         """Walk a directory and ingest supported files into files.db.
         Idempotent: same content_sha256 → no-op; changed content →
@@ -666,10 +665,10 @@ def register(mcp) -> None:
 
     @mcp.tool()
     def files_index(
-        corpus: Optional[str] = None,
-        filetype: Optional[str] = None,
-        directory: Optional[str] = None,
-        filename_glob: Optional[str] = None,
+        corpus: str | None = None,
+        filetype: str | None = None,
+        directory: str | None = None,
+        filename_glob: str | None = None,
         include_history: bool = False,
         limit: int = 500,
     ) -> list[dict]:
@@ -685,8 +684,8 @@ def register(mcp) -> None:
     def files_search(
         query: str,
         limit: int = 10,
-        corpus: Optional[str] = None,
-        filetype: Optional[str] = None,
+        corpus: str | None = None,
+        filetype: str | None = None,
         include_history: bool = False,
     ) -> list[dict]:
         """Hybrid FTS5 + vector search over leaves.
@@ -697,12 +696,12 @@ def register(mcp) -> None:
         )
 
     @mcp.tool()
-    def files_get(uuid: str) -> Optional[dict]:
+    def files_get(uuid: str) -> dict | None:
         """Fetch one record by UUID. Tries file_nodes then leaves."""
         return files_get_impl(uuid=uuid)
 
     @mcp.tool()
-    def files_stats(corpus: Optional[str] = None) -> dict:
+    def files_stats(corpus: str | None = None) -> dict:
         """Corpus-level counters: file_nodes, leaves, embed coverage."""
         return files_stats_impl(corpus=corpus)
 
@@ -721,8 +720,8 @@ def register(mcp) -> None:
     def files_promote(
         source_uuid: str,
         reason: str = "",
-        mapped_type: Optional[str] = None,
-        scope: Optional[str] = None,
+        mapped_type: str | None = None,
+        scope: str | None = None,
         importance: float = 0.6,
     ) -> dict:
         """Promote (ascend) a fact / leaf / file_summary from files.db to
@@ -735,8 +734,8 @@ def register(mcp) -> None:
 
     @mcp.tool()
     def files_promotion_list(
-        source_file_node: Optional[str] = None,
-        source_superseded: Optional[bool] = None,
+        source_file_node: str | None = None,
+        source_superseded: bool | None = None,
         limit: int = 100,
     ) -> list[dict]:
         """List existing promotions. source_superseded=True surfaces
@@ -752,7 +751,7 @@ def register(mcp) -> None:
     def files_promotable(
         limit: int = 20,
         min_score: float = 0.30,
-        corpus: Optional[str] = None,
+        corpus: str | None = None,
         include_already_promoted: bool = False,
     ) -> list[dict]:
         """List top promotion candidates by usage-weighted heuristic score.
@@ -767,7 +766,7 @@ def register(mcp) -> None:
         threshold: float = 0.92,
         max_pairs: int = 500,
         leaf_limit: int = 10000,
-        corpus: Optional[str] = None,
+        corpus: str | None = None,
         include_already_detected: bool = False,
     ) -> dict:
         """Scan leaf embeddings for near-duplicates. Detection only —
@@ -779,9 +778,9 @@ def register(mcp) -> None:
 
     @mcp.tool()
     def files_dedup_list(
-        reviewed: Optional[bool] = False,
+        reviewed: bool | None = False,
         limit: int = 100,
-        min_cosine: Optional[float] = None,
+        min_cosine: float | None = None,
     ) -> list[dict]:
         """List near-duplicate candidate pairs with text snippets and paths."""
         return files_dedup_list_impl(
@@ -803,7 +802,7 @@ def register(mcp) -> None:
     def files_entity_coalesce(
         max_pairs: int = 1000,
         dry_run: bool = False,
-        corpus: Optional[str] = None,
+        corpus: str | None = None,
     ) -> dict:
         """Detect provisional-entity coalescing candidates (quarantine noise +
         flag near-duplicate entities). Detection only — never merges, never
@@ -815,9 +814,9 @@ def register(mcp) -> None:
 
     @mcp.tool()
     def files_entity_coalesce_list(
-        reviewed: Optional[bool] = False,
+        reviewed: bool | None = False,
         limit: int = 100,
-        min_cosine: Optional[float] = None,
+        min_cosine: float | None = None,
     ) -> list[dict]:
         """List entity-coalescing candidate pairs (name + score + band)."""
         return files_entity_coalesce_list_impl(
@@ -836,9 +835,9 @@ def register(mcp) -> None:
 
     @mcp.tool()
     def files_entity_coalesce_apply(
-        candidate_uuids: Optional[list] = None,
+        candidate_uuids: list | None = None,
         include_auto_merge: bool = False,
-        resolution_run: Optional[str] = None,
+        resolution_run: str | None = None,
         dry_run: bool = False,
         confirm: bool = False,
     ) -> dict:
@@ -866,8 +865,8 @@ def register(mcp) -> None:
 
     @mcp.tool()
     def files_staleness_review(
-        directory: Optional[str] = None,
-        corpus: Optional[str] = None,
+        directory: str | None = None,
+        corpus: str | None = None,
         rehash: bool = True,
         limit: int = 200,
     ) -> dict:
@@ -883,7 +882,7 @@ def register(mcp) -> None:
     def files_link_rename(
         missing_file_node_uuid: str,
         new_path: str,
-        expect_sha256: Optional[str] = None,
+        expect_sha256: str | None = None,
     ) -> dict:
         """Re-point an existing file_node at a new path (rename / move).
         NOT a supersession — content stays identical. Use this only when
@@ -898,9 +897,9 @@ def register(mcp) -> None:
     @mcp.tool()
     def files_corpus_create(
         corpus_id: str,
-        description: Optional[str] = None,
-        extract_mode: Optional[str] = None,
-        scope: Optional[str] = None,
+        description: str | None = None,
+        extract_mode: str | None = None,
+        scope: str | None = None,
         default: bool = False,
     ) -> dict:
         """Register a new corpus with optional default overrides.
@@ -917,18 +916,18 @@ def register(mcp) -> None:
         return files_corpus_list_impl()
 
     @mcp.tool()
-    def files_corpus_get(corpus_id: str) -> Optional[dict]:
+    def files_corpus_get(corpus_id: str) -> dict | None:
         """Fetch a single corpus's settings + counts."""
         return files_corpus_get_impl(corpus_id=corpus_id)
 
     @mcp.tool()
     def files_corpus_set(
         corpus_id: str,
-        description: Optional[str] = None,
-        extract_mode: Optional[str] = None,
-        scope: Optional[str] = None,
-        default: Optional[bool] = None,
-        retention_days: Optional[int] = None,
+        description: str | None = None,
+        extract_mode: str | None = None,
+        scope: str | None = None,
+        default: bool | None = None,
+        retention_days: int | None = None,
     ) -> dict:
         """Update settings for an existing corpus. None args are no-ops.
         Creates the corpus_settings row if absent."""
@@ -948,8 +947,8 @@ def register(mcp) -> None:
     # ── Watch-mode daemon (phase 4) ──────────────────────────────────────
     @mcp.tool()
     def files_watch_once(
-        directory: Optional[str] = None,
-        corpus: Optional[str] = None,
+        directory: str | None = None,
+        corpus: str | None = None,
         agent_id: str = "files_memory.watch",
         cooldown_seconds: float = 3600.0,
     ) -> dict:
@@ -1182,7 +1181,7 @@ def main() -> int:
 
     # The CLI dispatch below binds `r` to whatever the chosen *_impl returns;
     # some return a dict, others a list of dicts. Declare the union up front.
-    r: "dict | list"
+    r: dict | list
     if args.cmd == "ingest":
         r = files_ingest_impl(
             path=args.path, include=args.include, exclude=args.exclude,
@@ -1213,7 +1212,7 @@ def main() -> int:
             include_already_detected=args.include_already_detected,
         )
     elif args.cmd == "dedup-list":
-        reviewed_arg: Optional[bool] = False
+        reviewed_arg: bool | None = False
         if args.reviewed_all:
             reviewed_arg = None
         elif args.reviewed:
@@ -1230,7 +1229,7 @@ def main() -> int:
             max_pairs=args.max_pairs, dry_run=args.dry_run, corpus=args.corpus,
         )
     elif args.cmd == "entity-coalesce-list":
-        ec_reviewed: Optional[bool] = False
+        ec_reviewed: bool | None = False
         if args.reviewed_all:
             ec_reviewed = None
         elif args.reviewed:
@@ -1312,7 +1311,7 @@ def main() -> int:
     elif args.cmd == "corpus-set":
         # --default and --no-default are mutually exclusive; treat both
         # off as "don't touch the default flag".
-        default_arg: Optional[bool] = None
+        default_arg: bool | None = None
         if args.set_default and args.unset_default:
             raise SystemExit("--default and --no-default are mutually exclusive")
         if args.set_default:

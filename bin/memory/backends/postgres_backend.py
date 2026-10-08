@@ -27,9 +27,10 @@ import os
 import re
 import threading
 import uuid
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Iterator
+from typing import TYPE_CHECKING, Any
 
 from m3_sdk import getenv_compat, resolve_primary_pg_dsn
 
@@ -177,7 +178,7 @@ class _SqliteCompatConnection:
     def __init__(self, raw_conn: object) -> None:
         self._raw = raw_conn
 
-    def execute(self, sql: str, params: "tuple | list" = ()):  # noqa: ANN001
+    def execute(self, sql: str, params: tuple | list = ()):  # noqa: ANN001
         cur = self._raw.cursor(  # type: ignore[attr-defined]
             cursor_factory=_make_compat_cursor_factory()
         )
@@ -213,7 +214,7 @@ class _SqliteCompatConnection:
         return getattr(self._raw, name)
 
 
-def _forbidden_pg_hosts() -> "list[str]":
+def _forbidden_pg_hosts() -> list[str]:
     """Hosts the PRIMARY store must never connect to (defense in depth).
 
     The data-warehouse / CDW hub is a shared fan-in mirror; a primary-store DSN
@@ -311,7 +312,7 @@ def _resolve_dsn() -> str:
     return url
 
 
-def _dsn_identity(url: str) -> "tuple[str, int | None, str] | None":
+def _dsn_identity(url: str) -> tuple[str, int | None, str] | None:
     """Normalize a DSN to its (host, port, dbname) identity for comparison.
 
     Two DSNs that name the SAME database differ byte-for-byte in benign ways
@@ -437,7 +438,7 @@ def _libpq_quote(value: object) -> str:
     return "'" + str(value).replace("\\", "\\\\").replace("'", "\\'") + "'"
 
 
-def _conninfo_and_env(dsn: str) -> "tuple[str, dict[str, str]]":
+def _conninfo_and_env(dsn: str) -> tuple[str, dict[str, str]]:
     """A libpq conninfo WITHOUT the password, plus an env carrying it.
 
     Command lines are readable by every local user (``ps``, Task Manager), so
@@ -458,7 +459,7 @@ def _conninfo_and_env(dsn: str) -> "tuple[str, dict[str, str]]":
     return " ".join(f"{k}={_libpq_quote(v)}" for k, v in params.items()), env
 
 
-def _tail(text: "str | bytes", n: int = 400) -> str:
+def _tail(text: str | bytes, n: int = 400) -> str:
     if isinstance(text, bytes):
         text = text.decode("utf-8", "replace")
     return text.strip()[-n:]
@@ -471,7 +472,7 @@ def _remove_file(path: str) -> None:
         pass
 
 
-def _archive_row_counts(pg_restore: str, archive: str, schema: str) -> "dict[str, int]":
+def _archive_row_counts(pg_restore: str, archive: str, schema: str) -> dict[str, int]:
     """Row count per table of ``schema`` as stored IN the archive.
 
     Streams ``pg_restore --data-only`` to stdout and counts each COPY block's
@@ -481,7 +482,7 @@ def _archive_row_counts(pg_restore: str, archive: str, schema: str) -> "dict[str
     import subprocess
 
     counts: dict[str, int] = {}
-    current: "str | None" = None
+    current: str | None = None
     # stderr goes to a temp file, not a second pipe: an undrained stderr pipe
     # that fills while we read stdout deadlocks both processes.
     import tempfile
@@ -635,7 +636,7 @@ class PostgresDialect(Dialect):
     def has_content(self, column: str) -> str:
         return f"LENGTH(TRIM(COALESCE({column}, ''))) > 0"
 
-    def empty_json_default(self) -> "str | None":
+    def empty_json_default(self) -> str | None:
         return "{}"  # metadata_json is JSONB; '' is rejected, '{}' is the empty obj
 
     def returning_id_clause(self) -> str:
@@ -644,7 +645,7 @@ class PostgresDialect(Dialect):
     def claim_message(
         self, conn: object, *, table: str, where_sql: str, where_params: tuple,
         claimant: str, lease_ttl: int = 300,
-    ) -> "tuple | None":
+    ) -> tuple | None:
         """Claim via ``FOR UPDATE SKIP LOCKED`` -- the native primitive.
 
         SKIP LOCKED is what SQLite cannot express: a candidate row already
@@ -682,7 +683,7 @@ class PostgresDialect(Dialect):
     def sweep_expired_leases(
         self, conn: object, *, table: str, max_attempts: int = 5,
         limit: int = 100,
-    ) -> "tuple[int, int]":
+    ) -> tuple[int, int]:
         """Reclaim lapsed leases, dividing the work between concurrent sweepers.
 
         Same contract and same outcome as the base implementation; the
@@ -760,19 +761,19 @@ class PostgresDialect(Dialect):
     def coalesce_open_timestamp(self, column: str, fill_placeholder: str) -> str:
         return f"COALESCE({column}, {fill_placeholder})"
 
-    def _table_exists_query(self, table: str) -> "tuple[str, tuple]":
+    def _table_exists_query(self, table: str) -> tuple[str, tuple]:
         # to_regclass returns NULL for a non-existent relation; the WHERE keeps the
         # result shape (0 or 1 rows) identical to the sqlite probe.
         return ("SELECT 1 WHERE to_regclass(%s) IS NOT NULL", (table,))
 
-    def _columns_of_query(self, table: str) -> "tuple[str, tuple]":
+    def _columns_of_query(self, table: str) -> tuple[str, tuple]:
         sql = (
             "SELECT column_name FROM information_schema.columns "
             "WHERE table_name = %s ORDER BY ordinal_position"
         )
         return (sql, (table,))
 
-    def _column_exists_query(self, table: str, column: str) -> "tuple[str, tuple]":
+    def _column_exists_query(self, table: str, column: str) -> tuple[str, tuple]:
         sql = (
             "SELECT 1 FROM information_schema.columns "
             "WHERE table_name = %s AND column_name = %s"
@@ -785,7 +786,7 @@ class PostgresDialect(Dialect):
         # regardless of search_path. Identifiers are pre-validated in the base.
         return f"{schema}.{name}"
 
-    def _glob_fragment(self, column: str, placeholder: str, pattern: str) -> "tuple[str, str]":
+    def _glob_fragment(self, column: str, placeholder: str, pattern: str) -> tuple[str, str]:
         # PG has no GLOB; use case-sensitive LIKE and translate the glob wildcards
         # to LIKE ones. Escape literal % and _ (LIKE wildcards) in the SOURCE first
         # so they stay literal, THEN map glob * -> % and ? -> _.
@@ -798,7 +799,7 @@ class PostgresDialect(Dialect):
         )
         return (f"{column} LIKE {placeholder}", translated)
 
-    def compact_storage(self, *, sqlite_path: "str | None" = None,
+    def compact_storage(self, *, sqlite_path: str | None = None,
                         max_bytes: int = 500 * 1024 * 1024) -> str:
         # No client-issued compaction: autovacuum reclaims dead tuples in the
         # background, and a manual VACUUM here would need its own out-of-txn
@@ -826,7 +827,7 @@ class PostgresBackend:
 
     def __init__(self, dsn: str | None = None) -> None:
         self._dsn = dsn or _resolve_dsn()
-        self._pool: "ThreadedConnectionPool | None" = None
+        self._pool: ThreadedConnectionPool | None = None
         self._lock = threading.Lock()
         self._caps: Capabilities | None = None
         self._schema_ready = False
@@ -904,7 +905,7 @@ class PostgresBackend:
                 pool.putconn(conn)
 
     # -- pool lifecycle ------------------------------------------------------
-    def _ensure_pool(self) -> "ThreadedConnectionPool":
+    def _ensure_pool(self) -> ThreadedConnectionPool:
         if self._pool is not None:
             return self._pool
         with self._lock:
@@ -1009,7 +1010,7 @@ class PostgresBackend:
         """Positional binds for psycopg: ``placeholder(3) -> "%s, %s, %s"``."""
         return POSTGRES.placeholder(n)
 
-    def list_tables(self, conn: object) -> "set[str]":
+    def list_tables(self, conn: object) -> set[str]:
         """User tables in the ACTIVE schema (current_schema(), not a hardcoded
         'public').
 
@@ -1030,11 +1031,11 @@ class PostgresBackend:
         self,
         conn: object,
         table: str,
-        columns: "list[str]",
-        rows: "list[tuple]",
+        columns: list[str],
+        rows: list[tuple],
         *,
         conflict_target: str,
-        update_columns: "list[str]",
+        update_columns: list[str],
         guard_sql: str = "",
     ) -> int:
         """`execute_values`: ONE multi-row statement per page, not one per row.
@@ -1068,8 +1069,8 @@ class PostgresBackend:
         self,
         conn: object,
         table: str,
-        columns: "list[str]",
-        rows: "list[tuple]",
+        columns: list[str],
+        rows: list[tuple],
         *,
         conflict_target: str,
     ) -> int:
@@ -1113,7 +1114,7 @@ class PostgresBackend:
         host, port, db = ident
         return f"postgres:{host}:{port}/{db}"
 
-    def _run_pg_dump(self, argv: "list[str]", env: "dict[str, str]") -> None:
+    def _run_pg_dump(self, argv: list[str], env: dict[str, str]) -> None:
         """Run pg_dump. A separate method so a test can act between the
         snapshot export and the dump (the window a concurrent writer uses)."""
         import subprocess
@@ -1193,7 +1194,7 @@ class PostgresBackend:
             verified=f"archive read back; row counts match in {len(expected)} tables",
         )
 
-    def schema_version(self) -> "int | None":
+    def schema_version(self) -> int | None:
         """MAX(version) from schema_versions, or None if the table is absent."""
         try:
             with self.connection() as conn:
@@ -1218,7 +1219,7 @@ class PostgresBackend:
         tenancy_sql: str = "",
         tenancy_params: tuple = (),
         table: str = "memory_items",
-    ) -> "list[KeywordHit]":
+    ) -> list[KeywordHit]:
         """tsvector keyword search — the Postgres analogue of SQLite FTS5+bm25.
 
         Compiles the query to a tsquery (same sanitization pipeline as the FTS5
@@ -1269,7 +1270,7 @@ class PostgresBackend:
         table: str = "memory_items",
         extra_columns: tuple = (),
         search_mode: str = "fts5",
-    ) -> "list[dict]":
+    ) -> list[dict]:
         """tsvector keyword search projecting the row body (see base contract).
 
         The SAME tsquery + ts_rank query as :meth:`keyword_search`, selecting the
@@ -1331,7 +1332,7 @@ class PostgresBackend:
         embed_models: tuple = (),
         tenancy_sql: str = "",
         tenancy_params: tuple = (),
-    ) -> "list[VectorHit]":
+    ) -> list[VectorHit]:
         """Vector search, dispatched by capability to the best available path.
 
         The result SHAPE is identical regardless of arm (base.py invariant). Today
@@ -1366,7 +1367,7 @@ class PostgresBackend:
         embed_models: tuple = (),
         tenancy_sql: str = "",
         tenancy_params: tuple = (),
-    ) -> "list[VectorHit]":
+    ) -> list[VectorHit]:
         """The extension-free arm: BYTEA embeddings + Rust cosine (no pgvector).
 
         Identical to the SQLite baseline except for placeholder style and that

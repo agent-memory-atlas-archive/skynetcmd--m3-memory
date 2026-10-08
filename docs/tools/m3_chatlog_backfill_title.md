@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_chatlog_backfill_title.py
-sha1: 4acb703865d8
-mtime_utc: 2026-10-04T08:58:19.546984+00:00
-generated_utc: 2026-10-04T09:01:02.466642+00:00
+sha1: ee4d8ec6ed60
+mtime_utc: 2026-10-08T22:11:14.556690+00:00
+generated_utc: 2026-10-08T22:11:47.976977+00:00
 private: false
 ---
 
@@ -28,7 +28,7 @@ Quick start:
 
 ## Entry points
 
-- `def main()` (line 216)
+- `def main()` (line 215)
 - `if __name__ == "__main__"` guard
 
 ---

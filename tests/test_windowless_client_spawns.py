@@ -43,7 +43,7 @@ if _BIN not in sys.path:
 import generate_configs as gc  # noqa: E402
 
 
-def _as_windows(monkeypatch, present: "set[str]") -> None:
+def _as_windows(monkeypatch, present: set[str]) -> None:
     """Make `_windowless` take its Windows branch, WITHOUT forcing os.name.
 
     `monkeypatch.setattr(os, "name", "nt")` looks like the obvious way and is a

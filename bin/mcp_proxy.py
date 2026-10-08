@@ -96,7 +96,8 @@ import os
 import sys
 import time
 import uuid
-from typing import Any, AsyncIterator, List, Optional, Union
+from collections.abc import AsyncIterator
+from typing import Any
 
 from m3_sdk import destructive_tools_allowed, getenv_compat
 
@@ -655,7 +656,7 @@ async def _run_with_tools(
                     result = await asyncio.wait_for(
                         _execute_tool(name, args, agent_id), timeout=300.0
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     log.warning(f"Tool {name} timed out after 300s")
                     result = f"Tool error: {name} timed out after 300s"
                 return {
@@ -795,21 +796,21 @@ async def list_models(request: Request) -> dict:
 
 class ChatMessage(BaseModel):
     role: str
-    content: Optional[Union[str, list]] = None
-    tool_calls: Optional[list] = None
-    tool_call_id: Optional[str] = None
-    name: Optional[str] = None
+    content: str | list | None = None
+    tool_calls: list | None = None
+    tool_call_id: str | None = None
+    name: str | None = None
 
 class ChatCompletionRequest(BaseModel):
     model: str
-    messages: List[ChatMessage]
-    tools: Optional[List[dict]] = None
-    tool_choice: Optional[Union[str, dict]] = None
-    stream: Optional[bool] = False
-    max_tokens: Optional[int] = Field(default=None, ge=0)
-    temperature: Optional[float] = 0.7
-    top_p: Optional[float] = 1.0
-    n: Optional[int] = 1
+    messages: list[ChatMessage]
+    tools: list[dict] | None = None
+    tool_choice: str | dict | None = None
+    stream: bool | None = False
+    max_tokens: int | None = Field(default=None, ge=0)
+    temperature: float | None = 0.7
+    top_p: float | None = 1.0
+    n: int | None = 1
 
 @app.post("/v1/chat/completions")
 async def chat_completions(request: Request) -> JSONResponse:

@@ -74,7 +74,7 @@ import logging
 import pathlib
 import sqlite3
 from contextlib import contextmanager as _contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import yaml
@@ -99,7 +99,7 @@ MANIFEST_DIR = os.path.join(BASE_DIR, "config", "sync_manifests")
 
 def _load_manifest(manifest_path: str) -> dict[str, Any]:
     """Load and validate a sync manifest YAML file."""
-    with open(manifest_path, "r", encoding="utf-8") as f:
+    with open(manifest_path, encoding="utf-8") as f:
         data = yaml.safe_load(f)
 
     # Basic validation
@@ -290,7 +290,7 @@ def _ensure_pg_tier_tables(pg_cur):
 def sync_memory_items(sl_cur, pg_cur, sl_conn, target_name: str):
     logger.info(f"[{target_name}] Synchronizing memory_items (UUID-based, delta sync)...")
     _ensure_pg_schema(pg_cur)
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
 
     # 1. PUSH: Local to Remote (delta — only changed rows since last push)
     watermark = _get_watermark(sl_cur, "pg_push", target_name)
@@ -488,7 +488,7 @@ def sync_memory_relationships(sl_cur, pg_cur, sl_conn, target_name: str):
     """Synchronizes the memory_relationships table bi-directionally with watermark logic."""
     logger.info(f"[{target_name}] Synchronizing memory_relationships...")
     from psycopg2.extras import execute_values
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
 
     # 1. PUSH: Local to Remote
     watermark = _get_watermark(sl_cur, "rel_push", target_name)
@@ -648,7 +648,7 @@ def sync_tasks(sl_cur, pg_cur, sl_conn, target_name: str):
     """
     logger.info(f"[{target_name}] Synchronizing tasks...")
     from psycopg2.extras import execute_values
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
 
     _ensure_pg_tasks_schema(pg_cur)
 
@@ -808,7 +808,7 @@ def sync_memory_embeddings(sl_cur, pg_cur, sl_conn, target_name: str):
     logger.info(f"[{target_name}] Synchronizing memory_embeddings...")
     from psycopg2 import Binary
     from psycopg2.extras import execute_values
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
 
     _ensure_pg_embeddings_schema(pg_cur)
     # Fleet guardrail: a warehouse embedded with a different model family than
@@ -1131,7 +1131,7 @@ def _lock_value(now_iso: str) -> str:
     return f"{now_iso}|{os.getpid()}@{_this_host()}"
 
 
-def _parse_lock_value(raw: str) -> "tuple[str, int | None, str | None]":
+def _parse_lock_value(raw: str) -> tuple[str, int | None, str | None]:
     """Split a lock value into (iso_timestamp, pid|None, host|None).
 
     Tolerates the legacy '<ts>|<pid>' and '<ts>' forms, both of which yield
@@ -1175,7 +1175,7 @@ def _sync_lock_is_stale(raw: str) -> bool:
         except Exception:
             pass  # fall through to the timestamp check
     try:
-        age = (datetime.now(timezone.utc) - datetime.fromisoformat(ts)).total_seconds()
+        age = (datetime.now(UTC) - datetime.fromisoformat(ts)).total_seconds()
         return age >= _SYNC_LOCK_STALE_SECONDS
     except ValueError:
         return True  # unparseable timestamp -> treat as stale, don't wedge forever
@@ -1220,7 +1220,7 @@ def _acquire_sync_lock(sl_cur) -> bool:
         # Upsert rather than INSERT OR REPLACE: the latter is SQLite-only syntax.
         # ON CONFLICT ... DO UPDATE is spelled identically on both current
         # backends, so this one statement serves either local store.
-        now_iso = datetime.now(timezone.utc).isoformat()
+        now_iso = datetime.now(UTC).isoformat()
         sl_cur.execute(
             f"INSERT INTO sync_locks (lock_name, holder, acquired_at) "
             f"VALUES ({_param_of(sl_cur)}, {_param_of(sl_cur)}, {_param_of(sl_cur)}) "
@@ -1279,7 +1279,7 @@ def _sync_table_generic(
         return
 
     logger.info(f"[{target_name}] Synchronizing {name} (manifest-driven)...")
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
 
     push_key = f"{name}_push"
     pull_key = f"{name}_pull"
@@ -1538,7 +1538,7 @@ class SyncTarget:
 
     __slots__ = ("name", "uri", "table_map")
 
-    def __init__(self, name: str, uri: "str | None", table_map: "dict[str, str]"):
+    def __init__(self, name: str, uri: str | None, table_map: dict[str, str]):
         self.name = name
         self.uri = uri
         # role -> physical table name in THIS store, e.g. {"items": "chat_log_items"}
@@ -1555,7 +1555,7 @@ class SyncTarget:
 _CORE_ROLES = ("items", "embeddings", "relationships")
 
 
-def resolve_sync_targets(main_uri: "str | None" = None) -> "list[SyncTarget]":
+def resolve_sync_targets(main_uri: str | None = None) -> list[SyncTarget]:
     """The stores and table-sets to sync, resolved from the ACTIVE backend.
 
     SQLite yields up to two targets (main + chatlog file) both using core table
@@ -1587,7 +1587,7 @@ def resolve_sync_targets(main_uri: "str | None" = None) -> "list[SyncTarget]":
         ]
 
     # SQLite: separate FILES, each using the core table names.
-    out: "list[SyncTarget]" = []
+    out: list[SyncTarget] = []
     try:
         import migrate_memory
 
@@ -1613,7 +1613,7 @@ def resolve_sync_targets(main_uri: "str | None" = None) -> "list[SyncTarget]":
 
 
 @_contextmanager
-def _open_local_store(target: "SyncTarget"):
+def _open_local_store(target: SyncTarget):
     """Open the LOCAL store for a target, through the seam. Yields (conn, cursor).
 
     Replaces `sqlite3.connect(path)`. Two behaviours are preserved verbatim

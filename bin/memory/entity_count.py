@@ -59,7 +59,7 @@ by virtue of the read-only API surface — no need for the
 """
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from .backends import dialect
 from .db import _db
@@ -91,14 +91,14 @@ def _require_conversation_id(conversation_id: str) -> str:
     return conversation_id
 
 
-def _validate_limit(limit: Optional[int]) -> int:
+def _validate_limit(limit: int | None) -> int:
     """Coerce limit into [1, MAX_LIMIT]. None / 0 / negative → DEFAULT_LIMIT."""
     if limit is None or limit <= 0:
         return DEFAULT_LIMIT
     return min(int(limit), MAX_LIMIT)
 
 
-def _validate_pattern(pattern: Optional[str]) -> Optional[str]:
+def _validate_pattern(pattern: str | None) -> str | None:
     """Return the trimmed pattern, or None if empty. Reject overlong patterns."""
     if pattern is None:
         return None

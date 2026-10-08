@@ -39,11 +39,11 @@ _WIN_ABS = re.compile(r"[A-Za-z]:[\\/](?:[^\s\\/]+[\\/])*([^\s\\/]+)")
 _POSIX_HOME = re.compile(r"/(?:home|Users)/[^\s/]+/(?:[^\s/]+/)*([^\s/]+)")
 
 
-def _basename_win(m: "re.Match") -> str:
+def _basename_win(m: re.Match) -> str:
     return m.group(1)
 
 
-def _basename_posix(m: "re.Match") -> str:
+def _basename_posix(m: re.Match) -> str:
     return m.group(1)
 
 
@@ -68,7 +68,7 @@ def _config_root() -> str:
     return os.path.join(os.path.expanduser("~"), ".m3", "config")
 
 
-def _self_names() -> "tuple[str, ...]":
+def _self_names() -> tuple[str, ...]:
     """Personal usernames/hostnames to redact. Default + optional config file
     M3_CONFIG_ROOT/.wiki_pii.json  {"names": ["alice", "alice-laptop"]}. A code-resolved
     file, not an env var (§3: headless launchers inherit no shell env)."""
@@ -86,7 +86,7 @@ def _self_names() -> "tuple[str, ...]":
     return tuple(sorted(names, key=len, reverse=True))  # longest first
 
 
-def _redact_secrets(text: str) -> "tuple[str, int]":
+def _redact_secrets(text: str) -> tuple[str, int]:
     """Reuse the tested chatlog secret/PII scrubber. Returns (text, n)."""
     try:
         from chatlog_redaction import scrub
@@ -107,7 +107,7 @@ def _redact_secrets(text: str) -> "tuple[str, int]":
         return text, 0
 
 
-def scrub_prose(text: str) -> "tuple[str, int]":
+def scrub_prose(text: str) -> tuple[str, int]:
     """Scrub a COMPILED SYNTHESIS for sharing. Returns (scrubbed_text, count).
     Never raises — a shareable artifact must not carry raw PII, and must not be
     lost to a scrub error either. Applied to the synthesis only; sources stay

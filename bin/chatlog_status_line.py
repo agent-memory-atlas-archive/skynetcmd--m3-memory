@@ -32,7 +32,7 @@ def _load_state_file() -> dict[str, Any]:
     if not os.path.exists(state_path):
         return {}
     try:
-        with open(state_path, "r", encoding="utf-8") as f:
+        with open(state_path, encoding="utf-8") as f:
             return json.load(f)
     except (OSError, json.JSONDecodeError):
         return {}

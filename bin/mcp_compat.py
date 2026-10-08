@@ -134,7 +134,7 @@ def run_http(
     host: str,
     port: int,
     path: str,
-    transport_security: "TransportSecuritySettings | None" = None,
+    transport_security: TransportSecuritySettings | None = None,
 ) -> None:
     """Run `server` over streamable-http, bound to host/port/path.
 

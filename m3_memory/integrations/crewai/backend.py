@@ -117,9 +117,9 @@ class M3StorageBackend:
     def search(
         self,
         query_embedding: list,
-        scope_prefix: "str | None" = None,
-        categories: "list[str] | None" = None,
-        metadata_filter: "dict[str, Any] | None" = None,
+        scope_prefix: str | None = None,
+        categories: list[str] | None = None,
+        metadata_filter: dict[str, Any] | None = None,
         limit: int = 10,
         min_score: float = 0.0,
     ) -> list:
@@ -154,11 +154,11 @@ class M3StorageBackend:
 
     def delete(
         self,
-        scope_prefix: "str | None" = None,
-        categories: "list[str] | None" = None,
-        record_ids: "list[str] | None" = None,
-        older_than: "datetime | None" = None,
-        metadata_filter: "dict[str, Any] | None" = None,
+        scope_prefix: str | None = None,
+        categories: list[str] | None = None,
+        record_ids: list[str] | None = None,
+        older_than: datetime | None = None,
+        metadata_filter: dict[str, Any] | None = None,
     ) -> int:
         """Delete memories matching the criteria; returns the count deleted.
 
@@ -214,7 +214,7 @@ class M3StorageBackend:
         return mapping.item_to_record(item, record_cls=MemoryRecord)
 
     def list_records(
-        self, scope_prefix: "str | None" = None, limit: int = 200, offset: int = 0
+        self, scope_prefix: str | None = None, limit: int = 200, offset: int = 0
     ) -> list:
         """Records in a scope, newest first (introspection: Memory.list_records)."""
         from crewai.memory.types import MemoryRecord
@@ -277,7 +277,7 @@ class M3StorageBackend:
                     children.add(child)
         return sorted(children)
 
-    def list_categories(self, scope_prefix: "str | None" = None) -> dict:
+    def list_categories(self, scope_prefix: str | None = None) -> dict:
         """Category → record-count within a scope (CrewAI field inference)."""
         prefix = mapping.normalize_scope_prefix(scope_prefix)
         rows = self._client._run(self._list_all_async())
@@ -290,7 +290,7 @@ class M3StorageBackend:
                 counts[c] = counts.get(c, 0) + 1
         return counts
 
-    def count(self, scope_prefix: "str | None" = None) -> int:
+    def count(self, scope_prefix: str | None = None) -> int:
         """Record count in scope. (Not called by CrewAI 1.15.3; implemented for
         completeness so the protocol surface is whole.)"""
         prefix = mapping.normalize_scope_prefix(scope_prefix)
@@ -306,7 +306,7 @@ class M3StorageBackend:
             )
         )
 
-    def reset(self, scope_prefix: "str | None" = None) -> None:
+    def reset(self, scope_prefix: str | None = None) -> None:
         """Delete all memories in scope (None = this tenant's memories). Scoped to
         the backend's user_id — never crosses tenants (§7)."""
         prefix = mapping.normalize_scope_prefix(scope_prefix)
@@ -461,7 +461,7 @@ class M3StorageBackend:
                 rows.append((0.0, dict(r) if not isinstance(r, dict) else r))
         return rows
 
-    async def _get_item_async(self, record_id: str) -> "dict | None":
+    async def _get_item_async(self, record_id: str) -> dict | None:
         from memory.db import _db
 
         _p = _import_param()
@@ -514,7 +514,7 @@ def _import_param() -> str:
     return dialect().param()
 
 
-def _parse_written_id(raw: Any) -> "str | None":
+def _parse_written_id(raw: Any) -> str | None:
     """Extract the new memory id from memory_write's ``Created: <uuid> ...`` return."""
     import re
 
@@ -542,7 +542,7 @@ def _deleted_count(raw: Any, *, fallback: int) -> int:
     return fallback
 
 
-def _immediate_child(prefix: str, scope_path: str) -> "str | None":
+def _immediate_child(prefix: str, scope_path: str) -> str | None:
     """The immediate child path of ``prefix`` on the way to ``scope_path``, or None.
 
     ``_immediate_child("/crew", "/crew/research/facts") -> "/crew/research"``.
@@ -560,9 +560,9 @@ def _immediate_child(prefix: str, scope_path: str) -> "str | None":
 
 def _match_for_delete(
     item: dict,
-    scope_prefix: "str | None",
-    categories: "list[str] | None",
-    older_than: "datetime | None",
+    scope_prefix: str | None,
+    categories: list[str] | None,
+    older_than: datetime | None,
 ) -> bool:
     md = mapping._loads_metadata(item.get("metadata_json"))
     if scope_prefix:

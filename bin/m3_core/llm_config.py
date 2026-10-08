@@ -39,7 +39,7 @@ def read_llm_config() -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def llm_setting(name: str) -> "str | None":
+def llm_setting(name: str) -> str | None:
     """The environment value of ``name`` if set, else the config file's."""
     env = os.environ.get(name, "").strip()
     if env:

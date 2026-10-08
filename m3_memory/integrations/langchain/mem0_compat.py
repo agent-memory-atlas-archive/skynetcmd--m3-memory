@@ -32,7 +32,7 @@ Faithful to the tenets:
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional, Union
+from typing import Any
 
 from . import mapping
 from .extras import M3ExtrasMixin
@@ -44,7 +44,7 @@ logger = logging.getLogger("m3_memory.langchain")
 _MSG_CONTENT_KEYS = ("content", "text")
 
 
-def _normalize_messages(messages: Union[str, list, dict]) -> list[dict]:
+def _normalize_messages(messages: str | list | dict) -> list[dict]:
     """Coerce mem0's flexible ``.add()`` input into a list of role/content dicts.
 
     mem0 accepts a bare string, a single message dict, or a list of message
@@ -84,10 +84,10 @@ class Memory(M3ExtrasMixin):
 
     def __init__(
         self,
-        user_id: Optional[str] = None,
+        user_id: str | None = None,
         *,
         agent_id: str = "langchain",
-        conversation_id: Optional[str] = None,
+        conversation_id: str | None = None,
         provider: str = "unknown",
         model_id: str = "unknown",
         host_agent: str = "langchain",
@@ -110,7 +110,7 @@ class Memory(M3ExtrasMixin):
 
     # ── mem0 config shim (accept-and-ignore, §0a) ─────────────────────────────
     @classmethod
-    def from_config(cls, config: Optional[dict] = None) -> "Memory":
+    def from_config(cls, config: dict | None = None) -> Memory:
         """Accept a mem0 config dict and IGNORE the infra keys (§0a).
 
         m3 self-configures (in-process Rust embedder, no vector DB to provision),
@@ -134,7 +134,7 @@ class Memory(M3ExtrasMixin):
         return cls(**known)
 
     # ── tenancy (§7 privacy — enforced HERE, the tools don't) ─────────────────
-    def _require_user(self, user_id: Optional[str]) -> str:
+    def _require_user(self, user_id: str | None) -> str:
         uid = mapping.resolve_user_id(user_id, self._default_user_id)
         if not uid:
             raise ValueError(
@@ -144,17 +144,17 @@ class Memory(M3ExtrasMixin):
             )
         return uid
 
-    def _conversation_id(self, uid: str, override: Optional[str] = None) -> str:
+    def _conversation_id(self, uid: str, override: str | None = None) -> str:
         return override or self._default_conversation_id or uid
 
     # ── .add() — read-your-writes + async extraction (§0a) ────────────────────
     def add(
         self,
-        messages: Union[str, list, dict],
+        messages: str | list | dict,
         *,
-        user_id: Optional[str] = None,
-        metadata: Optional[dict] = None,
-        conversation_id: Optional[str] = None,
+        user_id: str | None = None,
+        metadata: dict | None = None,
+        conversation_id: str | None = None,
         extract: bool = True,
         **_ignored: Any,
     ) -> dict:
@@ -252,11 +252,11 @@ class Memory(M3ExtrasMixin):
         self,
         query: str,
         *,
-        user_id: Optional[str] = None,
+        user_id: str | None = None,
         limit: int = 10,
         as_of: str = "",
         recency_bias: float = 0.0,
-        filters: Optional[dict] = None,
+        filters: dict | None = None,
         **_ignored: Any,
     ) -> dict:
         """Hybrid recall → mem0 ``{"results":[{"id","memory","score","metadata"}]}``.
@@ -291,7 +291,7 @@ class Memory(M3ExtrasMixin):
         kwargs.setdefault("extra_columns", mapping.EXTRA_COLUMNS)
         return self._client._call_impl(memory_search_scored_impl, **kwargs) or []
 
-    def get_all(self, *, user_id: Optional[str] = None, limit: int = 100,
+    def get_all(self, *, user_id: str | None = None, limit: int = 100,
                 **_ignored: Any) -> dict:
         """All memories for a user → mem0 shape, deterministic + newest-first.
 
@@ -304,7 +304,7 @@ class Memory(M3ExtrasMixin):
         # meaningful score either; surface 0.0.
         return mapping.to_mem0_results([(0.0, it) for it in items])
 
-    def get(self, memory_id: str, **_ignored: Any) -> Optional[dict]:
+    def get(self, memory_id: str, **_ignored: Any) -> dict | None:
         """Fetch one memory by id → mem0-shaped dict, or None if absent."""
         raw = self._client._tool("memory_get", id=memory_id)
         item = mapping.parse_get(raw)
@@ -317,7 +317,7 @@ class Memory(M3ExtrasMixin):
         self._client._tool("memory_delete", id=memory_id)
         return {"message": f"Memory {memory_id} deleted successfully."}
 
-    def delete_all(self, *, user_id: Optional[str] = None, **_ignored: Any) -> dict:
+    def delete_all(self, *, user_id: str | None = None, **_ignored: Any) -> dict:
         """Delete all memories for a user (two-step: fetch ids → bulk delete)."""
         uid = self._require_user(user_id)
         items = self._client.list_by_user(uid, scope="user", limit=100_000)

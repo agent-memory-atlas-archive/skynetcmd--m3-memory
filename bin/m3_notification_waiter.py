@@ -27,10 +27,10 @@ import pathlib
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 
-def refresh_agent_ids(current: "list[str]") -> "list[str]":
+def refresh_agent_ids(current: list[str]) -> list[str]:
     """The live agent list, or ``current`` unchanged if it cannot be read.
 
     ⚠ WHY A LONG-LIVED WAITER MUST RE-READ THIS. Agent ids are resolved at
@@ -67,7 +67,7 @@ def refresh_agent_ids(current: "list[str]") -> "list[str]":
         return current
 
 
-def notification_stores(engine_root: str) -> "list[str]":
+def notification_stores(engine_root: str) -> list[str]:
     """EVERY store a notification can land in.
 
     ⚠ WHY THIS IS NOT ONE STORE. Delivery records live in their own store
@@ -100,7 +100,7 @@ def notification_stores(engine_root: str) -> "list[str]":
     return [str(s) for s in stores]
 
 
-def change_token(stores: "list[str]") -> tuple:
+def change_token(stores: list[str]) -> tuple:
     """One comparable token across every watched store, from the seam.
 
     A tuple of per-store tokens rather than a merged value: a change in ANY
@@ -180,7 +180,7 @@ def _warn(msg: str) -> None:
     if p is None:
         return
     try:
-        stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        stamp = datetime.now(UTC).isoformat(timespec="seconds")
         with open(p, "a", encoding="utf-8") as fh:
             fh.write(f"{stamp} {line}\n")
     except Exception:
@@ -380,7 +380,7 @@ def _supervise_postgres(args) -> int:
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE, text=True, **kwargs)
         child_start_time = time.time()
 
-        q: "queue.Queue[str | None]" = queue.Queue()  # None == EOF sentinel
+        q: queue.Queue[str | None] = queue.Queue()  # None == EOF sentinel
         def reader():
             try:
                 for line in p.stdout:

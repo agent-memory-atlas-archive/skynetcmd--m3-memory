@@ -118,7 +118,7 @@ def _apply_temporal_boost(scored, query, explain=False):
     if not query_dates:
         return scored
 
-    vf_cache: dict[str, "date | None"] = {}
+    vf_cache: dict[str, date | None] = {}
 
     def _parse_vf(vf_str: str):
         cached = vf_cache.get(vf_str)

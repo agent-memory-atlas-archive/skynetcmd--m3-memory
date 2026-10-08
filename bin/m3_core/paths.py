@@ -8,7 +8,6 @@ import posixpath
 import sqlite3
 import sys
 from contextlib import contextmanager
-from typing import Optional, Union
 
 logger = logging.getLogger("M3_SDK")
 
@@ -136,7 +135,7 @@ _DEPRECATED_ENV_SEEN: dict[str, str] = {}
 _DEPRECATED_ENV_WARNED: set[str] = set()
 
 
-def getenv_compat(new_name: str, old_name: str, default: Optional[str] = None) -> Optional[str]:
+def getenv_compat(new_name: str, old_name: str, default: str | None = None) -> str | None:
     """Resolve an env var during the M3_* namespacing migration.
 
     Precedence: new_name > old_name > default. If only the old (deprecated)
@@ -210,7 +209,7 @@ def _warn_pg_url_deprecated() -> None:
         )
 
 
-def resolve_primary_pg_dsn(default: Optional[str] = None) -> Optional[str]:
+def resolve_primary_pg_dsn(default: str | None = None) -> str | None:
     """DSN for the PRIMARY PostgreSQL store (M3_DB_BACKEND=postgres).
 
     Precedence: M3_PRIMARY_PG_URL > M3_PG_URL > default. Deliberately does NOT
@@ -226,7 +225,7 @@ def resolve_primary_pg_dsn(default: Optional[str] = None) -> Optional[str]:
     return default
 
 
-def resolve_cdw_pg_dsn(default: Optional[str] = None) -> Optional[str]:
+def resolve_cdw_pg_dsn(default: str | None = None) -> str | None:
     """DSN for the CDW / data-warehouse PostgreSQL (pg_sync fan-in mirror).
 
     Precedence: M3_CDW_PG_URL > PG_URL(deprecated) > default. Reading the legacy
@@ -280,7 +279,7 @@ def assert_no_deprecated_pg_url_on_install() -> None:
 # Consulted by callers that want "whatever DB the surrounding request/CLI
 # specified, else the default". The MCP tool dispatcher sets this before each
 # tool call; CLI scripts set it once at startup.
-_active_db: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+_active_db: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "m3_active_db", default=None
 )
 
@@ -564,8 +563,8 @@ def notification_store_paths() -> "list[str]":
     still returned; callers that query it must tolerate a missing table rather
     than assume presence implies schema.
     """
-    out: "list[str]" = []
-    seen: "set[str]" = set()
+    out: list[str] = []
+    seen: set[str] = set()
 
     def _add(path: "str | None") -> None:
         if not path:
@@ -702,7 +701,7 @@ def _looks_like_dsn(value: str) -> bool:
     return value.strip().lower().startswith(_DSN_SCHEMES)
 
 
-def resolve_db_path(explicit: Optional[str] = None) -> str:
+def resolve_db_path(explicit: str | None = None) -> str:
     """Resolve an absolute SQLite DB path.
 
     Order: explicit arg > M3_DATABASE env > active_database ContextVar > default
@@ -750,7 +749,7 @@ def resolve_db_path(explicit: Optional[str] = None) -> str:
 
 
 @contextmanager
-def active_database(path: Optional[str]):
+def active_database(path: str | None):
     """Set the active DB path for the duration of a block (ContextVar-scoped).
 
     Propagates across ``await`` within the same task but does not leak across
@@ -766,7 +765,7 @@ def active_database(path: Optional[str]):
 
 
 @contextmanager
-def scoped_db_env(path: "Optional[Union[str, os.PathLike[str]]]"):
+def scoped_db_env(path: "str | os.PathLike[str] | None"):
     """Set ``M3_DATABASE`` for a block and restore it exactly on exit.
 
     PREFER :func:`active_database`. This exists for the one case it cannot
@@ -859,7 +858,7 @@ def seam_backend():
 
             @staticmethod
             @contextmanager
-            def connection(db_path: Optional[str] = None):
+            def connection(db_path: str | None = None):
                 c = _sq.connect(str(db_path or resolve_db_path(None)), timeout=30)
                 try:
                     yield c

@@ -29,6 +29,8 @@ _BIN = os.path.normpath(os.path.join(_HERE, "..", "bin"))
 if _BIN not in sys.path:
     sys.path.insert(0, _BIN)
 
+from datetime import UTC
+
 from memory.backends import dialect  # noqa: E402
 from memory.orchestration import (  # noqa: E402
     _addressing_predicate,
@@ -212,11 +214,11 @@ def _handoff_to(target: str, task: str) -> None:
     """
     import json as _json
     import uuid as _uuid
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from memory_core import _db as _mdb
 
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     with _mdb() as db:
         p = dialect().param()
         db.execute(

@@ -261,7 +261,7 @@ def pytest_collection_modifyitems(config, items):
     requires_* test the `integration` umbrella marker so `-m "not integration"`
     selects the hermetic lane in one expression. Probes are memoized per session
     so a marker used by 50 tests probes the cluster once, not 50 times."""
-    cache: "dict[str, bool]" = {}
+    cache: dict[str, bool] = {}
 
     def _ok(marker: str) -> bool:
         if marker not in cache:

@@ -23,7 +23,7 @@ if TYPE_CHECKING:  # import only for types; never a hard runtime dep on pydantic
     from pydantic_ai import Agent, RunContext
 
 
-def register_m3_tools(agent: "Agent[M3Deps, Any]") -> "Agent[M3Deps, Any]":
+def register_m3_tools(agent: Agent[M3Deps, Any]) -> Agent[M3Deps, Any]:
     """Attach ``remember`` / ``recall`` / ``forget`` tools to ``agent``.
 
     The agent MUST have been constructed with ``deps_type=M3Deps`` (the tools read
@@ -38,7 +38,7 @@ def register_m3_tools(agent: "Agent[M3Deps, Any]") -> "Agent[M3Deps, Any]":
 
     @agent.tool
     def remember(
-        ctx: "RunContext[M3Deps]",
+        ctx: RunContext[M3Deps],
         content: str,
         importance: float = 0.5,
     ) -> str:
@@ -53,7 +53,7 @@ def register_m3_tools(agent: "Agent[M3Deps, Any]") -> "Agent[M3Deps, Any]":
 
     @agent.tool
     def recall(
-        ctx: "RunContext[M3Deps]",
+        ctx: RunContext[M3Deps],
         query: str,
         limit: int = 5,
     ) -> list[dict]:
@@ -66,7 +66,7 @@ def register_m3_tools(agent: "Agent[M3Deps, Any]") -> "Agent[M3Deps, Any]":
         return mapping.recall_hits_to_dicts(rows)
 
     @agent.tool
-    def forget(ctx: "RunContext[M3Deps]", memory_id: str) -> str:
+    def forget(ctx: RunContext[M3Deps], memory_id: str) -> str:
         """Delete a memory by its id (from a prior ``recall`` result)."""
         ok = ctx.deps.forget(memory_id)
         return "Forgotten." if ok else "No such memory."
@@ -97,7 +97,7 @@ def m3_recall_processor(
     from pydantic_ai import RunContext  # noqa: F401 — annotation resolution
     globals().setdefault("RunContext", RunContext)
 
-    async def _processor(ctx: "RunContext[M3Deps]", messages: list) -> list:
+    async def _processor(ctx: RunContext[M3Deps], messages: list) -> list:
         try:
             deps = getattr(ctx, "deps", None)
             if not isinstance(deps, M3Deps):

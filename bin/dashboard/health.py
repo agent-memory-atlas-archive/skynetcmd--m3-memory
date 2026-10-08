@@ -20,7 +20,7 @@ from typing import Any
 from m3_core.paths import seam_backend, seam_dialect
 
 
-def _fmt_dual_time(value: "object") -> str:
+def _fmt_dual_time(value: object) -> str:
     """'LOCAL (ZULU)' timestamp — mirrors sections._fmt_dual_time (house convention)."""
     import datetime as _dt
 
@@ -39,19 +39,19 @@ def _fmt_dual_time(value: "object") -> str:
     if dt is None:
         return str(value)
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=_dt.timezone.utc)
+        dt = dt.replace(tzinfo=_dt.UTC)
     local = dt.astimezone()
     raw_tz = local.strftime("%Z")
     if raw_tz and " " in raw_tz:
         tzname = "".join(w[0] for w in raw_tz.split() if w).upper()
     else:
         tzname = raw_tz or local.strftime("%z")
-    utc = dt.astimezone(_dt.timezone.utc)
+    utc = dt.astimezone(_dt.UTC)
     return (f"{local.strftime('%Y-%m-%d %H:%M:%S')} {tzname} "
             f"({utc.strftime('%Y-%m-%dT%H:%M:%SZ')})")
 
 
-def _verdict(inference: "dict | None" = None, pipeline: "dict | None" = None) -> dict:
+def _verdict(inference: dict | None = None, pipeline: dict | None = None) -> dict:
     """Overall health verdict + the SPECIFIC reasons it isn't healthy.
 
     Returns {verdict, label, tone, headline, reasons}. ``verdict`` is the raw
@@ -847,7 +847,7 @@ def _active_backend():
     return active_backend()
 
 
-def _sqlite_store(db_path: str) -> "dict | None":
+def _sqlite_store(db_path: str) -> dict | None:
     """(path, rows, last_updated) for a SQLite store file, or None if absent."""
     if not db_path or not os.path.exists(db_path):
         return None
@@ -959,7 +959,7 @@ def _backend_block() -> dict:
     return out
 
 
-def _cdw_block() -> "dict | None":
+def _cdw_block() -> dict | None:
     """CDW warehouse sync watermarks, or None if no warehouse is configured."""
     try:
         from m3_sdk import resolve_cdw_pg_dsn, resolve_db_path

@@ -159,7 +159,7 @@ def parse_observations(text: str) -> list[dict]:
     return out
 
 
-def _attribute_turn(obs: dict, turns: list[tuple]) -> "int | None":
+def _attribute_turn(obs: dict, turns: list[tuple]) -> int | None:
     """Resolve an observation to its source turn by content overlap when the
     model did not emit a usable source_turn_index.
 

@@ -37,7 +37,7 @@ def _seed(db_path, *, aged_noise: int, fresh_noise: int):
         "content TEXT, importance REAL, created_at TEXT, is_deleted INT DEFAULT 0, "
         "updated_at TEXT, valid_to TEXT)"
     )
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.datetime.now(datetime.UTC)
     rows = []
     for i in range(aged_noise):  # 90+ days old => prune-eligible
         ts = (now - datetime.timedelta(days=90 + i)).isoformat()
@@ -97,7 +97,7 @@ def _seed_decay_tier(db_path, *, n: int):
         "content TEXT, importance REAL, created_at TEXT, is_deleted INT DEFAULT 0, "
         "updated_at TEXT, valid_to TEXT)"
     )
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.datetime.now(datetime.UTC)
     rows = []
     for i in range(n):  # 20 days old => decay tier (>=fresh_days, <prune_days)
         ts = (now - datetime.timedelta(days=20)).isoformat()
@@ -148,7 +148,7 @@ def test_decayed_row_still_prunes_when_aged(tmp_path):
         "content TEXT, importance REAL, created_at TEXT, is_deleted INT DEFAULT 0, "
         "updated_at TEXT, valid_to TEXT)"
     )
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.datetime.now(datetime.UTC)
     old_ts = (now - datetime.timedelta(days=90)).isoformat()
     decayed_ts = (now - datetime.timedelta(days=30)).isoformat()
     conn.execute(

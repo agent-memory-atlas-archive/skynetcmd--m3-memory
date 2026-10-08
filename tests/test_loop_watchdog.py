@@ -19,6 +19,7 @@ import json
 import os
 import plistlib
 import sys
+from datetime import UTC
 from pathlib import Path
 
 import pytest
@@ -222,13 +223,13 @@ def test_watchdog_treats_missing_heartbeat_as_unknown_not_dead(tmp_path, monkeyp
 def test_watchdog_reads_interval_from_heartbeat(tmp_path, monkeypatch):
     """The staleness threshold derives from the loop's own --interval, so it
     cannot drift out of sync when the interval changes."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     import m3_loop_watchdog as wd
 
     hb = tmp_path / "hb.json"
     hb.write_text(json.dumps({
-        "ts": datetime.now(timezone.utc).isoformat(),
+        "ts": datetime.now(UTC).isoformat(),
         "pid": 1, "cycle": 7, "interval_s": 600,
     }), encoding="utf-8")
     monkeypatch.setattr(wd, "HEARTBEAT", hb)

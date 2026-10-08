@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import logging
 import zipfile
-from typing import Iterator
+from collections.abc import Iterator
 
 from . import Leaf
 
@@ -178,7 +178,7 @@ def _from_iwa(zf: zipfile.ZipFile, path: str) -> Iterator[Leaf]:
         )
 
 
-def _harvest_strings(node, out: "list[str] | None" = None) -> "list[str]":
+def _harvest_strings(node, out: list[str] | None = None) -> list[str]:
     """Walk a decoded IWA dict and collect plausible prose strings."""
     if out is None:
         out = []

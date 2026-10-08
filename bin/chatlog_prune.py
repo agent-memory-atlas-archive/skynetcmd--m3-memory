@@ -38,7 +38,7 @@ import re
 import sqlite3
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 # ── Noise patterns (ported from chatlog_decay.py + extensions) ────────────────
@@ -144,24 +144,24 @@ def _is_short_user_command(role: str, content: str) -> bool:
     return len(s.split()) <= 4 or s in _SHORT_COMMAND_WORDS
 
 
-def _age_days(created_at: "str | datetime | None", now_ts: float) -> float:
+def _age_days(created_at: str | datetime | None, now_ts: float) -> float:
     """Age in days of a stored timestamp: an ISO-8601 or SQLite text value, or
     the datetime a TIMESTAMPTZ column returns."""
     if not created_at:
         return 0.0
     if isinstance(created_at, datetime):
-        dt = created_at if created_at.tzinfo else created_at.replace(tzinfo=timezone.utc)
+        dt = created_at if created_at.tzinfo else created_at.replace(tzinfo=UTC)
         return max(0.0, (now_ts - dt.timestamp()) / 86400.0)
     s = created_at.replace("Z", "+00:00")
     try:
         dt = datetime.fromisoformat(s)
     except ValueError:
         try:
-            dt = datetime.strptime(s.split(".")[0], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+            dt = datetime.strptime(s.split(".")[0], "%Y-%m-%d %H:%M:%S").replace(tzinfo=UTC)
         except Exception:
             return 0.0
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     return max(0.0, (now_ts - dt.timestamp()) / 86400.0)
 
 
@@ -259,7 +259,7 @@ def _run_sweep(conn, db_path, args, now_ts, S, _d, _p, _tbl, _is_sqlite) -> dict
     # §10 DB hygiene: tune the connection (WAL autocheckpoint, journal_size_limit,
     # mmap/cache) so an --apply run doesn't bloat the chatlog WAL. Best-effort —
     # a missing helper or odd path must not abort a prune. SQLite-only pragmas.
-    checkpoint_truncate: "Any" = None  # populated from sqlite_pragmas below (SQLite only)
+    checkpoint_truncate: Any = None  # populated from sqlite_pragmas below (SQLite only)
     if _is_sqlite:
         try:
             import sys as _sys
@@ -283,7 +283,7 @@ def _run_sweep(conn, db_path, args, now_ts, S, _d, _p, _tbl, _is_sqlite) -> dict
         # indexed on the chatlog DB; a missing index just degrades to a scan of
         # the same rows we'd have read anyway.
         fresh_cutoff = datetime.fromtimestamp(
-            now_ts - args.fresh_days * 86400.0, timezone.utc
+            now_ts - args.fresh_days * 86400.0, UTC
         ).isoformat()
         # Select aged candidates. We DO still pull already-decayed rows (valid_to
         # set) here, because a row decayed while it was in the DECAY tier must
@@ -374,7 +374,7 @@ def _run_sweep(conn, db_path, args, now_ts, S, _d, _p, _tbl, _is_sqlite) -> dict
                 prune_buf.append((r["id"],))
         S["prune_content_mb"] = round(S["prune_content_mb"], 1)
         if args.apply:
-            ts = datetime.now(timezone.utc).isoformat()
+            ts = datetime.now(UTC).isoformat()
             # The dialect decides: BEGIN IMMEDIATE on SQLite, plain BEGIN on
             # PG. The old `if _is_sqlite` here is the call-site branch §10a
             # warns about -- a third backend would have fallen into the "do

@@ -37,7 +37,6 @@ import math
 import sqlite3
 import time
 import uuid as _uuid
-from typing import Optional
 
 from .config import files_table
 from .db import _db
@@ -103,8 +102,8 @@ def files_dedup(
     threshold: float = DEFAULT_THRESHOLD,
     max_pairs: int = DEFAULT_MAX_PAIRS,
     leaf_limit: int = DEFAULT_LEAF_LIMIT,
-    corpus_id: Optional[str] = None,
-    db_path: Optional[str] = None,
+    corpus_id: str | None = None,
+    db_path: str | None = None,
     include_already_detected: bool = False,
 ) -> dict:
     """Run a pairwise semantic dedup scan over current leaf embeddings.
@@ -231,10 +230,10 @@ def files_dedup(
 
 def list_dedup_candidates(
     *,
-    reviewed: Optional[bool] = False,
+    reviewed: bool | None = False,
     limit: int = 100,
-    min_cosine: Optional[float] = None,
-    db_path: Optional[str] = None,
+    min_cosine: float | None = None,
+    db_path: str | None = None,
 ) -> list[dict]:
     """List candidate near-duplicate pairs.
 
@@ -307,7 +306,7 @@ def review_dedup_candidate(
     action: str,
     note: str = "",
     *,
-    db_path: Optional[str] = None,
+    db_path: str | None = None,
 ) -> dict:
     """Mark a candidate pair as reviewed.
 

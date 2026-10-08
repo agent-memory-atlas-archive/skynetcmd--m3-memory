@@ -36,12 +36,12 @@ from __future__ import annotations
 
 import argparse
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 
 def _utcnow_iso() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%fZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%fZ")
 
 
 def main() -> int:
@@ -94,7 +94,7 @@ def main() -> int:
             params.append(args.run_id)
             desc_lines.append(f"  enrich_run_id = {args.run_id}")
         elif args.older_than:
-            cutoff = (datetime.now(timezone.utc) - timedelta(minutes=args.older_than)).strftime(
+            cutoff = (datetime.now(UTC) - timedelta(minutes=args.older_than)).strftime(
                 "%Y-%m-%dT%H:%M:%SZ")
             where += f" AND claimed_at < {_p}"
             params.append(cutoff)

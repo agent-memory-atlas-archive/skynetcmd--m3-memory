@@ -21,7 +21,7 @@ except ImportError:
 
 mcp = FastMCP("Session Manager")
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 
 # Ensure table exists at module load (M13)
@@ -57,7 +57,7 @@ def save_handoff(project: str, summary: str, next_steps: str):
         from memory.backends import dialect
         _p = dialect().param()
         with mc._db() as conn:
-            now = datetime.now(timezone.utc).isoformat()
+            now = datetime.now(UTC).isoformat()
             conn.execute(
                 f"INSERT INTO session_handoff (project, summary, next_steps, timestamp) "
                 f"VALUES ({_p}, {_p}, {_p}, {_p})",

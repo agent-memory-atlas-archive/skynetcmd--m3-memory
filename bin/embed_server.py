@@ -16,7 +16,6 @@ from __future__ import annotations
 import argparse
 import logging
 import time
-from typing import Union
 
 import uvicorn
 from fastapi import FastAPI
@@ -37,7 +36,7 @@ model_dim: int = 0
 
 class EmbeddingRequest(BaseModel):
     model: str = ""
-    input: Union[str, list[str]] = Field(...)
+    input: str | list[str] = Field(...)
 
 
 class EmbeddingData(BaseModel):

@@ -55,7 +55,7 @@ import os
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 import httpx
@@ -129,7 +129,7 @@ class Profile:
     fallback: str
     temperature: float
     timeout_s: float
-    api_key_service: Optional[str]
+    api_key_service: str | None
     # Wire-format backend. "openai" (default) sends an OpenAI-compatible
     # /v1/chat/completions body and reads `choices[0].message.content` —
     # works against Ollama, LM Studio default, llama-server, vLLM,
@@ -153,21 +153,21 @@ class Profile:
     # SLM. None means no truncation; consumers like run_fact_enrichment.py
     # can use this as their pre-call cap. Defaults to None so existing
     # classify_intent / extract_text callers see no behavior change.
-    input_max_chars: Optional[int] = None
+    input_max_chars: int | None = None
     # Optional pricing ($/M tokens). When set, run_observer computes
     # cost_usd from token counts even if the upstream API doesn't return
     # cost natively. Used by the budget watchdog and per-row provenance.
     # None on either side means "don't compute that side" — a profile
     # with only input_cost set still attributes input cost.
-    input_cost_per_mtok: Optional[float] = None
-    output_cost_per_mtok: Optional[float] = None
+    input_cost_per_mtok: float | None = None
+    output_cost_per_mtok: float | None = None
     # Post-processing for free-text output (extract_text / extract_entities).
     # All optional. Applied in order: skip_if_matches → strip_prefixes →
     # format. classify_intent does NOT apply these — its label-matching
     # picks a discrete label so prose cleanup is not needed.
     post_strip_prefixes: tuple[str, ...] = ()  # regex patterns stripped from output start
     post_skip_if_matches: tuple[str, ...] = ()  # regex patterns that mark the output as empty
-    post_format: Optional[str] = None  # optional "{text}"-style wrapper
+    post_format: str | None = None  # optional "{text}"-style wrapper
 
 
 _PROFILE_CACHE: dict[str, Profile] = {}
@@ -180,7 +180,7 @@ def invalidate_cache() -> None:
         _PROFILE_CACHE.clear()
 
 
-def _find_profile_file(name: str) -> Optional[Path]:
+def _find_profile_file(name: str) -> Path | None:
     for d in _profile_search_dirs():
         candidate = d / f"{name}.yaml"
         if candidate.is_file():
@@ -259,7 +259,7 @@ def _parse_profile(name: str, path: Path) -> Profile:
     )
 
 
-def load_profile(name: str) -> Optional[Profile]:
+def load_profile(name: str) -> Profile | None:
     """Load a profile by name from the configured search dirs.
 
     Returns None (with a warning log on first miss) if no matching YAML
@@ -290,7 +290,7 @@ def _is_loopback(url: str) -> bool:
     return (urlparse(url).hostname or "").lower() in ("localhost", "127.0.0.1", "::1")
 
 
-def localize_endpoint(url: str, backend: str, *, prefer_native: bool = False) -> "tuple[str, str]":
+def localize_endpoint(url: str, backend: str, *, prefer_native: bool = False) -> tuple[str, str]:
     """Normalize a LOCAL profile's ``(url, backend)`` to the shared LLM seam.
 
     A loopback profile follows ``llm_failover``'s resolved endpoint so it targets
@@ -330,7 +330,7 @@ def localize_endpoint(url: str, backend: str, *, prefer_native: bool = False) ->
 
 
 # ── Classification ────────────────────────────────────────────────────────────
-def _resolve_api_key(service: Optional[str]) -> Optional[str]:
+def _resolve_api_key(service: str | None) -> str | None:
     if not service:
         return None
     # Lazy import to avoid the auth_utils → m3_sdk cycle at module load.
@@ -450,7 +450,7 @@ async def _call_model(
 
 
 async def _raise_if_unavailable(
-    client: httpx.AsyncClient, token: Optional[str], local: bool, err: Exception,
+    client: httpx.AsyncClient, token: str | None, local: bool, err: Exception,
 ) -> None:
     """After a failed local call, a FRESH usability probe tells "no local server
     can answer" (raise LLMUnavailable, a system state, so batch callers stop
@@ -524,9 +524,9 @@ def _pick_label(raw_output: str, profile: Profile) -> str:
 
 async def extract_entities(
     text: str,
-    profile: Optional[str] = None,
-    client: Optional[httpx.AsyncClient] = None,
-) -> Optional[list[str]]:
+    profile: str | None = None,
+    client: httpx.AsyncClient | None = None,
+) -> list[str] | None:
     """Free-text entity extraction via a named profile.
 
     Sibling of ``classify_intent`` that reuses the profile-loader machinery
@@ -577,8 +577,8 @@ async def extract_entities(
 async def extract_text(
     text: str,
     profile: str,
-    client: Optional[httpx.AsyncClient] = None,
-) -> Optional[str]:
+    client: httpx.AsyncClient | None = None,
+) -> str | None:
     """Free-text SLM extraction via a named profile, returning the raw
     model output unchanged.
 
@@ -625,9 +625,9 @@ async def extract_text(
 
 async def classify_intent(
     query: str,
-    profile: Optional[str] = None,
-    client: Optional[httpx.AsyncClient] = None,
-) -> Optional[str]:
+    profile: str | None = None,
+    client: httpx.AsyncClient | None = None,
+) -> str | None:
     """Classify ``query`` using the SLM configured by ``profile``.
 
     Returns a label string from the profile's ``labels`` list, or the
@@ -672,7 +672,7 @@ async def classify_intent(
 
 
 # ── Diagnostics ───────────────────────────────────────────────────────────────
-def list_profiles() -> dict[str, Optional[Path]]:
+def list_profiles() -> dict[str, Path | None]:
     """Return a {name: path-or-None} map of profiles discoverable on this host.
 
     Useful for operators — ``python -m slm_intent`` prints this. Resolves

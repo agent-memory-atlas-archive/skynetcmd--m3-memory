@@ -334,7 +334,7 @@ class _FakeRespCtx:
 
 
 def _gh_release_payload(asset_names: list[str], *, size: int = 1024,
-                        sizes: "dict[str, int] | None" = None) -> bytes:
+                        sizes: dict[str, int] | None = None) -> bytes:
     """Build a minimal GitHub release JSON with the named assets.
 
     ``size`` must equal the byte length the fake download will actually
@@ -640,14 +640,14 @@ def _release_with_sums(wheel_bytes_by_name, *, sums_text=None,
     names = list(wheel_bytes_by_name)
     if sums_text is None:
         sums_text = "".join(
-            "{} *{}\n".format(_sha256_hex(b), n)
+            f"{_sha256_hex(b)} *{n}\n"
             for n, b in sorted(wheel_bytes_by_name.items())
         )
     assets = [
         {
             "name": n,
             "size": declared.get(n, len(wheel_bytes_by_name[n])),
-            "browser_download_url": "https://example.com/{}".format(n),
+            "browser_download_url": f"https://example.com/{n}",
         }
         for n in names
     ]
@@ -686,9 +686,8 @@ def _wire_release(monkeypatch, payload, sums_text, wheel_bodies):
 
 
 def _metal_target():
-    py_tag = "cp{}{}".format(sys.version_info.major, sys.version_info.minor)
-    name = "m3_core_rs_macos_metal-{}-{}-{}-macosx_11_0_arm64.whl".format(
-        rci.M3_CORE_RS_VERSION, py_tag, py_tag)
+    py_tag = f"cp{sys.version_info.major}{sys.version_info.minor}"
+    name = f"m3_core_rs_macos_metal-{rci.M3_CORE_RS_VERSION}-{py_tag}-{py_tag}-macosx_11_0_arm64.whl"
     return rci.BackendChoice("macos", "metal", "test"), name
 
 
@@ -788,7 +787,7 @@ def test_truncated_download_is_caught_by_size_before_pip(monkeypatch, capsys):
     assert calls["wheel"] == 2
     err = capsys.readouterr().err
     assert "code=wheel_size_mismatch" in err
-    assert "expected_bytes={}".format(len(GOOD_WHEEL)) in err
+    assert f"expected_bytes={len(GOOD_WHEEL)}" in err
 
 
 def test_release_without_sha256sums_still_installs(monkeypatch, capsys):
@@ -951,7 +950,7 @@ def test_install_log_records_the_version_transition(monkeypatch, tmp_path, insta
 
     text = install_log.read_text(encoding="utf-8")
     assert "install start:" in text
-    assert "3.9.7 -> {}".format(rci.M3_CORE_RS_VERSION) in text
+    assert f"3.9.7 -> {rci.M3_CORE_RS_VERSION}" in text
     assert "channel=github-release" in text
 
 

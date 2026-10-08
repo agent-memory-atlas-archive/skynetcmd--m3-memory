@@ -41,7 +41,6 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger("files_memory.provenance")
 
@@ -49,7 +48,7 @@ logger = logging.getLogger("files_memory.provenance")
 SIDECAR_SUFFIX = ".m3meta.json"
 
 
-def find_sidecar(path: str) -> Optional[Path]:
+def find_sidecar(path: str) -> Path | None:
     """Return the sidecar path if it exists, else None.
 
     The sidecar is at `<path>.m3meta.json`. E.g. `paper.pdf.txt` →
@@ -59,7 +58,7 @@ def find_sidecar(path: str) -> Optional[Path]:
     return sidecar if sidecar.is_file() else None
 
 
-def load_sidecar(path: str) -> Optional[dict]:
+def load_sidecar(path: str) -> dict | None:
     """Read and parse the sidecar JSON for `path`. None if missing/invalid.
 
     On parse error we log + return None rather than failing the ingest —
@@ -83,8 +82,8 @@ def load_sidecar(path: str) -> Optional[dict]:
 def resolve_provenance(
     path: str,
     *,
-    cli_original_path: Optional[str] = None,
-) -> Optional[dict]:
+    cli_original_path: str | None = None,
+) -> dict | None:
     """Resolve the provenance record for a file.
 
     Resolution order:
@@ -126,7 +125,7 @@ def _normalize_original_path(original: str, *, ingested_path: str) -> str:
     return os.path.abspath(os.path.join(base, original))
 
 
-def original_path_for_metadata(metadata_json: str | dict | None) -> Optional[str]:
+def original_path_for_metadata(metadata_json: str | dict | None) -> str | None:
     """Convenience reader: pull original_path out of a file_node.metadata blob.
 
     Accepts either a JSON string (typical when reading from sqlite) or

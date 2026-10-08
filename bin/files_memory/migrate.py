@@ -77,7 +77,7 @@ def _migrations_dir() -> Path:
     return _PG_DIR if _is_postgres() else _SQLITE_DIR
 
 
-def discover_up_migrations(directory: Path | None = None) -> "list[tuple[int, Path]]":
+def discover_up_migrations(directory: Path | None = None) -> list[tuple[int, Path]]:
     """[(version, up_path)] sorted by version. Filesystem glob order is not
     guaranteed, so sort by the numeric prefix."""
     directory = directory or _migrations_dir()
@@ -111,7 +111,7 @@ def _ensure_versions_table(conn) -> None:
     )
 
 
-def _applied_versions(conn) -> "set[int]":
+def _applied_versions(conn) -> set[int]:
     ref = _schema_versions_ref()
     try:
         rows = conn.execute(f"SELECT version FROM {ref}").fetchall()
@@ -120,7 +120,7 @@ def _applied_versions(conn) -> "set[int]":
     return {int(r[0]) for r in rows}
 
 
-def run_pending(conn) -> "list[int]":
+def run_pending(conn) -> list[int]:
     """Apply every pending up migration (version not yet in schema_versions) in
     order, on the caller's OPEN connection. Returns versions applied. Each file is
     executed then stamped; the caller owns the surrounding transaction/commit.

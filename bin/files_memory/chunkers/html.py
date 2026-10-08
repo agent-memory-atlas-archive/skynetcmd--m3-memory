@@ -32,7 +32,7 @@ happens with html.parser, nothing is executed, and no network fetch occurs.
 from __future__ import annotations
 
 import logging
-from typing import Iterator
+from collections.abc import Iterator
 
 from . import Leaf
 

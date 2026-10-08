@@ -107,7 +107,7 @@ def _scan_hermes() -> list[tuple[str, str, bool]]:
     return out
 
 
-def _current_payload_bin() -> "str | None":
+def _current_payload_bin() -> str | None:
     """The authoritative payload bin/ (the installed wheel, or a dev checkout) —
     the single directory every wired m3 command should resolve under."""
     try:
@@ -179,7 +179,7 @@ def _scan_stale_payload() -> list[tuple[str, str]]:
         if isinstance(script, str) and script.endswith(".py") and not _under(script):
             out.append((f"Claude/{name}", script))
     # Hooks + statusline: the m3 script is the second token of the command string.
-    def _cmd_script(cmd: object) -> "str | None":
+    def _cmd_script(cmd: object) -> str | None:
         if not isinstance(cmd, str):
             return None
         parts = cmd.split()

@@ -47,7 +47,6 @@ import re
 import struct
 import sys
 import time
-from typing import Union
 
 import uvicorn
 from fastapi import FastAPI, Request, Response
@@ -208,7 +207,7 @@ def _resolve_admission() -> _AdmissionGate:
     return gate
 
 
-def _is_interactive(texts: list[str], request: "Request | None") -> bool:
+def _is_interactive(texts: list[str], request: Request | None) -> bool:
     """Classify a request into the interactive fast-lane or the bulk lane.
 
     CONTRACT: the `X-M3-Embed-Priority: interactive|bulk` header is AUTHORITATIVE
@@ -242,7 +241,7 @@ class EmbeddingRequest(BaseModel):
     # `model` is optional (the tier-2 /embedding path omits it); accepted for the
     # OpenAI /v1/embeddings compat path.
     model: str = ""
-    input: Union[str, list[str]] = Field(...)
+    input: str | list[str] = Field(...)
 
 
 def _already_serving(host: str, port: int, timeout: float = 1.5) -> bool:
@@ -347,7 +346,7 @@ def _load_embedder() -> None:
         sys.exit(1)
 
 
-def _coerce_texts(inp: Union[str, list[str]]) -> list[str]:
+def _coerce_texts(inp: str | list[str]) -> list[str]:
     texts = [inp] if isinstance(inp, str) else list(inp)
     if not texts:
         return []
@@ -419,7 +418,7 @@ _CTX_OVERFLOW_HINTS = (
 )
 
 
-def _context_overflow_response(exc: Exception) -> "JSONResponse | None":
+def _context_overflow_response(exc: Exception) -> JSONResponse | None:
     """A structured 413 if `exc` is an n_ctx overflow, else None (re-raise).
 
     Deliberately narrow: only a length problem becomes a 413. Any other failure
@@ -433,7 +432,7 @@ def _context_overflow_response(exc: Exception) -> "JSONResponse | None":
     m = _CTX_OVERFLOW_RE.search(msg)
     if m is None and not any(h in msg.lower() for h in _CTX_OVERFLOW_HINTS):
         return None
-    err: "dict[str, object]" = {
+    err: dict[str, object] = {
         "code": "context_length_exceeded",
         # The ORIGINAL message is preserved verbatim, not summarised: it is what
         # an older client's regex matches, so trimming it would break the

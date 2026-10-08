@@ -25,7 +25,8 @@ need no ``active_database`` wrap; only the ``clear()`` delete over chatlog rows
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Optional, Sequence
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any
 
 from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.messages import (
@@ -224,15 +225,15 @@ class M3ChatMessageHistory(BaseChatMessageHistory):
 
 
 def with_m3_history(
-    runnable: "Runnable",
+    runnable: Runnable,
     *,
     user_id: str = "",
     provider: str = "other",
     model_id: str = "unknown",
-    input_messages_key: Optional[str] = None,
-    history_messages_key: Optional[str] = None,
+    input_messages_key: str | None = None,
+    history_messages_key: str | None = None,
     **history_kwargs,
-) -> "RunnableWithMessageHistory":
+) -> RunnableWithMessageHistory:
     """Wrap a runnable so its message history persists to m3 — the one-liner.
 
     The ``session_id`` in ``config={"configurable": {"session_id": ...}}`` becomes

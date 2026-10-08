@@ -10,7 +10,7 @@ import time
 from collections import OrderedDict
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 from sqlite_pragmas import apply_pragmas, profile_for_db
@@ -65,13 +65,13 @@ def _close_context_pool(ctx: "M3Context") -> None:
 _CIRCUITS: dict[str, Any] = {}
 _CB_THRESHOLD = 3
 _CB_COOLDOWN = 60
-_HTTP_CLIENT: Optional[httpx.AsyncClient] = None
-_HTTP_CLIENT_LOOP_ID: Optional[int] = None
+_HTTP_CLIENT: httpx.AsyncClient | None = None
+_HTTP_CLIENT_LOOP_ID: int | None = None
 _HTTP_CLIENT_LOCK = threading.Lock()
 
 
 class M3Context:
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: str | None = None):
         self.m3_config_root = get_m3_config_root()
         self.m3_engine_root = get_m3_engine_root()
         self.m3_memory_root = get_m3_root()  # Keep for legacy compatibility
@@ -88,7 +88,7 @@ class M3Context:
         # env + default. Callers passing an explicit path bypass the resolver.
         self.db_path = os.path.abspath(db_path or resolve_db_path(None))
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        self._pool: Optional["queue.Queue[sqlite3.Connection]"] = None
+        self._pool: queue.Queue[sqlite3.Connection] | None = None
         self._pool_lock = threading.Lock()
         # Eager only where SQLite is the store. Elsewhere get_sqlite_conn builds
         # the pool on first use, so importing memory_core on PostgreSQL does not
@@ -97,7 +97,7 @@ class M3Context:
             self._init_sqlite_pool()
 
     @classmethod
-    def for_db(cls, db_path: Optional[str] = None) -> "M3Context":
+    def for_db(cls, db_path: str | None = None) -> "M3Context":
         """Return a cached M3Context for the given path (or default).
 
         Callers should prefer this over M3Context() so pool reuse works across
@@ -159,7 +159,7 @@ class M3Context:
                 return
             pool_size = int(getenv_compat("M3_DB_POOL_SIZE", "DB_POOL_SIZE", "5"))
             pool_timeout = int(getenv_compat("M3_DB_POOL_TIMEOUT", "DB_POOL_TIMEOUT", "30"))
-            pool: "queue.Queue[sqlite3.Connection]" = queue.Queue(maxsize=pool_size)
+            pool: queue.Queue[sqlite3.Connection] = queue.Queue(maxsize=pool_size)
             for _ in range(pool_size):
                 try:
                     conn = sqlite3.connect(self.db_path, check_same_thread=False, timeout=pool_timeout)
@@ -360,7 +360,7 @@ class M3Context:
         if service in _CIRCUITS:
             del _CIRCUITS[service]
 
-    def _record_failure(self, service: str, custom_cooldown: Optional[float] = None):
+    def _record_failure(self, service: str, custom_cooldown: float | None = None):
         if not M3_CORE_RS_DISABLE:
             try:
                 import m3_core_rs
@@ -625,7 +625,7 @@ class M3Context:
         with chatlog_config.chatlog_sqlite_conn() as conn:
             yield conn
 
-    def get_secret(self, service: str) -> Optional[str]:
+    def get_secret(self, service: str) -> str | None:
         # Lazy import: auth_utils may route through M3Context for vault reads,
         # creating a cycle if imported at module top.
         from auth_utils import get_api_key
@@ -654,7 +654,7 @@ class M3Context:
             return conn.execute(sql, params).fetchall()
 
     def log_event(self, category: str, detail_a: str,
-                  detail_b: str = "", detail_c: Optional[str] = None) -> None:
+                  detail_b: str = "", detail_c: str | None = None) -> None:
         """Route a structured event to the correct legacy table.
 
         Used by bridges that predate the unified memory_items model.
@@ -729,7 +729,7 @@ def _ensure_dispatch_schema_pg(conn) -> None:
 
         boot = os.path.join(dispatch_migrations_dir(), "postgres",
                             "pg_001_bootstrap.up.sql")
-        with open(boot, "r", encoding="utf-8") as fh:
+        with open(boot, encoding="utf-8") as fh:
             ddl = fh.read()
 
         cur = conn.cursor()
@@ -799,7 +799,7 @@ def _ensure_dispatch_schema(conn) -> None:
         from m3_core.paths import dispatch_migrations_dir
 
         boot = os.path.join(dispatch_migrations_dir(), "001_bootstrap.up.sql")
-        with open(boot, "r", encoding="utf-8") as fh:
+        with open(boot, encoding="utf-8") as fh:
             conn.executescript(fh.read())
         conn.commit()
     except Exception as exc:  # noqa: BLE001 -- a send must not die because the

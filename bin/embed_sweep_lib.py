@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Awaitable, Callable, Optional
+from collections.abc import Awaitable, Callable
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Failure classification: infrastructure vs content
@@ -112,7 +112,7 @@ class Counters:
 #   (memory_id, content, title, metadata_json_or_None).
 # When after_id is None, returns the first batch sorted by id ASC.
 # When limit is reached or no more candidates remain, returns [].
-FetchFn = Callable[[Optional[str], int], list[tuple[str, str, str, Optional[str]]]]
+FetchFn = Callable[[str | None, int], list[tuple[str, str, str, str | None]]]
 
 # write_embedding(memory_id, vec, model_str, content_hash) -> True if a row
 # was newly written, False if INSERT OR IGNORE skipped (race with another
@@ -123,7 +123,7 @@ WriteFn = Callable[[str, list[float], str, str], bool]
 # transform_text(content, metadata_json_or_None) -> str. Lets each caller
 # inject pre-embed text augmentation (e.g. _augment_embed_text_with_anchors
 # for the general backfill, identity for chatlog).
-TransformFn = Callable[[str, Optional[str]], str]
+TransformFn = Callable[[str, str | None], str]
 
 # log(message) — caller's logging hook. Helper writes status lines through
 # this so the chatlog tool (logger.info) and the general tool (custom
@@ -148,7 +148,7 @@ except Exception:  # pragma: no cover
         return max(len(text.encode("utf-8")) // 3, len(text)) + 2
 
 
-def _identity_transform(text: str, _metadata: Optional[str]) -> str:
+def _identity_transform(text: str, _metadata: str | None) -> str:
     return text
 
 
@@ -158,20 +158,20 @@ async def run_embed_loop(
     fetch_candidates: FetchFn,
     write_embedding: WriteFn,
     counters: Counters,
-    embed_many: Callable[[list[str]], Awaitable[list[tuple[Optional[list[float]], str]]]],
+    embed_many: Callable[[list[str]], Awaitable[list[tuple[list[float] | None, str]]]],
     content_hash_fn: Callable[[str], str],
     transform_text: TransformFn = _identity_transform,
     batch_size: int = 256,
     concurrency: int = 4,
     fetch_multiplier: int = 4,
     timeout_s: float = 60.0,
-    deadline_s: Optional[float] = None,
+    deadline_s: float | None = None,
     max_consecutive_fails: int = 5,
     max_row_bytes: int = 32_768,
     oversize_mode: str = "skip",
-    expected_dim: Optional[int] = 1024,
-    limit: Optional[int] = None,
-    log: Optional[LogFn] = None,
+    expected_dim: int | None = 1024,
+    limit: int | None = None,
+    log: LogFn | None = None,
 ) -> None:
     """Drive the embed loop until exhaustion or a stop condition fires.
 
@@ -226,9 +226,9 @@ async def run_embed_loop(
     sem = asyncio.Semaphore(concurrency)
     fetch_size = batch_size * concurrency * fetch_multiplier
     cycles = 0
-    after_id: Optional[str] = None
+    after_id: str | None = None
 
-    async def _embed_one_batch(batch_rows: list[tuple[str, str, str, Optional[str]]]) -> None:
+    async def _embed_one_batch(batch_rows: list[tuple[str, str, str, str | None]]) -> None:
         async with sem:
             if deadline_s is not None and time.monotonic() > deadline_s:
                 return  # caller will see deadline at next outer-loop iter
@@ -396,7 +396,7 @@ async def run_embed_loop(
         # id (i.e. caller ORDERs BY id ASC).
         after_id = rows[-1][0]
 
-        batches: list[list[tuple[str, str, str, Optional[str]]]] = [
+        batches: list[list[tuple[str, str, str, str | None]]] = [
             rows[i:i + batch_size] for i in range(0, len(rows), batch_size)
         ]
         await asyncio.gather(

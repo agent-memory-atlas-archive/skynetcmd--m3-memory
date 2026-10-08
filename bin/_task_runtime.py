@@ -279,7 +279,7 @@ class _TimestampedStream:
     def write(self, text: str) -> int:
         if not text:
             return 0
-        stamp = datetime.datetime.now(datetime.timezone.utc).strftime(
+        stamp = datetime.datetime.now(datetime.UTC).strftime(
             "%Y-%m-%dT%H:%M:%S.%fZ"
         )
         out = []

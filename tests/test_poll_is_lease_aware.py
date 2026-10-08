@@ -20,7 +20,7 @@ import json
 import os
 import sys
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -129,7 +129,7 @@ def test_a_lapsed_claim_is_offered_again(agent):
     # immortal claim no sweeper reclaims). Time passing is what happens in
     # production anyway. The value is computed in Python and bound as a
     # parameter, so this needs no backend-specific date arithmetic.
-    past = (datetime.now(timezone.utc) - timedelta(seconds=60)).strftime(
+    past = (datetime.now(UTC) - timedelta(seconds=60)).strftime(
         "%Y-%m-%dT%H:%M:%SZ"
     )
     with dispatch_conn_for_tests() as db:
@@ -260,7 +260,7 @@ def test_polling_alone_reclaims_a_lapsed_lease(agent):
     assert got is not None
     row_id = got[0]
 
-    past = (datetime.now(timezone.utc) - timedelta(seconds=60)).strftime(
+    past = (datetime.now(UTC) - timedelta(seconds=60)).strftime(
         "%Y-%m-%dT%H:%M:%SZ"
     )
     with dispatch_conn_for_tests() as db:

@@ -35,7 +35,6 @@ import time
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from m3_core.paths import get_m3_backups_root, seam_backend, seam_dialect, snapshot_stores
 
@@ -47,7 +46,7 @@ import memory_core as mc  # noqa: E402
 BACKUP_DIR = Path(get_m3_backups_root()) / "embed-backfill"
 
 
-def _resolve_db(arg_path: Optional[str], env_var: str, default_name: str) -> Optional[Path]:
+def _resolve_db(arg_path: str | None, env_var: str, default_name: str) -> Path | None:
     if arg_path:
         p = Path(arg_path).expanduser().resolve()
         return p if p.exists() else None
@@ -61,7 +60,7 @@ def _resolve_db(arg_path: Optional[str], env_var: str, default_name: str) -> Opt
 
 def _audit_unembedded(
     db_path: Path,
-    type_filter: Optional[list[str]],
+    type_filter: list[str] | None,
     min_chars: int,
 ) -> tuple[int, dict]:
     """Return (total_eligible_rows, by_type_breakdown)."""
@@ -162,10 +161,10 @@ def _write_embeddings_batch(
 
 async def _backfill_db(
     db_path: Path,
-    type_filter: Optional[list[str]],
+    type_filter: list[str] | None,
     min_chars: int,
     batch_size: int,
-    limit: Optional[int],
+    limit: int | None,
 ) -> dict:
     """Drive the backfill loop on one DB. Returns counters dict."""
     counters = {"queried": 0, "embedded": 0, "failed": 0, "wall_s": 0.0}

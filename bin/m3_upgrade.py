@@ -146,7 +146,7 @@ def find_m3_package(exe: str) -> pathlib.Path | None:
 
 
 
-def cognitive_loop_installed(exe: str) -> "bool | None":
+def cognitive_loop_installed(exe: str) -> bool | None:
     """Is the cognitive loop installed on this host RIGHT NOW?
 
     Needed because `m3 setup --non-interactive` defaults `plan.cognitive_loop`
@@ -485,7 +485,7 @@ def hand_off_to_new_window(owner_python: str, argv: list[str], pids: list[int]) 
 
 
 def explain_locked(locked: list[pathlib.Path], owner_python: str,
-                   user_flags: "list[str] | None" = None) -> None:
+                   user_flags: list[str] | None = None) -> None:
     print("\nCannot upgrade now: Windows keeps these m3 programs locked while they")
     print("run, and replacing them would remove m3 and then fail:")
     for p in locked:
@@ -667,7 +667,7 @@ def doctor_is_all_healthy(out: str) -> bool:
     return bool(lines) and all(_DOCTOR_HEALTHY.match(ln) for ln in lines)
 
 
-def plugin_update(out: str) -> "tuple[str, str] | None":
+def plugin_update(out: str) -> tuple[str, str] | None:
     """(from, to) when doctor updated the Claude Code plugin, else None. A new
     plugin loads only when Claude Code restarts; `/mcp` does not load it."""
     m = _PLUGIN_UPDATED.search(out)

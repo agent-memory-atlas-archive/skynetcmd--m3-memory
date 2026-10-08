@@ -1,8 +1,8 @@
 ---
 tool: bin/check_control_chars.py
-sha1: 1440f9ae636b
-mtime_utc: 2026-08-07T23:53:51.815580+00:00
-generated_utc: 2026-08-08T14:40:49.765744+00:00
+sha1: 484216b1aac3
+mtime_utc: 2026-10-08T22:10:44.215072+00:00
+generated_utc: 2026-10-08T22:11:47.762444+00:00
 private: false
 ---
 

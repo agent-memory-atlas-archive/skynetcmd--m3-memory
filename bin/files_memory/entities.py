@@ -34,8 +34,8 @@ import logging
 import os
 import sqlite3
 import uuid as _uuid
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Iterator, Optional
 
 logger = logging.getLogger("files_memory.entities")
 
@@ -44,7 +44,7 @@ logger = logging.getLogger("files_memory.entities")
 # memory.db connection (separate from files.db)
 # ──────────────────────────────────────────────────────────────────────────────
 @contextmanager
-def _memory_db(path: "str | None" = None) -> Iterator[sqlite3.Connection]:
+def _memory_db(path: str | None = None) -> Iterator[sqlite3.Connection]:
     """Yield a connection to the CORE memory store (entities live there).
 
     Backend-aware. With no explicit ``path`` this routes through the memory SEAM
@@ -90,7 +90,7 @@ def _normalize(name: str) -> str:
     return name.strip().casefold()
 
 
-def _find_existing(conn: sqlite3.Connection, name: str) -> Optional[str]:
+def _find_existing(conn: sqlite3.Connection, name: str) -> str | None:
     """Case-insensitive exact match on canonical_name. Returns entity_id or None."""
     from memory.backends import dialect as _dialect
     _d = _dialect()
@@ -114,7 +114,7 @@ def _create_provisional(conn: sqlite3.Connection, name: str) -> str:
     attrs_json = json.dumps(attrs)
     import hashlib as _h
     content_hash = _h.sha256(
-        f"{name}|unknown|{attrs_json}".encode("utf-8")
+        f"{name}|unknown|{attrs_json}".encode()
     ).hexdigest()
     from memory.backends import dialect as _dialect
     _d = _dialect()
@@ -138,7 +138,7 @@ def _create_provisional(conn: sqlite3.Connection, name: str) -> str:
     return eid
 
 
-def resolve_entity_uuid(name: str, *, autocreate: bool = True) -> tuple[Optional[str], bool]:
+def resolve_entity_uuid(name: str, *, autocreate: bool = True) -> tuple[str | None, bool]:
     """Resolve `name` to an entity UUID in memory.db.
 
     Returns (uuid_or_none, was_created). If autocreate=False and no
@@ -196,7 +196,7 @@ def link_facts_to_entities(
         return
     # Flatten unique names so we hit memory.db once per name, not once
     # per (fact, name) pair.
-    name_to_uuid: dict[str, Optional[str]] = {}
+    name_to_uuid: dict[str, str | None] = {}
     unique_names: list[str] = []
     for elist in entities_per_fact:
         for n in elist:

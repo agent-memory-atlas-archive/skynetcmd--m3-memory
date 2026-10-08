@@ -289,7 +289,7 @@ def _unix_installed_from_cron(cron: str) -> set[str]:
 # AgentOS_CognitiveLoop is intentionally absent: on Unix it is NOT a cron entry —
 # it is a launchd agent / systemd --user unit (see _UNIX_SERVICE_PATHS). It is
 # detected by service-file presence instead.
-_UNIX_CRON_MARKERS: "dict[str, tuple[str, ...]]" = {
+_UNIX_CRON_MARKERS: dict[str, tuple[str, ...]] = {
     # sync_all.py: the line rendered from the schedule spec; pg_sync.sh: the
     # line older payloads wrote, still present in existing crontabs.
     "AgentOS_HourlySync": ("sync_all.py", "pg_sync.sh"),

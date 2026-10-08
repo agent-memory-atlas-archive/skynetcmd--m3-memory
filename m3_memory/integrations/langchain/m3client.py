@@ -43,9 +43,10 @@ from __future__ import annotations
 import asyncio
 import atexit
 import threading
+from collections.abc import Awaitable, Callable, Coroutine
 from concurrent.futures import Future
 from contextlib import nullcontext as _nullcontext
-from typing import Any, Awaitable, Callable, Coroutine
+from typing import Any
 
 # NOTE: mcp_tool_catalog / catalog.dispatch / memory_core are imported LAZILY
 # inside the call methods, NOT at module top. They pull a heavy dependency chain
@@ -198,7 +199,7 @@ class M3Client:
         )
         return fut.result(timeout=self._timeout)
 
-    async def _run_async(self, coro_factory: "Callable[[], Coroutine[Any, Any, Any]]") -> Any:
+    async def _run_async(self, coro_factory: Callable[[], Coroutine[Any, Any, Any]]) -> Any:
         """Run work on the shared loop-thread from an ASYNC caller (e.g. a
         LangGraph ``abatch`` awaited on the caller's own loop), then await the
         result without blocking the caller's loop.

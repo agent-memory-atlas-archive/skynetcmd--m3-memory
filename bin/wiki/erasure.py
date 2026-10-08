@@ -29,7 +29,7 @@ from __future__ import annotations
 import json
 
 
-def find_derived_syntheses(db, dialect, erased_member_ids: "list[str]") -> "list[str]":
+def find_derived_syntheses(db, dialect, erased_member_ids: list[str]) -> list[str]:
     """Synthesis ids that `consolidates` at least one erased member. Reads the
     edge table, so MUST be called before the erasure deletes relationships."""
     if not erased_member_ids:
@@ -46,7 +46,7 @@ def find_derived_syntheses(db, dialect, erased_member_ids: "list[str]") -> "list
     return [r["from_id"] for r in rows]
 
 
-def restrict_syntheses(db, dialect, synthesis_ids: "list[str]", *,
+def restrict_syntheses(db, dialect, synthesis_ids: list[str], *,
                        erased_count: int, timestamp: str) -> int:
     """Set `restricted` on each synthesis's metadata, with an erasure record.
 
@@ -92,8 +92,8 @@ def restrict_syntheses(db, dialect, synthesis_ids: "list[str]", *,
     return touched
 
 
-def restrict_derived_on_erasure(db, dialect, erased_member_ids: "list[str]", *,
-                                timestamp: str) -> "dict":
+def restrict_derived_on_erasure(db, dialect, erased_member_ids: list[str], *,
+                                timestamp: str) -> dict:
     """The full hook: find syntheses derived from the erased members and restrict
     them. Call from gdpr_forget BEFORE the cascade delete. Returns a summary
     {'restricted': N, 'synthesis_ids': [...]} for the erasure's audit record.

@@ -146,7 +146,7 @@ def _probe_thermal_status() -> str:
             for zone in range(10):
                 path = f"/sys/class/thermal/thermal_zone{zone}/temp"
                 if os.path.exists(path):
-                    with open(path, "r") as f:
+                    with open(path) as f:
                         temp = int(f.read().strip()) / 1000.0
                         if temp > 95: return "Critical"
                         if temp > 85: return "Serious"

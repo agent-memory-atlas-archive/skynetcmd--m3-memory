@@ -27,9 +27,8 @@ import signal
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 _BIN = REPO_ROOT / "bin"
@@ -78,7 +77,7 @@ def _stdout_is_file(path: str) -> bool:
     return bool(target.st_ino) and (out.st_dev, out.st_ino) == (target.st_dev, target.st_ino)
 
 
-def _attach_log_file(log_file: str, logger_: Optional[logging.Logger] = None) -> bool:
+def _attach_log_file(log_file: str, logger_: logging.Logger | None = None) -> bool:
     """Route log records to ``log_file`` exactly once. Returns True if a handler was added.
 
     The root logger already streams to stdout. Under ``--background`` on Windows
@@ -245,7 +244,7 @@ def daemonize_unix():
     # Redirect standard file descriptors
     sys.stdout.flush()
     sys.stderr.flush()
-    with open(os.devnull, "r") as f:
+    with open(os.devnull) as f:
         os.dup2(f.fileno(), sys.stdin.fileno())
     with open(os.devnull, "a") as f:
         os.dup2(f.fileno(), sys.stdout.fileno())
@@ -291,7 +290,7 @@ logger = logging.getLogger("m3_cognitive_loop")
 _THROTTLED_LIMIT = max(1, int(os.environ.get("M3_GOVERNOR_THROTTLED_LIMIT", "1")))
 
 
-def _is_local_llm_url(url: Optional[str]) -> bool:
+def _is_local_llm_url(url: str | None) -> bool:
     """True if an SLM/LLM endpoint runs on THIS machine (loopback) — i.e. its
     work competes for the local GPU/CPU. Cloud/frontier endpoints (api.anthropic.
     com, googleapis, a remote box) return False: GPU load here is irrelevant to
@@ -370,7 +369,7 @@ def _select_pass_order(passes: list, cycle: int, active: bool,
 _PROFILE_LOCAL_CACHE: dict[str, bool] = {}
 
 
-def _profile_is_local(profile_name: Optional[str]) -> bool:
+def _profile_is_local(profile_name: str | None) -> bool:
     """Resolve whether an SLM profile's endpoint is local (on this GPU). Cached;
     a missing/unloadable profile is treated as local (safe default)."""
     key = profile_name or "__default__"
@@ -395,7 +394,7 @@ def _signal_handler():
     logger.info("Shutdown signal received. Gracefully stopping...")
     _STOP_EVENT.set()
 
-def _probe_core(db_path: Optional[str], sql: str, params: tuple = ()) -> list:
+def _probe_core(db_path: str | None, sql: str, params: tuple = ()) -> list:
     """Run a lightweight read-probe against the CORE store, backend-appropriately.
 
     These cognitive-loop work-gates are cheap existence probes that (a) honor an
@@ -417,7 +416,7 @@ def _probe_core(db_path: Optional[str], sql: str, params: tuple = ()) -> list:
         return db.execute(sql, params).fetchall()
 
 
-def _conn_for_pass(db_path: Optional[str]):
+def _conn_for_pass(db_path: str | None):
     """A WRITABLE connection context manager for a pass, backend-appropriately.
 
     Like _probe_core but for read+write passes (classify): SQLite honors the
@@ -543,7 +542,7 @@ def _write_heartbeat(cycle: int, interval: int) -> None:
         tmp = f"{path}.{os.getpid()}.tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump({
-                "ts": datetime.now(timezone.utc).isoformat(),
+                "ts": datetime.now(UTC).isoformat(),
                 "pid": os.getpid(),
                 "cycle": cycle,
                 "interval_s": interval,
@@ -570,7 +569,7 @@ def _record_pass_run(pass_name: str) -> None:
     stamp just means the pass may re-run sooner than intended — harmless)."""
     try:
         runs = _read_pass_runs()
-        runs[pass_name] = datetime.now(timezone.utc).isoformat()
+        runs[pass_name] = datetime.now(UTC).isoformat()
         path = _loop_pass_runs_path()
         os.makedirs(os.path.dirname(path), exist_ok=True)
         tmp = f"{path}.{os.getpid()}.tmp"
@@ -590,13 +589,13 @@ def _due(pass_name: str, min_interval_s: float) -> bool:
     try:
         last_dt = datetime.fromisoformat(last)
         if last_dt.tzinfo is None:
-            last_dt = last_dt.replace(tzinfo=timezone.utc)
+            last_dt = last_dt.replace(tzinfo=UTC)
     except ValueError:
         return True
-    return (datetime.now(timezone.utc) - last_dt).total_seconds() >= min_interval_s
+    return (datetime.now(UTC) - last_dt).total_seconds() >= min_interval_s
 
 
-def has_entity_work(core_db: Optional[str], chatlog_db: Optional[str]) -> bool:
+def has_entity_work(core_db: str | None, chatlog_db: str | None) -> bool:
     """SQL check: Are there rows without entities yet? Backend-aware: on PG the
     core + chatlog stores are memory_items / chat_log_items in one DB; on SQLite
     they may be separate files."""
@@ -661,7 +660,7 @@ def has_entity_work(core_db: Optional[str], chatlog_db: Optional[str]) -> bool:
         )
         return False  # conservative: no work unless we can confirm some
 
-def has_enrich_work(core_db: Optional[str]) -> bool:
+def has_enrich_work(core_db: str | None) -> bool:
     """SQL check: Is the observation_queue or reflector_queue non-empty?
 
     The queues always live in the CORE store (main DB on SQLite; core tables on
@@ -687,7 +686,7 @@ def has_enrich_work(core_db: Optional[str]) -> bool:
         return False  # conservative: no LLM work unless we can confirm some
 
 
-def has_files_extract_work(files_db: Optional[str] = None) -> bool:
+def has_files_extract_work(files_db: str | None = None) -> bool:
     """Cheap, SILENT gate: are there queued file-extraction leaves to drain?
 
     Delegates to files_memory's backend/OS-agnostic, side-effect-free probe — it
@@ -702,7 +701,7 @@ def has_files_extract_work(files_db: Optional[str] = None) -> bool:
         return False
 
 
-def has_consolidate_work(core_db: Optional[str], source_type: str,
+def has_consolidate_work(core_db: str | None, source_type: str,
                          threshold: int, stale_days: int) -> bool:
     """SQL check: is there an aged 'source_type' group large enough to consolidate
     into a belief? Mirrors memory_consolidate_impl's group query so the loop only
@@ -848,7 +847,7 @@ async def run_enrich_pass(args):
         logger.error(f"Enrichment pass error: {type(e).__name__}: {e}")
 
 
-def _embed_target_dbs(core_db: Optional[str]) -> list[str]:
+def _embed_target_dbs(core_db: str | None) -> list[str]:
     """Every store the embed pass must drain — main AND chatlog.
 
     On a SPLIT topology the chat turns live in their own DB (agent_chatlog.db)
@@ -904,7 +903,7 @@ def _embed_target_dbs(core_db: Optional[str]) -> list[str]:
     return out
 
 
-def _embed_targets(core_db: Optional[str]) -> list[tuple[Optional[str], str]]:
+def _embed_targets(core_db: str | None) -> list[tuple[str | None, str]]:
     """(db, store) pairs the embed pass drains.
 
     SQLite keeps each store in its own file, so the targets are the existing
@@ -917,14 +916,14 @@ def _embed_targets(core_db: Optional[str]) -> list[tuple[Optional[str], str]]:
     return [(None, "core"), (None, "chatlog")]
 
 
-def _backfill_argv(db: Optional[str], store: str, limit: int) -> list[str]:
+def _backfill_argv(db: str | None, store: str, limit: int) -> list[str]:
     argv = ["--store", store, "--limit", str(limit)]
     if db is not None:
         argv = ["--db", str(db)] + argv
     return argv
 
 
-def _target_label(db: Optional[str], store: str) -> str:
+def _target_label(db: str | None, store: str) -> str:
     return os.path.basename(db) if db is not None else f"{store} store"
 
 
@@ -949,7 +948,7 @@ def has_spill_work() -> bool:
         return False  # conservative: mirrors has_embed_work's contract
 
 
-def has_embed_work(core_db: Optional[str]) -> bool:
+def has_embed_work(core_db: str | None) -> bool:
     """Is there embed-pass work — unembedded rows, or spill waiting to drain?
 
     Unembedded rows accumulate when memory_write deferred embedding (no fast
@@ -986,7 +985,7 @@ def has_embed_work(core_db: Optional[str]) -> bool:
         return False
 
 
-def _checkpoint_wal(db_path: Optional[str]) -> None:
+def _checkpoint_wal(db_path: str | None) -> None:
     """Explicit WAL checkpoint at the end of a work cycle (§10 WAL discipline).
 
     The loop is the heavy writer on agent_memory.db; a co-reader (the MCP
@@ -1183,7 +1182,7 @@ async def run_embed_pass(args):
             )
 
 
-def has_classify_work(core_db: Optional[str]) -> bool:
+def has_classify_work(core_db: str | None) -> bool:
     """SQL event-gate: are there rows persisted as type='auto' awaiting
     classification? These accumulate from the zero-lag write path — memory_write
     with auto_classify defers the LLM classify (persist as 'auto', §3/§8 zero-lag)
@@ -1247,7 +1246,7 @@ async def run_classify_pass(args):
             new_type = await asyncio.wait_for(
                 _auto_classify(content or "", title or ""), timeout=deadline_s
             )
-        except (asyncio.TimeoutError, Exception) as e:  # noqa: BLE001 — fail-open
+        except (TimeoutError, Exception) as e:  # noqa: BLE001 — fail-open
             logger.warning(
                 "Classify deferred: row %s left as 'auto' (LLM unavailable/slow: %s). "
                 "Will retry next sweep.", item_id, type(e).__name__)
@@ -1259,7 +1258,7 @@ async def run_classify_pass(args):
                 uconn.execute(
                     f"UPDATE memory_items SET type={_p}, updated_at={_p} "
                     f"WHERE id={_p} AND type='auto'",
-                    (new_type, datetime.now(timezone.utc).isoformat(), item_id),
+                    (new_type, datetime.now(UTC).isoformat(), item_id),
                 )
                 uconn.commit()
                 resolved += 1
@@ -1292,7 +1291,7 @@ async def run_consolidate_pass(args):
         logger.error(f"Consolidation pass error: {type(e).__name__}: {e}")
 
 
-def has_distill_work(core_db: Optional[str], threshold: int, stale_days: int) -> bool:
+def has_distill_work(core_db: str | None, threshold: int, stale_days: int) -> bool:
     """SQL check: are there enough completed tasks (with a result, aged past
     stale_days) to bother distilling into procedures? Mirrors
     memory_distill_procedures_impl's selection so the loop only spends a model
@@ -1408,7 +1407,7 @@ async def run_distill_pass(args):
         )
 
 
-def has_chatlog_prune_work(chatlog_db: Optional[str], prune_days: float,
+def has_chatlog_prune_work(chatlog_db: str | None, prune_days: float,
                            min_rows: int) -> bool:
     """SQL check: are there enough aged chat_log turns to bother pruning?
     Event-driven gate (mirrors has_consolidate_work) so the loop only does a
@@ -1784,7 +1783,7 @@ async def main_loop(args):
         # from this map so _select_pass_order keeps them (their gate is "is it
         # due?", checked inside the pass, not a queue depth). A probe error is
         # fail-open (treated as "has work") via the has_* helpers' own except paths.
-        work_map: "dict[str, bool] | None" = None
+        work_map: dict[str, bool] | None = None
         if active:
             work_map = {
                 "entities":    not args.skip_entities and has_entity_work(args.database, args.chatlog_db),
@@ -1901,7 +1900,7 @@ async def _sleep_or_halt(wait_time: float, poll_s: float = 2.0) -> None:
         try:
             await asyncio.wait_for(_STOP_EVENT.wait(), timeout=min(poll_s, remaining))
             return
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pass
 
 def _raise_fd_limit(target: int = 4096) -> None:

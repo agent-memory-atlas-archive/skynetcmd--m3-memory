@@ -102,7 +102,7 @@ def test_windows_without_a_person_raises_no_prompt(monkeypatch):
 
 
 class _FakeBatch:
-    result: "dict | None" = None
+    result: dict | None = None
 
     def __init__(self):
         self.actions: list = []

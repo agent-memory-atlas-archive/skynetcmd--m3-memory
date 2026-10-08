@@ -37,7 +37,6 @@ import logging
 import os
 import re
 import sys
-from typing import Optional
 
 logging.basicConfig(level=logging.INFO, format="%(name)s: [%(levelname)s] %(message)s")
 logger = logging.getLogger("migrate_pg")
@@ -62,7 +61,7 @@ _FORBIDDEN_STATEMENTS_RE = re.compile(r"(?im)^\s*(COMMIT|ROLLBACK|BEGIN|START\s+
 
 
 # ── DSN resolution (primary store only, guarded) ─────────────────────────────
-def _resolve_dsn(explicit: Optional[str] = None) -> str:
+def _resolve_dsn(explicit: str | None = None) -> str:
     """Resolve the PRIMARY-store DSN, fail loud if absent.
 
     ``explicit`` (from --dsn) wins; else the primary resolver
@@ -100,7 +99,7 @@ def discover_migrations(migrations_dir: str = _PG_MIGRATIONS_DIR):
     pg_NNN_*.sql file. Only versions > the cumulative baseline (39) are runner-
     owned; the baseline file itself (pg_primary_v1.sql) has no NNN prefix and is
     ignored here. Sorted glob so duplicate-prefix resolution is deterministic."""
-    out: dict[int, dict[str, Optional[str]]] = {}
+    out: dict[int, dict[str, str | None]] = {}
     seen: dict[tuple[int, str], str] = {}
     for filepath in sorted(glob.glob(os.path.join(migrations_dir, "pg_*.sql"))):
         fname = os.path.basename(filepath)
@@ -134,7 +133,7 @@ def discover_migrations(migrations_dir: str = _PG_MIGRATIONS_DIR):
 
 
 # ── Version tracking ─────────────────────────────────────────────────────────
-def get_applied_versions(conn) -> "list[int]":
+def get_applied_versions(conn) -> list[int]:
     """Integer version markers from schema_versions (skips non-numeric bench
     labels), or [] if the table is absent (baseline not yet applied)."""
     cur = conn.cursor()
@@ -216,7 +215,7 @@ def revert_migration(conn, version: int, down_path: str) -> None:
 
 
 # ── Programmatic entry (used by the backend's ensure_schema) ─────────────────
-def run_pending_pg_migrations(conn, migrations_dir: str = _PG_MIGRATIONS_DIR) -> "list[int]":
+def run_pending_pg_migrations(conn, migrations_dir: str = _PG_MIGRATIONS_DIR) -> list[int]:
     """Apply every pending pg_NNN migration (> current applied version) in order,
     on an already-open connection. Returns the list of versions applied (possibly
     empty). Raises on the first failure (that file rolled back; earlier ones stay
@@ -349,7 +348,7 @@ def cmd_down(args) -> None:
         conn.close()
 
 
-def main(argv: "list[str] | None" = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="PostgreSQL PRIMARY-store migration runner.")
     p.add_argument("--dsn", default=None, help="Explicit DSN (else M3_PRIMARY_PG_URL/M3_PG_URL).")
     sub = p.add_subparsers(dest="cmd", required=True)

@@ -83,13 +83,13 @@ def test_stamps_are_utc_not_local(tmp_path):
     """The stamp must be UTC. A local stamp shifts twice a year (DST)."""
     import datetime
 
-    before = datetime.datetime.now(datetime.timezone.utc)
+    before = datetime.datetime.now(datetime.UTC)
     lines = _capture(tmp_path, lambda: print("x"))
-    after = datetime.datetime.now(datetime.timezone.utc)
+    after = datetime.datetime.now(datetime.UTC)
 
     stamped = lines[0].split(" ", 1)[0].rstrip("Z")
     parsed = datetime.datetime.fromisoformat(stamped).replace(
-        tzinfo=datetime.timezone.utc
+        tzinfo=datetime.UTC
     )
     # A local-time stamp on a machine off UTC lands outside this window.
     assert before <= parsed <= after, (

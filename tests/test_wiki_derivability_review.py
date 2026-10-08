@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import os
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -27,7 +27,7 @@ from wiki.select import Edge, Mem  # noqa: E402
 _DERIV_FIXTURE = (Path(__file__).resolve().parent / "fixtures" / "citation_drift"
                   / "derivability_pairs.json")
 
-_NOW = datetime(2026, 7, 25, tzinfo=timezone.utc)
+_NOW = datetime(2026, 7, 25, tzinfo=UTC)
 
 
 def _erased_at(days_ago: float) -> str:

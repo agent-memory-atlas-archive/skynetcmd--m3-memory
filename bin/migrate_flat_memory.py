@@ -35,10 +35,10 @@ import os
 import re
 import sqlite3
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterable
 
 BIN_DIR = Path(__file__).resolve().parent
 REPO_ROOT = BIN_DIR.parent
@@ -415,7 +415,7 @@ async def write_item(item: SourceItem, dry_run: bool) -> WriteResult:
         "source_key": item.source_key,
         "source_agent": item.source_agent,
         "source_locator": item.source_locator,
-        "migrated_at": datetime.now(timezone.utc).isoformat(),
+        "migrated_at": datetime.now(UTC).isoformat(),
         "migrator": "migrate_flat_memory.py",
     })
 

@@ -130,7 +130,7 @@ def _load_entity_vectors(db, entity_ids: list[str]) -> dict[str, list[float]]:
 # collect new vectors during the parallel resolve phase, then flush them ONCE,
 # serially, outside that phase. Default is write-through (buffer inactive) so
 # single-threaded callers and the existing tests are unaffected.
-_DEFERRED_ENTITY_VECTORS: "contextvars.ContextVar[list[tuple[str, list[float], str | None]] | None]" = (
+_DEFERRED_ENTITY_VECTORS: contextvars.ContextVar[list[tuple[str, list[float], str | None]] | None] = (
     contextvars.ContextVar("_DEFERRED_ENTITY_VECTORS", default=None)
 )
 
@@ -348,7 +348,7 @@ class LoopScopedSemaphoreProxy:
         return get_entity_extract_sem().acquire().__await__()
 
 _ENTITY_EXTRACT_SEM = LoopScopedSemaphoreProxy()
-_PENDING_ENTITY_TASKS: "set[asyncio.Task]" = set()
+_PENDING_ENTITY_TASKS: set[asyncio.Task] = set()
 
 
 def load_entity_vocab(yaml_path: str | Path | None = None) -> tuple[frozenset[str], frozenset[str]]:
@@ -460,8 +460,8 @@ class _ResolveInputs:
     its connection before awaiting: `_resolve_from_inputs` takes no database
     handle, so it cannot hold a connection (SQLite write lock, PostgreSQL
     idle-in-transaction) across an embedding round trip."""
-    sync_id: "str | None"
-    candidates: "tuple[tuple[str, str], ...]"   # (entity_id, canonical_name)
+    sync_id: str | None
+    candidates: tuple[tuple[str, str], ...]   # (entity_id, canonical_name)
     stored: dict
     use_store: bool
 
@@ -492,7 +492,7 @@ def _resolution_inputs(canonical_name: str, entity_type: str, db) -> _ResolveInp
 
 async def _resolve_from_inputs(
     canonical_name: str, inputs: _ResolveInputs,
-) -> "tuple[str | None, list[tuple[str, list[float], str | None]]]":
+) -> tuple[str | None, list[tuple[str, list[float], str | None]]]:
     """Tier-3 embedding cosine over pre-read inputs. Touches NO database.
 
     Returns (entity_id or None, new candidate vectors to persist). The caller
@@ -563,7 +563,7 @@ def _create_entity(canonical_name: str, entity_type: str, attributes: dict, db) 
     entity_id = str(uuid.uuid4())
     attrs_json = json.dumps(attributes or {})
     content_hash = _sha256_hex(
-        f"{canonical_name}|{entity_type}|{attrs_json}".encode("utf-8")
+        f"{canonical_name}|{entity_type}|{attrs_json}".encode()
     )
     from memory.backends import dialect
 
@@ -704,8 +704,8 @@ async def _run_entity_extractor(
         # entity passes) and, on PostgreSQL, a pooled connection idle in
         # transaction. Each entity's reads take one short connection, released
         # before any await; new candidate vectors are collected, not written.
-        resolved: list[tuple[dict, str, str, "str | None"]] = []
-        new_vectors: list[tuple[str, list[float], "str | None"]] = []
+        resolved: list[tuple[dict, str, str, str | None]] = []
+        new_vectors: list[tuple[str, list[float], str | None]] = []
         for ent in entities_raw:
             cname = (ent.get("canonical_name") or "").strip()
             etype = (ent.get("entity_type") or "").strip()
@@ -897,7 +897,7 @@ async def _try_extract_or_enqueue(
     try:
         async with asyncio.timeout(0.001):
             await _ENTITY_EXTRACT_SEM.acquire()
-    except (asyncio.TimeoutError, Exception):
+    except (TimeoutError, Exception):
         # Semaphore full or error — enqueue and return immediately
         _enqueue_entity_extraction(memory_id, db)
         return
@@ -1360,14 +1360,14 @@ def _resolve_bypass_cap() -> int:
 
 
 def build_bypass_surface(
-    conversation_ids: "list[str] | None" = None,
+    conversation_ids: list[str] | None = None,
     *,
     scope: str = "agent",
-    user_id: "str | None" = None,
-    cap: "int | None" = None,
-    strategy_for: "dict[str, str] | str | None" = None,
-    category_for: "dict[str, str] | str | None" = None,
-    type_rules: "dict[str, tuple] | None" = None,
+    user_id: str | None = None,
+    cap: int | None = None,
+    strategy_for: dict[str, str] | str | None = None,
+    category_for: dict[str, str] | str | None = None,
+    type_rules: dict[str, tuple] | None = None,
     order_by: str = "confidence",
 ) -> dict:
     """Materialize bypass_surface for the given scopes (ADR-0001).
@@ -1398,13 +1398,13 @@ def build_bypass_surface(
     """
     base_cap = cap if cap is not None else _resolve_bypass_cap()
     if isinstance(strategy_for, str):
-        default_strategy: "str | None" = strategy_for
+        default_strategy: str | None = strategy_for
         strat_map: dict[str, str] = {}
     else:
         default_strategy = None
         strat_map = strategy_for or {}
     if isinstance(category_for, str):
-        default_category: "str | None" = category_for
+        default_category: str | None = category_for
         cat_map: dict[str, str] = {}
     else:
         default_category = None

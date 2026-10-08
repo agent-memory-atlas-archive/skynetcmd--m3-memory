@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(HERE), "bin"))
 
 def test_parse_claude_code_real_schema():
     import chatlog_ingest
-    with open(os.path.join(FIXTURES, "claude_code_sample.jsonl"), "r", encoding="utf-8") as f:
+    with open(os.path.join(FIXTURES, "claude_code_sample.jsonl"), encoding="utf-8") as f:
         raw = f.read()
     items, session_id = chatlog_ingest._parse_claude_code(raw)
 
@@ -89,7 +89,7 @@ def test_parse_claude_code_skips_empty_content():
 
 def test_parse_gemini_cli_real_schema():
     import chatlog_ingest
-    with open(os.path.join(FIXTURES, "gemini_session_sample.json"), "r", encoding="utf-8") as f:
+    with open(os.path.join(FIXTURES, "gemini_session_sample.json"), encoding="utf-8") as f:
         raw = f.read()
     items, session_id = chatlog_ingest._parse_gemini_cli(raw)
 

@@ -28,7 +28,6 @@ import json
 import logging
 import sqlite3
 from dataclasses import dataclass
-from typing import Optional
 
 from llm_failover import apply_thinking_suppression
 
@@ -52,9 +51,9 @@ class LeafDiff:
     """
     new_index: int                 # index into the new_leaves list
     kind: str
-    prior_uuid: Optional[str] = None
-    prior_text: Optional[str] = None
-    material_change: Optional[bool] = None
+    prior_uuid: str | None = None
+    prior_text: str | None = None
+    material_change: bool | None = None
 
 
 @dataclass
@@ -138,7 +137,7 @@ def apply_carry_forward(
     new_leaf_uuid: str,
     *,
     carry_facts: bool = True,
-    new_ingestion_run_uuid: Optional[str] = None,
+    new_ingestion_run_uuid: str | None = None,
 ) -> tuple[bool, int]:
     """Copy embedding + (optionally) facts from prior leaf to new leaf.
 
@@ -252,7 +251,7 @@ Examples of material:
 - A new or dropped reference to an entity"""
 
 
-def judge_material_change(old_text: str, new_text: str) -> tuple[Optional[bool], Optional[str]]:
+def judge_material_change(old_text: str, new_text: str) -> tuple[bool | None, str | None]:
     """Use the configured LLM to judge whether two leaves' content differs
     materially. Returns (flag, reason).
 

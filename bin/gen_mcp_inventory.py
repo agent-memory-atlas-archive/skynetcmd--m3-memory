@@ -14,7 +14,7 @@ import mcp_tool_catalog
 
 def extract_proxy_tools():
     proxy_path = os.path.join(os.path.dirname(__file__), "mcp_proxy.py")
-    with open(proxy_path, "r", encoding="utf-8") as f:
+    with open(proxy_path, encoding="utf-8") as f:
         tree = ast.parse(f.read())
 
     protocol_tools = []

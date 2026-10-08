@@ -26,9 +26,9 @@ import os
 import platform
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("chatlog_ingest")
@@ -83,10 +83,10 @@ def _claude_content_to_text(content: Any) -> str:
     return ""
 
 
-def _parse_claude_code(raw: str) -> tuple[list[dict], Optional[str]]:
+def _parse_claude_code(raw: str) -> tuple[list[dict], str | None]:
     """Parse Claude Code JSONL. Returns (items, sessionId)."""
     items: list[dict] = []
-    session_id: Optional[str] = None
+    session_id: str | None = None
     if not raw.strip():
         return items, session_id
     for line in raw.splitlines():
@@ -161,7 +161,7 @@ def _gemini_content_to_text(content: Any) -> str:
     return ""
 
 
-def _parse_gemini_cli(raw: str) -> tuple[list[dict], Optional[str]]:
+def _parse_gemini_cli(raw: str) -> tuple[list[dict], str | None]:
     """Parse a Gemini CLI session transcript. Returns (items, sessionId).
 
     Handles both formats:
@@ -174,7 +174,7 @@ def _parse_gemini_cli(raw: str) -> tuple[list[dict], Optional[str]]:
         return [], None
 
     messages: list[dict] = []
-    session_id: Optional[str] = None
+    session_id: str | None = None
 
     stripped = raw.lstrip()
     if stripped.startswith("{") and "\n{" in stripped:
@@ -260,7 +260,7 @@ def _load_cursor() -> dict:
         path = _cursor_path()
         if not os.path.exists(path) and os.path.exists(_legacy_cursor_path()):
             path = _legacy_cursor_path()  # first run after the move: keep the progress
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
@@ -301,7 +301,7 @@ def _commit_cursor(items: list[dict], session_id: str, cursor: dict) -> None:
         if u:
             seen_uuids.add(u)
     entry["seen_uuids"] = sorted(seen_uuids)
-    entry["last_ingested_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    entry["last_ingested_at"] = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     _save_cursor(cursor)
 
 
@@ -320,7 +320,7 @@ def _make_agent_id(host_agent: str) -> str:
     return f"{host_agent}:{user}@{host}"
 
 
-def _normalize(items: list[dict], host_agent: str, variant: Optional[str],
+def _normalize(items: list[dict], host_agent: str, variant: str | None,
                session_override: str) -> list[dict]:
     agent_id = _make_agent_id(host_agent)
     user_id = os.environ.get("USER") or os.environ.get("USERNAME", "unknown")
@@ -358,7 +358,7 @@ def _openclaw_content_to_text(content) -> str:
     return ""
 
 
-def _parse_openclaw(raw: str) -> tuple[list[dict], Optional[str]]:
+def _parse_openclaw(raw: str) -> tuple[list[dict], str | None]:
     """Parse an OpenClaw session transcript. Returns (items, sessionId).
 
     JSONL, one object per line, of several `type`s — `session` (the header),
@@ -380,7 +380,7 @@ def _parse_openclaw(raw: str) -> tuple[list[dict], Optional[str]]:
         return [], None
 
     items: list[dict] = []
-    session_id: Optional[str] = None
+    session_id: str | None = None
     model_id = ""
 
     for line in raw.splitlines():
@@ -434,7 +434,7 @@ def _parse_openclaw(raw: str) -> tuple[list[dict], Optional[str]]:
 _AIDER_SESSION_RE = re.compile(r"^# aider chat started at (.+)$")
 
 
-def _parse_aider(raw: str) -> tuple[list[dict], Optional[str]]:
+def _parse_aider(raw: str) -> tuple[list[dict], str | None]:
     """Parse an Aider chat history. Returns (items, sessionId).
 
     Aider writes MARKDOWN, not JSON: `.aider.chat.history.md` in the repo root.
@@ -466,8 +466,8 @@ def _parse_aider(raw: str) -> tuple[list[dict], Optional[str]]:
         return [], None
 
     items: list[dict] = []
-    session_id: Optional[str] = None
-    role: Optional[str] = None
+    session_id: str | None = None
+    role: str | None = None
     buf: list[str] = []
 
     def _flush() -> None:
@@ -529,7 +529,7 @@ def _parse_aider(raw: str) -> tuple[list[dict], Optional[str]]:
     return items, session_id
 
 
-def opencode_store_candidates() -> "list[Path]":
+def opencode_store_candidates() -> list[Path]:
     """Where an OpenCode store may live, most-specific first.
 
     ⚠ §1 CROSS-PLATFORM: THREE OSes, NOT ONE CONVENTION. `~/.local/share` is the
@@ -565,7 +565,7 @@ def opencode_store_candidates() -> "list[Path]":
 
 
 def _opencode_item(msg: dict, msg_id: str, session_id: str,
-                   texts: list, created) -> "dict | None":
+                   texts: list, created) -> dict | None:
     """One chatlog item from an OpenCode message payload + its text parts.
 
     Shared by the SQLite and legacy-JSON readers: the `data` payload is
@@ -609,14 +609,14 @@ def _opencode_item(msg: dict, msg_id: str, session_id: str,
         "tokens_out": tokens.get("output"),
         # `created` is epoch MILLISECONDS, not seconds.
         "timestamp": (
-            datetime.fromtimestamp(created / 1000, timezone.utc)
+            datetime.fromtimestamp(created / 1000, UTC)
             .strftime("%Y-%m-%dT%H:%M:%SZ") if created else ""
         ),
         "uuid": msg_id,
     }
 
 
-def _parse_opencode_sqlite(db_path: "Path", session_id: Optional[str] = None):
+def _parse_opencode_sqlite(db_path: Path, session_id: str | None = None):
     """Read an OpenCode session from opencode.db. Returns (items, sessionId).
 
     ⚠ THE CURRENT LAYOUT. OpenCode moved sessions into a single SQLite database
@@ -687,7 +687,7 @@ def _parse_opencode_sqlite(db_path: "Path", session_id: Optional[str] = None):
         con.close()
 
 
-def _parse_opencode(transcript_path: str) -> tuple[list[dict], Optional[str]]:
+def _parse_opencode(transcript_path: str) -> tuple[list[dict], str | None]:
     """Parse an OpenCode session. Returns (items, sessionId).
 
     ⚠ NOT A TRANSCRIPT FILE. OpenCode has two storage layouts and neither is a
@@ -740,7 +740,7 @@ def _parse_opencode(transcript_path: str) -> tuple[list[dict], Optional[str]]:
 
     part_root = msg_dir.parent.parent / "part"
     items: list[dict] = []
-    session_id: Optional[str] = None
+    session_id: str | None = None
 
     for msg_file in sorted(msg_dir.glob("*.json")):
         try:
@@ -789,7 +789,7 @@ _PATH_PARSERS = frozenset({"opencode"})
 
 
 async def _ingest(format_name: str, transcript_path: str,
-                  session_override: str, variant: Optional[str]) -> dict:
+                  session_override: str, variant: str | None) -> dict:
     parser = PARSERS.get(format_name)
     if parser is None:
         return {"written": 0, "skipped": 0, "failed": 1,
@@ -815,7 +815,7 @@ async def _ingest(format_name: str, transcript_path: str,
             return {"written": 0, "skipped": 0, "failed": 0,
                     "error": f"transcript not found: {transcript_path}"}
         try:
-            with open(transcript_path, "r", encoding="utf-8") as f:
+            with open(transcript_path, encoding="utf-8") as f:
                 raw = f.read()
         except OSError as e:
             logger.error(f"Failed to read {transcript_path}: {e}")

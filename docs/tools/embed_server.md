@@ -1,8 +1,8 @@
 ---
 tool: bin/embed_server.py
-sha1: 001803b150a5
-mtime_utc: 2026-08-07T23:53:51.896370+00:00
-generated_utc: 2026-08-08T14:40:49.824252+00:00
+sha1: 511910fed36f
+mtime_utc: 2026-10-08T22:11:14.546185+00:00
+generated_utc: 2026-10-08T22:11:47.845016+00:00
 private: false
 ---
 
@@ -24,7 +24,7 @@ Usage:
 
 ## Entry points
 
-- `def main()` (line 92)
+- `def main()` (line 91)
 - `if __name__ == "__main__"` guard
 
 ---

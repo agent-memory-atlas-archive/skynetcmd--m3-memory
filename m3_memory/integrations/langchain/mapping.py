@@ -28,7 +28,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from typing import Any, Optional
+from typing import Any
 
 # §7 tenancy resolution, shared by the mem0-compat and M3Store surfaces so both
 # resolve user_id identically. Order: explicit arg > constructor default >
@@ -40,7 +40,7 @@ from typing import Any, Optional
 _ENV_DEFAULT_USER_ID = "M3_DEFAULT_USER_ID"
 
 
-def resolve_user_id(explicit: Optional[str], default: Optional[str] = None) -> Optional[str]:
+def resolve_user_id(explicit: str | None, default: str | None = None) -> str | None:
     """Resolve a user_id from (explicit > constructor default > env), or None.
 
     Returns None when nothing resolves — the CALLER decides how to fail (the mem0
@@ -116,7 +116,7 @@ def merge_value(item: dict) -> dict:
 
 # ── string-returning sync impls → native ──────────────────────────────────────
 
-def parse_get(raw: Any) -> Optional[dict]:
+def parse_get(raw: Any) -> dict | None:
     """Normalize ``memory_get`` output → native item dict, or None if not found.
 
     ``memory_get`` (sync) returns a formatted JSON string, or a ``"Error: ..."``
@@ -145,7 +145,7 @@ _UUID_RE = re.compile(
 )
 
 
-def parse_written_id(raw: Any) -> Optional[str]:
+def parse_written_id(raw: Any) -> str | None:
     """Extract the new memory id from a write/supersede return string.
 
     ``memory_write`` returns ``"Created: <uuid>"`` — but on a fresh write the

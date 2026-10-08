@@ -26,7 +26,6 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Optional
 
 # Exit code for "the service is REGISTERED but is not running". Distinct from 1
 # (no binary) and 2 (no model) because both the remedy and the SEVERITY differ:
@@ -118,7 +117,7 @@ def _migrate_embed_config_gguf(new: Path, *, previous: Path) -> None:
         pass
 
 
-def _find_bundled_gguf() -> Optional[Path]:
+def _find_bundled_gguf() -> Path | None:
     """Locate the LFS-bundled GGUF inside the m3-memory payload.
 
     Resolution order:
@@ -170,7 +169,7 @@ def _find_bundled_gguf() -> Optional[Path]:
     # config is rewritten to match. An explicitly configured path that lives
     # UNDER a model root we own is already sovereign and is left alone, as is
     # $M3_EMBED_GGUF (handled above) and autodetect=0.
-    configured: Optional[Path] = None
+    configured: Path | None = None
     try:
         import json
 
@@ -253,7 +252,7 @@ def _is_lfs_pointer(p: Path) -> bool:
 
 # ── m3-embed-server binary discovery ─────────────────────────────────────────
 
-def _server_binary() -> Optional[Path]:
+def _server_binary() -> Path | None:
     """Locate the m3-embed-server binary.
 
     Resolution order:
@@ -314,7 +313,7 @@ def _ensure_executable(binary: Path) -> None:
         print(f"[i] could not chmod +x {binary}: {exc}", file=sys.stderr)
 
 
-def exec_bit_status(binary: "str | os.PathLike[str] | None" = None) -> dict:
+def exec_bit_status(binary: str | os.PathLike[str] | None = None) -> dict:
     """Report whether the embed-server binary is executable. Never raises.
 
     Takes ``str`` as well as ``Path``: the doctor probe resolves the binary with
@@ -367,7 +366,7 @@ def exec_bit_status(binary: "str | os.PathLike[str] | None" = None) -> dict:
     }
 
 
-def repair_exec_bit(binary: "Path | None" = None, dry_run: bool = False) -> dict:
+def repair_exec_bit(binary: Path | None = None, dry_run: bool = False) -> dict:
     """Make the embed-server binary executable, escalating only if it must.
 
     Ladder, cheapest first — each step is tried only because the previous one
@@ -637,7 +636,7 @@ def _confirm_started(binary: Path, gguf: Path, *,
     return False
 
 
-def stale_embed_servers() -> "list[dict]":
+def stale_embed_servers() -> list[dict]:
     """Running m3-embed-server processes that started BEFORE the installed
     native core was (re)installed, so they still run the previous binary.
 
@@ -877,7 +876,7 @@ def _warn_if_port_busy(action: str) -> None:
               "start — check anytime with `m3 embedder status`.")
 
 
-def _locate_gguf_or_explain() -> Optional[Path]:
+def _locate_gguf_or_explain() -> Path | None:
     """Locate the bundled GGUF; print actionable guidance if not found."""
     gguf = _find_bundled_gguf()
     if gguf and not _is_lfs_pointer(gguf):
@@ -911,7 +910,7 @@ def _locate_gguf_or_explain() -> Optional[Path]:
     return None
 
 
-def _offer_model_download() -> Optional[Path]:
+def _offer_model_download() -> Path | None:
     """Ask (default YES) then download BGE-M3 into ~/.m3/models.
 
     Non-interactive runs download without prompting: the user asked for the
@@ -1086,7 +1085,7 @@ def cmd_install(args: argparse.Namespace) -> int:
     return _verify_started_or_explain(binary, gguf, start_rc=start_rc)
 
 
-def _binary_and_gguf_or_fail() -> Optional[tuple[Path, Path]]:
+def _binary_and_gguf_or_fail() -> tuple[Path, Path] | None:
     binary = _server_binary()
     if not binary:
         print(
@@ -1453,7 +1452,7 @@ def cmd_backfill(args: argparse.Namespace) -> int:
               "Try `m3 update`.", file=sys.stderr)
         return 1
 
-    targets: "list[str]" = []
+    targets: list[str] = []
     if getattr(args, "db", None):
         targets = [args.db]
     else:
@@ -1471,7 +1470,7 @@ def cmd_backfill(args: argparse.Namespace) -> int:
                   f"falling back to the default database.", file=sys.stderr)
             targets = [""]
 
-    common: "list[str]" = []
+    common: list[str] = []
     for name, flag in (("limit", "--limit"), ("max_row_bytes", "--max-row-bytes"),
                        ("batch_size", "--batch-size")):
         val = getattr(args, name, None)
@@ -1508,7 +1507,7 @@ def cmd_reembed(args: argparse.Namespace) -> int:
               "Try `m3 update`.")
         return 1
 
-    argv: "list[str]" = []
+    argv: list[str] = []
     if getattr(args, "db", None):
         argv += ["--db", args.db]
     if getattr(args, "keep", None):

@@ -37,6 +37,7 @@ from __future__ import annotations
 import re
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
+from datetime import UTC
 from typing import TYPE_CHECKING, Literal, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
@@ -134,12 +135,12 @@ def snapshot_target(dest_dir: str, stem: str, label: str, ext: str) -> str:
     existing name — a snapshot never overwrites an earlier one.
     """
     import os
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     if not _LABEL_RE.fullmatch(label or ""):
         raise SnapshotError(f"snapshot label must match [A-Za-z0-9._-]+; got {label!r}")
     os.makedirs(dest_dir, exist_ok=True)
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     path = os.path.join(dest_dir, f"{stem}.{label}.{stamp}{ext}")
     if os.path.exists(path) or os.path.exists(path + ".partial"):
         raise SnapshotError(f"snapshot target already exists: {path}")
@@ -158,7 +159,7 @@ class Snapshot:
 
     path: str
     store: str
-    row_counts: "dict[str, int]"
+    row_counts: dict[str, int]
     verified: str
 
 
@@ -181,7 +182,7 @@ class StorageBackend(Protocol):
         """Return the capabilities discovered for this backend's connection."""
         ...
 
-    def dialect(self) -> "Dialect":
+    def dialect(self) -> Dialect:
         """Return this backend's SQL dialect helper (see `dialect.py`)."""
         ...
 
@@ -195,7 +196,7 @@ class StorageBackend(Protocol):
         """
         ...
 
-    def schema_version(self) -> "int | None":
+    def schema_version(self) -> int | None:
         """The highest applied schema version, or None if unknown/uninitialized.
 
         Reads ``MAX(version)`` from ``schema_versions``. On both backends the same
@@ -242,9 +243,9 @@ class StorageBackend(Protocol):
         *,
         limit: int,
         tenancy_sql: str = "",
-        tenancy_params: "tuple[object, ...]" = (),
+        tenancy_params: tuple[object, ...] = (),
         table: str = "memory_items",
-    ) -> "list[KeywordHit]":
+    ) -> list[KeywordHit]:
         """Native keyword search returning a backend-identical ranked list.
 
         SQLite uses the FTS5 ``memory_items_fts`` virtual table + ``bm25()``;
@@ -268,11 +269,11 @@ class StorageBackend(Protocol):
         *,
         limit: int,
         tenancy_sql: str = "",
-        tenancy_params: "tuple[object, ...]" = (),
+        tenancy_params: tuple[object, ...] = (),
         table: str = "memory_items",
-        extra_columns: "tuple[str, ...]" = (),
+        extra_columns: tuple[str, ...] = (),
         search_mode: str = "fts5",
-    ) -> "list[dict]":
+    ) -> list[dict]:
         """Keyword search returning FULL ROWS, ranked, in a backend-identical shape.
 
         The sibling of :meth:`keyword_search`, which returns ``KeywordHit``
@@ -353,14 +354,14 @@ class StorageBackend(Protocol):
     def vector_search(
         self,
         conn: object,
-        query_vector: "list[float]",
+        query_vector: list[float],
         *,
         limit: int,
         dim: int,
-        embed_models: "tuple[str, ...]" = (),
+        embed_models: tuple[str, ...] = (),
         tenancy_sql: str = "",
-        tenancy_params: "tuple[object, ...]" = (),
-    ) -> "list[VectorHit]":
+        tenancy_params: tuple[object, ...] = (),
+    ) -> list[VectorHit]:
         """Backend-agnostic vector search: BYTEA/BLOB embeddings + Rust cosine.
 
         The add-on-free baseline that works on BOTH backends with no extension
@@ -382,7 +383,7 @@ class StorageBackend(Protocol):
         """
         ...
 
-    def list_tables(self, conn: object) -> "set[str]":
+    def list_tables(self, conn: object) -> set[str]:
         """Every user table in this store's active schema. Backend-blind.
 
         How you enumerate tables is one of the least portable things in SQL:
@@ -411,11 +412,11 @@ class StorageBackend(Protocol):
         self,
         conn: object,
         table: str,
-        columns: "list[str]",
-        rows: "list[tuple]",
+        columns: list[str],
+        rows: list[tuple],
         *,
         conflict_target: str,
-        update_columns: "list[str]",
+        update_columns: list[str],
         guard_sql: str = "",
     ) -> int:
         """Insert-or-update many rows in as few round trips as the engine allows.
@@ -466,8 +467,8 @@ class StorageBackend(Protocol):
         self,
         conn: object,
         table: str,
-        columns: "list[str]",
-        rows: "list[tuple]",
+        columns: list[str],
+        rows: list[tuple],
         *,
         conflict_target: str,
     ) -> int:
@@ -525,7 +526,7 @@ class StorageBackend(Protocol):
         """
         ...
 
-    def snapshot(self, dest_dir: str, *, label: str) -> "Snapshot":
+    def snapshot(self, dest_dir: str, *, label: str) -> Snapshot:
         """Write a verified point-in-time copy of this store into ``dest_dir``.
 
         The opposite of best-effort: it returns only a copy that was checked,

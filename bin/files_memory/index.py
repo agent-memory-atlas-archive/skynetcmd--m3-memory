@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 from .config import files_table
 from .db import _db
@@ -39,21 +38,21 @@ class IndexEntry:
     path: str
     version_label: str
     date_modified: str
-    summary: Optional[str]
-    original_path: Optional[str] = None
-    corpus_id: Optional[str] = None
+    summary: str | None
+    original_path: str | None = None
+    corpus_id: str | None = None
 
 
 def files_index(
     *,
-    corpus_id: Optional[str] = None,
-    corpora: Optional[list[str]] = None,
-    filetype: Optional[str] = None,
-    directory: Optional[str] = None,
-    filename_glob: Optional[str] = None,
+    corpus_id: str | None = None,
+    corpora: list[str] | None = None,
+    filetype: str | None = None,
+    directory: str | None = None,
+    filename_glob: str | None = None,
     include_history: bool = False,
     limit: int = 1000,
-    db_path: Optional[str] = None,
+    db_path: str | None = None,
 ) -> list[IndexEntry]:
     """Return file-level summaries for triage.
 
@@ -130,8 +129,8 @@ def files_index(
 
 def files_stats(
     *,
-    corpus_id: Optional[str] = None,
-    db_path: Optional[str] = None,
+    corpus_id: str | None = None,
+    db_path: str | None = None,
 ) -> dict:
     """Corpus-level counters for files_stats MCP tool."""
     from memory.backends import dialect as _dialect
@@ -210,7 +209,7 @@ def files_stats(
         }
 
 
-def files_get(uuid: str, *, db_path: Optional[str] = None) -> Optional[dict]:
+def files_get(uuid: str, *, db_path: str | None = None) -> dict | None:
     """Fetch a single record by UUID. Tries file_nodes, then leaves.
 
     Returns a dict view of the row plus:

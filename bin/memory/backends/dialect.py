@@ -241,7 +241,7 @@ class Dialect:
         scope: str = "",
         type_filter: str = "",
         agent_filter: str = "",
-    ) -> "tuple[str, list]":
+    ) -> tuple[str, list]:
         """Render the standard row-narrowing WHERE fragment + its bind params.
 
         Returns ``(" AND a = ? AND b = ?", [a, b])`` — a fragment that APPENDS to
@@ -437,9 +437,9 @@ class Dialect:
         raise NotImplementedError("subclass must implement returning_id_clause()")
 
     def claim_message(
-        self, conn: object, *, table: str, where_sql: str, where_params: "tuple",
+        self, conn: object, *, table: str, where_sql: str, where_params: tuple,
         claimant: str, lease_ttl: int = 300,
-    ) -> "tuple | None":
+    ) -> tuple | None:
         """Atomically claim ONE unclaimed row, or return None if there are none.
 
         Returns ``(row_id, lease_token)``, or None when nothing is claimable.
@@ -641,7 +641,7 @@ class Dialect:
     def sweep_expired_leases(
         self, conn: object, *, table: str, max_attempts: int = 5,
         limit: int = 100,
-    ) -> "tuple[int, int]":
+    ) -> tuple[int, int]:
         """Reclaim lapsed leases. Returns ``(reclaimed, dead_lettered)``.
 
         A row whose lease expired is returned to PENDING -- claim ownership and
@@ -685,7 +685,7 @@ class Dialect:
         raise NotImplementedError("subclass must implement last_insert_id()")
 
     # -- change detection ------------------------------------------------------
-    def store_change_token(self, store: str) -> "tuple | None":
+    def store_change_token(self, store: str) -> tuple | None:
         """A cheap value that changes whenever a committed write may have landed in ``store``.
 
         For watchers (the notification waiter) that must not query on every tick:
@@ -702,7 +702,7 @@ class Dialect:
         raise NotImplementedError("subclass must implement store_change_token()")
 
     # -- JSON ----------------------------------------------------------------
-    def empty_json_default(self) -> "str | None":
+    def empty_json_default(self) -> str | None:
         """The value to store for an EMPTY JSON column on this backend.
 
         SQLite's metadata_json is TEXT — an empty string ``''`` is fine and is the
@@ -760,7 +760,7 @@ class Dialect:
             return parsed if isinstance(parsed, dict) else {}
         return {}
 
-    def json_bind_value(self, value: object) -> "str | None":
+    def json_bind_value(self, value: object) -> str | None:
         """Normalize a value for BINDING into a JSON column. The write-side
         complement to :meth:`json_column_to_dict` (which handles the read side).
 
@@ -901,7 +901,7 @@ class Dialect:
         """
         return f"LOWER({column}) = LOWER({placeholder})"
 
-    def glob_match(self, column: str, placeholder: str, pattern: str) -> "tuple[str, str]":
+    def glob_match(self, column: str, placeholder: str, pattern: str) -> tuple[str, str]:
         """A case-sensitive shell-glob filename match. Returns ``(sql_fragment,
         bound_value)`` — because the two backends differ in BOTH the operator AND
         the wildcard alphabet, so the VALUE may need rewriting too, not just the SQL.
@@ -926,11 +926,11 @@ class Dialect:
             raise ValueError(f"column must be a bare identifier: {column!r}")
         return self._glob_fragment(column, placeholder, pattern)
 
-    def _glob_fragment(self, column: str, placeholder: str, pattern: str) -> "tuple[str, str]":
+    def _glob_fragment(self, column: str, placeholder: str, pattern: str) -> tuple[str, str]:
         """Backend fragment for :meth:`glob_match` (post-validation)."""
         raise NotImplementedError("subclass must implement _glob_fragment()")
 
-    def literal_prefix_match(self, column: str, placeholder: str, prefix: str) -> "tuple[str, str]":
+    def literal_prefix_match(self, column: str, placeholder: str, prefix: str) -> tuple[str, str]:
         """A "column starts with this LITERAL prefix" fragment + bound value.
 
         Returns ``(sql_fragment, bound_value)`` for the same reason
@@ -955,7 +955,7 @@ class Dialect:
             raise ValueError(f"column must be a bare identifier: {column!r}")
         return self._literal_prefix_fragment(column, placeholder, prefix)
 
-    def _literal_prefix_fragment(self, column: str, placeholder: str, prefix: str) -> "tuple[str, str]":
+    def _literal_prefix_fragment(self, column: str, placeholder: str, prefix: str) -> tuple[str, str]:
         """Backend fragment for :meth:`literal_prefix_match` (post-validation).
 
         Concrete here rather than NotImplementedError: SQLite, PostgreSQL and
@@ -1218,7 +1218,7 @@ class Dialect:
         raise NotImplementedError("subclass must implement _qualified_table_expr()")
 
     # -- storage maintenance -------------------------------------------------
-    def compact_storage(self, *, sqlite_path: "str | None" = None,
+    def compact_storage(self, *, sqlite_path: str | None = None,
                         max_bytes: int = 500 * 1024 * 1024) -> str:
         """Reclaim free space in the store, if the backend has a client-issued
         compaction. Returns a human-readable status line for the maintenance report.

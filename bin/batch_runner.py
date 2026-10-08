@@ -20,8 +20,9 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, Callable, Optional, Protocol
+from typing import Any, Protocol
 
 import httpx
 from unified_ai import _is_gemini_endpoint
@@ -556,9 +557,9 @@ async def run_to_completion_chunked(
     client: httpx.AsyncClient,
     poll_interval_s: float = 30.0,
     max_wait_s_per_slice: float = 24 * 3600.0,
-    on_status: Optional[Callable[..., Any]] = None,
-    on_slice_start: Optional[Callable[..., Any]] = None,
-    on_slice_end: Optional[Callable[..., Any]] = None,
+    on_status: Callable[..., Any] | None = None,
+    on_slice_start: Callable[..., Any] | None = None,
+    on_slice_end: Callable[..., Any] | None = None,
 ):
     """Like run_to_completion, but transparently splits requests into
     slices of size <= runner.max_batch_size, submits each slice serially,
@@ -605,7 +606,7 @@ async def run_to_completion(
     client: httpx.AsyncClient,
     poll_interval_s: float = 30.0,
     max_wait_s: float = 24 * 3600.0,
-    on_status: Optional[Callable[..., Any]] = None,
+    on_status: Callable[..., Any] | None = None,
 ) -> tuple[str, list[BatchResult]]:
     """Submit a batch, poll until it ends, fetch all results, return them.
 

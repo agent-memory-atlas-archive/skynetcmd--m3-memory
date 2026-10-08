@@ -18,6 +18,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
+from datetime import UTC
+
 from memory import confidence as C  # noqa: E402
 
 # ── pure decay math ──────────────────────────────────────────────────────────
@@ -120,8 +122,8 @@ def test_recently_accessed_is_not_decayed(tmp_path):
     from memory_maintenance import _reinforce_confidence
     db = tmp_path / "t.db"
     _full_db(db)
-    from datetime import datetime, timezone
-    now = datetime.now(timezone.utc).isoformat()
+    from datetime import datetime
+    now = datetime.now(UTC).isoformat()
     with sqlite3.connect(str(db)) as conn:
         conn.row_factory = sqlite3.Row
         _seed(conn, "hot", 0.95, last_accessed=now)  # accessed now -> skip decay

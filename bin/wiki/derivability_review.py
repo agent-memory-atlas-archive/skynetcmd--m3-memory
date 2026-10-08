@@ -37,8 +37,8 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Optional, Protocol
+from datetime import UTC, datetime
+from typing import Protocol
 
 from llm_failover import apply_thinking_suppression
 
@@ -59,7 +59,7 @@ class DerivabilityVerdict:
     """One optional-judge opinion. `derivable=None` = abstain (judge unavailable /
     errored) — fail-open, never forces a decision either way."""
     synthesis_id: str
-    derivable: Optional[bool]
+    derivable: bool | None
     reason: str = ""
 
 
@@ -81,14 +81,14 @@ class ReviewItem:
     rank_key: tuple
     surviving_sources: int          # live provenance sources still present
     erasure_count: int              # how many erasures have touched this page
-    erased_at: Optional[str]        # most recent erasure timestamp (ISO), or None
-    age_days: Optional[float]       # days since erased_at (None if unknown)
+    erased_at: str | None        # most recent erasure timestamp (ISO), or None
+    age_days: float | None       # days since erased_at (None if unknown)
     overdue: bool                   # age_days > REVIEW_SLA_DAYS
     # derivable_candidate: the DETERMINISTIC floor — has ≥1 surviving source, so the
     # prose MIGHT be fully derivable without the erased content. Not a decision.
     derivable_candidate: bool
     # Optional judge opinion (None when no judge injected or it abstained).
-    judged_derivable: Optional[bool] = None
+    judged_derivable: bool | None = None
     judge_reason: str = ""
 
 
@@ -122,7 +122,7 @@ class ReviewReport:
         return out
 
 
-def _newest_erased_at(metadata: dict) -> Optional[str]:
+def _newest_erased_at(metadata: dict) -> str | None:
     """Most recent erasure timestamp from the erasure_records trail, or None."""
     review = metadata.get("review")
     if not isinstance(review, dict):
@@ -134,7 +134,7 @@ def _newest_erased_at(metadata: dict) -> Optional[str]:
     return max(stamps) if stamps else None
 
 
-def _age_days(erased_at: Optional[str], now: Optional[datetime]) -> Optional[float]:
+def _age_days(erased_at: str | None, now: datetime | None) -> float | None:
     """Days between `erased_at` (ISO-8601) and `now`. None if unparseable."""
     if not erased_at:
         return None
@@ -143,8 +143,8 @@ def _age_days(erased_at: Optional[str], now: Optional[datetime]) -> Optional[flo
     except (ValueError, AttributeError):
         return None
     if ts.tzinfo is None:
-        ts = ts.replace(tzinfo=timezone.utc)
-    delta = (now or datetime.now(timezone.utc)) - ts
+        ts = ts.replace(tzinfo=UTC)
+    delta = (now or datetime.now(UTC)) - ts
     return delta.total_seconds() / 86400.0
 
 
@@ -159,8 +159,8 @@ def _surviving_source_ids(synthesis_id: str, edges, live_ids: set) -> list[str]:
     return out
 
 
-def build_queue(clusters, edges, *, judge: "Optional[DerivabilityJudge]" = None,
-                now: "Optional[datetime]" = None) -> ReviewReport:
+def build_queue(clusters, edges, *, judge: DerivabilityJudge | None = None,
+                now: datetime | None = None) -> ReviewReport:
     """Build the GDPR derivability review queue from the in-hand (clusters, edges).
 
     Deterministic floor always computed (surviving-source count + 30-day age). If
@@ -220,7 +220,7 @@ def build_queue(clusters, edges, *, judge: "Optional[DerivabilityJudge]" = None,
     return report
 
 
-def render_section(report: "Optional[ReviewReport]") -> list[str]:
+def render_section(report: ReviewReport | None) -> list[str]:
     """Lint-section lines for the GDPR derivability queue. Always emitted when a
     report is provided (even at 0 items) so its absence never reads as 'not
     reviewed'. `report is None` → [] (check did not run)."""
@@ -342,7 +342,7 @@ class ModelDerivabilityJudge:
         return (f"derivability judge: {self.calls} judged, "
                 f"{self.cache_hits} cached, {self.abstentions} abstained")
 
-    def _call_model(self, user_prompt: str) -> "Optional[str]":
+    def _call_model(self, user_prompt: str) -> str | None:
         try:
             import httpx
         except ImportError:
@@ -373,7 +373,7 @@ class ModelDerivabilityJudge:
             return None
 
     @staticmethod
-    def _resolve_key(service: str) -> "Optional[str]":
+    def _resolve_key(service: str) -> str | None:
         if not service:
             return None
         try:
@@ -384,12 +384,12 @@ class ModelDerivabilityJudge:
         except Exception:
             return None
 
-    def _cache_path(self, digest: str) -> "Optional[str]":
+    def _cache_path(self, digest: str) -> str | None:
         if not self.cfg.cache_dir:
             return None
         return os.path.join(self.cfg.cache_dir, f"deriv_{digest}.json")
 
-    def _read_cache(self, digest: str) -> "Optional[tuple[bool, str]]":
+    def _read_cache(self, digest: str) -> tuple[bool, str] | None:
         path = self._cache_path(digest)
         if not path or not os.path.isfile(path):
             return None
@@ -416,7 +416,7 @@ class ModelDerivabilityJudge:
             pass
 
 
-def _parse_bool(text: str, key: str) -> "tuple[Optional[bool], str]":
+def _parse_bool(text: str, key: str) -> tuple[bool | None, str]:
     """Extract (bool, reason) for `key` from a model reply, tolerant of prose /
     ```json fences. Returns (None, reason) when nothing parseable is found."""
     if not text:

@@ -21,6 +21,8 @@ _BIN = os.path.normpath(os.path.join(_HERE, "..", "bin"))
 if _BIN not in sys.path:
     sys.path.insert(0, _BIN)
 
+from datetime import UTC
+
 import memory_core  # noqa: E402
 from memory.backends import dialect  # noqa: E402
 from memory.orchestration import _db  # noqa: E402
@@ -38,9 +40,9 @@ def clean(monkeypatch, tmp_path):
 
 
 def _handoff_to(target: str, task: str) -> str:
-    from datetime import datetime, timezone
+    from datetime import datetime
     new_id = str(uuid.uuid4())
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     with _db() as db:
         p = dialect().param()
         db.execute(

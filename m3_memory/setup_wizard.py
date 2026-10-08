@@ -24,7 +24,6 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 from ._platform import hidden_window_kwargs as _hidden_window_kwargs
 from ._platform import python_exe as _python_exe
@@ -47,7 +46,7 @@ from .wizard.ui import (  # noqa: F401 — re-exported for setup_wizard.<name> a
 from .wizard.ui import called_by_upgrade as _called_by_upgrade
 
 
-def _prompt(text: str) -> "str | None":
+def _prompt(text: str) -> str | None:
     """input() that survives a non-interactive stdin. None means EOF.
 
     setup used bare input(), so running it with stdin closed or piped -- a CI
@@ -90,7 +89,7 @@ def _bin_dir() -> Path:
     return here.parent / "bin"                      # legacy default
 
 
-def _env_compat(new_name: str, old_name: str, default: "str | None" = None) -> "str | None":
+def _env_compat(new_name: str, old_name: str, default: str | None = None) -> str | None:
     """Env resolution during the M3_* namespacing migration: new > old > default,
     warning once on the deprecated name. Uses the canonical getenv_compat when the
     payload bin/ is importable; falls back to a plain dual-read otherwise, since
@@ -203,7 +202,7 @@ def _detect_agents() -> AgentTargets:
     )
 
 
-def _find_hermes_plugins_dir() -> Optional[Path]:
+def _find_hermes_plugins_dir() -> Path | None:
     """Locate the hermes-agent install's plugins/memory/ dir, or None.
 
     Hermes Agent has no fixed install root, so we probe the common spots. Two
@@ -244,7 +243,7 @@ def _find_hermes_plugins_dir() -> Optional[Path]:
     return None
 
 
-def _find_m3_hermes_plugin_src() -> Optional[Path]:
+def _find_m3_hermes_plugin_src() -> Path | None:
     """Locate the bundled m3 Hermes provider source (the directory the wizard
     copies into a user's hermes-agent checkout).
 
@@ -298,17 +297,17 @@ class SetupPlan:
     # (N CUDA contexts / N model copies in host RAM). Not surfaced as a selectable
     # option; --no-shared-embedder remains only as an escape hatch for debugging.
     use_shared_embedder: bool = True
-    endpoint: Optional[str] = None
+    endpoint: str | None = None
     cognitive_loop: bool = False
     # "Keep the current settings": targets is empty because wiring is left as
     # it is, not because no agent is wired. Output must not say "none".
     agents_kept: bool = False
     # B15: GGUF path discovered + accepted in preflight. Used by the embedder
     # install step to pin tier-1 into the service config.toml so it persists.
-    embed_gguf: Optional[str] = None
+    embed_gguf: str | None = None
     decouple_roots: bool = False
-    config_root: Optional[str] = None
-    engine_root: Optional[str] = None
+    config_root: str | None = None
+    engine_root: str | None = None
     # FIPS crypto tiers (see docs/FIPS_MODULE_BOUNDARY.md):
     #   fips_mode   -> M3_FIPS_MODE=1: route crypto through wolfCrypt, fail-closed
     #                  if absent, accept the open-source build (homelab).
@@ -726,7 +725,7 @@ def _shared_gguf_is(path: str) -> bool:
     return shared_gguf_is(path)
 
 
-def _cognitive_loop_installed() -> "bool | None":
+def _cognitive_loop_installed() -> bool | None:
     """Whether the loop is registered here; None when it cannot be told."""
     try:
         sys.path.insert(0, str(_bin_dir()))
@@ -751,7 +750,7 @@ def _pin_chatlog_store() -> None:
         _ok(f"  recorded the chatlog store: {pinned}")
 
 
-def _existing_install() -> "str | None":
+def _existing_install() -> str | None:
     """The existing store or capture config, or None on a first install."""
     try:
         sys.path.insert(0, str(_bin_dir()))
@@ -765,8 +764,8 @@ def _existing_install() -> "str | None":
 
 # ── execution phase ───────────────────────────────────────────────────────────
 
-def _run(cmd: list[str], *, check: bool = True, env: "dict | None" = None,
-         timeout: "float | None" = None) -> subprocess.CompletedProcess:
+def _run(cmd: list[str], *, check: bool = True, env: dict | None = None,
+         timeout: float | None = None) -> subprocess.CompletedProcess:
     """Shell out, streaming output. Returns the completed process.
 
     `env`, when given, replaces the child's environment (used to strip
@@ -1240,7 +1239,7 @@ def _begin_elevation_batch(*, gui: bool = False) -> None:
         _ELEVATION = ElevationBatch()
 
 
-def _queue_elevated(label: str, argv: "list[str]") -> bool:
+def _queue_elevated(label: str, argv: list[str]) -> bool:
     """Queue a privileged step if batching is on. True when queued."""
     if _ELEVATION is None:
         return False
@@ -1372,7 +1371,7 @@ def _report_unrun_elevation() -> None:
 
 
 def _offer_elevated_task_delete(task_names: list[str], *, non_interactive: bool,
-                                gui: bool = False) -> "bool | None":
+                                gui: bool = False) -> bool | None:
     """On Windows with a HUMAN PRESENT, elevate deleting the governor-eligible
     scheduled tasks that an unelevated remove was denied — the UAC dialog itself
     is the user's consent. Returns True if the elevated delete succeeded.
@@ -1459,7 +1458,7 @@ def _stdin_is_interactive() -> bool:
     return console_has_person()
 
 
-def _offer_elevated_schedule_repair(script: str, *, non_interactive: bool) -> "bool | None":
+def _offer_elevated_schedule_repair(script: str, *, non_interactive: bool) -> bool | None:
     """On interactive Windows, OFFER to UAC-elevate the boot-task registration a
     prior unelevated attempt was denied. Applies to first install AND upgrade —
     every `m3 setup` re-runs schedule registration. Returns True if the elevated
@@ -1596,7 +1595,7 @@ def _kill_stuck_writers(stuck, *, allow_sudo: bool = False) -> bool:
     return all_ok
 
 
-def _pycache_scope(args: argparse.Namespace) -> "tuple[Path, bool, list]":
+def _pycache_scope(args: argparse.Namespace) -> tuple[Path, bool, list]:
     """(package root, is an editable checkout, __pycache__ dirs to offer wiping).
 
     A packaged install (pipx/pip) gets fresh bytecode from the installer, so
@@ -1829,7 +1828,7 @@ def _endpoint_reachable(base_url: str, timeout: float = 0.4) -> bool:
         return False
 
 
-def _probe_llm_endpoints(plan: "SetupPlan", args: argparse.Namespace) -> None:
+def _probe_llm_endpoints(plan: SetupPlan, args: argparse.Namespace) -> None:
     """Detect the reachable local LLM runtime(s) and persist the failover opt-in
     vars to match. Mirrors the M3_EMBED_GGUF persistence (shell rc + MCP env)."""
     # If the user already pinned a custom server, honor it — just confirm.
@@ -2244,7 +2243,7 @@ def _step_cpu_sovereign_embedder() -> bool:
         return True  # non-fatal
 
 
-def _step_rust_core(plan: "SetupPlan") -> bool:
+def _step_rust_core(plan: SetupPlan) -> bool:
     """Ensure the m3-core-rs native wheel is present AND at the pinned version.
 
     ALWAYS runs, on install and on upgrade, regardless of which embedder tier
@@ -2336,7 +2335,7 @@ def _step_rust_core(plan: "SetupPlan") -> bool:
         return False
 
 
-def _step_gpu_embedder(plan: "SetupPlan") -> bool:
+def _step_gpu_embedder(plan: SetupPlan) -> bool:
     """Install the Project Oxidation native in-process embedder.
 
     Installs the matching prebuilt m3-core-rs wheel (PyPI, then GitHub
@@ -2383,7 +2382,7 @@ def _step_gpu_embedder(plan: "SetupPlan") -> bool:
         return True  # non-fatal
 
 
-def _step_shared_embedder(plan: "SetupPlan", *, non_interactive: bool = False) -> bool:
+def _step_shared_embedder(plan: SetupPlan, *, non_interactive: bool = False) -> bool:
     """Enable shared-embedder mode (the shipped default): write .embed_config.json
     so every m3 process defers to ONE shared embedder server (GPU-accelerated
     where available, CPU-only otherwise), AND register the self-healing
@@ -2561,7 +2560,7 @@ def _verify_and_report_schedules(script: str, *, non_interactive: bool) -> None:
                 print("    [!] Some tasks still do not match spec (see above).")
 
 
-def _existing_wolfssl() -> "str | None":
+def _existing_wolfssl() -> str | None:
     """Path to an already-installed wolfSSL, or None.
 
     Reuses crypto_provider's own resolver so detection cannot drift from what
@@ -2578,7 +2577,7 @@ def _existing_wolfssl() -> "str | None":
         return None
 
 
-def _step_install_wolfssl(plan: "SetupPlan") -> bool:
+def _step_install_wolfssl(plan: SetupPlan) -> bool:
     """Build + install the open-source wolfSSL so FIPS mode actually works.
 
     Returns True if a usable wolfSSL is present afterward (so the caller can
@@ -2699,7 +2698,7 @@ def _wire_claude(capture_mode: str) -> bool:
     return reg_ok or hooks_ok
 
 
-def _claude_registration_current(env: "dict[str, str]") -> bool:
+def _claude_registration_current(env: dict[str, str]) -> bool:
     """True when ~/.claude.json already registers `m3_memory` as `m3` with
     exactly ``env`` and carries no legacy `memory` entry to migrate."""
     try:
@@ -3001,7 +3000,7 @@ def _ensure_payload_importable() -> None:
         _sys.path.insert(0, bd)
 
 
-def _openclaw_startup_tools() -> "list[str]":
+def _openclaw_startup_tools() -> list[str]:
     """The tool names m3 exposes at session start, for OpenClaw's toolFilter.
 
     Mirrors memory_bridge._register_initial_tools() exactly: the meta-tools plus
@@ -3046,7 +3045,7 @@ def _openclaw_startup_tools() -> "list[str]":
     return sorted(names)
 
 
-def _openclaw_version(exe: str) -> "tuple[bool, str]":
+def _openclaw_version(exe: str) -> tuple[bool, str]:
     """(supports_native_mcp, version_string) for the OpenClaw binary at ``exe``.
 
     Returns supports=True with version "unknown" when the version cannot be read
@@ -3091,7 +3090,7 @@ def _openclaw_version(exe: str) -> "tuple[bool, str]":
     return ok, found
 
 
-def _openclaw_mcp_set(argv: "list[str]") -> bool:
+def _openclaw_mcp_set(argv: list[str]) -> bool:
     """Run `openclaw mcp set …`, classifying the exit code. Never raises.
 
     `mcp set` is idempotent by OVERWRITE — an existing entry of the same name is
@@ -3341,7 +3340,7 @@ def _wire_hermes(*, non_interactive: bool = False) -> bool:
     return True
 
 
-def _step_install_dashboard(plan: "SetupPlan") -> bool:
+def _step_install_dashboard(plan: SetupPlan) -> bool:
     """Install the [dashboard] pip extra (fastapi + uvicorn) so `m3 dashboard` runs.
 
     Non-fatal by design: a failed dep install must never abort setup — the core
@@ -3574,7 +3573,7 @@ def _trace(msg: str) -> None:
         pass
 
 
-def _doctor_failure_telemetry(argv: list, rc: "int | None") -> None:
+def _doctor_failure_telemetry(argv: list, rc: int | None) -> None:
     """After a FAILED verification, re-run the doctor CAPTURED and report what it
     actually emitted. Diagnostic only — never changes the verdict, never raises.
 
@@ -3962,7 +3961,7 @@ def _should_use_gui(args: argparse.Namespace) -> bool:
     return _ask_yes_no("  Configure with the graphical setup window?", default=False)
 
 
-def _m3_cli(*args: str) -> "list[str]":
+def _m3_cli(*args: str) -> list[str]:
     """argv that runs m3's CLI in a child process on the SAME package as this one.
 
     `python -m` puts the working directory first on sys.path, so setup run from

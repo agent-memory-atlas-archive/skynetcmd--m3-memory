@@ -16,7 +16,7 @@ import asyncio
 import os
 import subprocess
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fpdf import FPDF
 from fpdf.enums import XPos, YPos
@@ -100,7 +100,7 @@ def section_memory_health(pdf, summary):
             "SELECT COUNT(*) FROM memory_items WHERE is_deleted = 0"
         ).fetchone()[0]
 
-        week_ago = (datetime.now(timezone.utc) - timedelta(days=7)).strftime(
+        week_ago = (datetime.now(UTC) - timedelta(days=7)).strftime(
             "%Y-%m-%dT%H:%M:%SZ"
         )
         added = conn.execute(
@@ -286,7 +286,7 @@ def section_tool_inventory(pdf, summary):
                 continue
             path = os.path.join(inv_dir, fn)
             try:
-                with open(path, "r", encoding="utf-8") as fh:
+                with open(path, encoding="utf-8") as fh:
                     for line in fh:
                         if line.startswith("sha1:"):
                             out[fn] = line.split(":", 1)[1].strip()

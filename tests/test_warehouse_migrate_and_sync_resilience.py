@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import sys
+from datetime import UTC
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
@@ -140,12 +141,12 @@ class TestStaleLockRecovery:
 
     def setup_method(self):
         import os
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
         import pg_sync
         self.P = pg_sync
         self.os = os
-        self.now = datetime.now(timezone.utc)
+        self.now = datetime.now(UTC)
         self._td = timedelta
 
     def test_live_pid_recent_lock_is_held(self):

@@ -6,7 +6,7 @@ import logging
 import os
 import uuid
 from collections.abc import Awaitable, Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from embedding_utils import (
     infer_change_agent as _infer_change_agent_util,
@@ -122,7 +122,7 @@ def _ctx() -> M3Context:
     return M3Context.for_db(resolve_db_path(None))
 
 
-def _observer_confidence_from_metadata(metadata) -> "float | None":
+def _observer_confidence_from_metadata(metadata) -> float | None:
     """Pull the Observer SLM's per-observation confidence (0.6–1.0) out of a
     memory's metadata_json, if present. Returns None on any parse miss so the
     caller falls back to provenance-only confidence."""
@@ -203,7 +203,7 @@ def memory_link_impl(from_id: str, to_id: str, relationship_type: str = "related
     return f"Linked {from_id} --[{relationship_type}]--> {to_id}"
 
 async def memory_write_impl(
-type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="", importance=0.5, source="agent", embed=True, user_id="", scope="agent", valid_from="", valid_to="", auto_classify=False, conversation_id="", refresh_on="", refresh_reason="", variant=None, embed_text=None, confidence: float = -1.0, fact_enricher: "Callable[[str], Awaitable[list[dict]]] | None" = None, fact_enricher_variant_allowlist: "set[str] | None" = None, entity_extractor: "Callable[[str], Awaitable[dict]] | None" = None, entity_extractor_variant_allowlist: "set[str] | None" = None, check_contradictions: bool = True):
+type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="", importance=0.5, source="agent", embed=True, user_id="", scope="agent", valid_from="", valid_to="", auto_classify=False, conversation_id="", refresh_on="", refresh_reason="", variant=None, embed_text=None, confidence: float = -1.0, fact_enricher: Callable[[str], Awaitable[list[dict]]] | None = None, fact_enricher_variant_allowlist: set[str] | None = None, entity_extractor: Callable[[str], Awaitable[dict]] | None = None, entity_extractor_variant_allowlist: set[str] | None = None, check_contradictions: bool = True):
     _resolve_mc_callbacks()
     """Internal implementation for memory_write.
 
@@ -289,7 +289,7 @@ type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="
     if scope not in VALID_SCOPES:
         scope = "agent"
     item_id = str(uuid.uuid4())
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     try:
         importance = float(importance)
     except (TypeError, ValueError):
@@ -300,7 +300,7 @@ type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="
     expires_at = None
     if scope == "session":
         from datetime import timedelta
-        expires_at = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+        expires_at = (datetime.now(UTC) + timedelta(hours=24)).isoformat()
 
     # Opt-in ingest-time enrichment (env-gated, fail-open).
     title = await _maybe_auto_title(content or "", title)
@@ -665,7 +665,7 @@ def _mark_superseded(
     caller has the old content cheaply to hand (``_check_contradictions`` does);
     otherwise leave it None.
     """
-    now_iso = datetime.now(timezone.utc).isoformat()
+    now_iso = datetime.now(UTC).isoformat()
     # Dialect-aware: `p` is the backend's bind marker (? / %s) and the valid_to
     # COALESCE differs — SQLite needs NULLIF(valid_to,'') (its default is ''),
     # but on PG valid_to is TIMESTAMPTZ where '' is not a legal value and NULLIF
@@ -836,7 +836,7 @@ async def memory_supersede_impl(
     #    require_active=True its UPDATE is gated on is_deleted=0 and the return
     #    value is the real concurrency guard: False means old_id was closed by a
     #    concurrent supersede/delete after step 1's pre-check.
-    close_at = valid_from or datetime.now(timezone.utc).isoformat()
+    close_at = valid_from or datetime.now(UTC).isoformat()
     with _db() as db:
         won_race = _mark_superseded(
             old_id, new_id, close_at=close_at, db=db,
@@ -851,7 +851,7 @@ async def memory_supersede_impl(
                 db.execute(
                     f"UPDATE memory_items SET is_deleted = 1, updated_at = {_psup} "
                     f"WHERE id = {_psup}",
-                    (datetime.now(timezone.utc).isoformat(), new_id),
+                    (datetime.now(UTC).isoformat(), new_id),
                 )
         except Exception as e:  # pragma: no cover - best-effort cleanup
             logger.warning(f"failed to roll back orphaned memory {new_id}: {e}")
@@ -881,15 +881,15 @@ async def memory_write_bulk_impl(
     check_contradictions: bool | None = None,
     emit_conversation: bool | None = None,
     variant: str | None = None,
-    embed_key_enricher: "Callable[[str, dict], Awaitable[str]] | None" = None,
+    embed_key_enricher: Callable[[str, dict], Awaitable[str]] | None = None,
     embed_key_enricher_concurrency: int = 4,
     dual_embed: bool = False,
-    fact_enricher: "Callable[[str], Awaitable[list[dict]]] | None" = None,
+    fact_enricher: Callable[[str], Awaitable[list[dict]]] | None = None,
     fact_enricher_concurrency: int = 2,
     fact_enricher_variant_allowlist: set[str] | None = None,
-    entity_extractor: "Callable[[str], Awaitable[dict]] | None" = None,
+    entity_extractor: Callable[[str], Awaitable[dict]] | None = None,
     entity_extractor_concurrency: int = 2,
-    entity_extractor_variant_allowlist: "set[str] | None" = None,
+    entity_extractor_variant_allowlist: set[str] | None = None,
 ) -> list[str]:
     _resolve_mc_callbacks()
     if entity_extractor is None:
@@ -935,7 +935,7 @@ async def memory_write_bulk_impl(
     if not items:
         return []
 
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     prepared: list[dict] = []
     for it in items:
         mid = it.get("id") or str(uuid.uuid4())
@@ -961,7 +961,7 @@ async def memory_write_bulk_impl(
         if scope == "session":
             from datetime import timedelta
             expires_at = (
-                datetime.now(timezone.utc) + timedelta(hours=24)
+                datetime.now(UTC) + timedelta(hours=24)
             ).isoformat()
 
         # Resolve auto_classify before adding to prepared. Zero-lag: defer to the
@@ -1469,7 +1469,7 @@ async def _check_contradictions(
                     # require_active=False: the candidate query above already
                     # filtered is_deleted=0 and we hold the writer, so the close
                     # is unconditional.
-                    _close_at = new_valid_from or datetime.now(timezone.utc).isoformat()
+                    _close_at = new_valid_from or datetime.now(UTC).isoformat()
                     with _db() as db:
                         # require_active=True (CAS): under a single-writer SQLite
                         # this always wins, but on PostgreSQL two concurrent writes
@@ -1606,7 +1606,7 @@ async def memory_write_from_file_impl(
         return f"Error: file too large ({size} bytes; max 200000 for memory_write_from_file)"
 
     try:
-        with open(p, "r", encoding="utf-8") as f:
+        with open(p, encoding="utf-8") as f:
             content = f.read()
     except (OSError, UnicodeDecodeError) as e:
         return f"Error: cannot read file: {e.__class__.__name__}: {e}"
@@ -1660,7 +1660,7 @@ async def memory_write_batch_impl(items: list[dict]):
 
     results = []
     # 1. First pass: Insert metadata in one transaction
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
 
     write_tasks = []
     for item in items:
@@ -1699,7 +1699,7 @@ async def memory_write_batch_impl(items: list[dict]):
                 asyncio.gather(*embed_jobs, return_exceptions=True),
                 timeout=120.0
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error(f"Batch embedding timed out after 120s for {len(write_tasks)} items")
             embeddings = [None] * len(write_tasks)
 

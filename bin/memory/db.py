@@ -36,7 +36,7 @@ import threading
 import time
 import uuid
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from embedding_utils import infer_change_agent as _infer_change_agent_util
@@ -74,7 +74,7 @@ _ENTITY_COUNT_QUERY = "SELECT COUNT(*) FROM entities"
 # ──────────────────────────────────────────────────────────────────────────────
 _ACCESS_FLUSH_INTERVAL = 0.25  # seconds
 _access_pending: set[str] = set()
-_access_flusher_task: "asyncio.Task | None" = None
+_access_flusher_task: asyncio.Task | None = None
 _access_lock = asyncio.Lock()
 
 
@@ -694,7 +694,7 @@ def _flush_access_batch(batch: list) -> int:
 
     _d = _dialect()
     _p = _d.param()
-    now_iso = datetime.now(timezone.utc).isoformat()
+    now_iso = datetime.now(UTC).isoformat()
     try:
         with _db() as db:
             placeholders = ",".join([_p] * len(batch))

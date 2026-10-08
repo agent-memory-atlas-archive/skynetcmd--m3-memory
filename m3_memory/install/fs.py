@@ -41,7 +41,7 @@ def _robust_rmtree(path, retries: int = 5, delay: float = 0.3) -> None:
     path = str(path)
     if not os.path.exists(path):
         return
-    last_exc: "Exception | None" = None
+    last_exc: Exception | None = None
     for attempt in range(retries):
         try:
             shutil.rmtree(path)
@@ -114,7 +114,7 @@ def _safe_copy_sqlite(src: Path, dst: Path) -> None:
         shutil.copy2(src, dst)
 
 
-def _safe_tar_member(member: "tarfile.TarInfo", dest_root: Path) -> "tarfile.TarInfo | None":
+def _safe_tar_member(member: tarfile.TarInfo, dest_root: Path) -> tarfile.TarInfo | None:
     """Per-member filter for tarfile.extractall.
 
     Blocks the classic path-traversal vectors:

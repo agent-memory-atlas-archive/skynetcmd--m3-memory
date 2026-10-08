@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Optional
 
 from .cluster import Cluster
 
@@ -90,7 +89,7 @@ class ProseCompilerConfig:
     snippet_chars: int = 500   # per-member content included in the prompt
 
     @classmethod
-    def from_env(cls) -> "ProseCompilerConfig":
+    def from_env(cls) -> ProseCompilerConfig:
         return cls(
             url=os.environ.get("M3_WIKI_COMPILE_URL",
                                os.environ.get("M3_WIKI_SYNTH_URL", cls.url)),
@@ -133,7 +132,7 @@ def _user_prompt(cluster: Cluster, cfg: ProseCompilerConfig) -> str:
     return "\n".join(lines)
 
 
-def _call_model(cfg: ProseCompilerConfig, user_prompt: str) -> Optional[str]:
+def _call_model(cfg: ProseCompilerConfig, user_prompt: str) -> str | None:
     """POST to the local chat endpoint. None on ANY failure (fail-open)."""
     try:
         import httpx  # lazy: only needed when a real compiler is injected
@@ -177,7 +176,7 @@ def _call_model(cfg: ProseCompilerConfig, user_prompt: str) -> Optional[str]:
         return None
 
 
-def _resolve_key(service: str) -> Optional[str]:
+def _resolve_key(service: str) -> str | None:
     """Resolve an API token via m3's auth_utils (env → keyring → vault). None if
     unavailable — a local endpoint typically needs no auth."""
     if not service:
@@ -215,7 +214,7 @@ class LLMProseCompiler:
 
     prompt_version = PROMPT_VERSION
 
-    def __init__(self, cfg: Optional[ProseCompilerConfig] = None) -> None:
+    def __init__(self, cfg: ProseCompilerConfig | None = None) -> None:
         self.cfg = cfg or ProseCompilerConfig.from_env()
         self.model = self.cfg.model
         self.calls = 0
@@ -234,7 +233,7 @@ class LLMProseCompiler:
             "Compile these into one coherent wiki page as instructed."
         )
 
-    def compile(self, cluster: Cluster) -> Optional[str]:
+    def compile(self, cluster: Cluster) -> str | None:
         self.calls += 1
         prose = _call_model(self.cfg, _user_prompt(cluster, self.cfg))
         if not prose:

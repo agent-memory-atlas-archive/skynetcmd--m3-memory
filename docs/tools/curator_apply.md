@@ -1,8 +1,8 @@
 ---
 tool: bin/curator_apply.py
-sha1: be43be14b941
-mtime_utc: 2026-07-19T03:04:59.550163+00:00
-generated_utc: 2026-07-19T19:29:22.116428+00:00
+sha1: bf9dce1f5c2a
+mtime_utc: 2026-10-08T22:11:14.544184+00:00
+generated_utc: 2026-10-08T22:11:47.782305+00:00
 private: false
 ---
 
@@ -53,7 +53,7 @@ the boundary; per-section errors surface in the result.
 
 ## Entry points
 
-- `def main()` (line 347)
+- `def main()` (line 348)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -89,7 +89,7 @@ _(none detected)_
 
 **sqlite**
 
-- `sqlite3.connect()  → `db_path`` (line 275)
+- `sqlite3.connect()  → `db_path`` (line 276)
 
 
 ---

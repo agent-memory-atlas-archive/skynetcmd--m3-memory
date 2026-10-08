@@ -132,7 +132,7 @@ def _installed_version() -> str | None:
             os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
             "pyproject.toml",
         )
-        with open(pyproject, "r", encoding="utf-8") as fh:
+        with open(pyproject, encoding="utf-8") as fh:
             for line in fh:
                 m = re.match(r'\s*version\s*=\s*["\']([^"\']+)["\']', line)
                 if m:

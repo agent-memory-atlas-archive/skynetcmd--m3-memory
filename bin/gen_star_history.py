@@ -25,7 +25,7 @@ import os
 import sys
 import urllib.error
 import urllib.request
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 API = "https://api.github.com"
 STAR_ACCEPT = "application/vnd.github.star+json"  # includes `starred_at`
@@ -67,7 +67,7 @@ def fetch_starred_at(repo: str, token: str) -> list[datetime]:
         for row in body:
             ts = row.get("starred_at") if isinstance(row, dict) else None
             if ts:
-                times.append(datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc))
+                times.append(datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC))
         url = _parse_next(headers.get("Link"))
     times.sort()
     return times
@@ -163,7 +163,7 @@ def main() -> int:
 
     # Deterministic generated-date from the latest star (or today if no stars),
     # so a re-run with no new stars produces a byte-identical SVG and no commit.
-    generated = times[-1] if times else datetime.now(timezone.utc)
+    generated = times[-1] if times else datetime.now(UTC)
     svg = render_svg(args.repo, times, generated)
 
     out = args.out

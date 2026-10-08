@@ -35,8 +35,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Iterable, Optional, Protocol
+from typing import Protocol
 
 from .cluster import Cluster
 from .synth import _cluster_hash
@@ -67,7 +68,7 @@ class ProseCompiler(Protocol):
         """The full prompt text, stored as a memory for audit."""
         ...
 
-    def compile(self, cluster: Cluster) -> Optional[str]:
+    def compile(self, cluster: Cluster) -> str | None:
         """Return compiled markdown prose for the cluster, or None on failure
         (fail-open: a compiler error must never abort the batch)."""
         ...
@@ -79,8 +80,8 @@ class CompileResult:
     cluster_key: str
     action: str                 # "skipped-hash" | "skipped-identical" |
                                 # "created" | "superseded" | "compile-failed"
-    synthesis_id: Optional[str] = None
-    superseded_id: Optional[str] = None
+    synthesis_id: str | None = None
+    superseded_id: str | None = None
 
 
 @dataclass
@@ -248,7 +249,7 @@ async def _ensure_prompt_row(
     return _extract_id(new_id)
 
 
-def _find_prompt_by_title(title: str, *, _lookup=None) -> Optional[str]:
+def _find_prompt_by_title(title: str, *, _lookup=None) -> str | None:
     """Return the id of an existing compiler-prompt row with this EXACT title, or
     None. An exact-equality SQL lookup through the seam — NOT a semantic search.
 
@@ -290,7 +291,7 @@ def _find_prompt_by_title(title: str, *, _lookup=None) -> Optional[str]:
 async def compile_cluster(
     cluster: Cluster,
     compiler: ProseCompiler,
-    head: "Optional[ExistingSynthesis]",
+    head: ExistingSynthesis | None,
     prompt_memory_id: str,
     stats: CompileStats,
     *,
@@ -419,7 +420,7 @@ class ExistingSynthesis:
     prose_hash: str
 
 
-def load_heads(mem_rows: "Iterable") -> dict[str, "ExistingSynthesis"]:
+def load_heads(mem_rows: Iterable) -> dict[str, ExistingSynthesis]:
     """Index live synthesis rows by TITLE → their head ExistingSynthesis.
 
     A synthesis's title is stable across supersessions (compile.py sets it from
@@ -478,17 +479,17 @@ def _admit(clusters, edges, gate, stats: CompileStats) -> list:
 
 
 async def compile_clusters(
-    clusters: "Iterable",
+    clusters: Iterable,
     compiler: ProseCompiler,
-    heads: dict[str, "ExistingSynthesis"],
+    heads: dict[str, ExistingSynthesis],
     *,
     scope: str = "agent",
     user_id: str = "",
     backend=None,
     checkpoint_every: int = 500,
-    edges: "Optional[list]" = None,
+    edges: list | None = None,
     gate=None,
-    importance_threshold: "Optional[float]" = None,
+    importance_threshold: float | None = None,
     entity_comention: bool = False,
     record_run: bool = True,
     _write=None,

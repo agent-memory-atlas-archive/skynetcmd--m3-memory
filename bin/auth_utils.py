@@ -17,7 +17,7 @@ import subprocess
 import sys
 import time
 import unicodedata
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from _task_runtime import no_window_kwargs
 
@@ -53,7 +53,7 @@ def safe_keyring_get_password(service_name: str, username: str) -> str | None:
 
     try:
         import keyring
-        res_queue: "queue.Queue[tuple]" = queue.Queue()
+        res_queue: queue.Queue[tuple] = queue.Queue()
 
         def _target():
             try:
@@ -593,7 +593,7 @@ def set_api_key(service: str, value: str):
     encrypted_value = _encrypt_value(value, master_key)
     origin_device = getenv_compat("M3_ORIGIN_DEVICE", "ORIGIN_DEVICE") or os.environ.get("COMPUTERNAME") or os.environ.get("HOSTNAME") or platform.node()
     # ISO-8601 UTC timestamp
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
 
     conn = None
     try:

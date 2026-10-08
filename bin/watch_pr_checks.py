@@ -36,7 +36,7 @@ import subprocess
 import time
 
 
-def _query_pr(pr: str, repo: str | None) -> "list | None":
+def _query_pr(pr: str, repo: str | None) -> list | None:
     """Return gh's check list for a PR, or None on ANY problem (missing gh, auth
     failure, empty output, non-JSON, wrong shape). None means UNKNOWN — the
     caller must never read it as green. This is the guard the incident needed."""
@@ -58,7 +58,7 @@ def _query_pr(pr: str, repo: str | None) -> "list | None":
     return data
 
 
-def _summarize(checks: "list | None") -> str:
+def _summarize(checks: list | None) -> str:
     """One-token state for a PR: 'UNKNOWN' | 'green' | 'failed' | 'running'."""
     if checks is None:
         return "UNKNOWN"
@@ -73,7 +73,7 @@ def _summarize(checks: "list | None") -> str:
     return "running"
 
 
-def _counts(checks: "list | None") -> str:
+def _counts(checks: list | None) -> str:
     if checks is None:
         return "unknown"
     n = {"pass": 0, "fail": 0, "pending": 0}
@@ -84,7 +84,7 @@ def _counts(checks: "list | None") -> str:
     return f"pass={n['pass']} fail={n['fail']} pending={n['pending']}"
 
 
-def main(argv: "list[str] | None" = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("prs", nargs="+", help="PR numbers to watch")
     ap.add_argument("--repo", default=None, help="owner/name (else current repo)")

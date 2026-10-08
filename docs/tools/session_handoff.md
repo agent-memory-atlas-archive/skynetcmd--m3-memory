@@ -1,8 +1,8 @@
 ---
 tool: bin/session_handoff.py
-sha1: 2dd3e37d9df0
-mtime_utc: 2026-09-17T16:08:36.280470+00:00
-generated_utc: 2026-09-17T16:21:39.933311+00:00
+sha1: ef559029b396
+mtime_utc: 2026-10-08T22:11:14.607460+00:00
+generated_utc: 2026-10-08T22:11:48.281718+00:00
 private: false
 ---
 

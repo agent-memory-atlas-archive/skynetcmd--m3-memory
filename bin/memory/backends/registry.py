@@ -26,7 +26,8 @@ module, which ``selector.active_backend`` triggers lazily on first use.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .base import BackendName, StorageBackend
@@ -39,19 +40,19 @@ class _Entry:
     __slots__ = ("backend_factory", "dialect")
 
     def __init__(
-        self, backend_factory: "Callable[[], StorageBackend]", dialect: "Dialect"
+        self, backend_factory: Callable[[], StorageBackend], dialect: Dialect
     ) -> None:
         self.backend_factory = backend_factory
         self.dialect = dialect
 
 
 # name -> _Entry. Populated by @register_backend at backend-module import time.
-_REGISTRY: "dict[str, _Entry]" = {}
+_REGISTRY: dict[str, _Entry] = {}
 
 
 def register_backend(
-    name: str, *, dialect: "Dialect"
-) -> "Callable[[Callable[[], StorageBackend]], Callable[[], StorageBackend]]":
+    name: str, *, dialect: Dialect
+) -> Callable[[Callable[[], StorageBackend]], Callable[[], StorageBackend]]:
     """Decorator a backend module applies to its backend class (or factory).
 
     Usage, at the bottom of ``sqlite_backend.py``::
@@ -72,8 +73,8 @@ def register_backend(
     """
 
     def _decorator(
-        factory: "Callable[[], StorageBackend]",
-    ) -> "Callable[[], StorageBackend]":
+        factory: Callable[[], StorageBackend],
+    ) -> Callable[[], StorageBackend]:
         prior = _REGISTRY.get(name)
         if prior is not None:
             # A RE-IMPORT of the SAME module is idempotent, not a conflict. The
@@ -162,7 +163,7 @@ def _ensure_registered(name: str) -> None:
             _REGISTRY[name] = entry
 
 
-def backend_factory_for(name: "BackendName") -> "Callable[[], StorageBackend]":
+def backend_factory_for(name: BackendName) -> Callable[[], StorageBackend]:
     """The registered factory (class) that builds the backend for ``name``.
 
     Raises ``ValueError`` if the name is allow-listed (selector validated it) but
@@ -178,7 +179,7 @@ def backend_factory_for(name: "BackendName") -> "Callable[[], StorageBackend]":
     return entry.backend_factory
 
 
-def dialect_singleton_for(name: "BackendName") -> "Dialect":
+def dialect_singleton_for(name: BackendName) -> Dialect:
     """The registered frozen :class:`Dialect` singleton for ``name``.
 
     This is what ``dialect.dialect_for`` delegates to — so ``dialect.py`` holds
@@ -191,7 +192,7 @@ def dialect_singleton_for(name: "BackendName") -> "Dialect":
     return entry.dialect
 
 
-def registered_names() -> "tuple[str, ...]":
+def registered_names() -> tuple[str, ...]:
     """Names registered SO FAR (after their modules were imported).
 
     Used by the conformance test to iterate every backend the runtime knows. Call

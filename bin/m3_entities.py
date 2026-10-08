@@ -49,9 +49,8 @@ import re
 import sys
 import time
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 _BIN = REPO_ROOT / "bin"
@@ -167,10 +166,10 @@ def _maybe_reclassify_module(etype: str, cname: str) -> str:
 # ── Helpers ────────────────────────────────────────────────────────────────
 
 def _today() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%d")
+    return datetime.now(UTC).strftime("%Y%m%d")
 
 
-def _load_vocab(path: Optional[Path]) -> tuple[frozenset[str], frozenset[str]]:
+def _load_vocab(path: Path | None) -> tuple[frozenset[str], frozenset[str]]:
     """Load entity_types + entity_predicates from a YAML at path. If None,
     defer to memory_core.load_entity_vocab(None) which honors
     M3_ENTITY_VOCAB_YAML / falls back to entity_graph_default.yaml."""
@@ -180,8 +179,8 @@ def _load_vocab(path: Optional[Path]) -> tuple[frozenset[str], frozenset[str]]:
 
 
 async def _discover_loaded_model_async(
-    client: httpx.AsyncClient, url: str, token: "str | None"
-) -> "str | None":
+    client: httpx.AsyncClient, url: str, token: str | None
+) -> str | None:
     """Id of a model currently loaded at ``url``'s server, so a blank-model
     profile can follow the loaded model BY NAME.
 
@@ -518,10 +517,10 @@ def _ensure_extraction_status_column(conn) -> None:
 def _query_eligible_rows(
     db_path: Path,
     type_allowlist: tuple[str, ...],
-    source_variant: Optional[str],
-    limit: Optional[int],
+    source_variant: str | None,
+    limit: int | None,
     skip_already_extracted: bool,
-    source_conv_list: Optional[set[str]] = None,
+    source_conv_list: set[str] | None = None,
 ) -> list[tuple[str, str]]:
     """Return [(memory_id, content)] for rows the extractor should process.
 
@@ -656,12 +655,12 @@ async def _run_db(
     valid_types: frozenset[str],
     valid_predicates: frozenset[str],
     type_allowlist: tuple[str, ...],
-    source_variant: Optional[str],
+    source_variant: str | None,
     concurrency: int,
-    limit: Optional[int],
+    limit: int | None,
     skip_already_extracted: bool,
     counters: dict,
-    source_conv_list: Optional[set[str]] = None,
+    source_conv_list: set[str] | None = None,
 ) -> None:
     """Drive the extractor across all eligible rows in one DB."""
     os.environ["M3_DATABASE"] = str(db_path)
@@ -743,7 +742,7 @@ async def _run_db(
     # loop appeared to "do one burst then go quiet". Fix: collect the processed
     # ids in memory and flush them in ONE transaction after the gather — N lock
     # acquisitions become 1. Still best-effort and idempotent (ON CONFLICT).
-    _marks: "list[str]" = []
+    _marks: list[str] = []
 
     def _mark_extracted(memory_id: str) -> None:
         """Queue `memory_id` to be marked status='done' at the end of the pass.
@@ -1043,7 +1042,7 @@ async def _main_async(args: argparse.Namespace) -> int:
         "skip_already_extracted": not args.force,
         "dbs": {},
     }
-    conv_set: Optional[set[str]] = None
+    conv_set: set[str] | None = None
     if getattr(args, "source_conv_list", None):
         conv_path = Path(args.source_conv_list)
         if not conv_path.exists():

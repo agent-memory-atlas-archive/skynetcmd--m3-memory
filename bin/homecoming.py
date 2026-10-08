@@ -161,7 +161,7 @@ def _rewrite_chatlog_db_path(config_path, engine_root):
     rest of the JSON (and key order) so unrelated settings survive.
     """
     try:
-        with open(config_path, "r", encoding="utf-8") as f:
+        with open(config_path, encoding="utf-8") as f:
             cfg = json.load(f)
     except (OSError, json.JSONDecodeError) as e:
         logger.warning(f"Could not read {config_path} to fix db_path: {e}")

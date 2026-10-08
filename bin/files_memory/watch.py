@@ -31,8 +31,8 @@ from __future__ import annotations
 import logging
 import sqlite3
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, Optional
 
 from .config import files_table
 from .db import _db
@@ -64,7 +64,7 @@ def _ensure_watch_state_table(conn: sqlite3.Connection) -> None:
     )
 
 
-def _watch_state_get(conn, key: str) -> Optional[str]:
+def _watch_state_get(conn, key: str) -> str | None:
     from memory.backends import dialect as _dialect
     _p = _dialect().param()
     row = conn.execute(
@@ -92,7 +92,7 @@ def _cooldown_key(file_node_uuid: str, event_kind: str) -> str:
 # ──────────────────────────────────────────────────────────────────────────────
 # Notification hook
 # ──────────────────────────────────────────────────────────────────────────────
-def _default_notify(agent_id: str, kind: str, payload: dict) -> Optional[str]:
+def _default_notify(agent_id: str, kind: str, payload: dict) -> str | None:
     """Default channel: memory_core.notify_impl (writes to memory.db).
 
     Returns the result string from notify_impl, or None when memory_core
@@ -135,13 +135,13 @@ class CycleResult:
 # ──────────────────────────────────────────────────────────────────────────────
 def watch_once(
     *,
-    directory: Optional[str] = None,
-    corpus_id: Optional[str] = None,
+    directory: str | None = None,
+    corpus_id: str | None = None,
     agent_id: str = "files_memory.watch",
     cooldown_seconds: float = 3600.0,
-    notify_callable: Optional[Callable[[str, str, dict], Optional[str]]] = None,
-    db_path: Optional[str] = None,
-    notify_kinds: Optional[set[str]] = None,
+    notify_callable: Callable[[str, str, dict], str | None] | None = None,
+    db_path: str | None = None,
+    notify_kinds: set[str] | None = None,
 ) -> CycleResult:
     """Run one staleness review + notify pass.
 
@@ -194,7 +194,7 @@ def watch_once(
     with _db(db_path) as conn:
         _ensure_watch_state_table(conn)
 
-        def _maybe_notify(kind: str, file_node_uuid: Optional[str], payload: dict) -> None:
+        def _maybe_notify(kind: str, file_node_uuid: str | None, payload: dict) -> None:
             if kind not in notify_kinds:
                 return
             # New files / drifted promotions / rename candidates don't
@@ -279,7 +279,7 @@ def watch_once(
     return result
 
 
-def _file_node_for_path(conn, path: str) -> Optional[str]:
+def _file_node_for_path(conn, path: str) -> str | None:
     """Look up the current file_node uuid for an absolute path. None if
     not found or the row is superseded."""
     from memory.backends import dialect as _dialect
@@ -298,14 +298,14 @@ def _file_node_for_path(conn, path: str) -> Optional[str]:
 # ──────────────────────────────────────────────────────────────────────────────
 def watch_loop(
     *,
-    directory: Optional[str] = None,
-    corpus_id: Optional[str] = None,
+    directory: str | None = None,
+    corpus_id: str | None = None,
     interval_seconds: float = 300.0,
     agent_id: str = "files_memory.watch",
     cooldown_seconds: float = 3600.0,
-    max_cycles: Optional[int] = None,
-    db_path: Optional[str] = None,
-    notify_callable: Optional[Callable[[str, str, dict], Optional[str]]] = None,
+    max_cycles: int | None = None,
+    db_path: str | None = None,
+    notify_callable: Callable[[str, str, dict], str | None] | None = None,
 ) -> int:
     """Blocking polling loop. SIGINT-friendly: KeyboardInterrupt breaks out.
 

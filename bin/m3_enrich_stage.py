@@ -32,8 +32,8 @@ connection lifecycle (matches how memory_core._db() is used today).
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable
 
 # Stage name registry. Adding a new stage = add a constant here so
 # greps find every call site.

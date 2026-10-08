@@ -38,9 +38,9 @@ import os
 import sys
 import threading
 import time
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Iterable, List, Optional
 
 from m3_core import process as _process
 
@@ -86,7 +86,7 @@ def _safe_role(role: str) -> str:
 # Path resolution — everything hangs off the engine root's .internal/ dir so
 # the protocol is scoped to the same DBs the writers actually open.
 # ──────────────────────────────────────────────────────────────────────────
-def _engine_root(engine_root: Optional[str] = None) -> Path:
+def _engine_root(engine_root: str | None = None) -> Path:
     if engine_root:
         return Path(engine_root)
     # Resolve via the canonical m3_sdk helper (M3_ENGINE_ROOT > M3_MEMORY_ROOT/
@@ -96,15 +96,15 @@ def _engine_root(engine_root: Optional[str] = None) -> Path:
     return Path(get_m3_engine_root())
 
 
-def _internal_dir(engine_root: Optional[str] = None) -> Path:
+def _internal_dir(engine_root: str | None = None) -> Path:
     return _engine_root(engine_root) / ".internal"
 
 
-def _pid_dir(engine_root: Optional[str] = None) -> Path:
+def _pid_dir(engine_root: str | None = None) -> Path:
     return _internal_dir(engine_root) / _PID_DIRNAME
 
 
-def _halt_path(engine_root: Optional[str] = None) -> Path:
+def _halt_path(engine_root: str | None = None) -> Path:
     return _internal_dir(engine_root) / _HALT_FILENAME
 
 
@@ -119,7 +119,7 @@ _pid_is_alive = _process.pid_is_alive
 _CREATE_TIME_MATCH_TOLERANCE_S = _process.CREATE_TIME_MATCH_TOLERANCE_S
 
 
-def _pid_is_live_owner(pid: int, recorded_create_time: "float | None") -> bool:
+def _pid_is_live_owner(pid: int, recorded_create_time: float | None) -> bool:
     """Reuse-safe identity check; logic in `m3_core.process.pid_is_live_owner`.
 
     Passes this module's probes at CALL time so a patched `_pid_is_alive` /
@@ -145,10 +145,10 @@ pid_is_alive = _pid_is_alive
 
 def _build_registry_payload(
     role: str,
-    engine_root: Optional[str],
-    extra: Optional[dict] = None,
+    engine_root: str | None,
+    extra: dict | None = None,
     *,
-    pid: Optional[int] = None,
+    pid: int | None = None,
 ) -> dict:
     """Stamp a coordination payload for the current (or given) process, using the
     shared schema builder. This is the runtime seam: it reads pid + create_time
@@ -167,8 +167,8 @@ def _build_registry_payload(
 
 def register_process(
     role: str,
-    engine_root: Optional[str] = None,
-    extra: Optional[dict] = None,
+    engine_root: str | None = None,
+    extra: dict | None = None,
 ) -> Path:
     """Register the current process as a live writer of role ``role``.
 
@@ -199,7 +199,7 @@ def register_process(
         return pdir / f"{role}.{pid}"
 
 
-def deregister(role: str, engine_root: Optional[str] = None) -> None:
+def deregister(role: str, engine_root: str | None = None) -> None:
     """Remove this process's registry entry. Best-effort (atexit/signal safe)."""
     role = _safe_role(role)
     entry = _pid_dir(engine_root) / f"{role}.{os.getpid()}"
@@ -209,7 +209,7 @@ def deregister(role: str, engine_root: Optional[str] = None) -> None:
         logger.debug("m3_halt: deregister %s failed (non-fatal): %s", entry.name, e)
 
 
-def list_live_processes(engine_root: Optional[str] = None) -> list[ProcInfo]:
+def list_live_processes(engine_root: str | None = None) -> list[ProcInfo]:
     """Return live registered writers for this engine root, reaping stale files.
 
     A registry file is stale (and unlinked) if its PID is not alive. Returns an
@@ -313,7 +313,7 @@ def _bare(token: str) -> str:
 _PY_OPTS_WITH_VALUE = ("-X", "-W", "-Q", "-c", "-m")
 
 
-def _program_and_args(argv: "list[str]") -> "tuple[str, list[str]]":
+def _program_and_args(argv: list[str]) -> tuple[str, list[str]]:
     """The program a process RUNS and its arguments: argv[0], or for a Python
     interpreter the script it was given. ("", []) when there is none.
 
@@ -343,7 +343,7 @@ def _program_and_args(argv: "list[str]") -> "tuple[str, list[str]]":
     return "", []
 
 
-def writer_role(argv: "list[str]") -> "str | None":
+def writer_role(argv: list[str]) -> str | None:
     """The writer role a process with this argv plays, or None. The one owner of
     that decision: the scan and the tests both call it."""
     program, args = _program_and_args(argv)
@@ -359,7 +359,7 @@ def writer_role(argv: "list[str]") -> "str | None":
     return None
 
 
-def scan_db_writer_processes(engine_root: Optional[str] = None) -> list[ProcInfo]:
+def scan_db_writer_processes(engine_root: str | None = None) -> list[ProcInfo]:
     """Find running m3 DB-writers by COMMAND-LINE signature (with a process-NAME
     fallback for privilege-denied cmdlines), independent of the PID registry.
     Cross-platform via psutil (Windows / Linux / macOS).
@@ -437,7 +437,7 @@ def scan_db_writer_processes(engine_root: Optional[str] = None) -> list[ProcInfo
     return found
 
 
-def elevated_kill_commands(pids: "list[int]") -> "list[str]":
+def elevated_kill_commands(pids: list[int]) -> list[str]:
     """The exact command(s) to stop the given PIDs from an ELEVATED shell, for the
     CURRENT OS. Surfaced to the user when the unprivileged installer can't stop an
     elevated/stale m3 writer, so they can clear it and retry — Windows / Linux /
@@ -558,7 +558,7 @@ def describe_left_running(role: str, pid: object, error: object) -> str:
     return f"{base_role(role)} (pid {pid}) left running ({why}); it holds no data."
 
 
-def list_all_db_writers(engine_root: Optional[str] = None) -> list[ProcInfo]:
+def list_all_db_writers(engine_root: str | None = None) -> list[ProcInfo]:
     """Union of registered writers (list_live_processes) and cmdline-discovered
     writers (scan_db_writer_processes), deduplicated by pid.
 
@@ -574,7 +574,7 @@ def list_all_db_writers(engine_root: Optional[str] = None) -> list[ProcInfo]:
     return list(by_pid.values())
 
 
-def list_blocking_db_writers(engine_root: Optional[str] = None) -> list[ProcInfo]:
+def list_blocking_db_writers(engine_root: str | None = None) -> list[ProcInfo]:
     """The set an exclusive op must actually quiesce.
 
     list_all_db_writers minus roles that hold no store (NON_BLOCKING_ROLES).
@@ -596,13 +596,13 @@ def _ancestor_pids(pid: int, *, max_depth: int = 24) -> set:
 
 
 def kill_stale_daemons(
-    engine_root: Optional[str] = None,
+    engine_root: str | None = None,
     *,
     timeout: float = 8.0,
-    started_before: Optional[float] = None,
-    roles: Optional[Iterable[str]] = None,
-    exclude_roles: Optional[Iterable[str]] = None,
-) -> "list[dict]":
+    started_before: float | None = None,
+    roles: Iterable[str] | None = None,
+    exclude_roles: Iterable[str] | None = None,
+) -> list[dict]:
     """Terminate every running m3 DB-writer for this engine root. Call this at the
     START of an install/upgrade so no OLD-version daemon survives across the swap:
     a leftover writer runs the pre-upgrade code against the just-upgraded DB/payload
@@ -718,7 +718,7 @@ def kill_stale_daemons(
 # ──────────────────────────────────────────────────────────────────────────
 # HALT semaphore
 # ──────────────────────────────────────────────────────────────────────────
-def set_halt(owner: str, reason: str, engine_root: Optional[str] = None,
+def set_halt(owner: str, reason: str, engine_root: str | None = None,
              targets: str = _TARGET_ALL) -> Path:
     """Raise the quiesce semaphore. Only ``targets="*"`` (all writers) is
     implemented — the per-role extension point is documented but unshipped.
@@ -744,7 +744,7 @@ def set_halt(owner: str, reason: str, engine_root: Optional[str] = None,
     return path
 
 
-def clear_halt(engine_root: Optional[str] = None) -> None:
+def clear_halt(engine_root: str | None = None) -> None:
     """Lower the semaphore so paused writers resume. Best-effort/idempotent."""
     try:
         _halt_path(engine_root).unlink(missing_ok=True)
@@ -752,7 +752,7 @@ def clear_halt(engine_root: Optional[str] = None) -> None:
         logger.warning("m3_halt: could not clear HALT_m3: %s", e)
 
 
-def halt_is_active(engine_root: Optional[str] = None, role: Optional[str] = None) -> bool:
+def halt_is_active(engine_root: str | None = None, role: str | None = None) -> bool:
     """True if writers of ``role`` should pause right now.
 
     Honors ONLY a semaphore whose owner is still alive: a HALT_m3 left by a
@@ -794,7 +794,7 @@ class QuiesceResult:
     stuck: list[ProcInfo]
 
 
-def wait_for_roles(roles, engine_root: Optional[str] = None,
+def wait_for_roles(roles, engine_root: str | None = None,
                    timeout: float = 20.0, poll: float = 0.5) -> list:
     """Wait up to ``timeout`` s for every role in ``roles`` to appear registered.
 
@@ -833,9 +833,9 @@ def wait_for_roles(roles, engine_root: Optional[str] = None,
         time.sleep(poll)
 
 
-def wait_for_quiesce(engine_root: Optional[str] = None, timeout: float = 30.0,
+def wait_for_quiesce(engine_root: str | None = None, timeout: float = 30.0,
                      poll: float = 0.5,
-                     on_tick: Optional[Callable[[float, float, List["ProcInfo"]], None]] = None
+                     on_tick: Callable[[float, float, list[ProcInfo]], None] | None = None
                      ) -> QuiesceResult:
     """Wait up to ``timeout`` s for the PID registry to empty.
 
@@ -949,7 +949,7 @@ _LOCK_SUFFIX = ".lock"
 # Guarded by _HELD_LOCKS_MUTEX because acquire() and release() run on different
 # threads (the loop dispatches passes via asyncio.to_thread), so the
 # check-then-set of the re-entrant fast-path + the dict writes must be atomic.
-_HELD_LOCKS: "dict[tuple[str, str], InstanceLock]" = {}
+_HELD_LOCKS: dict[tuple[str, str], InstanceLock] = {}
 _HELD_LOCKS_MUTEX = threading.RLock()
 
 # Append-only lock-event audit log. Records every ownership change (acquired /
@@ -963,11 +963,11 @@ _LOCK_EVENTS_FILENAME = "lock_events.jsonl"
 _LOCK_EVENTS_MAX_BYTES = 1_000_000  # ~1 MB; rotate (keep one .1 backup) past this
 
 
-def _lock_events_path(engine_root: Optional[str] = None) -> Path:
+def _lock_events_path(engine_root: str | None = None) -> Path:
     return _internal_dir(engine_root) / _LOCK_EVENTS_FILENAME
 
 
-def _log_lock_event(event: str, role: str, engine_root: Optional[str],
+def _log_lock_event(event: str, role: str, engine_root: str | None,
                     **fields) -> None:
     """Append one JSONL lock event. Best-effort — swallow ALL errors so logging
     can never affect a lock acquire/release. Rotates when the file exceeds
@@ -992,15 +992,15 @@ def _log_lock_event(event: str, role: str, engine_root: Optional[str],
         pass
 
 
-def read_lock_events(engine_root: Optional[str] = None,
-                     role: Optional[str] = None,
-                     limit: int = 200) -> "list[dict]":
+def read_lock_events(engine_root: str | None = None,
+                     role: str | None = None,
+                     limit: int = 200) -> list[dict]:
     """Return recent lock events (newest last), optionally filtered by ``role``.
     For doctor / the dashboard lock panel. Reads the current file only (rotated
     .1 backup is not merged — recent history is what matters). Empty list (never
     None, §3) on any error. ``limit`` caps the returned rows (most recent)."""
     p = _lock_events_path(engine_root)
-    out: "list[dict]" = []
+    out: list[dict] = []
     try:
         with open(p, encoding="utf-8") as fh:
             for line in fh:
@@ -1063,11 +1063,11 @@ _proc_create_time = _process.proc_create_time
 proc_create_time = _proc_create_time
 
 
-def _lock_path(role: str, engine_root: Optional[str] = None) -> Path:
+def _lock_path(role: str, engine_root: str | None = None) -> Path:
     return _internal_dir(engine_root) / f"{_safe_role(role)}{_LOCK_SUFFIX}"
 
 
-def _os_lock_exclusive_nb(fd: int) -> "tuple[bool, Optional[Exception]]":
+def _os_lock_exclusive_nb(fd: int) -> tuple[bool, Exception | None]:
     """Take a NON-BLOCKING exclusive OS advisory lock on ``fd``.
 
     Returns (got_lock, error):
@@ -1145,8 +1145,8 @@ class InstanceLock:
     pid: int
     path: Path
     fd: int
-    status: "LockStatus"
-    engine_root: Optional[str] = None
+    status: LockStatus
+    engine_root: str | None = None
     _released: bool = field(default=False, repr=False)
 
     @property
@@ -1184,7 +1184,7 @@ class InstanceLock:
                 pass
             _log_lock_event("released", self.role, self.engine_root)
 
-    def __enter__(self) -> "InstanceLock":
+    def __enter__(self) -> InstanceLock:
         return self
 
     def __exit__(self, *exc) -> None:
@@ -1204,9 +1204,9 @@ class LockResult:
     (ACQUIRED/REENTRANT/CONFIG_ERROR/LOCK_ERROR); ``owner`` is set only for
     HELD_BY_PEER (the live holder's sidecar info, if readable)."""
 
-    status: "LockStatus"
-    lock: "Optional[InstanceLock]" = None
-    owner: "Optional[ProcInfo]" = None
+    status: LockStatus
+    lock: InstanceLock | None = None
+    owner: ProcInfo | None = None
 
     @property
     def runnable(self) -> bool:
@@ -1221,7 +1221,7 @@ class LockResult:
         return self.status is LockStatus.HELD_BY_PEER
 
 
-def _register_lock_cleanup(lock: "InstanceLock") -> None:
+def _register_lock_cleanup(lock: InstanceLock) -> None:
     """Register best-effort lock cleanup on process exit.
 
     The OS releases the advisory lock on process death regardless — this just
@@ -1268,7 +1268,7 @@ def _owner_sidecar_path(lock_path: Path) -> Path:
     return lock_path.with_suffix(lock_path.suffix + ".owner")
 
 
-def _read_sidecar_owner(path: Path, engine_root: Optional[str]) -> "Optional[ProcInfo]":
+def _read_sidecar_owner(path: Path, engine_root: str | None) -> ProcInfo | None:
     """Best-effort: identify who holds the lock, for a human-readable "already
     running (pid N)" message. INFORMATIONAL only — the OS lock is the authority on
     "is it held". Reads the always-readable sibling owner file (never the locked
@@ -1285,11 +1285,11 @@ def _read_sidecar_owner(path: Path, engine_root: Optional[str]) -> "Optional[Pro
 def acquire_single_instance(
     role: str,
     *,
-    engine_root: Optional[str] = None,
-    extra: Optional[dict] = None,
+    engine_root: str | None = None,
+    extra: dict | None = None,
     steal: bool = False,
     timeout: float = 0.0,
-) -> "LockResult":
+) -> LockResult:
     """Acquire the single-instance OS advisory lock for ``role``. Returns a
     structured LockResult with a CATEGORICAL status (see LockStatus):
 
@@ -1331,7 +1331,7 @@ def acquire_single_instance(
     path = _lock_path(role, engine_root)
     key = (role, root)
 
-    def _try_once() -> "LockResult":
+    def _try_once() -> LockResult:
         """One acquire attempt. MUST be called holding _HELD_LOCKS_MUTEX so the
         re-entrant check, the per-process OS-lock attempt, and the _HELD_LOCKS
         write are atomic together."""
@@ -1430,11 +1430,11 @@ def acquire_single_instance(
 def acquire_or_exit(
     role: str,
     *,
-    engine_root: Optional[str] = None,
-    extra: Optional[dict] = None,
+    engine_root: str | None = None,
+    extra: dict | None = None,
     on_already_running=None,
     strict: bool = False,
-) -> "InstanceLock":
+) -> InstanceLock:
     """Convenience for a service main: acquire the single-instance lock, or exit
     with a HIGH-FIDELITY code. Collapses the categorical result so EVERY caller
     handles outcomes identically (not hand-rolled per service):
@@ -1478,7 +1478,7 @@ def acquire_or_exit(
     return res.lock  # type: ignore[return-value]  # always set for these statuses
 
 
-def _steal_lock(owner: "Optional[ProcInfo]", path: Path, our_fd: int) -> None:
+def _steal_lock(owner: ProcInfo | None, path: Path, our_fd: int) -> None:
     """Kill the LIVE lock holder so we can take over. Destructive — only reached
     via acquire_single_instance(steal=True). Precise: kills exactly the sidecar's
     recorded pid (never a name/cmdline match — the 2026-06-30 substring incident),

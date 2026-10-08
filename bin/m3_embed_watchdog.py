@@ -57,7 +57,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 _BIN = Path(__file__).resolve().parent
@@ -121,7 +121,7 @@ def _log_path() -> Path:
 
 
 def log(msg: str) -> None:
-    line = f"[{datetime.now(timezone.utc).isoformat(timespec='seconds')}] {msg}"
+    line = f"[{datetime.now(UTC).isoformat(timespec='seconds')}] {msg}"
     # Match the codebase's cp1252-safe print: the console encoding can reject
     # the stream's default even for ASCII-only payloads.
     try:
@@ -137,7 +137,7 @@ def log(msg: str) -> None:
         pass
 
 
-def shared_mode() -> "tuple[bool, str]":
+def shared_mode() -> tuple[bool, str]:
     """(enabled, url). Shared mode is the only configuration with a :8082 to
     guard; on an unshared host every process embeds in-process and this
     watchdog must stay silent."""
@@ -204,7 +204,7 @@ def recently_restarted(state: dict) -> bool:
     return bool(last) and (time.time() - float(last)) < _MIN_RESTART_GAP_S
 
 
-def _restart_backend() -> "tuple[list[list[str]], str]":
+def _restart_backend() -> tuple[list[list[str]], str]:
     """(commands, description) to bring the embed server up via its platform
     supervisor. A START, not a restart: this only fires when the server is not
     serving, and a start is a no-op for one already running.

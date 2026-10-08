@@ -75,7 +75,7 @@ def _minor_series(version: str) -> str:
     return ".".join(parts[:2]) + ".x"
 
 
-def _sync_pypi_badge(target: str, *, check: bool) -> "str | None":
+def _sync_pypi_badge(target: str, *, check: bool) -> str | None:
     """Rewrite every version string in the PyPI badge SVG.
 
     Returns a drift description when out of sync, else None. The SVG carries the
@@ -96,7 +96,7 @@ def _sync_pypi_badge(target: str, *, check: bool) -> "str | None":
     return None
 
 
-def _sync_security_supported(target: str, *, check: bool) -> "str | None":
+def _sync_security_supported(target: str, *, check: bool) -> str | None:
     """Keep SECURITY.md's "Supported Versions" row on the current series.
 
     Only the row marked ``(latest)`` is touched: older rows are deliberate
@@ -125,7 +125,7 @@ def _sync_security_supported(target: str, *, check: bool) -> "str | None":
 _ROADMAP_MD = _ROOT / "docs" / "ROADMAP.md"
 
 
-def _sync_roadmap_current(target: str, *, check: bool) -> "str | None":
+def _sync_roadmap_current(target: str, *, check: bool) -> str | None:
     """Keep ROADMAP.md's "Current version" line on the released version. It was
     hand-maintained and named 2026.10.6.0 after 2026.10.7.0 had shipped."""
     if not _ROADMAP_MD.is_file():
@@ -159,7 +159,7 @@ def _rewrite_versions(text: str, target: str) -> tuple[str, int]:
     """Rewrite every ``"version"`` value to ``target``; return (new_text, changed)."""
     changed = 0
 
-    def _sub(m: "re.Match[str]") -> str:
+    def _sub(m: re.Match[str]) -> str:
         nonlocal changed
         if m.group(2) != target:
             changed += 1

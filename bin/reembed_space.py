@@ -38,7 +38,7 @@ if _BIN not in sys.path:
     sys.path.insert(0, _BIN)
 
 
-def _mixed_kinds(rows) -> "set[str]":
+def _mixed_kinds(rows) -> set[str]:
     """vector_kinds that hold MORE THAN ONE model family.
 
     ``vector_kind`` partitions vectors that are SUPPOSED to live in separate
@@ -46,13 +46,13 @@ def _mixed_kinds(rows) -> "set[str]":
     mix. Only a kind containing two families is a problem — and only rows in
     such a kind may be retired. Matches how the doctor probe decides.
     """
-    fams_by_kind: "dict[str, set[str]]" = {}
+    fams_by_kind: dict[str, set[str]] = {}
     for kind, _tag, fam, _dim, _n in rows:
         fams_by_kind.setdefault(kind, set()).add(fam)
     return {k for k, f in fams_by_kind.items() if len(f) > 1}
 
 
-def _keep_family(rows, keep: "str | None") -> str:
+def _keep_family(rows, keep: str | None) -> str:
     """Choose which family to KEEP: the explicit --keep, else the largest.
 
     Defaulting to the majority family is the conservative choice — it minimises
@@ -64,7 +64,7 @@ def _keep_family(rows, keep: "str | None") -> str:
     if keep:
         return keep
     mixed = _mixed_kinds(rows)
-    totals: "dict[str, int]" = {}
+    totals: dict[str, int] = {}
     for kind, _tag, fam, _dim, n in rows:
         if kind in mixed:
             totals[fam] = totals.get(fam, 0) + n
@@ -184,7 +184,7 @@ def _delete_doomed(db_path: str, doomed) -> int:
     # both are context managers yielding a DB-API connection. Annotated Any so
     # the second branch isn't narrowed to the first's type (same treatment as
     # chatlog_decay.py's _conn_cm).
-    cm: "Any"
+    cm: Any
     if is_file:
         import sqlite3
         _conn = sqlite3.connect(db_path, timeout=30.0)

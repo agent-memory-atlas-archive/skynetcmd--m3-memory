@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from . import confidence as _conf
 
@@ -54,7 +54,7 @@ def set_agent_trust(db, agent_id: str, trust_score: float) -> float:
     agent row if absent. Returns the stored value. Raises on pre-036 DBs (the
     caller — agent_set_trust tool — should surface that clearly)."""
     value = _conf.clamp_trust(float(trust_score))
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     from memory.backends import dialect
 
     _d = dialect()
@@ -135,7 +135,7 @@ def record_corroboration(db, memory_id: str, *, source_kind: str, source_ref: st
         raise
 
 
-def reaggregate_confidence(db, memory_id: str) -> "float | None":
+def reaggregate_confidence(db, memory_id: str) -> float | None:
     """Recompute and store a memory's confidence from its current provenance +
     ledger. Returns the new value, or None if unsupported (pre-035/036). Keeps
     corroboration_count / contradiction_count columns in sync with the ledger."""
@@ -196,7 +196,7 @@ def _distinct_positive_count(db, memory_id: str) -> int:
         raise
 
 
-def _observer_conf(metadata) -> "float | None":
+def _observer_conf(metadata) -> float | None:
     import json
     try:
         meta = json.loads(metadata) if isinstance(metadata, str) else (metadata or {})

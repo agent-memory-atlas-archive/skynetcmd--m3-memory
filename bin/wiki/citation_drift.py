@@ -32,7 +32,7 @@ import hashlib
 import json
 import os
 from dataclasses import dataclass, field
-from typing import Optional, Protocol
+from typing import Protocol
 
 # Same provenance relations the blast-radius walk uses: a synthesis was compiled
 # FROM these sources, so these are what its claim must still hold against.
@@ -45,7 +45,7 @@ class DriftVerdict:
     (judge unavailable / errored / abstained) — treated as fail-open (no finding),
     never as a positive drift."""
     synthesis_id: str
-    drifted: Optional[bool]
+    drifted: bool | None
     reason: str = ""
 
 
@@ -85,7 +85,7 @@ def _sources_for(synthesis_id: str, edges, content_by_id: dict) -> list[str]:
     return out
 
 
-def check_drift(clusters, edges, judge: "Optional[DriftJudge]") -> Optional[DriftReport]:
+def check_drift(clusters, edges, judge: DriftJudge | None) -> DriftReport | None:
     """Run the citation-drift check. Returns None when no judge is injected — the
     default, so the caller emits nothing and the build stays byte-identical.
 
@@ -128,7 +128,7 @@ def check_drift(clusters, edges, judge: "Optional[DriftJudge]") -> Optional[Drif
     return report
 
 
-def render_section(report: Optional[DriftReport], links, self_path: str) -> list[str]:
+def render_section(report: DriftReport | None, links, self_path: str) -> list[str]:
     """Lint-section lines for the drift report. Empty list when the check did not
     run (no judge) — the caller then adds nothing, preserving determinism.
 
@@ -221,10 +221,10 @@ class DriftConfig:
     # its thinking channel, so the fix is to turn thinking OFF (see the
     # reasoning_effort block in _call_model), not to inflate the budget.
     max_tokens: int = 120
-    cache_dir: Optional[str] = None
+    cache_dir: str | None = None
 
     @classmethod
-    def from_env(cls, cache_dir: Optional[str] = None) -> "DriftConfig":
+    def from_env(cls, cache_dir: str | None = None) -> DriftConfig:
         return cls(
             url=os.environ.get("M3_WIKI_DRIFT_URL",
                                os.environ.get("M3_WIKI_SYNTH_URL", cls.url)),
@@ -261,7 +261,7 @@ def _build_judge_prompt(synthesis_content: str, source_contents: list[str]) -> s
     return "\n".join(lines)
 
 
-def _parse_verdict(text: str) -> "tuple[Optional[bool], str]":
+def _parse_verdict(text: str) -> tuple[bool | None, str]:
     """Extract (drifted, reason) from the model's reply. Tolerant: finds the JSON
     object even if the model wrapped it in prose/markdown. Returns (None, reason)
     when nothing parseable is found — fail-open (abstain), never a false drift."""
@@ -326,7 +326,7 @@ class ModelDriftJudge:
                 f"{self.cache_hits} cached, {self.abstentions} abstained")
 
     # -- model call (mirrors wiki.synth._call_model) -------------------------
-    def _call_model(self, user_prompt: str) -> "tuple[Optional[str], str]":
+    def _call_model(self, user_prompt: str) -> tuple[str | None, str]:
         try:
             import httpx  # lazy: only when --check-drift is used
         except ImportError:
@@ -369,7 +369,7 @@ class ModelDriftJudge:
             return None, ""  # fail open
 
     @staticmethod
-    def _resolve_key(service: str) -> Optional[str]:
+    def _resolve_key(service: str) -> str | None:
         if not service:
             return None
         try:
@@ -381,12 +381,12 @@ class ModelDriftJudge:
             return None
 
     # -- disk cache (mirrors wiki.synth cache) -------------------------------
-    def _cache_path(self, digest: str) -> Optional[str]:
+    def _cache_path(self, digest: str) -> str | None:
         if not self.cfg.cache_dir:
             return None
         return os.path.join(self.cfg.cache_dir, f"drift_{digest}.json")
 
-    def _read_cache(self, digest: str) -> "Optional[tuple[bool, str]]":
+    def _read_cache(self, digest: str) -> tuple[bool, str] | None:
         path = self._cache_path(digest)
         if not path or not os.path.isfile(path):
             return None

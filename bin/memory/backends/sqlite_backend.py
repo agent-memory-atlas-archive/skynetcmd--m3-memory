@@ -149,7 +149,7 @@ class SqliteDialect(Dialect):
     def has_content(self, column: str) -> str:
         return f"LENGTH(TRIM(COALESCE({column}, ''))) > 0"
 
-    def empty_json_default(self) -> "str | None":
+    def empty_json_default(self) -> str | None:
         return ""  # metadata_json is TEXT on SQLite; '' is fine (historical value)
 
     def returning_id_clause(self) -> str:
@@ -158,7 +158,7 @@ class SqliteDialect(Dialect):
     def claim_message(
         self, conn: object, *, table: str, where_sql: str, where_params: tuple,
         claimant: str, lease_ttl: int = 300,
-    ) -> "tuple | None":
+    ) -> tuple | None:
         """Claim via BEGIN IMMEDIATE + a unique token + SELECT-back.
 
         Deliberately does NOT use ``UPDATE ... RETURNING``, even though it would
@@ -292,23 +292,23 @@ class SqliteDialect(Dialect):
     def coalesce_open_timestamp(self, column: str, fill_placeholder: str) -> str:
         return f"COALESCE(NULLIF({column}, ''), {fill_placeholder})"
 
-    def _table_exists_query(self, table: str) -> "tuple[str, tuple]":
+    def _table_exists_query(self, table: str) -> tuple[str, tuple]:
         return (
             "SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?",
             (table,),
         )
 
-    def _columns_of_query(self, table: str) -> "tuple[str, tuple]":
+    def _columns_of_query(self, table: str) -> tuple[str, tuple]:
         # pragma_table_info('t') is a table-valued function (SQLite >= 3.16);
         # its `name` column is the column name. Caller reads row[0].
         return (f"SELECT name FROM pragma_table_info('{table}')", ())
 
-    def _column_exists_query(self, table: str, column: str) -> "tuple[str, tuple]":
+    def _column_exists_query(self, table: str, column: str) -> tuple[str, tuple]:
         # pragma_table_info takes the table inline (can't bind); the column name
         # IS bound. Zero rows for a missing table or missing column.
         return (f"SELECT 1 FROM pragma_table_info('{table}') WHERE name = ?", (column,))
 
-    def _glob_fragment(self, column: str, placeholder: str, pattern: str) -> "tuple[str, str]":
+    def _glob_fragment(self, column: str, placeholder: str, pattern: str) -> tuple[str, str]:
         # SQLite has a native case-sensitive GLOB; the pattern passes through.
         return (f"{column} GLOB {placeholder}", pattern)
 
@@ -325,7 +325,7 @@ class SqliteDialect(Dialect):
         # fails "database is locked" after doing its work.
         conn.execute("BEGIN IMMEDIATE")  # type: ignore[attr-defined]
 
-    def compact_storage(self, *, sqlite_path: "str | None" = None,
+    def compact_storage(self, *, sqlite_path: str | None = None,
                         max_bytes: int = 500 * 1024 * 1024) -> str:
         # VACUUM rewrites the file to reclaim free pages. It needs a fresh
         # connection OUTSIDE any open transaction (VACUUM cannot run inside one)
@@ -388,7 +388,7 @@ class SqliteBackend:
 
     name: BackendName = "sqlite"
 
-    def __init__(self, db_path: "str | None" = None) -> None:
+    def __init__(self, db_path: str | None = None) -> None:
         self._db_path = db_path
 
     def _ctx(self):
@@ -406,7 +406,7 @@ class SqliteBackend:
         ``memory.db._lazy_init``. Present for seam symmetry with PostgreSQL."""
         return
 
-    def schema_version(self) -> "int | None":
+    def schema_version(self) -> int | None:
         """MAX(version) from schema_versions, or None if the table is absent.
 
         Reads THIS backend's store: via connection(), so a pinned instance
@@ -546,7 +546,7 @@ class SqliteBackend:
             raise ValueError(f"placeholder count must be >= 1, got {n}")
         return ", ".join(["?"] * n)
 
-    def list_tables(self, conn: object) -> "set[str]":
+    def list_tables(self, conn: object) -> set[str]:
         """User tables from sqlite_master, minus SQLite's own internal names.
 
         `sqlite_%` covers sqlite_sequence, sqlite_stat*, and the autoindex
@@ -565,11 +565,11 @@ class SqliteBackend:
         self,
         conn: object,
         table: str,
-        columns: "list[str]",
-        rows: "list[tuple]",
+        columns: list[str],
+        rows: list[tuple],
         *,
         conflict_target: str,
-        update_columns: "list[str]",
+        update_columns: list[str],
         guard_sql: str = "",
     ) -> int:
         """`executemany` with an explicit placeholder tuple.
@@ -597,8 +597,8 @@ class SqliteBackend:
         self,
         conn: object,
         table: str,
-        columns: "list[str]",
-        rows: "list[tuple]",
+        columns: list[str],
+        rows: list[tuple],
         *,
         conflict_target: str,
     ) -> int:
@@ -688,7 +688,7 @@ class SqliteBackend:
         tenancy_sql: str = "",
         tenancy_params: tuple = (),
         table: str = "memory_items",
-    ) -> "list[KeywordHit]":
+    ) -> list[KeywordHit]:
         """FTS5 keyword search — a faithful extraction of the existing query.
 
         Compiles the query with the same ``_compile_fts_query`` used everywhere,
@@ -749,7 +749,7 @@ class SqliteBackend:
         table: str = "memory_items",
         extra_columns: tuple = (),
         search_mode: str = "fts5",
-    ) -> "list[dict]":
+    ) -> list[dict]:
         """FTS5 keyword search projecting the row body (see the base contract).
 
         The SAME MATCH + bm25 query as :meth:`keyword_search`, selecting the row
@@ -813,7 +813,7 @@ class SqliteBackend:
         embed_models: tuple = (),
         tenancy_sql: str = "",
         tenancy_params: tuple = (),
-    ) -> "list[VectorHit]":
+    ) -> list[VectorHit]:
         """Vector search, dispatched by capability to the best available path.
 
         The result SHAPE is identical regardless of which path runs (base.py
@@ -852,7 +852,7 @@ class SqliteBackend:
         embed_models: tuple = (),
         tenancy_sql: str = "",
         tenancy_params: tuple = (),
-    ) -> "list[VectorHit]":
+    ) -> list[VectorHit]:
         """The extension-free arm: fetch BLOB embeddings, score via Rust cosine.
 
         No sqlite-vec required — identical scoring to the non-vec branch of the

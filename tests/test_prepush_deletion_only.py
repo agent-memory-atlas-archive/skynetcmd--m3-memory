@@ -18,7 +18,7 @@ _HOOK = _ROOT / ".githooks" / "pre-push"
 _ZERO = "0" * 40
 
 
-def _git_bash() -> "str | None":
+def _git_bash() -> str | None:
     """The shell git itself runs hooks with.
 
     On Windows that is Git for Windows' bash, found next to `git --exec-path`;

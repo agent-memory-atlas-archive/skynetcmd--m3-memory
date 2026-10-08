@@ -18,7 +18,7 @@ from them.
 """
 from __future__ import annotations
 
-from typing import Iterable
+from collections.abc import Iterable
 
 # Edges whose direction means "the FROM node was compiled from the TO node", so a
 # wrong TO node contaminates the FROM node. These are the provenance edges a

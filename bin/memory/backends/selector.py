@@ -70,7 +70,7 @@ def active_backend() -> StorageBackend:
         return backend
 
 
-def dialect() -> "Dialect":
+def dialect() -> Dialect:
     """The SQL :class:`Dialect` for the ACTIVE backend (cached singleton).
 
     Convenience over ``active_backend().dialect()`` — the form ~96 call sites

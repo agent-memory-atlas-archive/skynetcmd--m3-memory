@@ -21,7 +21,7 @@ the parsed provider-native JSON.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 import httpx
@@ -73,9 +73,9 @@ def async_client_for_profile(profile, *, timeout: float | httpx.Timeout | None =
 class UnifiedAI:
     def __init__(
         self,
-        gemini_key: Optional[str] = None,
-        claude_key: Optional[str] = None,
-        lmstudio_url: Optional[str] = None,
+        gemini_key: str | None = None,
+        claude_key: str | None = None,
+        lmstudio_url: str | None = None,
         timeout: httpx.Timeout | float | None = None,
     ):
         self.gemini_key = gemini_key
@@ -94,7 +94,7 @@ class UnifiedAI:
     def close(self) -> None:
         self.http.close()
 
-    def __enter__(self) -> "UnifiedAI":
+    def __enter__(self) -> UnifiedAI:
         return self
 
     def __exit__(self, *exc) -> None:
@@ -103,11 +103,11 @@ class UnifiedAI:
     # ------------------------------------------------------------------
     # Unified entry points
     # ------------------------------------------------------------------
-    def chat(self, provider: str, model: str, messages: List[Dict], **kwargs) -> str:
+    def chat(self, provider: str, model: str, messages: list[dict], **kwargs) -> str:
         """Return only the assistant's text content."""
         return self.chat_raw(provider, model, messages, **kwargs)["content"]
 
-    def chat_raw(self, provider: str, model: str, messages: List[Dict], **kwargs) -> Dict[str, Any]:
+    def chat_raw(self, provider: str, model: str, messages: list[dict], **kwargs) -> dict[str, Any]:
         """Return {'content': str, 'usage': dict, 'raw': dict}."""
         if provider == "gemini":
             return self._chat_gemini(model, messages, **kwargs)
@@ -120,11 +120,11 @@ class UnifiedAI:
     # ------------------------------------------------------------------
     # Gemini (OpenAI-compatible)
     # ------------------------------------------------------------------
-    def _chat_gemini(self, model: str, messages: List[Dict], **kwargs) -> Dict[str, Any]:
+    def _chat_gemini(self, model: str, messages: list[dict], **kwargs) -> dict[str, Any]:
         if not self.gemini_key:
             raise RuntimeError("UnifiedAI: gemini_key not configured")
         url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
-        payload: Dict[str, Any] = {"model": model, "messages": messages, "stream": False}
+        payload: dict[str, Any] = {"model": model, "messages": messages, "stream": False}
         # Pass through any OpenAI-shape parameter (temperature, max_tokens,
         # reasoning_effort, top_p, etc.). Caller is responsible for naming.
         payload.update(kwargs)
@@ -145,20 +145,20 @@ class UnifiedAI:
     # ------------------------------------------------------------------
     # Claude (Anthropic native)
     # ------------------------------------------------------------------
-    def _chat_claude(self, model: str, messages: List[Dict], **kwargs) -> Dict[str, Any]:
+    def _chat_claude(self, model: str, messages: list[dict], **kwargs) -> dict[str, Any]:
         if not self.claude_key:
             raise RuntimeError("UnifiedAI: claude_key not configured")
         url = "https://api.anthropic.com/v1/messages"
         # Anthropic separates 'system' from messages; the OpenAI-style
         # caller may include a system role — pull it out.
         system = None
-        anthropic_messages: List[Dict] = []
+        anthropic_messages: list[dict] = []
         for m in messages:
             if m["role"] == "system":
                 system = m["content"]
             elif m["role"] in ("user", "assistant"):
                 anthropic_messages.append({"role": m["role"], "content": m["content"]})
-        payload: Dict[str, Any] = {
+        payload: dict[str, Any] = {
             "model": model,
             "messages": anthropic_messages,
             "max_tokens": kwargs.pop("max_tokens", 2048),
@@ -184,11 +184,11 @@ class UnifiedAI:
     # ------------------------------------------------------------------
     # LM Studio (local OpenAI-compatible)
     # ------------------------------------------------------------------
-    def _chat_lmstudio(self, model: str, messages: List[Dict], **kwargs) -> Dict[str, Any]:
+    def _chat_lmstudio(self, model: str, messages: list[dict], **kwargs) -> dict[str, Any]:
         if not self.lmstudio_url:
             raise RuntimeError("UnifiedAI: lmstudio_url not configured")
         url = f"{self.lmstudio_url.rstrip('/')}/v1/chat/completions"
-        payload: Dict[str, Any] = {"model": model, "messages": messages, "stream": False}
+        payload: dict[str, Any] = {"model": model, "messages": messages, "stream": False}
         payload.update(kwargs)
         r = self.http.post(url, json=payload)
         if r.status_code >= 400:

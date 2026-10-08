@@ -25,8 +25,7 @@ from __future__ import annotations
 
 import logging
 import urllib.parse
-from datetime import datetime, timezone
-from typing import Optional, Union
+from datetime import UTC, datetime
 
 logger = logging.getLogger("pg_fdw_sync")
 
@@ -60,8 +59,7 @@ _MEMORY_ITEMS_COLS = [
 # Annotated so mypy sees the per-position types instead of collapsing the
 # tuple into `str | list[str]`, which made every _upsert() arg look wrong.
 _TABLE_SPECS: list[
-    Union[tuple[str, list[str], str, Optional[str]],
-          tuple[str, list[str], str, Optional[str], str]]
+    tuple[str, list[str], str, str | None] | tuple[str, list[str], str, str | None, str]
 ] = [
     ("memory_items", _MEMORY_ITEMS_COLS, "id", "updated_at"),
     ("memory_embeddings",
@@ -176,8 +174,8 @@ def _ensure_fdw_wired(pg_cur, warehouse_dsn: str) -> None:
 
 
 def _upsert(pg_cur, target_qual: str, source_qual: str, cols: list[str], pk: str,
-            ts_col: Optional[str], watermark: Optional[str],
-            guard: Optional[str] = None) -> int:
+            ts_col: str | None, watermark: str | None,
+            guard: str | None = None) -> int:
     """One set-based delta upsert. target/source are schema-qualified table names.
     Returns rows affected. Last-writer-wins on ts_col unless `guard` overrides it.
 
@@ -227,7 +225,7 @@ def sync_pg_to_pg(primary_conn, warehouse_dsn: str, get_wm, set_wm,
         if dry_run:
             primary_conn.rollback()
             return {"dry_run": True, "tables": [t[0] for t in _TABLE_SPECS]}
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         for spec in _TABLE_SPECS:
             # 4- or 5-tuple: the optional 5th element is an explicit conflict
             # guard for tables that do not merge by timestamp.

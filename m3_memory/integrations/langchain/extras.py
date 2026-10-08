@@ -17,7 +17,7 @@ The mixin assumes the host class provides ``self._client`` (an ``M3Client``) and
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from . import mapping
 
@@ -35,7 +35,7 @@ class M3ExtrasMixin:
         old_id: str,
         new_content: str,
         *,
-        user_id: Optional[str] = None,
+        user_id: str | None = None,
         **kwargs: Any,
     ) -> dict:
         """Deterministically supersede ``old_id`` with ``new_content``.
@@ -57,7 +57,7 @@ class M3ExtrasMixin:
         return {"old_id": old_id, "new_id": mapping.parse_written_id(raw)}
 
     # ── commanded forgetting (§0b unmet-need #3 — mem0 has NO forget verb) ────
-    def forget(self, *, user_id: Optional[str] = None, **_ignored: Any) -> dict:
+    def forget(self, *, user_id: str | None = None, **_ignored: Any) -> dict:
         """GDPR Art. 17 hard-erase EVERY memory for a user (irreversible).
 
         The first-class ``forget`` verb mem0's surface lacks. Ungated typed

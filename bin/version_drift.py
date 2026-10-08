@@ -34,7 +34,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 logger = logging.getLogger("memory.version_drift")
@@ -101,7 +101,7 @@ def check_and_record() -> dict:
     current = _current_version()
     prior = _load_state()
     prior_version = prior.get("last_boot_version")
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     pid = os.getpid()
 
     findings = {

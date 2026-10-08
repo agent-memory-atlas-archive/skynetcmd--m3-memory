@@ -27,7 +27,7 @@ import sqlite3
 import time
 import uuid as _uuid
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 from embedding_utils import pack
 
@@ -59,7 +59,7 @@ class ExtractionResult:
     status: str           # 'ok' | 'failed' | 'skipped_size' | 'skipped_type'
     fact_count: int = 0
     duration_ms: int = 0
-    error: Optional[str] = None
+    error: str | None = None
     facts: list[ExtractedFact] = field(default_factory=list)
 
 
@@ -91,7 +91,7 @@ Rules:
 """
 
 
-def _llm_endpoint() -> Optional[str]:
+def _llm_endpoint() -> str | None:
     """Resolve the extraction LLM endpoint.
 
     Explicit per-purpose overrides win (M3_FILES_EXTRACT_URL > M3_FILES_SUMMARY_URL
@@ -121,7 +121,7 @@ def _llm_endpoint() -> Optional[str]:
         return None
 
 
-def _llm_model() -> Optional[str]:
+def _llm_model() -> str | None:
     """Model for the extractor: explicit override, else ASK THE SERVER.
 
     Same precedence as summarize._summary_model — explicit > discovery > None.
@@ -151,7 +151,7 @@ def llm_available() -> bool:
     return bool(_llm_endpoint())
 
 
-def _llm_call(content: str, max_tokens: int = 1024) -> Optional[str]:
+def _llm_call(content: str, max_tokens: int = 1024) -> str | None:
     """Call the LLM endpoint with the extract prompt. Returns raw text or None."""
     endpoint = _llm_endpoint()
     if not endpoint:
@@ -344,7 +344,7 @@ def extract_facts_for_leaf(
     leaf_text: str,
     *,
     leaf_division_type: str = "",
-    file_summary: Optional[str] = None,
+    file_summary: str | None = None,
     max_tokens: int = 1024,
 ) -> ExtractionResult:
     """Extract facts from one leaf's text. Pure: does NOT write to DB.
@@ -415,7 +415,7 @@ def write_extraction_result(
     file_node_uuid: str,
     ingestion_run_uuid: str,
     extractor_version: str,
-    model_id: Optional[str],
+    model_id: str | None,
     embed_facts: bool = True,
     link_entities: bool = True,
 ) -> None:
@@ -498,7 +498,7 @@ def write_extraction_result(
 # ──────────────────────────────────────────────────────────────────────────────
 # Queue-drain entry point
 # ──────────────────────────────────────────────────────────────────────────────
-def has_pending_extraction(db_path: "Optional[str]" = None) -> bool:
+def has_pending_extraction(db_path: str | None = None) -> bool:
     """True iff the files store EXISTS and holds a leaf with
     ``extraction_status='pending'``.
 
@@ -519,7 +519,7 @@ def has_pending_extraction(db_path: "Optional[str]" = None) -> bool:
 def extract_for_pending_leaves(
     limit: int = 100,
     *,
-    db_path: Optional[str] = None,
+    db_path: str | None = None,
 ) -> dict:
     """Drain leaves with extraction_status='pending'.
 

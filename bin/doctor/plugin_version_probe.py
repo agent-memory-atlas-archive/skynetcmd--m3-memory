@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import UTC
 
 PLUGIN_KEY = "m3@skynetcmd"
 
@@ -98,11 +99,11 @@ def _marketplace_age_days() -> float | None:
         raw = entry.get("lastUpdated")
         if isinstance(raw, str) and raw:
             try:
-                from datetime import datetime, timezone
+                from datetime import datetime
                 ts = datetime.fromisoformat(raw.replace("Z", "+00:00"))
                 if ts.tzinfo is None:
-                    ts = ts.replace(tzinfo=timezone.utc)
-                return (datetime.now(timezone.utc) - ts).total_seconds() / 86400.0
+                    ts = ts.replace(tzinfo=UTC)
+                return (datetime.now(UTC) - ts).total_seconds() / 86400.0
             except (ValueError, TypeError):
                 pass
 
@@ -111,10 +112,10 @@ def _marketplace_age_days() -> float | None:
     if not loc:
         loc = os.path.join(_claude_dir(), "plugins", "marketplaces", "skynetcmd")
     try:
-        from datetime import datetime, timezone
+        from datetime import datetime
         mtime = os.path.getmtime(os.path.join(loc, ".git", "FETCH_HEAD"))
-        ts = datetime.fromtimestamp(mtime, tz=timezone.utc)
-        return (datetime.now(timezone.utc) - ts).total_seconds() / 86400.0
+        ts = datetime.fromtimestamp(mtime, tz=UTC)
+        return (datetime.now(UTC) - ts).total_seconds() / 86400.0
     except OSError:
         return None
 
@@ -327,7 +328,7 @@ def repair(dry_run: bool = False) -> dict:
     def _disabled_servers() -> list:
         try:
             p = os.path.join(os.path.expanduser("~"), ".claude", "settings.json")
-            with open(p, "r", encoding="utf-8") as fh:
+            with open(p, encoding="utf-8") as fh:
                 return sorted(json.load(fh).get("disabledMcpServers") or [])
         except Exception:  # noqa: BLE001 — absence is not a regression signal
             return []

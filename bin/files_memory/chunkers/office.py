@@ -34,7 +34,7 @@ HuggingFace at first use — a runtime network dependency m3 will not take.
 from __future__ import annotations
 
 import logging
-from typing import Iterator
+from collections.abc import Iterator
 
 from . import Leaf
 from . import markdown as _markdown_chunker

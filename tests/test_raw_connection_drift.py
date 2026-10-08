@@ -220,7 +220,7 @@ PROSE_FSTRING = 'x = f"Do not use ' + "sqlite3.connect" + ' here {var}"\n'
 REAL_FSTRING = 'conn = ' + "sqlite3.connect" + '(f"{root}/a.db")\n'
 
 
-def _venv_dirs() -> "set[str]":
+def _venv_dirs() -> set[str]:
     """Directory names of any virtualenv INSIDE the tree, found structurally.
 
     `_SKIP_DIRS` names `.venv`, which is one convention among several: measured

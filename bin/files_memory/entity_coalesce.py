@@ -39,7 +39,6 @@ import re
 import sqlite3
 import time
 import uuid as _uuid
-from typing import Optional
 
 from .config import files_table as _files_table
 from .dedup import _cosine_packed
@@ -48,7 +47,7 @@ from .entities import _memory_db
 logger = logging.getLogger("files_memory.entity_coalesce")
 
 
-def _route_dialect(explicit_path: "str | None"):
+def _route_dialect(explicit_path: str | None):
     """The SQL dialect for THIS call's connection route.
 
     ``_memory_db(path)`` has two routes with DIFFERENT backends (see its
@@ -233,7 +232,7 @@ def _now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
-def _embed_tier_info(model_seen: Optional[str]) -> dict:
+def _embed_tier_info(model_seen: str | None) -> dict:
     """Report which embed tier served the run + a §8 perf hint. The in-process
     tier-1 (~10-85× faster) records a `*.gguf` model name; the HTTP fallback records
     a plain model id (e.g. `text-embedding-bge-m3`). We key off the RECORDED
@@ -610,7 +609,7 @@ def _pick_representative(mem, eid_a, eid_b, _p="?"):
     da, db_ = degree(eid_a), degree(eid_b)
     if da != db_:
         rep, mem_ent = (a, b) if da > db_ else (b, a)
-    elif len((a[1] or "")) != len((b[1] or "")):
+    elif len(a[1] or "") != len(b[1] or ""):
         rep, mem_ent = (a, b) if len(a[1] or "") >= len(b[1] or "") else (b, a)
     else:
         rep, mem_ent = (a, b) if a[0] <= b[0] else (b, a)

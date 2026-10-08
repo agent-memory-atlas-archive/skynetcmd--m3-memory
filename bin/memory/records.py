@@ -39,7 +39,8 @@ from __future__ import annotations
 import datetime
 import decimal
 import json
-from typing import Any, Iterable, Mapping
+from collections.abc import Iterable, Mapping
+from typing import Any
 
 # The one param name, so the twelve ToolSpecs cannot disagree about spelling.
 # Verified against the full catalog: no existing tool takes `as_records`.

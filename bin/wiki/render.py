@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import posixpath
 import re
-from typing import Optional
 
 from . import anchor as _anchor
 from . import authority as _authority
@@ -100,7 +99,7 @@ class SlugBook:
         self._by_owner[owner_id] = slug
         return slug
 
-    def get(self, owner_id: str) -> Optional[str]:
+    def get(self, owner_id: str) -> str | None:
         return self._by_owner.get(owner_id)
 
 
@@ -134,7 +133,7 @@ class LinkResolver:
         return ref in self._reg
 
     def link(self, ref: str, src_path_from_root: str,
-             text: Optional[str] = None, anchor: Optional[str] = None) -> str:
+             text: str | None = None, anchor: str | None = None) -> str:
         """Link to `ref` from the page at `src_path_from_root`.
 
         `anchor` (a heading text or pre-slugged id) jumps to a section within the
@@ -191,7 +190,7 @@ def render_pages(
     edges: list[Edge],
     files: FilesLayer,
     promotions: list[Promo],
-    ledes: Optional[dict[str, str]] = None,
+    ledes: dict[str, str] | None = None,
     obsidian: bool = False,
     drift_judge=None,
     derivability_judge=None,
@@ -304,7 +303,7 @@ def render_pages(
     return pages
 
 
-def _topic_synthesis(c: Cluster) -> "Optional[Mem]":
+def _topic_synthesis(c: Cluster) -> Mem | None:
     """The synthesis member whose compiled prose should be the topic body, or
     None. Deterministic: prefer a body-authority synthesis (canonical), then the
     one whose id sorts last (the current head, since a supersede mints a new id).
@@ -326,10 +325,10 @@ def _render_topic(
     promo_by_mem: dict[str, list[Promo]],
     backlinks: dict[str, set[str]],
     files: FilesLayer,
-    links: "LinkResolver",
-    lede: Optional[str] = None,
-    slug_by_ref: Optional[dict] = None,
-    dangling: Optional[list] = None,
+    links: LinkResolver,
+    lede: str | None = None,
+    slug_by_ref: dict | None = None,
+    dangling: list | None = None,
 ) -> str:
     top = c.members[0]
     slug = mem_to_topic.get(top.id, c.key)
@@ -467,7 +466,7 @@ def _yaml(s: str) -> str:
     return s
 
 
-def _nav(links: "LinkResolver", self_path: str) -> str:
+def _nav(links: LinkResolver, self_path: str) -> str:
     """A small breadcrumb of hyperlinks back to the vault's key pages."""
     parts = [links.link("index", self_path, "Index"),
              links.link("overview", self_path, "Overview"),
@@ -498,7 +497,7 @@ def _render_orphans(
     members: list[Mem],
     promo_by_mem: dict[str, list[Promo]],
     files: FilesLayer,
-    links: "LinkResolver",
+    links: LinkResolver,
 ) -> str:
     lines = [
         _fm(["title: Orphans", "type: index"]),
@@ -530,7 +529,7 @@ def _render_source(
     fn: FileNode,
     promotions: list[Promo],
     mem_to_topic: dict[str, str],
-    links: "LinkResolver",
+    links: LinkResolver,
 ) -> str:
     # All source pages live in sources/, so any sources/*.md path is a correct
     # relative-link base — use a placeholder ("sources/x.md").
@@ -653,7 +652,7 @@ def _truncate_outside_wikilinks(text: str, budget: int) -> str:
     return text[:cut].rstrip() + "…"
 
 
-def _resolve_wikilinks(text: str, links: "LinkResolver", src_path: str,
+def _resolve_wikilinks(text: str, links: LinkResolver, src_path: str,
                        slug_by_ref: dict, dangling: list) -> str:
     """Rewrite [[target]] / [[target|label]] in `text` into real links.
 
@@ -820,7 +819,7 @@ def _render_index(topic_clusters, topic_slugs, files, source_slugs, links, has_o
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _render_overview(clusters: list[Cluster], files: FilesLayer, links: "LinkResolver") -> str:
+def _render_overview(clusters: list[Cluster], files: FilesLayer, links: LinkResolver) -> str:
     topics = [c for c in clusters if not c.is_orphan]
     orphans = [m for c in clusters if c.is_orphan for m in c.members]
     all_mem = [m for c in clusters for m in c.members]
@@ -848,7 +847,7 @@ def _render_overview(clusters: list[Cluster], files: FilesLayer, links: "LinkRes
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _render_about(links: "LinkResolver") -> str:
+def _render_about(links: LinkResolver) -> str:
     """A self-documenting page: explains the vault to whoever opens it.
 
     Rendered as a vault-native page with real hyperlinks into the vault's own
@@ -932,7 +931,7 @@ Full guide: the `docs/WIKI.md` file in the m3-memory repository."""
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _render_lint(clusters, edges, mem_to_topic, topic_slugs, links: "LinkResolver",
+def _render_lint(clusters, edges, mem_to_topic, topic_slugs, links: LinkResolver,
                  drift_judge=None, derivability_judge=None) -> str:
     SELF = "lint.md"
     orphans = [m for c in clusters if c.is_orphan for m in c.members]

@@ -22,7 +22,7 @@ from __future__ import annotations
 import asyncio
 import threading
 from concurrent.futures import Future
-from typing import Any, List
+from typing import Any
 
 # NOTE: mcp_tool_catalog is imported lazily inside _call(), NOT at module top.
 # It pulls a heavy dependency chain (memory_core + embedder), and a slow
@@ -110,7 +110,7 @@ class M3Client:
 
     # ── provider-facing methods (structured rows, never strings — §3) ─────────
 
-    def search(self, query: str, user_id: str, top_k: int) -> List[dict]:
+    def search(self, query: str, user_id: str, top_k: int) -> list[dict]:
         """Hybrid recall → [{"content", "score"}]. memory_search_scored returns
         list[(score, item)]; unpack to the shape the provider surfaces."""
         rows = self._call(
@@ -122,7 +122,7 @@ class M3Client:
         )
         return [{"content": it.get("content", ""), "score": s} for s, it in rows]
 
-    def get_all(self, user_id: str, type: str) -> List[dict]:
+    def get_all(self, user_id: str, type: str) -> list[dict]:
         """Stable user facts via the empty-query filter-only path (the spec's
         validator accepts query='')."""
         rows = self._call(

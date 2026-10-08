@@ -22,7 +22,7 @@ import ast
 import hashlib
 import re
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -578,7 +578,7 @@ def render_entry(relpath: str, sha1: str, mtime: str, doc: str,
                  generated_utc: str | None = None) -> str:
     flag_overrides = flag_overrides or {}
     if generated_utc is None:
-        generated_utc = datetime.now(timezone.utc).isoformat()
+        generated_utc = datetime.now(UTC).isoformat()
     L: list[str] = []
     L += ["---",
           f"tool: {relpath}",
@@ -802,7 +802,7 @@ def main() -> None:
 
         file_deps = extract_file_deps(source)
         sha1 = file_sha1(src)
-        mtime = datetime.fromtimestamp(src.stat().st_mtime, tz=timezone.utc).isoformat()
+        mtime = datetime.fromtimestamp(src.stat().st_mtime, tz=UTC).isoformat()
         # Relative path rooted at repo root, with forward slashes for portability
         # in markdown links.
         try:
@@ -864,7 +864,7 @@ def main() -> None:
                                  generated_utc=gen_placeholder)
         prior_body = _body_without_volatile_fields(
             out_path, mtime_placeholder, gen_placeholder)
-        now_iso = datetime.now(timezone.utc).isoformat()
+        now_iso = datetime.now(UTC).isoformat()
 
         if prior_sha1 == sha1 and prior_body == candidate:
             # Fully unchanged — keep prior metadata verbatim.
@@ -928,7 +928,7 @@ def main() -> None:
     new_body = "\n".join(idx_lines) + "\n"
 
     idx_path = OUT_DIR / "INDEX.md"
-    now_stamp = datetime.now(timezone.utc).isoformat()
+    now_stamp = datetime.now(UTC).isoformat()
     stamp = now_stamp
     if idx_path.exists():
         # Compare the committed INDEX against the new body with BOTH timestamps

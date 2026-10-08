@@ -1,8 +1,8 @@
 ---
 tool: bin/install_schedules.py
-sha1: a3c9a95f7d33
-mtime_utc: 2026-10-08T19:33:19.807228+00:00
-generated_utc: 2026-10-08T19:37:45.947525+00:00
+sha1: eeace7ae28ca
+mtime_utc: 2026-10-08T22:11:14.541180+00:00
+generated_utc: 2026-10-08T22:11:47.950031+00:00
 private: false
 ---
 
@@ -18,7 +18,7 @@ Uses project virtual environment paths and ensures log directories exist.
 
 ## Entry points
 
-- `def main()` (line 2620)
+- `def main()` (line 2621)
 - `if __name__ == "__main__"` guard
 
 ---

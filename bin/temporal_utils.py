@@ -6,22 +6,23 @@ into absolute ISO-8601 dates based on an anchor timestamp.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from datetime import datetime, timedelta
-from typing import Any, Callable
+from typing import Any
 
 # Dataset-specific anchor-date parsers register themselves here (from the
 # internal benchmark harnesses). Keeps benchmark-format knowledge out of this
 # shared module.
-_ANCHOR_PARSERS: list[Callable[[str], "datetime | None"]] = []
+_ANCHOR_PARSERS: list[Callable[[str], datetime | None]] = []
 
 
-def register_anchor_parser(parser: Callable[[str], "datetime | None"]) -> None:
+def register_anchor_parser(parser: Callable[[str], datetime | None]) -> None:
     """Register a dataset-specific anchor-date parser."""
     if parser not in _ANCHOR_PARSERS:
         _ANCHOR_PARSERS.append(parser)
 
 
-def parse_anchor_date(date_str: str) -> "datetime | None":
+def parse_anchor_date(date_str: str) -> datetime | None:
     """Try each registered dataset parser, return first non-None result."""
     for parser in _ANCHOR_PARSERS:
         result = parser(date_str)

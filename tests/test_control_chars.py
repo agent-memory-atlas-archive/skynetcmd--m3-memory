@@ -76,7 +76,7 @@ def test_tab_cr_lf_are_legitimate(tmp_path):
 
 def test_clean_markdown_with_backticks_passes(tmp_path, capsys):
     """The CORRECT form of the text that got mangled."""
-    f = _write(tmp_path, "g.md", "Replace struct.unpack with `bytemuck`; use `ring`.\n".encode())
+    f = _write(tmp_path, "g.md", b"Replace struct.unpack with `bytemuck`; use `ring`.\n")
     assert main([f]) == 0
     assert capsys.readouterr().out == ""
 

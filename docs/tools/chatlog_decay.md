@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_decay.py
-sha1: 27796a64ccf7
-mtime_utc: 2026-10-04T17:52:58.226477+00:00
-generated_utc: 2026-10-04T17:54:42.266006+00:00
+sha1: a77a82e440f9
+mtime_utc: 2026-10-08T22:11:14.490601+00:00
+generated_utc: 2026-10-08T22:11:47.704947+00:00
 private: false
 ---
 

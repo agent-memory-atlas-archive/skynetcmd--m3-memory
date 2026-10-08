@@ -800,8 +800,8 @@ class ContextLengthExceeded(EmbedError):
     cannot inform the split ratio.
     """
 
-    def __init__(self, message: str, observed_tokens: "int | None" = None,
-                 max_tokens: "int | None" = None):
+    def __init__(self, message: str, observed_tokens: int | None = None,
+                 max_tokens: int | None = None):
         super().__init__(message)
         self.observed_tokens = observed_tokens
         self.max_tokens = max_tokens
@@ -823,7 +823,7 @@ _CTX_OVERFLOW_HINTS = (
 )
 
 
-def _parse_context_overflow(status_code: int, body: str) -> "ContextLengthExceeded | None":
+def _parse_context_overflow(status_code: int, body: str) -> ContextLengthExceeded | None:
     """Build a typed overflow error from an HTTP response, or None.
 
     Structured JSON first (`error.code == "context_length_exceeded"`), free text
@@ -889,12 +889,12 @@ def _parse_context_overflow(status_code: int, body: str) -> "ContextLengthExceed
 _OVERSIZE_LOG_CHARS = 120
 
 
-def _oversize_report(texts: "list[str]", counts: "list[int]") -> "list[tuple[int, int]]":
+def _oversize_report(texts: list[str], counts: list[int]) -> list[tuple[int, int]]:
     """(index, token_count) for every text over TOKEN_CEILING. Empty when clean."""
     return [(i, n) for i, n in enumerate(counts) if n > TOKEN_CEILING]
 
 
-def _log_contract_violation(texts: "list[str]", over: "list[tuple[int, int]]") -> None:
+def _log_contract_violation(texts: list[str], over: list[tuple[int, int]]) -> None:
     """Report a length-contract breach loudly, with the numbers and the knob.
 
     This is a BUG in whatever produced the text (a chunker that did not chunk,
@@ -923,7 +923,7 @@ def _log_contract_violation(texts: "list[str]", over: "list[tuple[int, int]]") -
     )
 
 
-def _enforce_length_contract(texts: "list[str]") -> "list[tuple[int, int]]":
+def _enforce_length_contract(texts: list[str]) -> list[tuple[int, int]]:
     """Check the batch against the model ceiling. Returns the oversize entries.
 
     Non-fatal by design: the caller subdivides rather than failing, so an
@@ -977,7 +977,7 @@ async def _embedded_bulk_with_subdivide(
     return results
 
 
-async def _embed_batch_for_recovery(texts: "list[str]") -> "list[list[float] | None]":
+async def _embed_batch_for_recovery(texts: list[str]) -> list[list[float] | None]:
     """Embed sub-chunks for the single-text recovery path, via the full cascade.
 
     Reuses ``_embed_many`` rather than re-implementing tier selection, so the
@@ -1374,7 +1374,7 @@ async def _embed(text: str) -> tuple[list[float] | None, str]:
 
     try:
         await asyncio.wait_for(_EMBED_SEM.acquire(), timeout=30.0)
-    except asyncio.TimeoutError as e:
+    except TimeoutError as e:
         wrapped = EmbedSemaphoreTimeout("30s")
         wrapped.__cause__ = e
         logger.error(
@@ -1576,7 +1576,7 @@ async def embed_for_search(
 
     try:
         return await asyncio.wait_for(_fn(text), timeout=deadline)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.warning(
             "search embed exceeded %.1fs deadline — degrading to FTS-only "
             "results. A tier is slow but not tripping its breaker; check the "

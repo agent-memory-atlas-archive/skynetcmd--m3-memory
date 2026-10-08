@@ -20,7 +20,7 @@ _HEALTH_PORT = 8082  # the port shared_embedder_probe also checks
 TIMEOUT_SECS = 30
 
 
-def _resolve_binary() -> "str | None":
+def _resolve_binary() -> str | None:
     """Locate the Rust embed-server binary, PATH or not.
 
     `shutil.which` alone is the #167 defect. The binary normally lives inside

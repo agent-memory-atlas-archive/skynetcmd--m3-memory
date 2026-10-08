@@ -28,10 +28,10 @@ import re
 import sys
 
 
-def load_patterns(path: str) -> "list[tuple[int, re.Pattern[str]]]":
+def load_patterns(path: str) -> list[tuple[int, re.Pattern[str]]]:
     """Compile every non-comment line, or raise with the line number."""
     try:
-        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+        with open(path, encoding="utf-8", errors="replace") as fh:
             raw = fh.read().splitlines()
     except OSError as e:
         raise SystemExit(
@@ -72,7 +72,7 @@ def load_patterns(path: str) -> "list[tuple[int, re.Pattern[str]]]":
 
 
 
-def _selftest(patterns_path: "str | None") -> int:
+def _selftest(patterns_path: str | None) -> int:
     """Prove the gate can still catch something, on this platform.
 
     A policy that will not compile is indistinguishable from a policy that found
@@ -125,7 +125,7 @@ def _selftest(patterns_path: "str | None") -> int:
     return 0 if ok else 1
 
 
-def main(argv: "list[str]") -> int:
+def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--patterns", help="policy file, one regex per line")
     ap.add_argument("--inline-pattern",

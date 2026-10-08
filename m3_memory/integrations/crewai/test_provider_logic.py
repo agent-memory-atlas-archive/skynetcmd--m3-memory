@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import os
 import sys
+from datetime import UTC
 from types import SimpleNamespace
 
 # Allow running as a bare script: repo root is four levels up.
@@ -154,10 +155,10 @@ def test_helpers() -> None:
     _c(b._deleted_count("weird", fallback=9) == 9, "falls back to id count")
 
     print("backend._match_for_delete — older_than")
-    from datetime import datetime, timezone
+    from datetime import datetime
     old_item = {"metadata_json": "{}", "created_at": "2020-01-01T00:00:00Z"}
     new_item = {"metadata_json": "{}", "created_at": "2030-01-01T00:00:00Z"}
-    cutoff = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    cutoff = datetime(2025, 1, 1, tzinfo=UTC)
     _c(b._match_for_delete(old_item, None, None, cutoff),
        "record older than cutoff matches")
     _c(not b._match_for_delete(new_item, None, None, cutoff),

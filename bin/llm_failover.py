@@ -10,7 +10,6 @@ import logging
 import os
 import re
 import time
-from typing import Optional
 
 import httpx
 from m3_sdk import getenv_compat
@@ -115,7 +114,7 @@ def apply_thinking_suppression_anthropic(payload: dict, url: str) -> dict:
 _TRUNCATED_MARKERS = frozenset({"length", "max_tokens"})
 
 
-def reply_ran_out_of_room(text: str, stop_reason: Optional[str]) -> bool:
+def reply_ran_out_of_room(text: str, stop_reason: str | None) -> bool:
     """True when a model returned NO usable text because it hit its token cap.
 
     The distinction this exists to preserve: "the model looked and found
@@ -205,9 +204,9 @@ READ_TIMEOUT = 10.0      # for model list fetches only
 # calling clear_failover_caches().
 # Avoids a GET /v1/models roundtrip before every LLM/embed call, which
 # otherwise dominates per-call wall time and generates excessive log noise.
-_LLM_ENDPOINT_CACHE: Optional[tuple[str, str]] = None
-_SMALL_LLM_ENDPOINT_CACHE: Optional[tuple[str, str]] = None
-_EMBED_ENDPOINT_CACHE: Optional[tuple[str, str]] = None
+_LLM_ENDPOINT_CACHE: tuple[str, str] | None = None
+_SMALL_LLM_ENDPOINT_CACHE: tuple[str, str] | None = None
+_EMBED_ENDPOINT_CACHE: tuple[str, str] | None = None
 # Negative-result cache for embed discovery. Without this, a host with no
 # embedding model loaded would re-run the GET /v1/models probe of EVERY endpoint
 # on EVERY embed call (the positive cache only short-circuits a SUCCESS) — its
@@ -279,10 +278,10 @@ def _default_lm_token() -> "str | None":
 
 def discover_model_sync(
     endpoint: str,
-    token: Optional[str] = None,
+    token: str | None = None,
     *,
     timeout: float = 5.0,
-) -> Optional[str]:
+) -> str | None:
     """Pick a model on ``endpoint`` by asking it, SYNCHRONOUSLY. No name needed.
 
     The sync sibling of :func:`get_best_llm`, for callers that are not async and
@@ -348,7 +347,7 @@ def discover_model_sync(
     return best
 
 
-def _pick_best_model(data: dict) -> Optional[str]:
+def _pick_best_model(data: dict) -> str | None:
     """From a /models response, return the largest usable GENERATIVE model id, or
     None. Embedders (EMBED_EXCLUSIONS) and LLM_EXCLUSIONS are filtered out and the
     winner is the largest by :func:`parse_model_size`. Shared by
@@ -376,11 +375,11 @@ def _pick_best_model(data: dict) -> Optional[str]:
 async def discover_model_async(
     client: "httpx.AsyncClient",
     endpoint: str,
-    token: Optional[str] = None,
+    token: str | None = None,
     *,
     timeout: float = 5.0,
     fresh: bool = False,
-) -> Optional[str]:
+) -> str | None:
     """Async sibling of :func:`discover_model_sync` — pick the largest usable
     model on ``endpoint`` by asking it, over the caller's AsyncClient so it does
     NOT block the event loop. Same filter/pick contract (shared _pick_best_model)
@@ -434,7 +433,7 @@ except ValueError:
     USABILITY_TTL = 60.0
 
 
-def cached_usability(endpoint: str) -> "Optional[tuple[bool, str]]":
+def cached_usability(endpoint: str) -> "tuple[bool, str] | None":
     """(usable, observed detail) from a probe younger than USABILITY_TTL, else
     None. Never touches the network."""
     hit = _USABILITY_CACHE.get(endpoint)
@@ -443,7 +442,7 @@ def cached_usability(endpoint: str) -> "Optional[tuple[bool, str]]":
     return hit[1], hit[2]
 
 
-def first_usable_endpoint_cached() -> Optional[str]:
+def first_usable_endpoint_cached() -> str | None:
     """The first LLM_ENDPOINTS entry not KNOWN to be unusable, from the cache
     alone (an unprobed endpoint counts as a candidate). None when every
     endpoint is known unusable. For sync routing that must not block."""
@@ -455,7 +454,7 @@ def first_usable_endpoint_cached() -> Optional[str]:
 
 
 async def probe_usability(
-    client: httpx.AsyncClient, endpoint: str, token: Optional[str] = None,
+    client: httpx.AsyncClient, endpoint: str, token: str | None = None,
     *, fresh: bool = False,
 ) -> "tuple[bool, str]":
     """Ask ``endpoint`` whether it can answer: GET /models and require a
@@ -486,7 +485,7 @@ async def probe_usability(
 
 
 async def require_usable_endpoint(
-    client: httpx.AsyncClient, token: Optional[str] = None, *, fresh: bool = False,
+    client: httpx.AsyncClient, token: str | None = None, *, fresh: bool = False,
 ) -> str:
     """The first LLM_ENDPOINTS entry that can answer, or raise LLMUnavailable
     naming what each endpoint reported."""
@@ -593,7 +592,7 @@ def parse_model_size(model_id: str) -> float:
         return size_val
 
 
-async def get_best_llm(client: httpx.AsyncClient, token: str) -> Optional[tuple[str, str]]:
+async def get_best_llm(client: httpx.AsyncClient, token: str) -> tuple[str, str] | None:
     """
     Find the largest available LLM model across endpoints.
 
@@ -677,7 +676,7 @@ async def get_smallest_llm(
     client: httpx.AsyncClient,
     token: str,
     min_size_b: float = 0.5,
-) -> Optional[tuple[str, str]]:
+) -> tuple[str, str] | None:
     """
     Find the smallest available LLM model across endpoints, subject to a size floor.
 
@@ -747,7 +746,7 @@ async def get_smallest_llm(
     return None
 
 
-async def get_best_embed(client: httpx.AsyncClient, token: str) -> Optional[tuple[str, str]]:
+async def get_best_embed(client: httpx.AsyncClient, token: str) -> tuple[str, str] | None:
     """
     Find an embedding model across endpoints, with fallback to any available model.
 

@@ -180,7 +180,7 @@ def _assess() -> dict:
 
 
 def _claude_mcp_remove(name: str, scope: str = "user",
-                       cwd: "str | None" = None) -> tuple[bool, str]:
+                       cwd: str | None = None) -> tuple[bool, str]:
     """Best-effort `claude mcp remove --scope <scope> <name>`; a local-scope
     entry belongs to a directory, so it is removed from inside that directory."""
     if not shutil.which("claude"):

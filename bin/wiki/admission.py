@@ -75,7 +75,7 @@ class AdmissionGate:
     enabled: bool = True
 
     @classmethod
-    def from_tuple(cls, t: tuple) -> "AdmissionGate":
+    def from_tuple(cls, t: tuple) -> AdmissionGate:
         """(min_provenance, min_backbone_ratio, min_kas) positionally. `enabled`
         keeps its default (True)."""
         names = ("min_provenance", "min_backbone_ratio", "min_kas")
@@ -176,8 +176,8 @@ def structural_signals(cluster, edges, weights=None) -> StructuralSignals:
 
 
 _CONFIG_BASENAME = ".wiki_admission.json"
-_CACHE: "dict[str, AdmissionGate]" = {}
-_WARNED: "set[str]" = set()
+_CACHE: dict[str, AdmissionGate] = {}
+_WARNED: set[str] = set()
 
 
 def _config_root() -> str:
@@ -237,8 +237,8 @@ def _warn_once(path: str, why: str) -> None:
     )
 
 
-def partition(clusters, edges, gate: "AdmissionGate | None" = None
-              ) -> "tuple[list, list]":
+def partition(clusters, edges, gate: AdmissionGate | None = None
+              ) -> tuple[list, list]:
     """Split clusters into (admitted, demoted) by the gate. Singletons and
     structurally-anchored clusters land in `admitted`; weakly-anchored multi-member
     clusters in `demoted` (they render as an orphan list, not a synthesis)."""

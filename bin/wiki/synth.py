@@ -22,7 +22,6 @@ import hashlib
 import json
 import os
 from dataclasses import dataclass
-from typing import Optional
 
 from .cluster import Cluster
 
@@ -44,10 +43,10 @@ class SynthConfig:
     timeout_s: float = 30.0
     temperature: float = 0.2
     max_tokens: int = 220
-    cache_dir: Optional[str] = None   # where ledes are cached (None → no cache)
+    cache_dir: str | None = None   # where ledes are cached (None → no cache)
 
     @classmethod
-    def from_env(cls, cache_dir: Optional[str]) -> "SynthConfig":
+    def from_env(cls, cache_dir: str | None) -> SynthConfig:
         return cls(
             url=os.environ.get("M3_WIKI_SYNTH_URL", cls.url),
             model=os.environ.get("M3_WIKI_SYNTH_MODEL", cls.model),
@@ -84,13 +83,13 @@ def _cluster_hash(c: Cluster, model: str) -> str:
     return h.hexdigest()[:16]
 
 
-def _cache_path(cfg: SynthConfig, digest: str) -> Optional[str]:
+def _cache_path(cfg: SynthConfig, digest: str) -> str | None:
     if not cfg.cache_dir:
         return None
     return os.path.join(cfg.cache_dir, f"{digest}.json")
 
 
-def _read_cache(path: Optional[str]) -> Optional[str]:
+def _read_cache(path: str | None) -> str | None:
     if not path or not os.path.isfile(path):
         return None
     try:
@@ -100,7 +99,7 @@ def _read_cache(path: Optional[str]) -> Optional[str]:
         return None
 
 
-def _write_cache(path: Optional[str], digest: str, lede: str) -> None:
+def _write_cache(path: str | None, digest: str, lede: str) -> None:
     if not path:
         return
     try:
@@ -121,7 +120,7 @@ def _build_user_prompt(c: Cluster) -> str:
     return "\n".join(lines)
 
 
-def _call_model(cfg: SynthConfig, user_prompt: str) -> Optional[str]:
+def _call_model(cfg: SynthConfig, user_prompt: str) -> str | None:
     try:
         import httpx  # lazy: only needed when --synthesize is used
     except ImportError:
@@ -165,7 +164,7 @@ def _call_model(cfg: SynthConfig, user_prompt: str) -> Optional[str]:
         return None
 
 
-def _resolve_key(service: str) -> Optional[str]:
+def _resolve_key(service: str) -> str | None:
     if not service:
         return None
     try:
@@ -193,7 +192,7 @@ class Synthesizer:
         self.cache_hits = 0
         self.failures = 0
 
-    def lede_for(self, c: Cluster) -> Optional[str]:
+    def lede_for(self, c: Cluster) -> str | None:
         digest = _cluster_hash(c, self.cfg.model)
         path = _cache_path(self.cfg, digest)
         cached = _read_cache(path)

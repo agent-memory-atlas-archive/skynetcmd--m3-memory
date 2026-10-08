@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_notification_waiter.py
-sha1: d68ba895d4b9
-mtime_utc: 2026-10-08T16:28:46.417012+00:00
-generated_utc: 2026-10-08T16:28:53.635939+00:00
+sha1: 9509f0923b90
+mtime_utc: 2026-10-08T22:11:14.608982+00:00
+generated_utc: 2026-10-08T22:11:48.080696+00:00
 private: false
 ---
 

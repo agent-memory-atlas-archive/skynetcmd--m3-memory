@@ -1577,7 +1577,7 @@ def _cmd_tool_dispatch(args: argparse.Namespace) -> int:
                 if jfile == "-":
                     raw = sys.stdin.read()
                 else:
-                    with open(jfile, "r", encoding="utf-8") as f:
+                    with open(jfile, encoding="utf-8") as f:
                         raw = f.read()
             except Exception as e:
                 print(f"Error: failed to read --json-file: {e}", file=sys.stderr)

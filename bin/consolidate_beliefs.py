@@ -37,7 +37,7 @@ DEFAULT_SOURCE_TYPE = "observation"
 DEFAULT_BELIEF_CAP = 20     # max belief groups written per run (anti-runaway)
 
 
-def _should_yield_to_user(min_idle_s: float = 30.0) -> "str | None":
+def _should_yield_to_user(min_idle_s: float = 30.0) -> str | None:
     """Return a skip-reason if the host is too busy or the user is active to run
     an LLM-heavy consolidation right now, else None. Mirrors the background-yield
     contract every other expensive m3 pass honors (memory_maintenance,

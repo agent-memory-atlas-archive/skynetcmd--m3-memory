@@ -17,7 +17,7 @@ import sqlite3
 import sys
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from glob import glob
 
 from m3_sdk import getenv_compat
@@ -122,7 +122,7 @@ def _record_attempt(spill_path: str, ok: bool, reason: str = "") -> int:
             json.dump({
                 "consecutive_failures": n,
                 "last_error": reason[:500],
-                "last_attempt": datetime.now(timezone.utc).isoformat(),
+                "last_attempt": datetime.now(UTC).isoformat(),
             }, fh)
     except OSError as e:
         # Best-effort: a counter we cannot persist just means we retry longer.
@@ -141,7 +141,7 @@ def _quarantine_spill(spill_path: str, reason: str, attempts: int) -> bool:
         os.makedirs(qdir, exist_ok=True)
         dest = os.path.join(qdir, os.path.basename(spill_path))
         if os.path.exists(dest):  # keep both rather than clobber
-            dest = "%s.%s" % (dest, datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S"))
+            dest = "%s.%s" % (dest, datetime.now(UTC).strftime("%Y%m%dT%H%M%S"))
         os.replace(spill_path, dest)
         try:
             os.remove(_attempts_path(spill_path))
@@ -212,7 +212,7 @@ async def drain_spill(conn=None) -> int:
             # Group rows by their captured target DB. Legacy spills (no
             # _db_path) land on the sweeper's connection under the None key.
             per_db: dict = {}
-            with open(spill_path, "r", encoding="utf-8") as f:
+            with open(spill_path, encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
                     if not line:
@@ -236,7 +236,7 @@ async def drain_spill(conn=None) -> int:
                     doc.setdefault("_title", "")
                     doc.setdefault("_created_at",
                                    doc.get("timestamp")
-                                   or datetime.now(timezone.utc).isoformat())
+                                   or datetime.now(UTC).isoformat())
                     doc.setdefault("conversation_id", "")
                     doc.setdefault("model_id", doc.get("model_id", "unknown"))
                     if not doc.get("agent_id"):
@@ -404,7 +404,7 @@ async def embed_batch(
                         packed,
                         model_str,
                         len(vec),  # dim
-                        datetime.now(timezone.utc).isoformat(),
+                        datetime.now(UTC).isoformat(),
                     ))
 
             if rows_to_insert:
@@ -469,7 +469,7 @@ def load_state() -> dict:
             "queue_depth": 0,
         }
     try:
-        with open(state_path, "r", encoding="utf-8") as f:
+        with open(state_path, encoding="utf-8") as f:
             return json.load(f)
     except (OSError, json.JSONDecodeError) as e:
         logger.warning("Failed to load state file: %s", e)
@@ -675,7 +675,7 @@ async def main() -> int:
                         _mc_pack(vec),
                         model_str,
                         len(vec),
-                        datetime.now(timezone.utc).isoformat(),
+                        datetime.now(UTC).isoformat(),
                         content_hash,
                     ),
                 )
@@ -719,7 +719,7 @@ async def main() -> int:
         # Update state
         state = load_state()
         state["embed_backlog"] = backlog
-        state["last_sweeper_run_at"] = datetime.now(timezone.utc).isoformat()
+        state["last_sweeper_run_at"] = datetime.now(UTC).isoformat()
         state["last_sweeper_rows_embedded"] = rows_embedded
         state["last_sweeper_spill_drained"] = spill_drained
         save_state(state)

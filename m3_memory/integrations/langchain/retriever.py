@@ -15,7 +15,7 @@ search path (§2.4) so ``extra_columns`` surfaces the temporal fields.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
@@ -47,7 +47,7 @@ class M3Retriever(BaseRetriever):
     agent_id: str = "langchain"
     call_timeout: float = 30.0
 
-    _client: Optional[M3Client] = PrivateAttr(default=None)
+    _client: M3Client | None = PrivateAttr(default=None)
 
     def _get_client(self) -> M3Client:
         if self._client is None:
@@ -133,12 +133,12 @@ class M3Retriever(BaseRetriever):
 
     # ── BaseRetriever contract ────────────────────────────────────────────────
     def _get_relevant_documents(
-        self, query: str, *, run_manager: "CallbackManagerForRetrieverRun"
+        self, query: str, *, run_manager: CallbackManagerForRetrieverRun
     ) -> list[Document]:
         return self._search(query)
 
     async def _aget_relevant_documents(
-        self, query: str, *, run_manager: "AsyncCallbackManagerForRetrieverRun"
+        self, query: str, *, run_manager: AsyncCallbackManagerForRetrieverRun
     ) -> list[Document]:
         # _call_impl rides the shared loop-thread; safe to call from the sync body.
         return self._search(query)

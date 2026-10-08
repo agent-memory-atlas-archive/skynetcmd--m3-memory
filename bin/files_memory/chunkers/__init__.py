@@ -26,8 +26,9 @@ Public API:
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
 from dataclasses import dataclass, field, replace
-from typing import Iterator, Protocol
+from typing import Protocol
 
 logger = logging.getLogger("files_memory.chunkers")
 
@@ -155,7 +156,7 @@ def chunker_version(filetype: str) -> str:
     return getattr(mod, "CHUNKER_VERSION", "unknown")
 
 
-def _enforce_leaf_token_cap(leaf: Leaf) -> "Iterator[Leaf]":
+def _enforce_leaf_token_cap(leaf: Leaf) -> Iterator[Leaf]:
     """Split a leaf that exceeds FILES_MAX_LEAF_TOKENS, or yield it unchanged.
 
     `FILES_MAX_LEAF_TOKENS` (7000) was DECLARED in files_memory/config.py with a
@@ -193,7 +194,7 @@ def _enforce_leaf_token_cap(leaf: Leaf) -> "Iterator[Leaf]":
     # Halve until each piece fits. estimate_tokens (not count_tokens) on
     # purpose: this is a per-leaf hot path and the estimator is conservative --
     # it may over-split, never under-split.
-    pieces: "list[str]" = []
+    pieces: list[str] = []
     stack = [leaf.text]
     while stack:
         part = stack.pop()

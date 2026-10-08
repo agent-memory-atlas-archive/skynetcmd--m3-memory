@@ -43,7 +43,7 @@ import sqlite3
 import threading
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
-from typing import Literal, Optional
+from typing import Literal
 
 from sqlite_pragmas import apply_pragmas
 
@@ -154,7 +154,7 @@ class ChatlogConfig:
 
 
 # ── Cache ─────────────────────────────────────────────────────────────────────
-_CACHE: Optional[ChatlogConfig] = None
+_CACHE: ChatlogConfig | None = None
 _CACHE_LOCK = threading.Lock()
 _MODE_WARN_EMITTED = False
 
@@ -171,7 +171,7 @@ def _load_file() -> dict:
     if not os.path.exists(CONFIG_PATH):
         return {}
     try:
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        with open(CONFIG_PATH, encoding="utf-8") as f:
             data = json.load(f)
             if not isinstance(data, dict):
                 logger.warning("Chatlog config at %s is not an object; ignoring.", CONFIG_PATH)
@@ -193,7 +193,7 @@ def save_config(cfg: ChatlogConfig) -> None:
 
 
 # ── Resolver ──────────────────────────────────────────────────────────────────
-def _path_from_env() -> Optional[str]:
+def _path_from_env() -> str | None:
     v = getenv_compat("M3_CHATLOG_DB_PATH", "CHATLOG_DB_PATH")
     if v is None:
         return None
@@ -201,13 +201,13 @@ def _path_from_env() -> Optional[str]:
     return v or None
 
 
-def _pinned_path(file_data: dict) -> Optional[str]:
+def _pinned_path(file_data: dict) -> str | None:
     """The db_path written into .chatlog_config.json, if one is pinned there."""
     v = file_data.get("db_path")
     return (v.strip() or None) if isinstance(v, str) else None
 
 
-def _unified_fallback(file_data: dict) -> Optional[str]:
+def _unified_fallback(file_data: dict) -> str | None:
     """M3_DATABASE as the chatlog path, unless the config file pins one.
 
     Hazard: M3_DATABASE also names the MAIN store for a single process (the
@@ -221,7 +221,7 @@ def _unified_fallback(file_data: dict) -> Optional[str]:
     return _main_path_from_env()
 
 
-def pin_split_path() -> Optional[str]:
+def pin_split_path() -> str | None:
     """Write the default (separate) chatlog path into .chatlog_config.json when
     nothing pins one, so a later M3_DATABASE cannot collapse this install onto
     the main store. Leaves alone an explicit CHATLOG_DB_PATH, a unified
@@ -242,7 +242,7 @@ def pin_split_path() -> Optional[str]:
     return DEFAULT_DB_PATH
 
 
-def _main_path_from_env() -> Optional[str]:
+def _main_path_from_env() -> str | None:
     """Respect M3_DATABASE: if the user unified on a single DB, chatlog shares it
     unless CHATLOG_DB_PATH explicitly says otherwise."""
     v = os.environ.get("M3_DATABASE")
@@ -388,7 +388,7 @@ def chatlog_db_path() -> str:
     return resolve_config().db_path
 
 
-def chat_store_paths() -> "list[str]":
+def chat_store_paths() -> list[str]:
     """Every store chat turns can land in, main first, de-duplicated.
 
     THE TRAP THIS EXISTS TO CLOSE. On a SPLIT topology (the default) turns live
@@ -410,10 +410,10 @@ def chat_store_paths() -> "list[str]":
     On a UNIFIED deployment both resolve to the same file and this returns one
     entry, so callers need no special case.
     """
-    out: "list[str]" = []
-    seen: "set[str]" = set()
+    out: list[str] = []
+    seen: set[str] = set()
 
-    def _add(p: "Optional[str]") -> None:
+    def _add(p: str | None) -> None:
         if not p:
             return
         key = os.path.abspath(p)
@@ -448,16 +448,16 @@ def chat_store_paths() -> "list[str]":
 
 
 # ── Connection pool ───────────────────────────────────────────────────────────
-_POOL: Optional["queue.Queue[sqlite3.Connection]"] = None
+_POOL: queue.Queue[sqlite3.Connection] | None = None
 _POOL_LOCK = threading.Lock()
-_POOL_DB_PATH: Optional[str] = None  # path the pool was opened against; if it changes, rebuild
+_POOL_DB_PATH: str | None = None  # path the pool was opened against; if it changes, rebuild
 
 
-def _build_pool(db_path: str) -> "queue.Queue[sqlite3.Connection]":
+def _build_pool(db_path: str) -> queue.Queue[sqlite3.Connection]:
     pool_size = int(getenv_compat("M3_CHATLOG_DB_POOL_SIZE", "CHATLOG_DB_POOL_SIZE", "4"))
     pool_timeout = int(getenv_compat("M3_CHATLOG_DB_POOL_TIMEOUT", "CHATLOG_DB_POOL_TIMEOUT", "10"))
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
-    q: "queue.Queue[sqlite3.Connection]" = queue.Queue(maxsize=pool_size)
+    q: queue.Queue[sqlite3.Connection] = queue.Queue(maxsize=pool_size)
     for _ in range(pool_size):
         conn = sqlite3.connect(db_path, check_same_thread=False, timeout=pool_timeout)
         conn.row_factory = sqlite3.Row
@@ -468,7 +468,7 @@ def _build_pool(db_path: str) -> "queue.Queue[sqlite3.Connection]":
     return q
 
 
-def _ensure_pool() -> "queue.Queue[sqlite3.Connection]":
+def _ensure_pool() -> queue.Queue[sqlite3.Connection]:
     global _POOL, _POOL_DB_PATH
     target = chatlog_db_path()
     with _POOL_LOCK:

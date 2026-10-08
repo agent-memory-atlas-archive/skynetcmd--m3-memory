@@ -240,7 +240,7 @@ def _resolve_mc_callbacks() -> None:
 # Carries an already-computed query vector from a hybrid search into its
 # semantic fallback, so the fallback does not re-embed the same query. Holds
 # (query, vector) so a stale entry can never be mistaken for a fresh one.
-_FALLBACK_QVEC: "contextvars.ContextVar[tuple | None]" = contextvars.ContextVar(
+_FALLBACK_QVEC: contextvars.ContextVar[tuple | None] = contextvars.ContextVar(
     "m3_fallback_qvec", default=None
 )
 
@@ -749,7 +749,7 @@ async def memory_search_scored_impl(
 
     _sc_backend = _active_backend_sc()
     # Exact-substring hits found below but fewer than k; merged at the return.
-    _sc_exact: "list | None" = None
+    _sc_exact: list | None = None
     if len(query.strip()) > 3 and not intent_hint and search_mode in ("hybrid", "fts5"):
         try:
             # Gating: Reject generic conversational queries from short-circuiting
@@ -1567,7 +1567,7 @@ def _apply_observation_preference(ranked, k):
     if obs_hits:
         # Cheap token estimate: 1 token per 4 chars — an order-of-magnitude
         # gate, not precise tokenization.
-        obs_tokens = sum(len((it.get("content") or "")) // 4 for _, it in obs_hits)
+        obs_tokens = sum(len(it.get("content") or "") // 4 for _, it in obs_hits)
         if obs_tokens >= obs_budget:
             ranked = obs_hits[:k]
         else:
@@ -2390,7 +2390,7 @@ async def _maybe_expand_routed(
 
 async def memory_search_multi_db_impl(
     query: str,
-    databases: "list[str] | str",
+    databases: list[str] | str,
     k: int = 8,
     mmr: bool = True,
     type_filter: str = "",
@@ -2400,11 +2400,11 @@ async def memory_search_multi_db_impl(
     scope: str = "",
     as_of: str = "",
     conversation_id: str = "",
-    extra_columns: "list[str] | None" = None,
+    extra_columns: list[str] | None = None,
     recency_bias: float = 0.0,
     adaptive_k: bool = False,
-    variant: "str | list" = "",
-    fan_out_limit: "int | None" = None,
+    variant: str | list = "",
+    fan_out_limit: int | None = None,
     requesting_agent: str = "",
 ):
     """Fan out a search across multiple SQLite databases and merge by score.

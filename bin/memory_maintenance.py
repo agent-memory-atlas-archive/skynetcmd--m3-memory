@@ -4,7 +4,7 @@ import logging
 import os
 import sqlite3
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 DEFAULT_PROTECTED_TYPES = ("preference", "user_fact", "task", "plan")
 
@@ -61,7 +61,7 @@ def _transfer_to_archive(item_id, reason, db):
     from memory.db import savepoint as _savepoint
     _d = _dialect()
     _p = _d.param()
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     row = db.execute(f"SELECT * FROM memory_items WHERE id = {_p}", (item_id,)).fetchone()
     if not row:
         return False
@@ -1179,7 +1179,7 @@ def memory_maintenance_impl(decay=True, purge_expired=True, prune_orphan_embeddi
     # function this pass never calls; it is fixed via the json_bind_value seam
     # primitive and covered by its own round-trip test.) VACUUM below is still
     # skipped on PG — that is genuinely SQLite-only, unlike decay/purge/retention.
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     from memory.backends import dialect as _dialect
     _d = _dialect()
     _p = _d.param()
@@ -1504,7 +1504,7 @@ def gdpr_forget_impl(user_id: str, compliance: "dict | str | None" = None) -> st
                 if _bin not in _sys.path:
                     _sys.path.insert(0, _bin)
                 from wiki.erasure import restrict_derived_on_erasure
-                _erased_at = datetime.now(timezone.utc).isoformat()
+                _erased_at = datetime.now(UTC).isoformat()
                 wiki_erasure_summary = restrict_derived_on_erasure(
                     db, _d, item_ids, timestamp=_erased_at)
             except Exception as _e:  # pragma: no cover - defensive
@@ -1527,7 +1527,7 @@ def gdpr_forget_impl(user_id: str, compliance: "dict | str | None" = None) -> st
         if item_ids:
             try:
                 from wiki.ledger import scan_and_flush_on_erasure
-                _led_at = datetime.now(timezone.utc).isoformat()
+                _led_at = datetime.now(UTC).isoformat()
                 wiki_ledger_summary = scan_and_flush_on_erasure(
                     db, _d, item_ids, timestamp=_led_at)
             except Exception as _e:  # pragma: no cover - defensive
@@ -1667,7 +1667,7 @@ def memory_export_impl(agent_filter="", type_filter="", since="", output_format=
             items.append(item)
 
     return json.dumps({
-        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "exported_at": datetime.now(UTC).isoformat(),
         "item_count": len(items),
         "items": items
     }, indent=2, default=str)
@@ -1753,7 +1753,7 @@ async def memory_consolidate_impl(
         passes 'belief' so the two provenance paths stay distinguishable; a
         'belief' row also gets a high first-class confidence.
     """
-    now_dt = datetime.now(timezone.utc)
+    now_dt = datetime.now(UTC)
     stale_cutoff = (now_dt - timedelta(days=stale_days)).isoformat() if stale_days > 0 else None
 
     from memory.backends import dialect as _dialect
@@ -1847,7 +1847,7 @@ async def memory_consolidate_impl(
 
         # 5. Store summary
         summary_id = str(uuid.uuid4())
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
 
         # Embed the summary so it's searchable
         s_vec, s_model = await _embed(summary_text)

@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_enrich_report.py
-sha1: e5fea80d2e10
-mtime_utc: 2026-09-08T10:33:19.172210+00:00
-generated_utc: 2026-09-08T10:33:52.480952+00:00
+sha1: 467026239e7d
+mtime_utc: 2026-10-08T22:11:14.573785+00:00
+generated_utc: 2026-10-08T22:11:48.044312+00:00
 private: false
 ---
 
@@ -35,7 +35,7 @@ for security scans.
 
 ## Entry points
 
-- `def main()` (line 297)
+- `def main()` (line 296)
 - `if __name__ == "__main__"` guard
 
 ---

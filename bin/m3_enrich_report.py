@@ -26,9 +26,8 @@ import argparse
 import os
 import sqlite3
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 
 def _connect(db_path: str):
@@ -54,7 +53,7 @@ def _connect(db_path: str):
     return stack, conn
 
 
-def _build_filter(run_id: Optional[str], variant: Optional[str]) -> tuple[str, list]:
+def _build_filter(run_id: str | None, variant: str | None) -> tuple[str, list]:
     if run_id:
         return ("enrich_run_id = ?", [run_id])
     if variant:
@@ -62,7 +61,7 @@ def _build_filter(run_id: Optional[str], variant: Optional[str]) -> tuple[str, l
     return ("1=1", [])
 
 
-def _ascii(s: Optional[str], cap: int = 200) -> str:
+def _ascii(s: str | None, cap: int = 200) -> str:
     if not s:
         return ""
     return s.encode("ascii", "replace").decode()[:cap]
@@ -173,7 +172,7 @@ def _format(data: dict, where_label: str) -> str:
     lines: list[str] = []
     lines.append("# m3_enrich run report")
     lines.append("")
-    lines.append(f"> Generated {datetime.now(timezone.utc).isoformat(timespec='seconds')} · scope: `{where_label}`")
+    lines.append(f"> Generated {datetime.now(UTC).isoformat(timespec='seconds')} · scope: `{where_label}`")
     lines.append("")
 
     # Headline status

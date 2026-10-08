@@ -39,7 +39,7 @@ def _ensure_path() -> None:
         sys.path.insert(0, b)
 
 
-def _file_extract_endpoint() -> "str | None":
+def _file_extract_endpoint() -> str | None:
     try:
         _ensure_path()
         from files_memory.extract import _llm_endpoint
@@ -57,7 +57,7 @@ def _main_path_endpoints() -> list[str]:
         return []
 
 
-def _reach(endpoint: str, timeout: float = 3.0) -> "tuple[str, list[str]]":
+def _reach(endpoint: str, timeout: float = 3.0) -> tuple[str, list[str]]:
     """Return (state, models). state in {'ok','auth','down','bad-scheme'}."""
     if urlparse(endpoint).scheme not in ("http", "https"):
         return "bad-scheme", []
@@ -80,7 +80,7 @@ def _reach(endpoint: str, timeout: float = 3.0) -> "tuple[str, list[str]]":
         return "down", []
 
 
-def _classify_thinking(body: dict) -> "str | None":
+def _classify_thinking(body: dict) -> str | None:
     """From a /chat/completions response, is the model doing chain-of-thought?
 
     'on'  — the reply carries reasoning: LM Studio's ``reasoning_content``,
@@ -105,7 +105,7 @@ def _classify_thinking(body: dict) -> "str | None":
 
 
 def _detect_thinking(endpoint: str, model: str, headers: dict, timeout: float = 20.0,
-                     reasoning_effort: "str | None" = None) -> "str | None":
+                     reasoning_effort: str | None = None) -> str | None:
     """Active probe: send ONE tiny chat request and classify whether the loaded
     model reasons. Works against any OpenAI-compatible server (LM Studio, Ollama,
     vLLM, …) at ``{endpoint}/chat/completions``. When ``reasoning_effort`` is given

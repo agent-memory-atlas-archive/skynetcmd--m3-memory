@@ -94,7 +94,7 @@ def validate_args(spec: ToolSpec, args: dict) -> tuple[dict, str | None]:
 _DEFAULT_TOOL_TIMEOUT = 30.0
 
 
-def _resolve_tool_timeout(args: dict, spec: "ToolSpec | None" = None) -> float | None:
+def _resolve_tool_timeout(args: dict, spec: ToolSpec | None = None) -> float | None:
     """Return the timeout in seconds for this call, or None to disable it.
 
     Pops the reserved `timeout` key from `args` (so it never reaches the impl).
@@ -138,7 +138,7 @@ async def _run_impl_bounded(spec: ToolSpec, args: dict, timeout: float | None) -
         return await awaitable
     try:
         return await asyncio.wait_for(awaitable, timeout=timeout)
-    except (asyncio.TimeoutError, TimeoutError) as e:
+    except TimeoutError as e:
         raise ToolTimeout(
             f"{spec.name} exceeded {timeout:g}s timeout "
             f"(raise with a larger `timeout` arg or M3_TOOL_TIMEOUT, "

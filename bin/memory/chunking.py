@@ -121,7 +121,7 @@ def _order_embeddings(data: list[dict], n_inputs: int) -> list[list[float]] | No
     return [d["embedding"] for d in ordered]
 
 
-def _verify_fits_budget(parts: "list[str]") -> "list[str]":
+def _verify_fits_budget(parts: list[str]) -> list[str]:
     """Halve any piece still over the token budget, recursively, with a floor.
 
     The sizing in :func:`_subdivide_dense_chunk` derives ONE chars-per-token
@@ -139,7 +139,7 @@ def _verify_fits_budget(parts: "list[str]") -> "list[str]":
     """
     from .tokens import TOKEN_BUDGET, estimate_tokens
 
-    def _fit(part: str, depth: int = 0) -> "list[str]":
+    def _fit(part: str, depth: int = 0) -> list[str]:
         if estimate_tokens(part) <= TOKEN_BUDGET or len(part) <= DENSE_MIN_SUB_CHARS:
             return [part]
         if depth >= _MAX_SPLIT_DEPTH:
@@ -147,7 +147,7 @@ def _verify_fits_budget(parts: "list[str]") -> "list[str]":
         mid = len(part) // 2
         return _fit(part[:mid], depth + 1) + _fit(part[mid:], depth + 1)
 
-    out: "list[str]" = []
+    out: list[str] = []
     for part in parts:
         out.extend(_fit(part))
     return [p for p in out if p]

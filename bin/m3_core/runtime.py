@@ -2,9 +2,9 @@ import logging
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from os import PathLike
-from typing import IO, Optional, Union
+from typing import IO, Union
 
 from m3_core.paths import getenv_compat
 
@@ -12,12 +12,12 @@ try:
     from dotenv import load_dotenv
 except ImportError:
     def load_dotenv(
-        dotenv_path: Optional[Union[str, "PathLike[str]"]] = None,
-        stream: Optional[IO[str]] = None,
+        dotenv_path: Union[str, "PathLike[str]"] | None = None,
+        stream: IO[str] | None = None,
         verbose: bool = False,
         override: bool = False,
         interpolate: bool = True,
-        encoding: Optional[str] = "utf-8",
+        encoding: str | None = "utf-8",
     ) -> bool:
         return False
 
@@ -66,7 +66,7 @@ def iso_utc_timestamp() -> str:
     before appending 'Z' rather than producing the '+00:00Z' double-suffix the
     old per-module ``_now_iso`` did."""
     return (
-        datetime.now(timezone.utc).replace(tzinfo=None).isoformat() + "Z"
+        datetime.now(UTC).replace(tzinfo=None).isoformat() + "Z"
     )
 
 

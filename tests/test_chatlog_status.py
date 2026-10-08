@@ -3,6 +3,7 @@
 import json
 import sqlite3
 import time
+from datetime import UTC
 
 import pytest
 
@@ -404,8 +405,8 @@ def test_lull_does_not_trigger_capture_down_alarm(status_test_env):
     conn.close()
 
     # ...but the state file says the last write was 3 minutes ago (a lull).
-    from datetime import datetime, timedelta, timezone
-    recent = (datetime.now(timezone.utc) - timedelta(minutes=3)).strftime(
+    from datetime import datetime, timedelta
+    recent = (datetime.now(UTC) - timedelta(minutes=3)).strftime(
         "%Y-%m-%dT%H:%M:%SZ"
     )
     with open(str(status_test_env["state_file"]), "w") as f:

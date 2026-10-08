@@ -30,7 +30,6 @@ import logging
 import os
 import time
 from dataclasses import dataclass
-from typing import Optional
 
 from . import config
 from .config import files_table
@@ -49,7 +48,7 @@ class CorpusInfo:
     settings: dict
     file_node_count: int
     leaf_count: int
-    created_at: Optional[str]
+    created_at: str | None
     is_default: bool
 
 
@@ -58,8 +57,8 @@ class CorpusInfo:
 # ──────────────────────────────────────────────────────────────────────────────
 def resolve_default_corpus(
     *,
-    cli_corpus: Optional[str] = None,
-    db_path: Optional[str] = None,
+    cli_corpus: str | None = None,
+    db_path: str | None = None,
 ) -> str:
     """Resolution order:
       1. cli_corpus arg (explicit)
@@ -100,11 +99,11 @@ _RECOGNIZED_SETTING_KEYS = {
 def corpus_create(
     corpus_id: str,
     *,
-    description: Optional[str] = None,
-    extract_mode: Optional[str] = None,
-    scope: Optional[str] = None,
+    description: str | None = None,
+    extract_mode: str | None = None,
+    scope: str | None = None,
     default: bool = False,
-    db_path: Optional[str] = None,
+    db_path: str | None = None,
 ) -> CorpusInfo:
     """Register a new corpus. Errors if corpus_id already exists.
 
@@ -155,7 +154,7 @@ def corpus_create(
                               created_at=now, is_default=default)
 
 
-def corpus_list(*, db_path: Optional[str] = None) -> list[CorpusInfo]:
+def corpus_list(*, db_path: str | None = None) -> list[CorpusInfo]:
     """Enumerate corpora with row counts. Includes corpora that have
     file_nodes but no corpus_settings row (returned with empty settings)."""
     from memory.backends import dialect as _dialect
@@ -200,7 +199,7 @@ def corpus_list(*, db_path: Optional[str] = None) -> list[CorpusInfo]:
         return out
 
 
-def corpus_get(corpus_id: str, *, db_path: Optional[str] = None) -> Optional[CorpusInfo]:
+def corpus_get(corpus_id: str, *, db_path: str | None = None) -> CorpusInfo | None:
     """Fetch a single corpus's info. None if no settings row AND no file_nodes."""
     from memory.backends import dialect as _dialect
     _p = _dialect().param()
@@ -238,12 +237,12 @@ def corpus_get(corpus_id: str, *, db_path: Optional[str] = None) -> Optional[Cor
 def corpus_set(
     corpus_id: str,
     *,
-    description: Optional[str] = None,
-    extract_mode: Optional[str] = None,
-    scope: Optional[str] = None,
-    default: Optional[bool] = None,
-    retention_days: Optional[int] = None,
-    db_path: Optional[str] = None,
+    description: str | None = None,
+    extract_mode: str | None = None,
+    scope: str | None = None,
+    default: bool | None = None,
+    retention_days: int | None = None,
+    db_path: str | None = None,
 ) -> CorpusInfo:
     """Update settings for an existing corpus. None args are no-ops.
 
@@ -309,7 +308,7 @@ def corpus_delete(
     corpus_id: str,
     *,
     cascade: bool = False,
-    db_path: Optional[str] = None,
+    db_path: str | None = None,
 ) -> dict:
     """Remove a corpus and (optionally) its file_nodes.
 
@@ -372,7 +371,7 @@ def corpus_delete(
 # ──────────────────────────────────────────────────────────────────────────────
 def _build_corpus_info(
     corpus_id: str, settings: dict, file_node_count: int, leaf_count: int,
-    created_at: Optional[str], is_default: bool,
+    created_at: str | None, is_default: bool,
 ) -> CorpusInfo:
     return CorpusInfo(
         corpus_id=corpus_id,
@@ -384,7 +383,7 @@ def _build_corpus_info(
     )
 
 
-def _clear_default_flag(conn, except_corpus_id: Optional[str] = None) -> None:
+def _clear_default_flag(conn, except_corpus_id: str | None = None) -> None:
     """Drop the `default` key from every corpus_settings.settings row,
     optionally skipping one.
 
@@ -415,7 +414,7 @@ def _clear_default_flag(conn, except_corpus_id: Optional[str] = None) -> None:
         )
 
 
-def _safe_json(s: Optional[str]) -> Optional[dict]:
+def _safe_json(s: str | None) -> dict | None:
     if not s:
         return None
     try:

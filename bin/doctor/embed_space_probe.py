@@ -165,7 +165,7 @@ def run(brief: bool = False) -> int:
     # Group by (vector_kind, embed_model, dim). vector_kind partitions vectors
     # that are SUPPOSED to live in separate spaces (e.g. a fallback space), so a
     # mix is only a problem WITHIN one kind.
-    rows: "list[tuple[str, str, int, int]]" = []
+    rows: list[tuple[str, str, int, int]] = []
     try:
         db_path = resolve_engine_file("agent_memory.db")
         with active_backend().open_readonly(db_path) as conn:
@@ -195,9 +195,9 @@ def run(brief: bool = False) -> int:
     # Fold to families per vector_kind, and track dim conflicts separately: a
     # dim mismatch is a HARDER error (cosine cannot even be computed) than a
     # same-dim family mix (computes fine, returns nonsense).
-    by_kind: "dict[str, dict[str, int]]" = {}
-    dims_by_kind: "dict[str, set[int]]" = {}
-    tags_by_family: "dict[tuple[str, str], set[str]]" = {}
+    by_kind: dict[str, dict[str, int]] = {}
+    dims_by_kind: dict[str, set[int]] = {}
+    tags_by_family: dict[tuple[str, str], set[str]] = {}
     for kind, tag, dim, n in rows:
         fam = _family(tag)
         by_kind.setdefault(kind, {})
@@ -219,7 +219,7 @@ def run(brief: bool = False) -> int:
     # set only because `_EMBED_GGUF_MODEL_TAG` happens to default to the GGUF
     # name. Overriding `M3_EMBED_GGUF_MODEL_TAG` drops the old tag out and takes
     # its rows with it, silently.
-    unreachable: "dict[str, int]" = {}
+    unreachable: dict[str, int] = {}
     try:
         from memory.embed import _compatible_model_names
         compat = _compatible_model_names()

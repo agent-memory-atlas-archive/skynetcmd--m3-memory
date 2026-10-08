@@ -51,11 +51,11 @@ __all__ = [
 ]
 
 _PAI_HINT = (
-    "The PydanticAI integration requires pydantic-ai v{min}+. Install it with:\n"
+    f"The PydanticAI integration requires pydantic-ai v{MIN_PYDANTIC_AI_VERSION}+. Install it with:\n"
     "    pip install m3-memory[pydantic-ai]\n"
     "or\n"
-    "    pip install 'pydantic-ai>={min}'   # or the lighter 'pydantic-ai-slim'"
-).format(min=MIN_PYDANTIC_AI_VERSION)
+    f"    pip install 'pydantic-ai>={MIN_PYDANTIC_AI_VERSION}'   # or the lighter 'pydantic-ai-slim'"
+)
 
 
 def _check_pydantic_ai_version() -> None:

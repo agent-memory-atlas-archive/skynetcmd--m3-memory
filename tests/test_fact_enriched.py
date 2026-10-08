@@ -687,7 +687,7 @@ async def test_migration_023_up_creates_table(tmp_path):
     )
 
     if os.path.exists(migration_up):
-        with open(migration_up, "r", encoding="utf-8") as f:
+        with open(migration_up, encoding="utf-8") as f:
             sql = f.read()
         cursor.executescript(sql)
 
@@ -732,7 +732,7 @@ async def test_migration_023_down_removes_table(tmp_path):
 
     # Apply up
     if os.path.exists(migration_up):
-        with open(migration_up, "r", encoding="utf-8") as f:
+        with open(migration_up, encoding="utf-8") as f:
             sql = f.read()
         cursor.executescript(sql)
 
@@ -744,7 +744,7 @@ async def test_migration_023_down_removes_table(tmp_path):
 
     # Apply down
     if os.path.exists(migration_down):
-        with open(migration_down, "r", encoding="utf-8") as f:
+        with open(migration_down, encoding="utf-8") as f:
             sql = f.read()
         cursor.executescript(sql)
 

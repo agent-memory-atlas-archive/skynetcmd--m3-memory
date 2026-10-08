@@ -27,7 +27,7 @@ import pathlib
 import sqlite3
 import sys
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "bin"))
 
@@ -47,7 +47,7 @@ class TestTimeBoundsMatchTheStoredFormat(unittest.TestCase):
         self.conn.close()
 
     def _insert(self, rid: int, minutes_ago: int) -> None:
-        ts = (datetime.now(timezone.utc)
+        ts = (datetime.now(UTC)
               - timedelta(minutes=minutes_ago)).strftime(_STORED_FORMAT)
         self.conn.execute("INSERT INTO t (id, ts) VALUES (?,?)", (rid, ts))
         self.conn.commit()

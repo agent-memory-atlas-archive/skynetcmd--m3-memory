@@ -184,7 +184,7 @@ def _vault_row_exists(service: str = SECRET_NAME) -> bool:
                 pass
 
 
-def resolve_token(service: str = SECRET_NAME) -> "tuple[str | None, TokenState]":
+def resolve_token(service: str = SECRET_NAME) -> tuple[str | None, TokenState]:
     """Resolve the bearer token and explain the outcome.
 
     Returns ``(token, TokenState)``. A None token with PRESENT_UNDECRYPTABLE
@@ -201,7 +201,7 @@ def resolve_token(service: str = SECRET_NAME) -> "tuple[str | None, TokenState]"
 
 
 def preflight(
-    host: str, token: "str | None", state: TokenState, service: str = SECRET_NAME
+    host: str, token: str | None, state: TokenState, service: str = SECRET_NAME
 ) -> str:
     """Validate startup auth config. Returns the token, or raises AuthConfigError.
 
@@ -249,7 +249,7 @@ def preflight(
     return token
 
 
-def expand_host_patterns(hosts: "list[str] | tuple[str, ...]") -> "list[str]":
+def expand_host_patterns(hosts: list[str] | tuple[str, ...]) -> list[str]:
     """Expand each hostname into the forms the MCP host validator actually matches.
 
     ⚠ The validator (mcp.server.transport_security._validate_host) matches an
@@ -277,7 +277,7 @@ def expand_host_patterns(hosts: "list[str] | tuple[str, ...]") -> "list[str]":
     return out
 
 
-def build_transport_security(host: str, public_hosts: "list[str] | None" = None):
+def build_transport_security(host: str, public_hosts: list[str] | None = None):
     """Build the Host/Origin allowlist for the streamable-HTTP transport.
 
     On mcp 1.x, FastMCP auto-enables DNS-rebinding protection when its
@@ -366,7 +366,7 @@ def build_auth(host: str, port: int, token: str):
 _VERIFIER_ATTR = "_token_verifier"
 
 
-def attach(mcp, host: str, port: int, token: str, public_hosts: "list[str] | None" = None):
+def attach(mcp, host: str, port: int, token: str, public_hosts: list[str] | None = None):
     """Attach bearer auth + the host allowlist to a live FastMCP instance.
 
     Why the bridge calls this instead of assigning the fields itself: the

@@ -9,7 +9,6 @@ import hashlib
 import os
 import re
 import threading
-from typing import Optional
 
 # ── Project Oxidation: optional Rust compute core ────────────────────────────
 # m3_core_rs is an optional dependency (pip install m3-memory[oxidation]).
@@ -30,7 +29,7 @@ if not _OXIDATION_DISABLED:
 
 # Module-scope compiled patterns cache
 _COMPILED: dict[str, list[re.Pattern]] = {}
-_LAST_CONFIG_HASH: Optional[str] = None
+_LAST_CONFIG_HASH: str | None = None
 _COMPILE_ERRORS: list[str] = []
 _COMPILE_LOCK = threading.Lock()
 

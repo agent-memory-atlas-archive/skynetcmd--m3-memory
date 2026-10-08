@@ -8,12 +8,11 @@ from __future__ import annotations
 
 import os
 import sys
-from typing import Optional
 
 from .ui import _ok, _warn
 
 
-def _summary(plan, governor_result: Optional[dict] = None,
+def _summary(plan, governor_result: dict | None = None,
              verified: bool = True, brief: bool = False) -> None:
     """End-of-run summary so the user knows exactly what to do next.
 
@@ -164,7 +163,7 @@ def _summary(plan, governor_result: Optional[dict] = None,
     print()
 
 
-def _brief_summary(plan, governor_result: Optional[dict], verified: bool) -> None:
+def _brief_summary(plan, governor_result: dict | None, verified: bool) -> None:
     # Verified: the "services running" line and the upgrade's own summary say it.
     if not verified:
         print()

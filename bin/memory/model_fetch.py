@@ -24,7 +24,6 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -85,13 +84,13 @@ def _is_valid_gguf(path: Path) -> bool:
         return False
 
 
-def existing_m3_gguf() -> Optional[Path]:
+def existing_m3_gguf() -> Path | None:
     """Return m3's own validated GGUF copy, or None."""
     path = m3_models_dir() / BGE_M3_FILENAME
     return path if _is_valid_gguf(path) else None
 
 
-def fetch_bge_m3(dest_dir: Optional[Path] = None, *, quiet: bool = False) -> Optional[Path]:
+def fetch_bge_m3(dest_dir: Path | None = None, *, quiet: bool = False) -> Path | None:
     """Download the BGE-M3 GGUF into `dest_dir` (default ~/.m3/models).
 
     Returns the path on success, None on failure. NEVER raises — a failed model

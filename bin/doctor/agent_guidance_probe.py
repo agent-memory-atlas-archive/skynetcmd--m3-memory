@@ -74,14 +74,14 @@ _STALE_PATTERNS = (
 )
 
 
-def _home_files() -> "list[Path]":
+def _home_files() -> list[Path]:
     home = Path(os.path.expanduser("~"))
     return [home / rel for rel in _CANDIDATES]
 
 
-def check() -> "list[dict]":
+def check() -> list[dict]:
     """Findings for stale guidance. Pure detection; no printing, no writing."""
-    findings: "list[dict]" = []
+    findings: list[dict] = []
     for path in _home_files():
         try:
             if not path.is_file():

@@ -24,7 +24,7 @@ import pathlib
 import sqlite3
 import sys
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -104,11 +104,11 @@ class TestHostAwareStaleness:
 
     @staticmethod
     def _now():
-        return datetime.now(timezone.utc).isoformat()
+        return datetime.now(UTC).isoformat()
 
     @staticmethod
     def _expired():
-        return (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+        return (datetime.now(UTC) - timedelta(hours=2)).isoformat()
 
     _DEAD_PID = 999999
 

@@ -64,7 +64,7 @@ def _resolve_db() -> str:
     return str(repo / "engine" / "agent_memory.db")
 
 
-def _recent_window_sql() -> "tuple[str, tuple]":
+def _recent_window_sql() -> tuple[str, tuple]:
     """(sql, params) counting chat_log rows written in the last WINDOW_MIN.
 
     The "now minus N minutes" expression comes from the backend seam
@@ -85,7 +85,7 @@ def _recent_window_sql() -> "tuple[str, tuple]":
         return base + "created_at > datetime('now', ?)", (f"-{int(WINDOW_MIN)} minutes",)
 
 
-def _candidate_dbs() -> "list[str]":
+def _candidate_dbs() -> list[str]:
     """Every store chat turns could be landing in — main AND chatlog.
 
     On a SPLIT topology (the default) turns live in `agent_chatlog.db`, a

@@ -1,8 +1,8 @@
 ---
 tool: bin/mcp_compat.py
-sha1: 1c5284e896d5
-mtime_utc: 2026-09-17T16:50:29.984857+00:00
-generated_utc: 2026-09-17T18:03:36.503934+00:00
+sha1: dd282901f7d1
+mtime_utc: 2026-10-08T22:10:44.326378+00:00
+generated_utc: 2026-10-08T22:11:48.098163+00:00
 private: false
 ---
 

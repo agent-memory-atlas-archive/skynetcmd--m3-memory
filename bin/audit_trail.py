@@ -6,8 +6,8 @@ Logs all destructive and mutating operations in a SHA-256 chain-of-trust log.
 
 import json
 import os
-from datetime import datetime, timezone
-from typing import Any, Dict
+from datetime import UTC, datetime
+from typing import Any
 
 from crypto_provider import get_sha256
 from m3_sdk import get_m3_root
@@ -17,7 +17,7 @@ def get_audit_trail_path() -> str:
     """Returns the path to the secure audit trail log file."""
     return os.path.join(get_m3_root(), "audit_trail.log.jsonl")
 
-def write_audit_entry(action: str, target_id: str, metadata: Dict[str, Any]) -> str:
+def write_audit_entry(action: str, target_id: str, metadata: dict[str, Any]) -> str:
     """Appends a new cryptographically signed entry to the audit trail log.
 
     Each entry carries the SHA-256 hash of the previous entry, forming a
@@ -34,7 +34,7 @@ def write_audit_entry(action: str, target_id: str, metadata: Dict[str, Any]) -> 
     prev_hash = "0" * 64
     if os.path.exists(audit_file) and os.path.getsize(audit_file) > 0:
         try:
-            with open(audit_file, "r", encoding="utf-8") as f:
+            with open(audit_file, encoding="utf-8") as f:
                 # Read backwards or read lines. The file is log.jsonl, typically small to medium.
                 # If it grows extremely large, we can seek from the end.
                 lines = f.readlines()
@@ -50,7 +50,7 @@ def write_audit_entry(action: str, target_id: str, metadata: Dict[str, Any]) -> 
 
     # 3. Create current entry
     entry = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "action": action,
         "target_id": target_id,
         "metadata": metadata,
@@ -85,7 +85,7 @@ def verify_audit_trail() -> bool:
 
     try:
         expected_prev_hash = "0" * 64
-        with open(audit_file, "r", encoding="utf-8") as f:
+        with open(audit_file, encoding="utf-8") as f:
             for idx, line in enumerate(f):
                 line = line.strip()
                 if not line:
@@ -123,7 +123,7 @@ def log_event(ctx, category: str, detail_a: str,
     Categories: 'thought'/'activity' → activity_logs; 'decision' → project_decisions.
     Unknown categories fall through to activity_logs for safety.
     """
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     with ctx.get_sqlite_conn() as conn:
         cur = conn.cursor()
         if category == "decision":

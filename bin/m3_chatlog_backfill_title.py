@@ -21,7 +21,6 @@ import re
 import sys
 import time
 from pathlib import Path
-from typing import Optional
 
 from m3_core.paths import (
     get_m3_backups_root,
@@ -45,7 +44,7 @@ DEFAULT_USELESS_TITLES = (
 )
 
 
-def _resolve_db(arg_path: Optional[str], env_var: str, default_name: str) -> Optional[Path]:
+def _resolve_db(arg_path: str | None, env_var: str, default_name: str) -> Path | None:
     if arg_path:
         p = Path(arg_path).expanduser().resolve()
         return p if p.exists() else None
@@ -115,7 +114,7 @@ def _backfill(
     useless_titles: tuple[str, ...],
     min_chars: int,
     max_title_chars: int,
-    limit: Optional[int],
+    limit: int | None,
 ) -> dict:
     counters = {"updated": 0, "skipped_empty_derived": 0, "wall_s": 0.0}
     started = time.monotonic()

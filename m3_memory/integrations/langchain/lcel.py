@@ -24,7 +24,8 @@ there is no anonymous mode.
 from __future__ import annotations
 
 import functools
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 from langchain_core.runnables import Runnable, RunnableConfig, RunnableLambda
 
@@ -68,9 +69,9 @@ class MemoryWrite(Runnable):
     def __init__(
         self,
         *,
-        user_id: Optional[str] = None,
+        user_id: str | None = None,
         mem_type: str = "conversation",
-        metadata: Optional[dict] = None,
+        metadata: dict | None = None,
         agent_id: str = "langchain",
         call_timeout: float = 30.0,
     ):
@@ -79,7 +80,7 @@ class MemoryWrite(Runnable):
         self._metadata = metadata or {}
         self._client = M3Client(agent_id=agent_id, call_timeout=call_timeout)
 
-    def _require_user(self, user_id: Optional[str]) -> str:
+    def _require_user(self, user_id: str | None) -> str:
         uid = mapping.resolve_user_id(user_id, self._default_user_id)
         if not uid:
             raise ValueError(
@@ -89,7 +90,7 @@ class MemoryWrite(Runnable):
         return uid
 
     def invoke(
-        self, input: Any, config: Optional[RunnableConfig] = None, **kwargs: Any
+        self, input: Any, config: RunnableConfig | None = None, **kwargs: Any
     ) -> Any:
         text = _text_of(input)
         if text.strip():
@@ -108,13 +109,13 @@ class MemoryWrite(Runnable):
         return input  # pass-through: never mutate the chain's data
 
     async def ainvoke(
-        self, input: Any, config: Optional[RunnableConfig] = None, **kwargs: Any
+        self, input: Any, config: RunnableConfig | None = None, **kwargs: Any
     ) -> Any:
         # _tool rides the shared loop-thread; the sync body is loop-safe.
         return self.invoke(input, config, **kwargs)
 
 
-def MemoryRetrieve(*, user_id: Optional[str] = None, k: int = 4, **kwargs: Any) -> Runnable:
+def MemoryRetrieve(*, user_id: str | None = None, k: int = 4, **kwargs: Any) -> Runnable:
     """A ``Runnable`` that maps a query string → list[Document] via ``M3Retriever``.
 
     Sugar for the head of an LCEL chain when you want a plain callable rather than
@@ -129,9 +130,9 @@ def MemoryRetrieve(*, user_id: Optional[str] = None, k: int = 4, **kwargs: Any) 
 
 
 def with_m3_memory(
-    _func: Optional[Callable] = None,
+    _func: Callable | None = None,
     *,
-    user_id: Optional[str] = None,
+    user_id: str | None = None,
     mem_type: str = "conversation",
     capture_output: bool = True,
     agent_id: str = "langchain",

@@ -25,7 +25,7 @@ import struct
 import sys
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import numpy as np
 from m3_sdk import getenv_compat
@@ -69,7 +69,7 @@ def copy_items_and_embeddings(db: sqlite3.Connection, source: str, target: str) 
     log(f"  {len(rows)} source items to copy")
 
     id_map: dict[str, str] = {}
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     batch = []
     for r in rows:
         new_id = str(uuid.uuid4())
@@ -134,7 +134,7 @@ def build_kg_edges(db: sqlite3.Connection, variant: str, top_n: int, sim_thresho
     log(f"  vector matrix shape={vecs_norm.shape}, computing similarity in chunks")
 
     chunk_size = 512  # 512 x 353K float32 sim matrix = ~720 MB per chunk
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     total_edges = 0
     t0 = time.perf_counter()
 

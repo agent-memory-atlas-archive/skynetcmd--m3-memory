@@ -55,14 +55,15 @@ import json
 import logging
 import os  # noqa: F401 — re-export
 import uuid
-from datetime import datetime, timezone
+from collections.abc import Awaitable, Callable  # noqa: F401 (used in annotations)
+from datetime import UTC, datetime
 
 # Legacy back-compat: `_lru_cache` was imported inline in the FTS block
 # (used internally by `_compile_fts_query`'s @decorator). Preserved as a
 # re-export because the API snapshot captured it as a public symbol —
 # something external imports it. Pure alias for functools.lru_cache.
 from functools import lru_cache as _lru_cache  # noqa: F401 — re-export
-from typing import Any, Awaitable, Callable  # noqa: F401 (used in annotations)
+from typing import Any
 
 from embedding_utils import infer_change_agent as _infer_change_agent_util  # noqa: F401 — re-export
 from llm_failover import apply_thinking_suppression, get_best_llm
@@ -441,7 +442,7 @@ async def conversation_summarize_impl(conversation_id: str, threshold: int = 20)
 
     # 5. Store the summary as a new memory item
     summary_id = str(uuid.uuid4())
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     from memory.backends import dialect as _dialect
     _p = _dialect().param()
     with _db() as db:
@@ -829,7 +830,7 @@ async def memory_update_impl(id, content="", title="", metadata="", importance=-
         metadata = json.dumps(metadata)
     elif not isinstance(metadata, str):
         metadata = ""
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     try:
         importance = float(importance)
     except (TypeError, ValueError):
@@ -959,7 +960,7 @@ def memory_delete_impl(id, hard=False):
             db.execute(f"DELETE FROM memory_items WHERE id = {_p}", (id,))
         else:
             db.execute(f"UPDATE memory_items SET is_deleted = 1, updated_at = {_p} WHERE id = {_p}",
-                       (datetime.now(timezone.utc).isoformat(), id))
+                       (datetime.now(UTC).isoformat(), id))
     try:
         from audit_trail import write_audit_entry
         write_audit_entry(
@@ -1018,7 +1019,7 @@ def memory_delete_bulk_impl(ids, hard=False):
 
     succeeded: list[str] = []
     not_found: list[str] = []
-    now_iso = datetime.now(timezone.utc).isoformat()
+    now_iso = datetime.now(UTC).isoformat()
 
     from memory.backends import dialect
     _d = dialect()
@@ -1146,7 +1147,7 @@ def memory_update_bulk_impl(updates):
     succeeded: list[str] = []
     not_found: list[str] = []
     no_change: list[str] = []
-    now_iso = datetime.now(timezone.utc).isoformat()
+    now_iso = datetime.now(UTC).isoformat()
     id_list = list(by_id.keys())
 
     from memory.backends import dialect
@@ -1319,7 +1320,7 @@ def memory_link_bulk_impl(links, relationship_type: str = "related"):
     created: list[dict] = []
     skipped_missing: list[dict] = []
     skipped_duplicate: list[dict] = []
-    now_iso = datetime.now(timezone.utc).isoformat()
+    now_iso = datetime.now(UTC).isoformat()
 
     from memory.backends import dialect
     _d = dialect()
@@ -1406,7 +1407,7 @@ def _memory_link_inner(from_id: str, to_id: str, relationship_type: str, db) -> 
     rid = str(uuid.uuid4())
     db.execute(
         f"INSERT INTO memory_relationships (id, from_id, to_id, relationship_type, created_at) VALUES ({_d.placeholder(5)})",
-        (rid, from_id, to_id, relationship_type, datetime.now(timezone.utc).isoformat())
+        (rid, from_id, to_id, relationship_type, datetime.now(UTC).isoformat())
     )
     return f"Linked: {from_id} --[{relationship_type}]--> {to_id} (id: {rid})"
 
@@ -1440,7 +1441,7 @@ def memory_handoff_impl(from_agent: str, to_agent: str, task: str,
 
     # 1. Generate new UUID
     new_id = str(uuid.uuid4())
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
 
     # 2. Insert handoff memory directly via raw SQL
     from memory.backends import dialect as _dialect
@@ -1569,7 +1570,7 @@ def memory_inbox_ack_impl(memory_id: str, agent_id: str = "") -> str:
     are not already covered by.
     """
     # 1. Compute current timestamp
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
 
     # 2. Update read_at and updated_at
     from memory.backends import dialect as _dialect
@@ -1609,7 +1610,7 @@ def _count_refresh_backlog(agent_id: str = "") -> int:
     backlog without expanding the full list. Backed by the partial index
     idx_mi_refresh_on, so this is O(index-size-of-flagged-rows).
     """
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     from memory.backends import dialect as _dialect
     _p = _dialect().param()
     where = ["is_deleted = 0", "refresh_on IS NOT NULL", f"refresh_on <= {_p}"]
@@ -1648,7 +1649,7 @@ def memory_refresh_queue_impl(agent_id: str = "", limit: int = 50, include_futur
     Surfaces memories flagged for periodic review via the refresh_on lifecycle.
     Scope to an agent with agent_id, or leave empty to see everything.
     """
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     try:
         limit = int(limit)
     except (TypeError, ValueError):
@@ -1701,7 +1702,7 @@ def memory_refresh_queue_impl(agent_id: str = "", limit: int = 50, include_futur
 
 async def conversation_start_impl(title, agent_id="", model_id="", tags=""):
     cid = str(uuid.uuid4())
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     metadata = json.dumps({"tags": [t.strip() for t in tags.split(",") if t.strip()]}) if tags else "{}"
     from memory.backends import dialect as _dialect
     _p = _dialect().param()
@@ -1723,7 +1724,7 @@ async def conversation_append_impl(conversation_id, role, content, agent_id="", 
     if not exists:
         return f"Error: conversation {conversation_id} not found"
     mid = str(uuid.uuid4())
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     with _db() as db:
         db.execute(
             f"INSERT INTO memory_items (id, type, title, content, agent_id, model_id, created_at) VALUES ({_p}, 'message', {_p}, {_p}, {_p}, {_p}, {_p})",

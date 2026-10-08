@@ -1,8 +1,8 @@
 ---
 tool: bin/gen_mcp_inventory.py
-sha1: 6dddc6dde915
-mtime_utc: 2026-09-19T17:08:08.914438+00:00
-generated_utc: 2026-09-19T17:08:10.122674+00:00
+sha1: 0aef55ed4a79
+mtime_utc: 2026-10-08T22:10:44.278348+00:00
+generated_utc: 2026-10-08T22:11:47.878237+00:00
 private: false
 ---
 

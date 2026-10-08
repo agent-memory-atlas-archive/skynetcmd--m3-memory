@@ -108,7 +108,7 @@ def test_memory_search_scored_is_catalogued():
     )
 
 
-def _require_spec() -> "mcp_tool_catalog.ToolSpec":
+def _require_spec() -> mcp_tool_catalog.ToolSpec:
     """Skip (not fail) the row-shape tests when the spec isn't present yet —
     their failure mode is uninformative noise until the gate test above is
     green. Once the spec lands they run for real."""

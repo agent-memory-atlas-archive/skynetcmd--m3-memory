@@ -76,7 +76,7 @@ import os
 import re
 import sqlite3
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -184,7 +184,7 @@ def _decay_decision(role: str, content: str, age_days: float, now_ts: float):
         if age_days < 3.0:
             return 0.10, None, "short_cmd_aging"
         # >= 3 days: retire
-        retire_at = datetime.fromtimestamp(now_ts - 86400.0, tz=timezone.utc).isoformat()
+        retire_at = datetime.fromtimestamp(now_ts - 86400.0, tz=UTC).isoformat()
         return 0.02, retire_at, "short_cmd_retired"
 
     # General-ephemeral schedule
@@ -195,7 +195,7 @@ def _decay_decision(role: str, content: str, age_days: float, now_ts: float):
     if age_days < 7.0:
         return 0.20, None, "ephemeral_aging_2"
     # >= 7 days: retire
-    retire_at = datetime.fromtimestamp(now_ts, tz=timezone.utc).isoformat()
+    retire_at = datetime.fromtimestamp(now_ts, tz=UTC).isoformat()
     return 0.05, retire_at, "ephemeral_retired"
 
 
@@ -237,7 +237,7 @@ def run_sweep(db_path: str, *, apply: bool, batch_size: int = 1000) -> dict:
     _p = _d.param()
     # Either a closing(sqlite3.Connection) or the backend's connection() CM — both
     # are context managers yielding a DB-API connection; Any avoids a false union.
-    _conn_cm: "Any"
+    _conn_cm: Any
     if backend.name == "sqlite":
         _tbl = "memory_items"
         _conn_cm = closing(sqlite3.connect(db_path, timeout=30))
@@ -317,13 +317,13 @@ def _flush(conn, tbl: str, p: str, buf: list[tuple], apply: bool, has_valid_to: 
             conn.execute(
                 f"UPDATE {tbl} SET importance={p}, valid_to={p}, updated_at={p} "
                 f"WHERE id={p} AND type='chat_log'",
-                (new_imp, retire_at, datetime.now(timezone.utc).isoformat(), row_id),
+                (new_imp, retire_at, datetime.now(UTC).isoformat(), row_id),
             )
         else:
             conn.execute(
                 f"UPDATE {tbl} SET importance={p}, updated_at={p} "
                 f"WHERE id={p} AND type='chat_log'",
-                (new_imp, datetime.now(timezone.utc).isoformat(), row_id),
+                (new_imp, datetime.now(UTC).isoformat(), row_id),
             )
         written += 1
     return written

@@ -18,12 +18,11 @@ import json
 import os
 import sqlite3
 from pathlib import Path
-from typing import Optional
 
 from m3_memory._platform import os_name as _os_name
 
 
-def _sqlite3_cli_hint() -> Optional[str]:
+def _sqlite3_cli_hint() -> str | None:
     """Return a per-OS install instruction if the `sqlite3` CLI is missing.
 
     Returns None if the CLI is already on PATH (no action needed).
@@ -62,7 +61,7 @@ def _sqlite3_cli_hint() -> Optional[str]:
     return "[!] `sqlite3` CLI not found; install it for ad-hoc DB inspection"
 
 
-def _resolve_chatlog_db(cfg: dict) -> Optional[Path]:
+def _resolve_chatlog_db(cfg: dict) -> Path | None:
     """Best-effort resolution of the chatlog DB path.
 
     Order: CHATLOG_DB_PATH env, M3_DATABASE env (shared DB case), config's
@@ -151,7 +150,7 @@ def _chatlog_db_stats(db_path: Path) -> dict:
     return out
 
 
-def _read_json(path: Path) -> Optional[dict]:
+def _read_json(path: Path) -> dict | None:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -442,7 +441,7 @@ def _roots_section() -> None:
         print("      See CLAUDE.md → 'Split-brain hazard'.")
 
 
-def _fmt_dual_time(value: "object") -> str:
+def _fmt_dual_time(value: object) -> str:
     """Render a timestamp as 'LOCAL (ZULU)', per house convention.
 
     ``value`` may be an ISO-8601 string (SQLite TEXT timestamp), an epoch number,
@@ -454,7 +453,7 @@ def _fmt_dual_time(value: "object") -> str:
 
     if value is None or value == "":
         return "—"
-    dt: "_dt.datetime | None" = None
+    dt: _dt.datetime | None = None
     try:
         if isinstance(value, _dt.datetime):
             dt = value
@@ -470,7 +469,7 @@ def _fmt_dual_time(value: "object") -> str:
     # Interpret a naive timestamp as UTC (SQLite stores wall-clock UTC), then
     # show it in local time with the UTC value in parens.
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=_dt.timezone.utc)
+        dt = dt.replace(tzinfo=_dt.UTC)
     local = dt.astimezone()
     # Prefer a compact tz abbreviation. On Windows %Z yields a verbose name
     # ("Eastern Daylight Time"); abbreviate to its initials (→ "EDT"). Fall back
@@ -480,12 +479,12 @@ def _fmt_dual_time(value: "object") -> str:
         tzname = "".join(w[0] for w in raw_tz.split() if w).upper()
     else:
         tzname = raw_tz or local.strftime("%z")
-    utc = dt.astimezone(_dt.timezone.utc)
+    utc = dt.astimezone(_dt.UTC)
     return (f"{local.strftime('%Y-%m-%d %H:%M:%S')} {tzname} "
             f"({utc.strftime('%Y-%m-%dT%H:%M:%SZ')})")
 
 
-def _sqlite_store_stats(db_path: str) -> "dict | None":
+def _sqlite_store_stats(db_path: str) -> dict | None:
     """(rows, last_updated) for a SQLite store file, or None if absent/unreadable.
 
     Read-only, best-effort. ``rows`` counts live memory_items; ``last_updated`` is
@@ -769,7 +768,7 @@ def _deprecated_env_section() -> None:
     # invisible to the checks above — doctor would report "clean" while the var is
     # still active. Scan the registry and surface each with its scope so the report
     # is complete on Windows. `m3 doctor --fix` rewrites the User-scope ones.
-    reg_lines: "list[str]" = []
+    reg_lines: list[str] = []
     try:
         from m3_core.paths import all_env_renames  # type: ignore
 

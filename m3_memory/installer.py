@@ -25,9 +25,9 @@ import sys
 import tarfile
 import tempfile
 import urllib.request
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from m3_memory._platform import hidden_window_kwargs as _hidden_window_kwargs
 from m3_memory._platform import os_name as _os_name
@@ -109,7 +109,7 @@ def save_config(cfg: dict) -> None:
     config_file().write_text(json.dumps(cfg, indent=2, sort_keys=True), encoding="utf-8")
 
 
-def _developer_bridge() -> Optional[Path]:
+def _developer_bridge() -> Path | None:
     """Walk up from this file looking for a sibling ``bin/memory_bridge.py``.
 
     Returns the path if found (developer case: ``pip install -e .`` from a
@@ -123,7 +123,7 @@ def _developer_bridge() -> Optional[Path]:
     return None
 
 
-def _payload_dir(component: str, env_var: str, must_contain: "Optional[str]" = None) -> "Optional[Path]":
+def _payload_dir(component: str, env_var: str, must_contain: str | None = None) -> Path | None:
     """Resolve a payload component dir (bin/docs/_assets/examples) with a
     per-component env-var override. Precedence:
       1. $<env_var> if set and exists (and, if must_contain given, contains it)
@@ -132,7 +132,7 @@ def _payload_dir(component: str, env_var: str, must_contain: "Optional[str]" = N
          (mirrors _developer_bridge for the pip-install-e . case)
       4. None
     """
-    def _ok(base: "Path") -> bool:
+    def _ok(base: Path) -> bool:
         return base.is_dir() and (must_contain is None or (base / must_contain).exists())
 
     env = os.environ.get(env_var)
@@ -152,27 +152,27 @@ def _payload_dir(component: str, env_var: str, must_contain: "Optional[str]" = N
     return None
 
 
-def bin_dir() -> "Optional[Path]":
+def bin_dir() -> Path | None:
     """The bin/ directory (payload scripts + memory_bridge.py). $M3_PATH_BIN overrides."""
     return _payload_dir("bin", "M3_PATH_BIN", must_contain="memory_bridge.py")
 
 
-def docs_dir() -> "Optional[Path]":
+def docs_dir() -> Path | None:
     """The docs/ directory. $M3_PATH_DOC overrides."""
     return _payload_dir("docs", "M3_PATH_DOC")
 
 
-def assets_dir() -> "Optional[Path]":
+def assets_dir() -> Path | None:
     """The _assets/ directory. $M3_PATH_ASSETS overrides."""
     return _payload_dir("_assets", "M3_PATH_ASSETS")
 
 
-def examples_dir() -> "Optional[Path]":
+def examples_dir() -> Path | None:
     """The examples/ directory. $M3_PATH_EXAMPLES overrides."""
     return _payload_dir("examples", "M3_PATH_EXAMPLES")
 
 
-def find_bridge() -> Optional[Path]:
+def find_bridge() -> Path | None:
     """Resolve bin/memory_bridge.py via bin_dir() (which honors $M3_PATH_BIN,
     then the wheel-packaged location, then a dev-checkout sibling). Returns None
     if no payload bin/ can be found (caller errors to `m3 install-m3`)."""
@@ -253,7 +253,7 @@ def _m3_state_root() -> Path:
     return config_dir()
 
 
-def _canonical_bridge_path() -> Optional[Path]:
+def _canonical_bridge_path() -> Path | None:
     """The bridge path a freshly-written agent config SHOULD point at.
 
     Prefers the live, resolved bridge (find_bridge: env > config > dev-sibling)
@@ -377,7 +377,7 @@ def _memory_entry_needs_repoint(entry: object) -> bool:
 
 
 def _heal_agent_settings(settings_file: Path, *, force: bool = False,
-                         create_if_absent: bool = False) -> Optional[str]:
+                         create_if_absent: bool = False) -> str | None:
     """Repoint a single agent's ``memory`` MCP entry to the canonical config.
 
     This FIXES the historical bug where registration skipped an already-present
@@ -507,7 +507,7 @@ def _repoint_stale_chatlog_hooks(data: dict) -> int:
     return fixed
 
 
-def _register_gemini_mcp() -> Optional[str]:
+def _register_gemini_mcp() -> str | None:
     """Register/repoint the ``memory`` MCP entry in ~/.gemini/settings.json.
 
     Idempotent AND self-healing: unlike the old version, an already-present but
@@ -527,7 +527,7 @@ def _register_gemini_mcp() -> Optional[str]:
     return _heal_agent_settings(settings_file, create_if_absent=True)
 
 
-def _register_antigravity_mcp() -> Optional[str]:
+def _register_antigravity_mcp() -> str | None:
     """Register/repoint the ``memory`` MCP entry in Antigravity's settings.json.
 
     Same self-healing behavior as ``_register_gemini_mcp``. Returns None when
@@ -554,7 +554,7 @@ def _cursor_config_path() -> Path:
     return Path.home() / ".cursor" / "mcp.json"
 
 
-def _register_cursor_mcp() -> Optional[str]:
+def _register_cursor_mcp() -> str | None:
     """Register/repoint the ``memory`` MCP entry in Cursor's ~/.cursor/mcp.json.
 
     Cursor uses the standard ``mcpServers`` schema (command/args/env), so the same
@@ -589,7 +589,7 @@ def _cline_config_path() -> Path:
             / "settings" / "cline_mcp_settings.json")
 
 
-def _register_cline_mcp() -> Optional[str]:
+def _register_cline_mcp() -> str | None:
     """Register/repoint the ``memory`` MCP entry in Cline's cline_mcp_settings.json.
 
     Cline (VS Code extension) uses the standard ``mcpServers`` schema, so the same
@@ -605,7 +605,7 @@ def _register_cline_mcp() -> Optional[str]:
     return _heal_agent_settings(cfg, create_if_absent=True)
 
 
-def _fix_npm_global_path() -> Optional[str]:
+def _fix_npm_global_path() -> str | None:
     """Append ~/.npm-global/bin to ~/.profile for non-interactive shells.
 
     Interactive shells typically source ~/.bashrc; cron jobs, sshd non-login
@@ -643,7 +643,7 @@ def _fix_npm_global_path() -> Optional[str]:
     return f"[+] appended npm-global PATH export to {profile}"
 
 
-def _prompt_endpoint_choice(interactive: bool, endpoint_flag: Optional[str]) -> Optional[str]:
+def _prompt_endpoint_choice(interactive: bool, endpoint_flag: str | None) -> str | None:
     """Ask which LLM endpoint to use; persist or return None to accept defaults.
 
     Non-interactive + no flag: return None (caller stores nothing → llm_failover
@@ -670,7 +670,7 @@ def _prompt_endpoint_choice(interactive: bool, endpoint_flag: Optional[str]) -> 
     return None
 
 
-def _prompt_capture_mode(interactive: bool, capture_flag: Optional[str]) -> Optional[str]:
+def _prompt_capture_mode(interactive: bool, capture_flag: str | None) -> str | None:
     """Ask which Claude-Code capture hooks to enable.
 
     Values: 'both' | 'stop' | 'precompact' | 'none' | None (defer to chatlog_init
@@ -693,7 +693,7 @@ def _prompt_capture_mode(interactive: bool, capture_flag: Optional[str]) -> Opti
     return {"1": "both", "2": "precompact", "3": "stop", "4": "none"}.get(reply)
 
 
-def _install_schedules_script() -> "Optional[Path]":
+def _install_schedules_script() -> Path | None:
     """Path to ``bin/install_schedules.py`` in the ACTIVE payload, or None.
 
     Resolves via bin_dir() — which honors ``$M3_PATH_BIN``, the wheel-packaged
@@ -917,8 +917,8 @@ def _mask_dsn(dsn: str) -> str:
 
 
 def _prompt_db_backend(
-    interactive: bool, backend_flag: Optional[str]
-) -> Optional[tuple[str, str]]:
+    interactive: bool, backend_flag: str | None
+) -> tuple[str, str] | None:
     """Ask which PRIMARY database backend to use.
 
     Returns ``None`` to accept the default (SQLite — zero-infrastructure, the
@@ -936,7 +936,7 @@ def _prompt_db_backend(
     """
     from m3_sdk import resolve_primary_pg_dsn
 
-    def _postgres_with_dsn(dsn: Optional[str]) -> Optional[tuple[str, str]]:
+    def _postgres_with_dsn(dsn: str | None) -> tuple[str, str] | None:
         dsn = (dsn or "").strip()
         if not dsn:
             print(
@@ -1003,7 +1003,7 @@ def _chatlog_init_supports(chatlog_init: Path, flag: str) -> bool:
         return False
 
 
-def _run_chatlog_init(bridge: Path, capture_mode: str) -> Optional[str]:
+def _run_chatlog_init(bridge: Path, capture_mode: str) -> str | None:
     """Run `chatlog_init.py --non-interactive ...` to actualize capture_mode.
 
     Without this, capture_mode persists in config but no settings.json is
@@ -1065,7 +1065,7 @@ def _run_chatlog_init(bridge: Path, capture_mode: str) -> Optional[str]:
     return f"[+] chatlog wired ({capture_mode}): {tail}"
 
 
-def _run_main_migrations(bridge: Path, db_backend: str = "sqlite") -> Optional[str]:
+def _run_main_migrations(bridge: Path, db_backend: str = "sqlite") -> str | None:
     """Run `migrate_memory.py up --yes --target main` to initialize the main DB.
 
     Ensures that a fresh install has a valid agent_memory.db so `doctor`
@@ -1144,7 +1144,7 @@ def _pg_server_present() -> bool:
     return any(shutil.which(b) for b in ("postgres", "pg_ctl", "pg_ctlcluster"))
 
 
-def _pg_install_offer(interactive: bool) -> Optional[str]:
+def _pg_install_offer(interactive: bool) -> str | None:
     """Guide (and, when safe, offer to run) a PostgreSQL server install.
 
     Returns a status line, or None if there was nothing to say. Elevation is
@@ -1157,7 +1157,7 @@ def _pg_install_offer(interactive: bool) -> Optional[str]:
     osname = _os_name()
 
     # (label, command-as-list, needs_elevation_note)
-    offer: Optional[tuple[str, list[str], str]] = None
+    offer: tuple[str, list[str], str] | None = None
     if osname == "Darwin" and shutil.which("brew"):
         offer = ("Homebrew", ["brew", "install", "postgresql@16"], "")
     elif osname == "Linux" and shutil.which("apt-get"):
@@ -1209,7 +1209,7 @@ def _pg_install_offer(interactive: bool) -> Optional[str]:
         return f"[!] {label} install failed ({e}); run manually: {' '.join(cmd)}"
 
 
-def _run_pg_migrations(bridge: Path, dsn: str) -> Optional[str]:
+def _run_pg_migrations(bridge: Path, dsn: str) -> str | None:
     """Build the PostgreSQL primary schema now, via the backend's own bootstrap.
 
     The parallel of ``_run_main_migrations`` for a PG-primary install. Runs in a
@@ -1281,7 +1281,7 @@ def _persist_pg_backend_env(dsn: str) -> list[str]:
     return [m for m in msgs if m]
 
 
-def _append_env_to_profile(pairs: dict[str, str]) -> Optional[str]:
+def _append_env_to_profile(pairs: dict[str, str]) -> str | None:
     """Append `export NAME=VALUE` lines to the shell profile, idempotently.
 
     Mirrors ``_fix_npm_global_path``'s append pattern. Before writing, scans the
@@ -1360,7 +1360,7 @@ def _write_user_registry_env(pairs: dict[str, str]) -> list[str]:
 _OS_INSTALL_TIMEOUT_S = int(os.environ.get("M3_OS_INSTALL_TIMEOUT_S", "180"))
 
 
-def _run_os_install(bridge: Path, interactive: bool = True) -> Optional[str]:
+def _run_os_install(bridge: Path, interactive: bool = True) -> str | None:
     """Execute the OS-specific installer (install_os.py) in the payload root."""
     # Resolve install_os.py via bin_dir() if available, else fall back to bridge-relative path.
     bin_d = bin_dir()
@@ -1423,9 +1423,9 @@ def _run_os_install(bridge: Path, interactive: bool = True) -> Optional[str]:
 def _post_install(
     bridge: Path,
     interactive: bool,
-    endpoint_choice: Optional[str],
-    capture_choice: Optional[str],
-    db_backend_choice: Optional[tuple[str, str]] = None,
+    endpoint_choice: str | None,
+    capture_choice: str | None,
+    db_backend_choice: tuple[str, str] | None = None,
 ) -> None:
     """Run the additive post-install steps. Each step prints its own status.
 
@@ -1528,7 +1528,7 @@ def _post_install(
     _print_backup_reminder()
 
 
-def _detect_cdw_target() -> "Optional[str]":
+def _detect_cdw_target() -> str | None:
     """Return the configured data-warehouse host (no credentials), or None.
 
     A CDW is "configured" if PG_URL resolves (env var or the encrypted vault)
@@ -1642,14 +1642,14 @@ def _print_backup_reminder() -> None:
 
 
 def install_m3(
-    repo_path: Optional[Path] = None,
-    tag: Optional[str] = None,
+    repo_path: Path | None = None,
+    tag: str | None = None,
     force: bool = False,
-    interactive: Optional[bool] = None,
-    endpoint: Optional[str] = None,
-    capture_mode: Optional[str] = None,
+    interactive: bool | None = None,
+    endpoint: str | None = None,
+    capture_mode: str | None = None,
     cognitive_loop: bool = False,
-    db_backend: Optional[str] = None,
+    db_backend: str | None = None,
 ) -> Path:
     """Clone or download the m3-memory repo and record the bridge path in config.
 
@@ -1724,7 +1724,7 @@ def install_m3(
                 "bridge_path": str(bridge),
                 "version": __version__,
                 "tag": tag,
-                "installed_at": datetime.now(timezone.utc).strftime(
+                "installed_at": datetime.now(UTC).strftime(
                     "%Y-%m-%dT%H:%M:%SZ"),
             })
             print(f"[OK] using installed payload. bridge_path = {bridge}")
@@ -1738,7 +1738,7 @@ def install_m3(
     # migration-tracking schema_version table — wiping them on every update
     # would discard captured turns and force a re-init. Stash anything that
     # looks like user data, wipe the code tree, then restore.
-    preserved_dir: Optional[Path] = None
+    preserved_dir: Path | None = None
     if repo_path.exists():
         if not force:
             # The payload is already present; without --force there is nothing to
@@ -1843,7 +1843,7 @@ def install_m3(
         "bridge_path": str(bridge),
         "version": __version__,
         "tag": tag,
-        "installed_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "installed_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
     })
     print(f"[OK] installed. bridge_path = {bridge}")
     print(f"  config written to {config_file()}")
@@ -1963,7 +1963,7 @@ def status() -> int:
     return 0 if s["verdict"] == "healthy" else 1
 
 
-def _known_agent_settings() -> "list[tuple[str, Path]]":
+def _known_agent_settings() -> list[tuple[str, Path]]:
     """Known agent MCP settings files, by host label.
 
     Only files that exist are worth scanning; callers filter. Kept in one place
@@ -1983,7 +1983,7 @@ def _known_agent_settings() -> "list[tuple[str, Path]]":
     ]
 
 
-def _scan_agent_configs() -> "list[tuple[str, Path, bool]]":
+def _scan_agent_configs() -> list[tuple[str, Path, bool]]:
     """Return (label, path, needs_repoint) for every existing agent config that
     declares a ``memory`` MCP entry. ``needs_repoint`` is True when its paths are
     dead/moved — the split-brain signature ``doctor --fix`` repairs.
@@ -2004,7 +2004,7 @@ def _scan_agent_configs() -> "list[tuple[str, Path, bool]]":
     return out
 
 
-def _client_config_sources() -> "dict[str, list[Path]]":
+def _client_config_sources() -> dict[str, list[Path]]:
     """Map each MCP CLIENT to the config files IT reads. Duplication that causes a
     double-launch is a server appearing in >1 file THE SAME CLIENT reads — NOT the
     same server across different clients (Claude/Gemini/Antigravity each legitimately
@@ -2032,7 +2032,7 @@ def _client_config_sources() -> "dict[str, list[Path]]":
     }
 
 
-def _opencode_source_paths() -> "list[Path]":
+def _opencode_source_paths() -> list[Path]:
     """Candidate opencode.json locations (XDG ~/.config primary; %APPDATA% on
     Windows). Mirrors setup_wizard._opencode_config_paths / doctor's probe so the
     three agree on where OpenCode's config actually lives."""
@@ -2044,14 +2044,14 @@ def _opencode_source_paths() -> "list[Path]":
     return paths
 
 
-def _duplicate_mcp_registration() -> "dict[str, dict[str, list[Path]]]":
+def _duplicate_mcp_registration() -> dict[str, dict[str, list[Path]]]:
     """Return {client: {server_name: [files...]}} for servers declared in MORE THAN
     ONE file THE SAME CLIENT reads — the real double-launch signature. Same server
     across different clients is NOT flagged (that's normal multi-client use).
     Read-only, best-effort (unreadable files skipped)."""
-    out: "dict[str, dict[str, list[Path]]]" = {}
+    out: dict[str, dict[str, list[Path]]] = {}
     for client, sources in _client_config_sources().items():
-        seen: "dict[str, list[Path]]" = {}
+        seen: dict[str, list[Path]] = {}
         for path in sources:
             if not path.is_file():
                 continue
@@ -2067,7 +2067,7 @@ def _duplicate_mcp_registration() -> "dict[str, dict[str, list[Path]]]":
     return out
 
 
-def _dedupe_mcp_registration(*, apply: bool = False) -> "list[str]":
+def _dedupe_mcp_registration(*, apply: bool = False) -> list[str]:
     """Resolve same-client duplicate MCP registrations by keeping ONE copy and
     removing the redundant ones. For each client + duplicated server, keep the
     file whose def is most complete (has an ``env`` block; tie-break: the first
@@ -2113,7 +2113,7 @@ def _dedupe_mcp_registration(*, apply: bool = False) -> "list[str]":
     return actions
 
 
-def _deprecated_env_in_config() -> "dict[Path, dict[str, str]]":
+def _deprecated_env_in_config() -> dict[Path, dict[str, str]]:
     """Return {file: {OLD: NEW}} for on-disk config that still uses a deprecated
     (pre-M3_ namespacing) env var name. Scans the SAME config files
     ``_client_config_sources()`` reads (settings.json per client, plus Claude's
@@ -2133,9 +2133,9 @@ def _deprecated_env_in_config() -> "dict[Path, dict[str, str]]":
     # Union of pure-namespacing + role-split (e.g. PG_URL -> M3_CDW_PG_URL) renames.
     DEPRECATED_ENV_RENAMES = all_env_renames()
 
-    out: "dict[Path, dict[str, str]]" = {}
+    out: dict[Path, dict[str, str]] = {}
 
-    seen_files: "set[Path]" = set()
+    seen_files: set[Path] = set()
     for sources in _client_config_sources().values():
         for path in sources:
             seen_files.add(path)
@@ -2147,7 +2147,7 @@ def _deprecated_env_in_config() -> "dict[Path, dict[str, str]]":
             data = json.loads(path.read_text(encoding="utf-8")) or {}
         except (OSError, json.JSONDecodeError):
             continue
-        found: "dict[str, str]" = {}
+        found: dict[str, str] = {}
         for entry in (data.get("mcpServers") or {}).values():
             env_block = (entry or {}).get("env") or {}
             for key in env_block:
@@ -2185,7 +2185,7 @@ _WIN_ENV_REG_SCOPES = (
 )
 
 
-def _all_env_renames() -> "dict[str, str]":
+def _all_env_renames() -> dict[str, str]:
     """The union deprecation map (pure-namespacing + role-split). Best-effort:
     returns {} if the payload SDK isn't importable (thin pip pre-payload)."""
     try:
@@ -2198,13 +2198,13 @@ def _all_env_renames() -> "dict[str, str]":
         return {}
 
 
-def _scan_registry_env_deprecations(names: "dict[str, str]") -> "list[dict]":
+def _scan_registry_env_deprecations(names: dict[str, str]) -> list[dict]:
     """Return one record per deprecated env var found in a Windows registry env
     scope. Each record: {scope, label, subkey, hive_name, old, new, writable}.
     Non-Windows or unreadable → []. Read-only; never raises."""
     if sys.platform != "win32" or not names:
         return []
-    hits: "list[dict]" = []
+    hits: list[dict] = []
     try:
         import winreg  # noqa: PLC0415 — Windows-only, lazy
     except Exception:  # noqa: BLE001
@@ -2230,7 +2230,7 @@ def _scan_registry_env_deprecations(names: "dict[str, str]") -> "list[dict]":
     return hits
 
 
-def _find_deprecated_pg_url_locations() -> "list[str]":
+def _find_deprecated_pg_url_locations() -> list[str]:
     """Return a human-readable location for EVERY place a deprecated PG_URL is set.
 
     Sweeps all common locations and collects them all (does NOT stop at the first
@@ -2249,7 +2249,7 @@ def _find_deprecated_pg_url_locations() -> "list[str]":
     location strings (empty when clean)."""
     import re as _re
 
-    locations: "set[str]" = set()
+    locations: set[str] = set()
 
     # 1. Live process env.
     if os.environ.get("PG_URL") is not None:
@@ -2310,7 +2310,7 @@ def _assert_no_deprecated_pg_url_anywhere() -> None:
     )
 
 
-def _migrate_env_names(*, apply: bool = False) -> "list[str]":
+def _migrate_env_names(*, apply: bool = False) -> list[str]:
     """Rename deprecated env var KEYS to their M3_ names in on-disk config.
     Mirrors ``_dedupe_mcp_registration``'s contract exactly.
 
@@ -2345,7 +2345,7 @@ def _migrate_env_names(*, apply: bool = False) -> "list[str]":
     return actions
 
 
-def _migrate_registry_env_names(*, apply: bool = False) -> "list[str]":
+def _migrate_registry_env_names(*, apply: bool = False) -> list[str]:
     """Rename deprecated Windows registry env vars to their new names, User scope.
 
     Config-file renames (``_migrate_env_names``) can't reach a persistent env var
@@ -2453,7 +2453,7 @@ def _broadcast_env_change() -> None:
         pass
 
 
-def _migrate_json_config_file(path: Path, renames: "dict[str, str]", *, apply: bool) -> "list[str]":
+def _migrate_json_config_file(path: Path, renames: dict[str, str], *, apply: bool) -> list[str]:
     """Rename OLD->NEW env keys inside every mcpServers.<name>.env block of a
     single JSON config file. Raises on I/O or parse error (caller handles)."""
     actions: list[str] = []
@@ -2491,7 +2491,7 @@ def _migrate_json_config_file(path: Path, renames: "dict[str, str]", *, apply: b
 _M3_MCP_SERVER_NAMES = ("memory",)
 
 
-def _scrub_embed_gguf_from_settings(path: Path, *, apply: bool) -> "list[str]":
+def _scrub_embed_gguf_from_settings(path: Path, *, apply: bool) -> list[str]:
     """Remove M3_EMBED_GGUF from m3 MCP-server env blocks in one settings file.
 
     An env-var GGUF makes the bridge open its OWN CUDA context, which can hang
@@ -2528,7 +2528,7 @@ def _scrub_embed_gguf_from_settings(path: Path, *, apply: bool) -> "list[str]":
     return actions
 
 
-def _heal_embed_gguf_env_leak(*, apply: bool) -> "list[str]":
+def _heal_embed_gguf_env_leak(*, apply: bool) -> list[str]:
     """Scrub M3_EMBED_GGUF from every known agent settings file AND seed the
     shared config, so an upgrade auto-heals the per-process-CUDA hang footgun.
     Best-effort per file (a bad file is warned, not fatal). Returns actions."""
@@ -2550,20 +2550,20 @@ def _heal_embed_gguf_env_leak(*, apply: bool) -> "list[str]":
     return actions
 
 
-def _migrate_dotenv_file(path: Path, renames: "dict[str, str]", *, apply: bool) -> "list[str]":
+def _migrate_dotenv_file(path: Path, renames: dict[str, str], *, apply: bool) -> list[str]:
     """Rename OLD->NEW KEY= tokens line-wise in a plain .env file, preserving
     values and comments. Raises on I/O error (caller handles)."""
     actions: list[str] = []
     original = path.read_text(encoding="utf-8")
     lines = original.splitlines(keepends=True)
 
-    existing_keys: "set[str]" = set()
+    existing_keys: set[str] = set()
     for line in lines:
         stripped = line.strip()
         if stripped and not stripped.startswith("#") and "=" in stripped:
             existing_keys.add(stripped.split("=", 1)[0].strip())
 
-    new_lines: "list[str]" = []
+    new_lines: list[str] = []
     changed = False
     for line in lines:
         stripped = line.strip()
@@ -2621,7 +2621,7 @@ def _deprecated_env_config_section() -> None:
 _BRIDGE_SCRIPTS = ("memory_bridge.py", "mcp_proxy.py")
 
 
-def _live_bridge_counts() -> "dict[str, int]":
+def _live_bridge_counts() -> dict[str, int]:
     """Count LOGICAL live m3 bridge processes by script name. >1 of any is the
     process-level signature of a real double-launch. Returns {} if psutil is
     unavailable (best-effort — the config check above is the primary signal).
@@ -2642,8 +2642,8 @@ def _live_bridge_counts() -> "dict[str, int]":
         return {}
 
     # First pass: map every bridge PID -> its matched script.
-    pid_script: "dict[int, str]" = {}
-    ppids: "dict[int, int]" = {}
+    pid_script: dict[int, str] = {}
+    ppids: dict[int, int] = {}
     for proc in psutil.process_iter(["pid", "ppid", "cmdline"]):
         try:
             cmd = " ".join(proc.info.get("cmdline") or [])
@@ -2658,7 +2658,7 @@ def _live_bridge_counts() -> "dict[str, int]":
     # Count only ROOTS: a bridge PID whose parent is NOT itself a same-script
     # bridge. The venv shim (parent) and its re-exec'd worker (child) share the
     # script, so the worker is skipped and the pair counts once.
-    counts: "dict[str, int]" = {}
+    counts: dict[str, int] = {}
     for pid, script in pid_script.items():
         parent = ppids.get(pid, 0)
         if pid_script.get(parent) == script:
@@ -2715,7 +2715,7 @@ def _agent_config_section() -> None:
         print("  [i] Run `m3 doctor --fix` to repoint the broken configs to the live install.")
 
 
-def _heal_config_bridge_path(*, apply: bool) -> "list[str]":
+def _heal_config_bridge_path(*, apply: bool) -> list[str]:
     """Repoint the installer config's ``bridge_path`` at the live payload.
 
     The bridge's canonical-path guard (memory_bridge.py) warns on every start

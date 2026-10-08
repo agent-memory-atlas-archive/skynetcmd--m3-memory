@@ -23,7 +23,7 @@ import logging
 import os
 import threading
 import time
-from typing import Any, Dict, List
+from typing import Any
 
 from agent.memory_provider import MemoryProvider
 from tools.registry import tool_error
@@ -257,7 +257,7 @@ class M3MemoryProvider(MemoryProvider):
         assistant_content: str,
         *,
         session_id: str = "",
-        messages: List[Dict[str, Any]] | None = None,
+        messages: list[dict[str, Any]] | None = None,
     ) -> None:
         """Enqueue the turn into m3's chatlog; Observer/Reflector extract +
         supersede async (cheaper per-turn than mem0's synchronous add())."""
@@ -284,7 +284,7 @@ class M3MemoryProvider(MemoryProvider):
         self._sync_thread = threading.Thread(target=_sync, daemon=True, name="m3-sync")
         self._sync_thread.start()
 
-    def get_tool_schemas(self) -> List[Dict[str, Any]]:
+    def get_tool_schemas(self) -> list[dict[str, Any]]:
         return [PROFILE_SCHEMA, SEARCH_SCHEMA, CONCLUDE_SCHEMA]
 
     def handle_tool_call(self, tool_name: str, args: dict, **kwargs) -> str:

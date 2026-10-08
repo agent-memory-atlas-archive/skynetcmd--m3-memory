@@ -24,8 +24,8 @@ import logging
 import os
 import sqlite3
 import threading
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Iterator
 
 from . import config
 

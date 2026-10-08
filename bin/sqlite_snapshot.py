@@ -29,14 +29,13 @@ from __future__ import annotations
 import os
 import sqlite3
 from pathlib import Path
-from typing import Optional
 
 
 class SqliteSnapshotError(RuntimeError):
     """The copy could not be taken or did not verify. Nothing was left behind."""
 
 
-def user_tables(conn: sqlite3.Connection) -> "list[str]":
+def user_tables(conn: sqlite3.Connection) -> list[str]:
     """Real tables to count: excludes SQLite internals and VIRTUAL tables.
 
     A virtual table (FTS5) is a view over its shadow tables, which ARE real
@@ -55,7 +54,7 @@ def _quote_ident(name: str) -> str:
     return '"' + name.replace('"', '""') + '"'
 
 
-def row_counts(conn: sqlite3.Connection, tables: "list[str]") -> "dict[str, int]":
+def row_counts(conn: sqlite3.Connection, tables: list[str]) -> dict[str, int]:
     out: dict[str, int] = {}
     for t in tables:
         # Identifier comes from sqlite_master and is quoted; no user input.
@@ -81,9 +80,9 @@ def snapshot_sqlite(
     src: str,
     dst: str,
     *,
-    src_conn: Optional[sqlite3.Connection] = None,
+    src_conn: sqlite3.Connection | None = None,
     timeout: float = 60.0,
-) -> "dict[str, int]":
+) -> dict[str, int]:
     """Copy ``src`` to ``dst`` WAL-safely and verify it. Returns the row counts.
 
     ``src_conn``: copy through a connection the caller already holds (a

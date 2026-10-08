@@ -62,7 +62,7 @@ def _is_text(path: str) -> bool:
     return os.path.splitext(path)[1].lower() in _TEXT_EXT
 
 
-def _staged_files() -> "list[str]":
+def _staged_files() -> list[str]:
     """Text files staged for commit (added/copied/modified/renamed)."""
     try:
         out = subprocess.run(
@@ -74,7 +74,7 @@ def _staged_files() -> "list[str]":
     return [p for p in out.splitlines() if p and _is_text(p) and os.path.exists(p)]
 
 
-def scan(path: str) -> "list[tuple[int, int, int]]":
+def scan(path: str) -> list[tuple[int, int, int]]:
     """Return [(line, col, byte)] for every stray control char in *path*."""
     try:
         with open(path, "rb") as fh:

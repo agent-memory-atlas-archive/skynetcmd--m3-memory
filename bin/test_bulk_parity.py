@@ -12,7 +12,7 @@ import os
 import sqlite3
 import sys
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -315,7 +315,7 @@ async def test_5_conversation_emitters() -> bool:
     try:
         from memory_core import memory_write_bulk_impl
         conv_id = "conv-test-123"
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         items = [
             {"type": "message", "title": "user", "content": "Hello", "conversation_id": conv_id, "valid_from": now, "embed": False, "variant": "__test__"},
             {"type": "message", "title": "assistant", "content": "Hi there", "conversation_id": conv_id, "valid_from": now, "embed": False, "variant": "__test__"},

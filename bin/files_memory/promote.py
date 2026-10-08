@@ -30,7 +30,6 @@ import json
 import logging
 import sqlite3
 import uuid as _uuid
-from typing import Optional
 
 from . import config
 from .config import files_table
@@ -42,7 +41,7 @@ logger = logging.getLogger("files_memory.promote")
 # ──────────────────────────────────────────────────────────────────────────────
 # Source resolution
 # ──────────────────────────────────────────────────────────────────────────────
-def _resolve_source(conn: sqlite3.Connection, source_uuid: str) -> Optional[dict]:
+def _resolve_source(conn: sqlite3.Connection, source_uuid: str) -> dict | None:
     """Find a fact / leaf / file_node by UUID in files.db.
 
     Returns a dict with at minimum:
@@ -133,13 +132,13 @@ _DEFAULT_TYPE_MAP = {
 }
 
 
-def _default_type_for(kind: str, override: Optional[str]) -> str:
+def _default_type_for(kind: str, override: str | None) -> str:
     if override:
         return override
     return _DEFAULT_TYPE_MAP.get(kind, "knowledge")
 
 
-def _find_promoted_orphan(source_uuid: str) -> Optional[str]:
+def _find_promoted_orphan(source_uuid: str) -> str | None:
     """Look in memory.db for a row that was promoted from `source_uuid` but
     whose marker is missing in files.db. Returns the memory_items.id or None.
 
@@ -176,11 +175,11 @@ def files_promote(
     source_uuid: str,
     *,
     reason: str = "",
-    mapped_type: Optional[str] = None,
-    scope: Optional[str] = None,
+    mapped_type: str | None = None,
+    scope: str | None = None,
     importance: float = 0.6,
     agent_id: str = "files_memory.promote",
-    db_path: Optional[str] = None,
+    db_path: str | None = None,
 ) -> dict:
     """Promote one item from files.db into memory.db.
 
@@ -316,7 +315,7 @@ def _write_to_memory_db(
     importance: float,
     agent_id: str,
     metadata: dict,
-) -> Optional[str]:
+) -> str | None:
     """Run memory.memory_write_impl from this sync context.
 
     Returns the new memory_items.id, or None on failure.
@@ -387,10 +386,10 @@ def _write_to_memory_db(
 # ──────────────────────────────────────────────────────────────────────────────
 def files_promotion_list(
     *,
-    source_file_node: Optional[str] = None,
-    source_superseded: Optional[bool] = None,
+    source_file_node: str | None = None,
+    source_superseded: bool | None = None,
     limit: int = 100,
-    db_path: Optional[str] = None,
+    db_path: str | None = None,
 ) -> list[dict]:
     """List promotions, optionally filtered.
 

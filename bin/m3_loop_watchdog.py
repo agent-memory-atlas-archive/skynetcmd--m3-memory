@@ -45,7 +45,7 @@ import os
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 _BIN = Path(__file__).resolve().parent
@@ -124,7 +124,7 @@ def _log_path() -> Path:
 
 
 def log(msg: str) -> None:
-    line = f"[{datetime.now(timezone.utc).isoformat(timespec='seconds')}] {msg}"
+    line = f"[{datetime.now(UTC).isoformat(timespec='seconds')}] {msg}"
     # Match the codebase's cp1252-safe print (ASCII only here, but the console
     # encoding can still reject the stream's default).
     try:
@@ -192,9 +192,9 @@ def heartbeat_age() -> tuple[float | None, int]:
         hb = json.loads(HEARTBEAT.read_text(encoding="utf-8"))
         ts = datetime.fromisoformat(hb["ts"])
         if ts.tzinfo is None:
-            ts = ts.replace(tzinfo=timezone.utc)
+            ts = ts.replace(tzinfo=UTC)
         interval = int(hb.get("interval_s") or 300)
-        return (datetime.now(timezone.utc) - ts).total_seconds(), interval
+        return (datetime.now(UTC) - ts).total_seconds(), interval
     except (OSError, ValueError, KeyError, TypeError):
         return None, 300
 

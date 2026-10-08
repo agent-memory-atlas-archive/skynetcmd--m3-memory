@@ -21,7 +21,6 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-from typing import Optional
 
 # Fixed install destinations — mirror install_schedules.py / schedule_probe.py so
 # "where the loop lives" is single-sourced across the three files that care.
@@ -33,7 +32,7 @@ _WINDOWS_TASK = "AgentOS_CognitiveLoop"
 _SCHTASKS_NOT_FOUND_RC = 1
 
 
-def _installed_active() -> tuple[bool, Optional[bool], str]:
+def _installed_active() -> tuple[bool, bool | None, str]:
     """(installed, active, backend_label). ``active`` is True/False when the OS
     can tell us (launchd loaded / systemd active / schtask present+enabled), or
     None when it cannot. Never raises — a missing tool yields (False, None, …)."""
@@ -74,7 +73,7 @@ def _installed_active() -> tuple[bool, Optional[bool], str]:
     return False, None, sys.platform
 
 
-def _process_running() -> Optional[bool]:
+def _process_running() -> bool | None:
     """Best-effort: is an ``m3_cognitive_loop`` process alive right now? Returns
     None when we can't tell (no pgrep/tasklist). Complements the service-state
     check — a Windows ONSTART task in particular is "installed" long before we
@@ -127,7 +126,7 @@ def _process_running() -> Optional[bool]:
         return None
 
 
-def _entity_stats() -> Optional[tuple[int, int]]:
+def _entity_stats() -> tuple[int, int] | None:
     """(durable_memories, extracted_entities) via the storage seam, or None if
     the store/tables aren't readable yet. Backend-agnostic (SQLite/PG) through
     ``open_readonly``. A fresh store with no ``entities`` table reads as 0."""
@@ -165,7 +164,7 @@ def _fix_lines() -> list[str]:
     ]
 
 
-def _chat_model_reachable() -> "bool | None":
+def _chat_model_reachable() -> bool | None:
     """Whether any main-path LLM endpoint answers with a model; None if unknown.
 
     Uses the file-extraction probe's endpoint list and reachability check so

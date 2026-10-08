@@ -64,7 +64,7 @@ assumption so the swap fails loudly instead of silently under-estimating.
 from __future__ import annotations
 
 import os
-from typing import Callable, Optional, Sequence
+from collections.abc import Callable, Sequence
 
 from . import config
 
@@ -125,7 +125,7 @@ def estimate_tokens(text: str) -> int:
     return max(n_bytes // _BYTES_PER_TOKEN_FLOOR, n_chars) + SPECIAL_TOKENS
 
 
-def _rust_count_tokens(texts: Sequence[str]) -> "Optional[list[int]]":
+def _rust_count_tokens(texts: Sequence[str]) -> list[int] | None:
     """Exact counts from the Rust core, or None when it cannot serve them.
 
     Routed through ``config.m3_core_rs`` (NOT a direct ``import m3_core_rs``) so
@@ -152,8 +152,8 @@ def _rust_count_tokens(texts: Sequence[str]) -> "Optional[list[int]]":
 def count_tokens(
     texts: Sequence[str],
     *,
-    exact_fn: "Optional[Callable[[Sequence[str]], Optional[list[int]]]]" = None,
-) -> "list[int]":
+    exact_fn: Callable[[Sequence[str]], list[int] | None] | None = None,
+) -> list[int]:
     """Token counts for a batch — exact when reachable, conservative otherwise.
 
     Cascade, mirroring the embed path's own tier structure so the shape is
@@ -194,6 +194,6 @@ def token_budget(text: str) -> int:
     return count_tokens([text])[0]
 
 
-def fits(text: str, limit: "Optional[int]" = None) -> bool:
+def fits(text: str, limit: int | None = None) -> bool:
     """True if ``text`` is within ``limit`` tokens (default: :data:`TOKEN_BUDGET`)."""
     return token_budget(text) <= (TOKEN_BUDGET if limit is None else limit)

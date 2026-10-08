@@ -90,7 +90,7 @@ def _canonical_annotation(text: str) -> str:
     """
     text = re.sub(r"\btyping\.", "", text)     # `typing.Optional` -> `Optional`
 
-    def _split_top(inner: str) -> "list[str]":
+    def _split_top(inner: str) -> list[str]:
         """Split on commas that are NOT inside nested brackets."""
         parts, depth, buf = [], 0, []
         for ch in inner:
@@ -142,7 +142,7 @@ def _canonical_annotation(text: str) -> str:
     return text
 
 
-def _defining_file(obj) -> "str | None":
+def _defining_file(obj) -> str | None:
     """Absolute path of the module that DEFINED `obj`, or None if unknowable."""
     mod_name = getattr(obj, "__module__", None)
     if not isinstance(mod_name, str) or not mod_name:
@@ -218,7 +218,7 @@ def _capture_signature(obj) -> str | None:
 
 # Machine-specific path fragments, longest-first so the most specific wins.
 # Built at call time because tmp_path and the engine root move per run/box.
-def _volatile_substitutions() -> "list[tuple[str, str]]":
+def _volatile_substitutions() -> list[tuple[str, str]]:
     """(literal, placeholder) pairs that make a value_repr machine-independent."""
     import tempfile
 

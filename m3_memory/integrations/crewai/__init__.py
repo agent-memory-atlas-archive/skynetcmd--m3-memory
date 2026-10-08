@@ -41,12 +41,12 @@ MIN_CREWAI_VERSION = "1.10.0"
 __all__ = ["M3StorageBackend", "MIN_CREWAI_VERSION"]
 
 _CREWAI_HINT = (
-    "The CrewAI integration requires CrewAI v{min}+ (the unified-memory "
+    f"The CrewAI integration requires CrewAI v{MIN_CREWAI_VERSION}+ (the unified-memory "
     "StorageBackend protocol shipped in v1.10). Install it with:\n"
     "    pip install m3-memory[crewai]\n"
     "or\n"
-    "    pip install 'crewai>={min}'"
-).format(min=MIN_CREWAI_VERSION)
+    f"    pip install 'crewai>={MIN_CREWAI_VERSION}'"
+)
 
 
 def _check_crewai_version() -> None:

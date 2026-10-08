@@ -297,7 +297,7 @@ class TestHttpEnforcement(unittest.TestCase):
     def tearDownClass(cls):
         cls._ctx.__exit__(None, None, None)
 
-    def _post(self, token: "str | None"):
+    def _post(self, token: str | None):
         headers = dict(self._HEADERS)
         if token is not None:
             headers["Authorization"] = f"Bearer {token}"

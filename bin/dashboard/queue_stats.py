@@ -14,8 +14,6 @@ not a guess. Drain ETA = queue_len / recent_rate (assumes the recent rate holds
 """
 from __future__ import annotations
 
-from typing import Optional
-
 # Time windows (minutes) the dashboard reports throughput over.
 WINDOWS_MIN = (1, 10, 30, 60)
 
@@ -226,7 +224,7 @@ def _entity_memories_processed(conn, minutes: int) -> int:
         return 0
 
 
-def _eta_seconds(queue_len: int, rate_per_min: float) -> Optional[float]:
+def _eta_seconds(queue_len: int, rate_per_min: float) -> float | None:
     """Estimated seconds to drain the queue at rate_per_min. None if the queue
     is empty (nothing to drain) or the rate is zero (can't estimate — would be
     infinite; the UI shows 'stalled' / '—')."""
@@ -302,7 +300,7 @@ def collect_pipeline_stats(db_path: str) -> dict:
     return {"pipelines": out}
 
 
-def _human_eta(eta_seconds: Optional[float]) -> str:
+def _human_eta(eta_seconds: float | None) -> str:
     if eta_seconds is None:
         return "stalled (no recent throughput)"
     if eta_seconds <= 0:

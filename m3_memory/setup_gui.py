@@ -232,7 +232,7 @@ _DOCTOR_STATUS_TOKENS = (
 )
 
 
-def _doctor_line_status(line: str) -> "tuple[str, str] | None":
+def _doctor_line_status(line: str) -> tuple[str, str] | None:
     """If `line` begins with a status token, return (tag, cleaned_line) where
     tag is 'ok'/'warn'/'fail' and cleaned_line has the leading emoji/bracket
     token stripped (so the GUI can prepend its own colored ● bullet). Returns
@@ -272,7 +272,7 @@ def run_gui() -> int:
 
     # ── tooltip helpers: a borderless popup shown while hovering a ⓘ icon ───────
     def _attach_tip(widget, text: str) -> None:
-        tip: dict[str, "tk.Toplevel | None"] = {"win": None}
+        tip: dict[str, tk.Toplevel | None] = {"win": None}
 
         def _show(_e=None) -> None:
             if tip["win"] is not None or not text:
@@ -478,13 +478,13 @@ def run_gui() -> int:
 
     # Every item is (kind, payload): kind in {line, wolf_start, wolf_ok,
     # wolf_fail, __DONE__}; payload is a str except __DONE__ (int rc).
-    out_q: "queue.Queue[tuple[str, object]]" = queue.Queue()
+    out_q: queue.Queue[tuple[str, object]] = queue.Queue()
 
     # ── Phase-2 LOG window (created when setup starts; not the config window) ───
     # The config window holds only the form; once the user accepts, it's hidden
     # and this dedicated, NON-CLOSABLE-during-run window shows live output.
-    log_win: "tk.Toplevel | None" = None
-    log_text: "scrolledtext.ScrolledText | None" = None
+    log_win: tk.Toplevel | None = None
+    log_text: scrolledtext.ScrolledText | None = None
     status_var = tk.StringVar(value="Ready.")
 
     def _append(text: str) -> None:
@@ -501,15 +501,15 @@ def run_gui() -> int:
     # Observed facts for the end-of-run, GUI-built summary.
     # The one observed fact the GUI-built summary needs that isn't in `values`:
     # whether the wolfSSL build succeeded/failed (from the stream markers).
-    wolfssl_result: "str | None" = None
+    wolfssl_result: str | None = None
     # True between the wolfSSL start and ok/fail markers: while set, the
     # installer's own stdout is routed to the build window, not the main log.
     wolf_active: bool = False
 
     # ── wolfSSL build sub-window (created lazily when the build starts) ─────────
     # Typed locals (not an object-dict) so the Tk widgets keep their static types.
-    wolf_win: "tk.Toplevel | None" = None
-    wolf_text: "scrolledtext.ScrolledText | None" = None
+    wolf_win: tk.Toplevel | None = None
+    wolf_text: scrolledtext.ScrolledText | None = None
     wolf_wait_var = tk.StringVar(value="")  # persistent "waiting…" line (not scrolled)
 
     def _open_wolf_window() -> None:
@@ -654,7 +654,7 @@ def run_gui() -> int:
         Runs on a worker thread; results return via a queue polled on the main
         thread (Tk is not thread-safe)."""
         trigger_btn.configure(state="disabled", text="Running m3 doctor…")
-        dq: "queue.Queue[str]" = queue.Queue()
+        dq: queue.Queue[str] = queue.Queue()
         m3 = _m3_command()[:-1]  # drop the trailing 'setup'
 
         def _work(full: bool) -> None:
@@ -878,11 +878,11 @@ def run_gui() -> int:
     # macOS/HIG keyboard affordances: Return/Enter triggers the default action,
     # Escape cancels. Guarded on running["v"] so a stray Return can't relaunch
     # setup mid-run (the config window is withdrawn then anyway — belt + braces).
-    def _on_return(_e: "object" = None) -> None:
+    def _on_return(_e: object = None) -> None:
         if not running["v"]:
             _on_run()
 
-    def _on_escape(_e: "object" = None) -> None:
+    def _on_escape(_e: object = None) -> None:
         _root_close()
 
     root.bind("<Return>", _on_return)

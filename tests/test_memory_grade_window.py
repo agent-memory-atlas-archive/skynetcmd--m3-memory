@@ -62,7 +62,7 @@ def store(main_db_template, monkeypatch, tmp_path):
 
     def add(*, accessed_minutes_ago=0, deleted=0):
         mid = str(uuid.uuid4())
-        now = dt.datetime.now(dt.timezone.utc)
+        now = dt.datetime.now(dt.UTC)
         # ⚠ PRODUCTION FORMAT — isoformat() with a +00:00 offset, exactly what
         # memory/db.py's access flusher writes. Seeding with SQLite's
         # datetime('now') instead would hide the string-compare bug.
@@ -223,7 +223,7 @@ def test_a_timestamp_in_the_same_second_as_the_cutoff_is_not_judged_stale(store)
     import sqlite3
 
     conn = sqlite3.connect(":memory:")
-    ts = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=1)).isoformat()
+    ts = (dt.datetime.now(dt.UTC) - dt.timedelta(minutes=1)).isoformat()
     pred = dialect_for("sqlite").age_minutes_lt("?", "?")
     got = conn.execute(f"SELECT {pred}", (ts, 5)).fetchone()[0]
     assert got, (

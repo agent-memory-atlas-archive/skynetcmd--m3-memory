@@ -57,9 +57,8 @@ import os
 import sys
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 _BIN = REPO_ROOT / "bin"
@@ -76,7 +75,7 @@ from slm_intent import _parse_profile  # noqa: E402
 
 
 def _utcnow_iso() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%fZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%fZ")
 
 
 # ── Stop-flag — graceful drain signal ──────────────────────────────────────
@@ -91,7 +90,7 @@ def _utcnow_iso() -> str:
 STOP_FLAG_PATH = REPO_ROOT / ".scratch" / "STOP_AFTER_CURRENT_SLICE_COMPLETES.md"
 
 
-def _check_stop_flag() -> Optional[str]:
+def _check_stop_flag() -> str | None:
     """Return a stop-reason string if the stop-flag file exists, else None.
 
     The reason is the file's first non-blank line (or a generic message if
@@ -182,7 +181,7 @@ def _reap_stale_runs(state_conn, *, stale_after_minutes: int = 360) -> int:
     Returns: count of rows reaped.
     """
     from datetime import timedelta
-    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=stale_after_minutes)).strftime(
+    cutoff = (datetime.now(UTC) - timedelta(minutes=stale_after_minutes)).strftime(
         "%Y-%m-%dT%H:%M:%SZ")
     cur = state_conn.execute(
         """UPDATE enrichment_runs
@@ -282,7 +281,7 @@ def _record_batch_ingested(state_conn, run_id: str, *, batch_id: str) -> None:
 
 def _record_run_finished(state_conn, run_id: str, *, status: str,
                          n_success: int, n_failed: int, n_empty: int,
-                         total_cost_usd: float, abort_reason: Optional[str],
+                         total_cost_usd: float, abort_reason: str | None,
                          batch_id: str = "") -> None:
     # Preserve existing notes.batches structure; just merge in the
     # comma-joined batch_id for legacy readers, and stamp status.
@@ -779,7 +778,7 @@ async def _run_async(args) -> int:
     cost_per_out = float(getattr(profile, "output_cost_per_mtok", 0) or 0)
 
     # Build conv-list filter
-    conv_filter: Optional[set[str]] = None
+    conv_filter: set[str] | None = None
     if args.source_conv_list:
         conv_filter = _load_conv_list(Path(args.source_conv_list).resolve())
         print(f"[batch] --source-conv-list: {len(conv_filter)} group_keys loaded",
@@ -888,7 +887,7 @@ async def _run_async(args) -> int:
           f"-> {n_slices} slice(s)", flush=True)
 
     # Record the run with the FIRST batch's id (we'll append more in notes).
-    enrich_run_id: Optional[str] = None
+    enrich_run_id: str | None = None
     submitted_at = time.time()
     n_success = n_empty = n_failed = 0
     total_cost = 0.0

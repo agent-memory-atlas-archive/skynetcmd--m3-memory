@@ -47,7 +47,7 @@ _WAREHOUSE_TABLES = (
 _DROP_IF_PRESENT = ("sync_watermarks",)  # legacy artifact — never keep
 
 
-def _resolve_dsn(explicit: "str | None") -> str:
+def _resolve_dsn(explicit: str | None) -> str:
     if explicit:
         return explicit
     for var in ("M3_CDW_PG_URL", "PG_URL"):
@@ -64,7 +64,7 @@ def _table_exists(cur, schema: str, table: str) -> bool:
     return bool(cur.fetchone()[0])
 
 
-def _row_count(cur, schema: str, table: str) -> "int | None":
+def _row_count(cur, schema: str, table: str) -> int | None:
     if not _table_exists(cur, schema, table):
         return None
     cur.execute(f"SELECT count(*) FROM {schema}.{table}")
@@ -119,7 +119,7 @@ def _pk_columns(cur, schema: str, table: str) -> list[str]:
     return [r[0] for r in cur.fetchall()]
 
 
-def _apply(cur, plan: dict, warehouse_ddl_path: "str | None", drop_public: bool) -> None:
+def _apply(cur, plan: dict, warehouse_ddl_path: str | None, drop_public: bool) -> None:
     table, action = plan["table"], plan["action"]
     if action in ("ok", "absent"):
         return
@@ -158,7 +158,7 @@ def _apply(cur, plan: dict, warehouse_ddl_path: "str | None", drop_public: bool)
         cur.execute(f"DROP TABLE public.{table}")
 
 
-def main(argv: "list[str] | None" = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Consolidate warehouse tables public -> m3_warehouse.")
     p.add_argument("--dsn", default=None, help="Warehouse DSN (else M3_CDW_PG_URL/PG_URL).")
     p.add_argument("--dry-run", action="store_true", help="Print the plan; change nothing.")

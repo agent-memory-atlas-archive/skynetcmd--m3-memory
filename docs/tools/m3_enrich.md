@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_enrich.py
-sha1: cb39fe2a7f2d
-mtime_utc: 2026-10-04T07:23:21.421768+00:00
-generated_utc: 2026-10-04T07:29:40.613859+00:00
+sha1: 6b13a7c2ca9d
+mtime_utc: 2026-10-08T22:11:14.552183+00:00
+generated_utc: 2026-10-08T22:11:48.016578+00:00
 private: false
 ---
 
@@ -45,7 +45,7 @@ Status: Phase D user-facing CLI. Pairs with bin/run_observer.py + bin/run_reflec
 
 ## Entry points
 
-- `def main()` (line 1012)
+- `def main()` (line 1011)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -133,7 +133,7 @@ Status: Phase D user-facing CLI. Pairs with bin/run_observer.py + bin/run_reflec
 
 **sqlite**
 
-- `sqlite3.connect()  → `str(db_path)`` (line 183)
+- `sqlite3.connect()  → `str(db_path)`` (line 182)
 
 
 ---

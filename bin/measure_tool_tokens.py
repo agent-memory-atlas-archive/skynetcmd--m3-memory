@@ -51,7 +51,7 @@ def schema_tokens(tools: list) -> int:
     return sum(tok(json.dumps(t, separators=(",", ":"))) for t in tools)
 
 
-def mcp_schema_tokens(names: "list[str]") -> int:
+def mcp_schema_tokens(names: list[str]) -> int:
     """MCP-shape cost: what an MCP client actually pays at session init.
 
     The wire shape is {name, description, inputSchema} — NO OpenAI

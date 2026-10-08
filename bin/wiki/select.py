@@ -15,7 +15,6 @@ from __future__ import annotations
 import re
 import sqlite3
 from dataclasses import dataclass, field
-from typing import Optional
 
 # Memory types that are themselves distillations / curated references, so they
 # belong in the wiki regardless of importance.
@@ -87,7 +86,7 @@ _DEFAULT_SELF_REF_NAMES = frozenset({
 })
 
 
-def _self_ref_names() -> "frozenset[str]":
+def _self_ref_names() -> frozenset[str]:
     """Project self-reference entity names to exclude from co-mention. Default set
     plus an optional config file at M3_CONFIG_ROOT/.wiki_self_entities.json
     (`{"self_entities": ["myproj", "org/repo"]}`). Case-insensitive match. Config
@@ -124,12 +123,12 @@ class Mem:
     title: str
     content: str
     importance: float
-    confidence: Optional[float]
-    valid_from: Optional[str]
-    valid_to: Optional[str]
+    confidence: float | None
+    valid_from: str | None
+    valid_to: str | None
     pinned: int
-    created_at: Optional[str]
-    updated_at: Optional[str]
+    created_at: str | None
+    updated_at: str | None
     # Parsed metadata_json (already a dict via the seam's json_column_to_dict, so
     # a Postgres JSONB dict and a SQLite TEXT string both normalize here). Empty
     # dict when the column is absent or unparseable — never None, so callers need
@@ -175,8 +174,8 @@ class Promo:
     promoted_to: str          # memory_items.id
     source_memory: str        # files-DB fact/leaf/file_summary uuid
     source_memory_type: str   # 'fact' | 'leaf' | 'file_summary'
-    filename: Optional[str]
-    source_path: Optional[str]
+    filename: str | None
+    source_path: str | None
 
 
 @dataclass
@@ -294,7 +293,7 @@ def select_core_memories(
     *,
     importance_threshold: float = DEFAULT_IMPORTANCE_THRESHOLD,
     limit: int = 5000,
-    exclude_regex: Optional[str] = None,
+    exclude_regex: str | None = None,
 ) -> list[Mem]:
     """Load the canonical memory set, sorted deterministically.
 
@@ -506,7 +505,7 @@ def load_promotions(files_conn, memory_ids: set[str]) -> list[Promo]:
 
 def _resolve_source_file(
     conn, source_uuid: str, source_type: str
-) -> tuple[Optional[str], Optional[str]]:
+) -> tuple[str | None, str | None]:
     """Best-effort filename + path for a promoted files-store item. Backend-agnostic
     (files_table()-qualified names + dialect placeholder); positional row access, so
     no row_factory needed."""

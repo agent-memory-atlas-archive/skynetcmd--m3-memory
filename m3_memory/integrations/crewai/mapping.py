@@ -31,7 +31,7 @@ know them:
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 # Reserved metadata_json keys the adapter owns. Namespaced so they can't collide
@@ -64,7 +64,7 @@ def crewai_embed_model(dim: int) -> str:
     return f"crewai-{dim}"
 
 
-def normalize_scope_prefix(scope_prefix: "str | None") -> str:
+def normalize_scope_prefix(scope_prefix: str | None) -> str:
     """Normalize a CrewAI scope path to the canonical form m3 stores/matches.
 
     CrewAI paths are ``/``-delimited absolute paths; a bare ``/`` or empty means
@@ -115,14 +115,14 @@ def _parse_dt(raw: Any) -> datetime:
     """m3 timestamps are ISO-8601 strings; coerce to an aware datetime (now on a
     miss — the MemoryRecord contract wants a datetime, never None)."""
     if isinstance(raw, datetime):
-        return raw if raw.tzinfo else raw.replace(tzinfo=timezone.utc)
+        return raw if raw.tzinfo else raw.replace(tzinfo=UTC)
     if isinstance(raw, str) and raw.strip():
         try:
             dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+            return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
         except (ValueError, TypeError):
             pass
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def record_to_write_args(record: Any, *, user_id: str, scope: str) -> dict:

@@ -13,7 +13,7 @@ when the client doesn't advertise `tools.listChanged`.
 from __future__ import annotations
 
 import json
-from typing import Callable, Optional
+from collections.abc import Callable
 
 # Set by memory_bridge.py at startup. Signature:
 #   register_domain(domain: str) -> dict
@@ -25,7 +25,7 @@ from typing import Callable, Optional
 #     "method": "list_changed" | "schemas_in_result",
 #     "schemas": <list-of-schema-dicts, only if method=='schemas_in_result'>,
 #   }
-_register_domain_callback: Optional[Callable[[str], dict]] = None
+_register_domain_callback: Callable[[str], dict] | None = None
 
 
 def set_register_domain_callback(fn: Callable[[str], dict]) -> None:

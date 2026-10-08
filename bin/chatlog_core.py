@@ -28,8 +28,8 @@ import signal
 import sys
 import time
 import uuid
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 import chatlog_config
 import chatlog_redaction
@@ -78,7 +78,7 @@ PRICE_TABLE: dict[tuple[str, str], dict[str, float]] = {
 
 
 def compute_cost_usd(provider: str, model_id: str,
-                     tokens_in: Optional[int], tokens_out: Optional[int]) -> Optional[float]:
+                     tokens_in: int | None, tokens_out: int | None) -> float | None:
     """Client-side cost computation from the price table.
 
     Returns None if provider/model not in table or token counts unavailable
@@ -101,7 +101,7 @@ def compute_cost_usd(provider: str, model_id: str,
 
 
 def _utcnow_iso() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _content_hash(s: str) -> str:
@@ -196,7 +196,7 @@ def _validate_write(item: dict) -> None:
 
 def _build_metadata(item: dict, scrubbed: bool = False,
                     redaction_count: int = 0, groups_fired: list[str] | None = None,
-                    original_hash: Optional[str] = None) -> str:
+                    original_hash: str | None = None) -> str:
     """Assemble metadata_json with full provenance + optional cost + optional redaction stamps."""
     meta: dict[str, Any] = {
         "role":            item["role"],
@@ -245,8 +245,8 @@ def _build_metadata(item: dict, scrubbed: bool = False,
 # Async write queue + flush loop
 # ---------------------------------------------------------------------------
 
-_QUEUE: Optional[asyncio.Queue] = None
-_FLUSH_TASK: Optional[asyncio.Task] = None
+_QUEUE: asyncio.Queue | None = None
+_FLUSH_TASK: asyncio.Task | None = None
 _LAST_FLUSH_TS: float = 0.0
 _QUEUE_LOCK = asyncio.Lock() if False else None  # set lazily in _ensure_queue
 _WROTE_COUNT = 0
@@ -349,7 +349,7 @@ async def _flush_once() -> int:
 # wrote, so a column added to one copy and not the others silently stops being
 # promoted, with no error on any backend. Same argument as
 # `Dialect.lease_expired_predicate`'s docstring makes for a copied predicate.
-_ROW_COLUMNS: "tuple[str, ...]" = (
+_ROW_COLUMNS: tuple[str, ...] = (
     "id", "type", "title", "content", "metadata_json", "agent_id", "model_id",
     "change_agent", "importance", "source", "origin_device", "user_id", "scope",
     "expires_at", "created_at", "valid_from", "valid_to", "conversation_id",
@@ -476,7 +476,7 @@ def _executemany_insert(batch: list[dict]) -> int:
 def _spill_batch(batch: list[dict]) -> None:
     """Dump pending rows to memory/chatlog_spill/YYYYMMDD.jsonl. Sweeper picks up."""
     os.makedirs(chatlog_config.SPILL_DIR, exist_ok=True)
-    day = datetime.now(timezone.utc).strftime("%Y%m%d")
+    day = datetime.now(UTC).strftime("%Y%m%d")
     path = os.path.join(chatlog_config.SPILL_DIR, f"{day}.jsonl")
     with open(path, "a", encoding="utf-8") as f:
         for item in batch:
@@ -516,7 +516,7 @@ def _update_state_spill() -> None:
 
 def _read_state() -> dict:
     try:
-        with open(chatlog_config.STATE_FILE, "r", encoding="utf-8") as f:
+        with open(chatlog_config.STATE_FILE, encoding="utf-8") as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
@@ -542,15 +542,15 @@ async def chatlog_write_impl(
     host_agent: str,
     provider: str,
     model_id: str,
-    turn_index: Optional[int] = None,
+    turn_index: int | None = None,
     agent_id: str = "",
     user_id: str = "",
     metadata: str = "{}",
     timestamp: str = "",
-    tokens_in: Optional[int] = None,
-    tokens_out: Optional[int] = None,
-    cost_usd: Optional[float] = None,
-    latency_ms: Optional[int] = None,
+    tokens_in: int | None = None,
+    tokens_out: int | None = None,
+    cost_usd: float | None = None,
+    latency_ms: int | None = None,
     embed: bool = False,  # reserved — always enqueued without embedding; sweeper handles
 ) -> str:
     """Enqueue a single chat log row. Returns the row id immediately."""
@@ -586,7 +586,7 @@ async def chatlog_write_impl(
     scrubbed = harness_stripped > 0
     rcount = 0
     groups_fired: list[str] = []
-    original_hash: Optional[str] = None
+    original_hash: str | None = None
     if cfg.redaction.enabled:
         scrubbed_content, rcount, groups_fired = chatlog_redaction.scrub(
             content, _redaction_dict(cfg.redaction),
@@ -654,7 +654,7 @@ async def chatlog_write_bulk_impl(items: list[dict], embed: bool = False) -> dic
         scrubbed = harness_stripped > 0
         rcount = 0
         groups_fired: list[str] = []
-        original_hash: Optional[str] = None
+        original_hash: str | None = None
         if cfg.redaction.enabled:
             scrubbed_content, rcount, groups_fired = chatlog_redaction.scrub(
                 content, _redaction_dict(cfg.redaction),
@@ -877,7 +877,7 @@ async def _chatlog_search_separate(
 # ---------------------------------------------------------------------------
 
 async def chatlog_promote_impl(
-    ids: Optional[list[str]] = None,
+    ids: list[str] | None = None,
     conversation_id: str = "",
     since: str = "",
     until: str = "",
@@ -1165,10 +1165,10 @@ async def chatlog_cost_report_impl(
 
 def chatlog_set_redaction_impl(
     enabled: bool,
-    patterns: Optional[list[str]] = None,
-    redact_pii: Optional[bool] = None,
-    custom_regex: Optional[list[str]] = None,
-    store_original_hash: Optional[bool] = None,
+    patterns: list[str] | None = None,
+    redact_pii: bool | None = None,
+    custom_regex: list[str] | None = None,
+    store_original_hash: bool | None = None,
 ) -> str:
     """Flip redaction flags at runtime and persist to config file."""
     cfg = chatlog_config.resolve_config()

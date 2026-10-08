@@ -9,7 +9,6 @@ import hashlib
 import logging
 import os
 import sys
-from typing import Optional
 
 logger = logging.getLogger("m3-crypto")
 
@@ -175,7 +174,7 @@ def _trusted_wolfssl_candidates() -> "list[str]":
     # Per-OS library filename(s). macOS uses .dylib (what the build helper
     # produces and installs); we ALSO accept .so there since a Linux-style build
     # or a Homebrew formula may produce it. Windows: wolfssl.dll.
-    lib_names: "tuple[str, ...]"
+    lib_names: tuple[str, ...]
     if os.name == "nt":
         lib_names = ("wolfssl.dll",)
     elif sys.platform == "darwin":
@@ -183,7 +182,7 @@ def _trusted_wolfssl_candidates() -> "list[str]":
     else:
         lib_names = ("libwolfssl.so",)
 
-    candidates: "list[str]" = []
+    candidates: list[str] = []
     # 1. Explicit operator pin (absolute path) — used verbatim, any filename.
     pinned = os.environ.get("M3_WOLFSSL_LIB", "").strip()
     if pinned:
@@ -227,7 +226,7 @@ def _verify_lib_integrity(path: str) -> None:
         )
 
 
-def _resolve_wolfssl_path() -> "Optional[str]":
+def _resolve_wolfssl_path() -> "str | None":
     """Return the FIRST trusted candidate that exists on disk (absolute path),
     after verifying any integrity pin. None if none found."""
     for cand in _trusted_wolfssl_candidates():
@@ -256,8 +255,8 @@ class CryptoProvider:
         self.backend = backend
         self._initialized = False
         self._fips_validated = False  # True only when the CMVP FIPS module is active
-        self._libwolf: Optional[ctypes.CDLL] = None
-        self._lib_path: Optional[str] = None  # absolute path the lib was loaded from
+        self._libwolf: ctypes.CDLL | None = None
+        self._lib_path: str | None = None  # absolute path the lib was loaded from
         self._fips_cb_ref = None  # Keep reference to prevent GC
 
         if self.backend == "WOLFSSL":

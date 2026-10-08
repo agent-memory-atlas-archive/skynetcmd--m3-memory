@@ -1,8 +1,8 @@
 ---
 tool: bin/consolidate_beliefs.py
-sha1: 8dc44e058da5
-mtime_utc: 2026-10-05T11:41:24.759510+00:00
-generated_utc: 2026-10-05T11:41:32.620594+00:00
+sha1: 0035926566e0
+mtime_utc: 2026-10-08T22:10:44.216072+00:00
+generated_utc: 2026-10-08T22:11:47.774290+00:00
 private: false
 ---
 

@@ -105,7 +105,7 @@ def test_empty_result_returns_the_display_string_by_default():
 # ── rule 4: backend neutrality (section 0.4) ─────────────────────────────────
 def test_datetime_normalizes_to_iso_string():
     """PG returns datetime; SQLite returns an ISO string for the same column."""
-    dt = datetime.datetime(2026, 9, 14, 3, 8, 23, tzinfo=datetime.timezone.utc)
+    dt = datetime.datetime(2026, 9, 14, 3, 8, 23, tzinfo=datetime.UTC)
     got = records.to_records([_Row(created_at=dt)])[0]["created_at"]
     assert got == dt.isoformat()
     assert isinstance(got, str)

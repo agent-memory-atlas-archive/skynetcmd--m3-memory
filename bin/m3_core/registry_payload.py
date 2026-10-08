@@ -37,7 +37,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from m3_core.runtime import iso_local_timestamp
 
@@ -69,7 +69,7 @@ class ProcInfo:
     # Process create time (epoch s) at write, or None for older/opaque entries.
     # Used with the pid for reuse-safe identity; a reader compares it to the
     # live process's create time.
-    create_time: Optional[float] = None
+    create_time: float | None = None
 
 
 def build_payload(
@@ -77,8 +77,8 @@ def build_payload(
     engine_root: str,
     *,
     pid: int,
-    create_time: Optional[float],
-    extra: Optional[dict] = None,
+    create_time: float | None,
+    extra: dict | None = None,
 ) -> dict:
     """Build the canonical payload dict for a process. PURE — the caller supplies
     ``pid`` and ``create_time`` (the runtime reads them via os.getpid / psutil),
@@ -100,7 +100,7 @@ def build_payload(
     return payload
 
 
-def parse_payload(data: Any, path: Path) -> Optional[ProcInfo]:
+def parse_payload(data: Any, path: Path) -> ProcInfo | None:
     """Turn a decoded coordination-file dict into a ``ProcInfo``, or ``None`` if
     it is malformed / implausible. The ONE parser both the registry and the lock
     reader go through (§3: single validation boundary, empty→None never a raise).

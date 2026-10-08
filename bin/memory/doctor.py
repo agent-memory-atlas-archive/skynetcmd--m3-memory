@@ -252,7 +252,7 @@ async def _probe_roundtrip() -> dict[str, Any]:
         res["dim"] = len(vec)
         res["model"] = model
         res["status"] = "ok"
-    except asyncio.TimeoutError:
+    except TimeoutError:
         res["error"] = "embed call exceeded 10s timeout — cascade is hung"
     except Exception as e:
         res["error"] = f"{type(e).__name__}: {e}"
@@ -502,7 +502,7 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
     # target it manages. A check that cannot run is recorded as an error, not
     # read as "run them anyway", which would report success over a state that
     # was never checked.
-    migration_needed: "bool | None" = diag["db"]["status"] != "online"
+    migration_needed: bool | None = diag["db"]["status"] != "online"
     if not migration_needed:
         try:
             import migrate_memory

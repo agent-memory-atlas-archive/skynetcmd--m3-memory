@@ -28,9 +28,9 @@ class ElevationBatch:
     """Queued (label, argv) actions, run together under one UAC prompt."""
 
     def __init__(self) -> None:
-        self.actions: "list[tuple[str, list[str]]]" = []
+        self.actions: list[tuple[str, list[str]]] = []
 
-    def add(self, label: str, argv: "list[str]") -> None:
+    def add(self, label: str, argv: list[str]) -> None:
         """Queue an action; the same command queued twice runs once."""
         if all(list(argv) != a for _, a in self.actions):
             self.actions.append((label, list(argv)))
@@ -39,7 +39,7 @@ class ElevationBatch:
         return len(self.actions)
 
     def render_script(self, results_path: str, log_dir: str,
-                      expires_epoch: "int | None" = None) -> str:
+                      expires_epoch: int | None = None) -> str:
         """The PowerShell the elevated process runs: each action in order, its
         output to its own log and its exit code under its label, then the codes
         written as JSON.
@@ -67,7 +67,7 @@ class ElevationBatch:
                      f"-Encoding UTF8")
         return "\r\n".join(lines) + "\r\n"
 
-    def run(self, timeout: int = 300) -> "dict[str, dict] | None":
+    def run(self, timeout: int = 300) -> dict[str, dict] | None:
         """Run every queued action in one elevated process. Returns
         {label: {"rc": exit code, "output": last lines}}, or None when the
         prompt was declined, expired, or the elevated process wrote no results
@@ -104,7 +104,7 @@ class ElevationBatch:
                 data = json.load(fh)
             if not isinstance(data, dict) or data.get("expired"):
                 return None
-            out: "dict[str, dict]" = {}
+            out: dict[str, dict] = {}
             for i, (label, _argv) in enumerate(self.actions):
                 rc = data.get(label)
                 out[label] = {"rc": -1 if rc is None else int(rc),

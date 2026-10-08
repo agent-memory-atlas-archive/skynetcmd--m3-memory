@@ -38,7 +38,7 @@ DEFAULT_STALE_DAYS = 3
 DEFAULT_MAX_PROCEDURES = 20
 
 
-def _should_yield_to_user(min_idle_s: float = 30.0) -> "str | None":
+def _should_yield_to_user(min_idle_s: float = 30.0) -> str | None:
     """Return a skip-reason if the host is too busy / the user is active to run
     a model-heavy distillation right now, else None. Mirrors the background-yield
     contract every other expensive m3 pass honors. Best-effort — never block on a

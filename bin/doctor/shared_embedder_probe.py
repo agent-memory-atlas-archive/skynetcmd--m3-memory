@@ -62,7 +62,7 @@ def _read_config() -> dict | None:
         return {}
 
 
-def _known_agent_settings() -> "list[tuple[str, str]]":
+def _known_agent_settings() -> list[tuple[str, str]]:
     """(label, path) for every client settings file that may carry an m3 MCP
     server env block. Dependency-free mirror of installer._known_agent_settings
     so this probe runs from a bare payload."""
@@ -76,7 +76,7 @@ def _known_agent_settings() -> "list[tuple[str, str]]":
     ]
 
 
-def _shell_rc_candidates() -> "list[str]":
+def _shell_rc_candidates() -> list[str]:
     """Standard POSIX shell rc / profile files that commonly `export` env vars.
     Order matters only for reporting; we scan all that exist."""
     home = os.path.expanduser("~")
@@ -86,7 +86,7 @@ def _shell_rc_candidates() -> "list[str]":
     )]
 
 
-def _find_env_in_shell_rc(var: str) -> "list[str]":
+def _find_env_in_shell_rc(var: str) -> list[str]:
     """Return 'path:line' for every uncommented `export VAR=`/`VAR=` occurrence
     of `var` in the user's shell rc files. Localizes the category 'shell rc' down
     to the exact file:line the user must edit. Empty when nothing matches."""
@@ -137,7 +137,7 @@ def _manual_env_leak_remains() -> bool:
         bool(_find_env_in_shell_rc("M3_EMBED_GGUF"))
 
 
-def _manual_removal_command() -> "list[str]":
+def _manual_removal_command() -> list[str]:
     """The exact, copy-pasteable command(s) to remove a persistent M3_EMBED_GGUF
     from the User/shell environment — the ONE thing --fix cannot do for the user.
     Localized to file:line where we can find it. Returned as printable lines so
@@ -161,7 +161,7 @@ def _manual_removal_command() -> "list[str]":
     return lines
 
 
-def _detect_inproc_env_leak() -> "list[str]":
+def _detect_inproc_env_leak() -> list[str]:
     """Locations where M3_EMBED_GGUF is set — each forces a per-process CUDA
     embedder (the hang footgun) when shared mode is on. Returns human-readable
     location strings (empty when clean). Checks the process env (localized to the
@@ -519,7 +519,7 @@ def _norm_model_tag(tag: str) -> str:
     return "bge-m3" if ("bge-m3" in t or "bge_m3" in t) else t
 
 
-def _classify_embed_model(cfg: "dict | None", body: dict) -> "tuple[str | None, list[str]]":
+def _classify_embed_model(cfg: dict | None, body: dict) -> tuple[str | None, list[str]]:
     """Compare the PINNED embed_model (env ``M3_EMBED_MODEL`` > the seeded
     ``embed_model`` in .embed_config.json) against what the server actually
     serves. The pin is the store's contract for which model owns its vector

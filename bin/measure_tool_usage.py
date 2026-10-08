@@ -49,7 +49,7 @@ import os
 import re
 import sys
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 MCP_PREFIXES = ("mcp__m3_memory__", "mcp__plugin_m3_memory__")
@@ -167,7 +167,7 @@ def collect(transcript_dir: Path, since: str | None):
         "transcript_dir": str(transcript_dir),
         "transcripts_scanned": files,
         "since": since,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "direct": dict(direct),
         "delegate": dict(delegate),
         "cli": dict(cli),

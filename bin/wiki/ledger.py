@@ -50,10 +50,10 @@ def next_seq(db, dialect) -> int:
 
 
 def open_run(db, dialect, *, scope: str = "", user_id: str = "",
-             importance_threshold: "float | None" = None,
+             importance_threshold: float | None = None,
              entity_comention: bool = False,
-             entity_max_degree: "int | None" = None,
-             as_of: "str | None" = None) -> str:
+             entity_max_degree: int | None = None,
+             as_of: str | None = None) -> str:
     """Insert an IN-PROGRESS run row (``completed_at`` NULL) and return its id.
 
     The row is invisible to readers until ``complete_run`` stamps ``completed_at``
@@ -73,7 +73,7 @@ def open_run(db, dialect, *, scope: str = "", user_id: str = "",
     return run_id
 
 
-def record_members(db, dialect, run_id: str, members: "list[tuple]") -> int:
+def record_members(db, dialect, run_id: str, members: list[tuple]) -> int:
     """Freeze this run's cluster membership. ``members`` is an iterable of
     ``(cluster_key, memory_id, cluster_hash, head_synthesis_id)`` tuples.
 
@@ -104,8 +104,8 @@ def record_members(db, dialect, run_id: str, members: "list[tuple]") -> int:
     return n
 
 
-def complete_run(db, dialect, run_id: str, *, cluster_count: "int | None" = None,
-                 page_hash_digest: "dict | None" = None) -> None:
+def complete_run(db, dialect, run_id: str, *, cluster_count: int | None = None,
+                 page_hash_digest: dict | None = None) -> None:
     """Stamp ``completed_at`` (making the run visible to readers) and optionally
     record the cluster count + a per-cluster page-hash digest.
 
@@ -147,7 +147,7 @@ def prune_superseded_members(db, dialect, keep_run_id: str) -> None:
 
 # ── read side (the skip-check) ───────────────────────────────────────────────
 
-def latest_completed_run(db, dialect) -> "str | None":
+def latest_completed_run(db, dialect) -> str | None:
     """Id of the most recent COMPLETED run, or None. Readers resolve only these —
     an in-progress (crashed) run is invisible."""
     row = db.execute(
@@ -163,7 +163,7 @@ def latest_completed_run(db, dialect) -> "str | None":
         return row[0]
 
 
-def frozen_membership(db, dialect, run_id: str) -> "dict[str, dict]":
+def frozen_membership(db, dialect, run_id: str) -> dict[str, dict]:
     """The membership a run froze: ``{cluster_key: {"members": set[str],
     "cluster_hash": str, "head_synthesis_id": str}}``.
 
@@ -210,8 +210,8 @@ def hash_is_unchanged(db, dialect, cluster_key: str, cluster_hash: str) -> bool:
 
 # ── GDPR (G2): scan for an erased id, record on the run, flush the cache ──────
 
-def scan_and_flush_on_erasure(db, dialect, erased_member_ids: "list[str]", *,
-                              timestamp: str) -> "dict":
+def scan_and_flush_on_erasure(db, dialect, erased_member_ids: list[str], *,
+                              timestamp: str) -> dict:
     """Find every run whose cached membership references an erased UUID, record the
     erasure on those run rows (accumulating id + count + timestamps), and FLUSH the
     affected runs' cached membership.

@@ -91,7 +91,7 @@ async def create_embeddings(req: EmbeddingRequest):
             )
         ):
             m = re.search(r"(\d+)\s*tokens\s*>\s*n_ctx\s*(\d+)", body, re.I)
-            err: "dict[str, object]" = {
+            err: dict[str, object] = {
                 "code": "context_length_exceeded",
                 "message": body[:2000],
             }

@@ -5,7 +5,7 @@ import json
 import logging
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from llm_failover import apply_thinking_suppression, get_best_llm, get_smallest_llm
 from m3_sdk import M3Context, resolve_db_path
@@ -293,7 +293,7 @@ async def _try_enrich_or_enqueue(memory_id: str, content: str, fact_enricher, db
     try:
         async with asyncio.timeout(0.001):  # try-acquire only
             await sem.acquire()
-    except (asyncio.TimeoutError, Exception):
+    except (TimeoutError, Exception):
         # Semaphore full or error — enqueue and return immediately
         _enqueue_fact_enrichment(memory_id, db)
         return
@@ -324,7 +324,7 @@ def _enqueue_fact_enrichment(memory_id: str, db) -> None:
 
 
 async def _run_fact_enricher(memory_id: str, content: str, fact_enricher,
-                              sem: "asyncio.Semaphore | None" = None) -> None:
+                              sem: asyncio.Semaphore | None = None) -> None:
     """Run the actual fact extractor with error handling and retries.
 
     `sem` is the semaphore that was acquired in the caller; we release
@@ -376,7 +376,7 @@ async def _write_fact_rows(memory_id: str, facts: list[dict]) -> None:
 
         confidence = float(fact_dict.get("confidence", 0.5))
         fact_id = str(uuid.uuid4())
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
 
         # Build metadata with source and confidence
         metadata = {

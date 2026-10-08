@@ -60,7 +60,7 @@ OWNERSHIP_MARKER = "chatlog"
 CAPTURE_EVENTS = ("PreCompact", "Stop")
 
 
-def _capture_support_gap(agent: str) -> "str | None":
+def _capture_support_gap(agent: str) -> str | None:
     """Why `agent` cannot be captured, or None if the machinery is all present.
 
     Checks the two things that make capture structurally impossible regardless
@@ -108,7 +108,7 @@ def _load_settings() -> dict | None:
     None means "cannot check" and must never be reported as healthy.
     """
     try:
-        with open(_claude_settings_path(), "r", encoding="utf-8") as fh:
+        with open(_claude_settings_path(), encoding="utf-8") as fh:
             return json.load(fh)
     except Exception:  # noqa: BLE001 — absent or malformed both mean "unknown"
         return None

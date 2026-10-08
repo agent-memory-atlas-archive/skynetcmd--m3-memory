@@ -3,12 +3,11 @@ _is_rate_limit_failure, _RateLimitCascade."""
 from __future__ import annotations
 
 import time
-from typing import Optional
 
 from slm_intent import Profile
 
 
-def _estimate_cost_wall(profile: Profile, n_groups: int) -> tuple[Optional[str], Optional[str]]:
+def _estimate_cost_wall(profile: Profile, n_groups: int) -> tuple[str | None, str | None]:
     """Rough cost + wall estimate based on the profile's known rate card."""
     # Per-call assumption: ~700 input + 400 output tokens.
     rates = {

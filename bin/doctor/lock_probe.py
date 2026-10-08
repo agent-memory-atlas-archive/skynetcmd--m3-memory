@@ -36,7 +36,7 @@ _CHURN_COUNT = 5
 _CHURN_WINDOW_S = 300.0  # 5 minutes
 
 
-def _parse_ts(ts: str) -> "float | None":
+def _parse_ts(ts: str) -> float | None:
     """Parse an iso_local_timestamp ('YYYY-MM-DDTHH:MM:SS') to epoch seconds, or
     None. Local-time strptime (matches how the events are stamped)."""
     try:
@@ -62,8 +62,8 @@ def run(brief: bool = False) -> int:
     events = m3_halt.read_lock_events(limit=1000)
 
     # Latest outcome per role (last acquired/degraded/held; released → free).
-    latest: "dict[str, dict]" = {}
-    churn: "dict[str, int]" = {}
+    latest: dict[str, dict] = {}
+    churn: dict[str, int] = {}
     now = time.time()
     for ev in events:
         role = ev.get("role", "?")

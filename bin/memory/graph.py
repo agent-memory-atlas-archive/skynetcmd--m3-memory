@@ -242,7 +242,7 @@ async def _entity_graph_neighbor_ids(
     # Resolve entity stoplist: caller list (incl. explicit []) > env default.
     # Frozenset (env default) or tuple (caller-derived) — only iterated and
     # membership-tested downstream, so the common Collection type is enough.
-    _stoplist_lower: "Collection[str]" = ()
+    _stoplist_lower: Collection[str] = ()
     if entity_stoplist is None:
         _stoplist_lower = ENTITY_SEED_STOPLIST
     else:

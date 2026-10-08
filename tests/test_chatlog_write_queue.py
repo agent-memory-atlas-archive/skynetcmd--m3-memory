@@ -248,7 +248,7 @@ def test_spill_batch_creates_file(tmp_path, monkeypatch):
     assert len(files) > 0
 
     # Verify content
-    with open(files[0], "r") as f:
+    with open(files[0]) as f:
         line = f.readline()
         obj = json.loads(line)
         assert obj["_id"] == "id-1"

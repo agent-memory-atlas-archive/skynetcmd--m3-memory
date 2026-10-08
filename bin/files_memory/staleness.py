@@ -24,7 +24,6 @@ import logging
 import os
 import sqlite3
 from dataclasses import dataclass, field
-from typing import Optional
 
 from .config import files_table
 from .db import _db
@@ -75,7 +74,7 @@ class FailedExtraction:
     file_node_uuid: str
     failed_leaf_count: int
     total_leaf_count: int
-    last_error: Optional[str]
+    last_error: str | None
 
 
 @dataclass
@@ -86,7 +85,7 @@ class DriftedPromotion:
     source_memory: str
     source_path: str
     source_superseded_at: str
-    reason: Optional[str]
+    reason: str | None
 
 
 @dataclass
@@ -109,8 +108,8 @@ class RenameCandidate:
 @dataclass
 class StalenessReport:
     """Full review output."""
-    directory: Optional[str]
-    corpus_id: Optional[str]
+    directory: str | None
+    corpus_id: str | None
     stale: list[StaleFile] = field(default_factory=list)
     touched_only: list[StaleFile] = field(default_factory=list)
     missing: list[MissingFile] = field(default_factory=list)
@@ -127,14 +126,14 @@ class StalenessReport:
 # Implementation
 # ──────────────────────────────────────────────────────────────────────────────
 def files_staleness_review(
-    directory: Optional[str] = None,
+    directory: str | None = None,
     *,
-    corpus_id: Optional[str] = None,
+    corpus_id: str | None = None,
     include_failed_extraction: bool = True,
     include_drifted_promotions: bool = True,
     include_rename_candidates: bool = True,
     rehash: bool = True,
-    db_path: Optional[str] = None,
+    db_path: str | None = None,
 ) -> StalenessReport:
     """Compare filesystem state against files.db.
 
@@ -393,8 +392,8 @@ def link_rename(
     missing_file_node_uuid: str,
     new_path: str,
     *,
-    expect_sha256: Optional[str] = None,
-    db_path: Optional[str] = None,
+    expect_sha256: str | None = None,
+    db_path: str | None = None,
 ) -> dict:
     """Re-point an existing file_node at a new path (rename / move).
 
@@ -464,7 +463,7 @@ def link_rename(
         renames.append({
             "from": row["path_absolute"],
             "to": new_abs,
-            "at": _dt.datetime.now(_dt.timezone.utc).isoformat(),
+            "at": _dt.datetime.now(_dt.UTC).isoformat(),
             "method": "files_link_rename",
         })
         md["rename_history"] = renames
@@ -503,4 +502,4 @@ def _fact_and_promotion_counts(conn, file_node_uuid: str) -> tuple[int, int]:
 
 def _iso_utc(ts: float) -> str:
     import datetime as _dt
-    return _dt.datetime.fromtimestamp(ts, tz=_dt.timezone.utc).isoformat()
+    return _dt.datetime.fromtimestamp(ts, tz=_dt.UTC).isoformat()

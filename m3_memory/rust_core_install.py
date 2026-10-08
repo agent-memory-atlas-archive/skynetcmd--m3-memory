@@ -26,7 +26,7 @@ import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
-from typing import Optional
+from datetime import UTC
 
 from m3_memory._platform import os_name as _os_name
 
@@ -329,7 +329,7 @@ def _parse_version(v: str) -> tuple:
     return tuple(parts)
 
 
-def installed_rust_core_version() -> "str | None":
+def installed_rust_core_version() -> str | None:
     """The version of the installed m3_core_rs, or None if not importable."""
     try:
         import m3_core_rs  # type: ignore
@@ -431,7 +431,7 @@ def _nvidia_driver_present() -> bool:
     return True
 
 
-def _core_imports() -> "tuple[bool, str]":
+def _core_imports() -> tuple[bool, str]:
     """Does the installed m3_core_rs import, with the embedded embedder?
 
     Checked in a fresh interpreter: this process may already hold the
@@ -451,7 +451,7 @@ def _core_imports() -> "tuple[bool, str]":
     return False, lines[-1] if lines else f"exit {r.returncode}"
 
 
-def _reject_unimportable(attempt: "BackendChoice", why: str) -> None:
+def _reject_unimportable(attempt: BackendChoice, why: str) -> None:
     """Remove a wheel that installed but cannot import, so the next backend in
     the chain does not sit beside a broken module of the same name."""
     print(f"[rust-core] {attempt.package} installed but does not import: {why}",
@@ -460,7 +460,7 @@ def _reject_unimportable(attempt: "BackendChoice", why: str) -> None:
     _pip("uninstall", "-y", attempt.package)
 
 
-def detect_backend(os_tok: Optional[str] = None) -> BackendChoice:
+def detect_backend(os_tok: str | None = None) -> BackendChoice:
     """Pick the best backend for this host.
 
     Order: macOS -> Metal (always). Else NVIDIA toolchain (nvcc) with a
@@ -493,7 +493,7 @@ def detect_backend(os_tok: Optional[str] = None) -> BackendChoice:
     return BackendChoice(os_tok, "cpu", "no GPU toolchain detected — CPU build")
 
 
-def detect_backend_chain(os_tok: Optional[str] = None) -> list[BackendChoice]:
+def detect_backend_chain(os_tok: str | None = None) -> list[BackendChoice]:
     """The ordered list of backends to try for this host, best first.
 
     ``detect_backend`` names the single BEST backend. That is the right answer
@@ -557,7 +557,7 @@ def detect_backend_chain(os_tok: Optional[str] = None) -> list[BackendChoice]:
     return chain
 
 
-def _pip(*args: str, env: Optional[dict] = None) -> subprocess.CompletedProcess:
+def _pip(*args: str, env: dict | None = None) -> subprocess.CompletedProcess:
     from m3_memory._pip import PipUnavailable, pip_command
 
     try:
@@ -711,7 +711,7 @@ def install_prebuilt(choice: BackendChoice, *, version: str = M3_CORE_RS_VERSION
     )
 
 
-def _find_executable(candidates: list[str]) -> Optional[str]:
+def _find_executable(candidates: list[str]) -> str | None:
     """Return the first executable from candidates that exists and runs.
 
     A binary that exists but isn't executable by the current user is
@@ -728,7 +728,7 @@ def _find_executable(candidates: list[str]) -> Optional[str]:
     return None
 
 
-def _find_cargo() -> Optional[str]:
+def _find_cargo() -> str | None:
     """Locate cargo, including rustup-installed toolchains not on PATH.
 
     The friction case (2026-06-07): user had rustup-installed Rust but
@@ -890,7 +890,7 @@ def _emit_download_progress(downloaded: int, total: int, *, tty: bool) -> None:
         pass
 
 
-def _install_log_path() -> "pathlib.Path | None":
+def _install_log_path() -> pathlib.Path | None:
     """Where the rust-core install/upgrade history is appended, or None.
 
     Same resolution the embed watchdog uses (`m3_embed_watchdog._log_path`):
@@ -935,8 +935,8 @@ def install_log(msg: str) -> None:
     path = _install_log_path()
     if path is None:
         return
-    from datetime import datetime, timezone
-    stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    from datetime import datetime
+    stamp = datetime.now(UTC).isoformat(timespec="seconds")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "a", encoding="utf-8", errors="replace") as fh:
@@ -945,7 +945,7 @@ def install_log(msg: str) -> None:
         pass
 
 
-def _fetch_release_sha256sums(assets: list, *, git_tag: str) -> "dict[str, str] | None":
+def _fetch_release_sha256sums(assets: list, *, git_tag: str) -> dict[str, str] | None:
     """Digests from the Release's ``SHA256SUMS`` asset, or None if absent.
 
     Returns ``{basename: hexdigest}``. None means the manifest is not published
@@ -974,7 +974,7 @@ def _fetch_release_sha256sums(assets: list, *, git_tag: str) -> "dict[str, str] 
               file=sys.stderr)
         return None
 
-    out: "dict[str, str]" = {}
+    out: dict[str, str] = {}
     for line in text.splitlines():
         line = line.strip()
         if not line:
@@ -991,7 +991,7 @@ def _fetch_release_sha256sums(assets: list, *, git_tag: str) -> "dict[str, str] 
     return out or None
 
 
-def _download_wheel_once(wheel_url: str, wheel_path: str) -> "tuple[int, str]":
+def _download_wheel_once(wheel_url: str, wheel_path: str) -> tuple[int, str]:
     """Stream ``wheel_url`` to ``wheel_path``; return (bytes_written, sha256).
 
     The digest is computed from the same chunks that are written, so it costs
@@ -1306,9 +1306,9 @@ def install_from_source(choice: BackendChoice, *,
     return _pip_install_with_pep668_fallback(*args)
 
 
-def install_rust_core(os_tok: Optional[str] = None, *,
+def install_rust_core(os_tok: str | None = None, *,
                       allow_source_fallback: bool = True,
-                      backend: Optional[str] = None,
+                      backend: str | None = None,
                       force: bool = False) -> int:
     """Top-level: detect backend, install prebuilt wheel, fall back to source.
 

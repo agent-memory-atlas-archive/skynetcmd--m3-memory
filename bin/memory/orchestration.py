@@ -27,7 +27,7 @@ import json
 import logging
 import uuid
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from m3_core.paths import node_id
 
@@ -72,7 +72,7 @@ TEAM_MEMBERSHIP_WINDOW_HOURS = 24
 
 
 @functools.cache
-def _own_client() -> "tuple[int, float | None] | None":
+def _own_client() -> tuple[int, float | None] | None:
     """(pid, create_time) of this process's agent client; cached, it cannot change.
 
     Transport-blind: walks up from whichever process runs m3 — MCP server or
@@ -112,7 +112,7 @@ def _touch(db, agent_id: str, *, client=_OWN_CLIENT) -> int:
     return cur.rowcount
 
 
-def _membership(row, here: str) -> "tuple[str, str]":
+def _membership(row, here: str) -> tuple[str, str]:
     """(state, basis) for one registry row: 'member', 'idle' or 'left'.
 
     ``row`` must carry the ``recent`` flag computed in SQL against the database
@@ -134,7 +134,7 @@ def _membership(row, here: str) -> "tuple[str, str]":
     return "left", f"no touch in {w}h; {why}"
 
 
-def _membership_columns() -> "tuple[str, tuple]":
+def _membership_columns() -> tuple[str, tuple]:
     """SELECT fragment + params adding ``recent`` (touched inside the window, DB clock)."""
     _d = dialect()
     return (f"node_id, hostname, pid, pid_create_time, "
@@ -166,7 +166,7 @@ def agent_register_impl(agent_id: str, role: str = "", capabilities: list | None
     if not agent_id:
         return "Error: agent_id cannot be empty"
 
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     caps_json = json.dumps(capabilities or [])
     meta_json = json.dumps(metadata or {})
 
@@ -353,7 +353,7 @@ def agent_offline_impl(agent_id: str) -> str:
 _AGENT_SEP = "@"
 
 
-def split_agent_id(agent_id: str) -> "tuple[str, str | None]":
+def split_agent_id(agent_id: str) -> tuple[str, str | None]:
     """('claude-code@abc', ) -> ('claude-code', 'abc'); ('claude-code',) -> (…, None).
 
     maxsplit=1 so an instance id may itself contain "@" without the type
@@ -399,7 +399,7 @@ def require_agent_id(agent_id: str, tool: str) -> str:
     return agent_id
 
 
-def _addressing_predicate(agent_id: str, param: str) -> "tuple[str, tuple]":
+def _addressing_predicate(agent_id: str, param: str) -> tuple[str, tuple]:
     """SQL fragment + params selecting the rows an inbox read should see.
 
     Two different questions, and conflating them is what made the original
@@ -442,7 +442,7 @@ def _addressing_predicate(agent_id: str, param: str) -> "tuple[str, tuple]":
 MESSAGE_STATES = ("FAILED", "COMPLETED", "CLAIMED", "PENDING")
 
 
-def inbox_membership_sql(*, claimed: "bool | None" = None) -> str:
+def inbox_membership_sql(*, claimed: bool | None = None) -> str:
     """Rows STILL IN THE INBOX -- i.e. not yet acked. The single owner.
 
     ⚠ This is NOT ``message_state_sql("PENDING")`` and must never be unified
@@ -535,7 +535,7 @@ DISPATCH_ID_FLOOR = 1_000_000_000
 
 
 @contextmanager
-def _store_for_id(notification_id: "int | str"):
+def _store_for_id(notification_id: int | str):
     """Yield ``(conn, table)`` for the store that owns ``notification_id``.
 
     Routing by the id floor is exact, not heuristic: dispatch ids start at
@@ -611,7 +611,7 @@ def notify_impl(agent_id: str, kind: str, payload: dict = None,
     disambiguator so a reply can be routed, NOT a credential, and nothing
     downstream should treat it as proof of origin.
     """
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     if from_agent or from_session:
         _addr = {k: v for k, v in (("agent", from_agent),
                                    ("session", from_session)) if v}
@@ -673,7 +673,7 @@ def notify_impl(agent_id: str, kind: str, payload: dict = None,
 _NODE_ACTIVE_WINDOW_MINUTES = 10
 
 
-def detect_fleet_topology() -> "tuple[str, str]":
+def detect_fleet_topology() -> tuple[str, str]:
     """``(verdict, evidence)`` -- is this fleet single-node or multi-node?
 
     Verdict is ``"single-node"``, ``"multi-node"`` or ``"unknown"``. The second
@@ -737,7 +737,7 @@ def detect_fleet_topology() -> "tuple[str, str]":
     return ("single-node", f"all {sum(named.values())} active agent(s) on {sorted(named)[0]}")
 
 
-def _notification_sources() -> "list[tuple[str | None, str]]":
+def _notification_sources() -> list[tuple[str | None, str]]:
     """Every (store, table) pair a pending notification can live in.
 
     ``store`` is a SQLite path to read directly, or ``None`` meaning "the
@@ -758,7 +758,7 @@ def _notification_sources() -> "list[tuple[str | None, str]]":
     a name comparison like ``!= "postgres"`` -- a future MariaDB must not
     silently take the PostgreSQL path (§10a).
     """
-    sources: "list[tuple[str | None, str]]" = [(None, "notifications")]
+    sources: list[tuple[str | None, str]] = [(None, "notifications")]
     try:
         from m3_core.paths import (
             dispatch_pg_schema,
@@ -781,7 +781,7 @@ def _notification_sources() -> "list[tuple[str | None, str]]":
     return sources
 
 
-def read_across_notification_stores(sql_template: str, params: "tuple") -> list:
+def read_across_notification_stores(sql_template: str, params: tuple) -> list:
     """Run one read against EVERY store a notification can live in.
 
     THE PRIMITIVE DOWNSTREAM CALLERS SHOULD USE. ``sql_template`` carries a
@@ -886,7 +886,7 @@ def _decode_payload_json(rows) -> list[dict]:
     return out
 
 
-def sweep_leases_opportunistically(table: "str | None" = None) -> "tuple[int, int]":
+def sweep_leases_opportunistically(table: str | None = None) -> tuple[int, int]:
     """Reclaim lapsed leases. Returns ``(reclaimed, dead_lettered)``.
 
     THE PRODUCTION CALL SITE. ``sweep_expired_leases`` shipped with a full
@@ -1115,7 +1115,7 @@ def notifications_mark_received_impl(agent_id: str) -> str:
     against.
     """
     require_agent_id(agent_id, "notifications_mark_received")
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
 
     p = dialect().param()
     pred, addr = _addressing_predicate(agent_id, p)
@@ -1328,7 +1328,7 @@ def task_create_impl(title: str, created_by: str, description: str = "", owner_a
         return "Error: created_by cannot be empty"
 
     task_id = str(uuid.uuid4())
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
 
     with _db() as db:
         p = dialect().param()
@@ -1357,7 +1357,7 @@ def task_assign_impl(task_id: str, owner_agent: str) -> str:
     if err:
         return err
 
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
 
     with _db() as db:
         p = dialect().param()
@@ -1397,7 +1397,7 @@ def task_update_impl(task_id: str, state: str = "", description: str = "", metad
         if err:
             return err
 
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     updates = [f"updated_at = {p}"]
     params = [now]
 
@@ -1456,7 +1456,7 @@ def task_update_impl(task_id: str, state: str = "", description: str = "", metad
 
 def task_set_result_impl(task_id: str, result_memory_id: str) -> str:
     """Sets the result memory for a task (without changing state)."""
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
 
     with _db() as db:
         p = dialect().param()
@@ -1515,7 +1515,7 @@ def task_delete_impl(task_id: str, hard: bool = False, actor: str = "") -> str:
     delete on one peer does NOT remove the row on other peers — they
     converge via the soft-delete tombstone.
     """
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     with _db() as db:
         p = dialect().param()
         row = db.execute(

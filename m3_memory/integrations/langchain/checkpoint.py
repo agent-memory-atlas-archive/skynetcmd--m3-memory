@@ -32,10 +32,13 @@ Faithful to the tenets:
 
 from __future__ import annotations
 
+import builtins
+from collections.abc import AsyncIterator, Iterator, Sequence
+
 # `List` (capitalized) is used for return annotations INSIDE this class because
 # the class defines a method named ``list`` that shadows the builtin ``list`` in
 # class scope — ``list[CheckpointTuple]`` would resolve to ``M3Saver.list[...]``.
-from typing import Any, AsyncIterator, Iterator, List, Optional, Sequence
+from typing import Any
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import (
@@ -90,7 +93,7 @@ CREATE TABLE IF NOT EXISTS m3_lg_writes (
 """
 
 
-def _cfg(config: Optional[RunnableConfig]) -> dict:
+def _cfg(config: RunnableConfig | None) -> dict:
     return (config or {}).get("configurable", {}) or {}
 
 
@@ -127,7 +130,7 @@ class M3Saver(BaseCheckpointSaver):
             db.executescript(_SCHEMA)
 
     # ── version scheme (opaque monotonic string, like the sqlite saver) ───────
-    def get_next_version(self, current: Optional[Any], channel: Any = None) -> str:
+    def get_next_version(self, current: Any | None, channel: Any = None) -> str:
         """Monotonic version: ``NNNNNNNN.<hash>``. LangGraph only needs the
         ordering to be total and increasing; we mirror the reference sqlite/
         memory savers' integer-prefixed scheme."""
@@ -144,7 +147,7 @@ class M3Saver(BaseCheckpointSaver):
         """serde → (type, bytes). LangGraph's serde returns (type, bytes)."""
         return self.serde.dumps_typed(obj)
 
-    def _load(self, type_: Optional[str], blob: Any) -> Any:
+    def _load(self, type_: str | None, blob: Any) -> Any:
         return self.serde.loads_typed((type_ or "", bytes(blob)))
 
     # ── PUT: persist one checkpoint ───────────────────────────────────────────
@@ -269,24 +272,24 @@ class M3Saver(BaseCheckpointSaver):
         await self._put_writes_async(rows)
 
     # ── GET: one checkpoint tuple (latest for a thread, or a named id) ────────
-    def get_tuple(self, config: RunnableConfig) -> Optional[CheckpointTuple]:
+    def get_tuple(self, config: RunnableConfig) -> CheckpointTuple | None:
         self._ensure_schema()
         return self._client._run(self._get_tuple_async(config))
 
-    async def aget_tuple(self, config: RunnableConfig) -> Optional[CheckpointTuple]:
+    async def aget_tuple(self, config: RunnableConfig) -> CheckpointTuple | None:
         return await self._client._run_async(
             lambda: self._get_tuple_on_loop(config)
         )
 
     async def _get_tuple_on_loop(
         self, config: RunnableConfig
-    ) -> Optional[CheckpointTuple]:
+    ) -> CheckpointTuple | None:
         await self._ensure_schema_async()
         return await self._get_tuple_async(config)
 
     async def _get_tuple_async(
         self, config: RunnableConfig
-    ) -> Optional[CheckpointTuple]:
+    ) -> CheckpointTuple | None:
         from memory.db import _db
 
         conf = _cfg(config)
@@ -341,7 +344,7 @@ class M3Saver(BaseCheckpointSaver):
             "checkpoint_ns": row["checkpoint_ns"],
             "checkpoint_id": row["checkpoint_id"],
         }}
-        parent_conf: Optional[RunnableConfig] = None
+        parent_conf: RunnableConfig | None = None
         if row["parent_id"]:
             parent_conf = {"configurable": {
                 "thread_id": row["thread_id"],
@@ -359,11 +362,11 @@ class M3Saver(BaseCheckpointSaver):
     # ── LIST: checkpoints for a thread, newest first (history / time-travel) ──
     def list(
         self,
-        config: Optional[RunnableConfig],
+        config: RunnableConfig | None,
         *,
-        filter: Optional[dict] = None,
-        before: Optional[RunnableConfig] = None,
-        limit: Optional[int] = None,
+        filter: dict | None = None,
+        before: RunnableConfig | None = None,
+        limit: int | None = None,
     ) -> Iterator[CheckpointTuple]:
         self._ensure_schema()
         rows = self._client._run(
@@ -373,11 +376,11 @@ class M3Saver(BaseCheckpointSaver):
 
     async def alist(
         self,
-        config: Optional[RunnableConfig],
+        config: RunnableConfig | None,
         *,
-        filter: Optional[dict] = None,
-        before: Optional[RunnableConfig] = None,
-        limit: Optional[int] = None,
+        filter: dict | None = None,
+        before: RunnableConfig | None = None,
+        limit: int | None = None,
     ) -> AsyncIterator[CheckpointTuple]:
         rows = await self._client._run_async(
             lambda: self._alist_on_loop(config, filter, before, limit)
@@ -391,7 +394,7 @@ class M3Saver(BaseCheckpointSaver):
 
     async def _list_async(
         self, config, filter, before, limit,
-    ) -> List[CheckpointTuple]:
+    ) -> builtins.list[CheckpointTuple]:
         from memory.db import _db
 
         conf = _cfg(config)  # _cfg tolerates None

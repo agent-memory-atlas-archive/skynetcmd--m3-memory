@@ -36,7 +36,7 @@ _OXIDATION_DISABLED: bool = os.environ.get("M3_CORE_RS_DISABLE", "0").lower() in
 # Typed `Any` so callers can access the Rust extension's attributes without
 # mypy flagging every use as "None has no attribute ..."; the None case is a
 # real runtime fallback (extension not installed / disabled).
-m3_core_rs: "Any" = None
+m3_core_rs: Any = None
 if not _OXIDATION_DISABLED:
     try:
         import m3_core_rs  # type: ignore[no-redef]  # noqa: F811 — intentional rebind

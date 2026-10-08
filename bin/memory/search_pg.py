@@ -38,16 +38,16 @@ def fetch_candidates_pg(
     conn: Any,
     *,
     query: str,
-    q_vec: "list[float]",
+    q_vec: list[float],
     search_mode: str,
     where_columns: str,
     dim: int,
-    embed_models: "tuple[str, ...]",
+    embed_models: tuple[str, ...],
     tenancy_sql: str,
-    tenancy_params: "tuple[Any, ...]",
+    tenancy_params: tuple[Any, ...],
     row_limit: int,
-    extra_columns: "list[str] | None" = None,
-) -> "tuple[list[dict], bool]":
+    extra_columns: list[str] | None = None,
+) -> tuple[list[dict], bool]:
     """Fetch scored-search candidates on PostgreSQL via the seam.
 
     ``where_columns`` is the extra SELECT column list (already ``mi.``-qualified,

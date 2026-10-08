@@ -37,8 +37,7 @@ import shutil
 import sqlite3
 import sys
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import List, Optional
+from datetime import UTC, datetime
 
 sys.path.insert(0, os.path.dirname(__file__))
 from m3_sdk import get_m3_config_root, get_m3_engine_root, get_m3_root
@@ -168,7 +167,7 @@ def _classify_db(db_path: str) -> str:
     return "unknown"
 
 
-def targets(selected: str = "all") -> List[MigrationTarget]:
+def targets(selected: str = "all") -> list[MigrationTarget]:
     """
     Returns a list of MigrationTarget objects based on selection.
 
@@ -223,7 +222,7 @@ def targets(selected: str = "all") -> List[MigrationTarget]:
         return [main_target] if main_target else []
 
     if selected == "all" or selected == "chatlog":
-        result: List[MigrationTarget] = []
+        result: list[MigrationTarget] = []
         if main_target:
             result.append(main_target)
 
@@ -302,7 +301,7 @@ def targets(selected: str = "all") -> List[MigrationTarget]:
 def load_config():
     if os.path.exists(CONFIG_PATH):
         try:
-            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+            with open(CONFIG_PATH, encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
             return {}
@@ -371,14 +370,14 @@ def prompt_backup_dir(assume_yes: bool) -> str:
 
 # ── Backup / restore ────────────────────────────────────────────────────────
 
-def take_backup(backup_dir: str, version_before: int, tag: str, target: MigrationTarget, src_conn: Optional[sqlite3.Connection] = None) -> str:
+def take_backup(backup_dir: str, version_before: int, tag: str, target: MigrationTarget, src_conn: sqlite3.Connection | None = None) -> str:
     if not os.path.exists(target.db_path):
         logger.info(f"No existing database to back up: {target.db_path}")
         return ""
     # Create per-target subdirectory under backup_dir
     target_backup_dir = os.path.join(backup_dir, target.name)
     os.makedirs(target_backup_dir, exist_ok=True)
-    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     db_basename = os.path.basename(target.db_path).replace(".db", "")
     basename = f"{db_basename}.v{version_before:03d}.{tag}.{ts}.db"
     dst = os.path.join(target_backup_dir, basename)
@@ -436,7 +435,7 @@ def discover_migrations(migrations_dir: str):
     Args:
         migrations_dir: Directory to scan for migration files.
     """
-    out: dict[int, dict[str, Optional[str]]] = {}
+    out: dict[int, dict[str, str | None]] = {}
     seen_paths: dict[tuple[int, str], str] = {}
     for filepath in sorted(glob.glob(os.path.join(migrations_dir, "*.sql"))):
         fname = os.path.basename(filepath)
@@ -537,7 +536,7 @@ def _run_sql_transaction(conn, filepath: str):
     behaviour. Migration files must NOT contain their own COMMIT/ROLLBACK
     statements (the repo convention; enforced by _validate_migration_sql).
     """
-    with open(filepath, "r", encoding="utf-8") as f:
+    with open(filepath, encoding="utf-8") as f:
         sql_script = f.read()
     _validate_migration_sql(filepath, sql_script)
     wrapped = (
@@ -709,7 +708,7 @@ def _print_pending_plan(pending: list[int], migs: dict, direction: str) -> None:
             continue
         print(f"\n# v{v:03d} ({direction}): {os.path.basename(path)}")
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 print(f.read().rstrip())
         except OSError as e:
             print(f"# <error reading {path}: {e}>")

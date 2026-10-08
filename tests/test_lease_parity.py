@@ -127,7 +127,7 @@ def _expired_sql(d) -> str:
     return d.lease_expired_predicate()
 
 
-def _registered_dialects() -> "list[tuple[str, object]]":
+def _registered_dialects() -> list[tuple[str, object]]:
     """Every REGISTERED backend's dialect singleton, derived, never hardcoded.
 
     §1 expects MariaDB. A hardcoded (sqlite, postgres) pair would leave a third

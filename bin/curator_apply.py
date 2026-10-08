@@ -46,7 +46,8 @@ import os
 import sqlite3
 import sys
 import time
-from typing import Any, Optional
+from datetime import UTC
+from typing import Any
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -129,7 +130,7 @@ def _summarize_memory(out: dict) -> dict:
 
 # ── chatlog.db plan apply ────────────────────────────────────────────────────
 
-def apply_chatlog_plan(plan: dict, db_path: Optional[str] = None) -> dict:
+def apply_chatlog_plan(plan: dict, db_path: str | None = None) -> dict:
     """Deterministically apply a chatlog.db curation plan.
 
     Sections honored: decay, dedup, promote, prune.
@@ -244,11 +245,11 @@ def _apply_prunes(db_path: str, prune_specs: list) -> dict:
     path. The previous raw ``sqlite3.connect(db_path)`` silently edited a stale
     SQLite file on PG; this keeps the SQLite path exact while making PG correct.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from memory.backends import active_backend, chatlog_table
 
-    now_iso = datetime.now(timezone.utc).isoformat()
+    now_iso = datetime.now(UTC).isoformat()
     backend = active_backend()
     results: list[dict] = []
 

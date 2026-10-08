@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass, field
-from typing import Optional
 
 
 @dataclass
@@ -18,7 +17,7 @@ class Fact:
     uuid: str
     statement: str
     confidence: float
-    leaf: Optional[str]
+    leaf: str | None
 
 
 @dataclass
@@ -27,8 +26,8 @@ class FileNode:
     filename: str
     filetype: str
     path: str
-    summary: Optional[str]
-    corpus_id: Optional[str]
+    summary: str | None
+    corpus_id: str | None
     facts: list[Fact] = field(default_factory=list)
 
     def rank_key(self) -> tuple:
@@ -57,8 +56,8 @@ def load_files_layer(
     files_conn,
     *,
     include_all: bool = True,
-    corpora: Optional[list[str]] = None,
-    exclude_corpora: Optional[list[str]] = None,
+    corpora: list[str] | None = None,
+    exclude_corpora: list[str] | None = None,
     limit: int = 2000,
 ) -> FilesLayer:
     """Load non-superseded file_nodes + their notable facts.

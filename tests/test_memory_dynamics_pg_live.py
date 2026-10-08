@@ -219,7 +219,7 @@ def test_reinforcement_discriminates_by_access_on_pg(pg):
     # identically, which reads as "inert" while the feature is working.
     hot = _write(uid, type="note", content="hot", importance=0.3)
     cold = _write(uid, type="note", content="cold", importance=0.3)
-    recent = dt.datetime.now(dt.timezone.utc).isoformat()
+    recent = dt.datetime.now(dt.UTC).isoformat()
     _set(hot, created_at=_OLD, access_count=500, last_accessed_at=recent)
     _set(cold, created_at=_OLD, access_count=0, last_accessed_at=None)
 
@@ -245,7 +245,7 @@ def test_retrieval_alone_cannot_outrun_decay_on_pg(pg):
     # saturates -- the curve is logarithmic and hard-capped at 0.05.
     start = 0.3
     mid = _write(uid, type="note", content="hammered", importance=start)
-    recent = dt.datetime.now(dt.timezone.utc).isoformat()
+    recent = dt.datetime.now(dt.UTC).isoformat()
     _set(mid, created_at=_OLD, access_count=10_000, last_accessed_at=recent)
 
     for _ in range(300):
@@ -271,7 +271,7 @@ def test_a_fresh_grade_lands_on_pg(pg):
     import memory_maintenance as MM
     uid = f"dyn-{uuid.uuid4().hex[:8]}"
     mid = _write(uid, type="note", content="fresh", importance=0.5)
-    _set(mid, last_accessed_at=dt.datetime.now(dt.timezone.utc).isoformat())
+    _set(mid, last_accessed_at=dt.datetime.now(dt.UTC).isoformat())
 
     res = MM.memory_grade_impl(grades=[{"memory_id": mid, "verdict": "helpful"}])
     assert res["applied"] is True and res["graded"] == 1
@@ -282,7 +282,7 @@ def test_a_stale_grade_is_rejected_on_pg(pg):
     import memory_maintenance as MM
     uid = f"dyn-{uuid.uuid4().hex[:8]}"
     mid = _write(uid, type="note", content="stale", importance=0.5)
-    old = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=3)).isoformat()
+    old = (dt.datetime.now(dt.UTC) - dt.timedelta(hours=3)).isoformat()
     _set(mid, last_accessed_at=old)
 
     res = MM.memory_grade_impl(grades=[{"memory_id": mid, "verdict": "helpful"}])
@@ -299,7 +299,7 @@ def test_the_window_ceiling_holds_on_pg(pg):
     import memory_maintenance as MM
     uid = f"dyn-{uuid.uuid4().hex[:8]}"
     mid = _write(uid, type="note", content="ancient", importance=0.5)
-    old = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=30)).isoformat()
+    old = (dt.datetime.now(dt.UTC) - dt.timedelta(days=30)).isoformat()
     _set(mid, last_accessed_at=old)
 
     res = MM.memory_grade_impl(
@@ -316,7 +316,7 @@ def test_counters_stay_separate_on_pg(pg):
     import memory_maintenance as MM
     uid = f"dyn-{uuid.uuid4().hex[:8]}"
     mid = _write(uid, type="note", content="contested", importance=0.5)
-    now = dt.datetime.now(dt.timezone.utc).isoformat()
+    now = dt.datetime.now(dt.UTC).isoformat()
 
     for verdict in ("helpful",) * 5 + ("unhelpful",) * 5:
         _set(mid, last_accessed_at=now)

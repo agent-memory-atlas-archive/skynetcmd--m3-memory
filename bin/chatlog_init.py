@@ -25,7 +25,6 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 # Import config module from same directory
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -369,7 +368,7 @@ def apply_claude_settings(config: ChatlogConfig) -> tuple[bool, str]:
     # Ensure ~/.npm-global/bin is on the non-login shell PATH — Claude Code is
     # commonly `npm install -g`'d AFTER install-m3, when that PATH fix was a no-op
     # (the dir didn't exist yet).
-    path_action: Optional[str] = None
+    path_action: str | None = None
     try:
         from m3_memory.installer import _fix_npm_global_path
         path_msg = _fix_npm_global_path()

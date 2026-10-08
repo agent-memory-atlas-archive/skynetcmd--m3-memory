@@ -34,6 +34,7 @@ def _run(*args, **kwargs):
 import sys
 import tempfile
 import time
+from datetime import UTC
 
 
 def _os_name() -> str:
@@ -218,7 +219,7 @@ def _render_template(template_path: str, m3_memory_root: str, python_exe: str,
     """Read a template file and substitute the [M3_MEMORY_ROOT] / [M3_LOGS_ROOT] / [M3_PYTHON]
     (and optional [M3_DASHBOARD_PORT]) placeholders. Used for the launchd plist
     and systemd unit templates."""
-    with open(template_path, "r", encoding="utf-8") as f:
+    with open(template_path, encoding="utf-8") as f:
         content = f.read()
     content = (content
                .replace("[M3_LOGS_ROOT]", _logs_dir())
@@ -2075,7 +2076,7 @@ def _agent_is_live(agent_id: str, max_age_days: int = 30) -> bool:
     whole feature exists to remove.
     """
     try:
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
         from memory.backends import dialect  # type: ignore
         from memory.orchestration import _db  # type: ignore
@@ -2093,8 +2094,8 @@ def _agent_is_live(agent_id: str, max_age_days: int = 30) -> bool:
             return True
         seen = datetime.fromisoformat(str(row["last_seen"]).replace("Z", "+00:00"))
         if seen.tzinfo is None:
-            seen = seen.replace(tzinfo=timezone.utc)
-        return (datetime.now(timezone.utc) - seen) <= timedelta(days=max_age_days)
+            seen = seen.replace(tzinfo=UTC)
+        return (datetime.now(UTC) - seen) <= timedelta(days=max_age_days)
     except Exception:  # noqa: BLE001 - fail OPEN, see docstring
         return True
 
@@ -2554,7 +2555,7 @@ def _verify_or_explain_absence(task: dict) -> bool:
     if not _windows_task_registered(name):
         try:
             from governor_migration import GOVERNOR_ELIGIBLE
-            governed: "tuple[str, ...]" = tuple(GOVERNOR_ELIGIBLE)
+            governed: tuple[str, ...] = tuple(GOVERNOR_ELIGIBLE)
         except Exception:  # noqa: BLE001
             governed = ()
         if name in governed:

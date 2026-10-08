@@ -108,7 +108,7 @@ def _short_step(text: str) -> str:
     return m.group(1) if m else text[:24]
 
 
-def _render_status(frac: "float | None", spin: str, tail: str, width: int) -> str:
+def _render_status(frac: float | None, spin: str, tail: str, width: int) -> str:
     """One status line: 20-char bar+percent when a real fraction is known, else
     a spinner; then the inline tail. Hard-truncated to `width` so it never wraps
     (wrapping would break the in-place \\r redraw)."""
@@ -148,7 +148,7 @@ def _run_quiet(cmd: list[str], cwd: str | None, log: str, note: str,
     spinner = itertools.cycle("|/-\\")
     start = time.monotonic()
     last_beat = start
-    frac: "float | None" = None
+    frac: float | None = None
     tail = note
     drew_status = False
 
@@ -351,7 +351,7 @@ def _is_shared_lib(fn: str) -> bool:
     return fn.startswith("libwolfssl") and fn.endswith(".dylib")
 
 
-def _find_real_lib(tree: str) -> "str | None":
+def _find_real_lib(tree: str) -> str | None:
     """Find the REAL (non-symlink) shared library under `tree`. cmake/libtool
     emit libwolfssl.so -> .so.45 -> .so.45.0.0 (the last is the real file); we
     follow to the regular file so the install copies actual bytes, not a dangling

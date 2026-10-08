@@ -90,7 +90,7 @@ def _make_m3_memory_toolset() -> type:
 
         @staticmethod
         def _remember(
-            ctx: "RunContext[M3Deps]", content: str, importance: float = 0.5
+            ctx: RunContext[M3Deps], content: str, importance: float = 0.5
         ) -> str:
             """Save a fact to long-term memory so it can be recalled later.
 
@@ -103,14 +103,14 @@ def _make_m3_memory_toolset() -> type:
 
         @staticmethod
         def _recall(
-            ctx: "RunContext[M3Deps]", query: str, limit: int = 5
+            ctx: RunContext[M3Deps], query: str, limit: int = 5
         ) -> list[dict]:
             """Search long-term memory for facts relevant to ``query`` (best first)."""
             rows = _deps(ctx).recall(query, k=limit)
             return mapping.recall_hits_to_dicts(rows)
 
         @staticmethod
-        def _forget(ctx: "RunContext[M3Deps]", memory_id: str) -> str:
+        def _forget(ctx: RunContext[M3Deps], memory_id: str) -> str:
             """Delete a memory by its id (from a prior ``recall`` result)."""
             ok = _deps(ctx).forget(memory_id)
             return "Forgotten." if ok else "No such memory."

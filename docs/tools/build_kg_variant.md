@@ -1,8 +1,8 @@
 ---
 tool: bin/build_kg_variant.py
-sha1: c55a0be945cd
-mtime_utc: 2026-09-08T10:58:58.973003+00:00
-generated_utc: 2026-09-08T10:59:35.834801+00:00
+sha1: 5ec1eaea8afa
+mtime_utc: 2026-10-08T22:11:14.491604+00:00
+generated_utc: 2026-10-08T22:11:47.681698+00:00
 private: false
 ---
 

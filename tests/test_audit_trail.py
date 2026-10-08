@@ -27,7 +27,7 @@ def test_cryptographic_audit_trail():
             assert os.path.exists(audit_path)
 
             # Read and verify first entry
-            with open(audit_path, "r", encoding="utf-8") as f:
+            with open(audit_path, encoding="utf-8") as f:
                 lines = f.readlines()
             assert len(lines) == 1
             e1 = json.loads(lines[0])
@@ -46,7 +46,7 @@ def test_cryptographic_audit_trail():
                 metadata={"items_affected": 5}
             )
 
-            with open(audit_path, "r", encoding="utf-8") as f:
+            with open(audit_path, encoding="utf-8") as f:
                 lines = f.readlines()
             assert len(lines) == 2
             e2 = json.loads(lines[1])

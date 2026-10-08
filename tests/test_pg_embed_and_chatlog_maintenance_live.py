@@ -123,6 +123,6 @@ def test_age_days_accepts_a_timestamptz_value():
     sys.path.insert(0, str(_BIN))
     import chatlog_prune
 
-    then = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=2)
+    then = dt.datetime.now(dt.UTC) - dt.timedelta(days=2)
     assert 1.9 < chatlog_prune._age_days(then, time.time()) < 2.1
     assert 1.9 < chatlog_prune._age_days(then.isoformat(), time.time()) < 2.1

@@ -26,9 +26,9 @@ from __future__ import annotations
 import fnmatch
 import logging
 import os
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterator
 
 from . import config
 from .identity import filetype_for, looks_binary
@@ -124,7 +124,7 @@ def _load_ignore_patterns(root: str) -> list[str]:
         p = os.path.join(root, name)
         if os.path.isfile(p):
             try:
-                with open(p, "r", encoding="utf-8", errors="ignore") as f:
+                with open(p, encoding="utf-8", errors="ignore") as f:
                     pats.extend(f.read().splitlines())
             except OSError as e:
                 logger.warning("walker: could not read %s: %s", p, e)

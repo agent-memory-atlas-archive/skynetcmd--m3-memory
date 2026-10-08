@@ -1,8 +1,8 @@
 ---
 tool: bin/enrichment_state.py
-sha1: 627a73d21e28
-mtime_utc: 2026-07-19T03:04:59.563781+00:00
-generated_utc: 2026-07-19T19:29:22.229286+00:00
+sha1: a5402542a578
+mtime_utc: 2026-10-08T22:11:14.582520+00:00
+generated_utc: 2026-10-08T22:11:47.864959+00:00
 private: false
 ---
 
@@ -59,7 +59,7 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `['git', 'rev-parse', 'HEAD']`` (line 105)
+- `subprocess.run()  → `['git', 'rev-parse', 'HEAD']`` (line 106)
 
 
 ---

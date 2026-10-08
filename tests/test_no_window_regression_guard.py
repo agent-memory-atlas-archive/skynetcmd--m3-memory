@@ -123,7 +123,7 @@ def _local_imports(path: str) -> set:
     return out
 
 
-def _resolve_bin_module(mod: str) -> "str | None":
+def _resolve_bin_module(mod: str) -> str | None:
     """Resolve a module name to a file under bin/, or None if it is not ours."""
     for cand in (os.path.join(_BIN, mod + ".py"),
                  os.path.join(_BIN, mod, "__init__.py")):

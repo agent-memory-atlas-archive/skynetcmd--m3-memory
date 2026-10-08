@@ -31,7 +31,7 @@ from __future__ import annotations
 import os
 import sqlite3
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Universal pragmas applied to every connection regardless of profile.
@@ -111,7 +111,7 @@ def profile_for_db(db_path: str | Path) -> str:
 def apply_pragmas(
     conn: sqlite3.Connection,
     profile: str = "production",
-    overrides: Optional[dict[str, Any]] = None,
+    overrides: dict[str, Any] | None = None,
 ) -> None:
     """Apply the common pragma stack plus the named profile to *conn*.
 

@@ -27,7 +27,7 @@ def _active_tid_line(text: str) -> bool:
                for ln in text.splitlines() if ln.strip() and not ln.lstrip().startswith("#"))
 
 
-def _sensor_present() -> "bool | None":
+def _sensor_present() -> bool | None:
     """True/False from `bioutil -r -s`; None when it cannot be asked."""
     try:
         out = subprocess.run(["bioutil", "-r", "-s"], capture_output=True, text=True,
@@ -61,7 +61,7 @@ def at_the_mac() -> bool:
     return not (os.environ.get("SSH_CONNECTION") or os.environ.get("SSH_TTY"))
 
 
-def enable() -> "tuple[bool, str]":
+def enable() -> tuple[bool, str]:
     """Append the pam_tid line to sudo_local via sudo (asks for the password
     once). Returns (enabled, detail); success is read back from the file."""
     try:

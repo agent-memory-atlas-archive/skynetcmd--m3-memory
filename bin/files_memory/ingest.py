@@ -25,7 +25,6 @@ import socket
 import time
 import uuid as _uuid
 from dataclasses import dataclass, field
-from typing import Optional
 
 from . import config
 from .chunkers import chunk_file, chunker_version
@@ -56,14 +55,14 @@ _COARSE_DIVISIONS = frozenset({"page", "slide", "heading", "cell"})
 class FileIngestResult:
     """Outcome of ingesting a single file."""
     path: str
-    file_node_uuid: Optional[str]
+    file_node_uuid: str | None
     status: str           # 'created'|'unchanged_skipped'|'superseded'|'failed'
     leaf_count: int = 0
     fact_count: int = 0
     chars_embedded: int = 0
     duration_ms: int = 0
-    reason: Optional[str] = None
-    superseded_prior: Optional[str] = None  # uuid of prior version, if any
+    reason: str | None = None
+    superseded_prior: str | None = None  # uuid of prior version, if any
     # Carry-forward telemetry (meaningful only on supersession).
     leaves_carried: int = 0
     leaves_evolved: int = 0
@@ -78,7 +77,7 @@ class IngestResult:
     root: str
     started_at: float
     duration_ms: int = 0
-    walk_stats: Optional[WalkStats] = None
+    walk_stats: WalkStats | None = None
     files_created: int = 0
     files_superseded: int = 0
     files_unchanged: int = 0
@@ -101,8 +100,8 @@ def _iso_utc(ts: float | None = None) -> str:
     """ISO 8601 UTC string. Stable across timezones."""
     import datetime as _dt
     if ts is None:
-        return _dt.datetime.now(_dt.timezone.utc).isoformat()
-    return _dt.datetime.fromtimestamp(ts, tz=_dt.timezone.utc).isoformat()
+        return _dt.datetime.now(_dt.UTC).isoformat()
+    return _dt.datetime.fromtimestamp(ts, tz=_dt.UTC).isoformat()
 
 
 def _source_host() -> str:
@@ -125,7 +124,7 @@ def _next_version_label(conn, identity_key: str) -> str:
     return f"ingest-{n}"
 
 
-def _find_current_version(conn, identity_key: str) -> Optional[dict]:
+def _find_current_version(conn, identity_key: str) -> dict | None:
     """Return the current (non-superseded) file_node for this identity_key.
 
     Returns a dict view (sqlite3.Row → dict) of the row, or None if no
@@ -143,7 +142,7 @@ def _find_current_version(conn, identity_key: str) -> Optional[dict]:
     return dict(row) if row else None
 
 
-def _read_file_text(path: str, max_bytes: int) -> Optional[str]:
+def _read_file_text(path: str, max_bytes: int) -> str | None:
     """Read a file as UTF-8 with error replacement. Returns None on failure.
 
     Caps at max_bytes to avoid loading huge files into RAM during text
@@ -168,11 +167,11 @@ def ingest_one_file(
     run_id: str,
     corpus_id: str,
     *,
-    version_label_override: Optional[str] = None,
+    version_label_override: str | None = None,
     record_noops: bool = False,
     extract_mode: str = "none",
-    cli_original_path: Optional[str] = None,
-    db_path: Optional[str] = None,
+    cli_original_path: str | None = None,
+    db_path: str | None = None,
 ) -> FileIngestResult:
     """Ingest a single file. The atomic unit of the pipeline.
 
@@ -223,7 +222,7 @@ def ingest_one_file(
     #    here; the chunker reads them itself. For text-shaped filetypes
     #    we pre-load so identity.detect_m3_doc_id can use it without
     #    a second read.
-    text: Optional[str] = None
+    text: str | None = None
     if entry.filetype != "pdf":
         text = _read_file_text(path, config.FILES_MAX_FILE_BYTES)
         if text is None:
@@ -390,7 +389,7 @@ def ingest_one_file(
             leaf_diffs = [None] * len(leaves)
 
         # Insert leaves. Collect (uuid, text, summary_text, diff) for embed pass.
-        leaf_records: list[tuple[str, str, Optional[str], Optional[LeafDiff]]] = []
+        leaf_records: list[tuple[str, str, str | None, LeafDiff | None]] = []
         for i, leaf in enumerate(leaves):
             leaf_uuid = str(_uuid.uuid4())
             wants_summary = leaf.division_type in _COARSE_DIVISIONS
@@ -435,7 +434,7 @@ def ingest_one_file(
         if leaf_records:
             # Split into carry-able vs embed-required.
             carry_targets: list[tuple[str, LeafDiff]] = []  # (new_leaf_uuid, diff)
-            embed_targets: list[tuple[int, str, str, Optional[str]]] = []  # (idx_in_records, uuid, text, summary)
+            embed_targets: list[tuple[int, str, str, str | None]] = []  # (idx_in_records, uuid, text, summary)
             for idx, (luuid, ltext, lsum, ldiff) in enumerate(leaf_records):
                 if ldiff is not None and ldiff.kind == "carry":
                     carry_targets.append((luuid, ldiff))
@@ -607,7 +606,7 @@ def _sha256_short(text: str) -> str:
     return _h.sha256(text.encode("utf-8")).hexdigest()
 
 
-def _single_file_entry(path: str, *, repo_root: Optional[str] = None) -> WalkEntry:
+def _single_file_entry(path: str, *, repo_root: str | None = None) -> WalkEntry:
     """Build a WalkEntry for a single-file ingest (bypasses the directory walker).
 
     Used when ingest_path() receives a file path rather than a directory.
@@ -650,7 +649,7 @@ def ingest_path(
     cli_original_path: str | None = None,
     repo_root: str | None = None,
     progress_cb=None,
-    db_path: Optional[str] = None,
+    db_path: str | None = None,
 ) -> IngestResult:
     """Walk a directory and ingest every surviving file.
 

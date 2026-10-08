@@ -29,8 +29,7 @@ import logging
 import math
 import os
 import sqlite3
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from .config import files_table
 from .db import _db
@@ -54,7 +53,7 @@ def record_leaf_hits(
     """
     if not leaf_uuids:
         return 0
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
 
     from memory.backends import dialect as _dialect
     _d = _dialect()
@@ -93,10 +92,10 @@ def record_leaf_hits(
 def promotability_score(
     hit_count: int,
     confidence: float,
-    last_hit_at: Optional[str],
+    last_hit_at: str | None,
     *,
     half_life_days: float = DEFAULT_HALF_LIFE_DAYS,
-    now: Optional[datetime] = None,
+    now: datetime | None = None,
 ) -> float:
     """Combined heuristic score in roughly [0, 2].
 
@@ -115,7 +114,7 @@ def promotability_score(
         last = datetime.fromisoformat(last_hit_at.replace("Z", "+00:00"))
     except (ValueError, TypeError):
         return base
-    cur = now or datetime.now(timezone.utc)
+    cur = now or datetime.now(UTC)
     age_days = max(0.0, (cur - last).total_seconds() / 86400.0)
     decay = math.exp(-age_days / max(1.0, half_life_days))
     return base * decay
@@ -125,9 +124,9 @@ def files_promotable(
     *,
     limit: int = 20,
     min_score: float = DEFAULT_SUGGEST_THRESHOLD,
-    corpus_id: Optional[str] = None,
+    corpus_id: str | None = None,
     include_already_promoted: bool = False,
-    db_path: Optional[str] = None,
+    db_path: str | None = None,
 ) -> list[dict]:
     """Top promotion candidates by promotability_score.
 
@@ -169,7 +168,7 @@ def files_promotable(
 
         rows = conn.execute(" ".join(sql_parts), params).fetchall()
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     scored = []
     for r in rows:
         s = promotability_score(

@@ -14,11 +14,11 @@ from .base import VectorHit
 
 
 def score_and_rank(
-    query_vector: "list[float]",
-    rows: "list[tuple[str, object]]",
+    query_vector: list[float],
+    rows: list[tuple[str, object]],
     dim: int,
     limit: int,
-) -> "list[VectorHit]":
+) -> list[VectorHit]:
     """Score packed-blob candidate rows against the query and return top-N.
 
     ``rows`` is ``[(memory_id, embedding_blob), ...]`` where ``embedding_blob``

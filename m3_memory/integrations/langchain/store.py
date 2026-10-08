@@ -26,8 +26,9 @@ Faithful to the tenets:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Iterable, Optional
+from collections.abc import Iterable
+from datetime import UTC, datetime
+from typing import Any
 
 # Hard dependency on langgraph — this module is imported LAZILY by the package
 # __init__ so a missing dep fails loud with an install hint (§3), never here.
@@ -45,7 +46,7 @@ from langgraph.store.base import (
 from . import mapping
 from .m3client import M3Client
 
-_EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+_EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 
 def _parse_dt(raw: Any) -> datetime:
@@ -177,7 +178,7 @@ class M3Store(BaseStore):
 
         return results
 
-    def _resolve_id_by_key(self, user_id: str, key: str) -> Optional[str]:
+    def _resolve_id_by_key(self, user_id: str, key: str) -> str | None:
         """Find the m3 row id for a LangGraph (user_id, key) — via title match
         within the user's scope. Returns None if the key was never written."""
         from memory.db import _db
@@ -193,7 +194,7 @@ class M3Store(BaseStore):
         return row["id"] if row else None
 
     # ── op implementations (async, on the loop-thread) ────────────────────────
-    async def _do_get(self, op: GetOp) -> Optional[Item]:
+    async def _do_get(self, op: GetOp) -> Item | None:
         uid = self._user_id(op.namespace)
         # A LangGraph key is NOT an m3 uuid — resolve key→id within the tenant.
         row_id = self._resolve_id_by_key(uid, op.key)

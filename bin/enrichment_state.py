@@ -27,8 +27,9 @@ import sqlite3
 import subprocess
 import sys
 import uuid
-from datetime import datetime, timedelta, timezone
-from typing import Iterable, Optional, Sequence, cast
+from collections.abc import Iterable, Sequence
+from datetime import UTC, datetime, timedelta
+from typing import cast
 
 # ── Tunables ───────────────────────────────────────────────────────────────
 DEFAULT_MAX_ATTEMPTS = 3
@@ -46,11 +47,11 @@ DETERMINISTIC_ERROR_CLASSES = frozenset({
 
 # ── Time helpers ───────────────────────────────────────────────────────────
 def _utcnow_iso() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _iso_plus(seconds: int) -> str:
-    return (datetime.now(timezone.utc) + timedelta(seconds=seconds)).strftime(
+    return (datetime.now(UTC) + timedelta(seconds=seconds)).strftime(
         "%Y-%m-%dT%H:%M:%SZ"
     )
 
@@ -120,11 +121,11 @@ def start_run(
     *,
     profile: str,
     model: str,
-    source_variant: Optional[str],
+    source_variant: str | None,
     target_variant: str,
     db_path: str,
     concurrency: int,
-    launch_argv: Optional[list[str]] = None,
+    launch_argv: list[str] | None = None,
 ) -> str:
     """Insert a new enrichment_runs row at status='running'. Returns run_id."""
     run_id = str(uuid.uuid4())
@@ -154,8 +155,8 @@ def end_run(
     run_id: str,
     *,
     status: str,
-    abort_reason: Optional[str] = None,
-    notes: Optional[str] = None,
+    abort_reason: str | None = None,
+    notes: str | None = None,
 ) -> None:
     """Update enrichment_runs row with final counts + status."""
     from memory.backends import dialect
@@ -218,10 +219,10 @@ def enroll_group(
     db_path: str,
     turn_count: int,
     source_content_hash: str,
-    profile: Optional[str] = None,
-    model: Optional[str] = None,
-    enrich_run_id: Optional[str] = None,
-    content_size_k: Optional[int] = None,
+    profile: str | None = None,
+    model: str | None = None,
+    enrich_run_id: str | None = None,
+    content_size_k: int | None = None,
 ) -> tuple[int, str]:
     """Idempotent enroll. Returns (group_id, action) where action is one of
     'inserted' (new row) | 'unchanged' (existing match) | 'superseded' (old
@@ -318,9 +319,9 @@ def enroll_groups_bulk(
     source_variant: str,
     target_variant: str,
     db_path: str,
-    profile: Optional[str] = None,
-    model: Optional[str] = None,
-    enrich_run_id: Optional[str] = None,
+    profile: str | None = None,
+    model: str | None = None,
+    enrich_run_id: str | None = None,
 ) -> dict[str, int]:
     """Batch wrapper. Each group dict needs: group_key, user_id, turn_count,
     source_content_hash. Returns {'inserted', 'unchanged', 'superseded'} counts.
@@ -376,7 +377,7 @@ def claim_group(
     group_id: int,
     *,
     enrich_run_id: str,
-) -> Optional[str]:
+) -> str | None:
     """Atomically claim a group eligible for processing. Returns claim_token
     on success, None if the row is no longer claimable (terminal state or
     raced).
@@ -414,10 +415,10 @@ def mark_success(
     group_id: int,
     *,
     obs_emitted: int,
-    enrichment_ms: Optional[int] = None,
-    tokens_in: Optional[int] = None,
-    tokens_out: Optional[int] = None,
-    cost_usd: Optional[float] = None,
+    enrichment_ms: int | None = None,
+    tokens_in: int | None = None,
+    tokens_out: int | None = None,
+    cost_usd: float | None = None,
     partial_failure_chunks: int = 0,
 ) -> None:
     """Mark group as success. partial_failure_chunks > 0 records that the
@@ -467,10 +468,10 @@ def mark_empty(
     conn: sqlite3.Connection,
     group_id: int,
     *,
-    enrichment_ms: Optional[int] = None,
-    tokens_in: Optional[int] = None,
-    tokens_out: Optional[int] = None,
-    cost_usd: Optional[float] = None,
+    enrichment_ms: int | None = None,
+    tokens_in: int | None = None,
+    tokens_out: int | None = None,
+    cost_usd: float | None = None,
 ) -> None:
     from memory.backends import dialect
     _d = dialect()
@@ -516,10 +517,10 @@ def mark_failed(
     error_class: str,
     last_error: str,
     max_attempts: int = DEFAULT_MAX_ATTEMPTS,
-    enrichment_ms: Optional[int] = None,
-    tokens_in: Optional[int] = None,
-    tokens_out: Optional[int] = None,
-    cost_usd: Optional[float] = None,
+    enrichment_ms: int | None = None,
+    tokens_in: int | None = None,
+    tokens_out: int | None = None,
+    cost_usd: float | None = None,
 ) -> str:
     """Record a failure. Promotes to dead_letter if (a) the error class is
     deterministic or (b) attempts have hit max_attempts. Otherwise leaves
@@ -544,7 +545,7 @@ def mark_failed(
     attempts_cap_hit = (attempts >= max_attempts) and not is_rate_limit
     if error_class in DETERMINISTIC_ERROR_CLASSES or attempts_cap_hit:
         new_status = "dead_letter"
-        next_eligible_at: Optional[str] = None
+        next_eligible_at: str | None = None
     else:
         new_status = "failed"
         # Exponential backoff: 30s, 60s, 120s ...
@@ -580,10 +581,10 @@ def eligible_for_resume(
     target_variant: str,
     max_attempts: int = DEFAULT_MAX_ATTEMPTS,
     include_dead_letter: bool = False,
-    limit: Optional[int] = None,
-    min_size_k: Optional[int] = None,
-    max_size_k: Optional[int] = None,
-    send_to: Optional[str] = None,
+    limit: int | None = None,
+    min_size_k: int | None = None,
+    max_size_k: int | None = None,
+    send_to: str | None = None,
 ) -> list[tuple[int, str, str]]:
     """Return [(id, group_key, user_id)] for groups that resume should pick up.
 
@@ -638,8 +639,8 @@ def eligible_for_resume(
 def status_counts(
     conn: sqlite3.Connection,
     *,
-    source_variant: Optional[str] = None,
-    target_variant: Optional[str] = None,
+    source_variant: str | None = None,
+    target_variant: str | None = None,
 ) -> dict[str, int]:
     """Per-status row counts. Useful for status-report CLI."""
     from memory.backends import dialect

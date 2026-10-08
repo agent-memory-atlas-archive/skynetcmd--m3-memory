@@ -1,8 +1,8 @@
 ---
 tool: bin/watch_pr_checks.py
-sha1: e2908414e166
-mtime_utc: 2026-09-08T23:37:05.252666+00:00
-generated_utc: 2026-09-08T23:37:13.978705+00:00
+sha1: 327760b0ac35
+mtime_utc: 2026-10-08T22:10:44.256958+00:00
+generated_utc: 2026-10-08T22:11:48.360691+00:00
 private: false
 ---
 

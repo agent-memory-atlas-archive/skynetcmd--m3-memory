@@ -18,7 +18,6 @@ from __future__ import annotations
 import logging
 import sqlite3
 from dataclasses import dataclass, field
-from typing import Optional
 
 from .db import _db
 from .embed import embed_texts
@@ -41,19 +40,19 @@ class SearchHit:
     path: str
     division_type: str
     division_id: str
-    division_label: Optional[str]
+    division_label: str | None
     text: str
     score: float
-    fts_rank: Optional[int] = None
-    vec_rank: Optional[int] = None
-    original_path: Optional[str] = None
-    corpus_id: Optional[str] = None
+    fts_rank: int | None = None
+    vec_rank: int | None = None
+    original_path: str | None = None
+    corpus_id: str | None = None
     metadata: dict = field(default_factory=dict)
 
 
 def _corpus_filter_clause(
-    corpus_id: Optional[str],
-    corpora: Optional[list[str]],
+    corpus_id: str | None,
+    corpora: list[str] | None,
     _d=None,
 ) -> tuple[str, list]:
     """Build the SQL fragment + params for corpus filtering.
@@ -79,9 +78,9 @@ def _corpus_filter_clause(
 
 
 def _fts_query(conn, query: str, limit: int,
-               current_only: bool, corpus_id: Optional[str],
-               filetype: Optional[str],
-               corpora: Optional[list[str]] = None) -> list[tuple[str, float]]:
+               current_only: bool, corpus_id: str | None,
+               filetype: str | None,
+               corpora: list[str] | None = None) -> list[tuple[str, float]]:
     """Keyword full-text channel. Returns [(leaf_uuid, score)] in rank order,
     score HIGHER = better (the fusion convention) on both backends.
 
@@ -184,9 +183,9 @@ def _fts_query_pg(conn, query, limit, current_only, corpus_id, filetype,
 
 
 def _vec_query(conn: sqlite3.Connection, query: str, limit: int,
-               current_only: bool, corpus_id: Optional[str],
-               filetype: Optional[str],
-               corpora: Optional[list[str]] = None) -> list[tuple[str, float]]:
+               current_only: bool, corpus_id: str | None,
+               filetype: str | None,
+               corpora: list[str] | None = None) -> list[tuple[str, float]]:
     """Vector cosine search. Returns [(leaf_uuid, cosine_score)].
 
     Embeds the query then scans the text-kind embeddings, computing
@@ -269,12 +268,12 @@ def files_search(
     query: str,
     *,
     limit: int = 10,
-    corpus_id: Optional[str] = None,
-    corpora: Optional[list[str]] = None,
-    filetype: Optional[str] = None,
+    corpus_id: str | None = None,
+    corpora: list[str] | None = None,
+    filetype: str | None = None,
     include_history: bool = False,
     channel_limit: int = 50,
-    db_path: Optional[str] = None,
+    db_path: str | None = None,
 ) -> list[SearchHit]:
     """Hybrid search over leaves.
 

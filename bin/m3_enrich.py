@@ -38,7 +38,6 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Optional
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 _MAIN_BIN = REPO_ROOT / "bin"
@@ -169,7 +168,7 @@ class _PgStateConn:
         return getattr(self._raw, name)
 
 
-def _open_state_conn(db_path: "Path"):
+def _open_state_conn(db_path: Path):
     """Open the enrichment-state connection for the active backend.
 
     SQLite: a direct sqlite3 connection to db_path with the production pragma
@@ -192,24 +191,24 @@ async def _run_db(
     target_variant: str,
     type_allowlist: tuple[str, ...],
     concurrency: int,
-    limit: Optional[int],
+    limit: int | None,
     counters: dict,
-    source_variant: Optional[str] = None,
-    conv_filter: Optional[set[str]] = None,
+    source_variant: str | None = None,
+    conv_filter: set[str] | None = None,
     track_state: bool = False,
     resume: bool = False,
-    enrich_run_id: Optional[str] = None,
+    enrich_run_id: str | None = None,
     max_attempts: int = estate.DEFAULT_MAX_ATTEMPTS,
     include_dead_letter: bool = False,
-    budget_usd: Optional[float] = None,
-    sample: Optional[int] = None,
+    budget_usd: float | None = None,
+    sample: int | None = None,
     sample_strategy: str = "first",
-    min_size_k: Optional[int] = None,
-    max_size_k: Optional[int] = None,
-    send_to: Optional[str] = None,
+    min_size_k: int | None = None,
+    max_size_k: int | None = None,
+    send_to: str | None = None,
     cascade_threshold: int = 10,
     cascade_window_s: float = 60.0,
-) -> Optional[str]:
+) -> str | None:
     """Drive Observer over one DB. Apply migration, set M3_DATABASE so
     memory_core writes land here, then call run_observer.process_conversation
     for each grouped conversation.
@@ -266,9 +265,9 @@ async def _run_db(
     # verify migration 028 has been applied (caller's job to migrate up),
     # recover stale claims, enroll all eligible groups, and (if --resume)
     # narrow `groups` to only those still pending/failed-with-retries.
-    state_conn: Optional[sqlite3.Connection] = None
+    state_conn: sqlite3.Connection | None = None
     group_id_by_key: dict[tuple[str, str], int] = {}
-    abort_reason: Optional[str] = None
+    abort_reason: str | None = None
     cascade = _RateLimitCascade(
         threshold=cascade_threshold,
         window_s=cascade_window_s,
@@ -375,8 +374,8 @@ async def _run_db(
             async with sem:
                 if abort_reason is not None:
                     return
-                claim_token: Optional[str] = None
-                gid: Optional[int] = None
+                claim_token: str | None = None
+                gid: int | None = None
                 if track_state and state_conn is not None:
                     gid = group_id_by_key.get((uid, cid))
                     if gid is not None:
@@ -786,7 +785,7 @@ async def _main_async(args) -> int:
 
     # Optional --source-conv-list narrowing: load once, apply to every DB.
     # Keeps existing default behavior (no filter) when the flag is unset.
-    conv_filter: Optional[set[str]] = None
+    conv_filter: set[str] | None = None
     if getattr(args, "source_conv_list", None):
         conv_filter = _load_conv_list(Path(args.source_conv_list).expanduser().resolve())
         print(f"[m3-enrich] --source-conv-list: {len(conv_filter)} group_keys "
@@ -876,7 +875,7 @@ async def _main_async(args) -> int:
 
         # Open a state run record per DB if state-tracking is on. Distinct
         # run_id per DB simplifies aggregation and budget reporting.
-        per_db_run_id: Optional[str] = None
+        per_db_run_id: str | None = None
         if args.track_state:
             _sc = _open_state_conn(db_path)
             if not estate.has_state_tables(_sc):

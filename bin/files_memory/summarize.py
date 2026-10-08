@@ -22,7 +22,6 @@ from __future__ import annotations
 import logging
 import os
 import time
-from typing import Optional
 
 from llm_failover import apply_thinking_suppression
 
@@ -74,7 +73,7 @@ def _llm_available() -> bool:
     return bool(_summary_endpoint())
 
 
-def _summary_endpoint() -> Optional[str]:
+def _summary_endpoint() -> str | None:
     return (
         os.environ.get("M3_FILES_SUMMARY_URL")
         or os.environ.get("M3_LMSTUDIO_URL")
@@ -82,7 +81,7 @@ def _summary_endpoint() -> Optional[str]:
     )
 
 
-def _summary_model() -> Optional[str]:
+def _summary_model() -> str | None:
     """Model for the summarizer: explicit override, else ASK THE SERVER.
 
     Precedence is deliberate — explicit name > discovery > None (fail loud):
@@ -197,7 +196,7 @@ def prewarm(timeout: float | None = None) -> bool:
         return False
 
 
-def _llm_call(prompt: str, content: str, max_tokens: int = 256) -> Optional[str]:
+def _llm_call(prompt: str, content: str, max_tokens: int = 256) -> str | None:
     """Issue a chat completion. Returns None on any failure.
 
     Synchronous httpx call — the summarizer is invoked per-file/leaf in a

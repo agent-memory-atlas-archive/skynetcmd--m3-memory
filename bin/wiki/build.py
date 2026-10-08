@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
-from typing import Optional
 
 from . import admission as _admission
 from . import cluster as _cluster
@@ -23,8 +22,8 @@ class WikiOptions:
     importance_threshold: float = _select.DEFAULT_IMPORTANCE_THRESHOLD
     include_files: bool = True
     include_all_corpora: bool = True
-    corpora: Optional[list[str]] = None
-    exclude_corpora: Optional[list[str]] = None
+    corpora: list[str] | None = None
+    exclude_corpora: list[str] | None = None
     limit: int = 5000
     # When True, memories that share an extracted entity are bound into the same
     # topic even without a hand-authored edge. This is what collapses the large
@@ -33,7 +32,7 @@ class WikiOptions:
     entity_comention: bool = True
     # A regex; any memory whose title/content matches is excluded from the vault.
     # Used to keep private/bench memories out of a shareable export.
-    exclude_regex: Optional[str] = None
+    exclude_regex: str | None = None
     # Emit [[wikilinks]] instead of portable [text](path.md) links, so Obsidian's
     # graph view + backlinks work. Opt-in (renders as literal text elsewhere).
     obsidian: bool = False
@@ -45,8 +44,8 @@ class WikiOptions:
 
 def build_wiki(
     mem_conn: sqlite3.Connection,
-    files_conn: Optional[sqlite3.Connection],
-    opts: Optional[WikiOptions] = None,
+    files_conn: sqlite3.Connection | None,
+    opts: WikiOptions | None = None,
     synthesizer=None,
     drift_judge=None,
     derivability_judge=None,

@@ -47,7 +47,7 @@ import sys
 # when it is parked elsewhere (e.g. ~/.m3-private/perf/) fall back to the
 # installed payload, then to $M3_PATH_BIN. Without this the seam imports fail
 # with ModuleNotFoundError: m3_core the moment the file is moved.
-def _find_bin() -> "str | None":
+def _find_bin() -> str | None:
     here = os.path.dirname(os.path.abspath(__file__))
     cands = [here,
              os.environ.get("M3_PATH_BIN") or "",
@@ -69,7 +69,7 @@ elif not _BIN:
         "$M3_PATH_BIN, ~/.m3-dev/m3-memory/bin, and the pipx payload).")
 
 
-def _query(sql_tail: str, params: "list") -> "list[tuple]":
+def _query(sql_tail: str, params: list) -> list[tuple]:
     """Run one read against the CHATLOG store through the seam.
 
     Everything backend- and topology-specific is asked, never assumed:
@@ -104,7 +104,7 @@ def _query(sql_tail: str, params: "list") -> "list[tuple]":
         return list(cur.fetchall())
 
 
-def _rows(args) -> "list[dict]":
+def _rows(args) -> list[dict]:
     """Turns in scope, oldest first."""
     from memory.backends import active_backend
     p = active_backend().dialect().placeholder(1)
@@ -137,7 +137,7 @@ def _rows(args) -> "list[dict]":
     ]
 
 
-def _annotate(rows: "list[dict]") -> "list[dict]":
+def _annotate(rows: list[dict]) -> list[dict]:
     """Attach gap_s (wall clock attributable to this turn) and role."""
     prev = None
     for r in rows:
@@ -153,7 +153,7 @@ def _annotate(rows: "list[dict]") -> "list[dict]":
     return rows
 
 
-def main(argv: "list[str] | None" = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--conversation", default="", help="conversation_id to scope to "

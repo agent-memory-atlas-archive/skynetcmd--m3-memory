@@ -18,7 +18,7 @@ def test_bootstrap_migration_creates_schema(tmp_path):
     bootstrap_up = os.path.join(migrations_dir, "001_bootstrap.up.sql")
 
     if os.path.exists(bootstrap_up):
-        with open(bootstrap_up, "r", encoding="utf-8") as f:
+        with open(bootstrap_up, encoding="utf-8") as f:
             sql = f.read()
         cursor.executescript(sql)
         conn.commit()
@@ -57,7 +57,7 @@ def test_bootstrap_migration_rollback(tmp_path):
     # Apply up
     bootstrap_up = os.path.join(migrations_dir, "001_bootstrap.up.sql")
     if os.path.exists(bootstrap_up):
-        with open(bootstrap_up, "r", encoding="utf-8") as f:
+        with open(bootstrap_up, encoding="utf-8") as f:
             sql = f.read()
         cursor.executescript(sql)
         conn.commit()
@@ -65,7 +65,7 @@ def test_bootstrap_migration_rollback(tmp_path):
     # Apply down
     bootstrap_down = os.path.join(migrations_dir, "001_bootstrap.down.sql")
     if os.path.exists(bootstrap_down):
-        with open(bootstrap_down, "r", encoding="utf-8") as f:
+        with open(bootstrap_down, encoding="utf-8") as f:
             sql = f.read()
         cursor.executescript(sql)
         conn.commit()
@@ -90,7 +90,7 @@ def test_indexes_migration_creates_indexes(tmp_path):
     # Apply bootstrap first
     bootstrap_up = os.path.join(migrations_dir, "001_bootstrap.up.sql")
     if os.path.exists(bootstrap_up):
-        with open(bootstrap_up, "r", encoding="utf-8") as f:
+        with open(bootstrap_up, encoding="utf-8") as f:
             sql = f.read()
         cursor.executescript(sql)
         conn.commit()
@@ -98,7 +98,7 @@ def test_indexes_migration_creates_indexes(tmp_path):
     # Apply indexes
     indexes_up = os.path.join(migrations_dir, "002_chat_log_indexes.up.sql")
     if os.path.exists(indexes_up):
-        with open(indexes_up, "r", encoding="utf-8") as f:
+        with open(indexes_up, encoding="utf-8") as f:
             sql = f.read()
         cursor.executescript(sql)
         conn.commit()
@@ -127,13 +127,13 @@ def test_indexes_migration_rollback(tmp_path):
     # Apply both up
     bootstrap_up = os.path.join(migrations_dir, "001_bootstrap.up.sql")
     if os.path.exists(bootstrap_up):
-        with open(bootstrap_up, "r", encoding="utf-8") as f:
+        with open(bootstrap_up, encoding="utf-8") as f:
             cursor.executescript(f.read())
         conn.commit()
 
     indexes_up = os.path.join(migrations_dir, "002_chat_log_indexes.up.sql")
     if os.path.exists(indexes_up):
-        with open(indexes_up, "r", encoding="utf-8") as f:
+        with open(indexes_up, encoding="utf-8") as f:
             cursor.executescript(f.read())
         conn.commit()
 
@@ -144,7 +144,7 @@ def test_indexes_migration_rollback(tmp_path):
     # Apply indexes down
     indexes_down = os.path.join(migrations_dir, "002_chat_log_indexes.down.sql")
     if os.path.exists(indexes_down):
-        with open(indexes_down, "r", encoding="utf-8") as f:
+        with open(indexes_down, encoding="utf-8") as f:
             cursor.executescript(f.read())
         conn.commit()
 
@@ -171,7 +171,7 @@ def test_fts_table_created(tmp_path):
 
     bootstrap_up = os.path.join(migrations_dir, "001_bootstrap.up.sql")
     if os.path.exists(bootstrap_up):
-        with open(bootstrap_up, "r", encoding="utf-8") as f:
+        with open(bootstrap_up, encoding="utf-8") as f:
             cursor.executescript(f.read())
         conn.commit()
 
@@ -198,7 +198,7 @@ def test_triggers_created_in_bootstrap(tmp_path):
 
     bootstrap_up = os.path.join(migrations_dir, "001_bootstrap.up.sql")
     if os.path.exists(bootstrap_up):
-        with open(bootstrap_up, "r", encoding="utf-8") as f:
+        with open(bootstrap_up, encoding="utf-8") as f:
             cursor.executescript(f.read())
         conn.commit()
 

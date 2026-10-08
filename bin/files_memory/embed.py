@@ -18,7 +18,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import sqlite3
-from typing import Optional
 
 from embedding_utils import pack
 
@@ -27,7 +26,7 @@ from .config import files_table
 logger = logging.getLogger("files_memory.embed")
 
 
-def embed_texts(texts: list[str]) -> list[tuple[Optional[list[float]], str]]:
+def embed_texts(texts: list[str]) -> list[tuple[list[float] | None, str]]:
     """Embed a batch of texts via the m3-memory cascade.
 
     Synchronous wrapper around the async ``_embed_many``. Runs in a private event
@@ -66,7 +65,7 @@ def write_leaf_embedding(
     conn: sqlite3.Connection,
     leaf_uuid: str,
     kind: str,
-    vec: Optional[list[float]],
+    vec: list[float] | None,
     model: str,
 ) -> bool:
     """Insert (or update) one row in leaf_embeddings. Returns True on success."""
@@ -93,7 +92,7 @@ def write_leaf_embedding(
 def write_file_embedding(
     conn: sqlite3.Connection,
     file_node_uuid: str,
-    vec: Optional[list[float]],
+    vec: list[float] | None,
     model: str,
     kind: str = "summary",
 ) -> bool:

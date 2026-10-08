@@ -52,6 +52,7 @@ import os
 import sys
 import time
 from contextlib import asynccontextmanager
+from datetime import UTC
 from typing import Any
 
 
@@ -72,7 +73,7 @@ from typing import Any
 # So: parse --log-file here, ahead of the imports, and write any import-time
 # traceback into it. Deliberately minimal and dependency-free (stdlib only) —
 # this code must not be able to fail for the same reason it exists.
-def _early_crash_log() -> "str | None":
+def _early_crash_log() -> str | None:
     """Bind sys.excepthook to append tracebacks to --log-file. Returns the path."""
     path = None
     argv = sys.argv
@@ -89,10 +90,10 @@ def _early_crash_log() -> "str | None":
     def _hook(exc_type, exc, tb):
         try:
             import traceback
-            from datetime import datetime, timezone
+            from datetime import datetime
             with open(path, "a", encoding="utf-8", errors="replace") as fh:
                 fh.write(f"\n=== dashboard STARTUP FAILURE "
-                         f"{datetime.now(timezone.utc).isoformat()} ===\n")
+                         f"{datetime.now(UTC).isoformat()} ===\n")
                 fh.write(f"argv: {argv}\n")
                 fh.write(f"executable: {sys.executable}\n")
                 traceback.print_exception(exc_type, exc, tb, file=fh)
@@ -613,7 +614,7 @@ app = FastAPI(
 _COOKIE_NAME = "m3_dash"
 
 
-def _dashboard_auth_config() -> "tuple[object | None, bool]":
+def _dashboard_auth_config() -> tuple[object | None, bool]:
     """Return (verifier, required). Never raises -- a probe must not break startup."""
     try:
         import m3_http_auth as _auth
@@ -651,7 +652,7 @@ class DashboardAuthMiddleware(BaseHTTPMiddleware):
 
     def __init__(self, app):
         super().__init__(app)
-        self._cached: "tuple[object | None, bool] | None" = None
+        self._cached: tuple[object | None, bool] | None = None
         self._cached_at = 0.0
         # Resolve once up front so a misconfiguration surfaces at startup rather
         # than on the first request.
@@ -2655,7 +2656,7 @@ async def audit_resolve(memory_id: str, request: Request):
     selected_db_path = get_active_db_path(request)
     set_active_db_env(selected_db)
 
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from m3_sdk import active_database
     from memory.db import _record_history
@@ -2667,7 +2668,7 @@ async def audit_resolve(memory_id: str, request: Request):
         with _db() as db:
             # 1. Undelete (is_deleted = 0)
             db.execute(f"UPDATE memory_items SET is_deleted = 0, updated_at = {ph()} WHERE id = {ph()}",
-                       (datetime.now(timezone.utc).isoformat(), memory_id))
+                       (datetime.now(UTC).isoformat(), memory_id))
             # 2. Record "resolve" event in history. Name access works on both
             #    backends (SQLite Row + PG _DualRow compat cursor).
             row = db.execute(f"SELECT content FROM memory_items WHERE id = {ph()}", (memory_id,)).fetchone()
@@ -2906,7 +2907,7 @@ async def get_maintenance_status():
     logs = ""
     if log_path and os.path.exists(log_path):
         try:
-            with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+            with open(log_path, encoding="utf-8", errors="replace") as f:
                 logs = f.read()
         except Exception as e:
             logs = f"Error reading live logs: {str(e)}"
@@ -2941,13 +2942,13 @@ def _ensure_std_streams() -> None:
                 pass
 
 
-def _resolve_host_port(host: "str | None", port: "int | None") -> "tuple[str, int]":
+def _resolve_host_port(host: str | None, port: int | None) -> tuple[str, int]:
     resolved_host = host or os.environ.get("M3_DASHBOARD_HOST", HOST)
     resolved_port = int(port or os.environ.get("M3_DASHBOARD_PORT", PORT))
     return resolved_host, resolved_port
 
 
-def dashboard_show_url(host: "str | None" = None, port: "int | None" = None) -> int:
+def dashboard_show_url(host: str | None = None, port: int | None = None) -> int:
     """Print the one-time sign-in URL for opening the dashboard on another device.
 
     The URL carries the token as a query param -- the only credential a browser
@@ -3040,7 +3041,7 @@ _DASHBOARD_CMDLINE_SIG = "dashboard_server.py"
 _DASHBOARD_FOREGROUND_SIG = "--foreground"
 
 
-def _dashboard_pids_by_cmdline() -> "set[int]":
+def _dashboard_pids_by_cmdline() -> set[int]:
     """PIDs of live dashboard SERVER processes, found by cmdline — independent of
     the PID registry. Cross-platform, best-effort (empty on error).
 
@@ -3107,7 +3108,7 @@ def _kill_pid(pid: int) -> bool:
         return False
 
 
-def dashboard_status(host: "str | None" = None, port: "int | None" = None) -> int:
+def dashboard_status(host: str | None = None, port: int | None = None) -> int:
     """Print whether a dashboard is running and where. Returns 0 if running, 1 if not.
 
     Reports registry-known instances (with URL) AND flags any unregistered
@@ -3201,7 +3202,7 @@ def _spawn_detached(host: str, port: int) -> int:
     return 0
 
 
-def run_dashboard(host: "str | None" = None, port: "int | None" = None,
+def run_dashboard(host: str | None = None, port: int | None = None,
                   *, background: bool = True) -> int:
     """Start the dashboard.
 

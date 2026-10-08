@@ -118,7 +118,7 @@ def _sqlite_columns() -> dict:
     return out
 
 
-def _sqlite_all_tables() -> "set[str]":
+def _sqlite_all_tables() -> set[str]:
     """Every real table in a freshly migrated SQLite schema.
 
     Unlike `_sqlite_columns`, this does NOT filter to `_SHARED_CORE_TABLES` --
@@ -142,7 +142,7 @@ def _sqlite_all_tables() -> "set[str]":
         conn.close()
 
 
-def _pg_all_tables(backend) -> "set[str]":
+def _pg_all_tables(backend) -> set[str]:
     """Every table in the live PG store's active schema, via the seam."""
     with backend.connection() as c:
         return backend.list_tables(c)
