@@ -175,23 +175,45 @@ def is_m3_launch_step(name: str, cmdline: list[str]) -> bool:
             return False
 
 
+def is_venv_redirector(name: str, cmdline: list[str], below: list[str] | None) -> bool:
+    """Is this the venv launcher of the process directly below it?
+
+    On Windows a venv's ``Scripts\\python.exe`` is a redirector: it starts the
+    base interpreter as a CHILD process with its own argv, byte-identical
+    (measured 2026-10-08, argv[0] included). So every venv Python, pipx
+    installs included, has an extra python.exe above it that belongs to its own
+    launch, not to whoever started it. The signature is structural: a Python
+    launcher whose command line equals the one below it.
+    """
+    return (below is not None and cmdline == below
+            and PurePath(name.lower()).stem in _PY_LAUNCHERS)
+
+
 def agent_client(pid: Pid | None = None, *, max_depth: int = 24) -> ClientProcess | None:
     """The nearest ancestor of ``pid`` (default: this process) outside m3's launch chain.
 
     That is the agent's client — it lives as long as the agent session, while
     m3's own processes restart on every MCP reconnect. None when psutil is
     absent or the chain cannot be read; callers then rely on activity time alone.
+    A venv redirector layer (:func:`is_venv_redirector`) is part of the process
+    below it and is skipped.
     """
     try:
         import psutil
     except ImportError:
         return None
-    for anc in ancestor_pids(os.getpid() if pid is None else pid, max_depth=max_depth):
+    start = os.getpid() if pid is None else pid
+    try:
+        below: list[str] | None = psutil.Process(start).cmdline()
+    except Exception:  # noqa: BLE001 -- cannot read our own start: no redirector check
+        below = None
+    for anc in ancestor_pids(start, max_depth=max_depth):
         try:
             p = psutil.Process(anc)
             name, cmdline = p.name(), p.cmdline()
         except Exception:  # noqa: BLE001 -- vanished or denied: cannot classify
             return None
-        if not is_m3_launch_step(name, cmdline):
+        if not (is_venv_redirector(name, cmdline, below) or is_m3_launch_step(name, cmdline)):
             return ClientProcess(pid=anc, create_time=proc_create_time(anc), name=name)
+        below = cmdline
     return None

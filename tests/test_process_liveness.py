@@ -137,6 +137,21 @@ def test_launch_chain_classification(name, cmdline, own):
     assert process.is_m3_launch_step(name, cmdline) is own
 
 
+_VENV_ARGV = ["C:/v/Scripts/python.exe", "-c", "print(1)"]
+
+
+@pytest.mark.parametrize("name, cmdline, below, redirector", [
+    ("python.exe", _VENV_ARGV, _VENV_ARGV, True),            # the Windows venv launcher
+    ("python.exe", _VENV_ARGV, _VENV_ARGV + ["x"], False),   # different argv: a real parent
+    ("python.exe", _VENV_ARGV, None, False),                 # nothing below to compare
+    ("claude.exe", ["claude.exe"], ["claude.exe"], False),   # not a Python launcher
+])
+def test_venv_redirector_classification(name, cmdline, below, redirector):
+    """The venv launcher re-runs its own argv as a child (measured, argv[0]
+    included), so it is recognised structurally, not by an m3 marker."""
+    assert process.is_venv_redirector(name, cmdline, below) is redirector
+
+
 # -- agent_client against a REAL process tree (same mechanism on every OS) ----
 
 _CHILD = ("import os,sys; sys.path.insert(0, {bin!r}); "
