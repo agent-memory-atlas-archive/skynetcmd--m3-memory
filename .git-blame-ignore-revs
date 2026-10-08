@@ -1,0 +1,5 @@
+# Mechanical sweeps, skipped by `git blame --ignore-revs-file .git-blame-ignore-revs`
+# (GitHub reads this file automatically).
+
+# ruff UP safe fixes for the py312 target
+3885e57405f24d7e0e68d219a9de71d2d8ba6577
