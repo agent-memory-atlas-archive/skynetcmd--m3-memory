@@ -65,6 +65,34 @@ def _family(tag: str) -> str:
     return t
 
 
+def unfindable_memories(conn, dialect, *, limit: int = 10) -> list:
+    """``(id, content_bytes)`` of live memories that have embeddings but no
+    ``vector_kind='default'`` row, so the default search strategy cannot reach them.
+
+    The ONE copy of this predicate: the doctor report below and the test suite
+    both call it (a second copy drifts silently, §10a). ``dialect`` must be the
+    connection's own dialect: size goes through ``byte_length()`` because
+    PostgreSQL's length() counts characters, which would under-report a
+    CJK-heavy memory roughly threefold, and size is why these rows got windowed.
+    """
+    size = dialect.byte_length("COALESCE(mi.content,'')")
+    p = dialect.param()
+    return list(conn.execute(
+        f"""
+        SELECT mi.id, {size}
+        FROM memory_items mi
+        WHERE COALESCE(mi.is_deleted,0)=0
+          AND EXISTS (SELECT 1 FROM memory_embeddings e
+                      WHERE e.memory_id = mi.id)
+          AND NOT EXISTS (SELECT 1 FROM memory_embeddings e2
+                          WHERE e2.memory_id = mi.id
+                            AND e2.vector_kind = 'default')
+        LIMIT {p}
+        """,
+        (limit,),
+    ).fetchall())
+
+
 def _report_unfindable() -> None:
     """Report rows that HAVE embeddings but cannot be reached by search.
 
@@ -92,26 +120,9 @@ def _report_unfindable() -> None:
         from m3_core.paths import resolve_engine_file
         from memory.backends import active_backend, dialect
 
-        # Size via the dialect, NOT a bare LENGTH(): on PostgreSQL length()
-        # counts CHARACTERS, so a CJK-heavy memory would be reported at roughly
-        # a third of its real size — and size is the whole reason these rows got
-        # windowed. byte_length() renders octet_length() there (§10a).
-        _size = dialect().byte_length("COALESCE(mi.content,'')")
         db_path = resolve_engine_file("agent_memory.db")
         with active_backend().open_readonly(db_path) as conn:
-            orphans = conn.execute(
-                f"""
-                SELECT mi.id, {_size}
-                FROM memory_items mi
-                WHERE COALESCE(mi.is_deleted,0)=0
-                  AND EXISTS (SELECT 1 FROM memory_embeddings e
-                              WHERE e.memory_id = mi.id)
-                  AND NOT EXISTS (SELECT 1 FROM memory_embeddings e2
-                                  WHERE e2.memory_id = mi.id
-                                    AND e2.vector_kind = 'default')
-                LIMIT 10
-                """
-            ).fetchall()
+            orphans = unfindable_memories(conn, dialect(), limit=10)
     except Exception:  # noqa: BLE001 — fresh store / missing table is fine
         return
 

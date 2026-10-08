@@ -1528,16 +1528,20 @@ def seed_memory_row(conn, dialect, *, mid, type="note", title="", content="",
 
 
 def seed_embedding_row(conn, dialect, *, mid, embedding, dim, embed_model,
-                       emb_id=None):
+                       emb_id=None, vector_kind=None):
     """Insert ONE schema-valid memory_embeddings row (supplies the NOT NULL `id`
-    PK, which hand-written fixtures routinely omit). Returns the embedding id."""
+    PK, which hand-written fixtures routinely omit). Returns the embedding id.
+    ``vector_kind`` defaults to the schema's own default ('default') when None."""
     p = dialect.param()
     eid = emb_id or f"emb-{mid}"
+    cols, vals = ["id", "memory_id", "embedding", "dim", "embed_model"], [eid, mid, embedding, dim, embed_model]
+    if vector_kind is not None:
+        cols.append("vector_kind")
+        vals.append(vector_kind)
     conn.execute(
-        f"INSERT INTO memory_embeddings "
-        f"(id, memory_id, embedding, dim, embed_model) "
-        f"VALUES ({p},{p},{p},{p},{p})",
-        (eid, mid, embedding, dim, embed_model),
+        f"INSERT INTO memory_embeddings ({', '.join(cols)}) "
+        f"VALUES ({', '.join([p] * len(vals))})",
+        tuple(vals),
     )
     return eid
 

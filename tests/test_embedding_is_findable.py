@@ -34,6 +34,8 @@ import sys
 import unittest
 from pathlib import Path
 
+import pytest
+
 _BIN = str(Path(__file__).resolve().parents[1] / "bin")
 if _BIN not in sys.path:
     sys.path.insert(0, _BIN)
@@ -79,12 +81,80 @@ class TestFirstWindowIsDefault(unittest.TestCase):
         self.assertNotIn('base_kind = "default" if len(chunks) == 1', code)
 
 
-class TestNoEmbeddedButUnfindableRows(unittest.TestCase):
-    """Store-level: the invariant, checked against the real database.
+def _seed_one_healthy_one_unfindable(conn, d):
+    """A split memory WITH a 'default' vector, and one with only window_N."""
+    import struct
+    import uuid
 
-    This is the check that would have CAUGHT the bug, and it is the one worth
-    keeping: it does not care WHY a row lost its default vector, only that no
-    live memory is embedded-yet-unreachable.
+    from conftest import seed_embedding_row, seed_memory_row  # type: ignore
+
+    vec = struct.pack("<4f", 1.0, 0.0, 0.0, 0.0)
+    tag = uuid.uuid4().hex[:10]
+    healthy, orphan = f"findable-{tag}", f"unfindable-{tag}"
+    for mid in (healthy, orphan):
+        seed_memory_row(conn, d, mid=mid, title=mid, content="body " * 20)
+    for mid, kinds in ((healthy, (None, "window_1")), (orphan, ("window_0", "window_1"))):
+        for i, kind in enumerate(kinds):
+            seed_embedding_row(conn, d, mid=mid, embedding=vec, dim=4,
+                               embed_model="test-model", emb_id=f"e{i}-{mid}",
+                               vector_kind=kind)
+    conn.commit()
+    return healthy, orphan
+
+
+def test_unfindable_query_flags_only_the_unreachable_row_sqlite(tmp_path):
+    """The doctor probe's predicate (the one owner, not a copy), against a
+    real-schema SQLite store: the planted window_N-only row is flagged, the
+    healthy split row is not."""
+    import sqlite3
+
+    from doctor.embed_space_probe import unfindable_memories
+    from memory.backends.dialect import dialect_for
+
+    from conftest import create_full_main_schema  # type: ignore
+
+    db = tmp_path / "agent_memory.db"
+    create_full_main_schema(db)
+    conn = sqlite3.connect(str(db))
+    try:
+        d = dialect_for("sqlite")
+        healthy, orphan = _seed_one_healthy_one_unfindable(conn, d)
+        ids = {row[0] for row in unfindable_memories(conn, d, limit=100)}
+    finally:
+        conn.close()
+    assert orphan in ids, "an embedded-but-unfindable row was not reported"
+    assert healthy not in ids, "a row with a 'default' vector was reported unfindable"
+
+
+@pytest.mark.requires_pg
+def test_unfindable_query_flags_only_the_unreachable_row_postgres():
+    """Same predicate on the lane's PostgreSQL store, through the seam."""
+    from doctor.embed_space_probe import unfindable_memories
+    from memory.backends import dialect
+    from memory.db import _db
+
+    d = dialect()
+    with _db() as conn:
+        healthy, orphan = _seed_one_healthy_one_unfindable(conn, d)
+        try:
+            ids = {row[0] for row in unfindable_memories(conn, d, limit=10000)}
+        finally:
+            p = d.param()
+            for mid in (healthy, orphan):
+                conn.execute(f"DELETE FROM memory_embeddings WHERE memory_id = {p}", (mid,))
+                conn.execute(f"DELETE FROM memory_items WHERE id = {p}", (mid,))
+            conn.commit()
+    assert orphan in ids, "an embedded-but-unfindable row was not reported"
+    assert healthy not in ids, "a row with a 'default' vector was reported unfindable"
+
+
+class TestNoEmbeddedButUnfindableRows(unittest.TestCase):
+    """Store-level: the invariant, checked against the developer's real database.
+
+    A live-store check, not a unit test: it skips wherever no real store exists,
+    which includes every test lane (the sandbox hides ~/.m3). The predicate
+    itself is pinned hermetically by the two tests above, and `m3 doctor` runs
+    it against the live store on every invocation.
     """
 
     def _live_db(self):
@@ -125,22 +195,10 @@ class TestNoEmbeddedButUnfindableRows(unittest.TestCase):
         """
         backend, path = self._live_db()
         try:
+            from doctor.embed_space_probe import unfindable_memories
             from memory.backends import dialect
-            size = dialect().byte_length("COALESCE(mi.content,'')")
             with backend.open_readonly(str(path)) as conn:
-                rows = conn.execute(
-                    f"""
-                    SELECT mi.id, {size} AS n
-                    FROM memory_items mi
-                    WHERE COALESCE(mi.is_deleted,0)=0
-                      AND EXISTS (SELECT 1 FROM memory_embeddings e
-                                  WHERE e.memory_id = mi.id)
-                      AND NOT EXISTS (SELECT 1 FROM memory_embeddings e2
-                                      WHERE e2.memory_id = mi.id
-                                        AND e2.vector_kind = 'default')
-                    LIMIT 20
-                    """
-                ).fetchall()
+                rows = unfindable_memories(conn, dialect(), limit=20)
         except Exception as exc:  # pragma: no cover - no store / no table yet
             self.skipTest(f"store not queryable: {exc}")
 
