@@ -1,6 +1,7 @@
 """The waiter must ask the SEAM which lane it is on, never infer it.
 
-#163's Rule-10a requirement is "ask `dialect().backend`, do not infer". Reading
+#163's Rule-10a requirement is "ask the seam, do not infer". The waiter now
+asks for a CAPABILITY -- `dialect().store_change_token()` -- not the backend name. Reading
 `M3_DB_BACKEND` directly looked equivalent and was not: the selector resolves
 through `getenv_compat("M3_DB_BACKEND", "DB_BACKEND", ...)`, so the still-
 supported `DB_BACKEND` alias made the two disagree. Measured 2026-09-12::
@@ -51,9 +52,9 @@ def test_waiter_agrees_with_the_seam_for_every_backend_env_var(var, monkeypatch)
         f"precondition: the selector should honour {var}; if this alias was "
         f"removed, delete this parametrisation rather than weakening the test"
     )
-    assert waiter._backend_is_postgres(), (
+    assert not waiter._has_change_signal("agent_memory.db"), (
         f"{var}=postgres: the seam resolves 'postgres' but the waiter chose the "
-        f"SQLite WAL path -- it would watch a .db-wal file PostgreSQL never "
+        f"file-signal path -- it would watch a .db-wal file PostgreSQL never "
         f"writes and poll forever, with no error"
     )
 
@@ -61,12 +62,12 @@ def test_waiter_agrees_with_the_seam_for_every_backend_env_var(var, monkeypatch)
 def test_default_is_the_sqlite_wal_path():
     """The common case must not regress into spawning a PG child."""
     selector._reset_for_tests()
-    assert not waiter._backend_is_postgres()
+    assert waiter._has_change_signal("agent_memory.db")
 
 
 def test_supervisor_imports_no_db_framework_at_module_level():
     """#163: the supervisor MUST stay stdlib-only at import time to survive
-    `pipx upgrade`. Deferring the seam import inside `_backend_is_postgres` is
+    `pipx upgrade`. Deferring the seam import inside `_has_change_signal` is
     what keeps that true -- this guard fails if one drifts to the top."""
     import ast
     import pathlib
@@ -104,5 +105,5 @@ def test_seam_failure_degrades_loudly_not_silently(monkeypatch, capsys):
     monkeypatch.setattr(waiter, "_warn", lambda m: warned.append(m))
 
     monkeypatch.setenv("DB_BACKEND", "postgres")
-    assert waiter._backend_is_postgres(), "env fallback ignored DB_BACKEND"
+    assert not waiter._has_change_signal("agent_memory.db"), "env fallback ignored DB_BACKEND"
     assert warned, "the seam failed and nothing was logged -- silent degradation"

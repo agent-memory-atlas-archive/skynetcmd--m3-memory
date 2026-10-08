@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_notification_waiter.py
-sha1: 3db2850a9c5d
-mtime_utc: 2026-09-17T10:45:36.085208+00:00
-generated_utc: 2026-09-17T10:48:54.066509+00:00
+sha1: 777064cc09f0
+mtime_utc: 2026-10-08T03:47:58.961149+00:00
+generated_utc: 2026-10-08T03:49:36.828226+00:00
 private: false
 ---
 
@@ -17,12 +17,14 @@ Run it as a background/async task: your runtime's process-completion signal is
 what pushes the wake-up turn to you, so this costs ZERO conversation turns while
 it waits.
 
-WHY IT WATCHES THE WAL FILE, NOT THE DATABASE
+WHY IT WATCHES A CHANGE TOKEN, NOT THE DATABASE
 SQLite has no cross-process blocking change notification. Update hooks are
 in-process only and fire solely for the connection's OWN writes, so a waiter
 CANNOT be woken by another process inserting a row (verified, sqlite 3.50.4).
-Watching agent_memory.db-wal is the working substitute: a notify write changes
-both its mtime and its size (measured: 263712 -> 280192 bytes).
+The seam's `Dialect.store_change_token()` is the substitute: on SQLite it is the
+(mtime, size) of each store and its -wal, which a notify write changes
+(measured: 263712 -> 280192 bytes). A backend with no such signal returns None
+and the waiter polls by query instead.
 
 The cheap 1s polling happens HERE, in a subprocess that costs no context. That
 is the whole point: on-change delivery to the agent, without a turn per tick.
@@ -31,7 +33,7 @@ is the whole point: on-change delivery to the agent, without a turn per tick.
 
 ## Entry points
 
-- `def main()` (line 507)
+- `def main()` (line 502)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -68,8 +70,8 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.Popen()  → `cmd`` (line 385)
-- `subprocess.run()` (line 219)
+- `subprocess.Popen()  → `cmd`` (line 380)
+- `subprocess.run()` (line 214)
 
 
 ---

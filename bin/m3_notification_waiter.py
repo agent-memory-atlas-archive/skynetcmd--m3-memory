@@ -6,12 +6,14 @@ Run it as a background/async task: your runtime's process-completion signal is
 what pushes the wake-up turn to you, so this costs ZERO conversation turns while
 it waits.
 
-WHY IT WATCHES THE WAL FILE, NOT THE DATABASE
+WHY IT WATCHES A CHANGE TOKEN, NOT THE DATABASE
 SQLite has no cross-process blocking change notification. Update hooks are
 in-process only and fire solely for the connection's OWN writes, so a waiter
 CANNOT be woken by another process inserting a row (verified, sqlite 3.50.4).
-Watching agent_memory.db-wal is the working substitute: a notify write changes
-both its mtime and its size (measured: 263712 -> 280192 bytes).
+The seam's `Dialect.store_change_token()` is the substitute: on SQLite it is the
+(mtime, size) of each store and its -wal, which a notify write changes
+(measured: 263712 -> 280192 bytes). A backend with no such signal returns None
+and the waiter polls by query instead.
 
 The cheap 1s polling happens HERE, in a subprocess that costs no context. That
 is the whole point: on-change delivery to the agent, without a turn per tick.
@@ -26,16 +28,6 @@ import subprocess
 import sys
 import time
 from datetime import datetime, timezone
-
-
-def wal_fingerprint(wal: pathlib.Path) -> tuple:
-    """(mtime, size) or () when absent. Compare BOTH: checkpointing can shrink
-    the file, so size alone both misses growth-then-truncate and false-fires."""
-    try:
-        st = wal.stat()
-        return (st.st_mtime, st.st_size)
-    except FileNotFoundError:
-        return ()
 
 
 def refresh_agent_ids(current: "list[str]") -> "list[str]":
@@ -75,26 +67,25 @@ def refresh_agent_ids(current: "list[str]") -> "list[str]":
         return current
 
 
-def notification_wal_paths(engine_root: str) -> "list[pathlib.Path]":
-    """The -wal file of EVERY store a notification can land in.
+def notification_stores(engine_root: str) -> "list[str]":
+    """EVERY store a notification can land in.
 
-    ⚠ WHY THIS IS NOT ONE FILE ANY MORE. Delivery records live in their own
-    store (`agent_dispatch.db`) by default, because notifications are ephemeral
-    and memories are not. Its WAL is a DIFFERENT FILE, so a waiter watching only
-    `agent_memory.db-wal` never sees a dispatch write land -- detection goes
-    blind and the failure is SILENT: no error, no log, the receipt SLA simply
-    stops being met. An agent that trusts an empty inbox drops work addressed
-    to it.
+    ⚠ WHY THIS IS NOT ONE STORE. Delivery records live in their own store
+    (`agent_dispatch.db`) by default, because notifications are ephemeral and
+    memories are not. A waiter watching only `agent_memory.db` never sees a
+    dispatch write land -- detection goes blind and the failure is SILENT: no
+    error, no log, the receipt SLA simply stops being met. An agent that trusts
+    an empty inbox drops work addressed to it.
 
     Store enumeration itself is NOT done here. `m3_core.paths
     .notification_store_paths()` owns "which files hold notifications", exactly
     as `chat_store_paths()` owns it for chat turns -- that question was
     hand-rolled three times for chat and got the split topology wrong three
-    times. This maps those stores to their WAL siblings and nothing more.
+    times.
 
-    Falls back to the historical single path if the seam cannot be imported: a
-    waiter that watches one store is degraded, but a waiter that crashes on
-    startup watches none.
+    Falls back to the main store if `m3_core` cannot be imported: a waiter that
+    watches one store is degraded, but a waiter that crashes on startup watches
+    none.
     """
     try:
         sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__))))
@@ -106,17 +97,21 @@ def notification_wal_paths(engine_root: str) -> "list[pathlib.Path]":
               f"possible: m3_core is not importable from this interpreter. "
               f"inspect: m3_core.paths.notification_store_paths")
         stores = [os.path.join(engine_root, "agent_memory.db")]
-    return [pathlib.Path(str(s) + "-wal") for s in stores]
+    return [str(s) for s in stores]
 
 
-def wal_fingerprints(wals: "list[pathlib.Path]") -> tuple:
-    """One comparable fingerprint across every watched WAL.
+def change_token(stores: "list[str]") -> tuple:
+    """One comparable token across every watched store, from the seam.
 
-    A tuple of per-file fingerprints rather than a merged value: a change in
-    ANY store must compare unequal, and a checkpoint shrinking one file must not
-    be able to cancel out growth in another.
+    A tuple of per-store tokens rather than a merged value: a change in ANY
+    store must compare unequal, and a checkpoint shrinking one file must not
+    be able to cancel out growth in another. Deferred import: see
+    `_has_change_signal`.
     """
-    return tuple(wal_fingerprint(w) for w in wals)
+    from memory.backends import dialect
+
+    d = dialect()
+    return tuple(d.store_change_token(s) for s in stores)
 
 
 def _no_window() -> dict:
@@ -466,42 +461,42 @@ def _supervise_postgres(args) -> int:
 
     return 2
 
-def _backend_is_postgres() -> bool:
-    """Which lane does the SEAM say we are on? Never inferred from a file.
+def _has_change_signal(probe_store: str) -> bool:
+    """Does the SEAM give this backend a connection-free change signal?
 
-    #163 requires "ask `dialect().backend`, do not infer". Reading
-    `M3_DB_BACKEND` directly here looked equivalent and was not: the selector
-    resolves through `getenv_compat("M3_DB_BACKEND", "DB_BACKEND", ...)`, so
-    the still-supported `DB_BACKEND` alias made the two disagree. Measured
-    2026-09-12 with `DB_BACKEND=postgres` and `M3_DB_BACKEND` unset::
+    True -> watch `change_token()` and confirm by query only when it moves.
+    False -> no cheap signal (PostgreSQL today): poll by query in a supervised
+    child. A CAPABILITY, never the backend name: a third backend without a
+    signal gets the polling path by default instead of watching files it never
+    writes.
+
+    #163: ask the seam, do not infer. Reading `M3_DB_BACKEND` directly looked
+    equivalent and was not -- the selector also honours the `DB_BACKEND`
+    alias. Measured 2026-09-12 with `DB_BACKEND=postgres`::
 
         SEAM resolves to  : postgres
         WAITER would take : SQLITE WAL path
 
-    That is the §3 failure this feature exists to prevent, in its worst form:
-    the waiter would watch `agent_memory.db-wal` -- a file PostgreSQL never
-    writes -- and poll forever finding nothing, with no error and no log line.
-    A blind waiter that looks perfectly healthy.
+    -- a blind waiter that polls forever, with no error and no log line.
 
-    The import is DEFERRED, not top-level: the supervisor must stay
-    stdlib-only at import time to survive `pipx upgrade` (#163). One call at
-    startup costs one import in a process that is about to run for hours.
+    The import is DEFERRED: the supervisor must stay stdlib-only at import time
+    to survive `pipx upgrade` (#163).
 
-    Fails CLOSED to the SQLite lane: if the seam cannot be imported at all we
-    are almost certainly running from a stripped supervisor payload where
-    SQLite is the only reachable engine, and guessing "postgres" there would
-    spawn a child that cannot connect. The env read is the fallback, not the
-    source of truth, and it is logged so the degradation is never silent.
+    Fails CLOSED to the file-signal lane when the seam cannot be imported: a
+    stripped supervisor payload is almost certainly SQLite-only, and guessing
+    the polling lane would spawn a child that cannot connect. The env read is
+    the fallback, not the source of truth, and it is logged.
     """
     try:
         from memory.backends import dialect  # deferred: see docstring
-        return dialect().backend == "postgres"
+        return dialect().store_change_token(probe_store) is not None
     except Exception as exc:
         env = (os.environ.get("M3_DB_BACKEND")
                or os.environ.get("DB_BACKEND") or "sqlite").strip().lower()
-        _warn(f"could not ask the backend seam ({exc!r}); falling back to "
-              f"env backend={env!r}")
-        return env == "postgres"
+        _warn(f"could not ask the backend seam for a change signal "
+              f"(observed: {exc!r}); falling back to env backend={env!r}. "
+              f"inspect: memory.backends.dialect().store_change_token")
+        return env != "postgres"
 
 
 def main() -> int:
@@ -540,7 +535,7 @@ def main() -> int:
     if args.child:
         return pg_child_loop(args)
 
-    if _backend_is_postgres():
+    if not _has_change_signal(notification_stores(args.engine_root)[0]):
         if args.supervise:
             while True:
                 rc = _supervise_postgres(args)
@@ -561,7 +556,7 @@ def main() -> int:
 
 
 def _wait_once(args) -> int:
-    wals = notification_wal_paths(args.engine_root)
+    stores = notification_stores(args.engine_root)
     # STARTUP SWEEP -- stamp receipt on anything already waiting, BEFORE the
     # baseline is taken.
     #
@@ -582,12 +577,18 @@ def _wait_once(args) -> int:
         _m3_admin("notifications_mark_received", _a)
 
     baselines = {a: unread_ids(a) for a in args.agent_ids}
-    fp = wal_fingerprints(wals)
+    try:
+        fp = change_token(stores)
+    except Exception as exc:  # noqa: BLE001 -- reported, then a real failure rc
+        _warn(f"cannot read the change token for {stores!r}; detection would be "
+              f"blind, so stopping. observed: {type(exc).__name__}: {exc}. "
+              f"inspect: memory.backends.dialect().store_change_token")
+        return 1
     deadline = time.time() + args.timeout
 
     while time.time() < deadline:
         time.sleep(args.interval)
-        cur_fp = wal_fingerprints(wals)
+        cur_fp = change_token(stores)
         if cur_fp == fp:
             continue                      # nothing written at all
         fp = cur_fp

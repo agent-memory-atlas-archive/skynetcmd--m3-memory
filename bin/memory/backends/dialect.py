@@ -684,6 +684,23 @@ class Dialect:
         """
         raise NotImplementedError("subclass must implement last_insert_id()")
 
+    # -- change detection ------------------------------------------------------
+    def store_change_token(self, store: str) -> "tuple | None":
+        """A cheap value that changes whenever a committed write may have landed in ``store``.
+
+        For watchers (the notification waiter) that must not query on every tick:
+        equal tokens mean no write landed; unequal tokens mean confirm with a
+        query. May change without a relevant write (checkpoints, other tables);
+        must NEVER stay equal across a committed write. Opens no connection and
+        never creates the store, so it works before a DSN or schema exists.
+
+        Returns ``None`` when the backend has no connection-free signal; the
+        caller then confirms by query every interval. Callers branch on that
+        capability, never on the backend name. Lives on the dialect, not the
+        backend, because constructing a backend can require a DSN.
+        """
+        raise NotImplementedError("subclass must implement store_change_token()")
+
     # -- JSON ----------------------------------------------------------------
     def empty_json_default(self) -> "str | None":
         """The value to store for an EMPTY JSON column on this backend.

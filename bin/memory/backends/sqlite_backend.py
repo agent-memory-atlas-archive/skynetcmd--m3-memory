@@ -229,6 +229,26 @@ class SqliteDialect(Dialect):
     def last_insert_id(self, cursor: object) -> object:
         return cursor.lastrowid  # type: ignore[attr-defined]
 
+    def store_change_token(self, store: str) -> tuple:
+        """``(mtime_ns, size)`` of the file and its ``-wal``; ``()`` for an absent one.
+
+        Both files: in WAL mode a commit appends to ``-wal`` and a checkpoint moves
+        pages into the main file (shrinking ``-wal``); in rollback-journal mode only
+        the main file changes. mtime AND size, because a checkpoint-and-reuse can
+        leave ``-wal`` at its old size. Resolution is the filesystem's mtime
+        granularity (100 ns NTFS, 1 ns ext4/APFS).
+        """
+        import os
+
+        def _stat(path: str) -> tuple:
+            try:
+                st = os.stat(path)
+            except FileNotFoundError:
+                return ()
+            return (st.st_mtime_ns, st.st_size)
+
+        return (_stat(store), _stat(store + "-wal"))
+
     def _json_extract_text_expr(self, column: str, json_path: str) -> str:
         return f"json_extract({column}, '$.{json_path}')"
 

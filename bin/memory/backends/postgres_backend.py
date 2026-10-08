@@ -723,6 +723,14 @@ class PostgresDialect(Dialect):
     def last_insert_id(self, cursor: object) -> object:
         return cursor.fetchone()[0]  # type: ignore[attr-defined]
 
+    def store_change_token(self, store: str) -> None:
+        """No connection-free change signal; callers poll by query.
+
+        LISTEN/NOTIFY is the upgrade path: it needs a held connection, so it
+        belongs behind a backend-level watcher, not this connection-free hook.
+        """
+        return None
+
     def _json_extract_text_expr(self, column: str, json_path: str) -> str:
         return f"{column} ->> '{json_path}'"
 

@@ -11,10 +11,12 @@ that were measured rather than assumed:
   no agent read. Measured: 29 of 30 recent notifications carried no task_id, so
   task state does not cover the gap. Opt in with ``--ack`` where it does.
 * SQLite has no cross-process blocking change notification (update hooks are
-  in-process only), so the trigger is the WAL file's ``(mtime, size)``.
-* The WAL trigger is *shared*: one file change covers every inbox, so one
-  process can serve N agents at the cost of N confirm-polls after a change --
-  not N watchers.
+  in-process only), so the trigger is the seam's ``store_change_token()`` --
+  ``(mtime, size)`` of each store and its WAL. Pinned in
+  ``test_store_change_token.py``.
+* The trigger is *shared*: one change covers every inbox, so one process can
+  serve N agents at the cost of N confirm-polls after a change -- not N
+  watchers.
 
 These tests cover the argument surface and the invariants. The timing figures
 (detect+ack 1192/1182/1203 ms) came from live runs and are not re-measured here;
@@ -38,24 +40,24 @@ waiter = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(waiter)
 
 
-def test_wal_fingerprint_tracks_mtime_and_size(tmp_path):
-    """Both halves matter: checkpointing can SHRINK the WAL, so size alone both
-    misses growth-then-truncate and can false-fire."""
-    wal = tmp_path / "agent_memory.db-wal"
-    assert waiter.wal_fingerprint(wal) == (), "absent WAL must be falsy, not an error"
+def test_change_token_spans_every_store_and_moves_on_a_write(tmp_path):
+    """The waiter's token is per-store, so a write to the dispatch store alone
+    must move it -- watching only the main store went blind on split installs."""
+    import sqlite3
 
-    wal.write_bytes(b"x" * 10)
-    first = waiter.wal_fingerprint(wal)
-    assert len(first) == 2, "fingerprint must carry (mtime, size)"
+    main, dispatch = str(tmp_path / "agent_memory.db"), str(tmp_path / "agent_dispatch.db")
+    before = waiter.change_token([main, dispatch])
+    assert len(before) == 2, "one token per store"
 
-    wal.write_bytes(b"x" * 20)
-    assert waiter.wal_fingerprint(wal) != first, "a size change must be visible"
-
-
-def test_missing_wal_is_not_an_error(tmp_path):
-    """A missing WAL means 'nothing written yet', not a crash: the waiter must
-    survive a fresh engine root."""
-    assert waiter.wal_fingerprint(tmp_path / "nope-wal") == ()
+    con = sqlite3.connect(dispatch)
+    con.execute("PRAGMA journal_mode=WAL")
+    con.execute("CREATE TABLE t (x)")
+    con.commit()
+    try:
+        assert waiter.change_token([main, dispatch]) != before, (
+            "a committed write to the dispatch store did not move the token")
+    finally:
+        con.close()
 
 
 def test_agent_id_is_repeatable_for_multi_inbox():
