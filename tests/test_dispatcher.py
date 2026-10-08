@@ -31,6 +31,7 @@ if _BIN not in sys.path:
 
 import mcp_tool_catalog
 
+
 def _files_stats_args() -> dict:
     """No `database`: conftest's sandbox already points both stores at a temp
     dir, and `database` on a files tool is refused (_pop_database). These
