@@ -39,6 +39,7 @@ import sys
 import time
 from pathlib import Path
 
+from m3_core.aio import gather_or_cancel
 from m3_core.runtime import utc_iso
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -578,7 +579,7 @@ async def _run_reflector_pass(
         async def gated(uid: str, cid: str) -> None:
             async with sem:
                 await reflector.reflect_conversation(uid, cid, profile, client, token, counters)
-        await asyncio.gather(*(gated(r[0], r[1]) for r in rows if r[1]))
+        await gather_or_cancel(*(gated(r[0], r[1]) for r in rows if r[1]))
     return counters
 
 

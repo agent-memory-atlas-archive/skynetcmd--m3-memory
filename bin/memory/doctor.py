@@ -31,6 +31,8 @@ import time
 from typing import Any
 from urllib.parse import urlparse
 
+from m3_core.aio import gather_or_cancel
+
 # The non-empty-content predicate comes from the backend seam so it has exactly
 # one definition (DESIGN_PHILOSOPHIES §10a: duplicated predicate logic is the
 # defect independent of correctness). This module still opens SQLite by path
@@ -274,7 +276,7 @@ async def memory_doctor_impl() -> dict[str, Any]:
         }
     """
     # Run sync probes in threads to keep the async probe truly parallel.
-    tier1, tier2, db, roundtrip = await asyncio.gather(
+    tier1, tier2, db, roundtrip = await gather_or_cancel(
         asyncio.to_thread(_probe_tier1),
         asyncio.to_thread(_probe_tier2),
         asyncio.to_thread(_probe_db),

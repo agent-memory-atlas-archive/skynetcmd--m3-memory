@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_enrich.py
-sha1: 0c2298764edc
-mtime_utc: 2026-10-08T23:19:40.529353+00:00
-generated_utc: 2026-10-08T23:20:34.345426+00:00
+sha1: ea15d6800d65
+mtime_utc: 2026-10-08T23:52:33.361981+00:00
+generated_utc: 2026-10-08T23:53:07.008368+00:00
 private: false
 ---
 
@@ -45,7 +45,7 @@ Status: Phase D user-facing CLI. Pairs with bin/run_observer.py + bin/run_reflec
 
 ## Entry points
 
-- `def main()` (line 1014)
+- `def main()` (line 1015)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -133,7 +133,7 @@ Status: Phase D user-facing CLI. Pairs with bin/run_observer.py + bin/run_reflec
 
 **sqlite**
 
-- `sqlite3.connect()  → `str(db_path)`` (line 184)
+- `sqlite3.connect()  → `str(db_path)`` (line 185)
 
 
 ---
@@ -145,6 +145,7 @@ Status: Phase D user-facing CLI. Pairs with bin/run_observer.py + bin/run_reflec
 - `enrich.prep (BACKUP_DIR, _ensure_migration_025, _load_profile_with_path, _resolve_db, _today)`
 - `enrich.rate_limit (_classify_observer_error, _estimate_cost_wall, _RateLimitCascade)`
 - `enrich.report (_print_dry_run, _print_run_summary)`
+- `m3_core.aio (gather_or_cancel)`
 - `m3_core.paths (get_m3_engine_root)`
 - `m3_core.paths (scoped_db_env, snapshot_stores)`
 - `m3_core.runtime (utc_iso)`

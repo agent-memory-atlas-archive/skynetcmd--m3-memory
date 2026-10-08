@@ -37,6 +37,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from llm_failover import apply_thinking_suppression, apply_thinking_suppression_anthropic, reply_ran_out_of_room
+from m3_core.aio import gather_or_cancel
 from m3_core.runtime import utc_iso
 from m3_sdk import getenv_compat
 
@@ -769,7 +770,7 @@ async def drain_variant_mode(args, profile, token: str) -> None:
                         flush=True,
                     )
 
-        await asyncio.gather(*(
+        await gather_or_cancel(*(
             gated(uid, cid, turns)
             for (uid, cid), turns in groups.items()
         ))
@@ -866,7 +867,7 @@ async def drain_queue_mode(args, profile, token: str) -> None:
                         db.commit()
                     counters["failed"] += 1
 
-        await asyncio.gather(*(
+        await gather_or_cancel(*(
             drain_one(r[0], r[1], r[2], r[3]) for r in queue_rows
         ))
 

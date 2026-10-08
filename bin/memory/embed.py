@@ -28,6 +28,7 @@ from threading import Lock as _ThreadLock
 import httpx as _httpx
 from embedding_utils import unpack as _unpack
 from llm_failover import get_best_embed
+from m3_core.aio import gather_or_cancel
 from m3_sdk import M3Context, getenv_compat, resolve_db_path
 
 from . import config
@@ -1982,14 +1983,14 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
             f"Bulk embed: bisecting failed chunk of {len(chunk_texts)} into "
             f"{mid} + {len(chunk_texts) - mid}"
         )
-        left, right = await asyncio.gather(
+        left, right = await gather_or_cancel(
             _post_chunk(chunk_texts[:mid]),
             _post_chunk(chunk_texts[mid:]),
         )
         return [*left, *right]
 
     chunks = [list(c) for c in batched(miss_texts, EMBED_BULK_CHUNK)]
-    chunk_results = await asyncio.gather(*(_post_chunk(c) for c in chunks))
+    chunk_results = await gather_or_cancel(*(_post_chunk(c) for c in chunks))
 
     flat: list[list[float] | None] = []
     for cr in chunk_results:

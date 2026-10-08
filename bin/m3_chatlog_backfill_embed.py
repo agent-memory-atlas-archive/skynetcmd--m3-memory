@@ -35,6 +35,7 @@ import time
 import uuid
 from pathlib import Path
 
+from m3_core.aio import gather_or_cancel
 from m3_core.paths import get_m3_backups_root, seam_backend, seam_dialect, snapshot_stores
 from m3_core.runtime import utc_iso
 
@@ -109,7 +110,7 @@ async def _embed_one_batch(
                     out.append((mid, vec, model or ""))
             except Exception:  # noqa: BLE001
                 pass
-    await asyncio.gather(*(one(mid, content) for mid, content in rows))
+    await gather_or_cancel(*(one(mid, content) for mid, content in rows))
     return out
 
 

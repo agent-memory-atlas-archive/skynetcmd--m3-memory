@@ -1,8 +1,8 @@
 ---
 tool: bin/mcp_proxy.py
-sha1: 0ce2c4c9e8ef
-mtime_utc: 2026-10-08T22:11:14.619498+00:00
-generated_utc: 2026-10-08T22:11:48.107548+00:00
+sha1: 268594e1a06d
+mtime_utc: 2026-10-08T23:52:33.413758+00:00
+generated_utc: 2026-10-08T23:53:07.155451+00:00
 private: false
 ---
 
@@ -132,7 +132,7 @@ _(no argparse arguments detected)_
 
 **http**
 
-- `httpx.AsyncClient()` (line 526)
+- `httpx.AsyncClient()` (line 527)
 
 
 ---
@@ -142,6 +142,7 @@ _(no argparse arguments detected)_
 - `fastapi (FastAPI, HTTPException, Request)`
 - `fastapi.responses (JSONResponse, StreamingResponse)`
 - `httpx`
+- `m3_core.aio (gather_or_cancel)`
 - `pydantic (BaseModel, Field)`
 - `uvicorn`
 

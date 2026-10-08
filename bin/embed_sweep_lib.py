@@ -30,6 +30,8 @@ import time
 from collections.abc import Awaitable, Callable
 from itertools import batched
 
+from m3_core.aio import gather_or_cancel
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Failure classification: infrastructure vs content
 # ──────────────────────────────────────────────────────────────────────────────
@@ -400,8 +402,8 @@ async def run_embed_loop(
         batches: list[list[tuple[str, str, str, str | None]]] = [
             list(b) for b in batched(rows, batch_size)
         ]
-        await asyncio.gather(
-            *(_embed_one_batch(b) for b in batches), return_exceptions=False,
+        await gather_or_cancel(
+            *(_embed_one_batch(b) for b in batches)
         )
         cycles += 1
 

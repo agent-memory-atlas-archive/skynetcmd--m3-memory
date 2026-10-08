@@ -44,6 +44,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from m3_core.aio import gather_or_cancel
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -166,7 +168,7 @@ async def _run_async(args) -> int:
         schedule_tasks.append(asyncio.create_task(
             _launch_worker_with_offset(i, args.workers, args, shards[i], log_path, start_at)
         ))
-    procs = await asyncio.gather(*schedule_tasks)
+    procs = await gather_or_cancel(*schedule_tasks)
     print()
     print("=" * 62)
     print("  m3-enrich-batch-parallel WORKERS LAUNCHED")

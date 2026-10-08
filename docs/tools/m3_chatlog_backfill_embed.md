@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_chatlog_backfill_embed.py
-sha1: cce2bb0caf83
-mtime_utc: 2026-10-08T23:28:31.957051+00:00
-generated_utc: 2026-10-08T23:31:05.649044+00:00
+sha1: 655d38f1c2d2
+mtime_utc: 2026-10-08T23:52:33.400099+00:00
+generated_utc: 2026-10-08T23:53:06.943384+00:00
 private: false
 ---
 
@@ -40,7 +40,7 @@ Defaults:
 
 ## Entry points
 
-- `def main()` (line 335)
+- `def main()` (line 336)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -86,6 +86,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
+- `m3_core.aio (gather_or_cancel)`
 - `m3_core.paths (get_m3_backups_root, seam_backend, seam_dialect, snapshot_stores)`
 - `m3_core.paths (resolve_backend_name)`
 - `m3_core.runtime (utc_iso)`

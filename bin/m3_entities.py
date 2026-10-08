@@ -52,6 +52,8 @@ from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
 
+from m3_core.aio import gather_or_cancel
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 _BIN = REPO_ROOT / "bin"
 if str(_BIN) not in sys.path:
@@ -910,7 +912,7 @@ async def _run_db(
                     _enqueue_failure(memory_id, e)
                     print(f"[m3-entities] WRITE-FAIL {memory_id[:8]}: {type(e).__name__}: {e} (queued)", flush=True)
 
-        await asyncio.gather(*(gated(mid, txt) for mid, txt in rows))
+        await gather_or_cancel(*(gated(mid, txt) for mid, txt in rows))
 
     # Flush all 'done' markers in a single write now that every row's entity write
     # has committed and the httpx client is closed — one lock acquisition for the

@@ -60,6 +60,8 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
+from m3_core.aio import gather_or_cancel
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 _BIN = REPO_ROOT / "bin"
 if str(_BIN) not in sys.path:
@@ -415,7 +417,7 @@ async def _ingest_one_group(
                 last_err = f"write_observation: {type(e).__name__}: {e!r}"
                 n_chunk_failed += 1
                 return False
-    results = await asyncio.gather(*(_write_one(o) for o in observations))
+    results = await gather_or_cancel(*(_write_one(o) for o in observations))
     written = sum(1 for r in results if r)
 
     if observations and written == 0:
@@ -1103,6 +1105,8 @@ async def _run_async(args) -> int:
     async with httpx.AsyncClient() as client:
         producer = asyncio.create_task(_produce_slices(client))
         consumer = asyncio.create_task(_consume_slices())
+        # Plain gather, not gather_or_cancel: both record their own failure and
+        # never raise, and the consumer must keep draining after the producer stops.
         await asyncio.gather(producer, consumer)
 
         # Surface producer/consumer failures with the same recovery semantics

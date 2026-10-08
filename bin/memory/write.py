@@ -17,6 +17,7 @@ from embedding_utils import (
 from embedding_utils import (
     unpack as _unpack,
 )
+from m3_core.aio import gather_or_cancel
 from m3_sdk import M3Context, resolve_db_path
 
 from . import config as _wcfg
@@ -1105,7 +1106,7 @@ async def memory_write_bulk_impl(
                 meta_dict["enriched_embed_text"] = enriched
                 p["metadata"] = json.dumps(meta_dict)
 
-        await asyncio.gather(*(_enrich_one(p) for p in prepared))
+        await gather_or_cancel(*(_enrich_one(p) for p in prepared))
 
     # Phase 1: INSERT memory_items + history in one transaction.
     from memory.backends import dialect

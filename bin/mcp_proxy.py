@@ -99,6 +99,7 @@ import uuid
 from collections.abc import AsyncIterator
 from typing import Any
 
+from m3_core.aio import gather_or_cancel
 from m3_sdk import destructive_tools_allowed, getenv_compat
 
 # Force Python UTF-8 mode before any output. This proxy is launched directly
@@ -665,7 +666,7 @@ async def _run_with_tools(
                     "content": str(result),
                 }
 
-        tool_results = await asyncio.gather(*[_exec_one(tc) for tc in tool_calls])
+        tool_results = await gather_or_cancel(*[_exec_one(tc) for tc in tool_calls])
         working.extend(tool_results)
 
     log.warning(f"Reached MAX_TOOL_ROUNDS ({MAX_TOOL_ROUNDS}) - returning last response")
