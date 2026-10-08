@@ -34,8 +34,15 @@ _REAL_STOP_SUPERVISED = setup_wizard._stop_supervised_services
 def _no_real_supervised_stop(monkeypatch):
     """The quiesce path stops m3's launchd/systemd services; on a developer's
     macOS/Linux box that is THEIR live loop. Tests of the stop itself call
-    _REAL_STOP_SUPERVISED with a stubbed install_schedules."""
+    _REAL_STOP_SUPERVISED with a stubbed install_schedules.
+
+    run_setup also restarts a stale embed server, through the m3-embed-server
+    binary, which runs `systemctl --user stop/start` itself. That binary exists
+    only when the m3-core-rs wheel is installed, so the call appeared once the
+    suite ran on the Rust core (claude-dev, 2026-10-08). Its own tests live in
+    test_upgrade_restarts_stale_embed_unix.py."""
     monkeypatch.setattr(setup_wizard, "_stop_supervised_services", lambda: None)
+    monkeypatch.setattr(setup_wizard, "_restart_stale_embed_server", lambda *a, **k: None)
 
 # ────────────────────────────────────────────────────────────────────────
 # _discover_bge_m3_gguf
