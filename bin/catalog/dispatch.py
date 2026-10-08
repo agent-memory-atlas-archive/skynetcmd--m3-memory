@@ -364,15 +364,15 @@ async def _conversation_search_impl(query, k=8, as_records=False):
         return _records.emit("No results found.",
                              _records.as_records_payload((), query=query), as_records)
 
-    # Build initial result set
+    # Build initial result set. JSON columns go through the dialect: PostgreSQL
+    # JSONB arrives as a dict, where a bare json.loads raises TypeError.
+    from memory.backends import dialect
+    _d = dialect()
     items = []
     seen_ids: set = set()
     for score, item in ranked:
         item["score"] = score
-        if "metadata_json" in item:
-            item["_meta"] = json.loads(item.get("metadata_json") or "{}")
-        else:
-            item["_meta"] = {}
+        item["_meta"] = _d.json_column_to_dict(item.get("metadata_json"))
         items.append(item)
         seen_ids.add(item["id"])
 
@@ -390,10 +390,9 @@ async def _conversation_search_impl(query, k=8, as_records=False):
             wanted.setdefault(key, item["score"])  # first (higher-ranked) wins
     if wanted:
         cids = {c for c, _ in wanted}
-        from memory.backends import dialect
-        _jx = dialect().json_extract_int("metadata_json", "turn_index")
+        _jx = _d.json_extract_int("metadata_json", "turn_index")
         with memory_core._db() as db:
-            placeholders = ",".join("?" * len(cids))
+            placeholders = _d.placeholder(len(cids))
             rows = db.execute(
                 f"SELECT id, content, title, metadata_json, conversation_id, "
                 f"  {_jx} AS turn_index "
@@ -406,7 +405,7 @@ async def _conversation_search_impl(query, k=8, as_records=False):
             if key not in wanted or row["id"] in seen_ids:
                 continue
             seen_ids.add(row["id"])
-            rm = json.loads(row["metadata_json"] or "{}")
+            rm = _d.json_column_to_dict(row["metadata_json"])
             extras.append({
                 "id": row["id"],
                 "content": row["content"],
