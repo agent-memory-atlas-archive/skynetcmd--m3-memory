@@ -81,30 +81,6 @@ class SlidingWindowTests(unittest.TestCase):
         self.assertTrue(text.startswith(result[0][0]))
         self.assertTrue(text.endswith(result[-1][0]))
 
-    def test_overlap_invariant(self):
-        # Overlap is a property of the CHARACTER sliding window, so assert it on
-        # input whose windows are driven by that pass. (The token pass splits
-        # without overlap by design: an over-budget window must SHRINK, and
-        # re-adding overlap would push it back over.)
-        self.skipTest(
-            "char-window overlap is superseded by the token bound; see "
-            "test_token_bound_windows_cover_input for the coverage guarantee")
-        text = "".join(chr(ord("a") + (i % 26)) for i in range(self.MAX * 3))
-        result = self.mc._chunk_for_sliding_window(text)
-        self.assertGreaterEqual(len(result), 2)
-        for prev, curr in zip(result, result[1:]):
-            # Position of prev's end in text:
-            # find prev's content in text, get its end index
-            prev_text, _ = prev
-            curr_text, _ = curr
-            prev_end_in_text = text.index(prev_text) + len(prev_text)
-            curr_start_in_text = text.index(curr_text)
-            overlap = prev_end_in_text - curr_start_in_text
-            self.assertGreaterEqual(
-                overlap, self.OVL,
-                f"overlap {overlap} below MIN_OVERLAP_CHARS {self.OVL}"
-            )
-
     def test_ceiling_invariant_every_chunk_under_max(self):
         # No chunk should ever exceed MAX_CHARS_PER_CHUNK.
         for n in [self.MAX + 1, self.MAX * 2, self.MAX * 3 + 7, self.STRIDE * 4 + 1]:
@@ -116,29 +92,10 @@ class SlidingWindowTests(unittest.TestCase):
                     f"chunk over ceiling for n={n}: {len(chunk_text)} > {self.MAX}",
                 )
 
-    def test_last_window_min_size_invariant(self):
-        self.skipTest(
-            "asserts a MIN CHARACTER size for the last window. The token bound "
-            "may legitimately shrink a window below it: an over-budget window "
-            "MUST get smaller, and a character floor would push it back over "
-            "n_ctx. Coverage is still guaranteed by "
-            "test_tail_coverage_invariant_last_char_present."
-        )
-        # Last window is always at least MIN_OVERLAP_CHARS, OR the entire text
-        # is shorter than MIN_OVERLAP_CHARS (single-chunk case).
-        for n in [self.MAX + 1, self.STRIDE + 1, self.STRIDE * 2 + 1, self.STRIDE * 3 + 100]:
-            text = "z" * n
-            result = self.mc._chunk_for_sliding_window(text)
-            last_text, _ = result[-1]
-            if n > self.MAX:
-                self.assertGreaterEqual(
-                    len(last_text), self.OVL,
-                    f"last window too thin for n={n}: {len(last_text)} < {self.OVL}",
-                )
-
     def test_token_bound_windows_cover_input(self):
-        """The guarantee the skipped char-floor tests used to provide: whatever
-        the split, concatenating the windows in order reproduces the input.
+        """The guarantee the removed char-floor tests (overlap and minimum-tail
+        size) used to stand in for: whatever the split, the windows in order
+        reproduce the input.
 
         The token pass splits without overlap (an over-budget window must
         SHRINK; re-adding overlap would push it back over n_ctx), so coverage —
@@ -186,43 +143,6 @@ class SlidingWindowTests(unittest.TestCase):
             text = "K" + "x" * (n - 1)
             result = self.mc._chunk_for_sliding_window(text)
             self.assertTrue(result[0][0].startswith("K"))
-
-    def test_min_tail_invariant_holds_without_explicit_shift(self):
-        self.skipTest(
-            "same char-floor assumption as test_last_window_min_size_invariant: "
-            "superseded by the token bound, which may shrink a window below "
-            "MIN_OVERLAP_CHARS to keep it under n_ctx."
-        )
-        # Verify the min-tail-size invariant holds for a wide range of
-        # input lengths, even though no explicit shift-back code exists.
-        # The invariant follows from STRIDE = MAX - OVL: whenever a naive
-        # tail would be < OVL, the previous iteration would already have
-        # been the last (because it extends past the tail's start by OVL
-        # chars). Therefore the last window is always >= OVL chars long.
-        for n in [
-            self.MAX,
-            self.MAX + 1,
-            self.MAX + self.OVL // 2,
-            self.MAX + self.OVL - 1,
-            self.MAX + self.OVL,
-            self.MAX + self.OVL + 1,
-            self.MAX + self.STRIDE,
-            self.STRIDE * 2 + 1,
-            self.STRIDE * 2 + self.OVL - 1,
-            self.STRIDE * 2 + self.OVL,
-            self.STRIDE * 3,
-            self.STRIDE * 3 + 1,
-            self.STRIDE * 5 + 17,
-        ]:
-            text = "u" * n
-            result = self.mc._chunk_for_sliding_window(text)
-            last_text, _ = result[-1]
-            if n > self.MAX:
-                self.assertGreaterEqual(
-                    len(last_text), self.OVL,
-                    f"last-window-size invariant violated for n={n}: {len(last_text)} < {self.OVL}",
-                )
-
 
 if __name__ == "__main__":
     unittest.main()
