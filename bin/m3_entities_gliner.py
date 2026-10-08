@@ -41,7 +41,9 @@ import json
 import os
 import sys
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
+from itertools import batched
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -315,7 +317,7 @@ def _spans_to_extractor_dict(spans: list[dict]) -> dict:
 
 
 async def _process_batch(
-    rows: list[tuple[str, str]],
+    rows: Sequence[tuple[str, str]],
     spans_per_row: list[list[dict]],
     counters: dict,
 ) -> None:
@@ -396,8 +398,8 @@ async def _run_async(args: argparse.Namespace) -> int:
         "write_failed": 0,
     }
     started = time.monotonic()
-    for batch_start in range(0, len(rows), cfg.batch_size):
-        batch = rows[batch_start:batch_start + cfg.batch_size]
+    for batch_no, batch in enumerate(batched(rows, cfg.batch_size)):
+        batch_start = batch_no * cfg.batch_size
         texts = [text for _, text in batch]
         try:
             spans_per_row = _gliner_predict_batch(model, texts, cfg)

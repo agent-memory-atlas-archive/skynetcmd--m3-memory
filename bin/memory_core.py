@@ -67,6 +67,7 @@ from datetime import (
 # re-export because the API snapshot captured it as a public symbol —
 # something external imports it. Pure alias for functools.lru_cache.
 from functools import lru_cache as _lru_cache  # noqa: F401 — re-export
+from itertools import batched
 from typing import Any
 
 from embedding_utils import infer_change_agent as _infer_change_agent_util  # noqa: F401 — re-export
@@ -1029,8 +1030,7 @@ def memory_delete_bulk_impl(ids, hard=False):
     _d = dialect()
     p = _d.param()
     with _db() as db:
-        for start in range(0, len(id_list), _MEMORY_DELETE_BULK_CHUNK):
-            chunk = id_list[start : start + _MEMORY_DELETE_BULK_CHUNK]
+        for chunk in batched(id_list, _MEMORY_DELETE_BULK_CHUNK):
             placeholders = _d.placeholder(len(chunk))
 
             # Discover which ids exist in this chunk. content is needed for
@@ -1158,8 +1158,7 @@ def memory_update_bulk_impl(updates):
     _d = dialect()
     p = _d.param()
     with _db() as db:
-        for start in range(0, len(id_list), _MEMORY_UPDATE_BULK_CHUNK):
-            chunk_ids = id_list[start : start + _MEMORY_UPDATE_BULK_CHUNK]
+        for chunk_ids in batched(id_list, _MEMORY_UPDATE_BULK_CHUNK):
             placeholders = _d.placeholder(len(chunk_ids))
             rows = db.execute(
                 f"SELECT id, content, title, type, refresh_on, refresh_reason, conversation_id "
@@ -1330,8 +1329,7 @@ def memory_link_bulk_impl(links, relationship_type: str = "related"):
     _d = dialect()
     p = _d.param()
     with _db() as db:
-        for start in range(0, len(normalized), _MEMORY_LINK_BULK_CHUNK):
-            chunk = normalized[start : start + _MEMORY_LINK_BULK_CHUNK]
+        for chunk in batched(normalized, _MEMORY_LINK_BULK_CHUNK):
 
             # Collect every distinct memory_id referenced in this chunk to do
             # a single existence check.

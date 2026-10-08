@@ -77,6 +77,11 @@ class FakePgCursor:
         elif s.startswith(("SELECT id FROM memory_items WHERE id = ANY",
                            "SELECT mi.id FROM memory_items mi WHERE mi.id = ANY")):
             queried = params[0] if params else []
+            # psycopg2 adapts a list to ARRAY but a tuple to a ROW, and real
+            # PostgreSQL rejects `= ANY(ROW)` (WrongObjectType: "op ANY/ALL
+            # (array) requires array on right side"; measured 2026-10-08).
+            # Reject what the server rejects, or this fake hides the bug.
+            assert isinstance(queried, list), f"ANY() needs a list, got {type(queried).__name__}"
             self._next_all = [(i,) for i in queried if i in self.present_ids]
         elif s.startswith("SELECT me.id, me.memory_id") or \
              s.startswith("SELECT id, memory_id, embedding"):

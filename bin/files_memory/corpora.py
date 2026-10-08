@@ -30,6 +30,7 @@ import logging
 import os
 import time
 from dataclasses import dataclass
+from itertools import batched
 
 from . import config
 from .config import files_table
@@ -340,8 +341,7 @@ def corpus_delete(
             ]
             # ON DELETE CASCADE on leaves / facts / leaf_embeddings handles the rest.
             CHUNK = 500
-            for start in range(0, len(uuids), CHUNK):
-                chunk = uuids[start:start + CHUNK]
+            for chunk in batched(uuids, CHUNK):
                 placeholders = _d.placeholder(len(chunk))
                 # Count what's about to be cascaded.
                 deleted["leaves"] += conn.execute(

@@ -22,6 +22,7 @@ import math
 import os
 import re
 import threading
+from itertools import batched
 from threading import Lock as _ThreadLock
 
 import httpx as _httpx
@@ -1734,8 +1735,7 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
     _CACHE_LOOKUP_CHUNK = 500
     try:
         with _db() as db:
-            for start in range(0, len(uniq_hashes), _CACHE_LOOKUP_CHUNK):
-                chunk = uniq_hashes[start : start + _CACHE_LOOKUP_CHUNK]
+            for chunk in batched(uniq_hashes, _CACHE_LOOKUP_CHUNK):
                 placeholders = ",".join("?" * len(chunk))
                 rows = db.execute(
                     f"SELECT content_hash, embedding, embed_model FROM memory_embeddings "
@@ -1983,10 +1983,7 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
         )
         return [*left, *right]
 
-    chunks = [
-        miss_texts[i : i + EMBED_BULK_CHUNK]
-        for i in range(0, len(miss_texts), EMBED_BULK_CHUNK)
-    ]
+    chunks = [list(c) for c in batched(miss_texts, EMBED_BULK_CHUNK)]
     chunk_results = await asyncio.gather(*(_post_chunk(c) for c in chunks))
 
     flat: list[list[float] | None] = []

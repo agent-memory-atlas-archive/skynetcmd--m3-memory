@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import sys
 from collections import defaultdict
+from itertools import batched
 from pathlib import Path
 
 # These are set in m3_enrich.py; we don't import them to avoid cycles
@@ -102,7 +103,7 @@ def _query_eligible_groups(
         # SQLite default SQLITE_MAX_VARIABLE_NUMBER is 999 (older builds) or
         # 32766 (3.32+). We chunk at 800 to be safe and union-merge results.
         chunk_size = 800
-        conv_chunks = [cf_list[i:i + chunk_size] for i in range(0, len(cf_list), chunk_size)]
+        conv_chunks = [list(c) for c in batched(cf_list, chunk_size)]
 
     if conv_chunks:
         # Two-path approach. The earlier single-query form wrapped

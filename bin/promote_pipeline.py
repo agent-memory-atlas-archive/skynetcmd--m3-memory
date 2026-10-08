@@ -18,6 +18,7 @@ import time
 import urllib.parse
 import urllib.request
 from collections import defaultdict
+from itertools import batched
 
 from m3_sdk import get_secret, getenv_compat
 
@@ -162,8 +163,8 @@ def main():
     # locale codepage can't encode — default text mode would UnicodeEncodeError
     # mid-run and lose minutes of LLM work. newline="" avoids CRLF in JSONL.
     with open(args.out, "w", encoding="utf-8", newline="") as f:
-        for b in range(0, len(todo), args.batch):
-            batch = todo[b:b + args.batch]
+        for batch_no, batch in enumerate(batched(todo, args.batch)):
+            b = batch_no * args.batch
             try:
                 verdicts = judge(batch)
             except Exception as e:

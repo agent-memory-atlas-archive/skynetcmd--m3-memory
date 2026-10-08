@@ -5,6 +5,7 @@ import os
 import sqlite3
 import uuid
 from datetime import UTC, datetime, timedelta
+from itertools import batched
 
 DEFAULT_PROTECTED_TYPES = ("preference", "user_fact", "task", "plan")
 
@@ -416,8 +417,7 @@ def _reinforce_importance(db) -> int:
         # below _GRADED_FLOOR, so no volume of retrieval reaches the band an
         # explicit `helpful` verdict earns. Seen is not used.
         givebacks = lift * _REINFORCE_RATE_SHARE
-        for chunk_start in range(0, len(ids), 500):
-            chunk = ids[chunk_start:chunk_start + 500]
+        for chunk in batched(ids, 500):
             placeholders = ", ".join([_p] * len(chunk))
             res = db.execute(
                 f"UPDATE memory_items SET importance = "
@@ -610,8 +610,7 @@ def memory_restore_impl(memory_id=None, reason=None, dry_run=True, limit=1000):
             }
 
         restored = 0
-        for start in range(0, len(ids), 500):
-            chunk = ids[start:start + 500]
+        for chunk in batched(ids, 500):
             ph = ", ".join([_p] * len(chunk))
             # Restore to the archive-candidate threshold rather than to whatever
             # importance they held when swept: they are back in the corpus but
@@ -732,8 +731,7 @@ def memory_grade_impl(grades=None, window_minutes=None):
 
         for col, batch in (("helpful_count", bump_helpful),
                            ("unhelpful_count", bump_unhelpful)):
-            for start in range(0, len(batch), 500):
-                chunk = batch[start:start + 500]
+            for chunk in batched(batch, 500):
                 cph = ", ".join([_p] * len(chunk))
                 db.execute(
                     f"UPDATE memory_items SET {col} = COALESCE({col}, 0) + 1 "

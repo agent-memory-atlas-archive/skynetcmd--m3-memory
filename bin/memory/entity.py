@@ -48,6 +48,7 @@ import os
 import re
 import uuid
 from dataclasses import dataclass
+from itertools import batched
 from pathlib import Path
 
 import yaml  # type: ignore[import-untyped]
@@ -103,8 +104,7 @@ def _load_entity_vectors(db, entity_ids: list[str]) -> dict[str, list[float]]:
     _d = dialect()
     out: dict[str, list[float]] = {}
     # Chunk the IN-list to stay under SQLite's variable limit.
-    for i in range(0, len(entity_ids), 500):
-        chunk = entity_ids[i : i + 500]
+    for chunk in batched(entity_ids, 500):
         ph = _d.placeholder(len(chunk))
         try:
             rows = db.execute(

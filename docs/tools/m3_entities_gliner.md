@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_entities_gliner.py
-sha1: 34077c0e50a3
-mtime_utc: 2026-10-04T08:36:30.195354+00:00
-generated_utc: 2026-10-04T08:38:00.549545+00:00
+sha1: 2dc9ee6a6ce3
+mtime_utc: 2026-10-08T23:13:17.299125+00:00
+generated_utc: 2026-10-08T23:13:24.346157+00:00
 private: false
 ---
 
@@ -48,7 +48,7 @@ Env vars (all optional):
 
 ## Entry points
 
-- `def main()` (line 489)
+- `def main()` (line 491)
 - `if __name__ == "__main__"` guard
 
 ---

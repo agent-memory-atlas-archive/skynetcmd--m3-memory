@@ -1,8 +1,8 @@
 ---
 tool: bin/promote_pipeline.py
-sha1: c05617ca9260
-mtime_utc: 2026-10-04T17:52:18.623951+00:00
-generated_utc: 2026-10-04T17:54:42.851167+00:00
+sha1: d2709256c443
+mtime_utc: 2026-10-08T23:11:15.291132+00:00
+generated_utc: 2026-10-08T23:11:44.635809+00:00
 private: false
 ---
 
@@ -20,7 +20,7 @@ Stage 2 (--smoke N / --run): batched judge via LM Studio; distill PROMOTE
 
 ## Entry points
 
-- `def main()` (line 137)
+- `def main()` (line 138)
 - `if __name__ == "__main__"` guard
 
 ---

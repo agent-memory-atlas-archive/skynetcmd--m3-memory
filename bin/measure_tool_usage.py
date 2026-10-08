@@ -50,6 +50,7 @@ import re
 import sys
 from collections import Counter
 from datetime import UTC, datetime
+from itertools import batched
 from pathlib import Path
 
 MCP_PREFIXES = ("mcp__m3_memory__", "mcp__plugin_m3_memory__")
@@ -246,8 +247,8 @@ def render(data: dict) -> None:
         print("   avoided, so demoting on this list before the shape is fixed")
         print("   would bury a capability for being unusable. Re-measure after")
         print("   as_records lands (P1.5) before acting on any of these.")
-        for i in range(0, len(zeros), 3):
-            print("   " + "  ".join(f"{z:<34}" for z in zeros[i:i + 3]).rstrip())
+        for row in batched(zeros, 3):
+            print("   " + "  ".join(f"{z:<34}" for z in row).rstrip())
 
 
 def main() -> int:

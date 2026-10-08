@@ -36,6 +36,7 @@ import sqlite3
 import uuid as _uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
+from itertools import batched
 
 logger = logging.getLogger("files_memory.entities")
 
@@ -214,8 +215,7 @@ def link_facts_to_entities(
         with _memory_db() as mem:
             # Phase 1: lookup all unique names.
             CHUNK = 200
-            for start in range(0, len(unique_names), CHUNK):
-                chunk = unique_names[start:start + CHUNK]
+            for chunk in batched(unique_names, CHUNK):
                 lowered = [_normalize(n) for n in chunk]
                 placeholders = _d.placeholder(len(lowered))
                 rows = mem.execute(

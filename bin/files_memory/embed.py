@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import sqlite3
+from itertools import batched
 
 from embedding_utils import pack
 
@@ -122,8 +123,7 @@ def mark_leaves_embedded(conn: sqlite3.Connection, leaf_uuids: list[str]) -> Non
     from memory.backends import dialect as _dialect
     _d = _dialect()
     CHUNK = 500
-    for start in range(0, len(leaf_uuids), CHUNK):
-        chunk = leaf_uuids[start:start + CHUNK]
+    for chunk in batched(leaf_uuids, CHUNK):
         placeholders = _d.placeholder(len(chunk))
         conn.execute(
             f"UPDATE {files_table('leaves')} SET embedded = 1 "

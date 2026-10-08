@@ -28,6 +28,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Awaitable, Callable
+from itertools import batched
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Failure classification: infrastructure vs content
@@ -397,7 +398,7 @@ async def run_embed_loop(
         after_id = rows[-1][0]
 
         batches: list[list[tuple[str, str, str, str | None]]] = [
-            rows[i:i + batch_size] for i in range(0, len(rows), batch_size)
+            list(b) for b in batched(rows, batch_size)
         ]
         await asyncio.gather(
             *(_embed_one_batch(b) for b in batches), return_exceptions=False,

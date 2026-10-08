@@ -30,6 +30,7 @@ import math
 import os
 import sqlite3
 from datetime import UTC, datetime
+from itertools import batched
 
 from .config import files_table
 from .db import _db
@@ -61,8 +62,7 @@ def record_leaf_hits(
     # Find every fact whose leaf is in the hit set.
     CHUNK = 500
     total_touched = 0
-    for start in range(0, len(leaf_uuids), CHUNK):
-        chunk = leaf_uuids[start:start + CHUNK]
+    for chunk in batched(leaf_uuids, CHUNK):
         placeholders = _d.placeholder(len(chunk))
         fact_uuids = [
             r[0] for r in conn.execute(

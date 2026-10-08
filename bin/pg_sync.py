@@ -56,6 +56,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from itertools import batched
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(BASE_DIR, "bin"))
@@ -388,10 +389,9 @@ def sync_memory_items(sl_cur, pg_cur, sl_conn, target_name: str):
                   )
             """
             # Process in batches
-            for i in range(0, len(local_rows), BATCH_SIZE):
-                batch = local_rows[i:i+BATCH_SIZE]
-                execute_values(pg_cur, upsert_query, batch)
-                push_count += len(batch)
+            for chunk in batched(local_rows, BATCH_SIZE):
+                execute_values(pg_cur, upsert_query, chunk)
+                push_count += len(chunk)
         except Exception as exc:
             logger.error(f"[{target_name}] Batch push failed: {type(exc).__name__}: {exc}")
             push_errors = len(local_rows)
@@ -462,9 +462,9 @@ def sync_memory_items(sl_cur, pg_cur, sl_conn, target_name: str):
                 "AND ((memory_items.change_agent NOT IN ('manual', 'system')) "
                 "OR (excluded.change_agent = 'manual'))"
             )
-            for i in range(0, len(remote_rows), BATCH_SIZE):
+            for chunk in batched(remote_rows, BATCH_SIZE):
                 batch = []
-                for row in remote_rows[i:i+BATCH_SIZE]:
+                for row in chunk:
                     row_list = list(row)
                     if isinstance(row_list[4], dict):
                         row_list[4] = json.dumps(row_list[4])
@@ -689,8 +689,8 @@ def sync_tasks(sl_cur, pg_cur, sl_conn, target_name: str):
                     deleted_at       = EXCLUDED.deleted_at
                 WHERE tasks.updated_at IS NULL OR EXCLUDED.updated_at > tasks.updated_at
             """
-            for i in range(0, len(local_rows), BATCH_SIZE):
-                batch = [tuple(r) for r in local_rows[i:i+BATCH_SIZE]]
+            for chunk in batched(local_rows, BATCH_SIZE):
+                batch = [tuple(r) for r in chunk]
                 execute_values(pg_cur, upsert, batch)
                 push_count += len(batch)
         except Exception as exc:
@@ -726,8 +726,8 @@ def sync_tasks(sl_cur, pg_cur, sl_conn, target_name: str):
             guard = ("WHERE tasks.updated_at IS NULL "
                      "OR excluded.updated_at > tasks.updated_at")
             cols = [c.strip() for c in task_cols.split(",")]
-            for i in range(0, len(remote_rows), BATCH_SIZE):
-                batch = [tuple(r) for r in remote_rows[i:i+BATCH_SIZE]]
+            for chunk in batched(remote_rows, BATCH_SIZE):
+                batch = [tuple(r) for r in chunk]
                 pull_count += _local_backend().bulk_upsert(
                     sl_conn, "tasks", cols, batch,
                     conflict_target="(id)", update_columns=update_cols,
@@ -843,10 +843,11 @@ def sync_memory_embeddings(sl_cur, pg_cur, sl_conn, target_name: str):
         # embeddings re-queue on the next sync after their parent lands.
         candidate_ids = [row[1] for row in local_rows]
         existing_ids: set[str] = set()
-        for i in range(0, len(candidate_ids), BATCH_SIZE):
-            chunk = candidate_ids[i:i+BATCH_SIZE]
+        for chunk in batched(candidate_ids, BATCH_SIZE):
+            # list, not the tuple batched yields: psycopg2 adapts a list to an
+            # ARRAY for ANY(), but a tuple to a ROW, which ANY() rejects.
             pg_cur.execute(
-                "SELECT mi.id FROM memory_items mi WHERE mi.id = ANY(%s)", (chunk,)
+                "SELECT mi.id FROM memory_items mi WHERE mi.id = ANY(%s)", (list(chunk),)
             )
             existing_ids.update(r[0] for r in pg_cur.fetchall())
 
@@ -866,8 +867,7 @@ def sync_memory_embeddings(sl_cur, pg_cur, sl_conn, target_name: str):
                 row_list[2] = Binary(row_list[2])
                 values.append(tuple(row_list))
 
-            for i in range(0, len(values), BATCH_SIZE):
-                batch = values[i:i+BATCH_SIZE]
+            for chunk in batched(values, BATCH_SIZE):
                 execute_values(pg_cur, """
                     INSERT INTO memory_embeddings (id, memory_id, embedding, embed_model, dim)
                     VALUES %s
@@ -875,8 +875,8 @@ def sync_memory_embeddings(sl_cur, pg_cur, sl_conn, target_name: str):
                         embedding = EXCLUDED.embedding,
                         embed_model = EXCLUDED.embed_model,
                         dim = EXCLUDED.dim
-                """, batch)
-                push_count += len(batch)
+                """, chunk)
+                push_count += len(chunk)
         except Exception as exc:
             logger.error(f"[{target_name}] Batch embedding push failed: {type(exc).__name__}: {exc}")
             push_errors = len(filtered_rows)
@@ -908,9 +908,9 @@ def sync_memory_embeddings(sl_cur, pg_cur, sl_conn, target_name: str):
 
     if remote_rows:
         try:
-            for i in range(0, len(remote_rows), BATCH_SIZE):
+            for chunk in batched(remote_rows, BATCH_SIZE):
                 batch = []
-                for row in remote_rows[i:i+BATCH_SIZE]:
+                for row in chunk:
                     row_list = list(row)
                     # PG returns memoryview for BYTEA — convert to bytes
                     if isinstance(row_list[2], memoryview):
@@ -1338,8 +1338,8 @@ def _sync_table_generic(
                 upsert_pg += f" WHERE {name}.{ts_col} IS NULL OR EXCLUDED.{ts_col} > {name}.{ts_col}"
 
             push_count = 0
-            for i in range(0, len(local_rows), BATCH_SIZE):
-                batch = [tuple(r) for r in local_rows[i:i+BATCH_SIZE]]
+            for chunk in batched(local_rows, BATCH_SIZE):
+                batch = [tuple(r) for r in chunk]
                 execute_values(pg_cur, upsert_pg, batch)
                 push_count += len(batch)
             logger.info(f"[{target_name}] [{name}] Pushed {push_count} rows to PG")
@@ -1401,8 +1401,8 @@ def _sync_table_generic(
                 if ts_col and ts_col in col_names:
                     upsert_sl += f" WHERE {name}.{ts_col} IS NULL OR excluded.{ts_col} > {name}.{ts_col}"
 
-                for i in range(0, len(remote_rows), BATCH_SIZE):
-                    batch = [tuple(r) for r in remote_rows[i:i+BATCH_SIZE]]
+                for chunk in batched(remote_rows, BATCH_SIZE):
+                    batch = [tuple(r) for r in chunk]
                     sl_cur.executemany(upsert_sl, batch)
                     pull_count += len(batch)
                     sl_conn.commit()

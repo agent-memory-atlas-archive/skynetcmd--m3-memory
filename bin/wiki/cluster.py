@@ -14,6 +14,7 @@ algorithm with defined tie-breaks, and members/clusters are sorted by stable key
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from itertools import batched
 
 import networkx as nx
 
@@ -49,7 +50,7 @@ def _split(members: list[Mem]) -> list[list[Mem]]:
     """Split an over-large cluster into deterministic size-capped chunks."""
     if len(members) <= _MAX_CLUSTER:
         return [members]
-    return [members[i : i + _MAX_CLUSTER] for i in range(0, len(members), _MAX_CLUSTER)]
+    return [list(c) for c in batched(members, _MAX_CLUSTER)]
 
 
 def _cluster_networkx(memories: list[Mem], edges: list[Edge]) -> list[Cluster]:
