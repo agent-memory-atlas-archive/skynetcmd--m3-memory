@@ -597,7 +597,7 @@ async def main() -> int:
         logger.error("Failed to open chat log DB: %s", e)
         return 1
 
-    start_time = asyncio.get_event_loop().time()
+    start_time = asyncio.get_running_loop().time()
 
     try:
         spill_drained = early_spill_drained
@@ -724,7 +724,7 @@ async def main() -> int:
         state["last_sweeper_spill_drained"] = spill_drained
         save_state(state)
 
-        elapsed = asyncio.get_event_loop().time() - start_time
+        elapsed = asyncio.get_running_loop().time() - start_time
 
         if rows_embedded > 0 or spill_drained > 0:
             logger.info(

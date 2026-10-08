@@ -4,7 +4,7 @@ import sys
 import time
 from datetime import UTC, datetime
 from os import PathLike
-from typing import IO, Union
+from typing import IO, Literal, Union
 
 from m3_core.paths import getenv_compat
 
@@ -58,16 +58,29 @@ def iso_local_timestamp() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
 
 
+def utc_iso(timespec: Literal["seconds", "milliseconds", "microseconds"] = "seconds") -> str:
+    """The current UTC time as ISO-8601 with a trailing 'Z', FIXED WIDTH.
+
+    THE single owner of this format; do not hand-roll ``strftime`` copies.
+    ``seconds`` (the default) is '2026-07-20T18:31:05Z', byte-identical to the
+    ``strftime("%Y-%m-%dT%H:%M:%SZ")`` the stored columns already hold, so new
+    rows order correctly against old ones. These stamps are compared as STRINGS,
+    which is why the width must never vary: bare ``isoformat()`` drops the
+    fraction when it is zero, and '...:05Z' then sorts after '...:05.000001Z'.
+    Pick one precision per column and keep it.
+
+    Never ``strftime("...%M:%fZ")``: in Python ``%f`` is microseconds, not
+    SQLite's seconds-with-millis, and the seconds vanish (plan item R7).
+    """
+    return datetime.now(UTC).isoformat(timespec=timespec).removesuffix("+00:00") + "Z"
+
+
 def iso_utc_timestamp() -> str:
     """UTC ISO-8601 with microseconds and a trailing 'Z'
-    (e.g. '2026-07-20T18:31:05.123456Z'). Use when the value is compared or
-    ordered across hosts (audit / db-repair timestamps). Emits a single clean
-    'Z' — an aware ``isoformat()`` already yields '+00:00', so we strip that
-    before appending 'Z' rather than producing the '+00:00Z' double-suffix the
-    old per-module ``_now_iso`` did."""
-    return (
-        datetime.now(UTC).replace(tzinfo=None).isoformat() + "Z"
-    )
+    (e.g. '2026-07-20T18:31:05.123456Z'), always six fraction digits. Use when
+    the value is compared or ordered across hosts (audit / db-repair
+    timestamps). Kept for its callers; it is ``utc_iso("microseconds")``."""
+    return utc_iso("microseconds")
 
 
 def ensure_utf8() -> None:

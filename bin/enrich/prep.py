@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from m3_core.paths import get_m3_backups_root, resolve_engine_file
@@ -23,7 +23,7 @@ BACKUP_DIR = Path(get_m3_backups_root()) / "enrich"
 
 
 def _today() -> str:
-    return datetime.utcnow().strftime("%Y%m%d")
+    return datetime.now(UTC).strftime("%Y%m%d")
 
 
 def _resolve_db(arg_path: str | None, env_var: str, default_name: str) -> Path | None:

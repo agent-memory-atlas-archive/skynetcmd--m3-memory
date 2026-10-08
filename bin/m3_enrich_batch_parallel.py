@@ -105,7 +105,7 @@ async def _launch_worker_with_offset(
 
     Returns the Popen handle so the caller can track PIDs and reap.
     """
-    now = asyncio.get_event_loop().time()
+    now = asyncio.get_running_loop().time()
     delay = max(0.0, start_at - now)
     if delay > 0:
         print(f"[parallel] worker {worker_idx+1}/{n_workers}: waiting {delay:.1f}s "
@@ -157,7 +157,7 @@ async def _run_async(args) -> int:
 
     print(f"[parallel] launching {args.workers} worker(s) with "
           f"{args.start_offset_s}s offset between starts", flush=True)
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     t0 = loop.time()
     schedule_tasks = []
     for i in range(args.workers):

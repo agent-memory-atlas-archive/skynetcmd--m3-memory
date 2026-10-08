@@ -33,10 +33,10 @@ import os
 import sys
 import time
 import uuid
-from datetime import datetime
 from pathlib import Path
 
 from m3_core.paths import get_m3_backups_root, seam_backend, seam_dialect, snapshot_stores
+from m3_core.runtime import utc_iso
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "bin"))
@@ -123,7 +123,7 @@ def _write_embeddings_batch(
     if not embeddings:
         return 0
     from embedding_utils import pack as _pack
-    now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    now = utc_iso()
     d = seam_dialect()
     with seam_backend().connection() as conn:
         cur = conn.cursor()

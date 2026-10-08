@@ -39,9 +39,8 @@ import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-
-def _utcnow_iso() -> str:
-    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%fZ")
+# THE owner of this format is m3_core.runtime.utc_iso; this is its local name.
+from m3_core.runtime import utc_iso as _utcnow_iso  # noqa: E402
 
 
 def main() -> int:

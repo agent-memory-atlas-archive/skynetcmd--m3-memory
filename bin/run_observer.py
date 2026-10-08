@@ -37,6 +37,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from llm_failover import apply_thinking_suppression, apply_thinking_suppression_anthropic, reply_ran_out_of_room
+from m3_core.runtime import utc_iso
 from m3_sdk import getenv_compat
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -758,7 +759,7 @@ async def drain_variant_mode(args, profile, token: str) -> None:
                     elapsed = time.monotonic() - started
                     rate = done / max(elapsed, 1e-3)
                     eta = (total_groups - done) / max(rate, 1e-3)
-                    ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                    ts = utc_iso()
                     print(
                         f"[{ts}] [observer] {done}/{total_groups}  "
                         f"obs_written={counters['written']} "

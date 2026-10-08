@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_chatlog_backfill_embed.py
-sha1: d36897c2c0fe
-mtime_utc: 2026-10-08T22:11:14.554183+00:00
-generated_utc: 2026-10-08T22:11:47.972016+00:00
+sha1: 2844e982b336
+mtime_utc: 2026-10-08T23:19:40.528105+00:00
+generated_utc: 2026-10-08T23:20:34.300191+00:00
 private: false
 ---
 
@@ -88,6 +88,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 - `m3_core.paths (get_m3_backups_root, seam_backend, seam_dialect, snapshot_stores)`
 - `m3_core.paths (resolve_backend_name)`
+- `m3_core.runtime (utc_iso)`
 
 ---
 

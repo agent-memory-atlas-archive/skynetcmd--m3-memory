@@ -1,8 +1,8 @@
 ---
 tool: bin/enrichment_state.py
-sha1: a5402542a578
-mtime_utc: 2026-10-08T22:11:14.582520+00:00
-generated_utc: 2026-10-08T22:11:47.864959+00:00
+sha1: 306aaceb7db8
+mtime_utc: 2026-10-08T23:18:56.661647+00:00
+generated_utc: 2026-10-08T23:20:34.192154+00:00
 private: false
 ---
 
@@ -66,6 +66,7 @@ _(none detected)_
 
 ## Notable external imports
 
+- `m3_core.runtime (utc_iso)`
 - `memory.backends (dialect)`
 
 ---

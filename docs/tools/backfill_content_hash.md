@@ -1,8 +1,8 @@
 ---
 tool: bin/backfill_content_hash.py
-sha1: bd508108f6ba
-mtime_utc: 2026-10-04T08:36:30.192810+00:00
-generated_utc: 2026-10-04T08:37:59.957740+00:00
+sha1: d5c191201fe7
+mtime_utc: 2026-10-08T23:19:40.521520+00:00
+generated_utc: 2026-10-08T23:20:33.994167+00:00
 private: false
 ---
 
@@ -61,7 +61,7 @@ Usage:
 
 ## Entry points
 
-- `def main()` (line 326)
+- `def main()` (line 328)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -100,10 +100,10 @@ Usage:
 
 **sqlite**
 
-- `sqlite3.connect()  → `str(args.db)`` (line 193)
-- `sqlite3.connect()  → `str(args.db)`` (line 196)
-- `sqlite3.connect()  → `str(db_path)`` (line 164)
-- `sqlite3.connect()  → `str(db_path)`` (line 86)
+- `sqlite3.connect()  → `str(args.db)`` (line 195)
+- `sqlite3.connect()  → `str(args.db)`` (line 198)
+- `sqlite3.connect()  → `str(db_path)`` (line 166)
+- `sqlite3.connect()  → `str(db_path)`` (line 88)
 
 
 ---
@@ -111,6 +111,7 @@ Usage:
 ## Notable external imports
 
 - `m3_core.paths (require_sqlite_backend)`
+- `m3_core.runtime (utc_iso)`
 - `memory.backends.sqlite_backend (SqliteDialect)`
 
 ---

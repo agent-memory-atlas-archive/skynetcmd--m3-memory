@@ -38,6 +38,8 @@ import sqlite3
 import time
 import uuid as _uuid
 
+from m3_core.runtime import utc_iso
+
 from .config import files_table
 from .db import _db
 
@@ -323,7 +325,7 @@ def review_dedup_candidate(
     if action not in valid_actions:
         raise ValueError(f"action must be one of {sorted(valid_actions)}; got {action!r}")
 
-    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    now = utc_iso()
     from memory.backends import dialect as _dialect
     _p = _dialect().param()
     with _db(db_path) as conn:

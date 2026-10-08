@@ -56,6 +56,8 @@ import sys
 import time
 from pathlib import Path
 
+from m3_core.runtime import utc_iso
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BIN_DIR = REPO_ROOT / "bin"
 DEFAULT_DB = REPO_ROOT / "memory" / "agent_memory.db"
@@ -246,7 +248,7 @@ def _run_backfill(args: argparse.Namespace) -> dict:
 
             elapsed = time.monotonic() - started
             rate = counters["updated"] / max(elapsed, 1e-3)
-            ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            ts = utc_iso()
             print(
                 f"[{ts}] scanned={counters['scanned']} "
                 f"updated={counters['updated']} "

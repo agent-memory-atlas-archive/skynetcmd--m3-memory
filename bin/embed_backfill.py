@@ -57,6 +57,8 @@ import time
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
 
+from m3_core.runtime import utc_iso
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BIN_DIR = REPO_ROOT / "bin"
 DEFAULT_DB = REPO_ROOT / "memory" / "agent_memory.db"
@@ -571,7 +573,7 @@ async def _run_sweep_inner(args: argparse.Namespace, counters: Counters) -> int:
     ).rstrip()
 
     def _write(mid: str, vec: list[float], model_str: str, content_hash: str) -> bool:
-        now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        now_iso = utc_iso()
         with mc._db() as db:
             cur = db.execute(
                 insert_sql,
@@ -635,7 +637,7 @@ async def _run_sweep_inner(args: argparse.Namespace, counters: Counters) -> int:
 def _log(msg: str, ts: str | None = None) -> None:
     """ASCII-safe stdout. Avoids the cp1252 trap on Windows."""
     if ts is None:
-        ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        ts = utc_iso()
     line = f"[{ts}] [embed_backfill] {msg}\n"
     try:
         sys.stdout.write(line)

@@ -39,6 +39,8 @@ import sys
 import time
 from pathlib import Path
 
+from m3_core.runtime import utc_iso
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 _MAIN_BIN = REPO_ROOT / "bin"
 if str(_MAIN_BIN) not in sys.path:
@@ -497,7 +499,7 @@ async def _run_db(
                     elapsed = time.monotonic() - started
                     rate = done / max(elapsed, 1e-3)
                     eta = (n_groups - done) / max(rate, 1e-3)
-                    ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                    ts = utc_iso()
                     print(
                         f"[{ts}] [m3-enrich] {db_path.name}: {done}/{n_groups}  "
                         f"obs_written={counters['written']} "
@@ -981,10 +983,11 @@ async def _main_async(args) -> int:
     # later runs the same day overwrite (intended — re-runs supersede).
     if args.report and args.source_variant:
         try:
+            from datetime import UTC as _UTC
             from datetime import datetime as _dt
             report_path = (
                 Path(args.report) if args.report not in (True, "1", "auto")
-                else Path("docs/audits") / f"enrich-run-{_dt.utcnow().strftime('%Y-%m-%d')}.md"
+                else Path("docs/audits") / f"enrich-run-{_dt.now(_UTC).strftime('%Y-%m-%d')}.md"
             )
             import subprocess as _sp
             cmd = [

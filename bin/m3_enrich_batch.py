@@ -70,13 +70,11 @@ import httpx  # noqa: E402
 import run_observer as observer  # noqa: E402
 from auth_utils import get_api_key  # noqa: E402
 from batch_runner import BatchRequest, make_runner  # noqa: E402
+
+# THE owner of this format is m3_core.runtime.utc_iso; this is its local name.
+from m3_core.runtime import utc_iso as _utcnow_iso  # noqa: E402
 from m3_enrich import _load_conv_list, _query_eligible_groups  # noqa: E402
 from slm_intent import _parse_profile  # noqa: E402
-
-
-def _utcnow_iso() -> str:
-    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%fZ")
-
 
 # ── Stop-flag — graceful drain signal ──────────────────────────────────────
 # Drop a file at this path to tell any running m3_enrich_batch worker to

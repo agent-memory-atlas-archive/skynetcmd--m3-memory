@@ -28,9 +28,10 @@ from __future__ import annotations
 import json
 import logging
 import os
-import time
 from dataclasses import dataclass
 from itertools import batched
+
+from m3_core.runtime import utc_iso
 
 from . import config
 from .config import files_table
@@ -120,7 +121,7 @@ def corpus_create(
             f"extract_mode must be 'none'|'inline'|'queue', got: {extract_mode!r}"
         )
 
-    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    now = utc_iso()
     settings: dict = {"created_at": now}
     if description is not None:
         settings["description"] = description
@@ -265,7 +266,7 @@ def corpus_set(
             (corpus_id,),
         ).fetchone()
         if row is None:
-            settings: dict[str, object] = {"created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+            settings: dict[str, object] = {"created_at": utc_iso()}
             is_insert = True
         else:
             settings = _safe_json(row["settings"]) or {}

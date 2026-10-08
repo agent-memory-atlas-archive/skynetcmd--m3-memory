@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from crypto_provider import get_sha256
+from m3_core.runtime import utc_iso
 from m3_sdk import get_m3_root
 
 
@@ -123,7 +124,7 @@ def log_event(ctx, category: str, detail_a: str,
     Categories: 'thought'/'activity' → activity_logs; 'decision' → project_decisions.
     Unknown categories fall through to activity_logs for safety.
     """
-    now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    now = utc_iso()
     with ctx.get_sqlite_conn() as conn:
         cur = conn.cursor()
         if category == "decision":

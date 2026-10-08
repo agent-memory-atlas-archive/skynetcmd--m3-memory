@@ -228,8 +228,8 @@ def _name_hash(name: str) -> str:
                         usedforsecurity=False).hexdigest()[:16]
 
 
-def _now() -> str:
-    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+# THE owner of this format is m3_core.runtime.utc_iso; this is its local name.
+from m3_core.runtime import utc_iso as _now  # noqa: E402
 
 
 def _embed_tier_info(model_seen: str | None) -> dict:

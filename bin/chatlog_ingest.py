@@ -30,6 +30,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from m3_core.runtime import utc_iso
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("chatlog_ingest")
 
@@ -301,7 +303,7 @@ def _commit_cursor(items: list[dict], session_id: str, cursor: dict) -> None:
         if u:
             seen_uuids.add(u)
     entry["seen_uuids"] = sorted(seen_uuids)
-    entry["last_ingested_at"] = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    entry["last_ingested_at"] = utc_iso()
     _save_cursor(cursor)
 
 

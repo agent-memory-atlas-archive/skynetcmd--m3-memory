@@ -46,8 +46,6 @@ except Exception:  # pragma: no cover
 logger = logging.getLogger("chatlog_status")
 
 
-def _utcnow_iso() -> str:
-    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _resolve_files_location() -> str:

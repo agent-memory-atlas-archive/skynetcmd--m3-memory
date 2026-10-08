@@ -46,8 +46,8 @@ DETERMINISTIC_ERROR_CLASSES = frozenset({
 
 
 # ── Time helpers ───────────────────────────────────────────────────────────
-def _utcnow_iso() -> str:
-    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+# THE owner of this format is m3_core.runtime.utc_iso; this is its local name.
+from m3_core.runtime import utc_iso as _utcnow_iso  # noqa: E402
 
 
 def _iso_plus(seconds: int) -> str:

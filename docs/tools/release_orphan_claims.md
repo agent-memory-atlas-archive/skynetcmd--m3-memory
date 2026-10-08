@@ -1,8 +1,8 @@
 ---
 tool: bin/release_orphan_claims.py
-sha1: 4137eb00daaa
-mtime_utc: 2026-10-08T22:11:14.610988+00:00
-generated_utc: 2026-10-08T22:11:48.257123+00:00
+sha1: 0cf155c0e5ff
+mtime_utc: 2026-10-08T23:19:03.938798+00:00
+generated_utc: 2026-10-08T23:20:34.583155+00:00
 private: false
 ---
 
@@ -47,7 +47,7 @@ Usage:
 
 ## Entry points
 
-- `def main()` (line 47)
+- `def main()` (line 46)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -87,6 +87,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
+- `m3_core.runtime (utc_iso)`
 - `memory.backends (dialect)`
 
 ---

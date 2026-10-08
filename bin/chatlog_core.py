@@ -100,8 +100,8 @@ def compute_cost_usd(provider: str, model_id: str,
     return round(cost, 6)
 
 
-def _utcnow_iso() -> str:
-    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+# THE owner of this format is m3_core.runtime.utc_iso; this is its local name.
+from m3_core.runtime import utc_iso as _utcnow_iso  # noqa: E402
 
 
 def _content_hash(s: str) -> str:
@@ -1290,13 +1290,12 @@ def _final_drain_sync() -> None:
         q = _QUEUE
         if q is None or q.qsize() == 0:
             return
-        # Drain on the current loop if available; otherwise create a short-lived one
+        # A running loop owns the drain (flush_loop); otherwise use a short-lived
+        # one. Not get_event_loop(): with no current loop it warns on 3.12 and
+        # raises on 3.14.
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # Can't run synchronously against a running loop — the flush_loop
-                # is responsible. Best effort: nudge it.
-                return
+            asyncio.get_running_loop()
+            return
         except RuntimeError:
             loop = asyncio.new_event_loop()
         try:

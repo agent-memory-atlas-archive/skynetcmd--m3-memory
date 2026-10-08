@@ -1,8 +1,8 @@
 ---
 tool: bin/run_observer.py
-sha1: b808ad5266a6
-mtime_utc: 2026-10-08T22:10:44.273839+00:00
-generated_utc: 2026-10-08T22:11:48.267500+00:00
+sha1: 367f8099d2c3
+mtime_utc: 2026-10-08T23:19:40.528636+00:00
+generated_utc: 2026-10-08T23:20:34.593598+00:00
 private: false
 ---
 
@@ -39,7 +39,7 @@ Status: Phase D Task 3. Pairs with config/slm/observer_local.yaml.
 
 ## Entry points
 
-- `def main()` (line 880)
+- `def main()` (line 881)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -86,6 +86,7 @@ _(no subprocess / http / sqlite calls detected)_
 ## Notable external imports
 
 - `httpx`
+- `m3_core.runtime (utc_iso)`
 - `memory.backends (dialect)`
 
 ---
