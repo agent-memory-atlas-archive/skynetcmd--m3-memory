@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_upgrade.py
-sha1: 6a19e51ab48e
-mtime_utc: 2026-10-07T23:14:39.968952+00:00
-generated_utc: 2026-10-07T23:14:55.949825+00:00
+sha1: 371870c1bf24
+mtime_utc: 2026-10-08T19:37:31.626446+00:00
+generated_utc: 2026-10-08T19:37:46.094849+00:00
 private: false
 ---
 
@@ -60,7 +60,7 @@ is stopped or replaced.
 ## Entry points
 
 - `def run()` (line 531)
-- `def main()` (line 703)
+- `def main()` (line 709)
 - `if __name__ == "__main__"` guard
 
 ---

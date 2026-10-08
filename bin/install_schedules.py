@@ -996,10 +996,17 @@ def _interpreter_has_deps(candidate: str) -> bool:
         sibling = os.path.join(os.path.dirname(candidate), "python.exe")
         if os.path.exists(sibling):
             probe = sibling
+    # Probe under the conditions the task will FIRE in, not the installer's:
+    # `-c` puts the working directory on sys.path, so a probe run from a
+    # checkout or payload root (which contains m3_memory/) imported it from
+    # there and approved a bare venv; and -E drops a shell's PYTHONPATH, which
+    # a scheduled task does not inherit. Measured 2026-10-08: a dependency-less
+    # venv passed this probe whenever the cwd held m3_memory/.
     try:
         return _run(
-            [probe, "-c", "import m3_memory"],
+            [probe, "-E", "-c", "import m3_memory"],
             capture_output=True, timeout=10,
+            cwd=os.path.dirname(os.path.abspath(probe)),
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
             if os.name == "nt" else 0,
         ).returncode == 0

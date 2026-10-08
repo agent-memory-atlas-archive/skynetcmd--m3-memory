@@ -608,7 +608,13 @@ def m3_still_installed(owner_python: str) -> bool | None:
     try:
         cp = subprocess.run(  # nosec B603 - argv list, no shell
             # In the OWNING interpreter, never this process (see module docstring).
-            [owner_python, "-c", "import importlib; importlib.import_module('m3_memory.cli')"],
+            # -E and a neutral cwd: `-c` puts the working directory on sys.path,
+            # so run from a checkout (which contains m3_memory/) the import
+            # succeeded from there and reported a removed m3 as installed. The
+            # same rule guards install_schedules._interpreter_has_deps; this
+            # module stays stdlib-only, so it carries its own two arguments.
+            [owner_python, "-E", "-c", "import importlib; importlib.import_module('m3_memory.cli')"],
+            cwd=os.path.dirname(os.path.abspath(owner_python)),
             capture_output=True, text=True, errors="replace", timeout=60)
     except (OSError, subprocess.SubprocessError):
         return None

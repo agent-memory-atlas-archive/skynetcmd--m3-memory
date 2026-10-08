@@ -21,6 +21,7 @@ import os
 import subprocess
 import sys
 import venv
+from pathlib import Path
 
 import pytest
 
@@ -138,18 +139,32 @@ def test_scheduled_task_interpreter_rejects_a_dependency_less_venv(tmp_path):
     stub = root / ".venv" / scripts / exe
     if not stub.exists():
         pytest.skip("could not create a stub venv on this platform")
-    if isch._interpreter_has_deps(str(stub)):
-        pytest.skip("stub venv unexpectedly has httpx; cannot test the guard")
 
+    # No skip when the probe approves the stub: that IS the defect. The suite
+    # runs from the repo root, whose m3_memory/ a cwd-inheriting probe imported,
+    # so this assertion is also the planted case for that regression.
     assert isch._interpreter_has_deps(str(stub)) is False
     # ...and the resolver must NOT hand that path to a task registration.
     resolved = isch._venv_python(str(root))
     assert os.path.abspath(resolved) != os.path.abspath(str(stub))
 
 
-def test_scheduled_task_interpreter_accepts_the_running_one():
-    """sys.executable got here, so it necessarily has the deps."""
-    assert _sched()._interpreter_has_deps(sys.executable) is True
+def test_scheduled_task_interpreter_accepts_one_that_imports_m3(tmp_path):
+    """An interpreter that can import m3_memory from ANY directory is accepted.
+
+    Built like a real install: a venv with the running interpreter's packages,
+    plus a .pth putting the checkout on sys.path. The running interpreter is
+    not used directly: in a checkout it imports m3_memory only from the repo
+    root's working directory, which is exactly what the probe must not count."""
+    env_dir = tmp_path / "installed"
+    venv.create(env_dir, with_pip=False, system_site_packages=True)
+    exe = env_dir / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    purelib = subprocess.run(
+        [str(exe), "-E", "-c", "import sysconfig; print(sysconfig.get_paths()['purelib'])"],
+        capture_output=True, text=True, check=True, timeout=30).stdout.strip()
+    repo_root = Path(__file__).resolve().parents[1]
+    Path(purelib, "m3_checkout.pth").write_text(str(repo_root) + "\n", encoding="utf-8")
+    assert _sched()._interpreter_has_deps(str(exe)) is True
 
 
 def test_scheduled_task_interpreter_rejects_a_missing_path(tmp_path):
