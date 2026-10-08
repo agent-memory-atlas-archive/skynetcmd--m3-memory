@@ -250,6 +250,24 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
+    - name: Install the pinned Rust core (the shipping configuration)
+      # The Rust core is what users run, so the main lane tests it; the
+      # pure-Python fallback has its own lane (test-pure-python below). Installed
+      # through m3's own installer, so this also exercises the user's install
+      # path (pinned M3_CORE_RS_VERSION, sha256 checked against SHA256SUMS). No
+      # source fallback: a missing wheel fails here, loudly, instead of
+      # compiling for minutes or quietly testing the fallback. Runners have no
+      # GPU: cpu on Linux/Windows, metal on the Apple-silicon macOS runner.
+      shell: bash
+      run: |
+        python -c "
+        import sys
+        from m3_memory.rust_core_install import install_rust_core
+        backend = 'metal' if sys.platform == 'darwin' else 'cpu'
+        raise SystemExit(install_rust_core(backend=backend, allow_source_fallback=False))
+        "
+        python -c "import m3_core_rs as m; print('RUST CORE:', 'm3_core_rs', getattr(m, '__version__', '?'))"
+
     - name: Run Pytest (hermetic lane)
       # The hermetic unit lane: everything that needs no external service and is
       # not timing-sensitive.
@@ -264,6 +282,42 @@ jobs:
       #    baseline-stable host, not the PR gate. Run locally with `pytest -m slow`.
       # --strict-markers makes a typo'd marker a hard error.
       # See docs/design/TEST_SUITE_DESIGN.md.
+      run: |
+        pytest tests/ -m "not integration and not slow"
+
+  # ── Pure-Python lane ────────────────────────────────────────────────────────
+  # Users reach the pure-Python fallback without choosing it (no wheel when a
+  # venv is created without pip; a backend's asset missing from a release), so
+  # it keeps one lane of its own while the fallback exists. The main test lane
+  # above runs the Rust core. This lane FAILS if the wheel is importable: a
+  # "pure-Python" lane that actually ran Rust would be the wrong-configuration
+  # green the lanes exist to prevent.
+  test-pure-python:
+    name: Test pure-Python fallback (ubuntu, py3.12)
+    needs: [lint, typecheck]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        persist-credentials: false
+    - name: Set up Python 3.12
+      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      with:
+        python-version: "3.12"
+        cache: 'pip'
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    - name: Assert the Rust core is NOT installed
+      run: |
+        python -c "
+        import importlib.util, sys
+        if importlib.util.find_spec('m3_core_rs') is not None:
+            sys.exit('m3_core_rs is importable: this lane would not test the pure-Python fallback')
+        print('RUST CORE: ABSENT (pure-Python lane)')
+        "
+    - name: Run Pytest (hermetic lane, pure Python)
       run: |
         pytest tests/ -m "not integration and not slow"
 

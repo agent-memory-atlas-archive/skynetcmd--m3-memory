@@ -12,19 +12,17 @@ import os as _os
 # BEFORE any test imports cli, so it lives at conftest import time.
 _os.environ.setdefault("_M3_UTF8_REEXEC", "1")
 
-# Disable the native m3_core_rs extension by DEFAULT for the whole test session.
-# Unit tests should not depend on a CUDA/native wheel being installed on the
-# host. On a dev box that HAS the wheel + a discoverable GGUF, any test that
-# exercises an embed would otherwise load the real in-process EmbeddedEmbedder
-# — a multi-second CUDA context + model load that (a) blows the doctor <5s SLO
-# assertions and (b) leaves warm global embed state that poisons run-order-
-# dependent tier-ordering / dedup / cold-cascade tests (they pass in isolation,
-# fail under batch ordering). Tests that specifically exercise the native path
-# opt back in explicitly (e.g. test_sdk_oxidation / test_governor_pacing set
-# M3_CORE_RS_DISABLE=0 / monkeypatch the flag). setdefault so an outer
-# environment that deliberately set it wins. Must run at conftest IMPORT time,
-# before any test imports memory.config (which reads it once at import).
-_os.environ.setdefault("M3_CORE_RS_DISABLE", "1")
+# The suite runs the native m3_core_rs extension when it is installed: that is
+# the shipping configuration, and a suite that disables it tests only the
+# fallback. What must NOT happen in unit tests is the in-process tier-1
+# EmbeddedEmbedder loading — a multi-second CUDA context + model load that
+# (a) blows the doctor <5s SLO assertions and (b) leaves warm global embed state
+# that poisons run-order-dependent tier-ordering / dedup / cold-cascade tests.
+# memory/embed.py allows that load only when a .embed_config.json is present
+# (the collection-time config root below is empty) or M3_EMBED_INPROC=1, so pin
+# the opt-in off. setdefault so an outer environment that deliberately set it
+# wins. Must run at conftest IMPORT time: memory/embed.py reads it once.
+_os.environ.setdefault("M3_EMBED_INPROC", "0")
 
 # Point the config root at an empty directory for COLLECTION. The autouse
 # sandbox pins it per test, but modules imported during collection read config
