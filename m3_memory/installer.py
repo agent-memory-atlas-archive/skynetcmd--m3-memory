@@ -187,8 +187,7 @@ def _git_clone(tag: str, dest: Path) -> bool:
         subprocess.run(
             ["git", "clone", "--depth", "1", "--branch", tag, REPO_URL, str(dest)],
             check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE, **_hidden_window_kwargs())
+            capture_output=True, **_hidden_window_kwargs())
         return True
     except FileNotFoundError:
         return False
@@ -1225,11 +1224,13 @@ def _run_pg_migrations(bridge: Path, dsn: str) -> str | None:
     The DSN is passed via env to the child (never on the command line, where it
     could land in a process listing) and masked in any status line.
     """
+    # repr(), not r'...': a raw literal breaks on a quote in the path (a home
+    # directory like O'Brien) or a trailing backslash.
     child = (
-        "import sys; sys.path.insert(0, r'%s'); "
+        f"import sys; sys.path.insert(0, {str(bridge.parent)!r}); "
         "from memory.backends.postgres_backend import PostgresBackend; "
         "b = PostgresBackend(); b.ensure_schema(); b.close(); "
-        "print('OK')" % str(bridge.parent)
+        "print('OK')"
     )
     env = dict(os.environ)
     env["M3_DB_BACKEND"] = "postgres"

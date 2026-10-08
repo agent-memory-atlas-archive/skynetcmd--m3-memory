@@ -207,11 +207,11 @@ def test_resolver_imports_without_the_catalog_on_the_path(tmp_path):
     cannot see the catalog, and confirm it still resolves."""
     import subprocess
     code = (
-        "import sys; sys.path.insert(0, r'%s');"
+        f"import sys; sys.path.insert(0, {str(_BIN)!r});"
         "import tools_config as tc;"
         "n,s = tc.resolve_startup_tools();"
         "print(len(n), s)"
-    ) % str(_BIN)
+    )
     r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
     assert "shipped default" in r.stdout

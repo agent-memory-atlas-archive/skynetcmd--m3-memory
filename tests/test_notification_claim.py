@@ -309,7 +309,7 @@ def test_a_killed_claimer_leaves_no_ghost():
 
     child = (
         "import sqlite3,os,uuid,sys;"
-        f"c=sqlite3.connect(r'{path}',timeout=30,isolation_level=None);"
+        f"c=sqlite3.connect({str(path)!r},timeout=30,isolation_level=None);"
         "c.execute('PRAGMA journal_mode=WAL');"
         "c.execute('BEGIN IMMEDIATE');"
         "c.execute(\"UPDATE notifications SET claimed_by=? WHERE id=("

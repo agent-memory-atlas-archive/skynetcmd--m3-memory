@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_upgrade.py
-sha1: eac02e723e87
-mtime_utc: 2026-10-08T22:10:44.331379+00:00
-generated_utc: 2026-10-08T22:11:48.094684+00:00
+sha1: c1de1f337d32
+mtime_utc: 2026-10-08T22:14:49.850097+00:00
+generated_utc: 2026-10-08T22:17:29.611517+00:00
 private: false
 ---
 

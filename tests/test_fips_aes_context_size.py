@@ -72,7 +72,7 @@ def test_fips_process_exits_cleanly():
         pytest.skip("wolfSSL not installed on this host")
 
     code = (
-        f"import sys; sys.path.insert(0, r'{_PROVIDER.parent}');"
+        f"import sys; sys.path.insert(0, {str(_PROVIDER.parent)!r});"
         "import crypto_provider as c;"
         "assert c.provider.sha256(b'abc').startswith('ba7816bf')"
     )

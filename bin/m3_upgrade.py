@@ -175,12 +175,12 @@ def cognitive_loop_installed(exe: str) -> bool | None:
     for bd in (pkg / "bin", pkg.parent / "bin"):
         if (bd / "governor_migration.py").is_file():
             code = (
-                "import sys; sys.path.insert(0, %r);"
+                f"import sys; sys.path.insert(0, {str(bd)!r});"
                 "import governor_migration as gm;"
                 "d = gm.detect_scheduled_tasks();"
                 "print('YES' if 'AgentOS_CognitiveLoop' in "
                 "(d.get('not_migratable_present') or []) else 'NO')"
-            ) % str(bd)
+            )
             try:
                 r = subprocess.run(  # nosec B603 - argv list, no shell
                     [sys.executable, "-c", code],
