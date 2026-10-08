@@ -175,8 +175,8 @@ def cmd_check(path: Path) -> int:
 
     if errors:
         print(f"{path}: {len(errors)} problem(s):", file=sys.stderr)
-        for e in errors:
-            print(f"  - {e}", file=sys.stderr)
+        for problem in errors:
+            print(f"  - {problem}", file=sys.stderr)
         return 1
 
     print(f"{path}: ok ({len(agents)} agent(s), {len(providers)} provider(s))")

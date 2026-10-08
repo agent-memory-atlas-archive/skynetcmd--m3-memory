@@ -51,6 +51,8 @@ jobs:
         pip install types-PyYAML
     - name: Run Mypy
       run: mypy bin/ --ignore-missing-imports
+    - name: Run Mypy on the installed package
+      run: mypy m3_memory/ --ignore-missing-imports
 
   security:
     name: Security scan (Bandit + pip-audit on core deps)

@@ -18,6 +18,7 @@ import sys
 import time
 import types
 from pathlib import Path
+from typing import Any
 
 HERE = Path(__file__).resolve().parent
 
@@ -28,8 +29,8 @@ def _install_hermes_stubs() -> None:
     # agent.memory_provider.MemoryProvider — minimal ABC (plain object base;
     # the real one is an ABC, but our subclass implements every abstractmethod,
     # so a plain base exercises the same code).
-    agent_pkg = types.ModuleType("agent")
-    mp_mod = types.ModuleType("agent.memory_provider")
+    agent_pkg: Any = types.ModuleType("agent")
+    mp_mod: Any = types.ModuleType("agent.memory_provider")
 
     class MemoryProvider:  # noqa: D401 - stub
         pass
@@ -40,8 +41,8 @@ def _install_hermes_stubs() -> None:
     sys.modules["agent.memory_provider"] = mp_mod
 
     # tools.registry.tool_error — returns a JSON error string (mirrors hermes).
-    tools_pkg = types.ModuleType("tools")
-    reg_mod = types.ModuleType("tools.registry")
+    tools_pkg: Any = types.ModuleType("tools")
+    reg_mod: Any = types.ModuleType("tools.registry")
 
     def tool_error(msg: str) -> str:
         return json.dumps({"error": msg})
@@ -52,7 +53,7 @@ def _install_hermes_stubs() -> None:
     sys.modules["tools.registry"] = reg_mod
 
     # hermes_constants.get_hermes_home — a tmp path.
-    hc_mod = types.ModuleType("hermes_constants")
+    hc_mod: Any = types.ModuleType("hermes_constants")
     hc_mod.get_hermes_home = lambda: HERE / "_fake_hermes_home"
     sys.modules["hermes_constants"] = hc_mod
 
