@@ -22,11 +22,12 @@ def _robust_rmtree(path, retries: int = 5, delay: float = 0.3) -> None:
       2. Transient locks (git gc / antivirus briefly holding a pack file) ->
          a few retries with a short backoff clear them.
 
-    Works across Python 3.11–3.14 by retrying at the top level rather than using
-    the onerror/onexc callback (whose signature changed in 3.12). Raises the last
-    error if the tree is still undeletable after all retries — so a genuine
-    permission problem still surfaces loudly (§3), but a read-only pack or a
-    momentary lock no longer turns a successful update into a false failure.
+    Case 1 is handled per file by ``rmtree``'s ``onexc`` callback (3.12+): clear
+    that path's read-only bit and retry the one call that failed. Case 2 is the
+    outer retry loop. Raises the last error if the tree is still undeletable
+    after all retries — so a genuine permission problem still surfaces loudly
+    (§3), but a read-only pack or a momentary lock no longer turns a successful
+    update into a false failure.
 
     NOTE: this does NOT resolve a file that is genuinely OPEN by another process
     (a running m3 server holding agent_memory.db, WinError 32) — retrying can't
@@ -38,23 +39,22 @@ def _robust_rmtree(path, retries: int = 5, delay: float = 0.3) -> None:
     import stat
     import time
 
+    def _clear_readonly_and_retry(func, failed_path, exc):
+        if not isinstance(exc, PermissionError):
+            raise exc
+        os.chmod(failed_path, stat.S_IWRITE)
+        func(failed_path)  # raises again if it is a lock, not the read-only bit
+
     path = str(path)
     if not os.path.exists(path):
         return
     last_exc: Exception | None = None
     for attempt in range(retries):
         try:
-            shutil.rmtree(path)
+            shutil.rmtree(path, onexc=_clear_readonly_and_retry)
             return
-        except (PermissionError, OSError) as e:
+        except OSError as e:  # PermissionError is an OSError
             last_exc = e
-            # Best-effort: strip read-only bits across the tree, then retry.
-            for root, dirs, files in os.walk(path):
-                for name in dirs + files:
-                    try:
-                        os.chmod(os.path.join(root, name), stat.S_IWRITE)
-                    except OSError:
-                        pass
             if attempt < retries - 1:
                 time.sleep(delay)
     if os.path.exists(path) and last_exc is not None:
@@ -149,3 +149,26 @@ def _safe_tar_member(member: tarfile.TarInfo, dest_root: Path) -> tarfile.TarInf
         except ValueError:
             return None
     return member
+
+
+def _safe_tar_filter(dest_root: Path):
+    """The extraction filter for ``tarfile.extractall(filter=...)``.
+
+    m3's path checks first (``_safe_tar_member``: drop, don't abort), then
+    ``tarfile.data_filter`` (3.12) on the survivor for the half m3's check never
+    covered: it clears setuid/setgid/sticky and group/other write bits and does
+    not carry archive ownership onto the host. A member data_filter still
+    rejects is dropped too, keeping the drop-not-abort contract.
+    """
+    root = dest_root.resolve()
+
+    def _filter(member: tarfile.TarInfo, path: str) -> tarfile.TarInfo | None:
+        kept = _safe_tar_member(member, root)
+        if kept is None:
+            return None
+        try:
+            return tarfile.data_filter(kept, path)
+        except tarfile.FilterError:
+            return None
+
+    return _filter

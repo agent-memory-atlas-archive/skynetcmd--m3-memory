@@ -36,6 +36,7 @@ from m3_memory.install.fs import (  # noqa: F401  (re-exported facade surface �
     _drain_wal,
     _robust_rmtree,
     _safe_copy_sqlite,
+    _safe_tar_filter,
     _safe_tar_member,
 )
 from m3_memory.install.sections import (  # noqa: F401  (re-exported facade surface)
@@ -201,10 +202,10 @@ def _download_tarball(tag: str, dest: Path) -> None:
     ``m3-memory-<tag-without-v>/`` — we strip that and move contents into
     ``dest`` so the layout matches a git clone.
 
-    Extraction is filtered through ``_safe_tar_member`` to block the
-    traditional tarslip / path-traversal / device-file attack classes.
-    Python 3.12's built-in ``filter='data'`` would also work, but we
-    support 3.11 so we roll our own filter.
+    Extraction goes through ``_safe_tar_filter``: m3's own checks drop the
+    tarslip / path-traversal / outside-link / device-file classes, then
+    ``tarfile.data_filter`` clears setuid/setgid and group/other write bits
+    and drops archive ownership.
     """
     url = TARBALL_URL_TEMPLATE.format(tag=tag)
     # Defense-in-depth: TARBALL_URL_TEMPLATE is a hardcoded constant that
@@ -226,8 +227,7 @@ def _download_tarball(tag: str, dest: Path) -> None:
         with urllib.request.urlopen(url) as resp, archive.open("wb") as f:  # nosec B310 — trusted GitHub host, prefix-validated above
             shutil.copyfileobj(resp, f)
         with tarfile.open(archive, "r:gz") as tf:
-            tmp_resolved = tmp.resolve()
-            tf.extractall(tmp, filter=lambda m, _path: _safe_tar_member(m, tmp_resolved))  # nosec B202 - filter blocks tarslip
+            tf.extractall(tmp, filter=_safe_tar_filter(tmp))  # nosec B202 - filter blocks tarslip
         # Find the single top-level dir extracted.
         top_level = [p for p in tmp.iterdir() if p.is_dir() and p.name.startswith("m3-memory-")]
         if len(top_level) != 1:
