@@ -1389,7 +1389,7 @@ def _sync_table_generic(
                 conflict_clause = _build_conflict_clause(pk_columns)
                 non_pk_cols = [c for c in col_names if c not in pk_columns]
                 set_clause = ", ".join(f"{c} = excluded.{c}" for c in non_pk_cols) if non_pk_cols else "id = excluded.id"
-                placeholders = ", ".join(["?"] * len(col_names))
+                placeholders = _local_dialect().placeholder(len(col_names))
                 col_list = ", ".join(col_names)
 
                 upsert_sl = f"""

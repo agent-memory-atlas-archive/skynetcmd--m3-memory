@@ -284,9 +284,14 @@ class M3Client:
         _ensure_bin_on_path()
         import chatlog_config
         from m3_sdk import M3Context, active_database
+        from memory.backends import dialect
+        from memory.backends.dialect import chatlog_table
 
         chatlog_path = chatlog_config.chatlog_db_path()
-        placeholders = ",".join(["?"] * len(ids))
+        # Both from the seam: on PostgreSQL the chatlog is `chat_log_items` on the
+        # main pool, and '?' is rejected there.
+        placeholders = dialect().placeholder(len(ids))
+        items_table = chatlog_table("items")
         n = 0
         # Activate the chatlog path so get_chatlog_conn() routes to its pool
         # (the exact pattern chatlog_write_bulk uses, chatlog_core.py:341).
@@ -294,7 +299,7 @@ class M3Client:
             ctx = M3Context.for_db(None)
             with ctx.get_chatlog_conn() as conn:
                 cur = conn.execute(
-                    f"UPDATE memory_items SET is_deleted = 1 "
+                    f"UPDATE {items_table} SET is_deleted = 1 "
                     f"WHERE id IN ({placeholders})",
                     list(ids),
                 )

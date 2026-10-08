@@ -175,8 +175,7 @@ async def _backfill_db(
     type_clause = ""
     params: list = [min_chars]
     if type_filter:
-        placeholders = ",".join("?" * len(type_filter))
-        type_clause = f" AND mi.type IN ({placeholders})"
+        type_clause = f" AND mi.type IN ({seam_dialect().placeholder(len(type_filter))})"
         params.extend(type_filter)
 
     sql = f"""
