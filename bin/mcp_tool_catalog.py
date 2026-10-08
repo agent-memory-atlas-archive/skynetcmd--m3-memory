@@ -157,7 +157,9 @@ _DATABASE_PARAM_SCHEMA = {
     "type": "string",
     "description": (
         "Optional SQLite database path. Overrides M3_DATABASE env and the "
-        "default memory/agent_memory.db for this call only. Empty = use default."
+        "default memory/agent_memory.db for this call only. Empty = use default. "
+        "SQLite backend only, and not for files tools: elsewhere it would be "
+        "ignored, so the call is refused."
     ),
     "default": "",
 }

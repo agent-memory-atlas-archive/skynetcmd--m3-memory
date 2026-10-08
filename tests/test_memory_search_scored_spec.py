@@ -58,18 +58,17 @@ import mcp_tool_catalog
 
 _SCORED = "memory_search_scored"
 
-# The shipped files corpus DB — a real, side-effect-free read target, resolved
-# relative to the repo root so the test runs from any cwd. (Same target as
-# test_dispatcher.py; we only assert on result SHAPE, so any populated corpus
-# works — an empty result set is still a valid, correctly-shaped list.)
-_FILES_DB = os.path.normpath(os.path.join(_HERE, "..", "memory", "files_database.db"))
+# No `database` arg: conftest's sandbox store is the read target. These tests
+# assert on result SHAPE only, so an empty result set is still a valid,
+# correctly-shaped list. (They once named a repo-relative memory/
+# files_database.db that does not exist on a fresh checkout and was ignored on
+# PostgreSQL; `database` is now refused there, see _pop_database.)
 
 
 def _scored_args() -> dict:
-    """Minimal valid args for the scored search: a query + the corpus DB.
-    Each caller gets a fresh dict — execute_tool_structured mutates args in
-    place (pops 'database', filters keys)."""
-    return {"query": "memory", "k": 5, "database": _FILES_DB}
+    """Minimal valid args for the scored search. Each caller gets a fresh dict —
+    execute_tool_structured mutates args in place (filters keys)."""
+    return {"query": "memory", "k": 5}
 
 
 # ── Spec presence (the pre-registered gate) ──────────────────────────────────
@@ -202,7 +201,7 @@ def test_scored_filter_only_query_is_accepted():
     about an empty query, the spec was wired to the wrong validator.
     """
     spec = _require_spec()
-    args = {"query": "", "type_filter": "note", "k": 10, "database": _FILES_DB}
+    args = {"query": "", "type_filter": "note", "k": 10}
     result = asyncio.run(
         mcp_tool_catalog.execute_tool_structured(spec, args, agent_id="")
     )
@@ -234,7 +233,7 @@ def test_scored_matches_memory_search_rowset_for_same_query():
     k = 5
 
     scored = asyncio.run(mcp_tool_catalog.execute_tool_structured(
-        spec, {"query": q, "k": k, "database": _FILES_DB}, agent_id=""))
+        spec, {"query": q, "k": k}, agent_id=""))
     scored_ids = {
         item.get("id") for _s, item in scored if isinstance(item, dict)
     }
@@ -251,7 +250,7 @@ def test_scored_matches_memory_search_rowset_for_same_query():
     # is gated correctly, passing variant explicitly here is a no-op; if it is
     # NOT, this exposes the divergence.
     gated = asyncio.run(mcp_tool_catalog.execute_tool_structured(
-        spec, {"query": q, "k": k, "variant": "__none__", "database": _FILES_DB},
+        spec, {"query": q, "k": k, "variant": "__none__"},
         agent_id=""))
     gated_ids = {item.get("id") for _s, item in gated if isinstance(item, dict)}
     gated_ids.discard(None)

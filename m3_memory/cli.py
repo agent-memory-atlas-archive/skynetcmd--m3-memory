@@ -1506,7 +1506,8 @@ def _add_tool_domain_subcommands(subparsers) -> None:
                      "may refuse outright.",
             )
             tp.add_argument("--database", dest="database", default=None,
-                            help="SQLite DB path. Env: M3_DATABASE. Default: agent_memory.db.")
+                            help="SQLite DB path. Env: M3_DATABASE. Default: agent_memory.db. "
+                                 "SQLite backend only, not files tools (refused there).")
             tp.add_argument("--dry-run", dest="_dry_run", action="store_true",
                             help="Validate args + check the destructive gate without executing.")
             tp.add_argument("--yes", dest="_yes", action="store_true",

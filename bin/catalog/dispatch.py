@@ -29,17 +29,45 @@ def default_allowlist() -> set[str]:
     import mcp_tool_catalog
     return {t.name for t in mcp_tool_catalog.TOOLS if t.default_allowed}
 
-def _pop_database(args: dict) -> str | None:
+def _pop_database(args: dict, tool: str) -> str | None:
     """Pop the universal `database` arg so validators/impls never see it.
 
     The field is injected into every ToolSpec.parameters at module end (see
     ``_inject_database_arg``); MCP clients and direct Python callers can pass
     it to target a non-default SQLite DB. Empty string is treated as absent.
+
+    Raises ValueError where the argument would be silently IGNORED, so the
+    call never runs against the default store the caller did not ask for:
+      * on a non-SQLite backend -- ``active_database`` names a SQLite FILE and
+        PostgreSQL addresses its one pooled DSN regardless;
+      * on any files tool, every backend -- files_memory resolves its own
+        store and never reads the ContextVar (m3 ``e03425ec``).
+    Named stores (``--store``, plan step 2C.3) replace this refusal with
+    routing. Gated on ``== "sqlite"``, never ``!= "postgres"``, so a future
+    backend is refused until it can honour the argument.
     """
     db = args.pop("database", None)
     if isinstance(db, str):
         db = db.strip() or None
-    return db
+    if db is None:
+        return None
+    import tool_domains
+    from m3_core.paths import resolve_backend_name
+
+    backend = resolve_backend_name()
+    if tool_domains.domain_of_tool(tool) == "files":
+        cause = "files tools resolve their own store and never read `database`"
+    elif backend != "sqlite":
+        cause = (f"`database` names a SQLite file, and the {backend} backend "
+                 f"addresses its configured store regardless")
+    else:
+        return db
+    raise ValueError(
+        f"{tool}: `database` would be ignored. observed: database={db!r}, "
+        f"M3_DB_BACKEND={backend}. cause: {cause}, so the call would run "
+        f"against the default store. inspect: drop `database` to use the "
+        f"default store; per-call store selection arrives as `--store`."
+    )
 
 
 def validate_args(spec: ToolSpec, args: dict) -> tuple[dict, str | None]:
@@ -124,7 +152,7 @@ async def execute_tool(spec: ToolSpec, args: dict, agent_id: str) -> str:
         timeout = _resolve_tool_timeout(args, spec)  # pops reserved `timeout` key
         allowed_keys = set(spec.parameters.get("properties", {}).keys())
         args = {k: v for k, v in args.items() if k in allowed_keys}
-        database = _pop_database(args)
+        database = _pop_database(args, spec.name)
         if spec.inject_agent_id and "agent_id" in allowed_keys:
             args["agent_id"] = agent_id
         args, err = validate_args(spec, args)
@@ -156,7 +184,7 @@ async def execute_tool_structured(
     timeout = _resolve_tool_timeout(args, spec)  # pops reserved `timeout` key
     allowed_keys = set(spec.parameters.get("properties", {}).keys())
     args = {k: v for k, v in args.items() if k in allowed_keys}
-    database = _pop_database(args)
+    database = _pop_database(args, spec.name)
     if spec.inject_agent_id and "agent_id" in allowed_keys:
         # Anti-spoofing: an authenticated caller's identity is forced in
         # non-bypassably, so an LLM cannot read or ack another agent's rows.

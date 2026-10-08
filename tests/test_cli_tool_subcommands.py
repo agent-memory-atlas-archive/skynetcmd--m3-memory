@@ -41,9 +41,12 @@ def files_db(tmp_path, monkeypatch) -> Path:
     """A fresh files DB built by the real files migrations.
 
     These tests used the developer-machine artifact memory/files_database.db
-    (gitignored), so they skipped in every lane. `--database <file>` names a
-    SQLite file, so the backend is pinned to sqlite for the build and for the
-    CLI child, which inherits this environment."""
+    (gitignored), so they skipped in every lane. files tools resolve their store
+    from M3_FILES_DB_PATH on every call (files_memory.db), so pinning it routes
+    both the CLI child, which inherits this environment, and the in-process
+    call. `database` is refused on files tools (catalog.dispatch._pop_database)
+    and is not a way in. The build is a SQLite file, so the backend is pinned
+    to sqlite."""
     import importlib
     import sqlite3
 
@@ -60,6 +63,7 @@ def files_db(tmp_path, monkeypatch) -> Path:
         conn.commit()
     finally:
         conn.close()
+    monkeypatch.setenv("M3_FILES_DB_PATH", str(path))
     return path
 
 
@@ -95,9 +99,9 @@ def _run_cli_force_reexec(*argv: str) -> subprocess.CompletedProcess:
 # ── files_stats: happy path ──────────────────────────────────────────────────
 
 def test_files_stats_returns_json_with_file_nodes_total(files_db):
-    """`m3 files files_stats --database <db>` exits 0 and emits parseable JSON
+    """`m3 files files_stats` exits 0 and emits parseable JSON
     carrying the corpus counter `file_nodes_total`."""
-    proc = _run_cli("files", "files_stats", "--database", str(files_db))
+    proc = _run_cli("files", "files_stats")
     assert proc.returncode == 0, f"stderr={proc.stderr}\nstdout={proc.stdout}"
     data = json.loads(proc.stdout)
     assert "file_nodes_total" in data, data
@@ -109,17 +113,15 @@ def test_files_stats_roundtrip_parity_with_execute_tool_structured(files_db):
     (execute_tool_structured) returns for the same tool + args. Both surfaces
     share the impl, so any divergence is a dispatch bug.
 
-    The catalog mutates the args dict it's handed (pops `database`), so the
-    in-process comparison call gets its own copy.
     """
-    proc = _run_cli("files", "files_stats", "--database", str(files_db))
+    proc = _run_cli("files", "files_stats")
     assert proc.returncode == 0, proc.stderr
     cli_result = json.loads(proc.stdout)
 
     spec = next(t for t in mcp_tool_catalog.TOOLS if t.name == "files_stats")
     direct = asyncio.run(
         mcp_tool_catalog.execute_tool_structured(
-            spec, {"database": str(files_db)}, agent_id="", dry_run=False
+            spec, {}, agent_id="", dry_run=False
         )
     )
     # Normalize through json so dict/tuple coercion matches the CLI's
@@ -131,19 +133,10 @@ def test_files_stats_roundtrip_parity_with_execute_tool_structured(files_db):
     )
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "known defect, m3 to-do e03425ec: files tools ignore the universal `database` "
-    "argument (dispatch sets the core-store ContextVar; files_memory.db resolves "
-    "its own store). strict: this turns red when the defect is fixed, so the "
-    "marker cannot outlive it."))
-def test_files_tools_honor_the_database_argument(files_db):
-    """`--database` must route a FILES tool to the named files store.
-
-    Parity alone cannot catch this: when both surfaces ignore the argument they
-    agree, on the wrong store. So the fixture DB is made distinguishable (one
-    corpus row the default store lacks) and the CLI must find it. Measured
-    2026-10-08 with the installed m3: `m3 files files_stats --database <new
-    path>` returned the live store's counts and created nothing at the path."""
+def _seed_routing_probe(files_db) -> None:
+    """One corpus row the default store lacks, so a read that finds it proves
+    which store answered. Parity alone cannot: two surfaces that both read the
+    wrong store agree."""
     import sqlite3
 
     from memory.backends.dialect import dialect_for
@@ -155,12 +148,33 @@ def test_files_tools_honor_the_database_argument(files_db):
         conn.commit()
     finally:
         conn.close()
-    proc = _run_cli("files", "files_corpus_get", "--corpus_id", "routing-probe",
-                    "--database", str(files_db))
+
+
+def test_files_tools_read_the_pinned_files_store(files_db):
+    """The fixture's store is the one answering, so the tests above measure it."""
+    _seed_routing_probe(files_db)
+    proc = _run_cli("files", "files_corpus_get", "--corpus_id", "routing-probe")
     assert proc.returncode == 0, f"stderr={proc.stderr}\nstdout={proc.stdout}"
     result = json.loads(proc.stdout)
     assert result and result.get("corpus_id") == "routing-probe", (
-        f"files_corpus_get did not read the --database store: {result}")
+        f"files_corpus_get did not read M3_FILES_DB_PATH: {result}")
+
+
+def test_files_tools_refuse_the_database_argument(files_db, tmp_path):
+    """`--database` on a files tool is refused, never silently ignored.
+
+    Measured 2026-10-08 (m3 e03425ec): `m3 files files_stats --database <new
+    path>` returned the default store's counts and created nothing at the path.
+    The refusal stands until named stores (`--store`, plan step 2C.3) route it."""
+    _seed_routing_probe(files_db)
+    elsewhere = tmp_path / "elsewhere.db"
+    proc = _run_cli("files", "files_corpus_get", "--corpus_id", "routing-probe",
+                    "--database", str(elsewhere))
+    assert proc.returncode != 0, f"refusal exited 0: stdout={proc.stdout}"
+    out = proc.stdout + proc.stderr
+    assert "`database` would be ignored" in out and "--store" in out, out
+    assert "routing-probe" not in proc.stdout, "the call ran against a store"
+    assert not elsewhere.exists(), "the refusal created a file at --database"
 
 
 # ── --help lists generated tools ─────────────────────────────────────────────

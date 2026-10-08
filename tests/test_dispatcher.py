@@ -31,13 +31,12 @@ if _BIN not in sys.path:
 
 import mcp_tool_catalog
 
-# Path to the shipped files corpus DB, resolved relative to the repo root so
-# the test runs from any cwd.
-_FILES_DB = os.path.normpath(os.path.join(_HERE, "..", "memory", "files_database.db"))
-
-
 def _files_stats_args() -> dict:
-    return {"database": _FILES_DB}
+    """No `database`: conftest's sandbox already points both stores at a temp
+    dir, and `database` on a files tool is refused (_pop_database). These
+    tests once named a repo-relative memory/files_database.db that does not
+    exist on a fresh checkout and was ignored on PostgreSQL anyway."""
+    return {}
 
 
 # ── m3_index ──────────────────────────────────────────────────────────────────
@@ -167,8 +166,7 @@ def test_m3_call_destructive_allowed_when_flag_monkeypatched(monkeypatch):
     monkeypatch.setattr(mcp_tool_catalog, "_DESTRUCTIVE_ALLOWED", True)
     out = asyncio.run(mcp_tool_catalog.m3_call_impl(
         tool="memory_delete",
-        args={"id": "11111111-2222-3333-4444-555555555555",
-              "database": _FILES_DB}))
+        args={"id": "11111111-2222-3333-4444-555555555555"}))
     data = json.loads(out)
     # Past the gate: either it ran (ok True) or the impl reported call_failed —
     # the one thing it must NOT be is destructive_gated.
@@ -229,7 +227,7 @@ def test_m3_call_async_tool_dispatches():
     content, only that the async path round-trips cleanly."""
     out = asyncio.run(mcp_tool_catalog.m3_call_impl(
         tool="memory_search",
-        args={"query": "x", "database": _FILES_DB}))
+        args={"query": "x"}))
     data = json.loads(out)  # must be valid JSON
     assert "ok" in data
     if data["ok"] is False:

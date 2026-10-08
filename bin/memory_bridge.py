@@ -185,7 +185,10 @@ def _build_typed_function(spec, *, for_mcp: bool = False):
     if spec.is_async:
         async def _wrapper(args):
             args.pop("__class__", None)  # locals() may include this in some Python versions
-            database = mcp_tool_catalog._pop_database(args)
+            try:
+                database = mcp_tool_catalog._pop_database(args, spec.name)
+            except ValueError as e:  # `database` would be ignored: refuse
+                return f"Error: {e}"
             # `timeout` is a universal injected param (mcp_tool_catalog adds it to
             # every tool schema). It is dispatch machinery, not an impl argument —
             # pop it here or it reaches impls with strict signatures and raises
@@ -209,7 +212,10 @@ def _build_typed_function(spec, *, for_mcp: bool = False):
         # (re)enter the CM in-thread to be explicit and correct.
         async def _wrapper(args):
             args.pop("__class__", None)
-            database = mcp_tool_catalog._pop_database(args)
+            try:
+                database = mcp_tool_catalog._pop_database(args, spec.name)
+            except ValueError as e:  # `database` would be ignored: refuse
+                return f"Error: {e}"
             args.pop("timeout", None)
             args, err = mcp_tool_catalog.validate_args(spec, args)
             if err:
@@ -227,7 +233,10 @@ def _build_typed_function(spec, *, for_mcp: bool = False):
     else:
         def _wrapper(args):
             args.pop("__class__", None)
-            database = mcp_tool_catalog._pop_database(args)
+            try:
+                database = mcp_tool_catalog._pop_database(args, spec.name)
+            except ValueError as e:  # `database` would be ignored: refuse
+                return f"Error: {e}"
             # See async branch: `timeout` is injected dispatch machinery, not an
             # impl argument — pop it before validation/impl.
             args.pop("timeout", None)
