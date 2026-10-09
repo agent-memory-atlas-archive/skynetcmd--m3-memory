@@ -1,8 +1,8 @@
 ---
 tool: bin/migrate_warehouse_to_schema.py
-sha1: 7a41fe6a25e1
-mtime_utc: 2026-10-08T22:10:44.257959+00:00
-generated_utc: 2026-10-08T22:11:48.206286+00:00
+sha1: 341b86435a1c
+mtime_utc: 2026-10-09T02:54:21.449733+00:00
+generated_utc: 2026-10-09T02:58:43.929286+00:00
 private: false
 ---
 
@@ -32,7 +32,8 @@ the warehouse owner.
 
 Usage:
     python bin/migrate_warehouse_to_schema.py --dsn <warehouse_dsn> [--dry-run] [--drop-public] [--yes]
-    # --dsn defaults to M3_CDW_PG_URL / PG_URL when omitted.
+    # --dsn defaults to the stored warehouse DSN (M3_CDW_PG_URL / PG_URL in env,
+    # then keyring, secrets file, vault) when omitted.
 
 Exit codes: 0 = success (or clean dry-run), 1 = error / verification failed.
 
@@ -40,7 +41,7 @@ Exit codes: 0 = success (or clean dry-run), 1 = error / verification failed.
 
 ## Entry points
 
-- `def main()` (line 161)
+- `def main()` (line 172)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -49,7 +50,7 @@ Exit codes: 0 = success (or clean dry-run), 1 = error / verification failed.
 
 | Flag(s) | Help | Default | Default behavior | Type/Action | Impact when set |
 |---|---|---|---|---|---|
-| `--dsn` | Warehouse DSN (else M3_CDW_PG_URL/PG_URL). | None |  | str |  |
+| `--dsn` | Warehouse DSN (else the stored warehouse DSN). | None |  | str |  |
 | `--dry-run` | Print the plan; change nothing. | `False` |  | store_true |  |
 | `--drop-public` | After a verified copy, DROP the public.<table> copy. | `False` |  | store_true |  |
 | `--yes` | Skip the confirmation prompt. | `False` |  | store_true |  |
@@ -76,6 +77,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
+- `m3_core.secret_store (PgRole, explain_pg_dsn)`
 - `psycopg`
 - `psycopg2`
 

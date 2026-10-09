@@ -100,6 +100,26 @@ def test_a_miss_explains_what_each_tier_hit(tiers):
     assert any("salt missing" in e for e in r.errors), r.errors
 
 
+def test_warehouse_migrator_finds_a_stored_dsn(tiers):
+    """It read env only, so a DSN the installer stored in the keyring was 'missing'."""
+    import migrate_warehouse_to_schema as mw
+
+    tiers["keyring"]["M3_CDW_PG_URL"] = WAREHOUSE
+    assert mw._resolve_dsn(None) == WAREHOUSE
+    assert mw._resolve_dsn("postgresql://explicit/x") == "postgresql://explicit/x"
+
+
+def test_warehouse_migrator_miss_names_each_tier(tiers, capsys):
+    import migrate_warehouse_to_schema as mw
+
+    tiers["keyring"]["M3_CDW_PG_URL"] = RuntimeError("keyring backend crashed")
+    with pytest.raises(SystemExit) as exc:
+        mw._resolve_dsn(None)
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert "keyring backend crashed" in err and "--dsn" in err, err
+
+
 def test_resolve_returns_the_string(tiers, monkeypatch):
     from m3_core.secret_store import PgRole, resolve_pg_dsn
 

@@ -176,11 +176,15 @@ def deprecated_env_in_use() -> dict[str, str]:
 # silently arm the primary-store path (and vice-versa). They are now separated:
 #
 #   * PRIMARY store   (opt-in `M3_DB_BACKEND=postgres`): a single instance's
-#     authoritative read/write DB. Resolved by `resolve_primary_pg_dsn`.
-#       precedence: M3_PRIMARY_PG_URL > M3_PG_URL > vault. NEVER reads a CDW var.
+#     authoritative read/write DB. Env tier: `resolve_primary_pg_dsn`,
+#       M3_PRIMARY_PG_URL > M3_PG_URL. NEVER reads a CDW var.
 #   * CDW / WAREHOUSE (pg_sync fan-in mirror, `m3_warehouse` namespace): a shared
-#     aggregate many instances UPSERT into. Resolved by `resolve_cdw_pg_dsn`.
-#       precedence: M3_CDW_PG_URL > PG_URL(deprecated, warns) > vault.
+#     aggregate many instances UPSERT into. Env tier: `resolve_cdw_pg_dsn`,
+#       M3_CDW_PG_URL > PG_URL(deprecated, warns).
+#
+# These two read the ENVIRONMENT ONLY. The full chain (env > keyring > secrets
+# file > vault), which is what a launchd/systemd/Task Scheduler job needs, is
+# m3_core.secret_store.resolve_pg_dsn(role) — call that, not these.
 #
 # `PG_URL` is DEPRECATED for the warehouse role: it still resolves as a last
 # resort so live sync doesn't break mid-migration, but every read warns once and
@@ -216,7 +220,8 @@ def resolve_primary_pg_dsn(default: str | None = None) -> str | None:
 
     Precedence: M3_PRIMARY_PG_URL > M3_PG_URL > default. Deliberately does NOT
     read PG_URL or any M3_CDW_* var — the warehouse DSN must never reach the
-    primary store through env resolution. Callers add vault/forbidden-host checks.
+    primary store through env resolution. Env only: the stored-secret tiers are
+    in m3_core.secret_store.resolve_pg_dsn, which callers should use.
     """
     val = os.environ.get("M3_PRIMARY_PG_URL")
     if val is not None:
