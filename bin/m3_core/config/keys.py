@@ -10,6 +10,7 @@ from m3_core.paths import SELECTABLE_BACKENDS
 
 from .keys_embed import EMBED
 from .keys_files import FILES
+from .keys_search import SEARCH
 from .registry import Key, KeyClass, Registry, Scope, in_range, one_of, parse_int, parse_list, parse_path
 
 
@@ -131,7 +132,7 @@ SECRETS: list[Key] = [
     _secret("OPENCLAW_GATEWAY_TOKEN", "OpenClaw gateway token."),
 ]
 
-REGISTRY = Registry([*DB, *DB_POSTGRES, *PATHS, *EMBED, *FILES, SECRETS_FILE, *SECRETS])
+REGISTRY = Registry([*DB, *DB_POSTGRES, *PATHS, *EMBED, *FILES, *SEARCH, SECRETS_FILE, *SECRETS])
 
 # Env names m3 code reads that are deliberately NOT settings, with the reason.
 # The completeness test treats them as decided; only the user moves a name here.

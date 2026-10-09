@@ -435,6 +435,80 @@
         }
       }
     },
+    "memory": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fact_enriched": {
+          "type": "boolean",
+          "description": "Enrich writes with extracted facts.",
+          "default": true
+        },
+        "contradiction": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "threshold": {
+              "type": "number",
+              "description": "Similarity above which a write is checked for contradiction.",
+              "default": 0.92
+            },
+            "title_gate": {
+              "type": "string",
+              "description": "Title agreement a contradiction needs: strict, loose or off. (Today any other value acts as off; it is now an error.)",
+              "enum": [
+                "strict",
+                "loose",
+                "off"
+              ],
+              "default": "loose"
+            },
+            "type_exclusions": {
+              "type": "array",
+              "description": "Memory types never checked for contradiction.",
+              "items": {
+                "type": "string"
+              },
+              "default": [
+                "conversation"
+              ]
+            }
+          }
+        },
+        "corroboration": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Record corroborating writes instead of storing duplicates.",
+              "default": false
+            },
+            "threshold": {
+              "type": "number",
+              "description": "Similarity above which a write corroborates an existing memory.",
+              "default": 0.95
+            }
+          }
+        },
+        "dedup": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "description": "Memories one dedup pass compares.",
+              "default": 1000
+            },
+            "threshold": {
+              "type": "number",
+              "description": "Similarity above which two memories are duplicates.",
+              "default": 0.92
+            }
+          }
+        }
+      }
+    },
     "paths": {
       "type": "object",
       "additionalProperties": false,
@@ -462,6 +536,127 @@
         "models_root": {
           "type": "string",
           "description": "GGUF weights m3 owns. Default: <memory_root>/models, else ~/.m3/models."
+        }
+      }
+    },
+    "search": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bypass_surface_cap": {
+          "type": "integer",
+          "description": "Entity-bypass results surfaced (1-5000; today a larger value is clamped).",
+          "default": 300
+        },
+        "confidence_ranking": {
+          "type": "boolean",
+          "description": "Blend memory confidence into the score.",
+          "default": false
+        },
+        "confidence_weight": {
+          "type": "number",
+          "description": "Weight of confidence when search.confidence_ranking is on.",
+          "default": 0.1
+        },
+        "elbow_abs_threshold": {
+          "type": "number",
+          "description": "Score drop that counts as the elbow.",
+          "default": 0.05
+        },
+        "elbow_min_input": {
+          "type": "integer",
+          "description": "Fewest results before elbow truncation applies.",
+          "default": 20
+        },
+        "elbow_min_return": {
+          "type": "integer",
+          "description": "Fewest results elbow truncation keeps.",
+          "default": 8
+        },
+        "expansion_displacement_margin": {
+          "type": "number",
+          "description": "How far an expanded result must outscore one it displaces.",
+          "default": 2.0
+        },
+        "expansion_protected_ranks": {
+          "type": "integer",
+          "description": "Top ranks query expansion may not displace.",
+          "default": 3
+        },
+        "importance_weight": {
+          "type": "number",
+          "description": "Weight of a memory's importance in ranking.",
+          "default": 0.15
+        },
+        "intent_procedural_boost": {
+          "type": "number",
+          "description": "Boost for procedures on a procedural intent.",
+          "default": 0.2
+        },
+        "intent_routing": {
+          "type": "boolean",
+          "description": "Route searches by intent.",
+          "default": true
+        },
+        "intent_user_fact_boost": {
+          "type": "number",
+          "description": "Boost for user facts on a user-fact intent.",
+          "default": 0.2
+        },
+        "observation_budget_tokens": {
+          "type": "integer",
+          "description": "Tokens of observations a two-stage search returns.",
+          "default": 4000
+        },
+        "query_type_routing": {
+          "type": "boolean",
+          "description": "Route searches by query type.",
+          "default": true
+        },
+        "rerank_model": {
+          "type": "string",
+          "description": "Cross-encoder used to rerank.",
+          "default": "cross-encoder/ms-marco-MiniLM-L-6-v2"
+        },
+        "router_temporal_k_bump": {
+          "type": "integer",
+          "description": "Extra results a temporal query fetches.",
+          "default": 5
+        },
+        "row_cap": {
+          "type": "integer",
+          "description": "Candidate rows a search reads.",
+          "default": 5000
+        },
+        "short_turn_threshold": {
+          "type": "integer",
+          "description": "Turns shorter than this (characters) are down-weighted.",
+          "default": 20
+        },
+        "speaker_in_title": {
+          "type": "boolean",
+          "description": "Index the speaker in chat-turn titles.",
+          "default": true
+        },
+        "supersedes_penalty": {
+          "type": "number",
+          "description": "Multiplier for a superseded memory's score (1.0 = no penalty).",
+          "default": 0.5
+        },
+        "title_match_boost": {
+          "type": "number",
+          "description": "Score added when the query matches the title.",
+          "default": 0.15
+        },
+        "two_stage_max_turns_per_observation": {
+          "type": "integer",
+          "description": "Supporting turns kept per observation.",
+          "default": 3
+        },
+        "two_stage_turn_penalty": {
+          "type": "number",
+          "description": "Multiplier for raw turns in a two-stage search.",
+          "default": 0.7
         }
       }
     },

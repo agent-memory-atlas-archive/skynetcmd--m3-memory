@@ -124,6 +124,34 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `summary_model` | string | (none) | `M3_FILES_SUMMARY_MODEL` | restart to apply; Summary model. Default: the endpoint's discovered model. |
 | `summary_url` | string | (none) | `M3_FILES_SUMMARY_URL` | restart to apply; Summary endpoint. Default: M3_LMSTUDIO_URL; unset disables summaries. |
 
+## [memory]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `fact_enriched` | boolean | `true` | `M3_ENABLE_FACT_ENRICHED` | restart to apply; Enrich writes with extracted facts. |
+
+## [memory.contradiction]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `threshold` | number | `0.92` | `M3_CONTRADICTION_THRESHOLD`, `CONTRADICTION_THRESHOLD` | restart to apply; Similarity above which a write is checked for contradiction. |
+| `title_gate` | string | `loose` | `M3_CONTRADICTION_TITLE_GATE`, `CONTRADICTION_TITLE_GATE` | restart to apply; one of `strict`, `loose`, `off`; Title agreement a contradiction needs: strict, loose or off. (Today any other value acts as off; it is now an error.) |
+| `type_exclusions` | list of strings | `["conversation"]` | `M3_CONTRADICTION_TYPE_EXCLUSIONS`, `CONTRADICTION_TYPE_EXCLUSIONS` | restart to apply; Memory types never checked for contradiction. |
+
+## [memory.corroboration]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `enabled` | boolean | `false` | `M3_CORROBORATION` | restart to apply; Record corroborating writes instead of storing duplicates. |
+| `threshold` | number | `0.95` | `M3_CORROBORATION_THRESHOLD`, `CORROBORATION_THRESHOLD` | restart to apply; Similarity above which a write corroborates an existing memory. |
+
+## [memory.dedup]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `limit` | integer | `1000` | `M3_DEDUP_LIMIT`, `DEDUP_LIMIT` | restart to apply; Memories one dedup pass compares. |
+| `threshold` | number | `0.92` | `M3_DEDUP_THRESHOLD`, `DEDUP_THRESHOLD` | restart to apply; Similarity above which two memories are duplicates. |
+
 ## [paths]
 
 | Key | Type | Default | Environment names | Notes |
@@ -134,6 +162,34 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `logs_root` | path | (none) | `M3_LOGS_ROOT` | restart to apply; Scheduled-task and service logs. Default: <memory_root>/logs, else ~/.m3/logs. |
 | `memory_root` | path | (none) | `M3_MEMORY_ROOT` | restart to apply; Legacy master root: config, engine, logs and models derive from it when their own keys are unset. Removed at N+3 (CONFIG_DESIGN §9). |
 | `models_root` | path | (none) | `M3_MODELS_ROOT` | restart to apply; GGUF weights m3 owns. Default: <memory_root>/models, else ~/.m3/models. |
+
+## [search]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `bypass_surface_cap` | integer | `300` | `M3_BYPASS_SURFACE_CAP` | restart to apply; Entity-bypass results surfaced (1-5000; today a larger value is clamped). |
+| `confidence_ranking` | boolean | `false` | `M3_CONFIDENCE_RANKING` | restart to apply; Blend memory confidence into the score. |
+| `confidence_weight` | number | `0.1` | `M3_CONFIDENCE_WEIGHT` | restart to apply; Weight of confidence when search.confidence_ranking is on. |
+| `elbow_abs_threshold` | number | `0.05` | `M3_ELBOW_ABS_THRESHOLD` | restart to apply; Score drop that counts as the elbow. |
+| `elbow_min_input` | integer | `20` | `M3_ELBOW_MIN_INPUT` | restart to apply; Fewest results before elbow truncation applies. |
+| `elbow_min_return` | integer | `8` | `M3_ELBOW_MIN_RETURN` | restart to apply; Fewest results elbow truncation keeps. |
+| `expansion_displacement_margin` | number | `2.0` | `M3_EXPANSION_DISPLACEMENT_MARGIN` | restart to apply; How far an expanded result must outscore one it displaces. |
+| `expansion_protected_ranks` | integer | `3` | `M3_EXPANSION_PROTECTED_RANKS` | restart to apply; Top ranks query expansion may not displace. |
+| `importance_weight` | number | `0.15` | `M3_IMPORTANCE_WEIGHT`, `IMPORTANCE_WEIGHT` | restart to apply; Weight of a memory's importance in ranking. |
+| `intent_procedural_boost` | number | `0.2` | `M3_INTENT_PROCEDURAL_BOOST` | restart to apply; Boost for procedures on a procedural intent. |
+| `intent_routing` | boolean | `true` | `M3_INTENT_ROUTING` | restart to apply; Route searches by intent. |
+| `intent_user_fact_boost` | number | `0.2` | `M3_INTENT_USER_FACT_BOOST` | restart to apply; Boost for user facts on a user-fact intent. |
+| `observation_budget_tokens` | integer | `4000` | `M3_OBSERVATION_BUDGET_TOKENS` | restart to apply; Tokens of observations a two-stage search returns. |
+| `query_type_routing` | boolean | `true` | `M3_QUERY_TYPE_ROUTING` | restart to apply; Route searches by query type. |
+| `rerank_model` | string | `cross-encoder/ms-marco-MiniLM-L-6-v2` | `M3_RERANK_MODEL` | restart to apply; Cross-encoder used to rerank. |
+| `router_temporal_k_bump` | integer | `5` | `M3_ROUTER_TEMPORAL_K_BUMP` | restart to apply; Extra results a temporal query fetches. |
+| `row_cap` | integer | `5000` | `M3_SEARCH_ROW_CAP`, `SEARCH_ROW_CAP` | restart to apply; Candidate rows a search reads. |
+| `short_turn_threshold` | integer | `20` | `M3_SHORT_TURN_THRESHOLD`, `SHORT_TURN_THRESHOLD` | restart to apply; Turns shorter than this (characters) are down-weighted. |
+| `speaker_in_title` | boolean | `true` | `M3_SPEAKER_IN_TITLE`, `SPEAKER_IN_TITLE` | restart to apply; Index the speaker in chat-turn titles. |
+| `supersedes_penalty` | number | `0.5` | `M3_SUPERSEDES_PENALTY`, `SUPERSEDES_PENALTY` | restart to apply; Multiplier for a superseded memory's score (1.0 = no penalty). |
+| `title_match_boost` | number | `0.15` | `M3_TITLE_MATCH_BOOST`, `TITLE_MATCH_BOOST` | restart to apply; Score added when the query matches the title. |
+| `two_stage_max_turns_per_observation` | integer | `3` | `M3_TWO_STAGE_MAX_TURNS_PER_OBS` | restart to apply; Supporting turns kept per observation. |
+| `two_stage_turn_penalty` | number | `0.7` | `M3_TWO_STAGE_TURN_PENALTY` | restart to apply; Multiplier for raw turns in a two-stage search. |
 
 ## [secrets]
 
