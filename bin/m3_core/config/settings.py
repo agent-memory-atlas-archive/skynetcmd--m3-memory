@@ -156,6 +156,15 @@ def _reset_for_tests() -> None:
     _CACHE.reset()
 
 
+def _install_for_tests(settings: Settings) -> None:
+    """Make ``current()`` return exactly ``settings`` (no file check, no reload)
+    until the next reset. The settings test fixture's one entry point."""
+    with _CACHE._lock:
+        _CACHE._settings = settings
+        _CACHE._checked_at = float("inf")
+        _CACHE._last_error = None
+
+
 # Tests and the CLI may set the TTL; daemons use the default.
 def set_ttl_for_tests(ttl_s: float) -> None:
     _CACHE.ttl_s = ttl_s

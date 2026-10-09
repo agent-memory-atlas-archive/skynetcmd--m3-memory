@@ -290,6 +290,32 @@ def pg_url() -> str:
     return dsn
 
 
+@pytest.fixture
+def m3_settings():
+    """Set m3 configuration for one test, instead of monkeypatching env vars
+    (CONFIG_DESIGN §7). ``m3_settings({"search.row_cap": 10})`` installs a
+    snapshot built from registry defaults only (no process env, no file, no
+    .env), with those keys replaced, as what ``settings.current()`` returns; it
+    is validated like any value. Reset after the test (and per test by the
+    sandbox). Readers see it once 2D has moved them to the registry.
+    """
+    from m3_core.config import REGISTRY
+    from m3_core.config import settings as st
+    from m3_core.config.resolve import NO_DOTENV
+
+    def use(values=None):
+        snap = st.build(environ={}, dotenv=NO_DOTENV)
+        if values:
+            unknown = sorted(n for n in values if REGISTRY.get(n) is None)
+            assert not unknown, f"m3_settings: not registry keys: {unknown}"
+            snap = st.override(snap, {REGISTRY.get(n): v for n, v in values.items()})
+        st._install_for_tests(snap)
+        return snap
+
+    yield use
+    st._reset_for_tests()
+
+
 @pytest.fixture(params=["sqlite", pytest.param("postgres", marks=pytest.mark.requires_pg)])
 def each_backend(request, monkeypatch):
     """Run the test once per shipped backend; yields the active StorageBackend.
