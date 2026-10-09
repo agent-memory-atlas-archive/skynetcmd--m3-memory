@@ -343,13 +343,25 @@ def get_m3_config_root() -> str:
     """Returns the M3 configuration directory.
     Precedence: M3_CONFIG_ROOT > M3_MEMORY_ROOT/config > ~/.m3/config
     """
+    return config_root_with_tier()[0]
+
+
+# Which tier of the config-root precedence answered (CONFIG_DESIGN §9). The
+# loader reports it (`m3 config show --origin`) and warns on the legacy tier.
+CONFIG_ROOT_ENV = "env:M3_CONFIG_ROOT"
+CONFIG_ROOT_LEGACY = "legacy:M3_MEMORY_ROOT/config"
+CONFIG_ROOT_DEFAULT = "default:~/.m3/config"
+
+
+def config_root_with_tier() -> tuple[str, str]:
+    """(config root, tier): the one owner of the config-root precedence."""
     root = os.getenv("M3_CONFIG_ROOT")
     if root:
-        return _abs_root(root)
+        return _abs_root(root), CONFIG_ROOT_ENV
     m3_mem_root = os.getenv("M3_MEMORY_ROOT")
     if m3_mem_root:
-        return posixpath.join(_abs_root(m3_mem_root), "config")
-    return os.path.join(os.path.expanduser("~"), ".m3", "config")
+        return posixpath.join(_abs_root(m3_mem_root), "config"), CONFIG_ROOT_LEGACY
+    return os.path.join(os.path.expanduser("~"), ".m3", "config"), CONFIG_ROOT_DEFAULT
 
 
 def get_m3_engine_root() -> str:
