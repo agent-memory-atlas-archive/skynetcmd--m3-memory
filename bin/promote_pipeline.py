@@ -167,9 +167,11 @@ def main():
             b = batch_no * args.batch
             try:
                 verdicts = judge(batch)
+                if len(verdicts) != len(batch):
+                    raise ValueError(f"judge returned {len(verdicts)} verdicts for {len(batch)} items")
             except Exception as e:
                 print(f"  batch {b}: ERROR {e}"); continue
-            for it, v in zip(batch, verdicts):
+            for it, v in zip(batch, verdicts, strict=True):
                 if isinstance(v, dict) and v.get("verdict") == "PROMOTE" and v.get("fact"):
                     rec = {"source_id": it["id"], "signal": it["signal"],
                            "type": v.get("type", "fact"), "title": v.get("title", ""),

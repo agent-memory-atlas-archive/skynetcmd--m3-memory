@@ -100,7 +100,7 @@ def fetch_candidates_pg(
     colnames = [d[0] for d in cur.description]
     rows: list[dict] = []
     for raw in cur.fetchall():
-        row = dict(zip(colnames, raw))
+        row = dict(zip(colnames, raw, strict=True))
         # psycopg BYTEA -> memoryview; normalize to bytes for the Rust scorer.
         emb = row.get("embedding")
         if isinstance(emb, memoryview):

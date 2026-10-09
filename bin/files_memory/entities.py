@@ -247,7 +247,7 @@ def link_facts_to_entities(
         return
 
     # Write fact_entity_refs to files.db.
-    for fact_uuid, elist in zip(fact_uuids, entities_per_fact):
+    for fact_uuid, elist in zip(fact_uuids, entities_per_fact, strict=True):
         seen: set[str] = set()
         for n in elist:
             key = _normalize(n)

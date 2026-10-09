@@ -1712,7 +1712,7 @@ async def memory_write_batch_impl(items: list[dict]):
             embeddings = [None] * len(write_tasks)
 
         with _db() as db:
-            for (mid, text), result in zip(write_tasks, embeddings):
+            for (mid, text), result in zip(write_tasks, embeddings, strict=True):
                 # gather(return_exceptions=True) yields BaseException, not just
                 # Exception — widen the guard so the post-guard type narrows to
                 # the real (vec, meta) tuple (fixes mypy "not iterable").

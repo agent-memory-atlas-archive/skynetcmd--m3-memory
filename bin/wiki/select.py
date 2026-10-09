@@ -15,6 +15,7 @@ from __future__ import annotations
 import re
 import sqlite3
 from dataclasses import dataclass, field
+from itertools import pairwise
 
 # Memory types that are themselves distillations / curated references, so they
 # belong in the wiki regardless of importance.
@@ -448,7 +449,7 @@ def load_entity_comention_edges(conn: sqlite3.Connection, ids: set[str]) -> list
             continue
         # Connect the members into a chain (not a full clique) — a chain is enough
         # to place them in one connected component and keeps edge count linear.
-        for a, b in zip(members, members[1:]):
+        for a, b in pairwise(members):
             key = (a, b)
             if key in pair_seen:
                 continue

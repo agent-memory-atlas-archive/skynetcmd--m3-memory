@@ -461,7 +461,7 @@ def ingest_one_file(
                 except Exception as e:
                     logger.warning("embed batch failed for %s: %s", path, e)
                     vecs = [(None, "")] * len(embed_targets)
-                for (_, luuid, _, _), (vec, model) in zip(embed_targets, vecs):
+                for (_, luuid, _, _), (vec, model) in zip(embed_targets, vecs, strict=True):
                     if vec is not None:
                         write_leaf_embedding(conn, luuid, "text", vec, model)
                         embedded_count += 1
@@ -474,7 +474,7 @@ def ingest_one_file(
             if summary_pairs:
                 try:
                     sum_vecs = embed_texts([s for _, s in summary_pairs])
-                    for (luuid, _), (vec, model) in zip(summary_pairs, sum_vecs):
+                    for (luuid, _), (vec, model) in zip(summary_pairs, sum_vecs, strict=True):
                         if vec is not None:
                             write_leaf_embedding(conn, luuid, "summary", vec, model)
                 except Exception as e:

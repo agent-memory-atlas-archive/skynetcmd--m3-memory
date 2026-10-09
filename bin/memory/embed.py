@@ -514,7 +514,7 @@ def _accept_bulk(out, miss_indices, vecs, model: str, label: str) -> list[int]:
     if real and not _validate_identity(real, model, label):
         return list(range(len(vecs)))  # whole batch is not proper -> all miss
     still: list[int] = []
-    for j, (idx, vec) in enumerate(zip(miss_indices, vecs)):
+    for j, (idx, vec) in enumerate(zip(miss_indices, vecs, strict=True)):
         if vec is not None:
             out[idx] = (vec, model)
         else:
@@ -1662,7 +1662,7 @@ async def _embed_many_cloud_fallback(
         if vecs is not None and (not real or _validate_identity(
                 real, config.EMBED_MODEL, "tier4-cloud-bulk")):
             _cloud_served = 0
-            for idx, vec in zip(cloud_indices, vecs):
+            for idx, vec in zip(cloud_indices, vecs, strict=True):
                 if vec is not None:
                     out[idx] = (vec, config.EMBED_MODEL)
                     _cloud_served += 1
@@ -1704,7 +1704,7 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
         _rest_pos = [i for i in range(len(texts)) if i not in _over_idx]
         _out: list[tuple[list[float] | None, str] | None] = [None] * len(texts)
         if _rest:
-            for _pos, _row in zip(_rest_pos, await _embed_many(_rest)):
+            for _pos, _row in zip(_rest_pos, await _embed_many(_rest), strict=True):
                 _out[_pos] = _row
         _fallback_model = (
             _EMBED_GGUF_MODEL_TAG if _get_embedded_embedder() is not None
@@ -1757,7 +1757,7 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
 
     miss_indices: list[int] = []
     miss_texts: list[str] = []
-    for i, (t, h) in enumerate(zip(texts, hashes)):
+    for i, (t, h) in enumerate(zip(texts, hashes, strict=True)):
         hit = cached_vecs.get(h)
         if hit is not None:
             out[i] = hit
@@ -1794,7 +1794,7 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
             if isinstance(e, ContextLengthExceeded) or _DENSE_ERR_RE.search(str(e)):
                 resolved = await _embedded_bulk_with_subdivide(embedded, miss_texts)
                 still_missing_local = []
-                for j, (idx, vec) in enumerate(zip(miss_indices, resolved)):
+                for j, (idx, vec) in enumerate(zip(miss_indices, resolved, strict=True)):
                     if vec is not None:
                         out[idx] = (vec, _EMBED_GGUF_MODEL_TAG)
                     else:
@@ -2054,7 +2054,7 @@ async def prime_entity_name_cache(names: list[str]) -> int:
         return 0
     results = await _embed_many(todo)
     newly = 0
-    for name, (vec, _model) in zip(todo, results):
+    for name, (vec, _model) in zip(todo, results, strict=True):
         if vec is None:
             continue
         if len(_ENTITY_NAME_EMBED_CACHE) >= ENTITY_NAME_EMBED_CACHE_MAX:

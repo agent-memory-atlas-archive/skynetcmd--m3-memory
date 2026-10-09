@@ -233,7 +233,7 @@ def compare(current: dict, baseline: dict) -> tuple[bool, list[str]]:
     cur_results = current["results"]
     base_results = baseline["results"]
 
-    for i, (c, b) in enumerate(zip(cur_results, base_results)):
+    for i, (c, b) in enumerate(zip(cur_results, base_results, strict=False)):  # strict=False: a count mismatch is reported above; compare the common prefix
         for variant in ("scored_default", "scored_max", "routed"):
             c_fp = c.get(variant, {})
             b_fp = b.get(variant, {})

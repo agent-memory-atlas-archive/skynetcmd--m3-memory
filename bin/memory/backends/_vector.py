@@ -39,7 +39,7 @@ def score_and_rank(
     # bytes-like. memoryview is bytes-like already; normalize just in case.
     blobs = [bytes(b) if isinstance(b, memoryview) else b for b in blobs]
     scores = _cosine_batch_packed(query_vector, blobs, dim)
-    hits = [VectorHit(memory_id=i, score=float(s)) for i, s in zip(ids, scores)]
+    hits = [VectorHit(memory_id=i, score=float(s)) for i, s in zip(ids, scores, strict=True)]
     # Highest cosine first; stable so equal scores keep candidate order.
     hits.sort(key=lambda h: h.score, reverse=True)
     return hits[:limit]

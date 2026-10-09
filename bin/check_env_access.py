@@ -170,14 +170,14 @@ class _Scanner(ast.NodeVisitor):
 
     @override
     def visit_Compare(self, node: ast.Compare) -> None:
-        for op, right in zip(node.ops, node.comparators):
+        for op, right in zip(node.ops, node.comparators, strict=True):
             if isinstance(op, (ast.In, ast.NotIn)) and self._is_environ(right):
                 self._add(node, "read", "NAME in os.environ", self._name_of(node.left))
         self.generic_visit(node)
 
     @override
     def visit_Dict(self, node: ast.Dict) -> None:
-        for k, v in zip(node.keys, node.values):
+        for k, v in zip(node.keys, node.values, strict=True):
             if k is None and self._is_environ(v):  # {**os.environ}
                 self._add(node, "copy", "{**os.environ}", "*")
         self.generic_visit(node)

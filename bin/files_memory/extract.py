@@ -473,7 +473,7 @@ def write_extraction_result(
         try:
             _fe = files_table('fact_embeddings')
             vecs = embed_texts(fact_texts)
-            for fuuid, (vec, model) in zip(fact_uuids, vecs):
+            for fuuid, (vec, model) in zip(fact_uuids, vecs, strict=True):
                 if vec is not None:
                     conn.execute(
                         f"INSERT INTO {_fe}"

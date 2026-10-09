@@ -145,7 +145,7 @@ def batch_cosine(query, matrix):
             norms = m_norms * q_norm
             norms = _np.where(norms == 0, 1e-10, norms)
             subset_scores = (m @ q / norms).tolist()
-            for i, score in zip(valid_indices, subset_scores):
+            for i, score in zip(valid_indices, subset_scores, strict=True):
                 results[i] = score
             return results
         except Exception as exc:

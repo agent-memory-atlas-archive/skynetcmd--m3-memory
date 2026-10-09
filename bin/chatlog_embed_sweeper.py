@@ -394,7 +394,7 @@ async def embed_batch(
     if not dry_run:
         try:
             rows_to_insert = []
-            for (mem_id, _, _, _), (vec, model_str) in zip(batch, embeddings):
+            for (mem_id, _, _, _), (vec, model_str) in zip(batch, embeddings, strict=True):
                 if vec is not None:
                     packed = _pack(vec)
                     embed_id = str(uuid.uuid4())

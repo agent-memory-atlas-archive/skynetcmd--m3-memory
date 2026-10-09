@@ -237,7 +237,7 @@ def _vec_query(conn: sqlite3.Connection, query: str, limit: int,
     # psycopg returns BYTEA as memoryview; normalize to bytes like the seam does.
     blobs = [bytes(b) if isinstance(b, memoryview) else b for _, b in pairs]
     scores = _cosine_batch_packed(qvec, blobs, len(qvec))
-    scored = list(zip(uuids, (float(s) for s in scores)))
+    scored = list(zip(uuids, (float(s) for s in scores), strict=True))
     scored.sort(key=lambda x: -x[1])
     return scored[:limit]
 

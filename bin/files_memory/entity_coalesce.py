@@ -129,7 +129,7 @@ def _numeric_suffix_collision(a: str, b: str) -> bool:
     ta, tb = _TOK_RE.findall(a.lower()), _TOK_RE.findall(b.lower())
     if ta == tb or len(ta) != len(tb):
         return False
-    diffs = [(x, y) for x, y in zip(ta, tb) if x != y]
+    diffs = [(x, y) for x, y in zip(ta, tb, strict=True) if x != y]
     if not diffs:
         return False
     # Every differing position must involve a numeric token on at least one side
@@ -309,7 +309,7 @@ def _prime_embeddings(mem, items, dry_run, _d):
         f"VALUES ({_d.placeholder(6)}) "
         f"{_d.on_conflict_update('(entity_id)', ['name_hash', 'embedding', 'dim', 'model', 'created_at'])}"
     )
-    for (eid, name, nh), (vec, model) in zip(need_ids, results):
+    for (eid, name, nh), (vec, model) in zip(need_ids, results, strict=True):
         if vec is None:
             continue
         model_seen = model

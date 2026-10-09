@@ -346,10 +346,10 @@ def _apply_rerank(
         return pool[:final_k]
     ce_scores = reranker.predict(pairs, show_progress_bar=False)
     pool_ce: list = [0.0] * len(pool)
-    for idx, ce in zip(pair_indices, ce_scores):
+    for idx, ce in zip(pair_indices, ce_scores, strict=True):
         pool_ce[idx] = float(ce)
     blended: list = []
-    for (hybrid_score, item), ce in zip(pool, pool_ce):
+    for (hybrid_score, item), ce in zip(pool, pool_ce, strict=True):
         new_score = blend * ce + (1.0 - blend) * hybrid_score
         blended.append((new_score, item))
     blended.sort(key=lambda t: t[0], reverse=True)
@@ -1335,7 +1335,7 @@ async def memory_search_scored_impl(
 
     # ── Candidate Assembly & Ranking (Tier-A Oxidation) ───────────────────
     if not explain and m3_core_rs is not None and mmr and len(rows) > k:
-        relevance = [float(s + b + c + p) for s, b, c, p in zip(final_scores, role_boosts, confidence_boosts, procedure_boosts)]
+        relevance = [float(s + b + c + p) for s, b, c, p in zip(final_scores, role_boosts, confidence_boosts, procedure_boosts, strict=True)]
         contents = [(r["content"] or "") for r in rows]
         _bytes_per_row = EMBED_DIM * 4
         if all(isinstance(b, (bytes, bytearray)) and len(b) == _bytes_per_row for b in page_blobs):
@@ -2473,7 +2473,7 @@ async def memory_search_multi_db_impl(
     per_db = await asyncio.gather(*[_one(p) for p in resolved], return_exceptions=True)
 
     merged: list[tuple[float, dict]] = []
-    for path, result in zip(resolved, per_db):
+    for path, result in zip(resolved, per_db, strict=True):
         if isinstance(result, BaseException):
             logger.warning(
                 f"memory_search_multi_db_impl: search failed for {path}: "

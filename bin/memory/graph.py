@@ -417,7 +417,7 @@ async def _score_extra_rows(query: str, rows_by_id: dict, base_score: float = 0.
     fetched_ids: list = [er["memory_id"] for er in emb_rows]
     fetched_blobs: list = [er["embedding"] for er in emb_rows]
     fetched_scores = _cosine_batch_packed(qvec, fetched_blobs, EMBED_DIM) if fetched_blobs else []
-    score_by_id: dict = dict(zip(fetched_ids, fetched_scores))
+    score_by_id: dict = dict(zip(fetched_ids, fetched_scores, strict=True))
     for rid, item in rows_by_id.items():
         s = score_by_id.get(rid)
         if s is None:

@@ -1349,7 +1349,7 @@ class PostgresBackend:
         colnames = [d[0] for d in cur.description]
         out = []
         for raw in cur.fetchall():
-            row = dict(zip(colnames, raw))
+            row = dict(zip(colnames, raw, strict=True))
             row.pop("_rank", None)
             meta = row.get("metadata_json")
             if meta is not None and not isinstance(meta, str):

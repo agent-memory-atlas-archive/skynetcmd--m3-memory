@@ -51,7 +51,7 @@ N_LONG = 5  # rows above MAX_CHARS_PER_CHUNK — will exercise chunking
 
 
 def cosine(a, b):
-    dot = sum(x * y for x, y in zip(a, b))
+    dot = sum(x * y for x, y in zip(a, b, strict=True))
     na = math.sqrt(sum(x * x for x in a))
     nb = math.sqrt(sum(x * x for x in b))
     if na == 0 or nb == 0:

@@ -49,7 +49,7 @@ def _seed(conn, mid, *, importance=0.9, confidence=0.9, created_days_ago=30,
         vals.append(pinned)
     placeholders = []
     params = []
-    for c, v in zip(cols, vals):
+    for c, v in zip(cols, vals, strict=True):
         if c == "created_at":
             placeholders.append(v)  # raw SQL expr, not a param
         else:

@@ -208,7 +208,7 @@ class Memory(M3ExtrasMixin):
                 for m in msgs
             ]
             ids = self._bulk_write(items)
-            for m, mid in zip(msgs, ids):
+            for m, mid in zip(msgs, ids, strict=True):
                 text = _msg_text(m)
                 results.append({"id": mid, "memory": text, "metadata": metadata or {}})
 

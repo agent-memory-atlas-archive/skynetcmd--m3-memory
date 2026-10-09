@@ -24,6 +24,8 @@ import unittest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "bin"))
 
+from itertools import pairwise
+
 from files_memory.chunkers import Leaf, _enforce_leaf_token_cap  # noqa: E402
 from files_memory.config import FILES_MAX_LEAF_TOKENS  # noqa: E402
 from memory.tokens import estimate_tokens  # noqa: E402
@@ -71,7 +73,7 @@ class TestLeafTokenCap(unittest.TestCase):
         text = "abcdefghij" * 3000
         out = list(_enforce_leaf_token_cap(_leaf(text)))
         self.assertGreater(len(out), 1)
-        for prev, curr in zip(out, out[1:]):
+        for prev, curr in pairwise(out):
             self.assertEqual(prev.char_range_end, curr.char_range_start)
         self.assertEqual(out[0].char_range_start, 0)
         self.assertEqual(out[-1].char_range_end, len(text))

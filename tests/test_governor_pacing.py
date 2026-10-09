@@ -89,7 +89,7 @@ def test_native_matches_python_fallback():
     native_sdk = _load_sdk(disable_rust=False)
     native_results = [_pacing(native_sdk, load, elapsed) for load, elapsed in _PROBES]
 
-    for (load, elapsed), py, native in zip(_PROBES, py_results, native_results):
+    for (load, elapsed), py, native in zip(_PROBES, py_results, native_results, strict=True):
         assert py == native, f"divergence at load={load}, elapsed={elapsed}: py={py} native={native}"
 
 

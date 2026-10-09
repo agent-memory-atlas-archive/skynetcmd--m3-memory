@@ -787,7 +787,7 @@ def _inference_block_uncached() -> dict:
 
     out["chain"] = chain
     # Endpoints carry the merged listing+smoke view for the per-endpoint display.
-    for p, hop in zip(probes, chain):
+    for p, hop in zip(probes, chain, strict=False):  # strict=False: the chain stops at the first usable hop
         p["smoke_status"] = hop["status"]
         p["smoke_detail"] = hop["detail"]
         p["serves"] = hop["ok"]

@@ -176,7 +176,7 @@ def test_cosine_batch_homogeneous(dim, n, seed):
     rust = m3_core_rs.cosine_batch(query, corpus)
     py = py_batch_cosine(query, corpus)
     assert len(rust) == len(py) == n
-    for r, p in zip(rust, py):
+    for r, p in zip(rust, py, strict=True):
         assert abs(r - p) < TOL
 
 
@@ -317,7 +317,7 @@ def test_parity_summary():
     # cosine_batch
     rb = m3_core_rs.cosine_batch(query, corpus)
     pb = py_batch_cosine(query, corpus)
-    assert all(abs(r - p) < TOL for r, p in zip(rb, pb))
+    assert all(abs(r - p) < TOL for r, p in zip(rb, pb, strict=True))
 
     # mmr
     assert list(m3_core_rs.mmr_rerank(query, corpus, _MMR_LAMBDA, 4)) == \
@@ -496,7 +496,7 @@ def _rows_eq(a, b):
         return False
     return all(
         abs(sa - sb) < TOL and ea == eb
-        for (sa, ea), (sb, eb) in zip(a, b)
+        for (sa, ea), (sb, eb) in zip(a, b, strict=True)
     )
 
 

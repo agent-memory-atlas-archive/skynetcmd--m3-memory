@@ -279,7 +279,7 @@ def compare(current: dict, baseline: dict) -> tuple[bool, list[str]]:
     cur_results = current["results"]
     base_results = baseline["results"]
 
-    for i, (c, b) in enumerate(zip(cur_results, base_results)):
+    for i, (c, b) in enumerate(zip(cur_results, base_results, strict=False)):  # strict=False: a count mismatch is reported above; compare the common prefix
         if c.get("id") != b.get("id"):
             drift.append(
                 f"  [{i:>2}] ENTITY ID MISMATCH — current={c.get('id')} "

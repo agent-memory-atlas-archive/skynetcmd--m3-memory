@@ -322,7 +322,7 @@ async def _process_batch(
     counters: dict,
 ) -> None:
     """Hand each row to memory_core's writer with a passthrough extractor."""
-    for (mid, text), spans in zip(rows, spans_per_row):
+    for (mid, text), spans in zip(rows, spans_per_row, strict=True):
         extractor_out = _spans_to_extractor_dict(spans)
         n_ents = len(extractor_out["entities"])
         counters["processed"] += 1

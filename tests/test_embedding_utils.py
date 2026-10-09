@@ -16,7 +16,7 @@ def test_pack_unpack():
     unpacked = embedding_utils.unpack(packed)
 
     assert len(unpacked) == len(vec)
-    for a, b in zip(vec, unpacked):
+    for a, b in zip(vec, unpacked, strict=True):
         assert pytest.approx(a) == b
 
 def test_cosine_similarity():

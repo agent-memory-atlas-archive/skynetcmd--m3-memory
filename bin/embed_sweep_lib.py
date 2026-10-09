@@ -320,7 +320,7 @@ async def run_embed_loop(
             return False
 
         n_written = 0
-        for it, (vec, model_str) in zip(items, results):
+        for it, (vec, model_str) in zip(items, results, strict=True):
             if vec is None:
                 continue
             if expected_dim is not None and len(vec) != expected_dim:
