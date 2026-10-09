@@ -1,8 +1,8 @@
 ---
 tool: bin/config_parity.py
-sha1: 189e7356372b
-mtime_utc: 2026-10-09T00:59:13.709139+00:00
-generated_utc: 2026-10-09T00:59:20.307182+00:00
+sha1: e52964ff9ed3
+mtime_utc: 2026-10-09T01:02:54.244277+00:00
+generated_utc: 2026-10-09T01:03:40.995716+00:00
 private: false
 ---
 
@@ -29,7 +29,10 @@ SECRETS never reach the file. A secret-named key, or any value carrying URL
 credentials, is recorded as HMAC-SHA256(value) under a random per-machine key
 kept in the OS keyring and never exported, so the snapshot still catches a
 corrupted DSN or token, but only on the machine that took it (#P10; a keyed
-HMAC, not the unsalted hash CWE-759 warns about).
+HMAC, not the unsalted hash CWE-759 warns about). On a machine with NO keyring
+backend (a desktop-less Linux box) the key is a user-only file under the
+config root instead (user decision 2026-10-08); a keyring that exists but is
+locked is an error, never a fallback.
 
 FAIL LOUD (DESIGN_PHILOSOPHIES §3): ``check`` fails when the baseline or the
 HMAC key is missing. It never writes a baseline it did not find; that
@@ -46,7 +49,7 @@ Exit: 0 = ok / no drift; 1 = drift; 2 = cannot check (missing key or baseline).
 
 ## Entry points
 
-- `def main()` (line 270)
+- `def main()` (line 317)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -84,6 +87,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `hmac`
 - `importlib`
 - `keyring`
+- `keyring.errors`
 - `m3_core.atomic_io (atomic_write)`
 - `m3_core.context (M3Context)`
 - `m3_core.paths (get_m3_config_root)`

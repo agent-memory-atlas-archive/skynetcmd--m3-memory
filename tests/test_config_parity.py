@@ -41,10 +41,61 @@ def test_missing_key_cannot_capture_or_check(cp, tmp_path):
 
 
 def test_init_key_never_overwrites(cp):
-    assert cp.init_key() is True
+    assert cp.init_key() == "keyring"
     first = dict(cp.fake_keyring.store)
-    assert cp.init_key() is False
+    assert cp.init_key() is None
     assert cp.fake_keyring.store == first
+
+
+class _NoKeyring:
+    def get_password(self, *a):
+        import keyring.errors
+        raise keyring.errors.NoKeyringError("no backend")
+
+    set_password = get_password
+
+
+class _LockedKeyring:
+    def get_password(self, *a):
+        import keyring.errors
+        raise keyring.errors.KeyringError("keychain locked")
+
+    set_password = get_password
+
+
+def test_no_keyring_backend_uses_a_user_only_file(monkeypatch, tmp_path):
+    import os
+    import stat
+
+    import config_parity as cp
+
+    monkeypatch.setattr(cp, "_keyring", lambda: _NoKeyring())
+    where = cp.init_key()
+    assert where is not None and where.endswith(".hmac_key")
+    if os.name == "posix":
+        assert stat.S_IMODE(os.stat(where).st_mode) == 0o600
+    assert cp.init_key() is None  # never overwrites
+    snap = tmp_path / "s.json"
+    assert cp.main(["capture", "--context", "t", "--path", str(snap)]) == 0
+    assert cp.main(["check", "--context", "t", "--path", str(snap)]) == 0
+
+
+def test_locked_keyring_is_an_error_not_a_fallback(monkeypatch, tmp_path):
+    import config_parity as cp
+
+    monkeypatch.setattr(cp, "_keyring", lambda: _LockedKeyring())
+    assert cp.main(["init-key"]) == 2
+    assert not cp._key_file().exists(), "a locked keyring must not fall back to a file"
+
+
+@pytest.mark.skipif(__import__("os").name != "posix", reason="POSIX mode bits")
+def test_group_readable_key_file_is_refused(monkeypatch):
+    import config_parity as cp
+
+    monkeypatch.setattr(cp, "_keyring", lambda: _NoKeyring())
+    p = cp.init_key()
+    __import__("os").chmod(p, 0o644)
+    assert cp.main(["capture", "--context", "t", "--path", p + ".snap"]) == 2
 
 
 def test_missing_baseline_is_not_a_pass(cp, tmp_path):

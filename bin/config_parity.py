@@ -18,7 +18,10 @@ SECRETS never reach the file. A secret-named key, or any value carrying URL
 credentials, is recorded as HMAC-SHA256(value) under a random per-machine key
 kept in the OS keyring and never exported, so the snapshot still catches a
 corrupted DSN or token, but only on the machine that took it (#P10; a keyed
-HMAC, not the unsalted hash CWE-759 warns about).
+HMAC, not the unsalted hash CWE-759 warns about). On a machine with NO keyring
+backend (a desktop-less Linux box) the key is a user-only file under the
+config root instead (user decision 2026-10-08); a keyring that exists but is
+locked is an error, never a fallback.
 
 FAIL LOUD (DESIGN_PHILOSOPHIES §3): ``check`` fails when the baseline or the
 HMAC key is missing. It never writes a baseline it did not find; that
@@ -81,23 +84,67 @@ def _keyring():
     return keyring
 
 
+def _key_file() -> Path:
+    from m3_core.paths import get_m3_config_root
+    return Path(get_m3_config_root()) / "parity" / ".hmac_key"
+
+
+def _keyring_get() -> tuple[bool, str | None]:
+    """(keyring available, stored value). ONLY 'no keyring backend at all'
+    (claude-dev: fail.Keyring everywhere) counts as unavailable. A keyring that
+    exists but refuses (a locked macOS login keychain over SSH) is an error, not
+    a reason to fall back: falling back would give one machine two keys."""
+    import keyring.errors
+
+    try:
+        return True, _keyring().get_password(KEYRING_SERVICE, KEYRING_USER)
+    except keyring.errors.NoKeyringError:
+        return False, None
+    except keyring.errors.KeyringError as e:
+        raise ParityError(f"the keyring exists but refused access ({type(e).__name__}: {e}); on macOS over "
+                          f"SSH the login keychain is locked, so run this in a logged-in session") from e
+
+
+def _read_key_file(p: Path) -> str | None:
+    if not p.is_file():
+        return None
+    if os.name == "posix":
+        mode = p.stat().st_mode & 0o777
+        if mode & 0o077 or p.stat().st_uid != os.getuid():
+            raise ParityError(f"{p} is mode {oct(mode)} (or not yours); the key must be user-only. "
+                              f"Fix with: chmod 600 {p}")
+    return p.read_text(encoding="utf-8").strip()
+
+
 def get_key() -> bytes:
-    raw = _keyring().get_password(KEYRING_SERVICE, KEYRING_USER)
+    available, raw = _keyring_get()
+    if not available:
+        raw = _read_key_file(_key_file())
     if not raw:
+        where = f"the keyring ({KEYRING_SERVICE}/{KEYRING_USER})" if available else str(_key_file())
         raise ParityError(
-            f"no parity HMAC key in the keyring ({KEYRING_SERVICE}/{KEYRING_USER}). "
-            f"Create it once on this machine with `config_parity.py init-key`; a "
-            f"snapshot taken with a different key cannot be compared.")
+            f"no parity HMAC key in {where}. Create it once on this machine with "
+            f"`config_parity.py init-key`; a snapshot taken with a different key cannot be compared.")
     return bytes.fromhex(raw)
 
 
-def init_key() -> bool:
-    """Create the key if absent. Returns True when created. Never overwrites."""
-    kr = _keyring()
-    if kr.get_password(KEYRING_SERVICE, KEYRING_USER):
-        return False
-    kr.set_password(KEYRING_SERVICE, KEYRING_USER, secrets.token_hex(32))
-    return True
+def init_key() -> str | None:
+    """Create the key if absent; return where it was stored ('keyring' or the
+    file path), or None when a key already exists. Never overwrites."""
+    available, existing = _keyring_get()
+    if available:
+        if existing:
+            return None
+        _keyring().set_password(KEYRING_SERVICE, KEYRING_USER, secrets.token_hex(32))
+        return "keyring"
+    p = _key_file()
+    if _read_key_file(p):
+        return None
+    from m3_core.atomic_io import atomic_write  # a new file is created 0600 (user-only)
+
+    p.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write(p, secrets.token_hex(32) + "\n")
+    return str(p)
 
 
 # ── value recording ───────────────────────────────────────────────────────────
@@ -280,7 +327,8 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     try:
         if args.cmd == "init-key":
-            print("created" if init_key() else "a key already exists; left unchanged")
+            where = init_key()
+            print(f"created in {where}" if where else "a key already exists; left unchanged")
             return 0
         path = Path(args.path) if args.path else _default_path(args.context)
         if args.cmd == "capture":
