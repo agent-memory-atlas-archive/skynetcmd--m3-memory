@@ -1069,7 +1069,7 @@ async def _main_async(args: argparse.Namespace) -> int:
 
     if not args.yes:
         try:
-            ans = input("Proceed? [y/N] ").strip().lower()
+            ans = input("Proceed? [y/N] ").strip().lower()  # noqa: ASYNC250 — confirmation before any work starts
         except EOFError:
             ans = ""
         if ans not in ("y", "yes"):

@@ -510,7 +510,7 @@ async def run(args) -> int:
     if args.dry_run:
         print("Dry-run mode — no writes will be performed.")
     elif not args.yes:
-        ans = input(f"Migrate {len(deduped)} item(s) into m3-memory? [y/N]: ").strip().lower()
+        ans = input(f"Migrate {len(deduped)} item(s) into m3-memory? [y/N]: ").strip().lower()  # noqa: ASYNC250 — confirmation before any work starts
         if ans not in ("y", "yes"):
             print("Aborted.")
             return 0

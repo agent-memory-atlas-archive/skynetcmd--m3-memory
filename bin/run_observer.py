@@ -660,7 +660,7 @@ async def drain_variant_mode(args, profile, token: str) -> None:
 
     qid_filter: list[str] = []
     if args.qids_file:
-        with open(args.qids_file, encoding="utf-8") as f:
+        with open(args.qids_file, encoding="utf-8") as f:  # noqa: ASYNC230 — startup, before any task is scheduled
             data = json.load(f)
         qid_filter = [d["question_id"] for d in data if "question_id" in d]
         print(f"[observer] scoped to {len(qid_filter)} qids from {args.qids_file}", flush=True)

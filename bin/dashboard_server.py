@@ -46,6 +46,7 @@ you intend to launch the server with (typically ``.venv``).
 
 from __future__ import annotations
 
+import asyncio
 import html
 import json
 import os
@@ -2833,7 +2834,7 @@ async def trigger_maintenance_task(action: str):
 
     # Truncate and prep new log file
     try:
-        with open(log_path, "w", encoding="utf-8") as f:
+        with open(log_path, "w", encoding="utf-8") as f:  # noqa: ASYNC230 — three header lines, once per task start
             f.write(f"[System] Starting {action}...\n")
             f.write(f"[System] Expected wait time: {expected_wait}\n")
             f.write(f"[System] Command: {' '.join(cmd)}\n\n")
@@ -2841,7 +2842,7 @@ async def trigger_maintenance_task(action: str):
         return HTMLResponse(content=f"[Error] Failed to initialize log: {str(e)}", status_code=500)
 
     # Open log file in append mode for child process redirection
-    log_file_handle = open(log_path, "a", encoding="utf-8", errors="replace")  # noqa: SIM115 — the child's stdout; closed when the task ends
+    log_file_handle = open(log_path, "a", encoding="utf-8", errors="replace")  # noqa: SIM115, ASYNC230 — the child's stdout; closed when the task ends
 
     env = os.environ.copy()
     env["PYTHONUTF8"] = "1"
@@ -2855,7 +2856,7 @@ async def trigger_maintenance_task(action: str):
         # Spawn child process in the background. no_window_kwargs() suppresses a
         # console window on Windows (the maintenance task would otherwise flash one).
         from _task_runtime import no_window_kwargs
-        proc = subprocess.Popen(
+        proc = subprocess.Popen(  # noqa: ASYNC220 — spawns and returns; the task runs detached
             cmd,
             env=env,
             stdout=log_file_handle,
@@ -2880,6 +2881,11 @@ async def trigger_maintenance_task(action: str):
         except Exception:
             pass
         return HTMLResponse(content=f"[Error] Failed to spawn process: {str(e)}", status_code=500)
+
+
+def _read_log(path: str) -> str:
+    with open(path, encoding="utf-8", errors="replace") as f:
+        return f.read()
 
 
 @app.get("/api/maintenance/status")
@@ -2909,8 +2915,9 @@ async def get_maintenance_status():
     logs = ""
     if log_path and os.path.exists(log_path):
         try:
-            with open(log_path, encoding="utf-8", errors="replace") as f:
-                logs = f.read()
+            # A worker thread: the log grows for the whole task and is re-read
+            # on every poll, which would stall the server's event loop.
+            logs = await asyncio.to_thread(_read_log, log_path)
         except Exception as e:
             logs = f"Error reading live logs: {str(e)}"
 

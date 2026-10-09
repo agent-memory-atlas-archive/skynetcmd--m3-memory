@@ -128,7 +128,7 @@ async def _launch_worker_with_offset(
         _flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) | getattr(
             subprocess, "CREATE_NO_WINDOW", 0
         )
-    p = subprocess.Popen(
+    p = subprocess.Popen(  # noqa: ASYNC220 — spawns and returns; the worker runs as its own process
         cmd, stdout=log_f, stderr=subprocess.STDOUT,
         cwd=str(REPO_ROOT),
         creationflags=_flags,

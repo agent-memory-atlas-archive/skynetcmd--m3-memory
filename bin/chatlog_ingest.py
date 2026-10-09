@@ -815,7 +815,7 @@ async def _ingest(format_name: str, transcript_path: str,
             return {"written": 0, "skipped": 0, "failed": 0,
                     "error": f"transcript not found: {transcript_path}"}
         try:
-            with open(transcript_path, encoding="utf-8") as f:
+            with open(transcript_path, encoding="utf-8") as f:  # noqa: ASYNC230 — one-shot CLI; nothing else on its loop
                 raw = f.read()
         except OSError as e:
             logger.error(f"Failed to read {transcript_path}: {e}")

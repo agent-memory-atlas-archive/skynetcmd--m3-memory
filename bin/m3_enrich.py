@@ -857,7 +857,7 @@ async def _main_async(args) -> int:
     print()
     if not args.yes:
         try:
-            ans = input("Proceed? [y/N] ").strip().lower()
+            ans = input("Proceed? [y/N] ").strip().lower()  # noqa: ASYNC250 — confirmation before any work starts
         except EOFError:
             ans = ""
         if ans not in ("y", "yes"):
@@ -1006,7 +1006,7 @@ async def _main_async(args) -> int:
             # a bare python.exe child would flash a console window. getattr keeps
             # the reference valid on non-Windows (0 = default, no-op).
             _nw_flags = getattr(_sp, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
-            _sp.run(cmd, check=False, creationflags=_nw_flags)
+            _sp.run(cmd, check=False, creationflags=_nw_flags)  # noqa: ASYNC221 — the report runs after all enrichment work has finished
         except Exception as e:
             print(f"[m3-enrich] (report generation failed: {type(e).__name__}: {e})", flush=True)
     return 0

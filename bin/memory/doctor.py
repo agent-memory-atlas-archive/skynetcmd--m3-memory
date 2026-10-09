@@ -528,7 +528,10 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
                     _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
                     "migrate_memory.py"
                 )
-                result = subprocess.run(
+                # On a worker thread: this runs inside the MCP server's event
+                # loop, and up to 300s of migration would stall every other call.
+                result = await asyncio.to_thread(
+                    subprocess.run,
                     [sys.executable, mig_script, "up", "--yes"],
                     env=env,
                     capture_output=True,
@@ -655,7 +658,8 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
                     env["PYTHONPATH"] = _os.pathsep.join(
                         p for p in ([env.get("PYTHONPATH", "")] + sys.path) if p
                     )
-                    result = subprocess.run(
+                    result = await asyncio.to_thread(
+                        subprocess.run,
                         [sys.executable, bf_script, "--db", str(_store), "--limit", "500"],
                         env=env,
                         capture_output=True,

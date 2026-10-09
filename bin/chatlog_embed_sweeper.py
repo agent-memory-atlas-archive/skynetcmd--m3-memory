@@ -212,7 +212,7 @@ async def drain_spill(conn=None) -> int:
             # Group rows by their captured target DB. Legacy spills (no
             # _db_path) land on the sweeper's connection under the None key.
             per_db: dict = {}
-            with open(spill_path, encoding="utf-8") as f:
+            with open(spill_path, encoding="utf-8") as f:  # noqa: ASYNC230 — callers in a live loop run this on a worker thread (m3_cognitive_loop)
                 for line in f:
                     line = line.strip()
                     if not line:

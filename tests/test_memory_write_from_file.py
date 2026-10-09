@@ -244,3 +244,34 @@ def test_file_too_large_rejected_before_read(isolated_db):
     finally:
         if os.path.exists(path):
             os.unlink(path)
+
+
+def test_file_is_read_off_the_event_loop_thread(isolated_db, monkeypatch):
+    """The MCP server runs this on its event loop; disk I/O there stalls every
+    other call. The read must happen on a worker thread."""
+    import threading
+
+    import memory.write as write_mod
+    from memory_core import memory_write_from_file_impl
+
+    real = write_mod._read_memory_file
+    seen: list[int] = []
+
+    def spy(p):
+        seen.append(threading.get_ident())
+        return real(p)
+
+    monkeypatch.setattr(write_mod, "_read_memory_file", spy)
+    path = _make_tempfile("thread check body")
+
+    async def run():
+        return threading.get_ident(), await memory_write_from_file_impl(
+            path=path, type="note", title="thread", embed=False)
+
+    try:
+        loop_thread, out = asyncio.run(run())
+        assert out.startswith("Created:"), out
+        assert seen and seen[0] != loop_thread, "file was read on the event loop thread"
+    finally:
+        if os.path.exists(path):
+            os.unlink(path)
