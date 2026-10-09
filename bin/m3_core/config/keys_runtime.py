@@ -118,6 +118,19 @@ RUNTIME: list[Key] = [
     _float("governor.config_ttl_s", ("M3_GOVERNOR_CFG_TTL",), 5.0,
            "Seconds between checks of .governor_config.json for changes."),
     _int("loop.throttled_limit", ("M3_GOVERNOR_THROTTLED_LIMIT",), 1, "Items per loop pass under THROTTLED load."),
+    # Thresholds read through governor wrappers the env gate could not see until
+    # 2026-10-09 (governor.py:137, :176). Today out-of-range values are CLAMPED
+    # silently; the registry rejects them (intended-change list). The file wins today.
+    _int("governor.initial_threshold", ("M3_GOVERNOR_INITIAL_THRESHOLD",), 85,
+         "Load percent at which the governor starts throttling.", lo=10, hi=99),
+    _int("governor.limit_threshold", ("M3_GOVERNOR_LIMIT_THRESHOLD",), 95,
+         "Load percent at which the governor halts background work.", lo=20, hi=100),
+    _float("governor.ram_halt_gb", ("M3_GOVERNOR_RAM_HALT_GB",), 1.0,
+           "Free RAM (GB) below which background work halts."),
+    _float("governor.ram_throttle_gb", ("M3_GOVERNOR_RAM_THROTTLE_GB",), 4.0,
+           "Free RAM (GB) below which background work throttles."),
+    _float("governor.ram_throttle_idle_gb", ("M3_GOVERNOR_RAM_THROTTLE_IDLE_GB",), 2.0,
+           "Free RAM (GB) below which work throttles while the user is idle."),
     _flag("gpu.probe_disabled", ("M3_GPU_PROBE_DISABLE",), False, "Do not probe GPU load.", legacy=_yes),
     _float("gpu.probe_ttl_s", ("M3_GPU_PROBE_TTL",), 60.0, "Seconds a GPU probe result is cached."),
     _int("log.max_bytes", ("M3_LOG_MAX_BYTES",), 64 * 1024 * 1024,

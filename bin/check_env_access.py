@@ -92,8 +92,11 @@ class Finding:
 
 
 class _Scanner(ast.NodeVisitor):
-    def __init__(self, rel: str) -> None:
+    def __init__(self, rel: str, wrappers: dict[str, tuple[int, ...]] | None = None,
+                 bare: dict[str, tuple[int, ...]] | None = None) -> None:
         self.rel = rel
+        self.wrappers = wrappers if wrappers is not None else dict(READ_WRAPPERS)  # qualified calls
+        self.bare = bare if bare is not None else dict(READ_WRAPPERS)              # bare-name calls
         self.found: list[Finding] = []
         self.os_names: set[str] = {"os"}            # names bound to the os module
         self.environ_names: set[str] = set()        # names bound to os.environ
@@ -184,6 +187,12 @@ class _Scanner(ast.NodeVisitor):
                     self._add(node, "read", "os.getenv", self._arg_name(node, 0))
                 elif f.attr in ("putenv", "unsetenv"):
                     self._add(node, "write", f"os.{f.attr}", self._arg_name(node, 0))
+            # module.wrapper("M3_X"): a discovered read wrapper called qualified
+            if (f.attr in self.wrappers and f.attr not in _GENERIC_ATTRS
+                    and not self._is_os(f.value) and not self._is_environ(f.value)):
+                for i in self.wrappers[f.attr]:
+                    if i < len(node.args):
+                        self._add(node, "read", f"{f.attr} (qualified)", self._arg_name(node, i))
             # os.environ.<method>(...)
             if self._is_environ(f.value):
                 if f.attr == "get":
@@ -202,8 +211,8 @@ class _Scanner(ast.NodeVisitor):
                 self._add(node, "copy", f"{f.id}(os.environ)", "*")
             elif f.id in ("load_dotenv", "dotenv_values"):
                 self._add(node, "dotenv", f"{f.id}()", "*")
-            elif f.id in READ_WRAPPERS:
-                for i in READ_WRAPPERS[f.id]:
+            elif f.id in self.bare:
+                for i in self.bare[f.id]:
                     if i < len(node.args):
                         self._add(node, "read", f.id, self._arg_name(node, i))
         # env=os.environ handed to a child process
@@ -289,16 +298,95 @@ def _embedded_programs(tree: ast.AST):
                 yield None, n.lineno
 
 
-def scan_source(src: str, rel: str) -> list[Finding]:
+# ── read wrappers, discovered (found 2026-10-09: llm_failover._flag(name) reads
+# os.environ.get(name), so the names passed to it were invisible; a wrapper list
+# kept by hand goes stale, so it is derived from the code) ─────────────────────
+_GENERIC_ATTRS = frozenset({"get", "getenv", "pop", "setdefault"})
+
+
+def _env_read_arg(call: ast.Call, wrappers: dict[str, tuple[int, ...]]) -> list[ast.expr]:
+    """The argument nodes a call reads as env NAMES: os.environ.get(x), os.getenv(x),
+    or a known wrapper's name positions."""
+    f = call.func
+    if isinstance(f, ast.Attribute):
+        if f.attr == "get" and isinstance(f.value, ast.Attribute) and f.value.attr == "environ":
+            return call.args[:1]
+        if f.attr == "getenv":
+            return call.args[:1]
+        name = f.attr if f.attr not in _GENERIC_ATTRS else None
+    elif isinstance(f, ast.Name):
+        name = f.id
+    else:
+        name = None
+    if name is not None and name in wrappers:
+        return [call.args[i] for i in wrappers[name] if i < len(call.args)]
+    return []
+
+
+def _wrappers_in(tree: ast.AST, known: dict[str, tuple[int, ...]]) -> dict[str, tuple[int, ...]]:
+    """Functions that read env with one of their own parameters as the NAME."""
+    out: dict[str, tuple[int, ...]] = {}
+    for fn in ast.walk(tree):
+        if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        params = [a.arg for a in fn.args.posonlyargs + fn.args.args]
+        if params and params[0] in ("self", "cls"):
+            params = params[1:]
+        hits: set[int] = set()
+        for node in ast.walk(fn):
+            args: list[ast.expr] = []
+            if isinstance(node, ast.Call):
+                args = _env_read_arg(node, known)
+            elif (isinstance(node, ast.Subscript) and isinstance(node.value, ast.Attribute)
+                  and node.value.attr == "environ"):
+                args = [node.slice]
+            hits |= {params.index(a.id) for a in args if isinstance(a, ast.Name) and a.id in params}
+        if hits:
+            out[fn.name] = tuple(sorted(hits))
+    return out
+
+
+def discover_wrappers(trees: list[ast.AST]) -> dict[str, tuple[int, ...]]:
+    """Every read wrapper across the trees, to a fixed point (a wrapper may call one)."""
+    wrappers = dict(READ_WRAPPERS)
+    while True:
+        found: dict[str, tuple[int, ...]] = {}
+        for tree in trees:
+            found.update(_wrappers_in(tree, wrappers))
+        merged = {**wrappers, **found}
+        if merged == wrappers:
+            return wrappers
+        wrappers = merged
+
+
+def _bare_wrappers(tree: ast.AST, wrappers: dict[str, tuple[int, ...]]) -> dict[str, tuple[int, ...]]:
+    """The wrappers a BARE call in this module can mean: ones it defines, and ones it
+    imports by name, unless a same-named local function (one that does not read
+    env) shadows it. Matching by name alone mistook the registry's own `_flag`
+    helper for llm_failover's `_flag` reader (found 2026-10-09)."""
+    local_defs = {n.name for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+    local_wrappers = _wrappers_in(tree, wrappers)
+    imported = {a.asname or a.name for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) for a in n.names}
+    out = dict(local_wrappers)
+    for name in imported:
+        if name in wrappers and name not in local_defs:
+            out[name] = wrappers[name]
+    if "getenv_compat" in imported or "getenv_compat" in local_wrappers:
+        out["getenv_compat"] = READ_WRAPPERS["getenv_compat"]
+    return out
+
+
+def scan_source(src: str, rel: str, wrappers: dict[str, tuple[int, ...]] | None = None) -> list[Finding]:
     tree = ast.parse(src, filename=rel)
-    s = _Scanner(rel)
+    known = wrappers if wrappers is not None else discover_wrappers([tree])
+    s = _Scanner(rel, known, _bare_wrappers(tree, known))
     s.visit(tree)
     found = list(s.found)
     for code, first_line in _embedded_programs(tree):
         if code is None:  # mentions the env, cannot be scanned: say so
             found.append(Finding(rel, first_line, "unparsed", "embedded program (unparsable)", "*", "violation"))
             continue
-        inner = _Scanner(rel)
+        inner = _Scanner(rel, s.wrappers, s.bare)
         inner.visit(ast.parse(code))
         found += [Finding(f.path, first_line + f.line - 1, f.kind, f"{f.form} (embedded program)", f.name, f.verdict)
                   for f in inner.found]
@@ -320,12 +408,17 @@ def _production_files() -> list[Path]:
 def scan_repo() -> tuple[list[Finding], list[str]]:
     findings: list[Finding] = []
     unparsed: list[str] = []
+    sources: list[tuple[str, str, ast.AST]] = []
     for p in _production_files():
         rel = p.relative_to(REPO).as_posix()
         try:
-            findings.extend(scan_source(p.read_text(encoding="utf-8"), rel))
+            src = p.read_text(encoding="utf-8")
+            sources.append((rel, src, ast.parse(src, filename=rel)))
         except (SyntaxError, UnicodeDecodeError) as e:
             unparsed.append(f"{rel}: {type(e).__name__}: {e}")
+    wrappers = discover_wrappers([t for _, _, t in sources])
+    for rel, src, _tree in sources:
+        findings.extend(scan_source(src, rel, wrappers))
     return findings, unparsed
 
 
@@ -368,6 +461,16 @@ PLANTED: list[tuple[str, str, str]] = [
     ("import os\ng(mapping=os.environ)", "handout", "mapping=os.environ"),
     ("import os\nclass C:\n    def __init__(self):\n        self.env = os.environ", "handout",
      "<target> = os.environ"),
+    # A read through a wrapper the gate DISCOVERS (found 2026-10-09: names passed
+    # to llm_failover._flag / _setting were invisible), directly and transitively.
+    ("import os\ndef _flag(name):\n    return os.environ.get(name)\n_flag('M3_X')", "read", "_flag"),
+    ("import os\ndef _s(n):\n    return os.environ.get(n)\ndef _f(n):\n    return _s(n)\n_f('M3_X')",
+     "read", "_f"),
+]
+
+# Must NOT be reported: a same-named local helper that does not read env.
+_NOT_READS = [
+    "def _flag(name, env, default):\n    return (name, env, default)\n_flag('db.backend', ('M3_X',), 1)",
 ]
 
 
@@ -385,9 +488,15 @@ def selftest() -> int:
     ok = scan_source("import os\nos.environ.get('HOME')", "planted.py")
     if any(f.verdict == "violation" for f in ok):
         failures.append("allow-listed OS name HOME reported as a violation")
+    # a same-named helper that does not read env is not a wrapper (false-positive guard)
+    for snippet in _NOT_READS:
+        hits = [f for f in scan_source(snippet, "planted.py") if f.verdict == "violation"]
+        if hits:
+            failures.append(f"FALSE POSITIVE: {snippet!r} -> {[(f.form, f.name) for f in hits]}")
+    total = len(PLANTED) + 2 + len(_NOT_READS)
     for f in failures:
         print(f, file=sys.stderr)
-    print(f"selftest: {len(PLANTED) + 2 - len(failures)}/{len(PLANTED) + 2} checks passed")
+    print(f"selftest: {total - len(failures)}/{total} checks passed")
     return 1 if failures else 0
 
 

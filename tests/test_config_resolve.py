@@ -81,7 +81,8 @@ def test_every_bad_env_value_is_reported_at_once(tmp_path):
     with pytest.raises(ConfigEnvErrors) as exc:
         _build(tmp_path, None, {"M3_DB_BACKEND": "postgre"})
     text = format_config_error(exc.value)
-    assert "M3_DB_BACKEND='postgre'" in text and "[db].backend" in text and "unset M3_DB_BACKEND" in text
+    assert "observed: environment M3_DB_BACKEND='postgre'" in text and "[db].backend" in text
+    assert "inspect: M3_DB_BACKEND (fix or unset it)" in text
 
 
 def test_secrets_are_not_resolved_into_the_snapshot(tmp_path):

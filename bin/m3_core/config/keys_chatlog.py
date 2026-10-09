@@ -103,6 +103,17 @@ CHATLOG: list[Key] = [
           "Let the loop apply belief consolidation without review.", legacy=_truthy4),
     _flag("autonomy.distill_auto", ("M3_DISTILL_AUTO",), False,
           "Let the loop apply distilled procedures without review."),
+    _flag("autonomy.chatlog_prune_auto", ("M3_CHATLOG_PRUNE_AUTO",), False,
+          "Let the loop prune the chatlog without review (today .cognitive_loop_config.json wins).",
+          legacy=_truthy4),
+    # Read through wrappers the env gate could not see until 2026-10-09
+    # (memory/enrich.py:68 _ingest_llm_enabled; run_observer.py:62 copies it).
+    _flag("ingest.auto_entities", ("M3_INGEST_AUTO_ENTITIES",), False,
+          "Extract entities with the LLM on ingest.", legacy=_truthy4),
+    _flag("ingest.auto_title", ("M3_INGEST_AUTO_TITLE",), False,
+          "Title memories with the LLM on ingest.", legacy=_truthy4),
+    _flag("observer.no_embed", ("M3_OBSERVER_NO_EMBED",), False,
+          "Do not embed the observations the observer writes.", legacy=_truthy4),
     # ── [governor] (today .governor_config.json wins) ──
     _int("governor.feedback_window_minutes", ("M3_FEEDBACK_WINDOW_MINUTES",), 5,
          "Minutes of feedback the maintenance pass considers.", hi=1440),

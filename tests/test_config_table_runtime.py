@@ -12,6 +12,8 @@ _PINNED = {
     "mcp.allow_destructive": ("mcp_proxy", "ALLOW_DESTRUCTIVE"),
     "memory.enforce_agent_isolation": ("memory.config", "ENFORCE_AGENT_ISOLATION"),
     "governor.config_ttl_s": ("m3_core.governor", "_GOV_CFG_TTL"),
+    "governor.initial_threshold": ("m3_core.governor", "_GOV_DEFAULT_INITIAL"),
+    "governor.limit_threshold": ("m3_core.governor", "_GOV_DEFAULT_LIMIT"),
     "gpu.probe_disabled": ("m3_core.gpu", "_GPU_PROBE_DISABLE"),
     "gpu.probe_ttl_s": ("m3_core.gpu", "_GPU_PROBE_TTL"),
     "log.max_bytes": ("_task_runtime", "_DEFAULT_LOG_MAX_BYTES"),

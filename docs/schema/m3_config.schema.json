@@ -13,6 +13,11 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "chatlog_prune_auto": {
+          "type": "boolean",
+          "description": "Let the loop prune the chatlog without review (today .cognitive_loop_config.json wins).",
+          "default": false
+        },
         "consolidation_auto": {
           "type": "boolean",
           "description": "Let the loop apply belief consolidation without review.",
@@ -829,6 +834,31 @@
           "type": "integer",
           "description": "Minutes of feedback the maintenance pass considers.",
           "default": 5
+        },
+        "initial_threshold": {
+          "type": "integer",
+          "description": "Load percent at which the governor starts throttling.",
+          "default": 85
+        },
+        "limit_threshold": {
+          "type": "integer",
+          "description": "Load percent at which the governor halts background work.",
+          "default": 95
+        },
+        "ram_halt_gb": {
+          "type": "number",
+          "description": "Free RAM (GB) below which background work halts.",
+          "default": 1.0
+        },
+        "ram_throttle_gb": {
+          "type": "number",
+          "description": "Free RAM (GB) below which background work throttles.",
+          "default": 4.0
+        },
+        "ram_throttle_idle_gb": {
+          "type": "number",
+          "description": "Free RAM (GB) below which work throttles while the user is idle.",
+          "default": 2.0
         }
       }
     },
@@ -866,6 +896,16 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "auto_entities": {
+          "type": "boolean",
+          "description": "Extract entities with the LLM on ingest.",
+          "default": false
+        },
+        "auto_title": {
+          "type": "boolean",
+          "description": "Title memories with the LLM on ingest.",
+          "default": false
+        },
         "event_rows": {
           "type": "boolean",
           "description": "Write event rows on chat ingest.",
@@ -974,6 +1014,11 @@
         "lmstudio_url": {
           "type": "string",
           "description": "LM Studio endpoint the files summarizer and extractor fall back to."
+        },
+        "ollama_failover": {
+          "type": "boolean",
+          "description": "Include Ollama (localhost:11434) in the failover list.",
+          "default": false
         },
         "outage_repeat_s": {
           "type": "number",
@@ -1176,6 +1221,11 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "no_embed": {
+          "type": "boolean",
+          "description": "Do not embed the observations the observer writes.",
+          "default": false
+        },
         "precise_provenance": {
           "type": "boolean",
           "description": "Record turn-level provenance for observations.",
@@ -1192,13 +1242,25 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "assets": {
+          "type": "string",
+          "description": "The payload's _assets/ directory for a non-packaged install (installer.py _payload_dir); unset uses the packaged one."
+        },
         "bin": {
           "type": "string",
           "description": "The bin/ directory of a non-packaged (developer) install; unset uses the packaged one."
         },
+        "docs": {
+          "type": "string",
+          "description": "The payload's docs/ directory for a non-packaged install (installer.py _payload_dir); unset uses the packaged one."
+        },
         "engine_root": {
           "type": "string",
           "description": "Databases and runtime state. Default: <memory_root>/engine, else ~/.m3/engine."
+        },
+        "examples": {
+          "type": "string",
+          "description": "The payload's examples/ directory for a non-packaged install (installer.py _payload_dir); unset uses the packaged one."
         },
         "lib_dir": {
           "type": "string",

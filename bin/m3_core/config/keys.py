@@ -97,6 +97,11 @@ PATHS: list[Key] = [
     Key(name="paths.bin", parse=parse_path, default=None,
         env_names=("M3_PATH_BIN",), scope=Scope.LOCATOR, reloadable=False,
         doc="The bin/ directory of a non-packaged (developer) install; unset uses the packaged one."),
+    *[Key(name=f"paths.{part}", parse=parse_path, default=None, env_names=(env,), scope=Scope.LOCATOR,
+          reloadable=False, doc=f"The payload's {sub}/ directory for a non-packaged install "
+                                f"(installer.py _payload_dir); unset uses the packaged one.")
+      for part, env, sub in (("assets", "M3_PATH_ASSETS", "_assets"), ("docs", "M3_PATH_DOC", "docs"),
+                             ("examples", "M3_PATH_EXAMPLES", "examples"))],
     Key(name="paths.lib_dir", parse=parse_path, default=None,
         env_names=("M3_LIB_DIR",), scope=Scope.LOCATOR, reloadable=False,
         doc="Where the wolfSSL library is trusted from. Default: <config root's parent>/lib."),

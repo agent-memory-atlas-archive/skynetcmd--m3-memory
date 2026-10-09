@@ -55,9 +55,9 @@ def _from_env(key: Key, name: str, raw: str) -> ConfigValue:
         return key.coerce_env_value(raw)
     except ConfigValueError as e:
         # The value is shown: config, never a secret (secrets resolve elsewhere).
-        err = ConfigEnvError(f"environment {name}={raw!r} (setting {show_key(key.name)}): {e}")
-        err.add_note(f"fix or unset {name}; inspect: `m3 config show --origin`")
-        raise err from None
+        raise ConfigEnvError(
+            f"observed: environment {name}={raw!r} for setting {show_key(key.name)}: {e}. "
+            f"inspect: {name} (fix or unset it); `m3 config show --origin`") from None
 
 
 _LEGACY_NOTED: set[tuple[str, str]] = set()
@@ -82,7 +82,8 @@ def _note_legacy_difference(key: Key, name: str, raw: str, value: ConfigValue) -
 
 def resolve_key(key: Key, loaded: LoadedFile, environ: Mapping[str, str]) -> Resolved:
     if key.klass is not KeyClass.CONFIG:
-        raise ValueError(f"{key.name} is a {key.klass}; resolve secrets with m3_core.secret_store")
+        # A contract violation, not a diagnostic: secrets resolve in secret_store.
+        raise ValueError(f"{key.name} is a {key.klass} key; secret_store resolves secrets, not resolve_key")
     hit = _env_hit(key, environ)
     if key.env_override and hit is not None:
         return Resolved(value=_from_env(key, *hit), origin=f"env:{hit[0]}")

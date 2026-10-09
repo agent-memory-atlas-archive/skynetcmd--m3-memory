@@ -10,6 +10,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 | Key | Type | Default | Environment names | Notes |
 |---|---|---|---|---|
+| `chatlog_prune_auto` | boolean | `false` | `M3_CHATLOG_PRUNE_AUTO` | restart to apply; Let the loop prune the chatlog without review (today .cognitive_loop_config.json wins). |
 | `consolidation_auto` | boolean | `false` | `M3_CONSOLIDATION_AUTO` | restart to apply; Let the loop apply belief consolidation without review. |
 | `distill_auto` | boolean | `false` | `M3_DISTILL_AUTO` | restart to apply; Let the loop apply distilled procedures without review. |
 
@@ -256,6 +257,11 @@ Precedence for each setting: the environment, for the keys marked *env override*
 |---|---|---|---|---|
 | `config_ttl_s` | number | `5.0` | `M3_GOVERNOR_CFG_TTL` | restart to apply; Seconds between checks of .governor_config.json for changes. |
 | `feedback_window_minutes` | integer | `5` | `M3_FEEDBACK_WINDOW_MINUTES` | restart to apply; Minutes of feedback the maintenance pass considers. |
+| `initial_threshold` | integer | `85` | `M3_GOVERNOR_INITIAL_THRESHOLD` | restart to apply; Load percent at which the governor starts throttling. |
+| `limit_threshold` | integer | `95` | `M3_GOVERNOR_LIMIT_THRESHOLD` | restart to apply; Load percent at which the governor halts background work. |
+| `ram_halt_gb` | number | `1.0` | `M3_GOVERNOR_RAM_HALT_GB` | restart to apply; Free RAM (GB) below which background work halts. |
+| `ram_throttle_gb` | number | `4.0` | `M3_GOVERNOR_RAM_THROTTLE_GB` | restart to apply; Free RAM (GB) below which background work throttles. |
+| `ram_throttle_idle_gb` | number | `2.0` | `M3_GOVERNOR_RAM_THROTTLE_IDLE_GB` | restart to apply; Free RAM (GB) below which work throttles while the user is idle. |
 
 ## [gpu]
 
@@ -275,6 +281,8 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 | Key | Type | Default | Environment names | Notes |
 |---|---|---|---|---|
+| `auto_entities` | boolean | `false` | `M3_INGEST_AUTO_ENTITIES` | restart to apply; Extract entities with the LLM on ingest. |
+| `auto_title` | boolean | `false` | `M3_INGEST_AUTO_TITLE` | restart to apply; Title memories with the LLM on ingest. |
 | `event_rows` | boolean | `true` | `M3_INGEST_EVENT_ROWS` | restart to apply; Write event rows on chat ingest. |
 | `gist_min_turns` | integer | `10` | `M3_INGEST_GIST_MIN_TURNS` | restart to apply; Turns a conversation needs for a gist. |
 | `gist_rows` | boolean | `true` | `M3_INGEST_GIST_ROWS` | restart to apply; Write gist rows on chat ingest. |
@@ -307,6 +315,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `lmstudio_base` | string | `http://localhost:1234/v1` | `LM_STUDIO_BASE` | restart to apply; LM Studio's base URL for the MCP proxy (no M3_ name exists today). |
 | `lmstudio_failover` | boolean | (none) | `M3_ENABLE_LMSTUDIO_FAILOVER` | restart to apply; Include LM Studio in the failover list. Default: on unless llm.url is set. |
 | `lmstudio_url` | string | (none) | `M3_LMSTUDIO_URL` | restart to apply; LM Studio endpoint the files summarizer and extractor fall back to. |
+| `ollama_failover` | boolean | `false` | `M3_ENABLE_OLLAMA_FAILOVER` | restart to apply; Include Ollama (localhost:11434) in the failover list. |
 | `outage_repeat_s` | number | `3600.0` | `M3_LLM_OUTAGE_REPEAT_S` | restart to apply; Seconds before an ongoing outage is reported again. |
 | `read_timeout_s` | number | `4800.0` | `M3_LM_READ_TIMEOUT`, `LM_READ_TIMEOUT` | restart to apply; Seconds the MCP proxy waits for a model's reply. |
 | `timeout_s` | number | `45.0` | `M3_LLM_TIMEOUT`, `LLM_TIMEOUT` | restart to apply; Seconds an LLM call may take. |
@@ -376,6 +385,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 | Key | Type | Default | Environment names | Notes |
 |---|---|---|---|---|
+| `no_embed` | boolean | `false` | `M3_OBSERVER_NO_EMBED` | restart to apply; Do not embed the observations the observer writes. |
 | `precise_provenance` | boolean | `false` | `M3_OBSERVER_PRECISE_PROVENANCE` | restart to apply; Record turn-level provenance for observations. |
 | `profile` | string | `observer_local` | `M3_OBSERVER_PROFILE`, `OBSERVER_PROFILE` | restart to apply; SLM profile the observer uses. |
 
@@ -383,8 +393,11 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 | Key | Type | Default | Environment names | Notes |
 |---|---|---|---|---|
+| `assets` | path | (none) | `M3_PATH_ASSETS` | restart to apply; The payload's _assets/ directory for a non-packaged install (installer.py _payload_dir); unset uses the packaged one. |
 | `bin` | path | (none) | `M3_PATH_BIN` | restart to apply; The bin/ directory of a non-packaged (developer) install; unset uses the packaged one. |
+| `docs` | path | (none) | `M3_PATH_DOC` | restart to apply; The payload's docs/ directory for a non-packaged install (installer.py _payload_dir); unset uses the packaged one. |
 | `engine_root` | path | (none) | `M3_ENGINE_ROOT` | restart to apply; Databases and runtime state. Default: <memory_root>/engine, else ~/.m3/engine. |
+| `examples` | path | (none) | `M3_PATH_EXAMPLES` | restart to apply; The payload's examples/ directory for a non-packaged install (installer.py _payload_dir); unset uses the packaged one. |
 | `lib_dir` | path | (none) | `M3_LIB_DIR` | restart to apply; Where the wolfSSL library is trusted from. Default: <config root's parent>/lib. |
 | `logs_root` | path | (none) | `M3_LOGS_ROOT` | restart to apply; Scheduled-task and service logs. Default: <memory_root>/logs, else ~/.m3/logs. |
 | `memory_root` | path | (none) | `M3_MEMORY_ROOT` | restart to apply; Legacy master root: config, engine, logs and models derive from it when their own keys are unset. Removed at N+3 (CONFIG_DESIGN §9). |
