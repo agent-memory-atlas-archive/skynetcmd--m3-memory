@@ -1,8 +1,8 @@
 ---
 tool: bin/build_kg_variant.py
-sha1: 5ec1eaea8afa
-mtime_utc: 2026-10-08T22:11:14.491604+00:00
-generated_utc: 2026-10-08T22:11:47.681698+00:00
+sha1: cf195b2d0725
+mtime_utc: 2026-10-09T07:37:09.101781+00:00
+generated_utc: 2026-10-09T07:40:59.201376+00:00
 private: false
 ---
 
@@ -40,6 +40,7 @@ Usage:
 | `--sim-threshold` |  | — | Required; fails if not provided | float | Minimum cosine similarity to create an edge |
 | `--wipe-target` | Delete any existing items/edges under target variant before building | `False` | Fails if target variant has existing items | store_true | Deletes all items/edges in target before duplicating source |
 | `--database` | SQLite database path. Env: M3_DATABASE. Default: memory/agent_memory.db. | None | Falls back to M3_DATABASE env then memory/agent_memory.db. | str | Routes this run against PATH for all DB reads/writes. |
+| `--store` | Named store from m3_config.toml ('main' = the default). Not with --database. | None |  | str |  |
 
 ---
 

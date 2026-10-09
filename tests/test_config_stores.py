@@ -471,3 +471,91 @@ def test_the_cli_passes_store_to_the_dispatcher(stores_file, tmp_path, monkeypat
                           "--query", "x", "--store", "scrach"],
                          capture_output=True, text=True, cwd=str(repo))
     assert "did you mean 'scratch'" in run.stdout + run.stderr, run.stdout + run.stderr
+
+
+# ── 3d: a CLI's --store selects the store for the whole process ──────────────
+def _cli_parser():
+    import argparse
+
+    from m3_core.paths import add_database_arg
+
+    parser = argparse.ArgumentParser(prog="probe")
+    add_database_arg(parser)
+    return parser
+
+
+def test_cli_store_is_seen_by_worker_threads(stores_file, tmp_path, monkeypatch):
+    """A ContextVar set in main() is invisible to a ThreadPoolExecutor worker,
+    which would quietly use the default store: the process layer is seen by all."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from m3_core.paths import resolve_db_path
+
+    path = _scratch(stores_file, tmp_path, monkeypatch)
+    _cli_parser().parse_args(["--store", "scratch"])
+    assert resolve_db_path(None) == path
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        assert pool.submit(resolve_db_path, None).result() == path
+
+
+def test_a_per_call_store_and_the_chatlog_override_the_process_store(stores_file, tmp_path, monkeypatch):
+    import chatlog_config
+    from m3_core.config.stores import active_store, current_store_name
+    from m3_core.paths import resolve_db_path
+
+    before = chatlog_config.chatlog_db_path()
+    path = _scratch(stores_file, tmp_path, monkeypatch)
+    _cli_parser().parse_args(["--store", "scratch"])
+    with active_store("main"):
+        assert current_store_name() == "main" and resolve_db_path(None) != path
+    assert current_store_name() == "scratch"
+    assert chatlog_config.chatlog_db_path() == before  # D1: process-wide, store or not
+
+
+@pytest.mark.parametrize("argv,fragment", [
+    (["--store", "scrach"], "did you mean 'scratch'"),
+    (["--store", "scratch", "--database", "x.db"], "not allowed with argument"),
+])
+def test_a_bad_cli_store_is_a_usage_error(stores_file, tmp_path, monkeypatch, capsys, argv, fragment):
+    _scratch(stores_file, tmp_path, monkeypatch)
+    with pytest.raises(SystemExit) as exc:
+        _cli_parser().parse_args(argv)
+    assert exc.value.code == 2 and fragment in capsys.readouterr().err
+
+
+def test_a_script_given_store_writes_into_it(stores_file, tmp_path, monkeypatch):
+    """End to end: a real CLI that only calls add_database_arg + resolve_db_path."""
+    import subprocess
+    import sys
+
+    _scratch(stores_file, tmp_path, monkeypatch)
+    repo = Path(__file__).resolve().parent.parent
+    run = subprocess.run([sys.executable, str(repo / "bin" / "setup_test_db.py"), "--store", "scratch"],
+                         capture_output=True, text=True, cwd=str(tmp_path))
+    assert run.returncode == 0, run.stdout + run.stderr
+    with sqlite3.connect(tmp_path / "s.db") as raw:
+        assert raw.execute("SELECT 1 FROM sqlite_master WHERE name='memory_items'").fetchone()
+
+
+def test_a_deprecated_alias_keeps_the_new_flags_default_and_warns(capsys):
+    """argparse seeds a shared dest from the FIRST action: an alias declared first
+    must not replace the new flag's default."""
+    import argparse
+
+    from m3_core.paths import deprecated_alias
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--old", dest="new", action=deprecated_alias("--new"))
+    parser.add_argument("--new", default="from-env")
+    assert parser.parse_args([]).new == "from-env"
+    assert parser.parse_args(["--old", "x"]).new == "x"
+    assert "--old is the old spelling of --new" in capsys.readouterr().err
+
+
+def test_embed_backfill_takes_target_and_the_old_store_spelling(capsys):
+    import embed_backfill as eb
+
+    assert eb._parse_args([]).target == "core"
+    assert eb._parse_args(["--target", "chatlog"]).target == "chatlog"
+    assert eb._parse_args(["--store", "chatlog"]).target == "chatlog"
+    assert "old spelling of --target" in capsys.readouterr().err

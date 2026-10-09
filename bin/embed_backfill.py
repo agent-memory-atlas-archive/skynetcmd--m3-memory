@@ -57,6 +57,7 @@ import time
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
 
+from m3_core.paths import deprecated_alias
 from m3_core.runtime import utc_iso
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -139,9 +140,9 @@ def _tables(args: argparse.Namespace) -> tuple[str, str]:
 
     On SQLite the chatlog is a separate file with the core table names, so
     `--db` alone picks the store. Other backends hold both stores in one
-    database under different table names, so `--store` picks them.
+    database under different table names, so `--target` picks them.
     """
-    if getattr(args, "store", "core") == "chatlog":
+    if getattr(args, "target", "core") == "chatlog":
         try:
             from memory.backends import chatlog_table  # type: ignore
             return chatlog_table("items"), chatlog_table("embeddings")
@@ -698,9 +699,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     sel = ap.add_argument_group("selection")
     sel.add_argument("--db", type=Path, default=Path(os.environ.get("M3_DATABASE", str(DEFAULT_DB))),
                      help=f"Target DB. Default: $M3_DATABASE or {DEFAULT_DB}")
-    sel.add_argument("--store", choices=("core", "chatlog"), default="core",
-                     help="Which store to sweep on a backend that keeps both in one "
-                          "database (PostgreSQL). On SQLite --db selects the store.")
+    sel.add_argument("--target", choices=("core", "chatlog"), default="core",
+                     help="Which tables to sweep on a backend that keeps both in one "
+                          "database (PostgreSQL). On SQLite --db selects the file.")
+    sel.add_argument("--store", dest="target", choices=("core", "chatlog"),
+                     action=deprecated_alias("--target"), help=argparse.SUPPRESS)
     sel.add_argument("--variant", action="append", default=[],
                      help="Filter to one variant. Repeatable for OR.")
     sel.add_argument("--type", action="append", default=[],
@@ -782,14 +785,14 @@ def main(argv: list[str] | None = None) -> int:
 
     # Schema sanity
     try:
-        _verify_schema(args.db, args.store)
+        _verify_schema(args.db, args.target)
     except (FileNotFoundError, RuntimeError) as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 2
 
     # Plan
     pending = _count_pending(args.db, args)
-    print(f"DB:       {args.db}" if _is_sqlite() else f"Store:    {args.store} (one database)")
+    print(f"DB:       {args.db}" if _is_sqlite() else f"Target:   {args.target} (one database)")
     print(f"Pending:  {pending}")
     print("Filters:")
     if args.variant:    print(f"  variant: {args.variant}")

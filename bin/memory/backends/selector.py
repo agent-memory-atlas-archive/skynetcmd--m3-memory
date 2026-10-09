@@ -10,7 +10,7 @@ from __future__ import annotations
 import threading
 from typing import TYPE_CHECKING
 
-from m3_core.paths import SELECTABLE_BACKENDS, _active_store
+from m3_core.paths import SELECTABLE_BACKENDS, current_store
 from m3_core.paths import require_sqlite_backend as require_sqlite_backend  # re-export
 from m3_core.paths import resolve_backend_name as _resolve_backend_name
 
@@ -53,7 +53,7 @@ def active_backend() -> StorageBackend:
     loud at selection time.
     """
     name = resolve_backend_name()
-    store = _active_store.get()
+    store = current_store()
     # The registry maps the validated name to its factory (the backend class),
     # importing the backend module on demand so its @register_backend runs.
     # No `if name==` ladder here — adding a backend touches only its own file.

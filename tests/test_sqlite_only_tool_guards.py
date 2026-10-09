@@ -113,7 +113,7 @@ _SQLITE_ONLY_MAINS = [
 
 
 def test_chatlog_backfill_embed_delegates_on_postgres(monkeypatch):
-    """Its file paths do not apply on PostgreSQL; embed_backfill's --store path
+    """Its file paths do not apply on PostgreSQL; embed_backfill's --target path
     covers both stores in the one database."""
     import importlib
     import sys
@@ -127,7 +127,7 @@ def test_chatlog_backfill_embed_delegates_on_postgres(monkeypatch):
     _no_sqlite(monkeypatch)
     monkeypatch.setattr(sys, "argv", ["m3_chatlog_backfill_embed", "--dry-run", "--yes"])
     assert mod.main() == 0
-    assert calls == [["--store", "core", "--dry-run"], ["--store", "chatlog", "--dry-run"]]
+    assert calls == [["--target", "core", "--dry-run"], ["--target", "chatlog", "--dry-run"]]
 
 
 def _no_sqlite(monkeypatch):

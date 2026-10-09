@@ -2,7 +2,7 @@
 tool: bin/memory_doctor.py
 sha1: 32018fe4c83d
 mtime_utc: 2026-10-07T23:28:20.573728+00:00
-generated_utc: 2026-10-07T23:29:01.246155+00:00
+generated_utc: 2026-10-09T07:40:59.689909+00:00
 private: false
 ---
 
@@ -63,6 +63,7 @@ tested in isolation.
 | `--fix` | Run quick-repair mode to auto-fix common deployment issues. | `False` |  | store_true |  |
 | `--dry-run` | Use with --fix to simulate repair steps without making changes. | `False` |  | store_true |  |
 | `--database` | SQLite database path. Env: M3_DATABASE. Default: memory/agent_memory.db. | None | Falls back to M3_DATABASE env then memory/agent_memory.db. | str | Routes all DB reads/writes against PATH for this run. |
+| `--store` | Named store from m3_config.toml ('main' = the default). Not with --database. | None |  | str |  |
 
 ---
 

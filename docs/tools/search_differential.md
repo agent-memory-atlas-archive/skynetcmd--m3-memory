@@ -1,8 +1,8 @@
 ---
 tool: bin/search_differential.py
-sha1: 67dafb3a9ba5
-mtime_utc: 2026-09-11T19:26:27.970011+00:00
-generated_utc: 2026-09-11T19:46:22.746079+00:00
+sha1: 5bdb32703b79
+mtime_utc: 2026-10-09T07:38:22.316397+00:00
+generated_utc: 2026-10-09T07:41:29.229849+00:00
 private: false
 ---
 
@@ -74,7 +74,8 @@ that is how the 2026-09-10 bug was found, against a 5,203-memory store.
 
 | Flag(s) | Help | Default | Default behavior | Type/Action | Impact when set |
 |---|---|---|---|---|---|
-| `--store` | existing engine root to query READ-ONLY (default: seed a throwaway one from docs/) | `os.environ.get('M3_DIFF_STORE', '')` |  | str |  |
+| `--store` | (hidden from --help) | — |  | deprecated_alias('--engine-root') |  |
+| `--engine-root` | existing engine root to query READ-ONLY (default: seed a throwaway one from docs/) | `os.environ.get('M3_DIFF_STORE', '')` |  | str |  |
 | `--k` |  | `8` |  | int |  |
 
 ---
@@ -115,7 +116,7 @@ _(none detected)_
 
 ## Notable external imports
 
-_(only stdlib)_
+- `m3_core.paths (deprecated_alias)`
 
 ---
 

@@ -1,5 +1,6 @@
 import argparse
 import contextvars
+import enum
 import logging
 import ntpath
 import os
@@ -9,6 +10,7 @@ import sqlite3
 import sys
 from contextlib import contextmanager
 from dataclasses import dataclass
+from typing import Literal
 
 logger = logging.getLogger("M3_SDK")
 
@@ -304,13 +306,32 @@ class StoreRef:
     dsn_secret: str | None = None
 
 
-# The ACTIVE named store, set only by m3_core.config.stores.active_store(). When
-# set, it outranks the legacy SQLite path (M3_DATABASE / active_database) in
-# resolve_db_path and decides resolve_backend_name: §14's order, user decision D3
-# (2026-10-09). Unset, both resolvers behave exactly as before 2C.3.
-_active_store: contextvars.ContextVar[StoreRef | None] = contextvars.ContextVar(
-    "m3_active_store", default=None
-)
+class _Unset(enum.Enum):
+    UNSET = enum.auto()
+
+
+# The ACTIVE named store, set only by m3_core.config.stores.active_store(): a
+# StoreRef, None for an explicit "main", or UNSET (defer to the process's store).
+# Read it only through current_store(). A store outranks the legacy SQLite path
+# (M3_DATABASE / active_database) in resolve_db_path and decides
+# resolve_backend_name: §14's order, user decision D3 (2026-10-09). With no store
+# anywhere, both resolvers behave exactly as before 2C.3.
+_active_store: contextvars.ContextVar[StoreRef | None | Literal[_Unset.UNSET]] = (
+    contextvars.ContextVar("m3_active_store", default=_Unset.UNSET))
+
+# The PROCESS's store, set once by a CLI's --store (m3_core.config.stores
+# .set_process_store). Below the ContextVar, so a per-call store= or "main"
+# overrides it. A module global, not a ContextVar set in main(): a new thread
+# starts with an empty context, so a ThreadPoolExecutor worker would see no store
+# and use the default one without a word.
+_process_store: StoreRef | None = None
+
+
+def current_store() -> StoreRef | None:
+    """The store in effect: this context's selection, else the process's, else
+    None (the default store, ``main``). The one reader of both."""
+    store = _active_store.get()
+    return _process_store if store is _Unset.UNSET else store
 
 
 @contextmanager
@@ -790,7 +811,7 @@ def resolve_db_path(explicit: str | None = None) -> str:
     Linux is a perfectly legal path, so it would have silently created the
     stub and reported healthy — the far worse failure this guard prevents.
     """
-    store = _active_store.get()
+    store = current_store()
     store_path = store.path if store is not None and store.backend == "sqlite" else None
     candidate = (explicit or store_path or os.environ.get("M3_DATABASE") or _active_db.get()
                  or _default_db_path())
@@ -956,7 +977,7 @@ def resolve_backend_name() -> str:
     An active named store (``m3_core.config.stores.active_store``) decides first:
     a PostgreSQL store under a SQLite default, or the reverse, is §14's model.
     """
-    store = _active_store.get()
+    store = current_store()
     if store is not None:
         return store.backend
     raw = (getenv_compat("M3_DB_BACKEND", "DB_BACKEND", "sqlite") or "sqlite").strip().lower()
@@ -1046,15 +1067,60 @@ def seam_dialect():
         return _SqliteParams()
 
 
-def add_database_arg(parser: argparse.ArgumentParser) -> None:
-    """Attach a standard --database flag to a CLI argparse parser.
+class _StoreAction(argparse.Action):
+    """``--store NAME``: select the named store for the whole PROCESS while the
+    command line is parsed (m3_core.config.stores.set_process_store).
 
-    Precedence honored by resolve_db_path(): --database > M3_DATABASE env >
-    default (memory/agent_memory.db). Scripts should activate the returned
-    path via active_database() or by writing to os.environ['M3_DATABASE']
-    before any DB-touching code runs.
+    Selecting at parse time is what makes the flag safe on every CLI that takes
+    it: a script that resolves its database after parsing follows the store with
+    no code of its own, and none can accept the flag and then ignore it. An
+    unknown name is an argparse error (exit 2) naming the configured stores.
     """
-    parser.add_argument(
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        from m3_core.config.stores import StoreError, set_process_store
+
+        try:
+            set_process_store(str(values))
+        except StoreError as e:
+            parser.error(str(e))
+        setattr(namespace, self.dest, values)
+
+
+def deprecated_alias(new_flag: str) -> type[argparse.Action]:
+    """An argparse action for the OLD spelling of ``new_flag``: it stores into the
+    same dest and says so on stderr every time it is used. (argparse's own
+    ``deprecated=`` is 3.13+; the floor is 3.12.)"""
+
+    class _DeprecatedAlias(argparse.Action):
+        def __init__(self, *args, **kwargs):
+            # Never a default of its own: argparse seeds a shared dest from the
+            # FIRST action registered, so an alias declared before the new flag
+            # would replace the new flag's default with None.
+            kwargs["default"] = argparse.SUPPRESS
+            super().__init__(*args, **kwargs)
+
+        def __call__(self, parser, namespace, values, option_string=None):
+            print(f"warning: observed: {option_string} is the old spelling of {new_flag}. "
+                  f"inspect: use {new_flag}; --store now names a store from m3_config.toml.",
+                  file=sys.stderr)
+            setattr(namespace, self.dest, values)
+
+    return _DeprecatedAlias
+
+
+def add_database_arg(parser: argparse.ArgumentParser) -> None:
+    """Attach the standard --database and --store flags to a CLI parser.
+
+    ``--store NAME`` selects a named store from m3_config.toml for the process
+    (its core and files data; config §14, plan 2C.3d) and outranks the legacy
+    path. ``--database PATH`` is that legacy SQLite path: --database >
+    M3_DATABASE env > default (memory/agent_memory.db); scripts activate it via
+    active_database() or by writing os.environ['M3_DATABASE'] before any
+    DB-touching code runs. The two are mutually exclusive.
+    """
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
         "--database",
         default=None,
         metavar="PATH",
@@ -1062,4 +1128,11 @@ def add_database_arg(parser: argparse.ArgumentParser) -> None:
             "SQLite database path. "
             "Env: M3_DATABASE. Default: memory/agent_memory.db."
         ),
+    )
+    group.add_argument(
+        "--store",
+        default=None,
+        metavar="NAME",
+        action=_StoreAction,
+        help="Named store from m3_config.toml ('main' = the default). Not with --database.",
     )

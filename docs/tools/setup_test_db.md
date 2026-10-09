@@ -2,7 +2,7 @@
 tool: bin/setup_test_db.py
 sha1: 14e97a7bb9fa
 mtime_utc: 2026-07-02T01:21:24.718562+00:00
-generated_utc: 2026-07-03T20:00:03.901894+00:00
+generated_utc: 2026-10-09T07:40:59.829399+00:00
 private: false
 ---
 
@@ -37,6 +37,7 @@ Exits non-zero if any migration fails.
 |---|---|---|---|---|---|
 | `--force` | Wipe the target DB file before seeding (default: append to existing). | `False` | Appends migrations to existing DB (idempotent). | store_true | Deletes DB + WAL/SHM files, then seeds fresh. |
 | `--database` | SQLite database path. Env: M3_DATABASE. Default: memory/agent_memory.db. | None | Falls back to M3_DATABASE env then memory/agent_memory.db. | str | Routes all DB reads/writes against PATH for this run. |
+| `--store` | Named store from m3_config.toml ('main' = the default). Not with --database. | None |  | str |  |
 
 ---
 

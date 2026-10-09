@@ -235,9 +235,14 @@ def extract_argparse(tree: ast.Module) -> list[dict]:
             if isinstance(pos, ast.Constant) and isinstance(pos.value, str):
                 arg_names.append(pos.value)
         kw = {k.arg: k.value for k in node.keywords if k.arg}
+        help_node = kw.get("help")
+        hidden = isinstance(help_node, ast.Attribute) and help_node.attr == "SUPPRESS"
         args.append({
             "names": arg_names,
-            "help": _literal(kw.get("help")) or "",
+            # A flag hidden from --help (an internal hand-off, a deprecated alias)
+            # is still listed for maintainers, labelled rather than shown as the
+            # literal "argparse.SUPPRESS".
+            "help": "(hidden from --help)" if hidden else _literal(help_node) or "",
             "default": _literal(kw.get("default")),
             "default_passed": "default" in kw,
             "type": _literal(kw.get("type")),
@@ -245,23 +250,33 @@ def extract_argparse(tree: ast.Module) -> list[dict]:
             "required": _literal(kw.get("required")),
             "choices": _literal(kw.get("choices")),
         })
-    if uses_database_helper and not any("--database" in a["names"] for a in args):
-        # Synthesize the canonical row so the inventory reflects the actual
-        # CLI surface. Matches m3_sdk.add_database_arg's signature.
-        args.append({
-            "names": ["--database"],
-            "help": (
-                "SQLite database path. Env: M3_DATABASE. "
-                "Default: memory/agent_memory.db."
-            ),
-            "default": None,
-            "default_passed": True,
-            "type": None,
-            "action": None,
-            "required": None,
-            "choices": None,
-        })
+    if uses_database_helper:
+        # Synthesize the helper's rows so the inventory reflects the actual CLI
+        # surface. Read from add_database_arg itself, not re-typed here, so a
+        # flag added to the helper (--store, plan 2C.3d) reaches every page.
+        for row in _database_helper_rows():
+            if not any(set(row["names"]) & set(a["names"]) for a in args):
+                args.append(row)
     return args
+
+
+def _database_helper_rows() -> list[dict]:
+    import argparse
+
+    from m3_core.paths import add_database_arg
+
+    parser = argparse.ArgumentParser(add_help=False)
+    add_database_arg(parser)
+    return [{
+        "names": list(action.option_strings),
+        "help": action.help or "",
+        "default": action.default,
+        "default_passed": True,
+        "type": None,
+        "action": None,
+        "required": None,
+        "choices": None,
+    } for action in parser._actions]
 
 
 def extract_docstring_sh(source: str) -> str:

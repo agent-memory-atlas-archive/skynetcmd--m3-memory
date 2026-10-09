@@ -913,7 +913,7 @@ def _embed_targets(core_db: str | None) -> list[tuple[str | None, str]]:
 
 
 def _backfill_argv(db: str | None, store: str, limit: int) -> list[str]:
-    argv = ["--store", store, "--limit", str(limit)]
+    argv = ["--target", store, "--limit", str(limit)]
     if db is not None:
         argv = ["--db", str(db)] + argv
     return argv

@@ -1,8 +1,8 @@
 ---
 tool: bin/embed_backfill.py
-sha1: a93fa39d1dff
-mtime_utc: 2026-10-08T23:19:40.527574+00:00
-generated_utc: 2026-10-08T23:20:34.169321+00:00
+sha1: 2dd24d7cd922
+mtime_utc: 2026-10-09T07:37:57.259845+00:00
+generated_utc: 2026-10-09T07:41:28.733972+00:00
 private: false
 ---
 
@@ -60,7 +60,7 @@ an active enricher in WAL mode (SQLite handles concurrent reads fine).
 
 ## Entry points
 
-- `def main()` (line 780)
+- `def main()` (line 783)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -70,7 +70,8 @@ an active enricher in WAL mode (SQLite handles concurrent reads fine).
 | Flag(s) | Help | Default | Default behavior | Type/Action | Impact when set |
 |---|---|---|---|---|---|
 | `--db` | f'Target DB. Default: $M3_DATABASE or {DEFAULT_DB}' | `Path(os.environ.get('M3_DATABASE', str(DEFAULT_DB)))` |  | Path |  |
-| `--store` | Which store to sweep on a backend that keeps both in one database (PostgreSQL). On SQLite --db selects the store. | `core` |  | str |  |
+| `--target` | Which tables to sweep on a backend that keeps both in one database (PostgreSQL). On SQLite --db selects the file. | `core` |  | str |  |
+| `--store` | (hidden from --help) | — |  | deprecated_alias('--target') |  |
 | `--variant` | Filter to one variant. Repeatable for OR. | `[]` |  | append |  |
 | `--type` | Filter to one memory type. Repeatable for OR. | `[]` |  | append |  |
 | `--user-id` | Filter to one user_id. | None |  | str |  |
@@ -114,7 +115,7 @@ an active enricher in WAL mode (SQLite handles concurrent reads fine).
 
 **sqlite**
 
-- `sqlite3.connect()  → `str(db_path)`` (line 181)
+- `sqlite3.connect()  → `str(db_path)`` (line 182)
 
 
 ---
@@ -123,6 +124,7 @@ an active enricher in WAL mode (SQLite handles concurrent reads fine).
 
 - `m3_core.context (M3Context)`
 - `m3_core.paths (_looks_like_dsn)`
+- `m3_core.paths (deprecated_alias)`
 - `m3_core.runtime (utc_iso)`
 - `memory.backends (active_backend)`
 - `memory.backends (chatlog_table)`

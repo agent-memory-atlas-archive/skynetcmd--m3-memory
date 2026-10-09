@@ -27,7 +27,7 @@ import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-from m3_core.paths import _active_store
+from m3_core.paths import current_store
 
 from . import config
 
@@ -76,7 +76,7 @@ def _resolve_path(path: str | None) -> str:
     point the store at a tmpdir.)"""
     if path:
         return os.path.abspath(path)
-    store = _active_store.get()
+    store = current_store()
     if store is not None and store.backend == "sqlite":
         from m3_core.config.stores import files_db_path
 

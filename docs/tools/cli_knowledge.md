@@ -2,7 +2,7 @@
 tool: bin/cli_knowledge.py
 sha1: 65f8229b715f
 mtime_utc: 2026-07-02T01:21:24.643804+00:00
-generated_utc: 2026-07-03T20:00:03.184597+00:00
+generated_utc: 2026-10-09T07:40:59.300600+00:00
 private: false
 ---
 
@@ -41,6 +41,7 @@ _(no module docstring — update the source file.)_
 | `--reembed` | Force vector re-embedding during update | `False` | Update does not re-embed vectors | store_true | Forces vector re-embedding during update via update_knowledge() |
 | `--hard` | Permanently delete from database (requires exact string 'WIPE') | None | Soft-delete only (tombstone); data recoverable | str | Hard-delete (permanent) only if value is exactly "WIPE"; any other value errors |
 | `--database` | SQLite database path. Env: M3_DATABASE. Default: memory/agent_memory.db. | None | Falls back to M3_DATABASE env then memory/agent_memory.db. | str | Routes this run against PATH for all DB reads/writes. |
+| `--store` | Named store from m3_config.toml ('main' = the default). Not with --database. | None |  | str |  |
 
 ---
 

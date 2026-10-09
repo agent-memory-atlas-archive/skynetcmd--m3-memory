@@ -2,7 +2,7 @@
 tool: bin/dashboard_server.py
 sha1: 9c593dede7f5
 mtime_utc: 2026-10-08T22:11:14.533136+00:00
-generated_utc: 2026-10-08T22:11:47.828838+00:00
+generated_utc: 2026-10-09T07:41:28.720054+00:00
 private: false
 ---
 
@@ -71,7 +71,7 @@ you intend to launch the server with (typically ``.venv``).
 | `--stop` | Stop a running dashboard. | `False` |  | store_true |  |
 | `--status` | Report dashboard status. | `False` |  | store_true |  |
 | `--show-url` | Print the one-time sign-in URL (includes the token) for opening the dashboard on another device. | `False` |  | store_true |  |
-| `--log-file` | argparse.SUPPRESS | None |  | str |  |
+| `--log-file` | (hidden from --help) | None |  | str |  |
 
 ---
 

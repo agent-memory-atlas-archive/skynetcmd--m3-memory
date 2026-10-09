@@ -2,7 +2,7 @@
 tool: bin/ai_mechanic.py
 sha1: b7d8d5a179dc
 mtime_utc: 2026-10-04T08:36:30.196358+00:00
-generated_utc: 2026-10-04T08:37:59.923929+00:00
+generated_utc: 2026-10-09T07:40:59.166371+00:00
 private: false
 ---
 
@@ -26,6 +26,7 @@ _(no module docstring — update the source file.)_
 |---|---|---|---|---|---|
 | `--force` | Required. Confirms you understand this drops tables. | `False` | Script refuses to run without the flag. | store_true | Permits DROP TABLE operations to recreate schema. |
 | `--database` | SQLite database path. Env: M3_DATABASE. Default: memory/agent_memory.db. | None | Script refuses to run without the flag. | str | Routes destructive operations against PATH instead of default. |
+| `--store` | Named store from m3_config.toml ('main' = the default). Not with --database. | None |  | str |  |
 
 ---
 

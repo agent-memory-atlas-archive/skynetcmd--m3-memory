@@ -24,7 +24,8 @@ from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
 
-from m3_core.paths import SELECTABLE_BACKENDS, StoreRef, _active_store
+import m3_core.paths as _paths
+from m3_core.paths import SELECTABLE_BACKENDS, StoreRef, _active_store, current_store
 
 MAIN = "main"
 _NAME = re.compile(r"[a-z][a-z0-9_-]{0,62}")
@@ -112,7 +113,7 @@ def active_store(name: str | None) -> Iterator[StoreRef | None]:
     the default store, overriding an outer store). The resolvers in m3_core.paths
     follow it: resolve_backend_name, and resolve_db_path for a SQLite store."""
     if name is None:
-        yield _active_store.get()
+        yield current_store()
         return
     store = resolve_store(name)
     token = _active_store.set(store)
@@ -136,5 +137,14 @@ def files_db_path(store: StoreRef) -> str:
 
 
 def current_store_name() -> str:
-    store = _active_store.get()
+    store = current_store()
     return store.name if store is not None else MAIN
+
+
+def set_process_store(name: str) -> StoreRef | None:
+    """Select ``name`` for the whole process: a CLI's ``--store`` (plan 2C.3d).
+    Every thread sees it; a per-call ``active_store`` still overrides it. Set once
+    at startup; ``main`` selects the default store."""
+    store = resolve_store(name)
+    _paths._process_store = store
+    return store

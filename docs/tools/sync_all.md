@@ -2,7 +2,7 @@
 tool: bin/sync_all.py
 sha1: c35d9ad14982
 mtime_utc: 2026-10-09T07:27:26.754068+00:00
-generated_utc: 2026-10-09T07:27:46.180719+00:00
+generated_utc: 2026-10-09T07:40:59.846917+00:00
 private: false
 ---
 
@@ -42,6 +42,7 @@ DB list:
 |---|---|---|---|---|---|
 | `--dry-run` | Check connectivity only | `False` | Checks SYNC_TARGET_IP reachability, then calls pg_sync.py (writes to the PostgreSQL warehouse). | store_true | Checks reachability only; logs planned sync but skips subprocess calls (no actual writes). |
 | `--database` | SQLite database path. Env: M3_DATABASE. Default: memory/agent_memory.db. | None | Falls back to M3_DATABASE env then memory/agent_memory.db. | str | Routes all DB reads/writes against PATH for this run. |
+| `--store` | Named store from m3_config.toml ('main' = the default). Not with --database. | None |  | str |  |
 
 ---
 

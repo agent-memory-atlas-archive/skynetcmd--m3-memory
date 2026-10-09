@@ -2,7 +2,7 @@
 tool: bin/weekly_auditor.py
 sha1: ce0ac32a5949
 mtime_utc: 2026-10-08T22:11:14.536996+00:00
-generated_utc: 2026-10-08T22:11:48.366443+00:00
+generated_utc: 2026-10-09T07:40:59.904861+00:00
 private: false
 ---
 
@@ -36,6 +36,7 @@ Use --no-memory to skip the memory write step.
 |---|---|---|---|---|---|
 | `--no-memory` | Skip writing summary to memory system | `False` | Generates PDF + writes summary to memory_items | store_true | Generates PDF only; skips memory_write |
 | `--database` | SQLite database path. Env: M3_DATABASE. Default: memory/agent_memory.db. | None | Falls back to M3_DATABASE env then memory/agent_memory.db. | str | Routes all DB reads/writes against PATH for this run. |
+| `--store` | Named store from m3_config.toml ('main' = the default). Not with --database. | None |  | str |  |
 
 ---
 

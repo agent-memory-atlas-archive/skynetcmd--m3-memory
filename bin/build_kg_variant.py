@@ -190,7 +190,9 @@ def main():
     add_database_arg(p)
     args = p.parse_args()
 
-    db_path = resolve_db_path(args.database) if args.database else DB_PATH
+    # --store (selected while parsing) outranks the legacy AGENT_DB alias as it
+    # outranks M3_DATABASE (D3); DB_PATH was resolved at import, before it.
+    db_path = resolve_db_path(args.database) if args.database or args.store else DB_PATH
     from m3_core.paths import seam_backend
     _cm = seam_backend().open_readonly(str(db_path))
     db = _cm.__enter__()

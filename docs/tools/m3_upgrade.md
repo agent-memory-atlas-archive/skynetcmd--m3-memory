@@ -2,7 +2,7 @@
 tool: bin/m3_upgrade.py
 sha1: c1de1f337d32
 mtime_utc: 2026-10-08T22:14:49.850097+00:00
-generated_utc: 2026-10-08T22:17:29.611517+00:00
+generated_utc: 2026-10-09T07:41:29.030094+00:00
 private: false
 ---
 
@@ -73,11 +73,11 @@ is stopped or replaced.
 | `--skip-stop` | Do not stop DB writers first. | `False` |  | store_true |  |
 | `--yes` | Do not prompt (for scripted use). | `False` |  | store_true |  |
 | `--from-pypi` | pipx installs: reinstall from PyPI, moving the recorded source off a local wheel or path. | `False` |  | store_true |  |
-| `--wait-for-pid` | argparse.SUPPRESS | `` |  | str |  |
-| `--pause-at-end` | argparse.SUPPRESS | `False` |  | store_true |  |
-| `--log` | argparse.SUPPRESS | `` |  | str |  |
+| `--wait-for-pid` | (hidden from --help) | `` |  | str |  |
+| `--pause-at-end` | (hidden from --help) | `False` |  | store_true |  |
+| `--log` | (hidden from --help) | `` |  | str |  |
 | `--stop-agents` | Windows: stop m3 in agent sessions that hold its launcher (they reconnect afterwards). Asked interactively otherwise. | `False` |  | store_true |  |
-| `--stop-pids` | argparse.SUPPRESS | `` |  | str |  |
+| `--stop-pids` | (hidden from --help) | `` |  | str |  |
 
 ---
 

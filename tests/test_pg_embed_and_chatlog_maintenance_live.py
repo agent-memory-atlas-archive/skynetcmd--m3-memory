@@ -86,7 +86,7 @@ async def test_backfill_embeds_a_pg_row(pg, monkeypatch, store, items, embedding
     mid = str(uuid.uuid4())
     _insert(pg, items, [(mid, "note", "t", "embed me on postgres", 0.5, 0)])
 
-    args = eb._parse_args(["--store", store, "--id-prefix", mid[:8],
+    args = eb._parse_args(["--target", store, "--id-prefix", mid[:8],
                            "--no-augment-anchors"])
     eb._verify_schema(args.db, store)
     assert eb._count_pending(args.db, args) >= 1

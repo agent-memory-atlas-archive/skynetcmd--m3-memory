@@ -265,7 +265,11 @@ def _seed_store(tmp: Path) -> tuple[str, str]:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--store", default=os.environ.get("M3_DIFF_STORE", ""),
+    from m3_core.paths import deprecated_alias
+
+    ap.add_argument("--store", dest="engine_root", action=deprecated_alias("--engine-root"),
+                    help=argparse.SUPPRESS)
+    ap.add_argument("--engine-root", default=os.environ.get("M3_DIFF_STORE", ""),
                     help="existing engine root to query READ-ONLY "
                          "(default: seed a throwaway one from docs/)")
     ap.add_argument("--k", type=int, default=8)
@@ -279,12 +283,12 @@ def main() -> int:
     label_ref, ref_python, ref_bin = ref
 
     tmp = None
-    if args.store:
-        root = Path(args.store)
+    if args.engine_root:
+        root = Path(args.engine_root)
         if not (root / "agent_memory.db").exists() and (root / "engine" / "agent_memory.db").exists():
             root = root / "engine"
         if not (root / "agent_memory.db").exists():
-            print(f"no agent_memory.db under {args.store}")
+            print(f"no agent_memory.db under {args.engine_root}")
             return 2
         engine, config = str(root), str(root.parent / "config")
     else:

@@ -2,7 +2,7 @@
 tool: bin/migrate_flat_memory.py
 sha1: f6d971d0600d
 mtime_utc: 2026-10-08T22:11:14.600952+00:00
-generated_utc: 2026-10-08T22:11:48.185585+00:00
+generated_utc: 2026-10-09T07:40:59.728416+00:00
 private: false
 ---
 
@@ -55,6 +55,7 @@ Usage:
 | `-y`, `--yes` | Skip confirmation prompt. | `False` | Confirms migration interactively before writing. | store_true | Bypasses confirmation prompt; proceeds directly to write phase. |
 | `-v`, `--verbose` | DEBUG logging. | `False` | INFO-level logs to stderr. | store_true | Sets log level to DEBUG; verbose output for development/debugging. |
 | `--database` | SQLite database path. Env: M3_DATABASE. Default: memory/agent_memory.db. | None | Falls back to M3_DATABASE env then memory/agent_memory.db. | str | Routes all DB reads/writes against PATH for this run. |
+| `--store` | Named store from m3_config.toml ('main' = the default). Not with --database. | None |  | str |  |
 
 ---
 

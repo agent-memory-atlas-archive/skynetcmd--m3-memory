@@ -2,7 +2,7 @@
 tool: bin/m3_lifecycle_summary.py
 sha1: 7fc82463e270
 mtime_utc: 2026-07-19T03:04:59.600517+00:00
-generated_utc: 2026-07-19T19:29:22.526991+00:00
+generated_utc: 2026-10-09T07:40:59.611613+00:00
 private: false
 ---
 
@@ -37,6 +37,7 @@ and the operator see identical numbers. Read-only.
 | `--top-n` | Rows in the most-revised/contradicted lists (0 = omit). | `5` |  | int |  |
 | `--json` | Emit raw JSON instead of a human table. | `False` |  | store_true |  |
 | `--database` | SQLite database path. Env: M3_DATABASE. Default: memory/agent_memory.db. | None |  | str |  |
+| `--store` | Named store from m3_config.toml ('main' = the default). Not with --database. | None |  | str |  |
 
 ---
 

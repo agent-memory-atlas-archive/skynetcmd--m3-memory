@@ -376,13 +376,13 @@ Examples:
 
 def _backfill_one_database(args: argparse.Namespace) -> int:
     """Backends that hold both stores in one database: embed_backfill owns
-    that path (--store core|chatlog). This tool's file paths do not apply."""
+    that path (--target core|chatlog). This tool's file paths do not apply."""
     import embed_backfill
 
     stores = ["chatlog"] if args.chatlog_only else ["core"] if args.core_only else ["core", "chatlog"]
     rc = 0
     for store in stores:
-        argv = ["--store", store]
+        argv = ["--target", store]
         if args.dry_run:
             argv.append("--dry-run")
         if args.limit:

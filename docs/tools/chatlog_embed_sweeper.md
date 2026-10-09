@@ -2,7 +2,7 @@
 tool: bin/chatlog_embed_sweeper.py
 sha1: 16a2091eba32
 mtime_utc: 2026-10-08T23:42:29.739131+00:00
-generated_utc: 2026-10-08T23:42:44.964691+00:00
+generated_utc: 2026-10-09T07:40:59.231181+00:00
 private: false
 ---
 
@@ -35,6 +35,7 @@ and drains any spill-to-disk files from the async write queue.
 | `--dry-run` | Query and log but don't embed | `False` | Queries unembed rows, embeds in batches, updates DB | store_true | Queries and logs row counts without embedding |
 | `--drain-spill` | Process spill files before embedding | `False` | Skips spill drain (unless spill dir exists) | store_true | Always processes spill files before embedding |
 | `--database` | SQLite database path. Env: M3_DATABASE. Default: memory/agent_memory.db. | None | Falls back to M3_DATABASE env then memory/agent_memory.db | str | Routes this run against PATH for all DB reads/writes |
+| `--store` | Named store from m3_config.toml ('main' = the default). Not with --database. | None |  | str |  |
 
 ---
 

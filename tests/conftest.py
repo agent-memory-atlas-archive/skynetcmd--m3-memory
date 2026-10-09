@@ -1067,6 +1067,12 @@ def _reset_storage_backend_cache():
                 _sel._reset_for_tests()
             except Exception:  # noqa: BLE001 — hygiene must never fail a test
                 pass
+        # The process's named store (a CLI's --store, set while parsing) is a
+        # module global; a test that ran a main() in-process must not leave it
+        # selected for the next test.
+        _paths = sys.modules.get("m3_core.paths")
+        if _paths is not None:
+            _paths._process_store = None
 
     _clear()
     yield
