@@ -57,12 +57,19 @@ def test_over_cap_rotates_to_single_generation(tmp_path):
 
 
 def test_second_rotation_drops_the_older_generation(tmp_path):
-    """Single generation only — .1/.2/.3 accumulating would defeat the point."""
-    log = tmp_path / "d.log"
+    """Single generation only — .1/.2/.3 accumulating would defeat the point.
+
+    Runs in a directory the test owns: the conftest sandbox puts its engine and
+    config roots under tmp_path, so after some test orders tmp_path also held
+    engine/, config/ and a test DB, and the listing failed for reasons unrelated
+    to rotation."""
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    log = logs / "d.log"
     for _ in range(2):
         _make_oversized(log)
         _rotate_if_oversized(log)
-    generations = sorted(p.name for p in tmp_path.iterdir())
+    generations = sorted(p.name for p in logs.iterdir())
     assert generations == ["d.log.1"], generations
 
 
