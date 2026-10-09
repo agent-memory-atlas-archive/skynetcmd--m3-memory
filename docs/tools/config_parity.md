@@ -1,8 +1,8 @@
 ---
 tool: bin/config_parity.py
-sha1: a41c7e699e22
-mtime_utc: 2026-10-09T01:04:11.366724+00:00
-generated_utc: 2026-10-09T01:04:18.474716+00:00
+sha1: 56dde8583d68
+mtime_utc: 2026-10-09T01:05:21.088097+00:00
+generated_utc: 2026-10-09T01:05:56.599753+00:00
 private: false
 ---
 
@@ -49,7 +49,7 @@ Exit: 0 = ok / no drift; 1 = drift; 2 = cannot check (missing key or baseline).
 
 ## Entry points
 
-- `def main()` (line 317)
+- `def main()` (line 330)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -98,7 +98,19 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## File dependencies (repo paths referenced)
 
-_(none detected)_
+- `.chatlog_config.json`
+- `.cognitive_loop_config.json`
+- `.embed_config.json`
+- `.governor_config.json`
+- `.llm_config.json`
+- `.log_config.json`
+- `.migrate_config.json`
+- `.spill_config.json`
+- `.tools_config.json`
+- `.wiki_admission.json`
+- `.wiki_authority.json`
+- `.wiki_pii.json`
+- `.wiki_self_entities.json`
 
 ---
 

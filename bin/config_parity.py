@@ -70,6 +70,17 @@ PARSED_MODULES = (
     "crypto_provider", "sqlite_pragmas",
 )
 
+# The config files of CONFIG_DESIGN §11. Other JSON files in the config root are
+# runtime state (heartbeats, pass stamps, watchdog state) or another app's, and
+# would show as drift every few minutes; they are listed by NAME only, for the
+# 2A.3 classification, never compared.
+CONFIG_FILES = (
+    ".llm_config.json", ".cognitive_loop_config.json", ".governor_config.json",
+    ".log_config.json", ".spill_config.json", ".embed_config.json", ".chatlog_config.json",
+    ".migrate_config.json", ".tools_config.json", ".wiki_admission.json",
+    ".wiki_authority.json", ".wiki_pii.json", ".wiki_self_entities.json",
+)
+
 _SECRET_NAME = re.compile(r"(KEY|TOKEN|SECRET|PASSW|SALT|DSN|CREDENTIAL|MASTER|_PG_URL|^PG_URL)", re.I)
 _URL_CREDENTIALS = re.compile(r"://[^/@\s:]+:[^/@\s]+@")
 
@@ -258,7 +269,8 @@ def capture(context: str) -> dict:
     from m3_core.paths import get_m3_config_root
     files: dict[str, dict] = {}
     root = Path(get_m3_config_root())
-    for p in sorted(root.glob("*.json")) + sorted(root.glob(".*.json")):
+    present = {p.name for p in list(root.glob("*.json")) + list(root.glob(".*.json"))}
+    for p in (root / name for name in CONFIG_FILES if name in present):
         try:
             data = json.loads(p.read_text(encoding="utf-8"))
         except (OSError, ValueError) as e:
@@ -286,6 +298,7 @@ def capture(context: str) -> dict:
             "parsed_modules": list(PARSED_MODULES),
             "parsed_import_errors": import_errors,
             "parsed_modules_imported_before_dotenv": imported_before,
+            "json_files_not_in_config_inventory": sorted(present - set(CONFIG_FILES)),
         },
     }
 
