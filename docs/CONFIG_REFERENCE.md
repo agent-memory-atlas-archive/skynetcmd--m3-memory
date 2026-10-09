@@ -113,6 +113,42 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `max_batch` | integer | `2048` | `M3_EMBED_SERVER_MAX_BATCH` | restart to apply; Texts per server batch. |
 | `port` | integer | `8082` | `M3_EMBED_SERVER_PORT` | restart to apply; Port of the shared embed server (also read by the Rust server). |
 
+## [enrich]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `budget_usd` | number | (none) | `M3_ENRICH_BUDGET_USD` | restart to apply; Spending cap for one run, in US dollars; unset is uncapped. |
+| `conv_list` | path | (none) | `M3_ENRICH_CONV_LIST` | restart to apply; File listing the conversations to enrich. |
+| `input_max_k` | integer | (none) | `M3_ENRICH_INPUT_MAX_K` | restart to apply; Input cap in KiB; unset uses the profile's own. |
+| `max_attempts` | integer | `3` | `M3_ENRICH_MAX_ATTEMPTS` | restart to apply; Attempts before a conversation is dead-lettered. |
+| `max_size_k` | integer | (none) | `M3_ENRICH_MAX_SIZE_K` | restart to apply; --resume: skip conversations larger than this (KiB). |
+| `min_size_k` | integer | (none) | `M3_ENRICH_MIN_SIZE_K` | restart to apply; --resume: skip conversations smaller than this (KiB). |
+| `profile` | string | `enrich_local_qwen` | `M3_ENRICH_PROFILE` | restart to apply; SLM profile (under config/slm/) m3_enrich uses. |
+| `send_to` | string | (none) | `M3_ENRICH_SEND_TO` | restart to apply; --resume: only conversations assigned to this provider. |
+| `track_state` | boolean | `false` | `M3_ENRICH_TRACK_STATE` | restart to apply; Record per-conversation enrichment state (forced on by --resume and budgets). |
+
+## [entity]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `conv_list` | path | (none) | `M3_ENTITIES_CONV_LIST` | restart to apply; File listing the conversations to extract entities from. |
+| `extract_concurrency` | integer | `2` | `M3_ENTITY_EXTRACT_CONCURRENCY` | restart to apply; Concurrent entity extractions. |
+| `extract_max_attempts` | integer | `3` | `M3_ENTITY_EXTRACT_MAX_ATTEMPTS` | restart to apply; Attempts before an entity extraction is given up. |
+| `resolve_cosine_min` | number | `0.92` | `M3_ENTITY_RESOLVE_COSINE_MIN` | restart to apply; Embedding similarity at which two entity names resolve to one entity. |
+| `resolve_fuzzy_min` | number | `0.85` | `M3_ENTITY_RESOLVE_FUZZY_MIN` | restart to apply; Fuzzy-match score at which two entity names resolve to one entity. |
+| `seed_stoplist` | list of strings | `["yes", "no", "ok", "okay", "thanks", "thank", "hi", "hello", "the", "this", "that", "there", "their", "they", "them", "it", "its"]` | `M3_ENTITY_SEED_STOPLIST` | restart to apply; Words never used as graph seeds (case-insensitive). |
+| `vocab_yaml` | path | (none) | `M3_ENTITY_VOCAB_YAML` | restart to apply; Entity vocabulary. Unset: config/lists/entity_graph_default.yaml (the m3_entities CLI uses entity_graph_m3.yaml; 2D makes them one). |
+
+## [entity.coalesce]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `automerge_cosine` | number | `0.95` | `M3_ENTITY_COALESCE_AUTOMERGE` | restart to apply; Similarity at which two entities merge automatically. |
+| `flag_cosine` | number | `0.8` | `M3_ENTITY_COALESCE_FLAG` | restart to apply; Similarity at which a pair is flagged for review. |
+| `fuzzy_high` | integer | `90` | `M3_ENTITY_COALESCE_FUZZY_HIGH` | restart to apply; Fuzzy-name score (0-100) that counts as a strong match. |
+| `max_block` | integer | `400` | `M3_ENTITY_COALESCE_MAX_BLOCK` | restart to apply; Entities compared in one block. |
+| `max_cluster` | integer | `12` | `M3_ENTITY_COALESCE_MAX_CLUSTER` | restart to apply; Largest same_as cluster an automatic merge may build. |
+
 ## [extraction]
 
 | Key | Type | Default | Environment names | Notes |
@@ -144,6 +180,15 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `summary_model` | string | (none) | `M3_FILES_SUMMARY_MODEL` | restart to apply; Summary model. Default: the endpoint's discovered model. |
 | `summary_url` | string | (none) | `M3_FILES_SUMMARY_URL` | restart to apply; Summary endpoint. Default: M3_LMSTUDIO_URL; unset disables summaries. |
 
+## [gliner]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `batch_size` | integer | `32` | `M3_GLINER_BATCH_SIZE` | restart to apply; Texts per GLiNER batch. |
+| `device` | string | `cuda` | `M3_GLINER_DEVICE` | restart to apply; Device: cuda (falls back to mps, then cpu), cpu, or a torch device. |
+| `model` | string | `urchade/gliner_large-v2.1` | `M3_GLINER_MODEL` | restart to apply; GLiNER model (Hugging Face id). |
+| `threshold` | number | `0.5` | `M3_GLINER_THRESHOLD` | restart to apply; Entity confidence threshold. |
+
 ## [llm]
 
 | Key | Type | Default | Environment names | Notes |
@@ -164,6 +209,8 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | Key | Type | Default | Environment names | Notes |
 |---|---|---|---|---|
 | `entity_graph` | boolean | `true` | `M3_ENABLE_ENTITY_GRAPH` | restart to apply; Build the entity graph on write. |
+| `fact_enrich_concurrency` | integer | `2` | `M3_FACT_ENRICH_CONCURRENCY` | restart to apply; Concurrent fact extractions. |
+| `fact_enrich_max_attempts` | integer | `3` | `M3_FACT_ENRICH_MAX_ATTEMPTS` | restart to apply; Attempts before a fact extraction is given up. |
 | `fact_enriched` | boolean | `true` | `M3_ENABLE_FACT_ENRICHED` | restart to apply; Enrich writes with extracted facts. |
 
 ## [memory.contradiction]

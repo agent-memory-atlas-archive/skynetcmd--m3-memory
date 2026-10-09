@@ -9,6 +9,7 @@ from __future__ import annotations
 from m3_core.paths import SELECTABLE_BACKENDS
 
 from .keys_embed import EMBED
+from .keys_enrich import ENRICH
 from .keys_files import FILES
 from .keys_llm import LLM
 from .keys_search import SEARCH
@@ -133,7 +134,7 @@ SECRETS: list[Key] = [
     _secret("OPENCLAW_GATEWAY_TOKEN", "OpenClaw gateway token."),
 ]
 
-REGISTRY = Registry([*DB, *DB_POSTGRES, *PATHS, *EMBED, *FILES, *SEARCH, *LLM, SECRETS_FILE, *SECRETS])
+REGISTRY = Registry([*DB, *DB_POSTGRES, *PATHS, *EMBED, *FILES, *SEARCH, *LLM, *ENRICH, SECRETS_FILE, *SECRETS])
 
 # Env names m3 code reads that are deliberately NOT settings, with the reason.
 # The completeness test treats them as decided; only the user moves a name here.
@@ -154,6 +155,7 @@ RETIRED: dict[str, str] = {
     "M3_CONFIDENCE_MODEL": "no consumer (memory/config.py:252)",
     "M3_TRUST_AUTOTUNE": "no consumer (memory/config.py:265)",
     "M3_CLOUD_MINIMIZATION_LEVEL": "no consumer (memory/config.py:422)",
+    "M3_ENTITY_COALESCE_MAX_PAIRS": "every caller passes 1000 (files_memory/entity_coalesce.py:69)",
 }
 
 NOT_SETTINGS: dict[str, str] = {

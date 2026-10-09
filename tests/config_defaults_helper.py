@@ -29,7 +29,8 @@ def todays_values(pinned: dict[str, tuple[str, str]]) -> dict:
         "out = {}\n"
         "for key, (mod, attr) in pinned.items():\n"
         "    v = getattr(importlib.import_module(mod), attr)\n"
-        "    out[key] = list(v) if isinstance(v, (tuple, frozenset, set)) else v\n"
+        # A set's order is arbitrary: mark it, so it is compared as a set.
+        "    out[key] = {'set': sorted(v)} if isinstance(v, (frozenset, set)) else (list(v) if isinstance(v, tuple) else v)\n"
         "print(json.dumps(out))\n"
     )
     r = subprocess.run([sys.executable, "-c", prog], capture_output=True, text=True, env=env, timeout=120)
@@ -42,4 +43,12 @@ def mismatches(pinned: dict[str, tuple[str, str]]) -> dict:
     from m3_core.config import REGISTRY
 
     today = todays_values(pinned)
-    return {k: (REGISTRY.get(k).default, v) for k, v in today.items() if REGISTRY.get(k).default != v}
+    out = {}
+    for k, v in today.items():
+        default = REGISTRY.get(k).default
+        if isinstance(v, dict) and set(v) == {"set"}:
+            if sorted(default or []) != v["set"]:
+                out[k] = (default, v["set"])
+        elif default != v:
+            out[k] = (default, v)
+    return out

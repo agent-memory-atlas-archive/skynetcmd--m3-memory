@@ -377,6 +377,142 @@
         }
       }
     },
+    "enrich": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "budget_usd": {
+          "type": "number",
+          "description": "Spending cap for one run, in US dollars; unset is uncapped."
+        },
+        "conv_list": {
+          "type": "string",
+          "description": "File listing the conversations to enrich."
+        },
+        "input_max_k": {
+          "type": "integer",
+          "description": "Input cap in KiB; unset uses the profile's own."
+        },
+        "max_attempts": {
+          "type": "integer",
+          "description": "Attempts before a conversation is dead-lettered.",
+          "default": 3
+        },
+        "max_size_k": {
+          "type": "integer",
+          "description": "--resume: skip conversations larger than this (KiB)."
+        },
+        "min_size_k": {
+          "type": "integer",
+          "description": "--resume: skip conversations smaller than this (KiB)."
+        },
+        "profile": {
+          "type": "string",
+          "description": "SLM profile (under config/slm/) m3_enrich uses.",
+          "default": "enrich_local_qwen"
+        },
+        "send_to": {
+          "type": "string",
+          "description": "--resume: only conversations assigned to this provider."
+        },
+        "track_state": {
+          "type": "boolean",
+          "description": "Record per-conversation enrichment state (forced on by --resume and budgets).",
+          "default": false
+        }
+      }
+    },
+    "entity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "conv_list": {
+          "type": "string",
+          "description": "File listing the conversations to extract entities from."
+        },
+        "extract_concurrency": {
+          "type": "integer",
+          "description": "Concurrent entity extractions.",
+          "default": 2
+        },
+        "extract_max_attempts": {
+          "type": "integer",
+          "description": "Attempts before an entity extraction is given up.",
+          "default": 3
+        },
+        "resolve_cosine_min": {
+          "type": "number",
+          "description": "Embedding similarity at which two entity names resolve to one entity.",
+          "default": 0.92
+        },
+        "resolve_fuzzy_min": {
+          "type": "number",
+          "description": "Fuzzy-match score at which two entity names resolve to one entity.",
+          "default": 0.85
+        },
+        "seed_stoplist": {
+          "type": "array",
+          "description": "Words never used as graph seeds (case-insensitive).",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "yes",
+            "no",
+            "ok",
+            "okay",
+            "thanks",
+            "thank",
+            "hi",
+            "hello",
+            "the",
+            "this",
+            "that",
+            "there",
+            "their",
+            "they",
+            "them",
+            "it",
+            "its"
+          ]
+        },
+        "vocab_yaml": {
+          "type": "string",
+          "description": "Entity vocabulary. Unset: config/lists/entity_graph_default.yaml (the m3_entities CLI uses entity_graph_m3.yaml; 2D makes them one)."
+        },
+        "coalesce": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "automerge_cosine": {
+              "type": "number",
+              "description": "Similarity at which two entities merge automatically.",
+              "default": 0.95
+            },
+            "flag_cosine": {
+              "type": "number",
+              "description": "Similarity at which a pair is flagged for review.",
+              "default": 0.8
+            },
+            "fuzzy_high": {
+              "type": "integer",
+              "description": "Fuzzy-name score (0-100) that counts as a strong match.",
+              "default": 90
+            },
+            "max_block": {
+              "type": "integer",
+              "description": "Entities compared in one block.",
+              "default": 400
+            },
+            "max_cluster": {
+              "type": "integer",
+              "description": "Largest same_as cluster an automatic merge may build.",
+              "default": 12
+            }
+          }
+        }
+      }
+    },
     "extraction": {
       "type": "object",
       "additionalProperties": false,
@@ -501,6 +637,32 @@
         }
       }
     },
+    "gliner": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "batch_size": {
+          "type": "integer",
+          "description": "Texts per GLiNER batch.",
+          "default": 32
+        },
+        "device": {
+          "type": "string",
+          "description": "Device: cuda (falls back to mps, then cpu), cpu, or a torch device.",
+          "default": "cuda"
+        },
+        "model": {
+          "type": "string",
+          "description": "GLiNER model (Hugging Face id).",
+          "default": "urchade/gliner_large-v2.1"
+        },
+        "threshold": {
+          "type": "number",
+          "description": "Entity confidence threshold.",
+          "default": 0.5
+        }
+      }
+    },
     "llm": {
       "type": "object",
       "additionalProperties": false,
@@ -565,6 +727,16 @@
           "type": "boolean",
           "description": "Build the entity graph on write.",
           "default": true
+        },
+        "fact_enrich_concurrency": {
+          "type": "integer",
+          "description": "Concurrent fact extractions.",
+          "default": 2
+        },
+        "fact_enrich_max_attempts": {
+          "type": "integer",
+          "description": "Attempts before a fact extraction is given up.",
+          "default": 3
         },
         "fact_enriched": {
           "type": "boolean",
