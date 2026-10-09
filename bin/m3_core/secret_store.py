@@ -382,14 +382,10 @@ def _check_new_file_would_be_private(directory: Path) -> None:
     """Windows: a new file takes its directory's inheritable ACL, and atomic_write's
     0600 means nothing there. So learn what a file in ``directory`` inherits from an
     EMPTY probe, and refuse before the plaintext is written."""
-    import tempfile
+    from m3_core.win_acl import probe_new_file
 
-    # 3.12 delete_on_close=False: closed before the ACL is read, removed on exit
-    # even when the check raises (the same idiom as atomic_write).
-    with tempfile.NamedTemporaryFile(dir=directory, prefix=".m3_acl_probe.",
-                                     delete=True, delete_on_close=False) as probe:
-        probe.close()
+    with probe_new_file(directory) as probe:
         _check_private_windows(
-            Path(probe.name), what=f"a new file in {directory} (the secrets file was NOT written)",
+            Path(probe), what=f"a new file in {directory} (the secrets file was NOT written)",
             fix=(f"icacls \"{directory}\" /inheritance:r /grant:r \"%USERNAME%:(OI)(CI)F\" "
                  "/grant:r \"SYSTEM:(OI)(CI)F\", or point M3_CONFIG_ROOT at a user-only directory"))

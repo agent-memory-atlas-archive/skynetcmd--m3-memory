@@ -364,6 +364,17 @@ def config_root_with_tier() -> tuple[str, str]:
     return os.path.join(os.path.expanduser("~"), ".m3", "config"), CONFIG_ROOT_DEFAULT
 
 
+def dotenv_path() -> str | None:
+    """The legacy .env m3 reads: ``<config root>/.env``, else ``<memory root>/.env``;
+    None when neither exists. The one owner of that rule: M3Context injects it
+    (until 2D) and the config registry parses it as its lowest source."""
+    for root in (get_m3_config_root(), get_m3_root()):
+        candidate = os.path.join(root, ".env")
+        if os.path.exists(candidate):
+            return candidate
+    return None
+
+
 def get_m3_engine_root() -> str:
     """Returns the M3 database engine directory.
     Precedence: M3_ENGINE_ROOT > M3_MEMORY_ROOT/engine > ~/.m3/engine

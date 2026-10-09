@@ -11,9 +11,13 @@ read any file regardless, so admitting them adds no exposure.
 """
 from __future__ import annotations
 
+import contextlib
 import ctypes
+import os
 import re
 import sys
+import tempfile
+from collections.abc import Iterator
 
 _SE_FILE_OBJECT = 1
 _OWNER_SECURITY_INFORMATION = 0x1
@@ -137,6 +141,18 @@ _NAMES = {
     "BU": "Users", "S-1-5-32-545": "Users", "IU": "Interactive users",
     "SU": "Service logons", "S-1-5-3": "Batch logons", "AN": "Anonymous",
 }
+
+
+@contextlib.contextmanager
+def probe_new_file(directory: str | os.PathLike[str]) -> Iterator[str]:
+    """An EMPTY file in ``directory``, removed on exit even if the caller raises.
+    A new file takes its directory's inheritable ACL, so this is how a writer
+    learns what its file WOULD inherit before any content is written.
+    (3.12 ``delete_on_close=False``: closed before the ACL is read.)"""
+    with tempfile.NamedTemporaryFile(dir=directory, prefix=".m3_acl_probe.",
+                                     delete=True, delete_on_close=False) as probe:
+        probe.close()
+        yield probe.name
 
 
 def file_foreign_principals(path: str) -> list[str]:

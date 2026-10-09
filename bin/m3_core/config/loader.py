@@ -161,11 +161,28 @@ def load(location: Location, registry: Registry) -> LoadedFile:
     data, identity = got
     try:
         text = data.decode("utf-8")
+    except UnicodeDecodeError as e:
+        raise _syntax_error(path, e) from None
+    values, schema, warnings = validate_text(path, text, registry)
+    return LoadedFile(location=location, identity=identity, values=MappingProxyType(values),
+                      schema_version=schema, warnings=tuple(warnings))
+
+
+def _syntax_error(path: Path, e: Exception) -> ConfigFileError:
+    err = ConfigSyntaxError(f"{path}: not valid TOML: {e}")
+    err.add_note("fix the file at the position named, or move it aside to start from defaults")
+    return ConfigFileError(f"{path} could not be read", [err])
+
+
+def validate_text(path: Path, text: str, registry: Registry
+                  ) -> tuple[dict[str, ConfigValue], int, list[str]]:
+    """THE validation of m3_config.toml content: (values, schema_version, warnings),
+    or ``ConfigFileError`` naming every problem. The loader runs it on the file;
+    the writer runs it on the NEW text before replacing the file (§12)."""
+    try:
         doc = tomllib.loads(text)
-    except (UnicodeDecodeError, tomllib.TOMLDecodeError) as e:
-        err = ConfigSyntaxError(f"{path}: not valid TOML: {e}")
-        err.add_note("fix the file at the position named, or move it aside to start from defaults")
-        raise ConfigFileError(f"{path} could not be read", [err]) from None
+    except tomllib.TOMLDecodeError as e:
+        raise _syntax_error(path, e) from None
 
     errors: list[Exception] = []
     warnings: list[str] = []
@@ -210,8 +227,7 @@ def load(location: Location, registry: Registry) -> LoadedFile:
     if errors:
         raise ConfigFileError(f"{path} has {len(errors)} invalid "
                               f"{'entry' if len(errors) == 1 else 'entries'}", errors)
-    return LoadedFile(location=location, identity=identity, values=MappingProxyType(values),
-                      schema_version=schema, warnings=tuple(warnings))
+    return values, schema, warnings
 
 
 def _leaves(doc: Mapping, prefix: str = ""):

@@ -163,3 +163,53 @@ def test_override_is_dataclasses_replace(tmp_path):
     assert t[_key("db.backend")] == "postgres" and s[_key("db.backend")] == "sqlite"
     with pytest.raises(Exception):
         override(s, {_key("db.backend"): "postgre"})
+
+
+# ── .env: parsed as the lowest source, never injected (CONFIG_DESIGN §10; 2C.2) ──
+def _with_dotenv(tmp_path, text, environ, dotenv):
+    from m3_core.config.resolve import DotEnv
+    from m3_core.config.settings import build
+
+    p = tmp_path / "m3_config.toml"
+    if text is not None:
+        p.write_text(text, encoding="utf-8")
+    from m3_core.config import Location
+
+    return build(Location(file=p, root=tmp_path, tier="t"), environ=environ,
+                 dotenv=DotEnv(path=str(tmp_path / ".env"), values=dotenv))
+
+
+def test_dotenv_is_the_lowest_source(tmp_path):
+    k = _key("search.row_cap")
+    only = _with_dotenv(tmp_path, None, {}, {"M3_SEARCH_ROW_CAP": "700"})
+    assert only[k] == 700 and only.origin(k).startswith("dotenv:")
+    env_wins = _with_dotenv(tmp_path, None, {"M3_SEARCH_ROW_CAP": "800"}, {"M3_SEARCH_ROW_CAP": "700"})
+    assert env_wins[k] == 800 and "M3_SEARCH_ROW_CAP (in" in env_wins.shadowed_env()[0]
+    file_wins = _with_dotenv(tmp_path, "[search]\nrow_cap = 900\n", {}, {"M3_SEARCH_ROW_CAP": "700"})
+    assert file_wins[k] == 900 and file_wins.shadowed_env() == [f"M3_SEARCH_ROW_CAP (in {tmp_path / '.env'})"]
+
+
+def test_a_bad_dotenv_value_names_the_file(tmp_path):
+    from m3_core.config import format_config_error
+    from m3_core.config.resolve import ConfigEnvErrors
+
+    with pytest.raises(ConfigEnvErrors) as exc:
+        _with_dotenv(tmp_path, None, {}, {"M3_SEARCH_ROW_CAP": "lots"})
+    text = format_config_error(exc.value)
+    assert ".env" in text and "fix or remove the line" in text
+
+
+def test_dotenv_is_never_injected(monkeypatch, tmp_path):
+    """The real loader parses the file; os.environ is untouched."""
+    import os
+
+    from m3_core.config import env as cfg_env
+
+    monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path))
+    monkeypatch.delenv("M3_PROBE_DOTENV_ONLY", raising=False)
+    (tmp_path / ".env").write_text("M3_PROBE_DOTENV_ONLY=1\nBARE_NAME\n", encoding="utf-8")
+    path, values = cfg_env.dotenv()
+    from pathlib import Path
+
+    assert Path(path) == tmp_path / ".env" and values == {"M3_PROBE_DOTENV_ONLY": "1"}
+    assert "M3_PROBE_DOTENV_ONLY" not in os.environ

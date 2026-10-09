@@ -5,6 +5,7 @@ Precedence for a CONFIG key, N..N+2 (the deprecation window, #D28):
     env, for an ``env_override`` key only (U9: db.backend)
     > m3_config.toml
     > legacy env (any other key's old env name; honoured, and reported, until N+3)
+    > .env (parsed, never injected; CONFIG_DESIGN §10)
     > the registry default
 
 So ``m3 config set`` wins at once even while HKCU / rc files / MCP env blocks
@@ -16,7 +17,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .loader import LoadedFile, show_key
 from .registry import ConfigValue, ConfigValueError, Key, KeyClass, Registry
@@ -50,14 +51,27 @@ def _env_hit(key: Key, environ: Mapping[str, str]) -> tuple[str, str] | None:
     return None
 
 
-def _from_env(key: Key, name: str, raw: str) -> ConfigValue:
+@dataclass(frozen=True, slots=True, kw_only=True)
+class DotEnv:
+    """The legacy .env, parsed, never injected (CONFIG_DESIGN §10)."""
+
+    path: str | None = None
+    values: Mapping[str, str] = field(default_factory=dict)
+
+
+NO_DOTENV = DotEnv()
+
+
+def _from_env(key: Key, name: str, raw: str, where: str = "environment") -> ConfigValue:
     try:
         return key.coerce_env_value(raw)
     except ConfigValueError as e:
         # The value is shown: config, never a secret (secrets resolve elsewhere).
+        fix = (f"{name} (fix or unset it)" if where == "environment"
+               else f"{name} in {where} (fix or remove the line)")
         raise ConfigEnvError(
-            f"observed: environment {name}={raw!r} for setting {show_key(key.name)}: {e}. "
-            f"inspect: {name} (fix or unset it); `m3 config show --origin`") from None
+            f"observed: {where} {name}={raw!r} for setting {show_key(key.name)}: {e}. "
+            f"inspect: {fix}; `m3 config show --origin`") from None
 
 
 _LEGACY_NOTED: set[tuple[str, str]] = set()
@@ -80,29 +94,38 @@ def _note_legacy_difference(key: Key, name: str, raw: str, value: ConfigValue) -
                        show_key(key.name), old)
 
 
-def resolve_key(key: Key, loaded: LoadedFile, environ: Mapping[str, str]) -> Resolved:
+def resolve_key(key: Key, loaded: LoadedFile, environ: Mapping[str, str],
+                dotenv: DotEnv = NO_DOTENV) -> Resolved:
     if key.klass is not KeyClass.CONFIG:
         # A contract violation, not a diagnostic: secrets resolve in secret_store.
         raise ValueError(f"{key.name} is a {key.klass} key; secret_store resolves secrets, not resolve_key")
     hit = _env_hit(key, environ)
     if key.env_override and hit is not None:
         return Resolved(value=_from_env(key, *hit), origin=f"env:{hit[0]}")
+    dot = _env_hit(key, dotenv.values)
     if key.name in loaded.values:
         shadowed = tuple(n for n in key.env_names if (environ.get(n) or "").strip())
+        if dot is not None:
+            shadowed += (f"{dot[0]} (in {dotenv.path})",)
         return Resolved(value=loaded.values[key.name],
                         origin=f"file:{loaded.location.file} {show_key(key.name)}", shadowed=shadowed)
     if hit is not None:
         value = _from_env(key, *hit)
         _note_legacy_difference(key, *hit, value)
-        return Resolved(value=value, origin=f"env-legacy:{hit[0]}")
+        shadowed = (f"{dot[0]} (in {dotenv.path})",) if dot is not None else ()
+        return Resolved(value=value, origin=f"env-legacy:{hit[0]}", shadowed=shadowed)
+    if dot is not None:  # the lowest source: below the file and below real env
+        value = _from_env(key, *dot, where=f".env {dotenv.path}")
+        _note_legacy_difference(key, *dot, value)
+        return Resolved(value=value, origin=f"dotenv:{dotenv.path} {dot[0]}")
     # A list default is copied: the registry's own object must never be shared
     # with a caller that might mutate it.
     default = list(key.default) if isinstance(key.default, list) else key.default
     return Resolved(value=default, origin=ORIGIN_DEFAULT)
 
 
-def resolve_all(registry: Registry, loaded: LoadedFile,
-                environ: Mapping[str, str]) -> dict[str, Resolved]:
+def resolve_all(registry: Registry, loaded: LoadedFile, environ: Mapping[str, str],
+                dotenv: DotEnv = NO_DOTENV) -> dict[str, Resolved]:
     """Every CONFIG key, or ``ConfigEnvErrors`` naming EVERY bad env value."""
     out: dict[str, Resolved] = {}
     errors: list[Exception] = []
@@ -110,7 +133,7 @@ def resolve_all(registry: Registry, loaded: LoadedFile,
         if key.klass is not KeyClass.CONFIG:
             continue
         try:
-            out[key.name] = resolve_key(key, loaded, environ)
+            out[key.name] = resolve_key(key, loaded, environ, dotenv)
         except ConfigEnvError as e:
             errors.append(e)
     if errors:

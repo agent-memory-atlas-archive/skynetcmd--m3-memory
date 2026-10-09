@@ -25,7 +25,7 @@ from . import env as _env
 from .keys import REGISTRY
 from .loader import FileIdentity, LoadedFile, Location, file_identity, format_config_error, load, locate
 from .registry import ConfigValue, Key, Registry
-from .resolve import Resolved, resolve_all
+from .resolve import DotEnv, Resolved, resolve_all
 
 logger = logging.getLogger(__name__)
 
@@ -60,14 +60,17 @@ class Settings:
 
 
 def build(location: Location | None = None, *, registry: Registry = REGISTRY,
-          environ: Mapping[str, str] | None = None) -> Settings:
+          environ: Mapping[str, str] | None = None, dotenv: DotEnv | None = None) -> Settings:
     """Load and resolve a snapshot. Raises ``ConfigFileError`` / ``ConfigEnvErrors``."""
     from .keys import RETIRED
 
     loc = location if location is not None else locate()
     loaded: LoadedFile = load(loc, registry)
     env = environ if environ is not None else _env.environ()
-    resolved = resolve_all(registry, loaded, env)
+    if dotenv is None:
+        path, values = _env.dotenv() if environ is None else (None, {})
+        dotenv = DotEnv(path=path, values=values)
+    resolved = resolve_all(registry, loaded, env, dotenv)
     retired = tuple(sorted(n for n in RETIRED if (env.get(n) or "").strip()))
     return Settings(location=loc, identity=loaded.identity, resolved=MappingProxyType(resolved),
                     warnings=loaded.warnings, retired_env=retired)

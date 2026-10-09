@@ -17,6 +17,7 @@ from sqlite_pragmas import apply_pragmas, profile_for_db
 
 from m3_core.gpu import probe_gpu_util
 from m3_core.paths import (
+    dotenv_path,
     get_m3_config_root,
     get_m3_engine_root,
     get_m3_root,
@@ -75,13 +76,12 @@ class M3Context:
         self.m3_engine_root = get_m3_engine_root()
         self.m3_memory_root = get_m3_root()  # Keep for legacy compatibility
 
-        # Load dotenv from config root first, fallback to memory root
-        dotenv_path = os.path.join(self.m3_config_root, ".env")
-        if not os.path.exists(dotenv_path):
-            dotenv_path = os.path.join(self.m3_memory_root, ".env")
-
-        if os.path.exists(dotenv_path):
-            load_dotenv(dotenv_path)
+        # Inject .env into os.environ (existing values win). Kept until the LAST
+        # 2D commit, when every reader has moved to the registry, which reads
+        # .env itself and never injects it (user decision 2026-10-09).
+        dotenv = dotenv_path()
+        if dotenv is not None:
+            load_dotenv(dotenv)
 
         # Preserve constructor contract: no-arg M3Context() resolves against
         # env + default. Callers passing an explicit path bypass the resolver.

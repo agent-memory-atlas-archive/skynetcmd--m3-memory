@@ -122,7 +122,10 @@ _TYPE_NAMES: dict[Callable[[str], object], str] = {
 }
 
 
-@dataclass(frozen=True, slots=True, kw_only=True)
+# eq=False: a key IS its registry object, compared and hashed by identity. A
+# field-derived hash failed for any key with a list default (forbidden_hosts),
+# so such a key could not be a dict key in writer.set_values / settings.override.
+@dataclass(frozen=True, slots=True, kw_only=True, eq=False)
 class Key[T: ConfigValue]:
     """One setting. ``name`` is its identity: the dotted TOML path for a config
     key (``db.backend``), the secret's own name for a secret (``M3_PRIMARY_PG_URL``)."""
