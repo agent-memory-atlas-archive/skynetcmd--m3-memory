@@ -528,7 +528,23 @@ def _no_warehouse_secret(monkeypatch):
     real = m3_sdk.get_secret
     monkeypatch.setattr(m3_sdk, "get_secret",
                         lambda service: None if service in _WAREHOUSE_SECRETS else real(service))
+    # The same block at the TIER level: m3_core.secret_store.resolve_pg_dsn reads
+    # the keyring and vault tiers directly, past m3_sdk.get_secret, and on a dev
+    # box those hold the real warehouse (and possibly primary) DSN. Measured
+    # 2026-10-08: without this, a test resolved SkyPC's real PG_URL in-process.
+    # A test of a tier patches the tier itself and so is unaffected.
+    import auth_utils
+
+    for tier in ("_keyring_tier", "_vault_tier"):
+        real_tier = getattr(auth_utils, tier)
+        monkeypatch.setattr(
+            auth_utils, tier,
+            lambda service, _real=real_tier: (None, None) if service in _DSN_SECRETS else _real(service))
     yield
+
+
+# Every DSN name a test must never resolve from the developer's real keyring or vault.
+_DSN_SECRETS = _WAREHOUSE_SECRETS | {"M3_PRIMARY_PG_URL", "M3_PG_URL"}
 
 
 @pytest.fixture(autouse=True)
