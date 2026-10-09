@@ -40,7 +40,7 @@ class _Entry:
     __slots__ = ("backend_factory", "dialect")
 
     def __init__(
-        self, backend_factory: Callable[[], StorageBackend], dialect: Dialect
+        self, backend_factory: type[StorageBackend], dialect: Dialect
     ) -> None:
         self.backend_factory = backend_factory
         self.dialect = dialect
@@ -52,7 +52,7 @@ _REGISTRY: dict[str, _Entry] = {}
 
 def register_backend(
     name: str, *, dialect: Dialect
-) -> Callable[[Callable[[], StorageBackend]], Callable[[], StorageBackend]]:
+) -> Callable[[type[StorageBackend]], type[StorageBackend]]:
     """Decorator a backend module applies to its backend class (or factory).
 
     Usage, at the bottom of ``sqlite_backend.py``::
@@ -73,8 +73,8 @@ def register_backend(
     """
 
     def _decorator(
-        factory: Callable[[], StorageBackend],
-    ) -> Callable[[], StorageBackend]:
+        factory: type[StorageBackend],
+    ) -> type[StorageBackend]:
         prior = _REGISTRY.get(name)
         if prior is not None:
             # A RE-IMPORT of the SAME module is idempotent, not a conflict. The
@@ -163,7 +163,7 @@ def _ensure_registered(name: str) -> None:
             _REGISTRY[name] = entry
 
 
-def backend_factory_for(name: BackendName) -> Callable[[], StorageBackend]:
+def backend_factory_for(name: BackendName) -> type[StorageBackend]:
     """The registered factory (class) that builds the backend for ``name``.
 
     Raises ``ValueError`` if the name is allow-listed (selector validated it) but

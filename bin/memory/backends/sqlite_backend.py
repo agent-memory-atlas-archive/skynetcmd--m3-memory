@@ -503,6 +503,17 @@ class SqliteBackend:
         except Exception:
             return False
 
+    @classmethod
+    def from_store(cls, store) -> SqliteBackend:
+        """A SQLite store is the UNPINNED instance: m3_core.paths.resolve_db_path
+        returns the active store's path, so every caller that opens the store
+        through memory.db._db() (not only this instance) follows it (2C.3)."""
+        return cls()
+
+    @classmethod
+    def store_cache_key(cls, store) -> str:
+        return ""  # one shared unpinned instance; the path is resolved per call
+
     @contextmanager
     def _pinned_connection(self):
         """Read/write connection to the PINNED store, with _db()'s discipline.

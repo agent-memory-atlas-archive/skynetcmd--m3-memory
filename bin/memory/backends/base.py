@@ -41,6 +41,8 @@ from datetime import UTC
 from typing import TYPE_CHECKING, Literal, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
+    from m3_core.paths import StoreRef
+
     from .dialect import Dialect
 
 # The set of backend identities Phase 0 knows about. "postgres" is declared here
@@ -521,6 +523,24 @@ class StorageBackend(Protocol):
         MUST be best-effort: a checkpoint failure is a housekeeping problem, not
         a data problem, and must never abort the batch that called it.
         """
+        ...
+
+    @classmethod
+    def from_store(cls, store: StoreRef) -> StorageBackend:
+        """A backend instance for a NAMED store (CONFIG_DESIGN §14; plan 2C.3).
+
+        The selector calls this instead of the zero-argument factory when a store
+        is active, so the backend decides what its locator means: a SQLite store
+        reuses the unpinned instance (its path reaches every caller through
+        resolve_db_path), a PostgreSQL store resolves its own ``dsn_secret`` (a
+        bootstrap secret) through the same guards as the primary DSN.
+        """
+        ...
+
+    @classmethod
+    def store_cache_key(cls, store: StoreRef) -> str:
+        """The selector's cache key for ``store``'s instance; equal keys share one
+        instance (and so one pool)."""
         ...
 
     def store_identity(self) -> str:

@@ -10,7 +10,7 @@ from __future__ import annotations
 import threading
 from typing import TYPE_CHECKING
 
-from m3_core.paths import SELECTABLE_BACKENDS
+from m3_core.paths import SELECTABLE_BACKENDS, _active_store
 from m3_core.paths import require_sqlite_backend as require_sqlite_backend  # re-export
 from m3_core.paths import resolve_backend_name as _resolve_backend_name
 
@@ -53,20 +53,33 @@ def active_backend() -> StorageBackend:
     loud at selection time.
     """
     name = resolve_backend_name()
-    cached = _backends.get(name)
+    store = _active_store.get()
+    # The registry maps the validated name to its factory (the backend class),
+    # importing the backend module on demand so its @register_backend runs.
+    # No `if name==` ladder here — adding a backend touches only its own file.
+    from .registry import backend_factory_for
+
+    factory = backend_factory_for(name)
+    # One instance per (backend, store): the default store keys on the name alone,
+    # exactly as before 2C.3; a named store asks its backend for the key (§14).
+    key = name if store is None else f"{name}|{factory.store_cache_key(store)}"
+    cached = _backends.get(key)
     if cached is not None:
         return cached
     with _lock:
-        cached = _backends.get(name)
+        cached = _backends.get(key)
         if cached is not None:
             return cached
-        # The registry maps the validated name to its factory (the backend class),
-        # importing the backend module on demand so its @register_backend runs.
-        # No `if name==` ladder here — adding a backend touches only its own file.
-        from .registry import backend_factory_for
-
-        backend: StorageBackend = backend_factory_for(name)()
-        _backends[name] = backend
+        backend: StorageBackend = factory() if store is None else factory.from_store(store)
+        # One pool per distinct STORE (§14 constraint 3): a store that addresses
+        # the same database as an existing instance shares that instance.
+        if store is not None:
+            ident = backend.store_identity()
+            for existing in _backends.values():
+                if existing.name == backend.name and existing.store_identity() == ident:
+                    backend = existing
+                    break
+        _backends[key] = backend
         return backend
 
 

@@ -339,6 +339,27 @@ def _resolve_warehouse_dsn_for_guard() -> str:
         return ""
 
 
+def _resolve_store_dsn(store) -> str:
+    """The DSN of a named PostgreSQL store (CONFIG_DESIGN §14). ``dsn_secret`` names a
+    BOOTSTRAP secret (§10): env, keyring, the secrets file, never the vault (it
+    lives in a store a DSN unlocks). The primary's guards apply: a forbidden host
+    and the warehouse DSN are refused, so a store can never become the warehouse."""
+    from m3_core.secret_store import VaultPolicy, _env_first, explain_secret
+
+    found = explain_secret((store.dsn_secret,), env_hit=_env_first((store.dsn_secret,)),
+                           vault=VaultPolicy.NEVER)
+    if not found.value:
+        tiers = ("; tiers reported: " + " | ".join(found.errors)) if found.errors else ""
+        raise RuntimeError(
+            f"observed: store {store.name!r} (backend postgres) names dsn_secret "
+            f"{store.dsn_secret}, which is not set in the environment, the keyring or the "
+            f"secrets file{tiers}. inspect: `python -m keyring set system {store.dsn_secret}` "
+            f"(prompts for the DSN), or [stores.{store.name}] in m3_config.toml")
+    _reject_forbidden_host(found.value)
+    _reject_same_as_warehouse(found.value)
+    return found.value
+
+
 def _reject_same_as_warehouse(primary_url: str) -> None:
     """Raise if the PRIMARY DSN names the SAME database as the WAREHOUSE DSN.
 
@@ -838,6 +859,15 @@ class PostgresBackend:
     """Pooled PostgreSQL adapter satisfying the `StorageBackend` seam."""
 
     name: BackendName = "postgres"
+
+    @classmethod
+    def from_store(cls, store) -> PostgresBackend:
+        """A PostgreSQL store: its own pool on the DSN its ``dsn_secret`` names (2C.3)."""
+        return cls(dsn=_resolve_store_dsn(store))
+
+    @classmethod
+    def store_cache_key(cls, store) -> str:
+        return f"store:{store.name}:{store.dsn_secret}"
 
     def __init__(self, dsn: str | None = None) -> None:
         self._dsn = dsn or _resolve_dsn()

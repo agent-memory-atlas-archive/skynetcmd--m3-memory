@@ -24,6 +24,7 @@ from m3_core.paths import (
     getenv_compat,
     resolve_backend_name,
     resolve_db_path,
+    without_active_store,
 )
 from m3_core.runtime import (
     M3_CORE_RS_DISABLE,
@@ -596,6 +597,13 @@ class M3Context:
         queries target chat_log_* tables via memory.backends.chatlog_table; the
         table name separates the stores, not the connection.
         """
+        # The chatlog is PROCESS-WIDE (user decision D1, 2026-10-09): a named
+        # store active for this call must not move it, so the chatlog's backend
+        # and path resolve with the store cleared.
+        with without_active_store():
+            yield from self._chatlog_conn()
+
+    def _chatlog_conn(self) -> "Iterator[Any]":
         # PG: one DB, no file path — route to the active backend pool.
         try:
             from memory.backends import active_backend as _ab

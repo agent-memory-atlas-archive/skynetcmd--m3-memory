@@ -18,8 +18,10 @@ import logging
 import threading
 import time
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import MappingProxyType
+
+from m3_core.paths import StoreRef
 
 from . import env as _env
 from .keys import REGISTRY
@@ -39,6 +41,7 @@ class Settings:
     resolved: Mapping[str, Resolved]
     warnings: tuple[str, ...] = ()
     retired_env: tuple[str, ...] = ()  # retired names that are SET: they have no effect
+    stores: Mapping[str, StoreRef] = field(default_factory=lambda: MappingProxyType({}))
 
     def __getitem__[T: ConfigValue](self, key: Key[T]) -> T:
         try:
@@ -73,7 +76,7 @@ def build(location: Location | None = None, *, registry: Registry = REGISTRY,
     resolved = resolve_all(registry, loaded, env, dotenv)
     retired = tuple(sorted(n for n in RETIRED if (env.get(n) or "").strip()))
     return Settings(location=loc, identity=loaded.identity, resolved=MappingProxyType(resolved),
-                    warnings=loaded.warnings, retired_env=retired)
+                    warnings=loaded.warnings, retired_env=retired, stores=loaded.stores)
 
 
 def override(settings: Settings, values: Mapping[Key, ConfigValue]) -> Settings:

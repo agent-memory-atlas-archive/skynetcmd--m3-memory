@@ -21,9 +21,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
 
-from m3_core.paths import CONFIG_ROOT_LEGACY, config_root_with_tier
+from m3_core.paths import CONFIG_ROOT_LEGACY, StoreRef, config_root_with_tier
 
 from .registry import ConfigValue, ConfigValueError, KeyClass, Registry
+from .stores import parse_stores
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +132,7 @@ class LoadedFile:
     values: Mapping[str, ConfigValue] = field(default_factory=lambda: MappingProxyType({}))
     schema_version: int = SCHEMA_VERSION
     warnings: tuple[str, ...] = ()
+    stores: Mapping[str, StoreRef] = field(default_factory=lambda: MappingProxyType({}))
 
 
 def _read(path: Path) -> tuple[bytes, FileIdentity] | None:
@@ -163,9 +165,9 @@ def load(location: Location, registry: Registry) -> LoadedFile:
         text = data.decode("utf-8")
     except UnicodeDecodeError as e:
         raise _syntax_error(path, e) from None
-    values, schema, warnings = validate_text(path, text, registry)
+    values, schema, warnings, stores = validate_text(path, text, registry)
     return LoadedFile(location=location, identity=identity, values=MappingProxyType(values),
-                      schema_version=schema, warnings=tuple(warnings))
+                      schema_version=schema, warnings=tuple(warnings), stores=MappingProxyType(stores))
 
 
 def _syntax_error(path: Path, e: Exception) -> ConfigFileError:
@@ -175,8 +177,8 @@ def _syntax_error(path: Path, e: Exception) -> ConfigFileError:
 
 
 def validate_text(path: Path, text: str, registry: Registry
-                  ) -> tuple[dict[str, ConfigValue], int, list[str]]:
-    """THE validation of m3_config.toml content: (values, schema_version, warnings),
+                  ) -> tuple[dict[str, ConfigValue], int, list[str], dict[str, StoreRef]]:
+    """THE validation of m3_config.toml content: (values, schema_version, warnings, stores),
     or ``ConfigFileError`` naming every problem. The loader runs it on the file;
     the writer runs it on the NEW text before replacing the file (§12)."""
     try:
@@ -192,6 +194,9 @@ def validate_text(path: Path, text: str, registry: Registry
                                  f"must be a positive integer, found {schema!r}"))
         schema = SCHEMA_VERSION
     newer = schema > SCHEMA_VERSION
+
+    # [stores.<name>] tables are dynamic: validated by the stores module (§14).
+    stores = parse_stores(doc.pop("stores"), lambda key, msg: errors.append(_key_error(path, text, key, msg)))         if "stores" in doc else {}
 
     values: dict[str, ConfigValue] = {}
     for name, raw in _leaves(doc):
@@ -227,7 +232,7 @@ def validate_text(path: Path, text: str, registry: Registry
     if errors:
         raise ConfigFileError(f"{path} has {len(errors)} invalid "
                               f"{'entry' if len(errors) == 1 else 'entries'}", errors)
-    return values, schema, warnings
+    return values, schema, warnings, stores
 
 
 def _leaves(doc: Mapping, prefix: str = ""):

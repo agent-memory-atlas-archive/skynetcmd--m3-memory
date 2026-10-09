@@ -8,6 +8,7 @@ import posixpath
 import sqlite3
 import sys
 from contextlib import contextmanager
+from dataclasses import dataclass
 
 logger = logging.getLogger("M3_SDK")
 
@@ -289,6 +290,39 @@ def assert_no_deprecated_pg_url_on_install() -> None:
 _active_db: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "m3_active_db", default=None
 )
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class StoreRef:
+    """A named store as the resolvers need it (CONFIG_DESIGN §14). ``path`` is the
+    SQLite file (absolute) or None; ``dsn_secret`` names a PostgreSQL store's
+    bootstrap secret. Built and validated by ``m3_core.config.stores``."""
+
+    name: str
+    backend: str
+    path: str | None = None
+    dsn_secret: str | None = None
+
+
+# The ACTIVE named store, set only by m3_core.config.stores.active_store(). When
+# set, it outranks the legacy SQLite path (M3_DATABASE / active_database) in
+# resolve_db_path and decides resolve_backend_name: §14's order, user decision D3
+# (2026-10-09). Unset, both resolvers behave exactly as before 2C.3.
+_active_store: contextvars.ContextVar[StoreRef | None] = contextvars.ContextVar(
+    "m3_active_store", default=None
+)
+
+
+@contextmanager
+def without_active_store():
+    """Run a block as if no named store were active. The chatlog is PROCESS-WIDE
+    (user decision D1, 2026-10-09): a `store=` call must not move it, so the
+    chatlog's connection is resolved inside this."""
+    token = _active_store.set(None)
+    try:
+        yield
+    finally:
+        _active_store.reset(token)
 
 
 def resolve_venv_python() -> str:
@@ -734,7 +768,8 @@ def _looks_like_dsn(value: str) -> bool:
 def resolve_db_path(explicit: str | None = None) -> str:
     """Resolve an absolute SQLite DB path.
 
-    Order: explicit arg > M3_DATABASE env > active_database ContextVar > default
+    Order: explicit arg > the active named SQLite store (2C.3, §14) > M3_DATABASE env
+    > active_database ContextVar > default
     (memory/agent_memory.db). Returns an absolute path so pool-cache keys are
     consistent regardless of caller CWD.
 
@@ -755,7 +790,10 @@ def resolve_db_path(explicit: str | None = None) -> str:
     Linux is a perfectly legal path, so it would have silently created the
     stub and reported healthy — the far worse failure this guard prevents.
     """
-    candidate = explicit or os.environ.get("M3_DATABASE") or _active_db.get() or _default_db_path()
+    store = _active_store.get()
+    store_path = store.path if store is not None and store.backend == "sqlite" else None
+    candidate = (explicit or store_path or os.environ.get("M3_DATABASE") or _active_db.get()
+                 or _default_db_path())
     if _looks_like_dsn(candidate):
         # Name the source so the operator knows WHICH knob to fix; the value is
         # echoed scheme-only because a DSN carries a password.
@@ -914,7 +952,13 @@ def resolve_backend_name() -> str:
 
     Never memoised: a module-global memo lives per module instance, and two
     loaded instances can disagree about the backend.
+
+    An active named store (``m3_core.config.stores.active_store``) decides first:
+    a PostgreSQL store under a SQLite default, or the reverse, is §14's model.
     """
+    store = _active_store.get()
+    if store is not None:
+        return store.backend
     raw = (getenv_compat("M3_DB_BACKEND", "DB_BACKEND", "sqlite") or "sqlite").strip().lower()
     if raw not in SELECTABLE_BACKENDS:
         raise ValueError(
