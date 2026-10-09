@@ -13,6 +13,7 @@ from .keys_embed import EMBED
 from .keys_enrich import ENRICH
 from .keys_files import FILES
 from .keys_llm import LLM
+from .keys_runtime import RUNTIME
 from .keys_search import SEARCH
 from .registry import Key, KeyClass, Registry, Scope, in_range, one_of, parse_int, parse_list, parse_path
 
@@ -135,7 +136,7 @@ SECRETS: list[Key] = [
     _secret("OPENCLAW_GATEWAY_TOKEN", "OpenClaw gateway token."),
 ]
 
-REGISTRY = Registry([*DB, *DB_POSTGRES, *PATHS, *EMBED, *FILES, *SEARCH, *LLM, *ENRICH, *CHATLOG, SECRETS_FILE, *SECRETS])
+REGISTRY = Registry([*DB, *DB_POSTGRES, *PATHS, *EMBED, *FILES, *SEARCH, *LLM, *ENRICH, *CHATLOG, *RUNTIME, SECRETS_FILE, *SECRETS])
 
 # Env names m3 code reads that are deliberately NOT settings, with the reason.
 # The completeness test treats them as decided; only the user moves a name here.
@@ -184,4 +185,16 @@ NOT_SETTINGS: dict[str, str] = {
     # Read only by a live judge test (as U4 bucket B: test plumbing, not settings).
     "M3_WIKI_DRIFT_PRECISION_FLOOR": "test plumbing: the drift judge live test (wiki/citation_drift.py:183)",
     "M3_WIKI_DRIFT_RECALL_FLOOR": "test plumbing: the drift judge live test (wiki/citation_drift.py:182)",
+    # CONFIG_DESIGN §4(d): in-process handoffs from `m3 serve` to the bridge, which
+    # become explicit parameters in 2E (today m3 serve overwrites them every run).
+    "M3_TRANSPORT": "in-process handoff (CONFIG_DESIGN §4(d)); 2E makes it a parameter",
+    "M3_HTTP_HOST": "in-process handoff (CONFIG_DESIGN §4(d)); 2E makes it a parameter",
+    "M3_HTTP_PORT": "in-process handoff (CONFIG_DESIGN §4(d)); 2E makes it a parameter",
+    "M3_HTTP_PATH": "in-process handoff (CONFIG_DESIGN §4(d)); 2E makes it a parameter",
+    "M3_HTTP_PUBLIC_HOST": "in-process handoff (CONFIG_DESIGN §4(d)); 2E makes it a parameter",
+    "_M3_UTF8_REEXEC": "internal guard against re-executing twice for UTF-8 mode",
+    # As GH_TOKEN (user decision 2026-10-09): release tooling only.
+    "M3_STARGAZER": "release tooling token (gen_download_badges.py; as GITHUB_TOKEN)",
+    # As U4 bucket B: a test hook with no production writer.
+    "M3_SKIP_MIGRATIONS": "test hook: skip schema migrations (memory/db.py:282)",
 }

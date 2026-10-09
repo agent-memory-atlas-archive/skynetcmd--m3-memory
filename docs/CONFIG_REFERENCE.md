@@ -50,6 +50,32 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `auth_token_keyring` | string | (none) | `M3_CLOUD_AUTH_TOKEN_KEYRING` | restart to apply; Keyring entry holding the enclave token, as service:user or user (service m3_memory). A REFERENCE, not the secret; the secret is M3_CLOUD_AUTH_TOKEN. |
 | `enclave_url` | string | (none) | `M3_CLOUD_ENCLAVE_URL` | restart to apply; The cloud enclave's URL. |
 
+## [context]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `cache_size` | integer | `16` | `M3_CONTEXT_CACHE_SIZE` | restart to apply; M3Context instances kept per process. |
+
+## [crypto]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `backend` | string | `DEFAULT` | `M3_CRYPTO_BACKEND` | restart to apply; one of `DEFAULT`, `WOLFSSL`; Crypto backend: DEFAULT or WOLFSSL (forced by crypto.fips_mode / fips_strict). (Today an unknown value acts as DEFAULT; it is now an error.) |
+| `fips_mode` | boolean | `false` | `M3_FIPS_MODE` | restart to apply; FIPS 140-3 mode: wolfSSL/wolfCrypt is required and any failure is fatal. |
+| `fips_strict` | boolean | `false` | `M3_FIPS_STRICT` | restart to apply; Also require the CMVP-validated wolfCrypt build (implies the wolfSSL backend). |
+| `wolfssl_lib` | path | (none) | `M3_WOLFSSL_LIB` | restart to apply; The wolfSSL library file tried first; unset searches the trusted lib dirs. |
+| `wolfssl_sha256` | string | (none) | `M3_WOLFSSL_SHA256` | restart to apply; Integrity pin for the wolfSSL library; checked when wolfSSL initialises. |
+
+## [dashboard]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `host` | string | `127.0.0.1` | `M3_DASHBOARD_HOST` | restart to apply; Address the dashboard binds. |
+| `llm_block_ttl_s` | number | `45.0` | `M3_DASHBOARD_LLM_BLOCK_TTL_S` | restart to apply; Seconds an endpoint that failed the smoke test is skipped. |
+| `llm_smoke` | boolean | `false` | `M3_DASHBOARD_LLM_SMOKE` | restart to apply; Let the dashboard send a small test prompt to each LLM endpoint. |
+| `llm_smoke_ttl_s` | number | `900.0` | `M3_DASHBOARD_LLM_SMOKE_TTL_S` | restart to apply; Seconds an LLM smoke result is cached. |
+| `port` | integer | `8088` | `M3_DASHBOARD_PORT` | restart to apply; Dashboard port. |
+
 ## [db]
 
 | Key | Type | Default | Environment names | Notes |
@@ -69,6 +95,12 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `pool_max` | integer | `16` | `M3_PG_POOL_MAX` | restart to apply; Maximum connections in the PostgreSQL pool (at least pool_min). |
 | `pool_min` | integer | `1` | `M3_PG_POOL_MIN` | restart to apply; Minimum connections in the PostgreSQL pool. |
 | `upsert_page_size` | integer | `500` | `M3_PG_UPSERT_PAGE_SIZE` | Rows per bulk upsert page; lower it over a slow link (U4 D: a deliberate tuning knob). |
+
+## [dispatch]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `mode` | string | `separate` | `M3_DISPATCH_MODE` | restart to apply; one of `separate`, `integrated`; Dispatch queue store: separate (its own) or integrated (the main store). (Today an unknown value acts as separate; it is now an error.) |
 
 ## [embed]
 
@@ -222,7 +254,22 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 | Key | Type | Default | Environment names | Notes |
 |---|---|---|---|---|
+| `config_ttl_s` | number | `5.0` | `M3_GOVERNOR_CFG_TTL` | restart to apply; Seconds between checks of .governor_config.json for changes. |
 | `feedback_window_minutes` | integer | `5` | `M3_FEEDBACK_WINDOW_MINUTES` | restart to apply; Minutes of feedback the maintenance pass considers. |
+
+## [gpu]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `probe_disabled` | boolean | `false` | `M3_GPU_PROBE_DISABLE` | restart to apply; Do not probe GPU load. |
+| `probe_ttl_s` | number | `60.0` | `M3_GPU_PROBE_TTL` | restart to apply; Seconds a GPU probe result is cached. |
+
+## [identity]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `node_id` | string | (none) | `M3_NODE_ID` | restart to apply; Sync node identity. Default: the host name (upper-cased on Windows). |
+| `origin_device` | string | (none) | `M3_ORIGIN_DEVICE`, `ORIGIN_DEVICE` | restart to apply; Device name stamped on memories. Default: the host name. |
 
 ## [ingest]
 
@@ -234,6 +281,22 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `gist_stride` | integer | `5` | `M3_INGEST_GIST_STRIDE` | restart to apply; Turns between gists. |
 | `window_chunks` | boolean | `true` | `M3_INGEST_WINDOW_CHUNKS` | restart to apply; Write windowed chunks on chat ingest. |
 | `window_size` | integer | `3` | `M3_INGEST_WINDOW_SIZE` | restart to apply; Turns per window chunk. |
+
+## [install]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `auto_install` | boolean | `true` | `M3_AUTO_INSTALL` | restart to apply; Let `m3` install a missing payload on first run. |
+| `no_model_download` | boolean | `false` | `M3_NO_MODEL_DOWNLOAD` | restart to apply; Never download embedding model weights. |
+| `os_install_timeout_s` | integer | `180` | `M3_OS_INSTALL_TIMEOUT_S` | restart to apply; Seconds an unattended OS package install may take. |
+
+## [integrations.hermes]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `agent_id` | string | `hermes` | `M3_AGENT_ID` | restart to apply; Agent id the Hermes plugin writes as. |
+| `home` | path | (none) | `M3_HERMES_HOME` | restart to apply; Hermes Agent's home; unset uses HERMES_HOME, then probed locations. |
+| `user_id` | string | `hermes-user` | `M3_USER_ID` | restart to apply; User id the Hermes plugin writes as. |
 
 ## [llm]
 
@@ -250,6 +313,13 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `url` | string | (none) | `M3_LLM_URL` | restart to apply; A custom LLM endpoint, tried first. |
 | `usability_ttl_s` | number | `60.0` | `M3_LLM_USABILITY_TTL` | restart to apply; Seconds an endpoint's usability result is cached. |
 
+## [log]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `max_bytes` | integer | `67108864` | `M3_LOG_MAX_BYTES` | restart to apply; Task log size that triggers rotation; 0 disables rotation. |
+| `task_log_file` | path | (none) | `M3_TASK_LOG_FILE` | restart to apply; A scheduled task's log file. Default: <logs root>/<task>.log. |
+
 ## [loop]
 
 | Key | Type | Default | Environment names | Notes |
@@ -257,6 +327,14 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `classify_deadline_s` | number | `10.0` | `M3_CLASSIFY_DEADLINE_S` | restart to apply; Seconds a classify pass may take. |
 | `distill_model` | string | `slm` | `M3_DISTILL_MODEL` | restart to apply; Procedure distillation model: slm, llm, or a profile name. |
 | `limit_per_pass` | integer | `4` | `M3_LIMIT_PER_PASS` | restart to apply; Items one loop pass takes (the governor shrinks it). |
+| `throttled_limit` | integer | `1` | `M3_GOVERNOR_THROTTLED_LIMIT` | restart to apply; Items per loop pass under THROTTLED load. |
+
+## [mcp]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `allow_destructive` | boolean | `false` | `M3_MCP_PROXY_ALLOW_DESTRUCTIVE`, `MCP_PROXY_ALLOW_DESTRUCTIVE` | restart to apply; Let proxies run catalog tools marked not default-allowed. Off: they are blocked. |
+| `proxy_host` | string | `127.0.0.1` | `M3_MCP_PROXY_HOST`, `MCP_PROXY_HOST` | restart to apply; Address the MCP proxy binds. |
 
 ## [memory]
 
@@ -264,6 +342,8 @@ Precedence for each setting: the environment, for the keys marked *env override*
 |---|---|---|---|---|
 | `auto_related_link` | boolean | `true` | `M3_AUTO_RELATED_LINK` | restart to apply; Link a new memory to related ones on write. |
 | `auto_related_link_scope_by_variant` | boolean | `true` | `M3_AUTO_RELATED_LINK_SCOPE_BY_VARIANT` | restart to apply; Only link memories within the same variant. |
+| `disable_auto_activation` | boolean | `false` | `M3_DISABLE_AUTO_ACTIVATION` | restart to apply; Never switch features on automatically from data volume (an explicit flag still wins). |
+| `enforce_agent_isolation` | boolean | `false` | `M3_ENFORCE_AGENT_ISOLATION` | restart to apply; Restrict a search to the requesting agent's memories. |
 | `entity_graph` | boolean | `true` | `M3_ENABLE_ENTITY_GRAPH` | restart to apply; Build the entity graph on write. |
 | `fact_enrich_concurrency` | integer | `2` | `M3_FACT_ENRICH_CONCURRENCY` | restart to apply; Concurrent fact extractions. |
 | `fact_enrich_max_attempts` | integer | `3` | `M3_FACT_ENRICH_MAX_ATTEMPTS` | restart to apply; Attempts before a fact extraction is given up. |
@@ -357,6 +437,12 @@ Precedence for each setting: the environment, for the keys marked *env override*
 |---|---|---|---|---|
 | `file` | path | (none) | (none) | restart to apply; The user-only plaintext secrets file, for hosts where no keyring serves m3's headless jobs (CONFIG_DESIGN §10). Default: <config root>/m3_secrets.toml. |
 
+## [services]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `macbook_status_host` | string | `127.0.0.1` | `M3_MACBOOK_STATUS_HOST`, `MACBOOK_STATUS_HOST` | restart to apply; Address the macbook status server binds. |
+
 ## [slm]
 
 | Key | Type | Default | Environment names | Notes |
@@ -364,6 +450,21 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `classifier` | boolean | `false` | `M3_SLM_CLASSIFIER` | restart to apply; Use the SLM to classify search intent. |
 | `profile` | string | `default` | `M3_SLM_PROFILE` | restart to apply; Default SLM profile for intent classification. |
 | `profile_dirs` | string | `[]` | `M3_SLM_PROFILES_DIR` | restart to apply; Extra directories searched first for SLM profiles (os.pathsep-separated in env). |
+
+## [sync]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `target_ip` | string | (none) | `M3_SYNC_TARGET_IP`, `SYNC_TARGET_IP` | restart to apply; Warehouse address (legacy form). |
+| `timeout_s` | integer | `600` | `M3_PG_SYNC_TIMEOUT` | restart to apply; Seconds one warehouse sync may take. |
+| `warehouse_host` | string | (none) | `M3_POSTGRES_SERVER`, `POSTGRES_SERVER` | restart to apply; Warehouse host. Default: sync.target_ip, then the warehouse DSN's host. |
+
+## [tools]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `lazy` | boolean | `true` | `M3_TOOLS_LAZY` | restart to apply; Load MCP tool domains on demand. |
+| `timeout_s` | number | (none) | `M3_TOOL_TIMEOUT` | restart to apply; Seconds a tool call may take; 0 or less disables. Unset: each tool's own, else 30. |
 
 ## [wiki.compile]
 

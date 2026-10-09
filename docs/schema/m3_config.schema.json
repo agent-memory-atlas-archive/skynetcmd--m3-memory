@@ -113,6 +113,81 @@
         }
       }
     },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cache_size": {
+          "type": "integer",
+          "description": "M3Context instances kept per process.",
+          "default": 16
+        }
+      }
+    },
+    "crypto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "backend": {
+          "type": "string",
+          "description": "Crypto backend: DEFAULT or WOLFSSL (forced by crypto.fips_mode / fips_strict). (Today an unknown value acts as DEFAULT; it is now an error.)",
+          "enum": [
+            "DEFAULT",
+            "WOLFSSL"
+          ],
+          "default": "DEFAULT"
+        },
+        "fips_mode": {
+          "type": "boolean",
+          "description": "FIPS 140-3 mode: wolfSSL/wolfCrypt is required and any failure is fatal.",
+          "default": false
+        },
+        "fips_strict": {
+          "type": "boolean",
+          "description": "Also require the CMVP-validated wolfCrypt build (implies the wolfSSL backend).",
+          "default": false
+        },
+        "wolfssl_lib": {
+          "type": "string",
+          "description": "The wolfSSL library file tried first; unset searches the trusted lib dirs."
+        },
+        "wolfssl_sha256": {
+          "type": "string",
+          "description": "Integrity pin for the wolfSSL library; checked when wolfSSL initialises."
+        }
+      }
+    },
+    "dashboard": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "host": {
+          "type": "string",
+          "description": "Address the dashboard binds.",
+          "default": "127.0.0.1"
+        },
+        "llm_block_ttl_s": {
+          "type": "number",
+          "description": "Seconds an endpoint that failed the smoke test is skipped.",
+          "default": 45.0
+        },
+        "llm_smoke": {
+          "type": "boolean",
+          "description": "Let the dashboard send a small test prompt to each LLM endpoint.",
+          "default": false
+        },
+        "llm_smoke_ttl_s": {
+          "type": "number",
+          "description": "Seconds an LLM smoke result is cached.",
+          "default": 900.0
+        },
+        "port": {
+          "type": "integer",
+          "description": "Dashboard port.",
+          "default": 8088
+        }
+      }
+    },
     "db": {
       "type": "object",
       "additionalProperties": false,
@@ -177,6 +252,21 @@
               "default": 500
             }
           }
+        }
+      }
+    },
+    "dispatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "description": "Dispatch queue store: separate (its own) or integrated (the main store). (Today an unknown value acts as separate; it is now an error.)",
+          "enum": [
+            "separate",
+            "integrated"
+          ],
+          "default": "separate"
         }
       }
     },
@@ -730,10 +820,45 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "config_ttl_s": {
+          "type": "number",
+          "description": "Seconds between checks of .governor_config.json for changes.",
+          "default": 5.0
+        },
         "feedback_window_minutes": {
           "type": "integer",
           "description": "Minutes of feedback the maintenance pass considers.",
           "default": 5
+        }
+      }
+    },
+    "gpu": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "probe_disabled": {
+          "type": "boolean",
+          "description": "Do not probe GPU load.",
+          "default": false
+        },
+        "probe_ttl_s": {
+          "type": "number",
+          "description": "Seconds a GPU probe result is cached.",
+          "default": 60.0
+        }
+      }
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "node_id": {
+          "type": "string",
+          "description": "Sync node identity. Default: the host name (upper-cased on Windows)."
+        },
+        "origin_device": {
+          "type": "string",
+          "description": "Device name stamped on memories. Default: the host name."
         }
       }
     },
@@ -770,6 +895,53 @@
           "type": "integer",
           "description": "Turns per window chunk.",
           "default": 3
+        }
+      }
+    },
+    "install": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "auto_install": {
+          "type": "boolean",
+          "description": "Let `m3` install a missing payload on first run.",
+          "default": true
+        },
+        "no_model_download": {
+          "type": "boolean",
+          "description": "Never download embedding model weights.",
+          "default": false
+        },
+        "os_install_timeout_s": {
+          "type": "integer",
+          "description": "Seconds an unattended OS package install may take.",
+          "default": 180
+        }
+      }
+    },
+    "integrations": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hermes": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "agent_id": {
+              "type": "string",
+              "description": "Agent id the Hermes plugin writes as.",
+              "default": "hermes"
+            },
+            "home": {
+              "type": "string",
+              "description": "Hermes Agent's home; unset uses HERMES_HOME, then probed locations."
+            },
+            "user_id": {
+              "type": "string",
+              "description": "User id the Hermes plugin writes as.",
+              "default": "hermes-user"
+            }
+          }
         }
       }
     },
@@ -829,6 +1001,21 @@
         }
       }
     },
+    "log": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_bytes": {
+          "type": "integer",
+          "description": "Task log size that triggers rotation; 0 disables rotation.",
+          "default": 67108864
+        },
+        "task_log_file": {
+          "type": "string",
+          "description": "A scheduled task's log file. Default: <logs root>/<task>.log."
+        }
+      }
+    },
     "loop": {
       "type": "object",
       "additionalProperties": false,
@@ -847,6 +1034,27 @@
           "type": "integer",
           "description": "Items one loop pass takes (the governor shrinks it).",
           "default": 4
+        },
+        "throttled_limit": {
+          "type": "integer",
+          "description": "Items per loop pass under THROTTLED load.",
+          "default": 1
+        }
+      }
+    },
+    "mcp": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allow_destructive": {
+          "type": "boolean",
+          "description": "Let proxies run catalog tools marked not default-allowed. Off: they are blocked.",
+          "default": false
+        },
+        "proxy_host": {
+          "type": "string",
+          "description": "Address the MCP proxy binds.",
+          "default": "127.0.0.1"
         }
       }
     },
@@ -863,6 +1071,16 @@
           "type": "boolean",
           "description": "Only link memories within the same variant.",
           "default": true
+        },
+        "disable_auto_activation": {
+          "type": "boolean",
+          "description": "Never switch features on automatically from data volume (an explicit flag still wins).",
+          "default": false
+        },
+        "enforce_agent_isolation": {
+          "type": "boolean",
+          "description": "Restrict a search to the requesting agent's memories.",
+          "default": false
         },
         "entity_graph": {
           "type": "boolean",
@@ -1158,6 +1376,17 @@
         }
       }
     },
+    "services": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "macbook_status_host": {
+          "type": "string",
+          "description": "Address the macbook status server binds.",
+          "default": "127.0.0.1"
+        }
+      }
+    },
     "slm": {
       "type": "object",
       "additionalProperties": false,
@@ -1176,6 +1405,40 @@
           "type": "string",
           "description": "Extra directories searched first for SLM profiles (os.pathsep-separated in env).",
           "default": []
+        }
+      }
+    },
+    "sync": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "target_ip": {
+          "type": "string",
+          "description": "Warehouse address (legacy form)."
+        },
+        "timeout_s": {
+          "type": "integer",
+          "description": "Seconds one warehouse sync may take.",
+          "default": 600
+        },
+        "warehouse_host": {
+          "type": "string",
+          "description": "Warehouse host. Default: sync.target_ip, then the warehouse DSN's host."
+        }
+      }
+    },
+    "tools": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "lazy": {
+          "type": "boolean",
+          "description": "Load MCP tool domains on demand.",
+          "default": true
+        },
+        "timeout_s": {
+          "type": "number",
+          "description": "Seconds a tool call may take; 0 or less disables. Unset: each tool's own, else 30."
         }
       }
     },
