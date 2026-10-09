@@ -533,13 +533,18 @@ def _no_warehouse_secret(monkeypatch):
     # box those hold the real warehouse (and possibly primary) DSN. Measured
     # 2026-10-08: without this, a test resolved SkyPC's real PG_URL in-process.
     # A test of a tier patches the tier itself and so is unaffected.
+    import functools
+
     import auth_utils
 
     for tier in ("_keyring_tier", "_vault_tier"):
         real_tier = getattr(auth_utils, tier)
-        monkeypatch.setattr(
-            auth_utils, tier,
-            lambda service, _real=real_tier: (None, None) if service in _DSN_SECRETS else _real(service))
+
+        @functools.wraps(real_tier)  # __wrapped__: a test with its OWN fake backend may lift the block
+        def blocked(service, _real=real_tier):
+            return (None, None) if service in _DSN_SECRETS else _real(service)
+
+        monkeypatch.setattr(auth_utils, tier, blocked)
     # And no test WRITES the developer's keyring, under any name: the store
     # falls through to the (sandboxed) secrets file instead. A test of the
     # writer patches _keyring_store or the keyring module itself.

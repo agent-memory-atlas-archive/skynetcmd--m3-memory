@@ -1308,11 +1308,15 @@ def _legacy_plaintext_dsn_notes() -> list[str]:
     """
     # The process copy is excluded: it is inherited from one of the places below
     # (or is the one the installer just set for its own post-install steps).
+    unchecked: list[str] = []
     where = [f"{n} in {loc}"
              for n in ("M3_PRIMARY_PG_URL", "M3_PG_URL")
-             for loc in _find_env_var_locations(n, include_process_env=False)]
-    return [f"[!] plaintext DSN copy left in place: {w}. It overrides the stored DSN "
-            "while set; remove it once nothing reads it." for w in where]
+             for loc in _find_env_var_locations(n, include_process_env=False, unchecked=unchecked)]
+    notes = [f"[!] plaintext DSN copy left in place: {w}. It overrides the stored DSN "
+             "while set; remove it once nothing reads it." for w in where]
+    notes += [f"[!] could not check {u} for a plaintext DSN copy; inspect it by hand."
+              for u in sorted(set(unchecked))]
+    return notes
 
 
 def _append_env_to_profile(pairs: dict[str, str]) -> str | None:
@@ -2158,12 +2162,15 @@ def _deprecated_env_in_config() -> dict[Path, dict[str, str]]:
             for path, keys in _env_names_in_config(renames).items()}
 
 
-def _env_names_in_config(names) -> dict[Path, set[str]]:
+def _env_names_in_config(names, unchecked: list[str] | None = None) -> dict[Path, set[str]]:
     """Return {file: names it sets} for each of ``names`` found in an MCP
     client's ``mcpServers.<server>.env`` block (the files
     ``_client_config_sources()`` reads) or the cwd ``.env``. Only files with a
-    hit are included. Tolerant: unreadable/unparseable files are skipped."""
+    hit are included. Tolerant: an unreadable/unparseable file is skipped, and
+    named in ``unchecked`` when the caller passes a list (a file not read is not
+    a file without the name)."""
     wanted = set(names)
+    skipped = unchecked if unchecked is not None else []
     out: dict[Path, set[str]] = {}
 
     seen_files: set[Path] = set()
@@ -2176,7 +2183,8 @@ def _env_names_in_config(names) -> dict[Path, set[str]]:
             continue
         try:
             data = json.loads(path.read_text(encoding="utf-8")) or {}
-        except (OSError, json.JSONDecodeError):
+        except (OSError, json.JSONDecodeError) as e:
+            skipped.append(f"{path} ({type(e).__name__}: {e})")
             continue
         found: set[str] = set()
         for entry in (data.get("mcpServers") or {}).values():
@@ -2198,8 +2206,8 @@ def _env_names_in_config(names) -> dict[Path, set[str]]:
                     found.add(key)
             if found:
                 out[dotenv] = found
-        except OSError:
-            pass
+        except OSError as e:
+            skipped.append(f"{dotenv} ({type(e).__name__}: {e})")
 
     return out
 
@@ -2236,16 +2244,20 @@ def _all_env_renames() -> dict[str, str]:
         return {}
 
 
-def _scan_registry_env_deprecations(names: dict[str, str]) -> list[dict]:
+def _scan_registry_env_deprecations(names: dict[str, str],
+                                    unchecked: list[str] | None = None) -> list[dict]:
     """Return one record per deprecated env var found in a Windows registry env
     scope. Each record: {scope, label, subkey, hive_name, old, new, writable}.
-    Non-Windows or unreadable → []. Read-only; never raises."""
+    Non-Windows → []. Read-only; never raises. A scope it could not read is
+    named in ``unchecked`` when the caller passes a list."""
     if sys.platform != "win32" or not names:
         return []
+    skipped = unchecked if unchecked is not None else []
     hits: list[dict] = []
     try:
         import winreg  # noqa: PLC0415 — Windows-only, lazy
-    except Exception:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
+        skipped.append(f"the Windows registry (winreg: {e})")
         return hits
     for hive_name, subkey, scope, writable in _WIN_ENV_REG_SCOPES:
         hive = getattr(winreg, hive_name)
@@ -2263,8 +2275,9 @@ def _scan_registry_env_deprecations(names: dict[str, str]) -> list[dict]:
                     })
         except FileNotFoundError:
             continue  # scope key absent
-        except OSError:
-            continue  # e.g. no read permission on HKLM — best-effort
+        except OSError as e:  # e.g. no read permission on HKLM
+            skipped.append(f"Windows {scope} env ({hive_name}\\{subkey}): {type(e).__name__}: {e}")
+            continue
     return hits
 
 
@@ -2273,8 +2286,12 @@ def _find_deprecated_pg_url_locations() -> list[str]:
     return _find_env_var_locations("PG_URL")
 
 
-def _find_env_var_locations(name: str, *, include_process_env: bool = True) -> list[str]:
+def _find_env_var_locations(name: str, *, include_process_env: bool = True,
+                            unchecked: list[str] | None = None) -> list[str]:
     """Return a human-readable location for EVERY place env var ``name`` is set.
+    Each place it could NOT read is appended to ``unchecked`` when the caller
+    passes a list: an unread file is not a clean one, and a caller that reports
+    "nowhere" must say what it could not look at (DESIGN_PHILOSOPHIES §3).
 
     Sweeps all common locations and collects them all (does NOT stop at the first
     hit — a var can be set in several places at once, and the operator should see
@@ -2289,17 +2306,18 @@ def _find_env_var_locations(name: str, *, include_process_env: bool = True) -> l
       4. the Windows User and Machine registry environment, where a persistent
          var lives on Windows (unsetting the process copy alone wouldn't stick).
 
-    Best-effort and never raises: an unreadable file or a config-scan failure is
-    skipped, not fatal. Returns a de-duplicated, sorted list (empty when clean)."""
+    Never raises: an unreadable file or a config-scan failure is not fatal.
+    Returns a de-duplicated, sorted list (empty when nothing was found)."""
+    skipped = unchecked if unchecked is not None else []
     locations: set[str] = set()
 
     if include_process_env and os.environ.get(name) is not None:
         locations.add(f"environment (os.environ['{name}'])")
 
     try:
-        locations.update(str(p) for p, keys in _env_names_in_config([name]).items() if name in keys)
-    except Exception:  # noqa: BLE001 — informational scan, never fatal
-        pass
+        locations.update(str(p) for p, keys in _env_names_in_config([name], skipped).items() if name in keys)
+    except Exception as e:  # noqa: BLE001 — informational scan, never fatal
+        skipped.append(f"MCP client configs ({type(e).__name__}: {e})")
 
     home = Path.home()
     for rc in (".zshenv", ".zshrc", ".zprofile", ".bashrc",
@@ -2308,10 +2326,10 @@ def _find_env_var_locations(name: str, *, include_process_env: bool = True) -> l
         try:
             if f.is_file() and _shell_assigns(f.read_text(encoding="utf-8", errors="ignore"), name):
                 locations.add(str(f))
-        except OSError:
-            continue
+        except OSError as e:
+            skipped.append(f"{f} ({type(e).__name__}: {e})")
 
-    for hit in _scan_registry_env_deprecations({name: ""}):
+    for hit in _scan_registry_env_deprecations({name: ""}, skipped):
         locations.add(hit["label"])
 
     return sorted(locations)
@@ -2324,8 +2342,13 @@ def _assert_no_deprecated_pg_url_anywhere() -> None:
     PG_URL was split by role — ``M3_CDW_PG_URL`` (data-warehouse / pg_sync) vs
     ``M3_PRIMARY_PG_URL`` (a PostgreSQL PRIMARY store) — so an ambiguous PG_URL
     must be renamed to the correct one before proceeding."""
-    locations = _find_deprecated_pg_url_locations()
+    unchecked: list[str] = []
+    locations = _find_env_var_locations("PG_URL", unchecked=unchecked)
     if not locations:
+        # Not a hard failure (an unreadable HKLM must not block every install),
+        # but "PG_URL is not set" is only true of the places that were read.
+        for where in sorted(set(unchecked)):
+            print(f"[!] could not check {where} for a deprecated PG_URL; inspect it by hand.")
         return
     bullet = "\n  - ".join(locations)
     raise RuntimeError(

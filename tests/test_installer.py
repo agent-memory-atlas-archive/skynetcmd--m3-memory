@@ -754,7 +754,7 @@ class TestDbBackendSelection:
         monkeypatch.setenv("USERPROFILE", str(tmp_path))
         # Isolate the location sweep from this host's registry and client configs
         # (a platform patch here would be undone before the test body runs).
-        monkeypatch.setattr(inst, "_scan_registry_env_deprecations", lambda names: [])
+        monkeypatch.setattr(inst, "_scan_registry_env_deprecations", lambda names, unchecked=None: [])
         monkeypatch.setattr(inst, "_client_config_sources", lambda: {})
         monkeypatch.chdir(tmp_path)
         # _persist sets these for its own process; let monkeypatch restore them.
@@ -789,11 +789,52 @@ class TestDbBackendSelection:
 
         (unix_home.parent / ".zshrc").write_text('export M3_PRIMARY_PG_URL="postgresql://z/x"\n')
         monkeypatch.setattr(inst, "_scan_registry_env_deprecations",
-                            lambda names: [{"label": "Windows Machine env (HKLM)"}] if "M3_PG_URL" in names else [])
+                            lambda names, unchecked=None: [{"label": "Windows Machine env (HKLM)"}] if "M3_PG_URL" in names else [])
         monkeypatch.setenv("M3_PRIMARY_PG_URL", "postgresql://process/x")
         notes = " | ".join(inst._legacy_plaintext_dsn_notes())
         assert ".zshrc" in notes and "M3_PG_URL in Windows Machine env" in notes, notes
         assert "os.environ" not in notes, "the process copy is not a leftover"
+
+    def test_a_place_the_sweep_could_not_read_is_named_not_reported_clean(self, unix_home, monkeypatch):
+        """§3: an unread config is not a clean one."""
+        import m3_memory.installer as inst
+
+        bad = unix_home.parent / "settings.json"
+        bad.write_text("{ not json")
+        monkeypatch.setattr(inst, "_client_config_sources", lambda: {"claude": [bad]})
+
+        def hklm_denied(names, unchecked=None):
+            unchecked.append("Windows Machine env (HKEY_LOCAL_MACHINE): PermissionError: denied")
+            return []
+
+        monkeypatch.setattr(inst, "_scan_registry_env_deprecations", hklm_denied)
+        notes = " | ".join(inst._legacy_plaintext_dsn_notes())
+        assert "could not check" in notes and "settings.json" in notes and "PermissionError" in notes, notes
+
+    def test_registry_scope_it_cannot_open_is_reported(self, monkeypatch):
+        import types
+
+        import m3_memory.installer as inst
+
+        class _Key:
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+
+        def open_key(hive, subkey):
+            if hive == "HKLM":
+                raise PermissionError("access denied")
+            return _Key()
+
+        def query(key, name):
+            raise FileNotFoundError
+
+        fake = types.SimpleNamespace(HKEY_CURRENT_USER="HKCU", HKEY_LOCAL_MACHINE="HKLM",
+                                     OpenKey=open_key, QueryValueEx=query)
+        monkeypatch.setitem(sys.modules, "winreg", fake)
+        monkeypatch.setattr(inst.sys, "platform", "win32")
+        unchecked: list[str] = []
+        assert inst._scan_registry_env_deprecations({"M3_PG_URL": ""}, unchecked) == []
+        assert len(unchecked) == 1 and "Machine" in unchecked[0] and "access denied" in unchecked[0]
 
     def test_doctor_names_a_plaintext_copy_and_is_quiet_without_one(self, unix_home, capsys):
         from m3_memory.install.sections import _plaintext_dsn_section

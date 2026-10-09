@@ -9,9 +9,11 @@ This file is that place:
   key exists, Phase 2C), one table, ``[secrets]``, of ``NAME = "value"``.
 * Created user-only (0600 via ``atomic_write``); every read REFUSES a file that
   is group/other-accessible or not owned by the running user, naming the file,
-  the mode and the fix (the ssh-key rule). On Windows it inherits the profile
-  ACL (measured: the user, SYSTEM, Administrators); the ACL check comes with the
-  loader in 2C.1.
+  the mode and the fix (the ssh-key rule). On Windows the same rule is applied
+  to the DACL (``m3_core.win_acl``): the file inherits its directory's ACL, so a
+  write first checks what a new file there WOULD inherit, before any plaintext
+  lands, and a read refuses a file anyone beyond the user, SYSTEM and
+  Administrators can open.
 * Written only under ``file_lock`` (read-modify-write), never relaxing an
   existing file's mode.
 
@@ -43,8 +45,25 @@ def secrets_file_path() -> Path:
     return Path(get_m3_config_root()) / SECRETS_FILE_NAME
 
 
+def _check_private_windows(p: Path, *, what: str, fix: str) -> None:
+    """Refuse a file whose DACL admits anyone beyond the user, SYSTEM and
+    Administrators. An unreadable DACL is refused too: privacy not checked is
+    not privacy."""
+    from m3_core.win_acl import AclError, file_foreign_principals
+
+    try:
+        foreign = file_foreign_principals(str(p))
+    except AclError as e:
+        raise SecretsFileError(f"cannot verify who can read {what} ({e}); refusing to use it") from e
+    if foreign:
+        raise SecretsFileError(
+            f"{what} can be opened by {', '.join(foreign)} besides you; a secrets file must be "
+            f"user-only. Fix: {fix}")
+
+
 def _check_private(p: Path) -> None:
-    if sys.platform == "win32":  # profile ACL; the ACL check lands with the 2C.1 loader
+    if sys.platform == "win32":
+        _check_private_windows(p, what=str(p), fix=f"icacls \"{p}\" /inheritance:r /grant:r \"%USERNAME%:F\"")
         return
     st = p.stat()
     mode = st.st_mode & 0o777
@@ -230,7 +249,26 @@ def set_secret(name: str, value: str) -> Path:
 
     p = secrets_file_path()
     with file_lock(str(p) + ".lock", purpose="secrets file"):
-        table = read_secrets()
+        table = read_secrets()  # an existing file is checked here
+        if sys.platform == "win32" and not p.exists():
+            _check_new_file_would_be_private(p.parent)
         table[name] = value
         atomic_write(p, _render(table))
     return p
+
+
+def _check_new_file_would_be_private(directory: Path) -> None:
+    """Windows: a new file takes its directory's inheritable ACL, and atomic_write's
+    0600 means nothing there. So learn what a file in ``directory`` inherits from an
+    EMPTY probe, and refuse before the plaintext is written."""
+    import tempfile
+
+    fd, probe = tempfile.mkstemp(dir=directory, prefix=".m3_acl_probe.")
+    os.close(fd)
+    try:
+        _check_private_windows(
+            Path(probe), what=f"a new file in {directory} (the secrets file was NOT written)",
+            fix=(f"icacls \"{directory}\" /inheritance:r /grant:r \"%USERNAME%:(OI)(CI)F\" "
+                 "/grant:r \"SYSTEM:(OI)(CI)F\", or point M3_CONFIG_ROOT at a user-only directory"))
+    finally:
+        os.unlink(probe)

@@ -11,7 +11,7 @@ import pytest
 def auth(monkeypatch):
     import auth_utils
 
-    monkeypatch.setattr(auth_utils, "safe_keyring_get_password", lambda *a, **k: None)
+    monkeypatch.setattr(auth_utils, "_keyring_read", lambda *a, **k: (None, None))
     # no vault value in these tests unless one is planted
     monkeypatch.setattr(auth_utils, "_vault_db_path", lambda: "/nonexistent/vault.db")
     monkeypatch.delenv("M3_FILE_TIER_PROBE", raising=False)
@@ -37,7 +37,7 @@ def test_keyring_beats_the_file(auth, monkeypatch):
     from m3_core import secret_store
 
     secret_store.set_secret("M3_FILE_TIER_PROBE", "from-file")
-    monkeypatch.setattr(auth, "safe_keyring_get_password", lambda *a, **k: "from-keyring")
+    monkeypatch.setattr(auth, "_keyring_read", lambda *a, **k: ("from-keyring", None))
     assert auth.get_api_key("M3_FILE_TIER_PROBE") == "from-keyring"
 
 

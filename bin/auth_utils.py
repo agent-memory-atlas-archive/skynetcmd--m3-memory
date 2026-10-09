@@ -31,13 +31,26 @@ def safe_keyring_get_password(service_name: str, username: str) -> str | None:
     """Wraps keyring.get_password with a single-concurrency lock and 2s timeout.
 
     If it times out or fails, opens Keyring Circuit Breaker for 300s and returns None.
+    A caller that must tell "not stored" from "keyring broken" uses _keyring_read.
+    """
+    return _keyring_read(service_name, username)[0]
+
+
+def _keyring_read(service_name: str, username: str) -> tuple[str | None, str | None]:
+    """keyring.get_password, bounded, as (value, error). The ONE keyring reader.
+
+    ``error`` is None for a clean answer (found, or not stored) and names the
+    failure otherwise, so a miss caused by a broken keyring is never reported as
+    "not set" (m3 2f4bad6c: it was swallowed at debug, and the DSN error said
+    only that nothing was found).
     """
     global _KEYRING_CB_OPEN_UNTIL
 
     # 1. Check Circuit Breaker
     if time.time() < _KEYRING_CB_OPEN_UNTIL:
         logger.debug("Keyring circuit breaker is OPEN. Falling back to local vault.")
-        return None
+        left = int(_KEYRING_CB_OPEN_UNTIL - time.time())
+        return None, f"keyring: skipped, circuit breaker open for {left}s more after a timeout"
 
     # 2. Acquire lock to serialize keyring queries
     acquired = _KEYRING_LOCK.acquire(timeout=2.0)
@@ -49,7 +62,7 @@ def safe_keyring_get_password(service_name: str, username: str) -> str | None:
             "inspect: verify keyring service availability with `python -c 'import keyring; print(keyring.backends.get_keyring())'`."
         )
         _KEYRING_CB_OPEN_UNTIL = time.time() + 300.0
-        return None
+        return None, "keyring: lock contention (2s); circuit breaker opened for 300s"
 
     try:
         import keyring
@@ -68,10 +81,9 @@ def safe_keyring_get_password(service_name: str, username: str) -> str | None:
         try:
             success, result = res_queue.get(timeout=2.0)
             if success:
-                return result
-            else:
-                logger.debug(f"Keyring lookup failed: {result}")
-                return None
+                return result, None
+            logger.debug(f"Keyring lookup failed: {result}")
+            return None, f"keyring: {type(result).__name__}: {result}"
         except queue.Empty:
             logger.warning(
                 "Keyring lookup timed out; circuit breaker will open for 300s. "
@@ -80,10 +92,10 @@ def safe_keyring_get_password(service_name: str, username: str) -> str | None:
                 "inspect: check system keyring/credential manager for lock contention or resource issues (e.g., macOS Keychain, Windows Credential Manager, Linux secretservice/pass)."
             )
             _KEYRING_CB_OPEN_UNTIL = time.time() + 300.0
-            return None
+            return None, "keyring: lookup timed out (2s); circuit breaker opened for 300s"
     except Exception as e:
         logger.debug(f"Keyring import or setup failed: {e}")
-        return None
+        return None, f"keyring: unavailable ({type(e).__name__}: {e})"
     finally:
         _KEYRING_LOCK.release()
 
@@ -490,21 +502,14 @@ def _keyring_tier(service: str) -> tuple[str | None, str | None]:
     """The OS keyring (python keyring, then the macOS security CLI). Returns
     (value, error): the error is what this tier hit, for a caller that must
     explain a miss instead of reporting "not set" (m3 2f4bad6c)."""
-    error = None
     # Try python keyring if available.
     # Derive the OS name from sys.platform, not platform.system(): the latter
     # can hang on a WMI query on Python 3.14 / Windows. This runs on every
     # secret read, so it must not stall.
     system = {"darwin": "Darwin", "win32": "Windows"}.get(sys.platform, "Linux")
-    try:
-        val = safe_keyring_get_password("system", service)
-        if val:
-            return val, None
-    except ImportError:
-        logger.debug("keyring module not available, falling back to native tools.")
-    except Exception as e:
-        logger.debug(f"keyring failed: {e}")
-        error = f"keyring: {type(e).__name__}: {e}"
+    val, error = _keyring_read("system", service)
+    if val:
+        return val, None
 
     # Platform-specific native credential store fallbacks
     if system == "Darwin":

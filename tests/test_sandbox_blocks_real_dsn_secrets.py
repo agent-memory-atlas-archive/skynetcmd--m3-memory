@@ -14,8 +14,8 @@ def test_dsn_names_never_come_from_the_real_keyring(monkeypatch, name):
     import auth_utils
 
     # Simulate the developer's keyring HOLDING the DSN.
-    monkeypatch.setattr(auth_utils, "safe_keyring_get_password",
-                        lambda svc, key: "postgresql://real:secret@prod.example/db")
+    monkeypatch.setattr(auth_utils, "_keyring_read",
+                        lambda svc, key: ("postgresql://real:secret@prod.example/db", None))
     assert auth_utils._keyring_tier(name) == (None, None)
 
 
@@ -23,8 +23,8 @@ def test_resolve_pg_dsn_cannot_reach_a_real_warehouse(monkeypatch):
     import auth_utils
     from m3_core.secret_store import PgRole, resolve_pg_dsn
 
-    monkeypatch.setattr(auth_utils, "safe_keyring_get_password",
-                        lambda svc, key: "postgresql://real:secret@prod.example/db")
+    monkeypatch.setattr(auth_utils, "_keyring_read",
+                        lambda svc, key: ("postgresql://real:secret@prod.example/db", None))
     for var in ("M3_CDW_PG_URL", "PG_URL"):
         monkeypatch.delenv(var, raising=False)
     assert resolve_pg_dsn(PgRole.WAREHOUSE) == ""
@@ -33,5 +33,5 @@ def test_resolve_pg_dsn_cannot_reach_a_real_warehouse(monkeypatch):
 def test_other_names_still_resolve(monkeypatch):
     import auth_utils
 
-    monkeypatch.setattr(auth_utils, "safe_keyring_get_password", lambda svc, key: "token-value")
+    monkeypatch.setattr(auth_utils, "_keyring_read", lambda svc, key: ("token-value", None))
     assert auth_utils._keyring_tier("SOME_OTHER_TOKEN")[0] == "token-value"

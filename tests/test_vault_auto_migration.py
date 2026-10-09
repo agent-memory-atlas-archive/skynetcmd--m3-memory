@@ -24,7 +24,7 @@ def auth(monkeypatch, each_backend):
     # refuse to mint a salt for a vault that already holds secrets.
     monkeypatch.setenv("M3_AGENT_OS_SALT_HEX", "ab" * 16)
     monkeypatch.setattr(auth_utils, "get_master_key", lambda: _MASTER)
-    monkeypatch.setattr(auth_utils, "safe_keyring_get_password", lambda *a, **k: None)
+    monkeypatch.setattr(auth_utils, "_keyring_read", lambda *a, **k: (None, None))
     return auth_utils
 
 
