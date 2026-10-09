@@ -89,12 +89,13 @@ def _resolve_path(path: str | None) -> str:
 
 def _is_postgres() -> bool:
     """True when the active m3 backend is NOT sqlite (the files store then lives
-    in the `files` schema of the primary PG database, not a separate file)."""
-    try:
-        from memory.backends import active_backend
-        return active_backend().name != "sqlite"
-    except Exception:
-        return False
+    in the `files` schema of the primary PG database, not a separate file).
+
+    The one owner (files_memory.migrate imports it). A backend that cannot be
+    resolved raises: answering False sent a PostgreSQL install's files store to
+    a separate SQLite file without a word."""
+    from memory.backends import active_backend
+    return active_backend().name != "sqlite"
 
 
 def readonly_probe(sql: str, params: tuple = (), *, db_path: str | None = None) -> list:

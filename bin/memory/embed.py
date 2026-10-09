@@ -265,7 +265,7 @@ def recover_if_fallback_healthy(timeout: float = 1.5) -> bool:
             if resp.status != 200:
                 return False
             body = _json.loads(resp.read().decode("utf-8", "replace"))
-    except Exception:
+    except Exception:  # noqa: BLE001 — a failed readiness probe means not ready; traffic stays where it is
         return False
     # READINESS, not mere presence: this function STEERS traffic (the next embed
     # call routes here), so only recover on "ok". "loading" means the server is up
@@ -492,7 +492,7 @@ def _validate_identity(vecs, attached_model: str, source_label: str) -> bool:
             _identity_warn(source_label, "vectors not unit-normalized")
             return False
         return True
-    except Exception:
+    except Exception:  # noqa: BLE001 — the gate must never break the cascade (see below)
         return False  # never let the gate itself break the cascade
 
 

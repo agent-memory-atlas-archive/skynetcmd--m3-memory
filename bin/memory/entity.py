@@ -88,7 +88,7 @@ def _entity_embeddings_available(db) -> bool:
         _sql, _params = _d.table_exists("entity_embeddings")
         row = db.execute(_sql, _params).fetchone()
         return row is not None
-    except Exception:
+    except Exception:  # noqa: BLE001 — capability probe; no table means no stored vectors
         return False
 
 
@@ -111,7 +111,7 @@ def _load_entity_vectors(db, entity_ids: list[str]) -> dict[str, list[float]]:
                 f"SELECT entity_id, embedding FROM entity_embeddings WHERE entity_id IN ({ph})",
                 chunk,
             ).fetchall()
-        except Exception:
+        except Exception:  # noqa: BLE001 — vectors not loaded are re-embedded when needed
             return out
         for r in rows:
             eid = r["entity_id"] if hasattr(r, "keys") else r[0]
@@ -373,15 +373,21 @@ def load_entity_vocab(yaml_path: str | Path | None = None) -> tuple[frozenset[st
         path = Path(_ENV_ENTITY_VOCAB_YAML)
     else:
         path = DEFAULT_ENTITY_VOCAB_YAML
+    explicit = yaml_path is not None or bool(_ENV_ENTITY_VOCAB_YAML)
     if not path.exists():
-        # Hard fallback to in-memory defaults if the file is missing
+        # The shipped default may be absent; a file the caller or
+        # M3_ENTITY_VOCAB_YAML named is a configuration the user expects applied.
+        if explicit:
+            logger.warning(f"entity vocabulary not found; observed: {path} does not exist; "
+                           "using the built-in vocabulary. inspect: M3_ENTITY_VOCAB_YAML")
         return _DEFAULT_VALID_ENTITY_TYPES, _DEFAULT_VALID_ENTITY_PREDICATES
 
     try:
         with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
-    except Exception:
-        # Hard fallback if YAML is malformed
+    except Exception as e:  # noqa: BLE001 — falls back, and says so
+        logger.warning(f"entity vocabulary unreadable; observed: {path}: {type(e).__name__}: {e}; "
+                       "using the built-in vocabulary")
         return _DEFAULT_VALID_ENTITY_TYPES, _DEFAULT_VALID_ENTITY_PREDICATES
 
     types = data.get("entity_types") or []
@@ -900,7 +906,7 @@ async def _try_extract_or_enqueue(
     try:
         async with asyncio.timeout(0.001):
             await _ENTITY_EXTRACT_SEM.acquire()
-    except (TimeoutError, Exception):
+    except Exception:  # noqa: BLE001 — semaphore busy: enqueued for the background drain
         # Semaphore full or error — enqueue and return immediately
         _enqueue_entity_extraction(memory_id, db)
         return

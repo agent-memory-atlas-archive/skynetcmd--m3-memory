@@ -1469,5 +1469,5 @@ class PostgresBackend:
             cur = conn.cursor()  # type: ignore[attr-defined]
             cur.execute("SELECT 1 FROM pg_extension WHERE extname = 'vector'")
             return cur.fetchone() is not None
-        except Exception:
+        except Exception:  # noqa: BLE001 — capability probe; absent means the portable path
             return False

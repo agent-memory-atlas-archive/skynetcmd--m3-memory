@@ -500,7 +500,7 @@ class SqliteBackend:
             from ..search_routing import _detect_sqlite_vec
 
             return bool(_detect_sqlite_vec(conn))
-        except Exception:
+        except Exception:  # noqa: BLE001 — capability probe; absent means the portable path
             return False
 
     @classmethod

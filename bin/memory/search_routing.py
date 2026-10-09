@@ -306,7 +306,7 @@ def _detect_sqlite_vec(db) -> bool:
     try:
         db.execute("SELECT vec_version()")
         return True
-    except Exception:
+    except Exception:  # noqa: BLE001 — capability probe; absent means the portable path
         return False
 
 

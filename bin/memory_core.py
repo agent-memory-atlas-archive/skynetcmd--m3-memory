@@ -1632,7 +1632,7 @@ def _count_refresh_backlog(agent_id: str = "") -> int:
                 params,
             ).fetchone()
         return int(row[0]) if row else 0
-    except Exception:
+    except Exception:  # noqa: BLE001 — the refresh_on column is absent before migration (see below)
         # refresh_on column may not exist on an un-migrated DB — fail quiet.
         return 0
 

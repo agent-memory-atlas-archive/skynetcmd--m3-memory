@@ -139,7 +139,7 @@ def torch_device(prefer_index: bool = False) -> str:
     """
     try:
         import torch
-    except Exception:  # torch absent → CPU is the only option
+    except Exception:  # noqa: BLE001 — torch absent or broken: the CPU device  # torch absent → CPU is the only option
         return "cpu"
     try:
         if torch.cuda.is_available():

@@ -293,7 +293,7 @@ async def _try_enrich_or_enqueue(memory_id: str, content: str, fact_enricher, db
     try:
         async with asyncio.timeout(0.001):  # try-acquire only
             await sem.acquire()
-    except (TimeoutError, Exception):
+    except Exception:  # noqa: BLE001 — semaphore busy: enqueued for the background drain
         # Semaphore full or error — enqueue and return immediately
         _enqueue_fact_enrichment(memory_id, db)
         return

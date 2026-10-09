@@ -181,5 +181,5 @@ def _progress_bar(total: int, quiet: bool):
 
         return tqdm(total=total, unit="iB", unit_scale=True,
                     unit_divisor=1024, desc="  bge-m3")
-    except Exception:
+    except Exception:  # noqa: BLE001 — the progress bar is optional
         return None

@@ -25,6 +25,8 @@ import re
 import sqlite3
 from pathlib import Path
 
+from .db import _is_postgres
+
 logger = logging.getLogger("files_memory.migrate")
 
 # SQLite idempotency errors: DDL that is a no-op because the target already
@@ -54,14 +56,6 @@ _PG_DIR = _HERE / "migrations" / "postgres"
 
 # Version prefix: 001_x.up.sql (SQLite) or pg_001_x.up.sql (PG).
 _VERSION_RE = re.compile(r"(?:pg_)?(\d+)_.*\.up\.sql$")
-
-
-def _is_postgres() -> bool:
-    try:
-        from memory.backends import active_backend
-        return active_backend().name != "sqlite"
-    except Exception:
-        return False
 
 
 def _schema_versions_ref() -> str:
@@ -112,11 +106,9 @@ def _ensure_versions_table(conn) -> None:
 
 
 def _applied_versions(conn) -> set[int]:
-    ref = _schema_versions_ref()
-    try:
-        rows = conn.execute(f"SELECT version FROM {ref}").fetchall()
-    except Exception:
-        return set()
+    # Not guarded: the table was just ensured on this connection, so a failure
+    # here is a real fault. Answering "nothing applied" re-ran every migration.
+    rows = conn.execute(f"SELECT version FROM {_schema_versions_ref()}").fetchall()
     return {int(r[0]) for r in rows}
 
 
