@@ -423,7 +423,12 @@ class M3Context:
         service = url.split("//")[-1].split("/")[0]
 
         if not self._check_circuit(service):
-            raise httpx.HTTPStatusError(f"Circuit open for {service}", request=None, response=None)
+            # A real request/response pair (503: the service is being withheld),
+            # so a handler reading e.response.status_code works as for any other
+            # HTTP failure instead of raising AttributeError on None.
+            req = httpx.Request(method, url)
+            raise httpx.HTTPStatusError(f"Circuit open for {service}", request=req,
+                                        response=httpx.Response(503, request=req))
 
         client = self.get_async_client()
         for attempt in range(retries):
@@ -450,6 +455,9 @@ class M3Context:
         if self._pool is None:
             self._init_sqlite_pool()
         pool = self._pool
+        if pool is None:
+            raise RuntimeError("SQLite pool unavailable; observed: _init_sqlite_pool() left "
+                               f"no pool for {self.db_path!r}. inspect: the DB path and its directory")
         conn = pool.get(timeout=10)
         try:
             yield conn
