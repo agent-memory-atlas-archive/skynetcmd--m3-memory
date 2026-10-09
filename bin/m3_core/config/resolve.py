@@ -69,7 +69,10 @@ def resolve_key(key: Key, loaded: LoadedFile, environ: Mapping[str, str]) -> Res
                         origin=f"file:{loaded.location.file} {show_key(key.name)}", shadowed=shadowed)
     if hit is not None:
         return Resolved(value=_from_env(key, *hit), origin=f"env-legacy:{hit[0]}")
-    return Resolved(value=key.default, origin=ORIGIN_DEFAULT)
+    # A list default is copied: the registry's own object must never be shared
+    # with a caller that might mutate it.
+    default = list(key.default) if isinstance(key.default, list) else key.default
+    return Resolved(value=default, origin=ORIGIN_DEFAULT)
 
 
 def resolve_all(registry: Registry, loaded: LoadedFile,

@@ -21,6 +21,88 @@
             "postgres"
           ],
           "default": "sqlite"
+        },
+        "pool_size": {
+          "type": "integer",
+          "description": "SQLite connections in M3Context's pool.",
+          "default": 5
+        },
+        "pool_timeout_s": {
+          "type": "integer",
+          "description": "Seconds to wait for a pooled SQLite connection.",
+          "default": 30
+        },
+        "sqlite_mmap_size": {
+          "type": "integer",
+          "description": "SQLite mmap_size in bytes; unset keeps the pragma profile's own value."
+        },
+        "postgres": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dispatch_schema": {
+              "type": "string",
+              "description": "Schema holding the dispatch queue on PostgreSQL.",
+              "default": "m3_dispatch"
+            },
+            "forbidden_hosts": {
+              "type": "array",
+              "description": "Hosts a PRIMARY store must never connect to (e.g. the warehouse); selecting one is refused.",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "pg_dump": {
+              "type": "string",
+              "description": "pg_dump used for snapshots; unset finds it on PATH. pg_restore is looked for beside it."
+            },
+            "pool_max": {
+              "type": "integer",
+              "description": "Maximum connections in the PostgreSQL pool (at least pool_min).",
+              "default": 16
+            },
+            "pool_min": {
+              "type": "integer",
+              "description": "Minimum connections in the PostgreSQL pool.",
+              "default": 1
+            },
+            "upsert_page_size": {
+              "type": "integer",
+              "description": "Rows per bulk upsert page; lower it over a slow link (U4 D: a deliberate tuning knob).",
+              "default": 500
+            }
+          }
+        }
+      }
+    },
+    "paths": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bin": {
+          "type": "string",
+          "description": "The bin/ directory of a non-packaged (developer) install; unset uses the packaged one."
+        },
+        "engine_root": {
+          "type": "string",
+          "description": "Databases and runtime state. Default: <memory_root>/engine, else ~/.m3/engine."
+        },
+        "lib_dir": {
+          "type": "string",
+          "description": "Where the wolfSSL library is trusted from. Default: <config root's parent>/lib."
+        },
+        "logs_root": {
+          "type": "string",
+          "description": "Scheduled-task and service logs. Default: <memory_root>/logs, else ~/.m3/logs."
+        },
+        "memory_root": {
+          "type": "string",
+          "description": "Legacy master root: config, engine, logs and models derive from it when their own keys are unset. Removed at N+3 (CONFIG_DESIGN \u00a79)."
+        },
+        "models_root": {
+          "type": "string",
+          "description": "GGUF weights m3 owns. Default: <memory_root>/models, else ~/.m3/models."
         }
       }
     },

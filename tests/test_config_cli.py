@@ -30,7 +30,9 @@ def test_show_lists_values_and_origins(monkeypatch, capsys):
     _cfg(monkeypatch).write_text('[db]\nbackend = "postgres"\n', encoding="utf-8")
     assert config_cli.main(["show", "--origin"]) == 0
     out = capsys.readouterr().out
-    assert 'db.backend   = "postgres"' in out and "[db].backend" in out
+    import re
+
+    assert re.search(r'^db\.backend\s+= "postgres"', out, re.M) and "[db].backend" in out
     assert "secrets (values are never shown; secrets file:" in out
 
 

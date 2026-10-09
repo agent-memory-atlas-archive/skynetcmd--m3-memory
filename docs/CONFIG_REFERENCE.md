@@ -11,6 +11,31 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | Key | Type | Default | Environment names | Notes |
 |---|---|---|---|---|
 | `backend` | string | `sqlite` | `M3_DB_BACKEND`, `DB_BACKEND` | env override; restart to apply; one of `sqlite`, `postgres`; Primary storage backend. The one key env may override (CI, containers). |
+| `pool_size` | integer | `5` | `M3_DB_POOL_SIZE`, `DB_POOL_SIZE` | restart to apply; SQLite connections in M3Context's pool. |
+| `pool_timeout_s` | integer | `30` | `M3_DB_POOL_TIMEOUT`, `DB_POOL_TIMEOUT` | restart to apply; Seconds to wait for a pooled SQLite connection. |
+| `sqlite_mmap_size` | integer | (none) | `M3_SQLITE_MMAP_SIZE` | restart to apply; SQLite mmap_size in bytes; unset keeps the pragma profile's own value. |
+
+## [db.postgres]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `dispatch_schema` | string | `m3_dispatch` | `M3_DISPATCH_PG_SCHEMA` | restart to apply; Schema holding the dispatch queue on PostgreSQL. |
+| `forbidden_hosts` | list of strings | `[]` | `M3_PG_FORBIDDEN_HOSTS` | restart to apply; Hosts a PRIMARY store must never connect to (e.g. the warehouse); selecting one is refused. |
+| `pg_dump` | path | (none) | `M3_PG_DUMP` | pg_dump used for snapshots; unset finds it on PATH. pg_restore is looked for beside it. |
+| `pool_max` | integer | `16` | `M3_PG_POOL_MAX` | restart to apply; Maximum connections in the PostgreSQL pool (at least pool_min). |
+| `pool_min` | integer | `1` | `M3_PG_POOL_MIN` | restart to apply; Minimum connections in the PostgreSQL pool. |
+| `upsert_page_size` | integer | `500` | `M3_PG_UPSERT_PAGE_SIZE` | Rows per bulk upsert page; lower it over a slow link (U4 D: a deliberate tuning knob). |
+
+## [paths]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `bin` | path | (none) | `M3_PATH_BIN` | restart to apply; The bin/ directory of a non-packaged (developer) install; unset uses the packaged one. |
+| `engine_root` | path | (none) | `M3_ENGINE_ROOT` | restart to apply; Databases and runtime state. Default: <memory_root>/engine, else ~/.m3/engine. |
+| `lib_dir` | path | (none) | `M3_LIB_DIR` | restart to apply; Where the wolfSSL library is trusted from. Default: <config root's parent>/lib. |
+| `logs_root` | path | (none) | `M3_LOGS_ROOT` | restart to apply; Scheduled-task and service logs. Default: <memory_root>/logs, else ~/.m3/logs. |
+| `memory_root` | path | (none) | `M3_MEMORY_ROOT` | restart to apply; Legacy master root: config, engine, logs and models derive from it when their own keys are unset. Removed at N+3 (CONFIG_DESIGN §9). |
+| `models_root` | path | (none) | `M3_MODELS_ROOT` | restart to apply; GGUF weights m3 owns. Default: <memory_root>/models, else ~/.m3/models. |
 
 ## [secrets]
 

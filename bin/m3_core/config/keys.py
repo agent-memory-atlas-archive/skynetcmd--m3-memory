@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from m3_core.paths import SELECTABLE_BACKENDS
 
-from .registry import Key, KeyClass, Registry, Scope, one_of, parse_path
+from .registry import Key, KeyClass, Registry, Scope, in_range, one_of, parse_int, parse_list, parse_path
 
 
 def _parse_backend(raw: str) -> str:
@@ -27,6 +27,73 @@ DB_BACKEND = Key[str](
     reloadable=False,
     doc="Primary storage backend. The one key env may override (CI, containers).",
 )
+
+_POSITIVE = in_range(lo=1)
+
+DB: list[Key] = [
+    DB_BACKEND,
+    # m3_core/context.py:159-160 (getenv_compat, int()).
+    Key[int](name="db.pool_size", parse=parse_int, default=5, validate=_POSITIVE,
+             env_names=("M3_DB_POOL_SIZE", "DB_POOL_SIZE"), reloadable=False,
+             doc="SQLite connections in M3Context's pool."),
+    Key[int](name="db.pool_timeout_s", parse=parse_int, default=30, validate=_POSITIVE,
+             env_names=("M3_DB_POOL_TIMEOUT", "DB_POOL_TIMEOUT"), reloadable=False,
+             doc="Seconds to wait for a pooled SQLite connection."),
+    # sqlite_pragmas.py:91,156: today a non-integer is SILENTLY ignored; the
+    # registry rejects it (intended-change list, plan 2C.1).
+    Key[int](name="db.sqlite_mmap_size", parse=parse_int, default=None, validate=in_range(lo=0),
+             env_names=("M3_SQLITE_MMAP_SIZE",), reloadable=False,
+             doc="SQLite mmap_size in bytes; unset keeps the pragma profile's own value."),
+]
+
+DB_POSTGRES: list[Key] = [
+    # postgres_backend.py:938-939 (int(v or N)); min <= max is checked there.
+    Key[int](name="db.postgres.pool_min", parse=parse_int, default=1, validate=_POSITIVE,
+             env_names=("M3_PG_POOL_MIN",), reloadable=False,
+             doc="Minimum connections in the PostgreSQL pool."),
+    Key[int](name="db.postgres.pool_max", parse=parse_int, default=16, validate=_POSITIVE,
+             env_names=("M3_PG_POOL_MAX",), reloadable=False,
+             doc="Maximum connections in the PostgreSQL pool (at least pool_min)."),
+    Key[int](name="db.postgres.upsert_page_size", parse=parse_int, default=500, validate=_POSITIVE,
+             env_names=("M3_PG_UPSERT_PAGE_SIZE",),
+             doc="Rows per bulk upsert page; lower it over a slow link (U4 D: a deliberate tuning knob)."),
+    Key[list[str]](name="db.postgres.forbidden_hosts", parse=parse_list, default=[],
+                   env_names=("M3_PG_FORBIDDEN_HOSTS",), reloadable=False,
+                   doc="Hosts a PRIMARY store must never connect to (e.g. the warehouse); "
+                       "selecting one is refused."),
+    Key(name="db.postgres.pg_dump", parse=parse_path, default=None,
+        env_names=("M3_PG_DUMP",),
+        doc="pg_dump used for snapshots; unset finds it on PATH. pg_restore is looked for beside it."),
+    Key[str](name="db.postgres.dispatch_schema", parse=str, default="m3_dispatch",
+             env_names=("M3_DISPATCH_PG_SCHEMA",), reloadable=False,
+             doc="Schema holding the dispatch queue on PostgreSQL."),
+]
+
+# ── [paths] (CONFIG_DESIGN §4, #D9: the roots MCP blocks pin today) ──────────
+# Defaults are derived (engine root = <memory root>/engine, else ~/.m3/engine),
+# so the key's default is None and m3_core.paths stays the resolver until 2D
+# converts its readers. All are fixed for a process's lifetime.
+PATHS: list[Key] = [
+    Key(name="paths.memory_root", parse=parse_path, default=None,
+        env_names=("M3_MEMORY_ROOT",), scope=Scope.LOCATOR, reloadable=False,
+        doc="Legacy master root: config, engine, logs and models derive from it when their own "
+            "keys are unset. Removed at N+3 (CONFIG_DESIGN §9)."),
+    Key(name="paths.engine_root", parse=parse_path, default=None,
+        env_names=("M3_ENGINE_ROOT",), scope=Scope.LOCATOR, reloadable=False,
+        doc="Databases and runtime state. Default: <memory_root>/engine, else ~/.m3/engine."),
+    Key(name="paths.logs_root", parse=parse_path, default=None,
+        env_names=("M3_LOGS_ROOT",), scope=Scope.LOCATOR, reloadable=False,
+        doc="Scheduled-task and service logs. Default: <memory_root>/logs, else ~/.m3/logs."),
+    Key(name="paths.models_root", parse=parse_path, default=None,
+        env_names=("M3_MODELS_ROOT",), scope=Scope.LOCATOR, reloadable=False,
+        doc="GGUF weights m3 owns. Default: <memory_root>/models, else ~/.m3/models."),
+    Key(name="paths.bin", parse=parse_path, default=None,
+        env_names=("M3_PATH_BIN",), scope=Scope.LOCATOR, reloadable=False,
+        doc="The bin/ directory of a non-packaged (developer) install; unset uses the packaged one."),
+    Key(name="paths.lib_dir", parse=parse_path, default=None,
+        env_names=("M3_LIB_DIR",), scope=Scope.LOCATOR, reloadable=False,
+        doc="Where the wolfSSL library is trusted from. Default: <config root's parent>/lib."),
+]
 
 # ── [secrets] ────────────────────────────────────────────────────────────────
 SECRETS_FILE = Key(
@@ -47,7 +114,7 @@ def _secret(name: str, doc: str, *, aliases: tuple[str, ...] = (), bootstrap: bo
 
 # CONFIG_DESIGN §10. Bootstrap secrets never come from the vault: it lives in the
 # store a DSN unlocks, and it decrypts with the master key.
-SECRETS = [
+SECRETS: list[Key] = [
     _secret("M3_PRIMARY_PG_URL", "DSN of a PostgreSQL primary store.",
             aliases=("M3_PG_URL",), bootstrap=True),
     _secret("M3_CDW_PG_URL", "DSN of the pg_sync data warehouse.", aliases=("PG_URL",)),
@@ -62,7 +129,7 @@ SECRETS = [
     _secret("OPENCLAW_GATEWAY_TOKEN", "OpenClaw gateway token."),
 ]
 
-REGISTRY = Registry([DB_BACKEND, SECRETS_FILE, *SECRETS])
+REGISTRY = Registry([*DB, *DB_POSTGRES, *PATHS, SECRETS_FILE, *SECRETS])
 
 # Env names m3 code reads that are deliberately NOT settings, with the reason.
 # The completeness test treats them as decided; only the user moves a name here.
@@ -73,4 +140,7 @@ NOT_SETTINGS: dict[str, str] = {
     "M3_DIFF_REF_REV": "search_differential.py's own parameter (U4 B)",
     "M3_DIFF_STORE": "search_differential.py's own parameter (U4 B)",
     "M3_TRACE_FILE": "setup-wizard debug breadcrumbs (U4 B)",
+    # CONFIG_DESIGN §2 read path 1: it decides WHICH m3_config.toml is read, so it
+    # cannot be a key in that file.
+    "M3_CONFIG_ROOT": "the config locator (CONFIG_DESIGN §2, read path 1)",
 }
