@@ -141,6 +141,17 @@ def current_store_name() -> str:
     return store.name if store is not None else MAIN
 
 
+def child_store_args() -> list[str]:
+    """The argv that puts a child m3 process on the store in effect here:
+    ``[]`` on main, else ``["--store", name]`` (plan 2C.3e; first caller 2E.1's
+    spawn_m3_child). Owned by the store layer, not by StorageBackend as first
+    designed: one backend instance serves every store naming its database, so a
+    backend cannot know which store NAME is active. Passed in argv, never env,
+    so a child that cannot take --store fails loud instead of ignoring it."""
+    store = current_store()
+    return [] if store is None else ["--store", store.name]
+
+
 def set_process_store(name: str) -> StoreRef | None:
     """Select ``name`` for the whole process: a CLI's ``--store`` (plan 2C.3d).
     Every thread sees it; a per-call ``active_store`` still overrides it. Set once

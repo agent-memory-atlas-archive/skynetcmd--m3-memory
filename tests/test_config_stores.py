@@ -552,6 +552,21 @@ def test_a_deprecated_alias_keeps_the_new_flags_default_and_warns(capsys):
     assert "--old is the old spelling of --new" in capsys.readouterr().err
 
 
+# ── 3e: a child process inherits the store through argv ──────────────────────
+def test_child_store_args_round_trip_through_a_child_cli(stores_file, tmp_path, monkeypatch):
+    """What child_store_args emits is exactly what a child's add_database_arg
+    parses back into the same store."""
+    from m3_core.config.stores import active_store, child_store_args, current_store_name
+
+    _scratch(stores_file, tmp_path, monkeypatch)
+    assert child_store_args() == []
+    with active_store("scratch"):
+        argv = child_store_args()
+    assert argv == ["--store", "scratch"]
+    _cli_parser().parse_args(argv)
+    assert current_store_name() == "scratch"
+
+
 def test_embed_backfill_takes_target_and_the_old_store_spelling(capsys):
     import embed_backfill as eb
 
