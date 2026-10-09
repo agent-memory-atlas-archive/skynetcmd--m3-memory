@@ -257,8 +257,19 @@ def _try_pg_fdw_fastpath(dry_run: bool) -> "bool | None":
             return None  # SQLite/MariaDB primary -> generic bridge
     except Exception:
         return None
+    # Imported OUTSIDE the try below, whose except clause names
+    # pg_fdw_sync.FdwUnavailable: a failed import there left the name unbound,
+    # and evaluating that clause raised UnboundLocalError, which escaped this
+    # "never raises" function and hid the import error.
     try:
         import pg_fdw_sync
+    except Exception as e:  # noqa: BLE001 — reported, then the generic bridge runs
+        _set_fdw_reason(f"FDW fast-path unavailable: pg_fdw_sync did not import "
+                        f"({type(e).__name__}: {e})")
+        log.warning(f"FDW fast-path unavailable: pg_fdw_sync did not import "
+                    f"({type(e).__name__}: {e}) — falling back to generic bridge.")
+        return None
+    try:
         from m3_sdk import resolve_warehouse_dsn
         warehouse_dsn = resolve_warehouse_dsn()
         if not warehouse_dsn:
