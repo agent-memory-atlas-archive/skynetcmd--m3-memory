@@ -31,6 +31,25 @@
         }
       }
     },
+    "cloud": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allow_fallback": {
+          "type": "boolean",
+          "description": "Allow embedding through the cloud enclave when local tiers fail (privacy gate).",
+          "default": false
+        },
+        "auth_token_keyring": {
+          "type": "string",
+          "description": "Keyring entry holding the enclave token, as service:user or user (service m3_memory). A REFERENCE, not the secret; the secret is M3_CLOUD_AUTH_TOKEN."
+        },
+        "enclave_url": {
+          "type": "string",
+          "description": "The cloud enclave's URL."
+        }
+      }
+    },
     "db": {
       "type": "object",
       "additionalProperties": false,
@@ -358,6 +377,53 @@
         }
       }
     },
+    "extraction": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "function": {
+          "type": "string",
+          "description": "Function the custom script exposes.",
+          "default": "extract"
+        },
+        "model": {
+          "type": "string",
+          "description": "Extraction model; unset picks the best LLM."
+        },
+        "prompt": {
+          "type": "string",
+          "description": "Replaces the built-in prompt."
+        },
+        "script": {
+          "type": "string",
+          "description": "Script for extraction.type = custom_script."
+        },
+        "type": {
+          "type": "string",
+          "description": "Extractor: rule_based, an LLM provider, or custom_script. (Today an unknown value acts as rule_based; it is now an error.)",
+          "enum": [
+            "rule_based",
+            "local_llm",
+            "remote_llm",
+            "llm",
+            "gemini",
+            "claude",
+            "lmstudio",
+            "custom_script"
+          ],
+          "default": "rule_based"
+        },
+        "url": {
+          "type": "string",
+          "description": "Extraction endpoint."
+        },
+        "write_through": {
+          "type": "boolean",
+          "description": "Extract inline on write instead of queueing.",
+          "default": false
+        }
+      }
+    },
     "files": {
       "type": "object",
       "additionalProperties": false,
@@ -432,6 +498,62 @@
         "summary_url": {
           "type": "string",
           "description": "Summary endpoint. Default: M3_LMSTUDIO_URL; unset disables summaries."
+        }
+      }
+    },
+    "llm": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "connect_timeout_s": {
+          "type": "number",
+          "description": "Seconds to connect to an endpoint before trying the next.",
+          "default": 0.3
+        },
+        "endpoints": {
+          "type": "array",
+          "description": "LLM endpoints tried in order (base URLs). Empty: llm.url, then LM Studio.",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "lmstudio_base": {
+          "type": "string",
+          "description": "LM Studio's base URL for the MCP proxy (no M3_ name exists today).",
+          "default": "http://localhost:1234/v1"
+        },
+        "lmstudio_failover": {
+          "type": "boolean",
+          "description": "Include LM Studio in the failover list. Default: on unless llm.url is set."
+        },
+        "lmstudio_url": {
+          "type": "string",
+          "description": "LM Studio endpoint the files summarizer and extractor fall back to."
+        },
+        "outage_repeat_s": {
+          "type": "number",
+          "description": "Seconds before an ongoing outage is reported again.",
+          "default": 3600.0
+        },
+        "read_timeout_s": {
+          "type": "number",
+          "description": "Seconds the MCP proxy waits for a model's reply.",
+          "default": 4800.0
+        },
+        "timeout_s": {
+          "type": "number",
+          "description": "Seconds an LLM call may take.",
+          "default": 45.0
+        },
+        "url": {
+          "type": "string",
+          "description": "A custom LLM endpoint, tried first."
+        },
+        "usability_ttl_s": {
+          "type": "number",
+          "description": "Seconds an endpoint's usability result is cached.",
+          "default": 60.0
         }
       }
     },
@@ -536,6 +658,22 @@
         "models_root": {
           "type": "string",
           "description": "GGUF weights m3 owns. Default: <memory_root>/models, else ~/.m3/models."
+        }
+      }
+    },
+    "promote": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "llm_model": {
+          "type": "string",
+          "description": "Model promote_pipeline requests.",
+          "default": "google/gemma-4-26b-a4b"
+        },
+        "llm_url": {
+          "type": "string",
+          "description": "Chat-completions URL (full path) promote_pipeline calls.",
+          "default": "http://localhost:1234/v1/chat/completions"
         }
       }
     },

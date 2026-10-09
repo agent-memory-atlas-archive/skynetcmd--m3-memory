@@ -13,6 +13,14 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `deadline_s` | number | `60.0` | `M3_CHATLOG_EMBED_DEADLINE_S`, `CHATLOG_EMBED_DEADLINE_S` | restart to apply; Seconds one sweeper run may take; 0 or less is unbounded. |
 | `max_per_run` | integer | `10000` | `M3_CHATLOG_EMBED_MAX_PER_RUN`, `CHATLOG_EMBED_MAX_PER_RUN` | restart to apply; Rows one sweeper run embeds. |
 
+## [cloud]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `allow_fallback` | boolean | `false` | `M3_ALLOW_CLOUD_FALLBACK` | restart to apply; Allow embedding through the cloud enclave when local tiers fail (privacy gate). |
+| `auth_token_keyring` | string | (none) | `M3_CLOUD_AUTH_TOKEN_KEYRING` | restart to apply; Keyring entry holding the enclave token, as service:user or user (service m3_memory). A REFERENCE, not the secret; the secret is M3_CLOUD_AUTH_TOKEN. |
+| `enclave_url` | string | (none) | `M3_CLOUD_ENCLAVE_URL` | restart to apply; The cloud enclave's URL. |
+
 ## [db]
 
 | Key | Type | Default | Environment names | Notes |
@@ -105,6 +113,18 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `max_batch` | integer | `2048` | `M3_EMBED_SERVER_MAX_BATCH` | restart to apply; Texts per server batch. |
 | `port` | integer | `8082` | `M3_EMBED_SERVER_PORT` | restart to apply; Port of the shared embed server (also read by the Rust server). |
 
+## [extraction]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `function` | string | `extract` | `M3_EXTRACTION_FUNCTION` | restart to apply; Function the custom script exposes. |
+| `model` | string | (none) | `M3_EXTRACTION_MODEL` | restart to apply; Extraction model; unset picks the best LLM. |
+| `prompt` | string | (none) | `M3_EXTRACTION_PROMPT` | restart to apply; Replaces the built-in prompt. |
+| `script` | path | (none) | `M3_EXTRACTION_SCRIPT` | restart to apply; Script for extraction.type = custom_script. |
+| `type` | string | `rule_based` | `M3_EXTRACTION_TYPE` | restart to apply; one of `rule_based`, `local_llm`, `remote_llm`, `llm`, `gemini`, `claude`, `lmstudio`, `custom_script`; Extractor: rule_based, an LLM provider, or custom_script. (Today an unknown value acts as rule_based; it is now an error.) |
+| `url` | string | (none) | `M3_EXTRACTION_URL` | restart to apply; Extraction endpoint. |
+| `write_through` | boolean | `false` | `M3_EXTRACTION_WRITE_THROUGH` | restart to apply; Extract inline on write instead of queueing. |
+
 ## [files]
 
 | Key | Type | Default | Environment names | Notes |
@@ -123,6 +143,21 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `promotion_scope` | string | `user` | `M3_FILES_PROMOTION_SCOPE` | restart to apply; Scope given to memories promoted from files. |
 | `summary_model` | string | (none) | `M3_FILES_SUMMARY_MODEL` | restart to apply; Summary model. Default: the endpoint's discovered model. |
 | `summary_url` | string | (none) | `M3_FILES_SUMMARY_URL` | restart to apply; Summary endpoint. Default: M3_LMSTUDIO_URL; unset disables summaries. |
+
+## [llm]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `connect_timeout_s` | number | `0.3` | `M3_LLM_CONNECT_TIMEOUT` | restart to apply; Seconds to connect to an endpoint before trying the next. |
+| `endpoints` | list of strings | `[]` | `M3_LLM_ENDPOINTS_CSV`, `LLM_ENDPOINTS_CSV` | restart to apply; LLM endpoints tried in order (base URLs). Empty: llm.url, then LM Studio. |
+| `lmstudio_base` | string | `http://localhost:1234/v1` | `LM_STUDIO_BASE` | restart to apply; LM Studio's base URL for the MCP proxy (no M3_ name exists today). |
+| `lmstudio_failover` | boolean | (none) | `M3_ENABLE_LMSTUDIO_FAILOVER` | restart to apply; Include LM Studio in the failover list. Default: on unless llm.url is set. |
+| `lmstudio_url` | string | (none) | `M3_LMSTUDIO_URL` | restart to apply; LM Studio endpoint the files summarizer and extractor fall back to. |
+| `outage_repeat_s` | number | `3600.0` | `M3_LLM_OUTAGE_REPEAT_S` | restart to apply; Seconds before an ongoing outage is reported again. |
+| `read_timeout_s` | number | `4800.0` | `M3_LM_READ_TIMEOUT`, `LM_READ_TIMEOUT` | restart to apply; Seconds the MCP proxy waits for a model's reply. |
+| `timeout_s` | number | `45.0` | `M3_LLM_TIMEOUT`, `LLM_TIMEOUT` | restart to apply; Seconds an LLM call may take. |
+| `url` | string | (none) | `M3_LLM_URL` | restart to apply; A custom LLM endpoint, tried first. |
+| `usability_ttl_s` | number | `60.0` | `M3_LLM_USABILITY_TTL` | restart to apply; Seconds an endpoint's usability result is cached. |
 
 ## [memory]
 
@@ -162,6 +197,13 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `logs_root` | path | (none) | `M3_LOGS_ROOT` | restart to apply; Scheduled-task and service logs. Default: <memory_root>/logs, else ~/.m3/logs. |
 | `memory_root` | path | (none) | `M3_MEMORY_ROOT` | restart to apply; Legacy master root: config, engine, logs and models derive from it when their own keys are unset. Removed at N+3 (CONFIG_DESIGN §9). |
 | `models_root` | path | (none) | `M3_MODELS_ROOT` | restart to apply; GGUF weights m3 owns. Default: <memory_root>/models, else ~/.m3/models. |
+
+## [promote]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `llm_model` | string | `google/gemma-4-26b-a4b` | `M3_LM_MODEL`, `LM_MODEL` | restart to apply; Model promote_pipeline requests. |
+| `llm_url` | string | `http://localhost:1234/v1/chat/completions` | `M3_LM_URL`, `LM_URL` | restart to apply; Chat-completions URL (full path) promote_pipeline calls. |
 
 ## [search]
 
