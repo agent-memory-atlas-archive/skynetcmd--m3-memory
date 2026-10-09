@@ -1179,6 +1179,7 @@ def notifications_ack_impl(notification_id: int) -> str:
 
     # Route by the id floor: ack must reach whichever store owns the row, or a
     # dispatched message would be unackable and sit unread forever.
+    row = None
     with _store_for_id(notification_id) as (db, _table):
         cur = db.execute(
             f"UPDATE {_table} SET read_at = {_d.now()} "

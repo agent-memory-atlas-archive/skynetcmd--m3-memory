@@ -937,6 +937,7 @@ async def _run_async(args) -> int:
 
     async def _produce_slices(client: httpx.AsyncClient) -> None:
         nonlocal enrich_run_id  # set on first successful submit
+        slice_idx = -1  # reported when a failure precedes the first slice
         try:
             for slice_idx in range(n_slices):
                 # Stop-flag check #2 — graceful drain. Checked before each
@@ -1044,7 +1045,7 @@ async def _run_async(args) -> int:
                 await _put_or_abort((slice_idx, batch_id, results_by_gid))
         except (RuntimeError, TimeoutError, Exception) as e:  # noqa: BLE001
             producer_failure["err"] = e
-            producer_failure["slice_idx"] = slice_idx if 'slice_idx' in locals() else -1
+            producer_failure["slice_idx"] = slice_idx
         finally:
             # Sentinel — tells the consumer there are no more slices coming. The
             # consumer may already be gone (full queue); put_nowait + swallow

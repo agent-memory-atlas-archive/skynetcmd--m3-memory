@@ -394,7 +394,11 @@ warn_unused_ignores = false
 # so a base-class rename or a typo'd method name fails the type check instead of
 # silently adding an unused method. Modules under ignore_errors below are not
 # checked; their overrides are decorated by hand until each leaves that list.
-enable_error_code = ["explicit-override"]
+# The mypy ratchet (plan 2D.M): each code is turned on once the tree is clean of
+# it. redundant-expr waits for strict_optional: with strict_optional = false,
+# mypy reads `bool | None` as `bool` and reports false positives (measured: 2 of
+# its 5 findings), plus narrowing across an await that sibling tasks invalidate.
+enable_error_code = ["explicit-override", "possibly-undefined", "truthy-bool", "unused-awaitable"]
 
 # ── Per-module overrides ──────────────────────────────────────────────────────
 

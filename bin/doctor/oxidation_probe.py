@@ -107,6 +107,7 @@ def run(brief: bool = False) -> int:
     # version the installer targets. Best-effort: an unknown/unparseable version
     # is reported but not treated as definitively stale.
     version_stale = False
+    M3_CORE_RS_VERSION = ""  # read only when version_stale, which needs the import
     try:
         from m3_memory.rust_core_install import (
             M3_CORE_RS_VERSION,

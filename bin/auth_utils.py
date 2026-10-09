@@ -4,6 +4,7 @@ import base64
 import logging
 import os
 import threading
+from typing import Any
 
 from crypto_provider import provider as crypto
 from m3_sdk import getenv_compat
@@ -571,6 +572,7 @@ def _vault_tier(service: str) -> tuple[str | None, str | None]:
     # tier would be dead on PG while appearing merely "empty".
     if True:
         conn = None
+        _cm: Any = None
         try:
             _p = _dialect_param()
             _cm = _backend().open_readonly(vault_path)
@@ -656,6 +658,7 @@ def _reencrypt_vault_row(service: str, plaintext: str, master_key: str) -> None:
         return
     store = type(backend).__name__
     conn = None
+    _wcm: Any = None
     try:
         new_encrypted = _encrypt_value(plaintext, master_key)
         _p = _dialect_param()

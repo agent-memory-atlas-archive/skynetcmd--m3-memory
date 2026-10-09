@@ -711,6 +711,7 @@ def render_entry(relpath: str, sha1: str, mtime: str, doc: str,
 
 
 def main() -> None:
+    global BASE_DIR, BIN_DIR, SCRIPTS_DIR, BENCHMARKS_DIR, SOURCE_DIRS, RECURSIVE_SOURCE_DIRS, ROOT_FILES, OUT_DIR
     # CLI: --root REPATHS the worktree (so the same script can inventory the
     # bench worktree without copying). --extra-root-file adds files to scan
     # at the repo root (use repeatedly). Defaults preserve existing behavior.
@@ -727,7 +728,6 @@ def main() -> None:
     args = ap.parse_args()
 
     if args.root:
-        global BASE_DIR, BIN_DIR, SCRIPTS_DIR, BENCHMARKS_DIR, SOURCE_DIRS, RECURSIVE_SOURCE_DIRS, ROOT_FILES, OUT_DIR
         BASE_DIR = Path(args.root).resolve()
         BIN_DIR = BASE_DIR / "bin"
         SCRIPTS_DIR = BASE_DIR / "scripts"

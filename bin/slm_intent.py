@@ -320,7 +320,7 @@ def localize_endpoint(url: str, backend: str, *, prefer_native: bool = False) ->
         # sync and must not block); fall back to configured order when all are.
         base = first_usable_endpoint_cached() or (LLM_ENDPOINTS or [None])[0]
     except Exception:  # noqa: BLE001 — advisory; keep the profile's own url
-        base = None
+        return url, backend
     if not base:
         return url, backend
     base = base.rstrip("/")

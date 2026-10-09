@@ -77,7 +77,7 @@ MAX_PATTERN_LEN = 256        # reject overlong LIKE patterns
 # ── Validation helpers ───────────────────────────────────────────────────────
 
 
-def _require_conversation_id(conversation_id: str) -> str:
+def _require_conversation_id(conversation_id: str | None) -> str:
     """Conversation_id is mandatory. Empty / None / whitespace-only is rejected.
 
     Per the m3-memory multi-tenancy invariant: every query is per-conversation.

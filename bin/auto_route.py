@@ -38,7 +38,7 @@ _log = logging.getLogger(__name__)
 # — the load-bearing kill-switch from the oxidation plan §9.6. Import failure
 # is non-fatal: auto_route runs fully on the Python path without the core.
 _OXIDATION_DISABLED = os.environ.get("M3_CORE_RS_DISABLE", "0").lower() in ("1", "true", "yes")
-m3_core_rs = None
+m3_core_rs: Any = None  # the optional Rust core, or None when not installed
 if not _OXIDATION_DISABLED:
     try:
         import m3_core_rs  # type: ignore

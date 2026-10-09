@@ -470,6 +470,7 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
             "summary": "ok" | "partial" | "nothing_to_do" | "failed",
         }
     """
+    import sqlite3 as _sq  # every repair branch below uses it
     import subprocess
     import sys
 
@@ -555,7 +556,6 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
 
     # ── Action 2: Rebuild FTS5 index ──────────────────────────────────────────
     try:
-        import sqlite3 as _sq
         conn = _sq.connect(str(db_path), timeout=5.0)
         conn.row_factory = _sq.Row
         try:
