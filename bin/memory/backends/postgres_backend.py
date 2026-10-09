@@ -856,6 +856,12 @@ class PostgresBackend:
     def store_cache_key(cls, store) -> str:
         return f"store:{store.name}:{store.dsn_secret}"
 
+    def prepare_store(self) -> None:
+        """The core schema (base + pending pg migrations). Nothing creates it on
+        first connect, so a store on a fresh database would otherwise have only
+        the files schema, which migrates lazily."""
+        self.ensure_schema()
+
     def __init__(self, dsn: str | None = None) -> None:
         self._dsn = dsn or _resolve_dsn()
         self._pool: ThreadedConnectionPool | None = None

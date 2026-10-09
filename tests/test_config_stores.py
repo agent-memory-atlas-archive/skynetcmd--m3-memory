@@ -206,13 +206,50 @@ def test_two_stores_on_one_database_share_an_instance(monkeypatch, stores_file):
     monkeypatch.delenv("M3_CDW_PG_URL", raising=False)
     stores_file('[stores.a]\nbackend = "postgres"\ndsn_secret = "M3_STORE_A_PG_URL"\n'
                 '[stores.b]\nbackend = "postgres"\ndsn_secret = "M3_STORE_B_PG_URL"\n')
+    prepared = _record_prepare(monkeypatch)
     mb._reset_for_tests()
     with active_store("a"):
         first = mb.active_backend()
     with active_store("b"):
         second = mb.active_backend()
     assert first is second, "one database, two pools"
+    assert prepared == ["postgres:db.example:5432/m3"], "prepared once, for the new store only"
     mb._reset_for_tests()
+
+
+def _record_prepare(monkeypatch) -> list:
+    import importlib
+
+    pg = importlib.import_module("memory.backends.postgres_backend")
+    prepared: list = []
+    monkeypatch.setattr(pg.PostgresBackend, "prepare_store",
+                        lambda self: prepared.append(self.store_identity()))
+    return prepared
+
+
+def test_a_store_naming_the_default_database_is_never_prepared(monkeypatch, stores_file):
+    """Its schema is the installer's; a store alias must not migrate it, even when
+    nothing in the process has used the default store yet."""
+    import importlib
+
+    from m3_core.config.stores import active_store
+
+    dsn = "postgresql://u:p@db.example:5432/m3"
+    mb = importlib.import_module("memory.backends.selector")
+    monkeypatch.setenv("M3_DB_BACKEND", "postgres")
+    monkeypatch.setenv("M3_PRIMARY_PG_URL", dsn)
+    monkeypatch.setenv("M3_STORE_ALIAS_PG_URL", "host=db.example dbname=m3 user=other")
+    monkeypatch.delenv("M3_CDW_PG_URL", raising=False)
+    stores_file('[stores.alias]\nbackend = "postgres"\ndsn_secret = "M3_STORE_ALIAS_PG_URL"\n')
+    prepared = _record_prepare(monkeypatch)
+    mb._reset_for_tests()
+    try:
+        with active_store("alias"):
+            via_store = mb.active_backend()
+        assert via_store is mb.active_backend(), "the alias shares the default instance"
+        assert prepared == []
+    finally:
+        mb._reset_for_tests()
 
 
 # ── 3b: the per-call `store` argument (catalog.dispatch.pop_call_scope) ──────
@@ -300,12 +337,127 @@ def test_a_bad_store_argument_is_refused_before_the_impl(stores_file, tmp_path, 
     assert ran == []
 
 
-def test_files_tools_refuse_store_until_they_follow_it(stores_file, tmp_path, monkeypatch):
+# ── 3c: a store is core + files ──────────────────────────────────────────────
+def test_a_sqlite_store_derives_its_own_files_database(tmp_path):
+    from m3_core.config.stores import StoreError, files_db_path
+    from m3_core.paths import StoreRef
+
+    core = tmp_path / "engine" / "scratch.db"
+    assert files_db_path(StoreRef(name="s", backend="sqlite", path=str(core))) == str(
+        core.with_name("scratch.files.db"))
+    with pytest.raises(StoreError, match="only a SQLite store"):
+        files_db_path(StoreRef(name="b", backend="postgres", dsn_secret="X"))
+
+
+def test_files_writes_inside_a_sqlite_store_land_in_its_files_database(stores_file, tmp_path, monkeypatch):
+    """The store outranks M3_FILES_DB_PATH, as it outranks M3_DATABASE for core (D3)."""
+    import importlib
+
+    from m3_core.config.stores import active_store
+
+    legacy = tmp_path / "legacy.files.db"
+    monkeypatch.setenv("M3_FILES_DB_PATH", str(legacy))
+    _scratch(stores_file, tmp_path, monkeypatch)
+    fdb = importlib.import_module("files_memory.db")
+    marker = f"files-probe-{uuid.uuid4().hex}"
+    with active_store("scratch"):
+        with fdb._db() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS _files_probe (v TEXT)")
+            conn.execute("INSERT INTO _files_probe (v) VALUES (?)", (marker,))
+    with sqlite3.connect(tmp_path / "s.files.db") as raw:
+        assert raw.execute("SELECT v FROM _files_probe").fetchall() == [(marker,)]
+    assert not legacy.exists(), "the legacy files path was opened inside the store"
+
+
+def test_a_files_tool_follows_store(stores_file, tmp_path, monkeypatch):
+    import asyncio
+
     import mcp_tool_catalog as cat
 
+    legacy = tmp_path / "legacy.files.db"
+    monkeypatch.setenv("M3_FILES_DB_PATH", str(legacy))
     _scratch(stores_file, tmp_path, monkeypatch)
-    with pytest.raises(ValueError, match="files tools resolve their own store"):
-        cat.pop_call_scope({"store": "scratch"}, "files_stats")
+    out = asyncio.run(cat.execute_tool_structured(cat._BY_NAME["files_stats"], {"store": "scratch"},
+                                                  agent_id=""))
+    assert isinstance(out, dict)
+    assert (tmp_path / "s.files.db").exists() and not legacy.exists()
+
+
+def test_postgres_files_init_is_per_store(monkeypatch):
+    """One sentinel for every PostgreSQL database marked a store's files schema
+    migrated once ANY database was, so a named store never got one."""
+    import importlib
+
+    fdb = importlib.import_module("files_memory.db")
+    mb = importlib.import_module("memory.backends")
+    idents = iter(["postgres:h:5432/main", "postgres:h:5432/bench"])
+
+    class _Backend:
+        def __init__(self, ident):
+            self.ident = ident
+
+        def store_identity(self):
+            return self.ident
+
+    first, second = _Backend(next(idents)), _Backend(next(idents))
+    monkeypatch.setattr(mb, "active_backend", lambda: first)
+    a = fdb._init_key(None, True)
+    monkeypatch.setattr(mb, "active_backend", lambda: second)
+    assert fdb._init_key(None, True) != a
+
+
+@pytest.mark.requires_pg
+def test_a_postgres_store_on_a_second_database_gets_its_own_core_and_files(monkeypatch, stores_file):
+    """A store on another database of the same cluster gets its core and files
+    schemas created THERE, after main's were (the order a single files sentinel
+    got wrong)."""
+    import importlib
+
+    import psycopg2
+    from m3_core.config.stores import active_store
+    from psycopg2.extensions import make_dsn, parse_dsn
+
+    from conftest import pg_dsn
+
+    lane = pg_dsn()
+    db = f"m3_store_{uuid.uuid4().hex[:12]}"
+    admin = psycopg2.connect(lane)
+    admin.autocommit = True
+    admin.cursor().execute(f'CREATE DATABASE "{db}"')
+    store_dsn = make_dsn(lane, dbname=db)
+    mb = importlib.import_module("memory.backends.selector")
+    try:
+        monkeypatch.setenv("M3_STORE_SECOND_PG_URL", store_dsn)
+        monkeypatch.delenv("M3_CDW_PG_URL", raising=False)
+        stores_file('[stores.second]\nbackend = "postgres"\ndsn_secret = "M3_STORE_SECOND_PG_URL"\n')
+        mb._reset_for_tests()
+        fdb = importlib.import_module("files_memory.db")
+        from files_memory.config import files_table
+
+        mdb = importlib.import_module("memory.db")
+        with mdb._db():  # main first: under one sentinel this marked files "done"
+            pass
+        with fdb._db():
+            pass
+        with active_store("second"):
+            assert mb.active_backend().store_identity().endswith(f"/{db}")
+            with mdb._db():
+                pass
+            with fdb._db() as conn:  # the files schema exists in the second database
+                conn.execute(f"SELECT COUNT(*) FROM {files_table('file_nodes')}").fetchall()
+        with psycopg2.connect(store_dsn) as raw, raw.cursor() as cur:
+            cur.execute("SELECT to_regclass('files.file_nodes') IS NOT NULL, "
+                        "to_regclass('public.memory_items') IS NOT NULL")
+            assert cur.fetchone() == (True, True)
+        assert parse_dsn(store_dsn)["dbname"] == db
+    finally:
+        for backend in list(mb._backends.values()):
+            close = getattr(backend, "close", None)
+            if close is not None:
+                close()
+        mb._reset_for_tests()
+        admin.cursor().execute(f'DROP DATABASE IF EXISTS "{db}" WITH (FORCE)')
+        admin.close()
 
 
 def test_the_cli_passes_store_to_the_dispatcher(stores_file, tmp_path, monkeypatch):

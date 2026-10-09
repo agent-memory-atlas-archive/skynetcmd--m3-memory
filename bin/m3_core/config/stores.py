@@ -122,6 +122,19 @@ def active_store(name: str | None) -> Iterator[StoreRef | None]:
         _active_store.reset(token)
 
 
+def files_db_path(store: StoreRef) -> str:
+    """The files half of a SQLite store: ``<stem>.files.db`` beside its core file
+    (``scratch.db`` -> ``scratch.files.db``). Derived, never shared: a fixed
+    sibling name such as ``files_database.db`` would be main's files store for any
+    store kept in the engine directory. A PostgreSQL store's files half is the
+    ``files`` schema of its own database, so it has no path."""
+    if store.backend != "sqlite" or store.path is None:
+        raise StoreError(f"observed: store {store.name!r} is {store.backend}. "
+                         "inspect: only a SQLite store has a files database file")
+    core = Path(store.path)
+    return str(core.with_name(f"{core.stem}.files.db"))
+
+
 def current_store_name() -> str:
     store = _active_store.get()
     return store.name if store is not None else MAIN

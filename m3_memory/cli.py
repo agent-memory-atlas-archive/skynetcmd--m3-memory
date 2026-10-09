@@ -1525,7 +1525,7 @@ def _add_tool_domain_subcommands(subparsers) -> None:
                                  "SQLite backend only, not files tools (refused there).")
             tp.add_argument("--store", dest="store", default=None,
                             help="Named store for this call: 'main' or a [stores.<name>] "
-                                 "table in m3_config.toml. Not with --database; not files tools yet.")
+                                 "table in m3_config.toml (core and files). Not with --database.")
             tp.add_argument("--dry-run", dest="_dry_run", action="store_true",
                             help="Validate args + check the destructive gate without executing.")
             tp.add_argument("--yes", dest="_yes", action="store_true",

@@ -174,8 +174,8 @@ _STORE_PARAM_SCHEMA = {
     "type": "string",
     "description": (
         "Optional named store for this call only: 'main' or a [stores.<name>] "
-        "table in m3_config.toml. Empty = the active store. Not with `database`, "
-        "and not for files tools yet (both refused)."
+        "table in m3_config.toml (its core and files data). Empty = the active "
+        "store. Not with `database` (refused)."
     ),
     "default": "",
 }

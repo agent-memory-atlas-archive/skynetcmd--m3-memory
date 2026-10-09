@@ -72,15 +72,42 @@ def active_backend() -> StorageBackend:
             return cached
         backend: StorageBackend = factory() if store is None else factory.from_store(store)
         # One pool per distinct STORE (§14 constraint 3): a store that addresses
-        # the same database as an existing instance shares that instance.
+        # the same database as an existing instance shares that instance, and is
+        # not prepared again (that instance may be the default store's, whose
+        # schema is the installer's to manage). Only a NEW store is prepared.
         if store is not None:
             ident = backend.store_identity()
-            for existing in _backends.values():
-                if existing.name == backend.name and existing.store_identity() == ident:
-                    backend = existing
-                    break
+            shared = next((e for e in [*_backends.values(), *_default_peer(name, factory)]
+                           if e.name == backend.name and e.store_identity() == ident), None)
+            if shared is None:
+                backend.prepare_store()
+            else:
+                backend = shared
         _backends[key] = backend
         return backend
+
+
+def _default_peer(name: str, factory: type[StorageBackend]) -> list[StorageBackend]:
+    """The DEFAULT store's instance when it runs on the same backend as a store
+    being built, so a store naming the default database shares it (and is not
+    prepared) even before anything in this process used the default. Built
+    without connecting, and cached under its usual key. Caller holds _lock."""
+    from m3_core.paths import without_active_store
+
+    with without_active_store():
+        if resolve_backend_name() != name:
+            return []
+        default = _backends.get(name)
+        if default is None:
+            try:
+                default = factory()
+            except RuntimeError:
+                # The default store is not configured on this backend (no primary
+                # DSN), so no store can be naming it; its own callers still get
+                # that error when they use it.
+                return []
+            _backends[name] = default
+    return [default]
 
 
 def dialect() -> Dialect:

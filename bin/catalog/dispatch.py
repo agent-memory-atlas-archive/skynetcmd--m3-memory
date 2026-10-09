@@ -57,7 +57,8 @@ def _pop_database(args: dict, tool: str) -> str | None:
 
     backend = resolve_backend_name()
     if tool_domains.domain_of_tool(tool) == "files":
-        cause = "files tools resolve their own store and never read `database`"
+        cause = ("files tools resolve their own store and never read `database` "
+                 "(a named store, `store`, carries its files half)")
     elif backend != "sqlite":
         cause = (f"`database` names a SQLite file, and the {backend} backend "
                  f"addresses its configured store regardless")
@@ -92,16 +93,7 @@ def _pop_store(args: dict, tool: str) -> str | None:
         raise ValueError(f"{tool}: observed: store={name!r} ({type(name).__name__}). "
                          "inspect: `store` is a store name such as 'main'")
     name = name.strip()
-    import tool_domains
-
-    if tool_domains.domain_of_tool(tool) == "files":
-        # Plan 2C.3c routes files per store; until then the files half would stay
-        # on the default store while the caller believed it moved.
-        raise ValueError(
-            f"{tool}: `store` would be ignored. observed: store={name!r}. cause: "
-            "files tools resolve their own store and do not follow a named store "
-            "yet, so the call would run against the default files store. inspect: "
-            "drop `store` for files tools.")
+    # Files tools follow it too: a store is core + files (§14, plan 2C.3c).
     from m3_core.config.stores import resolve_store
 
     resolve_store(name)  # StoreError (a ValueError) for an unknown name

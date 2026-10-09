@@ -27,6 +27,8 @@ import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 
+from m3_core.paths import _active_store
+
 from . import config
 
 # NOTE: schema.SCHEMA_V1/2/3 are no longer applied here — the schema now lives in
@@ -60,7 +62,12 @@ def _ensure_parent_dir(db_path: str) -> None:
 
 
 def _resolve_path(path: str | None) -> str:
-    """Resolve the files.db path. Explicit arg > env > config default.
+    """Resolve the files.db path. Explicit arg > active SQLite store > env > config
+    default.
+
+    A named store (config §14, plan 2C.3c) carries its own files half
+    (``stores.files_db_path``), so a store outranks the legacy env exactly as it
+    does for the core path (D3).
 
     The env var is read at CALL time (not just the import-time config constant) so
     a caller/test that sets M3_FILES_DB_PATH after import is honored — matching the
@@ -69,6 +76,11 @@ def _resolve_path(path: str | None) -> str:
     point the store at a tmpdir.)"""
     if path:
         return os.path.abspath(path)
+    store = _active_store.get()
+    if store is not None and store.backend == "sqlite":
+        from m3_core.config.stores import files_db_path
+
+        return files_db_path(store)
     env = os.environ.get("M3_FILES_DB_PATH")
     if env:
         return os.path.abspath(env)
@@ -145,8 +157,19 @@ def _new_connection(db_path: str) -> sqlite3.Connection:
 
 
 # Track PG-side files-schema init separately from SQLite per-path init: on PG there
-# is no path, so key on a sentinel.
+# is no path, so key on a sentinel plus the database's store identity. The identity
+# is what makes it per STORE: a single sentinel marked every PostgreSQL database
+# initialised once the first was, so a named store's `files` schema was never
+# migrated (plan 2C.3c).
 _PG_INIT_SENTINEL = "<postgres:files-schema>"
+
+
+def _init_key(path: str | None, is_pg: bool) -> str:
+    if not is_pg:
+        return _resolve_path(path)
+    from memory.backends import active_backend
+
+    return f"{_PG_INIT_SENTINEL}{active_backend().store_identity()}"
 
 
 def init_db(path: str | None = None) -> None:
@@ -159,7 +182,7 @@ def init_db(path: str | None = None) -> None:
     Idempotent — the migration runner skips versions already in schema_versions.
     """
     is_pg = _is_postgres()
-    key = _PG_INIT_SENTINEL if is_pg else _resolve_path(path)
+    key = _init_key(path, is_pg)
     with _init_lock:
         if key in _initialized_dbs:
             return

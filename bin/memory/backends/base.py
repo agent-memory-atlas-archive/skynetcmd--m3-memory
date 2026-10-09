@@ -543,6 +543,13 @@ class StorageBackend(Protocol):
         instance (and so one pool)."""
         ...
 
+    def prepare_store(self) -> None:
+        """Make a NAMED store usable on its first selection: create its schema
+        where the backend does not do so lazily. The selector calls it once per
+        new store instance, never for the default store (whose schema the
+        installer owns) nor for a store that shares an existing instance."""
+        ...
+
     def store_identity(self) -> str:
         """A stable key naming the store this backend addresses.
 

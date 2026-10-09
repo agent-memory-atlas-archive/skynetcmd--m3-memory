@@ -514,6 +514,9 @@ class SqliteBackend:
     def store_cache_key(cls, store) -> str:
         return ""  # one shared unpinned instance; the path is resolved per call
 
+    def prepare_store(self) -> None:
+        """Nothing to do: memory.db._lazy_init migrates each SQLite file on first open."""
+
     @contextmanager
     def _pinned_connection(self):
         """Read/write connection to the PINNED store, with _db()'s discipline.
