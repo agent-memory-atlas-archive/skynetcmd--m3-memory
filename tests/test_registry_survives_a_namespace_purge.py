@@ -16,13 +16,55 @@ The package object is never replaced here; only the single
 """
 from __future__ import annotations
 
+import contextlib
+import gc
 import sys
 from pathlib import Path
-from types import ModuleType
+from types import FunctionType, ModuleType
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bin"))
+
+_BACKEND_MODULES = ("memory.backends.sqlite_backend", "memory.backends.postgres_backend")
+
+
+@contextlib.contextmanager
+def _restored_backends():
+    """Undo the reload this file provokes.
+
+    `_ensure_registered` adopts a live registration by `importlib.reload` of the
+    backend module, which re-executes it IN PLACE: same module object, new class
+    and function objects. Anything that cached the earlier ones keeps them, so
+    later tests ran a mix of copies (three `keyword_search_with_row_data` were
+    alive after this file; search_profile's timing broke on it). Restoring each
+    module's namespace puts the originals back for everything after us.
+    """
+    saved = {name: dict(sys.modules[name].__dict__)
+             for name in _BACKEND_MODULES if name in sys.modules}
+    try:
+        yield
+    finally:
+        for name, namespace in saved.items():
+            mod = sys.modules.get(name)
+            if mod is not None:
+                mod.__dict__.clear()
+                mod.__dict__.update(namespace)
+
+
+@pytest.fixture(autouse=True)
+def _restore_backend_modules():
+    with _restored_backends():
+        yield
+
+
+def _live_copies() -> int:
+    gc.collect()
+    return sum(1 for o in gc.get_objects()
+               # type(), not isinstance: isinstance falls back to o.__class__,
+               # and some objects (a deprecated torch alias) warn when it is read.
+               if type(o) is FunctionType
+               and o.__qualname__ == "SqliteBackend.keyword_search_with_row_data")
 
 
 def _second_instance() -> ModuleType:
@@ -85,3 +127,19 @@ def test_the_dialect_accessor_is_untouched_by_all_of_this():
     import memory.backends as B
 
     assert callable(B.dialect), type(B.dialect).__name__
+
+
+def test_the_reload_leaves_no_backend_copy_behind(monkeypatch):
+    """Measured the way the defect was found: count the live copies of one
+    backend method before and after an adoption that reloads the module."""
+    from memory.backends import registry as held
+
+    held._ensure_registered("sqlite")
+    import memory.backends.sqlite_backend  # noqa: F401 - the module the reload replaces
+    before = _live_copies()
+    with _restored_backends(), monkeypatch.context() as m:
+        m.setattr(held, "_REGISTRY", {}, raising=False)
+        m.setitem(sys.modules, "memory.backends.registry", _second_instance())
+        held.dialect_singleton_for("sqlite")
+        assert _live_copies() > before, "precondition: the adoption reloaded the module"
+    assert _live_copies() == before, "a reloaded copy of the backend outlived the test"
