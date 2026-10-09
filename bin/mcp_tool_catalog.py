@@ -155,15 +155,18 @@ TOOLS: list[ToolSpec] = [
 # always include the field. The dispatcher (execute_tool and the
 # memory_bridge wrapper) pops the value and activates it via active_database()
 # before calling the impl — impl signatures do not change.
+#
+# ⚠ These universal schemas are repeated in EVERY tool (119), so each character
+# is paid ~119 times in the eager schema and in every loaded domain: the first
+# version of `store` alone cost +6,962 tokens (+21%, measured with
+# bin/measure_tool_tokens.py). Keep descriptions to what a caller needs to pick
+# the argument; the rules (store with database, files tools, a non-SQLite
+# backend) are enforced by catalog.dispatch.pop_call_scope with errors that
+# explain themselves. tests/test_tool_token_budget.py ties the README figures to
+# the measurement.
 _DATABASE_PARAM_SCHEMA = {
     "type": "string",
-    "description": (
-        "Optional SQLite database path. Overrides M3_DATABASE env and the "
-        "default memory/agent_memory.db for this call only. Empty = use default. "
-        "SQLite backend only, and not for files tools: elsewhere it would be "
-        "ignored, so the call is refused."
-    ),
-    "default": "",
+    "description": "SQLite file for this call only (legacy; prefer store). SQLite backend only.",
 }
 
 
@@ -172,12 +175,7 @@ _DATABASE_PARAM_SCHEMA = {
 # `database` (catalog.dispatch.pop_call_scope owns both).
 _STORE_PARAM_SCHEMA = {
     "type": "string",
-    "description": (
-        "Optional named store for this call only: 'main' or a [stores.<name>] "
-        "table in m3_config.toml (its core and files data). Empty = the active "
-        "store. Not with `database` (refused)."
-    ),
-    "default": "",
+    "description": "Named store for this call only: main, or a [stores.<name>] in m3_config.toml.",
 }
 
 
@@ -186,16 +184,12 @@ _STORE_PARAM_SCHEMA = {
 # single call, or lengthen/disable it for a known-long op. Same injection model
 # as `database`: added at module load, popped by the dispatcher before the impl
 # is called (impl signatures do not change). Precedence and semantics are in
-# _resolve_tool_timeout: per-call arg > M3_TOOL_TIMEOUT env > 30s default; <=0
-# disables. Only async impls are bounded.
+# _resolve_tool_timeout: per-call arg > M3_TOOL_TIMEOUT env > the tool's own
+# budget > 30s; <=0 disables. No schema "default": a tool's own budget (300s for
+# files_index) would be overridden by a client that sends the schema default.
 _TIMEOUT_PARAM_SCHEMA = {
     "type": "number",
-    "description": (
-        "Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT "
-        "env and the 30s default for this call only. Use a larger value for "
-        "long-running ops; <= 0 disables the timeout entirely."
-    ),
-    "default": 30,
+    "description": "Per-call timeout in seconds; <=0 disables.",
 }
 
 

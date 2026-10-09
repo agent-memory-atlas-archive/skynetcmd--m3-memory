@@ -404,13 +404,13 @@ To expose m3 to any Model Context Protocol host, add it to your configuration fi
 
 m3 gives you the full 100+ tool surface while occupying just **2% of a 200K context window** at startup — most MCP servers make you pay for every tool in every prompt. Tools are grouped into **9 domains** (`memory`, `chatlog`, `files`, `entity`, `agent`, `tasks`, `conversations`, `diagnostics`, `admin`) and loaded lazily.
 
-Only 10 schemas register at startup (~3,962 tokens). That set is chosen by measurement rather than judgement: across real-world multi-agent development sessions it absorbed **95% of all observed tool calls**, so gating the rest costs almost nothing in practice. When your agent needs more, it calls `tools_load_domain(domain="...")` to fetch a domain on demand — or invokes any single tool by name through `m3_call`, with no domain load at all.
+Only 10 schemas register at startup (~3,796 tokens). That set is chosen by measurement rather than judgement: across real-world multi-agent development sessions it absorbed **95% of all observed tool calls**, so gating the rest costs almost nothing in practice. When your agent needs more, it calls `tools_load_domain(domain="...")` to fetch a domain on demand — or invokes any single tool by name through `m3_call`, with no domain load at all.
 
 | Gating Mode | Registered Tools | Tokens in Schema | % of 200K Window |
 | :--- | :---: | :---: | :---: |
-| **Lazy (Default)** | **10** | **~3,962** | **2.0%** |
-| Typical Active Session (+`memory` +`admin`) | 62 | ~19,470 | 9.7% |
-| Eager Mode (`M3_TOOLS_LAZY=0`) | 118 | ~30,701 | 15.4% |
+| **Lazy (Default)** | **10** | **~3,796** | **1.9%** |
+| Typical Active Session (+`memory` +`admin`) | 60 | ~17,865 | 8.9% |
+| Eager Mode (`M3_TOOLS_LAZY=0`) | 119 | ~29,114 | 14.6% |
 
 > 🛠️ *Note: If your client does not support dynamic tool registration, set the environment variable `M3_TOOLS_LAZY=0` to register all tools eagerly.*
 

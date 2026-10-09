@@ -145,9 +145,9 @@ Deterministically apply a memory.db curator plan in ONE call. No LLM in the loop
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `plan` | `object` | Yes | Curator plan; see tool description for schema. | `-` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_count_entities`
 
@@ -162,9 +162,9 @@ Count distinct entities mentioned in a single conversation. Direct-index aggrega
 | `conversation_id` | `string` | Yes | Required. The conversation to scope the count to. Empty / missing → ValueError (cross-conversation scans are not supported). | `-` |
 | `entity_type` | `string` | No | Optional type filter (e.g. 'product', 'place', 'person'). Empty = all types. | `` |
 | `pattern` | `string` | No | Optional case-insensitive substring filter on canonical_name. Max length 256. | `` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_count_mentions`
 
@@ -180,9 +180,9 @@ Per-entity mention frequency within a single conversation, sorted DESC by count.
 | `entity_type` | `string` | No | Optional type filter. | `` |
 | `pattern` | `string` | No | Optional case-insensitive substring filter on canonical_name. Max length 256. | `` |
 | `limit` | `integer` | No | Max rows to return. 0 = default (1000). Hard cap = 10000. | `0` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_delete`
 
@@ -196,9 +196,9 @@ Deletes a MemoryItem (soft or hard). id MUST be the full UUID — a prefix is re
 | --- | --- | --- | --- | --- |
 | `id` | `string` | Yes | FULL UUID of the memory (not an 8-char prefix — a prefix is rejected for mutation safety). | `-` |
 | `hard` | `boolean` | No | Hard delete (permanent). | `False` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_delete_bulk`
 
@@ -212,9 +212,9 @@ Deletes a list of MemoryItems (soft or hard) in one transaction per chunk. Use f
 | --- | --- | --- | --- | --- |
 | `ids` | `array` | Yes | List of memory item UUIDs to delete. | `-` |
 | `hard` | `boolean` | No | Hard delete (permanent). | `False` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_feedback`
 
@@ -228,9 +228,9 @@ Provide feedback on a memory item to improve quality.
 | --- | --- | --- | --- | --- |
 | `memory_id` | `string` | Yes | Memory item UUID. | `-` |
 | `feedback` | `string` | No | Feedback type. | `useful` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_feedback_stats`
 
@@ -242,9 +242,9 @@ How often graded feedback is landing versus being rejected as stale. The feedbac
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_get`
 
@@ -257,9 +257,9 @@ Retrieves a full MemoryItem; accepts full UUID or 8-char prefix; ambiguous prefi
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `id` | `string` | Yes | Memory item id — 36-char UUID or 8-char prefix. Ambiguous prefixes return an error listing the matching ids. | `-` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_grade`
 
@@ -273,9 +273,9 @@ Grade retrieved memories AFTER using them — the signal that separates USED fro
 | --- | --- | --- | --- | --- |
 | `grades` | `array` | Yes | One entry per memory you were shown: {memory_id, verdict}. verdict is 'helpful' or 'unhelpful'. | `-` |
 | `window_minutes` | `integer` | No | Override the feedback window for this call. Omit to use the configured default. Clamped to 1440 (24h): the window is what makes retrieval the capability to grade, so it cannot be widened to cover the whole store. An over-wide request is clamped, not rejected, and the response reports window_clamped_from. | `-` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_lifecycle_summary`
 
@@ -289,9 +289,9 @@ Windowed summary of lifecycle & contradiction activity over the last `window_day
 | --- | --- | --- | --- | --- |
 | `window_days` | `integer` | No | Look-back window in days. | `7` |
 | `top_n` | `integer` | No | Max rows in the most-revised / most-contradicted lists (0 = omit them). | `5` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_link_bulk`
 
@@ -305,9 +305,9 @@ Create many memory_relationships rows in one transaction per chunk. Use for cura
 | --- | --- | --- | --- | --- |
 | `links` | `array` | Yes | List of link specs. relationship_type per entry overrides the outer default. | `-` |
 | `relationship_type` | `string` | No | Default link type for entries that omit it. | `related` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_pin`
 
@@ -320,9 +320,9 @@ Pin a memory to exempt it from decay, expiry, and retention purges. Pinned memor
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `id` | `string` | Yes | Memory item id — 36-char UUID or 8-char prefix. Ambiguous prefixes return an error listing the matching ids. | `-` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_restore`
 
@@ -338,9 +338,9 @@ Restore memories that an AUTONOMOUS maintenance pass removed. Until 2026-09-19 a
 | `reason` | `string` | No | Restrict to one autonomous archive reason. Omit for all of them. | `-` |
 | `dry_run` | `boolean` | No | Report the count without writing. Default true. | `True` |
 | `limit` | `integer` | No | Max rows per bulk call. | `1000` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_search`
 
@@ -369,9 +369,9 @@ Search across memory items using semantic similarity or keyword matching. Filter
 | `include_bench_data` | `boolean` | No | Opt in to LOCOMO / LongMemEval bench rows. Default False hides any row with a variant tag. | `False` |
 | `explain` | `boolean` | No | Attach a per-result `_explanation` block (vector/bm25/title_overlap/importance/recency/temporal score breakdown) plus a human-readable `reason` string explaining why each row matched. Same breakdown memory_suggest shows, on the primary search path. | `False` |
 | `as_records` | `boolean` | No | Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged. | `False` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_search_multi_db`
 
@@ -398,9 +398,9 @@ Search across multiple SQLite databases (e.g. agent_memory.db AND agent_chatlog.
 | `adaptive_k` | `boolean` | No |  | `False` |
 | `variant` | `string` | No | Variant filter applied uniformly to each DB. Pass a comma-separated list to use multi-variant IN filtering (passed through to memory_search_scored_impl). | `` |
 | `fan_out_limit` | `integer` | No | Cap on concurrent per-DB searches. 0 = unbounded (typical, since fan-out N is small). | `0` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_search_routed`
 
@@ -456,9 +456,9 @@ Temporal-aware routed retrieval. Routes temporal queries to verbatim search at k
 | `auto_entity_graph_named_entity_threshold` | `integer` | No | Minimum named-entity count in query for AUTO entity_anchored branch to fire. Default 1 = fire on any proper noun phrase (two+ capitalized words). Higher (2-3) is more conservative. | `1` |
 | `entity_graph_valid_types` | `array` | No | Override list of allowed entity_type values for graph traversal. Default empty = use core defaults (person, place, organization, event, concept, object, date). Pass a list to filter traversal to specific types. | `[]` |
 | `entity_graph_valid_predicates` | `array` | No | Override list of allowed predicate values for graph traversal. Default empty = use core defaults (works_at, located_in, before, after, same_as, contradicts, mentions, relates_to). Pass a list to filter traversal to specific predicates. | `[]` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_search_scored`
 
@@ -483,9 +483,9 @@ Structured hybrid FTS5+vector+MMR search. Returns ranked rows [(score, item)] wi
 | `recency_bias` | `number` | No | Boost newer items (0.0=off). | `0.0` |
 | `variant` | `string` | No | Ingest-pipeline filter. '' = real user data only. | `` |
 | `include_bench_data` | `boolean` | No | Opt in to LOCOMO / LongMemEval bench rows. Default False hides any variant-tagged row. | `False` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_search_slim`
 
@@ -501,9 +501,9 @@ Search memory (semantic + keyword). Common parameters only. For filters (user_id
 | `k` | `integer` | No | Max results (1-100). | `8` |
 | `type_filter` | `string` | No | Restrict to a memory type. | `` |
 | `as_records` | `boolean` | No | Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged. | `False` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_suggest`
 
@@ -519,9 +519,9 @@ Preview which memories would be retrieved for a query, with score breakdowns exp
 | `k` | `integer` | No | Max results to preview. | `5` |
 | `variant` | `string` | No | Ingest-pipeline filter. Default '__none__' = real user data only. | `__none__` |
 | `include_bench_data` | `boolean` | No | Opt in to bench rows. Default False. | `False` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_supersede`
 
@@ -549,9 +549,9 @@ Explicitly supersede an existing memory with a new one. Use this to record an in
 | `valid_from` | `string` | No | ISO-8601 validity start of the replacement; also the point at which the old memory's validity is closed. Defaults to now. | `` |
 | `variant` | `string` | No | Pipeline identifier for A/B variant tracking. | `` |
 | `embed_text` | `string` | No | Override text used for embedding; falls back to content when empty. | `` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_supersede_slim`
 
@@ -567,9 +567,9 @@ Replace an existing memory with a corrected one, preserving the audit link. Comm
 | `content` | `string` | Yes | Body of the replacement memory (max 50000 chars). | `-` |
 | `title` | `string` | No | Title of the replacement. Omit to inherit the old memory's title. | `` |
 | `importance` | `number` | No | 0.0-1.0 relevance of the replacement. Omit (leave at -1) to inherit the old memory's importance. | `-1.0` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_unpin`
 
@@ -582,9 +582,9 @@ Unpin a memory, restoring normal decay/expiry/retention handling.
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `id` | `string` | Yes | Memory item id — 36-char UUID or 8-char prefix. Ambiguous prefixes return an error listing the matching ids. | `-` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_update`
 
@@ -605,9 +605,9 @@ Updates a MemoryItem by ID.
 | `refresh_on` | `string` | No | New refresh timestamp. 'clear' removes the reminder; empty = no change. | `` |
 | `refresh_reason` | `string` | No | New refresh reason. 'clear' removes; empty = no change. | `` |
 | `conversation_id` | `string` | No | New conversation id. 'clear' removes; empty = no change. | `` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_update_bulk`
 
@@ -620,9 +620,9 @@ Apply many metadata-only updates in one transaction per chunk. Designed for cura
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `updates` | `array` | Yes | List of update specs. Each MUST include `id`. Any subset of {content, title, importance, metadata, refresh_on, refresh_reason, conversation_id} may be set. Field semantics match memory_update. | `-` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_verify`
 
@@ -635,9 +635,9 @@ Verify content integrity by comparing stored hash with computed hash. Returns OK
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `id` | `string` | Yes | Memory item UUID. | `-` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_write`
 
@@ -669,9 +669,9 @@ Creates a MemoryItem and optionally embeds it for semantic search. Contradiction
 | `refresh_reason` | `string` | No | Why this memory needs refreshing (e.g., 'quarterly policy review'). | `` |
 | `variant` | `string` | No | Pipeline identifier for A/B variant tracking. | `` |
 | `embed_text` | `string` | No | Override text used for embedding; falls back to content when empty. | `` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_write_from_file`
 
@@ -703,9 +703,9 @@ Write a memory whose content is read from a file on disk. Use this when the memo
 | `refresh_reason` | `string` | No | Why this memory needs refreshing. | `` |
 | `variant` | `string` | No | Pipeline identifier for A/B variant tracking. | `` |
 | `delete_after_read` | `boolean` | No | Delete the source file after successful write. Default true (signals contents are now authoritative in m3-memory). | `True` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_write_slim`
 
@@ -721,9 +721,9 @@ Write a memory. Common parameters only; contradiction detection still runs and s
 | `content` | `string` | Yes | Memory body (max 50000 chars). | `-` |
 | `title` | `string` | No | Short title. | `` |
 | `importance` | `number` | No | 0.0-1.0 relevance. | `0.5` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ---
 
@@ -742,9 +742,9 @@ Enrich pending memory items with SLM-distilled facts. Default dry_run=true repor
 | `dry_run` | `boolean` | No | If true, report count + ETA without executing; if false, execute enrichment. | `True` |
 | `limit` | `integer` | No | Max items to enrich (0 = no limit). | `0` |
 | `allowed_variants` | `array` | No | Variant names to include in enrichment (if empty, use default). | `[]` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `entity_get`
 
@@ -758,9 +758,9 @@ Load a single entity with its full neighborhood: predecessors, successors, and l
 | --- | --- | --- | --- | --- |
 | `entity_id` | `string` | Yes | The entity ID to fetch. | `-` |
 | `depth` | `integer` | No | Graph depth for neighborhood walk (currently unused; reserved for future multi-hop). | `1` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `entity_mentions`
 
@@ -777,9 +777,9 @@ List memory_ids that mention a specific entity in a single conversation. Pass ei
 | `canonical_name` | `string` | No | Alternative lookup. Case-insensitive exact match. One of entity_id OR canonical_name is required. | `` |
 | `entity_type` | `string` | No | Optional disambiguator when canonical_name is ambiguous across types. | `` |
 | `limit` | `integer` | No | Max memory_ids to return. 0 = default (1000). Hard cap = 10000. | `0` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `entity_search`
 
@@ -795,9 +795,9 @@ Search entities by canonical_name and optionally by entity_type. Returns list of
 | `entity_type` | `string` | No | Filter by entity type (if provided). | `` |
 | `limit` | `integer` | No | Max results to return. | `10` |
 | `with_neighbors` | `boolean` | No | If true, compute neighbor_count for each entity. | `False` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `extract_pending`
 
@@ -812,9 +812,9 @@ Extract pending entities from the queue. Default dry_run=true reports count + ET
 | `dry_run` | `boolean` | No | If true, report count + ETA without executing; if false, execute extraction. | `True` |
 | `limit` | `integer` | No | Max items to extract (0 = no limit). | `0` |
 | `allowed_variants` | `array` | No | Variant names to include in extraction (if empty, use default). | `[]` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_graph`
 
@@ -829,9 +829,9 @@ Returns the local graph neighborhood of a memory item (connected memories up to 
 | `memory_id` | `string` | Yes | Memory item UUID. | `-` |
 | `depth` | `integer` | No | Traversal depth (1-3). | `1` |
 | `as_records` | `boolean` | No | Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged. | `False` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_history`
 
@@ -846,9 +846,9 @@ Returns the change history (audit trail) for a memory item. Tracks create, updat
 | `memory_id` | `string` | Yes | Memory item UUID. | `-` |
 | `limit` | `integer` | No | Max history records. | `20` |
 | `as_records` | `boolean` | No | Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged. | `False` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_link`
 
@@ -863,9 +863,9 @@ Creates a directional link between two memory items. Valid types: consolidates, 
 | `from_id` | `string` | Yes | Source memory UUID. | `-` |
 | `to_id` | `string` | Yes | Target memory UUID. | `-` |
 | `relationship_type` | `string` | No | Link type. | `related` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ---
 
@@ -887,9 +887,9 @@ Appends a message to a conversation.
 | `agent_id` | `string` | No | Agent adding the message. | `` |
 | `model_id` | `string` | No | Model that generated the message. | `` |
 | `embed` | `boolean` | No | Embed for semantic search. | `True` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `conversation_search`
 
@@ -904,9 +904,9 @@ Search messages across conversations using hybrid semantic/keyword search.
 | `query` | `string` | Yes | Search query. | `-` |
 | `k` | `integer` | No | Max results (1-100). | `8` |
 | `as_records` | `boolean` | No | Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged. | `False` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `conversation_start`
 
@@ -922,9 +922,9 @@ Starts a new conversation thread.
 | `agent_id` | `string` | No | Owning agent id. | `` |
 | `model_id` | `string` | No | Originating model id. | `` |
 | `tags` | `string` | No | Comma-separated tags. | `` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `conversation_summarize`
 
@@ -938,9 +938,9 @@ Summarize a conversation into key points using the local LLM.
 | --- | --- | --- | --- | --- |
 | `conversation_id` | `string` | Yes | Conversation UUID. | `-` |
 | `threshold` | `integer` | No | Min message count to summarize. | `20` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ---
 
@@ -958,9 +958,9 @@ Assign a task to an owner. Sets state=in_progress and notifies the new owner.
 | --- | --- | --- | --- | --- |
 | `task_id` | `string` | Yes | Task UUID. | `-` |
 | `owner_agent` | `string` | Yes | Agent to assign to. | `-` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `task_create`
 
@@ -978,9 +978,9 @@ Create a new task in 'pending' state. Returns task id.
 | `owner_agent` | `string` | No | Initial owner (blank = unassigned). | `` |
 | `parent_task_id` | `string` | No | Optional parent task id for sub-tasks. | `` |
 | `metadata` | `object` | No | Free-form metadata. | `{}` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `task_delete`
 
@@ -995,9 +995,9 @@ Delete a task. Soft-delete (default) sets a tombstone that propagates via pg_syn
 | `task_id` | `string` | Yes | Task UUID. | `-` |
 | `hard` | `boolean` | No | If true, permanently remove an already-tombstoned row from local SQLite. | `False` |
 | `actor` | `string` | No | Actor performing the delete (audit log). | `` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `task_get`
 
@@ -1010,9 +1010,9 @@ Get full record for one task.
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `task_id` | `string` | Yes | Task UUID. | `-` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `task_list`
 
@@ -1029,9 +1029,9 @@ List tasks with optional filters. Newest updated first.
 | `parent_task_id` | `string` | No | Filter by parent task id. | `` |
 | `limit` | `integer` | No | Max tasks to return. | `50` |
 | `as_records` | `boolean` | No | Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged. | `False` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `task_set_result`
 
@@ -1045,9 +1045,9 @@ Set the result memory pointer for a task. Does NOT change state.
 | --- | --- | --- | --- | --- |
 | `task_id` | `string` | Yes | Task UUID. | `-` |
 | `result_memory_id` | `string` | Yes | Result memory UUID. | `-` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `task_tree`
 
@@ -1062,9 +1062,9 @@ Render a recursive subtree of tasks rooted at root_task_id.
 | `root_task_id` | `string` | Yes | Root task UUID. | `-` |
 | `max_depth` | `integer` | No | Max recursion depth. | `3` |
 | `as_records` | `boolean` | No | Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged. | `False` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `task_update`
 
@@ -1081,9 +1081,9 @@ Partial update for a task. Validates state transitions. On terminal state, sets 
 | `description` | `string` | No | New description (empty = no change). | `` |
 | `metadata` | `object` | No | New metadata (empty = no change). | `{}` |
 | `actor` | `string` | No | Actor making the update. | `` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ---
 
@@ -1100,9 +1100,9 @@ Get full record for one registered agent.
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `agent_id` | `string` | Yes | Unique agent identifier. | `-` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `agent_heartbeat`
 
@@ -1115,9 +1115,9 @@ Update last_seen and set status=active. Errors if not registered.
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `agent_id` | `string` | Yes | Unique agent identifier. | `-` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `agent_list`
 
@@ -1132,9 +1132,9 @@ List registered agents, optionally filtered by status and/or role. Each carries 
 | `status` | `string` | No | Filter by agent status. | `` |
 | `role` | `string` | No | Filter by agent role. | `` |
 | `as_records` | `boolean` | No | Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged. | `False` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `agent_offline`
 
@@ -1147,9 +1147,9 @@ Mark an agent as offline.
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `agent_id` | `string` | Yes | Unique agent identifier. | `-` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `agent_register`
 
@@ -1165,9 +1165,9 @@ Register an agent (UPSERT). Sets status=active, last_seen=now.
 | `role` | `string` | No | Agent role or function. | `` |
 | `capabilities` | `array` | No | List of capabilities. | `[]` |
 | `metadata` | `object` | No | Free-form metadata. | `{}` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `agent_set_trust`
 
@@ -1181,9 +1181,9 @@ Set an agent's trust score (0.5-1.0, clamped). Trust weights that agent's assert
 | --- | --- | --- | --- | --- |
 | `agent_id` | `string` | Yes | Unique agent identifier. | `-` |
 | `trust_score` | `number` | Yes | Trust in [0.5, 1.0]; clamped. | `-` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `notifications_ack`
 
@@ -1196,9 +1196,9 @@ Mark one notification as read.
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `notification_id` | `integer` | Yes | Notification ID. | `-` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `notifications_ack_all`
 
@@ -1211,9 +1211,9 @@ Bulk-ack all unread notifications for an agent. Returns count acked.
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `agent_id` | `string` | Yes | Agent id. | `-` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `notifications_mark_received`
 
@@ -1226,9 +1226,9 @@ Stamp transport receipt on an agent's undelivered notifications. Sets received_a
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `agent_id` | `string` | Yes | Agent id. | `-` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `notifications_poll`
 
@@ -1244,9 +1244,9 @@ List notifications addressed to agent_id, newest first.
 | `unread_only` | `boolean` | No | Show only unread notifications. | `True` |
 | `limit` | `integer` | No | Max notifications to return. | `20` |
 | `as_records` | `boolean` | No | Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged. | `False` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `notify`
 
@@ -1263,9 +1263,9 @@ Send a notification to an agent. Lightweight wake signal — agents poll notific
 | `payload` | `object` | No | Free-form notification data. | `{}` |
 | `from_agent` | `string` | No | Return address: which agent sent this. Stamped into the payload as `_from.agent`. | `` |
 | `from_session` | `string` | No | Return address: WHICH SESSION of from_agent sent this. N concurrent sessions of one agent type share a single agent_id, so without this a reply reaches whichever sister polls first. Stamped as `_from.session`. A disambiguator, not a credential. | `` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ---
 
@@ -1288,9 +1288,9 @@ Hand off a task from one agent to another. Writes a new handoff-type memory owne
 | `note` | `string` | No | Optional free-text note. | `` |
 | `task_id` | `string` | No | Optional tracked task id. | `` |
 | `from_session` | `string` | No | Optional: WHICH SESSION of from_agent is handing off. N concurrent sessions of one agent type share a single agent_id, so a reply addressed to the name alone reaches whichever sister polls first. Recorded in the handoff metadata and in the notification's `_from.session`. A disambiguator, not a credential. | `` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_inbox`
 
@@ -1306,9 +1306,9 @@ List handoff messages addressed to agent_id, newest first. Pass unread_only=Fals
 | `unread_only` | `boolean` | No | Show only unread messages. | `True` |
 | `limit` | `integer` | No | Max messages to return. | `20` |
 | `as_records` | `boolean` | No | Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged. | `False` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_inbox_ack`
 
@@ -1322,9 +1322,9 @@ Mark a handoff memory as read (sets read_at = now). Scoped to the calling agent'
 | --- | --- | --- | --- | --- |
 | `memory_id` | `string` | Yes | Handoff memory UUID. | `-` |
 | `agent_id` | `string` | No | Acking agent id. Injected; scopes the ack to mail addressed to this agent. | `-` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_refresh_queue`
 
@@ -1340,9 +1340,9 @@ List memories whose refresh_on timestamp has arrived and need review. Read-only 
 | `limit` | `integer` | No | Max rows to return (1-500). | `50` |
 | `include_future` | `boolean` | No | Include memories whose refresh_on is still in the future. | `False` |
 | `as_records` | `boolean` | No | Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged. | `False` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ---
 
@@ -1361,9 +1361,9 @@ Aggregate tokens and cost_usd across chat_log rows. Groups: provider|model_id|ho
 | `since` | `string` | No | ISO-8601 lower bound. | `` |
 | `until` | `string` | No | ISO-8601 upper bound. | `` |
 | `group_by` | `string` | No | provider\|model_id\|host_agent\|conversation_id\|day | `model_id` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `chatlog_list_conversations`
 
@@ -1378,9 +1378,9 @@ List distinct conversation_ids with turn counts and timespans.
 | `host_agent` | `string` | No | Filter by host agent. | `` |
 | `limit` | `integer` | No | Max conversations. | `50` |
 | `offset` | `integer` | No | Pagination offset. | `0` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `chatlog_promote`
 
@@ -1398,9 +1398,9 @@ Promote chat_log rows into the main memory DB under a new type (default 'convers
 | `until` | `string` | No | Promote rows at-or-before this ISO-8601. | `` |
 | `copy` | `boolean` | No | If false, delete source rows after copy. | `True` |
 | `target_type` | `string` | No | Type assigned in main DB. | `conversation` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `chatlog_rescrub`
 
@@ -1416,9 +1416,9 @@ Re-apply redaction to existing chat_log rows. Requires redaction.enabled=true.
 | `since` | `string` | No | ISO-8601 lower bound. | `` |
 | `until` | `string` | No | ISO-8601 upper bound. | `` |
 | `limit` | `integer` | No | Max rows to EXAMINE (oldest id first). When the range is larger, the result reports truncated=true with the remaining count -- rows beyond the cap are NOT scrubbed. | `10000` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `chatlog_search`
 
@@ -1440,9 +1440,9 @@ Search chat_log rows. FTS5 keyword when query is non-empty; filter-only when emp
 | `search_mode` | `string` | No | hybrid\|fts\|vector (integrated mode only). | `hybrid` |
 | `since` | `string` | No | ISO-8601 lower bound on created_at. | `` |
 | `until` | `string` | No | ISO-8601 upper bound on created_at. | `` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `chatlog_search_slim`
 
@@ -1458,9 +1458,9 @@ Search captured chat turns (FTS5 keyword; filter-only when query is empty). Comm
 | `k` | `integer` | No | Max results. | `8` |
 | `since` | `string` | No | ISO-8601 lower bound on created_at. | `` |
 | `until` | `string` | No | ISO-8601 upper bound on created_at. | `` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `chatlog_set_redaction`
 
@@ -1477,9 +1477,9 @@ Flip redaction on/off and update patterns. Persists to .chatlog_config.json unde
 | `redact_pii` | `boolean` | No | Also redact PII (email/phone/SSN). | `-` |
 | `custom_regex` | `array` | No | User-supplied regex patterns. | `-` |
 | `store_original_hash` | `boolean` | No | Store SHA-256 of pre-scrub content in metadata. | `-` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `chatlog_status`
 
@@ -1491,9 +1491,9 @@ One-call health summary of the chat log subsystem: mode, DB paths, row counts, q
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `chatlog_write`
 
@@ -1519,9 +1519,9 @@ Append one chat turn to the chat log DB. Provenance (host_agent, provider, model
 | `tokens_out` | `integer` | No | Completion tokens (null if unknown). | `-` |
 | `cost_usd` | `number` | No | Cost in USD (null → computed from price table). | `-` |
 | `latency_ms` | `integer` | No | End-to-end request latency. | `-` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `chatlog_write_bulk`
 
@@ -1535,9 +1535,9 @@ Bulk-append N chat turns. Each item needs the same required fields as chatlog_wr
 | --- | --- | --- | --- | --- |
 | `items` | `array` | Yes | List of chat-turn dicts. | `-` |
 | `embed` | `boolean` | No | Reserved; ignored — sweeper handles. | `False` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `curate_chatlog_apply`
 
@@ -1551,9 +1551,9 @@ Deterministically apply a chatlog.db curator plan in ONE call. No LLM in the loo
 | --- | --- | --- | --- | --- |
 | `plan` | `object` | Yes | Chatlog curator plan; see tool description for schema. | `-` |
 | `db_path` | `string` | No | Optional chatlog DB path override. | `` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ---
 
@@ -1574,9 +1574,9 @@ Register a new corpus with optional default overrides. `default=True` marks this
 | `extract_mode` | `string` | No |  | `null` |
 | `scope` | `string` | No |  | `null` |
 | `default` | `boolean` | No |  | `False` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `files_corpus_delete`
 
@@ -1590,9 +1590,9 @@ Delete a corpus's settings row. Cascade=True also deletes every file_node in the
 | --- | --- | --- | --- | --- |
 | `corpus_id` | `string` | Yes |  | `-` |
 | `cascade` | `boolean` | No |  | `False` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `files_corpus_get`
 
@@ -1605,9 +1605,9 @@ Fetch a single corpus's settings + counts.
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `corpus_id` | `string` | Yes |  | `-` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `files_corpus_list`
 
@@ -1619,9 +1619,9 @@ Enumerate corpora with row counts.
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `files_corpus_set`
 
@@ -1639,9 +1639,9 @@ Update settings for an existing corpus. None args are no-ops. Creates the corpus
 | `scope` | `string` | No |  | `null` |
 | `default` | `boolean` | No |  | `null` |
 | `retention_days` | `integer` | No |  | `null` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `files_dedup`
 
@@ -1658,9 +1658,9 @@ Scan leaf embeddings for near-duplicates above cosine threshold. Detection only 
 | `leaf_limit` | `integer` | No |  | `10000` |
 | `corpus` | `string` | No |  | `null` |
 | `include_already_detected` | `boolean` | No |  | `False` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `files_dedup_list`
 
@@ -1675,9 +1675,9 @@ List near-duplicate candidate pairs with text snippets and paths.
 | `reviewed` | `boolean` | No |  | `False` |
 | `limit` | `integer` | No |  | `100` |
 | `min_cosine` | `number` | No |  | `null` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `files_dedup_review`
 
@@ -1692,9 +1692,9 @@ Record a review decision on a near-duplicate candidate: 'kept' | 'merged' | 'ign
 | `candidate_uuid` | `string` | Yes |  | `-` |
 | `action` | `string` | Yes |  | `-` |
 | `note` | `string` | No |  | `` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `files_entity_coalesce`
 
@@ -1709,9 +1709,9 @@ Detect provisional-entity coalescing candidates (quarantine noise + flag near-du
 | `max_pairs` | `integer` | No |  | `1000` |
 | `dry_run` | `boolean` | No |  | `False` |
 | `corpus` | `string` | No |  | `null` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `files_entity_coalesce_apply`
 
@@ -1728,9 +1728,9 @@ Apply the reversible same_as/cluster overlay. Union of explicit candidate_uuids 
 | `resolution_run` | `string` | No |  | `null` |
 | `dry_run` | `boolean` | No |  | `False` |
 | `confirm` | `boolean` | No |  | `False` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `files_entity_coalesce_list`
 
@@ -1745,9 +1745,9 @@ List entity-coalescing candidate pairs (name + score + band).
 | `reviewed` | `boolean` | No |  | `False` |
 | `limit` | `integer` | No |  | `100` |
 | `min_cosine` | `number` | No |  | `null` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `files_entity_coalesce_review`
 
@@ -1761,9 +1761,9 @@ Record entity-coalescing review decisions in BULK: a list of {uuid, action} wher
 | --- | --- | --- | --- | --- |
 | `reviews` | `array` | Yes |  | `-` |
 | `note` | `string` | No |  | `` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `files_entity_coalesce_unapply`
 
@@ -1776,9 +1776,9 @@ Reverse one coalescence cluster (drop edges, clear flags, strip aliases, tombsto
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `cluster_id` | `string` | Yes |  | `-` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `files_extract_pending`
 
@@ -1791,9 +1791,9 @@ Drain leaves with extraction_status='pending' through the LLM fact extractor. Us
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `limit` | `integer` | No |  | `100` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `files_get`
 
@@ -1806,9 +1806,9 @@ Fetch one record by UUID. Tries file_nodes then leaves.
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `uuid` | `string` | Yes | UUID of the file_node or leaf. | `-` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `files_index`
 
@@ -1827,9 +1827,9 @@ Return file-level summaries for triage (wiki-index primitive). Cheap-first retri
 | `filename_glob` | `string` | No |  | `null` |
 | `include_history` | `boolean` | No |  | `False` |
 | `limit` | `integer` | No |  | `500` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `files_ingest`
 
@@ -1851,9 +1851,9 @@ Walk a directory and ingest supported files into files.db. Idempotent: same cont
 | `record_noops` | `boolean` | No | Write 'unchanged_skipped' rows for audit. | `False` |
 | `extract_mode` | `string` | No | Fact-extraction mode. | `null` |
 | `original_path` | `string` | No | Pointer to source artifact when single-file ingest is a conversion. | `null` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `files_link_rename`
 
@@ -1868,9 +1868,9 @@ Re-point an existing file_node at a new path (rename / move). NOT a supersession
 | `missing_file_node_uuid` | `string` | Yes |  | `-` |
 | `new_path` | `string` | Yes |  | `-` |
 | `expect_sha256` | `string` | No |  | `null` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `files_promotable`
 
@@ -1886,9 +1886,9 @@ List top promotion candidates by usage-weighted heuristic score. Suggestion-only
 | `min_score` | `number` | No |  | `0.3` |
 | `corpus` | `string` | No |  | `null` |
 | `include_already_promoted` | `boolean` | No |  | `False` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `files_promote`
 
@@ -1905,9 +1905,9 @@ Promote (ascend) a fact / leaf / file_summary from files.db to memory.db. Source
 | `mapped_type` | `string` | No | Override memory.db type (fact\|knowledge\|reference\|...). | `null` |
 | `scope` | `string` | No |  | `null` |
 | `importance` | `number` | No |  | `0.6` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `files_promotion_list`
 
@@ -1922,9 +1922,9 @@ List existing promotions. source_superseded=True surfaces promotions whose sourc
 | `source_file_node` | `string` | No |  | `null` |
 | `source_superseded` | `boolean` | No |  | `null` |
 | `limit` | `integer` | No |  | `100` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `files_search`
 
@@ -1942,9 +1942,9 @@ Hybrid FTS5 + vector search over file-ingestion leaves. Default: current version
 | `corpora` | `array` | No | Fan-out across these corpora; overrides corpus. | `null` |
 | `filetype` | `string` | No | Filter to one filetype ('markdown', 'pdf', ...). | `null` |
 | `include_history` | `boolean` | No | Include superseded leaves and file_nodes. | `False` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `files_staleness_review`
 
@@ -1960,9 +1960,9 @@ Compare filesystem against files.db. Surfaces stale, touched-only, missing, new,
 | `corpus` | `string` | No |  | `null` |
 | `rehash` | `boolean` | No |  | `True` |
 | `limit` | `integer` | No |  | `200` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `files_stats`
 
@@ -1975,9 +1975,9 @@ Corpus-level counters: file_nodes, leaves, embed coverage, by-filetype.
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `corpus` | `string` | No |  | `null` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `files_watch_once`
 
@@ -1993,9 +1993,9 @@ Single-pass staleness check + notification dispatch. Suitable for cron / schedul
 | `corpus` | `string` | No |  | `null` |
 | `agent_id` | `string` | No |  | `files_memory.watch` |
 | `cooldown_seconds` | `number` | No |  | `3600.0` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ---
 
@@ -2012,9 +2012,9 @@ DB integrity + FTS5 sync check. Set rebuild=True to fix drift.
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `rebuild` | `boolean` | No |  | `False` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_doctor`
 
@@ -2026,9 +2026,9 @@ Self-service diagnostic for the m3-memory embedding cascade. Probes tier-1 (in-p
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_doctor_fix`
 
@@ -2041,9 +2041,9 @@ Run the m3-memory self-repair mode (m3 doctor --fix). Attempts to auto-fix the m
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `dry_run` | `boolean` | No | If true, report what would be done without writing anything. Default: false. | `False` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ---
 
@@ -2060,9 +2060,9 @@ Accepts raw text, extracts entities and relationship predicates based on the con
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `text` | `string` | Yes | Raw text content to extract entities and links from. | `-` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `m3_call`
 
@@ -2078,9 +2078,9 @@ Invoke ANY m3 catalog tool by name without loading its domain — the low-token 
 | `args` | `object` | No | Arguments object for the target tool. | `{}` |
 | `batch` | `array` | No | List of {tool, args} for one-round-trip batch dispatch. | `null` |
 | `dry_run` | `boolean` | No | Validate + gate-check only; do not execute. | `False` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `m3_help_capabilities`
 
@@ -2095,9 +2095,9 @@ Discover m3-memory tool capabilities, parameters, and availability. Allows filte
 | `domain` | `string` | No | Optional domain to filter capabilities (e.g., 'memory', 'files'). | `-` |
 | `query` | `string` | No | Optional keyword search term to filter tools. | `-` |
 | `as_records` | `boolean` | No | Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged. | `False` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `m3_index`
 
@@ -2110,9 +2110,9 @@ List m3 catalog tools (optionally one domain) as structured rows: name, domain, 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `domain` | `string` | No | Filter to one domain (empty = whole catalog). | `` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_consolidate`
 
@@ -2127,9 +2127,9 @@ Consolidate old memories of the same type into summaries using the local LLM. Re
 | `type_filter` | `string` | No | Restrict to a memory type. | `` |
 | `agent_filter` | `string` | No | Restrict to an agent id. | `` |
 | `threshold` | `integer` | No | Min items to consolidate. | `20` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_dedup`
 
@@ -2144,9 +2144,9 @@ Find (and optionally soft-delete) near-duplicate memory items by cosine similari
 | `threshold` | `number` | No | Cosine similarity threshold in [0, 1]. Higher = stricter near-duplicate. Omit for memory.dedup.threshold from m3_config.toml. | `-` |
 | `dry_run` | `boolean` | No | Preview without applying. | `True` |
 | `limit` | `integer` | No | Cap on returned groups (0 = no cap). count reflects true total regardless. | `0` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_maintenance`
 
@@ -2161,9 +2161,9 @@ Runs maintenance tasks on the memory store.
 | `decay` | `boolean` | No | Apply importance decay. | `True` |
 | `purge_expired` | `boolean` | No | Delete expired items. | `True` |
 | `prune_orphan_embeddings` | `boolean` | No | Remove orphaned embeddings. | `True` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_set_retention`
 
@@ -2179,9 +2179,9 @@ Set or update per-agent memory retention policy. Controls max memory count, TTL 
 | `max_memories` | `integer` | No | Max items to retain. | `1000` |
 | `ttl_days` | `integer` | No | Time-to-live in days (0 = no limit). | `0` |
 | `auto_archive` | `integer` | No | Auto-archive threshold. | `1` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `tools_list_domains`
 
@@ -2193,9 +2193,9 @@ List m3 tool domains (memory, chatlog, files, entity, agent, tasks, conversation
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `tools_load_domain`
 
@@ -2208,9 +2208,9 @@ Register a tool domain's full surface for the current MCP session. Use when you 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `domain` | `string` | Yes | Domain to expose. See `tools_list_domains`. | `-` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ---
 
@@ -2227,9 +2227,9 @@ Export all memories for a data subject (GDPR data portability). Returns JSON wit
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `user_id` | `string` | Yes | Data subject id. | `-` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `gdpr_forget`
 
@@ -2243,9 +2243,9 @@ Right to be forgotten — hard-deletes ALL data for a user_id including memories
 | --- | --- | --- | --- | --- |
 | `user_id` | `string` | Yes | Data subject id to forget. | `-` |
 | `compliance` | `object` | No | Optional operator-supplied record of the erasure's program-layer context, logged to the tamper-evident audit trail (not required; only the operator knows these). Recognized keys: legal_basis (Art. 17(1) ground), reason, verified_by, verification_method, authorized_by, external_ref (case/ticket #), retained_note (Art. 17(3) exemption). Program-level record-keeping remains the operator's responsibility — see docs/COMPLIANCE.md. | `-` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_export`
 
@@ -2260,9 +2260,9 @@ Export memories as portable JSON. Filter by agent, type, or date.
 | `agent_filter` | `string` | No | Restrict to an agent id. | `` |
 | `type_filter` | `string` | No | Restrict to a memory type. | `` |
 | `since` | `string` | No | ISO-8601 start date. | `` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_import`
 
@@ -2275,9 +2275,9 @@ Import memories from a JSON export. UPSERT semantics — safe to re-run.
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `data` | `string` | Yes | JSON export string. | `-` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ---
 
@@ -2293,9 +2293,9 @@ Check the status of the local sovereign embedder server (default port 8082, over
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `memory_cost_report`
 
@@ -2308,9 +2308,9 @@ Returns current session operation counts and estimated token usage for memory op
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
 | `as_records` | `boolean` | No | Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged. | `False` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ### `search_profile`
 
@@ -2327,9 +2327,9 @@ Run one real memory search and report where its time went, per stage: embed (que
 | `search_mode` | `string` | No | Retrieval mode. | `hybrid` |
 | `user_id` | `string` | No | Tenant filter (optional). | `` |
 | `scope` | `string` | No | Scope filter (optional). | `` |
-| `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |
-| `store` | `string` | No | Optional named store for this call only: 'main' or a [stores.<name>] table in m3_config.toml (its core and files data). Empty = the active store. Not with `database` (refused). | `` |
-| `timeout` | `number` | No | Optional per-call timeout in seconds. Overrides the M3_TOOL_TIMEOUT env and the 30s default for this call only. Use a larger value for long-running ops; <= 0 disables the timeout entirely. | `30` |
+| `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |
+| `store` | `string` | No | Named store for this call only: main, or a [stores.<name>] in m3_config.toml. | `-` |
+| `timeout` | `number` | No | Per-call timeout in seconds; <=0 disables. | `-` |
 
 ---
 

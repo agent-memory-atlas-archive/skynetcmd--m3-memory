@@ -75,6 +75,36 @@ def mcp_schema_tokens(names: list[str]) -> int:
     return total
 
 
+TYPICAL_DOMAINS = ("memory", "admin")  # README's "typical active session"
+
+
+def measure() -> dict:
+    """The figures README.md and memory_bridge quote, all on the MCP wire: eager
+    (every tool), lazy (startup set), and typical (startup set plus the
+    TYPICAL_DOMAINS a session loads). The one owner; tests/test_tool_token_budget
+    compares the published figures to it."""
+    import mcp_tool_catalog as cat
+    import tool_domains as td
+
+    meta = ["tools_list_domains", "tools_load_domain"]
+    try:
+        import memory_bridge  # noqa: PLC0415
+        meta = sorted(getattr(memory_bridge, "_META_TOOLS", None) or meta)
+    except Exception:  # noqa: BLE001 — measurement must not need a live bridge
+        pass
+    all_names = [t.name for t in cat.TOOLS]
+    startup = sorted((set(td.ESSENTIAL_TOOL_NAMES) | set(meta)) & set(all_names) | set(meta))
+    typical = set(startup)
+    for domain in TYPICAL_DOMAINS:
+        typical |= set(td.domain_tool_names(all_names, domain))
+    return {
+        "method": METHOD,
+        "eager_tools": len(all_names), "eager_tokens": mcp_schema_tokens(all_names),
+        "lazy_tools": len(startup), "lazy_tokens": mcp_schema_tokens(startup),
+        "typical_tools": len(typical), "typical_tokens": mcp_schema_tokens(sorted(typical)),
+    }
+
+
 def main() -> int:
     import tool_domains as td
 
@@ -107,6 +137,9 @@ def main() -> int:
     essentials = [by_name[n] for n in startup_names if n in by_name]
 
     all_names = [_name(t) for t in full if _name(t)]
+    m = measure()
+    print(f"Typical session (lazy + memory + admin, MCP wire): "
+          f"{m['typical_tools']} tools, {m['typical_tokens']} tokens")
     rows: list[tuple[str, int, int]] = [
         ("Full repertoire (MCP wire)", len(full), mcp_schema_tokens(all_names)),
         ("Lazy startup (MCP wire)", len(essentials), mcp_schema_tokens(startup_names)),
