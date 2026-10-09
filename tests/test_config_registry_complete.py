@@ -4,6 +4,7 @@ A name the env gate (bin/check_env_access.py, the one inventory) finds in
 production code must be one of:
   * an env name of a registry key (canonical or legacy alias);
   * declared not-a-setting, with the reason (keys.NOT_SETTINGS);
+  * retired: documented but with no effect (keys.RETIRED, user decision);
   * an OS / foreign name (the gate's own allowlist: not a finding at all);
   * listed in tests/data/config_unregistered.txt, the names still to register.
 
@@ -33,9 +34,9 @@ def _baseline() -> set[str]:
 
 
 def _accounted() -> set[str]:
-    from m3_core.config.keys import NOT_SETTINGS, REGISTRY
+    from m3_core.config.keys import NOT_SETTINGS, REGISTRY, RETIRED
 
-    return set(REGISTRY.env_names()) | set(NOT_SETTINGS)
+    return set(REGISTRY.env_names()) | set(NOT_SETTINGS) | set(RETIRED)
 
 
 def test_every_env_name_is_registered_declared_or_listed():

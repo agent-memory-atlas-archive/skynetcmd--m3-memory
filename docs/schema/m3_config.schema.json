@@ -561,6 +561,11 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "entity_graph": {
+          "type": "boolean",
+          "description": "Build the entity graph on write.",
+          "default": true
+        },
         "fact_enriched": {
           "type": "boolean",
           "description": "Enrich writes with extracted facts.",

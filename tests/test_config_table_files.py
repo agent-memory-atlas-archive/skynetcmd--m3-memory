@@ -24,14 +24,16 @@ def test_defaults_are_what_todays_readers_produce():
     assert not wrong, f"registry default != today's reader (registry, today): {wrong}"
 
 
-def test_settings_that_do_nothing_are_not_registered():
-    """Read-but-unused or always-overridden today: wire or retire first (user decision)."""
+def test_settings_that_do_nothing_are_retired_not_registered():
+    """Read-but-unused or always-overridden today: retired (user decision 2026-10-09)."""
     from m3_core.config import REGISTRY
+    from m3_core.config.keys import RETIRED
 
     for env in ("M3_FILES_DEFAULT_SCOPE", "M3_FILES_EXTRACT_CONCURRENCY", "M3_FILES_EXTRACT_MAX_ATTEMPTS",
                 "M3_FILES_DB_PROMPT_ON_FIRST_USE", "M3_FILES_CORPUS", "M3_FILES_DEDUP_THRESHOLD",
                 "M3_FILES_DEDUP_MAX_PAIRS", "M3_FILES_DEDUP_LEAF_LIMIT", "M3_FILES_PROMO_SUGGEST_THRESHOLD"):
         assert REGISTRY.by_env(env) is None, f"{env} would be documented as a working setting"
+        assert env in RETIRED, env
 
 
 def test_follow_symlinks_on_is_a_changed_reading(tmp_path, caplog):

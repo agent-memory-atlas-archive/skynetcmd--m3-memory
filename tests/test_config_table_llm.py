@@ -35,7 +35,8 @@ def test_the_keyring_reference_is_config_and_the_token_is_a_secret():
     assert REGISTRY.get("M3_CLOUD_AUTH_TOKEN").klass is KeyClass.SECRET
 
 
-def test_unused_minimization_level_is_held():
+def test_unused_minimization_level_is_retired():
     from m3_core.config import REGISTRY
+    from m3_core.config.keys import RETIRED
 
-    assert REGISTRY.by_env("M3_CLOUD_MINIMIZATION_LEVEL") is None
+    assert REGISTRY.by_env("M3_CLOUD_MINIMIZATION_LEVEL") is None and "M3_CLOUD_MINIMIZATION_LEVEL" in RETIRED

@@ -137,6 +137,25 @@ REGISTRY = Registry([*DB, *DB_POSTGRES, *PATHS, *EMBED, *FILES, *SEARCH, *LLM, S
 
 # Env names m3 code reads that are deliberately NOT settings, with the reason.
 # The completeness test treats them as decided; only the user moves a name here.
+# Documented settings that do NOTHING today: no reader, a reader nothing calls,
+# or a value every caller overrides with the same literal. Retired by the user
+# 2026-10-09 ("Retire them"): never registered; `m3 config show` and doctor say
+# a retired name that is set has no effect; the docs promising them are fixed.
+RETIRED: dict[str, str] = {
+    "M3_FILES_DEFAULT_SCOPE": "no reader (files_memory/config.py:84)",
+    "M3_FILES_EXTRACT_CONCURRENCY": "no reader (files_memory/config.py:111)",
+    "M3_FILES_EXTRACT_MAX_ATTEMPTS": "no reader (files_memory/config.py:116)",
+    "M3_FILES_DB_PROMPT_ON_FIRST_USE": "no reader (memory/config.py:101)",
+    "M3_FILES_CORPUS": "its reader has no production caller (files_memory/corpora.py:73)",
+    "M3_FILES_DEDUP_THRESHOLD": "every caller passes 0.92 (files_memory/dedup.py:53)",
+    "M3_FILES_DEDUP_MAX_PAIRS": "every caller passes 500 (files_memory/dedup.py:54)",
+    "M3_FILES_DEDUP_LEAF_LIMIT": "every caller passes 10000 (files_memory/dedup.py:55)",
+    "M3_FILES_PROMO_SUGGEST_THRESHOLD": "every caller passes 0.30 (files_memory/promotability.py:43)",
+    "M3_CONFIDENCE_MODEL": "no consumer (memory/config.py:252)",
+    "M3_TRUST_AUTOTUNE": "no consumer (memory/config.py:265)",
+    "M3_CLOUD_MINIMIZATION_LEVEL": "no consumer (memory/config.py:422)",
+}
+
 NOT_SETTINGS: dict[str, str] = {
     # U4 bucket B (user decision 2026-10-08, m3 2615ab78): dev-tool parameters.
     "M3_DIFF_REF_PYTHON": "search_differential.py's own parameter (U4 B)",
@@ -155,4 +174,7 @@ NOT_SETTINGS: dict[str, str] = {
     # U20 (m3 a24fa878): retired as a user setting, no env read and no TOML key;
     # 2D.2 replaces its 5 parse sites with one Rust-availability probe.
     "M3_CORE_RS_DISABLE": "retired as a user setting (U20); tests use a fixture, 2D.2",
+    # User decision 2026-10-09: the Rust/Python route-decider switch is dev and
+    # bench plumbing; 2D.2 folds it into the test-only Rust-availability seam.
+    "M3_ROUTE_SHADOW_MODE": "dev plumbing: the Rust/Python route decider (user decision 2026-10-09)",
 }

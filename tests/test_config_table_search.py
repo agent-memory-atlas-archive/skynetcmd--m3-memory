@@ -30,6 +30,7 @@ _PINNED = {
     "memory.corroboration.enabled": (_C, "CORROBORATION"),
     "memory.corroboration.threshold": (_C, "CORROBORATION_THRESHOLD"),
     "memory.fact_enriched": (_C, "ENABLE_FACT_ENRICHED"),
+    "memory.entity_graph": (_C, "ENABLE_ENTITY_GRAPH"),
 }
 
 
@@ -40,12 +41,14 @@ def test_defaults_are_what_todays_readers_produce():
     assert not wrong, f"registry default != today's reader (registry, today): {wrong}"
 
 
-def test_held_names_are_not_registered():
-    """Unused or parsed several ways today: the user decides first."""
+def test_decided_names_land_where_the_user_put_them():
+    """User decisions 2026-10-09: two retired, one dev plumbing, one registered."""
     from m3_core.config import REGISTRY
+    from m3_core.config.keys import NOT_SETTINGS, RETIRED
 
-    for env in ("M3_CONFIDENCE_MODEL", "M3_TRUST_AUTOTUNE", "M3_ENABLE_ENTITY_GRAPH", "M3_ROUTE_SHADOW_MODE"):
-        assert REGISTRY.by_env(env) is None, env
+    assert {"M3_CONFIDENCE_MODEL", "M3_TRUST_AUTOTUNE"} <= set(RETIRED)
+    assert "M3_ROUTE_SHADOW_MODE" in NOT_SETTINGS
+    assert REGISTRY.by_env("M3_ENABLE_ENTITY_GRAPH").name == "memory.entity_graph"
 
 
 def test_an_unknown_title_gate_is_an_error_not_off(tmp_path):

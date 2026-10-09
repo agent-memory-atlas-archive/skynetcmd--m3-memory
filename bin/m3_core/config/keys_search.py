@@ -102,4 +102,9 @@ SEARCH: list[Key] = [
     # ── [memory] ──
     _flag("memory.fact_enriched", ("M3_ENABLE_FACT_ENRICHED",), True,
           "Enrich writes with extracted facts.", legacy=lambda raw: raw.lower() in ("1", "true", "yes")),
+    # User decision 2026-10-09: one key, canonical parse. Today three readers
+    # disagree (memory/config.py:332, entity.py:242, db.py:652 accepts "on");
+    # 2D makes them one and proves or removes the count gate.
+    _flag("memory.entity_graph", ("M3_ENABLE_ENTITY_GRAPH",), True,
+          "Build the entity graph on write.", legacy=lambda raw: raw.lower() in ("1", "true", "yes")),
 ]

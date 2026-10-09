@@ -38,6 +38,7 @@ class Settings:
     identity: FileIdentity | None
     resolved: Mapping[str, Resolved]
     warnings: tuple[str, ...] = ()
+    retired_env: tuple[str, ...] = ()  # retired names that are SET: they have no effect
 
     def __getitem__[T: ConfigValue](self, key: Key[T]) -> T:
         try:
@@ -61,11 +62,15 @@ class Settings:
 def build(location: Location | None = None, *, registry: Registry = REGISTRY,
           environ: Mapping[str, str] | None = None) -> Settings:
     """Load and resolve a snapshot. Raises ``ConfigFileError`` / ``ConfigEnvErrors``."""
+    from .keys import RETIRED
+
     loc = location if location is not None else locate()
     loaded: LoadedFile = load(loc, registry)
-    resolved = resolve_all(registry, loaded, environ if environ is not None else _env.environ())
-    return Settings(location=loc, identity=loaded.identity,
-                    resolved=MappingProxyType(resolved), warnings=loaded.warnings)
+    env = environ if environ is not None else _env.environ()
+    resolved = resolve_all(registry, loaded, env)
+    retired = tuple(sorted(n for n in RETIRED if (env.get(n) or "").strip()))
+    return Settings(location=loc, identity=loaded.identity, resolved=MappingProxyType(resolved),
+                    warnings=loaded.warnings, retired_env=retired)
 
 
 def override(settings: Settings, values: Mapping[Key, ConfigValue]) -> Settings:

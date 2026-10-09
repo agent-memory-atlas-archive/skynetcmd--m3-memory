@@ -61,6 +61,11 @@ OS_NAMES: frozenset[str] = frozenset({
     # Other programs' own variables (user decision 2026-10-09, as bucket A):
     # GitHub's tokens (release tooling only), Hermes Agent's and OpenCode's homes.
     "GH_TOKEN", "GITHUB_TOKEN", "HERMES_HOME", "OPENCODE_DATA_DIR",
+    # The OS's and toolchains' own (user decision 2026-10-09). Reads only: a
+    # write (GGML_LOG_LEVEL, PYTHONUTF8 for children) stays a violation until
+    # child_env (2E.1) owns it.
+    "SSH_CONNECTION", "SSH_TTY", "CUDA_PATH", "VULKAN_SDK", "RUSTUP_HOME", "PYTHONPATH",
+    "NO_COLOR", "GGML_LOG_LEVEL",
 })
 
 # Functions that read the environment on the caller's behalf: (name, index of the

@@ -53,6 +53,7 @@ def show(settings: Settings, *, origin: bool, as_json: bool) -> str:
                            "file_exists": settings.identity is not None, "settings": rows,
                            "secrets": secrets, "legacy_env_in_use": settings.legacy_env_in_use(),
                            "ignored_env": settings.shadowed_env(),
+                           "retired_env_set": list(settings.retired_env),
                            "warnings": list(settings.warnings)}, indent=2)
     exists = "" if settings.identity is not None else "  (absent: every key takes its default)"
     lines = [f"# {settings.location.file}{exists}", f"# located by {settings.location.tier}", ""]
@@ -83,6 +84,11 @@ def show(settings: Settings, *, origin: bool, as_json: bool) -> str:
     if settings.shadowed_env():
         lines += ["", "# ignored environment names (the file sets these keys):",
                   *(f"#   {n}" for n in settings.shadowed_env())]
+    if settings.retired_env:
+        from m3_core.config.keys import RETIRED
+
+        lines += ["", "# set, but have NO effect (retired settings; unset them):",
+                  *(f"#   {n}: {RETIRED[n]}" for n in settings.retired_env)]
     lines += [f"# warning: {w}" for w in settings.warnings]
     return "\n".join(lines)
 

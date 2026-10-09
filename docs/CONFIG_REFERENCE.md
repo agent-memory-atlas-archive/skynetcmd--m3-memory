@@ -163,6 +163,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 | Key | Type | Default | Environment names | Notes |
 |---|---|---|---|---|
+| `entity_graph` | boolean | `true` | `M3_ENABLE_ENTITY_GRAPH` | restart to apply; Build the entity graph on write. |
 | `fact_enriched` | boolean | `true` | `M3_ENABLE_FACT_ENRICHED` | restart to apply; Enrich writes with extracted facts. |
 
 ## [memory.contradiction]

@@ -48,6 +48,18 @@ def test_show_json_never_carries_a_secret_value(monkeypatch, capsys):
     assert "s3cret-serve-token" not in raw
 
 
+def test_a_retired_name_that_is_set_is_said_to_have_no_effect(monkeypatch, capsys):
+    """User decision 2026-10-09: retired settings are named, never silently ignored."""
+    import config_cli
+
+    monkeypatch.setenv("M3_FILES_DEFAULT_SCOPE", "agent")
+    assert config_cli.main(["show"]) == 0
+    out = capsys.readouterr().out
+    assert "have NO effect" in out and "M3_FILES_DEFAULT_SCOPE: no reader" in out
+    assert config_cli.main(["show", "--json"]) == 0
+    assert "M3_FILES_DEFAULT_SCOPE" in json.loads(capsys.readouterr().out)["retired_env_set"]
+
+
 def test_an_invalid_file_is_reported_in_full_with_exit_2(monkeypatch):
     """A subprocess: the real entry point, so a traceback would be visible."""
     import os

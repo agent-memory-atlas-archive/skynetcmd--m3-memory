@@ -1,8 +1,8 @@
 ---
 tool: bin/config_cli.py
-sha1: b5889d8426f9
-mtime_utc: 2026-10-09T04:12:24.451753+00:00
-generated_utc: 2026-10-09T04:13:53.661113+00:00
+sha1: 006cae56c5e8
+mtime_utc: 2026-10-09T05:00:18.269951+00:00
+generated_utc: 2026-10-09T05:01:49.679502+00:00
 private: false
 ---
 
@@ -25,7 +25,7 @@ Exit codes: 0 = shown; 2 = the configuration is invalid (problems printed).
 
 ## Entry points
 
-- `def main()` (line 90)
+- `def main()` (line 96)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -61,6 +61,7 @@ _(no subprocess / http / sqlite calls detected)_
 ## Notable external imports
 
 - `m3_core.config (REGISTRY, KeyClass, format_config_error, locate)`
+- `m3_core.config.keys (RETIRED)`
 - `m3_core.config.loader (ConfigFileError)`
 - `m3_core.config.resolve (ConfigEnvErrors)`
 - `m3_core.config.settings (Settings, build)`
