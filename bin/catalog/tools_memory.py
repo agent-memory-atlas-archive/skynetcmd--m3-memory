@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import asyncio
 
+from m3_core.search_modes import PUBLIC_SEARCH_MODES
+
 from .dispatch import _memory_verify_impl
 from .lazy import LazyModuleProxy
 from .spec import VALID_MEMORY_TYPES, VALID_RELATIONSHIP_TYPES, ToolSpec
@@ -175,7 +177,7 @@ TOOLS: list[ToolSpec] = [
                 "k":                  {"type": "integer", "description": "Max results (1-100).", "default": 8},
                 "type_filter":        {"type": "string", "description": "Restrict to a memory type.", "default": ""},
                 "agent_filter":       {"type": "string", "description": "Restrict to an agent id.", "default": ""},
-                "search_mode":        {"type": "string", "enum": ["hybrid", "semantic", "keyword"], "description": "Retrieval mode.", "default": "hybrid"},
+                "search_mode":        {"type": "string", "enum": list(PUBLIC_SEARCH_MODES), "description": "Retrieval mode.", "default": "hybrid"},
                 "include_scratchpad": {"type": "boolean", "description": "Include ephemeral scratchpad items.", "default": False},
                 "user_id":            {"type": "string", "description": "Filter by data subject.", "default": ""},
                 "scope":              {"type": "string", "description": "Filter by isolation scope.", "default": ""},
@@ -214,7 +216,7 @@ TOOLS: list[ToolSpec] = [
                 "k":                  {"type": "integer", "description": "Max rows (1-100).", "default": 8},
                 "type_filter":        {"type": "string", "description": "Restrict to a memory type (e.g. 'user_fact').", "default": ""},
                 "agent_filter":       {"type": "string", "description": "Restrict to an agent id.", "default": ""},
-                "search_mode":        {"type": "string", "enum": ["hybrid", "semantic", "keyword"], "description": "Retrieval mode.", "default": "hybrid"},
+                "search_mode":        {"type": "string", "enum": list(PUBLIC_SEARCH_MODES), "description": "Retrieval mode.", "default": "hybrid"},
                 "user_id":            {"type": "string", "description": "Filter by data subject.", "default": ""},
                 "scope":              {"type": "string", "description": "Filter by isolation scope.", "default": ""},
                 "requesting_agent":   {"type": "string", "description": "Calling agent's id. When set, ENFORCES cross-agent isolation: private (scope='agent') rows from OTHER agents are excluded; the caller still sees its own private rows plus all shared scopes (org/user/session). Empty = no enforcement (sees all, back-compat).", "default": ""},
@@ -269,7 +271,7 @@ TOOLS: list[ToolSpec] = [
                 "requesting_agent": {"type": "string", "description": "Calling agent's id. When set, ENFORCES cross-agent isolation: other agents' private (scope='agent') rows are excluded; caller sees its own private + shared scopes. Empty = no enforcement.", "default": ""},
                 "type_filter":     {"type": "string", "default": ""},
                 "agent_filter":    {"type": "string", "default": ""},
-                "search_mode":     {"type": "string", "default": "hybrid"},
+                "search_mode":     {"type": "string", "enum": list(PUBLIC_SEARCH_MODES), "description": "Retrieval mode.", "default": "hybrid"},
                 "variant":         {"type": "string", "default": ""},
                 "as_of":           {"type": "string", "default": ""},
                 "conversation_id": {"type": "string", "default": ""},
@@ -320,7 +322,7 @@ TOOLS: list[ToolSpec] = [
                 "k":               {"type": "integer", "default": 8, "description": "Top-K to return globally after merge. Each per-DB search also retrieves K, then results are pooled and re-sorted."},
                 "type_filter":     {"type": "string", "default": ""},
                 "agent_filter":    {"type": "string", "default": ""},
-                "search_mode":     {"type": "string", "default": "hybrid"},
+                "search_mode":     {"type": "string", "enum": list(PUBLIC_SEARCH_MODES), "description": "Retrieval mode.", "default": "hybrid"},
                 "user_id":         {"type": "string", "default": ""},
                 "scope":           {"type": "string", "default": ""},
                 "requesting_agent": {"type": "string", "description": "Calling agent's id. When set, ENFORCES cross-agent isolation: other agents' private (scope='agent') rows are excluded; caller sees its own private + shared scopes. Empty = no enforcement.", "default": ""},

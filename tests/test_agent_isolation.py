@@ -90,7 +90,7 @@ def _patch(monkeypatch, db_path, qvec):
 
 async def _ranked_ids(mc, **kw):
     res = await mc.memory_search_scored_impl(
-        query="anything", k=20, mmr=False, search_mode="vector", **kw
+        query="anything", k=20, mmr=False, search_mode="semantic", **kw
     )
     out = []
     for r in res:

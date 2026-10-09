@@ -70,7 +70,7 @@ def _patch(monkeypatch, db_path, qvec):
 
 async def _recall_at_k(mc, targets, k):
     res = await mc.memory_search_scored_impl(
-        query="q", k=k, mmr=False, search_mode="vector"
+        query="q", k=k, mmr=False, search_mode="semantic"
     )
     got = set()
     for r in res:

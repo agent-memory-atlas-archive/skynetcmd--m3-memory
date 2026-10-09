@@ -387,7 +387,7 @@ Search across multiple SQLite databases (e.g. agent_memory.db AND agent_chatlog.
 | `k` | `integer` | No | Top-K to return globally after merge. Each per-DB search also retrieves K, then results are pooled and re-sorted. | `8` |
 | `type_filter` | `string` | No |  | `` |
 | `agent_filter` | `string` | No |  | `` |
-| `search_mode` | `string` | No |  | `hybrid` |
+| `search_mode` | `string` | No | Retrieval mode. | `hybrid` |
 | `user_id` | `string` | No |  | `` |
 | `scope` | `string` | No |  | `` |
 | `requesting_agent` | `string` | No | Calling agent's id. When set, ENFORCES cross-agent isolation: other agents' private (scope='agent') rows are excluded; caller sees its own private + shared scopes. Empty = no enforcement. | `` |
@@ -423,7 +423,7 @@ Temporal-aware routed retrieval. Routes temporal queries to verbatim search at k
 | `requesting_agent` | `string` | No | Calling agent's id. When set, ENFORCES cross-agent isolation: other agents' private (scope='agent') rows are excluded; caller sees its own private + shared scopes. Empty = no enforcement. | `` |
 | `type_filter` | `string` | No |  | `` |
 | `agent_filter` | `string` | No |  | `` |
-| `search_mode` | `string` | No |  | `hybrid` |
+| `search_mode` | `string` | No | Retrieval mode. | `hybrid` |
 | `variant` | `string` | No |  | `` |
 | `as_of` | `string` | No |  | `` |
 | `conversation_id` | `string` | No |  | `` |

@@ -83,7 +83,7 @@ def _patch(monkeypatch, db_path, qvec):
 
 async def _ranked_ids(mc, **kw):
     res = await mc.memory_search_scored_impl(
-        query="anything", k=5, mmr=False, search_mode="vector", **kw
+        query="anything", k=5, mmr=False, search_mode="semantic", **kw
     )
     # scored impl returns a list of (score, item) or item dicts depending on path;
     # normalize to a list of ids in rank order.
@@ -116,7 +116,7 @@ async def test_flag_off_ranking_ignores_confidence(monkeypatch, tmp_path):
     monkeypatch.setattr(cfg, "CONFIDENCE_RANKING", False)
     mc = _patch(monkeypatch, db, qv)
 
-    res = await mc.memory_search_scored_impl(query="x", k=5, mmr=False, search_mode="vector")
+    res = await mc.memory_search_scored_impl(query="x", k=5, mmr=False, search_mode="semantic")
     scores = {r[1]["id"] if isinstance(r, tuple) else r["id"]:
               (r[0] if isinstance(r, tuple) else None) for r in res}
     # Both present; with the flag off their scores are equal (confidence ignored).

@@ -661,6 +661,11 @@ async def memory_search_scored_impl(
         per turn, so a turn wins its bucket on whichever representation
         the query favors.
     """
+    # Public "keyword" -> the "fts5" this function implements; an unknown mode
+    # raises instead of returning an empty result (m3_core.search_modes).
+    from m3_core.search_modes import normalize_search_mode
+
+    search_mode = normalize_search_mode(search_mode)
     # Floor: bind every callable to its module-global default FIRST, so that
     # any subsequent step (callback resolution, test-shim lookup) can fail
     # without leaving these names unbound. Python's compile-time scope

@@ -84,7 +84,7 @@ def _patch(monkeypatch, db_path, qvec):
 
 async def _scores(mc, **kw):
     res = await mc.memory_search_scored_impl(
-        query="how do I deploy", k=5, mmr=False, search_mode="vector", **kw
+        query="how do I deploy", k=5, mmr=False, search_mode="semantic", **kw
     )
     out = {}
     for r in res:
@@ -117,7 +117,7 @@ async def test_no_procedural_intent_is_byte_identical(monkeypatch, tmp_path):
 
     async def _proc_score(**kw):
         res = await mc.memory_search_scored_impl(
-            query="how do I deploy", k=5, mmr=False, search_mode="vector", **kw)
+            query="how do I deploy", k=5, mmr=False, search_mode="semantic", **kw)
         for r in res:
             item = r[1] if isinstance(r, tuple) else r
             if item["id"] == "proc":
@@ -153,7 +153,7 @@ async def test_procedural_intent_boosts_procedure_row(monkeypatch, tmp_path):
     mc = _patch(monkeypatch, db, qv)
 
     res = await mc.memory_search_scored_impl(
-        query="how do I deploy", k=5, mmr=False, search_mode="vector",
+        query="how do I deploy", k=5, mmr=False, search_mode="semantic",
         intent_hint="procedural",
     )
     ids = [(r[1]["id"] if isinstance(r, tuple) else r["id"]) for r in res]
@@ -181,7 +181,7 @@ async def test_procedural_intent_ignores_non_procedure_types(monkeypatch, tmp_pa
     mc = _patch(monkeypatch, db, qv)
 
     res = await mc.memory_search_scored_impl(
-        query="how do I deploy", k=5, mmr=False, search_mode="vector",
+        query="how do I deploy", k=5, mmr=False, search_mode="semantic",
         intent_hint="procedural",
     )
     ids = [(r[1]["id"] if isinstance(r, tuple) else r["id"]) for r in res]
