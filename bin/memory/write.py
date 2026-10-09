@@ -226,6 +226,12 @@ type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="
     `fact_enricher_variant_allowlist` controls which variants get enriched (default:
     None means skip all variants).
     """
+    # "" means untagged: the MCP schema default for `variant` is "", and untagged
+    # rows store NULL. Normalised HERE, once, because every later use tests
+    # `variant is not None`: the contradiction scan (which then filtered
+    # `variant = ''` and matched nothing), enrichment and entity extraction
+    # (which then skipped as an unlisted variant).
+    variant = variant or None
     if isinstance(metadata, dict):
         metadata = json.dumps(metadata)
     elif not isinstance(metadata, str):
@@ -340,9 +346,7 @@ type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="
         _cid = conversation_id or None
         _ron = refresh_on or None
         _rreason = refresh_reason or None
-        # Same story for variant — MCP schema default is "" but search filters
-        # untagged rows with `variant IS NULL`.
-        _variant = variant or None
+        _variant = variant  # "" already normalised to None at entry
         db.execute(
             ("INSERT INTO memory_items (id, type, title, content, metadata_json, agent_id, model_id, change_agent, importance, source, origin_device, user_id, scope, expires_at, created_at, valid_from, valid_to, conversation_id, refresh_on, refresh_reason, variant) "
             f"VALUES ({_d1.placeholder(21)})").rstrip(),
