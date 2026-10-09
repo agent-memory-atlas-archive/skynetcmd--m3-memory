@@ -93,7 +93,8 @@ def format_config_error(exc: BaseException) -> str:
     key, the line and the repair (DESIGN_PHILOSOPHIES §3)."""
     def one(e: BaseException, indent: str) -> list[str]:
         lines = [f"{indent}{e}"]
-        lines += [f"{indent}  {n}" for n in getattr(e, "__notes__", ())]
+        pad = " " * (len(indent) + 2)  # notes sit under their error, not as new bullets
+        lines += [f"{pad}{n}" for n in getattr(e, "__notes__", ())]
         return lines
 
     if isinstance(exc, BaseExceptionGroup):

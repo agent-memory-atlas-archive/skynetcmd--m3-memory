@@ -1278,6 +1278,12 @@ def m3_sandbox(monkeypatch, tmp_path):
     monkeypatch.setenv("M3_ENGINE_ROOT", str(tmp_path / "engine"))
     monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path / "config"))
     monkeypatch.setenv("M3_MEMORY_ROOT", str(tmp_path))
+    # The config snapshot is cached per PROCESS (m3_core.config.settings), so
+    # the roots above would not move a snapshot an earlier test built: it would
+    # keep that test's config root, and the secrets file derived from it.
+    from m3_core.config import settings as _cfg_settings
+
+    _cfg_settings._reset_for_tests()
     # The FILES store, too. memory.config.FILES_DB_PATH (re-exported as
     # files_memory.config.FILES_DB_PATH) is resolved AT IMPORT, so once either
     # module is imported the roots above do not move it, and files tools that

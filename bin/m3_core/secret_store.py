@@ -41,8 +41,25 @@ class SecretsFileError(Exception):
 
 
 def secrets_file_path() -> Path:
-    from m3_core.paths import get_m3_config_root
-    return Path(get_m3_config_root()) / SECRETS_FILE_NAME
+    """``[secrets].file`` from m3_config.toml (relative paths are relative to the
+    config root), else ``<config root>/m3_secrets.toml``. An invalid m3_config.toml
+    raises SecretsFileError: secrets are never read from a file guessed past it."""
+    from m3_core.config import ConfigFileError, format_config_error
+    from m3_core.config.keys import SECRETS_FILE
+    from m3_core.config.resolve import ConfigEnvErrors
+    from m3_core.config.settings import current
+
+    try:
+        settings = current()
+    except (ConfigFileError, ConfigEnvErrors) as e:
+        raise SecretsFileError(
+            "m3_config.toml is invalid, so the secrets file cannot be located:\n"
+            + format_config_error(e)) from e
+    configured = settings[SECRETS_FILE]
+    if configured is None:
+        return settings.location.root / SECRETS_FILE_NAME
+    p = Path(configured)
+    return p if p.is_absolute() else settings.location.root / p
 
 
 def _check_private_windows(p: Path, *, what: str, fix: str) -> None:

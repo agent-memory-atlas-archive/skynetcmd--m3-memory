@@ -2,7 +2,7 @@
 tool: bin/gen_config_docs.py
 sha1: 764742d0921b
 mtime_utc: 2026-10-09T04:16:01.159463+00:00
-generated_utc: 2026-10-09T04:16:05.514047+00:00
+generated_utc: 2026-10-09T04:16:15.196381+00:00
 private: false
 ---
 

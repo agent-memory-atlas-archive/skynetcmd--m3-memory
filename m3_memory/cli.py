@@ -640,6 +640,21 @@ def _cmd_governor(args: argparse.Namespace) -> int:
     return _run_bin_script("governor_cli.py", argv)
 
 
+def _cmd_config(args: argparse.Namespace) -> int:
+    """Dispatch `m3 config show` to bin/config_cli.py (read-only; always starts)."""
+    if not _resolve_bin_script("config_cli.py"):
+        print("config command requires the project payload (run `m3 install`).")
+        return 1
+    argv = [getattr(args, "config_cmd", None) or "show"]
+    if getattr(args, "origin", False):
+        argv.append("--origin")
+    if getattr(args, "json", False):
+        argv.append("--json")
+    if getattr(args, "config", None):
+        argv += ["--config", args.config]
+    return _run_bin_script("config_cli.py", argv)
+
+
 def _cmd_schedules(args: argparse.Namespace) -> int:
     """Dispatch `m3 schedules <verify|repair|list|add|remove>` to bin/install_schedules.py.
 
@@ -1965,6 +1980,17 @@ Examples:
     p_gov_mig.add_argument("--yes", "-y", action="store_true",
                            help="Skip the confirmation prompt (headless use).")
     p_governor.set_defaults(func=_cmd_governor)
+
+    p_config = subparsers.add_parser(
+        "config",
+        help="Show m3's configuration and where each value comes from (read-only).",
+    )
+    cfg_sub = p_config.add_subparsers(dest="config_cmd", metavar="<show>")
+    p_cfg_show = cfg_sub.add_parser("show", help="Every setting with its value.")
+    p_cfg_show.add_argument("--origin", action="store_true", help="Say where each value came from.")
+    p_cfg_show.add_argument("--json", action="store_true", help="Machine-readable output.")
+    p_cfg_show.add_argument("--config", metavar="FILE", help="Read this file instead of the located one.")
+    p_config.set_defaults(func=_cmd_config)
 
     p_schedules = subparsers.add_parser(
         "schedules",
