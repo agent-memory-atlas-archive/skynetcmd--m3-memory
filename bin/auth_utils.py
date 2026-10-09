@@ -382,6 +382,14 @@ def _get_fernet(master_key: str, iterations: int = _PBKDF2_ITERATIONS):
 
 def _decrypt_token(token_str: str, master_key: str, iterations: int = _PBKDF2_ITERATIONS) -> str | None:
     """Decrypts a token string using AES-GCM or Fernet (legacy). Protected by global sync."""
+    if token_str.startswith("gAAAA"):
+        # Legacy Fernet (pre-91fdea1e): the stored value IS the url-safe base64
+        # Fernet token. Base64-decoding it first (the AES path below) mangled it,
+        # so these rows could not be read at all.
+        try:
+            return _get_fernet(master_key, iterations).decrypt(token_str.encode("ascii")).decode("utf-8")
+        except Exception:
+            return None
     try:
         raw_token = base64.b64decode(token_str)
         key = _derive_raw_key(master_key, iterations)
@@ -537,26 +545,17 @@ def get_api_key(service: str) -> str | None:
                     # Try legacy PBKDF2 iterations
                     decrypted = _decrypt_token(row[0], master_key, iterations=_PBKDF2_LEGACY_ITERATIONS)
                     if decrypted:
-                        logger.warning(
-                            f"Secret '{service}' will be auto-migrated to current PBKDF2 iteration count. "
-                            f"observed: decryption succeeded only with legacy iterations ({_PBKDF2_LEGACY_ITERATIONS:,}, not {_PBKDF2_ITERATIONS:,}). "
-                            "cause: secret was encrypted before the PBKDF2 iteration count was raised (pre-2026-08-xx). "
-                            "inspect: migration will run after this access; verify sync completes with `m3 memory memory_search --query synchronized_secrets`."
-                        )
                         needs_migration = True
                     else:
                         logger.debug(f"Failed to decrypt vault secret for {service}")
                         return None
 
-                # Auto-migrate if it was legacy Fernet OR legacy iterations
+                # Re-encrypt a legacy row (Fernet, or the old PBKDF2 iteration
+                # count) in the current format, through a WRITE connection: this
+                # one is read-only (R3, m3 2a82d0f2 -- the UPDATE used to run here
+                # and always failed, swallowed at debug).
                 if decrypted and needs_migration:
-                    try:
-                        new_encrypted = _encrypt_value(decrypted, master_key)
-                        cur.execute("UPDATE synchronized_secrets SET encrypted_value = ? WHERE service_name = ?", (new_encrypted, service))
-                        conn.commit()
-                        logger.info(f"Auto-migrated '{service}' to modern AES-GCM encryption.")
-                    except Exception as mig_err:
-                        logger.debug(f"Auto-migration of '{service}' failed: {mig_err}")
+                    _reencrypt_vault_row(service, decrypted, master_key)
 
                 return decrypted
         except SaltMissingError as exc:
@@ -580,6 +579,41 @@ def get_api_key(service: str) -> str | None:
                     pass
 
     return None
+
+def _reencrypt_vault_row(service: str, plaintext: str, master_key: str) -> None:
+    """Rewrite one legacy vault row in the current AES-GCM / PBKDF2 format.
+
+    Only encrypted_value changes; version and origin are left alone, since the
+    secret itself did not change. A failure is LOGGED at warning with its cause
+    (it was swallowed at debug, so a row that could never migrate warned on
+    every read without ever saying why); the caller still gets the secret.
+    """
+    backend = _backend()
+    if not hasattr(backend, "connection"):  # installer-bootstrap shim: read-only
+        logger.warning(f"Legacy vault row '{service}' not re-encrypted: no writable store yet (installer bootstrap).")
+        return
+    conn = None
+    try:
+        new_encrypted = _encrypt_value(plaintext, master_key)
+        _p = _dialect_param()
+        _wcm = backend.connection()
+        conn = _wcm.__enter__()
+        cur = conn.cursor()
+        cur.execute(
+            f"UPDATE synchronized_secrets SET encrypted_value = {_p} WHERE service_name = {_p}",
+            (new_encrypted, service),
+        )
+        conn.commit()
+        logger.info(f"Re-encrypted legacy vault row '{service}' in the current format.")
+    except Exception as e:  # noqa: BLE001 -- the read already succeeded; report, do not raise
+        logger.warning(f"Legacy vault row '{service}' could not be re-encrypted: {type(e).__name__}: {e}")
+    finally:
+        if conn is not None:
+            try:
+                _wcm.__exit__(None, None, None)
+            except Exception:  # noqa: BLE001 -- already closing
+                pass
+
 
 def set_api_key(service: str, value: str):
     """
