@@ -20,6 +20,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
+from typing import override
 
 from m3_core.paths import CONFIG_ROOT_LEGACY, StoreRef, config_root_with_tier
 
@@ -83,6 +84,7 @@ class ConfigSyntaxError(ValueError):
 class ConfigFileError(ExceptionGroup):
     """Every problem found in one config file, reported at once (§3)."""
 
+    @override
     def derive(self, excs):  # keep the type through split()/subgroup()
         return ConfigFileError(self.message, excs)
 

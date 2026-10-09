@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import sys as _sys
 from types import ModuleType as _ModuleType
+from typing import override
 
 from .base import (
     BackendName,
@@ -100,6 +101,7 @@ if not callable(dialect):  # pragma: no cover - guards a reordering mistake
 class _BackendsModule(_ModuleType):
     """This package, with ``dialect`` protected against submodule shadowing."""
 
+    @override
     def __setattr__(self, name: str, value: object) -> None:
         if (
             name == "dialect"

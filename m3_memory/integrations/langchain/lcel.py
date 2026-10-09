@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import functools
 from collections.abc import Callable
-from typing import Any
+from typing import Any, override
 
 from langchain_core.runnables import Runnable, RunnableConfig, RunnableLambda
 
@@ -89,6 +89,7 @@ class MemoryWrite(Runnable):
             )
         return uid
 
+    @override
     def invoke(
         self, input: Any, config: RunnableConfig | None = None, **kwargs: Any
     ) -> Any:
@@ -108,6 +109,7 @@ class MemoryWrite(Runnable):
             )
         return input  # pass-through: never mutate the chain's data
 
+    @override
     async def ainvoke(
         self, input: Any, config: RunnableConfig | None = None, **kwargs: Any
     ) -> Any:

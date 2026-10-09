@@ -32,7 +32,7 @@ Faithful to the tenets:
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, override
 
 from . import mapping
 from .extras import M3ExtrasMixin
@@ -134,6 +134,7 @@ class Memory(M3ExtrasMixin):
         return cls(**known)
 
     # ── tenancy (§7 privacy — enforced HERE, the tools don't) ─────────────────
+    @override
     def _require_user(self, user_id: str | None) -> str:
         uid = mapping.resolve_user_id(user_id, self._default_user_id)
         if not uid:

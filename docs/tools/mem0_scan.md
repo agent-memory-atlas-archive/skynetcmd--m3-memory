@@ -1,8 +1,8 @@
 ---
 tool: bin/mem0_scan.py
-sha1: 208514713eab
-mtime_utc: 2026-07-15T18:30:53.088483+00:00
-generated_utc: 2026-07-17T02:18:40.726480+00:00
+sha1: ba383bbe899f
+mtime_utc: 2026-10-09T18:07:52.882564+00:00
+generated_utc: 2026-10-09T18:10:40.495749+00:00
 private: false
 ---
 
@@ -33,7 +33,7 @@ Exit code: 0 if no mem0 usage found, 1 if any found (report), 0 after --fix.
 
 ## Entry points
 
-- `def main()` (line 296)
+- `def main()` (line 301)
 - `if __name__ == "__main__"` guard
 
 ---

@@ -27,6 +27,7 @@ import json
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import override
 
 # mem0 module names whose ``Memory`` / ``AsyncMemory`` / ``MemoryClient`` we treat
 # as swappable. ``mem0ai`` is the PyPI dist; ``mem0`` the import package.
@@ -95,6 +96,7 @@ class _Visitor(ast.NodeVisitor):
         self.import_lines: list[int] = []
 
     # --- imports -----------------------------------------------------------
+    @override
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
         root = (node.module or "").split(".")[0]
         if root in MEM0_MODULES:
@@ -110,6 +112,7 @@ class _Visitor(ast.NodeVisitor):
             ))
         self.generic_visit(node)
 
+    @override
     def visit_Import(self, node: ast.Import) -> None:
         for alias in node.names:
             root = alias.name.split(".")[0]
@@ -126,6 +129,7 @@ class _Visitor(ast.NodeVisitor):
         self.generic_visit(node)
 
     # --- construction: track instances -------------------------------------
+    @override
     def visit_Assign(self, node: ast.Assign) -> None:
         cls = self._constructed_mem0_class(node.value)
         if cls and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
@@ -153,6 +157,7 @@ class _Visitor(ast.NodeVisitor):
         return None
 
     # --- calls: classify method usage --------------------------------------
+    @override
     def visit_Call(self, node: ast.Call) -> None:
         func = node.func
         if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):

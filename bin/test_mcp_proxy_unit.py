@@ -16,6 +16,7 @@ import asyncio
 import os
 import sys
 import unittest
+from typing import override
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(BASE_DIR, "bin"))
@@ -25,6 +26,7 @@ class TestMcpProxyImportAndCatalog(unittest.TestCase):
     """Default mode: ALLOW_DESTRUCTIVE=False."""
 
     @classmethod
+    @override
     def setUpClass(cls):
         os.environ.pop("MCP_PROXY_ALLOW_DESTRUCTIVE", None)
         if "mcp_proxy" in sys.modules:
@@ -119,6 +121,7 @@ class TestMcpProxyAllowDestructive(unittest.TestCase):
     """ALLOW_DESTRUCTIVE=1 mode."""
 
     @classmethod
+    @override
     def setUpClass(cls):
         os.environ["MCP_PROXY_ALLOW_DESTRUCTIVE"] = "1"
         if "mcp_proxy" in sys.modules:
@@ -127,6 +130,7 @@ class TestMcpProxyAllowDestructive(unittest.TestCase):
         cls.mcp_proxy = mcp_proxy
 
     @classmethod
+    @override
     def tearDownClass(cls):
         os.environ.pop("MCP_PROXY_ALLOW_DESTRUCTIVE", None)
         if "mcp_proxy" in sys.modules:

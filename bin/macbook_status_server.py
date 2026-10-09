@@ -3,13 +3,13 @@
 MacBook network & LM Studio status server for Homepage dashboard.
 Listens on port 9876. Returns JSON at /status with interface and LM Studio info.
 """
-
 import http.server
 import json
 import os
 import subprocess
 import urllib.error
 import urllib.request
+from typing import override
 
 from m3_sdk import getenv_compat
 
@@ -125,6 +125,7 @@ class StatusHandler(http.server.BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
 
+    @override
     def log_message(self, fmt, *args):
         pass  # suppress per-request logs
 

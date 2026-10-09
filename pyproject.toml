@@ -390,14 +390,13 @@ strict_optional = false
 # elsewhere in those modules). Revisit if we get the legacy files typed.
 warn_unused_ignores = false
 
-# ── Per-module overrides ──────────────────────────────────────────────────────
-# The backend dialects mark every Dialect override with typing.override, so a
-# base-class rename or typo'd method name fails the type check instead of
-# silently adding an unused method. Extend the module list as other subclass
-# hierarchies are decorated.
-[[tool.mypy.overrides]]
-module = ["memory.backends.sqlite_backend", "memory.backends.postgres_backend"]
+# Every method that overrides a base-class method carries typing.override (3.12),
+# so a base-class rename or a typo'd method name fails the type check instead of
+# silently adding an unused method. Modules under ignore_errors below are not
+# checked; their overrides are decorated by hand until each leaves that list.
 enable_error_code = ["explicit-override"]
+
+# ── Per-module overrides ──────────────────────────────────────────────────────
 
 # memory_bridge.py exposes every tool from mcp_tool_catalog at import time via
 # `globals()[name] = fn`. Mypy can't see these, so any module that imports a

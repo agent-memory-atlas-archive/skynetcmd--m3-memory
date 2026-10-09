@@ -39,6 +39,7 @@ import sys
 from collections import Counter
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import override
 
 REPO = Path(__file__).resolve().parent.parent
 SCAN_ROOTS = ("bin", "m3_memory")
@@ -104,12 +105,14 @@ class _Scanner(ast.NodeVisitor):
         self.putenv_names: set[str] = set()         # os.putenv / os.unsetenv aliases
 
     # ── binding discovery ──────────────────────────────────────────────────
+    @override
     def visit_Import(self, node: ast.Import) -> None:
         for a in node.names:
             if a.name == "os":
                 self.os_names.add(a.asname or "os")
         self.generic_visit(node)
 
+    @override
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
         if node.module == "os":
             for a in node.names:
@@ -129,6 +132,7 @@ class _Scanner(ast.NodeVisitor):
                     self._add(node, "dotenv", f"from dotenv import {a.name}", "*")
         self.generic_visit(node)
 
+    @override
     def visit_Assign(self, node: ast.Assign) -> None:
         # ENV = os.environ  -> ENV is an alias of the environment
         if self._is_environ(node.value):
@@ -144,11 +148,13 @@ class _Scanner(ast.NodeVisitor):
                 self._add(node, "write", "os.environ[...] =", self._name_of(t.slice))
         self.generic_visit(node)
 
+    @override
     def visit_AugAssign(self, node: ast.AugAssign) -> None:
         if isinstance(node.target, ast.Subscript) and self._is_environ(node.target.value):
             self._add(node, "write", "os.environ[...] op=", self._name_of(node.target.slice))
         self.generic_visit(node)
 
+    @override
     def visit_Delete(self, node: ast.Delete) -> None:
         for t in node.targets:
             if isinstance(t, ast.Subscript) and self._is_environ(t.value):
@@ -156,28 +162,33 @@ class _Scanner(ast.NodeVisitor):
         self.generic_visit(node)
 
     # ── reads, writes, copies ─────────────────────────────────────────────
+    @override
     def visit_Subscript(self, node: ast.Subscript) -> None:
         if isinstance(node.ctx, ast.Load) and self._is_environ(node.value):
             self._add(node, "read", "os.environ[...]", self._name_of(node.slice))
         self.generic_visit(node)
 
+    @override
     def visit_Compare(self, node: ast.Compare) -> None:
         for op, right in zip(node.ops, node.comparators):
             if isinstance(op, (ast.In, ast.NotIn)) and self._is_environ(right):
                 self._add(node, "read", "NAME in os.environ", self._name_of(node.left))
         self.generic_visit(node)
 
+    @override
     def visit_Dict(self, node: ast.Dict) -> None:
         for k, v in zip(node.keys, node.values):
             if k is None and self._is_environ(v):  # {**os.environ}
                 self._add(node, "copy", "{**os.environ}", "*")
         self.generic_visit(node)
 
+    @override
     def visit_For(self, node: ast.For) -> None:
         if self._is_environ(node.iter):
             self._add(node, "copy", "for k in os.environ", "*")
         self.generic_visit(node)
 
+    @override
     def visit_Call(self, node: ast.Call) -> None:
         f = node.func
         if isinstance(f, ast.Attribute):
@@ -228,11 +239,13 @@ class _Scanner(ast.NodeVisitor):
                     self._add(node, "handout", "f(os.environ)", "*")
         self.generic_visit(node)
 
+    @override
     def visit_Return(self, node: ast.Return) -> None:
         if node.value is not None and self._is_environ(node.value):
             self._add(node, "handout", "return os.environ", "*")
         self.generic_visit(node)
 
+    @override
     def visit_Attribute(self, node: ast.Attribute) -> None:
         if node.attr == "environb" and self._is_os(node.value):
             self._add(node, "read", "os.environb", "*")

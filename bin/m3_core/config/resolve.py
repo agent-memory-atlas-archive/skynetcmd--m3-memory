@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from typing import override
 
 from .loader import LoadedFile, show_key
 from .registry import ConfigValue, ConfigValueError, Key, KeyClass, Registry
@@ -40,6 +41,7 @@ class ConfigEnvError(ValueError):
 
 
 class ConfigEnvErrors(ExceptionGroup):
+    @override
     def derive(self, excs):
         return ConfigEnvErrors(self.message, excs)
 

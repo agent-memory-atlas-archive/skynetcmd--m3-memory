@@ -76,7 +76,7 @@ import pathlib
 import sqlite3
 from contextlib import contextmanager as _contextmanager
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, override
 
 import yaml
 from m3_sdk import M3Context, resolve_db_path
@@ -1548,6 +1548,7 @@ class SyncTarget:
         """The physical table for a logical role, or the role itself if unmapped."""
         return self.table_map.get(role, role)
 
+    @override
     def __repr__(self) -> str:  # pragma: no cover - diagnostics only
         return f"SyncTarget(name={self.name!r}, uri={self.uri!r})"
 

@@ -97,7 +97,7 @@ import sys
 import time
 import uuid
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Any, override
 
 from m3_core.aio import gather_or_cancel
 from m3_sdk import destructive_tools_allowed, getenv_compat
@@ -311,14 +311,17 @@ class _LazyToolList(list):
             self.extend(get_mcp_tools())
             self._loaded = True
 
+    @override
     def __len__(self):
         self._load()
         return super().__len__()
 
+    @override
     def __iter__(self):
         self._load()
         return super().__iter__()
 
+    @override
     def __getitem__(self, idx):
         self._load()
         return super().__getitem__(idx)

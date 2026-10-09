@@ -2,6 +2,7 @@
 Kept as the stable import surface for ~60 callers. Do not add logic here."""
 import sys as _sys
 import types as _types
+from typing import override
 
 # In the pre-split monolith, callers and tests reached module globals as
 # m3_sdk.NAME for both reads AND writes, and the functions that used those globals
@@ -229,6 +230,7 @@ class _Facade(_types.ModuleType):
             return {"dialect": dialect, "active_backend": active_backend}[name]
         raise AttributeError(name)
 
+    @override
     def __setattr__(self, name, value):
         targets = _ROUTED.get(name)
         if targets is not None:

@@ -10,13 +10,13 @@ Generates a PDF covering:
 Optionally writes a consolidated summary into memory_items.
 Use --no-memory to skip the memory write step.
 """
-
 import argparse
 import asyncio
 import os
 import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
+from typing import override
 
 from fpdf import FPDF
 from fpdf.enums import XPos, YPos
@@ -38,6 +38,7 @@ DB_PATH = resolve_db_path(None)
 
 # -- PDF class ----------------------------------------------------------------
 class AI_Report(FPDF):
+    @override
     def header(self):
         self.set_font("helvetica", "B", 16)
         self.cell(0, 10, "M3 MAX - WEEKLY AI ACTIVITY REPORT",

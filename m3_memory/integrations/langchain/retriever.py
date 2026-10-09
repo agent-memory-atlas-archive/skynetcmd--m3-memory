@@ -15,7 +15,7 @@ search path (§2.4) so ``extra_columns`` surfaces the temporal fields.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, override
 
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
@@ -132,11 +132,13 @@ class M3Retriever(BaseRetriever):
         }
 
     # ── BaseRetriever contract ────────────────────────────────────────────────
+    @override
     def _get_relevant_documents(
         self, query: str, *, run_manager: CallbackManagerForRetrieverRun
     ) -> list[Document]:
         return self._search(query)
 
+    @override
     async def _aget_relevant_documents(
         self, query: str, *, run_manager: AsyncCallbackManagerForRetrieverRun
     ) -> list[Document]:

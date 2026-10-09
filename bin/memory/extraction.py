@@ -16,7 +16,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, override
 
 # Ensure bin/ is on path for unified_ai and llm_failover imports
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -100,6 +100,7 @@ def canonicalize_relationship(rel_type: str) -> str:
 class RuleBasedExtractor(BaseExtractor):
     """Heuristic rule-based extractor using regular expressions and vocabulary list alignment."""
 
+    @override
     async def extract(self, text: str) -> dict:
         entities: list[dict[str, Any]] = []
         relationships: list[dict[str, Any]] = []
@@ -231,6 +232,7 @@ class LLMExtractor(BaseExtractor):
         self.url = backend_config.get("url", "")
         self.custom_prompt = backend_config.get("prompt", "")
 
+    @override
     async def extract(self, text: str) -> dict:
         active_types = sorted(list(_entity_mod.VALID_ENTITY_TYPES))
         active_predicates = sorted(list(_entity_mod.VALID_ENTITY_PREDICATES))
@@ -361,6 +363,7 @@ class CustomScriptExtractor(BaseExtractor):
         self.script_path = script_path
         self.function_name = function_name
 
+    @override
     async def extract(self, text: str) -> dict:
         try:
             path = Path(self.script_path)

@@ -53,7 +53,7 @@ import sys
 import time
 from contextlib import asynccontextmanager
 from datetime import UTC
-from typing import Any
+from typing import Any, override
 
 
 # ── Crash visibility, installed BEFORE any heavy import ───────────────────────
@@ -677,6 +677,7 @@ class DashboardAuthMiddleware(BaseHTTPMiddleware):
     def _required(self):
         return self._config()[1]
 
+    @override
     async def dispatch(self, request, call_next):
         verifier, required = self._config()
         if not required:
@@ -743,6 +744,7 @@ class DbScopeMiddleware(BaseHTTPMiddleware):
     store -- so yielding to it is correct rather than a silent downgrade.
     """
 
+    @override
     async def dispatch(self, request: Request, call_next):
         if os.environ.get("M3_DATABASE"):
             # Operator pinned it; the env var outranks us by design.
@@ -3299,6 +3301,7 @@ def run_dashboard(host: str | None = None, port: int | None = None,
         # uvicorn's default handler install can make a no-console server exit
         # early. The process is stopped by taskkill/SIGTERM (dashboard_stop) or
         # the OS, not by Ctrl-C — so don't install console signal handlers.
+        @override
         def install_signal_handlers(self) -> None:
             return None
 

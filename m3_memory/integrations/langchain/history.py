@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, override
 
 from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.messages import (
@@ -156,6 +156,7 @@ class M3ChatMessageHistory(BaseChatMessageHistory):
         return sorted(rows, key=_key)
 
     @property
+    @override
     def messages(self) -> list[BaseMessage]:  # type: ignore[override]
         """The recent window, oldest→newest (LangChain message-history order).
 
@@ -164,11 +165,13 @@ class M3ChatMessageHistory(BaseChatMessageHistory):
         with storage). Reads flow through :meth:`_fetch_rows`."""
         return [_row_to_message(r) for r in self._fetch_rows()]
 
+    @override
     async def aget_messages(self) -> list[BaseMessage]:
         # The sync path already rides the loop-thread; reuse it.
         return self.messages
 
     # ── write: add_messages (bulk) ────────────────────────────────────────────
+    @override
     def add_messages(self, messages: Sequence[BaseMessage]) -> None:
         """Append turns via chatlog_write (fires async Observer extraction).
 
@@ -201,10 +204,12 @@ class M3ChatMessageHistory(BaseChatMessageHistory):
                 max_ti = int(ti)
         return max_ti + 1
 
+    @override
     def add_message(self, message: BaseMessage) -> None:
         self.add_messages([message])
 
     # ── clear: two-step (search ids → bulk delete), hidden behind one call ────
+    @override
     def clear(self) -> None:
         """Delete every turn in this conversation (§2.2b two-step shim).
 

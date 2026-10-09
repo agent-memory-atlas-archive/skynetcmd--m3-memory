@@ -38,7 +38,7 @@ from collections.abc import AsyncIterator, Iterator, Sequence
 # `List` (capitalized) is used for return annotations INSIDE this class because
 # the class defines a method named ``list`` that shadows the builtin ``list`` in
 # class scope — ``list[CheckpointTuple]`` would resolve to ``M3Saver.list[...]``.
-from typing import Any
+from typing import Any, override
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import (
@@ -130,6 +130,7 @@ class M3Saver(BaseCheckpointSaver):
             db.executescript(_SCHEMA)
 
     # ── version scheme (opaque monotonic string, like the sqlite saver) ───────
+    @override
     def get_next_version(self, current: Any | None, channel: Any = None) -> str:
         """Monotonic version: ``NNNNNNNN.<hash>``. LangGraph only needs the
         ordering to be total and increasing; we mirror the reference sqlite/
@@ -151,6 +152,7 @@ class M3Saver(BaseCheckpointSaver):
         return self.serde.loads_typed((type_ or "", bytes(blob)))
 
     # ── PUT: persist one checkpoint ───────────────────────────────────────────
+    @override
     def put(
         self,
         config: RunnableConfig,
@@ -200,6 +202,7 @@ class M3Saver(BaseCheckpointSaver):
                  c_type, m_type, c_blob, m_blob, created_at),
             )
 
+    @override
     async def aput(self, config, checkpoint, metadata, new_versions) -> RunnableConfig:
         return await self._client._run_async(
             lambda: self._aput_on_loop(config, checkpoint, metadata)
@@ -222,6 +225,7 @@ class M3Saver(BaseCheckpointSaver):
                                  "checkpoint_ns": ns, "checkpoint_id": ckpt_id}}
 
     # ── PUT_WRITES: pending writes for a task, idempotent by (task_id, idx) ────
+    @override
     def put_writes(
         self,
         config: RunnableConfig,
@@ -259,6 +263,7 @@ class M3Saver(BaseCheckpointSaver):
                 rows,
             )
 
+    @override
     async def aput_writes(self, config, writes, task_id, task_path: str = "") -> None:
         conf = _cfg(config)
         rows = self._writes_rows(
@@ -272,10 +277,12 @@ class M3Saver(BaseCheckpointSaver):
         await self._put_writes_async(rows)
 
     # ── GET: one checkpoint tuple (latest for a thread, or a named id) ────────
+    @override
     def get_tuple(self, config: RunnableConfig) -> CheckpointTuple | None:
         self._ensure_schema()
         return self._client._run(self._get_tuple_async(config))
 
+    @override
     async def aget_tuple(self, config: RunnableConfig) -> CheckpointTuple | None:
         return await self._client._run_async(
             lambda: self._get_tuple_on_loop(config)
@@ -360,6 +367,7 @@ class M3Saver(BaseCheckpointSaver):
         )
 
     # ── LIST: checkpoints for a thread, newest first (history / time-travel) ──
+    @override
     def list(
         self,
         config: RunnableConfig | None,
@@ -374,6 +382,7 @@ class M3Saver(BaseCheckpointSaver):
         )
         yield from rows
 
+    @override
     async def alist(
         self,
         config: RunnableConfig | None,
@@ -454,10 +463,12 @@ class M3Saver(BaseCheckpointSaver):
         return out
 
     # ── DELETE: drop a whole thread (checkpoints + writes) ────────────────────
+    @override
     def delete_thread(self, thread_id: str) -> None:
         self._ensure_schema()
         self._client._run(self._delete_thread_async(thread_id))
 
+    @override
     async def adelete_thread(self, thread_id: str) -> None:
         await self._client._run_async(
             lambda: self._adelete_thread_on_loop(thread_id)

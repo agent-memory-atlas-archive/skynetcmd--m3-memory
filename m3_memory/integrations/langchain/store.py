@@ -28,7 +28,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, override
 
 # Hard dependency on langgraph — this module is imported LAZILY by the package
 # __init__ so a missing dep fails loud with an install hint (§3), never here.
@@ -95,6 +95,7 @@ class M3Store(BaseStore):
         return uid
 
     # ── the whole store: abatch + batch, both on the m3client loop-thread ─────
+    @override
     async def abatch(self, ops: Iterable[Op]) -> list[Any]:
         """Execute a batch of ops, results in INPUT ORDER (BaseStore contract).
 
@@ -106,6 +107,7 @@ class M3Store(BaseStore):
         op_list = list(ops)
         return await self._client._run_async(lambda: self._abatch_on_loop(op_list))
 
+    @override
     def batch(self, ops: Iterable[Op]) -> list[Any]:
         """Sync bridge over the same loop-thread work (§8)."""
         op_list = list(ops)

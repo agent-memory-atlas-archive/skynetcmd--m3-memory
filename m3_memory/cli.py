@@ -14,11 +14,11 @@ Usage:
     mcp-memory uninstall           Remove the cloned payload and config
     mcp-memory doctor              Print diagnostic info
 """
-
 import argparse
 import os
 import sys
 from pathlib import Path  # noqa: F401 - used in _auto_install return-type comment
+from typing import override
 
 
 def _ensure_utf8() -> None:
@@ -1361,6 +1361,7 @@ class _CommaSplitAppend(argparse.Action):
         --patterns api_keys --patterns jwt
     """
 
+    @override
     def __call__(self, parser, namespace, values, option_string=None):
         if isinstance(values, str):
             values = [values]

@@ -1,8 +1,8 @@
 ---
 tool: bin/mcp_proxy.py
-sha1: 268594e1a06d
-mtime_utc: 2026-10-08T23:52:33.413758+00:00
-generated_utc: 2026-10-08T23:53:07.155451+00:00
+sha1: eff63b6bdd61
+mtime_utc: 2026-10-09T18:37:15.775475+00:00
+generated_utc: 2026-10-09T18:37:16.485783+00:00
 private: false
 ---
 
@@ -132,7 +132,7 @@ _(no argparse arguments detected)_
 
 **http**
 
-- `httpx.AsyncClient()` (line 527)
+- `httpx.AsyncClient()` (line 530)
 
 
 ---
