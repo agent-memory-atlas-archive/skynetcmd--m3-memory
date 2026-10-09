@@ -25,7 +25,7 @@ from .embed import embed_texts
 logger = logging.getLogger("files_memory.search")
 
 
-@dataclass
+@dataclass(slots=True)
 class SearchHit:
     """One ranked result from files_search.
 

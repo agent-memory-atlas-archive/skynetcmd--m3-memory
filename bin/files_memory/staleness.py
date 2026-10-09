@@ -32,7 +32,7 @@ from .identity import file_content_sha256, file_content_sha256_batch
 logger = logging.getLogger("files_memory.staleness")
 
 
-@dataclass
+@dataclass(slots=True)
 class StaleFile:
     """One file flagged as stale (changed since last ingest)."""
     path: str
@@ -47,7 +47,7 @@ class StaleFile:
     suggested_action: str               # "re-ingest" | "skip-touched" | etc.
 
 
-@dataclass
+@dataclass(slots=True)
 class MissingFile:
     """File in files.db, no longer on disk."""
     path: str
@@ -58,7 +58,7 @@ class MissingFile:
     suggested_action: str = "mark_retired"
 
 
-@dataclass
+@dataclass(slots=True)
 class NewFile:
     """File on disk, never ingested."""
     path: str
@@ -67,7 +67,7 @@ class NewFile:
     filetype: str
 
 
-@dataclass
+@dataclass(slots=True)
 class FailedExtraction:
     """File with at least one extraction_status='failed' leaf."""
     path: str
@@ -77,7 +77,7 @@ class FailedExtraction:
     last_error: str | None
 
 
-@dataclass
+@dataclass(slots=True)
 class DriftedPromotion:
     """Promoted memory whose source has been superseded."""
     marker_uuid: str
@@ -88,7 +88,7 @@ class DriftedPromotion:
     reason: str | None
 
 
-@dataclass
+@dataclass(slots=True)
 class RenameCandidate:
     """A pair of (missing, new) files that look like a rename / move.
 
@@ -105,7 +105,7 @@ class RenameCandidate:
     suggested_action: str = "link"
 
 
-@dataclass
+@dataclass(slots=True)
 class StalenessReport:
     """Full review output."""
     directory: str | None

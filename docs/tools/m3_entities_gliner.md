@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_entities_gliner.py
-sha1: a7566480b427
-mtime_utc: 2026-10-09T21:56:26.208483+00:00
-generated_utc: 2026-10-09T21:56:51.515917+00:00
+sha1: 1caa9c04e6d2
+mtime_utc: 2026-10-09T22:44:20.135294+00:00
+generated_utc: 2026-10-09T22:52:33.852319+00:00
 private: false
 ---
 

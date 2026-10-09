@@ -21,14 +21,14 @@ import llm_failover as LF  # noqa: E402
 import m3_entities as E  # noqa: E402
 
 
-def _profile(model="m"):
-    import os
-    os.environ["M3_SLM_PROFILES_DIR"] = str(Path(_BIN).parent / "config" / "slm")
+def _profile(monkeypatch, model="m"):
+    import dataclasses
+    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(Path(_BIN).parent / "config" / "slm"))
     from slm_intent import load_profile
     base = load_profile("entities_local_qwen")
     # pin a concrete model so no discovery GET is needed; keep it anthropic-on-
     # loopback so localize() (entity path) rewrites it to the shared OpenAI endpoint.
-    return E.Profile(**{**base.__dict__, "model": model})
+    return dataclasses.replace(base, model=model)
 
 
 def _client(reply_message):
@@ -51,7 +51,7 @@ async def test_reasoning_only_reply_warns_on_non_suppressible(monkeypatch, caplo
     monkeypatch.setattr(LF, "LLM_ENDPOINTS", ["http://localhost:8000/v1"], raising=False)
     client = _client({"content": "", "reasoning": "let me think hard about this..."})
     with caplog.at_level(logging.WARNING, logger="m3_entities"):
-        out = await E._build_extractor(_profile(), "", VT, VP, client)(TEXT)
+        out = await E._build_extractor(_profile(monkeypatch), "", VT, VP, client)(TEXT)
     await client.aclose()
     assert out == {"entities": [], "relationships": []}
     msgs = " ".join(r.message for r in caplog.records)
@@ -65,7 +65,7 @@ async def test_clean_json_reply_does_not_warn(monkeypatch, caplog):
     good = '{"entities":[{"canonical_name":"Rust","entity_type":"technology","confidence":0.9}],"relationships":[]}'
     client = _client({"content": good})
     with caplog.at_level(logging.WARNING, logger="m3_entities"):
-        out = await E._build_extractor(_profile(), "", VT, VP, client)(TEXT)
+        out = await E._build_extractor(_profile(monkeypatch), "", VT, VP, client)(TEXT)
     await client.aclose()
     assert any(e["canonical_name"] == "Rust" for e in out["entities"])
     assert not [r for r in caplog.records if "reasoning" in r.message]

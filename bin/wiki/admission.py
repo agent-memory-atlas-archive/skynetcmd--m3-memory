@@ -40,7 +40,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 # ── edge classification: what the gate is ALLOWED to read ────────────────────
 #
@@ -61,7 +61,7 @@ _AUTHORED_PROVENANCE_RELS = frozenset({"supersedes", "extends", "refines", "supp
 # ── the tunable gate tuple (mirrors anchor.KASWeights) ───────────────────────
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class AdmissionGate:
     """Tunable floors for the cluster admission decision. Every field overridable
     via M3_CONFIG_ROOT/.wiki_admission.json or the `from_tuple` constructor.
@@ -109,7 +109,7 @@ class AdmissionGate:
 _DEFAULT_GATE = AdmissionGate()
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class StructuralSignals:
     """The gate's state-independent view of a cluster. Every field derives ONLY
     from user-authored member↔member edges — no compile-produced `consolidates`,
@@ -205,20 +205,26 @@ def load_gate() -> AdmissionGate:
         try:
             with open(path, encoding="utf-8") as f:
                 data = json.load(f)
-            fields = {}
+            thresholds: dict[str, float] = {}
             for k in ("min_provenance", "min_backbone_ratio", "min_kas"):
                 if k in data:
                     v = data[k]
                     if not isinstance(v, (int, float)) or not (0.0 <= v <= 1.0):
                         _warn_once(path, f"{k} must be a number in [0,1]")
                         raise ValueError
-                    fields[k] = float(v)
+                    thresholds[k] = float(v)
             if "enabled" in data:
                 if not isinstance(data["enabled"], bool):
                     _warn_once(path, "enabled must be a boolean")
                     raise ValueError
-                fields["enabled"] = data["enabled"]
-            gate = AdmissionGate(**{**_DEFAULT_GATE.__dict__, **fields})
+            d = _DEFAULT_GATE
+            gate = replace(
+                d,
+                min_provenance=thresholds.get("min_provenance", d.min_provenance),
+                min_backbone_ratio=thresholds.get("min_backbone_ratio", d.min_backbone_ratio),
+                min_kas=thresholds.get("min_kas", d.min_kas),
+                enabled=data.get("enabled", d.enabled),
+            )
         except Exception as e:  # malformed config must not break generation (§3)
             if not isinstance(e, ValueError):  # ValueError already warned above
                 _warn_once(path, f"unreadable ({e!r})")

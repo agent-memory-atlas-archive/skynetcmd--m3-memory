@@ -505,7 +505,7 @@ def _archive_row_counts(pg_restore: str, archive: str, schema: str) -> dict[str,
 
 # ── PostgreSQL SQL dialect (co-located with the backend it belongs to) ───────
 # Lives HERE, not in dialect.py (DESIGN_PHILOSOPHIES §2: one file per backend).
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class PostgresDialect(Dialect):
     """PostgreSQL SQL surface (one-schema chatlog, %s binds)."""
 

@@ -57,7 +57,7 @@ QUEUE_TABLES: frozenset[str] = frozenset({
 MAX_ATTEMPTS: int = 5
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class QueueRow:
     queue_id: int
     conversation_id: str

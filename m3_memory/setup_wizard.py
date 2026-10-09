@@ -140,7 +140,7 @@ def _ask_choice(question: str, choices: list[str], default: str) -> str:
 
 # ── agent detection ───────────────────────────────────────────────────────────
 
-@dataclass
+@dataclass(slots=True)
 class AgentTargets:
     claude: bool = False
     gemini: bool = False
@@ -260,7 +260,7 @@ def _find_m3_hermes_plugin_src() -> Path | None:
 
 # ── plan dataclass ────────────────────────────────────────────────────────────
 
-@dataclass
+@dataclass(slots=True)
 class SetupPlan:
     targets: AgentTargets = field(default_factory=AgentTargets)
     capture_mode: str = "both"      # both | stop | precompact | none

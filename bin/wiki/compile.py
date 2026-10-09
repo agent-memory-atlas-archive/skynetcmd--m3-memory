@@ -74,7 +74,7 @@ class ProseCompiler(Protocol):
         ...
 
 
-@dataclass
+@dataclass(slots=True)
 class CompileResult:
     """Per-cluster outcome, for reporting + the idempotence metric."""
     cluster_key: str
@@ -84,7 +84,7 @@ class CompileResult:
     superseded_id: str | None = None
 
 
-@dataclass
+@dataclass(slots=True)
 class CompileStats:
     created: int = 0
     superseded: int = 0
@@ -411,7 +411,7 @@ def _extract_id(raw: object) -> str:
     return s.strip().strip('"').split()[0] if s.strip() else s
 
 
-@dataclass
+@dataclass(slots=True)
 class ExistingSynthesis:
     """The current (head) synthesis for a topic, loaded from the store so the
     writer can decide skip vs. supersede without re-deriving it."""

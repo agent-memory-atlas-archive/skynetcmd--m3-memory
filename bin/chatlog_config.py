@@ -96,7 +96,7 @@ VALID_PROVIDERS: frozenset[str] = frozenset((
 
 
 # ── Dataclasses ───────────────────────────────────────────────────────────────
-@dataclass
+@dataclass(slots=True)
 class HookSpec:
     enabled: bool = False
     hook_path: str = ""
@@ -107,13 +107,13 @@ class HookSpec:
     stop_hook: bool = False
 
 
-@dataclass
+@dataclass(slots=True)
 class EmbedSweeperSpec:
     batch_size: int = 256
     interval_min: int = 30
 
 
-@dataclass
+@dataclass(slots=True)
 class RedactionSpec:
     enabled: bool = False  # OFF by default — local-first, opt-in
     patterns: list[str] = field(default_factory=lambda: [
@@ -124,12 +124,12 @@ class RedactionSpec:
     store_original_hash: bool = True
 
 
-@dataclass
+@dataclass(slots=True)
 class CostTrackingSpec:
     enabled: bool = True  # ON by default — zero user-visible cost
 
 
-@dataclass
+@dataclass(slots=True)
 class ChatlogConfig:
     db_path: str = DEFAULT_DB_PATH
     # Derived from VALID_HOST_AGENTS, not restated: a hand-written map here

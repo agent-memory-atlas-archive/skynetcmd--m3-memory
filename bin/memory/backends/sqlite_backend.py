@@ -41,7 +41,7 @@ _FTS_OVERFETCH = 4
 # Lives HERE, not in dialect.py, so that adding/altering a backend is one file
 # (DESIGN_PHILOSOPHIES §2). dialect.py holds only the base Dialect + validation
 # wrappers; the concrete subclass and its frozen singleton are the backend's own.
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class SqliteDialect(Dialect):
     """SQLite SQL surface (separate-file chatlog, qmark binds)."""
 

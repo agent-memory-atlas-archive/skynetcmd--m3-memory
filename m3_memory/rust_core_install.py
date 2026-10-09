@@ -361,7 +361,7 @@ def is_rust_core_current() -> bool:
         return cur == M3_CORE_RS_VERSION
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class BackendChoice:
     os_tok: str          # windows | linux | macos
     backend: str         # cpu | cuda | vulkan | metal

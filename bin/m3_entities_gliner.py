@@ -75,7 +75,7 @@ GLINER_TYPE_MAP: dict[str, str] = {
 }
 
 
-@dataclass
+@dataclass(slots=True)
 class _Cfg:
     model_id: str
     threshold: float

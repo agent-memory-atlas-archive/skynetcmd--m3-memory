@@ -51,7 +51,7 @@ logger = logging.getLogger("files_memory.ingest")
 _COARSE_DIVISIONS = frozenset({"page", "slide", "heading", "cell"})
 
 
-@dataclass
+@dataclass(slots=True)
 class FileIngestResult:
     """Outcome of ingesting a single file."""
     path: str
@@ -70,7 +70,7 @@ class FileIngestResult:
     facts_carried: int = 0
 
 
-@dataclass
+@dataclass(slots=True)
 class IngestResult:
     """Outcome of a full directory walk + ingest."""
     run_id: str

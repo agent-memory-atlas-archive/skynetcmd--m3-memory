@@ -23,7 +23,7 @@ from .db import _db
 logger = logging.getLogger("files_memory.index")
 
 
-@dataclass
+@dataclass(slots=True)
 class IndexEntry:
     """One entry in the wiki-index — file-level summary + metadata only.
 

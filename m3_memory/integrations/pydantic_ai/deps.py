@@ -23,7 +23,7 @@ _AGENT_ID = "pydantic-ai"
 _M3_SCOPE = "agent"
 
 
-@dataclass
+@dataclass(slots=True)
 class M3Deps:
     """Injected m3 memory service for a PydanticAI agent.
 

@@ -51,7 +51,7 @@ if TYPE_CHECKING:
 BackendName = Literal["sqlite", "postgres"]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Capabilities:
     """What a *connected* backend can do, discovered at connect time.
 
@@ -82,7 +82,7 @@ class Capabilities:
         )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class KeywordHit:
     """One keyword-search result. IDENTICAL shape on every backend.
 
@@ -99,7 +99,7 @@ class KeywordHit:
     score: float
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class VectorHit:
     """One vector-search result. IDENTICAL shape on every backend.
 
@@ -149,7 +149,7 @@ def snapshot_target(dest_dir: str, stem: str, label: str, ext: str) -> str:
     return path
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Snapshot:
     """A verified point-in-time copy of one store. IDENTICAL shape on every backend.
 

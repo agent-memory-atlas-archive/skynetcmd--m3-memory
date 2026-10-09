@@ -65,7 +65,7 @@ MIGRATIONS_DIR = os.path.join(BASE_DIR, "memory", "migrations")
 
 # ── Migration Target ────────────────────────────────────────────────────────
 
-@dataclass
+@dataclass(slots=True)
 class MigrationTarget:
     """Represents a migration target: name, path to DB, and migrations directory."""
     name: str              # "main" or "chatlog"

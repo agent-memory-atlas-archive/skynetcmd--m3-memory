@@ -36,7 +36,7 @@ from .config import files_table
 logger = logging.getLogger("files_memory.carry_forward")
 
 
-@dataclass
+@dataclass(slots=True)
 class LeafDiff:
     """Per-leaf classification for the new file_node version.
 
@@ -56,7 +56,7 @@ class LeafDiff:
     material_change: bool | None = None
 
 
-@dataclass
+@dataclass(slots=True)
 class CarryForwardStats:
     """Counters surfaced to the ingest caller."""
     carry: int = 0

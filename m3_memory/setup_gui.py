@@ -48,7 +48,7 @@ def gui_available() -> tuple[bool, str]:
     return True, ""
 
 
-@dataclass
+@dataclass(slots=True)
 class _Field:
     """One form control bound to a setup flag."""
     key: str          # internal id

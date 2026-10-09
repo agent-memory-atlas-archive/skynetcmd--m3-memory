@@ -97,7 +97,7 @@ FRONTMATTER_RE = re.compile(r"\A---\s*\n(.*?)\n---\s*\n(.*)\Z", re.DOTALL)
 GEMINI_SECTION_HEADER = "## Gemini Added Memories"
 
 # ── Data model ─────────────────────────────────────────────────────────────────
-@dataclass
+@dataclass(slots=True)
 class SourceItem:
     """One unit of memory extracted from a source, ready to write."""
     source_agent: str                  # "claude" | "gemini" | "openclaw" | "rules"
@@ -109,7 +109,7 @@ class SourceItem:
     content: str
     extra_metadata: dict = field(default_factory=dict)
 
-@dataclass
+@dataclass(slots=True)
 class WriteResult:
     item: SourceItem
     status: str                        # "migrated" | "skipped" | "failed" | "dry-run"

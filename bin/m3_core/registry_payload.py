@@ -51,7 +51,7 @@ RESERVED_PAYLOAD_KEYS: frozenset[str] = frozenset(
 )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ProcInfo:
     """The parsed, structured view of a coordination file. Consumers (doctor,
     dashboard, the services) receive this — never a raw dict — so the schema is

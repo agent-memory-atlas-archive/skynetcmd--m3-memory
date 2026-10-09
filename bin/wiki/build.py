@@ -17,7 +17,7 @@ from . import render as _render
 from . import select as _select
 
 
-@dataclass
+@dataclass(slots=True)
 class WikiOptions:
     importance_threshold: float = _select.DEFAULT_IMPORTANCE_THRESHOLD
     include_files: bool = True

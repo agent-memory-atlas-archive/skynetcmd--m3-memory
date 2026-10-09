@@ -454,7 +454,7 @@ def _resolve_entity(canonical_name: str, entity_type: str, db) -> str | None:
     return None  # Tiers 1+2 only in sync path
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class _ResolveInputs:
     """Everything tier-3 resolution needs from the database, read up front.
 

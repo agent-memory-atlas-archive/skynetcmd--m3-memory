@@ -27,7 +27,7 @@ from .select import Edge, Mem
 _MAX_CLUSTER = 60
 
 
-@dataclass
+@dataclass(slots=True)
 class Cluster:
     key: str                       # deterministic slug-seed (smallest member id)
     members: list[Mem] = field(default_factory=list)

@@ -54,7 +54,7 @@ _PROVENANCE_RELS = ("consolidates", "distills_from")
 REVIEW_SLA_DAYS = 30
 
 
-@dataclass
+@dataclass(slots=True)
 class DerivabilityVerdict:
     """One optional-judge opinion. `derivable=None` = abstain (judge unavailable /
     errored) — fail-open, never forces a decision either way."""
@@ -73,7 +73,7 @@ class DerivabilityJudge(Protocol):
         ...
 
 
-@dataclass
+@dataclass(slots=True)
 class ReviewItem:
     """One restricted synthesis in the queue, with its derivability signal."""
     synthesis_id: str
@@ -92,7 +92,7 @@ class ReviewItem:
     judge_reason: str = ""
 
 
-@dataclass
+@dataclass(slots=True)
 class ReviewReport:
     """The queue + coverage counts for the lint section."""
     items: list[ReviewItem] = field(default_factory=list)

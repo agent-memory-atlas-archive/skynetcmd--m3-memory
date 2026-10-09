@@ -83,7 +83,7 @@ _PROVENANCE_RELS = ("consolidates", "distills_from")
 # calibration note where they're defined). All tunable via KASWeights.
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class KASWeights:
     """Tunable weights for the four KAS factors, plus the backbone saturation
     half-point. Defaults are the published m3 reference calibration (set from a
@@ -130,7 +130,7 @@ class KASWeights:
 _DEFAULT_KAS = KASWeights()
 
 
-@dataclass
+@dataclass(slots=True)
 class ClusterAnchor:
     key: str
     title: str
@@ -231,7 +231,7 @@ def _flag_low_anchor(anchors) -> list:
 # ── Coverage (corpus, single-factor: the n=1 case, and that's fine) ──────────
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class CoverageWeights:
     representation: float = 1.0     # one factor; the algebra's degenerate case
     importance_floor: float = 0.7
@@ -266,7 +266,7 @@ def coverage_score(clusters, cw: CoverageWeights | None = None
 # can be added later without changing shape.
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class StalenessWeights:
     stale_fraction: float = 1.0
     threshold: float = 0.5          # flag clusters scoring above this
@@ -302,7 +302,7 @@ def stale_topics(clusters, sw: StalenessWeights | None = None) -> list:
 # added with a weight later — same kernel, no reshape.
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class RedundancyWeights:
     member_overlap: float = 1.0
     threshold: float = 0.6          # flag pairs scoring above this
@@ -333,7 +333,7 @@ def redundant_pairs(clusters, rw: RedundancyWeights | None = None) -> list:
 # ── the full report ──────────────────────────────────────────────────────────
 
 
-@dataclass
+@dataclass(slots=True)
 class WikiHealth:
     anchors: list = field(default_factory=list)
     low_anchor: list = field(default_factory=list)

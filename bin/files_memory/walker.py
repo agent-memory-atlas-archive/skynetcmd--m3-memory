@@ -36,7 +36,7 @@ from .identity import filetype_for, looks_binary
 logger = logging.getLogger("files_memory.walker")
 
 
-@dataclass
+@dataclass(slots=True)
 class WalkEntry:
     """One file that survived all filters, ready for chunking/ingestion."""
     path: str                # absolute
@@ -48,7 +48,7 @@ class WalkEntry:
     ctime: float             # POSIX timestamp (or birthtime where supported)
 
 
-@dataclass
+@dataclass(slots=True)
 class WalkStats:
     """Counters surfaced to the caller after a walk completes."""
     files_seen: int = 0

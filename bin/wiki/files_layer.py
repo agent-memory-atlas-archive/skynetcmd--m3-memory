@@ -12,7 +12,7 @@ import sqlite3
 from dataclasses import dataclass, field
 
 
-@dataclass
+@dataclass(slots=True)
 class Fact:
     uuid: str
     statement: str
@@ -20,7 +20,7 @@ class Fact:
     leaf: str | None
 
 
-@dataclass
+@dataclass(slots=True)
 class FileNode:
     uuid: str
     filename: str
@@ -34,7 +34,7 @@ class FileNode:
         return (self.filename or "", self.uuid)
 
 
-@dataclass
+@dataclass(slots=True)
 class FilesLayer:
     files: list[FileNode] = field(default_factory=list)
 

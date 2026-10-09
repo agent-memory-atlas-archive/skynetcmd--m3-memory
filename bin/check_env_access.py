@@ -82,7 +82,7 @@ WRITE_METHODS = frozenset({"pop", "setdefault", "update", "clear", "popitem", "_
 COPY_METHODS = frozenset({"copy", "items", "keys", "values"})
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Finding:
     path: str
     line: int

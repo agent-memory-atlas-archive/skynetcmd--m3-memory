@@ -788,7 +788,7 @@ def halt_is_active(engine_root: str | None = None, role: str | None = None) -> b
 # ──────────────────────────────────────────────────────────────────────────
 # Quiesce orchestration (exclusive-op side)
 # ──────────────────────────────────────────────────────────────────────────
-@dataclass
+@dataclass(slots=True)
 class QuiesceResult:
     ok: bool
     stuck: list[ProcInfo]
@@ -1135,7 +1135,7 @@ def _os_unlock(fd: int) -> None:
         pass
 
 
-@dataclass
+@dataclass(slots=True)
 class InstanceLock:
     """A held single-instance lock — the passable handle. The OS holds the lock
     for the open ``fd``'s lifetime; ``release()`` (idempotent) unlocks + closes +
@@ -1197,7 +1197,7 @@ class InstanceLock:
             pass
 
 
-@dataclass
+@dataclass(slots=True)
 class LockResult:
     """Structured, categorical result of acquire_single_instance. Callers switch
     on ``status`` (LockStatus). ``lock`` is present for every RUNNABLE status

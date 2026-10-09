@@ -32,7 +32,7 @@ _BARE_DATE_RE = _re.compile(r"^\d{4}-\d{2}-\d{2}$")
 ParamStyle = Literal["qmark", "format"]  # sqlite '?'  vs  psycopg '%s'
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Dialect:
     """A backend's SQL surface. Small, pure, table-free — safe to unit test.
 

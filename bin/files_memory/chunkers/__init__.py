@@ -38,7 +38,7 @@ logger = logging.getLogger("files_memory.chunkers")
 _MIN_LEAF_SPLIT_CHARS = 256
 
 
-@dataclass
+@dataclass(slots=True)
 class Leaf:
     """One chunk yielded by a chunker.
 

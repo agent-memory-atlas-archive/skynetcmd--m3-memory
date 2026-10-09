@@ -91,7 +91,7 @@ def _is_full_uuid(s: str) -> bool:
     return bool(_UUID_RE.match(s.strip()))
 
 # ── Dataclass ────────────────────────────────────────────────────────────────
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ToolSpec:
     name: str
     description: str

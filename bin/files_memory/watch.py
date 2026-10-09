@@ -114,7 +114,7 @@ def _default_notify(agent_id: str, kind: str, payload: dict) -> str | None:
 # ──────────────────────────────────────────────────────────────────────────────
 # Watch state (per-cycle telemetry)
 # ──────────────────────────────────────────────────────────────────────────────
-@dataclass
+@dataclass(slots=True)
 class CycleResult:
     """Counters surfaced after a single watch cycle."""
     started_at: float

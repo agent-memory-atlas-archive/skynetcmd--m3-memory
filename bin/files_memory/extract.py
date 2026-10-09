@@ -42,7 +42,7 @@ logger = logging.getLogger("files_memory.extract")
 # ──────────────────────────────────────────────────────────────────────────────
 # Data types
 # ──────────────────────────────────────────────────────────────────────────────
-@dataclass
+@dataclass(slots=True)
 class ExtractedFact:
     """One fact returned by the LLM. Maps to a row in `facts`."""
     statement: str
@@ -52,7 +52,7 @@ class ExtractedFact:
     entities: list[str] = field(default_factory=list)  # candidate canonical names
 
 
-@dataclass
+@dataclass(slots=True)
 class ExtractionResult:
     """Outcome of extracting from one leaf."""
     leaf_uuid: str

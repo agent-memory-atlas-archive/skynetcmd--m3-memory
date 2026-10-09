@@ -60,7 +60,7 @@ SKIP_DIRS = {
 M3_IMPORT = "from m3_memory.langchain import Memory"
 
 
-@dataclass
+@dataclass(slots=True)
 class Finding:
     line: int
     col: int
@@ -69,7 +69,7 @@ class Finding:
     note: str = ""     # guidance
 
 
-@dataclass
+@dataclass(slots=True)
 class FileReport:
     path: Path
     findings: list[Finding] = field(default_factory=list)

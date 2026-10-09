@@ -117,7 +117,7 @@ def _self_ref_names() -> frozenset[str]:
 _WIKILINK_STRIP = re.compile(r"\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]")
 
 
-@dataclass
+@dataclass(slots=True)
 class Mem:
     """A core memory row, trimmed to what the wiki renders."""
     id: str
@@ -158,7 +158,7 @@ class Mem:
         return (0 if self.pinned else 1, -(self.importance or 0.0), self.id)
 
 
-@dataclass
+@dataclass(slots=True)
 class Edge:
     from_id: str
     to_id: str
@@ -169,7 +169,7 @@ class Edge:
         return EDGE_WEIGHTS.get(self.rel, 1.0)
 
 
-@dataclass
+@dataclass(slots=True)
 class Promo:
     """A promotion_marker: a files-DB item that became a memory row."""
     marker_uuid: str
@@ -180,7 +180,7 @@ class Promo:
     source_path: str | None
 
 
-@dataclass
+@dataclass(slots=True)
 class CoreSet:
     memories: list[Mem] = field(default_factory=list)
     edges: list[Edge] = field(default_factory=list)

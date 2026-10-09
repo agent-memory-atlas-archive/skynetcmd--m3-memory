@@ -39,7 +39,7 @@ from typing import Protocol
 _PROVENANCE_RELS = ("consolidates", "distills_from")
 
 
-@dataclass
+@dataclass(slots=True)
 class DriftVerdict:
     """One judge decision for one synthesis. `drifted=None` means "no opinion"
     (judge unavailable / errored / abstained) — treated as fail-open (no finding),
@@ -59,7 +59,7 @@ class DriftJudge(Protocol):
         ...
 
 
-@dataclass
+@dataclass(slots=True)
 class DriftReport:
     """Collected findings + coverage, for the lint section. Coverage is REPORTED
     (§3): a check that silently skipped syntheses reads as 'clean' when it merely

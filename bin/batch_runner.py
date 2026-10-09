@@ -29,7 +29,7 @@ from unified_ai import _is_gemini_endpoint
 
 # ── Provider-neutral request/result shapes ─────────────────────────────────
 
-@dataclass
+@dataclass(slots=True)
 class BatchRequest:
     """One LLM call inside a batch.
 
@@ -47,7 +47,7 @@ class BatchRequest:
     cache_system: bool = True
 
 
-@dataclass
+@dataclass(slots=True)
 class BatchUsage:
     tokens_in: int = 0
     tokens_out: int = 0
@@ -56,7 +56,7 @@ class BatchUsage:
     service_tier: str = ""
 
 
-@dataclass
+@dataclass(slots=True)
 class BatchResult:
     custom_id: str
     succeeded: bool
@@ -65,7 +65,7 @@ class BatchResult:
     usage: BatchUsage = field(default_factory=BatchUsage)
 
 
-@dataclass
+@dataclass(slots=True)
 class BatchStatus:
     batch_id: str
     state: str               # "in_progress", "ended", "failed", "canceled"

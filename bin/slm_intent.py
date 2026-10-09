@@ -119,7 +119,7 @@ def _profile_search_dirs() -> list[Path]:
 
 
 # ── Profile dataclass + loader + cache ────────────────────────────────────────
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Profile:
     name: str
     url: str

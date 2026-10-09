@@ -43,7 +43,7 @@ logger = logging.getLogger("files_memory.corpora")
 # ──────────────────────────────────────────────────────────────────────────────
 # Data
 # ──────────────────────────────────────────────────────────────────────────────
-@dataclass
+@dataclass(slots=True)
 class CorpusInfo:
     """Snapshot of a corpus."""
     corpus_id: str
