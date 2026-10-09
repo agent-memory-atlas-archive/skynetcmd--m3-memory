@@ -1,8 +1,8 @@
 ---
 tool: bin/install_schedules.py
-sha1: eeace7ae28ca
-mtime_utc: 2026-10-08T22:11:14.541180+00:00
-generated_utc: 2026-10-08T22:11:47.950031+00:00
+sha1: 314037b4adc1
+mtime_utc: 2026-10-09T01:22:09.822516+00:00
+generated_utc: 2026-10-09T01:22:37.272726+00:00
 private: false
 ---
 
@@ -48,6 +48,7 @@ Uses project virtual environment paths and ensures log directories exist.
 
 ## Calls INTO this repo (intra-repo imports)
 
+- `_task_runtime (ensure_log_config)`
 - `governor_migration (GOVERNOR_ELIGIBLE)`
 - `governor_migration (KEEP_SCHEDULED_FLOOR, NOT_MIGRATABLE)`
 - `governor_migration (_cron_line_is)`

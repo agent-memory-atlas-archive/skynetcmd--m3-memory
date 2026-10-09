@@ -2675,6 +2675,8 @@ def main():
             ensure_governor_config()
             from m3_core.autonomy import ensure_autonomy_config
             ensure_autonomy_config()
+            from _task_runtime import ensure_log_config
+            ensure_log_config()
         except Exception:
             pass
 

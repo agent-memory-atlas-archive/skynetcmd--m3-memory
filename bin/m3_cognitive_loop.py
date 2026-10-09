@@ -2074,6 +2074,10 @@ def main():
     # seed the config file it CAN read, discoverable for the operator to flip on.
     from m3_core.autonomy import ensure_autonomy_config
     ensure_autonomy_config()
+    # And the log-rotation cap (.log_config.json): headless launchers do not
+    # inherit M3_LOG_MAX_BYTES, so the file is the knob that reaches them.
+    from _task_runtime import ensure_log_config
+    ensure_log_config()
 
     try:
         asyncio.run(main_loop(args))

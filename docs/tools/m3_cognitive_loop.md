@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_cognitive_loop.py
-sha1: a33e25f385e0
-mtime_utc: 2026-10-08T23:42:29.740127+00:00
-generated_utc: 2026-10-08T23:42:45.253793+00:00
+sha1: 834e2dbfcd54
+mtime_utc: 2026-10-09T01:22:05.274873+00:00
+generated_utc: 2026-10-09T01:22:37.331842+00:00
 private: false
 ---
 
@@ -93,6 +93,7 @@ for m3_enrich and m3_entities.
 ## Calls INTO this repo (intra-repo imports)
 
 - `_task_runtime (_rotate_if_oversized)`
+- `_task_runtime (ensure_log_config)`
 - `chatlog_config`
 - `chatlog_embed_sweeper`
 - `chatlog_prune`
