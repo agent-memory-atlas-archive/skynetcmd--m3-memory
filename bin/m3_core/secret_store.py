@@ -168,6 +168,59 @@ def resolve_pg_dsn(role: PgRole) -> str:
     return explain_pg_dsn(role).dsn
 
 
+@dataclass(frozen=True)
+class DsnStored:
+    location: str            # "keyring:<key>" or "secrets-file:<path>"
+    skipped: tuple[str, ...]  # why an earlier store was not used
+
+
+def _keyring_serves_daemons() -> bool:
+    """Whether a keyring write made now is readable by m3's headless jobs.
+
+    Windows Credential Manager and the macOS login keychain are (the AgentOS_*
+    tasks run with Interactive logon; launchd user agents share the keychain).
+    On Linux, cron and plain SSH have no session bus and a systemd --user unit
+    sees the login keyring only after a PAM login (CONFIG_DESIGN §10, measured
+    2026-10-08), so a read-back from the installer's own session proves nothing
+    for them: the secrets file is the store there.
+    """
+    return sys.platform in ("win32", "darwin")
+
+
+def store_pg_dsn(role: PgRole, dsn: str) -> DsnStored:
+    """Store a role's DSN where m3's headless jobs can read it, verified by read-back.
+
+    The keyring where it serves daemons, else the user-only secrets file (never
+    the vault: a bootstrap secret, CONFIG_DESIGN §10). Raises SecretsFileError
+    naming every store's failure when none took the value.
+    """
+    import auth_utils
+
+    key = _STORE_KEYS[role][0]
+    dsn = dsn.strip()
+    skipped: list[str] = []
+    if _keyring_serves_daemons():
+        err = auth_utils._keyring_store(key, dsn)
+        if err is None:
+            back, read_err = auth_utils._keyring_tier(key)
+            if back == dsn:
+                return DsnStored(f"keyring:{key}", ())
+            err = f"keyring: wrote {key} but the read-back " + (
+                f"failed ({read_err})" if read_err else "returned a different value")
+        skipped.append(err)
+    else:
+        skipped.append(f"keyring: not used on {sys.platform} (cron and SSH jobs cannot read it)")
+    try:
+        p = set_secret(key, dsn)
+        if get_secret(key) != dsn:
+            raise SecretsFileError(f"{p}: wrote {key} but the read-back returned a different value")
+    except (OSError, SecretsFileError) as e:
+        raise SecretsFileError(
+            f"could not store the {role.value} PostgreSQL DSN ({key}) anywhere: "
+            + " | ".join([*skipped, f"secrets file: {type(e).__name__}: {e}"])) from e
+    return DsnStored(f"secrets-file:{p}", tuple(skipped))
+
+
 def set_secret(name: str, value: str) -> Path:
     """Store one secret (create or replace) under the file lock. Returns the path."""
     if not _NAME.fullmatch(name):

@@ -742,3 +742,102 @@ class TestDbBackendSelection:
         assert "sqlite" in txt  # their value wins
         assert "M3_PRIMARY_PG_URL" in txt  # the missing one still added
         assert "already present" in msg
+
+    # D2: the DSN goes to the secret store, never into a profile or the registry.
+    _DSN = "postgresql://u:s3cretpw@db.example/m3"
+
+    @pytest.fixture
+    def unix_home(self, monkeypatch, tmp_path):
+        import m3_memory.installer as inst
+        monkeypatch.setattr(inst, "_os_name", lambda: "Linux")
+        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.setenv("USERPROFILE", str(tmp_path))
+        # _persist sets these for its own process; let monkeypatch restore them.
+        monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
+        monkeypatch.delenv("M3_PRIMARY_PG_URL", raising=False)
+        return tmp_path / ".profile"
+
+    def test_persist_stores_the_dsn_and_writes_only_the_selector(self, unix_home):
+        from m3_core import secret_store
+
+        from m3_memory.installer import _persist_pg_backend_env
+
+        msgs = _persist_pg_backend_env(self._DSN)
+        txt = unix_home.read_text()
+        assert 'export M3_DB_BACKEND="postgres"' in txt
+        assert "PG_URL" not in txt and "s3cretpw" not in txt, txt
+        assert secret_store.get_secret("M3_PRIMARY_PG_URL") == self._DSN
+        assert any("stored the primary PostgreSQL DSN" in m and "secrets-file:" in m for m in msgs), msgs
+        assert not any("s3cretpw" in m for m in msgs), "a status line echoed the password"
+
+    def test_persist_reports_a_legacy_plaintext_copy(self, unix_home):
+        from m3_memory.installer import _persist_pg_backend_env
+
+        unix_home.write_text('export M3_PRIMARY_PG_URL="postgresql://old/x"\n')
+        msgs = _persist_pg_backend_env(self._DSN)
+        assert any("plaintext DSN copy left in place" in m and "M3_PRIMARY_PG_URL" in m for m in msgs), msgs
+        assert 'M3_PRIMARY_PG_URL="postgresql://old/x"' in unix_home.read_text(), "the legacy copy was removed"
+
+    def test_doctor_names_a_plaintext_copy_and_is_quiet_without_one(self, unix_home, capsys):
+        from m3_memory.install.sections import _plaintext_dsn_section
+
+        _plaintext_dsn_section()
+        assert capsys.readouterr().out == ""
+        unix_home.write_text('export M3_PG_URL="postgresql://u:pw@old/x"\n')
+        _plaintext_dsn_section()
+        out = capsys.readouterr().out
+        assert "M3_PG_URL" in out and "keyring set system" in out and "pw@" not in out, out
+
+    def test_persist_when_no_store_takes_it_is_loud_and_writes_no_plaintext(self, unix_home, monkeypatch):
+        from m3_core import secret_store
+
+        from m3_memory.installer import _persist_pg_backend_env
+
+        def refuse(name, value):
+            raise OSError("read-only file system")
+
+        monkeypatch.setattr(secret_store, "set_secret", refuse)
+        msgs = _persist_pg_backend_env(self._DSN)
+        bad = [m for m in msgs if "NOT stored" in m]
+        assert bad and "read-only file system" in bad[0] and "keyring set system" in bad[0], msgs
+        assert "s3cretpw" not in unix_home.read_text()
+
+
+class TestStorePgDsn:
+    """m3_core.secret_store.store_pg_dsn: keyring where daemons read it, else the file."""
+
+    DSN = "postgresql://u:p@db.example/m3"
+
+    def test_keyring_with_a_verified_read_back(self, monkeypatch):
+        import auth_utils
+        from m3_core import secret_store as s
+
+        monkeypatch.setattr(s, "_keyring_serves_daemons", lambda: True)
+        kept = {}
+        monkeypatch.setattr(auth_utils, "_keyring_store", lambda k, v: kept.update({k: v}))
+        monkeypatch.setattr(auth_utils, "_keyring_tier", lambda k: (kept.get(k), None))
+        r = s.store_pg_dsn(s.PgRole.PRIMARY, self.DSN)
+        assert r.location == "keyring:M3_PRIMARY_PG_URL" and kept == {"M3_PRIMARY_PG_URL": self.DSN}
+        assert s.get_secret("M3_PRIMARY_PG_URL") is None, "also wrote plaintext"
+
+    def test_a_failed_read_back_falls_to_the_file_and_says_why(self, monkeypatch):
+        import auth_utils
+        from m3_core import secret_store as s
+
+        monkeypatch.setattr(s, "_keyring_serves_daemons", lambda: True)
+        monkeypatch.setattr(auth_utils, "_keyring_store", lambda k, v: None)
+        monkeypatch.setattr(auth_utils, "_keyring_tier", lambda k: (None, "keyring: KeyringLocked: locked"))
+        r = s.store_pg_dsn(s.PgRole.WAREHOUSE, self.DSN)
+        assert r.location.startswith("secrets-file:")
+        assert "KeyringLocked" in r.skipped[0]
+        assert s.get_secret("M3_CDW_PG_URL") == self.DSN
+
+    def test_linux_uses_the_file(self, monkeypatch):
+        import auth_utils
+        from m3_core import secret_store as s
+
+        monkeypatch.setattr(s, "_keyring_serves_daemons", lambda: False)
+        monkeypatch.setattr(auth_utils, "_keyring_store",
+                            lambda k, v: pytest.fail("wrote a keyring cron cannot read"))
+        r = s.store_pg_dsn(s.PgRole.PRIMARY, self.DSN)
+        assert r.location.startswith("secrets-file:") and "cron" in r.skipped[0]

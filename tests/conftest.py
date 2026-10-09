@@ -540,6 +540,11 @@ def _no_warehouse_secret(monkeypatch):
         monkeypatch.setattr(
             auth_utils, tier,
             lambda service, _real=real_tier: (None, None) if service in _DSN_SECRETS else _real(service))
+    # And no test WRITES the developer's keyring, under any name: the store
+    # falls through to the (sandboxed) secrets file instead. A test of the
+    # writer patches _keyring_store or the keyring module itself.
+    monkeypatch.setattr(auth_utils, "_keyring_store",
+                        lambda service, value: "keyring: writes blocked by the test sandbox")
     yield
 
 

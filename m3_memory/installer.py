@@ -48,6 +48,7 @@ from m3_memory.install.sections import (  # noqa: F401  (re-exported facade surf
     _deprecated_env_section,
     _embedder_tier_section,
     _gemini_hook_state,
+    _plaintext_dsn_section,
     _read_json,
     _resolve_chatlog_db,
     _roots_section,
@@ -1246,40 +1247,92 @@ def _run_pg_migrations(bridge: Path, dsn: str) -> str | None:
 
 
 def _persist_pg_backend_env(dsn: str) -> list[str]:
-    """Make M3_DB_BACKEND=postgres + M3_PRIMARY_PG_URL=<dsn> take effect.
+    """Make the PostgreSQL primary store take effect: selector in env, DSN stored.
 
-    These are read from the ENVIRONMENT (resolve_primary_pg_dsn / the backend
-    selector), NOT the m3 config file — so persisting to config alone would be
-    inert. We therefore set them where the runtime will actually see them:
+    ``M3_DB_BACKEND`` is read from the ENVIRONMENT, not the config file, so it is
+    set where the runtime sees it: this process, the Windows User-scope registry,
+    or a marked block in the Unix shell profile (a hand-set value wins).
 
-      * this process (so any post-install step uses the new backend);
-      * Windows: the User-scope registry (reused persistent-env machinery);
-      * Unix: an idempotent, marked block appended to the shell profile —
-        but ONLY if the profile doesn't already define the var (a hand-set
-        value wins; we never shadow or duplicate it).
-
-    Returns human status lines. Because m3 runs from many surfaces (MCP server
-    env block, a LangChain/SDK process, the CLI), we ALSO print guidance so a
-    non-shell consumer gets the vars too — the env is the single source of truth.
+    The DSN is a secret and goes to the one DSN store owner
+    (``m3_core.secret_store.store_pg_dsn``: keyring where headless jobs can read
+    it, else the user-only secrets file), never to the registry or a profile in
+    plaintext (user decision D2, 2026-10-08). A plaintext copy an earlier install
+    wrote is left alone, still wins as env, and is reported here.
     """
     msgs: list[str] = []
     os.environ["M3_DB_BACKEND"] = "postgres"
-    os.environ["M3_PRIMARY_PG_URL"] = dsn
+    os.environ["M3_PRIMARY_PG_URL"] = dsn  # this process's post-install steps only
 
-    pairs = {"M3_DB_BACKEND": "postgres", "M3_PRIMARY_PG_URL": dsn}
+    try:
+        sys.path.insert(0, str(bin_dir() or ""))
+        from m3_core.secret_store import PgRole, SecretsFileError, store_pg_dsn
+    except ImportError as e:
+        store_error: Exception | None = e
+    else:
+        store_error = None
+        try:
+            stored = store_pg_dsn(PgRole.PRIMARY, dsn)
+            msgs.append(f"[+] stored the primary PostgreSQL DSN ({_mask_dsn(dsn)}) in {stored.location}")
+            msgs.extend(f"[i] {why}" for why in stored.skipped)
+        except SecretsFileError as e:
+            store_error = e
+    if store_error is not None:
+        msgs.append(
+            f"[!] the primary PostgreSQL DSN was NOT stored: {store_error}. m3 cannot reach the "
+            "PostgreSQL store until it is: run `python -m keyring set system "
+            "M3_PRIMARY_PG_URL` (prompts for it), or set M3_PRIMARY_PG_URL in the "
+            "environment of every m3 process.")
+
+    pairs = {"M3_DB_BACKEND": "postgres"}
     if _os_name() == "Windows":
         msgs.extend(_write_user_registry_env(pairs))
     else:
         msgs.append(_append_env_to_profile(pairs))
+    msgs.extend(_legacy_plaintext_dsn_notes())
 
     print(
         "\n    m3 selects its backend from the ENVIRONMENT, not the config file. "
-        "Ensure these are set wherever m3 runs — your MCP server's `env` block, "
+        "Ensure this is set wherever m3 runs — your MCP server's `env` block, "
         "and any process that imports m3 (LangChain / SDK / CLI):"
     )
     print("      M3_DB_BACKEND=postgres")
-    print(f"      M3_PRIMARY_PG_URL={_mask_dsn(dsn)}")
+    print("    The DSN itself is read from the store above; it does not need to be in env.")
     return [m for m in msgs if m]
+
+
+def _legacy_plaintext_dsn_notes() -> list[str]:
+    """Name every plaintext DSN copy an earlier install left behind (D2 keeps them).
+
+    Reported, not removed: the copy may be what a running process reads, and it
+    still OUTRANKS the store as env, so a stale one silently wins.
+    """
+    names = ("M3_PRIMARY_PG_URL", "M3_PG_URL")
+    where: list[str] = []
+    if _os_name() == "Windows":
+        try:
+            import winreg
+
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as k:
+                for n in names:
+                    try:
+                        winreg.QueryValueEx(k, n)
+                        where.append(f"{n} in the User environment (registry)")
+                    except FileNotFoundError:
+                        pass
+        except OSError as e:
+            return [f"[!] could not check the User environment for a plaintext DSN: {e}"]
+    else:
+        import re
+
+        profile = Path.home() / ".profile"
+        try:
+            text = profile.read_text(encoding="utf-8") if profile.is_file() else ""
+        except OSError as e:
+            return [f"[!] could not check {profile} for a plaintext DSN: {e}"]
+        where += [f"{n} in {profile}" for n in names
+                  if re.search(rf"(?m)^\s*(export\s+)?{re.escape(n)}=", text)]
+    return [f"[!] plaintext DSN copy left in place: {w}. It overrides the stored DSN "
+            "while set; remove it once nothing reads it." for w in where]
 
 
 def _append_env_to_profile(pairs: dict[str, str]) -> str | None:
@@ -2881,6 +2934,8 @@ def doctor(fix: bool = False, brief: bool = False) -> int:
     _backend_section(cfg)
 
     _deprecated_env_section()
+
+    _plaintext_dsn_section()
 
     _chatlog_section(cfg)
 

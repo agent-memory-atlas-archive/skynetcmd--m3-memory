@@ -87,6 +87,34 @@ def safe_keyring_get_password(service_name: str, username: str) -> str | None:
     finally:
         _KEYRING_LOCK.release()
 
+def _keyring_store(service: str, value: str) -> str | None:
+    """Write one secret to the OS keyring (service "system", as the reader uses).
+
+    Returns None on success, else what failed, for a caller that reports which
+    store it used. Bounded like safe_keyring_get_password: a keyring that hangs
+    (a locked keychain waiting on a prompt) must not hang an installer.
+    """
+    try:
+        import keyring
+    except ImportError as e:
+        return f"keyring: not installed ({e})"
+    res: queue.Queue[BaseException | None] = queue.Queue()
+
+    def _target():
+        try:
+            keyring.set_password("system", service, value)
+            res.put(None)
+        except BaseException as e:  # noqa: BLE001 -- reported to the caller
+            res.put(e)
+
+    threading.Thread(target=_target, daemon=True).start()
+    try:
+        err = res.get(timeout=5.0)
+    except queue.Empty:
+        return "keyring: write timed out after 5s (locked keychain or unresponsive backend)"
+    return None if err is None else f"keyring: {type(err).__name__}: {err}"
+
+
 # Dynamically resolve DB path relative to project root.
 # DB_PATH is the *default* location kept for legacy callers; vault reads and
 # writes below go through _vault_db_path() so that M3_DATABASE / --database

@@ -735,6 +735,25 @@ def _backend_section(cfg: dict) -> None:
     _cdw_sync_section()
 
 
+def _plaintext_dsn_section() -> None:
+    """Name each plaintext primary-DSN copy in the registry or shell profile.
+
+    Installs before D2 (2026-10-08) wrote M3_PRIMARY_PG_URL there in plaintext.
+    The install no longer does, and leaves old copies in place; this is where
+    they surface. Says nothing on a clean setup.
+    """
+    from m3_memory import installer as _I  # lazy: installer imports this module
+
+    notes = _I._legacy_plaintext_dsn_notes()
+    if not notes:
+        return
+    print()
+    for note in notes:
+        print(f"  {note}")
+    print("      The DSN belongs in the keyring or the user-only secrets file: "
+          "`python -m keyring set system M3_PRIMARY_PG_URL` (prompts for it).")
+
+
 def _deprecated_env_section() -> None:
     """Surface deprecated (un-namespaced) env vars that are actually in use.
 
