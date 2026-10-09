@@ -1306,31 +1306,11 @@ def _legacy_plaintext_dsn_notes() -> list[str]:
     Reported, not removed: the copy may be what a running process reads, and it
     still OUTRANKS the store as env, so a stale one silently wins.
     """
-    names = ("M3_PRIMARY_PG_URL", "M3_PG_URL")
-    where: list[str] = []
-    if _os_name() == "Windows":
-        try:
-            import winreg
-
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as k:
-                for n in names:
-                    try:
-                        winreg.QueryValueEx(k, n)
-                        where.append(f"{n} in the User environment (registry)")
-                    except FileNotFoundError:
-                        pass
-        except OSError as e:
-            return [f"[!] could not check the User environment for a plaintext DSN: {e}"]
-    else:
-        import re
-
-        profile = Path.home() / ".profile"
-        try:
-            text = profile.read_text(encoding="utf-8") if profile.is_file() else ""
-        except OSError as e:
-            return [f"[!] could not check {profile} for a plaintext DSN: {e}"]
-        where += [f"{n} in {profile}" for n in names
-                  if re.search(rf"(?m)^\s*(export\s+)?{re.escape(n)}=", text)]
+    # The process copy is excluded: it is inherited from one of the places below
+    # (or is the one the installer just set for its own post-install steps).
+    where = [f"{n} in {loc}"
+             for n in ("M3_PRIMARY_PG_URL", "M3_PG_URL")
+             for loc in _find_env_var_locations(n, include_process_env=False)]
     return [f"[!] plaintext DSN copy left in place: {w}. It overrides the stored DSN "
             "while set; remove it once nothing reads it." for w in where]
 
@@ -1343,8 +1323,6 @@ def _append_env_to_profile(pairs: dict[str, str]) -> str | None:
     or ``X=``), and skips ones already present so a hand-set value is never
     shadowed or duplicated. Reports what it did / found. Never raises.
     """
-    import re
-
     profile = Path.home() / ".profile"
     existing = ""
     if profile.is_file():
@@ -1357,8 +1335,7 @@ def _append_env_to_profile(pairs: dict[str, str]) -> str | None:
     to_write: dict[str, str] = {}
     already: list[str] = []
     for name, value in pairs.items():
-        # Match a real assignment of this var (not a substring of another name).
-        if re.search(rf"(?m)^\s*(export\s+)?{re.escape(name)}=", existing):
+        if _shell_assigns(existing, name):
             already.append(name)
         else:
             to_write[name] = value
@@ -2176,9 +2153,18 @@ def _deprecated_env_in_config() -> dict[Path, dict[str, str]]:
     from m3_core.paths import all_env_renames  # type: ignore
 
     # Union of pure-namespacing + role-split (e.g. PG_URL -> M3_CDW_PG_URL) renames.
-    DEPRECATED_ENV_RENAMES = all_env_renames()
+    renames = all_env_renames()
+    return {path: {k: renames[k] for k in sorted(keys)}
+            for path, keys in _env_names_in_config(renames).items()}
 
-    out: dict[Path, dict[str, str]] = {}
+
+def _env_names_in_config(names) -> dict[Path, set[str]]:
+    """Return {file: names it sets} for each of ``names`` found in an MCP
+    client's ``mcpServers.<server>.env`` block (the files
+    ``_client_config_sources()`` reads) or the cwd ``.env``. Only files with a
+    hit are included. Tolerant: unreadable/unparseable files are skipped."""
+    wanted = set(names)
+    out: dict[Path, set[str]] = {}
 
     seen_files: set[Path] = set()
     for sources in _client_config_sources().values():
@@ -2192,32 +2178,39 @@ def _deprecated_env_in_config() -> dict[Path, dict[str, str]]:
             data = json.loads(path.read_text(encoding="utf-8")) or {}
         except (OSError, json.JSONDecodeError):
             continue
-        found: dict[str, str] = {}
+        found: set[str] = set()
         for entry in (data.get("mcpServers") or {}).values():
             env_block = (entry or {}).get("env") or {}
-            for key in env_block:
-                if key in DEPRECATED_ENV_RENAMES:
-                    found[key] = DEPRECATED_ENV_RENAMES[key]
+            found.update(k for k in env_block if k in wanted)
         if found:
             out[path] = found
 
     dotenv = Path.cwd() / ".env"
     if dotenv.is_file():
         try:
-            found = {}
+            found = set()
             for line in dotenv.read_text(encoding="utf-8").splitlines():
                 stripped = line.strip()
                 if not stripped or stripped.startswith("#") or "=" not in stripped:
                     continue
                 key = stripped.split("=", 1)[0].strip()
-                if key in DEPRECATED_ENV_RENAMES:
-                    found[key] = DEPRECATED_ENV_RENAMES[key]
+                if key in wanted:
+                    found.add(key)
             if found:
                 out[dotenv] = found
         except OSError:
             pass
 
     return out
+
+
+def _shell_assigns(text: str, name: str) -> bool:
+    """Whether shell startup text assigns ``name`` (``NAME=``, ``export NAME=``,
+    csh ``set NAME=``) at a line start: ``M3_CDW_PG_URL=`` is not ``PG_URL``,
+    and a commented-out line does not count. The one owner of this predicate."""
+    import re as _re
+
+    return bool(_re.search(rf"(?m)^\s*(?:export\s+|set\s+)?{_re.escape(name)}\s*=", text))
 
 
 # Windows persistent-environment registry scopes. Each entry:
@@ -2276,59 +2269,49 @@ def _scan_registry_env_deprecations(names: dict[str, str]) -> list[dict]:
 
 
 def _find_deprecated_pg_url_locations() -> list[str]:
-    """Return a human-readable location for EVERY place a deprecated PG_URL is set.
+    """Every place the deprecated PG_URL is set (see _find_env_var_locations)."""
+    return _find_env_var_locations("PG_URL")
+
+
+def _find_env_var_locations(name: str, *, include_process_env: bool = True) -> list[str]:
+    """Return a human-readable location for EVERY place env var ``name`` is set.
 
     Sweeps all common locations and collects them all (does NOT stop at the first
-    hit — PG_URL can be set in several places at once, and the operator should see
+    hit — a var can be set in several places at once, and the operator should see
     them all in one pass rather than re-running install per hidden copy):
 
-      1. the live process environment (``os.environ``);
+      1. the live process environment (``os.environ``), unless excluded;
       2. every MCP-client config file's ``mcpServers.<server>.env`` block plus the
-         cwd ``.env`` — via ``_deprecated_env_in_config`` (already multi-file);
+         cwd ``.env`` (``_env_names_in_config``);
       3. shell startup files in ``$HOME`` (``.zshenv``, ``.zshrc``, ``.bashrc``,
          ``.bash_profile``, ``.profile``, ``.zprofile``, ``.bash_login``) that
-         ``export``/set ``PG_URL`` — the usual home of a persistent DSN.
+         assign it (``_shell_assigns``) — the usual home of a persistent DSN;
+      4. the Windows User and Machine registry environment, where a persistent
+         var lives on Windows (unsetting the process copy alone wouldn't stick).
 
-    Best-effort and never raises: an unreadable file or a config-scan import
-    failure is skipped, not fatal. Returns a de-duplicated, sorted list of
-    location strings (empty when clean)."""
-    import re as _re
-
+    Best-effort and never raises: an unreadable file or a config-scan failure is
+    skipped, not fatal. Returns a de-duplicated, sorted list (empty when clean)."""
     locations: set[str] = set()
 
-    # 1. Live process env.
-    if os.environ.get("PG_URL") is not None:
-        locations.add("environment (os.environ['PG_URL'])")
+    if include_process_env and os.environ.get(name) is not None:
+        locations.add(f"environment (os.environ['{name}'])")
 
-    # 2. MCP client config env blocks + cwd .env — reuse the existing multi-file
-    #    scanner, which already walks every client's settings.json and .mcp.json.
     try:
-        for path, renames in _deprecated_env_in_config().items():
-            if "PG_URL" in renames:
-                locations.add(str(path))
+        locations.update(str(p) for p, keys in _env_names_in_config([name]).items() if name in keys)
     except Exception:  # noqa: BLE001 — informational scan, never fatal
         pass
 
-    # 3. Shell startup files that set PG_URL. Match `PG_URL=` optionally preceded
-    #    by `export ` / `set ` / whitespace, at a line start, so `M3_CDW_PG_URL=`
-    #    and comments don't false-positive.
-    _pg = _re.compile(r'^\s*(?:export\s+|set\s+)?PG_URL\s*=', _re.MULTILINE)
     home = Path.home()
-    for name in (".zshenv", ".zshrc", ".zprofile", ".bashrc",
-                 ".bash_profile", ".bash_login", ".profile"):
-        f = home / name
+    for rc in (".zshenv", ".zshrc", ".zprofile", ".bashrc",
+               ".bash_profile", ".bash_login", ".profile"):
+        f = home / rc
         try:
-            if f.is_file() and _pg.search(f.read_text(encoding="utf-8", errors="ignore")):
+            if f.is_file() and _shell_assigns(f.read_text(encoding="utf-8", errors="ignore"), name):
                 locations.add(str(f))
         except OSError:
             continue
 
-    # 4. Windows PERSISTENT env vars live in the registry, not a profile file, so
-    #    a User/Machine-scope PG_URL wouldn't be caught by (1)-(3) beyond the
-    #    inherited process copy. Read HKCU\Environment (User) and the Session
-    #    Manager Environment (Machine) so the operator is told WHERE the persistent
-    #    value lives (unsetting the process copy alone wouldn't stick).
-    for hit in _scan_registry_env_deprecations({"PG_URL": "M3_CDW_PG_URL"}):
+    for hit in _scan_registry_env_deprecations({name: ""}):
         locations.add(hit["label"])
 
     return sorted(locations)

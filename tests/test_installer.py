@@ -752,6 +752,11 @@ class TestDbBackendSelection:
         monkeypatch.setattr(inst, "_os_name", lambda: "Linux")
         monkeypatch.setenv("HOME", str(tmp_path))
         monkeypatch.setenv("USERPROFILE", str(tmp_path))
+        # Isolate the location sweep from this host's registry and client configs
+        # (a platform patch here would be undone before the test body runs).
+        monkeypatch.setattr(inst, "_scan_registry_env_deprecations", lambda names: [])
+        monkeypatch.setattr(inst, "_client_config_sources", lambda: {})
+        monkeypatch.chdir(tmp_path)
         # _persist sets these for its own process; let monkeypatch restore them.
         monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
         monkeypatch.delenv("M3_PRIMARY_PG_URL", raising=False)
@@ -777,6 +782,18 @@ class TestDbBackendSelection:
         msgs = _persist_pg_backend_env(self._DSN)
         assert any("plaintext DSN copy left in place" in m and "M3_PRIMARY_PG_URL" in m for m in msgs), msgs
         assert 'M3_PRIMARY_PG_URL="postgresql://old/x"' in unix_home.read_text(), "the legacy copy was removed"
+
+    def test_plaintext_copies_are_found_wherever_the_sweep_looks(self, unix_home, monkeypatch):
+        """One sweep owner: registry (both scopes), every rc file, MCP env blocks."""
+        import m3_memory.installer as inst
+
+        (unix_home.parent / ".zshrc").write_text('export M3_PRIMARY_PG_URL="postgresql://z/x"\n')
+        monkeypatch.setattr(inst, "_scan_registry_env_deprecations",
+                            lambda names: [{"label": "Windows Machine env (HKLM)"}] if "M3_PG_URL" in names else [])
+        monkeypatch.setenv("M3_PRIMARY_PG_URL", "postgresql://process/x")
+        notes = " | ".join(inst._legacy_plaintext_dsn_notes())
+        assert ".zshrc" in notes and "M3_PG_URL in Windows Machine env" in notes, notes
+        assert "os.environ" not in notes, "the process copy is not a leftover"
 
     def test_doctor_names_a_plaintext_copy_and_is_quiet_without_one(self, unix_home, capsys):
         from m3_memory.install.sections import _plaintext_dsn_section
