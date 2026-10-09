@@ -1,6 +1,6 @@
 # Tool inventory index
 
-_Generated 2026-10-09T00:53:33.175644+00:00._
+_Generated 2026-10-09T00:58:44.657997+00:00._
 
 Re-run `python bin/gen_tool_inventory.py` after changing any tool.
 Entries whose `sha1` no longer matches the live file need re-validation.
@@ -37,6 +37,7 @@ Entries whose `sha1` no longer matches the live file need re-validation.
 | [bin/cleanup_logs.sh](cleanup_logs_sh.md) | (no docstring) |  |
 | [bin/cli_kb_browse.py](cli_kb_browse.md) | cli_kb_browse.py — Browse knowledge base entries in rank (importance) order. |  |
 | [bin/cli_knowledge.py](cli_knowledge.md) | (no docstring) |  |
+| [bin/config_parity.py](config_parity.md) | Config parity snapshot: what m3 resolves today, so the config migration can prove it changed nothing (plan Step 2A.2). |  |
 | [bin/consolidate_beliefs.py](consolidate_beliefs.md) | Autonomous episodic->semantic belief consolidation (knowledge-maintenance P4). |  |
 | [bin/curator_apply.py](curator_apply.md) | Deterministic apply of a curator plan — one entry point, no LLM in the loop. |  |
 | [bin/dashboard_server.py](dashboard_server.md) | M3 Cognitive & Observability Portal. |  |
