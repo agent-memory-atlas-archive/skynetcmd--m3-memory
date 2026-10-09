@@ -63,3 +63,14 @@ SECRETS = [
 ]
 
 REGISTRY = Registry([DB_BACKEND, SECRETS_FILE, *SECRETS])
+
+# Env names m3 code reads that are deliberately NOT settings, with the reason.
+# The completeness test treats them as decided; only the user moves a name here.
+NOT_SETTINGS: dict[str, str] = {
+    # U4 bucket B (user decision 2026-10-08, m3 2615ab78): dev-tool parameters.
+    "M3_DIFF_REF_PYTHON": "search_differential.py's own parameter (U4 B)",
+    "M3_DIFF_REF_BIN": "search_differential.py's own parameter (U4 B)",
+    "M3_DIFF_REF_REV": "search_differential.py's own parameter (U4 B)",
+    "M3_DIFF_STORE": "search_differential.py's own parameter (U4 B)",
+    "M3_TRACE_FILE": "setup-wizard debug breadcrumbs (U4 B)",
+}
