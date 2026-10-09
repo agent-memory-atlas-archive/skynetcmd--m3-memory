@@ -1,7 +1,7 @@
 {
   "module": "memory_core",
   "module_doc_present": true,
-  "n_symbols": 323,
+  "n_symbols": 324,
   "symbols": {
     "ARCHIVE_DB_PATH": {
       "kind": "constant",
@@ -885,7 +885,7 @@
     },
     "_enforce_expansion_displacement_guard": {
       "kind": "function",
-      "signature": "(hits: 'list', *, protected_ranks: 'int' = 3, margin: 'float' = 2.0) -> 'list'",
+      "signature": "(hits: 'list', *, protected_ranks: 'int | None' = None, margin: 'float | None' = None) -> 'list'",
       "value_repr": null
     },
     "_enqueue_access_stamps": {
@@ -1231,6 +1231,11 @@
     "asyncio": {
       "kind": "module",
       "module_name": "asyncio"
+    },
+    "batched": {
+      "kind": "class",
+      "signature": "(iterable, n, *, strict=False)",
+      "value_repr": null
     },
     "compute_bitemporal_diffs_impl": {
       "kind": "function",

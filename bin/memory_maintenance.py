@@ -18,7 +18,6 @@ from llm_failover import (
 )
 from memory_core import (
     DEDUP_LIMIT,
-    DEDUP_THRESHOLD,
     EMBED_DIM,
     _content_hash,
     _cosine,
@@ -85,14 +84,7 @@ def _transfer_to_archive(item_id, reason, db):
         logger.debug(f"archive write skipped for {item_id}: {e}")
         return False
 
-def memory_dedup_impl(threshold=DEDUP_THRESHOLD, dry_run=True, limit=0):
-    import time
-
-    from m3_sdk import _LAST_USER_INTERACTION
-    if time.time() - _LAST_USER_INTERACTION < 15.0:
-        logger.info("Active query session detected. Suspending curation pass to yield resources.")
-        time.sleep(5.0)
-
+def memory_dedup_impl(threshold=None, dry_run=True, limit=0):
     """Find near-duplicate memory items by cosine similarity over embeddings.
 
     Returns a structured dict:
@@ -119,7 +111,20 @@ def memory_dedup_impl(threshold=DEDUP_THRESHOLD, dry_run=True, limit=0):
     Use this to keep payloads tractable on stores with many duplicates.
 
     Soft-delete behavior on dry_run=False is unchanged from the legacy impl.
+
+    `threshold`: unset reads memory.dedup.threshold at call time (a default
+    argument would bind it at import and miss m3_config.toml).
     """
+    import time
+
+    from m3_sdk import _LAST_USER_INTERACTION
+    if time.time() - _LAST_USER_INTERACTION < 15.0:
+        logger.info("Active query session detected. Suspending curation pass to yield resources.")
+        time.sleep(5.0)
+    if threshold is None:
+        from memory import config as _config
+
+        threshold = _config.DEDUP_THRESHOLD
     with _db() as db:
         rows = db.execute(
             f"SELECT me.memory_id, me.embedding, mi.title FROM memory_embeddings me "

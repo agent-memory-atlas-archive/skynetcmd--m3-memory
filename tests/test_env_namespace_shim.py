@@ -11,7 +11,6 @@ bare name and silently ignored the documented one.
 """
 from __future__ import annotations
 
-import importlib
 import sys
 from pathlib import Path
 
@@ -70,13 +69,20 @@ def test_documented_m3_knob_now_takes_effect(monkeypatch):
     """Regression for the real symptom: M3_TITLE_MATCH_BOOST is the documented
     name but the code used to read only bare TITLE_MATCH_BOOST, silently
     ignoring the documented one. The new name must now win."""
+    # memory.config reads the config snapshot at call time (plan 2D.1); the env
+    # is read when the snapshot is built, so rebuild it where this test used to
+    # reload the module.
+    from m3_core.config import settings as st
+
+    from memory import config as mc
+
     monkeypatch.setenv("M3_TITLE_MATCH_BOOST", "0.99")
     monkeypatch.delenv("TITLE_MATCH_BOOST", raising=False)
-    from memory import config as mc
-    importlib.reload(mc)
+    st._reset_for_tests()
     assert mc.TITLE_MATCH_BOOST == 0.99
     # old name still honored for back-compat
     monkeypatch.delenv("M3_TITLE_MATCH_BOOST", raising=False)
     monkeypatch.setenv("TITLE_MATCH_BOOST", "0.77")
-    importlib.reload(mc)
+    st._reset_for_tests()
     assert mc.TITLE_MATCH_BOOST == 0.77
+    st._reset_for_tests()

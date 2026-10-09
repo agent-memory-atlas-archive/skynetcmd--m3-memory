@@ -357,7 +357,12 @@ def __getattr__(name: str) -> Any:
             from memory.config import FACT_ENRICH_CONCURRENCY
             val = asyncio.Semaphore(FACT_ENRICH_CONCURRENCY)
         else:
-            val = getattr(importlib.import_module(mod_name), name)
+            mod = importlib.import_module(mod_name)
+            val = getattr(mod, name)
+            if mod_name == "memory.config" and name in mod.SETTING_NAMES:
+                # Read at call time from the config snapshot (plan 2D.1): binding
+                # it here would freeze the first value seen for every later reader.
+                return val
         globals()[name] = val
         return val
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

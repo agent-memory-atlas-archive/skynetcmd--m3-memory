@@ -57,6 +57,17 @@ class Settings:
         return sorted(r.origin.removeprefix("env-legacy:") for r in self.resolved.values()
                       if r.origin.startswith("env-legacy:"))
 
+    def deprecated_aliases_in_use(self) -> dict[str, str]:
+        """{old name: canonical name} for every key whose value came from a
+        legacy ALIAS spelling (env or .env), the registry's half of
+        m3_core.paths.deprecated_env_in_use (`m3 doctor`'s migration list)."""
+        out: dict[str, str] = {}
+        for name, r in self.resolved.items():
+            key = REGISTRY.get(name)
+            if key is not None and r.env_name is not None and r.env_name != key.env_names[0]:
+                out[r.env_name] = key.env_names[0]
+        return out
+
     def shadowed_env(self) -> list[str]:
         """Env names set but outranked by m3_config.toml: ignored, and said so."""
         return sorted({n for r in self.resolved.values() for n in r.shadowed})
@@ -88,6 +99,20 @@ def override(settings: Settings, values: Mapping[Key, ConfigValue]) -> Settings:
     return dataclasses.replace(settings, resolved=MappingProxyType(resolved))
 
 
+_ALIAS_WARNED: set[str] = set()
+
+
+def _warn_deprecated_aliases(settings: Settings) -> None:
+    """Once per process per name, as getenv_compat did for the keys it served
+    before they moved to the registry (plan 2D.1)."""
+    for old, new in sorted(settings.deprecated_aliases_in_use().items()):
+        if old not in _ALIAS_WARNED:
+            _ALIAS_WARNED.add(old)
+            logger.warning("Deprecated env var %s is set; use %s instead (or m3_config.toml). The "
+                           "old name still works for now but will be removed. (`m3 doctor` lists "
+                           "all in use.)", old, new)
+
+
 class _Cache:
     """The process snapshot. One per process; guarded for threaded MCP tools."""
 
@@ -104,6 +129,7 @@ class _Cache:
             if self._settings is None:
                 self._settings = build()  # startup: a bad file raises (§3)
                 self._checked_at = now
+                _warn_deprecated_aliases(self._settings)
                 return self._settings
             if now - self._checked_at < self.ttl_s:
                 return self._settings

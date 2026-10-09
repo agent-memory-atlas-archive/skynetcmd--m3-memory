@@ -10,7 +10,7 @@ import sqlite3
 import sys
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, override
 
 logger = logging.getLogger("M3_SDK")
 
@@ -28,7 +28,8 @@ logger = logging.getLogger("M3_SDK")
 # records names READ this process — a var sitting unread in a settings.json env
 # block would never appear). Every getenv_compat(new, old) call site MUST have a
 # matching entry here; tests/test_env_rename_map_drift.py enforces that so the map
-# can't silently fall out of sync with the call sites.
+# can't silently fall out of sync with the call sites. Aliases of config-registry
+# keys live in the registry instead (registry_env_renames(); plan 2D.1).
 DEPRECATED_ENV_RENAMES: dict[str, str] = {
     "AGENT_DB":                        "M3_AGENT_DB",
     "CHATLOG_DB":                      "M3_CHATLOG_DB",
@@ -39,23 +40,14 @@ DEPRECATED_ENV_RENAMES: dict[str, str] = {
     "CHATLOG_EMBED_MAX_PER_RUN":       "M3_CHATLOG_EMBED_MAX_PER_RUN",
     "CHATLOG_STATUSLINE":              "M3_CHATLOG_STATUSLINE",
     "CHATLOG_STATUSLINE_ASCII":        "M3_CHATLOG_STATUSLINE_ASCII",
-    "CONTRADICTION_THRESHOLD":         "M3_CONTRADICTION_THRESHOLD",
-    "CONTRADICTION_TITLE_GATE":        "M3_CONTRADICTION_TITLE_GATE",
-    "CONTRADICTION_TYPE_EXCLUSIONS":   "M3_CONTRADICTION_TYPE_EXCLUSIONS",
-    "CORROBORATION_THRESHOLD":         "M3_CORROBORATION_THRESHOLD",
-    "DEDUP_LIMIT":                     "M3_DEDUP_LIMIT",
-    "DEDUP_THRESHOLD":                 "M3_DEDUP_THRESHOLD",
     "EMBED_BULK_CHUNK":                "M3_EMBED_BULK_CHUNK",
     "EMBED_BULK_CONCURRENCY":          "M3_EMBED_BULK_CONCURRENCY",
-    "EMBED_DIM":                       "M3_EMBED_DIM",
-    "EMBED_MODEL":                     "M3_EMBED_MODEL",
     "EMBED_SERVER_GPU_HOST":           "M3_EMBED_SERVER_GPU_HOST",
     "EMBED_SERVER_HOST":               "M3_EMBED_SERVER_HOST",
     "ENTITY_NAME_EMBED_CACHE_MAX":     "M3_ENTITY_NAME_EMBED_CACHE_MAX",
     "GGUF_MODEL_PATH":                 "M3_GGUF_MODEL_PATH",
     "LLAMA_PORT":                      "M3_LLAMA_PORT",
     "LLAMA_SERVER_EXE":                "M3_LLAMA_SERVER_EXE",
-    "LLM_TIMEOUT":                     "M3_LLM_TIMEOUT",
     "LM_MODEL":                        "M3_LM_MODEL",
     "LM_READ_TIMEOUT":                 "M3_LM_READ_TIMEOUT",
     "LM_URL":                          "M3_LM_URL",
@@ -71,19 +63,13 @@ DEPRECATED_ENV_RENAMES: dict[str, str] = {
     "DB_BACKEND":                      "M3_DB_BACKEND",
     "DB_POOL_SIZE":                    "M3_DB_POOL_SIZE",
     "DB_POOL_TIMEOUT":                 "M3_DB_POOL_TIMEOUT",
-    "IMPORTANCE_WEIGHT":               "M3_IMPORTANCE_WEIGHT",
     "LLM_ENDPOINTS_CSV":               "M3_LLM_ENDPOINTS_CSV",
     "ORIGIN_DEVICE":                   "M3_ORIGIN_DEVICE",
     # PG_URL is NOT here: it was split by role (primary vs warehouse), so it lives
     # in ROLE_SPLIT_ENV_RENAMES (-> M3_CDW_PG_URL) and is resolved by the
     # role-specific resolvers, not getenv_compat. See below.
     "POSTGRES_SERVER":                 "M3_POSTGRES_SERVER",
-    "SEARCH_ROW_CAP":                  "M3_SEARCH_ROW_CAP",
-    "SHORT_TURN_THRESHOLD":            "M3_SHORT_TURN_THRESHOLD",
-    "SPEAKER_IN_TITLE":                "M3_SPEAKER_IN_TITLE",
-    "SUPERSEDES_PENALTY":              "M3_SUPERSEDES_PENALTY",
     "SYNC_TARGET_IP":                  "M3_SYNC_TARGET_IP",
-    "TITLE_MATCH_BOOST":               "M3_TITLE_MATCH_BOOST",
 }
 
 # ROLE_SPLIT_ENV_RENAMES: deprecations that are NOT pure M3_ namespacing because
@@ -130,7 +116,18 @@ def all_env_renames() -> dict[str, str]:
     merged = dict(DEPRECATED_ENV_RENAMES)
     merged.update(ROLE_SPLIT_ENV_RENAMES)
     merged.update(RETIRED_ENV_RENAMES)
+    merged.update(registry_env_renames())
     return merged
+
+
+def registry_env_renames() -> dict[str, str]:
+    """{legacy alias: canonical name} for every config-registry key. Keys read
+    through the registry (plan 2D.1 onward) resolve their aliases there, not via
+    getenv_compat, so their pairs are not in DEPRECATED_ENV_RENAMES (whose drift
+    test pins it to getenv_compat call sites); the registry is their one owner."""
+    from m3_core.config import REGISTRY
+
+    return {alias: key.env_names[0] for key in REGISTRY for alias in key.env_names[1:]}
 
 
 # _DEPRECATED_ENV_SEEN maps old_name -> new_name for every deprecated var that
@@ -169,8 +166,23 @@ def deprecated_env_in_use() -> dict[str, str]:
     process (via getenv_compat OR the role-specific PG resolvers). Used by
     `m3 doctor` to report migration TODOs. Only reflects names actually READ — a
     var set but never consulted won't show.
+
+    Keys read through the config registry (plan 2D.1 onward) resolve their legacy
+    aliases there, not through getenv_compat, so their half comes from the
+    config snapshot. A config file that does not load is reported by doctor's
+    own config check; here it only means the registry half is unknown, and the
+    log says so rather than the report quietly shrinking (§3).
     """
-    return dict(_DEPRECATED_ENV_SEEN)
+    seen = dict(_DEPRECATED_ENV_SEEN)
+    try:
+        from m3_core.config import settings as _settings
+
+        seen.update(_settings.current().deprecated_aliases_in_use())
+    except Exception as e:  # noqa: BLE001 -- see docstring
+        logger.warning("deprecated env report: the config registry's legacy aliases are not "
+                       "included (observed: %s: %s). inspect: `m3 config show`",
+                       type(e).__name__, e)
+    return seen
 
 
 # ── PostgreSQL DSN resolution: two ROLES, deliberately separated ──────────────
@@ -316,7 +328,10 @@ class _Unset(enum.Enum):
 # (M3_DATABASE / active_database) in resolve_db_path and decides
 # resolve_backend_name: §14's order, user decision D3 (2026-10-09). With no store
 # anywhere, both resolvers behave exactly as before 2C.3.
-_active_store: contextvars.ContextVar[StoreRef | None | Literal[_Unset.UNSET]] = (
+# A store, None for an explicit "main", or UNSET (defer to the process's store).
+type _StoreSelection = StoreRef | None | Literal[_Unset.UNSET]
+
+_active_store: contextvars.ContextVar[_StoreSelection] = (
     contextvars.ContextVar("m3_active_store", default=_Unset.UNSET))
 
 # The PROCESS's store, set once by a CLI's --store (m3_core.config.stores
@@ -1077,6 +1092,7 @@ class _StoreAction(argparse.Action):
     unknown name is an argparse error (exit 2) naming the configured stores.
     """
 
+    @override
     def __call__(self, parser, namespace, values, option_string=None):
         from m3_core.config.stores import StoreError, set_process_store
 
@@ -1093,6 +1109,7 @@ def deprecated_alias(new_flag: str) -> type[argparse.Action]:
     ``deprecated=`` is 3.13+; the floor is 3.12.)"""
 
     class _DeprecatedAlias(argparse.Action):
+        @override
         def __init__(self, *args, **kwargs):
             # Never a default of its own: argparse seeds a shared dest from the
             # FIRST action registered, so an alias declared before the new flag
@@ -1100,6 +1117,7 @@ def deprecated_alias(new_flag: str) -> type[argparse.Action]:
             kwargs["default"] = argparse.SUPPRESS
             super().__init__(*args, **kwargs)
 
+        @override
         def __call__(self, parser, namespace, values, option_string=None):
             print(f"warning: observed: {option_string} is the old spelling of {new_flag}. "
                   f"inspect: use {new_flag}; --store now names a store from m3_config.toml.",

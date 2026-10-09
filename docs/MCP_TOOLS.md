@@ -2140,7 +2140,7 @@ Find (and optionally soft-delete) near-duplicate memory items by cosine similari
 
 | Parameter | Type | Required | Description | Default |
 | --- | --- | --- | --- | --- |
-| `threshold` | `number` | No | Cosine similarity threshold in [0, 1]. Higher = stricter near-duplicate. | `0.92` |
+| `threshold` | `number` | No | Cosine similarity threshold in [0, 1]. Higher = stricter near-duplicate. Omit for memory.dedup.threshold from m3_config.toml. | `-` |
 | `dry_run` | `boolean` | No | Preview without applying. | `True` |
 | `limit` | `integer` | No | Cap on returned groups (0 = no cap). count reflects true total regardless. | `0` |
 | `database` | `string` | No | Optional SQLite database path. Overrides M3_DATABASE env and the default memory/agent_memory.db for this call only. Empty = use default. SQLite backend only, and not for files tools: elsewhere it would be ignored, so the call is refused. | `` |

@@ -1,8 +1,8 @@
 ---
 tool: bin/memory_maintenance.py
-sha1: b4b6a9464951
-mtime_utc: 2026-10-08T23:11:15.311337+00:00
-generated_utc: 2026-10-08T23:11:44.564617+00:00
+sha1: cc6c85aed498
+mtime_utc: 2026-10-09T17:21:14.832840+00:00
+generated_utc: 2026-10-09T17:25:53.413778+00:00
 private: false
 ---
 
@@ -42,7 +42,7 @@ _(no argparse arguments detected)_
 - `m3_sdk (_LAST_USER_INTERACTION)`
 - `m3_sdk (get_m3_config_root)`
 - `memory_core`
-- `memory_core (DEDUP_LIMIT, DEDUP_THRESHOLD, EMBED_DIM, _content_hash, _cosine, _db, _embed, _get_embed_client, _pack, _unpack, ctx, get_best_llm, m3_core_rs, memory_link_impl)`
+- `memory_core (DEDUP_LIMIT, EMBED_DIM, _content_hash, _cosine, _db, _embed, _get_embed_client, _pack, _unpack, ctx, get_best_llm, m3_core_rs, memory_link_impl)`
 - `memory_core (memory_write_impl)`
 - `run_reflector (JSON_RE)`
 - `slm_intent (_call_model, load_profile)`
@@ -53,7 +53,7 @@ _(no argparse arguments detected)_
 
 **http**
 
-- `httpx.AsyncClient()` (line 1992)
+- `httpx.AsyncClient()` (line 1997)
 
 
 ---
@@ -63,6 +63,7 @@ _(no argparse arguments detected)_
 - `base64`
 - `httpx`
 - `memory (confidence)`
+- `memory (config)`
 - `memory (trust)`
 - `memory.backends (dialect)`
 - `memory.db (savepoint)`

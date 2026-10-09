@@ -32,6 +32,7 @@ class Resolved:
     value: ConfigValue | None
     origin: str                      # "env:NAME" | "file:<path> [t].k" | "env-legacy:NAME" | "default"
     shadowed: tuple[str, ...] = ()   # env names set but outranked by the file
+    env_name: str | None = None      # the env / .env name that supplied the value, if one did
 
 
 class ConfigEnvError(ValueError):
@@ -101,7 +102,7 @@ def resolve_key(key: Key, loaded: LoadedFile, environ: Mapping[str, str],
         raise ValueError(f"{key.name} is a {key.klass} key; secret_store resolves secrets, not resolve_key")
     hit = _env_hit(key, environ)
     if key.env_override and hit is not None:
-        return Resolved(value=_from_env(key, *hit), origin=f"env:{hit[0]}")
+        return Resolved(value=_from_env(key, *hit), origin=f"env:{hit[0]}", env_name=hit[0])
     dot = _env_hit(key, dotenv.values)
     if key.name in loaded.values:
         shadowed = tuple(n for n in key.env_names if (environ.get(n) or "").strip())
@@ -113,11 +114,12 @@ def resolve_key(key: Key, loaded: LoadedFile, environ: Mapping[str, str],
         value = _from_env(key, *hit)
         _note_legacy_difference(key, *hit, value)
         shadowed = (f"{dot[0]} (in {dotenv.path})",) if dot is not None else ()
-        return Resolved(value=value, origin=f"env-legacy:{hit[0]}", shadowed=shadowed)
+        return Resolved(value=value, origin=f"env-legacy:{hit[0]}", shadowed=shadowed,
+                        env_name=hit[0])
     if dot is not None:  # the lowest source: below the file and below real env
         value = _from_env(key, *dot, where=f".env {dotenv.path}")
         _note_legacy_difference(key, *dot, value)
-        return Resolved(value=value, origin=f"dotenv:{dotenv.path} {dot[0]}")
+        return Resolved(value=value, origin=f"dotenv:{dotenv.path} {dot[0]}", env_name=dot[0])
     # A list default is copied: the registry's own object must never be shared
     # with a caller that might mutate it.
     default = list(key.default) if isinstance(key.default, list) else key.default

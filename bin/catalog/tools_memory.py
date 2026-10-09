@@ -580,7 +580,7 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "threshold": {"type": "number", "description": "Cosine similarity threshold in [0, 1]. Higher = stricter near-duplicate.", "default": 0.92},
+                "threshold": {"type": "number", "description": "Cosine similarity threshold in [0, 1]. Higher = stricter near-duplicate. Omit for memory.dedup.threshold from m3_config.toml."},
                 "dry_run":   {"type": "boolean", "description": "Preview without applying.", "default": True},
                 "limit":     {"type": "integer", "description": "Cap on returned groups (0 = no cap). count reflects true total regardless.", "default": 0},
             },

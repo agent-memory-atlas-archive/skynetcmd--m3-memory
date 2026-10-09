@@ -147,8 +147,8 @@ def _maybe_route_query(query: str, vector_weight: float, intent_hint: str = "") 
 def _enforce_expansion_displacement_guard(
     hits: list,
     *,
-    protected_ranks: int = config.EXPANSION_PROTECTED_RANKS,
-    margin: float = config.EXPANSION_DISPLACEMENT_MARGIN,
+    protected_ranks: int | None = None,
+    margin: float | None = None,
 ) -> list:
     """Enforce: at ranks 1..protected_ranks, expansion rows may only outrank a
     primary row if expansion_score >= margin * primary_score.
@@ -167,9 +167,14 @@ def _enforce_expansion_displacement_guard(
     margin <= 1.0 (treating margin <= 1.0 as "no displacement allowed at all"
     would be too strict; instead we treat it as "feature disabled, score-only").
 
-    Defaults are snapshotted at import time (legacy behavior). For dynamic
-    env-var overrides, callers should pass explicit values.
+    Unset arguments read search.expansion_protected_ranks /
+    search.expansion_displacement_margin at CALL time (a default argument would
+    bind the value at import and miss the config file and the test fixture).
     """
+    if protected_ranks is None:
+        protected_ranks = config.EXPANSION_PROTECTED_RANKS
+    if margin is None:
+        margin = config.EXPANSION_DISPLACEMENT_MARGIN
     if not hits or protected_ranks <= 0 or margin <= 1.0:
         return hits
 

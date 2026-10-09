@@ -1073,6 +1073,14 @@ def _reset_storage_backend_cache():
         _paths = sys.modules.get("m3_core.paths")
         if _paths is not None:
             _paths._process_store = None
+        # memory.config serves registry-backed names through __getattr__ (plan
+        # 2D.1). monkeypatch's undo re-binds the value it read as a REAL
+        # attribute, which would shadow the accessor with a stale value for
+        # every later test; drop any such binding.
+        _mcfg = sys.modules.get("memory.config")
+        if _mcfg is not None:
+            for _name in getattr(_mcfg, "SETTING_NAMES", ()):
+                _mcfg.__dict__.pop(_name, None)
 
     _clear()
     yield
