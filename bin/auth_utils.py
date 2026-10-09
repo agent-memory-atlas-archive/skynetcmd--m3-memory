@@ -448,6 +448,21 @@ def get_api_key(service: str) -> str | None:
         if alt:
             return alt
 
+    val, _ = _keyring_tier(service)
+    if val:
+        return val
+    val, _ = _file_tier(service)
+    if val:
+        return val
+    val, _ = _vault_tier(service)
+    return val
+
+
+def _keyring_tier(service: str) -> tuple[str | None, str | None]:
+    """The OS keyring (python keyring, then the macOS security CLI). Returns
+    (value, error): the error is what this tier hit, for a caller that must
+    explain a miss instead of reporting "not set" (m3 2f4bad6c)."""
+    error = None
     # Try python keyring if available.
     # Derive the OS name from sys.platform, not platform.system(): the latter
     # can hang on a WMI query on Python 3.14 / Windows. This runs on every
@@ -456,11 +471,12 @@ def get_api_key(service: str) -> str | None:
     try:
         val = safe_keyring_get_password("system", service)
         if val:
-            return val
+            return val, None
     except ImportError:
         logger.debug("keyring module not available, falling back to native tools.")
     except Exception as e:
         logger.debug(f"keyring failed: {e}")
+        error = f"keyring: {type(e).__name__}: {e}"
 
     # Platform-specific native credential store fallbacks
     if system == "Darwin":
@@ -471,7 +487,7 @@ def get_api_key(service: str) -> str | None:
                 capture_output=True, text=True, check=True, timeout=5,
                 **no_window_kwargs(),
             )
-            return result.stdout.strip()
+            return result.stdout.strip(), None
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             pass
 
@@ -507,6 +523,11 @@ def get_api_key(service: str) -> str | None:
         except (FileNotFoundError, subprocess.TimeoutExpired):
             logger.debug("D-Bus not available on this Linux system")
 
+    return None, error
+
+
+def _file_tier(service: str) -> tuple[str | None, str | None]:
+    """The user-only secrets file (m3_core.secret_store). Returns (value, error)."""
     # The user-only secrets file: the tier for machines with no keyring backend
     # (CONFIG_DESIGN §10, U6 (a)). An unsafe or malformed file is refused LOUDLY
     # and the chain continues; it is never read as if it were fine.
@@ -517,12 +538,21 @@ def get_api_key(service: str) -> str | None:
         try:
             val = _file_secret(service)
             if val:
-                return val
+                return val, None
         except SecretsFileError as e:
             logger.error(f"Secrets file refused while resolving {service}: {e}")
+            return None, f"secrets file: {e}"
     except ImportError:
         logger.debug("m3_core.secret_store not importable (installer bootstrap); skipping the secrets file")
 
+    return None, None
+
+
+def _vault_tier(service: str) -> tuple[str | None, str | None]:
+    """The encrypted vault (synchronized_secrets in the main store). Returns
+    (value, error). Never for a bootstrap secret (CONFIG_DESIGN §10): the
+    caller decides; get_api_key consults it for everything."""
+    error = None
     # Fallback to the synchronized encrypted vault
     vault_path = _vault_db_path()
     # No os.path.exists gate: on PostgreSQL there is no vault FILE, and skipping
@@ -551,7 +581,7 @@ def get_api_key(service: str) -> str | None:
                         "possible: AGENT_OS_MASTER_KEY was cleared from the keyring, the env var is unset, or the keyring is inaccessible. "
                         "inspect: (1) check env vars: `env | grep AGENT_OS_MASTER_KEY`; (2) check keyring: `keyring get system AGENT_OS_MASTER_KEY` (Linux/macOS) or Credential Manager (Windows)."
                     )
-                    return None
+                    return None, "vault: a row exists but AGENT_OS_MASTER_KEY is unavailable"
 
                 # Try current iteration count first, fall back to legacy
                 decrypted = _decrypt_token(row[0], master_key)
@@ -565,7 +595,7 @@ def get_api_key(service: str) -> str | None:
                         needs_migration = True
                     else:
                         logger.debug(f"Failed to decrypt vault secret for {service}")
-                        return None
+                        return None, "vault: the row does not decrypt with this master key"
 
                 # Re-encrypt a legacy row (Fernet, or the old PBKDF2 iteration
                 # count) in the current format, through a WRITE connection: this
@@ -574,7 +604,7 @@ def get_api_key(service: str) -> str | None:
                 if decrypted and needs_migration:
                     _reencrypt_vault_row(service, decrypted, master_key)
 
-                return decrypted
+                return decrypted, None
         except SaltMissingError as exc:
             # Loud, not swallowed at debug: the salt is gone but secrets exist,
             # so EVERY vault read is now failing. Surface it once, prominently,
@@ -586,8 +616,10 @@ def get_api_key(service: str) -> str | None:
                 "cause: device salt file missing or inaccessible, preventing decryption of any secret in the vault. "
                 "inspect: review the SaltMissingError message above for recovery steps (restore salt file, set M3_AGENT_OS_SALT_HEX, or clear secrets and start fresh)."
             )
+            error = f"vault: {type(exc).__name__}: {exc}"
         except Exception as exc:
             logger.debug(f"Failed to read from encrypted vault: {type(exc).__name__}")
+            error = f"vault: {type(exc).__name__}: {exc}"
         finally:
             if conn is not None:
                 try:
@@ -595,7 +627,7 @@ def get_api_key(service: str) -> str | None:
                 except Exception:  # noqa: BLE001 — already closing
                     pass
 
-    return None
+    return None, error
 
 def _reencrypt_vault_row(service: str, plaintext: str, master_key: str) -> None:
     """Rewrite one legacy vault row in the current AES-GCM / PBKDF2 format.
