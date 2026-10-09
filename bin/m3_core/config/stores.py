@@ -39,6 +39,29 @@ LOCATOR_KEYS: dict[str, dict[str, bool]] = {
 }
 
 
+# The legacy env names that LOCATE a part of the default store (or, for the
+# chatlog, the process-wide chat store, D1). They are settings, so not
+# NOT_SETTINGS, but not flat registry keys either (plan 2C.1 note): their home is
+# [stores.main], declarable from 2D, when each reader moves to the store model
+# and these become its deprecated aliases. Until then each keeps its reader.
+# name: what it locates.
+LEGACY_LOCATORS: dict[str, str] = {
+    "M3_DATABASE": "main: the core SQLite file (a named store outranks it, D3)",
+    "M3_DB_PATH": "main: the core SQLite file, read by the session-start capture hook",
+    "M3_AGENT_DB": "main: the core SQLite file, build_kg_variant's alias",
+    "AGENT_DB": "main: the core SQLite file, legacy spelling of M3_AGENT_DB",
+    "M3_MEMORY_DB": "main: the core SQLite file as files promotion records it",
+    "M3_FILES_DB_PATH": "main: the files SQLite file (a named store outranks it)",
+    "M3_DISPATCH_DB": "the notification-dispatch store",
+    "M3_SYNC_DBS": "the SQLite files pg_sync replicates (a list)",
+    "M3_CHATLOG_DB": "the process-wide chatlog SQLite file (D1)",
+    "M3_CHATLOG_DB_PATH": "the process-wide chatlog SQLite file (D1)",
+    "CHATLOG_DB": "the chatlog SQLite file, legacy spelling of M3_CHATLOG_DB",
+    "CHATLOG_DB_PATH": "the chatlog SQLite file, legacy spelling of M3_CHATLOG_DB_PATH",
+    "M3_CHATLOG_DATABASE": "the chatlog SQLite file for the chatlog backfill and enrich scripts",
+}
+
+
 class StoreError(ValueError):
     """A store that cannot be resolved or used."""
 

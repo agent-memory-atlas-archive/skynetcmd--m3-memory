@@ -1,23 +1,9 @@
 # Env names m3 reads that are not yet in the config registry (plan 2C.1).
 # A RATCHET: names only ever leave this file (tests/test_config_registry_complete.py).
 # What is left waits for a later step, by design:
-#   store locations (M3_DATABASE and the *_DB / *_DB_PATH / *_DATABASE names, M3_SYNC_DBS)
-#     -> named stores, plan 2C.3 (CONFIG_DESIGN §14);
 #   GGML_LOG_LEVEL, PYTHONPATH, PYTHONUTF8: WRITTEN for child processes (their reads are
 #     allowed foreign names) -> child_env owns them, plan 2E.1 (CONFIG_DESIGN §5).
-AGENT_DB
-CHATLOG_DB
-CHATLOG_DB_PATH
+# (The store locations left in 2C.3: m3_core.config.stores.LEGACY_LOCATORS.)
 GGML_LOG_LEVEL
-M3_AGENT_DB
-M3_CHATLOG_DATABASE
-M3_CHATLOG_DB
-M3_CHATLOG_DB_PATH
-M3_DATABASE
-M3_DB_PATH
-M3_DISPATCH_DB
-M3_FILES_DB_PATH
-M3_MEMORY_DB
-M3_SYNC_DBS
 PYTHONPATH
 PYTHONUTF8
