@@ -44,13 +44,16 @@ def _spec(impl, is_async):
     )
 
 
-def test_sync_wrapper_strips_injected_timeout():
+def test_sync_wrapper_never_passes_timeout_to_the_impl():
+    """A direct synchronous call cannot be bounded: an explicit timeout is refused
+    (it used to be accepted and ignored), and a call without one runs. Either
+    way the strict impl never sees `timeout`."""
     import memory_bridge
 
     fn = memory_bridge._build_typed_function(_spec(_strict_sync_impl, is_async=False))
-    # Passing the injected timeout must NOT reach the strict impl.
+    assert fn(query="hi") == "sync:hi"
     out = fn(query="hi", timeout=30)
-    assert out == "sync:hi"
+    assert out.startswith("Error: _probe: observed: timeout given to a direct synchronous call")
     assert "unexpected keyword" not in out
 
 

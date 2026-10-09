@@ -1,4 +1,3 @@
-import asyncio
 import inspect
 import logging
 import os
@@ -181,64 +180,44 @@ def _build_typed_function(spec, *, for_mcp: bool = False):
     # `database` and `store` are universal injected parameters (see
     # mcp_tool_catalog._inject_database_arg); pop_call_scope pops them before
     # validators/impl run and returns the scope the impl runs inside.
-    if spec.is_async:
+    if spec.is_async or _offload_sync:
+        # The MCP path, async or sync impl alike: the same routing, timeout and
+        # execution as catalog.dispatch.execute_tool (m3_call, the CLI). Before,
+        # these wrappers popped `timeout` and ran the impl UNBOUNDED, so the
+        # advertised argument was ignored over MCP only. _run_impl_bounded runs a
+        # sync impl through asyncio.to_thread, off the event loop, and to_thread
+        # copies the context: the call scope entered here (store / database)
+        # reaches the worker thread.
         async def _wrapper(args):
             args.pop("__class__", None)  # locals() may include this in some Python versions
             try:
                 scope = mcp_tool_catalog.pop_call_scope(args, spec.name)
             except ValueError as e:  # the routing args cannot be honoured: refuse
                 return f"Error: {e}"
-            # `timeout` is a universal injected param (mcp_tool_catalog adds it to
-            # every tool schema). It is dispatch machinery, not an impl argument —
-            # pop it here or it reaches impls with strict signatures and raises
-            # "unexpected keyword argument 'timeout'". Mirrors dispatch.execute_tool.
-            args.pop("timeout", None)
+            timeout = mcp_tool_catalog._resolve_tool_timeout(args, spec)  # pops `timeout`
             args, err = mcp_tool_catalog.validate_args(spec, args)
             if err:
                 return err
             try:
                 with scope:
-                    result = await spec.impl(**args)
-                return result if isinstance(result, str) else str(result)
-            except Exception as e:
-                return f"Error: {type(e).__name__}: {e}"
-    elif _offload_sync:
-        # MCP path for a SYNC impl: run the whole blocking body (validation +
-        # the impl's synchronous SQLite work) in a worker thread so it never
-        # blocks the event loop. The call scope is entered INSIDE the thread
-        # target because a ContextVar set on the loop thread is not visible in
-        # the executor thread's own frame; to_thread copies the context, but we
-        # (re)enter the CM in-thread to be explicit and correct.
-        async def _wrapper(args):
-            args.pop("__class__", None)
-            try:
-                scope = mcp_tool_catalog.pop_call_scope(args, spec.name)
-            except ValueError as e:  # the routing args cannot be honoured: refuse
-                return f"Error: {e}"
-            args.pop("timeout", None)
-            args, err = mcp_tool_catalog.validate_args(spec, args)
-            if err:
-                return err
-
-            def _run_sync():
-                with scope:
-                    return spec.impl(**args)
-
-            try:
-                result = await asyncio.to_thread(_run_sync)
+                    result = await mcp_tool_catalog._run_impl_bounded(spec, args, timeout)
                 return result if isinstance(result, str) else str(result)
             except Exception as e:
                 return f"Error: {type(e).__name__}: {e}"
     else:
+        # Direct SYNCHRONOUS callers (module-level exposure, not MCP): a blocking
+        # call cannot be bounded here, so an explicit `timeout` is refused rather
+        # than accepted and ignored.
         def _wrapper(args):
             args.pop("__class__", None)
             try:
                 scope = mcp_tool_catalog.pop_call_scope(args, spec.name)
             except ValueError as e:  # the routing args cannot be honoured: refuse
                 return f"Error: {e}"
-            # See async branch: `timeout` is injected dispatch machinery, not an
-            # impl argument — pop it before validation/impl.
-            args.pop("timeout", None)
+            if args.pop("timeout", None) is not None:
+                return (f"Error: {spec.name}: observed: timeout given to a direct synchronous "
+                        "call, which cannot be bounded. inspect: call it through MCP, m3_call "
+                        "or the m3 CLI to have the timeout enforced")
             args, err = mcp_tool_catalog.validate_args(spec, args)
             if err:
                 return err
