@@ -9,6 +9,28 @@
       "type": "integer",
       "minimum": 1
     },
+    "chatlog": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "embed": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "deadline_s": {
+              "type": "number",
+              "description": "Seconds one sweeper run may take; 0 or less is unbounded.",
+              "default": 60.0
+            },
+            "max_per_run": {
+              "type": "integer",
+              "description": "Rows one sweeper run embeds.",
+              "default": 10000
+            }
+          }
+        }
+      }
+    },
     "db": {
       "type": "object",
       "additionalProperties": false,
@@ -71,6 +93,266 @@
               "type": "integer",
               "description": "Rows per bulk upsert page; lower it over a slow link (U4 D: a deliberate tuning knob).",
               "default": 500
+            }
+          }
+        }
+      }
+    },
+    "embed": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "autodetect": {
+          "type": "boolean",
+          "description": "Search the disk for a bge-m3 GGUF when embed.gguf is unset.",
+          "default": true
+        },
+        "autodetect_budget_s": {
+          "type": "number",
+          "description": "Seconds the GGUF discovery walk may take.",
+          "default": 2.0
+        },
+        "bulk_chunk": {
+          "type": "integer",
+          "description": "Texts per bulk embedding request.",
+          "default": 1024
+        },
+        "bulk_concurrency": {
+          "type": "integer",
+          "description": "Concurrent bulk embedding requests.",
+          "default": 4
+        },
+        "chunk_max_chars": {
+          "type": "integer",
+          "description": "Characters per chunk.",
+          "default": 28000
+        },
+        "chunk_overlap_chars": {
+          "type": "integer",
+          "description": "Character overlap between chunks.",
+          "default": 8000
+        },
+        "compatible_models": {
+          "type": "array",
+          "description": "Other model tags whose vectors share this space.",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "ctx": {
+          "type": "integer",
+          "description": "Context length in tokens (also read by the Rust core; CONFIG_DESIGN \u00a76).",
+          "default": 8192
+        },
+        "dim": {
+          "type": "integer",
+          "description": "Embedding dimension.",
+          "default": 1024
+        },
+        "discovery_negative_ttl_s": {
+          "type": "number",
+          "description": "Seconds an endpoint that failed discovery is skipped.",
+          "default": 60.0
+        },
+        "entity_name_cache_max": {
+          "type": "integer",
+          "description": "Entity-name embeddings kept in memory.",
+          "default": 50000
+        },
+        "fallback_model_tag": {
+          "type": "string",
+          "description": "Tag of vectors from the fallback endpoint. Default: embed.model."
+        },
+        "fallback_url": {
+          "type": "string",
+          "description": "The fallback embedding endpoint (the shared embed server).",
+          "default": "http://127.0.0.1:8082"
+        },
+        "gguf": {
+          "type": "string",
+          "description": "The GGUF weights file. Unset: m3's models root, the bundled asset, then discovery (embed.autodetect). Not an env override (user decision, m3 a24fa878)."
+        },
+        "gguf_model_tag": {
+          "type": "string",
+          "description": "Tag of vectors from the in-process GGUF embedder. Default: embed.space_tag."
+        },
+        "init_timeout_s": {
+          "type": "number",
+          "description": "Seconds to wait for the in-process embedder to load; 0 disables the limit.",
+          "default": 20.0
+        },
+        "inproc": {
+          "type": "boolean",
+          "description": "Allow the in-process tier-1 embedder (opt-in, DESIGN_PHILOSOPHIES \u00a78).",
+          "default": false
+        },
+        "model": {
+          "type": "string",
+          "description": "The embedding model name requested from the endpoint.",
+          "default": "text-embedding-bge-m3"
+        },
+        "norm_tolerance": {
+          "type": "number",
+          "description": "Allowed deviation from unit norm.",
+          "default": 0.05
+        },
+        "require_unit_norm": {
+          "type": "boolean",
+          "description": "Reject vectors whose norm is not 1 within embed.norm_tolerance.",
+          "default": true
+        },
+        "search_deadline_s": {
+          "type": "number",
+          "description": "Seconds a search waits for its query embedding; 0 disables the limit.",
+          "default": 8.0
+        },
+        "space_tag": {
+          "type": "string",
+          "description": "The vector space rows are tagged with; decides search compatibility. Default: embed.model."
+        },
+        "token_budget": {
+          "type": "integer",
+          "description": "Tokens per chunk.",
+          "default": 7000
+        },
+        "token_overlap": {
+          "type": "integer",
+          "description": "Token overlap between chunks.",
+          "default": 2000
+        },
+        "url": {
+          "type": "string",
+          "description": "Embedding endpoint override; unset uses the configured endpoints."
+        },
+        "breaker": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "cloud_reset_s": {
+              "type": "number",
+              "description": "Seconds the cloud tier's breaker stays open.",
+              "default": 60.0
+            },
+            "cloud_threshold": {
+              "type": "integer",
+              "description": "Consecutive failures that open the cloud tier's breaker.",
+              "default": 3
+            },
+            "cpu_fallback_reset_s": {
+              "type": "number",
+              "description": "Seconds the cpu_fallback tier's breaker stays open.",
+              "default": 30.0
+            },
+            "cpu_fallback_threshold": {
+              "type": "integer",
+              "description": "Consecutive failures that open the cpu_fallback tier's breaker.",
+              "default": 3
+            },
+            "embedded_reset_s": {
+              "type": "number",
+              "description": "Seconds the embedded tier's breaker stays open.",
+              "default": 30.0
+            },
+            "embedded_threshold": {
+              "type": "integer",
+              "description": "Consecutive failures that open the embedded tier's breaker.",
+              "default": 5
+            },
+            "primary_reset_s": {
+              "type": "number",
+              "description": "Seconds the primary tier's breaker stays open.",
+              "default": 60.0
+            },
+            "primary_threshold": {
+              "type": "integer",
+              "description": "Consecutive failures that open the primary tier's breaker.",
+              "default": 3
+            }
+          }
+        },
+        "gpu": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "host": {
+              "type": "string",
+              "description": "Address the GPU embed proxy binds.",
+              "default": "127.0.0.1"
+            },
+            "llama_port": {
+              "type": "integer",
+              "description": "llama-server's port.",
+              "default": 9904
+            },
+            "llama_server_exe": {
+              "type": "string",
+              "description": "llama-server executable. Unset: ~/llama.cpp/bin/llama-server.exe."
+            },
+            "model_path": {
+              "type": "string",
+              "description": "GGUF file llama-server loads. Unset: models/qwen3-q8.gguf under the CURRENT directory (a working-directory-dependent default; 2D fixes it)."
+            }
+          }
+        },
+        "http": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "keepalive_expiry_s": {
+              "type": "number",
+              "description": "Seconds an idle kept-alive connection lives.",
+              "default": 5.0
+            },
+            "max_connections": {
+              "type": "integer",
+              "description": "HTTP connection pool size.",
+              "default": 32
+            },
+            "max_keepalive": {
+              "type": "integer",
+              "description": "Kept-alive HTTP connections.",
+              "default": 16
+            }
+          }
+        },
+        "server": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "bin": {
+              "type": "string",
+              "description": "The m3-embed-server binary; unset uses the wheel's, then PATH."
+            },
+            "concurrency": {
+              "type": "integer",
+              "description": "Concurrent requests; 0 uses the backend's stream pool.",
+              "default": 0
+            },
+            "host": {
+              "type": "string",
+              "description": "Address the shared embed server binds (also read by the Rust server).",
+              "default": "127.0.0.1"
+            },
+            "interactive_max_texts": {
+              "type": "integer",
+              "description": "Largest request still treated as interactive.",
+              "default": 8
+            },
+            "interactive_reserved": {
+              "type": "integer",
+              "description": "Slots reserved for interactive (search) requests.",
+              "default": 1
+            },
+            "max_batch": {
+              "type": "integer",
+              "description": "Texts per server batch.",
+              "default": 2048
+            },
+            "port": {
+              "type": "integer",
+              "description": "Port of the shared embed server (also read by the Rust server).",
+              "default": 8082
             }
           }
         }

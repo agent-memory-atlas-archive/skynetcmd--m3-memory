@@ -6,6 +6,13 @@ The file is `m3_config.toml` in the config root (`--config <file>` > `M3_CONFIG_
 
 Precedence for each setting: the environment, for the keys marked *env override* only; then this file; then, until release N+3, the setting's legacy environment names; then the default. `m3 config show --origin` prints where each value came from.
 
+## [chatlog.embed]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `deadline_s` | number | `60.0` | `M3_CHATLOG_EMBED_DEADLINE_S`, `CHATLOG_EMBED_DEADLINE_S` | restart to apply; Seconds one sweeper run may take; 0 or less is unbounded. |
+| `max_per_run` | integer | `10000` | `M3_CHATLOG_EMBED_MAX_PER_RUN`, `CHATLOG_EMBED_MAX_PER_RUN` | restart to apply; Rows one sweeper run embeds. |
+
 ## [db]
 
 | Key | Type | Default | Environment names | Notes |
@@ -25,6 +32,78 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `pool_max` | integer | `16` | `M3_PG_POOL_MAX` | restart to apply; Maximum connections in the PostgreSQL pool (at least pool_min). |
 | `pool_min` | integer | `1` | `M3_PG_POOL_MIN` | restart to apply; Minimum connections in the PostgreSQL pool. |
 | `upsert_page_size` | integer | `500` | `M3_PG_UPSERT_PAGE_SIZE` | Rows per bulk upsert page; lower it over a slow link (U4 D: a deliberate tuning knob). |
+
+## [embed]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `autodetect` | boolean | `true` | `M3_EMBED_GGUF_AUTODETECT` | restart to apply; Search the disk for a bge-m3 GGUF when embed.gguf is unset. |
+| `autodetect_budget_s` | number | `2.0` | `M3_EMBED_GGUF_WALK_BUDGET` | restart to apply; Seconds the GGUF discovery walk may take. |
+| `bulk_chunk` | integer | `1024` | `M3_EMBED_BULK_CHUNK`, `EMBED_BULK_CHUNK` | restart to apply; Texts per bulk embedding request. |
+| `bulk_concurrency` | integer | `4` | `M3_EMBED_BULK_CONCURRENCY`, `EMBED_BULK_CONCURRENCY` | restart to apply; Concurrent bulk embedding requests. |
+| `chunk_max_chars` | integer | `28000` | `M3_EMBED_CHUNK_MAX_CHARS` | restart to apply; Characters per chunk. |
+| `chunk_overlap_chars` | integer | `8000` | `M3_EMBED_CHUNK_OVERLAP_CHARS` | restart to apply; Character overlap between chunks. |
+| `compatible_models` | list of strings | `[]` | `M3_EMBED_COMPATIBLE_MODELS` | restart to apply; Other model tags whose vectors share this space. |
+| `ctx` | integer | `8192` | `M3_EMBED_CTX` | restart to apply; Context length in tokens (also read by the Rust core; CONFIG_DESIGN §6). |
+| `dim` | integer | `1024` | `M3_EMBED_DIM`, `EMBED_DIM` | restart to apply; Embedding dimension. |
+| `discovery_negative_ttl_s` | number | `60.0` | `M3_EMBED_DISCOVERY_NEG_TTL` | restart to apply; Seconds an endpoint that failed discovery is skipped. |
+| `entity_name_cache_max` | integer | `50000` | `M3_ENTITY_NAME_EMBED_CACHE_MAX`, `ENTITY_NAME_EMBED_CACHE_MAX` | restart to apply; Entity-name embeddings kept in memory. |
+| `fallback_model_tag` | string | (none) | `M3_EMBED_FALLBACK_MODEL_TAG` | restart to apply; Tag of vectors from the fallback endpoint. Default: embed.model. |
+| `fallback_url` | string | `http://127.0.0.1:8082` | `M3_EMBED_FALLBACK_URL` | restart to apply; The fallback embedding endpoint (the shared embed server). |
+| `gguf` | path | (none) | `M3_EMBED_GGUF` | restart to apply; The GGUF weights file. Unset: m3's models root, the bundled asset, then discovery (embed.autodetect). Not an env override (user decision, m3 a24fa878). |
+| `gguf_model_tag` | string | (none) | `M3_EMBED_GGUF_MODEL_TAG` | restart to apply; Tag of vectors from the in-process GGUF embedder. Default: embed.space_tag. |
+| `init_timeout_s` | number | `20.0` | `M3_EMBED_INIT_TIMEOUT_S` | restart to apply; Seconds to wait for the in-process embedder to load; 0 disables the limit. |
+| `inproc` | boolean | `false` | `M3_EMBED_INPROC` | restart to apply; Allow the in-process tier-1 embedder (opt-in, DESIGN_PHILOSOPHIES §8). |
+| `model` | string | `text-embedding-bge-m3` | `M3_EMBED_MODEL`, `EMBED_MODEL` | restart to apply; The embedding model name requested from the endpoint. |
+| `norm_tolerance` | number | `0.05` | `M3_EMBED_NORM_TOL` | restart to apply; Allowed deviation from unit norm. |
+| `require_unit_norm` | boolean | `true` | `M3_EMBED_REQUIRE_UNIT_NORM` | restart to apply; Reject vectors whose norm is not 1 within embed.norm_tolerance. |
+| `search_deadline_s` | number | `8.0` | `M3_EMBED_SEARCH_DEADLINE_S` | restart to apply; Seconds a search waits for its query embedding; 0 disables the limit. |
+| `space_tag` | string | (none) | `M3_EMBED_SPACE_TAG` | restart to apply; The vector space rows are tagged with; decides search compatibility. Default: embed.model. |
+| `token_budget` | integer | `7000` | `M3_EMBED_TOKEN_BUDGET` | restart to apply; Tokens per chunk. |
+| `token_overlap` | integer | `2000` | `M3_EMBED_TOKEN_OVERLAP` | restart to apply; Token overlap between chunks. |
+| `url` | string | (none) | `M3_EMBED_URL` | restart to apply; Embedding endpoint override; unset uses the configured endpoints. |
+
+## [embed.breaker]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `cloud_reset_s` | number | `60.0` | `M3_EMBED_BREAKER_CLOUD_RESET_SECS` | restart to apply; Seconds the cloud tier's breaker stays open. |
+| `cloud_threshold` | integer | `3` | `M3_EMBED_BREAKER_CLOUD_THRESHOLD` | restart to apply; Consecutive failures that open the cloud tier's breaker. |
+| `cpu_fallback_reset_s` | number | `30.0` | `M3_EMBED_BREAKER_CPU_FALLBACK_RESET_SECS` | restart to apply; Seconds the cpu_fallback tier's breaker stays open. |
+| `cpu_fallback_threshold` | integer | `3` | `M3_EMBED_BREAKER_CPU_FALLBACK_THRESHOLD` | restart to apply; Consecutive failures that open the cpu_fallback tier's breaker. |
+| `embedded_reset_s` | number | `30.0` | `M3_EMBED_BREAKER_EMBEDDED_RESET_SECS` | restart to apply; Seconds the embedded tier's breaker stays open. |
+| `embedded_threshold` | integer | `5` | `M3_EMBED_BREAKER_EMBEDDED_THRESHOLD` | restart to apply; Consecutive failures that open the embedded tier's breaker. |
+| `primary_reset_s` | number | `60.0` | `M3_EMBED_BREAKER_PRIMARY_RESET_SECS` | restart to apply; Seconds the primary tier's breaker stays open. |
+| `primary_threshold` | integer | `3` | `M3_EMBED_BREAKER_PRIMARY_THRESHOLD` | restart to apply; Consecutive failures that open the primary tier's breaker. |
+
+## [embed.gpu]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `host` | string | `127.0.0.1` | `M3_EMBED_SERVER_GPU_HOST`, `EMBED_SERVER_GPU_HOST` | restart to apply; Address the GPU embed proxy binds. |
+| `llama_port` | integer | `9904` | `M3_LLAMA_PORT`, `LLAMA_PORT` | restart to apply; llama-server's port. |
+| `llama_server_exe` | path | (none) | `M3_LLAMA_SERVER_EXE`, `LLAMA_SERVER_EXE` | restart to apply; llama-server executable. Unset: ~/llama.cpp/bin/llama-server.exe. |
+| `model_path` | path | (none) | `M3_GGUF_MODEL_PATH`, `GGUF_MODEL_PATH` | restart to apply; GGUF file llama-server loads. Unset: models/qwen3-q8.gguf under the CURRENT directory (a working-directory-dependent default; 2D fixes it). |
+
+## [embed.http]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `keepalive_expiry_s` | number | `5.0` | `M3_EMBED_HTTP_KEEPALIVE_EXPIRY` | restart to apply; Seconds an idle kept-alive connection lives. |
+| `max_connections` | integer | `32` | `M3_EMBED_HTTP_MAX_CONNS` | restart to apply; HTTP connection pool size. |
+| `max_keepalive` | integer | `16` | `M3_EMBED_HTTP_MAX_KEEPALIVE` | restart to apply; Kept-alive HTTP connections. |
+
+## [embed.server]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `bin` | path | (none) | `M3_EMBED_SERVER_BIN` | restart to apply; The m3-embed-server binary; unset uses the wheel's, then PATH. |
+| `concurrency` | integer | `0` | `M3_EMBED_SERVER_CONCURRENCY` | restart to apply; Concurrent requests; 0 uses the backend's stream pool. |
+| `host` | string | `127.0.0.1` | `M3_EMBED_SERVER_HOST`, `EMBED_SERVER_HOST` | restart to apply; Address the shared embed server binds (also read by the Rust server). |
+| `interactive_max_texts` | integer | `8` | `M3_EMBED_INTERACTIVE_MAX_TEXTS` | restart to apply; Largest request still treated as interactive. |
+| `interactive_reserved` | integer | `1` | `M3_EMBED_SERVER_INTERACTIVE_RESERVED` | restart to apply; Slots reserved for interactive (search) requests. |
+| `max_batch` | integer | `2048` | `M3_EMBED_SERVER_MAX_BATCH` | restart to apply; Texts per server batch. |
+| `port` | integer | `8082` | `M3_EMBED_SERVER_PORT` | restart to apply; Port of the shared embed server (also read by the Rust server). |
 
 ## [paths]
 

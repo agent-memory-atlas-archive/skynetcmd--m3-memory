@@ -14,11 +14,14 @@ chain (``m3_core.secret_store``) touches the keyring, so they resolve on demand.
 """
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
 
 from .loader import LoadedFile, show_key
 from .registry import ConfigValue, ConfigValueError, Key, KeyClass, Registry
+
+logger = logging.getLogger(__name__)
 
 ORIGIN_DEFAULT = "default"
 
@@ -57,6 +60,26 @@ def _from_env(key: Key, name: str, raw: str) -> ConfigValue:
         raise err from None
 
 
+_LEGACY_NOTED: set[tuple[str, str]] = set()
+
+
+def _note_legacy_difference(key: Key, name: str, raw: str, value: ConfigValue) -> None:
+    """§2 (#P11): where today's reader parsed a value differently (``== "1"``,
+    ``!= "0"``), the canonical reading wins and the difference is logged ONCE per
+    (name, value), so the user sees exactly which env value changed meaning."""
+    if key.legacy_parse is None or (name, raw) in _LEGACY_NOTED:
+        return
+    try:
+        old = key.legacy_parse(raw)
+    except Exception:  # noqa: BLE001 -- the legacy reader would have failed too
+        return
+    if old != value:
+        _LEGACY_NOTED.add((name, raw))
+        logger.warning("m3 config: %s=%r now reads as %r for %s (it read as %r before release N; "
+                       "set it in m3_config.toml or use true/false)", name, raw, value,
+                       show_key(key.name), old)
+
+
 def resolve_key(key: Key, loaded: LoadedFile, environ: Mapping[str, str]) -> Resolved:
     if key.klass is not KeyClass.CONFIG:
         raise ValueError(f"{key.name} is a {key.klass}; resolve secrets with m3_core.secret_store")
@@ -68,7 +91,9 @@ def resolve_key(key: Key, loaded: LoadedFile, environ: Mapping[str, str]) -> Res
         return Resolved(value=loaded.values[key.name],
                         origin=f"file:{loaded.location.file} {show_key(key.name)}", shadowed=shadowed)
     if hit is not None:
-        return Resolved(value=_from_env(key, *hit), origin=f"env-legacy:{hit[0]}")
+        value = _from_env(key, *hit)
+        _note_legacy_difference(key, *hit, value)
+        return Resolved(value=value, origin=f"env-legacy:{hit[0]}")
     # A list default is copied: the registry's own object must never be shared
     # with a caller that might mutate it.
     default = list(key.default) if isinstance(key.default, list) else key.default
