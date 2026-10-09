@@ -113,7 +113,40 @@ def read_secrets() -> dict[str, str]:
         raise SecretsFileError(
             f"{p}: [secrets] entries must be NAME = \"string\"; not a string: {', '.join(bad)}"
         )
+    _check_names(p, table)
     return dict(table)
+
+
+def _known_secret_names() -> set[str]:
+    """Registry secrets with their env aliases, plus the names DSNs are stored under."""
+    from m3_core.config import REGISTRY, KeyClass
+
+    known = {n for k in REGISTRY if k.klass is KeyClass.SECRET for n in (k.name, *k.env_names)}
+    return known | {n for keys in _STORE_KEYS.values() for n in keys}
+
+
+def _check_names(p: Path, table: dict) -> None:
+    """CONFIG_DESIGN §10: an unknown name is an error naming the file and key,
+    never the value. A name an installed SLM profile declares as its
+    api_key_service is known too (user decision 2026-10-09), so a profile for a
+    new provider works without a code change."""
+    unknown = sorted(set(table) - _known_secret_names())
+    if not unknown:
+        return
+    unreadable: list[str] = []
+    try:
+        from slm_intent import profile_secret_names
+
+        declared, unreadable = profile_secret_names()
+    except ImportError as e:
+        declared, unreadable = set(), [f"profiles not readable ({e})"]
+    unknown = [n for n in unknown if n not in declared]
+    if not unknown:
+        return
+    note = f"; SLM profiles that could not be read: {'; '.join(unreadable)}" if unreadable else ""
+    raise SecretsFileError(
+        f"{p}: unknown secret name(s): {', '.join(unknown)}. A name must be an m3 secret or the "
+        f"api_key_service of an installed SLM profile{note}. Fix the name, or remove the line.")
 
 
 def get_secret(name: str) -> str | None:
@@ -337,6 +370,7 @@ def set_secret(name: str, value: str) -> Path:
     from m3_core.locking import file_lock
 
     p = secrets_file_path()
+    _check_names(p, {name: value})  # refuse before writing a file that could not be read back
     with file_lock(str(p) + ".lock", purpose="secrets file"):
         table = read_secrets()  # an existing file is checked here
         if sys.platform == "win32" and not p.exists():

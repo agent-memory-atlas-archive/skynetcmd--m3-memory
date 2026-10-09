@@ -100,8 +100,8 @@ def test_a_configured_secrets_file_is_used(monkeypatch, tmp_path):
     target.parent.mkdir()
     _cfg(monkeypatch).write_text(f'[secrets]\nfile = "{target.as_posix()}"\n', encoding="utf-8")
     assert secrets_file_path() == target
-    set_secret("X", "1")
-    assert target.is_file() and get_secret("X") == "1"
+    set_secret("M3_SERVE_TOKEN", "1")
+    assert target.is_file() and get_secret("M3_SERVE_TOKEN") == "1"
 
 
 def test_a_relative_secrets_file_is_relative_to_the_config_root(monkeypatch):

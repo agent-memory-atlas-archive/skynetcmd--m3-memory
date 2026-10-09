@@ -15,9 +15,9 @@ def test_round_trip_including_awkward_values():
 
     tricky = 'postgresql://u:p"a\\ss\nw@h/db'
     secrets.set_secret("M3_PRIMARY_PG_URL", tricky)
-    secrets.set_secret("OTHER", "x")
+    secrets.set_secret("M3_SERVE_TOKEN", "x")
     assert secrets.get_secret("M3_PRIMARY_PG_URL") == tricky
-    assert secrets.read_secrets() == {"M3_PRIMARY_PG_URL": tricky, "OTHER": "x"}
+    assert secrets.read_secrets() == {"M3_PRIMARY_PG_URL": tricky, "M3_SERVE_TOKEN": "x"}
 
 
 def test_no_file_is_empty_not_an_error():
@@ -63,8 +63,65 @@ def test_bad_names_are_refused():
 def test_new_file_is_user_only_and_a_loose_one_is_refused():
     from m3_core import secret_store as secrets
 
-    p = secrets.set_secret("X", "1")
+    p = secrets.set_secret("M3_SERVE_TOKEN", "1")
     assert stat.S_IMODE(os.stat(p).st_mode) == 0o600
     os.chmod(p, 0o640)
     with pytest.raises(secrets.SecretsFileError, match="chmod 600"):
         secrets.read_secrets()
+
+
+# ── names (CONFIG_DESIGN §10; user decision 2026-10-09) ──────────────────────
+def _plant(secrets, text):
+    p = secrets.secrets_file_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(text, encoding="utf-8")
+    if sys.platform != "win32":
+        p.chmod(0o600)
+    return p
+
+
+def test_an_unknown_name_is_refused_without_its_value(monkeypatch):
+    from m3_core import secret_store as secrets
+
+    monkeypatch.setattr("slm_intent.profile_secret_names", lambda: (set(), []))
+    _plant(secrets, '[secrets]\nM3_SERVE_TOKN = "s3cret-typo"\n')
+    with pytest.raises(secrets.SecretsFileError) as exc:
+        secrets.read_secrets()
+    assert "unknown secret name(s): M3_SERVE_TOKN" in str(exc.value)
+    assert "s3cret-typo" not in str(exc.value)
+
+
+def test_an_unknown_name_is_refused_before_anything_is_written(monkeypatch):
+    from m3_core import secret_store as secrets
+
+    monkeypatch.setattr("slm_intent.profile_secret_names", lambda: (set(), []))
+    with pytest.raises(secrets.SecretsFileError, match="unknown secret name"):
+        secrets.set_secret("NOT_A_SECRET_NAME", "v")
+    assert not secrets.secrets_file_path().exists()
+
+
+def test_a_profile_declared_name_is_accepted(monkeypatch):
+    """A profile for a new provider works without a code change."""
+    from m3_core import secret_store as secrets
+
+    monkeypatch.setattr("slm_intent.profile_secret_names", lambda: ({"MISTRAL_API_KEY"}, []))
+    secrets.set_secret("MISTRAL_API_KEY", "k")
+    assert secrets.get_secret("MISTRAL_API_KEY") == "k"
+
+
+def test_an_unreadable_profile_is_named_in_the_error(monkeypatch):
+    from m3_core import secret_store as secrets
+
+    monkeypatch.setattr("slm_intent.profile_secret_names", lambda: (set(), ["broken (ValueError: x)"]))
+    _plant(secrets, '[secrets]\nMISTRAL_API_KEY = "k"\n')
+    with pytest.raises(secrets.SecretsFileError, match="could not be read: broken"):
+        secrets.read_secrets()
+
+
+def test_the_shipped_profiles_declare_only_known_or_listed_names():
+    """Every api_key_service a shipped profile names resolves through the chain."""
+    from slm_intent import profile_secret_names
+
+    names, unreadable = profile_secret_names()
+    assert not unreadable, unreadable
+    assert {"LM_API_TOKEN", "XAI_API_KEY"} <= names

@@ -64,8 +64,8 @@ def test_a_private_directory_works_and_the_file_reads_back(monkeypatch, tmp_path
     from m3_core import secret_store
 
     monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path))
-    secret_store.set_secret("X", "1")
-    assert secret_store.get_secret("X") == "1"
+    secret_store.set_secret("M3_SERVE_TOKEN", "1")
+    assert secret_store.get_secret("M3_SERVE_TOKEN") == "1"
 
 
 @windows_only
@@ -73,7 +73,7 @@ def test_a_file_others_can_open_is_refused_on_read(monkeypatch, tmp_path):
     from m3_core import secret_store
 
     monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path))
-    p = secret_store.set_secret("X", "1")
+    p = secret_store.set_secret("M3_SERVE_TOKEN", "1")
     _grant_users_read(p)
     with pytest.raises(secret_store.SecretsFileError, match=r"Users.*icacls"):
         secret_store.read_secrets()

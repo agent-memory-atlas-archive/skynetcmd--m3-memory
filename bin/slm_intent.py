@@ -672,6 +672,24 @@ async def classify_intent(
 
 
 # ── Diagnostics ───────────────────────────────────────────────────────────────
+def profile_secret_names() -> tuple[set[str], list[str]]:
+    """Secret names the installed profiles declare as ``api_key_service``, and
+    the profiles that could not be read (named, so a broken profile is never
+    taken for one that declares nothing). The secrets file accepts these names
+    beside the registry's (user decision 2026-10-09)."""
+    names: set[str] = set()
+    unreadable: list[str] = []
+    for name in list_profiles():
+        try:
+            prof = load_profile(name)
+        except (ValueError, OSError, yaml.YAMLError) as e:
+            unreadable.append(f"{name} ({type(e).__name__}: {e})")
+            continue
+        if prof is not None and prof.api_key_service:
+            names.add(prof.api_key_service)
+    return names, unreadable
+
+
 def list_profiles() -> dict[str, Path | None]:
     """Return a {name: path-or-None} map of profiles discoverable on this host.
 

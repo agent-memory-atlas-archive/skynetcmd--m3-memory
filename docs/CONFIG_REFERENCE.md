@@ -505,5 +505,7 @@ Secrets are never read from this file. Each resolves from the environment, then 
 | `M3_CLOUD_AUTH_TOKEN` | `M3_CLOUD_AUTH_TOKEN` | no | Bearer token for the tier-4 cloud embedder. |
 | `M3_PRIMARY_PG_URL` | `M3_PRIMARY_PG_URL`, `M3_PG_URL` | yes | DSN of a PostgreSQL primary store. |
 | `M3_SERVE_TOKEN` | `M3_SERVE_TOKEN` | no | Bearer token `m3 serve` requires. |
+| `MCP_PROXY_KEY` | `MCP_PROXY_KEY` | no | Shared token the MCP proxy requires; unset runs it without auth (warned). |
 | `OPENAI_API_KEY` | `OPENAI_API_KEY` | no | OpenAI API key. |
 | `OPENCLAW_GATEWAY_TOKEN` | `OPENCLAW_GATEWAY_TOKEN` | no | OpenClaw gateway token. |
+| `XAI_API_KEY` | `XAI_API_KEY` | no | xAI API key (the connect_xai_grok profile). |
