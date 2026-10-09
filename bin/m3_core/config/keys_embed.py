@@ -15,8 +15,8 @@ _NONNEG = in_range(lo=0)
 
 
 def _int(name: str, env: tuple[str, ...], default: int, doc: str, *, lo: int = 1,
-         reloadable: bool = False) -> Key[int]:
-    return Key[int](name=name, parse=parse_int, default=default, validate=in_range(lo=lo),
+         hi: int | None = None, reloadable: bool = False) -> Key[int]:
+    return Key[int](name=name, parse=parse_int, default=default, validate=in_range(lo=lo, hi=hi),
                     env_names=env, reloadable=reloadable, doc=doc)
 
 
@@ -79,7 +79,7 @@ EMBED: list[Key] = [
     _float("embed.norm_tolerance", ("M3_EMBED_NORM_TOL",), 0.05, "Allowed deviation from unit norm."),
     # ── sizing ──
     _int("embed.ctx", ("M3_EMBED_CTX",), 8192,
-         "Context length in tokens (also read by the Rust core; CONFIG_DESIGN §6)."),
+         "Context length in tokens (also read by the Rust core, as a u32; CONFIG_DESIGN §6).", hi=2**32 - 1),
     _int("embed.token_budget", ("M3_EMBED_TOKEN_BUDGET",), 7000, "Tokens per chunk."),
     _int("embed.token_overlap", ("M3_EMBED_TOKEN_OVERLAP",), 2000, "Token overlap between chunks.", lo=0),
     _int("embed.chunk_max_chars", ("M3_EMBED_CHUNK_MAX_CHARS",), 28000, "Characters per chunk."),
@@ -109,7 +109,7 @@ EMBED: list[Key] = [
     _str("embed.server.host", ("M3_EMBED_SERVER_HOST", "EMBED_SERVER_HOST"), "127.0.0.1",
          "Address the shared embed server binds (also read by the Rust server)."),
     _int("embed.server.port", ("M3_EMBED_SERVER_PORT",), 8082,
-         "Port of the shared embed server (also read by the Rust server)."),
+         "Port of the shared embed server (also read by the Rust server, as a u16).", hi=65535),
     Key(name="embed.server.bin", parse=parse_path, default=None, env_names=("M3_EMBED_SERVER_BIN",),
         reloadable=False, doc="The m3-embed-server binary; unset uses the wheel's, then PATH."),
     _int("embed.server.max_batch", ("M3_EMBED_SERVER_MAX_BATCH",), 2048, "Texts per server batch."),

@@ -113,7 +113,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `chunk_max_chars` | integer | `28000` | `M3_EMBED_CHUNK_MAX_CHARS` | restart to apply; Characters per chunk. |
 | `chunk_overlap_chars` | integer | `8000` | `M3_EMBED_CHUNK_OVERLAP_CHARS` | restart to apply; Character overlap between chunks. |
 | `compatible_models` | list of strings | `[]` | `M3_EMBED_COMPATIBLE_MODELS` | restart to apply; Other model tags whose vectors share this space. |
-| `ctx` | integer | `8192` | `M3_EMBED_CTX` | restart to apply; Context length in tokens (also read by the Rust core; CONFIG_DESIGN §6). |
+| `ctx` | integer | `8192` | `M3_EMBED_CTX` | restart to apply; Context length in tokens (also read by the Rust core, as a u32; CONFIG_DESIGN §6). |
 | `dim` | integer | `1024` | `M3_EMBED_DIM`, `EMBED_DIM` | restart to apply; Embedding dimension. |
 | `discovery_negative_ttl_s` | number | `60.0` | `M3_EMBED_DISCOVERY_NEG_TTL` | restart to apply; Seconds an endpoint that failed discovery is skipped. |
 | `entity_name_cache_max` | integer | `50000` | `M3_ENTITY_NAME_EMBED_CACHE_MAX`, `ENTITY_NAME_EMBED_CACHE_MAX` | restart to apply; Entity-name embeddings kept in memory. |
@@ -172,7 +172,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `interactive_max_texts` | integer | `8` | `M3_EMBED_INTERACTIVE_MAX_TEXTS` | restart to apply; Largest request still treated as interactive. |
 | `interactive_reserved` | integer | `1` | `M3_EMBED_SERVER_INTERACTIVE_RESERVED` | restart to apply; Slots reserved for interactive (search) requests. |
 | `max_batch` | integer | `2048` | `M3_EMBED_SERVER_MAX_BATCH` | restart to apply; Texts per server batch. |
-| `port` | integer | `8082` | `M3_EMBED_SERVER_PORT` | restart to apply; Port of the shared embed server (also read by the Rust server). |
+| `port` | integer | `8082` | `M3_EMBED_SERVER_PORT` | restart to apply; Port of the shared embed server (also read by the Rust server, as a u16). |
 
 ## [enrich]
 

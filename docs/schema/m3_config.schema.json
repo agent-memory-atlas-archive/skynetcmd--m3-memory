@@ -314,7 +314,7 @@
         },
         "ctx": {
           "type": "integer",
-          "description": "Context length in tokens (also read by the Rust core; CONFIG_DESIGN \u00a76).",
+          "description": "Context length in tokens (also read by the Rust core, as a u32; CONFIG_DESIGN \u00a76).",
           "default": 8192
         },
         "dim": {
@@ -523,7 +523,7 @@
             },
             "port": {
               "type": "integer",
-              "description": "Port of the shared embed server (also read by the Rust server).",
+              "description": "Port of the shared embed server (also read by the Rust server, as a u16).",
               "default": 8082
             }
           }

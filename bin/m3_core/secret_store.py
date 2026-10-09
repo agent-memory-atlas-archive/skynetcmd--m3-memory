@@ -22,7 +22,6 @@ file -> vault (the vault never for a bootstrap secret, CONFIG_DESIGN §10).
 """
 from __future__ import annotations
 
-import json
 import logging
 import os
 import re
@@ -154,11 +153,10 @@ def get_secret(name: str) -> str | None:
 
 
 def _render(table: dict[str, str]) -> str:
-    # JSON string escapes (\" \\ \n \uXXXX ...) are all valid TOML basic-string
-    # escapes, so json.dumps renders a correct TOML string for any value.
-    lines = ["# m3 secrets: user-only (0600). Managed by m3; values are plaintext.", "[secrets]"]
-    lines += [f"{k} = {json.dumps(v)}" for k, v in sorted(table.items())]
-    return "\n".join(lines) + "\n"
+    from m3_core.config.toml_render import render_table
+
+    return render_table("secrets", table,
+                        header="m3 secrets: user-only (0600). Managed by m3; values are plaintext.")
 
 
 # ── PostgreSQL DSNs: the one owner (plan 2B.1, review S5) ─────────────────────

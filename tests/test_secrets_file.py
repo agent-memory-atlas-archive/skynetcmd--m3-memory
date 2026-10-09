@@ -125,3 +125,16 @@ def test_the_shipped_profiles_declare_only_known_or_listed_names():
     names, unreadable = profile_secret_names()
     assert not unreadable, unreadable
     assert {"LM_API_TOKEN", "XAI_API_KEY"} <= names
+
+
+@posix_only
+def test_a_file_another_user_owns_is_refused(monkeypatch):
+    """Planted foreign owner (plan 2C.1): the loader refuses, naming both uids."""
+    from m3_core import secret_store as secrets
+
+    p = secrets.set_secret("M3_SERVE_TOKEN", "1")
+    real = os.getuid()
+    monkeypatch.setattr(secrets.os, "getuid", lambda: real + 1)
+    with pytest.raises(secrets.SecretsFileError, match=rf"owned by uid {real}, not you \({real + 1}\)"):
+        secrets.read_secrets()
+    assert str(p) in str(secrets.secrets_file_path())
