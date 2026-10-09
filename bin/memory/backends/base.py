@@ -48,7 +48,7 @@ if TYPE_CHECKING:
 # The set of backend identities Phase 0 knows about. "postgres" is declared here
 # so the selector and config can name it, but no implementation ships until a
 # later phase — `active_backend()` raises a clear error if it is selected now.
-BackendName = Literal["sqlite", "postgres"]
+type BackendName = Literal["sqlite", "postgres"]
 
 
 @dataclass(frozen=True, slots=True)

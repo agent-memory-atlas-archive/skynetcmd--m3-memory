@@ -29,7 +29,7 @@ from .base import BackendName
 
 _BARE_DATE_RE = _re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
-ParamStyle = Literal["qmark", "format"]  # sqlite '?'  vs  psycopg '%s'
+type ParamStyle = Literal["qmark", "format"]  # sqlite '?'  vs  psycopg '%s'
 
 
 @dataclass(frozen=True, slots=True)

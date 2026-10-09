@@ -115,23 +115,23 @@ class Counters:
 #   (memory_id, content, title, metadata_json_or_None).
 # When after_id is None, returns the first batch sorted by id ASC.
 # When limit is reached or no more candidates remain, returns [].
-FetchFn = Callable[[str | None, int], list[tuple[str, str, str, str | None]]]
+type FetchFn = Callable[[str | None, int], list[tuple[str, str, str, str | None]]]
 
 # write_embedding(memory_id, vec, model_str, content_hash) -> True if a row
 # was newly written, False if INSERT OR IGNORE skipped (race with another
 # writer) or any other reason it didn't land. Counters use this to track
 # real progress.
-WriteFn = Callable[[str, list[float], str, str], bool]
+type WriteFn = Callable[[str, list[float], str, str], bool]
 
 # transform_text(content, metadata_json_or_None) -> str. Lets each caller
 # inject pre-embed text augmentation (e.g. _augment_embed_text_with_anchors
 # for the general backfill, identity for chatlog).
-TransformFn = Callable[[str, str | None], str]
+type TransformFn = Callable[[str, str | None], str]
 
 # log(message) — caller's logging hook. Helper writes status lines through
 # this so the chatlog tool (logger.info) and the general tool (custom
 # stdout writer) keep their own conventions.
-LogFn = Callable[[str], None]
+type LogFn = Callable[[str], None]
 
 
 # Token budgeting comes from the shared seam so the sweep, the chunker and the
