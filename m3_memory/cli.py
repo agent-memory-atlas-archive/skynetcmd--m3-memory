@@ -669,18 +669,19 @@ def _cmd_schedules(args: argparse.Namespace) -> int:
         return 1
     sub = getattr(args, "schedules_cmd", None) or "verify"
     name = getattr(args, "name", None)
-    if sub == "verify":
-        argv = ["--verify", name] if name else ["--verify"]
-    elif sub == "repair":
-        argv = ["--repair"]
-    elif sub == "list":
-        argv = ["--list"]
-    elif sub == "add":
-        argv = ["--add", name or "all"]
-    elif sub == "remove":
-        argv = ["--remove", name or "all"]
-    else:
-        argv = ["--verify"]
+    match sub:
+        case 'verify':
+            argv = ["--verify", name] if name else ["--verify"]
+        case 'repair':
+            argv = ["--repair"]
+        case 'list':
+            argv = ["--list"]
+        case 'add':
+            argv = ["--add", name or "all"]
+        case 'remove':
+            argv = ["--remove", name or "all"]
+        case _:
+            argv = ["--verify"]
     port = getattr(args, "port", None)
     if port:
         argv += ["--port", str(port)]

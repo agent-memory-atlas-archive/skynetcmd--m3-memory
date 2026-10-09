@@ -1182,164 +1182,163 @@ def main() -> int:
     # The CLI dispatch below binds `r` to whatever the chosen *_impl returns;
     # some return a dict, others a list of dicts. Declare the union up front.
     r: dict | list
-    if args.cmd == "ingest":
-        r = files_ingest_impl(
-            path=args.path, include=args.include, exclude=args.exclude,
-            max_depth=args.max_depth, corpus=args.corpus,
-            dry_run=args.dry_run, force_size=args.force_size,
-            record_noops=args.record_noops,
-            extract_mode=args.extract_mode,
-            original_path=args.original_path,
-        )
-    elif args.cmd == "extract":
-        r = files_extract_pending_impl(limit=args.limit)
-    elif args.cmd == "promote":
-        r = files_promote_impl(
-            source_uuid=args.source_uuid, reason=args.reason,
-            mapped_type=args.mapped_type, scope=args.scope,
-            importance=args.importance,
-        )
-    elif args.cmd == "promotion-list":
-        r = files_promotion_list_impl(
-            source_file_node=args.source_file_node,
-            source_superseded=(True if args.source_superseded else None),
-            limit=args.limit,
-        )
-    elif args.cmd == "dedup":
-        r = files_dedup_impl(
-            threshold=args.threshold, max_pairs=args.max_pairs,
-            leaf_limit=args.leaf_limit, corpus=args.corpus,
-            include_already_detected=args.include_already_detected,
-        )
-    elif args.cmd == "dedup-list":
-        reviewed_arg: bool | None = False
-        if args.reviewed_all:
-            reviewed_arg = None
-        elif args.reviewed:
-            reviewed_arg = True
-        r = files_dedup_list_impl(
-            reviewed=reviewed_arg, limit=args.limit, min_cosine=args.min_cosine,
-        )
-    elif args.cmd == "dedup-review":
-        r = files_dedup_review_impl(
-            candidate_uuid=args.candidate_uuid, action=args.action, note=args.note,
-        )
-    elif args.cmd == "entity-coalesce":
-        r = files_entity_coalesce_impl(
-            max_pairs=args.max_pairs, dry_run=args.dry_run, corpus=args.corpus,
-        )
-    elif args.cmd == "entity-coalesce-list":
-        ec_reviewed: bool | None = False
-        if args.reviewed_all:
-            ec_reviewed = None
-        elif args.reviewed:
-            ec_reviewed = True
-        r = files_entity_coalesce_list_impl(
-            reviewed=ec_reviewed, limit=args.limit, min_cosine=args.min_cosine,
-        )
-    elif args.cmd == "entity-coalesce-review":
-        import json as _json
-        r = files_entity_coalesce_review_impl(
-            reviews=_json.loads(args.reviews), note=args.note,
-        )
-    elif args.cmd == "entity-coalesce-apply":
-        uuids = ([u.strip() for u in args.uuids.split(",") if u.strip()]
-                 if args.uuids else None)
-        r = files_entity_coalesce_apply_impl(
-            candidate_uuids=uuids, include_auto_merge=args.auto_merge,
-            resolution_run=args.run, dry_run=args.dry_run, confirm=args.confirm,
-        )
-    elif args.cmd == "entity-coalesce-unapply":
-        r = files_entity_coalesce_unapply_impl(cluster_id=args.cluster_id)
-    elif args.cmd == "promotable":
-        r = files_promotable_impl(
-            limit=args.limit, min_score=args.min_score, corpus=args.corpus,
-            include_already_promoted=args.include_promoted,
-        )
-    elif args.cmd == "staleness":
-        r = files_staleness_review_impl(
-            directory=args.directory, corpus=args.corpus,
-            rehash=(not args.no_rehash), limit=args.limit,
-        )
-    elif args.cmd == "link-rename":
-        r = files_link_rename_impl(
-            missing_file_node_uuid=args.file_node_uuid,
-            new_path=args.new_path,
-            expect_sha256=args.expect_sha256,
-        )
-    elif args.cmd == "search":
-        corpora_list = (
-            [c.strip() for c in args.corpora.split(",") if c.strip()]
-            if getattr(args, "corpora", None) else None
-        )
-        r = files_search_impl(
-            query=args.query, limit=args.limit, corpus=args.corpus,
-            corpora=corpora_list,
-            filetype=args.filetype, include_history=args.include_history,
-        )
-    elif args.cmd == "index":
-        corpora_list = (
-            [c.strip() for c in args.corpora.split(",") if c.strip()]
-            if getattr(args, "corpora", None) else None
-        )
-        r = files_index_impl(
-            corpus=args.corpus, corpora=corpora_list,
-            filetype=args.filetype,
-            directory=args.directory, filename_glob=args.filename_glob,
-            include_history=args.include_history, limit=args.limit,
-        )
-    elif args.cmd == "get":
-        r = files_get_impl(uuid=args.uuid)
-    elif args.cmd == "stats":
-        r = files_stats_impl(corpus=args.corpus)
-    elif args.cmd == "health":
-        r = files_health_impl(rebuild=args.rebuild)
-    elif args.cmd == "serve":
-        mcp = _build_standalone_server()
-        mcp.run()
-        return 0
-    elif args.cmd == "corpus-create":
-        r = files_corpus_create_impl(
-            corpus_id=args.corpus_id, description=args.description,
-            extract_mode=args.extract_mode, scope=args.scope,
-            default=args.default,
-        )
-    elif args.cmd == "corpus-list":
-        r = files_corpus_list_impl()
-    elif args.cmd == "corpus-get":
-        r = files_corpus_get_impl(corpus_id=args.corpus_id)
-    elif args.cmd == "corpus-set":
-        # --default and --no-default are mutually exclusive; treat both
-        # off as "don't touch the default flag".
-        default_arg: bool | None = None
-        if args.set_default and args.unset_default:
-            raise SystemExit("--default and --no-default are mutually exclusive")
-        if args.set_default:
-            default_arg = True
-        elif args.unset_default:
-            default_arg = False
-        r = files_corpus_set_impl(
-            corpus_id=args.corpus_id, description=args.description,
-            extract_mode=args.extract_mode, scope=args.scope,
-            default=default_arg, retention_days=args.retention_days,
-        )
-    elif args.cmd == "corpus-delete":
-        r = files_corpus_delete_impl(corpus_id=args.corpus_id, cascade=args.cascade)
-    elif args.cmd == "watch-once":
-        r = files_watch_once_impl(
-            directory=args.directory, corpus=args.corpus,
-            agent_id=args.agent_id, cooldown_seconds=args.cooldown_seconds,
-        )
-    elif args.cmd == "watch":
-        r = files_watch_loop_impl(
-            directory=args.directory, corpus=args.corpus,
-            interval_seconds=args.interval_seconds,
-            agent_id=args.agent_id, cooldown_seconds=args.cooldown_seconds,
-            max_cycles=args.max_cycles,
-        )
-    else:
-        p.print_help()
-        return 2
+    match args.cmd:
+        case 'ingest':
+            r = files_ingest_impl(
+                path=args.path, include=args.include, exclude=args.exclude,
+                max_depth=args.max_depth, corpus=args.corpus,
+                dry_run=args.dry_run, force_size=args.force_size,
+                record_noops=args.record_noops,
+                extract_mode=args.extract_mode,
+                original_path=args.original_path,
+            )
+        case 'extract':
+            r = files_extract_pending_impl(limit=args.limit)
+        case 'promote':
+            r = files_promote_impl(
+                source_uuid=args.source_uuid, reason=args.reason,
+                mapped_type=args.mapped_type, scope=args.scope,
+                importance=args.importance,
+            )
+        case 'promotion-list':
+            r = files_promotion_list_impl(
+                source_file_node=args.source_file_node,
+                source_superseded=(True if args.source_superseded else None),
+                limit=args.limit,
+            )
+        case 'dedup':
+            r = files_dedup_impl(
+                threshold=args.threshold, max_pairs=args.max_pairs,
+                leaf_limit=args.leaf_limit, corpus=args.corpus,
+                include_already_detected=args.include_already_detected,
+            )
+        case 'dedup-list':
+            reviewed_arg: bool | None = False
+            if args.reviewed_all:
+                reviewed_arg = None
+            elif args.reviewed:
+                reviewed_arg = True
+            r = files_dedup_list_impl(
+                reviewed=reviewed_arg, limit=args.limit, min_cosine=args.min_cosine,
+            )
+        case 'dedup-review':
+            r = files_dedup_review_impl(
+                candidate_uuid=args.candidate_uuid, action=args.action, note=args.note,
+            )
+        case 'entity-coalesce':
+            r = files_entity_coalesce_impl(
+                max_pairs=args.max_pairs, dry_run=args.dry_run, corpus=args.corpus,
+            )
+        case 'entity-coalesce-list':
+            ec_reviewed: bool | None = False
+            if args.reviewed_all:
+                ec_reviewed = None
+            elif args.reviewed:
+                ec_reviewed = True
+            r = files_entity_coalesce_list_impl(
+                reviewed=ec_reviewed, limit=args.limit, min_cosine=args.min_cosine,
+            )
+        case 'entity-coalesce-review':
+            import json as _json
+            r = files_entity_coalesce_review_impl(
+                reviews=_json.loads(args.reviews), note=args.note,
+            )
+        case 'entity-coalesce-apply':
+            uuids = ([u.strip() for u in args.uuids.split(",") if u.strip()]
+                     if args.uuids else None)
+            r = files_entity_coalesce_apply_impl(
+                candidate_uuids=uuids, include_auto_merge=args.auto_merge,
+                resolution_run=args.run, dry_run=args.dry_run, confirm=args.confirm,
+            )
+        case 'entity-coalesce-unapply':
+            r = files_entity_coalesce_unapply_impl(cluster_id=args.cluster_id)
+        case 'promotable':
+            r = files_promotable_impl(
+                limit=args.limit, min_score=args.min_score, corpus=args.corpus,
+                include_already_promoted=args.include_promoted,
+            )
+        case 'staleness':
+            r = files_staleness_review_impl(
+                directory=args.directory, corpus=args.corpus,
+                rehash=(not args.no_rehash), limit=args.limit,
+            )
+        case 'link-rename':
+            r = files_link_rename_impl(
+                missing_file_node_uuid=args.file_node_uuid,
+                new_path=args.new_path,
+                expect_sha256=args.expect_sha256,
+            )
+        case 'search':
+            corpora_list = (
+                [c.strip() for c in args.corpora.split(",") if c.strip()]
+                if getattr(args, "corpora", None) else None
+            )
+            r = files_search_impl(
+                query=args.query, limit=args.limit, corpus=args.corpus,
+                corpora=corpora_list,
+                filetype=args.filetype, include_history=args.include_history,
+            )
+        case 'index':
+            corpora_list = (
+                [c.strip() for c in args.corpora.split(",") if c.strip()]
+                if getattr(args, "corpora", None) else None
+            )
+            r = files_index_impl(
+                corpus=args.corpus, corpora=corpora_list,
+                filetype=args.filetype,
+                directory=args.directory, filename_glob=args.filename_glob,
+                include_history=args.include_history, limit=args.limit,
+            )
+        case 'get':
+            r = files_get_impl(uuid=args.uuid)
+        case 'stats':
+            r = files_stats_impl(corpus=args.corpus)
+        case 'health':
+            r = files_health_impl(rebuild=args.rebuild)
+        case 'serve':
+            mcp = _build_standalone_server()
+            mcp.run()
+            return 0
+        case 'corpus-create':
+            r = files_corpus_create_impl(
+                corpus_id=args.corpus_id, description=args.description,
+                extract_mode=args.extract_mode, scope=args.scope,
+                default=args.default,
+            )
+        case 'corpus-list':
+            r = files_corpus_list_impl()
+        case 'corpus-get':
+            r = files_corpus_get_impl(corpus_id=args.corpus_id)
+        case 'corpus-set':
+            default_arg: bool | None = None
+            if args.set_default and args.unset_default:
+                raise SystemExit("--default and --no-default are mutually exclusive")
+            if args.set_default:
+                default_arg = True
+            elif args.unset_default:
+                default_arg = False
+            r = files_corpus_set_impl(
+                corpus_id=args.corpus_id, description=args.description,
+                extract_mode=args.extract_mode, scope=args.scope,
+                default=default_arg, retention_days=args.retention_days,
+            )
+        case 'corpus-delete':
+            r = files_corpus_delete_impl(corpus_id=args.corpus_id, cascade=args.cascade)
+        case 'watch-once':
+            r = files_watch_once_impl(
+                directory=args.directory, corpus=args.corpus,
+                agent_id=args.agent_id, cooldown_seconds=args.cooldown_seconds,
+            )
+        case 'watch':
+            r = files_watch_loop_impl(
+                directory=args.directory, corpus=args.corpus,
+                interval_seconds=args.interval_seconds,
+                agent_id=args.agent_id, cooldown_seconds=args.cooldown_seconds,
+                max_cycles=args.max_cycles,
+            )
+        case _:
+            p.print_help()
+            return 2
 
     print(_json.dumps(r, indent=2, default=str))
     return 0

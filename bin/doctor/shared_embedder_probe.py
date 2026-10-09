@@ -682,32 +682,33 @@ def run(brief: bool = False, fix: bool = False) -> int:
         for _ln in model_lines:
             print(_ln)
 
-    if ka_kind == "rust-service":
-        print("  keepalive: OK — Rust m3-embed-server OS service RUNNING "
-              "(systemd/launchd/Windows Service, OS-native restart).")
-    elif ka_kind == "rust-service-stopped":
-        print("  keepalive: [FAIL] Rust m3-embed-server service is REGISTERED but")
-        print("             STOPPED — nothing is keeping :8082 alive. OS restart")
-        print("             actions fire only on an abnormal exit, so a cleanly")
-        print("             stopped or never-started service is never revived and")
-        print("             embedding stays down fleet-wide until started by hand.")
-        print("             fix: `m3 embedder start`  (Windows: ADMIN shell, or")
-        print("                  `sc.exe start m3-embed-server`)")
-        print("             then re-embed the gap: `m3 embedder backfill`")
-    elif ka_kind == "rust-service-not-installed":
-        print("  keepalive: [FAIL] the Rust m3-embed-server binary is on disk but")
-        print("             NO service is registered — nothing restarts :8082.")
-        print("             fix: `m3 embedder install`  (Windows: ADMIN shell)")
-    elif ka_kind == "windows-task":
-        print(f"  keepalive: OK — {_TASK} scheduled task (1-min self-heal, "
-              "Python-server fallback).")
-    else:  # none
-        print("  keepalive: [FAIL] nothing keeps :8082 alive — no Rust m3-embed-server")
-        print("             service and no embed-server task. A crash/reboot silently")
-        print("             kills embedding fleet-wide.")
-        print("             fix (preferred): `m3 embedder install` (Rust OS service), OR")
-        print("             fallback: `python bin/install_schedules.py --add embed-server`")
-        print("                       (Windows: from an ADMIN shell — ONSTART needs it).")
+    match ka_kind:
+        case 'rust-service':
+            print("  keepalive: OK — Rust m3-embed-server OS service RUNNING "
+                  "(systemd/launchd/Windows Service, OS-native restart).")
+        case 'rust-service-stopped':
+            print("  keepalive: [FAIL] Rust m3-embed-server service is REGISTERED but")
+            print("             STOPPED — nothing is keeping :8082 alive. OS restart")
+            print("             actions fire only on an abnormal exit, so a cleanly")
+            print("             stopped or never-started service is never revived and")
+            print("             embedding stays down fleet-wide until started by hand.")
+            print("             fix: `m3 embedder start`  (Windows: ADMIN shell, or")
+            print("                  `sc.exe start m3-embed-server`)")
+            print("             then re-embed the gap: `m3 embedder backfill`")
+        case 'rust-service-not-installed':
+            print("  keepalive: [FAIL] the Rust m3-embed-server binary is on disk but")
+            print("             NO service is registered — nothing restarts :8082.")
+            print("             fix: `m3 embedder install`  (Windows: ADMIN shell)")
+        case 'windows-task':
+            print(f"  keepalive: OK — {_TASK} scheduled task (1-min self-heal, "
+                  "Python-server fallback).")
+        case _:
+            print("  keepalive: [FAIL] nothing keeps :8082 alive — no Rust m3-embed-server")
+            print("             service and no embed-server task. A crash/reboot silently")
+            print("             kills embedding fleet-wide.")
+            print("             fix (preferred): `m3 embedder install` (Rust OS service), OR")
+            print("             fallback: `python bin/install_schedules.py --add embed-server`")
+            print("                       (Windows: from an ADMIN shell — ONSTART needs it).")
 
     if "inproc-env-leak" in problems:
         print("  inproc   : [FAIL] M3_EMBED_GGUF is set — forces a per-process GPU")

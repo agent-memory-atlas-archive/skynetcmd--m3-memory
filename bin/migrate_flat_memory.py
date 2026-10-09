@@ -555,20 +555,20 @@ async def run(args) -> int:
         print("=" * 60)
         for path, items in sorted(by_path.items()):
             src = items[0].item.source_agent
-            if src == "gemini":
-                # We can't safely delete individual bullets — tell the user to edit
-                print(f"  {path}")
-                print("    (gemini: edit file manually — remove the following bullets:)")
-                for r in items:
-                    print(f"      - {r.item.source_locator}: {r.item.title[:80]}")
-            elif src == "claude":
-                print(f"  rm \"{path}\"")
-            elif src == "openclaw":
-                print(f"  (openclaw chunk {r.item.source_locator} — managed by openclaw, leave in place)")
-            elif src == "rules":
-                print(f"  (rules file {path} — DO NOT delete; still loaded into agent system prompt)")
-            else:
-                print(f"  {path}")
+            match src:
+                case 'gemini':
+                    print(f"  {path}")
+                    print("    (gemini: edit file manually — remove the following bullets:)")
+                    for r in items:
+                        print(f"      - {r.item.source_locator}: {r.item.title[:80]}")
+                case 'claude':
+                    print(f"  rm \"{path}\"")
+                case 'openclaw':
+                    print(f"  (openclaw chunk {r.item.source_locator} — managed by openclaw, leave in place)")
+                case 'rules':
+                    print(f"  (rules file {path} — DO NOT delete; still loaded into agent system prompt)")
+                case _:
+                    print(f"  {path}")
         print("\nThe migration script NEVER deletes source files. Clean up manually after review.")
 
     if total_failed:

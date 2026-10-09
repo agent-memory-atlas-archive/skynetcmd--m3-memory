@@ -757,14 +757,15 @@ def ingest_path(
             result.failures.append({"path": entry.path, "reason": fr.reason})
 
         result.per_file.append(fr)
-        if fr.status == "created":
-            result.files_created += 1
-        elif fr.status == "superseded":
-            result.files_superseded += 1
-        elif fr.status == "unchanged_skipped":
-            result.files_unchanged += 1
-        elif fr.status == "failed":
-            result.files_failed += 1
+        match fr.status:
+            case 'created':
+                result.files_created += 1
+            case 'superseded':
+                result.files_superseded += 1
+            case 'unchanged_skipped':
+                result.files_unchanged += 1
+            case 'failed':
+                result.files_failed += 1
 
         result.leaves_written += fr.leaf_count
         result.facts_extracted += fr.fact_count

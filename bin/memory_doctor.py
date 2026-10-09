@@ -66,19 +66,20 @@ def _repair_embed_server(args) -> None:
 
             _r = restart_stale_embed_service(allow_elevation=console_has_person())
             _p = ", ".join(str(p) for p in _r["pids"])
-            if _r["outcome"] == "restarted":
-                print(f"  [fixed] embed-server restarted on the new native core "
-                      f"(was pid {_p})")
-            elif _r["outcome"] == "needs-admin":
-                print(f"  [needs admin] embed-server (pid {_p}) still runs the "
-                      "previous core; run `m3 doctor --fix` at a console to "
-                      "approve the restart")
-            elif _r["outcome"] == "declined":
-                print(f"  [not fixed] embed-server (pid {_p}): the administrator "
-                      "prompt was declined or missed")
-            elif _r["outcome"] == "still-stale":
-                print(f"  [not fixed] embed-server (pid {_p}) still runs the "
-                      f"previous core{': ' + _r['detail'] if _r['detail'] else ''}")
+            match _r['outcome']:
+                case 'restarted':
+                    print(f"  [fixed] embed-server restarted on the new native core "
+                          f"(was pid {_p})")
+                case 'needs-admin':
+                    print(f"  [needs admin] embed-server (pid {_p}) still runs the "
+                          "previous core; run `m3 doctor --fix` at a console to "
+                          "approve the restart")
+                case 'declined':
+                    print(f"  [not fixed] embed-server (pid {_p}): the administrator "
+                          "prompt was declined or missed")
+                case 'still-stale':
+                    print(f"  [not fixed] embed-server (pid {_p}) still runs the "
+                          f"previous core{': ' + _r['detail'] if _r['detail'] else ''}")
         except Exception as _exc:  # noqa: BLE001 — never break doctor
             print(f"  [skipped] embed-server restart: {_exc}")
 

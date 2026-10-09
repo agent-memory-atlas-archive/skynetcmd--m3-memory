@@ -414,16 +414,17 @@ def _supervise_postgres(args) -> int:
                 except Exception:
                     continue
 
-                if msg.get("t") == "hb":
-                    last_hb = time.time()
-                elif msg.get("t") == "hit":
-                    p.wait(timeout=2.0)
-                    return 0
-                elif msg.get("t") == "timeout":
-                    p.wait(timeout=2.0)
-                    return 2
-                elif msg.get("t") == "bye":
-                    break
+                match msg.get('t'):
+                    case 'hb':
+                        last_hb = time.time()
+                    case 'hit':
+                        p.wait(timeout=2.0)
+                        return 0
+                    case 'timeout':
+                        p.wait(timeout=2.0)
+                        return 2
+                    case 'bye':
+                        break
             except queue.Empty:
                 if time.time() - last_hb > (args.interval * 3):
                     # Flush before breaking. Backgrounded, this process can be
