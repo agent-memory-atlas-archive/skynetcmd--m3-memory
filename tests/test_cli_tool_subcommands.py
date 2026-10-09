@@ -172,7 +172,7 @@ def test_files_tools_refuse_the_database_argument(files_db, tmp_path):
                     "--database", str(elsewhere))
     assert proc.returncode != 0, f"refusal exited 0: stdout={proc.stdout}"
     out = proc.stdout + proc.stderr
-    assert "`database` would be ignored" in out and "--store" in out, out
+    assert "`database` would be ignored" in out and "`store`" in out, out
     assert "routing-probe" not in proc.stdout, "the call ran against a store"
     assert not elsewhere.exists(), "the refusal created a file at --database"
 

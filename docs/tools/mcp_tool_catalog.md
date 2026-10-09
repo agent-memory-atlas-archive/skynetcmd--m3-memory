@@ -1,8 +1,8 @@
 ---
 tool: bin/mcp_tool_catalog.py
-sha1: 03548ab46b6e
-mtime_utc: 2026-10-08T20:59:53.492328+00:00
-generated_utc: 2026-10-08T20:59:54.646488+00:00
+sha1: 91639e0d6dcb
+mtime_utc: 2026-10-09T06:56:00.161859+00:00
+generated_utc: 2026-10-09T06:58:43.366602+00:00
 private: false
 ---
 
@@ -86,7 +86,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
-- `catalog.dispatch (_DEFAULT_TOOL_TIMEOUT, _DESTRUCTIVE_ALLOWED, _DISPATCH_EXCLUDE, ToolTimeout, _conversation_search_impl, _did_you_mean, _dispatch_one, _memory_verify_impl, _pop_database, _resolve_tool_timeout, _run_impl_bounded, _spec_by_name, _tool_arg_rows, default_allowlist, execute_tool, execute_tool_structured, get_tool, m3_call_impl, m3_index_impl, validate_args)`
+- `catalog.dispatch (_DEFAULT_TOOL_TIMEOUT, _DESTRUCTIVE_ALLOWED, _DISPATCH_EXCLUDE, ROUTING_ARGS, ToolTimeout, _conversation_search_impl, _did_you_mean, _dispatch_one, _memory_verify_impl, _pop_database, _resolve_tool_timeout, _run_impl_bounded, _spec_by_name, _tool_arg_rows, default_allowlist, execute_tool, execute_tool_structured, get_tool, m3_call_impl, m3_index_impl, pop_call_scope, validate_args)`
 - `catalog.lazy (LazyImpl, LazyModuleProxy)`
 - `catalog.spec (_UUID_RE, MAX_CONTENT_SIZE, MAX_K, MAX_QUERY_LENGTH, VALID_ENTITY_PREDICATES, VALID_ENTITY_TYPES, VALID_MEMORY_TYPES, ToolSpec, _is_full_uuid)`
 - `catalog.tools_admin`

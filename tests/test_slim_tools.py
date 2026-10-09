@@ -35,7 +35,7 @@ SLIM_NAMES = [f"{n}_slim" for n in tools_slim._SLIM]
 
 # Injected into every tool by the catalog, so they are not part of what a slim
 # variant chooses to keep.
-_UNIVERSAL = {"database", "timeout"}
+_UNIVERSAL = {*cat.ROUTING_ARGS, "timeout"}
 
 
 @pytest.mark.parametrize("slim_name", SLIM_NAMES)

@@ -8,8 +8,8 @@ tool the bridge can register) and emits one compact record per tool:
   - summary     — first sentence of the description, truncated to <=100 chars
   - destructive — True when the tool mutates/deletes (i.e. not default_allowed)
   - args        — [{name, type, required}] from parameters.properties, with the
-                  universal "database" arg dropped (it's injected everywhere and
-                  carries no per-tool signal)
+                  universal routing args (`database`, `store`) dropped (they are
+                  injected everywhere and carry no per-tool signal)
 
 Plus two top-level fields:
 
@@ -37,11 +37,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 BIN_DIR = BASE_DIR / "bin"
 OUT_PATH = BASE_DIR / "docs" / "tools" / "MCP_CATALOG.json"
 
-# The universal --database / database arg is injected on essentially every
-# tool and conveys nothing tool-specific; drop it from the per-tool args so
-# the manifest highlights the real signature.
-_UNIVERSAL_ARGS = {"database"}
-
 # Meta-tools (the lazy-loading escape hatch) are excluded from the headline
 # count the docs quote. Their names share this prefix.
 _META_PREFIX = "tools_"
@@ -65,10 +60,11 @@ def _first_sentence(description: str, limit: int = 100) -> str:
     return text
 
 
-def _tool_args(parameters: dict) -> list[dict]:
+def _tool_args(parameters: dict, skip: tuple[str, ...]) -> list[dict]:
     """Extract [{name, type, required}] from a ToolSpec's parameters schema.
 
-    Drops the universal `database` arg. `required` is read from the schema's
+    Drops the universal routing args (`skip`: catalog ROUTING_ARGS, injected
+    on every tool and conveying nothing tool-specific). `required` is read from the schema's
     top-level `required` list (JSON-Schema convention) so it reflects what the
     bridge actually enforces.
     """
@@ -76,7 +72,7 @@ def _tool_args(parameters: dict) -> list[dict]:
     required = set((parameters or {}).get("required", []) or [])
     out: list[dict] = []
     for name, spec in props.items():
-        if name in _UNIVERSAL_ARGS:
+        if name in skip:
             continue
         out.append({
             "name": name,
@@ -105,7 +101,7 @@ def build_manifest() -> dict:
             "domain": tool_domains.domain_of_tool(spec.name),
             "summary": _first_sentence(spec.description),
             "destructive": not spec.default_allowed,
-            "args": _tool_args(spec.parameters),
+            "args": _tool_args(spec.parameters, mcp_tool_catalog.ROUTING_ARGS),
         })
     tools.sort(key=lambda t: (t["domain"], t["name"]))
 

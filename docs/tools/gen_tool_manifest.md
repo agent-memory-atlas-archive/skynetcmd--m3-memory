@@ -1,8 +1,8 @@
 ---
 tool: bin/gen_tool_manifest.py
-sha1: 0d2b35be4f4f
-mtime_utc: 2026-05-29T19:38:17.576494+00:00
-generated_utc: 2026-05-31T18:42:52.726921+00:00
+sha1: 5a481feeb2ca
+mtime_utc: 2026-10-09T06:55:28.000708+00:00
+generated_utc: 2026-10-09T06:58:43.129098+00:00
 private: false
 ---
 
@@ -20,8 +20,8 @@ tool the bridge can register) and emits one compact record per tool:
   - summary     — first sentence of the description, truncated to <=100 chars
   - destructive — True when the tool mutates/deletes (i.e. not default_allowed)
   - args        — [{name, type, required}] from parameters.properties, with the
-                  universal "database" arg dropped (it's injected everywhere and
-                  carries no per-tool signal)
+                  universal routing args (`database`, `store`) dropped (they are
+                  injected everywhere and carry no per-tool signal)
 
 Plus two top-level fields:
 
@@ -44,7 +44,7 @@ database, or runtime data is read or written.
 
 ## Entry points
 
-- `def main()` (line 126)
+- `def main()` (line 122)
 - `if __name__ == "__main__"` guard
 
 ---

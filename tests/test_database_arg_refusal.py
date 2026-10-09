@@ -47,7 +47,7 @@ def test_postgres_refuses_database(monkeypatch, tmp_path):
     _set_backend(monkeypatch, "postgres")
     with pytest.raises(ValueError, match=r"memory_search: `database` would be ignored") as e:
         cat._pop_database({"database": str(tmp_path / "a.db")}, "memory_search")
-    assert "M3_DB_BACKEND=postgres" in str(e.value) and "--store" in str(e.value)
+    assert "M3_DB_BACKEND=postgres" in str(e.value) and "`store`" in str(e.value)
 
 
 @pytest.mark.parametrize("backend", ["sqlite", "postgres"])

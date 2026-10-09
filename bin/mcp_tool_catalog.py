@@ -47,6 +47,7 @@ from catalog.dispatch import (  # noqa: F401
     _DEFAULT_TOOL_TIMEOUT,
     _DESTRUCTIVE_ALLOWED,
     _DISPATCH_EXCLUDE,
+    ROUTING_ARGS,
     ToolTimeout,
     _conversation_search_impl,
     _did_you_mean,
@@ -63,6 +64,7 @@ from catalog.dispatch import (  # noqa: F401
     get_tool,
     m3_call_impl,
     m3_index_impl,
+    pop_call_scope,
     validate_args,
 )
 
@@ -165,6 +167,20 @@ _DATABASE_PARAM_SCHEMA = {
 }
 
 
+# The universal `store` parameter (config §14, plan 2C.3b): a named store from
+# [stores.<name>] in m3_config.toml, or "main". Injected and popped exactly like
+# `database` (catalog.dispatch.pop_call_scope owns both).
+_STORE_PARAM_SCHEMA = {
+    "type": "string",
+    "description": (
+        "Optional named store for this call only: 'main' or a [stores.<name>] "
+        "table in m3_config.toml. Empty = the active store. Not with `database`, "
+        "and not for files tools yet (both refused)."
+    ),
+    "default": "",
+}
+
+
 # ── Universal `timeout` parameter injection (§6 hardening) ───────────────────
 # Every MCP tool gains an optional `timeout` (seconds) so a caller can bound a
 # single call, or lengthen/disable it for a known-long op. Same injection model
@@ -214,7 +230,7 @@ _SLOW_TOOL_TIMEOUTS: dict[str, float] = {
 
 
 def _inject_database_arg() -> None:
-    """Inject universal `database` + `timeout` params into every tool schema and
+    """Inject universal `database` + `store` + `timeout` params into every tool schema and
     apply per-tool timeout ceilings. Rebuilds TOOLS entries in place because
     ToolSpec is frozen (schema-dict mutation is fine in place; the timeout_s
     field needs dataclasses.replace)."""
@@ -225,6 +241,8 @@ def _inject_database_arg() -> None:
         # Skip if some future spec already declared `database` explicitly.
         if "database" not in props:
             props["database"] = dict(_DATABASE_PARAM_SCHEMA)
+        if "store" not in props:
+            props["store"] = dict(_STORE_PARAM_SCHEMA)
         # Same for the universal `timeout` knob.
         if "timeout" not in props:
             props["timeout"] = dict(_TIMEOUT_PARAM_SCHEMA)

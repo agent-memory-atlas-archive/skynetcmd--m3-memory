@@ -35,8 +35,9 @@ if str(_BIN) not in sys.path:
 
 import mcp_tool_catalog as cat  # noqa: E402
 
-# Injected into every spec after aggregation; the impls never declare them.
-_INJECTED = {"database", "timeout"}
+# Injected into every spec after aggregation; the impls never declare them. The
+# routing args come from their owner, so a new one cannot drift from this list.
+_INJECTED = {*cat.ROUTING_ARGS, "timeout"}
 
 # Parameters a VALIDATOR consumes before the impl is called, so the impl
 # legitimately has no slot for them. `_variant_gate` pops `include_bench_data`

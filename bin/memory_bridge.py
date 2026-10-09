@@ -5,7 +5,6 @@ import os
 import sys
 
 import mcp_compat
-from m3_sdk import active_database
 from mcp_compat import FastMCP
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -179,15 +178,15 @@ def _build_typed_function(spec, *, for_mcp: bool = False):
         src = f"def _impl({sig}):\n    return _wrapper(locals())"
 
     # The _wrapper closes over spec; locals() gives us the bound args.
-    # `database` is a universal injected parameter (see mcp_tool_catalog
-    # ._inject_database_arg); pop it before validators/impl run and activate
-    # the corresponding M3Context for the duration of the call.
+    # `database` and `store` are universal injected parameters (see
+    # mcp_tool_catalog._inject_database_arg); pop_call_scope pops them before
+    # validators/impl run and returns the scope the impl runs inside.
     if spec.is_async:
         async def _wrapper(args):
             args.pop("__class__", None)  # locals() may include this in some Python versions
             try:
-                database = mcp_tool_catalog._pop_database(args, spec.name)
-            except ValueError as e:  # `database` would be ignored: refuse
+                scope = mcp_tool_catalog.pop_call_scope(args, spec.name)
+            except ValueError as e:  # the routing args cannot be honoured: refuse
                 return f"Error: {e}"
             # `timeout` is a universal injected param (mcp_tool_catalog adds it to
             # every tool schema). It is dispatch machinery, not an impl argument —
@@ -198,7 +197,7 @@ def _build_typed_function(spec, *, for_mcp: bool = False):
             if err:
                 return err
             try:
-                with active_database(database):
+                with scope:
                     result = await spec.impl(**args)
                 return result if isinstance(result, str) else str(result)
             except Exception as e:
@@ -206,15 +205,15 @@ def _build_typed_function(spec, *, for_mcp: bool = False):
     elif _offload_sync:
         # MCP path for a SYNC impl: run the whole blocking body (validation +
         # the impl's synchronous SQLite work) in a worker thread so it never
-        # blocks the event loop. `active_database` is entered INSIDE the thread
+        # blocks the event loop. The call scope is entered INSIDE the thread
         # target because a ContextVar set on the loop thread is not visible in
         # the executor thread's own frame; to_thread copies the context, but we
         # (re)enter the CM in-thread to be explicit and correct.
         async def _wrapper(args):
             args.pop("__class__", None)
             try:
-                database = mcp_tool_catalog._pop_database(args, spec.name)
-            except ValueError as e:  # `database` would be ignored: refuse
+                scope = mcp_tool_catalog.pop_call_scope(args, spec.name)
+            except ValueError as e:  # the routing args cannot be honoured: refuse
                 return f"Error: {e}"
             args.pop("timeout", None)
             args, err = mcp_tool_catalog.validate_args(spec, args)
@@ -222,7 +221,7 @@ def _build_typed_function(spec, *, for_mcp: bool = False):
                 return err
 
             def _run_sync():
-                with active_database(database):
+                with scope:
                     return spec.impl(**args)
 
             try:
@@ -234,8 +233,8 @@ def _build_typed_function(spec, *, for_mcp: bool = False):
         def _wrapper(args):
             args.pop("__class__", None)
             try:
-                database = mcp_tool_catalog._pop_database(args, spec.name)
-            except ValueError as e:  # `database` would be ignored: refuse
+                scope = mcp_tool_catalog.pop_call_scope(args, spec.name)
+            except ValueError as e:  # the routing args cannot be honoured: refuse
                 return f"Error: {e}"
             # See async branch: `timeout` is injected dispatch machinery, not an
             # impl argument — pop it before validation/impl.
@@ -244,7 +243,7 @@ def _build_typed_function(spec, *, for_mcp: bool = False):
             if err:
                 return err
             try:
-                with active_database(database):
+                with scope:
                     result = spec.impl(**args)
                 return result if isinstance(result, str) else str(result)
             except Exception as e:

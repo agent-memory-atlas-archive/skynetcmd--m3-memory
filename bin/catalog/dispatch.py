@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from contextlib import AbstractContextManager
 from typing import Any
 
 from m3_sdk import active_database, destructive_tools_allowed
@@ -66,8 +67,70 @@ def _pop_database(args: dict, tool: str) -> str | None:
         f"{tool}: `database` would be ignored. observed: database={db!r}, "
         f"M3_DB_BACKEND={backend}. cause: {cause}, so the call would run "
         f"against the default store. inspect: drop `database` to use the "
-        f"default store; per-call store selection arrives as `--store`."
+        f"default store, or select a named store with `store`."
     )
+
+
+# The per-call routing args injected into every tool schema. Dispatch machinery,
+# never impl arguments: pop_call_scope removes them before validators run. The
+# CLI and the manifest generator read this tuple rather than naming them.
+ROUTING_ARGS: tuple[str, ...] = ("database", "store")
+
+
+def _given(value: object) -> bool:
+    return not (value is None or (isinstance(value, str) and not value.strip()))
+
+
+def _pop_store(args: dict, tool: str) -> str | None:
+    """Pop the universal `store` arg and check it names a configured store now,
+    so an unknown name fails before validation (and under dry_run) with the
+    did-you-mean, not inside the impl."""
+    name = args.pop("store", None)
+    if not _given(name):
+        return None
+    if not isinstance(name, str):
+        raise ValueError(f"{tool}: observed: store={name!r} ({type(name).__name__}). "
+                         "inspect: `store` is a store name such as 'main'")
+    name = name.strip()
+    import tool_domains
+
+    if tool_domains.domain_of_tool(tool) == "files":
+        # Plan 2C.3c routes files per store; until then the files half would stay
+        # on the default store while the caller believed it moved.
+        raise ValueError(
+            f"{tool}: `store` would be ignored. observed: store={name!r}. cause: "
+            "files tools resolve their own store and do not follow a named store "
+            "yet, so the call would run against the default files store. inspect: "
+            "drop `store` for files tools.")
+    from m3_core.config.stores import resolve_store
+
+    resolve_store(name)  # StoreError (a ValueError) for an unknown name
+    return name
+
+
+def pop_call_scope(args: dict, tool: str) -> AbstractContextManager[object]:
+    """Pop the routing args (``ROUTING_ARGS``) and return the context the impl
+    must run inside. The one owner of per-call store selection: execute_tool,
+    execute_tool_structured and every memory_bridge wrapper enter what this
+    returns, so a new routing arg is added here once.
+
+    ``store`` selects a named store (config §14); ``database`` the legacy SQLite
+    path. Both at once is refused: they name competing targets, and picking one
+    silently would run the call against a store the caller may not mean.
+    Raises ValueError where the call must not run (see _pop_database).
+    """
+    if _given(args.get("store")) and _given(args.get("database")):
+        raise ValueError(
+            f"{tool}: observed: store={args['store']!r} and database={args['database']!r}. "
+            "cause: both select the store for this call. inspect: pass one; a "
+            "SQLite file can be declared as a store under [stores.<name>].")
+    store = _pop_store(args, tool)
+    database = _pop_database(args, tool)
+    if store is not None:
+        from m3_core.config.stores import active_store
+
+        return active_store(store)
+    return active_database(database)
 
 
 def validate_args(spec: ToolSpec, args: dict) -> tuple[dict, str | None]:
@@ -152,13 +215,13 @@ async def execute_tool(spec: ToolSpec, args: dict, agent_id: str) -> str:
         timeout = _resolve_tool_timeout(args, spec)  # pops reserved `timeout` key
         allowed_keys = set(spec.parameters.get("properties", {}).keys())
         args = {k: v for k, v in args.items() if k in allowed_keys}
-        database = _pop_database(args, spec.name)
+        scope = pop_call_scope(args, spec.name)
         if spec.inject_agent_id and "agent_id" in allowed_keys:
             args["agent_id"] = agent_id
         args, err = validate_args(spec, args)
         if err:
             return err
-        with active_database(database):
+        with scope:
             result = await _run_impl_bounded(spec, args, timeout)
         return result if isinstance(result, str) else str(result)
     except Exception as e:
@@ -175,7 +238,7 @@ async def execute_tool_structured(
     receives parseable structure (m3_call json.dumps it at the boundary).
 
     Preserves execute_tool's exact gate order: filter to allowed keys ->
-    _pop_database -> inject_agent_id -> validate_args -> active_database ->
+    pop_call_scope -> inject_agent_id -> validate_args -> the call scope ->
     async/sync impl dispatch. When dry_run=True, runs everything up to and
     including validate_args, then returns {"dry_run": True, "ok": True} WITHOUT
     calling spec.impl (read-only by construction — no side effects).
@@ -184,7 +247,7 @@ async def execute_tool_structured(
     timeout = _resolve_tool_timeout(args, spec)  # pops reserved `timeout` key
     allowed_keys = set(spec.parameters.get("properties", {}).keys())
     args = {k: v for k, v in args.items() if k in allowed_keys}
-    database = _pop_database(args, spec.name)
+    scope = pop_call_scope(args, spec.name)
     if spec.inject_agent_id and "agent_id" in allowed_keys:
         # Anti-spoofing: an authenticated caller's identity is forced in
         # non-bypassably, so an LLM cannot read or ack another agent's rows.
@@ -212,7 +275,7 @@ async def execute_tool_structured(
         raise ValueError(err)
     if dry_run:
         return {"dry_run": True, "ok": True, "tool": spec.name}
-    with active_database(database):
+    with scope:
         return await _run_impl_bounded(spec, args, timeout)
 
 

@@ -1450,8 +1450,8 @@ def _add_tool_domain_subcommands(subparsers) -> None:
 
             if not complex_:
                 for pname, pdef in props.items():
-                    if pname == "database":
-                        continue  # added via the shared --database helper below
+                    if pname in _cat.ROUTING_ARGS:
+                        continue  # added as the shared --database / --store below
                     ptype = pdef.get("type", "string")
                     phelp = _esc(pdef.get("description", ""))
                     # ⚠ NEVER argparse-required, even for a required property.
@@ -1523,6 +1523,9 @@ def _add_tool_domain_subcommands(subparsers) -> None:
             tp.add_argument("--database", dest="database", default=None,
                             help="SQLite DB path. Env: M3_DATABASE. Default: agent_memory.db. "
                                  "SQLite backend only, not files tools (refused there).")
+            tp.add_argument("--store", dest="store", default=None,
+                            help="Named store for this call: 'main' or a [stores.<name>] "
+                                 "table in m3_config.toml. Not with --database; not files tools yet.")
             tp.add_argument("--dry-run", dest="_dry_run", action="store_true",
                             help="Validate args + check the destructive gate without executing.")
             tp.add_argument("--yes", dest="_yes", action="store_true",
@@ -1576,7 +1579,7 @@ def _cmd_tool_dispatch(args: argparse.Namespace) -> int:
     flag_args = {}
     if not getattr(args, "_tool_complex", False):
         for pname in props:
-            if pname == "database":
+            if pname in _cat.ROUTING_ARGS:
                 continue
             val = getattr(args, pname, None)
             if val is not None:
@@ -1611,9 +1614,9 @@ def _cmd_tool_dispatch(args: argparse.Namespace) -> int:
         # through, so a near-miss key (`owner` for `owner_agent`) was
         # silently discarded and the call still reported ok. That produced a
         # task that looked assigned and was not. §3: fail loud, never
-        # silent. `database`/`timeout` are CLI-level extras the impls accept.
+        # silent. The routing args and `timeout` are CLI-level extras the impls accept.
         _declared = set((spec.parameters.get("properties") or {}).keys())
-        _declared |= {"database", "timeout"}
+        _declared |= {*_cat.ROUTING_ARGS, "timeout"}
         _unknown = sorted(set(tool_args) - _declared)
         if _unknown:
             import difflib as _difflib
@@ -1652,9 +1655,10 @@ def _cmd_tool_dispatch(args: argparse.Namespace) -> int:
         )
         return 2
 
-    db = getattr(args, "database", None)
-    if db:
-        tool_args["database"] = db
+    for routing in _cat.ROUTING_ARGS:  # --database / --store: the dispatcher owns them
+        value = getattr(args, routing, None)
+        if value:
+            tool_args[routing] = value
 
     # ⚠ RECORDS BY DEFAULT ON THE CLI ONLY — NOT IN THE TOOLSPEC.
     #

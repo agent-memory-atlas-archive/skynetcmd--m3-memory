@@ -213,3 +213,109 @@ def test_two_stores_on_one_database_share_an_instance(monkeypatch, stores_file):
         second = mb.active_backend()
     assert first is second, "one database, two pools"
     mb._reset_for_tests()
+
+
+# ── 3b: the per-call `store` argument (catalog.dispatch.pop_call_scope) ──────
+def _path_probe(ran: list):
+    """A tool whose impl reports the SQLite path it would open."""
+    import mcp_tool_catalog as cat
+    from m3_core.paths import resolve_db_path
+
+    def _impl():
+        ran.append(1)
+        return resolve_db_path(None)
+
+    props = {"database": {"type": "string"}, "store": {"type": "string"}}
+    return cat, cat.ToolSpec(name="memory_probe", description="probe",
+                             parameters={"type": "object", "properties": props}, impl=_impl)
+
+
+def _scratch(stores_file, tmp_path, monkeypatch) -> str:
+    monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
+    stores_file(f'[stores.scratch]\nbackend = "sqlite"\npath = "{(tmp_path / "s.db").as_posix()}"\n')
+    return str((tmp_path / "s.db").absolute())
+
+
+def test_every_catalog_tool_takes_store_and_the_manifest_omits_it():
+    import gen_tool_manifest
+    import mcp_tool_catalog as cat
+
+    assert all("store" in t.parameters["properties"] for t in cat.TOOLS)
+    args = [a["name"] for t in gen_tool_manifest.build_manifest()["tools"] for a in t["args"]]
+    assert not set(cat.ROUTING_ARGS) & set(args)
+
+
+def test_dispatch_runs_the_impl_inside_the_store(stores_file, tmp_path, monkeypatch):
+    import asyncio
+
+    path = _scratch(stores_file, tmp_path, monkeypatch)
+    ran: list = []
+    cat, spec = _path_probe(ran)
+    assert asyncio.run(cat.execute_tool(spec, {"store": " scratch "}, agent_id="")) == path
+    assert asyncio.run(cat.execute_tool_structured(spec, {"store": "scratch"}, agent_id="")) == path
+    assert asyncio.run(cat.execute_tool(spec, {"store": "main"}, agent_id="")) != path
+    assert asyncio.run(cat.execute_tool(spec, {"store": ""}, agent_id="")) != path
+
+
+@pytest.mark.parametrize("kind", ["sync", "async", "offloaded"])
+def test_every_bridge_wrapper_runs_inside_the_store(stores_file, tmp_path, monkeypatch, kind):
+    """`offloaded` is the MCP path for a sync impl: the scope is entered in a worker thread."""
+    import asyncio
+
+    import memory_bridge
+
+    path = _scratch(stores_file, tmp_path, monkeypatch)
+    ran: list = []
+    cat, spec = _path_probe(ran)
+    if kind == "async":
+        sync_impl = spec.impl
+
+        async def _impl():
+            return sync_impl()
+
+        import dataclasses
+
+        spec = dataclasses.replace(spec, impl=_impl, is_async=True)
+    fn = memory_bridge._build_typed_function(spec, for_mcp=kind == "offloaded")
+    out = fn(store="scratch", database="")
+    if asyncio.iscoroutine(out):
+        out = asyncio.run(out)
+    assert out == path
+
+
+@pytest.mark.parametrize("args,fragment", [
+    ({"store": "scrach"}, "did you mean 'scratch'"),
+    ({"store": "scratch", "database": "x.db"}, "both select the store"),
+    ({"store": 3}, "is a store name"),
+])
+def test_a_bad_store_argument_is_refused_before_the_impl(stores_file, tmp_path, monkeypatch, args, fragment):
+    import asyncio
+
+    _scratch(stores_file, tmp_path, monkeypatch)
+    ran: list = []
+    cat, spec = _path_probe(ran)
+    assert fragment in asyncio.run(cat.execute_tool(spec, dict(args), agent_id=""))
+    with pytest.raises(ValueError, match=fragment):  # dry_run validates it too
+        asyncio.run(cat.execute_tool_structured(spec, dict(args), agent_id="", dry_run=True))
+    assert ran == []
+
+
+def test_files_tools_refuse_store_until_they_follow_it(stores_file, tmp_path, monkeypatch):
+    import mcp_tool_catalog as cat
+
+    _scratch(stores_file, tmp_path, monkeypatch)
+    with pytest.raises(ValueError, match="files tools resolve their own store"):
+        cat.pop_call_scope({"store": "scratch"}, "files_stats")
+
+
+def test_the_cli_passes_store_to_the_dispatcher(stores_file, tmp_path, monkeypatch):
+    """`m3 <domain> <tool> --store`: the dispatcher's refusal proves the flag arrived."""
+    import subprocess
+    import sys
+
+    _scratch(stores_file, tmp_path, monkeypatch)
+    repo = Path(__file__).resolve().parent.parent
+    run = subprocess.run([sys.executable, "-m", "m3_memory.cli", "memory", "memory_search",
+                          "--query", "x", "--store", "scrach"],
+                         capture_output=True, text=True, cwd=str(repo))
+    assert "did you mean 'scratch'" in run.stdout + run.stderr, run.stdout + run.stderr

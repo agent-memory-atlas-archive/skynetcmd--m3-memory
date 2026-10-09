@@ -1,8 +1,8 @@
 ---
 tool: bin/memory_bridge.py
-sha1: d609cbc149d9
-mtime_utc: 2026-10-08T20:57:36.776938+00:00
-generated_utc: 2026-10-08T20:59:54.661661+00:00
+sha1: abbc4c5ac152
+mtime_utc: 2026-10-09T06:56:00.161859+00:00
+generated_utc: 2026-10-09T06:58:43.382302+00:00
 private: false
 ---
 
@@ -43,7 +43,6 @@ _(no argparse arguments detected)_
 - `m3_halt`
 - `m3_http_auth`
 - `m3_memory.installer (load_config)`
-- `m3_sdk (active_database)`
 - `mcp_compat`
 - `mcp_compat (FastMCP)`
 - `mcp_tool_catalog`
