@@ -89,11 +89,11 @@ def file_lock(lock_path: str, *, purpose: str):
         if fd is not None:
             try:
                 os.close(fd)
-            except Exception:
+            except Exception:  # noqa: BLE001 — releasing a lock fd during cleanup
                 pass
             try:
                 os.unlink(lock_path)
-            except Exception:
+            except Exception:  # noqa: BLE001 — removing a lock file during cleanup
                 pass
 
 

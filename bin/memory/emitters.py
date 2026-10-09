@@ -91,8 +91,8 @@ async def _maybe_emit_event_rows(
             if m:
                 try:
                     memory_link_impl(m.group(1), parent_id, "references")
-                except Exception:
-                    pass
+                except Exception as le:  # noqa: BLE001 — logged; the caller carries on
+                    logger.warning(f"event link failed; observed: {m.group(1)} -> {parent_id} not linked ({type(le).__name__}: {le})")
         except Exception as e:
             logger.debug(f"event_extraction emit failed: {e}")
 

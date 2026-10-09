@@ -107,13 +107,13 @@ def _apply_temporal_boost(scored, query, explain=False):
     for mobj in _DATE_RE_ISO.finditer(q_lower):
         try:
             query_dates.append(date(int(mobj.group(1)), int(mobj.group(2)), int(mobj.group(3))))
-        except Exception:
+        except Exception:  # noqa: BLE001 — a date-looking token that is not a valid date
             continue
     for mobj in _DATE_RE_LONG.finditer(q_lower):
         try:
             d_, mo, y_ = mobj.groups()
             query_dates.append(date(int(y_), _DATE_MONTHS.index(mo) + 1, int(d_)))
-        except Exception:
+        except Exception:  # noqa: BLE001 — a date-looking token that is not a valid date
             continue
     if not query_dates:
         return scored

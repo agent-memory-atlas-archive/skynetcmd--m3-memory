@@ -689,7 +689,7 @@ class SqliteBackend:
                 sqlite_pragmas.checkpoint_truncate(conn)  # type: ignore[arg-type]
             else:
                 sqlite_pragmas.checkpoint_passive(conn)  # type: ignore[arg-type]
-        except Exception:
+        except Exception:  # noqa: BLE001 — a WAL checkpoint is an optimisation; SQLite retries it
             pass
 
     def _store_path(self) -> str:

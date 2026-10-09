@@ -1550,7 +1550,7 @@ def memory_inbox_impl(agent_id: str, unread_only: bool = True, limit: int = 20,
         try:
             meta = json.loads(row["metadata_json"] or "{}")
             from_agent = meta.get("from_agent", "?")
-        except Exception:
+        except Exception:  # noqa: BLE001 — malformed metadata; from_agent stays '?'
             pass
 
         # Truncate task (content) to 60 chars

@@ -175,7 +175,7 @@ class M3Context:
                     while not pool.empty():
                         try:
                             pool.get_nowait().close()
-                        except Exception:
+                        except Exception:  # noqa: BLE001 — closing pool connections while re-raising the original error
                             pass
                     raise
             self._pool = pool
@@ -187,7 +187,7 @@ class M3Context:
                 while not pool.empty():
                     try:
                         pool.get_nowait().close()
-                    except Exception:
+                    except Exception:  # noqa: BLE001 — closing pool connections; the failure is logged just below
                         pass
                 logger.error(f"Cohesion validation failed: {e}")
                 raise
@@ -216,7 +216,7 @@ class M3Context:
                         "gpu_total": gpu_total,
                         "thermal": str(getattr(telemetry, "thermal", "Nominal")),
                     }
-            except Exception:
+            except Exception:  # noqa: BLE001 — optional Rust telemetry; the Python values stand
                 pass
 
         try:
@@ -332,7 +332,7 @@ class M3Context:
                         state = m3_core_rs.NativeCircuitBreaker(3, 60)
                         _CIRCUITS[service] = state
                     return state.check()
-            except Exception:
+            except Exception:  # noqa: BLE001 — optional Rust circuit breaker; the Python breaker below decides
                 pass
 
         state = _CIRCUITS.get(service)
@@ -354,7 +354,7 @@ class M3Context:
                     if state and hasattr(state, "record_success"):
                         state.record_success()
                         return
-            except Exception:
+            except Exception:  # noqa: BLE001 — optional Rust circuit breaker; the Python breaker below records
                 pass
 
         _CIRCUITS.pop(service, None)
@@ -372,7 +372,7 @@ class M3Context:
                     if hasattr(state, "record_failure"):
                         state.record_failure()
                         return
-            except Exception:
+            except Exception:  # noqa: BLE001 — optional Rust circuit breaker; the Python breaker below records
                 pass
 
         state = _CIRCUITS.get(service)

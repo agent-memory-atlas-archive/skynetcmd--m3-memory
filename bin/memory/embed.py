@@ -280,7 +280,7 @@ def recover_if_fallback_healthy(timeout: float = 1.5) -> bool:
     try:
         import llm_failover
         llm_failover.clear_embed_cache()  # drop endpoint neg-cache so discovery re-probes now
-    except Exception:
+    except Exception:  # noqa: BLE001 — optional cache reset in a recovery path
         pass
     logger.info("tier-2 embed server healthy again — breakers reset, recovery forced")
     return True
@@ -302,7 +302,7 @@ def _track_cost_lazy(operation: str, tokens_est: int = 0) -> None:
         _mc._COST_COUNTERS[operation] = _mc._COST_COUNTERS.get(operation, 0) + 1
         if tokens_est:
             _mc._COST_COUNTERS["embed_tokens_est"] += tokens_est
-    except Exception:
+    except Exception:  # noqa: BLE001 — cost counters are diagnostics; never fail an embed for them
         pass
 
 
@@ -1235,7 +1235,7 @@ def set_embed_override(url: str | None, model: str | None = None) -> None:
     try:
         from llm_failover import clear_embed_cache as _cec
         _cec()
-    except Exception:
+    except Exception:  # noqa: BLE001 — optional cache reset
         pass
 
 
@@ -1831,7 +1831,7 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
             body = ""
             try:
                 body = resp_.text
-            except Exception:
+            except Exception:  # noqa: BLE001 — reading an error body for diagnosis; empty is fine
                 pass
             over = _parse_context_overflow(resp_.status_code, body)
             if over is not None:

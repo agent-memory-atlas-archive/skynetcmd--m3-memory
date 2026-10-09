@@ -198,7 +198,7 @@ def savepoint(conn):
         try:
             conn.execute(f"ROLLBACK TO SAVEPOINT {sp}")
             conn.execute(f"RELEASE SAVEPOINT {sp}")
-        except Exception:
+        except Exception:  # noqa: BLE001 — savepoint cleanup while re-raising the original error
             pass
         raise
     else:
@@ -255,7 +255,7 @@ def tolerant_schema(conn, *, reraise_real=True):
         try:
             conn.execute(f"ROLLBACK TO SAVEPOINT {sp}")
             conn.execute(f"RELEASE SAVEPOINT {sp}")
-        except Exception:
+        except Exception:  # noqa: BLE001 — savepoint cleanup; the original error is handled below
             pass
         if reraise_real and not _is_undef(exc):
             raise  # a genuine error — do not swallow it
@@ -312,7 +312,7 @@ def _ensure_sync_tables(db_path: str | None = None) -> None:
             if _classify_db(active) == "chatlog":
                 target_flag = ["--target", "chatlog"]
                 target_kind = "chatlog"
-        except Exception:
+        except Exception:  # noqa: BLE001 — store classification for --target; default target on failure
             pass
 
         # Fast path: compare DB's applied version vs. the highest .up.sql file
@@ -357,8 +357,8 @@ def _ensure_sync_tables(db_path: str | None = None) -> None:
 
             if latest_on_disk >= 0 and db_latest >= latest_on_disk:
                 return
-        except Exception:
-            pass
+        except Exception as le:  # noqa: BLE001 — logged; the caller carries on
+            logger.warning(f"migration up-to-date check failed; observed: {type(le).__name__}: {le}; running the migrator anyway. inspect: python bin/migrate_memory.py status")
 
         env = os.environ.copy()
         if target_flag:
@@ -531,7 +531,7 @@ def _lazy_init(db_path: str | None = None) -> None:
                         ensure_pinned_column(conn)
                     finally:
                         conn.close()
-            except Exception:
+            except Exception:  # noqa: BLE001 — documented best-effort bootstrap (see comment)
                 # Best-effort — never let the pinned-column bootstrap break
                 # DB init. ensure_pinned_column() also self-guards, but the
                 # connect() itself could fail on an exotic path.

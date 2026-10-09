@@ -778,7 +778,7 @@ def ingest_path(
         if progress_cb:
             try:
                 progress_cb(idx, len(result.per_file), fr)
-            except Exception:
+            except Exception:  # noqa: BLE001 — a caller's progress callback must not abort the ingest
                 pass
 
     result.duration_ms = int((time.perf_counter() - started) * 1000)

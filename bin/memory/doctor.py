@@ -189,7 +189,7 @@ def _probe_tier2() -> dict[str, Any]:
                 metrics = _json.loads(mresp.read().decode())
                 res["metrics"] = metrics
                 res["model"] = metrics.get("model") or res["model"]
-            except Exception:
+            except Exception:  # noqa: BLE001 — metrics are optional in the health report
                 pass
         conn.close()
         res["status"] = "online"
@@ -216,16 +216,29 @@ def _probe_db() -> dict[str, Any]:
         path = resolve_db_path(None)
         res["db_path"] = str(path)
         with _db_mod._db() as conn:
+            # The migrator records versions in schema_versions; schema_migrations
+            # is the legacy name. Counting only the legacy table failed on every
+            # current store, and the bare except hid it (the field was None).
             try:
-                row = conn.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()
-                res["schema_migrations"] = int(row[0]) if row else 0
-            except Exception:
-                pass
+                from memory.backends import dialect as _dialect
+
+                _d = _dialect()
+                table = next((t for t in ("schema_versions", "schema_migrations")
+                              if conn.execute(*_d.table_exists(t)).fetchone() is not None), None)
+                if table is None:
+                    logger.warning("doctor: no schema version table; observed: neither "
+                                   "schema_versions nor schema_migrations exists. inspect: "
+                                   "python bin/migrate_memory.py status")
+                else:
+                    row = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
+                    res["schema_migrations"] = int(row[0]) if row else 0
+            except Exception as le:  # noqa: BLE001 — logged; the caller carries on
+                logger.warning(f"doctor: schema version count failed; observed: {type(le).__name__}: {le}")
             try:
                 row = conn.execute("SELECT COUNT(*) FROM memory_items").fetchone()
                 res["memory_items_count"] = int(row[0]) if row else 0
-            except Exception:
-                pass
+            except Exception as le:  # noqa: BLE001 — logged; the caller carries on
+                logger.warning(f"doctor: memory_items count failed; observed: {type(le).__name__}: {le}")
             res["status"] = "online"
     except Exception as e:
         res["error"] = f"{type(e).__name__}: {e}"

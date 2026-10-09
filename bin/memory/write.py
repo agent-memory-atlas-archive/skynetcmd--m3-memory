@@ -605,8 +605,8 @@ type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="
             try:
                 memory_link_impl(item_id, best_id, "related")
                 logger.debug(f"Auto-linked {item_id} -> {best_id} (score={best_score:.3f})")
-            except Exception:
-                pass
+            except Exception as le:  # noqa: BLE001 — logged; the caller carries on
+                logger.warning(f"auto-link failed; observed: {item_id} -> {best_id} not linked ({type(le).__name__}: {le}). inspect: memory_link on those ids")
 
     # Opt-in ingestion emitters. Each one is gated off by default and fails
     # open — errors are logged but never propagate to the caller. They only

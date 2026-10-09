@@ -118,7 +118,8 @@ def _load_entity_vectors(db, entity_ids: list[str]) -> dict[str, list[float]]:
             blob = r["embedding"] if hasattr(r, "keys") else r[1]
             try:
                 out[eid] = _unpack(blob)
-            except Exception:
+            except Exception as le:  # noqa: BLE001 — logged; the caller carries on
+                logger.warning(f"stored entity vector unreadable; observed: {eid} ({type(le).__name__}: {le}); it is re-embedded when next needed")
                 continue
     return out
 
@@ -337,7 +338,7 @@ def get_entity_extract_sem() -> asyncio.Semaphore:
             try:
                 if k.is_closed():
                     del _ENTITY_EXTRACT_SEMS[k]
-            except Exception:
+            except Exception:  # noqa: BLE001 — pruning semaphores of closed loops; a stale entry is harmless
                 pass
         _ENTITY_EXTRACT_SEMS[loop] = asyncio.Semaphore(ENTITY_EXTRACT_CONCURRENCY)
     return _ENTITY_EXTRACT_SEMS[loop]
@@ -1520,7 +1521,7 @@ def build_bypass_surface(
         try:
             db.execute("ANALYZE bypass_surface")
             db.commit()
-        except Exception:  # pragma: no cover
+        except Exception:  # noqa: BLE001 — planner statistics only  # pragma: no cover
             pass
 
     return {

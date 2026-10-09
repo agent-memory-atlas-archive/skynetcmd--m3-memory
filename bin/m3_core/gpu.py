@@ -144,13 +144,13 @@ def torch_device(prefer_index: bool = False) -> str:
     try:
         if torch.cuda.is_available():
             return "cuda:0" if prefer_index else "cuda"
-    except Exception:
+    except Exception:  # noqa: BLE001 — device probe; a broken CUDA stack means try the next device
         pass
     try:
         mps = getattr(torch.backends, "mps", None)
         if mps is not None and mps.is_available():
             return "mps"
-    except Exception:
+    except Exception:  # noqa: BLE001 — device probe; a broken MPS stack means CPU
         pass
     return "cpu"
 
