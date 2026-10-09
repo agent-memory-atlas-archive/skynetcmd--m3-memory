@@ -70,7 +70,7 @@ class ConfigKeyError(ValueError):
     """One invalid entry of one config file."""
 
     def __init__(self, file: Path, key: str, problem: str) -> None:
-        super().__init__(f"{file}: {_show(key)}: {problem}")
+        super().__init__(f"{file}: {show_key(key)}: {problem}")
         self.file = file
         self.key = key
 
@@ -104,7 +104,7 @@ def format_config_error(exc: BaseException) -> str:
     return "\n".join(one(exc, ""))
 
 
-def _show(key: str) -> str:
+def show_key(key: str) -> str:
     table, _, leaf = key.rpartition(".")
     return f"[{table}].{leaf}" if table else leaf
 
@@ -187,12 +187,12 @@ def load(location: Location, registry: Registry) -> LoadedFile:
         if key is not None and key.name != name:
             errors.append(_key_error(path, text, name,
                                      f"{name.rpartition('.')[2]} is an environment variable name",
-                                     f"in this file the setting is {_show(key.name)}"))
+                                     f"in this file the setting is {show_key(key.name)}"))
             continue
         if key is None:
             problem = "unknown key"
             if newer:
-                warnings.append(f"{path}: {_show(name)}: unknown to schema {SCHEMA_VERSION}, "
+                warnings.append(f"{path}: {show_key(name)}: unknown to schema {SCHEMA_VERSION}, "
                                 f"file declares schema {schema}; ignored")
                 continue
             errors.append(_key_error(path, text, name, problem,
@@ -238,7 +238,7 @@ def _key_error(path: Path, text: str, name: str, problem: str, hint: str | None 
 def _did_you_mean(name: str, registry: Registry) -> str | None:
     names = [k.name for k in registry if k.klass is KeyClass.CONFIG]
     near = difflib.get_close_matches(name, names, n=1, cutoff=0.6)
-    return f"did you mean {_show(near[0])}?" if near else None
+    return f"did you mean {show_key(near[0])}?" if near else None
 
 
 _HEADER = re.compile(r"^\s*\[\s*([^\[\]]+?)\s*\]\s*(?:#.*)?$")

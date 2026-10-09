@@ -43,9 +43,10 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 SCAN_ROOTS = ("bin", "m3_memory")
 
-# Modules allowed to touch the environment. Empty until the config package and
-# the child_env helper exist (Phase 2C); paths are repo-relative, POSIX style.
-ALLOWED_MODULES: frozenset[str] = frozenset()
+# Modules allowed to touch the environment; paths are repo-relative, POSIX style.
+# The config package reads env in exactly one module (CONFIG_DESIGN §2, read
+# path 6); the child_env helper joins in 2E.1.
+ALLOWED_MODULES: frozenset[str] = frozenset({"bin/m3_core/config/env.py"})
 
 # Names m3 reads that are NOT m3 settings: the OS's (measured readers, plan
 # review §4b), plus terminals' and other programs' own variables (U4 bucket A,
@@ -76,7 +77,7 @@ COPY_METHODS = frozenset({"copy", "items", "keys", "values"})
 class Finding:
     path: str
     line: int
-    kind: str      # read | write | copy | dotenv | alias
+    kind: str      # read | write | copy | dotenv | alias | handout
     form: str      # the syntactic shape, e.g. "os.environ.get"
     name: str      # the variable name, "<dynamic>", or "*" for the whole environment
     verdict: str   # violation | allowed-os-name | allowed-module
@@ -124,6 +125,8 @@ class _Scanner(ast.NodeVisitor):
                 if isinstance(t, ast.Name):
                     self.environ_names.add(t.id)
                     self._add(node, "alias", f"{t.id} = os.environ", "*")
+                else:  # self.env = os.environ, d[k] = os.environ: out of the gate's sight
+                    self._add(node, "handout", "<target> = os.environ", "*")
         # os.environ[NAME] = value
         for t in node.targets:
             if isinstance(t, ast.Subscript) and self._is_environ(t.value):
@@ -199,6 +202,18 @@ class _Scanner(ast.NodeVisitor):
         for kw in node.keywords:
             if kw.arg == "env" and self._is_environ(kw.value):
                 self._add(node, "copy", "env=os.environ", "*")
+            elif self._is_environ(kw.value):
+                self._add(node, "handout", f"{kw.arg}=os.environ", "*")
+        # f(os.environ): the whole environment handed to code the gate cannot see
+        if not (isinstance(f, ast.Name) and f.id in ("dict", "list", "set", "tuple", "sorted")):
+            for a in node.args:
+                if self._is_environ(a):
+                    self._add(node, "handout", "f(os.environ)", "*")
+        self.generic_visit(node)
+
+    def visit_Return(self, node: ast.Return) -> None:
+        if node.value is not None and self._is_environ(node.value):
+            self._add(node, "handout", "return os.environ", "*")
         self.generic_visit(node)
 
     def visit_Attribute(self, node: ast.Attribute) -> None:
@@ -338,6 +353,13 @@ PLANTED: list[tuple[str, str, str]] = [
     ("T = '''\nimport os\nos.environ['M3_X'] = '1'\nfor q in {queries!r}:\n    pass\n'''",
      "write", "os.environ[...] = (embedded program)"),
     ("T = '''\nimport os\nos.environ['M3_X'] = (\n'''", "unparsed", "embedded program (unparsable)"),
+    # The whole environment handed out, readable by code the gate never sees
+    # (found 2026-10-08: `return os.environ` produced no finding at all).
+    ("import os\ndef f():\n    return os.environ", "handout", "return os.environ"),
+    ("import os\ng(os.environ)", "handout", "f(os.environ)"),
+    ("import os\ng(mapping=os.environ)", "handout", "mapping=os.environ"),
+    ("import os\nclass C:\n    def __init__(self):\n        self.env = os.environ", "handout",
+     "<target> = os.environ"),
 ]
 
 

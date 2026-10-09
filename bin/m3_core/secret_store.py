@@ -132,54 +132,126 @@ class DsnResolution:
     errors: tuple[str, ...]  # what each tier HIT on the way, for an honest "not found"
 
 
-def explain_pg_dsn(role: PgRole) -> DsnResolution:
-    """Resolve a role's DSN and say where it came from, or why nothing did.
+class VaultPolicy(StrEnum):
+    ALLOWED = "allowed"
+    DEPRECATED = "deprecated"  # still read, warns every time (D1)
+    NEVER = "never"            # a bootstrap secret (CONFIG_DESIGN §10)
 
-    Order: env (the role's own variables, via m3_core.paths, which owns their
-    precedence and the legacy-name warning) -> OS keyring -> user-only secrets
-    file -> vault. For PRIMARY the vault is a DEPRECATED fallback (user decision
-    D1, 2026-10-08): CONFIG_DESIGN §10 says a bootstrap secret never comes from
-    the vault, so using it warns every time until it is retired at N+3. Never
-    reads the other role's variables, so a warehouse DSN cannot become the
-    primary store through resolution.
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class SecretResolution:
+    value: str               # "" when nothing resolved
+    source: str | None       # "env:NAME", "keyring:NAME", "secrets-file:NAME", "vault:NAME"
+    errors: tuple[str, ...]  # what each tier HIT on the way, for an honest "not found"
+
+
+# D1 (user, 2026-10-08): the primary DSN's vault copy keeps working, loudly, until N+3.
+_VAULT_DEPRECATED = frozenset({"M3_PRIMARY_PG_URL"})
+
+
+def vault_policy(name: str) -> VaultPolicy:
+    """Whether a secret may come from the vault: never for a registry
+    ``bootstrap`` key (the registry is the one list), deprecated for D1's."""
+    if name in _VAULT_DEPRECATED:
+        return VaultPolicy.DEPRECATED
+    from m3_core.config.keys import REGISTRY
+
+    key = REGISTRY.get(name)
+    return VaultPolicy.NEVER if key is not None and key.bootstrap else VaultPolicy.ALLOWED
+
+
+def explain_secret(store_keys: tuple[str, ...], *, env_hit: tuple[str, str] | None,
+                   vault: VaultPolicy) -> SecretResolution:
+    """THE secret chain: env -> OS keyring -> user-only secrets file -> vault.
+
+    ``env_hit`` is (name, value) from the caller's env reader, which owns that
+    secret's env names and their legacy warnings. ``store_keys`` are the names
+    the value is stored under in the keyring, the file and the vault. Every
+    tier's failure is collected, so a miss is never reported as "not set" when a
+    tier was broken (m3 2f4bad6c).
     """
-    from m3_core.paths import resolve_cdw_pg_dsn, resolve_primary_pg_dsn
-
-    errors: list[str] = []
-    env_reader = resolve_primary_pg_dsn if role is PgRole.PRIMARY else resolve_cdw_pg_dsn
-    env = (env_reader("") or "").strip()
-    if env:
-        names = ("M3_PRIMARY_PG_URL", "M3_PG_URL") if role is PgRole.PRIMARY else ("M3_CDW_PG_URL", "PG_URL")
-        name = next((n for n in names if (os.environ.get(n) or "").strip() == env), names[0])
-        return DsnResolution(dsn=env, source=f"env:{name}", errors=())
+    if env_hit is not None and env_hit[1].strip():
+        return SecretResolution(value=env_hit[1].strip(), source=f"env:{env_hit[0]}", errors=())
     try:
         import auth_utils
     except ImportError as e:  # installer bootstrap: env is all there is
-        return DsnResolution(dsn="", source=None, errors=(f"secret tiers unavailable: {e}",))
+        return SecretResolution(value="", source=None, errors=(f"secret tiers unavailable: {e}",))
 
+    errors: list[str] = []
     tiers = (("keyring", auth_utils._keyring_tier), ("secrets-file", auth_utils._file_tier))
     for tier, read in tiers:
-        for key in _STORE_KEYS[role]:
+        for key in store_keys:
             value, err = read(key)
             if err:
                 errors.append(err)
             if value and value.strip():
-                return DsnResolution(dsn=value.strip(), source=f"{tier}:{key}", errors=tuple(errors))
-    for key in _STORE_KEYS[role]:
+                return SecretResolution(value=value.strip(), source=f"{tier}:{key}", errors=tuple(errors))
+    if vault is VaultPolicy.NEVER:
+        errors.append(f"vault: not consulted for {', '.join(store_keys)} (a bootstrap secret)")
+        return SecretResolution(value="", source=None, errors=tuple(errors))
+    for key in store_keys:
         value, err = auth_utils._vault_tier(key)
         if err:
             errors.append(err)
         if value and value.strip():
-            if role is PgRole.PRIMARY:
+            if vault is VaultPolicy.DEPRECATED:
                 logging.getLogger(__name__).warning(
-                    "observed: the primary PostgreSQL DSN came from the encrypted vault (key %s), "
-                    "which is deprecated for it: it is a bootstrap secret, and the vault lives in "
-                    "the store it unlocks. It still works; the vault fallback is removed at N+3. "
-                    "fix: `python -m keyring set system %s` (prompts for the DSN, so it stays out "
-                    "of shell history), or set %s in the environment of every m3 process.",
-                    key, key, key)
-            return DsnResolution(dsn=value.strip(), source=f"vault:{key}", errors=tuple(errors))
-    return DsnResolution(dsn="", source=None, errors=tuple(errors))
+                    "observed: %s came from the encrypted vault, which is deprecated for it: it is "
+                    "a bootstrap secret, and the vault lives in the store it unlocks. It still "
+                    "works; the vault fallback is removed at N+3. fix: `python -m keyring set "
+                    "system %s` (prompts for the value, so it stays out of shell history), or set "
+                    "%s in the environment of every m3 process.", key, key, key)
+            return SecretResolution(value=value.strip(), source=f"vault:{key}", errors=tuple(errors))
+    return SecretResolution(value="", source=None, errors=tuple(errors))
+
+
+def _env_first(names: tuple[str, ...]) -> tuple[str, str] | None:
+    """The first of ``names`` set to a non-blank value in the environment."""
+    for n in names:
+        v = os.environ.get(n)
+        if v is not None and v.strip():
+            return n, v
+    return None
+
+
+# A registry secret that is a role DSN resolves through its role, which owns the
+# role's env names and the PG_URL deprecation warning.
+_DSN_ROLE = {"M3_PRIMARY_PG_URL": PgRole.PRIMARY, "M3_CDW_PG_URL": PgRole.WAREHOUSE}
+
+
+def explain_named_secret(name: str) -> SecretResolution:
+    """Resolve one secret by name: a registry key with its env names, or a
+    dynamic ``get_secret(service)`` name standing for itself."""
+    role = _DSN_ROLE.get(name)
+    if role is not None:
+        d = explain_pg_dsn(role)
+        return SecretResolution(value=d.dsn, source=d.source, errors=d.errors)
+    from m3_core.config.keys import REGISTRY
+
+    key = REGISTRY.get(name)
+    env_names = key.env_names if key is not None and key.env_names else (name,)
+    return explain_secret((name,), env_hit=_env_first(env_names), vault=vault_policy(name))
+
+
+def explain_pg_dsn(role: PgRole) -> DsnResolution:
+    """Resolve a role's DSN and say where it came from, or why nothing did.
+
+    Env comes from the role's own variables via m3_core.paths, which owns their
+    precedence and the legacy-name warning; the rest is ``explain_secret``. For
+    PRIMARY the vault is a DEPRECATED fallback (D1). Never reads the other
+    role's variables, so a warehouse DSN cannot become the primary store.
+    """
+    from m3_core.paths import resolve_cdw_pg_dsn, resolve_primary_pg_dsn
+
+    env_reader = resolve_primary_pg_dsn if role is PgRole.PRIMARY else resolve_cdw_pg_dsn
+    env = (env_reader("") or "").strip()
+    env_hit = None
+    if env:
+        names = ("M3_PRIMARY_PG_URL", "M3_PG_URL") if role is PgRole.PRIMARY else ("M3_CDW_PG_URL", "PG_URL")
+        env_hit = (next((n for n in names if (os.environ.get(n) or "").strip() == env), names[0]), env)
+    r = explain_secret(_STORE_KEYS[role], env_hit=env_hit,
+                       vault=vault_policy(_STORE_KEYS[role][0]))
+    return DsnResolution(dsn=r.value, source=r.source, errors=r.errors)
 
 
 def resolve_pg_dsn(role: PgRole) -> str:

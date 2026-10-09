@@ -479,23 +479,11 @@ def get_api_key(service: str) -> str | None:
     5. Encrypted vault (synchronized_secrets)
     """
     service = _sanitize_service(service)
-    val = os.getenv(service, "").strip()
-    if val:
-        return val
+    # The one chain owner (env names from the registry, e.g. LM_API_TOKEN's
+    # LM_STUDIO_API_KEY alias; the vault never for a bootstrap secret).
+    from m3_core.secret_store import explain_named_secret
 
-    if service == "LM_API_TOKEN":
-        alt = os.getenv("LM_STUDIO_API_KEY", "").strip()
-        if alt:
-            return alt
-
-    val, _ = _keyring_tier(service)
-    if val:
-        return val
-    val, _ = _file_tier(service)
-    if val:
-        return val
-    val, _ = _vault_tier(service)
-    return val
+    return explain_named_secret(service).value or None
 
 
 def _keyring_tier(service: str) -> tuple[str | None, str | None]:

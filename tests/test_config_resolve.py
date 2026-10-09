@@ -1,0 +1,164 @@
+"""m3_core.config precedence and the snapshot (CONFIG_DESIGN §2, §3, §13).
+
+N..N+2: env (env_override keys only) > m3_config.toml > legacy env > default.
+The environment is passed in as a mapping; no test touches os.environ.
+"""
+from __future__ import annotations
+
+import logging
+from pathlib import Path
+
+import pytest
+
+
+def _loc(tmp_path: Path, text: str | None):
+    from m3_core.config import Location
+
+    p = tmp_path / "m3_config.toml"
+    if text is not None:
+        p.write_text(text, encoding="utf-8", newline="\n")
+    return Location(file=p, root=tmp_path, tier="test")
+
+
+def _build(tmp_path, text, environ):
+    from m3_core.config.settings import build
+
+    return build(_loc(tmp_path, text), environ=environ)
+
+
+def _key(name):
+    from m3_core.config import REGISTRY
+
+    return REGISTRY.get(name)
+
+
+# ── precedence ───────────────────────────────────────────────────────────────
+def test_default_when_nothing_is_set(tmp_path):
+    s = _build(tmp_path, None, {})
+    assert s[_key("db.backend")] == "sqlite" and s.origin(_key("db.backend")) == "default"
+
+
+def test_the_file_beats_the_default(tmp_path):
+    s = _build(tmp_path, '[db]\nbackend = "postgres"\n', {})
+    assert s[_key("db.backend")] == "postgres"
+    assert s.origin(_key("db.backend")).endswith("[db].backend")
+
+
+def test_an_env_override_key_beats_the_file(tmp_path):
+    """U9: db.backend is the one key env may override."""
+    s = _build(tmp_path, '[db]\nbackend = "postgres"\n', {"M3_DB_BACKEND": "SQLite "})
+    assert s[_key("db.backend")] == "sqlite" and s.origin(_key("db.backend")) == "env:M3_DB_BACKEND"
+
+
+def test_the_legacy_alias_still_answers(tmp_path):
+    s = _build(tmp_path, None, {"DB_BACKEND": "postgres"})
+    assert s.origin(_key("db.backend")) == "env:DB_BACKEND"
+
+
+def test_a_non_override_key_from_env_ranks_below_the_file(tmp_path):
+    """#D28: `m3 config set` wins at once; the stale env name is reported, not dropped."""
+    from m3_core.config import Key, Registry, parse_bool
+    from m3_core.config import keys as k
+    from m3_core.config.settings import build
+
+    knob = Key[bool](name="log.verbose", parse=parse_bool, default=False, doc="t",
+                     env_names=("M3_VERBOSE",))
+    reg = Registry([*k.REGISTRY, knob])
+    file_wins = build(_loc(tmp_path, "[log]\nverbose = false\n"), registry=reg,
+                      environ={"M3_VERBOSE": "1"})
+    assert file_wins[knob] is False and file_wins.shadowed_env() == ["M3_VERBOSE"]
+
+    env_wins = build(_loc(tmp_path / "x" if (tmp_path / "x").mkdir() is None else tmp_path, None),
+                     registry=reg, environ={"M3_VERBOSE": "yes"})
+    assert env_wins[knob] is True and env_wins.origin(knob) == "env-legacy:M3_VERBOSE"
+    assert env_wins.legacy_env_in_use() == ["M3_VERBOSE"]
+
+
+def test_every_bad_env_value_is_reported_at_once(tmp_path):
+    from m3_core.config import format_config_error
+    from m3_core.config.resolve import ConfigEnvErrors
+
+    with pytest.raises(ConfigEnvErrors) as exc:
+        _build(tmp_path, None, {"M3_DB_BACKEND": "postgre"})
+    text = format_config_error(exc.value)
+    assert "M3_DB_BACKEND='postgre'" in text and "[db].backend" in text and "unset M3_DB_BACKEND" in text
+
+
+def test_secrets_are_not_resolved_into_the_snapshot(tmp_path):
+    s = _build(tmp_path, None, {"M3_PRIMARY_PG_URL": "postgresql://u:p@h/db"})
+    assert "M3_PRIMARY_PG_URL" not in s.resolved, "a secret's value sits in the settings snapshot"
+
+
+# ── the snapshot and its reload ──────────────────────────────────────────────
+@pytest.fixture
+def cache(monkeypatch, tmp_path):
+    """The process cache pointed at a temp config file, reset after."""
+    from m3_core.config import settings as st
+
+    monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path))
+    monkeypatch.delenv("M3_DB_BACKEND", raising=False)
+    monkeypatch.delenv("DB_BACKEND", raising=False)
+    st._reset_for_tests()
+    st.set_ttl_for_tests(0.0)
+    yield tmp_path / "m3_config.toml"
+    st._reset_for_tests()
+    st.set_ttl_for_tests(st.DEFAULT_TTL_S)
+
+
+def test_an_atomic_replace_is_seen(cache):
+    """§3: identity + content hash, so a same-size, same-second replace is not missed."""
+    import os
+
+    from m3_core.config import settings as st
+
+    cache.write_text('[secrets]\nfile = "/a/1"\n', encoding="utf-8")
+    first = st.current()
+    tmp = cache.with_name("new.toml")
+    tmp.write_text('[secrets]\nfile = "/a/2"\n', encoding="utf-8")  # same size
+    os.replace(tmp, cache)
+    second = st.current()
+    # Detected: the snapshot carries the new file's identity. (secrets.file itself is
+    # not reloadable, so its VALUE stays; that rule has its own test.)
+    assert second.identity != first.identity and second.identity.sha256 != first.identity.sha256
+
+
+def test_a_bad_reload_keeps_the_last_good_snapshot(cache, caplog):
+    from m3_core.config import settings as st
+
+    cache.write_text('[secrets]\nfile = "/a/1"\n', encoding="utf-8")
+    good = st.current()
+    cache.write_text('[secrets]\nfile = 7\n', encoding="utf-8")
+    with caplog.at_level(logging.ERROR):
+        again = st.current()
+    assert again is good and "reload failed" in caplog.text and "[secrets].file" in caplog.text
+    assert "[secrets].file" in (st.last_error() or "")
+
+
+def test_a_non_reloadable_key_keeps_its_startup_value(cache, caplog):
+    from m3_core.config import settings as st
+
+    cache.write_text('[db]\nbackend = "sqlite"\n', encoding="utf-8")
+    assert st.current()[_key("db.backend")] == "sqlite"
+    cache.write_text('[db]\nbackend = "postgres"\n', encoding="utf-8")
+    with caplog.at_level(logging.WARNING):
+        assert st.current()[_key("db.backend")] == "sqlite"
+    assert "restart required" in caplog.text
+
+
+def test_a_bad_file_at_startup_raises(cache):
+    from m3_core.config import ConfigFileError
+    from m3_core.config import settings as st
+
+    cache.write_text("[db]\nbakend = 1\n", encoding="utf-8")
+    with pytest.raises(ConfigFileError):
+        st.current()
+
+
+def test_override_is_dataclasses_replace(tmp_path):
+    from m3_core.config.settings import override
+
+    s = _build(tmp_path, None, {})
+    t = override(s, {_key("db.backend"): "postgres"})
+    assert t[_key("db.backend")] == "postgres" and s[_key("db.backend")] == "sqlite"
+    with pytest.raises(Exception):
+        override(s, {_key("db.backend"): "postgre"})

@@ -1,8 +1,8 @@
 ---
 tool: bin/auth_utils.py
-sha1: fdd1552084d0
-mtime_utc: 2026-10-09T03:21:19.687766+00:00
-generated_utc: 2026-10-09T03:21:38.631578+00:00
+sha1: 2675153b3db5
+mtime_utc: 2026-10-09T03:54:26.430720+00:00
+generated_utc: 2026-10-09T03:59:58.171341+00:00
 private: false
 ---
 
@@ -31,7 +31,6 @@ _(no argparse arguments detected)_
 - `AGENT_OS_MASTER_KEY`
 - `COMPUTERNAME`
 - `HOSTNAME`
-- `LM_STUDIO_API_KEY`
 - `M3_AGENT_OS_SALT_HEX`
 
 ---
@@ -51,8 +50,8 @@ _(no argparse arguments detected)_
 **subprocess**
 
 - `subprocess.run()  → `['security', 'find-generic-password', '-s', 'AGENT_OS_MASTER_KEY', '-w']`` (line 253)
-- `subprocess.run()  → `['security', 'find-generic-password', '-s', service, '-w']`` (line 518)
-- `subprocess.run()` (line 536)
+- `subprocess.run()  → `['security', 'find-generic-password', '-s', service, '-w']`` (line 506)
+- `subprocess.run()` (line 524)
 
 
 ---
@@ -63,6 +62,7 @@ _(no argparse arguments detected)_
 - `cryptography.fernet (Fernet)`
 - `keyring`
 - `m3_core.secret_store (SecretsFileError)`
+- `m3_core.secret_store (explain_named_secret)`
 - `m3_core.secret_store (get_secret)`
 - `memory.backends (active_backend)`
 - `memory.backends (dialect)`

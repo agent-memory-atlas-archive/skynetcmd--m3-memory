@@ -1,0 +1,89 @@
+"""Resolve each config key to (value, origin) (CONFIG_DESIGN §2, §13).
+
+Precedence for a CONFIG key, N..N+2 (the deprecation window, #D28):
+
+    env, for an ``env_override`` key only (U9: db.backend)
+    > m3_config.toml
+    > legacy env (any other key's old env name; honoured, and reported, until N+3)
+    > the registry default
+
+So ``m3 config set`` wins at once even while HKCU / rc files / MCP env blocks
+still hold an old value; the shadowed env name is reported, never silently
+dropped. At N+3 the third rung goes. Secrets are not resolved here: their
+chain (``m3_core.secret_store``) touches the keyring, so they resolve on demand.
+"""
+from __future__ import annotations
+
+from collections.abc import Mapping
+from dataclasses import dataclass
+
+from .loader import LoadedFile, show_key
+from .registry import ConfigValue, ConfigValueError, Key, KeyClass, Registry
+
+ORIGIN_DEFAULT = "default"
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class Resolved:
+    value: ConfigValue | None
+    origin: str                      # "env:NAME" | "file:<path> [t].k" | "env-legacy:NAME" | "default"
+    shadowed: tuple[str, ...] = ()   # env names set but outranked by the file
+
+
+class ConfigEnvError(ValueError):
+    """An environment value that does not parse or validate for its key."""
+
+
+class ConfigEnvErrors(ExceptionGroup):
+    def derive(self, excs):
+        return ConfigEnvErrors(self.message, excs)
+
+
+def _env_hit(key: Key, environ: Mapping[str, str]) -> tuple[str, str] | None:
+    for name in key.env_names:
+        raw = environ.get(name)
+        if raw is not None and raw.strip():
+            return name, raw
+    return None
+
+
+def _from_env(key: Key, name: str, raw: str) -> ConfigValue:
+    try:
+        return key.coerce_env_value(raw)
+    except ConfigValueError as e:
+        # The value is shown: config, never a secret (secrets resolve elsewhere).
+        err = ConfigEnvError(f"environment {name}={raw!r} (setting {show_key(key.name)}): {e}")
+        err.add_note(f"fix or unset {name}; inspect: `m3 config show --origin`")
+        raise err from None
+
+
+def resolve_key(key: Key, loaded: LoadedFile, environ: Mapping[str, str]) -> Resolved:
+    if key.klass is not KeyClass.CONFIG:
+        raise ValueError(f"{key.name} is a {key.klass}; resolve secrets with m3_core.secret_store")
+    hit = _env_hit(key, environ)
+    if key.env_override and hit is not None:
+        return Resolved(value=_from_env(key, *hit), origin=f"env:{hit[0]}")
+    if key.name in loaded.values:
+        shadowed = tuple(n for n in key.env_names if (environ.get(n) or "").strip())
+        return Resolved(value=loaded.values[key.name],
+                        origin=f"file:{loaded.location.file} {show_key(key.name)}", shadowed=shadowed)
+    if hit is not None:
+        return Resolved(value=_from_env(key, *hit), origin=f"env-legacy:{hit[0]}")
+    return Resolved(value=key.default, origin=ORIGIN_DEFAULT)
+
+
+def resolve_all(registry: Registry, loaded: LoadedFile,
+                environ: Mapping[str, str]) -> dict[str, Resolved]:
+    """Every CONFIG key, or ``ConfigEnvErrors`` naming EVERY bad env value."""
+    out: dict[str, Resolved] = {}
+    errors: list[Exception] = []
+    for key in registry:
+        if key.klass is not KeyClass.CONFIG:
+            continue
+        try:
+            out[key.name] = resolve_key(key, loaded, environ)
+        except ConfigEnvError as e:
+            errors.append(e)
+    if errors:
+        raise ConfigEnvErrors(f"{len(errors)} environment value(s) are invalid", errors)
+    return out
