@@ -321,7 +321,7 @@ def _build_extractor(
         try:
             r = await client.post(eff_url, json=payload, headers=headers, timeout=profile.timeout_s)
         except (httpx.HTTPError, TimeoutError) as e:
-            raise RuntimeError(f"http error: {type(e).__name__}: {e}")
+            raise RuntimeError(f"http error: {type(e).__name__}: {e}") from e
         if r.status_code != 200:
             # A context-overflow 500 is terminal for this row, not transient:
             # the prompt+max_tokens exceed the loaded model's n_ctx, and halving

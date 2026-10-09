@@ -301,7 +301,7 @@ def _redirect_output(log_path: pathlib.Path, logger_name: str | None) -> None:
     # Bound the log BEFORE opening the handle (see _rotate_if_oversized).
     _rotate_if_oversized(log_path)
     # Line-buffered, utf-8 so non-ASCII log output doesn't crash on cp1252.
-    fh = open(log_path, "a", encoding="utf-8", buffering=1)
+    fh = open(log_path, "a", encoding="utf-8", buffering=1)  # noqa: SIM115 — becomes stdout/stderr for the process lifetime
     stamped = _TimestampedStream(fh)
     sys.stdout = stamped
     sys.stderr = stamped

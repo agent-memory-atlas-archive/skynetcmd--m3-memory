@@ -315,16 +315,16 @@ def _scrub_python(content: str, config: dict) -> tuple[str, int, list[str]]:
         group_patterns = compiled[group_name]
         match_count_for_group = [0]
 
-        def make_replacement(group: str):
+        def make_replacement(group: str, counter: list[int]):
             def replacement_fn(m):
-                match_count_for_group[0] += 1
+                counter[0] += 1
                 return f"[REDACTED:{group}]"
             return replacement_fn
 
         # Apply each pattern in the group
         for pattern_name, pattern in group_patterns:
             scrubbed = pattern.sub(
-                make_replacement(group_name), scrubbed
+                make_replacement(group_name, match_count_for_group), scrubbed
             )
 
         if match_count_for_group[0] > 0:

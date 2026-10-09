@@ -646,8 +646,8 @@ async def _run_with_tools(
         # Execute all tools concurrently (bounded)
         _tool_sem = asyncio.Semaphore(5)
 
-        async def _exec_one(tc: dict) -> dict:
-            async with _tool_sem:
+        async def _exec_one(tc: dict, _sem: asyncio.Semaphore = _tool_sem) -> dict:
+            async with _sem:
                 fn = tc.get("function", {})
                 name = fn.get("name", "")
                 raw = fn.get("arguments", "{}")

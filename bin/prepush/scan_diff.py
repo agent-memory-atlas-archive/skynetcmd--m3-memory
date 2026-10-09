@@ -40,7 +40,7 @@ def load_patterns(path: str) -> list[tuple[int, re.Pattern[str]]]:
             f"           error : {e}\n"
             f"           A policy that cannot be read is not a policy that found "
             f"nothing. Fix the path (M3_PREPUSH_PROHIBITED) or restore the file."
-        )
+        ) from e
 
     compiled: list[tuple[int, re.Pattern[str]]] = []
     broken: list[tuple[int, str]] = []
@@ -155,7 +155,7 @@ def main(argv: list[str]) -> int:
             raise SystemExit(
                 f"[scan_diff] BLOCKED: the built-in fallback pattern does not "
                 f"compile: {e}"
-            )
+            ) from e
         source = "<built-in fallback>"
     else:
         raise SystemExit(
@@ -173,7 +173,7 @@ def main(argv: list[str]) -> int:
                 f"does not compile: {e}\n"
                 "           Without it, legitimate doc placeholders would be "
                 "reported as leaks, so the scan is not run."
-            )
+            ) from e
 
     hits: list[str] = []
     for line in sys.stdin.buffer.read().decode("utf-8", "replace").splitlines():

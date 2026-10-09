@@ -1585,7 +1585,7 @@ def _kill_stuck_writers(stuck, *, allow_sudo: bool = False) -> bool:
         # the writer silently — setup then carried on with a stale process still
         # holding the DB. Re-ask instead; the user can still decline explicitly.
         if allow_sudo and _retry_elevated(
-            lambda: elevate(p.pid), what=f"elevated stop of {p.role} (pid {p.pid})"
+            lambda p=p: elevate(p.pid), what=f"elevated stop of {p.role} (pid {p.pid})"
         ):
             _ok(f"    stopped {p.role} (pid {p.pid}) via {how}")
             continue

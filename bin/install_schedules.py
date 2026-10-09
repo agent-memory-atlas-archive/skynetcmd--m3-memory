@@ -19,7 +19,7 @@ def _run(*args, **kwargs):
         return subprocess.run(*args, **kwargs)
     except subprocess.TimeoutExpired as e:
         if kwargs.get("check"):
-            raise subprocess.CalledProcessError(124, e.cmd, output=e.stdout, stderr=e.stderr)
+            raise subprocess.CalledProcessError(124, e.cmd, output=e.stdout, stderr=e.stderr) from e
         stderr_val = "timeout after 30s"
         stdout_val = ""
         if not kwargs.get("text") and not kwargs.get("universal_newlines"):

@@ -381,15 +381,19 @@ def _supervise_postgres(args) -> int:
         child_start_time = time.time()
 
         q: queue.Queue[str | None] = queue.Queue()  # None == EOF sentinel
-        def reader():
+        # The thread gets ITS child's stream and queue as arguments. Read from
+        # the enclosing scope at run time, a reader still alive after a restart
+        # put its EOF sentinel into the NEW child's queue, and the supervisor
+        # took the healthy new child for dead (a restart storm).
+        def reader(stream, out_q):
             try:
-                for line in p.stdout:
-                    q.put(line)
+                for line in stream:
+                    out_q.put(line)
             except Exception:
                 pass
-            q.put(None)
+            out_q.put(None)
 
-        t = threading.Thread(target=reader, daemon=True)
+        t = threading.Thread(target=reader, args=(p.stdout, q), daemon=True)
         t.start()
 
         child_failed = False

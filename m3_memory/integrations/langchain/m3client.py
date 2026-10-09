@@ -46,7 +46,7 @@ import threading
 from collections.abc import Awaitable, Callable, Coroutine
 from concurrent.futures import Future
 from contextlib import nullcontext as _nullcontext
-from typing import Any
+from typing import Any, ClassVar
 
 # NOTE: mcp_tool_catalog / catalog.dispatch / memory_core are imported LAZILY
 # inside the call methods, NOT at module top. They pull a heavy dependency chain
@@ -335,7 +335,8 @@ class M3Client:
         return self._run(self._dispatch(name, args))
 
     # ── self-heal: ensure a DB's schema exists (§4 "just works") ──────────────
-    _schema_healed: set = set()
+    # Shared by every instance on purpose: heal each DB's schema once per process.
+    _schema_healed: ClassVar[set[str]] = set()
 
     def ensure_schema(self, db_path: str = "") -> None:
         """Make sure the target DB has m3's schema, migrating it if absent.

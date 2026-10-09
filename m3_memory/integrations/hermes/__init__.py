@@ -179,7 +179,7 @@ class M3MemoryProvider(MemoryProvider):
                 # catalog under threaded tool execution can surface as other
                 # exception types. Report the concrete error rather than a
                 # generic "PYTHONPATH?" guess.
-                raise RuntimeError(f"m3 client unavailable: {type(e).__name__}: {e}")
+                raise RuntimeError(f"m3 client unavailable: {type(e).__name__}: {e}") from e
             self._client = M3Client(agent_id=self._agent_id)
             return self._client
 

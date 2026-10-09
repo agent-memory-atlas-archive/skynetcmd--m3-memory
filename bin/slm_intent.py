@@ -218,7 +218,7 @@ def _parse_profile(name: str, path: Path) -> Profile:
             try:
                 _re.compile(pat)
             except _re.error as e:
-                raise ValueError(f"{path}: post.{key} contains invalid regex {pat!r}: {e}")
+                raise ValueError(f"{path}: post.{key} contains invalid regex {pat!r}: {e}") from e
         return out
 
     post_strip_prefixes = _str_tuple("strip_prefixes")

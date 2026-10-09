@@ -102,7 +102,8 @@ def _self_ref_names() -> frozenset[str]:
     names = set(_DEFAULT_SELF_REF_NAMES)
     try:
         if _os.path.isfile(path):
-            extra = _json.load(open(path, encoding="utf-8")).get("self_entities")
+            with open(path, encoding="utf-8") as fh:
+                extra = _json.load(fh).get("self_entities")
             if isinstance(extra, list):
                 names.update(str(x) for x in extra)
     except Exception:

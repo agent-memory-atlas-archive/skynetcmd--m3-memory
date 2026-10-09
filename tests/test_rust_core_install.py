@@ -208,11 +208,11 @@ def test_install_rust_core_github_release_success_skips_fallbacks(monkeypatch):
     """
     calls = []
     monkeypatch.setattr(rci, "install_prebuilt",
-                        lambda c, **k: calls.append("prebuilt") or 0)
+                        lambda c, calls=calls, **k: calls.append("prebuilt") or 0)
     monkeypatch.setattr(rci, "install_from_github_release",
-                        lambda c, **k: calls.append("github") or 0)
+                        lambda c, calls=calls, **k: calls.append("github") or 0)
     monkeypatch.setattr(rci, "install_from_source",
-                        lambda c, **k: calls.append("source") or 0)
+                        lambda c, calls=calls, **k: calls.append("source") or 0)
     monkeypatch.setattr(rci, "detect_backend",
                         lambda os_tok=None: rci.BackendChoice("linux", "cuda", "t"))
     rc = rci.install_rust_core()
@@ -227,11 +227,11 @@ def test_install_rust_core_falls_back_github_to_pip(monkeypatch):
     """
     calls = []
     monkeypatch.setattr(rci, "install_prebuilt",
-                        lambda c, **k: calls.append("prebuilt") or 0)
+                        lambda c, calls=calls, **k: calls.append("prebuilt") or 0)
     monkeypatch.setattr(rci, "install_from_github_release",
                         lambda c, **k: calls.append("github") or 1)
     monkeypatch.setattr(rci, "install_from_source",
-                        lambda c, **k: calls.append("source") or 0)
+                        lambda c, calls=calls, **k: calls.append("source") or 0)
     monkeypatch.setattr(rci, "detect_backend",
                         lambda os_tok=None: rci.BackendChoice("macos", "metal", "t"))
     rc = rci.install_rust_core()
@@ -277,7 +277,7 @@ def test_install_rust_core_no_source_fallback_when_disabled(monkeypatch):
     monkeypatch.setattr(rci, "install_from_github_release",
                         lambda c, **k: calls.append("github") or 1)
     monkeypatch.setattr(rci, "install_from_source",
-                        lambda c, **k: calls.append("source") or 0)
+                        lambda c, calls=calls, **k: calls.append("source") or 0)
     monkeypatch.setattr(rci, "detect_backend",
                         lambda os_tok=None: rci.BackendChoice("macos", "metal", "t"))
     rc = rci.install_rust_core(allow_source_fallback=False)
@@ -295,11 +295,11 @@ def test_cuda_never_wastes_a_pypi_roundtrip(monkeypatch):
     for os_tok in ("windows", "linux"):
         calls = []
         monkeypatch.setattr(rci, "install_prebuilt",
-                            lambda c, **k: calls.append("prebuilt") or 0)
+                            lambda c, calls=calls, **k: calls.append("prebuilt") or 0)
         monkeypatch.setattr(rci, "install_from_github_release",
-                            lambda c, **k: calls.append("github") or 0)
+                            lambda c, calls=calls, **k: calls.append("github") or 0)
         monkeypatch.setattr(rci, "install_from_source",
-                            lambda c, **k: calls.append("source") or 0)
+                            lambda c, calls=calls, **k: calls.append("source") or 0)
         monkeypatch.setattr(
             rci, "detect_backend",
             lambda os_tok=None, _o=os_tok: rci.BackendChoice(_o, "cuda", "t"))
@@ -517,7 +517,7 @@ def test_force_reinstalls_even_when_current(monkeypatch):
     calls = []
     monkeypatch.setattr(rci, "is_rust_core_current", lambda: True)
     monkeypatch.setattr(rci, "install_from_github_release",
-                        lambda c, **k: calls.append("github") or 0)
+                        lambda c, calls=calls, **k: calls.append("github") or 0)
     monkeypatch.setattr(rci, "install_prebuilt", lambda c, **k: 0)
     monkeypatch.setattr(rci, "install_from_source", lambda c, **k: 0)
     monkeypatch.setattr(rci, "detect_backend",
@@ -533,7 +533,7 @@ def test_explicit_backend_bypasses_skip(monkeypatch):
     calls = []
     monkeypatch.setattr(rci, "is_rust_core_current", lambda: True)
     monkeypatch.setattr(rci, "install_from_github_release",
-                        lambda c, **k: calls.append("github") or 0)
+                        lambda c, calls=calls, **k: calls.append("github") or 0)
     monkeypatch.setattr(rci, "install_prebuilt", lambda c, **k: 0)
     monkeypatch.setattr(rci, "install_from_source", lambda c, **k: 0)
     rc = rci.install_rust_core(backend="cpu", os_tok="linux")

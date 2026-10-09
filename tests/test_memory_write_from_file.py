@@ -115,7 +115,7 @@ def isolated_db(monkeypatch, tmp_path):
 
 
 def _make_tempfile(body, suffix=".md"):
-    tf = tempfile.NamedTemporaryFile(
+    tf = tempfile.NamedTemporaryFile(  # noqa: SIM115 — the caller closes and removes it
         mode="w", delete=False, suffix=suffix, encoding="utf-8"
     )
     try:

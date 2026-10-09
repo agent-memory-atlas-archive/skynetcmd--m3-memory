@@ -2729,7 +2729,7 @@ async def export_gdpr_data(user_id: str = "default"):
         }
         return StreamingResponse(iter_json(), media_type="application/json", headers=headers)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}") from e
 
 
 @app.post("/api/gdpr/forget")
@@ -2841,7 +2841,7 @@ async def trigger_maintenance_task(action: str):
         return HTMLResponse(content=f"[Error] Failed to initialize log: {str(e)}", status_code=500)
 
     # Open log file in append mode for child process redirection
-    log_file_handle = open(log_path, "a", encoding="utf-8", errors="replace")
+    log_file_handle = open(log_path, "a", encoding="utf-8", errors="replace")  # noqa: SIM115 — the child's stdout; closed when the task ends
 
     env = os.environ.copy()
     env["PYTHONUTF8"] = "1"

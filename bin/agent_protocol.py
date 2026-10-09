@@ -1,6 +1,7 @@
 import json
 import re
 import uuid
+from typing import ClassVar
 
 # DeepSeek-R1 and similar reasoning models emit <think>...</think> chains.
 # The capturing group in _THINK_TAG_RE returns the inner text; re.sub with
@@ -117,11 +118,11 @@ class AgentProtocol:
 
     # ---------- Tool-calling extensions (v2 dispatch loop) ----------
 
-    _GEMINI_ALLOWED_SCHEMA_KEYS = {
+    _GEMINI_ALLOWED_SCHEMA_KEYS: ClassVar[frozenset[str]] = frozenset({
         "type", "description", "enum", "properties", "required",
         "items", "format", "nullable", "minimum", "maximum",
         "minItems", "maxItems", "minLength", "maxLength", "pattern",
-    }
+    })
 
     @staticmethod
     def _strip_gemini_unsupported(schema):

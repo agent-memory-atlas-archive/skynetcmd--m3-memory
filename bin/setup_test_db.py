@@ -65,7 +65,8 @@ def main() -> int:
     applied = 0
     failed: list[str] = []
     for f in files:
-        sql = open(f, encoding="utf-8").read()
+        with open(f, encoding="utf-8") as fh:
+            sql = fh.read()
         sql = _BEGIN_RE.sub("", sql)
         sql = _COMMIT_RE.sub("", sql)
         try:

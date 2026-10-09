@@ -359,7 +359,11 @@ target-version = "py312"   # the supported floor (requires-python)
 line-length = 120
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP"]
+select = ["E", "F", "W", "I", "UP",
+          # 2D.M correctness rules, each turned on once the tree was clean of it:
+          # late-binding closures, raise without its cause, mutable class
+          # attributes, files opened without a context manager.
+          "B023", "B904", "RUF012", "SIM115"]
 # E501: long lines handled by editor wrap, not blocker for this codebase.
 # E402: many bin/ entrypoints do sys.path setup or lazy imports deliberately
 #   before importing project modules — buried imports are intentional.
@@ -376,6 +380,9 @@ ignore = ["E501", "E402", "E701", "E702", "E741"]
 "bin/memory_core.py" = ["F821"]
 # dashboard_server.py imports Any via TYPE_CHECKING guard; F821 is spurious.
 "bin/dashboard_server.py" = ["F821"]
+# Test fakes mirror production class attributes, often as plain mutable
+# defaults; RUF012 there flags the fake's shape, not a shared-state bug.
+"tests/**" = ["RUF012"]
 
 [tool.mypy]
 python_version = "3.12"

@@ -154,11 +154,11 @@ def daemonize_windows(args):
             # the inherited handle keeps its offset and the next write
             # zero-fills the gap back to full size on Windows.
             _rotate_task_log(args.log_file)
-            child_out = open(args.log_file, "a", encoding="utf-8")
+            child_out = open(args.log_file, "a", encoding="utf-8")  # noqa: SIM115 — see the NOTE below
         except OSError:
-            child_out = open(os.devnull, "a")
+            child_out = open(os.devnull, "a")  # noqa: SIM115 — see the NOTE below
     else:
-        child_out = open(os.devnull, "a")
+        child_out = open(os.devnull, "a")  # noqa: SIM115 — see the NOTE below
 
     # Spawn the detached child, then HARD-exit the parent. os._exit(0) — not
     # sys.exit(0) — because sys.exit raises SystemExit, which an outer try/except

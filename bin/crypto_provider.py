@@ -322,7 +322,7 @@ class CryptoProvider:
                         f"observed: OSError loading {self._lib_path}: {e}. "
                         f"possible: file permissions, corrupted library, or missing dependencies (e.g., ld-linux, MSVCRT). "
                         f"inspect: check file permissions (`ls -l {self._lib_path}`), library dependencies (`ldd {self._lib_path}` on Linux), or reinstall wolfSSL."
-                    )
+                    ) from e
                 logger.info(f"M3 Crypto: wolfSSL at {self._lib_path} failed to load ({e}); using DEFAULT.")
                 self.backend = "DEFAULT"
                 return
@@ -463,7 +463,7 @@ class CryptoProvider:
                 raise RuntimeError(
                     f"FATAL: FIPS 140-3 Compliance Mode Enforced, but FIPS-validated "
                     f"wolfSSL/wolfCrypt backend failed to initialize: {e}."
-                )
+                ) from e
             logger.warning(f"M3 Crypto: wolfSSL FIPS initialization failed ({e}). Falling back to DEFAULT.")
             self.backend = "DEFAULT"
             self._initialized = False
@@ -604,7 +604,7 @@ class CryptoProvider:
                 return self._wolf_pbkdf2_sha256(password, salt, iterations, length)
             except Exception as e:
                 if (_fips_mode() or _fips_strict()):
-                    raise RuntimeError(f"FIPS PBKDF2 derivation failed: {e}. Raising to prevent unsafe fallback.")
+                    raise RuntimeError(f"FIPS PBKDF2 derivation failed: {e}. Raising to prevent unsafe fallback.") from e
                 logger.debug(f"M3 Crypto: wolfSSL PBKDF2 failed ({e}), using default fallback.")
 
         # Default Fallback: PBKDF2-HMAC-SHA256 via cryptography
@@ -649,7 +649,7 @@ class CryptoProvider:
                 return self._wolf_sha256(data)
             except Exception as e:
                 if (_fips_mode() or _fips_strict()):
-                    raise RuntimeError(f"FIPS SHA-256 Hashing Failed: {e}. Raising to prevent unsafe fallback.")
+                    raise RuntimeError(f"FIPS SHA-256 Hashing Failed: {e}. Raising to prevent unsafe fallback.") from e
                 logger.debug(f"M3 Crypto: wolfSSL SHA-256 hashing failed ({e}), using default fallback.")
 
         # Default Fallback
@@ -666,7 +666,7 @@ class CryptoProvider:
                 return self._wolf_aes_gcm_encrypt(data, key)
             except Exception as e:
                 if (_fips_mode() or _fips_strict()):
-                    raise RuntimeError(f"FIPS AES-GCM Encrypt Failed: {e}. Raising to prevent unsafe leakage.")
+                    raise RuntimeError(f"FIPS AES-GCM Encrypt Failed: {e}. Raising to prevent unsafe leakage.") from e
                 logger.debug(f"M3 Crypto: wolfSSL AES-GCM encrypt failed ({e}), using default fallback.")
 
         # Default Fallback: AES-256-GCM via cryptography
@@ -687,7 +687,7 @@ class CryptoProvider:
                 return self._wolf_aes_gcm_decrypt(token, key)
             except Exception as e:
                 if (_fips_mode() or _fips_strict()):
-                    raise RuntimeError(f"FIPS AES-GCM Decrypt Failed: {e}. Raising to prevent unsafe leakage.")
+                    raise RuntimeError(f"FIPS AES-GCM Decrypt Failed: {e}. Raising to prevent unsafe leakage.") from e
                 logger.debug(f"M3 Crypto: wolfSSL AES-GCM decrypt failed ({e}), using default fallback.")
 
         # Default Fallback: AES-256-GCM via cryptography

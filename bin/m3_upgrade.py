@@ -352,7 +352,7 @@ def locked_launchers(scripts_dir: pathlib.Path, names: list[str]) -> list[pathli
             os.rename(probe, exe)
         except OSError as e:
             raise SystemExit(f"could not restore {exe} after a lock probe ({e}); "
-                             f"rename {probe.name} back to {exe.name} by hand")
+                             f"rename {probe.name} back to {exe.name} by hand") from e
     return locked
 
 

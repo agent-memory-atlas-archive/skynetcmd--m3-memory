@@ -430,7 +430,7 @@ class TestSweepExpiredLeasesPostgresLive(unittest.TestCase):
         try:
             import psycopg  # noqa: F401
         except ImportError:  # pragma: no cover
-            raise unittest.SkipTest("psycopg not installed")
+            raise unittest.SkipTest("psycopg not installed") from None
         from conftest import pg_dsn
         cls.url = pg_dsn()
         if not cls.url:  # requires_pg should already have skipped us

@@ -17,7 +17,7 @@ class TestDueGate:
         # Redirect the run-timestamp store to a temp file so tests don't touch the
         # real ~/.m3/config/.loop_pass_runs.json.
         import tempfile
-        self._tmp = tempfile.NamedTemporaryFile(
+        self._tmp = tempfile.NamedTemporaryFile(  # noqa: SIM115 — closed and removed in tearDown
             suffix=".json", delete=False, mode="w")
         self._tmp.write("{}")
         self._tmp.close()

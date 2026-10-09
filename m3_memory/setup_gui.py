@@ -678,7 +678,7 @@ def run_gui() -> int:
                 )
                 out = proc.stdout or "(no output)"
                 stderr = proc.stderr or ""
-                tf = tempfile.NamedTemporaryFile(
+                tf = tempfile.NamedTemporaryFile(  # noqa: SIM115 — closed below; kept on failure for the user to open
                     prefix="m3-doctor-stderr-", suffix=".log", delete=False,
                     mode="w", encoding="utf-8", errors="replace")
                 tf.write(stderr)

@@ -260,7 +260,7 @@ def test_cas_supersede_exactly_one_winner(backend):
         setup()
         barrier = threading.Barrier(n)
         with cf.ThreadPoolExecutor(max_workers=n) as ex:
-            wins = sum(ex.map(lambda _: racer(barrier), range(n)))
+            wins = sum(ex.map(lambda _, b=barrier: racer(b), range(n)))
         assert wins == 1, f"N={n}: expected exactly 1 CAS winner, got {wins}"
 
     c = psycopg2.connect(dsn)
