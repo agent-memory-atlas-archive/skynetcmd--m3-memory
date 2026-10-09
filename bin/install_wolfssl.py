@@ -261,6 +261,9 @@ def _m3_lib_dir() -> str:
 
 
 def _sha256(path: str) -> str:
+    # Straight from hashlib, not crypto_provider: this verifies the wolfSSL
+    # download BEFORE wolfCrypt exists, so the boundary cannot serve it yet
+    # (allowlisted in tests/test_fips_algorithm_whitelist.py).
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(1 << 20), b""):

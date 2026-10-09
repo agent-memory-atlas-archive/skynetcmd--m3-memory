@@ -42,8 +42,9 @@ certificate, which m3 (an application) cannot hold.
             ┌──────────────── cryptographic module (INSIDE the boundary) ────────┐
             │  DEFAULT: Python `cryptography` (OpenSSL) + `hashlib`               │
             │  WOLFSSL: wolfCrypt  (open-source build, OR CMVP-validated FIPS)    │
-            │  Services: sha256() · encrypt()/decrypt() (AES-256-GCM) ·          │
-            │            pbkdf2_sha256() · get_ssl_context() (TLS 1.3)            │
+            │  Services: sha256() · sha256_stream() · hmac_sha256() ·            │
+            │            encrypt()/decrypt() (AES-256-GCM) · pbkdf2_sha256() ·    │
+            │            get_ssl_context() (TLS 1.3)                              │
             └────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -52,10 +53,22 @@ certificate, which m3 (an application) cannot hold.
 calls it. **Outside:** all m3 application logic, which only ever reaches crypto
 through `crypto_provider`'s services.
 
-**Services** (the crypto operations m3 exposes): `sha256`, `encrypt` /
-`decrypt` (AES-256-GCM), `pbkdf2_sha256`, and `get_ssl_context` (TLS 1.3). These
-are used by exactly three things: the encrypted secrets vault (`auth_utils.py`),
-key derivation, and the tamper-evident audit hash chain (`audit_trail.py`).
+**Services** (the crypto operations m3 exposes): `sha256`, `sha256_stream`
+(incremental, for data too large to hold at once), `hmac_sha256`, `encrypt` /
+`decrypt` (AES-256-GCM), `pbkdf2_sha256`, and `get_ssl_context` (TLS 1.3). Every
+security use goes through them: the encrypted secrets vault (`auth_utils.py`),
+key derivation, the tamper-evident audit hash chain (`audit_trail.py`), the
+downloaded Rust-core wheel check, the config-parity key fingerprint and secret
+HMACs, the vault-salt fingerprint, and the PostgreSQL store id (a DSN can carry a
+password).
+
+**Non-security hashes** (content, dedup and change-detection keys) call
+`hashlib` directly with `usedforsecurity=False`, which declares them outside the
+boundary. SHA-256 gives the same digest on every backend, so a node on wolfCrypt
+and one on the default backend agree on every such key. One file is allowed a
+direct digest without the flag: `install_wolfssl.py` verifies the wolfSSL
+download before wolfCrypt exists. `tests/test_fips_algorithm_whitelist.py`
+enforces all of this by static scan.
 
 **Roles:** m3 has no privileged crypto-operator role of its own — it is a
 *crypto user*. The operator configures the mode (below) via environment; the

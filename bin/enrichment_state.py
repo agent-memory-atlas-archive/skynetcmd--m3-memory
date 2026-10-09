@@ -67,7 +67,7 @@ def compute_source_content_hash(turns: Sequence[tuple]) -> str:
         (id, content, role, turn_index, created_at, metadata_json)
     Stable across reorderings: we sort by turn_index then id.
     """
-    h = hashlib.sha256()
+    h = hashlib.sha256(usedforsecurity=False)
     for turn in sorted(turns, key=lambda t: (t[3] if t[3] is not None else 0, t[0])):
         h.update(str(turn[0]).encode("utf-8"))
         h.update(b"\x00")

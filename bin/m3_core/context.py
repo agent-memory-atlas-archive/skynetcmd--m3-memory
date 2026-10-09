@@ -1,6 +1,5 @@
 import asyncio
 import atexit
-import hashlib
 import os
 import queue
 import random
@@ -287,7 +286,8 @@ class M3Context:
         try:
             with open(salt_path, "rb") as f:
                 salt_bytes = f.read()
-            salt_hash = hashlib.sha256(salt_bytes).hexdigest()
+            from crypto_provider import get_sha256  # the FIPS boundary: this hashes secret material
+            salt_hash = get_sha256(salt_bytes)
         except Exception as e:
             logger.warning(f"Failed to read/hash salt for cohesion check: {e}")
             return

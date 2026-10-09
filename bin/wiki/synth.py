@@ -68,7 +68,7 @@ def _cluster_hash(c: Cluster, model: str) -> str:
     duplicate syntheses accumulate. Excluding synthesis members makes the hash
     depend only on the stable source set (mirrors source_members / the admission
     gate's synthesis-free view)."""
-    h = hashlib.sha256()
+    h = hashlib.sha256(usedforsecurity=False)
     h.update(_PROMPT_VERSION.encode())
     h.update((model or "").encode())
     # Source members only, in the cluster's existing deterministic order.

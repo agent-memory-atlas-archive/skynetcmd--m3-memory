@@ -1144,10 +1144,11 @@ class PostgresBackend:
         """``postgres:host:port/dbname`` — core and chatlog share it (one database)."""
         ident = _dsn_identity(self._dsn or "")
         if ident is None:
-            import hashlib
 
             # Unparseable: still stable and credential-free.
-            return "postgres:" + hashlib.sha256((self._dsn or "").encode()).hexdigest()[:16]
+            # Through the FIPS boundary: a DSN can carry a password.
+            from crypto_provider import get_sha256
+            return "postgres:" + get_sha256((self._dsn or "").encode())[:16]
         host, port, db = ident
         return f"postgres:{host}:{port}/{db}"
 

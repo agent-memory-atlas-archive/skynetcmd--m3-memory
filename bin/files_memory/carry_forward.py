@@ -67,7 +67,7 @@ class CarryForwardStats:
 
 
 def _text_sha256(text: str) -> str:
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+    return hashlib.sha256(text.encode("utf-8"), usedforsecurity=False).hexdigest()
 
 
 def compute_leaf_diffs(

@@ -105,7 +105,7 @@ from m3_core.runtime import utc_iso as _utcnow_iso  # noqa: E402
 
 
 def _content_hash(s: str) -> str:
-    return hashlib.sha256((s or "").encode("utf-8")).hexdigest()
+    return hashlib.sha256((s or "").encode("utf-8"), usedforsecurity=False).hexdigest()
 
 
 def _meta_to_dict(value) -> dict:

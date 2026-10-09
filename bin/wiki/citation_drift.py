@@ -239,7 +239,7 @@ def _judge_hash(synthesis_content: str, source_contents: list[str], model: str) 
     """Idempotence key: identical (prompt, model, synthesis, sources) → identical
     hash, so an unchanged pair is never re-judged. Sources are sorted so ordering
     doesn't perturb the key (the verdict does not depend on source order)."""
-    h = hashlib.sha256()
+    h = hashlib.sha256(usedforsecurity=False)
     h.update(_JUDGE_PROMPT_VERSION.encode())
     h.update((model or "").encode())
     h.update((synthesis_content or "").encode())

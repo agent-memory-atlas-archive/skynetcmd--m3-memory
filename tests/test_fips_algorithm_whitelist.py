@@ -36,6 +36,43 @@ _BLOCKED_CIPHER_NAMES = {
     "TripleDES", "Blowfish", "ARC4", "RC4", "RC2", "DES", "DES3", "CAST5", "IDEA",
 }
 
+# Approved hashes called straight from hashlib bypass crypto_provider, so under
+# M3_FIPS_MODE they run outside wolfCrypt. Allowed only as a declared
+# non-security hash (usedforsecurity=False); a security use calls the provider
+# (get_sha256 / sha256_stream / get_hmac_sha256).
+_HASHLIB_DIGESTS = {
+    "sha224", "sha256", "sha384", "sha512", "sha3_224", "sha3_256", "sha3_384",
+    "sha3_512", "shake_128", "shake_256", "blake2b", "blake2s", "new", "file_digest",
+}
+# Keyed primitives: always a security use, so always through the provider.
+_KEYED = {("hmac", "new"), ("hmac", "digest"), ("hmac", "HMAC"),
+          ("hashlib", "pbkdf2_hmac"), ("hashlib", "scrypt")}
+# Files allowed a direct digest, each with the reason it cannot use the provider.
+_DIRECT_DIGEST_ALLOWED = {
+    "bin/install_wolfssl.py": "verifies the wolfSSL download before wolfCrypt exists",
+}
+
+
+def _module_aliases(tree: ast.AST, module: str) -> tuple[set[str], dict[str, str]]:
+    """Names `module` is bound to, and names imported from it (local -> real)."""
+    aliases, from_names = set(), {}
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Import):
+            aliases.update(a.asname or a.name for a in n.names if a.name == module)
+        elif isinstance(n, ast.ImportFrom) and n.module == module:
+            from_names.update({a.asname or a.name: a.name for a in n.names})
+    return aliases, from_names
+
+
+def _qualified(node: ast.Call, module: str, aliases: set[str], from_names: dict[str, str]) -> str:
+    """The `module` function this call reaches, or ''."""
+    f = node.func
+    if isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name) and f.value.id in aliases:
+        return f.attr
+    if isinstance(f, ast.Name) and f.id in from_names:
+        return from_names[f.id]
+    return ""
+
 
 def _iter_py_files(scan_dirs, repo):
     for d in scan_dirs:
@@ -86,9 +123,24 @@ def _scan(scan_dirs=None, repo=None):
                 tree = ast.parse(f.read(), filename=path)
         except (OSError, SyntaxError):
             continue
+        rel_posix = rel.replace(os.sep, "/")
+        mods = {m: _module_aliases(tree, m) for m in ("hashlib", "hmac")}
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
                 continue
+            digest = _qualified(node, "hashlib", *mods["hashlib"])
+            if (digest in _HASHLIB_DIGESTS and not _has_usedforsecurity_false(node)
+                    and rel_posix not in _DIRECT_DIGEST_ALLOWED):
+                violations.append((rel, node.lineno,
+                                   f"hashlib.{digest}() outside crypto_provider "
+                                   "(security use: call the provider; otherwise "
+                                   "mark usedforsecurity=False)"))
+            for mod in ("hashlib", "hmac"):
+                fn = _qualified(node, mod, *mods[mod])
+                if (mod, fn) in _KEYED:
+                    violations.append((rel, node.lineno,
+                                       f"{mod}.{fn}() outside crypto_provider "
+                                       "(keyed: use get_hmac_sha256 / pbkdf2_sha256)"))
             name = _call_name(node)
             if name in _WEAK_HASH_NAMES and not _has_usedforsecurity_false(node):
                 violations.append((rel, node.lineno,
@@ -153,3 +205,28 @@ def test_scanner_catches_a_planted_violation(tmp_path):
     assert "sha1" not in whys.lower(), f"flagged a usedforsecurity=False hash: {v}"
     assert "TripleDES" not in whys, f"flagged a string literal: {v}"
     assert len(v) == 1, f"expected exactly the md5 violation, got {v}"
+
+
+def test_scanner_routes_security_digests_to_the_provider(tmp_path):
+    """A direct hashlib SHA-2 call, under any import spelling, needs
+    usedforsecurity=False; keyed primitives always go through the provider."""
+    src = tmp_path / "scanroot" / "src"
+    src.mkdir(parents=True)
+    (src / "uses.py").write_text(
+        "import hashlib\n"
+        "import hashlib as _h\n"
+        "import hmac\n"
+        "from hashlib import sha256\n"
+        "a = hashlib.sha256(b'k')\n"                              # 5 VIOLATION
+        "b = _h.sha512(b'k')\n"                                   # 6 VIOLATION
+        "c = sha256(b'k')\n"                                      # 7 VIOLATION
+        "d = hmac.new(b'k' * 16, b'm', hashlib.sha256)\n"         # 8 VIOLATION
+        "e = hashlib.pbkdf2_hmac('sha256', b'p', b's', 1)\n"      # 9 VIOLATION
+        "f = hashlib.sha256(b'x', usedforsecurity=False)\n"       # OK
+        "g = hmac.compare_digest(b'a', b'b')\n"                   # OK (compare only)
+        "class P:\n"
+        "    def sha256(self, d): return d\n"
+        "h = P().sha256(b'x')\n"                                  # OK (not hashlib)
+    )
+    v = _scan(scan_dirs=[str(src)], repo=str(tmp_path))
+    assert sorted(ln for _f, ln, _w in v) == [5, 6, 7, 8, 9], v

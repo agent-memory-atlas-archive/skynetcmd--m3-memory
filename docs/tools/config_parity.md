@@ -1,8 +1,8 @@
 ---
 tool: bin/config_parity.py
-sha1: 52cb9c9c9ab7
-mtime_utc: 2026-10-09T22:00:46.556564+00:00
-generated_utc: 2026-10-09T22:03:20.897806+00:00
+sha1: 8c4949222c58
+mtime_utc: 2026-10-09T22:21:44.072482+00:00
+generated_utc: 2026-10-09T22:23:32.829960+00:00
 private: false
 ---
 
@@ -73,6 +73,8 @@ _(none detected)_
 ## Calls INTO this repo (intra-repo imports)
 
 - `check_env_access`
+- `crypto_provider (get_hmac_sha256)`
+- `crypto_provider (get_sha256)`
 
 ---
 
@@ -84,7 +86,6 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
-- `hmac`
 - `importlib`
 - `keyring`
 - `keyring.errors`

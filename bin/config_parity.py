@@ -38,8 +38,6 @@ from __future__ import annotations
 
 import argparse
 import ast
-import hashlib
-import hmac
 import importlib
 import json
 import os
@@ -201,7 +199,8 @@ def record(name: str, value: object, key: bytes, markers: list[str]) -> dict:
     if value is None:
         return {"set": False}
     if _is_secret(name, value):
-        digest = hmac.new(key, json.dumps(_plain(value), sort_keys=True).encode("utf-8"), hashlib.sha256).hexdigest()
+        from crypto_provider import get_hmac_sha256  # the FIPS boundary: a keyed digest of a secret
+        digest = get_hmac_sha256(key, json.dumps(_plain(value), sort_keys=True).encode("utf-8"))
         return {"set": True, "secret": True, "hmac": digest}
     plain = _plain(value)
     text = json.dumps(plain, sort_keys=True)
@@ -252,6 +251,7 @@ def _flatten(prefix: str, value: object, out: dict) -> None:
 
 def capture(context: str) -> dict:
     key = get_key()  # first: no key, no snapshot
+    from crypto_provider import get_sha256  # the key fingerprint goes through the FIPS boundary
     # A module imported before this point computed its constants from the env
     # as it was THEN (before .env was loaded here); say which ones.
     imported_before = sorted(m for m in PARSED_MODULES if m in sys.modules)
@@ -296,7 +296,7 @@ def capture(context: str) -> dict:
         "host": socket.gethostname(),
         "python": sys.version.split()[0],
         "captured_at": datetime.now(UTC).isoformat(timespec="seconds"),
-        "key_fingerprint": hashlib.sha256(b"m3-parity-fp" + key).hexdigest()[:16],
+        "key_fingerprint": get_sha256(b"m3-parity-fp" + key)[:16],
         "env": env,
         "parsed": parsed,
         "files": files,

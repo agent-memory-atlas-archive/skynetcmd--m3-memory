@@ -9,6 +9,7 @@ import hashlib
 import logging
 import os
 import sys
+import weakref
 
 logger = logging.getLogger("m3-crypto")
 
@@ -85,6 +86,23 @@ _KAT_PBKDF2_KEY_HEX = "55ac046e56e3089fec1691c22544b605f94185216dde0465e68b9d57c
 # struct we do not control is exactly what caused this. If a future wolfSSL grows
 # past this, the failure mode is silent heap corruption again — so do not trim it.
 _WC_AES_CTX_BYTES = 4096
+# The same opaque-struct rule for wc_Sha256 (streaming SHA-256). This build
+# exports no wc_Sha256New/Delete, so the caller supplies the storage; the
+# streaming KAT below proves the binding works before any real data is hashed.
+_WC_SHA256_CTX_BYTES = 4096
+_WC_HMAC_CTX_BYTES = 4096   # same rule for the opaque Hmac context
+# The hash-type value wolfCrypt's PBKDF2 and HMAC calls take for SHA-256.
+# MEASURED against wolfSSL 5.9.2: 6 gives the RFC 7914 / RFC 4231 answers; 2
+# returns BAD_FUNC_ARG (-173) from both wc_PBKDF2 and wc_HmacSetKey. A mock
+# ignores this argument, so only a real wolfSSL build (and the KATs) catch it.
+_WC_SHA256_HASH_TYPE = 6
+_WC_INVALID_DEVID = -2
+
+# HMAC-SHA-256 KAT: RFC 4231 test case 1 (a 20-byte key, above the FIPS
+# minimum HMAC key length, unlike test case 2's 4-byte "Jefe").
+_KAT_HMAC_KEY = bytes([0x0B] * 20)
+_KAT_HMAC_DATA = b"Hi There"
+_KAT_HMAC_SHA256_HEX = "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"
 
 _KAT_AESGCM_KEY = bytes(range(32))            # 256-bit key 00..1f
 _KAT_AESGCM_NONCE = bytes(range(12))          # 96-bit nonce 00..0b
@@ -212,6 +230,8 @@ def _verify_lib_integrity(path: str) -> None:
     expected = os.environ.get("M3_WOLFSSL_SHA256", "").strip().lower()
     if not expected:
         return
+    # hashlib, not wolfCrypt: this checks the library BEFORE it is loaded, so
+    # the library cannot vouch for itself.
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(1 << 20), b""):
@@ -242,6 +262,39 @@ def _resolve_wolfssl_path() -> "str | None":
 BACKEND = os.environ.get("M3_CRYPTO_BACKEND", "DEFAULT").upper()
 if _fips_mode() or _fips_strict():
     BACKEND = "WOLFSSL"
+
+
+class _WolfSha256Stream:
+    """Incremental SHA-256 on wolfCrypt, with hashlib's update()/hexdigest()
+    shape. hexdigest() finalizes once and frees the context; a stream dropped
+    unfinished is freed by its finalizer."""
+
+    def __init__(self, lib) -> None:
+        self._lib = lib
+        self._ctx = ctypes.create_string_buffer(_WC_SHA256_CTX_BYTES)
+        ret = lib.wc_InitSha256(self._ctx)
+        if ret != 0:
+            raise RuntimeError(f"wc_InitSha256 failed with code: {ret}")
+        self._digest: str | None = None
+        self._free = weakref.finalize(self, lib.wc_Sha256Free, self._ctx)
+
+    def update(self, data: bytes) -> None:
+        if self._digest is not None:
+            raise RuntimeError("SHA-256 stream already finalized")
+        ret = self._lib.wc_Sha256Update(self._ctx, data, len(data))
+        if ret != 0:
+            raise RuntimeError(f"wc_Sha256Update failed with code: {ret}")
+
+    def hexdigest(self) -> str:
+        if self._digest is None:
+            out = ctypes.create_string_buffer(32)
+            ret = self._lib.wc_Sha256Final(self._ctx, out)
+            self._free()
+            if ret != 0:
+                raise RuntimeError(f"wc_Sha256Final failed with code: {ret}")
+            self._digest = out.raw.hex()
+        return self._digest
+
 
 class CryptoProvider:
     # One-shot latch for the open-source-build notice. CLASS level, not instance:
@@ -502,6 +555,22 @@ class CryptoProvider:
         if got != _KAT_SHA256_DIGEST:
             raise RuntimeError(f"SHA-256 KAT failed: got {got}")
 
+        # Streaming SHA-256 KAT: the same vector fed in two pieces, so a wrong
+        # context size or a broken Update/Final binding cannot pass.
+        if hasattr(self._libwolf, "wc_InitSha256"):
+            s = _WolfSha256Stream(self._libwolf)
+            s.update(_KAT_SHA256_INPUT[:1])
+            s.update(_KAT_SHA256_INPUT[1:])
+            got = s.hexdigest()
+            if got != _KAT_SHA256_DIGEST:
+                raise RuntimeError(f"streaming SHA-256 KAT failed: got {got}")
+
+        # HMAC-SHA-256 KAT (only if the binding is present)
+        if hasattr(self._libwolf, "wc_HmacSetKey"):
+            got = self._wolf_hmac_sha256(_KAT_HMAC_KEY, _KAT_HMAC_DATA)
+            if got != _KAT_HMAC_SHA256_HEX:
+                raise RuntimeError(f"HMAC-SHA-256 KAT failed: got {got}")
+
         # PBKDF2-SHA256 KAT (only if the binding is present)
         if hasattr(self._libwolf, "wc_PBKDF2"):
             key = self._wolf_pbkdf2_sha256(
@@ -595,9 +664,7 @@ class CryptoProvider:
         (password, salt, iterations, length) — so existing derived keys/secrets
         decrypt unchanged when not in FIPS mode.
         """
-        if (_fips_mode() or _fips_strict()):
-            if not self._initialized or self.backend != "WOLFSSL":
-                raise RuntimeError("FIPS boundary violation: wolfCrypt is missing or failed to initialize.")
+        self._require_fips_backend()
 
         if self.backend == "WOLFSSL" and self._initialized and self._libwolf:
             try:
@@ -623,26 +690,32 @@ class CryptoProvider:
         """
         if not self._libwolf or not hasattr(self._libwolf, "wc_PBKDF2"):
             raise RuntimeError("wc_PBKDF2 not available in loaded wolfSSL library")
-        # wc_PBKDF2's `hashType` is the LEGACY hash-OID enum (typeH), NOT the
-        # newer `enum wc_HashType` where SHA-256 == 2. In the typeH enum SHA-256
-        # == 6 (verified against wolfSSL 5.9.2: hashType=2 -> BAD_FUNC_ARG -173;
-        # hashType=6 -> correct RFC-7914 digest). The mock can't catch this
-        # because it ignores typeH — only a real wolfSSL build does.
-        WC_SHA256_TYPEH = 6
+        # hashType: see _WC_SHA256_HASH_TYPE (measured; 2 is BAD_FUNC_ARG).
         out_buf = ctypes.create_string_buffer(length)
         ret = self._libwolf.wc_PBKDF2(
             out_buf, password, len(password),
-            salt, len(salt), iterations, length, WC_SHA256_TYPEH,
+            salt, len(salt), iterations, length, _WC_SHA256_HASH_TYPE,
         )
         if ret != 0:
             raise RuntimeError(f"wc_PBKDF2 failed with code: {ret}")
         return out_buf.raw[:length]
 
+    def _require_fips_backend(self) -> None:
+        """Under M3_FIPS_MODE / M3_FIPS_STRICT every service must run on an
+        initialized wolfCrypt; there is no fallback to the default backend."""
+        # getattr: an error path must not itself fail on a partly built provider.
+        backend = getattr(self, "backend", None)
+        initialized = getattr(self, "_initialized", False)
+        if (_fips_mode() or _fips_strict()) and (not initialized or backend != "WOLFSSL"):
+            raise RuntimeError(
+                "FIPS boundary violation: FIPS mode is set but wolfCrypt is not serving; "
+                f"observed: backend={backend}, initialized={initialized}. "
+                "inspect: `m3 doctor` (crypto) and the wolfSSL library at "
+                f"{getattr(self, '_lib_path', None)}")
+
     def sha256(self, data: bytes) -> str:
         """Returns the SHA-256 hex digest of the data."""
-        if (_fips_mode() or _fips_strict()):
-            if not self._initialized or self.backend != "WOLFSSL":
-                raise RuntimeError("FIPS boundary violation: wolfCrypt is missing or failed to initialize.")
+        self._require_fips_backend()
 
         if self.backend == "WOLFSSL" and self._initialized and self._libwolf:
             try:
@@ -655,11 +728,66 @@ class CryptoProvider:
         # Default Fallback
         return hashlib.sha256(data).hexdigest()
 
+    def sha256_stream(self):
+        """An incremental SHA-256 (update(bytes) / hexdigest()) for data too
+        large to hold at once, on the same backend and with the same FIPS rules
+        as sha256()."""
+        self._require_fips_backend()
+        if (_fips_mode() or _fips_strict()) and not hasattr(self._libwolf, "wc_InitSha256"):
+            raise RuntimeError(
+                "FIPS boundary: this wolfSSL build has no streaming SHA-256 "
+                "(wc_InitSha256); observed: the export is missing. "
+                f"inspect: the library at {self._lib_path}")
+        if self.backend == "WOLFSSL" and self._initialized and self._libwolf \
+                and hasattr(self._libwolf, "wc_InitSha256"):
+            try:
+                return _WolfSha256Stream(self._libwolf)
+            except Exception as e:
+                if (_fips_mode() or _fips_strict()):
+                    raise RuntimeError(f"FIPS SHA-256 stream init failed: {e}. Raising to prevent unsafe fallback.") from e
+                logger.debug(f"M3 Crypto: wolfSSL SHA-256 stream failed ({e}), using default fallback.")
+        return hashlib.sha256()
+
+    def _wolf_hmac_sha256(self, key: bytes, data: bytes) -> str:
+        if not self._libwolf:
+            raise RuntimeError("wolfSSL library not loaded")
+        ctx = ctypes.create_string_buffer(_WC_HMAC_CTX_BYTES)
+        ret = self._libwolf.wc_HmacInit(ctx, None, _WC_INVALID_DEVID)
+        if ret != 0:
+            raise RuntimeError(f"wc_HmacInit failed with code: {ret}")
+        try:
+            for step, ret in (
+                ("wc_HmacSetKey", self._libwolf.wc_HmacSetKey(ctx, _WC_SHA256_HASH_TYPE, key, len(key))),
+                ("wc_HmacUpdate", self._libwolf.wc_HmacUpdate(ctx, data, len(data))),
+            ):
+                if ret != 0:
+                    raise RuntimeError(f"{step} failed with code: {ret} ({WOLF_ERROR_CODES.get(ret, 'see wolfSSL error codes')})")
+            out = ctypes.create_string_buffer(32)
+            ret = self._libwolf.wc_HmacFinal(ctx, out)
+            if ret != 0:
+                raise RuntimeError(f"wc_HmacFinal failed with code: {ret}")
+            return out.raw.hex()
+        finally:
+            self._libwolf.wc_HmacFree(ctx)
+
+    def hmac_sha256(self, key: bytes, data: bytes) -> str:
+        """HMAC-SHA-256 hex digest, on the same backend and with the same FIPS
+        rules as sha256()."""
+        self._require_fips_backend()
+        if self.backend == "WOLFSSL" and self._initialized and self._libwolf \
+                and hasattr(self._libwolf, "wc_HmacSetKey"):
+            try:
+                return self._wolf_hmac_sha256(key, data)
+            except Exception as e:
+                if (_fips_mode() or _fips_strict()):
+                    raise RuntimeError(f"FIPS HMAC-SHA-256 failed: {e}. Raising to prevent unsafe fallback.") from e
+                logger.debug(f"M3 Crypto: wolfSSL HMAC-SHA-256 failed ({e}), using default fallback.")
+        import hmac
+        return hmac.new(key, data, hashlib.sha256).hexdigest()
+
     def encrypt(self, data: bytes, key: bytes) -> bytes:
         """Encrypts data using AES-256-GCM."""
-        if (_fips_mode() or _fips_strict()):
-            if not self._initialized or self.backend != "WOLFSSL":
-                raise RuntimeError("FIPS boundary violation: wolfCrypt is missing or failed to initialize.")
+        self._require_fips_backend()
 
         if self.backend == "WOLFSSL" and self._initialized and self._libwolf:
             try:
@@ -678,9 +806,7 @@ class CryptoProvider:
 
     def decrypt(self, token: bytes, key: bytes) -> bytes:
         """Decrypts data using AES-256-GCM."""
-        if (_fips_mode() or _fips_strict()):
-            if not self._initialized or self.backend != "WOLFSSL":
-                raise RuntimeError("FIPS boundary violation: wolfCrypt is missing or failed to initialize.")
+        self._require_fips_backend()
 
         if self.backend == "WOLFSSL" and self._initialized and self._libwolf:
             try:
@@ -753,6 +879,10 @@ provider = CryptoProvider(BACKEND)
 
 def get_sha256(data: bytes) -> str:
     return provider.sha256(data)
+
+
+def get_hmac_sha256(key: bytes, data: bytes) -> str:
+    return provider.hmac_sha256(key, data)
 
 
 def active_crypto_status() -> dict:

@@ -57,7 +57,9 @@ _ROOT = pathlib.Path(__file__).resolve().parents[1]
 # Current floor. Lower this as sites are labelled; never raise it.
 # 2026-09-16: 28 -> 17 after labelling the enrich, crypto/auth and
 # server/backend subsystems.
-_BUDGET = 17
+# 2026-10-09: 17 -> 13, crypto_provider's copied FIPS-boundary check became one
+# labelled helper.
+_BUDGET = 13
 
 _SKIP_DIRS = {
     "build",            # packaging copy of the tree

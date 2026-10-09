@@ -1,8 +1,8 @@
 ---
 tool: bin/install_wolfssl.py
-sha1: 163da62f86ef
-mtime_utc: 2026-10-09T22:01:09.481441+00:00
-generated_utc: 2026-10-09T22:03:21.130135+00:00
+sha1: 253e5f685f6d
+mtime_utc: 2026-10-09T22:26:02.114426+00:00
+generated_utc: 2026-10-09T22:26:08.179993+00:00
 private: false
 ---
 
@@ -49,7 +49,7 @@ Prerequisites: git, plus a C toolchain —
 
 ## Entry points
 
-- `def main()` (line 409)
+- `def main()` (line 412)
 - `if __name__ == "__main__"` guard
 
 ---

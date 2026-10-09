@@ -146,7 +146,7 @@ def _read(path: Path) -> tuple[bytes, FileIdentity] | None:
     except FileNotFoundError:
         return None
     return data, FileIdentity(dev=st.st_dev, ino=st.st_ino, mtime_ns=st.st_mtime_ns,
-                              size=st.st_size, sha256=hashlib.sha256(data).hexdigest())
+                              size=st.st_size, sha256=hashlib.sha256(data, usedforsecurity=False).hexdigest())
 
 
 def file_identity(path: Path) -> FileIdentity | None:

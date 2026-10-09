@@ -116,7 +116,7 @@ _HASH_CHUNK = 64 * 1024  # 64 KiB; balances syscall overhead vs RSS
 
 def file_content_sha256(path: str | Path) -> str:
     """Stream a file through SHA-256. Memory-bounded for large files."""
-    h = hashlib.sha256()
+    h = hashlib.sha256(usedforsecurity=False)
     with open(path, "rb") as f:
         while True:
             buf = f.read(_HASH_CHUNK)

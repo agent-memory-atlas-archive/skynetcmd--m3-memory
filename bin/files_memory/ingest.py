@@ -603,7 +603,7 @@ def _record_noop_run(conn, file_node_uuid: str, run_id: str, entry: WalkEntry) -
 
 def _sha256_short(text: str) -> str:
     import hashlib as _h
-    return _h.sha256(text.encode("utf-8")).hexdigest()
+    return _h.sha256(text.encode("utf-8"), usedforsecurity=False).hexdigest()
 
 
 def _single_file_entry(path: str, *, repo_root: str | None = None) -> WalkEntry:

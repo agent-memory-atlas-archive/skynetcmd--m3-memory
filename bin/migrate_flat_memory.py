@@ -137,7 +137,7 @@ def _assert_safe_path(p: Path) -> None:
 
 # ── Idempotency: stable source_key ─────────────────────────────────────────────
 def _source_key(source_agent: str, locator: str, content: str) -> str:
-    h = hashlib.sha256()
+    h = hashlib.sha256(usedforsecurity=False)
     h.update(source_agent.encode("utf-8"))
     h.update(b"\x00")
     h.update(locator.encode("utf-8"))

@@ -160,12 +160,12 @@ def min_member_confidence(cluster: Cluster) -> float:
 
 def prose_hash(prose: str) -> str:
     """Stable content hash of compiled prose, for the byte-identical skip check."""
-    return hashlib.sha256((prose or "").encode("utf-8")).hexdigest()
+    return hashlib.sha256((prose or "").encode("utf-8"), usedforsecurity=False).hexdigest()
 
 
 def prompt_content_hash(prompt_text: str) -> str:
     """Dedupe key for the stored prompt: same text → one row, never a second."""
-    return hashlib.sha256((prompt_text or "").encode("utf-8")).hexdigest()[:16]
+    return hashlib.sha256((prompt_text or "").encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
 
 
 def build_metadata(

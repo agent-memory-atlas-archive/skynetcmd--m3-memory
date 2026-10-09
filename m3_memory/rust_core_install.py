@@ -991,6 +991,25 @@ def _fetch_release_sha256sums(assets: list, *, git_tag: str) -> dict[str, str] |
     return out or None
 
 
+def _wheel_hasher():
+    """A streaming SHA-256 from the crypto boundary (wolfCrypt under
+    M3_FIPS_MODE). Verifying downloaded code is a security use, so it does not
+    go to hashlib directly."""
+    from m3_memory.installer import bin_dir
+
+    b = bin_dir()
+    if b is None:
+        raise RuntimeError(
+            "cannot verify the wheel: the payload bin/ (crypto_provider) was not "
+            "found; observed: installer.bin_dir() is None. inspect: $M3_PATH_BIN, "
+            "or reinstall m3-memory")
+    if str(b) not in sys.path:
+        sys.path.insert(0, str(b))
+    from crypto_provider import provider
+
+    return provider.sha256_stream()
+
+
 def _download_wheel_once(wheel_url: str, wheel_path: str) -> tuple[int, str]:
     """Stream ``wheel_url`` to ``wheel_path``; return (bytes_written, sha256).
 
@@ -999,10 +1018,9 @@ def _download_wheel_once(wheel_url: str, wheel_path: str) -> tuple[int, str]:
 
     Raises urllib/OS errors to the caller, which decides whether to retry.
     """
-    import hashlib
     import urllib.request
 
-    h = hashlib.sha256()
+    h = _wheel_hasher()
     downloaded = 0
     resp = urllib.request.urlopen(wheel_url, timeout=300)  # nosec B310 - https validated by caller
     with resp, open(wheel_path, "wb") as out:

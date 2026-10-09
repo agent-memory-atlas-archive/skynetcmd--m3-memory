@@ -115,7 +115,7 @@ def _create_provisional(conn: sqlite3.Connection, name: str) -> str:
     attrs_json = json.dumps(attrs)
     import hashlib as _h
     content_hash = _h.sha256(
-        f"{name}|unknown|{attrs_json}".encode()
+        f"{name}|unknown|{attrs_json}".encode(), usedforsecurity=False
     ).hexdigest()
     from memory.backends import dialect as _dialect
     _d = _dialect()
