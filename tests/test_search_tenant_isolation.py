@@ -44,8 +44,21 @@ async def _seed(link: bool = False):
 
 
 def _leaks_bob(result) -> bool:
-    s = str(result).lower()
-    return "merger" in s or "acme" in s or "4429" in s
+    """True if any returned row's TEXT carries bob's secret.
+
+    Only content and title are inspected, never the stringified result: that
+    includes row ids, and a random UUID can contain "4429" (2026-10-08 Phase 2A
+    gate: alice's own id was c4d9f0a7-dc3b-4429-..., a false "leak" on a
+    security test, which is worse than no test)."""
+    rows = result if isinstance(result, list) else []
+    texts = [f"{it.get('content') or ''} {it.get('title') or ''}".lower()
+             for _score, it in rows if isinstance(it, dict)]
+    if not rows and not isinstance(result, list):  # a formatted-string result
+        texts = [_ID_RE.sub("", str(result)).lower()]
+    return any(("merger" in t or "acme" in t or "4429" in t) for t in texts)
+
+
+_ID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 
 
 async def test_scored_fts_short_circuit_no_leak():
