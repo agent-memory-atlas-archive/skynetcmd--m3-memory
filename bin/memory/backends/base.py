@@ -212,6 +212,14 @@ class StorageBackend(Protocol):
         On SQLite this is the pooled `sqlite3.Connection` used today; on
         PostgreSQL a pooled psycopg connection. Callers use it exactly as they
         use `_db()` today: ``with backend.connection() as conn: ...``.
+
+        CONTRACT: after an UPDATE or DELETE, ``cursor.rowcount`` is the number of
+        rows MATCHED, including rows whose values did not change. Some 40 call
+        sites outside this package read it that way (a fence, "did my row
+        exist"). SQLite and psycopg do by default; MySQL/MariaDB report rows
+        CHANGED unless the connection sets the found-rows client flag, so such
+        a backend must set it here, once, rather than every caller adapting.
+        Pinned by tests/test_backend_rowcount_contract.py.
         """
         ...
 
