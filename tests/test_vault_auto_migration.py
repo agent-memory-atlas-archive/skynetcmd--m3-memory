@@ -74,6 +74,16 @@ def test_legacy_iterations_row_is_rewritten(auth, monkeypatch):
     assert auth._decrypt_token(rewritten, _MASTER) == "old-kdf-value", "row still needs the legacy KDF"
 
 
+def test_a_rewrite_that_matches_no_row_is_not_reported_as_done(auth, caplog):
+    """It logged 'Re-encrypted' after any UPDATE, without checking it hit the row."""
+    import logging
+
+    with caplog.at_level(logging.INFO):
+        auth._reencrypt_vault_row(f"M3_R3_ABSENT_{uuid.uuid4().hex[:8].upper()}", "v", _MASTER)
+    assert "Re-encrypted" not in caplog.text
+    assert "matched 0 rows" in caplog.text and "still readable" in caplog.text
+
+
 def test_legacy_fernet_row_is_rewritten_in_the_current_format(auth, monkeypatch):
     """Pre-91fdea1e rows hold the Fernet token string itself ('gAAAA...').
     _decrypt_token base64-decoded it before handing it to Fernet, so such a row

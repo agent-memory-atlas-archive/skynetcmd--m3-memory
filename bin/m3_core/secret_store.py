@@ -51,7 +51,10 @@ def _check_private(p: Path) -> None:
     if mode & 0o077:
         raise SecretsFileError(f"{p} is mode {oct(mode)}; a secrets file must be user-only. Fix: chmod 600 {p}")
     if st.st_uid != os.getuid():
-        raise SecretsFileError(f"{p} is owned by uid {st.st_uid}, not you ({os.getuid()}); refusing to read it")
+        raise SecretsFileError(
+            f"{p} is owned by uid {st.st_uid}, not you ({os.getuid()}); refusing to read it. "
+            f"Fix: if you created it, `chown $(id -u) {p}` as that owner or root; otherwise remove it."
+        )
 
 
 def read_secrets() -> dict[str, str]:
@@ -64,10 +67,16 @@ def read_secrets() -> dict[str, str]:
     try:
         data = tomllib.loads(p.read_text(encoding="utf-8"))
     except (tomllib.TOMLDecodeError, UnicodeDecodeError) as e:
-        raise SecretsFileError(f"{p} is not valid TOML: {e}") from e
+        raise SecretsFileError(f"{p} is not valid TOML ({e}); fix the line named, or remove the file") from e
     table = data.get("secrets", {})
-    if not isinstance(table, dict) or not all(isinstance(v, str) for v in table.values()):
-        raise SecretsFileError(f"{p}: [secrets] must hold NAME = \"string\" entries only")
+    if not isinstance(table, dict):
+        raise SecretsFileError(f"{p}: 'secrets' must be a [secrets] table, found {type(table).__name__}")
+    bad = sorted(k for k, v in table.items() if not isinstance(v, str))
+    if bad:
+        # Names only: a value may be the secret itself.
+        raise SecretsFileError(
+            f"{p}: [secrets] entries must be NAME = \"string\"; not a string: {', '.join(bad)}"
+        )
     return dict(table)
 
 
@@ -144,10 +153,12 @@ def explain_pg_dsn(role: PgRole) -> DsnResolution:
         if value and value.strip():
             if role is PgRole.PRIMARY:
                 logging.getLogger(__name__).warning(
-                    "The primary PostgreSQL DSN came from the encrypted vault, which is deprecated "
-                    "for it (a bootstrap secret; the vault lives in the store it unlocks). Store it "
-                    "in the keyring or the secrets file instead (`m3 doctor` names how); the vault "
-                    "fallback is removed at N+3.")
+                    "observed: the primary PostgreSQL DSN came from the encrypted vault (key %s), "
+                    "which is deprecated for it: it is a bootstrap secret, and the vault lives in "
+                    "the store it unlocks. It still works; the vault fallback is removed at N+3. "
+                    "fix: `python -m keyring set system %s` (prompts for the DSN, so it stays out "
+                    "of shell history), or set %s in the environment of every m3 process.",
+                    key, key, key)
             return DsnResolution(value.strip(), f"vault:{key}", tuple(errors))
     return DsnResolution("", None, tuple(errors))
 

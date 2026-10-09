@@ -39,6 +39,19 @@ def test_malformed_file_is_loud():
         secrets.read_secrets()
 
 
+def test_a_non_string_entry_is_named_but_its_value_is_not_echoed():
+    from m3_core import secret_store as secrets
+
+    p = secrets.secrets_file_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text('[secrets]\nGOOD = "ok"\nBAD = 424242\n', encoding="utf-8")
+    if sys.platform != "win32":
+        p.chmod(0o600)
+    with pytest.raises(secrets.SecretsFileError) as exc:
+        secrets.read_secrets()
+    assert "BAD" in str(exc.value) and "424242" not in str(exc.value)
+
+
 def test_bad_names_are_refused():
     from m3_core import secret_store as secrets
 

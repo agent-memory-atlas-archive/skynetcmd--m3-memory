@@ -69,6 +69,9 @@ def test_primary_from_the_vault_works_but_warns_every_time(tiers, caplog):
         r2 = _explain("primary")
     assert r1.dsn == r2.dsn == PRIMARY and r1.source == "vault:M3_PRIMARY_PG_URL"
     assert caplog.text.count("deprecated") == 2
+    # Actionable (§5): names the key and a repair that keeps the DSN out of history.
+    assert "python -m keyring set system M3_PRIMARY_PG_URL" in caplog.text
+    assert PRIMARY not in caplog.text, "the warning echoed the DSN"
 
 
 def test_warehouse_from_the_legacy_vault_key_is_not_a_warning(tiers, caplog):

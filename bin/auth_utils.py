@@ -491,22 +491,11 @@ def _keyring_tier(service: str) -> tuple[str | None, str | None]:
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             pass
 
-    elif system == "Windows":
-        # Windows Credential Manager via cmdkey (fallback when keyring module
-        # unavailable). cmdkey.exe is a console binary — no_window_kwargs()
-        # keeps it from flashing a window on scheduled-task runs.
-        try:
-            result = subprocess.run(
-                ["cmdkey", f"/list:{service}"],
-                capture_output=True, text=True, timeout=5,
-                **no_window_kwargs(),
-            )
-            if service.lower() in result.stdout.lower() and result.returncode == 0:
-                # Note: Get-StoredCredential is not a standard PS cmdlet.
-                # Fall through to encrypted SQLite vault (cross-platform).
-                logger.debug(f"Credential '{service}' exists in Windows Credential Manager but retrieval requires vault fallback")
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
-            logger.debug(f"Windows Credential Manager fallback failed for {service}")
+    # Windows has no native fallback: the keyring module (a hard dependency) IS the
+    # Credential Manager reader, and cmdkey cannot return a password. A cmdkey
+    # probe here once ran on every miss and reported "exists" for ANY name,
+    # because `cmdkey /list:NAME` exits 0 and echoes NAME even when nothing is
+    # stored.
 
     elif system == "Linux":
         # Check if D-Bus Secret Service is available before silent failures
@@ -540,7 +529,8 @@ def _file_tier(service: str) -> tuple[str | None, str | None]:
             if val:
                 return val, None
         except SecretsFileError as e:
-            logger.error(f"Secrets file refused while resolving {service}: {e}")
+            logger.error(f"Secrets file refused while resolving {service}: {e}. "
+                         "Not read; falling through to the vault.")
             return None, f"secrets file: {e}"
     except ImportError:
         logger.debug("m3_core.secret_store not importable (installer bootstrap); skipping the secrets file")
@@ -638,9 +628,12 @@ def _reencrypt_vault_row(service: str, plaintext: str, master_key: str) -> None:
     every read without ever saying why); the caller still gets the secret.
     """
     backend = _backend()
+    still = "It is still readable in the legacy format; the next read retries."
     if not hasattr(backend, "connection"):  # installer-bootstrap shim: read-only
-        logger.warning(f"Legacy vault row '{service}' not re-encrypted: no writable store yet (installer bootstrap).")
+        logger.warning(f"Legacy vault row '{service}' not re-encrypted: no writable store yet "
+                       f"(installer bootstrap). {still}")
         return
+    store = type(backend).__name__
     conn = None
     try:
         new_encrypted = _encrypt_value(plaintext, master_key)
@@ -653,9 +646,15 @@ def _reencrypt_vault_row(service: str, plaintext: str, master_key: str) -> None:
             (new_encrypted, service),
         )
         conn.commit()
-        logger.info(f"Re-encrypted legacy vault row '{service}' in the current format.")
+        if cur.rowcount == 1:
+            logger.info(f"Re-encrypted legacy vault row '{service}' in the current format.")
+        else:
+            logger.warning(f"Legacy vault row '{service}' not re-encrypted: the UPDATE on {store} "
+                           f"matched {cur.rowcount} rows, expected 1 (the row was read from a "
+                           f"different store?). {still}")
     except Exception as e:  # noqa: BLE001 -- the read already succeeded; report, do not raise
-        logger.warning(f"Legacy vault row '{service}' could not be re-encrypted: {type(e).__name__}: {e}")
+        logger.warning(f"Legacy vault row '{service}' could not be re-encrypted on {store}: "
+                       f"{type(e).__name__}: {e}. {still}")
     finally:
         if conn is not None:
             try:
