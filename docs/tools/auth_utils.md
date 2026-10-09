@@ -1,8 +1,8 @@
 ---
 tool: bin/auth_utils.py
-sha1: 604a1817b962
-mtime_utc: 2026-10-09T01:33:34.284889+00:00
-generated_utc: 2026-10-09T01:34:26.751167+00:00
+sha1: 05ba89e663fb
+mtime_utc: 2026-10-09T01:40:13.452563+00:00
+generated_utc: 2026-10-09T01:40:21.398929+00:00
 private: false
 ---
 
@@ -50,10 +50,10 @@ _(no argparse arguments detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `['cmdkey', f'/list:{service}']`` (line 482)
+- `subprocess.run()  → `['cmdkey', f'/list:{service}']`` (line 483)
 - `subprocess.run()  → `['security', 'find-generic-password', '-s', 'AGENT_OS_MASTER_KEY', '-w']`` (line 213)
-- `subprocess.run()  → `['security', 'find-generic-password', '-s', service, '-w']`` (line 468)
-- `subprocess.run()` (line 497)
+- `subprocess.run()  → `['security', 'find-generic-password', '-s', service, '-w']`` (line 469)
+- `subprocess.run()` (line 498)
 
 
 ---
@@ -63,6 +63,8 @@ _(no argparse arguments detected)_
 - `base64`
 - `cryptography.fernet (Fernet)`
 - `keyring`
+- `m3_core.secret_store (SecretsFileError)`
+- `m3_core.secret_store (get_secret)`
 - `memory.backends (active_backend)`
 - `memory.backends (dialect)`
 - `platform`

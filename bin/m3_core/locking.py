@@ -16,7 +16,18 @@ def migration_lock():
     If the lock is held by another process, it block-waits (with a timeout of 120s)
     until the lock is released.
     """
-    lock_path = os.path.join(get_m3_config_root(), ".migration.lock")
+    with file_lock(os.path.join(get_m3_config_root(), ".migration.lock"), purpose="migration"):
+        yield
+
+
+@contextmanager
+def file_lock(lock_path: str, *, purpose: str):
+    """THE cross-process exclusive lock: block up to 120 s, reclaim a stale one.
+
+    Native advisory lock first (m3_core_rs), else an O_CREAT|O_EXCL file stamped
+    with its owner so a crashed holder's lock is reclaimed rather than wedging
+    every waiter. ``purpose`` names it in errors (``migration``, ``secrets file``).
+    """
     os.makedirs(os.path.dirname(lock_path), exist_ok=True)
 
     # Try native Rust advisory lock first
@@ -28,7 +39,7 @@ def migration_lock():
                 acquired = lock.acquire(120)
                 if not acquired:
                     raise RuntimeError(
-                        f"Could not acquire native migration lock at {lock_path} within 120 seconds."
+                        f"Could not acquire native {purpose} lock at {lock_path} within 120 seconds."
                     )
                 try:
                     yield
@@ -67,8 +78,8 @@ def migration_lock():
 
     if not acquired:
         raise RuntimeError(
-            f"Could not acquire migration lock at {lock_path} within 120 seconds. "
-            "Another migration process may be hung. If you are sure no other process is migrating, "
+            f"Could not acquire {purpose} lock at {lock_path} within 120 seconds. "
+            f"Another process holding it may be hung. If you are sure none is running, "
             f"delete the lock file manually: {lock_path}"
         )
 
@@ -159,7 +170,7 @@ def _reclaim_stale_lock(lock_path: str) -> bool:
     try:
         os.unlink(lock_path)
         logger.warning(
-            "Reclaimed stale migration lock %s (owner pid=%s host=%s age=%.0fs)",
+            "Reclaimed stale lock %s (owner pid=%s host=%s age=%.0fs)",
             lock_path, pid or "?", host or "?", age,
         )
         return True

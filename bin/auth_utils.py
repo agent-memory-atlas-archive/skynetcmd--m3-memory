@@ -435,7 +435,8 @@ def get_api_key(service: str) -> str | None:
     1. os.environ
     2. Python keyring (Windows Credential Manager, Linux Secret Service, macOS Keychain)
     3. Direct macOS Keychain fallback
-    4. Encrypted SQLite Vault (synchronized_secrets)
+    4. The user-only secrets file (m3_core.secret_store; machines with no keyring)
+    5. Encrypted vault (synchronized_secrets)
     """
     service = _sanitize_service(service)
     val = os.getenv(service, "").strip()
@@ -505,6 +506,22 @@ def get_api_key(service: str) -> str | None:
                 logger.debug("Linux Secret Service (D-Bus) not running — skipping keyring")
         except (FileNotFoundError, subprocess.TimeoutExpired):
             logger.debug("D-Bus not available on this Linux system")
+
+    # The user-only secrets file: the tier for machines with no keyring backend
+    # (CONFIG_DESIGN §10, U6 (a)). An unsafe or malformed file is refused LOUDLY
+    # and the chain continues; it is never read as if it were fine.
+    try:
+        from m3_core.secret_store import SecretsFileError
+        from m3_core.secret_store import get_secret as _file_secret
+
+        try:
+            val = _file_secret(service)
+            if val:
+                return val
+        except SecretsFileError as e:
+            logger.error(f"Secrets file refused while resolving {service}: {e}")
+    except ImportError:
+        logger.debug("m3_core.secret_store not importable (installer bootstrap); skipping the secrets file")
 
     # Fallback to the synchronized encrypted vault
     vault_path = _vault_db_path()
