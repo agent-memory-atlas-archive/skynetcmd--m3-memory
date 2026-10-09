@@ -713,13 +713,19 @@ async def chatlog_search_impl(
     provider: str = "",
     model_id: str = "",
     agent_id: str = "",
-    search_mode: str = "hybrid",
+    search_mode: str = "keyword",
     since: str = "",
     until: str = "",
 ) -> str:
-    """Keyword/vector/hybrid search over chat_log rows in the configured chat log DB.
+    """Keyword (FTS5) search over chat_log rows in the configured chat log DB;
+    filter-only listing when ``query`` is empty. There is no vector path: a
+    vector mode raises (m3_core.search_modes.normalize_chatlog_search_mode)
+    rather than silently running keyword search.
 
-    Returns a JSON string with {"results": [...], "count": N, "db_path": "...", "mode": "..."}."""
+    Returns a JSON string with {"results": [...], "count": N, "db_path": "..."}."""
+    from m3_core.search_modes import normalize_chatlog_search_mode
+
+    normalize_chatlog_search_mode(search_mode)
     # Clamp k at the boundary: negative -> SQLite LIMIT -1 is UNBOUNDED (would
     # dump the whole chatlog); 0 -> never useful; huge -> unbounded Python/JSON.
     k = max(1, min(int(k), MAX_SEARCH_K))

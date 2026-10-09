@@ -1437,7 +1437,7 @@ Search chat_log rows. FTS5 keyword when query is non-empty; filter-only when emp
 | `provider` | `string` | No | Filter by provider. | `` |
 | `model_id` | `string` | No | Filter by model id. | `` |
 | `agent_id` | `string` | No | Filter by agent id. | `` |
-| `search_mode` | `string` | No | hybrid\|fts\|vector (integrated mode only). | `hybrid` |
+| `search_mode` | `string` | No | Lexical (FTS5) only; vector modes are refused. | `keyword` |
 | `since` | `string` | No | ISO-8601 lower bound on created_at. | `` |
 | `until` | `string` | No | ISO-8601 upper bound on created_at. | `` |
 | `database` | `string` | No | SQLite file for this call only (legacy; prefer store). SQLite backend only. | `-` |

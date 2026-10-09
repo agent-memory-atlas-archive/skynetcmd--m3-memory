@@ -50,6 +50,32 @@ def test_every_public_mode_resolves_and_fts5_stays_internal():
     assert "fts5" not in PUBLIC_SEARCH_MODES
 
 
+# ── chat log search: lexical only; it advertised "vector" and ignored the value ──
+@pytest.mark.parametrize("legacy", ["keyword", "hybrid", "fts", "fts5", "", " Keyword "])
+def test_chatlog_accepts_every_name_it_honours(legacy):
+    from m3_core.search_modes import normalize_chatlog_search_mode
+
+    assert normalize_chatlog_search_mode(legacy) == "keyword"
+
+
+@pytest.mark.parametrize("bad", ["vector", "semantic", "nonsense"])
+def test_chatlog_refuses_a_mode_it_cannot_run(bad):
+    """Refused at the tool's entry, before any flush or query, instead of
+    silently running keyword search under a vector label."""
+    import chatlog_core
+
+    with pytest.raises(ValueError, match="lexical .FTS5. only"):
+        asyncio.run(chatlog_core.chatlog_search_impl("anything", search_mode=bad))
+
+
+def test_chatlog_search_schema_offers_only_what_it_runs():
+    from m3_core.search_modes import CHATLOG_SEARCH_MODES
+
+    cat = importlib.import_module("mcp_tool_catalog")
+    prop = cat._BY_NAME["chatlog_search"].parameters["properties"]["search_mode"]
+    assert prop["enum"] == list(CHATLOG_SEARCH_MODES) and prop["default"] in prop["enum"]
+
+
 def test_every_tool_schema_offers_exactly_the_public_modes():
     cat = importlib.import_module("mcp_tool_catalog")
     offering = {t.name: t.parameters["properties"]["search_mode"].get("enum")

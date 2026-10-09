@@ -23,6 +23,24 @@ _INTERNAL = {"fts5": "fts5"}
 PUBLIC_SEARCH_MODES: tuple[str, ...] = tuple(SEARCH_MODES)
 
 
+# Chat log search is lexical only (FTS5); it never had a vector path, while its
+# schema offered "hybrid|fts|vector" and the impl ignored the value. "keyword" is
+# the public name; the old names stay accepted because clients holding the old
+# schema send its default ("hybrid") explicitly.
+CHATLOG_SEARCH_MODES: tuple[str, ...] = ("keyword",)
+_CHATLOG_LEGACY = frozenset({"fts", "fts5", "hybrid"})
+
+
+def normalize_chatlog_search_mode(mode: str) -> str:
+    """``keyword`` for every name chat log search honours; ValueError otherwise."""
+    key = (mode or "").strip().lower()
+    if key in CHATLOG_SEARCH_MODES or key in _CHATLOG_LEGACY or key == "":
+        return "keyword"
+    raise ValueError(f"observed: search_mode={mode!r}. cause: chat log search is lexical (FTS5) "
+                     "only; it has no vector path. inspect: use keyword, or memory_search for "
+                     "semantic search over memories")
+
+
 def normalize_search_mode(mode: str) -> str:
     """The implemented mode for ``mode``; raises ValueError for anything else."""
     key = (mode or "").strip().lower()

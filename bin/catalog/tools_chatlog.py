@@ -6,6 +6,8 @@ assignment per tool_domains.domain_of_tool().
 """
 from __future__ import annotations
 
+from m3_core.search_modes import CHATLOG_SEARCH_MODES
+
 from .lazy import LazyModuleProxy
 from .spec import ToolSpec
 
@@ -117,7 +119,7 @@ TOOLS: list[ToolSpec] = [
                 "provider":        {"type": "string", "description": "Filter by provider.",     "default": ""},
                 "model_id":        {"type": "string", "description": "Filter by model id.",     "default": ""},
                 "agent_id":        {"type": "string", "description": "Filter by agent id.",     "default": ""},
-                "search_mode":     {"type": "string", "description": "hybrid|fts|vector (integrated mode only).", "default": "hybrid"},
+                "search_mode":     {"type": "string", "enum": list(CHATLOG_SEARCH_MODES), "description": "Lexical (FTS5) only; vector modes are refused.", "default": "keyword"},
                 "since":           {"type": "string", "description": "ISO-8601 lower bound on created_at.", "default": ""},
                 "until":           {"type": "string", "description": "ISO-8601 upper bound on created_at.", "default": ""},
             },
