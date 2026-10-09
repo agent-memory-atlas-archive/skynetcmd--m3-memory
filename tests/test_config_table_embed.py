@@ -7,16 +7,9 @@ an earlier test's values).
 """
 from __future__ import annotations
 
-import json
 import logging
-import os
-import subprocess
-import sys
-from pathlib import Path
 
 import pytest
-
-_BIN = Path(__file__).resolve().parent.parent / "bin"
 
 # registry key -> (module, constant) holding today's default
 _PINNED = {
@@ -51,34 +44,10 @@ _PINNED = {
 }
 
 
-def _todays_values() -> dict:
-    from m3_core.config import REGISTRY
-
-    # Clear only the names whose defaults are measured: the rest (roots, the
-    # sandbox's M3_LIB_DIR for a FIPS-mode box) must stay, or the import fails
-    # for a reason unrelated to the defaults.
-    measured = {n for k in _PINNED for n in REGISTRY.get(k).env_names}
-    env = {k: v for k, v in os.environ.items() if k not in measured}
-    prog = (
-        "import importlib, json, sys\n"
-        f"sys.path.insert(0, {str(_BIN)!r})\n"
-        f"pinned = {json.dumps(_PINNED)}\n"
-        "out = {}\n"
-        "for key, (mod, attr) in pinned.items():\n"
-        "    v = getattr(importlib.import_module(mod), attr)\n"
-        "    out[key] = list(v) if isinstance(v, tuple) else v\n"
-        "print(json.dumps(out))\n"
-    )
-    r = subprocess.run([sys.executable, "-c", prog], capture_output=True, text=True, env=env, timeout=120)
-    assert r.returncode == 0, r.stderr
-    return json.loads(r.stdout.strip().splitlines()[-1])
-
-
 def test_defaults_are_what_todays_readers_produce():
-    from m3_core.config import REGISTRY
+    from config_defaults_helper import mismatches
 
-    today = _todays_values()
-    wrong = {k: (REGISTRY.get(k).default, v) for k, v in today.items() if REGISTRY.get(k).default != v}
+    wrong = mismatches(_PINNED)
     assert not wrong, f"registry default != today's reader (registry, today): {wrong}"
 
 

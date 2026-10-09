@@ -105,6 +105,25 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `max_batch` | integer | `2048` | `M3_EMBED_SERVER_MAX_BATCH` | restart to apply; Texts per server batch. |
 | `port` | integer | `8082` | `M3_EMBED_SERVER_PORT` | restart to apply; Port of the shared embed server (also read by the Rust server). |
 
+## [files]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `default_corpus` | string | `default` | `M3_FILES_DEFAULT_CORPUS` | restart to apply; Corpus a file is ingested into when none is named. |
+| `default_extract_mode` | string | `none` | `M3_FILES_DEFAULT_EXTRACT_MODE` | restart to apply; one of `none`, `inline`, `queue`; Fact extraction on ingest: none, inline, or queued for the loop. |
+| `extract_min_leaf_chars` | integer | `120` | `M3_FILES_EXTRACT_MIN_LEAF_CHARS` | restart to apply; Leaves shorter than this are not sent to extraction. |
+| `extract_model` | string | (none) | `M3_FILES_EXTRACT_MODEL` | restart to apply; Extraction model. Default: files.summary_model, then the endpoint's discovered model. |
+| `extract_url` | string | (none) | `M3_FILES_EXTRACT_URL` | restart to apply; Extraction endpoint. Default: files.summary_url, then M3_LMSTUDIO_URL, then the failover list. |
+| `follow_symlinks` | boolean | `false` | `M3_FILES_FOLLOW_SYMLINKS` | restart to apply; Follow symbolic links while walking a directory. |
+| `max_file_bytes` | integer | `10485760` | `M3_FILES_MAX_FILE_BYTES` | restart to apply; Larger files are skipped. |
+| `max_files_per_ingest` | integer | `10000` | `M3_FILES_MAX_FILES_PER_INGEST` | restart to apply; Files one ingest call may take. |
+| `max_leaf_tokens` | integer | `7000` | `M3_FILES_MAX_LEAF_TOKENS` | restart to apply; Tokens per chunk leaf. |
+| `prewarm_timeout_s` | number | `180.0` | `M3_FILES_PREWARM_TIMEOUT_S` | restart to apply; Seconds to wait for the summary model to load before an ingest. |
+| `promo_half_life_days` | number | `30.0` | `M3_FILES_PROMO_HALF_LIFE_DAYS` | restart to apply; Half-life of the promotability score's recency term (values below 1 act as 1). |
+| `promotion_scope` | string | `user` | `M3_FILES_PROMOTION_SCOPE` | restart to apply; Scope given to memories promoted from files. |
+| `summary_model` | string | (none) | `M3_FILES_SUMMARY_MODEL` | restart to apply; Summary model. Default: the endpoint's discovered model. |
+| `summary_url` | string | (none) | `M3_FILES_SUMMARY_URL` | restart to apply; Summary endpoint. Default: M3_LMSTUDIO_URL; unset disables summaries. |
+
 ## [paths]
 
 | Key | Type | Default | Environment names | Notes |

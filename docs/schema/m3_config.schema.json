@@ -358,6 +358,83 @@
         }
       }
     },
+    "files": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "default_corpus": {
+          "type": "string",
+          "description": "Corpus a file is ingested into when none is named.",
+          "default": "default"
+        },
+        "default_extract_mode": {
+          "type": "string",
+          "description": "Fact extraction on ingest: none, inline, or queued for the loop.",
+          "enum": [
+            "none",
+            "inline",
+            "queue"
+          ],
+          "default": "none"
+        },
+        "extract_min_leaf_chars": {
+          "type": "integer",
+          "description": "Leaves shorter than this are not sent to extraction.",
+          "default": 120
+        },
+        "extract_model": {
+          "type": "string",
+          "description": "Extraction model. Default: files.summary_model, then the endpoint's discovered model."
+        },
+        "extract_url": {
+          "type": "string",
+          "description": "Extraction endpoint. Default: files.summary_url, then M3_LMSTUDIO_URL, then the failover list."
+        },
+        "follow_symlinks": {
+          "type": "boolean",
+          "description": "Follow symbolic links while walking a directory.",
+          "default": false
+        },
+        "max_file_bytes": {
+          "type": "integer",
+          "description": "Larger files are skipped.",
+          "default": 10485760
+        },
+        "max_files_per_ingest": {
+          "type": "integer",
+          "description": "Files one ingest call may take.",
+          "default": 10000
+        },
+        "max_leaf_tokens": {
+          "type": "integer",
+          "description": "Tokens per chunk leaf.",
+          "default": 7000
+        },
+        "prewarm_timeout_s": {
+          "type": "number",
+          "description": "Seconds to wait for the summary model to load before an ingest.",
+          "default": 180.0
+        },
+        "promo_half_life_days": {
+          "type": "number",
+          "description": "Half-life of the promotability score's recency term (values below 1 act as 1).",
+          "default": 30.0
+        },
+        "promotion_scope": {
+          "type": "string",
+          "description": "Scope given to memories promoted from files.",
+          "default": "user"
+        },
+        "summary_model": {
+          "type": "string",
+          "description": "Summary model. Default: the endpoint's discovered model."
+        },
+        "summary_url": {
+          "type": "string",
+          "description": "Summary endpoint. Default: M3_LMSTUDIO_URL; unset disables summaries."
+        }
+      }
+    },
     "paths": {
       "type": "object",
       "additionalProperties": false,
