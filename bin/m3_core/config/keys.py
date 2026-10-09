@@ -147,4 +147,9 @@ NOT_SETTINGS: dict[str, str] = {
     # User decision 2026-10-09: the chatlog hooks (Python and shell) read it to
     # find bin/ before any m3 code runs, so it cannot come from the config file.
     "M3_HOME": "the hooks' bootstrap locator for the code checkout (user decision 2026-10-09)",
+    # CONFIG_DESIGN §2 read path 3: a diagnostic switch read before config loads.
+    "M3_DEBUG": "the diagnostic switch (CONFIG_DESIGN §2, read path 3)",
+    # U20 (m3 a24fa878): retired as a user setting, no env read and no TOML key;
+    # 2D.2 replaces its 5 parse sites with one Rust-availability probe.
+    "M3_CORE_RS_DISABLE": "retired as a user setting (U20); tests use a fixture, 2D.2",
 }
