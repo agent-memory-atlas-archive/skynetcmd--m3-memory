@@ -175,7 +175,7 @@ jobs:
   # the embed server or the reranker on 3.15, torch is still the blocker and
   # `pip install "m3-memory[embed-server]"` will still fail there.
   #
-  # ⚠ 3.15.0rc2 IS A RELEASE CANDIDATE (3.15.0 final: 2026-10-01, PEP 790). The
+  # ⚠ 3.15.0rc2 IS A RELEASE CANDIDATE (3.15.0 final: 2026-10-09, PEP 790). The
   # classifier is claimed on the strength of a green matrix, not of a final
   # release. If the final differs from the rc in a way that breaks a lane, the
   # honest move is to fix it or drop the classifier — not to keep the promise
@@ -203,20 +203,16 @@ jobs:
     name: Test on ${{ matrix.os }} (py${{ matrix.python-version }})
     needs: [lint, typecheck, matrix-setup]
     runs-on: ${{ matrix.os }}
-    # The 3.15 cell is a CANARY, not a gate — see the matrix-setup block above
-    # for why it exists and why it currently fails (torch ships no cp315 wheel,
-    # so pip dies before a test runs).
+    # The 3.15 cell is non-blocking while 3.15 is pre-release. It was made so on
+    # 2026-09-19, when it failed at setup because torch (no cp315 wheel) was a
+    # core requirement. That cause is GONE: torch moved to the `embed-server`
+    # extra on 2026-09-22, the cell has been green on all three OSes since, and
+    # pyproject claims 3.15 on the strength of it (see the matrix-setup block).
     #
-    # That block already names the cost: a red-forever lane trains everyone to
-    # ignore the one that matters, which is the §3 false alarm. It was tolerated
-    # on the grounds that the cause is documented — but tolerating it still left
-    # main permanently red, so a genuine regression had nothing to contrast
-    # against. Non-blocking resolves that without losing the probe: the lane
-    # still runs and still reports, it just no longer gates.
-    #
-    # When torch ships cp315 the cell goes green on its own; drop this line and
-    # restore the classifier together. 3.12/3.13/3.14 stay blocking — those are
-    # the versions pyproject.toml actually claims.
+    # It stays non-blocking until it is green on 3.15.0 final (PEP 790: due
+    # 2026-10-09; the lanes so far ran release candidates). Then drop this line
+    # so 3.15 gates like 3.12/3.13/3.14. If the final breaks the lane, fix it or
+    # drop the classifier: never keep the promise while the cell is red.
     continue-on-error: ${{ matrix.python-version == '3.15' }}
     strategy:
       fail-fast: false
@@ -231,7 +227,7 @@ jobs:
       uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
       with:
         python-version: ${{ matrix.python-version }}
-        # 3.15 is in its release-candidate window (3.15.0 final: 2026-10-01,
+        # 3.15 is in its release-candidate window (3.15.0 final: 2026-10-09,
         # PEP 790). The runners publish 14 builds of it, but EVERY ONE is
         # stable=false, and a bare "3.15" matches stable builds only — so
         # setup-python failed with "The version '3.15' ... was not found"
