@@ -125,7 +125,7 @@ _STORE_KEYS: dict[PgRole, tuple[str, ...]] = {
 }
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True, kw_only=True)
 class DsnResolution:
     dsn: str                 # "" when nothing resolved
     source: str | None       # e.g. "env:M3_PRIMARY_PG_URL", "keyring:M3_PRIMARY_PG_URL"
@@ -151,11 +151,11 @@ def explain_pg_dsn(role: PgRole) -> DsnResolution:
     if env:
         names = ("M3_PRIMARY_PG_URL", "M3_PG_URL") if role is PgRole.PRIMARY else ("M3_CDW_PG_URL", "PG_URL")
         name = next((n for n in names if (os.environ.get(n) or "").strip() == env), names[0])
-        return DsnResolution(env, f"env:{name}", ())
+        return DsnResolution(dsn=env, source=f"env:{name}", errors=())
     try:
         import auth_utils
     except ImportError as e:  # installer bootstrap: env is all there is
-        return DsnResolution("", None, (f"secret tiers unavailable: {e}",))
+        return DsnResolution(dsn="", source=None, errors=(f"secret tiers unavailable: {e}",))
 
     tiers = (("keyring", auth_utils._keyring_tier), ("secrets-file", auth_utils._file_tier))
     for tier, read in tiers:
@@ -164,7 +164,7 @@ def explain_pg_dsn(role: PgRole) -> DsnResolution:
             if err:
                 errors.append(err)
             if value and value.strip():
-                return DsnResolution(value.strip(), f"{tier}:{key}", tuple(errors))
+                return DsnResolution(dsn=value.strip(), source=f"{tier}:{key}", errors=tuple(errors))
     for key in _STORE_KEYS[role]:
         value, err = auth_utils._vault_tier(key)
         if err:
@@ -178,8 +178,8 @@ def explain_pg_dsn(role: PgRole) -> DsnResolution:
                     "fix: `python -m keyring set system %s` (prompts for the DSN, so it stays out "
                     "of shell history), or set %s in the environment of every m3 process.",
                     key, key, key)
-            return DsnResolution(value.strip(), f"vault:{key}", tuple(errors))
-    return DsnResolution("", None, tuple(errors))
+            return DsnResolution(dsn=value.strip(), source=f"vault:{key}", errors=tuple(errors))
+    return DsnResolution(dsn="", source=None, errors=tuple(errors))
 
 
 def resolve_pg_dsn(role: PgRole) -> str:
@@ -187,7 +187,7 @@ def resolve_pg_dsn(role: PgRole) -> str:
     return explain_pg_dsn(role).dsn
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True, kw_only=True)
 class DsnStored:
     location: str            # "keyring:<key>" or "secrets-file:<path>"
     skipped: tuple[str, ...]  # why an earlier store was not used
@@ -223,7 +223,7 @@ def store_pg_dsn(role: PgRole, dsn: str) -> DsnStored:
         if err is None:
             back, read_err = auth_utils._keyring_tier(key)
             if back == dsn:
-                return DsnStored(f"keyring:{key}", ())
+                return DsnStored(location=f"keyring:{key}", skipped=())
             err = f"keyring: wrote {key} but the read-back " + (
                 f"failed ({read_err})" if read_err else "returned a different value")
         skipped.append(err)
@@ -237,7 +237,7 @@ def store_pg_dsn(role: PgRole, dsn: str) -> DsnStored:
         raise SecretsFileError(
             f"could not store the {role.value} PostgreSQL DSN ({key}) anywhere: "
             + " | ".join([*skipped, f"secrets file: {type(e).__name__}: {e}"])) from e
-    return DsnStored(f"secrets-file:{p}", tuple(skipped))
+    return DsnStored(location=f"secrets-file:{p}", skipped=tuple(skipped))
 
 
 def set_secret(name: str, value: str) -> Path:
@@ -263,12 +263,12 @@ def _check_new_file_would_be_private(directory: Path) -> None:
     EMPTY probe, and refuse before the plaintext is written."""
     import tempfile
 
-    fd, probe = tempfile.mkstemp(dir=directory, prefix=".m3_acl_probe.")
-    os.close(fd)
-    try:
+    # 3.12 delete_on_close=False: closed before the ACL is read, removed on exit
+    # even when the check raises (the same idiom as atomic_write).
+    with tempfile.NamedTemporaryFile(dir=directory, prefix=".m3_acl_probe.",
+                                     delete=True, delete_on_close=False) as probe:
+        probe.close()
         _check_private_windows(
-            Path(probe), what=f"a new file in {directory} (the secrets file was NOT written)",
+            Path(probe.name), what=f"a new file in {directory} (the secrets file was NOT written)",
             fix=(f"icacls \"{directory}\" /inheritance:r /grant:r \"%USERNAME%:(OI)(CI)F\" "
                  "/grant:r \"SYSTEM:(OI)(CI)F\", or point M3_CONFIG_ROOT at a user-only directory"))
-    finally:
-        os.unlink(probe)
