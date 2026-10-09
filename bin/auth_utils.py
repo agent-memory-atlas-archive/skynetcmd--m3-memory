@@ -470,7 +470,7 @@ def _sanitize_service(service: str) -> str:
     normalized = unicodedata.normalize('NFKC', service)
     return re.sub(r'[^a-zA-Z0-9_\-]', '', normalized)
 
-def get_api_key(service: str) -> str | None:
+def get_api_key(service: str | None) -> str | None:
     """
     Resolves an API key by service name across macOS, Windows, and Linux.
     1. os.environ
@@ -478,7 +478,12 @@ def get_api_key(service: str) -> str | None:
     3. Direct macOS Keychain fallback
     4. The user-only secrets file (m3_core.secret_store; machines with no keyring)
     5. Encrypted vault (synchronized_secrets)
+
+    No service (an SLM profile's api_key_service is optional) means no key, not
+    an error: callers pass the profile field straight through.
     """
+    if not service:
+        return None
     service = _sanitize_service(service)
     # The one chain owner (env names from the registry, e.g. LM_API_TOKEN's
     # LM_STUDIO_API_KEY alias; the vault never for a bootstrap secret).
