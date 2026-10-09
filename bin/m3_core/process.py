@@ -143,6 +143,8 @@ class ClientProcess:
 
 _SHELLS = frozenset({"cmd", "sh", "bash", "zsh", "dash", "fish", "pwsh", "powershell"})
 _PY_LAUNCHERS = frozenset({"python", "python3", "pythonw", "py", "uv", "uvx", "pipx"})
+# m3's entry points as a command-line word: the launcher, `-m m3_memory[.cli]`, the bridge.
+_M3_ENTRY_STEMS = frozenset({"m3", "m3_memory", "memory_bridge"})
 
 
 def _runs_m3(cmdline: list[str]) -> bool:
@@ -150,10 +152,15 @@ def _runs_m3(cmdline: list[str]) -> bool:
 
     Arguments are split into words: a shell receives its whole command as ONE
     argument (`bash -c "m3 agent agent_list"`), so a per-argument check misses it.
+
+    Each word must BE an entry point (stem ``m3`` / ``m3_memory`` /
+    ``memory_bridge``, or a file inside the ``m3_memory`` package), never merely
+    contain one: a substring test classed ``pytest tests/test_memory_bridge.py``
+    as m3's launcher and returned the shell above it as the agent's client.
     """
     for word in " ".join(cmdline).lower().split():
-        word = word.strip("\"'")
-        if PurePath(word).stem == "m3" or "m3_memory" in word or "memory_bridge" in word:
+        path = PurePath(word.strip("\"'"))
+        if path.stem in _M3_ENTRY_STEMS or "m3_memory" in path.parts[:-1]:
             return True
     return False
 

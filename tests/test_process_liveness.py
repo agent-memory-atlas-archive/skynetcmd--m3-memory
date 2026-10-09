@@ -132,6 +132,12 @@ def test_no_second_pid_probe_exists():
     ("python3", ["python3", "-m", "aider"], False),             # a Python-based client
     ("bash", ["bash", "-l"], False),                            # an interactive shell
     ("node", ["node", "gemini.js"], False),
+    ("python3", ["python3", "-m", "m3_memory"], True),
+    ("python.exe", ["python.exe", "C:/v/Lib/site-packages/m3_memory/cli.py"], True),
+    # Naming a file that merely CONTAINS an entry-point word is not running m3.
+    ("python.exe", ["python.exe", "-m", "pytest", "tests/test_memory_bridge_tools.py"], False),
+    ("bash", ["bash", "-c", "pytest tests/test_m3_memory_cli.py"], False),
+    ("python3", ["python3", "notes/m3_memory_ideas.py"], False),
 ])
 def test_launch_chain_classification(name, cmdline, own):
     assert process.is_m3_launch_step(name, cmdline) is own
