@@ -16,8 +16,34 @@ failure is an expected result rather than an error.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable
+import contextvars
+from collections.abc import Awaitable, Callable, Coroutine
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
+
+
+def run_blocking[T](make_coro: Callable[[], Coroutine[Any, Any, T]]) -> T:
+    """Run a coroutine to completion from SYNC code, whether or not an event loop
+    is already running on this thread. The one bridge (§10a).
+
+    No loop here: ``asyncio.run``. A loop running here (sync code called on the
+    loop thread, e.g. a sync tool the dispatcher runs inline): that loop is
+    blocked on us, so ``run_coroutine_threadsafe`` would deadlock; the coroutine
+    runs on a worker thread instead, INSIDE A COPY OF THE CALLER'S CONTEXT. A new
+    thread starts with an empty context, and the hand-rolled bridges this
+    replaces lost the per-call store (``store=``) and ``active_database`` there.
+
+    Takes a coroutine FACTORY: a coroutine object built before the loop check
+    leaked unawaited ("coroutine ... was never awaited") whenever the
+    ``asyncio.run`` attempt raised. Exceptions propagate unchanged.
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(make_coro())
+    ctx = contextvars.copy_context()
+    with ThreadPoolExecutor(max_workers=1, thread_name_prefix="m3-run-blocking") as ex:
+        return ex.submit(ctx.run, lambda: asyncio.run(make_coro())).result()
 
 
 async def gather_or_cancel(*aws: Awaitable[Any]) -> list[Any]:

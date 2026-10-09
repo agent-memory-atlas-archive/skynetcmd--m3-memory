@@ -25,7 +25,6 @@ Public API:
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import sqlite3
@@ -354,17 +353,11 @@ def _write_to_memory_db(
             scope=scope,
         )
 
-    try:
-        # asyncio.run requires no running loop. We're sync, so this is fine.
-        result = asyncio.run(_run())
-    except RuntimeError as e:
-        # Already in an event loop — run in a thread.
-        if "running event loop" in str(e):
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-                result = ex.submit(lambda: asyncio.run(_run())).result()
-        else:
-            raise
+    # Sync caller, async impl, maybe on a running loop: the one bridge keeps the
+    # caller's context, so a per-call store= reaches the core write too.
+    from m3_core.aio import run_blocking
+
+    result = run_blocking(_run)
 
     # memory_write_impl returns the new uuid as a string ("Created: <uuid>")
     # in some paths and the uuid directly in others. Handle both shapes.

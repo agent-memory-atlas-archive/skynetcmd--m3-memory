@@ -15,7 +15,6 @@ Public API:
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 import sqlite3
 from itertools import batched
@@ -37,29 +36,15 @@ def embed_texts(texts: list[str]) -> list[tuple[list[float] | None, str]]:
     if not texts:
         return []
 
+    from m3_core.aio import run_blocking
     from memory.embed import _embed_many
 
-    try:
-        asyncio.get_running_loop()
-        loop_running = True
-    except RuntimeError:
-        loop_running = False
-
-    if not loop_running:
-        return asyncio.run(_embed_many(texts))
-
-    # A loop is already running ON THIS THREAD — asyncio.get_running_loop() only
-    # ever returns the current thread's loop. We were called synchronously from
-    # inside it: the human CLI runs the SYNC files_ingest impl directly on the
-    # event-loop thread (asyncio.run(execute_tool_structured(...)) -> dispatch
-    # calls spec.impl() inline), so that loop is BLOCKED on us right now.
-    # run_coroutine_threadsafe(coro, loop).result() would deadlock — the loop
-    # cannot step the coroutine while it is frozen here (this was the "files_ingest
-    # hangs / commits nothing" bug). Bridge through a private loop on a worker
-    # thread instead; the shared embed client rebinds per-loop (_get_embed_client).
-    import concurrent.futures
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-        return ex.submit(lambda: asyncio.run(_embed_many(texts))).result()
+    # The human CLI runs the SYNC files_ingest impl inline on the event-loop
+    # thread, so a loop may be running here and blocked on us:
+    # run_coroutine_threadsafe would deadlock (the "files_ingest hangs / commits
+    # nothing" bug). run_blocking uses a private loop on a worker thread then;
+    # the shared embed client rebinds per-loop (_get_embed_client).
+    return run_blocking(lambda: _embed_many(texts))
 
 
 def write_leaf_embedding(
