@@ -308,9 +308,12 @@ def load_config():
     return {}
 
 def save_config(cfg):
+    # atomic_write, not open(path, "w"): that empties the file first, so a failed
+    # write lost the user's remembered backup_dir.
+    from m3_core.atomic_io import atomic_write
+
     os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
-    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(cfg, f, indent=2)
+    atomic_write(CONFIG_PATH, json.dumps(cfg, indent=2))
 
 def prompt_backup_dir(assume_yes: bool) -> str:
     cfg = load_config()
