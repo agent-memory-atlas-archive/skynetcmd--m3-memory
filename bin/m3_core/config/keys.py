@@ -143,4 +143,7 @@ NOT_SETTINGS: dict[str, str] = {
     # CONFIG_DESIGN §2 read path 1: it decides WHICH m3_config.toml is read, so it
     # cannot be a key in that file.
     "M3_CONFIG_ROOT": "the config locator (CONFIG_DESIGN §2, read path 1)",
+    # User decision 2026-10-09: the chatlog hooks (Python and shell) read it to
+    # find bin/ before any m3 code runs, so it cannot come from the config file.
+    "M3_HOME": "the hooks' bootstrap locator for the code checkout (user decision 2026-10-09)",
 }

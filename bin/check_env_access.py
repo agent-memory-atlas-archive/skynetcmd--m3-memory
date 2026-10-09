@@ -58,6 +58,9 @@ OS_NAMES: frozenset[str] = frozenset({
     # U4 bucket A
     "ANSICON", "FORCE_COLOR", "WT_SESSION", "PATHEXT", "PROCESSOR_ARCHITECTURE",
     "OLLAMA_MODELS", "OPENCLAW_STATE_DIR", "PYTHONUTF8",
+    # Other programs' own variables (user decision 2026-10-09, as bucket A):
+    # GitHub's tokens (release tooling only), Hermes Agent's and OpenCode's homes.
+    "GH_TOKEN", "GITHUB_TOKEN", "HERMES_HOME", "OPENCODE_DATA_DIR",
 })
 
 # Functions that read the environment on the caller's behalf: (name, index of the
