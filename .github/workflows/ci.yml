@@ -32,6 +32,14 @@ jobs:
       # m3_memory/ (the installed package) and tests/ too: left out, both
       # accumulated findings that no gate reported.
       run: ruff check bin/ memory/ m3_memory/ tests/ --exclude 'bench_*.py' --exclude 'benchmark_*.py'
+    - name: Environment-access gate (report mode)
+      # Plan Step 2A.1: inventory every os.environ / getenv access. Report mode
+      # prints counts and passes; it fails only if its selftest misses a planted
+      # shape or a production file cannot be parsed (an unscanned file is not
+      # a clean one). Enforcement comes with the config package.
+      run: |
+        python bin/check_env_access.py --selftest
+        python bin/check_env_access.py --summary
 
   typecheck:
     name: Type Check (Mypy)
