@@ -83,8 +83,6 @@ def warehouse_target() -> "tuple[str, int, str] | None":
     if host:
         return host, 5432, "M3_POSTGRES_SERVER"
     try:
-        from urllib.parse import urlsplit
-
         from m3_sdk import resolve_warehouse_dsn
         dsn = resolve_warehouse_dsn()
     except Exception as e:  # noqa: BLE001 — reported, then treated as unconfigured
@@ -93,12 +91,17 @@ def warehouse_target() -> "tuple[str, int, str] | None":
         return None
     if not dsn:
         return None
-    parts = urlsplit(dsn)
-    if not parts.hostname:
-        log.warning("the warehouse DSN has no host; sync is skipped. "
+    from m3_core.dsn import parse_pg_dsn
+
+    # libpq's parser (m3_core.dsn): urlsplit found no host in a keyword DSN
+    # (`host=h dbname=d`), so this skipped sync with a false "no host" warning.
+    parts = parse_pg_dsn(dsn)
+    if parts is None or not parts.host:
+        why = "is not a DSN libpq can parse" if parts is None else "has no host"
+        log.warning(f"the warehouse DSN {why}; sync is skipped. "
                     "inspect: M3_CDW_PG_URL or the stored PG_URL")
         return None
-    return parts.hostname, parts.port or 5432, "warehouse DSN"
+    return parts.host, parts.port, "warehouse DSN"
 
 # Logging is configured in main() via setup_task_runtime so scheduled-task
 # runs self-log without a shell `>>` redirect. This minimal fallback keeps

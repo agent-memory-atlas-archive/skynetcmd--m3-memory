@@ -24,7 +24,6 @@ Requires on the WAREHOUSE: the sync role has USAGE + DML on m3_warehouse.
 from __future__ import annotations
 
 import logging
-import urllib.parse
 from datetime import UTC, datetime
 
 logger = logging.getLogger("pg_fdw_sync")
@@ -104,10 +103,16 @@ def _ensure_fdw_wired(pg_cur, warehouse_dsn: str) -> None:
     """Idempotently set up postgres_fdw: extension, foreign server, user mapping,
     and IMPORT FOREIGN SCHEMA. Raises FdwUnavailable if the extension is missing
     (needs superuser to create) or the server can't be reached."""
-    d = urllib.parse.urlparse(warehouse_dsn)
-    host, port = d.hostname, str(d.port or 5432)
-    dbname = d.path.lstrip("/")
-    user, password = d.username, d.password
+    from m3_core.dsn import parse_pg_dsn
+
+    # libpq's parser (m3_core.dsn): urlparse found no host in a keyword DSN and
+    # left a URI's percent-encoded password encoded in the user mapping.
+    parts = parse_pg_dsn(warehouse_dsn)
+    if parts is None:
+        raise FdwUnavailable("observed: the warehouse DSN is not a DSN libpq can parse. "
+                             "inspect: M3_CDW_PG_URL (or the stored PG_URL)")
+    host, port = parts.host, str(parts.port)
+    dbname, user, password = parts.dbname, parts.user, parts.password
 
     # Extension — cannot self-create without superuser; probe rather than assume.
     pg_cur.execute("SELECT 1 FROM pg_extension WHERE extname = 'postgres_fdw'")

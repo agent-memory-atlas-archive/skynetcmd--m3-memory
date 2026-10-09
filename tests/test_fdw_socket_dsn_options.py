@@ -57,7 +57,7 @@ def _wire(dsn: str) -> _RecordingCursor:
     "dsn",
     [
         "postgresql:///m3_mac",            # socket, no host, no user
-        "postgresql:///m3_mac?x=1",        # same with a trailing param
+        "postgresql:///m3_mac?sslmode=prefer",  # same with a trailing param (libpq rejects unknown ones)
     ],
 )
 def test_socket_dsn_omits_the_host_option_entirely(dsn):

@@ -237,26 +237,19 @@ def _reject_forbidden_host(url: str) -> None:
     forbidden = _forbidden_pg_hosts()
     if not forbidden:
         return
-    parsed_host = ""
-    try:
-        from urllib.parse import urlparse
+    from m3_core.dsn import parse_pg_dsn
 
-        parsed_host = (urlparse(url.strip()).hostname or "").lower()
-    except Exception:
-        parsed_host = ""
+    parts = parse_pg_dsn(url)
+    # libpq takes a comma-separated host list and tries each: any of them counts.
+    parsed_hosts = {h.strip().lower() for h in parts.host.split(",")} - {""} if parts else set()
+    scheme = "postgres" if "://" not in url else url.strip().split("://", 1)[0]
 
     for host in forbidden:
         if not host:
             continue
-        hit = (parsed_host == host.lower()) if parsed_host else (host in url)
+        hit = (host.lower() in parsed_hosts) if parsed_hosts else (host in url)
         if hit:
-            # Extract scheme and host only — NEVER echo the full DSN (contains password)
-            scheme = ""
-            try:
-                from urllib.parse import urlparse
-                scheme = urlparse(url.strip()).scheme or "postgres"
-            except Exception:
-                scheme = "postgres"
+            # Scheme and host only — NEVER echo the full DSN (contains password)
             raise RuntimeError(
                 f"observed: PostgreSQL PRIMARY-store DSN targets forbidden "
                 f"host {host!r} (from M3_PG_FORBIDDEN_HOSTS). cause: the DSN "
@@ -303,27 +296,21 @@ def _resolve_dsn() -> str:
     return url
 
 
-def _dsn_identity(url: str) -> tuple[str, int | None, str] | None:
+def _dsn_identity(url: str) -> tuple[str, int, str] | None:
     """Normalize a DSN to its (host, port, dbname) identity for comparison.
 
     Two DSNs that name the SAME database differ byte-for-byte in benign ways
-    (trailing slash, param order, an explicit vs. implicit default port, or
-    different credentials to the same DB). Comparing the parsed identity instead
-    of the raw string catches those. Returns None if the URL can't be parsed
-    (caller treats an unparseable DSN as "can't prove same" — the forbidden-host
-    guard and the rename remain the primary defenses)."""
-    try:
-        from urllib.parse import urlparse
+    (URI vs keyword form, trailing slash, param order, an explicit vs. implicit
+    default port, or different credentials to the same DB). Comparing the parsed
+    identity instead of the raw string catches those. Returns None if the DSN
+    can't be parsed (caller treats an unparseable DSN as "can't prove same" — the
+    forbidden-host guard and the rename remain the primary defenses). Parsing is
+    m3_core.dsn's (libpq's own parser; the urlparse this replaced read a keyword
+    DSN's whole text, password included, as the database name)."""
+    from m3_core.dsn import parse_pg_dsn
 
-        p = urlparse(url.strip())
-        host = (p.hostname or "").lower()
-        port = p.port if p.port is not None else (5432 if p.scheme.startswith("postgres") else None)
-        dbname = (p.path or "").lstrip("/").rstrip("/")
-        if not host and not dbname:
-            return None
-        return (host, port, dbname)
-    except Exception:
-        return None
+    parts = parse_pg_dsn(url)
+    return parts.identity() if parts else None
 
 
 def _resolve_warehouse_dsn_for_guard() -> str:
