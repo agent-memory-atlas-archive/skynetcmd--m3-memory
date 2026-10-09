@@ -208,3 +208,18 @@ def test_no_orphaned_tool_pages():
     assert not orphans, (
         "Orphaned tool pages (source is gone) — delete them:\n  " + "\n  ".join(orphans)
     )
+
+
+def test_config_reference_and_schema_are_fresh(tmp_path, monkeypatch):
+    """docs/CONFIG_REFERENCE.md and the JSON Schema are generated from the config registry."""
+    import gen_config_docs
+
+    committed_md = os.path.join(_ROOT, "docs", "CONFIG_REFERENCE.md")
+    committed_schema = os.path.join(_ROOT, "docs", "schema", "m3_config.schema.json")
+    monkeypatch.setattr(gen_config_docs, "OUTPUT", str(tmp_path / "ref.md"))
+    monkeypatch.setattr(gen_config_docs, "SCHEMA_OUTPUT", str(tmp_path / "schema.json"))
+    gen_config_docs.main()
+    stale = "is stale — run `python bin/gen_config_docs.py` and commit."
+    assert _read(committed_md) == _read(str(tmp_path / "ref.md")), f"CONFIG_REFERENCE.md {stale}"
+    assert json.loads(_read(committed_schema)) == json.loads(_read(str(tmp_path / "schema.json"))), \
+        f"m3_config.schema.json {stale}"

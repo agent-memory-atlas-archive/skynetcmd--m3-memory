@@ -83,7 +83,18 @@ def one_of(*allowed: str) -> Callable[[str], None]:
     def check(value: str) -> None:
         if value not in allowed:
             raise ConfigValueError(f"{value!r} is not one of {', '.join(allowed)}")
+    check.choices = allowed  # type: ignore[attr-defined]  # read by the schema generator
     return check
+
+
+def choices_of(key: Key) -> tuple[str, ...] | None:
+    """The allowed values of a ``one_of`` key, for generated docs and schema."""
+    return getattr(key.validate, "choices", None)
+
+
+def type_name(key: Key) -> str:
+    """The TOML-native type of a key, for generated docs and schema."""
+    return _TYPE_NAMES.get(key.parse, "string")
 
 
 def in_range(lo: float | None = None, hi: float | None = None) -> Callable[[float], None]:
@@ -102,6 +113,12 @@ _TOML_TYPE: dict[Callable[[str], object], tuple[type, ...]] = {
     parse_str: (str,),
     parse_path: (str,),
     parse_list: (list,),
+}
+
+
+_TYPE_NAMES: dict[Callable[[str], object], str] = {
+    parse_bool: "boolean", parse_int: "integer", parse_float: "number",
+    parse_str: "string", parse_path: "path", parse_list: "list of strings",
 }
 
 
