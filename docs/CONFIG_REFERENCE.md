@@ -6,12 +6,41 @@ The file is `m3_config.toml` in the config root (`--config <file>` > `M3_CONFIG_
 
 Precedence for each setting: the environment, for the keys marked *env override* only; then this file; then, until release N+3, the setting's legacy environment names; then the default. `m3 config show --origin` prints where each value came from.
 
+## [autonomy]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `consolidation_auto` | boolean | `false` | `M3_CONSOLIDATION_AUTO` | restart to apply; Let the loop apply belief consolidation without review. |
+| `distill_auto` | boolean | `false` | `M3_DISTILL_AUTO` | restart to apply; Let the loop apply distilled procedures without review. |
+
+## [chatlog]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `auto_enrich` | boolean | `false` | `M3_AUTO_ENRICH` | restart to apply; Queue an observation after an ingest of chatlog.auto_enrich_min_turns or more turns. |
+| `auto_enrich_min_turns` | integer | `10` | `M3_AUTO_ENRICH_MIN_TURNS` | restart to apply; Turns an ingest needs before chatlog.auto_enrich queues an observation. |
+| `statusline` | boolean | `true` | `M3_CHATLOG_STATUSLINE`, `CHATLOG_STATUSLINE` | restart to apply; Show the chatlog status line. |
+| `statusline_ascii` | boolean | `false` | `M3_CHATLOG_STATUSLINE_ASCII`, `CHATLOG_STATUSLINE_ASCII` | restart to apply; Use [!] instead of the warning sign in the status line. |
+
+## [chatlog.db]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `pool_size` | integer | `4` | `M3_CHATLOG_DB_POOL_SIZE`, `CHATLOG_DB_POOL_SIZE` | restart to apply; SQLite connections in the chatlog pool. |
+| `pool_timeout_s` | integer | `10` | `M3_CHATLOG_DB_POOL_TIMEOUT`, `CHATLOG_DB_POOL_TIMEOUT` | restart to apply; Seconds: the chatlog's SQLite busy timeout AND its pool checkout wait (one value, two uses today). |
+
 ## [chatlog.embed]
 
 | Key | Type | Default | Environment names | Notes |
 |---|---|---|---|---|
 | `deadline_s` | number | `60.0` | `M3_CHATLOG_EMBED_DEADLINE_S`, `CHATLOG_EMBED_DEADLINE_S` | restart to apply; Seconds one sweeper run may take; 0 or less is unbounded. |
 | `max_per_run` | integer | `10000` | `M3_CHATLOG_EMBED_MAX_PER_RUN`, `CHATLOG_EMBED_MAX_PER_RUN` | restart to apply; Rows one sweeper run embeds. |
+
+## [chatlog.spill]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `max_drain_attempts` | integer | `5` | `M3_SPILL_MAX_ATTEMPTS` | restart to apply; Attempts to drain a spilled chatlog batch (today .spill_config.json wins). |
 
 ## [cloud]
 
@@ -189,6 +218,23 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `model` | string | `urchade/gliner_large-v2.1` | `M3_GLINER_MODEL` | restart to apply; GLiNER model (Hugging Face id). |
 | `threshold` | number | `0.5` | `M3_GLINER_THRESHOLD` | restart to apply; Entity confidence threshold. |
 
+## [governor]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `feedback_window_minutes` | integer | `5` | `M3_FEEDBACK_WINDOW_MINUTES` | restart to apply; Minutes of feedback the maintenance pass considers. |
+
+## [ingest]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `event_rows` | boolean | `true` | `M3_INGEST_EVENT_ROWS` | restart to apply; Write event rows on chat ingest. |
+| `gist_min_turns` | integer | `10` | `M3_INGEST_GIST_MIN_TURNS` | restart to apply; Turns a conversation needs for a gist. |
+| `gist_rows` | boolean | `true` | `M3_INGEST_GIST_ROWS` | restart to apply; Write gist rows on chat ingest. |
+| `gist_stride` | integer | `5` | `M3_INGEST_GIST_STRIDE` | restart to apply; Turns between gists. |
+| `window_chunks` | boolean | `true` | `M3_INGEST_WINDOW_CHUNKS` | restart to apply; Write windowed chunks on chat ingest. |
+| `window_size` | integer | `3` | `M3_INGEST_WINDOW_SIZE` | restart to apply; Turns per window chunk. |
+
 ## [llm]
 
 | Key | Type | Default | Environment names | Notes |
@@ -204,14 +250,25 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `url` | string | (none) | `M3_LLM_URL` | restart to apply; A custom LLM endpoint, tried first. |
 | `usability_ttl_s` | number | `60.0` | `M3_LLM_USABILITY_TTL` | restart to apply; Seconds an endpoint's usability result is cached. |
 
+## [loop]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `classify_deadline_s` | number | `10.0` | `M3_CLASSIFY_DEADLINE_S` | restart to apply; Seconds a classify pass may take. |
+| `distill_model` | string | `slm` | `M3_DISTILL_MODEL` | restart to apply; Procedure distillation model: slm, llm, or a profile name. |
+| `limit_per_pass` | integer | `4` | `M3_LIMIT_PER_PASS` | restart to apply; Items one loop pass takes (the governor shrinks it). |
+
 ## [memory]
 
 | Key | Type | Default | Environment names | Notes |
 |---|---|---|---|---|
+| `auto_related_link` | boolean | `true` | `M3_AUTO_RELATED_LINK` | restart to apply; Link a new memory to related ones on write. |
+| `auto_related_link_scope_by_variant` | boolean | `true` | `M3_AUTO_RELATED_LINK_SCOPE_BY_VARIANT` | restart to apply; Only link memories within the same variant. |
 | `entity_graph` | boolean | `true` | `M3_ENABLE_ENTITY_GRAPH` | restart to apply; Build the entity graph on write. |
 | `fact_enrich_concurrency` | integer | `2` | `M3_FACT_ENRICH_CONCURRENCY` | restart to apply; Concurrent fact extractions. |
 | `fact_enrich_max_attempts` | integer | `3` | `M3_FACT_ENRICH_MAX_ATTEMPTS` | restart to apply; Attempts before a fact extraction is given up. |
 | `fact_enriched` | boolean | `true` | `M3_ENABLE_FACT_ENRICHED` | restart to apply; Enrich writes with extracted facts. |
+| `inline_classify` | boolean | `false` | `M3_INLINE_CLASSIFY` | restart to apply; Classify memory type inline on write instead of in the loop. |
 
 ## [memory.contradiction]
 
@@ -235,6 +292,13 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `limit` | integer | `1000` | `M3_DEDUP_LIMIT`, `DEDUP_LIMIT` | restart to apply; Memories one dedup pass compares. |
 | `threshold` | number | `0.92` | `M3_DEDUP_THRESHOLD`, `DEDUP_THRESHOLD` | restart to apply; Similarity above which two memories are duplicates. |
 
+## [observer]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `precise_provenance` | boolean | `false` | `M3_OBSERVER_PRECISE_PROVENANCE` | restart to apply; Record turn-level provenance for observations. |
+| `profile` | string | `observer_local` | `M3_OBSERVER_PROFILE`, `OBSERVER_PROFILE` | restart to apply; SLM profile the observer uses. |
+
 ## [paths]
 
 | Key | Type | Default | Environment names | Notes |
@@ -252,6 +316,12 @@ Precedence for each setting: the environment, for the keys marked *env override*
 |---|---|---|---|---|
 | `llm_model` | string | `google/gemma-4-26b-a4b` | `M3_LM_MODEL`, `LM_MODEL` | restart to apply; Model promote_pipeline requests. |
 | `llm_url` | string | `http://localhost:1234/v1/chat/completions` | `M3_LM_URL`, `LM_URL` | restart to apply; Chat-completions URL (full path) promote_pipeline calls. |
+
+## [reflector]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `profile` | string | `reflector_local` | `M3_REFLECTOR_PROFILE`, `REFLECTOR_PROFILE` | restart to apply; SLM profile the reflector uses. |
 
 ## [search]
 
@@ -286,6 +356,38 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | Key | Type | Default | Environment names | Notes |
 |---|---|---|---|---|
 | `file` | path | (none) | (none) | restart to apply; The user-only plaintext secrets file, for hosts where no keyring serves m3's headless jobs (CONFIG_DESIGN §10). Default: <config root>/m3_secrets.toml. |
+
+## [slm]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `classifier` | boolean | `false` | `M3_SLM_CLASSIFIER` | restart to apply; Use the SLM to classify search intent. |
+| `profile` | string | `default` | `M3_SLM_PROFILE` | restart to apply; Default SLM profile for intent classification. |
+| `profile_dirs` | string | `[]` | `M3_SLM_PROFILES_DIR` | restart to apply; Extra directories searched first for SLM profiles (os.pathsep-separated in env). |
+
+## [wiki.compile]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `model` | string | (none) | `M3_WIKI_COMPILE_MODEL` | restart to apply; Prose-compile model. Default: wiki.synth.model. |
+| `timeout_s` | number | `60.0` | `M3_WIKI_COMPILE_TIMEOUT` | restart to apply; Seconds a compile call may take. |
+| `url` | string | (none) | `M3_WIKI_COMPILE_URL` | restart to apply; Prose-compile URL. Default: wiki.synth.url. |
+
+## [wiki.drift]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `model` | string | (none) | `M3_WIKI_DRIFT_MODEL` | restart to apply; Judge model. Default: wiki.synth.model. |
+| `timeout_s` | number | `30.0` | `M3_WIKI_DRIFT_TIMEOUT` | restart to apply; Seconds a judge call may take. |
+| `url` | string | (none) | `M3_WIKI_DRIFT_URL` | restart to apply; Citation-drift and derivability judge URL. Default: wiki.synth.url. |
+
+## [wiki.synth]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `model` | string | (none) | `M3_WIKI_SYNTH_MODEL` | restart to apply; Synthesis model; unset uses the server's. |
+| `timeout_s` | number | `30.0` | `M3_WIKI_SYNTH_TIMEOUT` | restart to apply; Seconds a synthesis call may take. |
+| `url` | string | `http://127.0.0.1:1234/v1/chat/completions` | `M3_WIKI_SYNTH_URL` | restart to apply; Chat-completions URL for wiki synthesis. |
 
 ## Secrets
 

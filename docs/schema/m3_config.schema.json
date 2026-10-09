@@ -9,10 +9,62 @@
       "type": "integer",
       "minimum": 1
     },
+    "autonomy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "consolidation_auto": {
+          "type": "boolean",
+          "description": "Let the loop apply belief consolidation without review.",
+          "default": false
+        },
+        "distill_auto": {
+          "type": "boolean",
+          "description": "Let the loop apply distilled procedures without review.",
+          "default": false
+        }
+      }
+    },
     "chatlog": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "auto_enrich": {
+          "type": "boolean",
+          "description": "Queue an observation after an ingest of chatlog.auto_enrich_min_turns or more turns.",
+          "default": false
+        },
+        "auto_enrich_min_turns": {
+          "type": "integer",
+          "description": "Turns an ingest needs before chatlog.auto_enrich queues an observation.",
+          "default": 10
+        },
+        "statusline": {
+          "type": "boolean",
+          "description": "Show the chatlog status line.",
+          "default": true
+        },
+        "statusline_ascii": {
+          "type": "boolean",
+          "description": "Use [!] instead of the warning sign in the status line.",
+          "default": false
+        },
+        "db": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "pool_size": {
+              "type": "integer",
+              "description": "SQLite connections in the chatlog pool.",
+              "default": 4
+            },
+            "pool_timeout_s": {
+              "type": "integer",
+              "description": "Seconds: the chatlog's SQLite busy timeout AND its pool checkout wait (one value, two uses today).",
+              "default": 10
+            }
+          }
+        },
         "embed": {
           "type": "object",
           "additionalProperties": false,
@@ -26,6 +78,17 @@
               "type": "integer",
               "description": "Rows one sweeper run embeds.",
               "default": 10000
+            }
+          }
+        },
+        "spill": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "max_drain_attempts": {
+              "type": "integer",
+              "description": "Attempts to drain a spilled chatlog batch (today .spill_config.json wins).",
+              "default": 5
             }
           }
         }
@@ -663,6 +726,53 @@
         }
       }
     },
+    "governor": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "feedback_window_minutes": {
+          "type": "integer",
+          "description": "Minutes of feedback the maintenance pass considers.",
+          "default": 5
+        }
+      }
+    },
+    "ingest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "event_rows": {
+          "type": "boolean",
+          "description": "Write event rows on chat ingest.",
+          "default": true
+        },
+        "gist_min_turns": {
+          "type": "integer",
+          "description": "Turns a conversation needs for a gist.",
+          "default": 10
+        },
+        "gist_rows": {
+          "type": "boolean",
+          "description": "Write gist rows on chat ingest.",
+          "default": true
+        },
+        "gist_stride": {
+          "type": "integer",
+          "description": "Turns between gists.",
+          "default": 5
+        },
+        "window_chunks": {
+          "type": "boolean",
+          "description": "Write windowed chunks on chat ingest.",
+          "default": true
+        },
+        "window_size": {
+          "type": "integer",
+          "description": "Turns per window chunk.",
+          "default": 3
+        }
+      }
+    },
     "llm": {
       "type": "object",
       "additionalProperties": false,
@@ -719,10 +829,41 @@
         }
       }
     },
+    "loop": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "classify_deadline_s": {
+          "type": "number",
+          "description": "Seconds a classify pass may take.",
+          "default": 10.0
+        },
+        "distill_model": {
+          "type": "string",
+          "description": "Procedure distillation model: slm, llm, or a profile name.",
+          "default": "slm"
+        },
+        "limit_per_pass": {
+          "type": "integer",
+          "description": "Items one loop pass takes (the governor shrinks it).",
+          "default": 4
+        }
+      }
+    },
     "memory": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "auto_related_link": {
+          "type": "boolean",
+          "description": "Link a new memory to related ones on write.",
+          "default": true
+        },
+        "auto_related_link_scope_by_variant": {
+          "type": "boolean",
+          "description": "Only link memories within the same variant.",
+          "default": true
+        },
         "entity_graph": {
           "type": "boolean",
           "description": "Build the entity graph on write.",
@@ -742,6 +883,11 @@
           "type": "boolean",
           "description": "Enrich writes with extracted facts.",
           "default": true
+        },
+        "inline_classify": {
+          "type": "boolean",
+          "description": "Classify memory type inline on write instead of in the loop.",
+          "default": false
         },
         "contradiction": {
           "type": "object",
@@ -808,6 +954,22 @@
         }
       }
     },
+    "observer": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "precise_provenance": {
+          "type": "boolean",
+          "description": "Record turn-level provenance for observations.",
+          "default": false
+        },
+        "profile": {
+          "type": "string",
+          "description": "SLM profile the observer uses.",
+          "default": "observer_local"
+        }
+      }
+    },
     "paths": {
       "type": "object",
       "additionalProperties": false,
@@ -851,6 +1013,17 @@
           "type": "string",
           "description": "Chat-completions URL (full path) promote_pipeline calls.",
           "default": "http://localhost:1234/v1/chat/completions"
+        }
+      }
+    },
+    "reflector": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "profile": {
+          "type": "string",
+          "description": "SLM profile the reflector uses.",
+          "default": "reflector_local"
         }
       }
     },
@@ -982,6 +1155,91 @@
         "file": {
           "type": "string",
           "description": "The user-only plaintext secrets file, for hosts where no keyring serves m3's headless jobs (CONFIG_DESIGN \u00a710). Default: <config root>/m3_secrets.toml."
+        }
+      }
+    },
+    "slm": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "classifier": {
+          "type": "boolean",
+          "description": "Use the SLM to classify search intent.",
+          "default": false
+        },
+        "profile": {
+          "type": "string",
+          "description": "Default SLM profile for intent classification.",
+          "default": "default"
+        },
+        "profile_dirs": {
+          "type": "string",
+          "description": "Extra directories searched first for SLM profiles (os.pathsep-separated in env).",
+          "default": []
+        }
+      }
+    },
+    "wiki": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "compile": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "model": {
+              "type": "string",
+              "description": "Prose-compile model. Default: wiki.synth.model."
+            },
+            "timeout_s": {
+              "type": "number",
+              "description": "Seconds a compile call may take.",
+              "default": 60.0
+            },
+            "url": {
+              "type": "string",
+              "description": "Prose-compile URL. Default: wiki.synth.url."
+            }
+          }
+        },
+        "drift": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "model": {
+              "type": "string",
+              "description": "Judge model. Default: wiki.synth.model."
+            },
+            "timeout_s": {
+              "type": "number",
+              "description": "Seconds a judge call may take.",
+              "default": 30.0
+            },
+            "url": {
+              "type": "string",
+              "description": "Citation-drift and derivability judge URL. Default: wiki.synth.url."
+            }
+          }
+        },
+        "synth": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "model": {
+              "type": "string",
+              "description": "Synthesis model; unset uses the server's."
+            },
+            "timeout_s": {
+              "type": "number",
+              "description": "Seconds a synthesis call may take.",
+              "default": 30.0
+            },
+            "url": {
+              "type": "string",
+              "description": "Chat-completions URL for wiki synthesis.",
+              "default": "http://127.0.0.1:1234/v1/chat/completions"
+            }
+          }
         }
       }
     }

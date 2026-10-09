@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from m3_core.paths import SELECTABLE_BACKENDS
 
+from .keys_chatlog import CHATLOG
 from .keys_embed import EMBED
 from .keys_enrich import ENRICH
 from .keys_files import FILES
@@ -134,7 +135,7 @@ SECRETS: list[Key] = [
     _secret("OPENCLAW_GATEWAY_TOKEN", "OpenClaw gateway token."),
 ]
 
-REGISTRY = Registry([*DB, *DB_POSTGRES, *PATHS, *EMBED, *FILES, *SEARCH, *LLM, *ENRICH, SECRETS_FILE, *SECRETS])
+REGISTRY = Registry([*DB, *DB_POSTGRES, *PATHS, *EMBED, *FILES, *SEARCH, *LLM, *ENRICH, *CHATLOG, SECRETS_FILE, *SECRETS])
 
 # Env names m3 code reads that are deliberately NOT settings, with the reason.
 # The completeness test treats them as decided; only the user moves a name here.
@@ -156,6 +157,7 @@ RETIRED: dict[str, str] = {
     "M3_TRUST_AUTOTUNE": "no consumer (memory/config.py:265)",
     "M3_CLOUD_MINIMIZATION_LEVEL": "no consumer (memory/config.py:422)",
     "M3_ENTITY_COALESCE_MAX_PAIRS": "every caller passes 1000 (files_memory/entity_coalesce.py:69)",
+    "CHATLOG_MODE": "only its presence is checked, to warn (chatlog_config.py:257)",
 }
 
 NOT_SETTINGS: dict[str, str] = {
@@ -179,4 +181,7 @@ NOT_SETTINGS: dict[str, str] = {
     # User decision 2026-10-09: the Rust/Python route-decider switch is dev and
     # bench plumbing; 2D.2 folds it into the test-only Rust-availability seam.
     "M3_ROUTE_SHADOW_MODE": "dev plumbing: the Rust/Python route decider (user decision 2026-10-09)",
+    # Read only by a live judge test (as U4 bucket B: test plumbing, not settings).
+    "M3_WIKI_DRIFT_PRECISION_FLOOR": "test plumbing: the drift judge live test (wiki/citation_drift.py:183)",
+    "M3_WIKI_DRIFT_RECALL_FLOOR": "test plumbing: the drift judge live test (wiki/citation_drift.py:182)",
 }
