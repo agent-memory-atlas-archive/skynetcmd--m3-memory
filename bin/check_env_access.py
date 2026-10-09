@@ -47,11 +47,16 @@ SCAN_ROOTS = ("bin", "m3_memory")
 # the child_env helper exist (Phase 2C); paths are repo-relative, POSIX style.
 ALLOWED_MODULES: frozenset[str] = frozenset()
 
-# Non-m3 OS names m3 legitimately reads (measured readers, plan review §4b).
+# Names m3 reads that are NOT m3 settings: the OS's (measured readers, plan
+# review §4b), plus terminals' and other programs' own variables (U4 bucket A,
+# user decision 2026-10-08). Reads are allowed; a write is still a violation.
 OS_NAMES: frozenset[str] = frozenset({
     "HOME", "APPDATA", "LOCALAPPDATA", "PROGRAMDATA", "COMPUTERNAME", "HOSTNAME",
     "USER", "USERNAME", "LOGNAME", "USERDOMAIN", "SHELL", "PATH", "SystemRoot",
     "TERM_PROGRAM", "XDG_CONFIG_HOME", "XDG_DATA_HOME",
+    # U4 bucket A
+    "ANSICON", "FORCE_COLOR", "WT_SESSION", "PATHEXT", "PROCESSOR_ARCHITECTURE",
+    "OLLAMA_MODELS", "OPENCLAW_STATE_DIR", "PYTHONUTF8",
 })
 
 # Functions that read the environment on the caller's behalf: (name, index of the

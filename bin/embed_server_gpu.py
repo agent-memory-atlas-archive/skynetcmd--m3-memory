@@ -27,12 +27,14 @@ from pydantic import BaseModel, Field
 logging.basicConfig(level=logging.INFO, format="%(name)s: [%(levelname)s] %(message)s")
 logger = logging.getLogger("embed_proxy_gpu")
 
-LLAMA_SERVER_EXE = os.environ.get(
-    "LLAMA_SERVER_EXE",
+# M3_-namespaced like LLAMA_PORT; the bare names still work, with a deprecation
+# notice (getenv_compat), until the alias window closes (U4, 2026-10-08).
+LLAMA_SERVER_EXE = getenv_compat(
+    "M3_LLAMA_SERVER_EXE", "LLAMA_SERVER_EXE",
     os.path.join(os.path.expanduser("~"), "llama.cpp", "bin", "llama-server.exe"),
 )
-GGUF_MODEL_PATH = os.environ.get(
-    "GGUF_MODEL_PATH", os.path.join(os.getcwd(), "models", "qwen3-q8.gguf")
+GGUF_MODEL_PATH = getenv_compat(
+    "M3_GGUF_MODEL_PATH", "GGUF_MODEL_PATH", os.path.join(os.getcwd(), "models", "qwen3-q8.gguf")
 )
 LLAMA_PORT = int(getenv_compat("M3_LLAMA_PORT", "LLAMA_PORT", "9904"))
 

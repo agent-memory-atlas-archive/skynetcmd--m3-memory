@@ -522,7 +522,24 @@ Bind, concurrency, and batching for the standalone embed servers
 | `M3_EMBED_INTERACTIVE_MAX_TEXTS` | — | Maximum texts allowed in a single interactive embed request. |
 | `M3_EMBED_SERVER_BIN` | — | Path to the embed-server binary the admin launches. |
 | `M3_LLAMA_PORT` | `9904` | Port the GPU embed server's llama.cpp backend listens on. |
+| `M3_LLAMA_SERVER_EXE` | `~/llama.cpp/bin/llama-server.exe` | llama.cpp server binary the GPU embed server launches. Deprecated alias: `LLAMA_SERVER_EXE`. |
+| `M3_GGUF_MODEL_PATH` | `./models/qwen3-q8.gguf` | GGUF model the GPU embed server loads. Deprecated alias: `GGUF_MODEL_PATH`. |
 | `M3_NO_MODEL_DOWNLOAD` | _(unset)_ | Set to forbid automatic model downloads (offline / air-gapped hosts). |
+
+### Tuning overrides
+
+Defaults that are right for almost everyone; override only to work around a
+specific environment.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `M3_NODE_ID` | _(derived)_ | Sync node identity. Set it when several machines share a hostname (containers, a fleet with a naming scheme). |
+| `M3_PG_UPSERT_PAGE_SIZE` | `500` | Rows per PostgreSQL bulk-upsert statement. Lower it on a slow link so a failure rolls back less work. |
+| `M3_FILES_DB_PROMPT_ON_FIRST_USE` | `1` | Ask before creating the files database on first use; automatically off when stdin is not a terminal. |
+| `M3_LLM_USABILITY_TTL` | `60` | Seconds an LLM endpoint's usability check is cached. |
+| `M3_LLM_OUTAGE_REPEAT_S` | `3600` | Seconds between repeated warnings about the same LLM outage. |
+| `M3_SPILL_MAX_ATTEMPTS` | `5` | Consecutive failed drains of a spilled chatlog file before it is moved to `quarantine/` (its turns are kept). `max_drain_attempts` in `.spill_config.json` takes precedence. |
+| `M3_OS_INSTALL_TIMEOUT_S` | `180` | Seconds the installer waits on an OS package-manager step before reporting a timeout. |
 
 ### SLM profiles
 
