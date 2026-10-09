@@ -88,6 +88,25 @@ def test_locked_keyring_is_an_error_not_a_fallback(monkeypatch, tmp_path):
     assert not cp._key_file().exists(), "a locked keyring must not fall back to a file"
 
 
+class _ReadsButWontWrite:
+    """A locked macOS keychain over SSH: reads return None, writes refuse (-25308)."""
+
+    def get_password(self, *a):
+        return None
+
+    def set_password(self, *a):
+        import keyring.errors
+        raise keyring.errors.PasswordSetError("Can't store password on keychain: (-25308, 'Unknown Error')")
+
+
+def test_keyring_that_refuses_the_write_is_exit_2_not_a_crash(monkeypatch):
+    import config_parity as cp
+
+    monkeypatch.setattr(cp, "_keyring", lambda: _ReadsButWontWrite())
+    assert cp.main(["init-key"]) == 2
+    assert not cp._key_file().exists()
+
+
 @pytest.mark.skipif(__import__("os").name != "posix", reason="POSIX mode bits")
 def test_group_readable_key_file_is_refused(monkeypatch):
     import config_parity as cp

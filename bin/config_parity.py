@@ -146,7 +146,16 @@ def init_key() -> str | None:
     if available:
         if existing:
             return None
-        _keyring().set_password(KEYRING_SERVICE, KEYRING_USER, secrets.token_hex(32))
+        import keyring.errors
+
+        try:
+            _keyring().set_password(KEYRING_SERVICE, KEYRING_USER, secrets.token_hex(32))
+        except keyring.errors.KeyringError as e:
+            # A locked macOS keychain over SSH READS fine (None for a missing
+            # item) and refuses only the write: -25308 errSecInteractionNotAllowed.
+            raise ParityError(f"the keyring refused to store the key ({type(e).__name__}: {e}); on macOS "
+                              f"over SSH the login keychain is locked, so run init-key in a logged-in "
+                              f"session (a LaunchAgent)") from e
         return "keyring"
     p = _key_file()
     if _read_key_file(p):

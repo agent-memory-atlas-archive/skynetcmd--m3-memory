@@ -1,8 +1,8 @@
 ---
 tool: bin/config_parity.py
-sha1: 56dde8583d68
-mtime_utc: 2026-10-09T01:05:21.088097+00:00
-generated_utc: 2026-10-09T01:05:56.599753+00:00
+sha1: 3e32f84b5446
+mtime_utc: 2026-10-09T01:07:20.666759+00:00
+generated_utc: 2026-10-09T01:07:47.519637+00:00
 private: false
 ---
 
@@ -49,7 +49,7 @@ Exit: 0 = ok / no drift; 1 = drift; 2 = cannot check (missing key or baseline).
 
 ## Entry points
 
-- `def main()` (line 330)
+- `def main()` (line 339)
 - `if __name__ == "__main__"` guard
 
 ---
