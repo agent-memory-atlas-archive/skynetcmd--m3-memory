@@ -53,7 +53,7 @@ def set_values(location: Location, values: Mapping[Key, ConfigValue | None], *,
                 f"{key.name} is a {key.klass} key and is never written to m3_config.toml"
                 + ("; store it with m3_core.secret_store" if key.klass is KeyClass.SECRET else ""))
         if values[key] is not None:
-            key.check(values[key])  # type: ignore[arg-type]
+            key.check(values[key])
 
     path = location.file
     path.parent.mkdir(parents=True, exist_ok=True)

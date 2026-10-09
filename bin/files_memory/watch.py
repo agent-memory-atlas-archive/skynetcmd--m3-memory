@@ -100,7 +100,7 @@ def _default_notify(agent_id: str, kind: str, payload: dict) -> str | None:
     paired memory.db).
     """
     try:
-        from memory_core import notify_impl  # type: ignore
+        from memory_core import notify_impl
     except ImportError:
         logger.debug("memory_core unavailable; skipping notify for kind=%s", kind)
         return None

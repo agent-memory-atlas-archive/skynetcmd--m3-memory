@@ -378,7 +378,7 @@ async def _embed(texts: list[str], *, interactive: bool = False) -> list[list[fl
             return await asyncio.to_thread(_embedder.embed, texts)
     await gate.acquire(interactive=interactive)
     try:
-        return await asyncio.to_thread(_embedder.embed, texts)  # type: ignore[union-attr]
+        return await asyncio.to_thread(_embedder.embed, texts)
     finally:
         await gate.release(interactive=interactive)
 

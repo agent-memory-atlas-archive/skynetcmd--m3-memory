@@ -40,13 +40,13 @@ def _is_windows() -> bool:
 def _read_windows() -> str | None:
     """Read the User-scope env var via the registry."""
     try:
-        import winreg  # type: ignore[import-not-found]
+        import winreg
     except ImportError:
         return None
     try:
         # winreg is Windows-only stdlib; mypy on Linux can't resolve attrs.
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as k:  # type: ignore[attr-defined]
-            val, _ = winreg.QueryValueEx(k, VAR)  # type: ignore[attr-defined]
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as k:  # type: ignore[attr-defined, unused-ignore]
+            val, _ = winreg.QueryValueEx(k, VAR)  # type: ignore[attr-defined, unused-ignore]
             return str(val)
     except FileNotFoundError:
         return None

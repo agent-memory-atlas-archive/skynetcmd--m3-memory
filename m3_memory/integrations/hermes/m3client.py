@@ -104,7 +104,7 @@ class M3Client:
         # in place (pops 'database', filters keys).
         fut: Future = asyncio.run_coroutine_threadsafe(
             cat.execute_tool_structured(spec, dict(args), self._agent_id),
-            self._loop,  # type: ignore[arg-type]
+            self._loop,
         )
         return fut.result(timeout=self._timeout)
 

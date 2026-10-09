@@ -29,11 +29,11 @@ CHUNKER_VERSION = "1.0.0"
 # the dispatcher falls back to the text chunker.
 _BACKEND: str | None = None
 try:
-    import fitz  # type: ignore
+    import fitz
     _BACKEND = "fitz"
 except ImportError:
     try:
-        import pypdf  # type: ignore
+        import pypdf
         _BACKEND = "pypdf"
     except ImportError:
         pass
@@ -56,7 +56,7 @@ def chunk(path: str, text: str | None = None) -> Iterator[Leaf]:
 def _chunk_fitz(path: str) -> Iterator[Leaf]:
     """Extract pages via PyMuPDF (preferred)."""
     try:
-        doc = fitz.open(path)  # type: ignore
+        doc = fitz.open(path)
     except Exception as e:
         logger.warning("fitz.open failed for %s: %s", path, e)
         return
@@ -100,7 +100,7 @@ def _chunk_fitz(path: str) -> Iterator[Leaf]:
 def _chunk_pypdf(path: str) -> Iterator[Leaf]:
     """Extract pages via pypdf (fallback)."""
     try:
-        reader = pypdf.PdfReader(path)  # type: ignore
+        reader = pypdf.PdfReader(path)
     except Exception as e:
         logger.warning("pypdf.PdfReader failed for %s: %s", path, e)
         return

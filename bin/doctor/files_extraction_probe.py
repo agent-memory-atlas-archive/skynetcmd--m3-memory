@@ -74,7 +74,7 @@ def _reach(endpoint: str, timeout: float = 3.0) -> tuple[str, list[str]]:
             body = json.loads(r.read().decode("utf-8", "replace"))
         models = [m.get("id", "") for m in body.get("data", []) if isinstance(m, dict)]
         return "ok", [m for m in models if m]
-    except urllib.error.HTTPError as e:  # type: ignore[attr-defined]
+    except urllib.error.HTTPError as e:
         return ("auth" if e.code in (401, 403) else "down"), []
     except Exception:  # noqa: BLE001
         return "down", []

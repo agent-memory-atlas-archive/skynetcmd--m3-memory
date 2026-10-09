@@ -72,7 +72,7 @@ from m3_sdk import getenv_compat
 try:
     from m3_core.paths import resolve_engine_file
 except ImportError:  # pragma: no cover - direct-run fallback
-    from m3_sdk import resolve_engine_file  # type: ignore
+    from m3_sdk import resolve_engine_file  # type: ignore[no-redef]
 
 
 # ── DB resolution ──────────────────────────────────────────────────────────

@@ -331,10 +331,10 @@ def _write_to_memory_db(
     # older trees.
     memory_write_impl = None
     try:
-        from memory.write import memory_write_impl  # type: ignore
+        from memory.write import memory_write_impl  # type: ignore[assignment]
     except ImportError:
         try:
-            from memory_core import memory_write_impl  # type: ignore
+            from memory_core import memory_write_impl  # type: ignore[no-redef]
         except ImportError as e:
             logger.error(
                 "neither memory.write nor memory_core exposes memory_write_impl: %s", e,

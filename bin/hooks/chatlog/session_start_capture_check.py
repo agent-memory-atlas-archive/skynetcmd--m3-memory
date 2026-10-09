@@ -42,18 +42,18 @@ def _resolve_db() -> str:
     repo = Path(os.environ.get("M3_HOME") or Path(__file__).resolve().parents[3])
     try:
         sys.path.insert(0, str(repo / "bin"))
-        from m3_sdk import get_m3_engine_root, resolve_db_path  # type: ignore
+        from m3_sdk import get_m3_engine_root, resolve_db_path
         p = resolve_db_path(None)
         if p:
             return os.path.abspath(p)
     except Exception:  # noqa: BLE001 — fall back to path heuristics
-        get_m3_engine_root = None  # type: ignore
+        get_m3_engine_root = None
     env = os.environ.get("M3_DB_PATH")
     if env:
         return os.path.abspath(env)
     # Prefer the canonical engine root (matches the server) over the repo-relative
     # guess, which is a frozen pre-Homecoming copy on migrated installs.
-    if get_m3_engine_root is not None:  # type: ignore
+    if get_m3_engine_root is not None:
         try:
             return os.path.abspath(os.path.join(get_m3_engine_root(), "agent_memory.db"))
         except Exception:  # noqa: BLE001
@@ -106,7 +106,7 @@ def _candidate_dbs() -> list[str]:
     to one entry and behaviour is unchanged.
     """
     try:
-        import chatlog_config  # type: ignore
+        import chatlog_config
         paths = chatlog_config.chat_store_paths()
         if paths:
             return paths

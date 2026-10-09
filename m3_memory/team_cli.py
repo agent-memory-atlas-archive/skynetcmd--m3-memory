@@ -211,7 +211,7 @@ def cmd_run(path: Path) -> int:
         return 1
 
     _add_orchestrator_to_path()
-    from orchestrator import main as orchestrator_main  # type: ignore
+    from orchestrator import main as orchestrator_main
     asyncio.run(orchestrator_main(path))
     return 0
 

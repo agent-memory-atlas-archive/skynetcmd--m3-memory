@@ -195,7 +195,7 @@ def _backend():
     # read that triggers it is resolving a DSN, i.e. the store is not yet usable.
     if not _seam_is_being_built():
         try:
-            from memory.backends import active_backend  # type: ignore
+            from memory.backends import active_backend
             return active_backend()
         except Exception:  # noqa: BLE001 — bootstrap: seam not importable yet
             pass
@@ -230,7 +230,7 @@ def _dialect_param() -> str:
     if _seam_is_being_built():
         return "?"
     try:
-        from memory.backends import dialect  # type: ignore
+        from memory.backends import dialect
         return dialect().param()
     except Exception:  # noqa: BLE001 — bootstrap: seam not importable yet
         return "?"

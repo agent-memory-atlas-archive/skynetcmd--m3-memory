@@ -658,7 +658,7 @@ def _gate_active(env_var: str, count_query: str, threshold: int = 1) -> bool:
     _ttl = _GATE_CACHE_TTL
     _count_fn = _gate_count_query
     try:
-        import memory_core as _mc  # type: ignore
+        import memory_core as _mc
         _ttl = getattr(_mc, "_GATE_CACHE_TTL", _ttl)
         _count_fn = getattr(_mc, "_gate_count_query", _count_fn)
     except ImportError:

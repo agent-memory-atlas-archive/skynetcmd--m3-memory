@@ -788,7 +788,7 @@ def _import_m3_halt():
         bd = bin_dir()
         if bd and str(bd) not in sys.path:
             sys.path.insert(0, str(bd))
-        import m3_halt  # type: ignore
+        import m3_halt
         return m3_halt
     except Exception as e:  # noqa: BLE001 — coordination is best-effort
         _warn(f"  quiesce: m3_halt unavailable ({type(e).__name__}) — "
@@ -1666,9 +1666,9 @@ def _step_preflight(plan: SetupPlan, args: argparse.Namespace) -> bool:
     # a second install is most likely to have just been created, and when the
     # user is already in a position to act on it.
     try:
-        from doctor import entrypoint_probe as _ep  # type: ignore
+        from doctor import entrypoint_probe as _ep
     except Exception:  # noqa: BLE001 — probe unavailable (payload not staged yet)
-        _ep = None  # type: ignore[assignment]
+        _ep = None
     if _ep is not None:
         try:
             _bad = [f for f in _ep.check() if f.get("kind") in ("shadowed", "stale")]
@@ -3682,7 +3682,7 @@ def _start_service_for_role(role: str) -> bool:
         import contextlib
         import io
 
-        import install_schedules  # type: ignore
+        import install_schedules
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             install_schedules._start_longlived_tasks([{"name": task}])

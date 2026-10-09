@@ -24,9 +24,9 @@ from embedding_utils import (
 )
 
 if _HAS_NUMPY:
-    import numpy as _np  # type: ignore
+    import numpy as _np
 else:
-    _np = None  # type: ignore
+    _np = None
 
 from . import config
 

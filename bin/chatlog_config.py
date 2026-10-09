@@ -304,7 +304,7 @@ def _build_from_dict(d: dict) -> ChatlogConfig:
 
     bp = d.get("backpressure", base.backpressure)
     if bp in ("spill_to_disk", "block", "drop"):
-        base.backpressure = bp  # type: ignore[assignment]
+        base.backpressure = bp
 
     ct = d.get("cost_tracking") or {}
     if isinstance(ct, dict):

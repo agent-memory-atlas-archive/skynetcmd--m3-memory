@@ -1,8 +1,8 @@
 ---
 tool: bin/migrate_warehouse_to_schema.py
-sha1: 4252d9ce2b71
-mtime_utc: 2026-10-09T22:00:46.473848+00:00
-generated_utc: 2026-10-09T22:03:21.451787+00:00
+sha1: c245a82371e8
+mtime_utc: 2026-10-09T23:19:58.832817+00:00
+generated_utc: 2026-10-09T23:24:14.253508+00:00
 private: false
 ---
 

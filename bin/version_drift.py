@@ -62,7 +62,7 @@ def _state_path() -> Path:
 def _current_version() -> str:
     """Resolve m3-memory package version. Returns '0.0.0+local' on failure."""
     try:
-        from m3_memory import __version__  # type: ignore[attr-defined]
+        from m3_memory import __version__
         return str(__version__) or "0.0.0+local"
     except Exception:
         return "0.0.0+local"

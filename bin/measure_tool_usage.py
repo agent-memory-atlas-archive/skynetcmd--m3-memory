@@ -193,7 +193,7 @@ def _catalog_tools() -> set[str]:
     if str(bin_dir) not in sys.path:
         sys.path.insert(0, str(bin_dir))
     try:
-        import mcp_tool_catalog as cat  # type: ignore
+        import mcp_tool_catalog as cat
         names: set[str] = set()
         for attr in ("TOOLS", "PROTOCOL_TOOLS", "DEBUG_TOOLS"):
             val = getattr(cat, attr, None)

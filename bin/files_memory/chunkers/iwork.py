@@ -40,7 +40,7 @@ CHUNKER_VERSION = "1.0.0"
 
 # Path 1 — the cheap one. pypdf is already required for the pdf chunker.
 try:
-    import pypdf  # type: ignore
+    import pypdf
 
     _HAVE_PDF = True
 except ImportError:  # pragma: no cover
@@ -48,7 +48,7 @@ except ImportError:  # pragma: no cover
 
 # Path 2 — optional, heavy.
 try:
-    from keynote_parser.codec import IWAFile  # type: ignore
+    from keynote_parser.codec import IWAFile
 
     _HAVE_IWA = True
 except ImportError:
@@ -114,7 +114,7 @@ def _from_preview(zf: zipfile.ZipFile, preview: str, path: str) -> Iterator[Leaf
     import io
 
     try:
-        reader = pypdf.PdfReader(io.BytesIO(zf.read(preview)))  # type: ignore
+        reader = pypdf.PdfReader(io.BytesIO(zf.read(preview)))
     except Exception as e:  # noqa: BLE001
         logger.warning("preview PDF unreadable in %s: %s", path, e)
         return
@@ -150,7 +150,7 @@ def _from_iwa(zf: zipfile.ZipFile, path: str) -> Iterator[Leaf]:
     idx = 0
     for name in iwa_names:
         try:
-            parsed = IWAFile.from_buffer(zf.read(name), name).to_dict()  # type: ignore
+            parsed = IWAFile.from_buffer(zf.read(name), name).to_dict()
         except Exception as e:  # noqa: BLE001
             logger.debug("iwa component %s unreadable: %s", name, e)
             continue

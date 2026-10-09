@@ -1146,7 +1146,7 @@ def _get_embed_client() -> _httpx.AsyncClient:
                     f"keepalive={_EMBED_HTTP_MAX_KEEPALIVE}, "
                     f"expiry={_EMBED_HTTP_KEEPALIVE_EXPIRY}s, http/1.1)"
                 )
-    return _EMBED_CLIENT  # type: ignore[return-value]
+    return _EMBED_CLIENT
 
 
 _EMBED_FALLBACK_URL: str = (
@@ -1766,7 +1766,7 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
             miss_texts.append(t)
 
     if not miss_texts:
-        return out  # type: ignore[return-value]
+        return out
 
     if embedded is not None:
         try:
@@ -1778,7 +1778,7 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
                                       _EMBED_GGUF_MODEL_TAG, "tier1-embedded-bulk")
             if not kept_local:
                 _record_embed_backend(_embedded_label(), len(miss_texts))
-                return out  # type: ignore[return-value]
+                return out
             miss_indices = [miss_indices[j] for j in kept_local]
             miss_texts = [miss_texts[j] for j in kept_local]
         except Exception as e:
@@ -1801,7 +1801,7 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
                         still_missing_local.append(j)
                 if not still_missing_local:
                     _record_embed_backend(_embedded_label(), len(miss_texts))
-                    return out  # type: ignore[return-value]
+                    return out
                 # Narrow the cascade to ONLY the rows tier 1 couldn't embed.
                 miss_indices = [miss_indices[j] for j in still_missing_local]
                 miss_texts = [miss_texts[j] for j in still_missing_local]
@@ -1861,7 +1861,7 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
                                   config.EMBED_FALLBACK_MODEL_TAG, "tier2-cpu-http-bulk")
         if not kept_local:
             _record_embed_backend("cpu-http-fallback", len(miss_texts))
-            return out  # type: ignore[return-value]
+            return out
         miss_indices = [miss_indices[j] for j in kept_local]
         miss_texts = [miss_texts[j] for j in kept_local]
     except Exception as e:
@@ -1881,7 +1881,7 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
             still_missing_local = list(still_local)
             if not still_missing_local:
                 _record_embed_backend("cpu-http-fallback", len(miss_texts))
-                return out  # type: ignore[return-value]
+                return out
             miss_indices = [miss_indices[j] for j in still_missing_local]
             miss_texts = [miss_texts[j] for j in still_missing_local]
             logger.warning(
@@ -1905,7 +1905,7 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
             for i in miss_indices:
                 out[i] = (None, config.EMBED_MODEL)
             await _embed_many_cloud_fallback(out, miss_indices, texts)
-            return out  # type: ignore[return-value]
+            return out
         base_url, model = result
 
     # _post_once returns a PER-CALL result — never shared mutable state. Each
@@ -2012,7 +2012,7 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
         _record_embed_backend("http-primary", _primary_served)
 
     await _embed_many_cloud_fallback(out, miss_indices, texts)
-    return out  # type: ignore[return-value]
+    return out
 
 
 # ──────────────────────────────────────────────────────────────────────────────

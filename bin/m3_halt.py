@@ -693,7 +693,7 @@ def kill_stale_daemons(
                         break
                     time.sleep(0.1)
                 if _pid_is_alive(w.pid):
-                    os.kill(w.pid, _signal.SIGKILL)  # type: ignore[attr-defined]  # POSIX-only; this branch is os.name != "nt"
+                    os.kill(w.pid, _signal.SIGKILL)  # type: ignore[attr-defined, unused-ignore]  # POSIX-only; this branch is os.name != "nt"
             # Confirm death (bounded) and reap its registry entry so a later
             # list_live_processes doesn't resurrect a ghost. Skipped when the
             # kill was refused (e.g. access denied to an administrator service):
@@ -1083,10 +1083,10 @@ def _os_lock_exclusive_nb(fd: int) -> tuple[bool, Exception | None]:
         # Windows only. msvcrt has no POSIX stub, so a type checker running on
         # Linux (CI is ubuntu) flags locking/LK_* as missing — but this branch
         # never runs there. Suppress the platform-stub false positive (§12c).
-        import msvcrt  # type: ignore[import-not-found]
+        import msvcrt
         try:
             # Lock 1 byte, non-blocking. Raises OSError if another handle holds it.
-            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)  # type: ignore[attr-defined]
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)  # type: ignore[attr-defined, unused-ignore]
             return True, None
         except OSError as e:
             # EACCES/EDEADLOCK == already locked by another process (would-block).
@@ -1094,7 +1094,7 @@ def _os_lock_exclusive_nb(fd: int) -> tuple[bool, Exception | None]:
             # errno.EDEADLOCK exists on Windows (where this branch runs) but not
             # in the macOS errno stub a type checker sees — same platform-stub
             # false positive as msvcrt above; this line never executes off-nt.
-            if e.errno in (errno.EACCES, errno.EDEADLOCK, errno.EDEADLK):  # type: ignore[attr-defined]
+            if e.errno in (errno.EACCES, errno.EDEADLOCK, errno.EDEADLK):  # type: ignore[attr-defined, unused-ignore]
                 return False, None
             return False, e
     else:
@@ -1102,9 +1102,9 @@ def _os_lock_exclusive_nb(fd: int) -> tuple[bool, Exception | None]:
         # Windows flags flock/LOCK_* as missing — but this branch never runs
         # there (guarded by os.name == "nt" above). Suppress the platform-stub
         # false positive rather than let it read as a real error (§12c).
-        import fcntl  # type: ignore[import-not-found]
+        import fcntl
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)  # type: ignore[attr-defined]
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)  # type: ignore[attr-defined, unused-ignore]
             return True, None
         except (BlockingIOError, InterruptedError):
             return False, None  # held by a live peer
@@ -1120,15 +1120,15 @@ def _os_unlock(fd: int) -> None:
     on close/death, so a failure here is not fatal)."""
     try:
         if os.name == "nt":
-            import msvcrt  # type: ignore[import-not-found]  # Windows only (see above)
+            import msvcrt  # Windows only (see above)
             try:
-                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)  # type: ignore[attr-defined]
+                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)  # type: ignore[attr-defined, unused-ignore]
             except OSError:
                 pass
         else:
-            import fcntl  # type: ignore[import-not-found]  # POSIX only (see above)
+            import fcntl  # POSIX only (see above)
             try:
-                fcntl.flock(fd, fcntl.LOCK_UN)  # type: ignore[attr-defined]
+                fcntl.flock(fd, fcntl.LOCK_UN)  # type: ignore[attr-defined, unused-ignore]
             except OSError:
                 pass
     except Exception:  # noqa: BLE001 — never raise from a release path
@@ -1474,7 +1474,7 @@ def acquire_or_exit(
               f"exiting.", flush=True)
         sys.exit(res.status.exit_code)  # 5 or 6
     # RUNNABLE — ACQUIRED/REENTRANT hold the OS lock; CONFIG/LOCK_ERROR degraded.
-    return res.lock  # type: ignore[return-value]  # always set for these statuses
+    return res.lock  # always set for these statuses
 
 
 def _steal_lock(owner: ProcInfo | None, path: Path, our_fd: int) -> None:

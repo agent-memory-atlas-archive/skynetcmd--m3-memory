@@ -52,7 +52,7 @@ def refresh_agent_ids(current: list[str]) -> list[str]:
         import re as _re
 
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-        from memory.orchestration import agent_list_impl  # type: ignore
+        from memory.orchestration import agent_list_impl
 
         # "@" is in the class: an id may be "type@instance", and excluding it
         # would silently truncate every instance-addressed inbox to its bare

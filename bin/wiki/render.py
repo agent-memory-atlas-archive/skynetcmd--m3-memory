@@ -224,7 +224,7 @@ def render_pages(
     for c in topic_clusters:
         slug = topic_slugs.get(c.key)
         for m in c.members:
-            mem_to_topic[m.id] = slug  # type: ignore[assignment]
+            mem_to_topic[m.id] = slug
 
     # Build the link registry: every page a ref can point at.
     links = LinkResolver(obsidian=obsidian)
@@ -234,10 +234,10 @@ def render_pages(
         links.register("orphans", "topics/orphans.md", "Orphans")
     for c in topic_clusters:
         slug = topic_slugs.get(c.key)
-        links.register(slug, f"topics/{slug}.md", c.members[0].display_title)  # type: ignore[arg-type]
+        links.register(slug, f"topics/{slug}.md", c.members[0].display_title)
     for fn in files.files:
         slug = source_slugs.get(fn.uuid)
-        links.register(slug, f"sources/{slug}.md", fn.filename)  # type: ignore[arg-type]
+        links.register(slug, f"sources/{slug}.md", fn.filename)
 
     # Map a memory's TITLE-slug to the topic page that contains it, so a
     # [[some-memory-title]] written inside another memory resolves to where that
@@ -251,7 +251,7 @@ def render_pages(
         for m in c.members:
             key = slugify(m.display_title).lower()
             if key and key not in slug_by_ref:
-                slug_by_ref[key] = tslug  # type: ignore[assignment]
+                slug_by_ref[key] = tslug
     # A memory may also be referenced by the slug it was SAVED under (m3 titles
     # like "runbook-wsl-postgres-..." are already slugs).
     for c in topic_clusters:
@@ -259,7 +259,7 @@ def render_pages(
         for m in c.members:
             t = (m.title or "").strip().lower()
             if t and t not in slug_by_ref:
-                slug_by_ref[t] = tslug  # type: ignore[assignment]
+                slug_by_ref[t] = tslug
     dangling_wikilinks: list[str] = []
 
     # promotions grouped by target memory id.

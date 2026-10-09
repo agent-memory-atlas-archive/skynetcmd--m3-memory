@@ -269,7 +269,7 @@ def active_embedder_tier() -> dict:
     """
     out = {"native": False, "backend": None, "version": None, "summary": ""}
     try:
-        import m3_core_rs  # type: ignore
+        import m3_core_rs
     except Exception:  # noqa: BLE001 — no wheel installed
         out["summary"] = (
             "pure-Python (Project Oxidation native wheel not installed — "
@@ -332,7 +332,7 @@ def _parse_version(v: str) -> tuple:
 def installed_rust_core_version() -> str | None:
     """The version of the installed m3_core_rs, or None if not importable."""
     try:
-        import m3_core_rs  # type: ignore
+        import m3_core_rs
     except Exception:  # noqa: BLE001
         return None
     return getattr(m3_core_rs, "__version__", None)
@@ -347,7 +347,7 @@ def is_rust_core_current() -> bool:
     for display when __version__ is absent; do NOT trust that for the skip
     decision — read __version__ directly.)"""
     try:
-        import m3_core_rs  # type: ignore
+        import m3_core_rs
     except Exception:  # noqa: BLE001 — no wheel
         return False
     if not hasattr(m3_core_rs, "EmbeddedEmbedder"):

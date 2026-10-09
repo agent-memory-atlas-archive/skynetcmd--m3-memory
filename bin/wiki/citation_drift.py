@@ -375,7 +375,7 @@ class ModelDriftJudge:
         try:
             import sys
             sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            from auth_utils import get_api_key  # type: ignore
+            from auth_utils import get_api_key
             return get_api_key(service)
         except Exception:
             return None

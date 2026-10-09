@@ -449,7 +449,7 @@ def interactive_console() -> bool:
         return True
     import ctypes
     from ctypes import wintypes
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined]
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined, unused-ignore]
     handle = kernel32.GetStdHandle(wintypes.DWORD(-10 & 0xFFFFFFFF))  # STD_INPUT_HANDLE
     mode = wintypes.DWORD()
     return bool(kernel32.GetConsoleMode(handle, ctypes.byref(mode)))
@@ -729,7 +729,7 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(raw_argv)
     user_flags = [f for f in ("--from-pypi", "--stop-agents") if f in raw_argv]
     if args.log:
-        sys.stdout = _Tee(sys.stdout, args.log)  # type: ignore[assignment]
+        sys.stdout = _Tee(sys.stdout, args.log)
     # Line-buffer our own output: the steps run child processes that write to the
     # same stream, and block-buffered prints would appear after their output.
     try:

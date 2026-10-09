@@ -415,7 +415,7 @@ def _cmd_stop(args: argparse.Namespace) -> int:
     bin_dir = str(script.parent)
     if bin_dir not in sys.path:
         sys.path.insert(0, bin_dir)
-    import m3_halt as halt  # type: ignore
+    import m3_halt as halt
 
     # Supervised daemons are stopped through their service manager first;
     # killing them alone lets systemd/launchd start them again.
@@ -423,7 +423,7 @@ def _cmd_stop(args: argparse.Namespace) -> int:
     keep_roles: list = []
     if sys.platform != "win32":
         try:
-            import install_schedules  # type: ignore
+            import install_schedules  # type: ignore[unused-ignore]
             # The Rust embed server stays up (see keeps_rust_embed_server).
             if install_schedules.keeps_rust_embed_server():
                 keep_roles = ["embed-server"]

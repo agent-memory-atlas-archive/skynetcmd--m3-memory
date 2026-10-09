@@ -31,7 +31,7 @@ def _read_gate(name: str):
     in early-bootstrap unit tests that don't pull the shim).
     """
     try:
-        import memory_core  # type: ignore
+        import memory_core
         if hasattr(memory_core, name):
             return getattr(memory_core, name)
     except ImportError:
@@ -283,7 +283,7 @@ async def _try_enrich_or_enqueue(memory_id: str, content: str, fact_enricher, db
     sem = _FACT_ENRICH_SEM
     pending = _PENDING_FACT_TASKS
     try:
-        import memory_core as _mc  # type: ignore
+        import memory_core as _mc
         sem = getattr(_mc, "_FACT_ENRICH_SEM", sem)
         pending = getattr(_mc, "_PENDING_FACT_TASKS", pending)
     except ImportError:

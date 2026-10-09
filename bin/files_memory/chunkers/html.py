@@ -45,7 +45,7 @@ CHUNKER_VERSION = "1.0.0"
 # back to raw-markup text is poor, but it is the documented registry behaviour
 # and is strictly better than failing an ingest.
 try:
-    from bs4 import BeautifulSoup  # type: ignore
+    from bs4 import BeautifulSoup
 
     available = True
 except ImportError:  # pragma: no cover — exercised on installs without bs4

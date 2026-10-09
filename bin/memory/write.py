@@ -53,7 +53,7 @@ def _db(*args, **kwargs):
     """
     override = None
     try:
-        import memory_core as _mc  # type: ignore
+        import memory_core as _mc
         override = getattr(_mc, "_db", None)
     except ImportError:
         pass
@@ -104,8 +104,8 @@ _MC_CALLBACK_NAMES = (
 # runs; they exist so static analysis sees the names defined at module scope.
 # Typed as Callable (the runtime binding is always a function) so callers
 # are not flagged as calling None.
-_track_cost: Callable[..., object] = None  # type: ignore[assignment]
-_record_history: Callable[..., object] = None  # type: ignore[assignment]
+_track_cost: Callable[..., object] = None
+_record_history: Callable[..., object] = None
 
 def _resolve_mc_callbacks() -> None:
     global _MC_CALLBACKS_BOUND
@@ -1179,7 +1179,7 @@ async def memory_write_bulk_impl(
         # check memory_core first for back-compat with patched shim tests.
         _emb = None
         try:
-            import memory_core as _mc  # type: ignore
+            import memory_core as _mc
             _emb = getattr(_mc, "_embed_many", None)
         except ImportError:
             pass
@@ -1406,7 +1406,7 @@ async def _check_contradictions(
             # memory_core.AUTO_RELATED_LINK_SCOPE_BY_VARIANT take effect.
             _scope_on = AUTO_RELATED_LINK_SCOPE_BY_VARIANT
             try:
-                import memory_core as _mc  # type: ignore
+                import memory_core as _mc
                 if hasattr(_mc, "AUTO_RELATED_LINK_SCOPE_BY_VARIANT"):
                     _scope_on = _mc.AUTO_RELATED_LINK_SCOPE_BY_VARIANT
             except ImportError:

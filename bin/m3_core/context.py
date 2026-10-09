@@ -423,7 +423,7 @@ class M3Context:
         service = url.split("//")[-1].split("/")[0]
 
         if not self._check_circuit(service):
-            raise httpx.HTTPStatusError(f"Circuit open for {service}", request=None, response=None) # type: ignore
+            raise httpx.HTTPStatusError(f"Circuit open for {service}", request=None, response=None)
 
         client = self.get_async_client()
         for attempt in range(retries):

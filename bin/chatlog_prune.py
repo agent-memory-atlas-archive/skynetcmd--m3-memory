@@ -267,7 +267,7 @@ def _run_sweep(conn, db_path, args, now_ts, S, _d, _p, _tbl, _is_sqlite) -> dict
             from sqlite_pragmas import apply_pragmas, checkpoint_truncate, profile_for_db
             apply_pragmas(conn, profile_for_db(db_path))
         except Exception:
-            checkpoint_truncate = None  # type: ignore[assignment]
+            checkpoint_truncate = None
     try:
         for col in ("id", "type", "title", "content", "importance", "created_at", "is_deleted"):
             if not _has_column(conn, _d, _tbl, col):

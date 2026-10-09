@@ -408,10 +408,11 @@ implicit_optional = true
 # False positives from narrowing around None checks are noisy in legacy code
 # that still leans on runtime checks rather than type guards.
 strict_optional = false
-# warn_unused_ignores off globally because per-file overrides below use
-# ignore_errors = true (which trips this warning on real # type: ignore lines
-# elsewhere in those modules). Revisit if we get the legacy files typed.
-warn_unused_ignores = false
+# An ignore that suppresses nothing is reported, so ignores cannot pile up
+# after the error they covered is fixed. One needed on only some platforms
+# carries `unused-ignore` among its codes (mypy's own idiom); the
+# ignore_errors modules below are exempt, every ignore there looks unused.
+warn_unused_ignores = true
 
 # Every method that overrides a base-class method carries typing.override (3.12),
 # so a base-class rename or a typo'd method name fails the type check instead of
@@ -421,7 +422,8 @@ warn_unused_ignores = false
 # it. redundant-expr waits for strict_optional: with strict_optional = false,
 # mypy reads `bool | None` as `bool` and reports false positives (measured: 2 of
 # its 5 findings), plus narrowing across an await that sibling tasks invalidate.
-enable_error_code = ["explicit-override", "possibly-undefined", "truthy-bool", "unused-awaitable"]
+enable_error_code = ["explicit-override", "possibly-undefined", "truthy-bool", "unused-awaitable",
+                     "ignore-without-code"]
 
 # ── Per-module overrides ──────────────────────────────────────────────────────
 
@@ -435,6 +437,7 @@ enable_error_code = ["explicit-override", "possibly-undefined", "truthy-bool", "
 [[tool.mypy.overrides]]
 module = "memory_bridge"
 ignore_errors = true
+warn_unused_ignores = false
 
 # Legacy untyped modules — typing them is a separate project, not a CI gate.
 # Each file listed here has >3 errors that aren't real bugs, just missing
@@ -461,6 +464,7 @@ module = [
     "dashboard_server",
 ]
 ignore_errors = true
+warn_unused_ignores = false
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

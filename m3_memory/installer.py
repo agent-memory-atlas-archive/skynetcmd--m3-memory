@@ -1601,7 +1601,7 @@ def _primary_backend_name() -> str:
     try:
         import sys as _sys
         _sys.path.insert(0, str(bin_dir() or ""))
-        from memory.backends import resolve_backend_name  # type: ignore
+        from memory.backends import resolve_backend_name
 
         return resolve_backend_name()
     except Exception:  # noqa: BLE001
@@ -1622,7 +1622,7 @@ def _print_backup_reminder() -> None:
         try:
             import re as _re
 
-            from m3_sdk import PgRole, resolve_pg_dsn  # type: ignore
+            from m3_sdk import PgRole, resolve_pg_dsn
 
             _dsn = resolve_pg_dsn(PgRole.PRIMARY)
             dsn_masked = _re.sub(r"(://[^:/@]+:)[^@/]+(@)", r"\1***\2", _dsn)
@@ -2154,7 +2154,7 @@ def _deprecated_env_in_config() -> dict[Path, dict[str, str]]:
     """
     import sys as _sys
     _sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bin"))
-    from m3_core.paths import all_env_renames  # type: ignore
+    from m3_core.paths import all_env_renames
 
     # Union of pure-namespacing + role-split (e.g. PG_URL -> M3_CDW_PG_URL) renames.
     renames = all_env_renames()
@@ -2237,7 +2237,7 @@ def _all_env_renames() -> dict[str, str]:
     try:
         import sys as _sys
         _sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bin"))
-        from m3_core.paths import all_env_renames  # type: ignore
+        from m3_core.paths import all_env_renames
 
         return all_env_renames()
     except Exception:  # noqa: BLE001

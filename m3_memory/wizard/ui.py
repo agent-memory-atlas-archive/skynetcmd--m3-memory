@@ -34,7 +34,7 @@ def console_has_person() -> bool:
         return True
     import ctypes
     from ctypes import wintypes
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined]
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined, unused-ignore]
     handle = kernel32.GetStdHandle(wintypes.DWORD(-10 & 0xFFFFFFFF))  # STD_INPUT_HANDLE
     mode = wintypes.DWORD()
     return bool(kernel32.GetConsoleMode(handle, ctypes.byref(mode)))

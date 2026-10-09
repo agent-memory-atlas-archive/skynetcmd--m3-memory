@@ -56,7 +56,7 @@ from m3_core.paths import seam_dialect
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "bin"))
 try:
-    from m3_sdk import resolve_db_path  # type: ignore[import-not-found]
+    from m3_sdk import resolve_db_path
 except ImportError:
     resolve_db_path = None
 

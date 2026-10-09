@@ -942,7 +942,7 @@ def seam_backend():
     second implementation of the seam.
     """
     try:
-        from memory.backends import active_backend  # type: ignore
+        from memory.backends import active_backend
         return active_backend()
     except Exception:  # noqa: BLE001 — bootstrap: seam not importable yet
         import sqlite3 as _sq
@@ -1043,7 +1043,7 @@ def snapshot_stores(db_paths, dest_dir, *, label: str) -> list:
     Deliberately NOT the bootstrap shim ``seam_backend`` falls back to: a
     snapshot without the seam would be the unverified copy this replaces.
     """
-    from memory.backends import active_backend  # type: ignore
+    from memory.backends import active_backend
 
     seen: set = set()
     out: list = []
@@ -1067,7 +1067,7 @@ def seam_dialect():
     :func:`seam_backend`.
     """
     try:
-        from memory.backends import dialect  # type: ignore
+        from memory.backends import dialect
         return dialect()
     except Exception:  # noqa: BLE001 — bootstrap: seam not importable yet
         class _SqliteParams:

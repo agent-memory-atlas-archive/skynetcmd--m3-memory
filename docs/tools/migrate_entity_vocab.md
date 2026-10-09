@@ -1,8 +1,8 @@
 ---
 tool: bin/migrate_entity_vocab.py
-sha1: e11da4c9a510
-mtime_utc: 2026-10-04T08:36:30.193810+00:00
-generated_utc: 2026-10-04T08:38:00.719652+00:00
+sha1: e976c59006bd
+mtime_utc: 2026-10-09T23:19:58.833333+00:00
+generated_utc: 2026-10-09T23:24:14.215669+00:00
 private: false
 ---
 

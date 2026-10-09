@@ -42,10 +42,10 @@ def pid_is_alive(pid: Pid) -> bool:
         PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
         ERROR_ACCESS_DENIED = 5
         STILL_ACTIVE = 259
-        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined]
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined, unused-ignore]
         handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
         if not handle:
-            return ctypes.get_last_error() == ERROR_ACCESS_DENIED  # type: ignore[attr-defined]
+            return ctypes.get_last_error() == ERROR_ACCESS_DENIED  # type: ignore[attr-defined, unused-ignore]
         try:
             exit_code = ctypes.c_ulong()
             if kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):

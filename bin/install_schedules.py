@@ -2078,8 +2078,8 @@ def _agent_is_live(agent_id: str, max_age_days: int = 30) -> bool:
     try:
         from datetime import datetime, timedelta
 
-        from memory.backends import dialect  # type: ignore
-        from memory.orchestration import _db  # type: ignore
+        from memory.backends import dialect
+        from memory.orchestration import _db
 
         with _db() as db:
             ph = dialect().param()
@@ -2115,7 +2115,7 @@ def _waiter_agent_args() -> list:
         _sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
         import re as _re
 
-        from memory.orchestration import agent_list_impl  # type: ignore
+        from memory.orchestration import agent_list_impl
         # "@" is in the class: an agent id may be "type@instance" (#170), and a
         # character class that excluded it would silently truncate every
         # instance-addressed inbox to its bare type -- re-creating the shared

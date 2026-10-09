@@ -68,7 +68,7 @@ def _resolve_graph_helper(name: str):
     canonical `memory.graph` module.
     """
     try:
-        import memory_core as _mc  # type: ignore
+        import memory_core as _mc
         fn = getattr(_mc, name, None)
         if fn is not None:
             return fn
@@ -89,7 +89,7 @@ def _resolve_search_callable(name: str):
     Going through this helper picks up the patched version at call time.
     """
     try:
-        import memory_core as _mc  # type: ignore
+        import memory_core as _mc
         fn = getattr(_mc, name, None)
         if fn is not None:
             return fn
@@ -171,9 +171,9 @@ _MC_CALLBACKS_BOUND = False
 # runs; they exist so static analysis sees the names defined at module scope.
 # Typed as Callable (the runtime binding is always a function) so callers
 # are not flagged as calling None.
-_prefer_observations_gate: Callable[..., object] = None  # type: ignore[assignment]
-_two_stage_observations_gate: Callable[..., object] = None  # type: ignore[assignment]
-_track_cost: Callable[..., object] = None  # type: ignore[assignment]
+_prefer_observations_gate: Callable[..., object] = None
+_two_stage_observations_gate: Callable[..., object] = None
+_track_cost: Callable[..., object] = None
 
 
 def _resolve_mc_callbacks() -> None:
@@ -194,7 +194,7 @@ def _resolve_mc_callbacks() -> None:
     # flag is unset OR any target is currently non-callable.
     if _MC_CALLBACKS_BOUND and all(callable(g.get(n)) for n in _MC_CALLBACK_NAMES):
         return
-    import memory_core as _mc  # type: ignore
+    import memory_core as _mc
     bound_all = True
     for n in _MC_CALLBACK_NAMES:
         val = getattr(_mc, n, None)
@@ -706,7 +706,7 @@ async def memory_search_scored_impl(
     # (test_vector_kind_strategy). Guarding on callable keeps the monkeypatch
     # override working while never replacing a good default with None.
     try:
-        import memory_core as _mc  # type: ignore
+        import memory_core as _mc
         _embed = _mc_callable(_mc, "_embed", _embed)
         _db = _mc_callable(_mc, "_db", _db)
         _batch_cosine = _mc_callable(_mc, "_batch_cosine", _batch_cosine)
@@ -2282,7 +2282,7 @@ async def _maybe_expand_routed(
     # connection into this expansion path. Resolve at call entry so the
     # patches take effect; production reads memory.db._db.
     try:
-        import memory_core as _mc  # type: ignore
+        import memory_core as _mc
         _db = getattr(_mc, "_db", globals()["_db"])
     except ImportError:
         _db = globals()["_db"]

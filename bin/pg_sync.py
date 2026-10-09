@@ -1648,7 +1648,7 @@ def _open_local_store(target: SyncTarget):
 
     with store.connection() as conn:
         try:
-            conn.row_factory = sqlite3.Row  # type: ignore[attr-defined]
+            conn.row_factory = sqlite3.Row
         except Exception:  # noqa: BLE001 — PG's compat cursor already names rows
             pass
         yield conn, conn.cursor()

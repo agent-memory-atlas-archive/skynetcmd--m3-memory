@@ -182,7 +182,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         import psycopg2
     except ImportError:
-        import psycopg as psycopg2  # type: ignore
+        import psycopg as psycopg2
 
     warehouse_ddl = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),

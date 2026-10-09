@@ -48,7 +48,7 @@ def _should_yield_to_user(min_idle_s: float = 30.0) -> str | None:
 
         # _LAST_USER_INTERACTION is lazily re-exported from m3_core.governor via
         # m3_sdk's module __getattr__, so it's invisible to static analysis.
-        from m3_sdk import _LAST_USER_INTERACTION  # type: ignore[attr-defined]
+        from m3_sdk import _LAST_USER_INTERACTION
         if time.time() - _LAST_USER_INTERACTION < min_idle_s:
             return f"user active in the last {min_idle_s:.0f}s"
     except Exception:  # noqa: BLE001 — never block on a telemetry import error

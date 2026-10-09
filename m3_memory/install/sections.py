@@ -381,7 +381,7 @@ def _roots_section() -> None:
     try:
         import sys as _sys
         _sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "bin"))
-        from m3_sdk import (  # type: ignore
+        from m3_sdk import (
             get_m3_config_root,
             get_m3_engine_root,
             get_m3_root,
@@ -534,7 +534,7 @@ def _cdw_sync_section() -> None:
     try:
         import sys as _sys
         _sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "bin"))
-        from m3_sdk import PgRole, resolve_db_path, resolve_pg_dsn  # type: ignore
+        from m3_sdk import PgRole, resolve_db_path, resolve_pg_dsn
     except Exception:  # noqa: BLE001 — informational only
         return
     try:
@@ -603,7 +603,7 @@ def _backend_section(cfg: dict) -> None:
     try:
         import sys as _sys
         _sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "bin"))
-        from memory.backends import resolve_backend_name  # type: ignore
+        from memory.backends import resolve_backend_name
     except Exception:  # noqa: BLE001 — informational only
         return
 
@@ -637,7 +637,7 @@ def _backend_section(cfg: dict) -> None:
         try:
             import sys as _sys
             _sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "bin"))
-            from m3_sdk import resolve_db_path  # type: ignore
+            from m3_sdk import resolve_db_path
             core_db = resolve_db_path(None)
             try:
                 # chatlog_db_path(), NOT the DEFAULT_DB_PATH constant. That
@@ -647,12 +647,12 @@ def _backend_section(cfg: dict) -> None:
                 # `m3 doctor` reported the DEFAULT path to anyone who had
                 # relocated their chatlog, i.e. was confidently wrong exactly
                 # where a user most needs the truth.
-                from chatlog_config import chatlog_db_path  # type: ignore
+                from chatlog_config import chatlog_db_path
                 chat_db = chatlog_db_path()
             except Exception:  # noqa: BLE001
                 chat_db = ""
             try:
-                from memory.config import FILES_DB_PATH as files_db  # type: ignore
+                from memory.config import FILES_DB_PATH as files_db
             except Exception:  # noqa: BLE001
                 files_db = ""
         except Exception:  # noqa: BLE001 — informational only
@@ -688,7 +688,7 @@ def _backend_section(cfg: dict) -> None:
 
     # PostgreSQL: report the (masked) DSN and probe reachability.
     try:
-        from m3_sdk import PgRole, resolve_pg_dsn  # type: ignore
+        from m3_sdk import PgRole, resolve_pg_dsn
 
         dsn = resolve_pg_dsn(PgRole.PRIMARY)
     except Exception:  # noqa: BLE001
@@ -702,7 +702,7 @@ def _backend_section(cfg: dict) -> None:
     masked = _re.sub(r"(://[^:/@]+:)[^@/]+(@)", r"\1***\2", dsn)
     print(f"  primary DSN:              {masked}")
     try:
-        import psycopg2  # type: ignore
+        import psycopg2
 
         conn = psycopg2.connect(dsn, connect_timeout=5)
         cur = conn.cursor()
@@ -770,8 +770,8 @@ def _deprecated_env_section() -> None:
         import os as _os
         import sys as _sys
         _sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "bin"))
-        from m3_core.paths import ROLE_SPLIT_ENV_RENAMES  # type: ignore
-        from m3_sdk import deprecated_env_in_use  # type: ignore
+        from m3_core.paths import ROLE_SPLIT_ENV_RENAMES
+        from m3_sdk import deprecated_env_in_use
     except Exception:  # noqa: BLE001 — informational only
         return
     in_use = dict(deprecated_env_in_use())
@@ -789,9 +789,9 @@ def _deprecated_env_section() -> None:
     # is complete on Windows. `m3 doctor --fix` rewrites the User-scope ones.
     reg_lines: list[str] = []
     try:
-        from m3_core.paths import all_env_renames  # type: ignore
+        from m3_core.paths import all_env_renames
 
-        from m3_memory import installer as _I  # type: ignore
+        from m3_memory import installer as _I
 
         for hit in _I._scan_registry_env_deprecations(all_env_renames()):
             reg_lines.append(f"        {hit['old']}  ->  {hit['new']}   [{hit['label']}]")

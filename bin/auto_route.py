@@ -41,7 +41,7 @@ _OXIDATION_DISABLED = os.environ.get("M3_CORE_RS_DISABLE", "0").lower() in ("1",
 m3_core_rs: Any = None  # the optional Rust core, or None when not installed
 if not _OXIDATION_DISABLED:
     try:
-        import m3_core_rs  # type: ignore
+        import m3_core_rs  # type: ignore[no-redef]
     except ImportError:
         m3_core_rs = None  # extra not installed — Python path is the default
 

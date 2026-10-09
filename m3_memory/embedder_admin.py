@@ -265,7 +265,7 @@ def _server_binary() -> Path | None:
         return Path(env_bin)
 
     try:
-        import m3_core_rs  # type: ignore
+        import m3_core_rs
         wheel_dir = Path(m3_core_rs.__file__).parent
         exe_name = "m3-embed-server.exe" if sys.platform == "win32" else "m3-embed-server"
         for candidate in (
@@ -521,7 +521,7 @@ def _service_binary_is_stale(binary: Path) -> bool:
     fallback — a readable, non-matching `exe` still disqualifies the process.
     """
     try:
-        import psutil  # type: ignore
+        import psutil
     except ImportError:
         return False
     try:
@@ -1460,7 +1460,7 @@ def cmd_backfill(args: argparse.Namespace) -> int:
         if bin_dir not in sys.path:
             sys.path.insert(0, bin_dir)
         try:
-            import m3_cognitive_loop as _loop  # type: ignore
+            import m3_cognitive_loop as _loop
             targets = _loop._embed_target_dbs(os.environ.get("M3_DATABASE"))
         except Exception as e:  # noqa: BLE001
             print(f"warning: could not resolve the store list ({e}); "

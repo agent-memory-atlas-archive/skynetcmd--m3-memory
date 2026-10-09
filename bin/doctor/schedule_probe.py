@@ -46,7 +46,7 @@ import sys
 # defusedxml is somehow unavailable, still safe because Python 3.x's expat has
 # entity-expansion limits, but defusedxml is the belt-and-suspenders default.
 try:
-    import defusedxml.ElementTree as ET  # type: ignore
+    import defusedxml.ElementTree as ET
 except ImportError:  # pragma: no cover — defusedxml is a declared dependency
     import xml.etree.ElementTree as ET  # noqa: S405  # nosec B405
 

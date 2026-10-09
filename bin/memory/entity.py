@@ -51,7 +51,7 @@ from dataclasses import dataclass
 from itertools import batched
 from pathlib import Path
 
-import yaml  # type: ignore[import-untyped]
+import yaml
 
 from . import config as _config
 from .config import (
@@ -246,7 +246,7 @@ def _enable_entity_graph_gate() -> bool:
         return env.lower() in ("1", "true", "yes")
     # (2) monkeypatched attribute on the shim
     try:
-        import memory_core as _mc  # type: ignore
+        import memory_core as _mc
         if hasattr(_mc, "ENABLE_ENTITY_GRAPH"):
             return bool(_mc.ENABLE_ENTITY_GRAPH)
     except ImportError:
@@ -264,7 +264,7 @@ def _read_gate(name: str):
     Tests patch memory_core.<NAME>; production reads memory.config.<NAME>.
     """
     try:
-        import memory_core  # type: ignore
+        import memory_core
         if hasattr(memory_core, name):
             return getattr(memory_core, name)
     except ImportError:

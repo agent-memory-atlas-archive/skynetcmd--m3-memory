@@ -202,13 +202,13 @@ class _SqliteCompatConnection:
         return cur
 
     def cursor(self, *args, **kwargs):
-        return self._raw.cursor(*args, **kwargs)  # type: ignore[attr-defined]
+        return self._raw.cursor(*args, **kwargs)
 
     def commit(self):
-        return self._raw.commit()  # type: ignore[attr-defined]
+        return self._raw.commit()
 
     def rollback(self):
-        return self._raw.rollback()  # type: ignore[attr-defined]
+        return self._raw.rollback()
 
     def __getattr__(self, name):
         # Anything not explicitly adapted falls through to the raw connection.
@@ -717,7 +717,7 @@ class PostgresDialect(Dialect):
             f"AND attempt_count >= %s ORDER BY claim_expires_at LIMIT %s "
             f"FOR UPDATE SKIP LOCKED)",
             (max_attempts, limit),
-        ).rowcount  # type: ignore[attr-defined]
+        ).rowcount
         back = conn.execute(  # type: ignore[attr-defined]
             f"UPDATE {table} SET claimed_by = NULL, lease_token = NULL, "
             f"claim_expires_at = NULL, claimed_at = NULL "
@@ -725,7 +725,7 @@ class PostgresDialect(Dialect):
             f"AND attempt_count < %s ORDER BY claim_expires_at LIMIT %s "
             f"FOR UPDATE SKIP LOCKED)",
             (max_attempts, limit),
-        ).rowcount  # type: ignore[attr-defined]
+        ).rowcount
         conn.commit()  # type: ignore[attr-defined]
         return (back, dead)
 

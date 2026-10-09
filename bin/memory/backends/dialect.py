@@ -549,7 +549,7 @@ class Dialect:
             (row_id, lease_token),
         )
         conn.commit()  # type: ignore[attr-defined]
-        return bool(cur.rowcount)  # type: ignore[attr-defined]
+        return bool(cur.rowcount)
 
     def fail_message(
         self, conn: object, *, table: str, row_id: object, lease_token: str,
@@ -567,7 +567,7 @@ class Dialect:
             (row_id, lease_token),
         )
         conn.commit()  # type: ignore[attr-defined]
-        return bool(cur.rowcount)  # type: ignore[attr-defined]
+        return bool(cur.rowcount)
 
     def renew_lease(
         self, conn: object, *, table: str, row_id: object, lease_token: str,
@@ -595,7 +595,7 @@ class Dialect:
             (lease_ttl, row_id, lease_token),
         )
         conn.commit()  # type: ignore[attr-defined]
-        return bool(cur.rowcount)  # type: ignore[attr-defined]
+        return bool(cur.rowcount)
 
     def lease_expired_predicate(self) -> str:
         """Rows whose lease has LAPSED and which are still live work.
@@ -664,13 +664,13 @@ class Dialect:
             f"lease_token = NULL, claim_expires_at = NULL "
             f"WHERE {expired} AND attempt_count >= {p}",
             (max_attempts,),
-        ).rowcount  # type: ignore[attr-defined]
+        ).rowcount
         back = conn.execute(  # type: ignore[attr-defined]
             f"UPDATE {table} SET claimed_by = NULL, lease_token = NULL, "
             f"claim_expires_at = NULL, claimed_at = NULL "
             f"WHERE {expired} AND attempt_count < {p}",
             (max_attempts,),
-        ).rowcount  # type: ignore[attr-defined]
+        ).rowcount
         conn.commit()  # type: ignore[attr-defined]
         return (back, dead)
 

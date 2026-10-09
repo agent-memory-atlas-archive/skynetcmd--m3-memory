@@ -120,7 +120,7 @@ class _StandaloneSqliteDialect:
 def _sql():
     """The active backend's dialect; the SQLite subset when standalone."""
     try:
-        from memory.backends import dialect  # type: ignore
+        from memory.backends import dialect
         return dialect()
     except Exception:  # pragma: no cover - standalone fallback
         return _StandaloneSqliteDialect()
@@ -129,7 +129,7 @@ def _sql():
 def _is_sqlite() -> bool:
     """True when the active backend stores each database as a file."""
     try:
-        from memory.backends import active_backend  # type: ignore
+        from memory.backends import active_backend
         return active_backend().name == "sqlite"
     except Exception:  # pragma: no cover - standalone fallback
         return True
@@ -144,7 +144,7 @@ def _tables(args: argparse.Namespace) -> tuple[str, str]:
     """
     if getattr(args, "target", "core") == "chatlog":
         try:
-            from memory.backends import chatlog_table  # type: ignore
+            from memory.backends import chatlog_table
             return chatlog_table("items"), chatlog_table("embeddings")
         except Exception:  # pragma: no cover - standalone fallback
             pass
@@ -171,13 +171,13 @@ def _bound_db(db_path):
     `db_path` does not select it; the backend's own connection is used.
     """
     if not _is_sqlite():
-        from memory.db import _db  # type: ignore
+        from memory.db import _db
         with _db() as conn:
             yield conn
         return
     try:
-        from m3_core.context import M3Context  # type: ignore
-        from m3_sdk import active_database  # type: ignore
+        from m3_core.context import M3Context
+        from m3_sdk import active_database
     except Exception:  # pragma: no cover - standalone fallback
         conn = sqlite3.connect(str(db_path), timeout=30.0)
         try:
@@ -210,7 +210,7 @@ def _safe_db(value: str | None) -> str:
     if value is None:
         return "<unset>"
     try:
-        from m3_core.paths import _looks_like_dsn  # type: ignore
+        from m3_core.paths import _looks_like_dsn
         is_dsn = _looks_like_dsn(value)
     except Exception:  # pragma: no cover - standalone fallback
         is_dsn = "://" in value
@@ -228,7 +228,7 @@ def _scoped_db_env(db_path):
     a standalone run without the payload on sys.path still cannot leak.
     """
     try:
-        from m3_sdk import scoped_db_env  # type: ignore
+        from m3_sdk import scoped_db_env
     except Exception:  # pragma: no cover - standalone fallback
         prev = os.environ.get("M3_DATABASE")
         if db_path is not None:
@@ -262,7 +262,7 @@ def _sweep_binding(db_path):
     is still what every resolver sees.
     """
     try:
-        from m3_sdk import active_database  # type: ignore
+        from m3_sdk import active_database
     except Exception as e:  # pragma: no cover - standalone fallback
         # NOT a warning: this is the EXPECTED state for a standalone run with
         # no payload on sys.path, and a warning that fires on a healthy system
@@ -286,7 +286,7 @@ def _sweep_binding(db_path):
         yield resolved
 
 
-class Counters(_LibCounters):  # type: ignore[misc, valid-type]
+class Counters(_LibCounters):
     """Backwards-compat shim: subclass of lib Counters with one extra attr.
 
     `cache_reuses` was tracked in the original embed_backfill but is

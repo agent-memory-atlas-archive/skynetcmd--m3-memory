@@ -1920,10 +1920,10 @@ def _raise_fd_limit(target: int = 4096) -> None:
     # code is correct; only the checker's platform view is wrong -- so ignore
     # the attribute lookups rather than restructuring working cross-platform code.
     try:
-        soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)  # type: ignore[attr-defined]
-        ceiling = target if hard == resource.RLIM_INFINITY else min(target, hard)  # type: ignore[attr-defined]
+        soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)  # type: ignore[attr-defined, unused-ignore]
+        ceiling = target if hard == resource.RLIM_INFINITY else min(target, hard)  # type: ignore[attr-defined, unused-ignore]
         if soft < ceiling:
-            resource.setrlimit(resource.RLIMIT_NOFILE, (ceiling, hard))  # type: ignore[attr-defined]
+            resource.setrlimit(resource.RLIMIT_NOFILE, (ceiling, hard))  # type: ignore[attr-defined, unused-ignore]
     except (ValueError, OSError):
         pass
 
