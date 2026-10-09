@@ -47,6 +47,7 @@ _DOMAIN_PREFIXES: list[tuple[str, str]] = [
     # System-diagnostic tools — separate from admin (which is GDPR /
     # notifications) so users grouping "what's wrong with
     # my install" can load just this bucket.
+    ("search_profile",      "diagnostics"),
     ("memory_doctor",       "diagnostics"),
     ("embedder_status",     "diagnostics"),
     ("chatlog_status",      "diagnostics"),
@@ -166,7 +167,7 @@ DOMAIN_DESCRIPTIONS: dict[str, str] = {
     "tasks":         "Task creation, assignment, tree, results.",
     "conversations": "Conversation start/append/search/summarize.",
     "admin":         "Notifications, enrichment, GDPR.",
-    "diagnostics":   "Self-service health probes: embedder_status, memory_doctor (run when search hangs or embeds look wrong).",
+    "diagnostics":   "Self-service health probes: embedder_status, memory_doctor (run when search hangs or embeds look wrong), search_profile (where a search spends its time).",
 }
 
 

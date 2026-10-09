@@ -2,7 +2,7 @@
 
 > **Generated** by `bin/gen_capability_matrix.py` from `docs/tools/MCP_CATALOG.json` — do not edit by hand; re-run after any tool-catalog change. This is the single scannable index of *what M3 can do* and *which tool does it*, for humans, search engines, and AI agents.
 
-**118 tools across 9 capability groups.** The **Consent** column reflects the dispatch gate: a ⚠️ tool will not run until it is explicitly allowed (it deletes, exports, or runs a bulk/long operation), while a default-allowed tool runs without extra opt-in. It is **not** a read/write distinction — `memory_write` is default-allowed, and read-only `memory_export` is not.
+**119 tools across 9 capability groups.** The **Consent** column reflects the dispatch gate: a ⚠️ tool will not run until it is explicitly allowed (it deletes, exports, or runs a bulk/long operation), while a default-allowed tool runs without extra opt-in. It is **not** a read/write distinction — `memory_write` is default-allowed, and read-only `memory_export` is not.
 
 > **Beyond MCP tools:** M3 also ships a **storage backend** choice (SQLite default; PostgreSQL as a first-class primary via `M3_DB_BACKEND=postgres`) and native **framework adapters** — LangChain/LangGraph, CrewAI, and PydanticAI. These are deployment/framework facts, not MCP tools, so they don't appear in the table below. See [CORE_FEATURES](CORE_FEATURES.md) and [COMPARISON](COMPARISON.md).
 
@@ -15,7 +15,7 @@
 - [🗂️ Conversations](#conversations) — Group and inspect turns by conversation / team session. (4 tools)
 - [👥 Agents](#agents) — Register agents, hand off tasks, and route multi-agent work. (6 tools)
 - [✅ Tasks](#tasks) — Track and coordinate agent tasks and their state. (8 tools)
-- [🩺 Diagnostics](#diagnostics) — Health, cost, and integrity checks for the memory store. (5 tools)
+- [🩺 Diagnostics](#diagnostics) — Health, cost, and integrity checks for the memory store. (6 tools)
 - [⚙️ Admin & Sync](#admin--sync) — Maintenance, cross-store sync, import/export, and lifecycle ops. (15 tools)
 
 ## 🧠 Memory
@@ -176,6 +176,7 @@ _Health, cost, and integrity checks for the memory store._
 | `files_health` | DB integrity + FTS5 sync check. | default-allowed |
 | `memory_doctor` | Self-service diagnostic for the m3-memory embedding cascade. | default-allowed |
 | `memory_doctor_fix` | Run the m3-memory self-repair mode (m3 doctor --fix). | default-allowed |
+| `search_profile` | Run one real memory search and report where its time went, per stage: embed (query vector), hybrid_… | default-allowed |
 
 ## ⚙️ Admin & Sync
 

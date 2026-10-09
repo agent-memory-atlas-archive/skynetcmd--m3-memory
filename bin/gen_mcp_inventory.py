@@ -130,6 +130,7 @@ def get_category_map():
         # Infrastructure Operations
         "memory_cost_report": "Infrastructure Operations",
         "embedder_status": "Infrastructure Operations",
+        "search_profile": "Infrastructure Operations",
 
         # Proxy tools
         "log_activity": "Operational Protocol",
@@ -319,7 +320,7 @@ def main():
     # 115 = 126 - the 11 PROTOCOL_TOOLS/DEBUG_TOOLS the mcp_proxy served from
     # custom_tool_bridge and debug_agent_bridge, both deleted 2026-09-17 (never
     # part of m3).
-    EXPECTED_TOOL_COUNT = 118
+    EXPECTED_TOOL_COUNT = 119  # + search_profile (2026-10-09)
     if len(all_tools) != EXPECTED_TOOL_COUNT:
         import sys
         print(f"Error: Expected {EXPECTED_TOOL_COUNT} tools, found {len(all_tools)} — update EXPECTED_TOOL_COUNT in gen_mcp_inventory.py if a tool was added/removed.", file=sys.stderr)
