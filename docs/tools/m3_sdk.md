@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_sdk.py
-sha1: 6dc334386f70
-mtime_utc: 2026-10-06T01:14:29.738847+00:00
-generated_utc: 2026-10-06T01:14:52.824068+00:00
+sha1: e27580a54ff3
+mtime_utc: 2026-10-09T02:23:57.211006+00:00
+generated_utc: 2026-10-09T02:27:13.007432+00:00
 private: false
 ---
 
@@ -48,6 +48,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
+- `m3_core (secret_store)`
 - `m3_core.context`
 - `m3_core.context (_CB_COOLDOWN, _CB_THRESHOLD, _CIRCUITS, _CONTEXT_CACHE_SIZE, _CONTEXTS, _CONTEXTS_LOCK, _HTTP_CLIENT, _HTTP_CLIENT_LOCK, _HTTP_CLIENT_LOOP_ID, M3Context, _cleanup, _close_context_pool)`
 - `m3_core.governor`
@@ -61,6 +62,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `m3_core.registry_payload (PROTOCOL_VERSION, RESERVED_PAYLOAD_KEYS, ProcInfo, build_payload, parse_payload)`
 - `m3_core.runtime`
 - `m3_core.runtime (LM_READ_TIMEOUT, LM_STUDIO_BASE, M3_CORE_RS_DISABLE, StructuredLogger, ensure_utf8, format_log, iso_local_timestamp, iso_utc_timestamp, logger)`
+- `m3_core.secret_store (PgRole, resolve_pg_dsn)`
 - `memory.backends (active_backend, dialect)`
 - `types`
 

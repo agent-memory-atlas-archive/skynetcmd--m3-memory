@@ -3,8 +3,6 @@ import os
 import sys
 
 import psycopg2
-from auth_utils import get_api_key
-from m3_sdk import resolve_cdw_pg_dsn
 
 logging.basicConfig(level=logging.INFO, format='%(name)s: [%(levelname)s] %(message)s')
 logger = logging.getLogger("pg_setup")
@@ -12,13 +10,13 @@ logger = logging.getLogger("pg_setup")
 def _get_pg_url() -> str:
     """Resolve the data-warehouse PostgreSQL URL from environment or vault.
 
-    Warehouse role: M3_CDW_PG_URL > PG_URL(deprecated) > vault(PG_URL). Not
-    M3_PG_URL (the primary-store var).
+    Warehouse role (m3_core.secret_store.resolve_pg_dsn): M3_CDW_PG_URL >
+    PG_URL(deprecated) > keyring > secrets file > vault. Not M3_PG_URL (the
+    primary-store var).
     """
-    url = (resolve_cdw_pg_dsn("") or "").strip()
-    if url:
-        return url
-    url = get_api_key("PG_URL")
+    from m3_core.secret_store import PgRole, resolve_pg_dsn
+
+    url = resolve_pg_dsn(PgRole.WAREHOUSE)
     if url:
         return url
     python_cmd = "python" if os.name == "nt" else "python3"

@@ -32,7 +32,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, override
 
-from m3_sdk import getenv_compat, resolve_primary_pg_dsn
+from m3_sdk import getenv_compat
 
 from .base import (
     BackendName,
@@ -278,35 +278,25 @@ def _resolve_dsn() -> str:
     default — selecting the postgres backend without a DSN is a configuration
     error, not a reason to silently do something else.
     """
-    url = (resolve_primary_pg_dsn("") or "").strip()
-    if not url:
-        # Vault fallback, resolved lazily to avoid a core import at module load.
-        # ONLY the primary-specific vault key — deliberately NOT the legacy PG_URL
-        # key, which stores the WAREHOUSE DSN (pg_setup/pg_sync write it there). If
-        # we fell back to PG_URL here, a stored warehouse secret would silently
-        # become the primary store — the exact vault-level re-coupling the role
-        # split exists to prevent. Store the primary DSN as M3_PRIMARY_PG_URL.
-        try:
-            from m3_core.context import M3Context
+    # The one DSN owner: env > keyring > secrets file > vault (deprecated for the
+    # primary), under the PRIMARY role's names only, so a stored warehouse DSN
+    # (PG_URL) can never become the primary store.
+    from m3_core.secret_store import PgRole, explain_pg_dsn
 
-            # for_db (cached) not the raw ctor — the raw ctor spins up a throwaway
-            # 5-connection SQLite pool just to read one secret, even on PG.
-            secret = M3Context.for_db().get_secret("M3_PRIMARY_PG_URL")
-            if secret:
-                url = secret.strip()
-        except Exception:
-            pass
+    found = explain_pg_dsn(PgRole.PRIMARY)
+    url = found.dsn
     if not url:
+        # What each tier hit, not just "not set": a broken keyring or vault used
+        # to be swallowed here and reported as a missing DSN (m3 2f4bad6c).
+        hit = ("; tiers reported: " + " | ".join(found.errors)) if found.errors else ""
         raise RuntimeError(
             "observed: PostgreSQL backend selected (M3_DB_BACKEND=postgres) but no "
-            "DSN was found. cause: M3_PRIMARY_PG_URL is not set in the environment "
-            "or the encrypted vault. inspect: set M3_PRIMARY_PG_URL to a "
-            "postgresql:// connection URL (e.g., "
-            "postgresql://user:pass@host:5432/dbname), or store it in the vault "
-            "with `m3 secrets set M3_PRIMARY_PG_URL <url>`. Note: the primary "
-            "store does not read PG_URL -- that is the data-warehouse DSN "
-            "(now M3_CDW_PG_URL). It reads M3_PRIMARY_PG_URL, or M3_PG_URL as "
-            "a fallback. Will not silently fall back to SQLite."
+            "DSN was found in the environment, the keyring, the secrets file or the "
+            f"vault{hit}. inspect: set M3_PRIMARY_PG_URL to a postgresql:// URL "
+            "(e.g. postgresql://user:pass@host:5432/dbname) or store it in the "
+            "keyring. Note: the primary store does not read PG_URL -- that is the "
+            "data-warehouse DSN (now M3_CDW_PG_URL). It reads M3_PRIMARY_PG_URL, or "
+            "M3_PG_URL as a fallback. Will not silently fall back to SQLite."
         )
     _reject_forbidden_host(url)
     _reject_same_as_warehouse(url)
@@ -342,23 +332,11 @@ def _resolve_warehouse_dsn_for_guard() -> str:
     sees a vault-stored warehouse DSN too (the standard 'creds in keyring' setup),
     not just an env one. Best-effort; returns '' on any failure."""
     try:
-        from m3_sdk import resolve_cdw_pg_dsn
+        from m3_core.secret_store import PgRole, resolve_pg_dsn
 
-        env = (resolve_cdw_pg_dsn("") or "").strip()
-        if env:
-            return env
-    except Exception:
-        pass
-    try:
-        from m3_core.context import M3Context
-
-        # for_db (cached) not the raw ctor — avoid a throwaway SQLite pool per call.
-        secret = M3Context.for_db().get_secret("PG_URL")
-        if secret:
-            return secret.strip()
-    except Exception:
-        pass
-    return ""
+        return resolve_pg_dsn(PgRole.WAREHOUSE)
+    except Exception:  # noqa: BLE001 -- best-effort: the guard must not block a valid primary
+        return ""
 
 
 def _reject_same_as_warehouse(primary_url: str) -> None:

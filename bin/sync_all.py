@@ -281,10 +281,10 @@ def _try_pg_fdw_fastpath(dry_run: bool) -> "bool | None":
         # The primary must come from the primary resolver, whose own docstring
         # states the invariant this violated: "the warehouse DSN must never reach
         # the primary store through env resolution."
-        from m3_core.paths import resolve_primary_pg_dsn
+        from m3_core.secret_store import PgRole, resolve_pg_dsn
         from memory.backends.postgres_backend import PostgresBackend
 
-        primary_dsn = resolve_primary_pg_dsn()
+        primary_dsn = resolve_pg_dsn(PgRole.PRIMARY)
         if not primary_dsn:
             log.warning(
                 "PG primary selected (M3_DB_BACKEND=postgres) but no primary DSN "

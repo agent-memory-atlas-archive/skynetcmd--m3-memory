@@ -157,14 +157,24 @@ def get_secret(service: str) -> "str | None":
 def resolve_warehouse_dsn() -> "str | None":
     """The data-warehouse (CDW) DSN, or None when sync is not configured.
 
-    Precedence: M3_CDW_PG_URL > PG_URL (deprecated) > stored secret PG_URL. The
-    secret path is what a launchd/systemd/Task Scheduler job can read; the env
-    vars are not. Never exits: callers decide whether "not configured" is fatal.
+    Precedence: M3_CDW_PG_URL > PG_URL (deprecated) > keyring > secrets file >
+    vault (m3_core.secret_store.resolve_pg_dsn, the one owner). The stored-secret
+    tiers are what a launchd/systemd/Task Scheduler job can read; the env vars
+    are not. Never exits: callers decide whether "not configured" is fatal.
     """
-    url = (resolve_cdw_pg_dsn("") or "").strip()
-    if url:
-        return url
-    return (get_secret("PG_URL") or "").strip() or None
+    from m3_core.secret_store import PgRole, resolve_pg_dsn
+
+    return resolve_pg_dsn(PgRole.WAREHOUSE) or None
+
+
+def __getattr__(name: str):
+    """Lazy re-export of the DSN owner (m3_core.secret_store imports auth_utils,
+    which imports m3_sdk, so a top-level import would cycle)."""
+    if name in ("PgRole", "resolve_pg_dsn", "explain_pg_dsn"):
+        from m3_core import secret_store
+
+        return getattr(secret_store, name)
+    raise AttributeError(f"module 'm3_sdk' has no attribute {name!r}")
 
 
 def destructive_tools_allowed() -> bool:

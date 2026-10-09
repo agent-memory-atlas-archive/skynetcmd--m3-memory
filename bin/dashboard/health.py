@@ -933,8 +933,8 @@ def _backend_block() -> dict:
         try:
             import re
 
-            from m3_sdk import resolve_primary_pg_dsn
-            dsn = (resolve_primary_pg_dsn("") or "").strip()
+            from m3_sdk import PgRole, resolve_pg_dsn
+            dsn = resolve_pg_dsn(PgRole.PRIMARY)
             masked = re.sub(r"(://[^:/@]+:)[^@/]+(@)", r"\1***\2", dsn) if dsn else ""
             rows, last, reachable = None, "—", False
             if dsn:
@@ -962,8 +962,8 @@ def _backend_block() -> dict:
 def _cdw_block() -> dict | None:
     """CDW warehouse sync watermarks, or None if no warehouse is configured."""
     try:
-        from m3_sdk import resolve_cdw_pg_dsn, resolve_db_path
-        cdw = (resolve_cdw_pg_dsn("") or "").strip()
+        from m3_sdk import PgRole, resolve_db_path, resolve_pg_dsn
+        cdw = resolve_pg_dsn(PgRole.WAREHOUSE)
     except Exception:  # noqa: BLE001
         return None
     if not cdw:

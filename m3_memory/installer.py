@@ -933,7 +933,7 @@ def _prompt_db_backend(
     Non-interactive with no flag returns ``None`` (SQLite) — a headless install
     never blocks on this prompt and never silently arms PostgreSQL.
     """
-    from m3_sdk import resolve_primary_pg_dsn
+    from m3_sdk import PgRole, resolve_pg_dsn
 
     def _postgres_with_dsn(dsn: str | None) -> tuple[str, str] | None:
         dsn = (dsn or "").strip()
@@ -950,7 +950,7 @@ def _prompt_db_backend(
     if backend_flag is not None:
         choice = backend_flag.strip().lower()
         if choice == "postgres":
-            return _postgres_with_dsn(resolve_primary_pg_dsn(""))
+            return _postgres_with_dsn(resolve_pg_dsn(PgRole.PRIMARY))
         return None  # 'sqlite' (or anything else) → default
 
     if not interactive:
@@ -968,7 +968,7 @@ def _prompt_db_backend(
         return None
 
     # Offer the env DSN as the default so the user can just hit enter.
-    env_dsn = (resolve_primary_pg_dsn("") or "").strip()
+    env_dsn = resolve_pg_dsn(PgRole.PRIMARY)
     hint = f" [{_mask_dsn(env_dsn)}]" if env_dsn else ""
     print(
         "\nPostgreSQL primary-store DSN "
@@ -1537,7 +1537,7 @@ def _detect_cdw_target() -> str | None:
     reminder can name where data is auto-syncing — never the password from
     PG_URL.
     """
-    from m3_sdk import getenv_compat, resolve_cdw_pg_dsn
+    from m3_sdk import PgRole, getenv_compat, resolve_pg_dsn
 
     # 1. Explicit warehouse IP/host (sync_all.py uses these).
     host = getenv_compat("M3_POSTGRES_SERVER", "POSTGRES_SERVER") or getenv_compat("M3_SYNC_TARGET_IP", "SYNC_TARGET_IP")
@@ -1547,17 +1547,8 @@ def _detect_cdw_target() -> str | None:
     # 2. Warehouse DSN (M3_CDW_PG_URL > PG_URL) — from env, or the encrypted
     #    vault. Parse out ONLY the host. This is the WAREHOUSE host, not the
     #    primary store, so it uses the CDW resolver (never M3_PG_URL).
-    pg_url = (resolve_cdw_pg_dsn("") or "").strip()
-    if not pg_url:
-        try:
-            # Resolve via the SDK's secret vault without spinning up a full
-            # context if it's not importable in this environment.
-            import sys as _sys
-            _sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bin"))
-            from m3_sdk import M3Context  # type: ignore
-            pg_url = (M3Context.for_db().get_secret("PG_URL") or "").strip()
-        except Exception:  # noqa: BLE001 — vault not available / not installed yet
-            pg_url = ""
+    # The one DSN owner covers env, keyring, secrets file and vault.
+    pg_url = resolve_pg_dsn(PgRole.WAREHOUSE)
     if pg_url:
         try:
             from urllib.parse import urlparse
@@ -1597,9 +1588,9 @@ def _print_backup_reminder() -> None:
         try:
             import re as _re
 
-            from m3_sdk import resolve_primary_pg_dsn  # type: ignore
+            from m3_sdk import PgRole, resolve_pg_dsn  # type: ignore
 
-            _dsn = (resolve_primary_pg_dsn("") or "").strip()
+            _dsn = resolve_pg_dsn(PgRole.PRIMARY)
             dsn_masked = _re.sub(r"(://[^:/@]+:)[^@/]+(@)", r"\1***\2", _dsn)
         except Exception:  # noqa: BLE001
             pass

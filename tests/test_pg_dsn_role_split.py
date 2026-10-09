@@ -271,12 +271,13 @@ class TestPrimaryBackendGuards:
         same = "postgresql://u:p@127.0.0.1:5432/shared"
         monkeypatch.setenv("M3_PRIMARY_PG_URL", same)
         # no M3_CDW_PG_URL / PG_URL in env — warehouse comes from the vault
-        import m3_core.context as _ctx
+        import auth_utils
         from memory.backends import postgres_backend as pb
 
+        # The vault TIER (what resolve_pg_dsn reads) holds the warehouse DSN.
         monkeypatch.setattr(
-            _ctx.M3Context, "get_secret",
-            lambda self, key: same if key == "PG_URL" else None,
+            auth_utils, "_vault_tier",
+            lambda key: (same, None) if key == "PG_URL" else (None, None),
         )
         with pytest.raises(RuntimeError) as ei:
             pb._resolve_dsn()

@@ -1,8 +1,8 @@
 ---
 tool: bin/sync_all.py
-sha1: 1ce2e17c1d7f
-mtime_utc: 2026-10-06T01:24:59.479580+00:00
-generated_utc: 2026-10-06T01:25:34.881612+00:00
+sha1: 265d087aea2b
+mtime_utc: 2026-10-09T02:23:31.486102+00:00
+generated_utc: 2026-10-09T02:27:13.230463+00:00
 private: false
 ---
 
@@ -78,7 +78,7 @@ DB list:
 ## Notable external imports
 
 - `m3_core.paths (get_m3_logs_root)`
-- `m3_core.paths (resolve_primary_pg_dsn)`
+- `m3_core.secret_store (PgRole, resolve_pg_dsn)`
 - `memory.backends (active_backend)`
 - `memory.backends.postgres_backend (PostgresBackend)`
 - `memory.backends.postgres_backend (_reject_same_as_warehouse)`

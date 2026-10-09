@@ -1,8 +1,8 @@
 ---
 tool: bin/migrate_pg.py
-sha1: 368dae9198f2
-mtime_utc: 2026-10-08T22:11:14.611987+00:00
-generated_utc: 2026-10-08T22:11:48.203041+00:00
+sha1: fdc7a34ecb7d
+mtime_utc: 2026-10-09T02:23:31.486102+00:00
+generated_utc: 2026-10-09T02:27:13.130094+00:00
 private: false
 ---
 
@@ -70,7 +70,7 @@ _(none detected)_
 
 ## Calls INTO this repo (intra-repo imports)
 
-- `m3_sdk (resolve_primary_pg_dsn)`
+- `m3_sdk (PgRole, resolve_pg_dsn)`
 
 ---
 

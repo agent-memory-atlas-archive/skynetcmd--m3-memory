@@ -1,8 +1,8 @@
 ---
 tool: bin/pg_setup.py
-sha1: 7a711403f26f
-mtime_utc: 2026-07-19T03:04:59.627082+00:00
-generated_utc: 2026-07-19T19:29:22.759265+00:00
+sha1: fd84f57d323a
+mtime_utc: 2026-10-09T02:24:13.632428+00:00
+generated_utc: 2026-10-09T02:27:13.142725+00:00
 private: false
 ---
 
@@ -16,7 +16,7 @@ _(no module docstring — update the source file.)_
 
 ## Entry points
 
-- `def main()` (line 104)
+- `def main()` (line 102)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -35,8 +35,7 @@ _(none detected)_
 
 ## Calls INTO this repo (intra-repo imports)
 
-- `auth_utils (get_api_key)`
-- `m3_sdk (resolve_cdw_pg_dsn)`
+_(none detected)_
 
 ---
 
@@ -48,6 +47,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
+- `m3_core.secret_store (PgRole, resolve_pg_dsn)`
 - `psycopg2`
 
 ---

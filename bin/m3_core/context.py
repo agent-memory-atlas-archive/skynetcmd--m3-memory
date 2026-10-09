@@ -22,7 +22,6 @@ from m3_core.paths import (
     get_m3_root,
     getenv_compat,
     resolve_backend_name,
-    resolve_cdw_pg_dsn,
     resolve_db_path,
 )
 from m3_core.runtime import (
@@ -673,7 +672,8 @@ class M3Context:
             raise RuntimeError("PostgreSQL circuit breaker is open. Failing fast.")
         # Warehouse role: M3_CDW_PG_URL > PG_URL(deprecated). The vault key stays
         # PG_URL for continuity. Does NOT read M3_PG_URL (that is the primary store).
-        url = resolve_cdw_pg_dsn() or self.get_secret("PG_URL")
+        from m3_core.secret_store import PgRole, resolve_pg_dsn
+        url = resolve_pg_dsn(PgRole.WAREHOUSE)
         if not url:
             raise RuntimeError(
                 "Data-warehouse DSN not found. Set M3_CDW_PG_URL (or store PG_URL "

@@ -534,11 +534,11 @@ def _cdw_sync_section() -> None:
     try:
         import sys as _sys
         _sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "bin"))
-        from m3_sdk import resolve_cdw_pg_dsn, resolve_db_path  # type: ignore
+        from m3_sdk import PgRole, resolve_db_path, resolve_pg_dsn  # type: ignore
     except Exception:  # noqa: BLE001 — informational only
         return
     try:
-        cdw = (resolve_cdw_pg_dsn("") or "").strip()
+        cdw = resolve_pg_dsn(PgRole.WAREHOUSE)
     except Exception:  # noqa: BLE001
         cdw = ""
     if not cdw:
@@ -688,9 +688,9 @@ def _backend_section(cfg: dict) -> None:
 
     # PostgreSQL: report the (masked) DSN and probe reachability.
     try:
-        from m3_sdk import resolve_primary_pg_dsn  # type: ignore
+        from m3_sdk import PgRole, resolve_pg_dsn  # type: ignore
 
-        dsn = (resolve_primary_pg_dsn("") or "").strip()
+        dsn = resolve_pg_dsn(PgRole.PRIMARY)
     except Exception:  # noqa: BLE001
         dsn = ""
     if not dsn:
