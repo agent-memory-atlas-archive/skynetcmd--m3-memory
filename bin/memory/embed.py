@@ -1375,7 +1375,8 @@ async def _embed(text: str) -> tuple[list[float] | None, str]:
         return None, config.EMBED_MODEL
 
     try:
-        await asyncio.wait_for(_EMBED_SEM.acquire(), timeout=30.0)
+        async with asyncio.timeout(30.0):
+            await _EMBED_SEM.acquire()
     except TimeoutError as e:
         wrapped = EmbedSemaphoreTimeout("30s")
         wrapped.__cause__ = e
@@ -1577,7 +1578,8 @@ async def embed_for_search(
         return await _fn(text)
 
     try:
-        return await asyncio.wait_for(_fn(text), timeout=deadline)
+        async with asyncio.timeout(deadline):
+            return await _fn(text)
     except TimeoutError:
         logger.warning(
             "search embed exceeded %.1fs deadline — degrading to FTS-only "

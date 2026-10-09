@@ -1700,10 +1700,8 @@ async def memory_write_batch_impl(items: list[dict]):
     if write_tasks:
         embed_jobs = [_bounded_embed(text) for _, text in write_tasks]
         try:
-            embeddings = await asyncio.wait_for(
-                asyncio.gather(*embed_jobs, return_exceptions=True),
-                timeout=120.0
-            )
+            async with asyncio.timeout(120.0):
+                embeddings = await asyncio.gather(*embed_jobs, return_exceptions=True)
         except TimeoutError:
             logger.error(f"Batch embedding timed out after 120s for {len(write_tasks)} items")
             embeddings = [None] * len(write_tasks)

@@ -657,9 +657,8 @@ async def _run_with_tools(
                     args = {}
                 log.info(f"  -> {name}({list(args.keys())})")
                 try:
-                    result = await asyncio.wait_for(
-                        _execute_tool(name, args, agent_id), timeout=300.0
-                    )
+                    async with asyncio.timeout(300.0):
+                        result = await _execute_tool(name, args, agent_id)
                 except TimeoutError:
                     log.warning(f"Tool {name} timed out after 300s")
                     result = f"Tool error: {name} timed out after 300s"

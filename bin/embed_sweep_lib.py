@@ -288,9 +288,8 @@ async def run_embed_loop(
 
         try:
             texts = [it["text"] for it in items]
-            results = await asyncio.wait_for(
-                embed_many(texts), timeout=timeout_s,
-            )
+            async with asyncio.timeout(timeout_s):
+                results = await embed_many(texts)
         except Exception as e:  # noqa: BLE001 — classified below
             # `except (asyncio.TimeoutError, Exception)` was redundant: Exception
             # already subsumes TimeoutError, and the tuple form implied an

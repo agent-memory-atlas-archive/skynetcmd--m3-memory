@@ -118,6 +118,26 @@ def test_every_bare_gather_is_the_owner_or_justified():
                            "expected: return_exceptions=True:\n" + "\n".join(offenders))
 
 
+def test_timeouts_use_asyncio_timeout():
+    """`async with asyncio.timeout()` (3.11) is the one timeout form: wait_for is
+    implemented on it in 3.12, and two spellings of one thing drift."""
+    import ast
+
+    root = Path(__file__).resolve().parent.parent
+    offenders = []
+    for base in ("bin", "m3_memory"):
+        for f in (root / base).rglob("*.py"):
+            try:
+                tree = ast.parse(f.read_text(encoding="utf-8"))
+            except SyntaxError:
+                continue
+            offenders += [f"{f.relative_to(root)}:{n.lineno}" for n in ast.walk(tree)
+                          if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                          and n.func.attr == "wait_for" and isinstance(n.func.value, ast.Name)
+                          and n.func.value.id == "asyncio"]
+    assert not offenders, "use `async with asyncio.timeout(...)`:\n" + "\n".join(offenders)
+
+
 def test_files_promotion_inside_a_loop_writes_to_the_selected_store(monkeypatch, tmp_path):
     """The real path: _write_to_memory_db called on a running loop, store selected."""
     from m3_core.config import settings as st

@@ -143,9 +143,10 @@ def validate_args(spec: ToolSpec, args: dict) -> tuple[dict, str | None]:
 #   3. spec.timeout_s — per-tool default (generous on known-slow GPU/batch tools)
 #   4. _DEFAULT_TOOL_TIMEOUT (30s)
 # A value <= 0 disables the timeout (the "unless otherwise specified" escape
-# hatch for genuinely long-running ops, e.g. bench/enrich). Only async impls are
-# bounded — a sync impl runs inline on the event loop and cannot be cancelled by
-# wait_for; sync tools are simple/fast by construction.
+# hatch for genuinely long-running ops, e.g. bench/enrich). Async and sync impls
+# are both bounded (_run_impl_bounded runs a sync impl via asyncio.to_thread).
+# On a timeout the CALL returns ToolTimeout, but a sync impl's worker thread
+# cannot be cancelled: it runs to completion in the background.
 _DEFAULT_TOOL_TIMEOUT = 30.0
 
 
@@ -192,7 +193,8 @@ async def _run_impl_bounded(spec: ToolSpec, args: dict, timeout: float | None) -
     if timeout is None:
         return await awaitable
     try:
-        return await asyncio.wait_for(awaitable, timeout=timeout)
+        async with asyncio.timeout(timeout):
+            return await awaitable
     except TimeoutError as e:
         raise ToolTimeout(
             f"{spec.name} exceeded {timeout:g}s timeout "

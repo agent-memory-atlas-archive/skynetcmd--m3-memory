@@ -244,9 +244,8 @@ async def _probe_roundtrip() -> dict[str, Any]:
     try:
         from memory import embed as _embed_mod
         t0 = time.perf_counter()
-        vec, model = await asyncio.wait_for(
-            _embed_mod._embed("ping"), timeout=10.0,
-        )
+        async with asyncio.timeout(10.0):
+            vec, model = await _embed_mod._embed("ping")
         res["latency_ms"] = int((time.perf_counter() - t0) * 1000)
         if vec is None:
             res["error"] = "all cascade tiers returned no vector"

@@ -1239,9 +1239,8 @@ async def run_classify_pass(args):
     resolved = 0
     for item_id, content, title in rows:
         try:
-            new_type = await asyncio.wait_for(
-                _auto_classify(content or "", title or ""), timeout=deadline_s
-            )
+            async with asyncio.timeout(deadline_s):
+                new_type = await _auto_classify(content or "", title or "")
         except (TimeoutError, Exception) as e:  # noqa: BLE001 — fail-open
             logger.warning(
                 "Classify deferred: row %s left as 'auto' (LLM unavailable/slow: %s). "
@@ -1894,7 +1893,8 @@ async def _sleep_or_halt(wait_time: float, poll_s: float = 2.0) -> None:
         if remaining <= 0 or m3_halt.halt_is_active(role=_HALT_ROLE):
             return
         try:
-            await asyncio.wait_for(_STOP_EVENT.wait(), timeout=min(poll_s, remaining))
+            async with asyncio.timeout(min(poll_s, remaining)):
+                await _STOP_EVENT.wait()
             return
         except TimeoutError:
             pass
