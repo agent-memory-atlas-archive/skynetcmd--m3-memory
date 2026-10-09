@@ -170,18 +170,20 @@ def flush_entity_vectors(db, buffered: list[tuple[str, list[float], str | None]]
             conflict_target="(entity_id)",
             set_columns=["embedding", "embed_model", "dim"],
         )
+        rows = [(eid, _pack(vec), model, len(vec)) for eid, vec, model in buffered if vec]
         db.executemany(
             "INSERT INTO entity_embeddings (entity_id, embedding, embed_model, dim) "
             f"VALUES ({_d.placeholder(4)}) {_suffix}".rstrip(),
-            [(eid, _pack(vec), model, len(vec)) for eid, vec, model in buffered if vec],
+            rows,
         )
-        written = len(buffered)
-        try:
-            db.commit()
-        except Exception:
-            pass
-    except Exception as e:  # pragma: no cover - defensive
-        logger.debug(f"entity vector flush failed ({len(buffered)} rows): {e}")
+        # Count only after the commit: a failed commit wrote nothing, and rows
+        # without a vector were never sent.
+        db.commit()
+        written = len(rows)
+    except Exception as e:  # noqa: BLE001 — best-effort by contract; the loss is logged
+        logger.warning(f"entity vector flush failed; observed: {len(buffered)} rows not "
+                       f"written ({type(e).__name__}: {e}); each is re-embedded the next "
+                       "time that entity is a resolution candidate")
     return written
 
 
@@ -1511,10 +1513,8 @@ def build_bypass_surface(
                 )
                 rows_written += len(surfaced)
 
-        try:
-            db.commit()
-        except Exception:  # pragma: no cover - defensive
-            pass
+        # Not guarded: a failed commit must not be reported as rows written.
+        db.commit()
         # Keep planner stats fresh for the new table (ADR-0001 §8 — the prototype
         # showed the planner needs ANALYZE to pick the scope index).
         try:
