@@ -108,7 +108,7 @@ def _keyring_get() -> tuple[bool, str | None]:
 def _read_key_file(p: Path) -> str | None:
     if not p.is_file():
         return None
-    if os.name == "posix":
+    if sys.platform != "win32":  # sys.platform, not os.name: mypy narrows only on it
         mode = p.stat().st_mode & 0o777
         if mode & 0o077 or p.stat().st_uid != os.getuid():
             raise ParityError(f"{p} is mode {oct(mode)} (or not yours); the key must be user-only. "
