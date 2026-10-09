@@ -115,7 +115,7 @@ def test_every_tool_id_held_is_refused_naming_the_holders():
     for i in ids:
         sys.monitoring.use_tool_id(i, f"holder-{i}")
     try:
-        with pytest.raises(MonitoringBusy, match="holder-2.*holder-3.*holder-4"):
+        with pytest.raises(MonitoringBusy, match=r"holder-2.*holder-3.*holder-4"):
             with stage_timing(StageMap(functions={"outer": [outer]})):
                 pass
     finally:
@@ -160,7 +160,7 @@ def test_the_stage_map_names_only_live_functions():
     from m3_core.monitoring import _code_of
 
     sm = importlib.import_module("memory.search_profile").retrieval_stage_map()
-    for stage, fns in sm.functions.items():
+    for fns in sm.functions.values():
         for fn in fns:
             _code_of(fn)  # raises for anything that is not a live Python function
     assert {"total", "embed", "db", "rerank", "expand", "rank"} <= set(sm.functions)

@@ -149,7 +149,7 @@ def test_ledger_active_is_reaggregated_not_decayed(tmp_path):
         trust.record_corroboration(conn, "m", source_kind="agent", source_ref="grok",
                                    trust_at_write=1.0, delta=1.0)
         conn.commit()
-        reaggregated, decayed = _reinforce_confidence(conn)
+        reaggregated, _decayed = _reinforce_confidence(conn)
         conn.commit()
         m = conn.execute("SELECT confidence, corroboration_count FROM memory_items WHERE id='m'").fetchone()
     assert reaggregated == 1

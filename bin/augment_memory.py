@@ -91,7 +91,7 @@ async def link_adjacent_turns(user_id: str = "", limit: int = 10000) -> int:
         by_conv.setdefault(r["conversation_id"], []).append(r)
 
     links = 0
-    for cid, turns in by_conv.items():
+    for turns in by_conv.values():
         turns.sort(key=lambda x: x["turn_index"])
         for i in range(len(turns) - 1):
             memory_link_impl(turns[i]["id"], turns[i + 1]["id"], "related")

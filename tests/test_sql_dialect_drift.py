@@ -56,7 +56,7 @@ _ALLOWED = {
 _RULES = [
     (
         "byte_length",
-        re.compile(r"LENGTH\s*\(\s*CAST\s*\(.*?AS\s+BLOB\s*\)\s*\)", re.I),
+        re.compile(r"LENGTH\s*\(\s*CAST\s*\(.*?AS\s+BLOB\s*\)\s*\)", re.IGNORECASE),
         "Dialect.byte_length(column) — PG needs octet_length(); PG's length() "
         "counts CHARACTERS and would be ~3x wrong on CJK.",
     ),
@@ -77,13 +77,13 @@ _RULES = [
         # -- is not flagged. A rule that fires on the fixed form is a false
         # alarm, which §3 counts as a violation in its own right; the first
         # draft of this pattern did exactly that.
-        re.compile(r"(?<!byte_)LENGTH\s*\(\s*(?!CAST|TRIM)[^)]*content[^)]*\)", re.I),
+        re.compile(r"(?<!byte_)LENGTH\s*\(\s*(?!CAST|TRIM)[^)]*content[^)]*\)", re.IGNORECASE),
         "Dialect.byte_length(column) — a bare LENGTH() on content counts "
         "CHARACTERS on PostgreSQL, not bytes (~3x under-count on CJK).",
     ),
     (
         "has_content",
-        re.compile(r"LENGTH\s*\(\s*TRIM\s*\(\s*COALESCE\s*\(", re.I),
+        re.compile(r"LENGTH\s*\(\s*TRIM\s*\(\s*COALESCE\s*\(", re.IGNORECASE),
         "Dialect.has_content(column)",
     ),
     (
@@ -96,7 +96,7 @@ _RULES = [
         re.compile(
             r"(?:since|until)\b[^\n]*?\b\w*(?:created_at|updated_at)\s*[<>]=?"
             r"|\b\w*(?:created_at|updated_at)\s*[<>]=?[^\n]*?\b(?:since|until)\b",
-            re.I,
+            re.IGNORECASE,
         ),
         "Dialect.date_bound(column, side) + normalize_date_bound(value, side) — "
         "a bare YYYY-MM-DD vs a timestamp column is wrong on BOTH backends, in "
@@ -107,7 +107,7 @@ _RULES = [
         # QUERY predicates only. `DEFAULT (datetime('now'))` in DDL is a
         # different construct -- a column default, emitted per-backend by the
         # schema module, not a portability leak in a query path.
-        re.compile(r"^(?![^\n]*\bDEFAULT\b)[^\n]*datetime\s*\(\s*['\"]now['\"]", re.I),
+        re.compile(r"^(?![^\n]*\bDEFAULT\b)[^\n]*datetime\s*\(\s*['\"]now['\"]", re.IGNORECASE),
         "Dialect.now_minus_days() / now_minus_minutes() / age_days_gt() — "
         "datetime('now', ?) is SQLite-only and raises on PostgreSQL.",
     ),

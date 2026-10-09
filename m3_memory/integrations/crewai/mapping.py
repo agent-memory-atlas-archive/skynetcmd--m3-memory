@@ -118,7 +118,7 @@ def _parse_dt(raw: Any) -> datetime:
         return raw if raw.tzinfo else raw.replace(tzinfo=UTC)
     if isinstance(raw, str) and raw.strip():
         try:
-            dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            dt = datetime.fromisoformat(raw)
             return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
         except (ValueError, TypeError):
             pass

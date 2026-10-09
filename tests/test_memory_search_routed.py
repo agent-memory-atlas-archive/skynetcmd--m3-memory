@@ -607,7 +607,7 @@ async def test_expanded_via_tags_set_on_session_and_graph_hits(monkeypatch):
 
     async def stub_score(query, rows_by_id, base_score=0.0):
         out = []
-        for mid, item in rows_by_id.items():
+        for item in rows_by_id.values():
             out.append((0.7, item))
         return out
 

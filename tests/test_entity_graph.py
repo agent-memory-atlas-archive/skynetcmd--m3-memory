@@ -1951,7 +1951,7 @@ def test_extraction_prompt_vocab_matches_validation_vocab():
     #   "Entity types (use only these): a, b, c."
     #   a "Predicates (use only these):" block where each predicate is the first
     #   token of an indented line.
-    m = re.search(r"Entity types \(use only these\):(.+?)(?:Predicates|\n\n)", prompt, re.S)
+    m = re.search(r"Entity types \(use only these\):(.+?)(?:Predicates|\n\n)", prompt, re.DOTALL)
     declared_types = {
         t.strip(" .").lower()
         for t in re.split(r"[,\n]", m.group(1) if m else "")

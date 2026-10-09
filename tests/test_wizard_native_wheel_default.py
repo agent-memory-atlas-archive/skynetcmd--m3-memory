@@ -16,23 +16,23 @@ from m3_memory import setup_wizard
 
 def _ns(**over):
     """Build a Namespace matching `add_arguments` defaults, with overrides."""
-    base = dict(
-        non_interactive=True,
-        agents=None,
-        capture_mode=None,
-        clean_cache=False,
-        force_kill_mcp=False,
-        install_gpu_embedder=False,   # tier-1 opt-in flag, default off
-        no_native_wheel=False,        # explicit opt-out, default off
-        allow_native_source_build=False,
-        endpoint=None,
-        cognitive_loop=False,
-        decouple_roots=False,
-        config_root=None,
-        engine_root=None,
-        fips_mode=False,
-        no_governor_migration=False,
-    )
+    base = {
+        "non_interactive": True,
+        "agents": None,
+        "capture_mode": None,
+        "clean_cache": False,
+        "force_kill_mcp": False,
+        "install_gpu_embedder": False,   # tier-1 opt-in flag, default off
+        "no_native_wheel": False,        # explicit opt-out, default off
+        "allow_native_source_build": False,
+        "endpoint": None,
+        "cognitive_loop": False,
+        "decouple_roots": False,
+        "config_root": None,
+        "engine_root": None,
+        "fips_mode": False,
+        "no_governor_migration": False,
+    }
     base.update(over)
     return argparse.Namespace(**base)
 

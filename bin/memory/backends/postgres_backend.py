@@ -366,7 +366,7 @@ def _reject_same_as_warehouse(primary_url: str) -> None:
     cdw_id = _dsn_identity(cdw)
     if primary_id is not None and primary_id == cdw_id:
         # Extract host/port/dbname for observability — safe, no credentials
-        p_id = primary_id if primary_id else ("?", "?", "?")
+        p_id = primary_id or ("?", "?", "?")
         raise RuntimeError(
             f"observed: PostgreSQL PRIMARY-store DSN names the SAME database as "
             f"the warehouse DSN (host={p_id[0]}, port={p_id[1]}, "
@@ -740,7 +740,7 @@ class PostgresDialect(Dialect):
         LISTEN/NOTIFY is the upgrade path: it needs a held connection, so it
         belongs behind a backend-level watcher, not this connection-free hook.
         """
-        return None
+        return
 
     @override
     def _json_extract_text_expr(self, column: str, json_path: str) -> str:
@@ -1138,7 +1138,7 @@ class PostgresBackend:
         business issuing. Present so callers can checkpoint on a cadence without
         knowing the backend (§1 storage seam).
         """
-        return None
+        return
 
     def store_identity(self) -> str:
         """``postgres:host:port/dbname`` — core and chatlog share it (one database)."""

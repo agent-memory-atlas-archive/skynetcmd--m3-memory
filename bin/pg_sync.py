@@ -341,7 +341,7 @@ def sync_memory_items(sl_cur, pg_cur, sl_conn, target_name: str):
         if v == "" or not isinstance(v, str):
             return v != ""  # '' invalid; non-str (already a datetime) assume ok
         try:
-            datetime.fromisoformat(v.replace("Z", "+00:00"))
+            datetime.fromisoformat(v)
             return True
         except ValueError:
             # Fall back to a lenient date-only parse for 'YYYY-MM-DD ...' forms;
@@ -1536,7 +1536,7 @@ def _sync_generic_db(sl_cur, pg_cur, sl_conn, manifest: dict[str, Any],
 class SyncTarget:
     """One (store, table-set) pair. `uri` is a path on SQLite, a DSN on PG."""
 
-    __slots__ = ("name", "uri", "table_map")
+    __slots__ = ("name", "table_map", "uri")
 
     def __init__(self, name: str, uri: str | None, table_map: dict[str, str]):
         self.name = name
@@ -1705,7 +1705,7 @@ def main():
 
     if args.dry_run and not os.path.exists(db_path):
         logger.info(f"[DRY-RUN] SQLite DB not found at {db_path} — would skip")
-        return
+        return None
 
     if not os.path.exists(db_path):
         logger.error(f"SQLite DB not found: {db_path}")
@@ -1730,7 +1730,7 @@ def main():
                     logger.info(f"[DRY-RUN] Would sync target {target.name} ({target.uri})")
                     logger.info("[DRY-RUN] Tables: memory_items, memory_embeddings, "
                                 "memory_relationships, tasks, synchronized_secrets")
-                return
+                return None
 
             with ctx.pg_connection() as pg_conn:
                 pg_conn.autocommit = False
@@ -1809,7 +1809,7 @@ def main():
                     _t = SyncTarget(db_stem, db_path, {})
                     with _open_local_store(_t) as (_c, sl_cur):
                         if sl_cur is None:
-                            return
+                            return None
                         for tname in active:
                             if _table_exists(sl_cur, tname):
                                 sl_cur.execute(f"SELECT COUNT(*) FROM {tname}")
@@ -1819,7 +1819,7 @@ def main():
                                 logger.info(f"[DRY-RUN] [{tname}] not present locally")
                 except Exception as e:
                     logger.warning(f"[DRY-RUN] Could not open {db_path} for row counts: {e}")
-                return
+                return None
 
             _generic_target = SyncTarget(db_stem, db_path, {})
             try:

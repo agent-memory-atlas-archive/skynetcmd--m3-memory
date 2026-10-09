@@ -94,30 +94,30 @@ def _seed_rows(db_path: Path, rows: list[dict]) -> None:
 
 def _make_args(db_path: Path, **overrides) -> argparse.Namespace:
     """Build a minimal Namespace with the fields _build_query / _run_sweep need."""
-    base = dict(
-        db=db_path,
-        variant=[],
-        type=[],
-        user_id=None,
-        scope=None,
-        id_prefix=None,
-        max_age_days=None,
-        limit=None,
-        batch_size=4,
-        concurrency=1,
-        connection_refresh=1000,
-        timeout_s=10.0,
-        max_runtime_min=1,
-        max_consecutive_fails=3,
-        max_row_bytes=32_768,
-        expected_dim=4,  # tiny dim for test vectors
-        lockfile=None,
-        no_augment_anchors=True,  # don't pull metadata-driven anchors in tests
+    base = {
+        "db": db_path,
+        "variant": [],
+        "type": [],
+        "user_id": None,
+        "scope": None,
+        "id_prefix": None,
+        "max_age_days": None,
+        "limit": None,
+        "batch_size": 4,
+        "concurrency": 1,
+        "connection_refresh": 1000,
+        "timeout_s": 10.0,
+        "max_runtime_min": 1,
+        "max_consecutive_fails": 3,
+        "max_row_bytes": 32_768,
+        "expected_dim": 4,  # tiny dim for test vectors
+        "lockfile": None,
+        "no_augment_anchors": True,  # don't pull metadata-driven anchors in tests
         # Mirror the CLI default. Without this the getattr() fallback silently
         # put every test in the legacy skip mode while production subdivides.
-        subdivide_oversize=True,
-        dry_run=False,
-    )
+        "subdivide_oversize": True,
+        "dry_run": False,
+    }
     base.update(overrides)
     return argparse.Namespace(**base)
 

@@ -100,7 +100,7 @@ def _marketplace_age_days() -> float | None:
         if isinstance(raw, str) and raw:
             try:
                 from datetime import datetime
-                ts = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                ts = datetime.fromisoformat(raw)
                 if ts.tzinfo is None:
                     ts = ts.replace(tzinfo=UTC)
                 return (datetime.now(UTC) - ts).total_seconds() / 86400.0

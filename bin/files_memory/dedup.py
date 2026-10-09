@@ -178,7 +178,7 @@ def files_dedup(
                 existing_pairs.add((b, a))
 
         # Pairwise scan per model bucket.
-        for model, bucket in by_model.items():
+        for bucket in by_model.values():
             if len(bucket) < 2:
                 continue
             dim = bucket[0]["dim"]

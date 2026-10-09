@@ -329,7 +329,7 @@ async def test_two_consecutive_compiles_of_an_unchanged_store_write_zero_rows():
     heads = {}
     total_writes_run1 = 0
     for cl in clusters:
-        r, writes, sups, stats = await _run(cl, comp, heads.get(cl.key))
+        r, writes, sups, _stats = await _run(cl, comp, heads.get(cl.key))
         total_writes_run1 += len(writes) + len(sups)
         heads[cl.key] = WC.ExistingSynthesis(
             id=r.synthesis_id, cluster_hash=_cluster_hash(cl, comp.model),
@@ -340,7 +340,7 @@ async def test_two_consecutive_compiles_of_an_unchanged_store_write_zero_rows():
     comp.calls = 0
     total_writes_run2 = 0
     for cl in clusters:
-        r, writes, sups, stats = await _run(cl, comp, heads.get(cl.key))
+        r, writes, sups, _stats = await _run(cl, comp, heads.get(cl.key))
         total_writes_run2 += len(writes) + len(sups)
         assert r.action == "skipped-hash"
     assert total_writes_run2 == 0, "idempotence violated — second pass wrote rows"

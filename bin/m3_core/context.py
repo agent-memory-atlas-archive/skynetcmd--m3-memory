@@ -357,8 +357,7 @@ class M3Context:
             except Exception:
                 pass
 
-        if service in _CIRCUITS:
-            del _CIRCUITS[service]
+        _CIRCUITS.pop(service, None)
 
     def _record_failure(self, service: str, custom_cooldown: float | None = None):
         if not M3_CORE_RS_DISABLE:
@@ -419,6 +418,8 @@ class M3Context:
 
     async def request_with_retry(self, method: str, url: str, retries: int = 3, **kwargs):
         """Resilient HTTP requests with exponential backoff and Circuit Breaker."""
+        if retries < 1:
+            raise ValueError(f"request_with_retry: retries must be >= 1; observed: {retries}")
         service = url.split("//")[-1].split("/")[0]
 
         if not self._check_circuit(service):
@@ -439,6 +440,7 @@ class M3Context:
                 wait = (2 ** attempt) + random.uniform(0, 1)  # nosec B311 - backoff jitter, not cryptographic
                 logger.warning(f"Request to {url} failed ({exc}). Retrying in {wait:.1f}s...")
                 await asyncio.sleep(wait)
+        raise AssertionError("unreachable: the last attempt returns or raises")
 
     @contextmanager
     def get_sqlite_conn(self) -> Iterator[sqlite3.Connection]:

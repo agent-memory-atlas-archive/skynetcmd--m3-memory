@@ -521,10 +521,10 @@ class TestCliSurface(unittest.TestCase):
     def _args(self, **kw):
         import argparse
 
-        base = dict(
-            host="127.0.0.1", port=8080, path="/mcp", public_host=None,
-            generate_token=False, show_token=False, force=False,
-        )
+        base = {
+            "host": "127.0.0.1", "port": 8080, "path": "/mcp", "public_host": None,
+            "generate_token": False, "show_token": False, "force": False,
+        }
         base.update(kw)
         return argparse.Namespace(**base)
 

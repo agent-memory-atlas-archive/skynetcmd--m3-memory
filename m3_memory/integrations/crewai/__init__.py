@@ -38,7 +38,7 @@ from typing import Any
 # Feb 2026), so >=1.0 is NOT enough — pin the protocol's actual first release.
 MIN_CREWAI_VERSION = "1.10.0"
 
-__all__ = ["M3StorageBackend", "MIN_CREWAI_VERSION"]
+__all__ = ["MIN_CREWAI_VERSION", "M3StorageBackend"]
 
 _CREWAI_HINT = (
     f"The CrewAI integration requires CrewAI v{MIN_CREWAI_VERSION}+ (the unified-memory "

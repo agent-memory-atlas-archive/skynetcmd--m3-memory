@@ -256,7 +256,7 @@ async def reflect_conversation(
     existing: list[dict] = []
     new = [obs for _, obs in rows]
     try:
-        merged_obs, supersedes = await call_reflector(existing, new, profile, client, token)
+        _merged_obs, supersedes = await call_reflector(existing, new, profile, client, token)
     except Exception as e:  # noqa: BLE001
         counters["failed"] += 1
         if counters["failed"] <= 5:

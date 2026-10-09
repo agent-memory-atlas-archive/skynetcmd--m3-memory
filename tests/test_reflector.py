@@ -93,7 +93,7 @@ def test_parse_reflector_output_drops_noop_supersedes():
             {"new_text": "x", "old_text": ""},  # empty old
         ]
     })
-    obs, sup = run_reflector.parse_reflector_output(text)
+    _obs, sup = run_reflector.parse_reflector_output(text)
     # No-op + empties dropped; one real supersede pair remains.
     assert len(sup) == 1
     assert sup[0]["new_text"] == "User moved to Austin."
@@ -166,7 +166,7 @@ def test_call_reflector_anthropic_shape():
                 token="test-token",
             )
 
-    obs, sup = asyncio.run(go())
+    _obs, sup = asyncio.run(go())
     # Verify the input shape was correct
     body = captured["json"]
     assert "messages" in body

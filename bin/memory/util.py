@@ -30,7 +30,7 @@ else:
 
 from . import config
 
-__all__ = ["sha256_hex", "_batch_cosine", "_cosine", "_cosine_batch_packed", "_cosine_batch_maxpool_packed", "_check_content_safety"]
+__all__ = ["_batch_cosine", "_check_content_safety", "_cosine", "_cosine_batch_maxpool_packed", "_cosine_batch_packed", "sha256_hex"]
 import logging
 import re
 

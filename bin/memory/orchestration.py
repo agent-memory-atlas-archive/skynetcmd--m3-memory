@@ -102,7 +102,7 @@ def _touch(db, agent_id: str, *, client=_OWN_CLIENT) -> int:
     p = _d.param()
     if client is _OWN_CLIENT:
         client = _own_client()
-    pid, create_time = client if client else (None, None)
+    pid, create_time = client or (None, None)
     cur = db.execute(
         f"UPDATE agents SET last_seen = {_d.now()}, status = 'active', "
         f"node_id = {p}, hostname = {p}, pid = {p}, pid_create_time = {p} "
@@ -1050,7 +1050,7 @@ def notifications_poll_impl(agent_id: str, unread_only: bool = True, limit: int 
     rows = read_across_notification_stores(
         f"SELECT id, kind, payload_json, created_at, read_at, received_at "
         f"FROM {{table}} {where_clause} ORDER BY created_at DESC LIMIT {p}",
-        tuple(params + [limit]),
+        (*params, limit),
     )
 
     # An UNREGISTERED poller gets its mail but leaves no liveness trace: the
@@ -1391,7 +1391,7 @@ def task_update_impl(task_id: str, state: str = "", description: str = "", metad
         return f"Error: task '{task_id}' not found"
 
     prev_state = row["state"]
-    new_state = state if state else prev_state
+    new_state = state or prev_state
 
     if state:
         err = _validate_task_transition(prev_state, new_state)
@@ -1571,7 +1571,7 @@ def task_list_impl(owner_agent: str = "", state: str = "", parent_task_id: str =
     with _db() as db:
         rows = db.execute(
             f"SELECT id, title, state, owner_agent FROM tasks {where} ORDER BY updated_at DESC LIMIT {p}",
-            params + [limit]
+            [*params, limit]
         ).fetchall()
 
     if not rows:

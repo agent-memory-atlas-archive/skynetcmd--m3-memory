@@ -14,27 +14,27 @@ import re
 from functools import lru_cache
 
 __all__ = [
-    "_sanitize_fts",
-    "_sanitize_for_searchable",
-    "_compile_fts_query",
-    "_compile_tsquery",
-    "_augment_title_with_role",
-    "_query_title_token_set",
-    "_title_overlap_from_qset",
-    "_query_title_overlap",
-    "_TEMPORAL_QUERY_RE",
+    "_DATE_MONTHS",
     "_DATE_RE_ISO",
     "_DATE_RE_LONG",
-    "_DATE_MONTHS",
-    "_TEMPORAL_ROUTER_PATTERNS",
-    "_TEMPORAL_ROUTER_RE",
     "_ENTITY_MENTION_PATTERNS",
     "_ENTITY_MENTION_RE",
-    "_EVENT_VERB_LIST",
-    "_EVENT_SENT_SPLIT",
     "_EVENT_DATE_HINT",
-    "_EVENT_VERB_RE",
     "_EVENT_PROPER_NOUN",
+    "_EVENT_SENT_SPLIT",
+    "_EVENT_VERB_LIST",
+    "_EVENT_VERB_RE",
+    "_TEMPORAL_QUERY_RE",
+    "_TEMPORAL_ROUTER_PATTERNS",
+    "_TEMPORAL_ROUTER_RE",
+    "_augment_title_with_role",
+    "_compile_fts_query",
+    "_compile_tsquery",
+    "_query_title_overlap",
+    "_query_title_token_set",
+    "_sanitize_for_searchable",
+    "_sanitize_fts",
+    "_title_overlap_from_qset",
 ]
 import logging
 
@@ -173,7 +173,7 @@ def _sanitize_fts(query: str, max_len: int = 500) -> str:
 # lowercases and replaces these 8 punctuation chars with spaces before storing
 # in content_searchable / title_searchable. Query-side text must apply the same
 # transform so MATCH terms align with what FTS5 indexed.
-_SEARCHABLE_PUNCT = str.maketrans({c: " " for c in "?!:.,;/\"'"})
+_SEARCHABLE_PUNCT = str.maketrans(dict.fromkeys("?!:.,;/\"'", " "))
 
 
 def _sanitize_for_searchable(text: str) -> str:

@@ -65,7 +65,7 @@ def test_pip_self_upgrade_is_not_fatal(source: str) -> None:
     upgrade it changes nothing about whether m3 runs.
     """
     m = re.search(r"run_cmd\(\s*\[\s*python_exe\s*,\s*[\"']-m[\"']\s*,\s*[\"']pip[\"'].*?\)",
-                  source, re.S)
+                  source, re.DOTALL)
     assert m, "could not find the pip self-upgrade call"
     assert "optional=True" in m.group(0), (
         "the pip self-upgrade is still fatal: run_cmd exits the process on a "
@@ -75,12 +75,12 @@ def test_pip_self_upgrade_is_not_fatal(source: str) -> None:
 
 def test_run_cmd_supports_a_non_fatal_mode(source: str) -> None:
     """`optional=True` must actually change behaviour, not just be accepted."""
-    m = re.search(r"def run_cmd\(.*?(?=\ndef )", source, re.S)
+    m = re.search(r"def run_cmd\(.*?(?=\ndef )", source, re.DOTALL)
     assert m, "run_cmd not found"
     body = m.group(0)
     assert "optional" in body.split("\n")[0], "run_cmd takes no `optional` parameter"
     # It must return early rather than reaching sys.exit when optional.
-    assert re.search(r"if optional:.*?return False", body, re.S), (
+    assert re.search(r"if optional:.*?return False", body, re.DOTALL), (
         "run_cmd accepts `optional` but still falls through to sys.exit"
     )
     # And the default must remain fatal -- silencing every failure would be worse

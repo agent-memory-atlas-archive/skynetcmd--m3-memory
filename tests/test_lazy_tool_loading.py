@@ -104,7 +104,7 @@ def test_domain_descriptions_cover_every_domain_seen_in_catalog():
     """DOMAIN_DESCRIPTIONS feeds the `tools_list_domains` response. Every
     domain that actually has tools must have a description, or the agent
     will see a domain in the list with no text."""
-    seen = set(tool_domains.domain_of_tool(t.name) for t in mcp_tool_catalog.TOOLS)
+    seen = {tool_domains.domain_of_tool(t.name) for t in mcp_tool_catalog.TOOLS}
     described = set(tool_domains.DOMAIN_DESCRIPTIONS.keys())
     missing = seen - described
     assert not missing, (

@@ -237,7 +237,7 @@ def capture() -> dict:
     # (values are operational counts that drift legitimately).
     try:
         h = mc.entity_extractor_health()
-        health_keys = sorted(list(h.keys())) if isinstance(h, dict) else None
+        health_keys = sorted(h.keys()) if isinstance(h, dict) else None
     except Exception as e:
         health_keys = f"error: {type(e).__name__}"
 

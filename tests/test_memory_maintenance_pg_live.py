@@ -175,7 +175,7 @@ def test_reinforce_decay_on_pg(pg):
     mid = _write(uid, type="belief", content="c", confidence=0.95)
     _set_created(mid, "2020-01-01T00:00:00+00:00")
     with _db() as db:
-        reagg, decayed = MM._reinforce_confidence(db)
+        _reagg, decayed = MM._reinforce_confidence(db)
         if hasattr(db, "commit"):
             db.commit()
     assert decayed >= 1  # the un-reinforced belief decayed toward neutral

@@ -139,7 +139,7 @@ def _age_days(erased_at: str | None, now: datetime | None) -> float | None:
     if not erased_at:
         return None
     try:
-        ts = datetime.fromisoformat(erased_at.replace("Z", "+00:00"))
+        ts = datetime.fromisoformat(erased_at)
     except (ValueError, AttributeError):
         return None
     if ts.tzinfo is None:
@@ -321,7 +321,7 @@ class ModelDerivabilityJudge:
     def judge(self, synthesis_content: str, surviving_source_contents: list[str]) -> DerivabilityVerdict:
         from .citation_drift import _judge_hash
         digest = _judge_hash(synthesis_content,
-                             surviving_source_contents + [_DERIV_PROMPT_VERSION],
+                             [*surviving_source_contents, _DERIV_PROMPT_VERSION],
                              self.cfg.model)
         cached = self._read_cache(digest)
         if cached is not None:

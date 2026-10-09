@@ -111,7 +111,7 @@ def promotability_score(
         return base
 
     try:
-        last = datetime.fromisoformat(last_hit_at.replace("Z", "+00:00"))
+        last = datetime.fromisoformat(last_hit_at)
     except (ValueError, TypeError):
         return base
     cur = now or datetime.now(UTC)

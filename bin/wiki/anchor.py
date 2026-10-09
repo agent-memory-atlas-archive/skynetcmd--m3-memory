@@ -51,7 +51,7 @@ def weighted_score(factors: dict[str, float], weights: dict[str, float]) -> floa
 
 
 def _clamp01(x: float) -> float:
-    return 0.0 if x < 0.0 else (1.0 if x > 1.0 else x)
+    return 0.0 if x < 0.0 else (min(x, 1.0))
 
 
 def _saturate(x: float, half: float) -> float:

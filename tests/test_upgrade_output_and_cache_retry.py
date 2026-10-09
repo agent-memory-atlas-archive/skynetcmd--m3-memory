@@ -53,8 +53,8 @@ def test_no_plugin_line_means_no_plugin_update():
 
 
 def _summary(**kw):
-    base = dict(old="2026.10.6.0", new="2026.10.7.0", unchanged=False,
-                agents_stopped=0, failed_step="", rc=0, log="")
+    base = {"old": "2026.10.6.0", "new": "2026.10.7.0", "unchanged": False,
+                "agents_stopped": 0, "failed_step": "", "rc": 0, "log": ""}
     return "\n".join(m3u.summary_lines(**{**base, **kw}))
 
 

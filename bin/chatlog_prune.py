@@ -63,14 +63,14 @@ _REFUSAL_WORDS = frozenset({"no", "stop", "kill", "abort", "wait", "hold"})
 # status request/response vocabulary for the repeated-status detector
 _STATUS_REQ_RE = re.compile(
     r"\b(status|progress|any\s+update|update\??|how('?s| is)\s+it\s+going"
-    r"|where\s+are\s+we|eta|done\s*\??|finished\s*\??|ready\s*\??)\b", re.I)
+    r"|where\s+are\s+we|eta|done\s*\??|finished\s*\??|ready\s*\??)\b", re.IGNORECASE)
 _STATUS_RESP_RE = re.compile(
     r"(\bstatus\b|\bprogress\b|\d+\s*%|\d+\s*/\s*\d+|\bremaining\b|\bso far\b"
-    r"|\bin[_\s]?progress\b|\bcompleted?\b|\bpending\b|\bworkers?\b|\beta\b)", re.I)
+    r"|\bin[_\s]?progress\b|\bcompleted?\b|\bpending\b|\bworkers?\b|\beta\b)", re.IGNORECASE)
 # strong-signal markers that protect a generic turn from being pruned
 _SIGNAL_RE = re.compile(
     r"```|\bdecid(e|ed|ing|sion)\b|\bbecause\b|\btherefore\b|\bremember\b"
-    r"|\bnever\b|\balways\b|\bIMPORTANT\b|\bnote that\b|\bgotcha\b|\bTODO\b", re.I)
+    r"|\bnever\b|\balways\b|\bIMPORTANT\b|\bnote that\b|\bgotcha\b|\bTODO\b", re.IGNORECASE)
 
 # Durable-knowledge signals (same family used by the promotion scan). A turn
 # carrying any of these is PROTECTED from soft-delete: it may be suppressed
@@ -82,8 +82,8 @@ _DURABLE_RE = re.compile(
     r"|from now on|going forward|always (use|do|prefer)|never (use|do)"
     r"|by default|prefer \w+ (over|to)|hostname is|runs on port \d|listening on \d"
     r"|configured (to|with)|the (endpoint|url|path|model|db|database) (is|=|:)"
-    r"|installed (at|in)|API key|lives (at|in) /|stored (at|in))\b", re.I)
-_STRUCT_RE = re.compile(r"(^|\n)\s*(#{1,3}\s|\*\s|-\s|\d+[.)]\s)", re.M)
+    r"|installed (at|in)|API key|lives (at|in) /|stored (at|in))\b", re.IGNORECASE)
+_STRUCT_RE = re.compile(r"(^|\n)\s*(#{1,3}\s|\*\s|-\s|\d+[.)]\s)", re.MULTILINE)
 
 # Noise categories that are ALWAYS safe to soft-delete (unambiguous chatter).
 _HARD_NOISE = frozenset({"short_cmd", "repeat_status_req", "repeat_status_resp"})
@@ -296,7 +296,7 @@ def _run_sweep(conn, db_path, args, now_ts, S, _d, _p, _tbl, _is_sqlite) -> dict
                                 FROM {_tbl}
                                 WHERE type='chat_log' AND is_deleted=0
                                   AND created_at < {_p}
-                                ORDER BY created_at ASC""", role_params + (fresh_cutoff,)).fetchall()
+                                ORDER BY created_at ASC""", (*role_params, fresh_cutoff)).fetchall()
         # PASS 1: build normalized-content cluster sizes (for repeat-status)
         cluster: dict[str, int] = {}
         norms: dict[str, str] = {}

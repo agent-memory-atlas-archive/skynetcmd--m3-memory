@@ -260,7 +260,7 @@ def test_pg_write_supersede_lifecycle_persists(monkeypatch):
 
 @pytest.mark.parametrize("mode", ["hybrid", "fts5", "semantic"])
 def test_pg_scored_search_ranks_aligned_item_first(pg_seeded, monkeypatch, mode):
-    qvec, seeded_ids = pg_seeded
+    qvec, _seeded_ids = pg_seeded
 
     import memory.embed as emb
     from memory.search import memory_search_scored_impl

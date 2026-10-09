@@ -235,8 +235,8 @@ def _format(data: dict, where_label: str) -> str:
         lines.append(f"- Mean per-group enrichment time: {mean_ms / 1000:.2f}s")
     if started and ended and started != "(none)":
         try:
-            t0 = datetime.fromisoformat(started.replace("Z", "+00:00"))
-            t1 = datetime.fromisoformat(ended.replace("Z", "+00:00"))
+            t0 = datetime.fromisoformat(started)
+            t1 = datetime.fromisoformat(ended)
             wall = (t1 - t0).total_seconds()
             if wall > 0 and n_attempted:
                 rate = n_attempted / wall

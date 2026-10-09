@@ -47,7 +47,7 @@ def test_fixed_width_and_parseable(monkeypatch, micro, timespec, pattern):
     _freeze(monkeypatch, when)
     s = runtime.utc_iso(timespec)
     assert re.fullmatch(pattern, s), s
-    assert datetime.fromisoformat(s.replace("Z", "+00:00")).replace(microsecond=0) == when.replace(microsecond=0)
+    assert datetime.fromisoformat(s).replace(microsecond=0) == when.replace(microsecond=0)
 
 
 def test_default_is_seconds_matching_the_stored_format(monkeypatch):

@@ -1991,7 +1991,7 @@ def _service_name_for_task(task_name: str) -> "tuple[str | None, bool]":
     because the crash was at least loud.
     """
     key = _platform_key()
-    for role, mapping in _ROLE_TO_SERVICE.items():
+    for mapping in _ROLE_TO_SERVICE.values():
         if mapping.get("win") == task_name:
             return _resolve_service(mapping.get(key)), True
     return None, False
@@ -2092,7 +2092,7 @@ def _agent_is_live(agent_id: str, max_age_days: int = 30) -> bool:
             ).fetchone()
         if row is None or not row["last_seen"]:
             return True
-        seen = datetime.fromisoformat(str(row["last_seen"]).replace("Z", "+00:00"))
+        seen = datetime.fromisoformat(str(row["last_seen"]))
         if seen.tzinfo is None:
             seen = seen.replace(tzinfo=UTC)
         return (datetime.now(UTC) - seen) <= timedelta(days=max_age_days)
@@ -2455,7 +2455,7 @@ def _verify_windows_task(name: str, expected_args: "str | None" = None) -> bool:
     # Arguments carry the script and log paths. A task registered by an older
     # payload keeps them across a pip/pipx upgrade, so it runs the old paths.
     if expected_args is not None:
-        m = re.search(r"<Arguments>(.*?)</Arguments>", xml, re.S)
+        m = re.search(r"<Arguments>(.*?)</Arguments>", xml, re.DOTALL)
         live = html.unescape(m.group(1)) if m else ""
         if live != expected_args:
             _safe_print(f"{WARN} {name}: arguments differ from this payload's spec "

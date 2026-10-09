@@ -93,7 +93,7 @@ def main():
     assets = get_legacy_assets()
     if not assets:
         logger.info("No legacy assets found in repository or old ~/.m3-memory/. Current configuration is already standard.")
-        return
+        return None
 
     failed = []
     total_size = sum(get_size_mb(src) for src, _ in assets.values())

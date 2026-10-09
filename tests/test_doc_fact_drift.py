@@ -231,7 +231,7 @@ def test_test_count_claims_are_in_band() -> None:
                 p.read_text(encoding="utf-8", errors="ignore")
                 for p in sorted((REPO / "tests").glob("test_*.py"))
             ),
-            re.M,
+            re.MULTILINE,
         )
     )
     pat = re.compile(r"([\d,]{3,})\+?\s*(?:collected )?tests?\b")
@@ -430,7 +430,7 @@ def test_entity_vocabulary_counts_in_the_docs_match_the_profiles() -> None:
         for m in re.finditer(r"(entity_graph_\w+)\.yaml`?\s*\((\d+) types, (\d+) predicates\)", text):
             if (int(m.group(2)), int(m.group(3))) != counts(m.group(1)):
                 bad.append(f"{p.relative_to(REPO)}: {m.group(0)} vs {counts(m.group(1))}")
-        for m in re.finditer(r"default vocabulary[^.]{0,80}?(\d+)\s+entity types and (\d+) predicates", text, re.S):
+        for m in re.finditer(r"default vocabulary[^.]{0,80}?(\d+)\s+entity types and (\d+) predicates", text, re.DOTALL):
             if (int(m.group(1)), int(m.group(2))) != counts("entity_graph_default"):
                 bad.append(f"{p.relative_to(REPO)}: default says {m.group(1)}/{m.group(2)}")
     assert not bad, "; ".join(bad)
@@ -443,7 +443,7 @@ def test_technical_details_lists_every_memory_type() -> None:
     from catalog.spec import VALID_MEMORY_TYPES
 
     text = _read("docs/TECHNICAL_DETAILS.md")
-    m = re.search(r"### Valid Memory Types \((\d+) \+ `auto`\)(.*?)(?=\n###|\Z)", text, re.S)
+    m = re.search(r"### Valid Memory Types \((\d+) \+ `auto`\)(.*?)(?=\n###|\Z)", text, re.DOTALL)
     assert m, "TECHNICAL_DETAILS.md no longer has the memory type list"
     assert int(m.group(1)) == len(VALID_MEMORY_TYPES - {"auto"})
     for t in VALID_MEMORY_TYPES:

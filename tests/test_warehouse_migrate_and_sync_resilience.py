@@ -25,7 +25,7 @@ def _valid_ts(v):
     if v == "" or not isinstance(v, str):
         return v != ""
     try:
-        datetime.fromisoformat(v.replace("Z", "+00:00"))
+        datetime.fromisoformat(v)
         return True
     except ValueError:
         return False

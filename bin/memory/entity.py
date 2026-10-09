@@ -974,7 +974,7 @@ def _select_pending_entity_extraction(
     # Resolve max-attempts via memory_core for legacy tests that
     # monkeypatch the value; production reads the import-time constant.
     _max_attempts = _read_gate("ENTITY_EXTRACT_MAX_ATTEMPTS") or ENTITY_EXTRACT_MAX_ATTEMPTS
-    params = variant_params + [_max_attempts]
+    params = [*variant_params, _max_attempts]
     return list(db.execute(sql, params).fetchall())
 
 
@@ -1006,7 +1006,7 @@ async def extract_pending_impl(
     with _db() as db:
         pending = _select_pending_entity_extraction(
             db,
-            limit=limit if limit else None,
+            limit=limit or None,
             allowed_variants=allowed_variants,
         )
 
@@ -1058,7 +1058,7 @@ async def extract_pending_impl(
             succeeded += 1
         except Exception as e:
             failed += 1
-            errors.append(f"{memory_id}: {str(e)}")
+            errors.append(f"{memory_id}: {e!s}")
             logger.warning(f"extract_pending_impl: failed to process {memory_id}: {e}")
         finally:
             processed += 1

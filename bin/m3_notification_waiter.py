@@ -233,7 +233,7 @@ def unread_ids(agent_id: str) -> set:
     """Ask m3 what is actually unread. Uses structured impl to avoid Phantom-ID bug."""
     try:
         from memory.orchestration import notifications_unread_ids_impl
-        return set(str(x) for x in notifications_unread_ids_impl(agent_id))
+        return {str(x) for x in notifications_unread_ids_impl(agent_id)}
     except Exception as exc:
         import sys
         _warn(f"notifications_unread_ids_impl for {agent_id!r} exited "
@@ -289,7 +289,7 @@ def pg_child_loop(args) -> int:
                 notifications_mark_received_impl(a)
             except Exception as exc:
                 _warn(f"startup sweep for {a!r} failed: {exc!r}")
-            baselines[a] = set(str(x) for x in notifications_unread_ids_impl(a))
+            baselines[a] = {str(x) for x in notifications_unread_ids_impl(a)}
     except Exception as e:
         _warn(f"Failed to fetch baseline: {e}")
         return 1
@@ -319,10 +319,10 @@ def pg_child_loop(args) -> int:
                     _warn(f"set_statement_timeout failed: {exc!r}")
 
                 for a in args.agent_ids:
-                    now_ids = set(str(x) for x in notifications_unread_ids_impl(a))
+                    now_ids = {str(x) for x in notifications_unread_ids_impl(a)}
                     gained = now_ids - baselines[a]
                     if gained:
-                        hits[a] = sorted(list(gained))
+                        hits[a] = sorted(gained)
                     baselines[a] = now_ids
 
             # Receipt goes through the SINGLE OWNER, not hand-written SQL.

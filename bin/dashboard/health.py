@@ -33,7 +33,7 @@ def _fmt_dual_time(value: object) -> str:
         elif isinstance(value, (int, float)):
             dt = _dt.datetime.fromtimestamp(float(value))
         else:
-            dt = _dt.datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
+            dt = _dt.datetime.fromisoformat(str(value).strip())
     except (ValueError, OSError, OverflowError):
         return str(value)
     if dt is None:

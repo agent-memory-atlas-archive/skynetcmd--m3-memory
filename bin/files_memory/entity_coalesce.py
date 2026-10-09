@@ -407,7 +407,7 @@ def coalesce_detect(*, corpus=None, max_pairs=MAX_PAIRS, dry_run=False, db_path=
                 f" band, resolution_run, detected_at) VALUES ({_d.placeholder(10)})"
             )
             recorded = 0
-            for key, members in multi.items():
+            for members in multi.values():
                 if recorded >= max_pairs:
                     break
                 if len(members) > MAX_BLOCK:
@@ -774,6 +774,6 @@ def unapply_cluster(cluster_id: str, *, db_path=None) -> dict:
                 f"UPDATE entity_coalesce_candidates SET review_action='unapplied', "
                 f"reviewed_at=COALESCE(reviewed_at,{_p}) "
                 f"WHERE (entity_a IN ({qs}) OR entity_b IN ({qs}))",
-                [_now()] + members + members,
+                [_now(), *members, *members],
             )
     return {"cluster_id": cluster_id, "reverted_members": len(members)}

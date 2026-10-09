@@ -182,7 +182,7 @@ def main() -> int:
     check(not pf._is_breaker_open(), "breaker resets after cooldown")
 
     # 10. prefetch threading (queue -> join -> formatted block, then cleared)
-    pp, fcp = fresh()
+    pp, _fcp = fresh()
     pp.queue_prefetch("recall me")
     block = pp.prefetch("recall me")
     check(block.startswith("## m3 Memory"), "prefetch returns formatted block")

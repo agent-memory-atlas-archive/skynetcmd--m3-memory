@@ -41,11 +41,11 @@ _MINORITY_SHARE = 0.5
 # Order matters: first match wins, so put specific patterns before generic ones.
 # Source of truth for the bge-m3 aliases: docs/EMBED_INPUT_RECIPE.md.
 _FAMILY_PATTERNS = (
-    (re.compile(r"qwen.?3.*embed", re.I), "qwen3-embedding"),
-    (re.compile(r"bge.?m3", re.I), "bge-m3"),
-    (re.compile(r"nomic.*embed", re.I), "nomic-embed"),
-    (re.compile(r"jina.*embed", re.I), "jina-embed"),
-    (re.compile(r"^fake-model$", re.I), "test-fixture"),
+    (re.compile(r"qwen.?3.*embed", re.IGNORECASE), "qwen3-embedding"),
+    (re.compile(r"bge.?m3", re.IGNORECASE), "bge-m3"),
+    (re.compile(r"nomic.*embed", re.IGNORECASE), "nomic-embed"),
+    (re.compile(r"jina.*embed", re.IGNORECASE), "jina-embed"),
+    (re.compile(r"^fake-model$", re.IGNORECASE), "test-fixture"),
 )
 
 

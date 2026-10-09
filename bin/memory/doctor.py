@@ -656,7 +656,7 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
                     # child finds them regardless of which python sys.executable
                     # points at (the child has no -E, so PYTHONPATH is honored).
                     env["PYTHONPATH"] = _os.pathsep.join(
-                        p for p in ([env.get("PYTHONPATH", "")] + sys.path) if p
+                        p for p in ([env.get("PYTHONPATH", ""), *sys.path]) if p
                     )
                     result = await asyncio.to_thread(
                         subprocess.run,

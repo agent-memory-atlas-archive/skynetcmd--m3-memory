@@ -75,7 +75,7 @@ def test_a_pg_migration_that_adds_columns_also_touches_the_chatlog_clone():
 
     col_re = re.compile(
         r"ALTER TABLE\s+([A-Za-z_][\w]*)\s+ADD COLUMN(?:\s+IF NOT EXISTS)?\s+([A-Za-z_][\w]*)",
-        re.I,
+        re.IGNORECASE,
     )
     for path in sorted(_PG_MIGRATIONS.glob("pg_*.up.sql")):
         sql = path.read_text(encoding="utf-8", errors="replace")

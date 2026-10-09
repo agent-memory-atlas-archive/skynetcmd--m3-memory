@@ -28,7 +28,7 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
-_BLOCK = re.compile(r"```mermaid\n(.*?)```", re.S)
+_BLOCK = re.compile(r"```mermaid\n(.*?)```", re.DOTALL)
 
 
 def _blocks() -> list[tuple[str, int, str]]:
@@ -58,16 +58,16 @@ def test_no_style_rule_names_a_missing_node() -> None:
     problems = []
     for path, idx, body in _blocks():
         declared: set[str] = set()
-        for m in re.finditer(r"^\s*subgraph\s+([A-Za-z0-9_]+)", body, re.M):
+        for m in re.finditer(r"^\s*subgraph\s+([A-Za-z0-9_]+)", body, re.MULTILINE):
             declared.add(m.group(1))
         # Node ids: an identifier immediately followed by a shape opener.
         for m in re.finditer(r"([A-Za-z][A-Za-z0-9_]*)\s*[\[\(\{]", body):
             declared.add(m.group(1))
         # participants / actors in sequence diagrams
-        for m in re.finditer(r"^\s*participant\s+([A-Za-z0-9_]+)", body, re.M):
+        for m in re.finditer(r"^\s*participant\s+([A-Za-z0-9_]+)", body, re.MULTILINE):
             declared.add(m.group(1))
 
-        for m in re.finditer(r"^\s*style\s+([A-Za-z0-9_]+)\b", body, re.M):
+        for m in re.finditer(r"^\s*style\s+([A-Za-z0-9_]+)\b", body, re.MULTILINE):
             if m.group(1) not in declared:
                 problems.append(
                     f"{path} block {idx}: `style {m.group(1)}` names nothing — "
@@ -84,7 +84,7 @@ def test_sequence_notes_avoid_parser_breaking_characters() -> None:
     """
     problems = []
     for path, idx, body in _blocks():
-        if not re.search(r"^\s*sequenceDiagram", body, re.M):
+        if not re.search(r"^\s*sequenceDiagram", body, re.MULTILINE):
             continue
         for line in body.splitlines():
             stripped = line.strip()

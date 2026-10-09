@@ -58,9 +58,9 @@ def test_the_opt_out_is_documented_in_BOTH_usage_blocks():
     cannot find. A draft of this change put both copies in the header block,
     because "  --flag" is a substring of "#   --flag"."""
     s = _src()
-    assert re.search(r"^#\s+--no-cognitive-loop\s+\S", s, re.M), \
+    assert re.search(r"^#\s+--no-cognitive-loop\s+\S", s, re.MULTILINE), \
         "missing from the header comment block"
-    assert re.search(r"^\s\s--no-cognitive-loop\s+\S", s, re.M), \
+    assert re.search(r"^\s\s--no-cognitive-loop\s+\S", s, re.MULTILINE), \
         "missing from the --help heredoc block"
 
 
@@ -77,7 +77,7 @@ def test_defaults_are_declared_as_opt_out_shaped():
     recommended thing' rather than 'skip it'."""
     s = _src()
     for var in ("NO_NATIVE_WHEEL", "NO_COGNITIVE_LOOP"):
-        assert re.search(rf"^{var}=0$", s, re.M), f"{var} is not defaulted to 0"
+        assert re.search(rf"^{var}=0$", s, re.MULTILINE), f"{var} is not defaulted to 0"
 
 
 # ── executable checks, not just textual ──────────────────────────────────────

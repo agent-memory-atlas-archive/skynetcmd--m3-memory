@@ -211,7 +211,7 @@ class TestWarehouseMigrationLive:
         conn.close()
 
     def test_move_public_only_table(self, mig_env):
-        conn, cur, mw, wh, tasks, secrets = mig_env
+        _conn, cur, mw, wh, tasks, _secrets = mig_env
         cur.execute(f"CREATE TABLE public.{tasks} (id TEXT PRIMARY KEY, v TEXT)")
         cur.execute(f"INSERT INTO public.{tasks} SELECT g::text,'x' "
                     f"FROM generate_series(1,29) g")
@@ -228,7 +228,7 @@ class TestWarehouseMigrationLive:
         assert cur.fetchone()[0] is None          # public dropped
 
     def test_merge_dedup_both_present(self, mig_env):
-        conn, cur, mw, wh, tasks, secrets = mig_env
+        _conn, cur, mw, wh, _tasks, secrets = mig_env
         for sch in ("public", wh):
             cur.execute(f"CREATE TABLE {sch}.{secrets} "
                         f"(service_name TEXT PRIMARY KEY, val TEXT)")
@@ -245,7 +245,7 @@ class TestWarehouseMigrationLive:
     def test_verify_before_drop_blocks_on_short_count(self, mig_env, monkeypatch):
         """_apply must RAISE (not drop) if the post-copy warehouse count is less
         than public — the no-data-loss guard."""
-        conn, cur, mw, wh, tasks, secrets = mig_env
+        _conn, cur, mw, wh, tasks, _secrets = mig_env
         cur.execute(f"CREATE TABLE public.{tasks} (id TEXT PRIMARY KEY, v TEXT)")
         cur.execute(f"INSERT INTO public.{tasks} SELECT g::text,'x' "
                     f"FROM generate_series(1,5) g")

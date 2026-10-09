@@ -627,7 +627,7 @@ def test_setup_is_told_it_runs_inside_an_upgrade(tmp_path, monkeypatch):
     monkeypatch.setattr(m3u, "locked_launchers", lambda d, n: [])
     monkeypatch.setattr(m3u, "cognitive_loop_installed", lambda exe: True)
     envs = {}
-    monkeypatch.setattr(m3u, "run", lambda cmd, **k: envs.setdefault(cmd[1], k.get("env")) and 0 or 0)
+    monkeypatch.setattr(m3u, "run", lambda cmd, **k: (envs.setdefault(cmd[1], k.get("env")) and 0) or 0)
     assert m3u.main(["--yes"]) == 0
     assert envs["setup"]["M3_SETUP_CALLER"] == "upgrade"
     assert envs.get("doctor") is None

@@ -532,12 +532,12 @@ def _resolve_extra_columns(extra_columns, *, apply_decay=True, recency_bias=Fals
     """
     cols = list(extra_columns or [])
     if recency_bias and "valid_from" not in cols:
-        cols = cols + ["valid_from"]
+        cols = [*cols, "valid_from"]
     if confidence_ranking and "confidence" not in cols:
-        cols = cols + ["confidence"]
+        cols = [*cols, "confidence"]
     # Forensic decay-off: pull the undecayed baseline only when asked for.
     if not apply_decay and "importance_raw" not in cols:
-        cols = cols + ["importance_raw"]
+        cols = [*cols, "importance_raw"]
     return [c for c in cols if c in _ALLOWED_EXTRA and c not in _BASE_COLS]
 
 
@@ -1920,8 +1920,8 @@ async def memory_search_routed_impl(
 
     # Normalize MCP empty-list sentinel → None for entity vocab overrides.
     # This happens unconditionally (covers both auto_route=True and False paths).
-    _egt = entity_graph_valid_types if entity_graph_valid_types else None
-    _egp = entity_graph_valid_predicates if entity_graph_valid_predicates else None
+    _egt = entity_graph_valid_types or None
+    _egp = entity_graph_valid_predicates or None
 
     # Read env-var override for the bump
     bump = int(os.environ.get("M3_ROUTER_TEMPORAL_K_BUMP", str(temporal_k_bump)))

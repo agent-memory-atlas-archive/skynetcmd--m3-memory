@@ -131,7 +131,7 @@ def assert_invariants(content: str, chunks: list[tuple[str, int]]) -> list[str]:
         # absent) shift-back case which doesn't fire under default config).
         for i in range(len(chunks) - 1):
             prev_text, _ = chunks[i]
-            curr_text, _ = chunks[i + 1]
+            _curr_text, _ = chunks[i + 1]
             # Compute start positions: prev starts at i*STRIDE, curr at (i+1)*STRIDE
             prev_start = i * mc.STRIDE_CHARS
             prev_end = prev_start + len(prev_text)

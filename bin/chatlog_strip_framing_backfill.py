@@ -121,7 +121,7 @@ def backfill(
         rows = conn.execute(
             f"SELECT id, content, metadata_json FROM memory_items "
             f"WHERE {where} LIMIT ?",
-            params + [limit],
+            [*params, limit],
         ).fetchall()
 
         for r in rows:

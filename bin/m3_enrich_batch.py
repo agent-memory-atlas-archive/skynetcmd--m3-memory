@@ -567,7 +567,7 @@ async def _resume_run(args, *, profile, token: str, db_path: Path) -> int:
         sys.exit(f"ERROR: enrichment_runs row not found. "
                  f"observed: enrichment_runs.id={run_id} missing from database. "
                  f"inspect: enrichment_runs table in {db_path}; verify --resume-run argument.")
-    _, prior_status, src_v, tgt_v, prior_profile, prior_model = row
+    _, prior_status, src_v, tgt_v, prior_profile, _prior_model = row
     print(f"[resume] run_id={run_id} prior_status={prior_status!r} "
           f"profile={prior_profile!r} target_variant={tgt_v!r}", flush=True)
     if prior_profile and prior_profile != getattr(profile, "name", "?"):
@@ -714,14 +714,14 @@ async def _run_async(args) -> int:
     try:
         # dry-run dispatch to surface unsupported backends before the slow
         # enumeration step
-        from batch_runner import make_runner as _check_runner  # noqa: WPS433
+        from batch_runner import make_runner as _check_runner
         # Sentinel string — this dispatch never makes a network call, just
         # validates backend support. Real token resolved below from vault.
         _check_runner(profile, token="placeholder")  # nosec B106
     except NotImplementedError as e:
         sys.exit(f"ERROR: unsupported batch backend. "
                  f"observed: make_runner raised NotImplementedError. "
-                 f"possible: {str(e)}. "
+                 f"possible: {e!s}. "
                  f"inspect: --profile argument; batch API only supports anthropic and gemini-OAI-shim.")
 
     token = get_api_key(profile.api_key_service) or ""

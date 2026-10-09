@@ -64,7 +64,7 @@ def test_chatlog_refuses_a_mode_it_cannot_run(bad):
     silently running keyword search under a vector label."""
     import chatlog_core
 
-    with pytest.raises(ValueError, match="lexical .FTS5. only"):
+    with pytest.raises(ValueError, match=r"lexical .FTS5. only"):
         asyncio.run(chatlog_core.chatlog_search_impl("anything", search_mode=bad))
 
 

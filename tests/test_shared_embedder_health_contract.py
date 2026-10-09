@@ -43,7 +43,7 @@ def test_plaintext_ok_is_healthy(monkeypatch):
     """The Rust m3-embed-server replies plaintext 'OK' — must be state 'ok'
     (this is the exact case the old json.loads-first code false-reported down)."""
     _mock_urlopen(monkeypatch, "OK")
-    state, body = P._server_health("http://127.0.0.1:8082")
+    state, _body = P._server_health("http://127.0.0.1:8082")
     assert state == "ok", f"plaintext OK must be healthy, got {state!r}"
 
 

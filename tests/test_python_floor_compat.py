@@ -174,7 +174,7 @@ def test_the_pr_matrix_gates_on_the_floor():
     """
     ci = (_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     floor = ".".join(str(x) for x in _FLOOR)
-    m = re.search(r'pull_request".*?python-version":\s*\[([^\]]+)\]', ci, re.S)
+    m = re.search(r'pull_request".*?python-version":\s*\[([^\]]+)\]', ci, re.DOTALL)
     assert m, "could not find the pull_request matrix cell in ci.yml"
     assert f'"{floor}"' in m.group(1), (
         f"the PR matrix runs {m.group(1)} but the declared floor is {floor}; "

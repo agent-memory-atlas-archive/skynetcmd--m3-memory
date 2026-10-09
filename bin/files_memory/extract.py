@@ -394,7 +394,7 @@ def extract_facts_for_leaf(
     for fact in facts:
         src = getattr(fact, "_source_phrase", "")
         start, end = _resolve_source_span(leaf_text, src)
-        fact.source_span_start = start if start >= 0 else 0
+        fact.source_span_start = max(start, 0)
         fact.source_span_end = end if end >= 0 else min(len(leaf_text), 200)
 
     return ExtractionResult(

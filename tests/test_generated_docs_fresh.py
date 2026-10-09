@@ -86,8 +86,8 @@ def test_features_json_tool_count_matches_catalog():
 # the older source days later.
 
 _TOOLS_DIR = pathlib.Path(_ROOT) / "docs" / "tools"
-_FRONT_TOOL = re.compile(r"^tool:\s*(\S+)", re.M)
-_FRONT_SHA1 = re.compile(r"^sha1:\s*([0-9a-f]+)", re.M)
+_FRONT_TOOL = re.compile(r"^tool:\s*(\S+)", re.MULTILINE)
+_FRONT_SHA1 = re.compile(r"^sha1:\s*([0-9a-f]+)", re.MULTILINE)
 
 
 def _tool_pages():

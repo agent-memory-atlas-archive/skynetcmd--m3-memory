@@ -29,19 +29,19 @@ s.loader.exec_module(cp)
 # ── Tightened signals (strict; precision over recall) ─────────────────────────
 T_DECISION = re.compile(r"\b(we (decided|chose|went with|will use)|decision:|"
                         r"settled on|going with\b|the plan is to|chosen approach|"
-                        r"production footgun|the rule is|canonical (form|way) is)\b", re.I)
+                        r"production footgun|the rule is|canonical (form|way) is)\b", re.IGNORECASE)
 T_DIRECTIVE = re.compile(r"\b(from now on|going forward|always (use|do|prefer)|"
                          r"never (use|do)|by default (use|we)|prefer \w+ (over|to)|"
-                         r"make sure to always|remember that .* (is|are|should))\b", re.I)
+                         r"make sure to always|remember that .* (is|are|should))\b", re.IGNORECASE)
 T_SPEC = re.compile(r"\b(hostname is|runs on port \d|listening on \d|"
                     r"\b\d{1,3}(\.\d{1,3}){3}:\d+|configured (to|with) |"
                     r"the (endpoint|url|path|model|db|database) (is|=|:) |"
-                    r"installed (at|in) |API key |lives (at|in) /|stored (at|in) )", re.I)
+                    r"installed (at|in) |API key |lives (at|in) /|stored (at|in) )", re.IGNORECASE)
 # status / progress vocabulary that DISQUALIFIES even if otherwise matching
 DISQUALIFY = re.compile(r"\b(ETA|r/s|tok/s|windows? done|poll(ing)?|workers? alive|"
                         r"in[_\s]?progress|\d+\s*/\s*\d+\s+(done|sessions|windows)|"
                         r"completion[:\s]+\d|so far|still (running|going)|"
-                        r"\bstatus\b|\bhealthy\b|no action|stable\.)\b", re.I)
+                        r"\bstatus\b|\bhealthy\b|no action|stable\.)\b", re.IGNORECASE)
 
 LM_URL = getenv_compat("M3_LM_URL", "LM_URL", "http://localhost:1234/v1/chat/completions")
 LM_MODEL = getenv_compat("M3_LM_MODEL", "LM_MODEL", "google/gemma-4-26b-a4b")
@@ -131,7 +131,7 @@ def judge(items):
     with urllib.request.urlopen(req, timeout=300) as resp:  # nosec B310 - scheme guarded above
         data = json.load(resp)
     txt = data["choices"][0]["message"]["content"]
-    m = re.search(r"\[.*\]", txt, re.S)
+    m = re.search(r"\[.*\]", txt, re.DOTALL)
     return json.loads(m.group(0)) if m else []
 
 

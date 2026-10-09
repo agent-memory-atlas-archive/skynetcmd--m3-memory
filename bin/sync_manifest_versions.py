@@ -107,7 +107,7 @@ def _sync_security_supported(target: str, *, check: bool) -> str | None:
         return f"{_SECURITY_MD.relative_to(_ROOT)}: missing"
     text = _SECURITY_MD.read_text(encoding="utf-8")
     want = _minor_series(target)
-    row = re.compile(r"^\|\s*(20\d\d\.\d{1,2}\.x)\s*\(latest\)", re.M)
+    row = re.compile(r"^\|\s*(20\d\d\.\d{1,2}\.x)\s*\(latest\)", re.MULTILINE)
     m = row.search(text)
     rel = _SECURITY_MD.relative_to(_ROOT)
     if not m:

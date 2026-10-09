@@ -165,7 +165,7 @@ check(isinstance(mem, str) and "GB" in mem,      "get_hw_info returns mem string
 check(isinstance(gpu_info, str),                 "get_hw_info returns gpu_info string")
 ok(f"Chip: {chip}")
 ok(f"RAM:  {mem}")
-ok(f"GPU:  {gpu_info if gpu_info else '(not detected)'}")
+ok(f"GPU:  {gpu_info or '(not detected)'}")
 
 if DB_PATH.exists():
     focus, logs = get_latest_activity()

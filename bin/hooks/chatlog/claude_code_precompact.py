@@ -188,7 +188,7 @@ def run_ingest(py: str, ingest: Path, extra_args: list) -> tuple:
         # attribute reference valid on non-Windows (0 = default, no-op).
         _flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
         result = subprocess.run(
-            [py, str(ingest)] + extra_args,
+            [py, str(ingest), *extra_args],
             capture_output=True, text=True, timeout=60, creationflags=_flags)
         output = result.stdout.strip()
         # ingest emits PRETTY-PRINTED (multi-line) JSON after its log lines, e.g.

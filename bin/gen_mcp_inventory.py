@@ -361,6 +361,7 @@ def main():
         f.write(markdown)
 
     print(f"Successfully created {output_path} with {len(all_tools)} entries.")
+    return 0
 
 if __name__ == "__main__":
     # main() returns 1 when a tool has no category; propagate it, or the

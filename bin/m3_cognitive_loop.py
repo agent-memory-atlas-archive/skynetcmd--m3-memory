@@ -884,7 +884,7 @@ def _embed_target_dbs(core_db: str | None) -> list[str]:
     main = core_db or os.environ.get("M3_DATABASE")
     if main:
         default_main = paths[0] if paths else None
-        rest = [p for p in paths[1:]] if default_main else list(paths)
+        rest = list(paths[1:]) if default_main else list(paths)
         paths = [os.path.abspath(str(main))] + [
             p for p in rest if os.path.abspath(p) != os.path.abspath(str(main))
         ]
@@ -915,7 +915,7 @@ def _embed_targets(core_db: str | None) -> list[tuple[str | None, str]]:
 def _backfill_argv(db: str | None, store: str, limit: int) -> list[str]:
     argv = ["--target", store, "--limit", str(limit)]
     if db is not None:
-        argv = ["--db", str(db)] + argv
+        argv = ["--db", str(db), *argv]
     return argv
 
 

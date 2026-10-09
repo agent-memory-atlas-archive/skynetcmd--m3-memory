@@ -198,7 +198,7 @@ def extract_env_vars(source: str, is_sh: bool = False) -> list[str]:
             v = next((g for g in match.groups() if g), None)
             if v:
                 vars.add(v)
-    return sorted(list(vars))
+    return sorted(vars)
 
 
 def _literal(n):
@@ -607,7 +607,7 @@ def render_entry(relpath: str, sha1: str, mtime: str, doc: str,
           "",
           "## Purpose",
           "",
-          doc if doc else "_(no module docstring — update the source file.)_",
+          doc or "_(no module docstring — update the source file.)_",
           "",
           "---",
           "",

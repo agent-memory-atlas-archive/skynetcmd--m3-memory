@@ -68,12 +68,12 @@ if TYPE_CHECKING:  # pragma: no cover
 FastMCP = MCPServer
 
 __all__ = [
+    "MCP_MAJOR",
     "FastMCP",
     "MCPServer",
-    "MCP_MAJOR",
-    "run_http",
-    "http_app",
     "get_transport_security",
+    "http_app",
+    "run_http",
     "set_transport_security",
 ]
 

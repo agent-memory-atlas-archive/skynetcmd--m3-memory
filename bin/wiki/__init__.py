@@ -13,4 +13,4 @@ from __future__ import annotations
 
 from .build import WikiOptions, build_wiki
 
-__all__ = ["build_wiki", "WikiOptions"]
+__all__ = ["WikiOptions", "build_wiki"]

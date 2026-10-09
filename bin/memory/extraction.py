@@ -234,8 +234,8 @@ class LLMExtractor(BaseExtractor):
 
     @override
     async def extract(self, text: str) -> dict:
-        active_types = sorted(list(_entity_mod.VALID_ENTITY_TYPES))
-        active_predicates = sorted(list(_entity_mod.VALID_ENTITY_PREDICATES))
+        active_types = sorted(_entity_mod.VALID_ENTITY_TYPES)
+        active_predicates = sorted(_entity_mod.VALID_ENTITY_PREDICATES)
 
         # Setup standard prompt serialization
         prompt = self.custom_prompt

@@ -101,17 +101,17 @@ def _seed(db_path: Path, items: list[dict], embeds: list[dict]) -> None:
 
 
 def _make_args(db_path: Path, **overrides) -> argparse.Namespace:
-    base = dict(
-        db=db_path,
-        type=["chat_log", "message"],
-        variant=[],
-        user_id=None,
-        id_prefix=None,
-        limit=None,
-        batch_size=10,
-        augment_anchors=False,
-        dry_run=False,
-    )
+    base = {
+        "db": db_path,
+        "type": ["chat_log", "message"],
+        "variant": [],
+        "user_id": None,
+        "id_prefix": None,
+        "limit": None,
+        "batch_size": 10,
+        "augment_anchors": False,
+        "dry_run": False,
+    }
     base.update(overrides)
     return argparse.Namespace(**base)
 

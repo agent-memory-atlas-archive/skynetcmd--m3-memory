@@ -323,7 +323,7 @@ def test_chatlog_clones_mirror_core_columns(pg):
     dropped: dict = {}
     with pg.connection() as c:
         cur = c.cursor()
-        for _role, (core_name, chat_log_name) in _CHATLOG_TABLES.items():
+        for (core_name, chat_log_name) in _CHATLOG_TABLES.values():
             core_cols = _cols(cur, core_name)
             cl_cols = _cols(cur, chat_log_name)
             if not core_cols or not cl_cols:

@@ -556,7 +556,7 @@ async def _run_sweep_inner(args: argparse.Namespace, counters: Counters) -> int:
     # them into the existing SQL builder.
     def _fetch(after_id, limit):
         sql, params = _build_query(args, after_id=after_id)
-        params_with_limit = params + [limit]
+        params_with_limit = [*params, limit]
         with _bound_db(args.db) as conn:
             return conn.execute(sql, params_with_limit).fetchall()
 
@@ -627,7 +627,7 @@ async def _run_sweep_inner(args: argparse.Namespace, counters: Counters) -> int:
             max_row_bytes=args.max_row_bytes,
             oversize_mode=("subdivide" if getattr(args, "subdivide_oversize", False)
                            else "skip"),
-            expected_dim=(args.expected_dim if args.expected_dim else None),
+            expected_dim=(args.expected_dim or None),
             limit=args.limit,
             log=_log,
         )

@@ -35,7 +35,7 @@ def test_payload(model, description):
             print(f"❌ Failed with status code: {response.status_code}")
             print(f"Error: {response.text}")
     except Exception as e:
-        print(f"❌ Connection Error: {str(e)}")
+        print(f"❌ Connection Error: {e!s}")
         print("Note: Ensure your router or LM Studio is running on port 1234.")
 
 if __name__ == "__main__":

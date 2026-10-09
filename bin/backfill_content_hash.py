@@ -203,7 +203,7 @@ def _run_backfill(args: argparse.Namespace) -> dict:
                 break
 
             sql, params = _build_select(args, after_id=after_id)
-            params_with_limit = params + [fetch_size]
+            params_with_limit = [*params, fetch_size]
             rows = read_conn.execute(sql, params_with_limit).fetchall()
             counters["scanned"] += len(rows)
 

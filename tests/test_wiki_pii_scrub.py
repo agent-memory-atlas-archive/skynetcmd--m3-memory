@@ -55,7 +55,7 @@ def test_posix_home_path_becomes_basename():
 
 def test_username_attribution_redacted(tmp_path, monkeypatch):
     _with_names(tmp_path, monkeypatch, "alice")
-    out, n = P.scrub_prose("This diagnosis was formalized in an analysis dated 2026-07-13 by alice.")
+    out, _n = P.scrub_prose("This diagnosis was formalized in an analysis dated 2026-07-13 by alice.")
     assert "alice" not in out
     assert "[user]" in out
     assert "2026-07-13" in out  # the date is fine, only the name goes

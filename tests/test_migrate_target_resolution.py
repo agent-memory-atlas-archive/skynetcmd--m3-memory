@@ -156,7 +156,7 @@ def test_ensure_sync_tables_passes_target_chatlog_for_chatlog_path(tmp_path, mon
     monkeypatch.setattr(subprocess, "run", fake_run)
 
     # Reload memory_core's _ensure_sync_tables module-level constants if needed
-    import memory_core  # noqa: WPS433
+    import memory_core
     memory_core._ensure_sync_tables(str(chatlog_path))
 
     assert "cmd" in captured, "_ensure_sync_tables did not call subprocess.run"

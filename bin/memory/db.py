@@ -630,7 +630,7 @@ def _gate_count_query(query: str) -> int:
             row = db.execute(query).fetchone()
             if row is None:
                 return 0
-            return int(row[0] if not hasattr(row, "keys") else list(row)[0])
+            return int(row[0])
     except Exception:
         return 0
 

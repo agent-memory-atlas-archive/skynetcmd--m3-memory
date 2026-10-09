@@ -293,7 +293,7 @@ class SqliteDialect(Dialect):
 
         main = _stat(store)
         if main:
-            main = main + (_read(store, 24, 28),)
+            main = (*main, _read(store, 24, 28))
         shm = _read(store + "-shm", 0, 48)
         return (main, _stat(store + "-wal"), (shm,) if shm else ())
 

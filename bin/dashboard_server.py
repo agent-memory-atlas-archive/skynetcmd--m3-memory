@@ -821,7 +821,7 @@ def set_active_db_env(selected_db: str) -> None:
     which propagates across `await` within a task and does not leak across
     tasks. Nothing needs to be set here, so this does nothing.
     """
-    return None
+    return
 
 def build_db_selector_html(selected_db: str) -> str:
     paths = get_db_paths()
@@ -1503,7 +1503,7 @@ def _render_health_panel() -> str:
                 f'<div style="font-family:\'Fira Code\',monospace;font-size:0.76rem;margin:0.15rem 0 0.15rem {0 if idx==0 else 0.8}rem;">'
                 f'{arrow}<span style="color:hsl(210,15%,65%);">{esc(hop.get("backend"))} {esc(hop.get("url"))}</span> · '
                 f'<span style="color:{hc};">{htxt}</span></div>')
-    if inf.get("remedy") and inf_status not in ("ok",):
+    if inf.get("remedy") and inf_status != "ok":
         parts.append(
             f'<div style="margin-top:0.45rem;color:hsl(35,90%,72%);font-size:0.8rem;">'
             f'{esc(inf.get("remedy"))}</div>')
@@ -2634,7 +2634,7 @@ async def get_audit_timeline(request: Request, q: str = "", limit: int = 25):
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return f'<p style="color: var(--m3-neon-amber); text-align: center; font-size: 0.85rem; padding: 2rem 0;">Failed to scan timelines: {str(e)}</p>'
+        return f'<p style="color: var(--m3-neon-amber); text-align: center; font-size: 0.85rem; padding: 2rem 0;">Failed to scan timelines: {e!s}</p>'
 
 
 @app.post("/api/audit/override/{memory_id}", response_class=HTMLResponse)
@@ -2730,7 +2730,7 @@ async def export_gdpr_data(user_id: str = "default"):
         }
         return StreamingResponse(iter_json(), media_type="application/json", headers=headers)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Export failed: {e!s}") from e
 
 
 @app.post("/api/gdpr/forget")
@@ -2760,7 +2760,7 @@ async def forget_gdpr_data(
         msg = gdpr_forget_impl(user_id, compliance=compliance)
         return HTMLResponse(content=f"GDPR Purge Successful: {msg}", status_code=200)
     except Exception as e:
-        return HTMLResponse(content=f"Purge Failed: {str(e)}", status_code=500)
+        return HTMLResponse(content=f"Purge Failed: {e!s}", status_code=500)
 
 
 active_task: dict[str, Any] = {
@@ -2839,7 +2839,7 @@ async def trigger_maintenance_task(action: str):
             f.write(f"[System] Expected wait time: {expected_wait}\n")
             f.write(f"[System] Command: {' '.join(cmd)}\n\n")
     except Exception as e:
-        return HTMLResponse(content=f"[Error] Failed to initialize log: {str(e)}", status_code=500)
+        return HTMLResponse(content=f"[Error] Failed to initialize log: {e!s}", status_code=500)
 
     # Open log file in append mode for child process redirection
     log_file_handle = open(log_path, "a", encoding="utf-8", errors="replace")  # noqa: SIM115, ASYNC230 — the child's stdout; closed when the task ends
@@ -2880,7 +2880,7 @@ async def trigger_maintenance_task(action: str):
             log_file_handle.close()
         except Exception:
             pass
-        return HTMLResponse(content=f"[Error] Failed to spawn process: {str(e)}", status_code=500)
+        return HTMLResponse(content=f"[Error] Failed to spawn process: {e!s}", status_code=500)
 
 
 def _read_log(path: str) -> str:
@@ -2919,7 +2919,7 @@ async def get_maintenance_status():
             # on every poll, which would stall the server's event loop.
             logs = await asyncio.to_thread(_read_log, log_path)
         except Exception as e:
-            logs = f"Error reading live logs: {str(e)}"
+            logs = f"Error reading live logs: {e!s}"
 
     return JSONResponse(
         content={

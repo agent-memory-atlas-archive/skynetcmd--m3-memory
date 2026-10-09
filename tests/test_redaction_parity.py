@@ -109,7 +109,7 @@ def test_each_group(group, sample):
 def test_all_groups_together():
     content = f"{ANTH} {BEARER} {JWT} {AWS_ID} {GH} a@b.com"
     assert_parity(content, cfg(patterns=ALL_GROUPS))
-    assert_parity(content, cfg(patterns=ALL_GROUPS + ["pii"], pii=True))
+    assert_parity(content, cfg(patterns=[*ALL_GROUPS, "pii"], pii=True))
 
 
 # --- AWS STS / pre-signed URLs (regression, 2026-07-31) --------------------
@@ -137,7 +137,7 @@ def test_aws_sts_key_is_redacted(sample, label):
 
 def test_aws_presigned_signature_and_token_redacted():
     """Scrubbing the key id alone still leaves a usable signed request."""
-    scrubbed, count, _ = assert_parity(AWS_PRESIGNED, cfg(patterns=["aws_keys"]))
+    scrubbed, _count, _ = assert_parity(AWS_PRESIGNED, cfg(patterns=["aws_keys"]))
     assert AWS_STS_SIG not in scrubbed, "signature survived"
     assert AWS_STS_TOKEN not in scrubbed, "session token survived"
 
@@ -180,7 +180,7 @@ def test_eval_order_sensitive():
 def test_marker_not_rematched():
     # the [REDACTED:...] marker must not itself match later patterns.
     content = f"{ANTH} {ANTH} {ANTH}"
-    assert_parity(content, cfg(patterns=ALL_GROUPS + ["pii"], pii=True))
+    assert_parity(content, cfg(patterns=[*ALL_GROUPS, "pii"], pii=True))
 
 
 # --- PII gating ------------------------------------------------------------
@@ -244,11 +244,11 @@ def test_disabled_config():
 
 
 def test_empty_string():
-    assert_parity("", cfg(patterns=ALL_GROUPS + ["pii"], pii=True))
+    assert_parity("", cfg(patterns=[*ALL_GROUPS, "pii"], pii=True))
 
 
 def test_no_secrets():
-    assert_parity("the quick brown fox jumps over the lazy dog", cfg(patterns=ALL_GROUPS + ["pii"], pii=True))
+    assert_parity("the quick brown fox jumps over the lazy dog", cfg(patterns=[*ALL_GROUPS, "pii"], pii=True))
 
 
 def test_adjacent_secrets():

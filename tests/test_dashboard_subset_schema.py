@@ -176,7 +176,7 @@ def test_dashboard_does_not_hardcode_main_only_columns_in_sql():
     """
     with open(os.path.join(_BIN, "dashboard_server.py"), encoding="utf-8") as fh:
         src = fh.read()
-    for stmt in re.findall(r"SELECT[\s\S]{0,800}?FROM\s+memory_items", src, re.I):
+    for stmt in re.findall(r"SELECT[\s\S]{0,800}?FROM\s+memory_items", src, re.IGNORECASE):
         for col in _MAIN_ONLY:
             assert not re.search(r"\bmi\." + col + r"\b", stmt), (
                 col + " is hardcoded in a memory_items SELECT -- build the column "
@@ -203,11 +203,11 @@ def test_core_columns_are_in_every_bootstrap_schema():
         with open(path, encoding="utf-8") as fh:
             sql = fh.read()
         m = re.search(r"CREATE TABLE (?:IF NOT EXISTS )?memory_items\s*\((.*?)\n\);",
-                      sql, re.S | re.I)
+                      sql, re.DOTALL | re.IGNORECASE)
         assert m, "memory_items DDL not found in " + os.path.basename(path)
         body = m.group(1)
         for col in (*_CORE_COLS, "is_deleted"):
-            assert re.search(r"^\s*" + col + r"\s", body, re.M), (
+            assert re.search(r"^\s*" + col + r"\s", body, re.MULTILINE), (
                 col + " must be in the bootstrap of " + os.path.basename(path) +
                 " -- the dashboard selects/filters it unconditionally"
             )

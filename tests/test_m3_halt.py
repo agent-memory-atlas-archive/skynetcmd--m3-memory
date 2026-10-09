@@ -588,7 +588,7 @@ def test_cross_process_lock_released_on_holder_death(tmp_path):
     (no clean release), the OS drops the lock, so the next acquirer wins — no
     stale lock, no reclaim needed."""
     root = str(tmp_path / "engine")
-    holder, holder_pid = _spawn_holder(root, "dashboard", 30.0, str(_BIN))
+    holder, _holder_pid = _spawn_holder(root, "dashboard", 30.0, str(_BIN))
     try:
         # Confirm it's held.
         assert m3_halt.acquire_single_instance("dashboard", engine_root=root).status \

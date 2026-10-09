@@ -152,7 +152,7 @@ class TestOversizeGuardMeasuresTokens(unittest.TestCase):
             sent.append(len(texts))
             return [([0.1], "model") for _ in texts]
 
-        rows = [("big", big, "", None)] + _rows(3, "short")
+        rows = [("big", big, "", None), *_rows(3, "short")]
         c, _logs = _run(spy, rows, oversize_mode="subdivide")
         self.assertIn(1, sent, "oversized row must be sent in its own batch")
         self.assertEqual(c.oversize_subdivided, 1)

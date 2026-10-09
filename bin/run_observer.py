@@ -172,7 +172,7 @@ def _attribute_turn(obs: dict, turns: list[tuple]) -> int | None:
     when the model's self-reported index is missing or wrong."""
     import re as _re
     def toks(s: str) -> set:
-        return {w for w in _re.findall(r"[a-z0-9]{3,}", (s or "").lower())}
+        return set(_re.findall(r"[a-z0-9]{3,}", (s or "").lower()))
     o_toks = toks(obs.get("text", ""))
     if not o_toks:
         return None

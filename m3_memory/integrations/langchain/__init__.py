@@ -26,16 +26,16 @@ from typing import Any
 from .mem0_compat import M3Memory, Memory, MemoryClient
 
 __all__ = [
-    "Memory",
-    "MemoryClient",
-    "M3Memory",
-    "M3Store",
     "M3ChatMessageHistory",
-    "with_m3_history",
+    "M3Memory",
     "M3Retriever",
     "M3Saver",
-    "MemoryWrite",
+    "M3Store",
+    "Memory",
+    "MemoryClient",
     "MemoryRetrieve",
+    "MemoryWrite",
+    "with_m3_history",
     "with_m3_memory",
 ]
 
@@ -49,7 +49,7 @@ _LANGCHAIN_HINT = (
 
 def __getattr__(name: str) -> Any:
     """Lazy-import the LangChain-subclassing surfaces so core stays dep-free."""
-    if name in ("M3Store",):
+    if name == "M3Store":
         try:
             from .store import M3Store
         except ImportError as e:  # missing optional langchain dep
@@ -62,13 +62,13 @@ def __getattr__(name: str) -> Any:
             raise ImportError(f"{name}: {_LANGCHAIN_HINT}") from e
         return {"M3ChatMessageHistory": M3ChatMessageHistory,
                 "with_m3_history": with_m3_history}[name]
-    if name in ("M3Retriever",):
+    if name == "M3Retriever":
         try:
             from .retriever import M3Retriever
         except ImportError as e:
             raise ImportError(f"{name}: {_LANGCHAIN_HINT}") from e
         return M3Retriever
-    if name in ("M3Saver",):
+    if name == "M3Saver":
         try:
             from .checkpoint import M3Saver
         except ImportError as e:

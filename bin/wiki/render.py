@@ -606,7 +606,7 @@ _TYPE_LABEL = dict(_TYPE_SECTIONS)
 # section a topic is filed under and nothing else. It does not rewrite the
 # stored type (that is a curation concern, done through memory_update's `type`
 # field), and it does not affect clustering, ranking, or admission.
-_RUNBOOK_TITLE_RE = re.compile(r"runbook|playbook", re.I)
+_RUNBOOK_TITLE_RE = re.compile(r"runbook|playbook", re.IGNORECASE)
 
 
 def _is_runbook_titled(m) -> bool:

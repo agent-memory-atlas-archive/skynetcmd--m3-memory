@@ -445,10 +445,8 @@ def _build_extractor(
             # Mirror the etype-prefix stripping done on entities so cross-refs
             # match emitted_canonicals. Try common prefixes the model emits.
             for _pfx in ("memory_id_", "file_path_"):
-                if f.startswith(_pfx):
-                    f = f[len(_pfx):]
-                if t.startswith(_pfx):
-                    t = t[len(_pfx):]
+                f = f.removeprefix(_pfx)
+                t = t.removeprefix(_pfx)
             # Both endpoints must have appeared in entities_clean.
             if f not in emitted_canonicals or t not in emitted_canonicals:
                 continue

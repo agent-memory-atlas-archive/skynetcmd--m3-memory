@@ -33,5 +33,16 @@ from . import (
     util,  # noqa: F401
 )
 
-__all__ = ["config", "util", "fts", "db", "embed", "search",
-            "entity", "entity_count", "doctor", "chunking", "textprep"]
+__all__ = [
+    "chunking",
+    "config",
+    "db",
+    "doctor",
+    "embed",
+    "entity",
+    "entity_count",
+    "fts",
+    "search",
+    "textprep",
+    "util",
+]

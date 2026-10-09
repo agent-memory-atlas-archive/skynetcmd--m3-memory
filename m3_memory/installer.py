@@ -826,7 +826,7 @@ def _prompt_and_install_dashboard(interactive: bool) -> None:
     try:
         from m3_memory._pip import pip_command
         proc = subprocess.run(
-            pip_command() + ["install", "m3-memory[dashboard]"],
+            [*pip_command(), "install", "m3-memory[dashboard]"],
             check=False, capture_output=True, text=True, **_hidden_window_kwargs())
         if proc.returncode == 0:
             print("    [OK] web dashboard installed.")
@@ -1969,7 +1969,7 @@ def status_summary() -> dict:
         out["verdict"] = "broken"
         out["headline"] = "NOT installed — run `m3 setup`"
     else:
-        degraded = out["embedder"].startswith("pure-Python") or out["chatlog"] in ("unreadable",)
+        degraded = out["embedder"].startswith("pure-Python") or out["chatlog"] == "unreadable"
         out["verdict"] = "degraded" if degraded else "healthy"
         mem = "?" if out["memories"] is None else out["memories"]
         out["headline"] = (
@@ -2107,7 +2107,7 @@ def _dedupe_mcp_registration(*, apply: bool = False) -> list[str]:
     """
     actions: list[str] = []
     dupes = _duplicate_mcp_registration()
-    for client, servers in dupes.items():
+    for servers in dupes.values():
         for name, files in servers.items():
             # Pick the keeper: prefer a file whose entry has an 'env' block.
             keeper = None

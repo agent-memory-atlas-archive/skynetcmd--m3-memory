@@ -243,7 +243,7 @@ def enroll_group(
     )
     existing = cur.fetchone()
     if existing:
-        old_id, old_hash, old_status = existing
+        old_id, old_hash, _old_status = existing
         if old_hash == source_content_hash:
             return (old_id, "unchanged")
         # Backfill rows store a placeholder hash ("backfill::" or

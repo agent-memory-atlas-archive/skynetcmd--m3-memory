@@ -65,7 +65,7 @@ def test_the_field_list_is_the_rust_structs():
     from m3_core.config import embed_file
 
     src = _RUST_CONFIG.read_text(encoding="utf-8")
-    body = re.search(r"pub struct EmbedSection \{(.*?)\}", src, re.S).group(1)
+    body = re.search(r"pub struct EmbedSection \{(.*?)\}", src, re.DOTALL).group(1)
     fields = tuple(re.findall(r"pub (\w+):", body))
     assert fields == embed_file.SERVER_FIELDS
 

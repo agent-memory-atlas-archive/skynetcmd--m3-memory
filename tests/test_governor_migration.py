@@ -141,7 +141,7 @@ def test_loop_embed_pass_drains_spill():
     # The gate must consider spill too, or a spill-only backlog never schedules
     # the pass (the exact hole that let 2026-07-14/17 spill sit undrained).
     assert "def has_spill_work" in loop_src
-    assert re.search(r"def has_embed_work.*?has_spill_work\(\)", loop_src, re.S), (
+    assert re.search(r"def has_embed_work.*?has_spill_work\(\)", loop_src, re.DOTALL), (
         "has_embed_work must consult has_spill_work, else a spill backlog with an "
         "empty embedding backlog leaves the embed pass unscheduled"
     )

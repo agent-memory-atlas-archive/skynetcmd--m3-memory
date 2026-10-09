@@ -142,7 +142,7 @@ def source_members(cluster: Cluster) -> list:
     else to compile from) — better to re-summarize than to produce nothing.
     """
     srcs = [m for m in cluster.members if m.type != "synthesis"]
-    return srcs if srcs else list(cluster.members)
+    return srcs or list(cluster.members)
 
 
 def min_member_confidence(cluster: Cluster) -> float:

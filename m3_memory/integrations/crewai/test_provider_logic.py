@@ -36,11 +36,11 @@ _c.failed = False  # type: ignore[attr-defined]
 
 def _fake_record(**kw):
     """A stand-in for crewai.memory.types.MemoryRecord (duck-typed)."""
-    base = dict(
-        id="", content="", scope="/", categories=[], metadata={},
-        importance=0.5, created_at=None, last_accessed=None, embedding=None,
-        source=None, private=False,
-    )
+    base = {
+        "id": "", "content": "", "scope": "/", "categories": [], "metadata": {},
+        "importance": 0.5, "created_at": None, "last_accessed": None, "embedding": None,
+        "source": None, "private": False,
+    }
     base.update(kw)
     return SimpleNamespace(**base)
 

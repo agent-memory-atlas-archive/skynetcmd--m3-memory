@@ -1,8 +1,8 @@
 ---
 tool: bin/mcp_proxy.py
-sha1: b78960501fd7
-mtime_utc: 2026-10-09T20:20:02.984079+00:00
-generated_utc: 2026-10-09T20:22:03.759386+00:00
+sha1: bdbc2101005c
+mtime_utc: 2026-10-09T22:01:09.496293+00:00
+generated_utc: 2026-10-09T22:03:21.326235+00:00
 private: false
 ---
 

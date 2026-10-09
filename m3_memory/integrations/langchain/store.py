@@ -56,7 +56,7 @@ def _parse_dt(raw: Any) -> datetime:
         return raw
     if isinstance(raw, str) and raw.strip():
         try:
-            return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            return datetime.fromisoformat(raw)
         except ValueError:
             return _EPOCH
     return _EPOCH

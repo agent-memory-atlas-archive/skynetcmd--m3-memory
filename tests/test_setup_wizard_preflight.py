@@ -964,8 +964,8 @@ def _R(ok, stuck=()):
 
 
 def _q_args(**kw):
-    base = dict(non_interactive=True, force_quiesce=False, force_kill_mcp=False,
-                quiesce_timeout=1.0)
+    base = {"non_interactive": True, "force_quiesce": False, "force_kill_mcp": False,
+                "quiesce_timeout": 1.0}
     base.update(kw)
     return argparse.Namespace(**base)
 
@@ -1705,7 +1705,7 @@ def test_step_headers_are_numbered_in_order_and_labelled_under_upgrade(monkeypat
     import re
     src = Path(setup_wizard.__file__).read_text(encoding="utf-8")
     assert not re.search(r'_say\(f?"Step \d/5', src), "step headers go through _step()"
-    assert sorted(set(int(n) for n in re.findall(r"_step\((\d),", src))) == [0, 1, 2, 3, 4, 5]
+    assert sorted({int(n) for n in re.findall(r"_step\((\d),", src)}) == [0, 1, 2, 3, 4, 5]
     monkeypatch.delenv(setup_wizard.UPGRADE_CALLER_ENV, raising=False)
     setup_wizard._step(2, "native core")
     assert "Step 2/5: native core" in capsys.readouterr().out

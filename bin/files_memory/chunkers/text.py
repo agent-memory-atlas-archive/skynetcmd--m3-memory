@@ -113,7 +113,7 @@ def chunk(path: str, text: str | None = None) -> Iterator[Leaf]:
     cleaned: list[tuple[int, int, str]] = []
     for s, end, t in chunks:
         if cleaned and len(t) < MIN_CHARS:
-            ps, pe, pt = cleaned[-1]
+            ps, _pe, pt = cleaned[-1]
             cleaned[-1] = (ps, end, (pt + "\n\n" + t).strip())
         else:
             cleaned.append((s, end, t))

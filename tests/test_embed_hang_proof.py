@@ -362,7 +362,7 @@ async def test_embed_for_search_skips_when_no_fast_tier(monkeypatch):
     monkeypatch.setattr(emb, "fast_embedder_available", lambda: False)
     monkeypatch.setattr(emb, "_embed", _boom)
 
-    vec, model = await emb.embed_for_search("anything")
+    vec, _model = await emb.embed_for_search("anything")
     assert vec is None
     assert called["n"] == 0, "embed_for_search must not invoke _embed when no fast tier"
 
@@ -401,7 +401,7 @@ async def test_embed_for_search_deadline_degrades_not_hangs(monkeypatch):
 
     loop = asyncio.get_event_loop()
     t0 = loop.time()
-    vec, model = await emb.embed_for_search("q")
+    vec, _model = await emb.embed_for_search("q")
     elapsed = loop.time() - t0
 
     assert vec is None, "slow embed past deadline must degrade to None, not return a vector"
@@ -423,7 +423,7 @@ async def test_embed_for_search_deadline_zero_disables_ceiling(monkeypatch):
     monkeypatch.setattr(emb, "_embed", _slow_but_ok)
     monkeypatch.setattr(cfg, "EMBED_SEARCH_DEADLINE_S", 0.0)
 
-    vec, model = await emb.embed_for_search("q")
+    vec, _model = await emb.embed_for_search("q")
     assert vec == [0.3] * 1024
 
 

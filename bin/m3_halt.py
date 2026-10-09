@@ -307,7 +307,7 @@ _INTERPRETER_NAMES = ("python", "pythonw", "python3")
 def _bare(token: str) -> str:
     """Lower-cased file name of an argv token, quotes and `.exe` dropped."""
     name = token.strip("\"'").replace("\\", "/").rsplit("/", 1)[-1].lower()
-    return name[:-4] if name.endswith(".exe") else name
+    return name.removesuffix(".exe")
 
 
 _PY_OPTS_WITH_VALUE = ("-X", "-W", "-Q", "-c", "-m")

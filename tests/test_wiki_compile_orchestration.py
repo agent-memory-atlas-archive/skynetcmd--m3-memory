@@ -133,7 +133,7 @@ async def test_second_pass_unchanged_writes_nothing():
     heads = {"Alpha": WC.ExistingSynthesis(
         id="h", cluster_hash=_cluster_hash(c, comp.model),
         prose_hash=WC.prose_hash("P"))}
-    stats, writes, sups, prompts = await _run([c], comp, heads)
+    stats, writes, sups, _prompts = await _run([c], comp, heads)
     assert writes == [] and sups == []
     assert stats.skipped_hash == 1
     assert comp.compiles == 0, "unchanged cluster must not call the model"
@@ -145,7 +145,7 @@ async def test_changed_prose_supersedes():
     c = _cluster("Alpha", _mem("a"))
     heads = {"Alpha": WC.ExistingSynthesis(id="old", cluster_hash="stale",
                                            prose_hash=WC.prose_hash("OLD"))}
-    stats, writes, sups, prompts = await _run([c], comp, heads)
+    stats, _writes, sups, _prompts = await _run([c], comp, heads)
     assert len(sups) == 1 and sups[0]["old_id"] == "old"
     assert stats.superseded == 1
 
@@ -169,7 +169,7 @@ class _Backend:
 async def test_checkpoints_on_cadence_and_at_end():
     clusters = [_cluster(f"T{i}", _mem(f"m{i}")) for i in range(5)]
     be = _Backend()
-    stats, writes, sups, prompts = await _run(
+    _stats, _writes, _sups, _prompts = await _run(
         clusters, _Compiler(), heads={}, backend=be, checkpoint_every=2)
     # 5 creates: mid-batch checkpoints after #2 and #4 (final=False), then one
     # final=True at the end.
@@ -179,6 +179,6 @@ async def test_checkpoints_on_cadence_and_at_end():
 @pytest.mark.asyncio
 async def test_no_backend_means_no_checkpoint_calls():
     clusters = [_cluster("Alpha", _mem("a"))]
-    stats, writes, sups, prompts = await _run(clusters, _Compiler(), heads={},
+    stats, _writes, _sups, _prompts = await _run(clusters, _Compiler(), heads={},
                                               backend=None)
     assert stats.created == 1  # runs fine, just no checkpointing

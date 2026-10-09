@@ -84,7 +84,7 @@ def test_parse_none_on_missing_or_bad_pid():
 def test_parse_role_falls_back_to_stem():
     # A legacy entry without a role uses the file stem so it still identifies.
     info = parse_payload({"pid": 5}, Path("cognitive-loop.lock"))
-    assert info is not None and info.role == "cognitive-loop.lock".rsplit(".", 1)[0] \
+    assert (info is not None and info.role == "cognitive-loop.lock".rsplit(".", 1)[0]) \
         or info.role == "cognitive-loop"  # Path.stem drops one suffix
 
 

@@ -346,7 +346,7 @@ def _minutes_since(iso_ts: str | None) -> float | None:
     if not iso_ts:
         return None
     try:
-        dt = datetime.fromisoformat(iso_ts.replace("Z", "+00:00"))
+        dt = datetime.fromisoformat(iso_ts)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=UTC)
         return (datetime.now(UTC) - dt).total_seconds() / 60.0
@@ -711,7 +711,7 @@ def _get_last_turns(main_db: str) -> list[dict[str, str]]:
 
                     ts = r["created_at"]
                     try:
-                        dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                        dt = datetime.fromisoformat(ts)
                         ts_str = dt.strftime("%H:%M:%S")
                     except Exception:
                         ts_str = ts[:10]
@@ -1007,7 +1007,7 @@ def run_live_tui(interval: float = 5.0):
         if key:
             if key in ("q", "\x03"):
                 raise KeyboardInterrupt()
-            elif key == "+":
+            if key == "+":
                 current_interval = min(60.0, current_interval + 1.0)
             elif key == "-":
                 current_interval = max(0.5, current_interval - 1.0)

@@ -36,7 +36,7 @@ def _classify_observer_error(exc: BaseException) -> str:
     """
     name = type(exc).__name__
     msg = str(exc)
-    if "JSONDecode" in name or "json" in msg.lower() and "decode" in msg.lower():
+    if "JSONDecode" in name or ("json" in msg.lower() and "decode" in msg.lower()):
         return "json_decode"
     if "tokenizer" in msg.lower() or "tokeniz" in msg.lower():
         return "tokenizer_error"

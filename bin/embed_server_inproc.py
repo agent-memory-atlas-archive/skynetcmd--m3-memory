@@ -404,7 +404,7 @@ async def _embed(texts: list[str], *, interactive: bool = False) -> list[list[fl
 #   - an OLD client still recovers, because the body carries the original
 #     "N tokens > n_ctx M" message its existing regex already matches. So
 #     upgrading the SERVER alone repairs clients in the field.
-_CTX_OVERFLOW_RE = re.compile(r"(\d+)\s*tokens\s*>\s*n_ctx\s*(\d+)", re.I)
+_CTX_OVERFLOW_RE = re.compile(r"(\d+)\s*tokens\s*>\s*n_ctx\s*(\d+)", re.IGNORECASE)
 # Format-tolerant fallback: other llama.cpp builds / wrappers word this
 # differently. Recognising the CLASS of error is what matters; the counts are
 # best-effort and simply absent when the message does not carry them.

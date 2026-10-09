@@ -17,7 +17,7 @@ from m3_memory.setup_wizard import _should_use_gui
 
 
 def _ns(**kw):
-    base = dict(non_interactive=False, terminal=False, gui=False)
+    base = {"non_interactive": False, "terminal": False, "gui": False}
     base.update(kw)
     return argparse.Namespace(**base)
 

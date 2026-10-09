@@ -144,7 +144,7 @@ async def test_1_structural_parity() -> bool:
         ]
 
         async def mock_auto_title(content, title, force=False):
-            return title if title else "[AUTO] Generated"
+            return title or "[AUTO] Generated"
 
         with patch("memory_core._maybe_auto_title", side_effect=mock_auto_title), \
              patch("memory_core._maybe_auto_entities", return_value=[]), \

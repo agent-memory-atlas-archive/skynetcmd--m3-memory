@@ -105,7 +105,7 @@ def _audit(
             GROUP BY type
             ORDER BY n DESC
         """
-        rows = conn.execute(sql, list(useless_titles) + [min_chars]).fetchall()
+        rows = conn.execute(sql, [*list(useless_titles), min_chars]).fetchall()
         return sum(r[1] for r in rows), {r[0]: r[1] for r in rows}
 
 
@@ -133,7 +133,7 @@ def _backfill(
         """
         if limit:
             sql += f" LIMIT {int(limit)}"
-        rows = conn.execute(sql, list(useless_titles) + [min_chars]).fetchall()
+        rows = conn.execute(sql, [*list(useless_titles), min_chars]).fetchall()
 
         cur = conn.cursor()
         # Detect whether the FTS table is a contentless index (newer m3) so
@@ -208,7 +208,7 @@ def _sample_derivations(
               AND {seam_dialect().byte_length("COALESCE(content,'')")} >= {seam_dialect().param()}
             ORDER BY {seam_dialect().byte_length('content')} DESC LIMIT {seam_dialect().param()}
         """
-        rows = conn.execute(sql, list(useless_titles) + [min_chars, n]).fetchall()
+        rows = conn.execute(sql, [*list(useless_titles), min_chars, n]).fetchall()
         return [(r[0] or "<NULL>", _derive_title(r[1] or "", max_title_chars)) for r in rows]
 
 
@@ -239,7 +239,7 @@ def main() -> int:
         useless = tuple(t.strip() for t in args.useless_titles.split(",") if t.strip() != "<NONE>")
         # Allow user to keep the empty-string match by writing "<EMPTY>" or "" in the list
         if "" not in useless:
-            useless = useless + ("",)
+            useless = (*useless, "")
     else:
         useless = DEFAULT_USELESS_TITLES
 

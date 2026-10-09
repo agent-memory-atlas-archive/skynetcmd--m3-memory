@@ -43,11 +43,11 @@ from typing import Any
 MIN_PYDANTIC_AI_VERSION = "2.0.0"
 
 __all__ = [
-    "M3Deps",
-    "register_m3_tools",
-    "m3_recall_processor",
-    "M3MemoryToolset",
     "MIN_PYDANTIC_AI_VERSION",
+    "M3Deps",
+    "M3MemoryToolset",
+    "m3_recall_processor",
+    "register_m3_tools",
 ]
 
 _PAI_HINT = (

@@ -5,6 +5,7 @@ without a cluster (the live apply/revert contract is in test_migrate_pg_live.py)
 """
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -67,7 +68,7 @@ class TestDsnGuard:
         # Match the REFUSED HOST, not the env var name: M3_PG_FORBIDDEN_HOSTS is
         # an input to this test, so a message that merely echoed it for some
         # unrelated reason would still pass. The host is what the guard decided.
-        with pytest.raises(RuntimeError, match="198.51.100.7"):
+        with pytest.raises(RuntimeError, match=re.escape("198.51.100.7")):
             migrate_pg._resolve_dsn()
 
     def test_no_dsn_exits(self, monkeypatch):

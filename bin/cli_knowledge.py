@@ -83,7 +83,7 @@ def main():
 
     if args.add is not None:
         tags = [t.strip() for t in args.tags.split(",")] if args.tags else []
-        add_type = args.type if args.type else "knowledge"
+        add_type = args.type or "knowledge"
         result = add_knowledge(args.add, title=args.title, source=args.source, tags=tags, item_type=add_type, metadata=args.metadata)
         print(result)
 

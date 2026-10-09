@@ -255,7 +255,7 @@ def pg_schema_backend():
 def test_pg_snapshot_verifies_and_survives_a_concurrent_writer(pg_schema_backend, tmp_path, monkeypatch):
     """Rows committed after the snapshot export are in neither the dump nor
     the counts, and multi-line values still count as one row each."""
-    b, schema, _ = pg_schema_backend
+    b, _schema, _ = pg_schema_backend
     real = type(b)._run_pg_dump
     seen = {}
 

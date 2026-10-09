@@ -289,7 +289,7 @@ def test_no_bare_m3_and_no_hardcoded_interpreter_paths():
     # is not.
     import re
 
-    launches = re.findall(r'\[([^\]]*?)"-m",\s*"m3_memory\.cli"', src, re.S)
+    launches = re.findall(r'\[([^\]]*?)"-m",\s*"m3_memory\.cli"', src, re.DOTALL)
     for head in launches:
         assert "sys.executable" in head, (
             f"a CLI launch does not use sys.executable: {head.strip()[:80]!r}"

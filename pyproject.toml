@@ -367,14 +367,23 @@ select = ["E", "F", "W", "I", "UP",
           # strict= (a short batch result silently dropped items). ASYNC240
           # (os.path) stays off: nearly all of it is string manipulation, not I/O.
           "B023", "B904", "RUF012", "SIM115",
-          "ASYNC220", "ASYNC221", "ASYNC230", "ASYNC250", "B905"]
+          "ASYNC220", "ASYNC221", "ASYNC230", "ASYNC250", "B905",
+          # Idiom rules (comprehensions, refurb, perf, return hygiene, selected
+          # RUF). Off on purpose: PERF401/403 (loop->comprehension rewrites are
+          # churn, not defects); RUF001-003 (the prose uses en dashes and
+          # arrows deliberately); RUF013 (belongs to the strict_optional
+          # ratchet); RET504/505 (style); RUF100 (until BLE001 is on -- it would
+          # strip 601 reasoned `noqa: BLE001` markers).
+          "C4", "FURB", "PERF", "RET501", "RET502", "RET503", "RET506",
+          "RUF005", "RUF010", "RUF015", "RUF021", "RUF022", "RUF023", "RUF043",
+          "RUF046", "RUF051", "RUF059", "RUF102"]
 # E501: long lines handled by editor wrap, not blocker for this codebase.
 # E402: many bin/ entrypoints do sys.path setup or lazy imports deliberately
 #   before importing project modules — buried imports are intentional.
 # E701/E702: one-liner `if x: return` / `try: foo` is used throughout bench
 #   and ingest scripts as a terseness choice; not a readability problem here.
 # E741: single-letter vars (l, O, I) are used intentionally in math/loop contexts.
-ignore = ["E501", "E402", "E701", "E702", "E741"]
+ignore = ["E501", "E402", "E701", "E702", "E741", "PERF401", "PERF403"]
 
 [tool.ruff.lint.per-file-ignores]
 # memory_core.py uses a module-level __getattr__ for lazy submodule dispatch.
@@ -387,7 +396,9 @@ ignore = ["E501", "E402", "E701", "E702", "E741"]
 # Test fakes mirror production class attributes, often as plain mutable
 # defaults; RUF012 there flags the fake's shape, not a shared-state bug.
 # Async tests read small fixture files with nothing else on their loop (ASYNC230).
-"tests/**" = ["RUF012", "ASYNC230"]
+# `[x for x in xs if ...][0]` fails with IndexError when nothing matched, which
+# names the problem; next(...) would raise StopIteration (RUF015).
+"tests/**" = ["RUF012", "ASYNC230", "RUF015"]
 
 [tool.mypy]
 python_version = "3.12"

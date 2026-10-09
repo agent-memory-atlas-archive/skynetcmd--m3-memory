@@ -48,7 +48,7 @@ def test_scrub_bearer_tokens():
         "redact_pii": False,
     }
     chatlog_redaction.compile_patterns(config)
-    scrubbed, count, groups = chatlog_redaction.scrub(content, config)
+    scrubbed, count, _groups = chatlog_redaction.scrub(content, config)
 
     assert "[REDACTED:" in scrubbed
     assert "Bearer" not in scrubbed or count > 0
@@ -112,7 +112,7 @@ def test_scrub_github_tokens():
         "redact_pii": False,
     }
     chatlog_redaction.compile_patterns(config)
-    scrubbed, count, groups = chatlog_redaction.scrub(content, config)
+    scrubbed, count, _groups = chatlog_redaction.scrub(content, config)
 
     # Either redacted or count is 0 (pattern may be stricter)
     if count > 0:
@@ -133,7 +133,7 @@ def test_scrub_pii_disabled_by_default():
         "redact_pii": False,  # OFF
     }
     chatlog_redaction.compile_patterns(config)
-    scrubbed, count, groups = chatlog_redaction.scrub(email, config)
+    scrubbed, count, _groups = chatlog_redaction.scrub(email, config)
 
     # PII should not be redacted without redact_pii=True
     assert scrubbed == email or count == 0
@@ -190,7 +190,7 @@ def test_scrub_multiple_patterns():
         "redact_pii": False,
     }
     chatlog_redaction.compile_patterns(config)
-    scrubbed, count, groups = chatlog_redaction.scrub(content, config)
+    scrubbed, count, _groups = chatlog_redaction.scrub(content, config)
 
     # At least one pattern should match (api_keys is strict)
     if count > 0:
@@ -248,7 +248,7 @@ def test_scrub_preserves_unmatched_content():
         "redact_pii": False,
     }
     chatlog_redaction.compile_patterns(config)
-    scrubbed, count, groups = chatlog_redaction.scrub(content, config)
+    scrubbed, count, _groups = chatlog_redaction.scrub(content, config)
 
     assert scrubbed == content
     assert count == 0

@@ -94,7 +94,7 @@ def test_run_ingest_returns_five_tuple_in_all_hooks(monkeypatch):
     for name in HOOKS:
         mod = _load(name)
         _patch_subprocess(monkeypatch, mod, _fake_ingest_stdout(written=0, skipped=1682))
-        written, skipped, failed, error, rc = mod.run_ingest("py", mod.Path("ingest.py"), [])
+        written, skipped, failed, error, _rc = mod.run_ingest("py", mod.Path("ingest.py"), [])
         assert (written, skipped, failed, error) == (0, 1682, 0, None)
 
 

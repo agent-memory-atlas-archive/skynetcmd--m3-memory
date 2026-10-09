@@ -19,12 +19,12 @@ import chatlog_prune as cp
 
 
 def _opts(**over):
-    base = dict(
-        fresh_days=14.0, prune_days=45.0, status_min_cluster=5,
-        generic_imp_max=0.3, keep_imp_floor=0.4, generic_protect_len=300,
-        generic_delete_maxlen=300, no_generic=False, max_actions=0,
-        apply=True,
-    )
+    base = {
+        "fresh_days": 14.0, "prune_days": 45.0, "status_min_cluster": 5,
+        "generic_imp_max": 0.3, "keep_imp_floor": 0.4, "generic_protect_len": 300,
+        "generic_delete_maxlen": 300, "no_generic": False, "max_actions": 0,
+        "apply": True,
+    }
     base.update(over)
     return SimpleNamespace(**base)
 

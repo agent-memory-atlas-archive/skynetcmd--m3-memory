@@ -3375,7 +3375,7 @@ def _step_install_dashboard(plan: SetupPlan) -> bool:
     try:
         from m3_memory._pip import pip_command
         proc = subprocess.run(
-            pip_command() + ["install", "m3-memory[dashboard]"],
+            [*pip_command(), "install", "m3-memory[dashboard]"],
             check=False, capture_output=True, text=True, **_hidden_window_kwargs())
         if proc.returncode == 0:
             print("    [OK] web dashboard installed.")

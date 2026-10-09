@@ -189,7 +189,7 @@ def test_a_store_on_the_warehouse_is_refused(monkeypatch, stores_file):
     monkeypatch.setenv("M3_CDW_PG_URL", dsn)
     mb._reset_for_tests()
     with active_store("bench"):
-        with pytest.raises(Exception, match="(?i)warehouse"):
+        with pytest.raises(Exception, match=r"(?i)warehouse"):
             mb.active_backend()
 
 
@@ -303,7 +303,7 @@ def test_every_bridge_wrapper_runs_inside_the_store(stores_file, tmp_path, monke
 
     path = _scratch(stores_file, tmp_path, monkeypatch)
     ran: list = []
-    cat, spec = _path_probe(ran)
+    _cat, spec = _path_probe(ran)
     if kind == "async":
         sync_impl = spec.impl
 

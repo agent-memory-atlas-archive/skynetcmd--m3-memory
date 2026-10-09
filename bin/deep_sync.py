@@ -14,7 +14,7 @@ BACKUP_MSG = f"Deep-Sync: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
 def run_git(args):
     try:
-        subprocess.check_call(["git", "-C", WORKSPACE] + args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.check_call(["git", "-C", WORKSPACE, *args], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except subprocess.CalledProcessError as e:
         logger.error(f"Git Error: Command {' '.join(args)} failed with exit code {e.returncode}")
         raise e

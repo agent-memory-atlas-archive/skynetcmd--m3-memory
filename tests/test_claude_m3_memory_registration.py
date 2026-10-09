@@ -74,7 +74,7 @@ def _no_repo_writes(monkeypatch, gc):
     def _guarded(path, data):
         target = os.path.realpath(str(path))
         if target == repo or target.startswith(repo + os.sep):
-            return  # a template write into the checkout: drop it
+            return None  # a template write into the checkout: drop it
         return real_write(path, data)
 
     monkeypatch.setattr(gc, "_write_json", _guarded)

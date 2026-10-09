@@ -104,7 +104,7 @@ def test_returns_none_when_there_is_nothing_to_remove():
     when nothing is wrong as a violation in its own right."""
     ns = _load_helpers()
     # In this dev checkout there is no nested venv under the imported package.
-    assert ns["remove_stale_nested_venv"](dry_run=True) in (None,), (
+    assert ns["remove_stale_nested_venv"](dry_run=True) is None, (
         "reported an action on a system with no nested venv"
     )
 

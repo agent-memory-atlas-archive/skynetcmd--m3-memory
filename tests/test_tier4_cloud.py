@@ -87,7 +87,7 @@ async def test_tier4_fallback_disabled_by_default(monkeypatch):
     client_mock.post = mock_post
     monkeypatch.setattr("memory.embed._get_embed_client", lambda: client_mock)
 
-    vec, model = await _embed("hello")
+    vec, _model = await _embed("hello")
     assert vec is None
 
 
@@ -157,7 +157,7 @@ async def test_tier4_fallback_triggered_with_redaction(monkeypatch):
     monkeypatch.setattr(_me, "_EMBED_CLIENT", None, raising=False)
 
     # Let's request an embedding with sensitive data
-    vec, model = await _embed("My secret key is sk-proj-12345678901234567890 and email is test@domain.com")
+    vec, _model = await _embed("My secret key is sk-proj-12345678901234567890 and email is test@domain.com")
 
     # Tier 4 returned the proper-identity embedding via the class-level mock.
     assert vec == proper_vec

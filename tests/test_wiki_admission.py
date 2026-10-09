@@ -47,8 +47,7 @@ def test_signals_ignore_compile_produced_consolidates():
     c = _clu(_m("a"), _m("b"), _m("c"))
     authored = [_E("a", "b", "supersedes"), _E("b", "c", "related")]
     s1 = A.structural_signals(c, authored)
-    s2 = A.structural_signals(c, authored + [_E("a", "b", "consolidates"),
-                                            _E("a", "c", "consolidates")])
+    s2 = A.structural_signals(c, [*authored, _E("a", "b", "consolidates"), _E("a", "c", "consolidates")])
     assert (s1.provenance, s1.backbone_ratio, s1.kas) == \
            (s2.provenance, s2.backbone_ratio, s2.kas)
 
@@ -90,16 +89,13 @@ def test_admission_is_state_independent_across_compiles():
     cold_edges = [_E("a", "b", "supersedes"), _E("b", "c", "extends")]
     # Warm: same members PLUS the synthesis pulled in by consolidates edges.
     warm = _clu(_m("a"), _m("b"), _m("c"), _m("syn", type="synthesis"))
-    warm_edges = cold_edges + [_E("syn", "a", "consolidates"),
-                               _E("syn", "b", "consolidates"),
-                               _E("syn", "c", "consolidates")]
+    warm_edges = [*cold_edges, _E("syn", "a", "consolidates"), _E("syn", "b", "consolidates"), _E("syn", "c", "consolidates")]
     assert g.admits(cold, cold_edges) == g.admits(warm, warm_edges)
     # And the same for a grab-bag: demoted in both states.
     cold_bb = _clu(_m("x"), _m("y"))
     warm_bb = _clu(_m("x"), _m("y"), _m("s2", type="synthesis"))
     bb_edges = [_E("x", "y", "co_mentions")]
-    warm_bb_edges = bb_edges + [_E("s2", "x", "consolidates"),
-                                _E("s2", "y", "consolidates")]
+    warm_bb_edges = [*bb_edges, _E("s2", "x", "consolidates"), _E("s2", "y", "consolidates")]
     assert g.admits(cold_bb, bb_edges) is False
     assert g.admits(warm_bb, warm_bb_edges) is False
 
@@ -303,7 +299,7 @@ async def _run(clusters, edges=None, gate=None):
 @pytest.mark.asyncio
 async def test_no_edges_means_no_gating():
     """Without an edge graph the gate can't score — every cluster compiles."""
-    stats, writes = await _run([_cluster("a", "b"), _cluster("c", "d")], edges=None)
+    stats, _writes = await _run([_cluster("a", "b"), _cluster("c", "d")], edges=None)
     assert stats.created == 2 and stats.demoted == 0
 
 

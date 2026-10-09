@@ -144,7 +144,7 @@ def _list_installed_task_names() -> set[str]:
     os_name = _os_name()
     names: set[str] = set()
     candidates = (
-        [n for n in GOVERNOR_ELIGIBLE]
+        list(GOVERNOR_ELIGIBLE)
         + [n for n, _ in KEEP_SCHEDULED_FLOOR]
         + [n for n, _ in NOT_MIGRATABLE]
     )

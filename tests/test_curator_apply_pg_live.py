@@ -80,7 +80,7 @@ def pg_seeded(monkeypatch):
 
 
 def test_apply_memory_plan_runs_on_pg(pg_seeded):
-    mc, b, ids = pg_seeded
+    _mc, b, ids = pg_seeded
     from curator_apply import apply_memory_plan
 
     plan = {
@@ -114,7 +114,7 @@ def test_apply_memory_plan_runs_on_pg(pg_seeded):
 def test_curate_no_longer_gated_on_pg(pg_seeded):
     """The SQLite-only gate is gone: apply_memory_plan must NOT raise the
     require_sqlite_backend RuntimeError on a postgres backend."""
-    mc, b, ids = pg_seeded
+    _mc, _b, ids = pg_seeded
     from curator_apply import apply_memory_plan
 
     out = apply_memory_plan({"update": [{"id": ids[0], "importance": 0.9}]})

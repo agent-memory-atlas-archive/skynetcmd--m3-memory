@@ -86,7 +86,7 @@ def test_non_interactive_never_blocks():
 
 def test_yes_core_installs_without_a_tty():
     """--yes-core is the scripted opt-in; it must not need a TTY."""
-    out, calls = _run(current=False, installed="3.7.31", interactive=False,
+    _out, calls = _run(current=False, installed="3.7.31", interactive=False,
                       assume_yes=True)
     assert len(calls) == 1
 

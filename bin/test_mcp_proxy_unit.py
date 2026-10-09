@@ -55,7 +55,7 @@ class TestMcpProxyImportAndCatalog(unittest.TestCase):
 
     def test_catalog_default_filters_destructive(self):
         self.assertFalse(self.mcp_proxy.ALLOW_DESTRUCTIVE)
-        catalog_schemas, specs = self.mcp_proxy._build_catalog_tools()
+        catalog_schemas, _specs = self.mcp_proxy._build_catalog_tools()
         catalog_names = {t["function"]["name"] for t in catalog_schemas}
         destructive = {
             "memory_delete", "memory_maintenance",

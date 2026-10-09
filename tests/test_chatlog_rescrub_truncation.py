@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import sys
 import uuid
 from pathlib import Path
@@ -241,7 +242,7 @@ def test_rescrub_refuses_when_redaction_is_off(tmp_path, monkeypatch):
     monkeypatch.setenv("M3_CHATLOG_DB_PATH", str(db))
     _enable_redaction(monkeypatch, tmp_path, enabled=False)
 
-    with pytest.raises(ValueError, match="redaction.enabled must be true"):
+    with pytest.raises(ValueError, match=re.escape("redaction.enabled must be true")):
         _rescrub(limit=10)
 
 

@@ -478,8 +478,7 @@ def _spill_batch(batch: list[dict]) -> None:
     day = datetime.now(UTC).strftime("%Y%m%d")
     path = os.path.join(chatlog_config.SPILL_DIR, f"{day}.jsonl")
     with open(path, "a", encoding="utf-8") as f:
-        for item in batch:
-            f.write(json.dumps(item, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps(item, ensure_ascii=False) + "\n" for item in batch)
     _update_state_spill()
 
 
@@ -818,7 +817,7 @@ async def _chatlog_search_separate(
                     f"WHERE memory_items_fts MATCH ? AND {where} "
                     "ORDER BY rank LIMIT ?"
                 )
-                rows = conn.execute(sql, [fts_query] + params + [k]).fetchall()
+                rows = conn.execute(sql, [fts_query, *params, k]).fetchall()
             elif fts_query:
                 # Non-SQLite (PG): route keyword search through the seam's
                 # keyword_search against the chatlog items table (chat_log_items's
@@ -850,7 +849,7 @@ async def _chatlog_search_separate(
                     f"FROM {_T} mi WHERE {where} "
                     f"ORDER BY created_at DESC LIMIT {_p}"
                 )
-                rows = conn.execute(sql, params + [k]).fetchall()
+                rows = conn.execute(sql, [*params, k]).fetchall()
 
             results = []
             for r in rows:
@@ -970,7 +969,7 @@ async def chatlog_promote_impl(
                 if row_ids:
                     conn.execute(
                         f"UPDATE memory_items SET type=?, updated_at=? WHERE {where}",
-                        [target_type, _utcnow_iso()] + params,
+                        [target_type, _utcnow_iso(), *params],
                     )
                     conn.commit()
                 return {"promoted": len(row_ids), "ids": row_ids, "unified": True}
@@ -1060,7 +1059,7 @@ def chatlog_list_conversations_impl(
         f"ORDER BY last_at DESC LIMIT {_p} OFFSET {_p}"
     )
     with ctx.get_chatlog_conn() as conn:
-        rows = conn.execute(sql, params + [limit, offset]).fetchall()
+        rows = conn.execute(sql, [*params, limit, offset]).fetchall()
     out = [
         {
             "conversation_id": r["conversation_id"],
@@ -1230,7 +1229,7 @@ async def chatlog_rescrub_impl(
             rows = conn.execute(
                 f"SELECT id, content, metadata_json FROM {_T} WHERE {where} "
                 f"ORDER BY id LIMIT {_p}",
-                params + [limit + 1],
+                [*params, limit + 1],
             ).fetchall()
             truncated = len(rows) > limit
             rows = rows[:limit]

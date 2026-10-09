@@ -86,7 +86,7 @@ def render_svg(repo: str, times: list[datetime], generated: datetime) -> str:
         span = (t1 - t0).total_seconds() or 1.0
         pts = [(((t - t0).total_seconds() / span), i + 1) for i, t in enumerate(times)]
         # ensure the line starts at zero on the left edge
-        pts = [(0.0, 0)] + pts
+        pts = [(0.0, 0), *pts]
     else:
         pts = [(0.0, 0), (1.0, total)]
 

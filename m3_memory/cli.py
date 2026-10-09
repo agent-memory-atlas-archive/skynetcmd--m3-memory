@@ -135,7 +135,7 @@ def _auto_install(interactive: bool) -> "Path | None":
         try:
             reply = input().strip().lower()
         except (EOFError, KeyboardInterrupt):
-            print("")  # newline after ^C / ^D
+            print()  # newline after ^C / ^D
             return None
         if reply and reply not in ("y", "yes"):
             return None
@@ -1064,7 +1064,7 @@ def _run_bin_script(script_name: str, argv: list) -> int:
         sys.path.insert(0, bin_dir)
 
     saved_argv = sys.argv
-    sys.argv = [str(script)] + list(argv)
+    sys.argv = [str(script), *list(argv)]
     try:
         try:
             runpy.run_path(str(script), run_name="__main__")
@@ -1256,7 +1256,7 @@ def _cmd_chatlog(args: argparse.Namespace) -> int:
         from m3_memory.installer import find_bridge
         bridge = find_bridge()
         if bridge is None:
-            print("", file=sys.stdout)  # empty — caller should treat as no-op
+            print(file=sys.stdout)  # empty — caller should treat as no-op
             return 1
         if sys.platform == "win32":
             script = bridge.parent / "hooks" / "chatlog" / "claude_code_precompact.ps1"

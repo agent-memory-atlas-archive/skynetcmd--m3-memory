@@ -248,7 +248,7 @@ def _query_eligible_groups(
     # in the no-filter path. With the chunked-IN path turns can come back
     # interleaved across chunks — sort defensively.
     if conv_chunks:
-        for k, turns in groups.items():
+        for turns in groups.values():
             turns.sort(key=lambda t: (t[3], t[4]))  # turn_index, created_at
 
     out = [(uid, cid, turns) for (uid, cid), turns in groups.items()]

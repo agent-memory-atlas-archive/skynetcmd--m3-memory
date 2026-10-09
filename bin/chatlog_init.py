@@ -180,7 +180,7 @@ def interactive_host_agents() -> dict[str, HookSpec]:
             host_agents[agent] = HookSpec(enabled=False)
             continue
 
-        sh_path, ps1_path, desc = get_hook_path_for_agent(agent)
+        sh_path, _ps1_path, _desc = get_hook_path_for_agent(agent)
         spec = HookSpec(enabled=True, hook_path=sh_path)
 
         # Claude Code has two hook points: PreCompact (fires when Claude
@@ -482,7 +482,7 @@ def apply_gemini_settings() -> tuple[bool, str]:
     hooks = existing.setdefault("hooks", {})
     current_se = hooks.get("SessionEnd") or []
     user_se = [e for e in current_se if "chatlog" not in json.dumps(e).lower()]
-    desired_se = user_se + [{"hooks": [{"type": "command", "command": hook_cmd}]}]
+    desired_se = [*user_se, {"hooks": [{"type": "command", "command": hook_cmd}]}]
     if current_se != desired_se:
         hooks["SessionEnd"] = desired_se
         actions.append("SessionEnd hook")

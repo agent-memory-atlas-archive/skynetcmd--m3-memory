@@ -197,7 +197,7 @@ def test_uses_real_markdown_links_not_wikilinks():
     for path, text in vault.items():
         # Strip inline code spans and fenced code blocks, then any [[ is a real link.
         stripped = _re.sub(r"`[^`]*`", "", text)
-        stripped = _re.sub(r"```.*?```", "", stripped, flags=_re.S)
+        stripped = _re.sub(r"```.*?```", "", stripped, flags=_re.DOTALL)
         assert "[[" not in stripped, f"{path} contains a bare Obsidian [[wikilink]]"
     # A topic page links back up to the index with a correct relative path.
     topic = [t for p, t in vault.items()
@@ -359,7 +359,7 @@ def test_html_viewer_self_contained():
     html = build_html(vault)
     assert "__PAGES_JSON__" not in html and "__TITLE__" not in html
     m = _re.search(r'<script id="data" type="application/json">(.*?)</script>',
-                   html, _re.S)
+                   html, _re.DOTALL)
     assert m, "embedded data blob missing"
     blob = m.group(1)
     assert "</script>" not in blob, "unescaped </script> would break out of the tag"

@@ -249,8 +249,7 @@ def chat_completions_url(endpoint: str) -> str:
     exactly one. Tolerant input, canonical output.
     """
     base = (endpoint or "").rstrip("/")
-    if base.endswith("/v1"):
-        base = base[: -len("/v1")]
+    base = base.removesuffix("/v1")
     return base + "/v1/chat/completions"
 
 

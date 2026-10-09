@@ -131,7 +131,7 @@ def test_records_are_json_serializable_for_every_supported_scalar():
         dt=datetime.datetime(2026, 1, 1),
         d=decimal.Decimal("2.5"),
         blob=b"xx",
-        nested={"k": [1, decimal.Decimal("3")]},
+        nested={"k": [1, decimal.Decimal(3)]},
     )
     json.dumps(records.as_records_payload([row]))  # must not raise
 
@@ -152,7 +152,7 @@ def test_param_name_and_spec_are_single_owner():
 
 
 def test_scalar_payload_normalizes_like_rows():
-    out = records.scalar_payload(total=decimal.Decimal("7"), when=datetime.date(2026, 9, 14))
+    out = records.scalar_payload(total=decimal.Decimal(7), when=datetime.date(2026, 9, 14))
     assert out == {"total": 7.0, "when": "2026-09-14"}
 
 

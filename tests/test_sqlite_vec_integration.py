@@ -118,7 +118,7 @@ async def test_search_uses_sqlite_vec_when_active(monkeypatch):
         results = await search.memory_search_scored_impl("test query", search_mode="semantic", k=5)
 
         assert len(results) == 1
-        score, hit = results[0]
+        _score, hit = results[0]
         assert hit["id"] == "mem1"
 
         # Verify that vec_distance_cosine was in the executed query
@@ -201,12 +201,12 @@ async def test_search_falls_back_when_sqlite_vec_inactive(monkeypatch):
         results = await search.memory_search_scored_impl("test query", search_mode="semantic", k=5)
 
         assert len(results) == 1
-        score, hit = results[0]
+        _score, hit = results[0]
         assert hit["id"] == "mem2"
 
         # Verify that vec_distance_cosine was NOT in the executed query
         assert len(executed_queries) == 1
-        sql, params = executed_queries[0]
+        sql, _params = executed_queries[0]
         assert "vec_distance_cosine" not in sql
     finally:
         conn.close()

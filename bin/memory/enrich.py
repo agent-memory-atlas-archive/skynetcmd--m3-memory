@@ -472,7 +472,7 @@ def _select_pending_fact_enrichment(db, limit: int | None = None, allowed_varian
     if limit is not None:
         sql += f" LIMIT {int(limit)}"
 
-    params = variant_params + [_read_gate("FACT_ENRICH_MAX_ATTEMPTS")]
+    params = [*variant_params, _read_gate("FACT_ENRICH_MAX_ATTEMPTS")]
     return list(db.execute(sql, params).fetchall())
 
 

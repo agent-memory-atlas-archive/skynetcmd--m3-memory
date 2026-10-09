@@ -81,7 +81,7 @@ CONFIG_FILES = (
     ".wiki_authority.json", ".wiki_pii.json", ".wiki_self_entities.json",
 )
 
-_SECRET_NAME = re.compile(r"(KEY|TOKEN|SECRET|PASSW|SALT|DSN|CREDENTIAL|MASTER|_PG_URL|^PG_URL)", re.I)
+_SECRET_NAME = re.compile(r"(KEY|TOKEN|SECRET|PASSW|SALT|DSN|CREDENTIAL|MASTER|_PG_URL|^PG_URL)", re.IGNORECASE)
 _URL_CREDENTIALS = re.compile(r"://[^/@\s:]+:[^/@\s]+@")
 
 

@@ -283,7 +283,7 @@ def collect_pipeline_stats(db_path: str) -> dict:
                     )
                     rates[w] = produced / w  # items per minute over the window
             else:
-                rates = {w: 0.0 for w in WINDOWS_MIN}
+                rates = dict.fromkeys(WINDOWS_MIN, 0.0)
             # Prefer a STABLE window for the ETA: the 1-min window is jumpy (a
             # burst reads as a huge rate → absurdly short ETA). Use the longest
             # window with signal (smoother, honest), falling back to shorter ones.

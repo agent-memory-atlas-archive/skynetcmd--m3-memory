@@ -585,10 +585,7 @@ _STATUS_RUNNING = ("running", "active", "started")
 # Every state word a registered service can be reported in — transitional ones
 # included. "not installed" is handled separately, before this is consulted.
 # m3-embed-server prints SCM's transitional states hyphenated ("start-pending").
-_STATUS_REGISTERED = _STATUS_RUNNING + (
-    "stopped", "inactive", "activating", "start_pending", "stop_pending",
-    "-pending", "paused", "dead", "failed", "disabled", "loaded",
-)
+_STATUS_REGISTERED = (*_STATUS_RUNNING, "stopped", "inactive", "activating", "start_pending", "stop_pending", "-pending", "paused", "dead", "failed", "disabled", "loaded")
 
 
 def _status_says_running(blob: str) -> bool:
@@ -1413,7 +1410,7 @@ def cmd_unshared(args: argparse.Namespace) -> int:
     else:
         print(f"[~] {path} not present — nothing to remove.")
     inproc_on = os.environ.get("M3_EMBED_INPROC", "0") == "1"
-    print("")
+    print()
     if inproc_on:
         print("     M3_EMBED_INPROC=1 is set, so processes WILL load their own "
               "in-process embedder.")

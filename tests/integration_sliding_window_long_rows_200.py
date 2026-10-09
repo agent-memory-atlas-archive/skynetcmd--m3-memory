@@ -171,7 +171,7 @@ def main():
                         "chars_per_token": (chunk_chars[j] / tok) if tok else None,
                         "err": err,
                     })
-                    failed_chunk_token_counts.append(tok if tok else 0)
+                    failed_chunk_token_counts.append(tok or 0)
                 else:
                     other_failures.append({"db": db_label, "memory_id": mid, "err": err})
 
@@ -254,7 +254,7 @@ def main():
 
     print("\n=== DENSE OVERFLOW (chunks tokenized > 8192) ===")
     print(f"  failed-chunk count: {len(dense_overflow_rows)}")
-    print(f"  failed-row count:   {len(set(r['memory_id'] for r in dense_overflow_rows))}")
+    print(f"  failed-row count:   {len({r['memory_id'] for r in dense_overflow_rows})}")
     if dense_overflow_rows:
         toks = [r["reported_tokens"] for r in dense_overflow_rows if r["reported_tokens"]]
         if toks:
@@ -280,7 +280,7 @@ def main():
     # Recommendation
     print("\n=== IMPLICATION ===")
     if dense_overflow_rows:
-        n_failed_rows = len(set(r['memory_id'] for r in dense_overflow_rows))
+        n_failed_rows = len({r['memory_id'] for r in dense_overflow_rows})
         pct = 100 * n_failed_rows / N
         print(f"  {pct:.1f}% of long rows had at least one chunk hit the dense-overflow ceiling.")
         # What MAX_CHARS would have been safe?

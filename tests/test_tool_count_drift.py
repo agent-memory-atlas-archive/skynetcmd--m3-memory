@@ -497,7 +497,7 @@ def test_no_hardcoded_version_in_console_script_version_flags():
 # CONSERVATIVE floor: parametrisation only ever expands it at run time, so a
 # README claim at or below it is true on every machine.
 
-_TEST_FLOOR_RE = re.compile(r"([0-9][0-9,]{2,})\s*\*{0,2}\+?\s*\*{0,2}\s*tests", re.I)
+_TEST_FLOOR_RE = re.compile(r"([0-9][0-9,]{2,})\s*\*{0,2}\+?\s*\*{0,2}\s*tests", re.IGNORECASE)
 
 
 def _readme_test_floors() -> list[int]:

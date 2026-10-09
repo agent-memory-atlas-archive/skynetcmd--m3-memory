@@ -794,10 +794,10 @@ async def memory_supersede_impl(
     # 2. Inherit unspecified fields from the old memory — the caller passes
     #    only what changed. See the docstring for the sentinel convention:
     #    empty string for type/title/scope, importance < 0 for importance.
-    new_type = type if type else row["type"]
-    new_title = title if title else (row["title"] or "")
+    new_type = type or row["type"]
+    new_title = title or (row["title"] or "")
     new_importance = importance if importance >= 0 else row["importance"]
-    new_scope = scope if scope else (row["scope"] or "agent")
+    new_scope = scope or (row["scope"] or "agent")
 
     # 3. Create the replacement via memory_write_impl — reuses embedding,
     #    history, enrichment, and the size/safety gates. Done BEFORE touching

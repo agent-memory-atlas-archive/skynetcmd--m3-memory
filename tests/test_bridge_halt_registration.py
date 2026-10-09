@@ -73,7 +73,7 @@ def test_bridge_source_registers_before_serving():
     reg = src.find('register_process("mcp"')
     assert reg != -1, "memory_bridge does not register with the HALT protocol"
 
-    run_calls = [m.start() for m in re.finditer(r"^\s*mcp\.run\(", src, re.M)]
+    run_calls = [m.start() for m in re.finditer(r"^\s*mcp\.run\(", src, re.MULTILINE)]
     assert run_calls, "no mcp.run() found"
     assert reg < min(run_calls), "registration must precede mcp.run()"
 

@@ -7,6 +7,7 @@ all be reported.
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -73,7 +74,7 @@ def test_an_env_name_is_claimed_by_one_key_only():
     from m3_core.config import REGISTRY, Key, Registry
 
     dup = Key[str](name="db.other", parse=str, default="", doc="x", env_names=("M3_DB_BACKEND",))
-    with pytest.raises(ValueError, match="claimed by db.backend"):
+    with pytest.raises(ValueError, match=re.escape("claimed by db.backend")):
         Registry([*REGISTRY, dup])
 
 

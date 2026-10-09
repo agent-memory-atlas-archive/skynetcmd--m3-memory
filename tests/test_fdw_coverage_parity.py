@@ -78,7 +78,7 @@ def test_generic_table_list_is_still_accurate():
     import re
 
     src = (_BIN / "pg_sync.py").read_text(encoding="utf-8")
-    fns = set(re.findall(r"^def sync_([a-z_]+)\(", src, re.M))
+    fns = set(re.findall(r"^def sync_([a-z_]+)\(", src, re.MULTILINE))
     # sync_secrets operates on synchronized_secrets; the rest are table-named.
     derived = {"synchronized_secrets" if f == "secrets" else f for f in fns}
     assert derived == _GENERIC_TABLES, (

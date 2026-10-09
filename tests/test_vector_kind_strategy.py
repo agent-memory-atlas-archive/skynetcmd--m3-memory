@@ -164,7 +164,7 @@ async def test_max_strategy_dedupes_by_memory_id_taking_best_vector(monkeypatch)
     )
     # Exactly one entry for mem1, and it should carry the aligned vector's score.
     assert len(scored) == 1, scored
-    score, item = scored[0]
+    _score, item = scored[0]
     assert item["id"] == "mem1"
     # vector contribution should be the max (≈1.0), not the loser (≈0.0).
     assert item["_explanation"]["vector"] > 0.9, item["_explanation"]

@@ -113,7 +113,7 @@ def _render_status(frac: float | None, spin: str, tail: str, width: int) -> str:
     a spinner; then the inline tail. Hard-truncated to `width` so it never wraps
     (wrapping would break the in-place \\r redraw)."""
     if frac is not None:
-        filled = max(0, min(_BAR_W, int(round(_BAR_W * frac))))
+        filled = max(0, min(_BAR_W, round(_BAR_W * frac)))
         head = f"[{'█' * filled}{'░' * (_BAR_W - filled)}] {frac * 100:3.0f}% | "
     else:
         head = f"building {spin} | "

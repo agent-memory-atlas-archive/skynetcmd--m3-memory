@@ -98,7 +98,7 @@ def test_postgres_selection_no_dsn_fails_loud(monkeypatch):
         pass
     # With no env DSN and an empty vault, construction must raise -- never a
     # silent fallback to SQLite.
-    with pytest.raises(RuntimeError, match="no DSN found|PG_URL"):
+    with pytest.raises(RuntimeError, match=r"no DSN found|PG_URL"):
         active_backend()
 
 
@@ -134,7 +134,7 @@ def test_require_sqlite_backend_noop_on_sqlite(monkeypatch):
 def test_require_sqlite_backend_fails_loud_on_postgres(monkeypatch):
     """A SQLite-only tool must REFUSE (not silently run) under postgres."""
     monkeypatch.setenv("M3_DB_BACKEND", "postgres")
-    with pytest.raises(RuntimeError, match="SQLite-only|stale SQLite"):
+    with pytest.raises(RuntimeError, match=r"SQLite-only|stale SQLite"):
         require_sqlite_backend("backfill_content_hash")
 
 

@@ -112,7 +112,7 @@ async def test_tier2_attempted_when_no_gguf(monkeypatch):
         for _ in range(5):
             embed._CPU_FALLBACK_BREAKER.record_success()
 
-    vec, model = await embed._embed("hello world")
+    vec, _model = await embed._embed("hello world")
     assert vec is not None, "expected tier 2 to return a vector"
     assert len(tier2_called) == 1, f"expected exactly 1 tier-2 call, got: {tier2_called}"
     assert "8082" in tier2_called[0] or embed._EMBED_FALLBACK_URL in tier2_called[0]
@@ -139,7 +139,7 @@ async def test_tier3_skipped_when_tier2_succeeds(monkeypatch):
 
     async def fake_get_best_embed(*args, **kwargs):
         tier3_called.append(args)
-        return None
+        return
 
     monkeypatch.setattr(embed, "_get_embed_client", lambda: FakeClient())
     monkeypatch.setattr(embed, "get_best_embed", fake_get_best_embed, raising=False)
@@ -185,7 +185,7 @@ async def test_cold_cascade_fails_fast_when_no_tier_available(monkeypatch):
 
     import time
     t0 = time.perf_counter()
-    vec, model = await asyncio.wait_for(embed._embed("hello"), timeout=10.0)
+    vec, _model = await asyncio.wait_for(embed._embed("hello"), timeout=10.0)
     elapsed_s = time.perf_counter() - t0
 
     assert vec is None, "expected None when no tier is reachable"

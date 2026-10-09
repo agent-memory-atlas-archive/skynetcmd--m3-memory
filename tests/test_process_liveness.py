@@ -148,7 +148,7 @@ _VENV_ARGV = ["C:/v/Scripts/python.exe", "-c", "print(1)"]
 
 @pytest.mark.parametrize("name, cmdline, below, redirector", [
     ("python.exe", _VENV_ARGV, _VENV_ARGV, True),            # the Windows venv launcher
-    ("python.exe", _VENV_ARGV, _VENV_ARGV + ["x"], False),   # different argv: a real parent
+    ("python.exe", _VENV_ARGV, [*_VENV_ARGV, "x"], False),   # different argv: a real parent
     ("python.exe", _VENV_ARGV, None, False),                 # nothing below to compare
     ("claude.exe", ["claude.exe"], ["claude.exe"], False),   # not a Python launcher
 ])

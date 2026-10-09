@@ -141,7 +141,7 @@ def _annotate(rows: list[dict]) -> list[dict]:
     """Attach gap_s (wall clock attributable to this turn) and role."""
     prev = None
     for r in rows:
-        t = _dt.datetime.fromisoformat(r["created_at"].replace("Z", "+00:00"))
+        t = _dt.datetime.fromisoformat(r["created_at"])
         r["gap_s"] = round((t - prev).total_seconds(), 1) if prev else None
         r["role"] = "assistant" if r["title"].startswith("assistant") else "user"
         # chars/sec is the useful ratio: a LOW rate on a long turn means time

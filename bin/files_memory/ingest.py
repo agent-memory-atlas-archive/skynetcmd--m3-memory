@@ -271,7 +271,7 @@ def ingest_one_file(
 
         # 5. Summarize the file. Use raw text where available; else
         #    concatenate the leaf texts (PDF case).
-        summary_input = text if text else "\n\n".join(leaf.text for leaf in leaves[:20])
+        summary_input = text or "\n\n".join(leaf.text for leaf in leaves[:20])
         file_summary, file_summary_used_llm = summarize_file(
             summary_input, entry.filename, entry.filetype,
         )

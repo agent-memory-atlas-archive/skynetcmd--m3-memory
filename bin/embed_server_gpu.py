@@ -85,14 +85,14 @@ async def create_embeddings(req: EmbeddingRequest):
         body = response.text
         logger.error(f"llama-server error {response.status_code}: {body[:2000]}")
         low = body.lower()
-        if re.search(r"(\d+)\s*tokens\s*>\s*n_ctx", body, re.I) or any(
+        if re.search(r"(\d+)\s*tokens\s*>\s*n_ctx", body, re.IGNORECASE) or any(
             h in low for h in (
                 "input too long", "context length exceeded",
                 "maximum context length", "token length exceeds",
                 "too many tokens", "exceeds context window",
             )
         ):
-            m = re.search(r"(\d+)\s*tokens\s*>\s*n_ctx\s*(\d+)", body, re.I)
+            m = re.search(r"(\d+)\s*tokens\s*>\s*n_ctx\s*(\d+)", body, re.IGNORECASE)
             err: dict[str, object] = {
                 "code": "context_length_exceeded",
                 "message": body[:2000],

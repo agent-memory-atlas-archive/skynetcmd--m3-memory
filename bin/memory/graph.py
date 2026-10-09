@@ -311,7 +311,7 @@ async def _entity_graph_neighbor_ids(
         try:
             rows = db.execute(
                 f"SELECT id FROM entities WHERE LOWER(canonical_name) LIKE LOWER({p}){_type_clause}{_stop_clause} LIMIT 5",
-                [f"%{candidate}%"] + _type_params + _stop_params,
+                [f"%{candidate}%", *_type_params, *_stop_params],
             ).fetchall()
             for r in rows:
                 matched_entity_ids.add(r["id"])

@@ -634,7 +634,7 @@ def run(brief: bool = False, fix: bool = False) -> int:
             elif _fix_register_task():
                 problems = [p for p in problems if p != "keepalive-missing"]
         if "inproc-env-leak" in problems:
-            scrubbed, env_remains = _fix_scrub_env_leak()
+            _scrubbed, _env_remains = _fix_scrub_env_leak()
             # Clear the problem only when nothing leaks anymore. A persistent
             # process/User env var still needs the manual step printed above, so
             # keep the flag (loud, not silent) until it's actually gone.

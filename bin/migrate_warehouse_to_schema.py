@@ -203,7 +203,7 @@ def main(argv: list[str] | None = None) -> int:
         for pl in plans:
             pub = "-" if pl["public"] is None else pl["public"]
             wh = "-" if pl["warehouse"] is None else pl["warehouse"]
-            print(f"  {pl['table']:28} {str(pub):>8} {str(wh):>13}  {pl['action']}")
+            print(f"  {pl['table']:28} {pub!s:>8} {wh!s:>13}  {pl['action']}")
             if pl["action"] in ("move", "merge"):
                 todo += 1
         for t in legacy:

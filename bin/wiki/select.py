@@ -443,7 +443,7 @@ def load_entity_comention_edges(conn: sqlite3.Connection, ids: set[str]) -> list
 
     pair_seen: set[tuple[str, str]] = set()
     edges: list[Edge] = []
-    for _eid, members in by_entity.items():
+    for members in by_entity.values():
         members = sorted(set(members))
         if len(members) < 2 or len(members) > ENTITY_MAX_DEGREE:
             continue
