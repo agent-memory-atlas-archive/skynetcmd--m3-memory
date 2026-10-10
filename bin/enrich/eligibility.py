@@ -83,13 +83,18 @@ def _query_eligible_groups(
     _stack = ExitStack()
     conn = _stack.enter_context(seam_backend().open_readonly(str(db_path)))
     placeholders = _d.placeholder(len(type_allowlist))
+    # JSON field reads through the dialect: SQLite json_extract, PostgreSQL ->>.
+    # turn_index is numeric (COALESCE with 0), so it reads as an integer.
+    _role = _d.json_extract_text("metadata_json", "role")
+    _turn = _d.json_extract_int("metadata_json", "turn_index")
+    _sess = _d.json_extract_text("metadata_json", "session_id")
     excl_placeholders = _d.placeholder(len(ALWAYS_SKIP_TYPES))
     variant_clause = ""
     variant_params: list = []
     if source_variant == "__none__":
         variant_clause = " AND variant IS NULL"
     elif source_variant:
-        variant_clause = " AND variant = ?"
+        variant_clause = f" AND variant = {_d.param()}"
         variant_params = [source_variant]
 
     # Push the conv_filter to SQL. On the bench DB this turns a 128s full
@@ -148,7 +153,7 @@ def _query_eligible_groups(
             need_path_b = bool(preflight_rows)
         rows: list = []
         for chunk in conv_chunks:
-            ph_chunk = ",".join("?" * len(chunk))
+            ph_chunk = _d.placeholder(len(chunk))
             # Path A — direct conversation_id IN, index-using.
             # NB: WHERE uses raw `is_deleted=0` (not COALESCE) because the
             # partial index `idx_mi_conversation_id` is defined with predicate
@@ -164,10 +169,10 @@ def _query_eligible_groups(
             sql_a = f"""
                 SELECT id,
                        content,
-                       COALESCE(json_extract(metadata_json,'$.role'),
+                       COALESCE({_role},
                                 title,
                                 'user') AS role,
-                       COALESCE(json_extract(metadata_json,'$.turn_index'), 0) AS turn_index,
+                       COALESCE({_turn}, 0) AS turn_index,
                        created_at,
                        metadata_json,
                        conversation_id AS group_key,
@@ -191,13 +196,13 @@ def _query_eligible_groups(
             sql_b = f"""
                 SELECT id,
                        content,
-                       COALESCE(json_extract(metadata_json,'$.role'),
+                       COALESCE({_role},
                                 title,
                                 'user') AS role,
-                       COALESCE(json_extract(metadata_json,'$.turn_index'), 0) AS turn_index,
+                       COALESCE({_turn}, 0) AS turn_index,
                        created_at,
                        metadata_json,
-                       COALESCE(json_extract(metadata_json,'$.session_id'), id) AS group_key,
+                       COALESCE({_sess}, id) AS group_key,
                        COALESCE(user_id, '') AS user_id
                 FROM memory_items
                 WHERE is_deleted=0
@@ -205,7 +210,7 @@ def _query_eligible_groups(
                   AND type NOT IN ({excl_placeholders})
                   {variant_clause}
                   AND conversation_id IS NULL
-                  AND COALESCE(json_extract(metadata_json,'$.session_id'), id) IN ({ph_chunk})
+                  AND COALESCE({_sess}, id) IN ({ph_chunk})
             """
             params_b = list(type_allowlist) + list(ALWAYS_SKIP_TYPES) + variant_params + list(chunk)
             rows.extend(conn.execute(sql_b, params_b).fetchall())
@@ -215,14 +220,14 @@ def _query_eligible_groups(
         sql = f"""
             SELECT id,
                    content,
-                   COALESCE(json_extract(metadata_json,'$.role'),
+                   COALESCE({_role},
                             title,
                             'user') AS role,
-                   COALESCE(json_extract(metadata_json,'$.turn_index'), 0) AS turn_index,
+                   COALESCE({_turn}, 0) AS turn_index,
                    created_at,
                    metadata_json,
                    COALESCE(conversation_id,
-                            json_extract(metadata_json,'$.session_id'),
+                            {_sess},
                             id) AS group_key,
                    COALESCE(user_id, '') AS user_id
             FROM memory_items

@@ -9,8 +9,11 @@ is needed.
 from __future__ import annotations
 
 import asyncio
+import uuid as _uuid
 
-_WORD = "zephyrquokka"
+# Unique per run: the PostgreSQL test store persists, so a fixed word would
+# accumulate rows across runs until the k cap hid the new ones.
+_WORD = f"zq{_uuid.uuid4().hex[:10]}"
 
 
 def _write(content: str, **kw) -> str:

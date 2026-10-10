@@ -35,7 +35,6 @@ ALLOWED = {
     "bin/embed_backfill.py": "payload-less SQLite fallback dialect",
     # The query around it is SQLite SQL (json_extract), so PostgreSQL fails loud
     # on the whole statement; porting it is a query port, not a placeholder fix.
-    "bin/enrich/eligibility.py": "SQLite-only query (json_extract); port the query, then remove",
 }
 
 
