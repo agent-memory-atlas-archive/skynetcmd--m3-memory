@@ -432,7 +432,7 @@ def _mc_callable(mc, name: str, default):
 
 
 def _fts_only_results(query, search_mode, k, user_id, scope, extra_columns,
-                      type_filter="", agent_filter=""):
+                      row_filter: dict | None = None):
     """Bm25-ranked FTS keyword results, in the memory_search_scored_impl row shape.
 
     The degrade path used when NO query vector is available (embedder down/slow):
@@ -483,8 +483,7 @@ def _fts_only_results(query, search_mode, k, user_id, scope, extra_columns,
         # rendered in THIS backend's placeholder style; the query itself from
         # keyword_search_with_row_data so the SQL is the backend's own.
         tenancy_sql, tenancy_params = _backend_fb.dialect().scope_predicates(
-            user_id=user_id, scope=scope,
-            type_filter=type_filter, agent_filter=agent_filter,
+            **(row_filter or {"user_id": user_id, "scope": scope}),
         )
         with _db() as conn:
             rows = _backend_fb.keyword_search_with_row_data(
@@ -631,6 +630,7 @@ async def memory_search_scored_impl(
     # FORENSIC READS ONLY. Rank on the undecayed importance_raw instead of the
     # live, decayed importance. See the "apply_decay" note in the docstring.
     apply_decay=True,
+    exclude_types: tuple[str, ...] = (),
     _depth=0,
     _capture_dict: dict = None,
 ):
@@ -661,6 +661,14 @@ async def memory_search_scored_impl(
         per turn, so a turn wins its bucket on whichever representation
         the query favors.
     """
+    # The row filter, built ONCE: every candidate-fetch path below passes this
+    # same dict to Dialect.scope_predicates, so a new narrowing field cannot be
+    # wired into one path and missed in another (tests/test_scratchpad_filter.py
+    # holds every scope_predicates call in this module to it).
+    _row_filter = {
+        "user_id": user_id, "scope": scope, "type_filter": type_filter,
+        "agent_filter": agent_filter, "exclude_types": tuple(exclude_types),
+    }
     # Public "keyword" -> the "fts5" this function implements; an unknown mode
     # raises instead of returning an empty result (m3_core.search_modes).
     from m3_core.search_modes import normalize_search_mode
@@ -781,10 +789,7 @@ async def memory_search_scored_impl(
             # early-return path never reaches the filtered branch. Parameterized
             # + empty-string-passes-through so callers that omit tenancy (the
             # legacy shared "agent" path) behave byte-identically.
-            _tenancy_sql, _tenancy_params = _sc_backend.dialect().scope_predicates(
-                user_id=user_id, scope=scope,
-                type_filter=type_filter, agent_filter=agent_filter,
-            )
+            _tenancy_sql, _tenancy_params = _sc_backend.dialect().scope_predicates(**_row_filter)
             with _db() as conn:
                 # Fetch the top-N bm25-ranked FTS matches, not LIMIT 1.
                 # The old LIMIT 1 + substring gate was lossy: FTS routinely
@@ -911,7 +916,7 @@ async def memory_search_scored_impl(
                 recency_bias=recency_bias,
                 confidence_ranking=_scfg.CONFIDENCE_RANKING,
             ),
-            type_filter=type_filter, agent_filter=agent_filter,
+            row_filter=_row_filter,
         )
         if fts_fallback:
             logger.info("FTS-only fallback (no query vector) for %r: %d match(es)",
@@ -953,10 +958,7 @@ async def memory_search_scored_impl(
     # bare conditions, so strip the first joiner and split back out.
     from memory.backends import dialect as _dialect_scope
 
-    _scope_sql, _scope_params = _dialect_scope().scope_predicates(
-        user_id=user_id, scope=scope,
-        type_filter=type_filter, agent_filter=agent_filter,
-    )
+    _scope_sql, _scope_params = _dialect_scope().scope_predicates(**_row_filter)
     if _scope_sql:
         where_clauses.append(_scope_sql.removeprefix(" AND ").strip())
         params.extend(_scope_params)
@@ -1113,10 +1115,7 @@ async def memory_search_scored_impl(
 
             # Same builder as the SQLite paths — one implementation, so the
             # backends cannot drift apart again (see Dialect.scope_predicates).
-            _pg_tenancy_sql, _pg_tenancy_params = _backend.dialect().scope_predicates(
-                user_id=user_id, scope=scope,
-                type_filter=type_filter, agent_filter=agent_filter,
-            )
+            _pg_tenancy_sql, _pg_tenancy_params = _backend.dialect().scope_predicates(**_row_filter)
             try:
                 with _backend.connection() as _pgconn:
                     return fetch_candidates_pg(
@@ -2509,8 +2508,13 @@ async def memory_search_impl(
     _depth=0,
 ):
     _resolve_mc_callbacks()  # bind memory_core callbacks on first call
+    # The schema has always offered include_scratchpad (default: off) and the
+    # search never read it, so ephemeral scratchpad rows always came back. An
+    # explicit type_filter names what the caller wants, so it wins.
+    hide = () if (include_scratchpad or type_filter) else ("scratchpad",)
     ranked = await memory_search_scored_impl(
         query,
+        exclude_types=hide,
         mmr=mmr,
         k=k,
         type_filter=type_filter,

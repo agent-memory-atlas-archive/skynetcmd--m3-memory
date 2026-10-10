@@ -1452,7 +1452,7 @@
     },
     "memory_search_scored_impl": {
       "kind": "async_function",
-      "signature": "(query='', mmr=True, k=8, type_filter='', agent_filter='', search_mode='hybrid', user_id='', scope='', as_of='', conversation_id='', explain=False, extra_columns=None, recency_bias=0.0, vector_weight=0.7, adaptive_k=False, elbow_sensitivity=1.5, adaptive_k_min=0, adaptive_k_max=0, smart_time_boost=0.0, smart_neighbor_sessions=0, variant='', intent_hint='', vector_kind_strategy='default', requesting_agent='', apply_decay=True, _depth=0, _capture_dict: 'dict' = None)",
+      "signature": "(query='', mmr=True, k=8, type_filter='', agent_filter='', search_mode='hybrid', user_id='', scope='', as_of='', conversation_id='', explain=False, extra_columns=None, recency_bias=0.0, vector_weight=0.7, adaptive_k=False, elbow_sensitivity=1.5, adaptive_k_min=0, adaptive_k_max=0, smart_time_boost=0.0, smart_neighbor_sessions=0, variant='', intent_hint='', vector_kind_strategy='default', requesting_agent='', apply_decay=True, exclude_types: 'tuple[str, ...]' = (), _depth=0, _capture_dict: 'dict' = None)",
       "value_repr": null
     },
     "memory_suggest_impl": {

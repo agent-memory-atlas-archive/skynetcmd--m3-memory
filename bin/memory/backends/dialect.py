@@ -253,6 +253,7 @@ class Dialect:
         scope: str = "",
         type_filter: str = "",
         agent_filter: str = "",
+        exclude_types: tuple[str, ...] = (),
     ) -> tuple[str, list]:
         """Render the standard row-narrowing WHERE fragment + its bind params.
 
@@ -282,6 +283,9 @@ class Dialect:
         Bare LIKE without wildcards IS equality, so a plain type name behaves
         identically either way, while a caller relying on LIKE patterns keeps
         working. ``agent_filter`` is matched case-insensitively when bare.
+
+        ``exclude_types`` drops rows of those exact types (a NULL type is kept):
+        memory_search hides ephemeral ``scratchpad`` rows unless asked for them.
         """
         ph = self.param()
         a = table_alias
@@ -310,6 +314,10 @@ class Dialect:
                 else f" AND LOWER({a}.agent_id) = LOWER({ph})"
             )
             params.append(agent_filter[1:-1] if exact else agent_filter)
+        if exclude_types:
+            marks = ", ".join(ph for _ in exclude_types)
+            sql += f" AND ({a}.type IS NULL OR {a}.type NOT IN ({marks}))"
+            params.extend(exclude_types)
 
         return sql, params
 
