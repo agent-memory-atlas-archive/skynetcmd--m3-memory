@@ -9,6 +9,12 @@ on:
 permissions:
   contents: read
 
+# Every skip must name its dimension (os/python/db/dep/env/na); a run with an
+# unclassified skip fails instead of reporting green over untested code
+# (tests/conftest.py pytest_sessionfinish, pinned by test_skip_classification.py).
+env:
+  M3_STRICT_SKIPS: "1"
+
 jobs:
   lint:
     name: Lint (Ruff)

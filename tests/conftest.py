@@ -376,12 +376,23 @@ def pytest_collection_modifyitems(config, items):
 _SKIPS: list[tuple[str, str]] = []  # (nodeid, reason)
 
 
+# pytest.importorskip's own reason. It is a missing dependency by definition,
+# so the one owner classifies it here rather than 27 call sites passing reason=.
+_IMPORTORSKIP_PREFIX = "could not import "
+
+
 def _skip_dimension(reason: str) -> str | None:
     if reason.startswith("[") and "]" in reason:
         dim = reason[1 : reason.index("]")]
         if dim in SKIP_DIMENSIONS:
             return dim
+    if reason.startswith(_IMPORTORSKIP_PREFIX):
+        return "dep"
     return None
+
+
+def _strict_skips() -> bool:
+    return _os.environ.get("M3_STRICT_SKIPS") == "1"
 
 
 def pytest_runtest_logreport(report):
@@ -420,15 +431,17 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
             tr.write_line(f"    {nodeid}: {reason[:120]}")
         if len(unclassified) > 25:
             tr.write_line(f"    ... and {len(unclassified) - 25} more")
+        if _strict_skips():
+            tr.write_line(
+                "  M3_STRICT_SKIPS=1 fails this run; observed: the unclassified skips "
+                "above. inspect: classify each, or unset M3_STRICT_SKIPS",
+                red=True,
+            )
 
 
 def pytest_sessionfinish(session, exitstatus):
     """M3_STRICT_SKIPS=1 fails a run that has an unclassified skip."""
-    if (
-        _os.environ.get("M3_STRICT_SKIPS") == "1"
-        and exitstatus == 0
-        and any(_skip_dimension(r) is None for _n, r in _SKIPS)
-    ):
+    if _strict_skips() and exitstatus == 0 and any(_skip_dimension(r) is None for _n, r in _SKIPS):
         session.exitstatus = 1
 
 
@@ -440,7 +453,8 @@ def pg_url() -> str:
     the probe."""
     dsn = pg_dsn()
     if not dsn or not _pg_reachable():
-        pytest.skip("no reachable PostgreSQL (set M3_PRIMARY_PG_URL to a throwaway cluster)")
+        _probe, dim, reason = _CAPABILITY_PROBES["requires_pg"]
+        pytest.skip(skip_reason(dim, reason))
     return dsn
 
 
