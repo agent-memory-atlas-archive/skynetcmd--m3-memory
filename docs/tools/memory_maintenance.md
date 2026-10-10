@@ -1,8 +1,8 @@
 ---
 tool: bin/memory_maintenance.py
-sha1: 8817ab8cf2ad
-mtime_utc: 2026-10-10T05:27:20.255703+00:00
-generated_utc: 2026-10-10T05:28:10.758053+00:00
+sha1: 5f28eedb37c7
+mtime_utc: 2026-10-10T05:54:26.545661+00:00
+generated_utc: 2026-10-10T05:56:58.770479+00:00
 private: false
 ---
 
@@ -53,7 +53,7 @@ _(no argparse arguments detected)_
 
 **http**
 
-- `httpx.AsyncClient()` (line 1999)
+- `httpx.AsyncClient()` (line 2000)
 
 
 ---
@@ -62,6 +62,7 @@ _(no argparse arguments detected)_
 
 - `base64`
 - `httpx`
+- `m3_core.errors (log_swallowed)`
 - `memory (confidence)`
 - `memory (config)`
 - `memory (trust)`

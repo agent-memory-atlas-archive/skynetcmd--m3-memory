@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from m3_core.errors import log_swallowed
 from m3_core.paths import get_m3_config_root
 from m3_core.runtime import M3_CORE_RS_DISABLE
 
@@ -127,7 +128,7 @@ def ensure_governor_config() -> str:
         atomic_write(path, _json.dumps(payload, indent=2))
         logger.info("Seeded governor config at %s (initial=%d limit=%d)", path, initial, limit)
     except Exception as e:
-        logger.debug("Could not seed governor config (%s); using env+defaults", e)
+        log_swallowed(logger, e, "Could not seed governor config (%s); using env+defaults", e)
     return path
 
 

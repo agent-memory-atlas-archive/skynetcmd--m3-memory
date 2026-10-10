@@ -99,6 +99,7 @@ import chatlog_config
 import m3_enrich
 import m3_entities
 import m3_halt
+from m3_core.errors import log_swallowed
 from m3_sdk import (
     M3Context,
     acquire_or_exit,
@@ -693,7 +694,7 @@ def has_files_extract_work(files_db: str | None = None) -> bool:
         from files_memory.extract import has_pending_extraction
         return has_pending_extraction(files_db)
     except Exception as e:  # noqa: BLE001 — no files store / import issue → no work
-        logger.debug(f"Files-extract work check failed (non-fatal): {e}")
+        log_swallowed(logger, e, f"Files-extract work check failed (non-fatal): {e}")
         return False
 
 
@@ -720,7 +721,7 @@ def has_consolidate_work(core_db: str | None, source_type: str,
         )
         return len(_probe_core(core_db, sql, params)) > 0
     except Exception as e:
-        logger.debug(f"Consolidate work check failed (non-fatal): {e}")
+        log_swallowed(logger, e, f"Consolidate work check failed (non-fatal): {e}")
         return False  # conservative: no LLM work unless we can confirm there is some
 
 async def run_entity_pass(args):
@@ -870,7 +871,7 @@ def _embed_target_dbs(core_db: str | None) -> list[str]:
         import chatlog_config
         paths = list(chatlog_config.chat_store_paths())
     except Exception as e:  # noqa: BLE001 — chatlog is optional; never break the loop
-        logger.debug(f"Chatlog DB resolution failed (non-fatal): {e}")
+        log_swallowed(logger, e, f"Chatlog DB resolution failed (non-fatal): {e}")
 
     # An explicit core_db argument REPLACES the shared resolver's main store
     # (callers pass args.database). Everything the resolver found that is not
@@ -940,7 +941,7 @@ def has_spill_work() -> bool:
             return False
         return any(f.endswith(".jsonl") for f in os.listdir(spill_dir))
     except Exception as e:
-        logger.debug(f"Spill work check failed (non-fatal): {e}")
+        log_swallowed(logger, e, f"Spill work check failed (non-fatal): {e}")
         return False  # conservative: mirrors has_embed_work's contract
 
 
@@ -1124,7 +1125,7 @@ async def run_embed_pass(args):
         if recover_if_fallback_healthy():
             logger.info("Embed-backfill: tier-2 server healthy — breakers reset before sweep.")
     except Exception as e:
-        logger.debug(f"Active embed recovery check failed (non-fatal): {e}")
+        log_swallowed(logger, e, f"Active embed recovery check failed (non-fatal): {e}")
 
     logger.info("Starting Embed-backfill pass...")
     try:
@@ -1309,7 +1310,7 @@ def has_distill_work(core_db: str | None, threshold: int, stale_days: int) -> bo
         )
         return len(_probe_core(core_db, sql, params)) > 0
     except Exception as e:
-        logger.debug(f"Distill work check failed (non-fatal): {e}")
+        log_swallowed(logger, e, f"Distill work check failed (non-fatal): {e}")
         return False  # conservative: no model work unless we can confirm some
 
 
@@ -1453,7 +1454,7 @@ def has_chatlog_prune_work(chatlog_db: str | None, prune_days: float,
             # now_minus_days binds an INT; only prune_days + min_rows are params.
             return len(conn.execute(sql, (int(prune_days), min_rows)).fetchall()) > 0
     except Exception as e:
-        logger.debug(f"Chatlog-prune work check failed (non-fatal): {e}")
+        log_swallowed(logger, e, f"Chatlog-prune work check failed (non-fatal): {e}")
         return False
 
 
@@ -1530,7 +1531,7 @@ async def run_sync_pass(args):
                          "store to sync to CDW. Skipping.", active_backend().name)
             return
     except Exception as e:
-        logger.debug("Sync pass: backend probe failed (%s); assuming sqlite.", e)
+        log_swallowed(logger, e, "Sync pass: backend probe failed (%s); assuming sqlite.", e)
     if not _due("sync", args.sync_min_interval_s):
         logger.debug("Sync not due (ran < %ss ago). Skipping.", args.sync_min_interval_s)
         return
@@ -1711,7 +1712,7 @@ async def main_loop(args):
                 await asyncio.sleep(5.0)
                 continue
         except Exception as e:
-            logger.debug(f"Governor check error (non-fatal): {e}")
+            log_swallowed(logger, e, f"Governor check error (non-fatal): {e}")
 
         # Resolve, per LLM pass, whether it runs on the LOCAL GPU (so GPU load
         # applies) or is cloud-backed (GPU load irrelevant). The chatlog-prune

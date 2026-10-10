@@ -61,6 +61,7 @@ import mcp_tool_catalog
 import memory_core
 import tool_domains
 import tool_loader
+from m3_core.errors import log_swallowed
 
 # Re-export internal helpers for legacy compatibility (C7, H11)
 _conn = memory_core._conn
@@ -370,7 +371,7 @@ if __name__ == "__main__":
             f"(prior boot: {_drift.get('prior_version') or 'first run'})"
         )
     except Exception as _e:
-        logger.debug(f"version-drift check skipped: {type(_e).__name__}: {_e}")
+        log_swallowed(logger, _e, f"version-drift check skipped: {type(_e).__name__}: {_e}")
     # B: canonical-path guard. If this bridge is being run from a path that
     # disagrees with the resolved install (M3_PATH_BIN dir / config bridge_path),
     # the launching agent config is stale (the split-brain signature). Warn but
@@ -395,7 +396,7 @@ if __name__ == "__main__":
                 _self, _want,
             )
     except Exception as _e:
-        logger.debug(f"canonical-path guard skipped: {type(_e).__name__}: {_e}")
+        log_swallowed(logger, _e, f"canonical-path guard skipped: {type(_e).__name__}: {_e}")
     if _LAZY_MODE:
         logger.info(
             f"Lazy mode: registered {len(_REGISTERED)} essentials+meta tools at startup "
@@ -446,7 +447,7 @@ if __name__ == "__main__":
         _atexit.register(_m3_halt.deregister, "mcp")
         logger.debug("registered with the HALT protocol as role 'mcp'")
     except Exception as _e:  # noqa: BLE001 — coordination is degraded, not fatal
-        logger.debug(f"HALT registration skipped: {type(_e).__name__}: {_e}")
+        log_swallowed(logger, _e, f"HALT registration skipped: {type(_e).__name__}: {_e}")
     if transport in ("http", "streamable-http", "streamable_http"):
         host = _os.environ.get("M3_HTTP_HOST", "127.0.0.1")
         port = int(_os.environ.get("M3_HTTP_PORT", "8080"))

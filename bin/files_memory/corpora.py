@@ -31,6 +31,7 @@ import os
 from dataclasses import dataclass
 from itertools import batched
 
+from m3_core.errors import log_swallowed
 from m3_core.runtime import utc_iso
 
 from . import config
@@ -85,7 +86,7 @@ def resolve_default_corpus(
             if row:
                 return row["corpus_id"]
     except Exception as e:  # noqa: BLE001 — degrade to the configured default
-        logger.debug("resolve_default_corpus: db lookup failed: %s", e)
+        log_swallowed(logger, e, "resolve_default_corpus: db lookup failed: %s", e)
     return config.FILES_DEFAULT_CORPUS
 
 

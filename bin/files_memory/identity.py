@@ -28,6 +28,7 @@ import os
 import re
 from pathlib import Path
 
+from m3_core.errors import log_swallowed
 from m3_core.paths import canonical_path
 
 logger = logging.getLogger("files_memory.identity")
@@ -153,7 +154,7 @@ def file_content_sha256_batch(paths: list[str]) -> dict[str, str | None]:
                     out[rec["path"]] = rec["sha256"]  # None on read error
                 return out
         except Exception as e:  # pragma: no cover - defensive
-            logger.debug("native hash_files unavailable, falling back: %s", e)
+            log_swallowed(logger, e, "native hash_files unavailable, falling back: %s", e)
 
     # Pure-Python fallback.
     result: dict[str, str | None] = {}

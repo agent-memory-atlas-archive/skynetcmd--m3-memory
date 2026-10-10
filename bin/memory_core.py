@@ -1262,6 +1262,7 @@ def memory_update_bulk_impl(updates):
 
 
 from catalog.spec import VALID_RELATIONSHIP_TYPES  # noqa: E402 — the single owner
+from m3_core.errors import log_swallowed
 
 _MEMORY_LINK_BULK_CHUNK = 500
 
@@ -1474,7 +1475,7 @@ def memory_handoff_impl(from_agent: str, to_agent: str, task: str,
         try:
             memory_link_impl(new_id, ctx_id, "handoff")
         except Exception as e:
-            logger.debug(f"Failed to link context {ctx_id}: {e}")
+            log_swallowed(logger, e, f"Failed to link context {ctx_id}: {e}")
 
     # 4. Record history
     _record_history(new_id, "handoff_create", None, task, "content", from_agent)

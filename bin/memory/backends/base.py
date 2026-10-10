@@ -251,6 +251,15 @@ class StorageBackend(Protocol):
         """
         ...
 
+    def is_query_defect(self, exc: BaseException) -> bool:
+        """True iff ``exc`` from this backend's driver means the QUERY is wrong
+        (bad syntax, an unknown column, a wrong bind count), not that the data or
+        the moment was. A handler that swallows an expected miss quietly must
+        still report a defect loudly (``m3_core.errors.log_swallowed``). A
+        missing table is NOT a defect: a fresh store legitimately lacks one.
+        """
+        ...
+
     def keyword_search(
         self,
         conn: object,

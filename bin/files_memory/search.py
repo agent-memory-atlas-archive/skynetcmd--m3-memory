@@ -19,6 +19,8 @@ import logging
 import sqlite3
 from dataclasses import dataclass, field
 
+from m3_core.errors import log_swallowed
+
 from .db import _db
 from .embed import embed_texts
 
@@ -176,7 +178,7 @@ def _fts_query_pg(conn, query, limit, current_only, corpus_id, filetype,
         rows = conn.execute(sql, params).fetchall()
     except Exception as e:  # noqa: BLE001 — a tsquery error skips the channel
         if not _d.is_undefined_object_error(e):
-            logger.debug("tsvector query failed (%s); skipping channel", e)
+            log_swallowed(logger, e, "tsvector query failed (%s); skipping channel", e)
         return []
     # ts_rank is already higher=better; keep as-is for fusion.
     return [(r["uuid"], float(r["rank"])) for r in rows]
@@ -363,6 +365,6 @@ def files_search(
                 from .promotability import record_leaf_hits
                 record_leaf_hits(conn, [h.leaf_uuid for h in hits])
             except Exception as e:
-                logger.debug("record_leaf_hits failed (non-fatal): %s", e)
+                log_swallowed(logger, e, "record_leaf_hits failed (non-fatal): %s", e)
 
         return hits

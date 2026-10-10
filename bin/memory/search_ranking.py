@@ -15,6 +15,8 @@ from __future__ import annotations
 import logging
 from datetime import date, datetime
 
+from m3_core.errors import log_swallowed
+
 from . import config
 from .fts import _DATE_RE_ISO, _DATE_RE_LONG
 from .util import _HAS_NUMPY, _np
@@ -193,7 +195,7 @@ def _hybrid_score_batch(
                 int(max(1, short_turn_threshold)),
             )
         except Exception as e:  # noqa: BLE001
-            logger.debug(f"hybrid_score_batch Rust path failed, falling back: {e}")
+            log_swallowed(logger, e, f"hybrid_score_batch Rust path failed, falling back: {e}")
     if _HAS_NUMPY:
         vec = _np.asarray(vector_scores, dtype=_np.float32)
         bm = _np.asarray(bm25_scores, dtype=_np.float32)
@@ -254,7 +256,7 @@ def _recency_bonus_ranks(valid_froms, bias: float) -> list[float]:
                 [(v or None) for v in valid_froms], float(bias),
             )
         except Exception as e:  # noqa: BLE001
-            logger.debug(f"recency_bonus_ranks Rust path failed, falling back: {e}")
+            log_swallowed(logger, e, f"recency_bonus_ranks Rust path failed, falling back: {e}")
     dated_idx = [i for i, v in enumerate(valid_froms) if v]
     if len(dated_idx) < 2:
         return [0.0] * n

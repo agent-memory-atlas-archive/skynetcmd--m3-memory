@@ -59,6 +59,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 import httpx
+from m3_core.errors import log_swallowed
 
 try:
     import yaml
@@ -338,7 +339,7 @@ def _resolve_api_key(service: str | None) -> str | None:
         from auth_utils import get_api_key
         return get_api_key(service)
     except Exception as e:
-        logger.debug(f"api_key lookup for {service!r} failed: {e}")
+        log_swallowed(logger, e, f"api_key lookup for {service!r} failed: {e}")
         return None
 
 

@@ -30,6 +30,8 @@ import logging
 import sqlite3
 import uuid as _uuid
 
+from m3_core.errors import log_swallowed
+
 from . import config
 from .config import files_table
 from .db import _db
@@ -163,7 +165,7 @@ def _find_promoted_orphan(source_uuid: str) -> str | None:
     except Exception as e:  # noqa: BLE001 — orphan lookup is best-effort
         # Broadened from (FileNotFoundError, sqlite3.Error) so a psycopg2 error on
         # PG also degrades to "no orphan" rather than aborting the promote.
-        logger.debug("_find_promoted_orphan failed: %s", e)
+        log_swallowed(logger, e, "_find_promoted_orphan failed: %s", e)
         return None
 
 

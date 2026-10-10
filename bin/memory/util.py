@@ -34,6 +34,8 @@ __all__ = ["_batch_cosine", "_check_content_safety", "_cosine", "_cosine_batch_m
 import logging
 import re
 
+from m3_core.errors import log_swallowed
+
 logger = logging.getLogger("memory.util")
 
 _POISON_PATTERNS = [
@@ -179,7 +181,7 @@ def _cosine_batch_packed(query, blobs, dim: int) -> list[float]:
         try:
             return config.m3_core_rs.cosine_batch_packed(query, blobs, dim)
         except Exception as e:  # noqa: BLE001 — fall back rather than fail retrieval
-            logger.debug(f"cosine_batch_packed Rust path failed, falling back: {e}")
+            log_swallowed(logger, e, f"cosine_batch_packed Rust path failed, falling back: {e}")
     matrix = _unpack_many(blobs, dim=dim)
     return _batch_cosine(query, matrix)
 
@@ -211,7 +213,7 @@ def _cosine_batch_maxpool_packed(anchors, blobs, dim: int) -> list[float]:
             cand_buf = b"".join(blobs)
             return rs.cosine_batch_maxpool_packed(anchor_buf, cand_buf, dim)
         except Exception as e:  # noqa: BLE001 — fall back rather than fail retrieval
-            logger.debug(f"cosine_batch_maxpool_packed Rust path failed, falling back: {e}")
+            log_swallowed(logger, e, f"cosine_batch_maxpool_packed Rust path failed, falling back: {e}")
     # Pure-Python / fallback: unpack candidates once, max cosine over anchors per candidate.
     matrix = _unpack_many(blobs, dim=dim)
     out = []

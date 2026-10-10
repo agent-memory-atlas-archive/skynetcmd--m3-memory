@@ -17,6 +17,8 @@ import json
 import logging
 import sqlite3
 
+from m3_core.errors import log_swallowed
+
 from . import config
 from .db import _db
 from .fts import _EVENT_PROPER_NOUN, _TEMPORAL_QUERY_RE, _TEMPORAL_ROUTER_RE
@@ -113,7 +115,7 @@ def _pull_predecessor_turns(scored: list, user_id: str = "", scope: str = "") ->
             }
             scored.append((wanted[tkey] * 0.85, pre_item))
     except Exception as e:  # defensive — predecessor pull is best-effort
-        logger.debug(f"predecessor pull skipped: {type(e).__name__}: {e}")
+        log_swallowed(logger, e, f"predecessor pull skipped: {type(e).__name__}: {e}")
 
 
 def _maybe_route_query(query: str, vector_weight: float, intent_hint: str = "") -> float:

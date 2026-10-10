@@ -30,6 +30,7 @@ import sqlite3
 from dataclasses import dataclass
 
 from llm_failover import apply_thinking_suppression
+from m3_core.errors import log_swallowed
 
 from .config import files_table
 
@@ -295,7 +296,7 @@ def judge_material_change(old_text: str, new_text: str) -> tuple[bool | None, st
             data = resp.json()
             raw = (data["choices"][0]["message"]["content"] or "").strip()
     except Exception as e:
-        logger.debug("material_change judge failed: %s", e)
+        log_swallowed(logger, e, "material_change judge failed: %s", e)
         return (None, None)
 
     # Parse the JSON response defensively.

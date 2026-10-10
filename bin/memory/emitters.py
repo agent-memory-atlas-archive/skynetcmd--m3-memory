@@ -5,6 +5,8 @@ import logging
 import re
 from typing import Any
 
+from m3_core.errors import log_swallowed
+
 from .config import (
     INGEST_GIST_MIN_TURNS,
     INGEST_GIST_STRIDE,
@@ -94,7 +96,7 @@ async def _maybe_emit_event_rows(
                 except Exception as le:  # noqa: BLE001 — logged; the caller carries on
                     logger.warning(f"event link failed; observed: {m.group(1)} -> {parent_id} not linked ({type(le).__name__}: {le}). inspect: memory_link on those ids")
         except Exception as e:
-            logger.debug(f"event_extraction emit failed: {e}")
+            log_swallowed(logger, e, f"event_extraction emit failed: {e}")
 
 
 async def _maybe_emit_window_chunk(conversation_id: str, user_id: str) -> None:
@@ -115,7 +117,7 @@ async def _maybe_emit_window_chunk(conversation_id: str, user_id: str) -> None:
                 (conversation_id,),
             ).fetchall()
     except Exception as e:
-        logger.debug(f"window chunk query failed: {e}")
+        log_swallowed(logger, e, f"window chunk query failed: {e}")
         return
     n = len(rows)
     if n < INGEST_WINDOW_SIZE or (n % INGEST_WINDOW_SIZE) != 0:
@@ -145,7 +147,7 @@ async def _maybe_emit_window_chunk(conversation_id: str, user_id: str) -> None:
             embed=True,
         )
     except Exception as e:
-        logger.debug(f"window chunk emit failed: {e}")
+        log_swallowed(logger, e, f"window chunk emit failed: {e}")
 
 
 async def _maybe_emit_gist_row(conversation_id: str, user_id: str) -> None:
@@ -166,7 +168,7 @@ async def _maybe_emit_gist_row(conversation_id: str, user_id: str) -> None:
                 (conversation_id,),
             ).fetchall()
     except Exception as e:
-        logger.debug(f"gist query failed: {e}")
+        log_swallowed(logger, e, f"gist query failed: {e}")
         return
     n = len(rows)
     if n < INGEST_GIST_MIN_TURNS:
@@ -214,4 +216,4 @@ async def _maybe_emit_gist_row(conversation_id: str, user_id: str) -> None:
             embed=True,
         )
     except Exception as e:
-        logger.debug(f"gist emit failed: {e}")
+        log_swallowed(logger, e, f"gist emit failed: {e}")

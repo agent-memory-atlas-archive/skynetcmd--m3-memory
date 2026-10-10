@@ -16,6 +16,7 @@ from llm_failover import (
     report_available,
     report_unavailable,
 )
+from m3_core.errors import log_swallowed
 from memory_core import (
     DEDUP_LIMIT,
     EMBED_DIM,
@@ -81,7 +82,7 @@ def _transfer_to_archive(item_id, reason, db):
             db.execute(sql, vals)
         return True
     except Exception as e:  # noqa: BLE001 — best-effort tombstone; never block the purge
-        logger.debug(f"archive write skipped for {item_id}: {e}")
+        log_swallowed(logger, e, f"archive write skipped for {item_id}: {e}")
         return False
 
 def memory_dedup_impl(threshold=None, dry_run=True, limit=0):
@@ -1382,7 +1383,7 @@ def memory_maintenance_impl(decay=True, purge_expired=True, prune_orphan_embeddi
                         report.append(f"Refresh queue: notified {notified} agent(s)")
         except Exception as e:
             # refresh_on column may not exist on very old DBs that haven't run v014
-            logger.debug(f"refresh queue check skipped: {e}")
+            log_swallowed(logger, e, f"refresh queue check skipped: {e}")
 
         db.execute("ANALYZE")
         report.append("Statistics updated (ANALYZE)")

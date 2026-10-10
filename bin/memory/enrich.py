@@ -59,6 +59,8 @@ _AUTO_ENTITIES_CACHE: dict[str, list[str]] = {}
 # memory_core but left these module-level objects behind. memory_core
 # now re-exports the names through `_resolve_mc_callbacks()` so legacy
 # patching still works.
+from m3_core.errors import log_swallowed
+
 from .config import FACT_ENRICH_CONCURRENCY
 
 _FACT_ENRICH_SEM: asyncio.Semaphore = asyncio.Semaphore(FACT_ENRICH_CONCURRENCY)
@@ -127,7 +129,7 @@ async def _auto_classify(content: str, title: str) -> str:
             _CLASSIFY_CACHE[c_hash] = m_type
             return m_type
     except Exception as e:
-        logger.debug(f"Auto-classification failed: {e}")
+        log_swallowed(logger, e, f"Auto-classification failed: {e}")
         from llm_failover import clear_failover_caches
         clear_failover_caches()
 
@@ -197,7 +199,7 @@ async def _maybe_auto_title(content: str, title: str, force: bool = False) -> st
         _AUTO_TITLE_CACHE[c_hash] = out
         return out
     except Exception as e:
-        logger.debug(f"auto-title failed: {e}")
+        log_swallowed(logger, e, f"auto-title failed: {e}")
         return title
 
 
@@ -259,7 +261,7 @@ async def _maybe_auto_entities(content: str, force: bool = False) -> list[str]:
         _AUTO_ENTITIES_CACHE[c_hash] = ents
         return list(ents)
     except Exception as e:
-        logger.debug(f"auto-entities failed: {e}")
+        log_swallowed(logger, e, f"auto-entities failed: {e}")
         return []
 
 
@@ -320,7 +322,7 @@ def _enqueue_fact_enrichment(memory_id: str, db) -> None:
             (memory_id,)
         )
     except Exception as e:
-        logger.debug(f"Failed to enqueue fact enrichment for {memory_id}: {e}")
+        log_swallowed(logger, e, f"Failed to enqueue fact enrichment for {memory_id}: {e}")
 
 
 async def _run_fact_enricher(memory_id: str, content: str, fact_enricher,
@@ -362,7 +364,7 @@ async def _run_fact_enricher(memory_id: str, content: str, fact_enricher,
                     {_suffix}
                 """.rstrip(), (memory_id, memory_id, str(e)[:500]))
         except Exception as db_err:
-            logger.debug(f"Failed to record enrichment error for {memory_id}: {db_err}")
+            log_swallowed(logger, db_err, f"Failed to record enrichment error for {memory_id}: {db_err}")
     finally:
         sem.release()
 
@@ -419,7 +421,7 @@ async def _write_fact_rows(memory_id: str, facts: list[dict]) -> None:
                 )
                 _record_history(fact_id, "create", None, fact_text, "content", "fact_enricher", db=db)
         except Exception as e:
-            logger.debug(f"Failed to write fact row for {memory_id}: {e}")
+            log_swallowed(logger, e, f"Failed to write fact row for {memory_id}: {e}")
 
 
 def _select_pending_fact_enrichment(db, limit: int | None = None, allowed_variants: list[str] | None = None) -> list[tuple[str, str]]:

@@ -223,7 +223,7 @@ def _store_entity_vector(db, entity_id: str, vec: list[float], model: str | None
             (entity_id, _pack(vec), model, len(vec)),
         )
     except Exception as e:  # pragma: no cover - defensive
-        logger.debug(f"entity vector store failed for {entity_id}: {e}")
+        log_swallowed(logger, e, f"entity vector store failed for {entity_id}: {e}")
 
 
 def _enable_entity_graph_gate() -> bool:
@@ -322,6 +322,8 @@ def _cosine(v1, v2):
 # dispatch; released in `_run_entity_extractor`'s finally block.
 # Identity preserved through the shim — external callers may inspect
 # `.locked()` or `._value` for queue-depth diagnostics.
+from m3_core.errors import log_swallowed
+
 from .config import ENTITY_EXTRACT_CONCURRENCY  # noqa: E402 — local to this block
 
 _ENTITY_EXTRACT_SEMS: dict[asyncio.AbstractEventLoop, asyncio.Semaphore] = {}
@@ -655,7 +657,7 @@ def _enqueue_entity_extraction(memory_id: str, db) -> None:
             (memory_id,),
         )
     except Exception as e:
-        logger.debug(f"Failed to enqueue entity extraction for {memory_id}: {e}")
+        log_swallowed(logger, e, f"Failed to enqueue entity extraction for {memory_id}: {e}")
 
 
 async def _run_entity_extractor(
@@ -752,7 +754,7 @@ async def _run_entity_extractor(
                                 (source_valid_from, entity_id),
                             )
                     except Exception as e:
-                        logger.debug(f"Entity create failed for '{cname}': {e}")
+                        log_swallowed(logger, e, f"Entity create failed for '{cname}': {e}")
                         continue
                 canonical_to_id[cname] = entity_id
                 mention_text = ent.get("mention_text") or cname
@@ -778,7 +780,7 @@ async def _run_entity_extractor(
                     # _link_memory_to_entity uses INSERT OR IGNORE — idempotent.
                     _link_memory_to_entity(memory_id, entity_id, mention_text, mention_offset, confidence, db)
                 except Exception as e:
-                    logger.debug(f"Entity link failed for {memory_id}->{entity_id}: {e}")
+                    log_swallowed(logger, e, f"Entity link failed for {memory_id}->{entity_id}: {e}")
 
             # Write relationships — both ends must have been resolved above.
             for rel in relationships_raw:
@@ -820,7 +822,7 @@ async def _run_entity_extractor(
                         (from_id, to_id, predicate, confidence, memory_id, rel_valid_from),
                     )
                 except Exception as e:
-                    logger.debug(f"Relationship link error for {from_cname}->{to_cname} ({predicate}): {e}")
+                    log_swallowed(logger, e, f"Relationship link error for {from_cname}->{to_cname} ({predicate}): {e}")
 
         # On success, remove any queue entry so the item isn't re-processed.
         try:
@@ -830,7 +832,7 @@ async def _run_entity_extractor(
                     (memory_id,),
                 )
         except Exception as db_err:
-            logger.debug(f"Failed to remove queue entry for {memory_id} after success: {db_err}")
+            log_swallowed(logger, db_err, f"Failed to remove queue entry for {memory_id} after success: {db_err}")
 
     except Exception as e:
         # Record error and bump attempts in queue so the item is retried on next pass.
@@ -867,7 +869,7 @@ async def _run_entity_extractor(
                     (memory_id, memory_id, str(e)[:500]),
                 )
         except Exception as db_err:
-            logger.debug(f"Failed to record entity extraction error for {memory_id}: {db_err}")
+            log_swallowed(logger, db_err, f"Failed to record entity extraction error for {memory_id}: {db_err}")
     finally:
         _ENTITY_EXTRACT_SEM.release()
 

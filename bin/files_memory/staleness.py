@@ -26,6 +26,7 @@ import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from m3_core.errors import log_swallowed
 from m3_core.paths import canonical_path
 
 from .config import files_table
@@ -205,7 +206,7 @@ def files_staleness_review(
                 for entry in walk(root):
                     disk_paths.add(entry.path)
             except Exception as e:
-                logger.debug("walker failed at %s: %s", root, e)
+                log_swallowed(logger, e, "walker failed at %s: %s", root, e)
         report.scanned_disk_files = len(disk_paths)
 
         # 2b. Pre-pass: collect the paths whose mtime bumped so we can hash

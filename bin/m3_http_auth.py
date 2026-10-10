@@ -45,6 +45,8 @@ import hmac
 import logging
 import secrets
 
+from m3_core.errors import log_swallowed
+
 logger = logging.getLogger("m3_http_auth")
 
 # Service name for the shared bearer token. Survives auth_utils._sanitize_service
@@ -174,7 +176,7 @@ def _vault_row_exists(service: str = SECRET_NAME) -> bool:
         )
         return cur.fetchone() is not None
     except Exception as exc:  # noqa: BLE001 -- diagnosis aid, never fatal
-        logger.debug(f"vault probe for {service} failed: {type(exc).__name__}: {exc}")
+        log_swallowed(logger, exc, f"vault probe for {service} failed: {type(exc).__name__}: {exc}")
         return False
     finally:
         if _cm is not None and conn is not None:

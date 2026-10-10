@@ -63,6 +63,7 @@ try:
     DB_PATH = pathlib.Path(_resolve_db(None))
 except ImportError:
     DB_PATH = BASE / "memory" / "agent_memory.db"
+from m3_core.errors import log_swallowed
 from m3_core.paths import get_m3_logs_root  # noqa: E402
 
 LOG_DIR  = pathlib.Path(get_m3_logs_root())
@@ -148,7 +149,7 @@ def get_kv_stats() -> tuple:
     except requests.exceptions.Timeout:
         return 0, 0, 0, "TIMEOUT", None
     except Exception as e:
-        logger.debug(f"KV stats fetch error: {type(e).__name__}")
+        log_swallowed(logger, e, f"KV stats fetch error: {type(e).__name__}")
         return 0, 0, 0, "OFFLINE", None
 
 
@@ -445,7 +446,7 @@ def get_memory_health() -> dict:
             except Exception:
                 pass
     except Exception as e:
-        logger.debug(f"Memory health query failed: {type(e).__name__}")
+        log_swallowed(logger, e, f"Memory health query failed: {type(e).__name__}")
     return stats
 
 

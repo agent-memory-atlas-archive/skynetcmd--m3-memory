@@ -32,6 +32,8 @@ import logging
 import zipfile
 from collections.abc import Iterator
 
+from m3_core.errors import log_swallowed
+
 from . import Leaf
 
 logger = logging.getLogger("files_memory.chunkers.iwork")
@@ -152,7 +154,7 @@ def _from_iwa(zf: zipfile.ZipFile, path: str) -> Iterator[Leaf]:
         try:
             parsed = IWAFile.from_buffer(zf.read(name), name).to_dict()
         except Exception as e:  # noqa: BLE001
-            logger.debug("iwa component %s unreadable: %s", name, e)
+            log_swallowed(logger, e, "iwa component %s unreadable: %s", name, e)
             continue
         strings = _harvest_strings(parsed)
         if not strings:

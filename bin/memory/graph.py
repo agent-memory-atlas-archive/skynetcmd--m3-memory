@@ -4,6 +4,8 @@ import logging
 import sqlite3
 from collections.abc import Collection
 
+from m3_core.errors import log_swallowed
+
 from . import config, records
 from .backends import dialect
 from .config import EMBED_DIM, ENTITY_SEED_STOPLIST
@@ -86,8 +88,8 @@ def _graph_neighbor_ids(seed_ids: list, depth: int) -> set:
             # contract. The limit is generous; the bounded edge fetch above
             # already caps the graph size.
             return set(graph.expand(list(seed_ids), depth, 100_000))
-        except Exception:  # noqa: BLE001 — any FFI hiccup falls back to Python
-            logger.debug("m3_core_rs GraphIndex traversal failed; using Python path", exc_info=True)
+        except Exception as e:  # noqa: BLE001 — any FFI hiccup falls back to Python
+            log_swallowed(logger, e, "m3_core_rs GraphIndex traversal failed; using Python path: %s", e)
 
     seen: set = set(seed_ids)
     frontier = set(seed_ids)

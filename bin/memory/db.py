@@ -41,6 +41,7 @@ from pathlib import Path
 from typing import Any
 
 from embedding_utils import infer_change_agent as _infer_change_agent_util
+from m3_core.errors import log_swallowed
 from m3_sdk import M3Context, migration_lock, resolve_db_path
 
 from . import config
@@ -584,7 +585,7 @@ def _record_history(
         # syntax error that used to trigger exactly that (superseded rows silently
         # not persisting). Keep the catch for genuinely-tolerable failures (e.g. a
         # pre-migration DB with no memory_history table).
-        logger.debug(f"History recording failed: {e}")
+        log_swallowed(logger, e, f"History recording failed: {e}")
 
 
 def memory_history_impl(memory_id: str, limit: int = 20, as_records: bool = False) -> str:
@@ -717,7 +718,7 @@ def _flush_access_batch(batch: list) -> int:
             if hasattr(db, "commit"):
                 db.commit()
     except Exception as e:  # noqa: BLE001 — never break a read path
-        logger.debug(f"access-stamp flush failed (batch={len(batch)}): {e}")
+        log_swallowed(logger, e, f"access-stamp flush failed (batch={len(batch)}): {e}")
         return 0
     return len(batch)
 
@@ -765,7 +766,7 @@ async def _access_stamp_flusher() -> None:
         except asyncio.CancelledError:
             return
         except Exception as e:  # noqa: BLE001 — keep the task alive
-            logger.debug(f"access-stamp flusher recoverable error: {e}")
+            log_swallowed(logger, e, f"access-stamp flusher recoverable error: {e}")
 
 
 def _enqueue_access_stamps(ids) -> None:

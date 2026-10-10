@@ -123,6 +123,8 @@ logger = logging.getLogger("memory.search")
 # search"), name)` — continues to find these names as attributes of this
 # module. Do NOT remove even though this module no longer calls them itself.
 # ──────────────────────────────────────────────────────────────────────────────
+from m3_core.errors import log_swallowed
+
 from .search_ranking import (  # noqa: F401 — re-exported for callers + memory_core shim
     _DATE_MONTHS,
     _apply_recency_bonus,
@@ -495,7 +497,7 @@ def _fts_only_results(query, search_mode, k, user_id, scope, extra_columns,
         # signal to blend, and the ORDER already carries the ranking.
         return [(1.0, dict(row)) for row in rows]
     except Exception as exc:  # noqa: BLE001 — fallback must never raise
-        logger.debug("FTS-only fallback failed (non-fatal): %s", exc)
+        log_swallowed(logger, exc, "FTS-only fallback failed (non-fatal): %s", exc)
         return []
 
 
@@ -700,7 +702,7 @@ async def memory_search_scored_impl(
     try:
         _resolve_mc_callbacks()  # bind memory_core callbacks on first call
     except Exception as e:  # noqa: BLE001 — fail-open is the point
-        logger.debug("memory_search_scored_impl: callback resolution failed (%s); using module defaults", e)
+        log_swallowed(logger, e, "memory_search_scored_impl: callback resolution failed (%s); using module defaults", e)
 
     # Test-shim resolution: legacy regression tests monkeypatch these on
     # `memory_core`. Without local rebinding the module-global imports
@@ -742,7 +744,7 @@ async def memory_search_scored_impl(
             if _label:
                 intent_hint = _label
         except Exception as _ie:  # noqa: BLE001 — never fail search on classifier error
-            logger.debug(f"intent auto-classification skipped: {_ie}")
+            log_swallowed(logger, _ie, f"intent auto-classification skipped: {_ie}")
 
     vector_weight = _maybe_route_query(query, vector_weight, intent_hint=intent_hint)
 
@@ -864,7 +866,7 @@ async def memory_search_scored_impl(
                         len(exact_hits), query, k,
                     )
         except Exception as exc:
-            logger.debug("FTS Short-circuit check failed (non-fatal): %s", exc)
+            log_swallowed(logger, exc, "FTS Short-circuit check failed (non-fatal): %s", exc)
 
     # Degrade-safe query embed via the single source of truth
     # embed.embed_for_search (fast-tier gate + EMBED_SEARCH_DEADLINE_S wall-clock
@@ -1353,7 +1355,7 @@ async def memory_search_scored_impl(
                 if recency_bias > 0 and ranked:
                     ranked = _apply_recency_bonus(ranked, recency_bias, explain=False)
             except Exception as e:
-                logger.debug(f"rank_hybrid_packed failed, falling back: {e}")
+                log_swallowed(logger, e, f"rank_hybrid_packed failed, falling back: {e}")
 
     if ranked is None:
         # ── Legacy / Explain / Fallback Path ──────────────────────────────
@@ -1532,7 +1534,7 @@ async def memory_search_scored_impl(
         try:
             _sem = await _recurse_semantic()
         except Exception as exc:  # a top-up must never break a working search
-            logger.debug("semantic top-up failed (non-fatal): %s", exc)
+            log_swallowed(logger, exc, "semantic top-up failed (non-fatal): %s", exc)
             _sem = []
         # Sort the fill by score before appending: the semantic pass returns its
         # own ranking, but appending in arrival order left the tail unsorted
@@ -1660,7 +1662,7 @@ async def _apply_two_stage_expansion(ranked, k, user_id: str = "", scope: str = 
                 ranked.append((floor, expanded_item))
             ranked.sort(key=lambda t: t[0], reverse=True)
         except Exception as e:
-            logger.debug(f"two-stage observation expansion failed: {e}")
+            log_swallowed(logger, e, f"two-stage observation expansion failed: {e}")
     return ranked
 
 
@@ -2158,7 +2160,7 @@ async def memory_search_routed_impl(
                     if _capture_dict is not None:
                         _capture_dict["superseded_demoted"] = len(superseded_ids)
             except Exception as e:
-                logger.debug(f"supersedence-aware demotion failed: {e}")
+                log_swallowed(logger, e, f"supersedence-aware demotion failed: {e}")
 
     # ── ADR-0001 bypass-surface union (rank-independent recall) ──────────────
     # Off by default ⇒ output byte-identical to pre-ADR. When on, union the
@@ -2227,7 +2229,7 @@ async def memory_search_routed_impl(
         except ValueError:
             raise
         except Exception as e:  # pragma: no cover - additive leg must never break search
-            logger.debug(f"bypass_surface union failed (non-fatal): {e}")
+            log_swallowed(logger, e, f"bypass_surface union failed (non-fatal): {e}")
 
     return final_hits
 

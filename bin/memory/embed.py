@@ -29,6 +29,7 @@ import httpx as _httpx
 from embedding_utils import unpack as _unpack
 from llm_failover import get_best_embed
 from m3_core.aio import gather_or_cancel
+from m3_core.errors import log_swallowed
 from m3_sdk import M3Context, getenv_compat, resolve_db_path
 
 from . import config
@@ -945,7 +946,7 @@ def _enforce_length_contract(texts: list[str]) -> list[tuple[int, int]]:
     try:
         counts = count_tokens(texts)
     except Exception as e:  # noqa: BLE001 — the guard must never break the embed
-        logger.debug("length-contract check skipped (%s)", e)
+        log_swallowed(logger, e, "length-contract check skipped (%s)", e)
         return []
     over = _oversize_report(texts, counts)
     if over:
@@ -1299,7 +1300,7 @@ async def _embed(text: str) -> tuple[list[float] | None, str]:
             if cached:
                 return _unpack(cached["embedding"]), cached["embed_model"]
     except Exception as e:
-        logger.debug(f"Embedding cache lookup failed: {e}")
+        log_swallowed(logger, e, f"Embedding cache lookup failed: {e}")
 
     # Tier 1: in-process Rust embedder. Gated by _EMBEDDED_BREAKER so a
     # storm of CUDA/OOM failures doesn't cost ~ms each call indefinitely.

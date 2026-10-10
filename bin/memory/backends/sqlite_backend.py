@@ -587,6 +587,20 @@ class SqliteBackend:
 
         return _ro()
 
+    def is_query_defect(self, exc: BaseException) -> bool:
+        """sqlite3 reports a wrong bind count as ProgrammingError, and a bad
+        query as an OperationalError told apart from "locked"/"no such table"
+        only by its message (the driver has no finer classes)."""
+        import sqlite3
+
+        if isinstance(exc, sqlite3.ProgrammingError):
+            return True
+        if isinstance(exc, sqlite3.OperationalError):
+            msg = str(exc).lower()
+            return any(s in msg for s in ("syntax error", "no such column",
+                                          "no such function", "unrecognized token"))
+        return False
+
     def placeholder(self, n: int = 1) -> str:
         """SQLite qmark placeholders: ``placeholder(3) -> "?, ?, ?"``."""
         if n < 1:

@@ -246,7 +246,8 @@ class Memory(M3ExtrasMixin):
                     turn_index=i,
                 )
             except Exception as e:  # extraction is a bonus, not the contract
-                logger.debug("chatlog_write enqueue skipped: %s", e)
+                from m3_core.errors import log_swallowed
+                log_swallowed(logger, e, "chatlog_write enqueue skipped: %s", e)
 
     # ── .search() — mem0-shaped, temporal-aware ───────────────────────────────
     def search(

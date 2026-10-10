@@ -31,6 +31,8 @@ import os
 import re
 import sys
 
+from m3_core.errors import log_swallowed
+
 logger = logging.getLogger("memory.doctor.embed_space_probe")
 
 # Rows below this share of the store are the "minority" space — the ones whose
@@ -228,7 +230,7 @@ def run(brief: bool = False) -> int:
                 if tag and tag not in compat:
                     unreachable[tag] = unreachable.get(tag, 0) + n
     except Exception as e:  # noqa: BLE001 — a probe must not fail the doctor
-        logger.debug("compat-set check skipped: %s", e)
+        log_swallowed(logger, e, "compat-set check skipped: %s", e)
 
     if brief:
         if mixed:

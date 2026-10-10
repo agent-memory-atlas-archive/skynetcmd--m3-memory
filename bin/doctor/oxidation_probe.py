@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import logging
 
+from m3_core.errors import log_swallowed
+
 logger = logging.getLogger("memory.doctor.oxidation_probe")
 
 # Native functions the Python oxidation paths expect to route through. Each is
@@ -123,7 +125,7 @@ def run(brief: bool = False) -> int:
             print("  version  : installed wheel does not report a version "
                   "(cannot confirm currency)")
     except Exception as e:  # noqa: BLE001 — probe must never crash the doctor
-        logger.debug("version-staleness check skipped: %s", e)
+        log_swallowed(logger, e, "version-staleness check skipped: %s", e)
 
     if not missing and not version_stale:
         _b(f"✅ oxidation: current ({len(present)}/{len(_EXPECTED)} native paths)")

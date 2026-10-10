@@ -127,8 +127,10 @@ class M3ChatMessageHistory(BaseChatMessageHistory):
             self._client.ensure_schema(chatlog_config.chatlog_db_path())
         except Exception as e:  # never block construction on a heal attempt
             import logging
-            logging.getLogger("m3_memory.langchain").debug(
-                "chatlog schema self-heal skipped: %s", e)
+
+            from m3_core.errors import log_swallowed
+            log_swallowed(logging.getLogger("m3_memory.langchain"), e,
+                          "chatlog schema self-heal skipped: %s", e)
 
     # ── read: messages (chronological) ────────────────────────────────────────
     def _fetch_rows(self) -> list[dict]:

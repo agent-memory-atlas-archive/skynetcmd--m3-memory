@@ -24,6 +24,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from m3_core.errors import log_swallowed
+
 logger = logging.getLogger(__name__)
 
 # Canonical filename m3 uses for its own copy.
@@ -145,7 +147,7 @@ def fetch_bge_m3(dest_dir: Path | None = None, *, quiet: bool = False) -> Path |
             return final
 
         except Exception as exc:  # network, HTTP, disk — try the next mirror
-            logger.debug("mirror %s failed: %s", url, exc)
+            log_swallowed(logger, exc, "mirror %s failed: %s", url, exc)
             if not quiet:
                 print(f"[!] mirror failed ({exc.__class__.__name__}); trying next…")
             part.unlink(missing_ok=True)

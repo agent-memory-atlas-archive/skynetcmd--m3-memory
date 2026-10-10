@@ -244,7 +244,8 @@ class M3MemoryProvider(MemoryProvider):
                 self._record_success()
             except Exception as e:
                 self._record_failure()
-                logger.debug("m3 prefetch failed: %s", e)
+                from m3_core.errors import log_swallowed
+                log_swallowed(logger, e, "m3 prefetch failed: %s", e)
 
         self._prefetch_thread = threading.Thread(
             target=_run, daemon=True, name="m3-prefetch"

@@ -68,6 +68,8 @@ def _db(*args, **kwargs):
     # wrapper's ONLY remaining job is honoring the memory_core._db test override
     # above; delegate everything else to the canonical helper.
     return _canonical_db(*args, **kwargs)
+from m3_core.errors import log_swallowed
+
 from .embed import (
     _DENSE_ERR_RE,
     _EMBED_GGUF_MODEL_TAG,
@@ -570,7 +572,7 @@ type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="
         with _db() as db:
             await _try_enrich_or_enqueue(item_id, content or "", fact_enricher, db, variant=variant, allowlist=fact_enricher_variant_allowlist)
     except Exception as e:
-        logger.debug(f"fact enrichment dispatch failed: {e}")
+        log_swallowed(logger, e, f"fact enrichment dispatch failed: {e}")
 
     # Entity extraction (Phase 4). Non-blocking: tries semaphore, enqueues on miss.
     # fact_enriched rows are NOT extracted to prevent recursion.
@@ -582,7 +584,7 @@ type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="
                     variant=variant, allowlist=entity_extractor_variant_allowlist,
                 )
         except Exception as e:
-            logger.debug(f"entity extraction dispatch failed: {e}")
+            log_swallowed(logger, e, f"entity extraction dispatch failed: {e}")
 
     # Contradiction detection + auto-linking (runs after embedding is stored).
     # `variant` is threaded into _check_contradictions so candidates respect the
@@ -624,7 +626,7 @@ type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="
             if INGEST_GIST_ROWS:
                 await _maybe_emit_gist_row(_cid, user_id)
         except Exception as e:
-            logger.debug(f"ingest emitter failed: {e}")
+            log_swallowed(logger, e, f"ingest emitter failed: {e}")
 
     result = f"Created: {item_id}"
     if _embed_deferred:
@@ -1090,7 +1092,7 @@ async def memory_write_bulk_impl(
                 try:
                     enriched = await embed_key_enricher(raw_content, meta_dict)
                 except Exception as e:
-                    logger.debug(f"embed_key_enricher failed on item {p.get('id')}: {e}")
+                    log_swallowed(logger, e, f"embed_key_enricher failed on item {p.get('id')}: {e}")
                     return
                 # Skip the pass-through case where the enricher returned the
                 # raw content unchanged (e.g. bench short-turn skip shortcut).
@@ -1239,7 +1241,7 @@ async def memory_write_bulk_impl(
                         allowlist=fact_enricher_variant_allowlist
                     )
                 except Exception as e:
-                    logger.debug(f"fact enrichment dispatch failed for {p['id']}: {e}")
+                    log_swallowed(logger, e, f"fact enrichment dispatch failed for {p['id']}: {e}")
 
     # Phase 2.6: Entity extraction (Phase 4 on-write hook).
     # Non-blocking per-row dispatch: tries semaphore, enqueues on miss.
@@ -1261,7 +1263,7 @@ async def memory_write_bulk_impl(
                         allowlist=entity_extractor_variant_allowlist,
                     )
                 except Exception as e:
-                    logger.debug(f"entity extraction dispatch failed for {p['id']}: {e}")
+                    log_swallowed(logger, e, f"entity extraction dispatch failed for {p['id']}: {e}")
 
     # Phase 3: Contradiction detection (if requested, with bounded concurrency).
     # Default is off in bulk (perf), must explicitly enable with check_contradictions=True.
@@ -1324,7 +1326,7 @@ async def memory_write_bulk_impl(
                             p["content"] or "", p["metadata"], cid, user_id, p["id"]
                         )
                 except Exception as e:
-                    logger.debug(f"event_extraction emit failed in bulk: {e}")
+                    log_swallowed(logger, e, f"event_extraction emit failed in bulk: {e}")
 
             # Window and gist emitters (run once per conversation group, not per message)
             user_id = conv_items[0].get("user_id", "") if conv_items else ""
@@ -1332,20 +1334,20 @@ async def memory_write_bulk_impl(
                 if INGEST_WINDOW_CHUNKS:
                     await _maybe_emit_window_chunk(cid, user_id)
             except Exception as e:
-                logger.debug(f"window chunk emit failed in bulk: {e}")
+                log_swallowed(logger, e, f"window chunk emit failed in bulk: {e}")
 
             try:
                 if INGEST_GIST_ROWS:
                     await _maybe_emit_gist_row(cid, user_id)
             except Exception as e:
-                logger.debug(f"gist row emit failed in bulk: {e}")
+                log_swallowed(logger, e, f"gist row emit failed in bulk: {e}")
 
     try:
         from sqlite_pragmas import checkpoint_passive
         with _db() as db:
             checkpoint_passive(db)
     except Exception as e:
-        logger.debug(f"Failed to checkpoint WAL after bulk write: {e}")
+        log_swallowed(logger, e, f"Failed to checkpoint WAL after bulk write: {e}")
 
     return [p["id"] for p in prepared]
 
@@ -1509,7 +1511,7 @@ async def _check_contradictions(
                                     trust_at_write=t, delta=-t,
                                 )
                             except Exception as ce:  # noqa: BLE001
-                                logger.debug(f"contradiction ledger skipped: {ce}")
+                                log_swallowed(logger, ce, f"contradiction ledger skipped: {ce}")
                     superseded.append(row["id"])
                     logger.info(f"Memory {item_id} supersedes {row['id']} (contradiction detected, valid_to={_close_at})")
             elif score > 0.7:
@@ -1540,9 +1542,9 @@ async def _check_contradictions(
                                 f"(score>={_wcfg.CORROBORATION_THRESHOLD}, trust={t:.2f})"
                             )
                     except Exception as ce:  # noqa: BLE001
-                        logger.debug(f"corroboration of {old_id} skipped: {ce}")
+                        log_swallowed(logger, ce, f"corroboration of {old_id} skipped: {ce}")
     except Exception as e:
-        logger.debug(f"Contradiction check failed: {e}")
+        log_swallowed(logger, e, f"Contradiction check failed: {e}")
     return superseded, related
 
 

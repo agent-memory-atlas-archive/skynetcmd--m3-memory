@@ -22,6 +22,7 @@ import unicodedata
 from datetime import UTC, datetime
 
 from _task_runtime import no_window_kwargs
+from m3_core.errors import log_swallowed
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +97,7 @@ def _keyring_read(service_name: str, username: str) -> tuple[str | None, str | N
             _KEYRING_CB_OPEN_UNTIL = time.time() + 300.0
             return None, "keyring: lookup timed out (2s); circuit breaker opened for 300s"
     except Exception as e:
-        logger.debug(f"Keyring import or setup failed: {e}")
+        log_swallowed(logger, e, f"Keyring import or setup failed: {e}")
         return None, f"keyring: unavailable ({type(e).__name__}: {e})"
     finally:
         _KEYRING_LOCK.release()
@@ -636,7 +637,7 @@ def _vault_tier(service: str) -> tuple[str | None, str | None]:
         )
         error = f"vault: {type(exc).__name__}: {exc}"
     except Exception as exc:
-        logger.debug(f"Failed to read from encrypted vault: {type(exc).__name__}")
+        log_swallowed(logger, exc, f"Failed to read from encrypted vault: {type(exc).__name__}")
         error = f"vault: {type(exc).__name__}: {exc}"
     finally:
         if conn is not None:

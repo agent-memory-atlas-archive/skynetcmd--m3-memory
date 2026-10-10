@@ -25,6 +25,7 @@ import time
 from pathlib import Path
 
 from llm_failover import apply_thinking_suppression
+from m3_core.errors import log_swallowed
 from m3_core.paths import canonical_path
 
 logger = logging.getLogger("files_memory.summarize")
@@ -246,7 +247,7 @@ def _llm_call(prompt: str, content: str, max_tokens: int = 256) -> str | None:
             data = resp.json()
             return (data["choices"][0]["message"]["content"] or "").strip()
     except Exception as e:
-        logger.debug("summarizer LLM call failed: %s", e)
+        log_swallowed(logger, e, "summarizer LLM call failed: %s", e)
         return None
 
 

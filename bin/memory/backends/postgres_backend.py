@@ -1036,6 +1036,18 @@ class PostgresBackend:
         with self.connection() as conn:
             yield conn
 
+    def is_query_defect(self, exc: BaseException) -> bool:
+        """psycopg2's ProgrammingError covers syntax errors, unknown columns and
+        bad binds; undefined_table (42P01) is excluded, matching SQLite's "no such
+        table". Read from sys.modules: if psycopg2 never loaded, no exception
+        here came from it."""
+        import sys
+
+        pg = sys.modules.get("psycopg2")
+        if pg is None or not isinstance(exc, pg.ProgrammingError):
+            return False
+        return getattr(exc, "pgcode", None) != "42P01"
+
     def placeholder(self, n: int = 1) -> str:
         """Positional binds for psycopg: ``placeholder(3) -> "%s, %s, %s"``."""
         return POSTGRES.placeholder(n)
