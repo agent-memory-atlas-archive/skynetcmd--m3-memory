@@ -10,7 +10,8 @@ explicit assignment rather than by accidental bucket isolation.
 
 Common patterns:
 
-    # Route all groups <= 7 KB to "grok"
+    # Route all groups <= 7 KB to "grok" (--db only on SQLite; PostgreSQL
+    # uses the configured database)
     m3_enrich_assign --db memory/other.db \\
                      --source-variant my-source-variant \\
                      --target-variant my-target-variant \\
@@ -33,19 +34,16 @@ override.
 from __future__ import annotations
 
 import argparse
-import sqlite3
 import sys
-from pathlib import Path
 
-from sqlite_pragmas import apply_pragmas, profile_for_db
+from m3_core.paths import active_database, resolve_cli_store, seam_backend, seam_dialect
 
 
 def main() -> int:
-    from m3_core.paths import require_sqlite_backend
-    require_sqlite_backend("m3_enrich_assign")  # opens SQLite files directly; refuse on PostgreSQL
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--db", required=True, type=Path,
-                    help="Path to the database with enrichment_groups.")
+    ap.add_argument("--db", default=None,
+                    help="SQLite database with enrichment_groups (default: the "
+                         "active store). Not used on PostgreSQL.")
     ap.add_argument("--source-variant", required=True,
                     help="Match enrichment_groups.source_variant.")
     ap.add_argument("--target-variant", required=True,
@@ -67,30 +65,35 @@ def main() -> int:
                     help="Print what would be updated; don't write.")
     args = ap.parse_args()
 
-    if not args.db.exists():
-        print(f"ERROR: database not found: {args.db}", file=sys.stderr)
+    try:
+        db_path = resolve_cli_store(args.db)
+    except ValueError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
         return 2
+    with active_database(db_path), seam_backend().connection() as conn:
+        return _assign(conn, args, db_path)
 
-    conn = sqlite3.connect(str(args.db), timeout=30.0)
-    # Centralised pragma stack — "production" profile for this assignment helper.
-    apply_pragmas(conn, profile_for_db(args.db))
 
-    # Verify the column exists (migration 031 applied).
-    cols = {r[1] for r in conn.execute("PRAGMA table_info(enrichment_groups)")}
-    if "send_to" not in cols:
-        print("ERROR: enrichment_groups.send_to does not exist on this DB. "
-              "Apply migration 031 first: "
-              f"python bin/migrate_memory.py --db {args.db} up", file=sys.stderr)
+def _assign(conn, args, db_path: str | None) -> int:
+    d = seam_dialect()
+    p = d.param()
+    # Verify the column exists (migration 031; PostgreSQL pg_060).
+    col_sql, col_params = d.columns_of("enrichment_groups")
+    if "send_to" not in {r[0] for r in conn.execute(col_sql, col_params).fetchall()}:
+        print("ERROR: observed: enrichment_groups.send_to does not exist on this store. "
+              "inspect: apply the migrations (SQLite 031: "
+              f"python bin/migrate_memory.py --db {db_path or '<db>'} up; PostgreSQL pg_060: "
+              "m3 setup or bin/migrate_pg.py)", file=sys.stderr)
         return 2
 
     # Build the WHERE clause.
-    where = ["source_variant = ?", "target_variant = ?"]
+    where = [f"source_variant = {p}", f"target_variant = {p}"]
     params: list = [args.source_variant, args.target_variant]
     if args.min_size_k is not None:
-        where.append("content_size_k >= ?")
+        where.append(f"content_size_k >= {p}")
         params.append(args.min_size_k)
     if args.max_size_k is not None:
-        where.append("content_size_k <= ?")
+        where.append(f"content_size_k <= {p}")
         params.append(args.max_size_k)
     if args.only_unassigned:
         where.append("send_to IS NULL")
@@ -134,7 +137,7 @@ def main() -> int:
 
     # Apply.
     n_updated = conn.execute(
-        f"UPDATE enrichment_groups SET send_to = ? WHERE {where_sql}",
+        f"UPDATE enrichment_groups SET send_to = {p} WHERE {where_sql}",
         [new_value, *params],
     ).rowcount
     conn.commit()

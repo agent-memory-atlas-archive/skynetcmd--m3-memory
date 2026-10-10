@@ -1019,6 +1019,27 @@ def _sqlite_bootstrap_shim():
     return _SqliteOnlyShim()
 
 
+def resolve_cli_store(explicit: str | None, flag: str = "--db") -> str | None:
+    """The store a CLI tool's database argument names, for the active backend.
+
+    File backend: the SQLite path (``explicit`` > store > ``M3_DATABASE`` >
+    engine default), which must exist. Server backend: ``None``, since the
+    backend's own DSN locates the one database, and an explicit path is refused
+    rather than ignored (a user who passed one expects it to be honoured).
+    Raises ValueError carrying observed/inspect; a tool prints it and exits 2.
+    """
+    if store_is_a_file():
+        path = resolve_db_path(explicit)
+        if not os.path.exists(path):
+            raise ValueError(f"observed: no SQLite DB at {path}. "
+                             f"inspect: {flag}, M3_DATABASE, or M3_ENGINE_ROOT")
+        return path
+    if explicit:
+        raise ValueError(f"observed: {flag} names a SQLite file but the active backend is "
+                         f"{resolve_backend_name()}. inspect: drop {flag}, or set M3_DB_BACKEND=sqlite")
+    return None
+
+
 def store_is_a_file() -> bool:
     """True when the active backend keeps each database as a file the caller
     names (SQLite), so a path selects the store and a missing file is a missing

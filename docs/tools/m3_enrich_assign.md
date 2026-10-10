@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_enrich_assign.py
-sha1: 29aedc665cfc
-mtime_utc: 2026-10-04T08:36:30.193810+00:00
-generated_utc: 2026-10-04T08:38:00.481999+00:00
+sha1: 72c4e8c6d146
+mtime_utc: 2026-10-10T14:35:19.692003+00:00
+generated_utc: 2026-10-10T14:35:24.804023+00:00
 private: false
 ---
 
@@ -20,7 +20,8 @@ explicit assignment rather than by accidental bucket isolation.
 
 Common patterns:
 
-    # Route all groups <= 7 KB to "grok"
+    # Route all groups <= 7 KB to "grok" (--db only on SQLite; PostgreSQL
+    # uses the configured database)
     m3_enrich_assign --db memory/other.db \
                      --source-variant my-source-variant \
                      --target-variant my-target-variant \
@@ -44,7 +45,7 @@ override.
 
 ## Entry points
 
-- `def main()` (line 43)
+- `def main()` (line 42)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -53,7 +54,7 @@ override.
 
 | Flag(s) | Help | Default | Default behavior | Type/Action | Impact when set |
 |---|---|---|---|---|---|
-| `--db` | Path to the database with enrichment_groups. | — |  | Path |  |
+| `--db` | SQLite database with enrichment_groups (default: the active store). Not used on PostgreSQL. | None |  | str |  |
 | `--source-variant` | Match enrichment_groups.source_variant. | — |  | str |  |
 | `--target-variant` | Match enrichment_groups.target_variant. | — |  | str |  |
 | `--send-to` | Provider name to assign (e.g. 'grok', 'gemini'). Pass the literal string 'NULL' to clear assignments. | — |  | str |  |
@@ -73,22 +74,19 @@ _(none detected)_
 
 ## Calls INTO this repo (intra-repo imports)
 
-- `sqlite_pragmas (apply_pragmas, profile_for_db)`
+_(none detected)_
 
 ---
 
 ## Calls OUT (external side-channels)
 
-**sqlite**
-
-- `sqlite3.connect()  → `str(args.db)`` (line 74)
-
+_(no subprocess / http / sqlite calls detected)_
 
 ---
 
 ## Notable external imports
 
-- `m3_core.paths (require_sqlite_backend)`
+- `m3_core.paths (active_database, resolve_cli_store, seam_backend, seam_dialect)`
 
 ---
 

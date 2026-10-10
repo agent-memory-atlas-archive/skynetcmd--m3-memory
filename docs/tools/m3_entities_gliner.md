@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_entities_gliner.py
-sha1: 0ece53da3e89
-mtime_utc: 2026-10-10T14:01:31.762367+00:00
-generated_utc: 2026-10-10T14:09:48.871469+00:00
+sha1: 97d67c44d9fc
+mtime_utc: 2026-10-10T14:32:04.260967+00:00
+generated_utc: 2026-10-10T14:34:45.141774+00:00
 private: false
 ---
 
@@ -52,7 +52,7 @@ Env vars (all optional):
 
 ## Entry points
 
-- `def main()` (line 541)
+- `def main()` (line 529)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -105,7 +105,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `gliner (GLiNER)`
 - `importlib (metadata)`
 - `m3_core.gpu (torch_device)`
-- `m3_core.paths (active_database, resolve_db_path, seam_backend, store_is_a_file)`
+- `m3_core.paths (active_database, resolve_cli_store, seam_backend)`
 - `memory.backends (dialect)`
 - `packaging.requirements (Requirement)`
 - `packaging.version (Version)`

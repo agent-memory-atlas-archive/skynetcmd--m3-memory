@@ -22,6 +22,7 @@ import os
 import sqlite3
 import sys
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -98,48 +99,49 @@ _SHARED_CORE_TABLES = {
 }
 
 
-def _sqlite_columns() -> dict:
-    """Build a fresh SQLite schema through the full migration chain and return
-    {table: set(column_names)} for the shared core tables."""
+@contextmanager
+def _fresh_sqlite():
+    """A SQLite store built through the full migration chain (three tests each
+    carried a copy of this block)."""
     import migrate_memory as m
 
     d = tempfile.mkdtemp()
-    db = os.path.join(d, "parity.db")
-    conn = sqlite3.connect(db)
-    m.init_migrations_table(conn)
-    migs = m.discover_migrations(str(_MIGRATIONS))
-    for v in sorted(migs):
-        m.apply_migration(conn, v, migs[v]["name"], migs[v]["up"])
+    conn = sqlite3.connect(os.path.join(d, "parity.db"))
+    try:
+        m.init_migrations_table(conn)
+        migs = m.discover_migrations(str(_MIGRATIONS))
+        for v in sorted(migs):
+            m.apply_migration(conn, v, migs[v]["name"], migs[v]["up"])
+        yield conn
+    finally:
+        conn.close()
+
+
+def _columns(conn, dialect, tables) -> dict:
+    """{table: set(column_names)} through the seam (Dialect.columns_of)."""
     out: dict = {}
-    for t in _SHARED_CORE_TABLES:
-        rows = conn.execute(f"PRAGMA table_info({t})").fetchall()
-        out[t] = {r[1] for r in rows}  # r[1] = column name
-    conn.close()
+    for t in tables:
+        sql, params = dialect.columns_of(t)
+        out[t] = {r[0] for r in conn.execute(sql, params).fetchall()}
     return out
 
 
-def _sqlite_all_tables() -> set[str]:
-    """Every real table in a freshly migrated SQLite schema.
+def _sqlite_schema() -> tuple[set[str], dict]:
+    """(every real table, {table: columns}) of a freshly migrated SQLite store.
 
-    Unlike `_sqlite_columns`, this does NOT filter to `_SHARED_CORE_TABLES` --
-    the completeness gate has to enumerate the source of truth, or it can only
-    ever re-check tables somebody already listed.
+    Enumerates the source of truth: a curated list can only re-check tables
+    somebody already listed.
     """
-    import migrate_memory as m
-
-    d = tempfile.mkdtemp()
-    db = os.path.join(d, "parity_all.db")
-    conn = sqlite3.connect(db)
-    m.init_migrations_table(conn)
-    migs = m.discover_migrations(str(_MIGRATIONS))
-    for v in sorted(migs):
-        m.apply_migration(conn, v, migs[v]["name"], migs[v]["up"])
+    from memory.backends.dialect import dialect_for
     from memory.backends.sqlite_backend import SqliteBackend
 
-    try:
-        return SqliteBackend().list_tables(conn)
-    finally:
-        conn.close()
+    with _fresh_sqlite() as conn:
+        tables = SqliteBackend().list_tables(conn)
+        return tables, _columns(conn, dialect_for("sqlite"), tables)
+
+
+def _sqlite_all_tables() -> set[str]:
+    return _sqlite_schema()[0]
 
 
 def _pg_all_tables(backend) -> set[str]:
@@ -148,19 +150,11 @@ def _pg_all_tables(backend) -> set[str]:
         return backend.list_tables(c)
 
 
-def _pg_columns(backend) -> dict:
-    """{table: set(column_names)} for the shared core tables on the live PG store."""
-    out: dict = {}
+def _pg_columns(backend, tables=None) -> dict:
+    """{table: set(column_names)} on the live PG store, through the seam."""
     with backend.connection() as c:
-        cur = c.cursor()
-        for t in _SHARED_CORE_TABLES:
-            cur.execute(
-                "SELECT column_name FROM information_schema.columns "
-                "WHERE table_schema='public' AND table_name=%s",
-                (t,),
-            )
-            out[t] = {r[0] for r in cur.fetchall()}
-    return out
+        return _columns(c, backend.dialect(), sorted(tables if tables is not None
+                                                     else _SHARED_CORE_TABLES))
 
 
 @pytest.fixture()
@@ -206,6 +200,10 @@ def test_core_tables_exist_on_both(pg):
 _ALLOWED_BACKEND_ONLY = {
     "memory_items": {"only_pg": {"search_vector", "stage1_kg_done"}},
     "memory_relationships": {"only_pg": {"weight"}},
+    # pg_041 added `status` to both extraction queues; SQLite's 038 added it to
+    # entity_extraction_queue only. No reader of fact_enrichment_queue.status on
+    # either backend (grep, 2026-10-10), so the extra PG column is inert.
+    "fact_enrichment_queue": {"only_pg": {"status"}},
 }
 
 
@@ -255,11 +253,17 @@ def test_column_parity_sqlite_vs_pg(pg):
     deliberately backend-only columns in _ALLOWED_BACKEND_ONLY. Any OTHER column
     present on one backend but not the other is schema drift — fix the lagging
     migration (this is exactly how the missing gdpr_requests / observation_queue.
-    stage on PG were caught before pg_044)."""
-    sq = _sqlite_columns()
-    pgc = _pg_columns(pg)
+    stage on PG were caught before pg_044).
+
+    Iterates EVERY table both backends have, not _SHARED_CORE_TABLES: the
+    curated list never named enrichment_groups, so `send_to` (031) shipped
+    without a PG migration and `m3_enrich --send-to` failed on PostgreSQL
+    (2026-10-10). Same lesson as the table-completeness gate above."""
+    sq_tables, sq = _sqlite_schema()
+    shared = (sq_tables & _pg_all_tables(pg)) - _SQLITE_ONLY_TABLES
+    pgc = _pg_columns(pg, shared)
     drift: dict = {}
-    for t in sorted(_SHARED_CORE_TABLES):
+    for t in sorted(shared):
         allow = _ALLOWED_BACKEND_ONLY.get(t, {})
         only_sqlite = sq.get(t, set()) - pgc.get(t, set()) - allow.get("only_sqlite", set())
         only_pg = pgc.get(t, set()) - sq.get(t, set()) - allow.get("only_pg", set())
@@ -276,19 +280,7 @@ def test_chroma_tables_absent_on_both(pg):
     040 / the PG baseline never recreates them)."""
     chroma = {"chroma_sync_queue", "chroma_mirror", "chroma_mirror_embeddings",
               "sync_conflicts", "sync_state"}
-    # SQLite
-    import migrate_memory as m
-    d = tempfile.mkdtemp()
-    db = os.path.join(d, "chroma_check.db")
-    conn = sqlite3.connect(db)
-    m.init_migrations_table(conn)
-    migs = m.discover_migrations(str(_MIGRATIONS))
-    for v in sorted(migs):
-        m.apply_migration(conn, v, migs[v]["name"], migs[v]["up"])
-    sq_tables = {r[0] for r in conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table'"
-    ).fetchall()}
-    conn.close()
+    sq_tables = _sqlite_all_tables()
     assert not (chroma & sq_tables), f"chroma tables still in SQLite schema: {chroma & sq_tables}"
     # PG
     with pg.connection() as c:

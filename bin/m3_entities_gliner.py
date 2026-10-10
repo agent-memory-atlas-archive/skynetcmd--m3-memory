@@ -56,7 +56,7 @@ if str(_BIN) not in sys.path:
     sys.path.insert(0, str(_BIN))
 
 import memory_core as mc  # noqa: E402
-from m3_core.paths import active_database, resolve_db_path, seam_backend, store_is_a_file  # noqa: E402
+from m3_core.paths import active_database, resolve_cli_store, seam_backend  # noqa: E402
 
 # GLiNER's published 7-label vocab (person, place, organization, event, concept, object, date).
 GLINER_LABELS: list[str] = [
@@ -380,27 +380,15 @@ async def _run_async(args: argparse.Namespace) -> int:
     cfg = _resolve_cfg(args)
 
     backend = seam_backend().name
-    db_path: str | None
-    if store_is_a_file():
-        try:
-            file_path = resolve_db_path(args.core_db)
-        except ValueError as e:
-            print(f"[gliner] FATAL: {e}", flush=True)
-            return 2
-        if not Path(file_path).exists():
-            print(f"[gliner] FATAL: observed: no SQLite DB at {file_path}. "
-                  f"inspect: --core-db, M3_DATABASE, or M3_ENGINE_ROOT", flush=True)
-            return 2
+    try:
+        db_path = resolve_cli_store(args.core_db, "--core-db")
+    except ValueError as e:
+        print(f"[gliner] FATAL: {e}", flush=True)
+        return 2
+    if db_path:
         # memory_core._run_entity_extractor reads M3_DATABASE via the active
         # context; pin it so an explicit --core-db wins for the write path too.
-        os.environ["M3_DATABASE"] = file_path
-        db_path = file_path
-    elif args.core_db:
-        print(f"[gliner] FATAL: observed: --core-db names a SQLite file but the active "
-              f"backend is {backend}. inspect: drop --core-db, or set M3_DB_BACKEND=sqlite", flush=True)
-        return 2
-    else:
-        db_path = None  # one database; the backend's own DSN locates it
+        os.environ["M3_DATABASE"] = db_path
 
     conv_allowlist = _load_conv_allowlist(
         args.source_conv_list or os.environ.get("M3_ENTITIES_CONV_LIST")
