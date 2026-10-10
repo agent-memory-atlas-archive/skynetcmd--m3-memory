@@ -823,7 +823,7 @@ async def _chatlog_search_separate(
                     "       mi.conversation_id, mi.model_id "
                     "FROM memory_items_fts f "
                     "JOIN memory_items mi ON mi.rowid = f.rowid "
-                    f"WHERE memory_items_fts MATCH ? AND {where} "
+                    f"WHERE memory_items_fts MATCH {_backend.dialect().param()} AND {where} "
                     "ORDER BY rank LIMIT ?"
                 )
                 rows = conn.execute(sql, [fts_query, *params, k]).fetchall()

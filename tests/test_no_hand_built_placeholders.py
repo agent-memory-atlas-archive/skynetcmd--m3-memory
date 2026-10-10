@@ -95,10 +95,16 @@ INLINE_ALLOWED = {
     # these should reach the active backend is a separate audit (m3 task), not a
     # placeholder fix; listed so the ratchet counts only seam connections.
     "bin/audit_trail.py": "writes through ctx.get_sqlite_conn() (the SQLite pool)",
+    "bin/m3_entities_gliner.py": "calls require_sqlite_backend (opens SQLite files directly)",
+    "bin/memory/search_routing.py": "the SQLite fused candidate builder: FTS5 + sqlite-vec, SQLITE-ONLY BY CONSTRUCTION (its docstring); where_sql comes from the seam",
     "bin/m3_core/context.py": "owns the SQLite pool; its cohesion check runs on it",
 }
 _INLINE_SQL = re.compile(r"\b(SELECT|INSERT|UPDATE|DELETE|WHERE|VALUES)\b", re.IGNORECASE)
-_INLINE_QMARK = re.compile(r"(=|<|>|\(|,|\bIN|\bLIKE|\bLIMIT|\bOFFSET)\s*\?")
+_INLINE_QMARK = re.compile(r"(=|<|>|\(|,|\bIN|\bLIKE|\bLIMIT|\bOFFSET|\bMATCH|\bGLOB)\s*\?")
+# A fragment built up piecewise carries no SQL keyword (" AND type = ?",
+# "enrich_run_id = ?"); the two that reached PostgreSQL that way did so unseen.
+_INLINE_FRAGMENT = re.compile(
+    r"\b[a-z_][a-z0-9_.]*\s*(=|<>|!=|<=|>=|<|>|\bLIKE|\bGLOB|\bMATCH|\bIN)\s*\(?\s*\?", re.IGNORECASE)
 
 
 def _inline_qmarks(tree: ast.AST) -> list[int]:
@@ -106,7 +112,8 @@ def _inline_qmarks(tree: ast.AST) -> list[int]:
                   if isinstance(n, ast.Expr) and isinstance(n.value, ast.Constant)}
     return [n.lineno for n in ast.walk(tree)
             if isinstance(n, ast.Constant) and isinstance(n.value, str) and id(n) not in docstrings
-            and _INLINE_SQL.search(n.value) and _INLINE_QMARK.search(n.value)]
+            and ((_INLINE_SQL.search(n.value) and _INLINE_QMARK.search(n.value))
+                 or _INLINE_FRAGMENT.search(n.value))]
 
 
 def test_no_inline_qmark_placeholders():

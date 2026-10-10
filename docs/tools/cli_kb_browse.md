@@ -1,8 +1,8 @@
 ---
 tool: bin/cli_kb_browse.py
-sha1: 9260d73637a1
-mtime_utc: 2026-10-10T06:49:09.034892+00:00
-generated_utc: 2026-10-10T06:49:16.534996+00:00
+sha1: 3dbc6bc4c33e
+mtime_utc: 2026-10-10T08:57:55.339192+00:00
+generated_utc: 2026-10-10T08:59:55.962386+00:00
 private: false
 ---
 
@@ -24,7 +24,7 @@ Usage:
 
 ## Entry points
 
-- `def main()` (line 207)
+- `def main()` (line 213)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -65,7 +65,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
-- `m3_core.paths (seam_backend)`
+- `m3_core.paths (seam_backend, seam_dialect)`
 - `m3_core.seams (is_windows)`
 
 ---

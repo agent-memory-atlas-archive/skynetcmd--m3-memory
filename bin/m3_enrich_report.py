@@ -54,10 +54,13 @@ def _connect(db_path: str):
 
 
 def _build_filter(run_id: str | None, variant: str | None) -> tuple[str, list]:
+    from m3_core.paths import seam_dialect
+
+    _p = seam_dialect().param()
     if run_id:
-        return ("enrich_run_id = ?", [run_id])
+        return (f"enrich_run_id = {_p}", [run_id])
     if variant:
-        return ("source_variant = ?", [variant])
+        return (f"source_variant = {_p}", [variant])
     return ("1=1", [])
 
 

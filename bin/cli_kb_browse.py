@@ -92,7 +92,10 @@ def importance_bar(score: float, width: int = 10) -> str:
 def fetch(db_path: Path, type_filter: str | None, search: str | None, limit: int | None):
     from contextlib import ExitStack
 
-    from m3_core.paths import seam_backend
+    from m3_core.paths import seam_backend, seam_dialect
+
+    _d = seam_dialect()
+    _p = _d.param()
     _stack = ExitStack()
     con = _stack.enter_context(seam_backend().open_readonly(str(db_path)))
     try:
@@ -113,24 +116,27 @@ def fetch(db_path: Path, type_filter: str | None, search: str | None, limit: int
         is_exact = (type_filter.startswith('"') and type_filter.endswith('"')) or (type_filter.startswith("'") and type_filter.endswith("'"))
         actual_type = type_filter[1:-1] if is_exact else type_filter
         if is_exact:
-            query += " AND type = ?"
+            query += f" AND type = {_p}"
             params.append(actual_type)
         else:
             actual_type = actual_type.replace("*", "%")
             if not actual_type.endswith("%"):
                 actual_type += "%"
-            query += " AND LOWER(type) LIKE LOWER(?)"
+            query += f" AND LOWER(type) LIKE LOWER({_p})"
             params.append(actual_type)
 
     if search:
         is_exact = (search.startswith('"') and search.endswith('"')) or (search.startswith("'") and search.endswith("'"))
         actual_search = search[1:-1] if is_exact else search
         if is_exact:
-            # GLOB is case-sensitive in SQLite
-            query += " AND (title GLOB ? OR content GLOB ?)"
-            params += [f"*{actual_search}*", f"*{actual_search}*"]
+            # Case-sensitive: the dialect renders GLOB (SQLite) or LIKE (PostgreSQL)
+            # and rewrites the wildcard alphabet to match.
+            t_sql, t_val = _d.glob_match("title", _p, f"*{actual_search}*")
+            c_sql, c_val = _d.glob_match("content", _p, f"*{actual_search}*")
+            query += f" AND ({t_sql} OR {c_sql})"
+            params += [t_val, c_val]
         else:
-            query += " AND (LOWER(title) LIKE LOWER(?) OR LOWER(content) LIKE LOWER(?))"
+            query += f" AND (LOWER(title) LIKE LOWER({_p}) OR LOWER(content) LIKE LOWER({_p}))"
             params += [f"%{actual_search}%", f"%{actual_search}%"]
 
     query += " ORDER BY importance DESC, updated_at DESC"

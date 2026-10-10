@@ -117,7 +117,7 @@ def _fts_query_sqlite(conn, query, limit, current_only, corpus_id, filetype,
         "FROM leaves_fts "
         "JOIN leaves l ON l.rowid = leaves_fts.rowid "
         "JOIN file_nodes fn ON fn.uuid = l.file_node "
-        "WHERE leaves_fts MATCH ? "
+        f"WHERE leaves_fts MATCH {_d.param()} "
     )
     params: list = [safe]
     if current_only:
@@ -126,9 +126,9 @@ def _fts_query_sqlite(conn, query, limit, current_only, corpus_id, filetype,
     sql += corpus_clause
     params.extend(corpus_params)
     if filetype:
-        sql += " AND fn.filetype = ?"
+        sql += f" AND fn.filetype = {_d.param()}"
         params.append(filetype)
-    sql += " ORDER BY rank LIMIT ?"
+    sql += f" ORDER BY rank LIMIT {_d.param()}"
     params.append(limit)
 
     try:
