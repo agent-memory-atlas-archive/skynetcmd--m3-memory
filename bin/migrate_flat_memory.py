@@ -148,6 +148,7 @@ def _source_key(source_agent: str, locator: str, content: str) -> str:
 # ── Dedup lookup: query m3 SQLite directly for an existing source_key ──────────
 def existing_memory_id_by_source_key(source_key: str) -> str | None:
     """Returns the id of a non-deleted memory whose metadata.source_key matches, else None."""
+    from memory.backends import dialect
     from memory_core import _db  # lazy — pool inits on first use
     with _db() as db:
         # metadata_json is stored as a JSON string; substring match is safe because
@@ -156,7 +157,7 @@ def existing_memory_id_by_source_key(source_key: str) -> str | None:
         needle = f'"source_key": "{source_key}"'
         rows = db.execute(
             "SELECT id, metadata_json FROM memory_items "
-            "WHERE is_deleted = 0 AND metadata_json LIKE ? LIMIT 5",
+            f"WHERE is_deleted = 0 AND metadata_json LIKE {dialect().param()} LIMIT 5",
             (f"%{needle}%",),
         ).fetchall()
     for row in rows:

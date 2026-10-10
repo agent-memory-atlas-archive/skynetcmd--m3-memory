@@ -41,7 +41,6 @@ _ALLOWED = {
     "memory/doctor.py",
     "chatlog_status.py",
     "backfill_content_hash.py",
-    "chatlog_strip_framing_backfill.py",
     "m3_chatlog_enrich_backfill.py",
     # Session-start hook: routes through the seam, but keeps a SQLite fallback
     # inline because it must NEVER break session start on a seam import error.

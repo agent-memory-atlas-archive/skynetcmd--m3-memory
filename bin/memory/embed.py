@@ -1289,9 +1289,11 @@ async def _embed(text: str) -> tuple[list[float] | None, str]:
     cache_model = _EMBED_GGUF_MODEL_TAG if embedded is not None else config.EMBED_MODEL
     try:
         with _db() as db:
+            from .backends import dialect as _dialect
+            _p = _dialect().param()
             cached = db.execute(
                 "SELECT embedding, embed_model FROM memory_embeddings "
-                "WHERE content_hash = ? AND embed_model = ? LIMIT 1",
+                f"WHERE content_hash = {_p} AND embed_model = {_p} LIMIT 1",
                 (c_hash, cache_model),
             ).fetchone()
             if cached:

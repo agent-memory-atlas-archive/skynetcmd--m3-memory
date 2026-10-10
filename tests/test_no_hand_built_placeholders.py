@@ -77,12 +77,28 @@ def test_allowlist_has_no_stale_entries():
     assert not stale, f"remove from ALLOWED: {stale}"
 
 
-# A '?' written into SQL text is the same defect as a hand-built list. Too many
-# remain to forbid outright (measured 2026-10-10), so this ratchets: the count
-# may only fall, and must be lowered when it does. Docstrings do not count.
+# A '?' written into SQL text is the same defect as a hand-built list.
+# INLINE_ALLOWED lists the files that write one legitimately, each with its reason
+# (ALLOWED's files are exempt too). Docstrings do not count.
+INLINE_ALLOWED = {
+    "bin/m3_enrich_stage.py": "documented SQLite-only module (sqlite3.Connection; enrich gated to SQLite)",
+    "bin/m3_enrich_assign.py": "calls require_sqlite_backend",
+    "bin/migrate_entity_vocab.py": "calls require_sqlite_backend",
+    "bin/migrate_memory.py": "calls require_sqlite_backend",
+    "bin/build_kg_variant.py": "calls require_sqlite_backend",
+    "bin/secret_rotator.py": "calls require_sqlite_backend",
+    "m3_memory/integrations/langchain/checkpoint.py": "M3Saver calls require_sqlite_backend (BLOB, executescript)",
+    "m3_memory/install/sections.py": "_sqlite_store_stats runs only under live == 'sqlite'",
+    "bin/chatlog_ingest.py": "reads a host app's own SQLite file (OpenCode part/session tables)",
+    "bin/chatlog_embed_sweeper.py": "embedding half runs only under the SQLite backend (resolve_backend_name gate)",
+    # SQLite pool users: get_sqlite_conn() is SQLite whatever the backend. Whether
+    # these should reach the active backend is a separate audit (m3 task), not a
+    # placeholder fix; listed so the ratchet counts only seam connections.
+    "bin/audit_trail.py": "writes through ctx.get_sqlite_conn() (the SQLite pool)",
+    "bin/m3_core/context.py": "owns the SQLite pool; its cohesion check runs on it",
+}
 _INLINE_SQL = re.compile(r"\b(SELECT|INSERT|UPDATE|DELETE|WHERE|VALUES)\b", re.IGNORECASE)
 _INLINE_QMARK = re.compile(r"(=|<|>|\(|,|\bIN|\bLIKE|\bLIMIT|\bOFFSET)\s*\?")
-_INLINE_BUDGET = 59
 
 
 def _inline_qmarks(tree: ast.AST) -> list[int]:
@@ -93,17 +109,22 @@ def _inline_qmarks(tree: ast.AST) -> list[int]:
             and _INLINE_SQL.search(n.value) and _INLINE_QMARK.search(n.value)]
 
 
-def test_inline_qmark_placeholders_ratchet_down():
+def test_no_inline_qmark_placeholders():
     hits = []
     for top in ("bin", "m3_memory"):
         for p in (_ROOT / top).rglob("*.py"):
             rel = p.relative_to(_ROOT).as_posix()
-            if p.name.startswith(("bench_", "benchmark_")) or "__pycache__" in p.parts or rel in ALLOWED:
+            if (p.name.startswith(("bench_", "benchmark_")) or "__pycache__" in p.parts
+                    or rel in ALLOWED or rel in INLINE_ALLOWED):
                 continue
             hits += [f"{rel}:{ln}" for ln in _inline_qmarks(ast.parse(p.read_text(encoding="utf-8")))]
-    assert len(hits) <= _INLINE_BUDGET, (
-        f"observed: {len(hits)} SQL literals with an inline '?' (budget {_INLINE_BUDGET}). "
-        f"inspect: render the bind with dialect().param(); new ones: {hits[:20]}")
-    assert len(hits) == _INLINE_BUDGET, (
-        f"observed: {len(hits)} inline '?' literals, below the budget of {_INLINE_BUDGET}. "
-        "inspect: lower _INLINE_BUDGET to the new count")
+    assert not hits, ("observed: SQL text with an inline '?' bind: " + ", ".join(hits)
+                      + ". inspect: render it with dialect().param(), or list the file in "
+                      "INLINE_ALLOWED with the reason it is SQLite by contract")
+
+
+def test_inline_allowlist_has_no_stale_entries():
+    stale = [rel for rel in INLINE_ALLOWED
+             if not (_ROOT / rel).exists()
+             or not _inline_qmarks(ast.parse((_ROOT / rel).read_text(encoding="utf-8")))]
+    assert not stale, f"remove from INLINE_ALLOWED: {stale}"

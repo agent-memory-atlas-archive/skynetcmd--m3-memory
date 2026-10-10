@@ -13,7 +13,8 @@ from memory_core import _embed, _pack
 
 async def re_embed_all(db_path: str):
     print(f"Connecting to {db_path}...")
-    from m3_core.paths import seam_backend
+    from m3_core.paths import seam_backend, seam_dialect
+    _p = seam_dialect().param()
     _cm = seam_backend().open_readonly(str(db_path))
     conn = _cm.__enter__()
     try:
@@ -39,17 +40,17 @@ async def re_embed_all(db_path: str):
         if vec:
             blob = _pack(vec)
             existing = conn.execute(
-                "SELECT id FROM memory_embeddings WHERE memory_id = ?", (rid,)
+                f"SELECT id FROM memory_embeddings WHERE memory_id = {_p}", (rid,)
             ).fetchone()
             if existing:
                 conn.execute(
-                    "UPDATE memory_embeddings SET embedding = ?, embed_model = ?, dim = ? WHERE memory_id = ?",
+                    f"UPDATE memory_embeddings SET embedding = {_p}, embed_model = {_p}, dim = {_p} WHERE memory_id = {_p}",
                     (blob, model, len(vec), rid)
                 )
             else:
                 import uuid
                 conn.execute(
-                    "INSERT INTO memory_embeddings (id, memory_id, embedding, embed_model, dim) VALUES (?, ?, ?, ?, ?)",
+                    f"INSERT INTO memory_embeddings (id, memory_id, embedding, embed_model, dim) VALUES ({seam_dialect().placeholder(5)})",
                     (str(uuid.uuid4()), rid, blob, model, len(vec))
                 )
             updated += 1

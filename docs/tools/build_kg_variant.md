@@ -1,8 +1,8 @@
 ---
 tool: bin/build_kg_variant.py
-sha1: cf195b2d0725
-mtime_utc: 2026-10-09T07:37:09.101781+00:00
-generated_utc: 2026-10-09T07:40:59.201376+00:00
+sha1: 029d31ec1955
+mtime_utc: 2026-10-10T05:40:27.564456+00:00
+generated_utc: 2026-10-10T05:42:31.117769+00:00
 private: false
 ---
 
@@ -66,7 +66,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
-- `m3_core.paths (seam_backend)`
+- `m3_core.paths (require_sqlite_backend, seam_backend)`
 - `numpy`
 
 ---

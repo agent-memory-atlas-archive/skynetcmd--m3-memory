@@ -183,12 +183,14 @@ class M3Store(BaseStore):
     def _resolve_id_by_key(self, user_id: str, key: str) -> str | None:
         """Find the m3 row id for a LangGraph (user_id, key) — via title match
         within the user's scope. Returns None if the key was never written."""
+        from memory.backends import dialect
         from memory.db import _db
 
+        _p = dialect().param()
         with _db() as db:
             row = db.execute(
                 "SELECT id FROM memory_items "
-                "WHERE user_id = ? AND scope = 'user' AND title = ? "
+                f"WHERE user_id = {_p} AND scope = 'user' AND title = {_p} "
                 "AND (is_deleted IS NULL OR is_deleted = 0) "
                 "ORDER BY created_at DESC LIMIT 1",
                 (user_id, key),
@@ -235,6 +237,7 @@ class M3Store(BaseStore):
 
     async def _do_list_namespaces(self, op: ListNamespacesOp) -> list[tuple[str, ...]]:
         """Distinct (user_id, scope) tuples — IDs only, never content (§6)."""
+        from memory.backends import dialect
         from memory.db import _db
 
         self._client_ensure_bin()
@@ -244,7 +247,7 @@ class M3Store(BaseStore):
                 "SELECT DISTINCT user_id, scope FROM memory_items "
                 "WHERE user_id IS NOT NULL AND user_id != '' "
                 "AND (is_deleted IS NULL OR is_deleted = 0) "
-                "LIMIT ?",
+                f"LIMIT {dialect().param()}",
                 (int(op.limit or 100),),
             )
             for r in cur.fetchall():

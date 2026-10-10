@@ -82,12 +82,14 @@ MAX_K              = mcp_tool_catalog.MAX_K
 # ── Helper functions still used directly by tests / other modules ────────────
 def conversation_messages(conversation_id):
     """Returns all messages in a conversation as a formatted string (role: content)."""
+    from memory.backends import dialect
+    _p = dialect().param()
     with memory_core._db() as db:
         rows = db.execute(
-            """SELECT mi.title AS role, mi.content, mi.created_at
+            f"""SELECT mi.title AS role, mi.content, mi.created_at
                FROM memory_relationships mr
                JOIN memory_items mi ON mr.to_id = mi.id
-               WHERE mr.from_id = ? AND mr.relationship_type = 'message' AND mi.is_deleted = 0
+               WHERE mr.from_id = {_p} AND mr.relationship_type = 'message' AND mi.is_deleted = 0
                ORDER BY mi.created_at ASC""",
             (conversation_id,)
         ).fetchall()

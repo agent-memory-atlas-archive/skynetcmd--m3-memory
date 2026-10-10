@@ -124,8 +124,12 @@ class M3Saver(BaseCheckpointSaver):
         self._healed = True
 
     async def _ensure_schema_async(self) -> None:
+        from m3_core.paths import require_sqlite_backend
         from memory.db import _db
 
+        # SQLite by contract: BLOB columns, executescript, INSERT OR REPLACE.
+        # Refuse on another backend rather than fail on the first statement.
+        require_sqlite_backend("M3Saver (LangGraph checkpointer)")
         with _db() as db:
             db.executescript(_SCHEMA)
 

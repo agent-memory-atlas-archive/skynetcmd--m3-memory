@@ -74,10 +74,12 @@ def compute_bitemporal_diffs_impl(
 
 def get_bitemporal_timeline_impl(memory_id: str, limit: int = 100) -> str:
     """Constructs a consolidated chronological delta timeline of all mutations for a memory."""
+    from memory.backends import dialect
+    _p = dialect().param()
     with _db() as db:
         rows = db.execute(
             "SELECT id, memory_id, field, prev_value, new_value, created_at "
-            "FROM memory_history WHERE memory_id = ? ORDER BY created_at ASC LIMIT ?",
+            f"FROM memory_history WHERE memory_id = {_p} ORDER BY created_at ASC LIMIT {_p}",
             (memory_id, limit),
         ).fetchall()
 

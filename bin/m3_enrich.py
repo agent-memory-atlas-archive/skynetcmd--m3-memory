@@ -319,9 +319,11 @@ async def _run_db(
             # for the (source_variant, target_variant) pair — the index on
             # those two columns makes this fast, and avoids hitting SQLite's
             # SQLITE_MAX_VARIABLE_NUMBER (32,766) on large corpora.
+            from memory.backends import dialect as _dialect
+            _p = _dialect().param()
             cur = state_conn.execute(
-                """SELECT id, user_id, group_key FROM enrichment_groups
-                   WHERE source_variant=? AND target_variant=?""",
+                f"""SELECT id, user_id, group_key FROM enrichment_groups
+                   WHERE source_variant={_p} AND target_variant={_p}""",
                 (source_variant, target_variant),
             )
             for gid, uid, gkey in cur.fetchall():

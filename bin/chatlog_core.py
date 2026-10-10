@@ -956,11 +956,11 @@ async def chatlog_promote_impl(
                 # SQLite-only check that happens to live in a shared function.
                 _assert_promotable(conn, _d, _CL)
                 # INSERT ... SELECT: target_type first (the overridden type slot),
-                # then the WHERE params. ON CONFLICT DO NOTHING mirrors OR IGNORE.
+                # then the WHERE params. Skip-on-conflict comes from the dialect.
                 conn.execute(
-                    f"INSERT INTO memory_items ({cols_sql}) "
+                    f"{_d.insert_or_ignore()} memory_items ({cols_sql}) "
                     f"SELECT {select_cols} FROM {_CL} WHERE {where} "
-                    f"ON CONFLICT (id) DO NOTHING",
+                    f"{_d.on_conflict_ignore(conflict_target='(id)')}",
                     [target_type, *params],
                 )
                 if not copy:
@@ -976,7 +976,7 @@ async def chatlog_promote_impl(
                 row_ids = [r["id"] for r in rows]
                 if row_ids:
                     conn.execute(
-                        f"UPDATE memory_items SET type=?, updated_at=? WHERE {where}",
+                        f"UPDATE memory_items SET type={_p}, updated_at={_p} WHERE {where}",
                         [target_type, _utcnow_iso(), *params],
                     )
                     conn.commit()
@@ -1193,6 +1193,27 @@ def chatlog_set_redaction_impl(
     return json.dumps({"ok": True, "redaction": _redaction_dict(cfg.redaction)})
 
 
+def chatlog_scan_where(conversation_id: str = "", since: str = "",
+                       until: str = "") -> tuple[str, list[Any]]:
+    """WHERE clause and binds for a chat_log row scan: not deleted, optionally one
+    conversation and a created_at window. The one owner for rescrub and the
+    harness-framing backfill, rendered by the active dialect."""
+    from memory.backends import dialect
+    _d = dialect()
+    clauses = ["type='chat_log'", "is_deleted=0"]
+    params: list[Any] = []
+    if conversation_id:
+        clauses.append(f"conversation_id={_d.param()}")
+        params.append(conversation_id)
+    if since:
+        clauses.append(_d.date_bound("created_at", "since"))
+        params.append(_d.normalize_date_bound(since, "since"))
+    if until:
+        clauses.append(_d.date_bound("created_at", "until"))
+        params.append(_d.normalize_date_bound(until, "until"))
+    return " AND ".join(clauses), params
+
+
 async def chatlog_rescrub_impl(
     conversation_id: str = "",
     since: str = "",
@@ -1208,22 +1229,9 @@ async def chatlog_rescrub_impl(
     from m3_sdk import M3Context
     from memory.backends import chatlog_table, dialect
     ctx = M3Context.for_db(None)
-    _d = dialect()
-    _p = _d.param()
+    _p = dialect().param()
     _T = chatlog_table("items")
-
-    clauses = ["type='chat_log'", "is_deleted=0"]
-    params: list[Any] = []
-    if conversation_id:
-        clauses.append(f"conversation_id={_p}")
-        params.append(conversation_id)
-    if since:
-        clauses.append(_d.date_bound("created_at", "since"))
-        params.append(_d.normalize_date_bound(since, "since"))
-    if until:
-        clauses.append(_d.date_bound("created_at", "until"))
-        params.append(_d.normalize_date_bound(until, "until"))
-    where = " AND ".join(clauses)
+    where, params = chatlog_scan_where(conversation_id, since, until)
 
     def _run() -> dict:
         updated = 0

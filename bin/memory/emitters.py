@@ -105,11 +105,12 @@ async def _maybe_emit_window_chunk(conversation_id: str, user_id: str) -> None:
     ones. Does not fire until at least INGEST_WINDOW_SIZE turns exist."""
     if not conversation_id:
         return
+    from memory.backends import dialect
     try:
         with _db() as db:
             rows = db.execute(
                 "SELECT id, content, title FROM memory_items "
-                "WHERE conversation_id = ? AND type = 'message' "
+                f"WHERE conversation_id = {dialect().param()} AND type = 'message' "
                 "AND is_deleted = 0 ORDER BY created_at ASC",
                 (conversation_id,),
             ).fetchall()
@@ -155,11 +156,12 @@ async def _maybe_emit_gist_row(conversation_id: str, user_id: str) -> None:
     conversation — cheap, deterministic, no LLM."""
     if not conversation_id:
         return
+    from memory.backends import dialect
     try:
         with _db() as db:
             rows = db.execute(
                 "SELECT id, content FROM memory_items "
-                "WHERE conversation_id = ? AND type = 'message' "
+                f"WHERE conversation_id = {dialect().param()} AND type = 'message' "
                 "AND is_deleted = 0 ORDER BY created_at ASC",
                 (conversation_id,),
             ).fetchall()

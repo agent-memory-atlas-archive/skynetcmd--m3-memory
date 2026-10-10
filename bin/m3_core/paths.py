@@ -1049,11 +1049,10 @@ def require_sqlite_backend(tool: str) -> None:
     name = resolve_backend_name()
     if name != "sqlite":
         raise RuntimeError(
-            f"{tool} operates directly on SQLite, but M3_DB_BACKEND={name!r} is "
-            f"selected. Running it would touch a stale SQLite file, not the live "
-            f"{name} store. This tool is SQLite-only; run it against a SQLite "
-            f"deployment, or unset M3_DB_BACKEND. (Refusing rather than silently "
-            f"editing the wrong database.)"
+            f"{tool} is SQLite-only; observed: M3_DB_BACKEND={name!r}. Running it "
+            f"would touch a stale SQLite file, not the live {name} store, so it "
+            f"refuses. inspect: run it against a SQLite deployment, or unset "
+            f"M3_DB_BACKEND"
         )
 
 

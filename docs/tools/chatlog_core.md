@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_core.py
-sha1: ba6143189a0b
-mtime_utc: 2026-10-10T05:24:19.392135+00:00
-generated_utc: 2026-10-10T05:28:10.256308+00:00
+sha1: 32099f24205e
+mtime_utc: 2026-10-10T05:38:20.325320+00:00
+generated_utc: 2026-10-10T05:42:31.137716+00:00
 private: false
 ---
 
@@ -75,6 +75,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `memory.backends (active_backend)`
 - `memory.backends (active_backend, chatlog_table)`
 - `memory.backends (chatlog_table, dialect)`
+- `memory.backends (dialect)`
 
 ---
 

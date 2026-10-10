@@ -1,8 +1,8 @@
 ---
 tool: bin/secret_rotator.py
-sha1: 577bf1b373b3
-mtime_utc: 2026-10-08T22:11:14.619498+00:00
-generated_utc: 2026-10-09T07:40:59.819394+00:00
+sha1: b8fd6ac8721b
+mtime_utc: 2026-10-10T05:41:20.163029+00:00
+generated_utc: 2026-10-10T05:42:31.752034+00:00
 private: false
 ---
 
@@ -53,6 +53,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
+- `m3_core.paths (require_sqlite_backend)`
 - `secrets`
 
 ---

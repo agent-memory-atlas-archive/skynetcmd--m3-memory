@@ -46,50 +46,7 @@ from typing import Any
 
 import chatlog_config
 import chatlog_redaction
-from chatlog_core import _content_hash, _utcnow_iso
-
-# Date bounds go through the shared seam normalizer: a bare YYYY-MM-DD compared
-# against an ISO-TEXT timestamp column is lexicographically wrong (an `until`
-# excluded the entire requested day). See memory/backends/dialect.py.
-try:  # pragma: no cover - import shim for standalone execution
-    from memory.backends.dialect import Dialect as _Dialect
-    _normalize_date_bound = _Dialect.normalize_date_bound
-    _date_bound_op = _Dialect.date_bound_op
-except Exception:  # pragma: no cover
-    import re as _re_db
-    from datetime import date as _d_db
-    from datetime import timedelta as _td_db
-    _BARE = _re_db.compile(r"^\d{4}-\d{2}-\d{2}$")
-
-    def _normalize_date_bound(value: str, side: str) -> str:
-        v = (value or "").strip()
-        if not _BARE.match(v):
-            return v
-        if side == "since":
-            return v + "T00:00:00Z"
-        y, m, d = (int(x) for x in v.split("-"))
-        return (_d_db(y, m, d) + _td_db(days=1)).strftime("%Y-%m-%dT00:00:00Z")
-
-    def _date_bound_op(side: str) -> str:
-        return ">=" if side == "since" else "<"
-
-
-
-def _build_where(conversation_id: str, since: str, until: str) -> tuple[str, list[Any]]:
-    """Assemble the WHERE clause + params, mirroring chatlog_rescrub_impl so the
-    filter semantics (chat_log, not-deleted, optional conv/time window) match."""
-    clauses = ["type='chat_log'", "is_deleted=0"]
-    params: list[Any] = []
-    if conversation_id:
-        clauses.append("conversation_id=?")
-        params.append(conversation_id)
-    if since:
-        clauses.append(f"created_at{_date_bound_op('since')}?")
-        params.append(_normalize_date_bound(since, "since"))
-    if until:
-        clauses.append(f"created_at{_date_bound_op('until')}?")
-        params.append(_normalize_date_bound(until, "until"))
-    return " AND ".join(clauses), params
+from chatlog_core import _content_hash, _utcnow_iso, chatlog_scan_where
 
 
 def backfill(
@@ -107,10 +64,13 @@ def backfill(
     UPDATEd in a single transaction committed at the end.
     """
     from m3_sdk import M3Context
+    from memory.backends import chatlog_table, dialect
 
     cfg = chatlog_config.resolve_config()  # resolves the active chatlog DB path
     ctx = M3Context.for_db(None)
-    where, params = _build_where(conversation_id, since, until)
+    where, params = chatlog_scan_where(conversation_id, since, until)
+    _p = dialect().param()
+    _T = chatlog_table("items")
 
     scanned = 0
     changed = 0
@@ -119,8 +79,8 @@ def backfill(
 
     with ctx.get_chatlog_conn() as conn:
         rows = conn.execute(
-            f"SELECT id, content, metadata_json FROM memory_items "
-            f"WHERE {where} LIMIT ?",
+            f"SELECT id, content, metadata_json FROM {_T} "
+            f"WHERE {where} LIMIT {_p}",
             [*params, limit],
         ).fetchall()
 
@@ -160,8 +120,8 @@ def backfill(
                 int(meta.get("harness_blocks_removed", 0)) + count
             )
             conn.execute(
-                "UPDATE memory_items SET content=?, metadata_json=?, updated_at=? "
-                "WHERE id=?",
+                f"UPDATE {_T} SET content={_p}, metadata_json={_p}, updated_at={_p} "
+                f"WHERE id={_p}",
                 (stripped, json.dumps(meta, ensure_ascii=False), _utcnow_iso(), r["id"]),
             )
 

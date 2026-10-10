@@ -28,6 +28,10 @@ def generate_secure_token(length: int = 64) -> str:
 
 def rotate_secrets(dry_run: bool = False):
     logger.info(f"Starting automated secret rotation {'(DRY RUN)' if dry_run else ''}...")
+    # Backs up and rewrites the vault through the SQLite pool: on another backend
+    # the live vault is elsewhere, so rotating here would desync it. Refuse.
+    from m3_core.paths import require_sqlite_backend
+    require_sqlite_backend("secret_rotator")
     ctx = M3Context.for_db(None)
 
     for key_name in ROTATION_TARGETS:

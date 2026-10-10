@@ -430,6 +430,8 @@ def _ensure_sync_tables(db_path: str | None = None) -> None:
 
 
 def _backfill_change_agent() -> None:
+    from memory.backends import dialect
+    _p = dialect().param()
     try:
         with _db() as db:
             rows = db.execute(
@@ -439,7 +441,7 @@ def _backfill_change_agent() -> None:
                 agent = _infer_change_agent_util(
                     row["agent_id"] or "", row["model_id"] or "", default="legacy"
                 )
-                db.execute("UPDATE memory_items SET change_agent = ? WHERE id = ?", (agent, row["id"]))
+                db.execute(f"UPDATE memory_items SET change_agent = {_p} WHERE id = {_p}", (agent, row["id"]))
     except Exception as e:
         logger.warning(f"Backfill failed: {e}")
 

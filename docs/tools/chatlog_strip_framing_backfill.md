@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_strip_framing_backfill.py
-sha1: ddadae0a8bf1
-mtime_utc: 2026-10-09T22:01:09.478437+00:00
-generated_utc: 2026-10-09T22:03:20.847133+00:00
+sha1: 31278389b65d
+mtime_utc: 2026-10-10T05:37:22.194890+00:00
+generated_utc: 2026-10-10T05:42:31.192953+00:00
 private: false
 ---
 
@@ -51,7 +51,7 @@ Usage:
 
 ## Entry points
 
-- `def main()` (line 181)
+- `def main()` (line 141)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -79,7 +79,7 @@ _(none detected)_
 ## Calls INTO this repo (intra-repo imports)
 
 - `chatlog_config`
-- `chatlog_core (_content_hash, _utcnow_iso)`
+- `chatlog_core (_content_hash, _utcnow_iso, chatlog_scan_where)`
 - `chatlog_redaction`
 - `m3_sdk (M3Context)`
 
@@ -93,7 +93,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
-- `memory.backends.dialect (Dialect)`
+- `memory.backends (chatlog_table, dialect)`
 
 ---
 

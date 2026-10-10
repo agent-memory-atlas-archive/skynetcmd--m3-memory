@@ -381,17 +381,19 @@ class M3Client:
         like ``memory_search_scored`` rows (so mapping.py handles them unchanged).
         """
         _ensure_bin_on_path()
+        from memory.backends import dialect
         from memory.db import _db  # canonical pooled connection
 
+        _p = dialect().param()
         cols = ("id, content, title, type, importance, confidence, "
                 "valid_from, valid_to, metadata_json")
         rows: list[dict] = []
         with _db() as db:
             cur = db.execute(
                 f"SELECT {cols} FROM memory_items "
-                "WHERE user_id = ? AND scope = ? "
+                f"WHERE user_id = {_p} AND scope = {_p} "
                 "AND (is_deleted IS NULL OR is_deleted = 0) "
-                "ORDER BY created_at DESC LIMIT ?",
+                f"ORDER BY created_at DESC LIMIT {_p}",
                 (user_id, scope, int(limit)),
             )
             for r in cur.fetchall():

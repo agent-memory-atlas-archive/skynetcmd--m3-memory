@@ -580,12 +580,18 @@ async def main() -> int:
     # sqlite3 cursors + embed_sweep_lib); on a PG deployment the backfill runs
     # via the cognitive loop's embed pass instead, so returning here after the
     # drain is correct, not a silent skip.
+    # Gate on the BACKEND, not the file: a PostgreSQL deployment can still have
+    # a stale SQLite file on disk, and embedding it would be silent wrong work.
+    from m3_core.paths import resolve_backend_name
     db_path = chatlog_config.chatlog_db_path()
-    if not os.path.exists(db_path):
+    _bk = resolve_backend_name()
+    if _bk != "sqlite" or not os.path.exists(db_path):
         logger.info(
-            "No local chat log DB at %s (expected on a PostgreSQL-backed "
-            "deployment); spill drained: %d. Embedding backfill is handled by "
-            "the cognitive loop's embed pass.", db_path, early_spill_drained)
+            "Skipping the SQLite embedding backfill; observed: backend=%s, local "
+            "chat log DB %s %s; spill drained: %d. On a server backend the "
+            "cognitive loop's embed pass does this. inspect: M3_DB_BACKEND",
+            _bk, db_path, "present" if os.path.exists(db_path) else "absent",
+            early_spill_drained)
         return 0
 
     try:
