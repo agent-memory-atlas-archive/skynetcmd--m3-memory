@@ -19,9 +19,9 @@ from m3_memory.pydantic_ai import M3Deps, register_m3_tools, m3_recall_processor
 agent = Agent(
     "anthropic:claude-sonnet-5",
     deps_type=M3Deps,
-    history_processors=[m3_recall_processor()],   # optional: auto-inject recalled memories
+    history_processors=[m3_recall_processor()],  # optional: auto-inject recalled memories
 )
-register_m3_tools(agent)                            # adds remember / recall / forget tools
+register_m3_tools(agent)  # adds remember / recall / forget tools
 
 agent.run_sync("remember I prefer dark roast", deps=M3Deps(user_id="alice"))
 ```
@@ -61,8 +61,8 @@ anonymous/global mode). Pass one `M3Deps` per user/session:
 
 ```python
 M3Deps(
-    user_id="alice",     # required — the tenant key
-    scope="agent",       # where this agent's memories live (default)
+    user_id="alice",  # required — the tenant key
+    scope="agent",  # where this agent's memories live (default)
     call_timeout=30.0,
 )
 ```

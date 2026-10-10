@@ -59,9 +59,9 @@ ranking and recall:
 
 ```python
 M3StorageBackend(
-    user_id="crew-alpha",   # required — the tenant key (§ per-tenant isolation)
-    dual_embed=True,        # default: make these memories searchable by your other
-                            # m3 agents too. Set False to keep them CrewAI-only.
+    user_id="crew-alpha",  # required — the tenant key (§ per-tenant isolation)
+    dual_embed=True,  # default: make these memories searchable by your other
+    # m3 agents too. Set False to keep them CrewAI-only.
     call_timeout=30.0,
 )
 ```

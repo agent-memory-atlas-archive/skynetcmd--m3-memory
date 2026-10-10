@@ -754,7 +754,7 @@ def detect_fleet_topology() -> tuple[str, str]:
             f"1 known node {sorted(named)} but {unnamed} active agent(s) "
             f"carry no node_id, so a second node cannot be ruled out",
         )
-    return ("single-node", f"all {sum(named.values())} active agent(s) on {sorted(named)[0]}")
+    return ("single-node", f"all {sum(named.values())} active agent(s) on {min(named)}")
 
 
 def _notification_sources() -> list[tuple[str | None, str]]:

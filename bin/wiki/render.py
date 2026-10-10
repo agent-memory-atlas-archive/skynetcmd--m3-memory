@@ -712,7 +712,7 @@ def _dominant_type(c: Cluster) -> str:
         t = "procedure" if _is_runbook_titled(m) else m.type
         counts[t] = counts.get(t, 0) + 1
     # Deterministic: highest count, then _TYPE_ORDER, then name.
-    return sorted(counts, key=lambda t: (-counts[t], _TYPE_ORDER.get(t, 99), t))[0]
+    return min(counts, key=lambda t: (-counts[t], _TYPE_ORDER.get(t, 99), t))
 
 
 def _pin_count(c: Cluster) -> int:
