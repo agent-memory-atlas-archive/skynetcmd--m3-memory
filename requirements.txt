@@ -2,7 +2,7 @@
 # The project's dependencies + dependency groups lint, test, resolved
 # for every supported platform and Python. Declarations: pyproject.toml.
 # Pin notes: docs/DEPENDENCY_NOTES.md.
-# declarations sha256: e064ece8bc1c5a6fe7d3a29cbe8834ac7f0d0ff38969fc46705aa36e5f102f93
+# declarations sha256: 17dd2f1a0dd74718b5518363c9afc8a1e677714284fe4df461f7d076bde67749
 aiofile==3.12.3
     # via py-key-value-aio
 annotated-doc==0.0.5
@@ -28,9 +28,7 @@ attrs==26.1.0
     #   referencing
 authlib==1.8.0
     # via fastmcp-slim
-beartype==0.22.9 ; python_full_version < '3.15'
-    # via py-key-value-aio
-beartype==0.23.0rc2 ; python_full_version >= '3.15'
+beartype==0.23.0rc2
     # via
     #   fastmcp-slim
     #   py-key-value-aio
@@ -246,6 +244,7 @@ pycryptodome==3.24.0
     # via sharepoint-to-text
 pydantic==2.14.0
     # via
+    #   m3-memory (pyproject.toml)
     #   fastapi
     #   fastmcp-slim
     #   mcp
@@ -352,6 +351,7 @@ sse-starlette==3.5.0
     # via mcp
 starlette==1.7.0
     # via
+    #   m3-memory (pyproject.toml)
     #   fastapi
     #   fastmcp-slim
     #   mcp

@@ -144,6 +144,11 @@ dependencies = [
     # anyone who pinned them.
     "fastapi>=0.141.1,<1",
     "uvicorn>=0.53.0,<1",
+    # Imported directly (embed servers, mcp_proxy, the dashboard), so declared rather
+    # than reached through mcp/fastapi; floors are those dependents' own (no new
+    # constraint). Found by deptry (bin/check_deps.py), 2026-10-10.
+    "pydantic>=2.11,<3",
+    "starlette>=0.46",
     # SQL-injection AST guard in bin/memory/util.py::_check_content_safety.
     # Was in requirements.txt but missing here, so `pip install -e .` omitted it
     # and the guard silently degraded to a no-op (returning "safe" for DROP/
@@ -258,7 +263,7 @@ embed-server = [
 # requires transformers<5.17, below the floor embed-server sets (it clears
 # published CVEs; docs/DEPENDENCY_NOTES.md). bin/m3_entities_gliner.py warns
 # when transformers is below that floor. Declared to uv as a conflict below.
-entity-ner = ["gliner>=0.2.26"]
+entity-ner = ["gliner>=0.2.26", "packaging>=20.9"]  # packaging: the transformers-floor check
 # Native SQLite vector search via the sqlite-vec extension. The loader at
 # bin/sqlite_pragmas.py loads it opportunistically (sqlite_vec.load(conn)) and
 # the semantic-search path in bin/memory/search.py uses the vec0 functions when

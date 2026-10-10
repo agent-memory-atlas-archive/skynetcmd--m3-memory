@@ -2662,6 +2662,7 @@ dependencies = [
     { name = "pillow" },
     { name = "psutil" },
     { name = "psycopg2-binary" },
+    { name = "pydantic" },
     { name = "pyobjc-framework-corewlan", marker = "sys_platform == 'darwin' or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-test') or (extra == 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner') or (extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-test')" },
     { name = "pypdf" },
     { name = "python-dotenv" },
@@ -2670,6 +2671,7 @@ dependencies = [
     { name = "requests" },
     { name = "sharepoint-to-text" },
     { name = "sqlglot" },
+    { name = "starlette" },
     { name = "tomlkit" },
     { name = "tqdm" },
     { name = "urllib3" },
@@ -2703,6 +2705,7 @@ embed-server = [
 ]
 entity-ner = [
     { name = "gliner" },
+    { name = "packaging" },
 ]
 iwork = [
     { name = "keynote-parser" },
@@ -2784,11 +2787,13 @@ requires-dist = [
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.20.2,<2" },
     { name = "networkx", specifier = ">=3.6.1,<4" },
     { name = "numpy", specifier = ">=2.5.3" },
+    { name = "packaging", marker = "extra == 'entity-ner'", specifier = ">=20.9" },
     { name = "pillow", specifier = ">=12.3.0" },
     { name = "pillow", marker = "extra == 'iwork'", specifier = ">=12.3.0" },
     { name = "psutil", specifier = ">=7.2.2,<8" },
     { name = "psycopg", extras = ["binary"], marker = "extra == 'postgres'", specifier = ">=3.3.5,<4" },
     { name = "psycopg2-binary", specifier = ">=2.9.13,<3" },
+    { name = "pydantic", specifier = ">=2.11,<3" },
     { name = "pydantic-ai-slim", marker = "extra == 'pydantic-ai'", specifier = ">=2.0,<3" },
     { name = "pyobjc-framework-corewlan", marker = "sys_platform == 'darwin'" },
     { name = "pypdf", specifier = ">=6.19.0,<7" },
@@ -2804,6 +2809,7 @@ requires-dist = [
     { name = "sharepoint-to-text", specifier = ">=2.0.0,<3" },
     { name = "sqlglot", specifier = ">=30.18.0,<31" },
     { name = "sqlite-vec", marker = "extra == 'vector'", specifier = ">=0.1.6" },
+    { name = "starlette", specifier = ">=0.46" },
     { name = "tomlkit", specifier = "==0.15.1" },
     { name = "torch", marker = "extra == 'embed-server'", specifier = ">=2.14.0,<3" },
     { name = "tqdm", specifier = ">=4.70.1,<5" },
