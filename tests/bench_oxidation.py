@@ -70,7 +70,8 @@ from embedding_utils import unpack as eu_unpack
 
 # Force the pure-Python redaction path so we can call _scrub_python directly
 # regardless of whether the Rust core is loaded by the module.
-os.environ["M3_CORE_RS_DISABLE"] = "1"
+if __name__ == "__main__":  # run as a script; importing must not touch the environment
+    os.environ["M3_CORE_RS_DISABLE"] = "1"
 import chatlog_redaction
 
 py_scrub = chatlog_redaction._scrub_python

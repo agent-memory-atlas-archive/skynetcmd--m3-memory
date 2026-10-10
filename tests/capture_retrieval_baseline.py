@@ -75,16 +75,18 @@ sys.path.insert(0, str(BIN_DIR))
 # In-process embedder required so cache lookups + cold embeds are
 # deterministic across runs (HTTP fallback would introduce network jitter).
 # Set M3_EMBED_GGUF in your env to the local bge-m3 GGUF path before running.
-os.environ.setdefault("GGML_CUDA_DISABLE_GRAPHS", "1")
+if __name__ == "__main__":  # run as a script; importing must not touch the environment
+    os.environ.setdefault("GGML_CUDA_DISABLE_GRAPHS", "1")
 if not os.environ.get("M3_EMBED_GGUF"):
     print("ERROR: set M3_EMBED_GGUF to the bge-m3 GGUF path before running.",
           file=sys.stderr)
     sys.exit(2)
-os.environ.setdefault("M3_EMBED_STREAMS", "1")
-os.environ.setdefault("M3_EMBED_CTX", "8192")
-os.environ.setdefault("M3_EMBED_SEQ_MAX", "8")
-os.environ.setdefault("M3_EMBED_N_BATCH", "8192")
-os.environ.setdefault("M3_EMBED_N_UBATCH", "8192")
+if __name__ == "__main__":  # run as a script; importing must not touch the environment
+    os.environ.setdefault("M3_EMBED_STREAMS", "1")
+    os.environ.setdefault("M3_EMBED_CTX", "8192")
+    os.environ.setdefault("M3_EMBED_SEQ_MAX", "8")
+    os.environ.setdefault("M3_EMBED_N_BATCH", "8192")
+    os.environ.setdefault("M3_EMBED_N_UBATCH", "8192")
 
 CHATLOG_DB = ROOT / "memory" / "agent_chatlog.db"
 

@@ -16,10 +16,11 @@ import asyncio
 import os
 import sys
 
-os.environ.setdefault(
-    "M3_EMBED_GGUF",
-    r"C:\Users\username\.lmstudio\models\deepsweet\bge-m3-GGUF-Q4_K_M\bge-m3-GGUF-Q4_K_M.gguf",
-)
+if __name__ == "__main__":  # run as a script; importing must not touch the environment
+    os.environ.setdefault(
+        "M3_EMBED_GGUF",
+        r"C:\Users\username\.lmstudio\models\deepsweet\bge-m3-GGUF-Q4_K_M\bge-m3-GGUF-Q4_K_M.gguf",
+    )
 # Do NOT set M3_EMBED_FALLBACK_URL — default 127.0.0.1:8082 exercises the
 # real env. If that port isn't listening, the fallback raises ConnectionRefused
 # and the path falls through to M3_EMBED_URL (or returns None).

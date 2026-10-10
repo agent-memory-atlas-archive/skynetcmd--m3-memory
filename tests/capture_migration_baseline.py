@@ -21,16 +21,17 @@ BIN_DIR = ROOT / "bin"
 BASELINE_DIR = ROOT / ".scratch" / "migration_baseline"
 sys.path.insert(0, str(BIN_DIR))
 
-os.environ.setdefault("GGML_CUDA_DISABLE_GRAPHS", "1")
-os.environ.setdefault(
-    "M3_EMBED_GGUF",
-    r"C:\Users\username\.lmstudio\models\deepsweet\bge-m3-GGUF-Q4_K_M\bge-m3-GGUF-Q4_K_M.gguf",
-)
-os.environ.setdefault("M3_EMBED_STREAMS", "1")
-os.environ.setdefault("M3_EMBED_CTX", "8192")
-os.environ.setdefault("M3_EMBED_SEQ_MAX", "8")
-os.environ.setdefault("M3_EMBED_N_BATCH", "8192")
-os.environ.setdefault("M3_EMBED_N_UBATCH", "8192")
+if __name__ == "__main__":  # run as a script; importing must not touch the environment
+    os.environ.setdefault("GGML_CUDA_DISABLE_GRAPHS", "1")
+    os.environ.setdefault(
+        "M3_EMBED_GGUF",
+        r"C:\Users\username\.lmstudio\models\deepsweet\bge-m3-GGUF-Q4_K_M\bge-m3-GGUF-Q4_K_M.gguf",
+    )
+    os.environ.setdefault("M3_EMBED_STREAMS", "1")
+    os.environ.setdefault("M3_EMBED_CTX", "8192")
+    os.environ.setdefault("M3_EMBED_SEQ_MAX", "8")
+    os.environ.setdefault("M3_EMBED_N_BATCH", "8192")
+    os.environ.setdefault("M3_EMBED_N_UBATCH", "8192")
 
 CHATLOG_DB = ROOT / "memory" / "agent_chatlog.db"
 SEED = 42
