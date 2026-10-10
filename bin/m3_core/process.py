@@ -13,7 +13,7 @@ from __future__ import annotations
 import os
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
-from pathlib import PurePath
+from pathlib import Path, PurePath
 
 type Pid = int
 
@@ -190,10 +190,27 @@ def is_venv_redirector(name: str, cmdline: list[str], below: list[str] | None) -
     (measured 2026-10-08, argv[0] included). So every venv Python, pipx
     installs included, has an extra python.exe above it that belongs to its own
     launch, not to whoever started it. The signature is structural: a Python
-    launcher whose command line equals the one below it.
+    launcher whose arguments equal the ones below it.
+
+    uv's venv trampoline differs in argv[0] only: it starts the base interpreter
+    with argv[0] rewritten to the base path (measured 2026-10-09, uv 0.12.17), so
+    an exact match missed every uv-made venv (`uv tool install`, `uv venv`) and
+    reported the trampoline as the agent's client. argv[0] may then differ when
+    the launcher is itself a venv's interpreter (pyvenv.cfg beside its folder).
     """
-    return (below is not None and cmdline == below
-            and PurePath(name.lower()).stem in _PY_LAUNCHERS)
+    if below is None or not cmdline or len(cmdline) != len(below):
+        return False
+    if PurePath(name.lower()).stem not in _PY_LAUNCHERS or cmdline[1:] != below[1:]:
+        return False
+    return cmdline[0] == below[0] or _is_venv_interpreter(cmdline[0])
+
+
+def _is_venv_interpreter(exe: str) -> bool:
+    """Is ``exe`` a venv's own interpreter (<venv>/Scripts|bin/python, pyvenv.cfg in <venv>)?"""
+    try:
+        return (Path(exe).parent.parent / "pyvenv.cfg").is_file()
+    except OSError:
+        return False
 
 
 def agent_client(pid: Pid | None = None, *, max_depth: int = 24) -> ClientProcess | None:

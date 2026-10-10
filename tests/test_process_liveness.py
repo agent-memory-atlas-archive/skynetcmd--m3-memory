@@ -192,3 +192,25 @@ def test_agent_client_is_the_nearest_non_m3_ancestor():
 def test_agent_client_skips_a_shell_that_launches_m3():
     pytest.importorskip("psutil")
     assert _run_child(via_m3_shell=True) == str(os.getpid())
+
+
+def test_a_uv_trampoline_is_a_redirector(tmp_path):
+    """uv's venv launcher starts the base interpreter with argv[0] rewritten to
+    the base path, so only the arguments match. It is still the redirector."""
+    from m3_core.process import is_venv_redirector
+
+    venv = tmp_path / "venv"
+    (venv / "Scripts").mkdir(parents=True)
+    (venv / "pyvenv.cfg").write_text("home = x\n", encoding="utf-8")
+    launcher = [str(venv / "Scripts" / "python.exe"), "-c", "pass"]
+    child = [str(tmp_path / "base" / "python.exe"), "-c", "pass"]
+    assert is_venv_redirector("python.exe", launcher, child)
+
+
+def test_a_python_parent_outside_a_venv_is_not_a_redirector(tmp_path):
+    from m3_core.process import is_venv_redirector
+
+    parent = [str(tmp_path / "other" / "python.exe"), "-c", "pass"]
+    child = [str(tmp_path / "base" / "python.exe"), "-c", "pass"]
+    assert not is_venv_redirector("python.exe", parent, child)
+    assert not is_venv_redirector("python.exe", [parent[0], "-c", "other"], child)
