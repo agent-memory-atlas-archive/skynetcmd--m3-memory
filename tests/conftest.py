@@ -488,12 +488,6 @@ def _real_is_windows() -> bool:
 
 # Read once at import, before any test simulates another OS.
 _ON_WINDOWS = _real_is_windows()
-# The REAL winreg, bound now: some tests install a fake `winreg` in sys.modules,
-# and the user-environment guard must keep reading the real registry.
-if _ON_WINDOWS:
-    import winreg as _REAL_WINREG
-else:
-    _REAL_WINREG = None
 
 
 @pytest.hookimpl(hookwrapper=True, tryfirst=True)
@@ -793,21 +787,10 @@ def _session_tempdir(tmp_path_factory):
 
 
 def _user_env_snapshot() -> dict | None:
-    """HKCU\\Environment as {name: (value, type)}; None off Windows."""
-    if not _ON_WINDOWS:
-        return None
-    winreg = _REAL_WINREG
-    out = {}
-    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as key:
-        i = 0
-        while True:
-            try:
-                name, value, kind = winreg.EnumValue(key, i)
-            except OSError:
-                break
-            out[name] = (value, kind)
-            i += 1
-    return out
+    """The persistent per-user environment, read through the OS seam."""
+    from m3_memory._platform import user_env_snapshot
+
+    return user_env_snapshot()
 
 
 @pytest.fixture(autouse=True)
@@ -824,7 +807,8 @@ def _real_user_env_untouched():
     after = _user_env_snapshot()
     if after == before:
         return
-    winreg = _REAL_WINREG
+    from m3_memory._platform import _winreg as winreg  # bound at seam import: never a test's fake
+
     changed = sorted(n for n in before.keys() | after.keys() if before.get(n) != after.get(n))
     with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment", 0, winreg.KEY_SET_VALUE) as key:
         for name in changed:

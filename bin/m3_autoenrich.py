@@ -40,20 +40,10 @@ def _is_windows() -> bool:
 # --- Windows persistence ---------------------------------------------------
 
 def _read_windows() -> str | None:
-    """Read the User-scope env var via the registry."""
-    try:
-        import winreg
-    except ImportError:
-        return None
-    try:
-        # winreg is Windows-only stdlib; mypy on Linux can't resolve attrs.
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as k:  # type: ignore[attr-defined, unused-ignore]
-            val, _ = winreg.QueryValueEx(k, VAR)  # type: ignore[attr-defined, unused-ignore]
-            return str(val)
-    except FileNotFoundError:
-        return None
-    except OSError:
-        return None
+    """Read the User-scope env var (the OS seam owns the store)."""
+    from m3_core.seams import user_env_get
+
+    return user_env_get(VAR)
 
 
 def _write_windows(value: str | None) -> None:

@@ -31,7 +31,7 @@ import urllib.request
 from typing import Any
 from urllib.parse import urlparse
 
-from m3_core.seams import is_windows
+from m3_core.seams import is_windows, user_env_get
 
 _PORT = 8082
 _DEFAULT_URL = f"http://127.0.0.1:{_PORT}"
@@ -116,17 +116,7 @@ def _windows_user_env_has(var: str) -> bool:
     """True if `var` is set in the Windows *User* environment (persists across
     shells / MCP restarts), read from the registry so it reflects the persisted
     value, not just this process's inherited copy."""
-    if not is_windows():
-        return False
-    try:
-        import winreg
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as key:
-            value, _ = winreg.QueryValueEx(key, var)
-            return bool((value or "").strip())
-    except FileNotFoundError:
-        return False
-    except Exception:  # noqa: BLE001 — registry unreadable: fall back to process-env signal
-        return False
+    return bool((user_env_get(var) or "").strip())  # the OS seam owns the store
 
 
 def _manual_env_leak_remains() -> bool:

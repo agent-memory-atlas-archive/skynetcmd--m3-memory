@@ -26,6 +26,46 @@ PLATFORM_OF: dict[str, str] = {"Windows": "win32", "Darwin": "darwin", "Linux": 
 
 _UNSUPPORTED_WARNED = False
 
+# The persistent per-user environment store, where the OS has one (Windows:
+# HKCU\Environment, what `setx` writes). Bound at import: a test that later
+# installs a fake `winreg` in sys.modules cannot redirect these readers.
+try:
+    import winreg as _winreg
+except ImportError:  # POSIX: no such store (shell rc files are text, not this)
+    _winreg = None
+
+
+def user_env_snapshot() -> dict[str, tuple[object, int]] | None:
+    """The persistent per-user environment as {name: (value, registry type)}, or
+    None where the OS keeps no such store. The capability is the store, not the
+    OS name."""
+    if _winreg is None:
+        return None
+    out: dict[str, tuple[object, int]] = {}
+    with _winreg.OpenKey(_winreg.HKEY_CURRENT_USER, "Environment") as key:
+        i = 0
+        while True:
+            try:
+                name, value, kind = _winreg.EnumValue(key, i)
+            except OSError:
+                break
+            out[name] = (value, kind)
+            i += 1
+    return out
+
+
+def user_env_get(name: str) -> str | None:
+    """One value from the persistent per-user environment; None when unset or
+    where the OS keeps no such store. Unreadable is treated as unset."""
+    if _winreg is None:
+        return None
+    try:
+        with _winreg.OpenKey(_winreg.HKEY_CURRENT_USER, "Environment") as key:
+            value, _kind = _winreg.QueryValueEx(key, name)
+    except OSError:  # FileNotFoundError: not set; others: unreadable
+        return None
+    return str(value)
+
 
 def os_name() -> str:
     """Return 'Windows', 'Darwin', or 'Linux' without touching WMI.

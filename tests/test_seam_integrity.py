@@ -175,3 +175,17 @@ def test_business_logic_asks_the_dialect_to_compile_keyword_queries():
                 hits.append(f"{rel}:{n.lineno}")
     assert not hits, ("observed: business logic imports a keyword compiler: " + ", ".join(hits)
                       + ". inspect: call dialect().compile_keyword_query(query, mode)")
+
+
+def test_the_user_environment_primitives_agree():
+    """user_env_snapshot / user_env_get: one store, one answer. Either the OS has
+    a persistent per-user environment (Windows) and both read it, or neither
+    does and both say so; no OS-name test, the capability decides."""
+    pf = importlib.import_module("m3_memory._platform")
+    snap = pf.user_env_snapshot()
+    if snap is None:
+        assert pf.user_env_get("PATH") is None
+        return
+    for name, (value, _kind) in list(snap.items())[:5]:
+        assert pf.user_env_get(name) == str(value), name
+    assert pf.user_env_get("M3_SURELY_UNSET_7F3A") is None

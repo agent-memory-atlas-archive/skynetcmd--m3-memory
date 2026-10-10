@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_autoenrich.py
-sha1: eab982dd6ef8
-mtime_utc: 2026-10-10T06:49:09.046424+00:00
-generated_utc: 2026-10-10T06:49:16.745818+00:00
+sha1: f907c87e8ed0
+mtime_utc: 2026-10-10T09:05:42.029048+00:00
+generated_utc: 2026-10-10T09:06:36.960237+00:00
 private: false
 ---
 
@@ -32,7 +32,7 @@ way the result is consistent regardless of which shell launched this script.
 
 ## Entry points
 
-- `def main()` (line 154)
+- `def main()` (line 144)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -63,8 +63,8 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `['reg', 'delete', 'HKCU\\Environment', '/F', '/V', VAR]`` (line 77)
-- `subprocess.run()  → `['setx', VAR, value]`` (line 84)
+- `subprocess.run()  → `['reg', 'delete', 'HKCU\\Environment', '/F', '/V', VAR]`` (line 67)
+- `subprocess.run()  → `['setx', VAR, value]`` (line 74)
 
 
 ---
@@ -72,7 +72,7 @@ _(none detected)_
 ## Notable external imports
 
 - `m3_core.seams (is_windows)`
-- `winreg`
+- `m3_core.seams (user_env_get)`
 
 ---
 
