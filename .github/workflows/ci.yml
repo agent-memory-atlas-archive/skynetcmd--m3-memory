@@ -32,6 +32,10 @@ jobs:
       # m3_memory/ (the installed package) and tests/ too: left out, both
       # accumulated findings that no gate reported.
       run: ruff check bin/ memory/ m3_memory/ tests/ --exclude 'bench_*.py' --exclude 'benchmark_*.py'
+    - name: Formatting (ruff format)
+      # Same scope as the lint step. The tree was formatted in one commit
+      # (.git-blame-ignore-revs); this keeps it formatted.
+      run: ruff format --check bin/ memory/ m3_memory/ tests/ --exclude 'bench_*.py' --exclude 'benchmark_*.py'
     - name: Environment-access gate (report mode)
       # Plan Step 2A.1: inventory every os.environ / getenv access. Report mode
       # prints counts and passes; it fails only if its selftest misses a planted

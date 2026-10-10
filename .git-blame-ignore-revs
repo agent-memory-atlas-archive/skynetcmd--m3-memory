@@ -3,3 +3,6 @@
 
 # ruff UP safe fixes for the py312 target
 3885e57405f24d7e0e68d219a9de71d2d8ba6577
+
+# ruff format: the one mechanical sweep at the end of 2D.M (914 files)
+13edc78fc33779daddb6b879be2b5c23edf54cca
