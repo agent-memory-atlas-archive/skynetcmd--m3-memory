@@ -92,6 +92,29 @@ from .util import sha256_hex as _sha256_hex
 
 logger = logging.getLogger("memory.write")
 
+# memory_write_bulk_impl's *_concurrency arguments are public API but do not
+# govern anything: enrichment and extraction run under process-wide semaphores
+# that protect the shared model servers. Kept for compatibility; a caller that
+# sets one is told, once per name, what actually governs it.
+_BULK_CONCURRENCY_SETTINGS = {
+    "fact_enricher_concurrency": "memory.fact_enrich_concurrency",
+    "entity_extractor_concurrency": "entity.extract_concurrency",
+}
+_BULK_CONCURRENCY_DEFAULT = 2
+_BULK_CONCURRENCY_WARNED: set[str] = set()
+
+
+def _warn_ignored_bulk_concurrency(fact_enricher_concurrency: int,
+                                   entity_extractor_concurrency: int) -> None:
+    for name, value in (("fact_enricher_concurrency", fact_enricher_concurrency),
+                        ("entity_extractor_concurrency", entity_extractor_concurrency)):
+        if value != _BULK_CONCURRENCY_DEFAULT and name not in _BULK_CONCURRENCY_WARNED:
+            _BULK_CONCURRENCY_WARNED.add(name)
+            logger.warning(
+                "memory_write_bulk_impl ignores %s; observed: %s=%r. Concurrency is "
+                "process-wide so the shared model servers stay protected. inspect: the "
+                "%r setting", name, name, value, _BULK_CONCURRENCY_SETTINGS[name])
+
 
 # ── Internal callback registry ──────────────────────────────────────────────
 # To break circular dependencies with memory_core (which imports this package),
@@ -933,6 +956,7 @@ async def memory_write_bulk_impl(
     two vectors at query time. 'max' takes per-memory_id max score across
     kinds.
     """
+    _warn_ignored_bulk_concurrency(fact_enricher_concurrency, entity_extractor_concurrency)
     _resolve_mc_callbacks()
     if entity_extractor is None:
         write_through = os.environ.get("M3_EXTRACTION_WRITE_THROUGH", "0").lower() in ("1", "true", "yes")

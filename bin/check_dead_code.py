@@ -34,13 +34,6 @@ EXCEPTIONS: dict[tuple[str, str], str] = {
         "ctypes mock of a wolfCrypt AES-GCM entry point: the C signature",
     ("bin/test_fips_integrity.py", "typeH"):
         "ctypes mock of a wolfCrypt HMAC entry point: the C signature",
-    # Accepted but ignored: DECISION PENDING (docs/plans 2D.M vulture list).
-    ("bin/files_memory/extract.py", "leaf_division_type"):
-        "DECISION PENDING: callers pass the leaf's division type; the prompt does not use it",
-    ("bin/memory/write.py", "fact_enricher_concurrency"):
-        "DECISION PENDING: public API (memory_core_api_snapshot); FACT_ENRICH_CONCURRENCY governs",
-    ("bin/memory/write.py", "entity_extractor_concurrency"):
-        "DECISION PENDING: public API (memory_core_api_snapshot); the entity semaphore governs",
 }
 
 _FINDING = re.compile(r"^(?P<path>.+?):(?P<line>\d+): (?P<msg>.*?'(?P<name>[^']+)'.*?)$")

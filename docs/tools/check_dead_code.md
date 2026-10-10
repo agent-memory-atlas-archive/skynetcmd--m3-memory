@@ -1,8 +1,8 @@
 ---
 tool: bin/check_dead_code.py
-sha1: be7f81641ac3
-mtime_utc: 2026-10-10T05:27:36.561481+00:00
-generated_utc: 2026-10-10T05:28:18.147303+00:00
+sha1: e492f79d2de6
+mtime_utc: 2026-10-10T08:25:19.897438+00:00
+generated_utc: 2026-10-10T08:25:39.535753+00:00
 private: false
 ---
 
@@ -23,7 +23,7 @@ and an exception that no longer fires fails too, so the list cannot rot.
 
 ## Entry points
 
-- `def main()` (line 49)
+- `def main()` (line 42)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -50,8 +50,8 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `[sys.executable, '-m', 'vulture', '--version']`` (line 50)
-- `subprocess.run()` (line 55)
+- `subprocess.run()  → `[sys.executable, '-m', 'vulture', '--version']`` (line 43)
+- `subprocess.run()` (line 48)
 
 
 ---
