@@ -50,7 +50,7 @@ def _persist_embed_gguf_shell(gguf_path: str, *, non_interactive: bool) -> None:
 
         for msg in _write_user_registry_env({"M3_EMBED_GGUF": gguf_path}):
             if msg.startswith("[!]"):
-                _warn(f"    {msg}; set it later: setx M3_EMBED_GGUF \"{gguf_path}\"")
+                _warn(f"    {msg}")  # the owner's message carries observed: / inspect:
             else:
                 _ok(f"    {msg}")
         return

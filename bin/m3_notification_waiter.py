@@ -29,8 +29,6 @@ import sys
 import time
 from datetime import UTC, datetime
 
-from m3_core.seams import is_windows
-
 
 def refresh_agent_ids(current: list[str]) -> list[str]:
     """The live agent list, or ``current`` unchanged if it cannot be read.
@@ -125,7 +123,7 @@ def _no_window() -> dict:
     reports nothing at all. SW_HIDE hides the window and keeps the pipes.
     Single owner so the three call sites below cannot drift apart.
     """
-    if not is_windows():
+    if sys.platform != "win32":
         return {}
     si = subprocess.STARTUPINFO()
     si.dwFlags |= subprocess.STARTF_USESHOWWINDOW

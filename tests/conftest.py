@@ -268,7 +268,8 @@ SKIP_DIMENSIONS = ("os", "python", "db", "dep", "env", "na")
 def skip_reason(dimension: str, text: str) -> str:
     """The reason string for a skip: ``pytest.skip(skip_reason("dep", "no numpy"))``."""
     if dimension not in SKIP_DIMENSIONS:
-        raise ValueError(f"skip dimension {dimension!r} is not one of {SKIP_DIMENSIONS}")
+        raise ValueError(f"unknown skip dimension; observed: {dimension!r}. "
+                         f"inspect: use one of {SKIP_DIMENSIONS} (tests/conftest.py)")
     return f"[{dimension}] {text}"
 
 
@@ -395,7 +396,7 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     for nodeid, reason in na[:25]:
         tr.write_line(f"    na: {nodeid}: {reason[:120]}")
     if unclassified:
-        tr.write_line(f"  UNCLASSIFIED {len(unclassified)}: these skips name no dimension, so "
+        tr.write_line(f"  UNCLASSIFIED; observed: {len(unclassified)} skips name no dimension, so "
                       "nothing says they were skipped for a real reason. inspect: use "
                       "conftest.skip_reason(dimension, text) or a requires_* marker", yellow=True)
         for nodeid, reason in unclassified[:25]:
@@ -487,6 +488,12 @@ def _real_is_windows() -> bool:
 
 # Read once at import, before any test simulates another OS.
 _ON_WINDOWS = _real_is_windows()
+# The REAL winreg, bound now: some tests install a fake `winreg` in sys.modules,
+# and the user-environment guard must keep reading the real registry.
+if _ON_WINDOWS:
+    import winreg as _REAL_WINREG
+else:
+    _REAL_WINREG = None
 
 
 @pytest.hookimpl(hookwrapper=True, tryfirst=True)
@@ -759,8 +766,7 @@ def _user_env_snapshot() -> dict | None:
     """HKCU\\Environment as {name: (value, type)}; None off Windows."""
     if not _ON_WINDOWS:
         return None
-    import winreg
-
+    winreg = _REAL_WINREG
     out = {}
     with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as key:
         i = 0
@@ -788,8 +794,7 @@ def _real_user_env_untouched():
     after = _user_env_snapshot()
     if after == before:
         return
-    import winreg
-
+    winreg = _REAL_WINREG
     changed = sorted(n for n in before.keys() | after.keys() if before.get(n) != after.get(n))
     with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment", 0, winreg.KEY_SET_VALUE) as key:
         for name in changed:

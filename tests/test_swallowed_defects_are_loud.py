@@ -56,7 +56,7 @@ def _error_from(backend, sql: str) -> BaseException:
             except Exception:  # noqa: BLE001 -- best-effort reset of an aborted PG transaction
                 pass
             return e
-    pytest.fail(f"expected {sql!r} to fail")
+    pytest.fail(f"observed: {sql!r} succeeded. inspect: the probe needs SQL this backend rejects")
 
 
 def test_bad_query_is_a_defect(each_backend):

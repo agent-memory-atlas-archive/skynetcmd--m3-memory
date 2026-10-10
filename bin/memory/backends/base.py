@@ -144,7 +144,8 @@ def snapshot_target(dest_dir: str, stem: str, label: str, ext: str) -> str:
         raise SnapshotError(f"snapshot label must match [A-Za-z0-9._-]+; got {label!r}")
     if not dest_dir:
         # os.makedirs("") raised; Path("").mkdir() would silently mean the cwd.
-        raise FileNotFoundError(2, "snapshot destination directory is empty", dest_dir)
+        raise FileNotFoundError(2, "snapshot destination directory is empty; observed: dest_dir="
+                                f"{dest_dir!r}. inspect: the caller's snapshot destination", dest_dir)
     dest = Path(dest_dir)
     dest.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")

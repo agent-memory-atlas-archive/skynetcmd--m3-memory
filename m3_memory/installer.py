@@ -1382,7 +1382,8 @@ def _write_user_registry_env(pairs: dict[str, str]) -> list[str]:
             shown = _mask_dsn(value) if "PG_URL" in name else value
             msgs.append(f"[+] set {name}={shown} (User env; open a new shell to pick it up)")
         except (subprocess.CalledProcessError, OSError) as e:
-            msgs.append(f"[!] could not set {name} via setx: {e}")
+            msgs.append(f"[!] could not set {name} via setx; observed: {type(e).__name__}: {e}. "
+                        f"inspect: run `setx {name} <value>` by hand")
     try:
         _broadcast_env_change()  # nudge live shells to reload (best-effort)
     except Exception:  # noqa: BLE001 — cosmetic

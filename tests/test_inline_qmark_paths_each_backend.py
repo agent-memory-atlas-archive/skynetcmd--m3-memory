@@ -39,10 +39,12 @@ def test_single_text_embed_cache_hits(monkeypatch, each_backend):
 
     class _MustNotEmbed:
         def embed(self, texts):
-            raise AssertionError("cache missed: the embedder was called")
+            raise AssertionError("cache missed; observed: the embedder was called. "
+                                 "inspect: memory/embed.py _embed cache lookup")
 
     def _no_http():
-        raise AssertionError("cache missed: the HTTP embedder was reached")
+        raise AssertionError("cache missed; observed: the HTTP embedder was reached. "
+                             "inspect: memory/embed.py _embed cache lookup")
 
     monkeypatch.setattr(me, "_get_embedded_embedder", lambda: _MustNotEmbed())
     monkeypatch.setattr(me, "_get_embed_client", _no_http)

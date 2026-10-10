@@ -16,17 +16,35 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parents[1]
 _SEAM = _ROOT / "m3_memory" / "_platform.py"
 
+# Code that must run while the m3_memory package is ABSENT or being replaced,
+# so it cannot import the seam: it keeps its own stdlib OS check. Each entry
+# carries its reason; the ratchet below counts everything else.
+EXEMPT = {
+    "bin/m3_embed_watchdog.py": "restarts m3 when the package is broken (parity: test_os_seam_watchdog_parity)",
+    "bin/m3_loop_watchdog.py": "restarts m3 when the package is broken (parity: test_os_seam_watchdog_parity)",
+    "bin/setup_memory.py": "bootstrap: creates the first venv/store before anything is installed",
+    "bin/generate_configs.py": "bootstrap pair with setup_memory.py (tests/test_setup_memory_interpreter.py)",
+    "bin/m3_notification_waiter.py": "the supervisor stays stdlib-only at import to survive `pipx upgrade` (#163)",
+    "bin/hooks/chatlog/claude_code_precompact.py": "agent hook: must never break the host's session",
+    "bin/hooks/chatlog/gemini_cli_onexit.py": "agent hook: must never break the host's session",
+    "bin/hooks/chatlog/openclaw_session_end.py": "agent hook: must never break the host's session",
+    "bin/hooks/chatlog/opencode_session_end.py": "agent hook: must never break the host's session",
+    "bin/test_memory_bridge.py": "documented standalone `python3 bin/test_memory_bridge.py` (AGENT_INSTRUCTIONS)",
+}
+
 # Current floor. Lower this as sites move into the seam; never raise it.
 # 2026-10-10: 187 -> 180 (mission control and the Apple-Silicon checks moved).
 # 2026-10-10: 180 -> 178 (install_schedules asks the seam).
-_BUDGET = 20
+# 2026-10-10: 178 -> 5 (the AST migration; EXEMPT files are not counted; the 5
+# left only print the platform name).
+_BUDGET = 5
 
 
 def _sites(roots=("bin", "m3_memory"), base: Path = _ROOT) -> tuple[list[str], list[str]]:
     checks, banned = [], []
     for root in roots:
         for p in sorted((base / root).rglob("*.py")):
-            if p == _SEAM:
+            if p == _SEAM or p.relative_to(base).as_posix() in EXEMPT:
                 continue
             try:
                 tree = ast.parse(p.read_text(encoding="utf-8"))
@@ -89,3 +107,21 @@ def test_the_gate_sees_each_form(tmp_path):
         encoding="utf-8")
     checks, banned = _sites(("bin",), tmp_path)
     assert checks == ["bin/m.py:2", "bin/m.py:3"] and banned == ["bin/m.py:4 platform.system"]
+
+
+def test_every_exemption_still_needs_its_own_check():
+    """An exempt file that no longer tests the OS itself must leave EXEMPT, or
+    the list silently grows a pass for a file that later regresses."""
+    stale = []
+    for rel in EXEMPT:
+        p = _ROOT / rel
+        if not p.is_file():
+            stale.append(f"{rel} (missing)")
+            continue
+        tree = ast.parse(p.read_text(encoding="utf-8"))
+        if not any(isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name)
+                   and (n.value.id, n.attr) in (("os", "name"), ("sys", "platform"))
+                   for n in ast.walk(tree)):
+            stale.append(rel)
+    assert not stale, (f"observed: EXEMPT entries with no OS check of their own: {stale}. "
+                       "inspect: remove them from EXEMPT in tests/test_os_seam_ratchet.py")

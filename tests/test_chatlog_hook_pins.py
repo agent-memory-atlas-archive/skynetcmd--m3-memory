@@ -16,10 +16,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
 import chatlog_init as ci  # noqa: E402
 
+from conftest import simulate_os
+
 
 def test_root_env_prefix_contains_both_pins(monkeypatch):
     """POSIX: both roots inline-pinned, trailing space so it prefixes directly."""
-    monkeypatch.setattr(ci.os, "name", "posix")
+    simulate_os(monkeypatch, "Linux")
     monkeypatch.setenv("M3_MEMORY_ROOT", "/data/.m3")
     monkeypatch.setenv("M3_ENGINE_ROOT", "/data/.m3/engine")
     monkeypatch.setenv("M3_CONFIG_ROOT", "/data/.m3/config")
@@ -38,7 +40,7 @@ def test_root_env_prefix_is_empty_on_windows(monkeypatch):
     stay correct via .chatlog_config.json's db_path and the shared ~/.m3
     defaults, so omitting the prefix is safe, not a downgrade.
     """
-    monkeypatch.setattr(ci.os, "name", "nt")
+    simulate_os(monkeypatch, "Windows")
     monkeypatch.setenv("M3_ENGINE_ROOT", "C:/data/.m3/engine")
     monkeypatch.setenv("M3_CONFIG_ROOT", "C:/data/.m3/config")
     assert ci._root_env_prefix() == ""
@@ -108,7 +110,7 @@ def test_apply_gemini_settings_upgrades_stale_onexit_hook(monkeypatch, tmp_path)
     roots-bearing shape too."""
     # Pin POSIX: the assertion below checks the inline root pins, which are
     # deliberately absent on Windows (see test_root_env_prefix_is_empty_on_windows).
-    monkeypatch.setattr(ci.os, "name", "posix")
+    simulate_os(monkeypatch, "Linux")
     monkeypatch.setattr(ci.Path, "home", classmethod(lambda cls: tmp_path))
     monkeypatch.setenv("M3_MEMORY_ROOT", "/data/.m3")
     monkeypatch.setenv("M3_ENGINE_ROOT", "/data/.m3/engine")

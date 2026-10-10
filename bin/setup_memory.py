@@ -11,10 +11,8 @@ import sqlite3
 import subprocess
 import sys
 
-from m3_core.seams import is_windows
-
 BASE   = pathlib.Path(__file__).parent.parent.resolve()
-IS_WIN = is_windows()
+IS_WIN = sys.platform == "win32"
 
 
 # bin/ on sys.path so this bootstrap script can reach its siblings. Done once,

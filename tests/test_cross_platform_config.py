@@ -22,8 +22,6 @@ import tempfile
 import generate_configs as g
 import pytest
 
-from conftest import simulate_os
-
 
 def _all_commands(settings):
     """Every command string the install would write: hooks + statusLine + mcp."""
@@ -89,7 +87,6 @@ def _build_settings(monkeypatch, os_name):
     # (green on 3.12, where the guard sits elsewhere; green on Windows, where
     # WindowsPath is native — so it only ever bit POSIX + 3.11 in CI).
     # Scope the override to the generator call and restore it immediately.
-    simulate_os(monkeypatch, "Windows" if os_name == "nt" else "Linux")  # the OS seam's knob
     saved_name = g.os.name
     try:
         g.os.name = os_name
@@ -270,7 +267,7 @@ def test_source_checkout_still_uses_repo_venv(monkeypatch):
     dev_root = "/testroot/src/m3-memory"
     dev_venv = dev_root + "/.venv/bin/python"
     real_exists = os.path.exists
-    simulate_os(monkeypatch, "Linux")
+    monkeypatch.setattr(g.os, "name", "posix")
     monkeypatch.setattr(g.os.path, "exists",
                         lambda p: True if str(p).replace("\\", "/") == dev_venv else real_exists(p))
 
