@@ -193,9 +193,12 @@ def main():
     # --store (selected while parsing) outranks the legacy AGENT_DB alias as it
     # outranks M3_DATABASE (D3); DB_PATH was resolved at import, before it.
     db_path = resolve_db_path(args.database) if args.database or args.store else DB_PATH
-    from m3_core.paths import require_sqlite_backend, seam_backend
+    from m3_core.paths import require_sqlite_backend
     require_sqlite_backend("build_kg_variant")
-    _cm = seam_backend().open_readonly(str(db_path))
+    # A WRITABLE connection: this copies items and writes edges, and
+    # open_readonly is read-only (mode=ro), so it could never commit.
+    from m3_sdk import M3Context
+    _cm = M3Context.for_db(str(db_path)).get_sqlite_conn()
     db = _cm.__enter__()
     try:
         db.row_factory = sqlite3.Row

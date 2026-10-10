@@ -232,14 +232,16 @@ class StorageBackend(Protocol):
         ...
 
     def open_readonly(self, db_path: str) -> AbstractContextManager:
-        """A read-only-intent connection to a SPECIFIC store, backend-blind.
+        """A READ-ONLY connection to a SPECIFIC store, backend-blind, and enforced:
+        a write through it raises on every backend.
 
         Some tools read a PARTICULAR SQLite db file (``file:...?mode=ro`` honoring
         ``db_path``). On file backends this opens that file read-only; on pooled
-        backends (PostgreSQL) there is ONE store, so ``db_path`` is ignored and a
-        normal pooled connection is yielded. Lets a caller do
+        backends (PostgreSQL) there is ONE store, so ``db_path`` is ignored and the
+        pooled session is set read-only for the block. Lets a caller do
         ``with backend.open_readonly(db_path) as conn:`` without branching on the
-        backend name. The caller performs reads only.
+        backend name. A writer uses ``connection()``
+        (tests/test_open_readonly_is_read_only.py).
         """
         ...
 

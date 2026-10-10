@@ -1,8 +1,8 @@
 ---
 tool: bin/build_kg_variant.py
-sha1: 029d31ec1955
-mtime_utc: 2026-10-10T05:40:27.564456+00:00
-generated_utc: 2026-10-10T05:42:31.117769+00:00
+sha1: c1c80ca444fa
+mtime_utc: 2026-10-10T08:35:05.296896+00:00
+generated_utc: 2026-10-10T08:38:21.466969+00:00
 private: false
 ---
 
@@ -52,6 +52,7 @@ _(none detected)_
 
 ## Calls INTO this repo (intra-repo imports)
 
+- `m3_sdk (M3Context)`
 - `m3_sdk (add_database_arg, resolve_db_path)`
 - `m3_sdk (getenv_compat)`
 - `sqlite_pragmas (apply_pragmas, profile_for_db)`
@@ -66,7 +67,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
-- `m3_core.paths (require_sqlite_backend, seam_backend)`
+- `m3_core.paths (require_sqlite_backend)`
 - `numpy`
 
 ---

@@ -1,8 +1,8 @@
 ---
 tool: bin/re_embed_all.py
-sha1: ebda53713ecd
-mtime_utc: 2026-10-10T05:40:27.564456+00:00
-generated_utc: 2026-10-10T05:42:31.720772+00:00
+sha1: 0b276f5abb6a
+mtime_utc: 2026-10-10T08:35:40.478977+00:00
+generated_utc: 2026-10-10T08:38:22.069488+00:00
 private: false
 ---
 
@@ -16,7 +16,7 @@ _(no module docstring — update the source file.)_
 
 ## Entry points
 
-- `def main()` (line 65)
+- `def main()` (line 70)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -51,7 +51,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
-- `m3_core.paths (seam_backend, seam_dialect)`
+- `m3_core.paths (active_database, seam_backend, seam_dialect)`
 
 ---
 

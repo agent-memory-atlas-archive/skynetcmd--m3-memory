@@ -1032,14 +1032,28 @@ class PostgresBackend:
 
     @contextmanager
     def open_readonly(self, db_path: str) -> Iterator[Any]:
-        """Read-only-intent connection. On PG there is ONE pooled store, so the
-        ``db_path`` argument is meaningless and IGNORED (it names a SQLite file);
-        this yields a normal pooled connection. Callers pass db_path for the
-        SQLite case; here it's accepted-and-ignored so the call site stays
-        backend-blind. Reads only — no writes are performed by the caller."""
+        """A READ-ONLY connection, enforced as on SQLite (``mode=ro``). On PG there
+        is ONE pooled store, so ``db_path`` (a SQLite file) is ignored.
+
+        It used to yield a normal writable connection, so the same call that
+        raised "attempt to write a readonly database" on SQLite silently wrote on
+        PostgreSQL, and two writers sat on it unnoticed (2026-10-10). The session
+        is set read-only for the block and restored to the server default before
+        the connection returns to the pool.
+        """
         del db_path  # a SQLite file path; not applicable to the pooled PG store
-        with self.connection() as conn:
-            yield conn
+        pool = self._ensure_pool()
+        conn = pool.getconn()
+        try:
+            conn.rollback()  # session characteristics change only outside a transaction
+            conn.set_session(readonly=True)
+            try:
+                yield _SqliteCompatConnection(conn)
+            finally:
+                conn.rollback()  # nothing to commit in a read-only session
+                conn.readonly = None  # back to the server default for the pool
+        finally:
+            pool.putconn(conn)
 
     def is_query_defect(self, exc: BaseException) -> bool:
         """psycopg2's ProgrammingError covers syntax errors, unknown columns and

@@ -13,9 +13,13 @@ from memory_core import _embed, _pack
 
 async def re_embed_all(db_path: str):
     print(f"Connecting to {db_path}...")
-    from m3_core.paths import seam_backend, seam_dialect
+    from m3_core.paths import active_database, seam_backend, seam_dialect
     _p = seam_dialect().param()
-    _cm = seam_backend().open_readonly(str(db_path))
+    # A WRITABLE connection to db_path: this rewrites embeddings, and
+    # open_readonly is read-only (mode=ro on SQLite), so it could never commit.
+    _scope = active_database(str(db_path))
+    _scope.__enter__()
+    _cm = seam_backend().connection()
     conn = _cm.__enter__()
     try:
         conn.row_factory = sqlite3.Row
@@ -59,6 +63,7 @@ async def re_embed_all(db_path: str):
 
     conn.commit()
     _cm.__exit__(None, None, None)
+    _scope.__exit__(None, None, None)
     print(f"Successfully re-embedded {updated} items.")
 
 
