@@ -22,10 +22,14 @@ def test_no_store_file_until_sqlite_is_used(monkeypatch, tmp_path):
     ctx = M3Context(str(db))
     try:
         assert not db.exists()
-        # A SQLite-only caller still gets a working connection on demand.
-        with ctx.get_sqlite_conn() as conn:
-            assert conn.execute("SELECT 1").fetchone()[0] == 1
-        assert db.exists()
+        # Asking for the SQLite pool on another backend refuses (2026-10-10): the
+        # file is not the live store, and every caller is gated (m3 5c33bf8a).
+        import pytest
+
+        with pytest.raises(RuntimeError, match="observed: M3_DB_BACKEND='postgres'"):
+            with ctx.get_sqlite_conn():
+                pass
+        assert not db.exists(), "a refused request must not create the store either"
     finally:
         _close_context_pool(ctx)
 

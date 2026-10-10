@@ -452,6 +452,17 @@ class M3Context:
 
     @contextmanager
     def get_sqlite_conn(self) -> Iterator[sqlite3.Connection]:
+        # The SQLite pool opens a FILE whatever M3_DB_BACKEND says. Every caller
+        # is gated today (audited 2026-10-10, m3 5c33bf8a); refuse here so the
+        # next ungated one fails loudly instead of writing a stale local file.
+        from m3_core.paths import resolve_backend_name
+
+        _bk = resolve_backend_name()
+        if _bk != "sqlite":
+            raise RuntimeError(
+                f"get_sqlite_conn: observed: M3_DB_BACKEND={_bk!r}, but this opens the "
+                f"SQLite file {self.db_path!r}, which is not the live store. inspect: "
+                "route the caller through the active backend (memory.backends)")
         # Capture self._pool inside the with so put-back lands in the correct
         # pool even if another thread somehow swaps the attribute. (It won't
         # today, but cheap insurance for a multi-pool world.)
