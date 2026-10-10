@@ -897,13 +897,6 @@ async def memory_write_bulk_impl(
     entity_extractor_concurrency: int = 2,
     entity_extractor_variant_allowlist: set[str] | None = None,
 ) -> list[str]:
-    _resolve_mc_callbacks()
-    if entity_extractor is None:
-        write_through = os.environ.get("M3_EXTRACTION_WRITE_THROUGH", "0").lower() in ("1", "true", "yes")
-        if write_through or os.environ.get("M3_EXTRACTION_TYPE"):
-            from .extraction import get_configured_extractor
-            ext = get_configured_extractor()
-            entity_extractor = ext.extract
     """Bulk write that routes embeddings through `_embed_many`. Intended for
     benchmark / import paths where per-item contradiction detection would
     dominate wall-clock. Returns a list of item_ids (or empty string on failure).
@@ -938,6 +931,13 @@ async def memory_write_bulk_impl(
     two vectors at query time. 'max' takes per-memory_id max score across
     kinds.
     """
+    _resolve_mc_callbacks()
+    if entity_extractor is None:
+        write_through = os.environ.get("M3_EXTRACTION_WRITE_THROUGH", "0").lower() in ("1", "true", "yes")
+        if write_through or os.environ.get("M3_EXTRACTION_TYPE"):
+            from .extraction import get_configured_extractor
+            ext = get_configured_extractor()
+            entity_extractor = ext.extract
     if not items:
         return []
 
@@ -1275,7 +1275,7 @@ async def memory_write_bulk_impl(
                 vec_row = None
                 with _db() as db:
                     r = db.execute(
-                        "SELECT embedding FROM memory_embeddings WHERE memory_id = ? LIMIT 1",
+                        f"SELECT embedding FROM memory_embeddings WHERE memory_id = {_db_bulk.param()} LIMIT 1",
                         (p["id"],)
                     ).fetchone()
                     if r:

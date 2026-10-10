@@ -98,6 +98,13 @@ def scope_matches(record_scope_path: str, query_prefix: str) -> bool:
     return rp.startswith(query_prefix + "/")
 
 
+def metadata_matches(metadata: dict, metadata_filter: dict[str, Any] | None) -> bool:
+    """True iff every ``metadata_filter`` key is present with an equal value (an
+    empty or absent filter matches everything): the equality semantics of
+    CrewAI's own backends. Search and delete both ask this one predicate."""
+    return all(k in metadata and metadata[k] == v for k, v in (metadata_filter or {}).items())
+
+
 def _loads_metadata(raw: Any) -> dict:
     """metadata_json may arrive as a dict (already parsed) or a JSON string."""
     if isinstance(raw, dict):

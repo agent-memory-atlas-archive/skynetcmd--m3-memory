@@ -576,75 +576,74 @@ def _vault_tier(service: str) -> tuple[str | None, str | None]:
     # No os.path.exists gate: on PostgreSQL there is no vault FILE, and skipping
     # the lookup here means every secret silently resolves to None -- the vault
     # tier would be dead on PG while appearing merely "empty".
-    if True:
-        conn = None
-        _cm: Any = None
-        try:
-            _p = _dialect_param()
-            _cm = _backend().open_readonly(vault_path)
-            conn = _cm.__enter__()
-            cur = conn.cursor()
-            cur.execute(
-                f"SELECT encrypted_value FROM synchronized_secrets "
-                f"WHERE service_name = {_p}",
-                (service,),
-            )
-            row = cur.fetchone()
+    conn = None
+    _cm: Any = None
+    try:
+        _p = _dialect_param()
+        _cm = _backend().open_readonly(vault_path)
+        conn = _cm.__enter__()
+        cur = conn.cursor()
+        cur.execute(
+            f"SELECT encrypted_value FROM synchronized_secrets "
+            f"WHERE service_name = {_p}",
+            (service,),
+        )
+        row = cur.fetchone()
 
-            if row and row[0]:
-                master_key = get_master_key()
-                if not master_key:
-                    logger.warning(
-                        f"Encrypted secret exists for {service}, but master key is unavailable; returning None. "
-                        f"observed: synchronized_secrets row found for service={service}, but AGENT_OS_MASTER_KEY not in env or keyring. "
-                        "possible: AGENT_OS_MASTER_KEY was cleared from the keyring, the env var is unset, or the keyring is inaccessible. "
-                        "inspect: (1) check env vars: `env | grep AGENT_OS_MASTER_KEY`; (2) check keyring: `keyring get system AGENT_OS_MASTER_KEY` (Linux/macOS) or Credential Manager (Windows)."
-                    )
-                    return None, "vault: a row exists but AGENT_OS_MASTER_KEY is unavailable"
+        if row and row[0]:
+            master_key = get_master_key()
+            if not master_key:
+                logger.warning(
+                    f"Encrypted secret exists for {service}, but master key is unavailable; returning None. "
+                    f"observed: synchronized_secrets row found for service={service}, but AGENT_OS_MASTER_KEY not in env or keyring. "
+                    "possible: AGENT_OS_MASTER_KEY was cleared from the keyring, the env var is unset, or the keyring is inaccessible. "
+                    "inspect: (1) check env vars: `env | grep AGENT_OS_MASTER_KEY`; (2) check keyring: `keyring get system AGENT_OS_MASTER_KEY` (Linux/macOS) or Credential Manager (Windows)."
+                )
+                return None, "vault: a row exists but AGENT_OS_MASTER_KEY is unavailable"
 
-                # Try current iteration count first, fall back to legacy
-                decrypted = _decrypt_token(row[0], master_key)
-                is_legacy = row[0].startswith("gAAAA")
-                needs_migration = is_legacy
+            # Try current iteration count first, fall back to legacy
+            decrypted = _decrypt_token(row[0], master_key)
+            is_legacy = row[0].startswith("gAAAA")
+            needs_migration = is_legacy
 
-                if decrypted is None:
-                    # Try legacy PBKDF2 iterations
-                    decrypted = _decrypt_token(row[0], master_key, iterations=_PBKDF2_LEGACY_ITERATIONS)
-                    if decrypted:
-                        needs_migration = True
-                    else:
-                        logger.debug(f"Failed to decrypt vault secret for {service}")
-                        return None, "vault: the row does not decrypt with this master key"
+            if decrypted is None:
+                # Try legacy PBKDF2 iterations
+                decrypted = _decrypt_token(row[0], master_key, iterations=_PBKDF2_LEGACY_ITERATIONS)
+                if decrypted:
+                    needs_migration = True
+                else:
+                    logger.debug(f"Failed to decrypt vault secret for {service}")
+                    return None, "vault: the row does not decrypt with this master key"
 
-                # Re-encrypt a legacy row (Fernet, or the old PBKDF2 iteration
-                # count) in the current format, through a WRITE connection: this
-                # one is read-only (R3, m3 2a82d0f2 -- the UPDATE used to run here
-                # and always failed, swallowed at debug).
-                if decrypted and needs_migration:
-                    _reencrypt_vault_row(service, decrypted, master_key)
+            # Re-encrypt a legacy row (Fernet, or the old PBKDF2 iteration
+            # count) in the current format, through a WRITE connection: this
+            # one is read-only (R3, m3 2a82d0f2 -- the UPDATE used to run here
+            # and always failed, swallowed at debug).
+            if decrypted and needs_migration:
+                _reencrypt_vault_row(service, decrypted, master_key)
 
-                return decrypted, None
-        except SaltMissingError as exc:
-            # Loud, not swallowed at debug: the salt is gone but secrets exist,
-            # so EVERY vault read is now failing. Surface it once, prominently,
-            # then return None so the caller falls through (env/keyring) rather
-            # than crashing the server on a secret it can't decrypt anyway.
-            logger.error(
-                "Vault is unreadable and will remain so until the salt is restored. "
-                f"observed: SaltMissingError raised during vault access — {exc}. "
-                "cause: device salt file missing or inaccessible, preventing decryption of any secret in the vault. "
-                "inspect: review the SaltMissingError message above for recovery steps (restore salt file, set M3_AGENT_OS_SALT_HEX, or clear secrets and start fresh)."
-            )
-            error = f"vault: {type(exc).__name__}: {exc}"
-        except Exception as exc:
-            logger.debug(f"Failed to read from encrypted vault: {type(exc).__name__}")
-            error = f"vault: {type(exc).__name__}: {exc}"
-        finally:
-            if conn is not None:
-                try:
-                    _cm.__exit__(None, None, None)
-                except Exception:  # noqa: BLE001 — already closing
-                    pass
+            return decrypted, None
+    except SaltMissingError as exc:
+        # Loud, not swallowed at debug: the salt is gone but secrets exist,
+        # so EVERY vault read is now failing. Surface it once, prominently,
+        # then return None so the caller falls through (env/keyring) rather
+        # than crashing the server on a secret it can't decrypt anyway.
+        logger.error(
+            "Vault is unreadable and will remain so until the salt is restored. "
+            f"observed: SaltMissingError raised during vault access — {exc}. "
+            "cause: device salt file missing or inaccessible, preventing decryption of any secret in the vault. "
+            "inspect: review the SaltMissingError message above for recovery steps (restore salt file, set M3_AGENT_OS_SALT_HEX, or clear secrets and start fresh)."
+        )
+        error = f"vault: {type(exc).__name__}: {exc}"
+    except Exception as exc:
+        logger.debug(f"Failed to read from encrypted vault: {type(exc).__name__}")
+        error = f"vault: {type(exc).__name__}: {exc}"
+    finally:
+        if conn is not None:
+            try:
+                _cm.__exit__(None, None, None)
+            except Exception:  # noqa: BLE001 — already closing
+                pass
 
     return None, error
 

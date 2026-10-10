@@ -1633,7 +1633,7 @@ def memory_set_retention_impl(agent_id: str, max_memories: int = 1000, ttl_days:
     except Exception as e:
         return f"Error setting retention policy: {e}"
 
-def memory_export_impl(agent_filter="", type_filter="", since="", output_format="json"):
+def memory_export_impl(agent_filter="", type_filter="", since=""):
     """Export memories as portable JSON. Filter by agent, type, or date."""
     from memory.backends import dialect as _dialect
     _p = _dialect().param()

@@ -62,6 +62,8 @@ jobs:
       run: mypy m3_memory/ --ignore-missing-imports
     - name: Declared vs imported dependencies (deptry)
       run: python bin/check_deps.py
+    - name: Dead code (vulture)
+      run: python bin/check_dead_code.py
 
   security:
     name: Security scan (Bandit + pip-audit on core deps)

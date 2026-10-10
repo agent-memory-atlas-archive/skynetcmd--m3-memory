@@ -139,13 +139,9 @@ def is_truthy(v: str | None) -> bool:
 
 # --- Revert command --------------------------------------------------------
 
-def revert_command(current_state_after_flip: bool) -> str:
-    """Print the command to flip back to the previous state.
-
-    If we just turned it ON  -> revert command turns it OFF
-    If we just turned it OFF -> revert command turns it ON
-    On both platforms the user-facing command is the same: re-run this script.
-    """
+def revert_command() -> str:
+    """The command that flips back to the previous state: re-running this
+    script, which toggles, whichever way the last run went."""
     script = Path(__file__).resolve()
     py = "python" if not _is_windows() else r".venv\Scripts\python.exe"
     if _is_windows():
@@ -191,7 +187,7 @@ def main() -> int:
 
     write_persistent("1" if target_on else None)
     print(f"flipped: {'OFF -> ON' if target_on else 'ON -> OFF'}")
-    print(f"to revert: {revert_command(target_on)}")
+    print(f"to revert: {revert_command()}")
 
     if not _is_windows() and target_on:
         env_file = _env_file_path()

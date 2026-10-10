@@ -1121,7 +1121,7 @@ async def memory_search_scored_impl(
                     return fetch_candidates_pg(
                         _backend, _pgconn,
                         query=query, q_vec=q_vec, search_mode=search_mode,
-                        where_columns=extra_sql, dim=config.EMBED_DIM,
+                        dim=config.EMBED_DIM,
                         embed_models=tuple(_compat),
                         tenancy_sql=_pg_tenancy_sql,
                         tenancy_params=tuple(_pg_tenancy_params),

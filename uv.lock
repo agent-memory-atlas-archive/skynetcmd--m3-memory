@@ -2720,6 +2720,7 @@ dev = [
     { name = "types-pyyaml" },
     { name = "types-requests" },
     { name = "types-setuptools" },
+    { name = "vulture" },
 ]
 embed-server = [
     { name = "scipy" },
@@ -2769,6 +2770,7 @@ dev = [
     { name = "types-pyyaml" },
     { name = "types-requests" },
     { name = "types-setuptools" },
+    { name = "vulture" },
 ]
 lint = [
     { name = "deptry" },
@@ -2777,6 +2779,7 @@ lint = [
     { name = "types-pyyaml" },
     { name = "types-requests" },
     { name = "types-setuptools" },
+    { name = "vulture" },
 ]
 release = [
     { name = "build" },
@@ -2849,6 +2852,7 @@ requires-dist = [
     { name = "uvicorn", specifier = ">=0.53.0,<1" },
     { name = "uvicorn", marker = "extra == 'dashboard'", specifier = ">=0.53.0,<1" },
     { name = "uvicorn", marker = "extra == 'web'", specifier = ">=0.53.0,<1" },
+    { name = "vulture", marker = "extra == 'dev'", specifier = "==2.16" },
 ]
 provides-extras = ["postgres", "iwork", "web", "dashboard", "embed-server", "entity-ner", "vector", "wiki", "langchain", "crewai", "pydantic-ai", "dev"]
 
@@ -2868,6 +2872,7 @@ dev = [
     { name = "types-pyyaml", specifier = ">=6.0.0" },
     { name = "types-requests", specifier = ">=2.33.0.20260906" },
     { name = "types-setuptools", specifier = ">=84.0.0" },
+    { name = "vulture", specifier = "==2.16" },
 ]
 lint = [
     { name = "deptry", specifier = "==0.25.1" },
@@ -2876,6 +2881,7 @@ lint = [
     { name = "types-pyyaml", specifier = ">=6.0.0" },
     { name = "types-requests", specifier = ">=2.33.0.20260906" },
     { name = "types-setuptools", specifier = ">=84.0.0" },
+    { name = "vulture", specifier = "==2.16" },
 ]
 release = [
     { name = "build", specifier = ">=1.4.4,<2" },
@@ -6531,6 +6537,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/9f/83/f421a077712c1e87603bfec62744c3cd3a2f4b47378025db3d740df9af0d/uvloop-0.23.0-cp315-cp315t-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:12634f15e6625f78b3f2922f91404c4d7173487eba11746764153f556e9852dc", size = 4661763, upload-time = "2026-10-01T03:16:38.719Z" },
     { url = "https://files.pythonhosted.org/packages/f5/62/25dcaa6b7e7b48f82ce633854ce96597ab768f9650931f4f86c572de392c/uvloop-0.23.0-cp315-cp315t-musllinux_1_2_aarch64.whl", hash = "sha256:378188efbb1524f2219d05246a3e1e5907217848d2882144dff59585f1b81d55", size = 4421324, upload-time = "2026-10-01T03:16:40.488Z" },
     { url = "https://files.pythonhosted.org/packages/05/46/04628239b43dcef703af314202a3307d6060918e2d76aa86c5b1188f5551/uvloop-0.23.0-cp315-cp315t-musllinux_1_2_x86_64.whl", hash = "sha256:4b8e207c67d207a8608fec57e116511030af3495dc0109b8c333cf9cb412b16f", size = 4462501, upload-time = "2026-10-01T03:16:42.359Z" },
+]
+
+[[package]]
+name = "vulture"
+version = "2.16"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/66/3e/4d08c5903b2c0c70cad583c170cc4a663fc6a61e2ad00b711fcda61358cd/vulture-2.16.tar.gz", hash = "sha256:f8d9f6e2af03011664a3c6c240c9765b3f392917d3135fddca6d6a68d359f717", size = 52680, upload-time = "2026-03-25T14:41:27.141Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f5/be/f935130312330614811dae2ea9df3f395f6d63889eb6c2e68c14507152ee/vulture-2.16-py3-none-any.whl", hash = "sha256:6e0f1c312cef1c87856957e5c2ca9608834a7c794c2180477f30bf0e4cc58eee", size = 26993, upload-time = "2026-03-25T14:41:26.21Z" },
 ]
 
 [[package]]

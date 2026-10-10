@@ -1396,7 +1396,7 @@ def acquire_single_instance(
             # would-block: a LIVE peer holds it.
             owner = _read_sidecar_owner(path, engine_root)
             if steal and _attempt == 0:
-                _steal_lock(owner, path, fd)
+                _steal_lock(owner, path)
                 continue
             try:
                 os.close(fd)
@@ -1481,7 +1481,7 @@ def acquire_or_exit(
     return res.lock
 
 
-def _steal_lock(owner: ProcInfo | None, path: Path, our_fd: int) -> None:
+def _steal_lock(owner: ProcInfo | None, path: Path) -> None:
     """Kill the LIVE lock holder so we can take over. Destructive — only reached
     via acquire_single_instance(steal=True). Precise: kills exactly the sidecar's
     recorded pid (never a name/cmdline match — the 2026-06-30 substring incident),

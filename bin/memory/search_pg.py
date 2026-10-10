@@ -40,7 +40,6 @@ def fetch_candidates_pg(
     query: str,
     q_vec: list[float],
     search_mode: str,
-    where_columns: str,
     dim: int,
     embed_models: tuple[str, ...],
     tenancy_sql: str,
@@ -50,8 +49,8 @@ def fetch_candidates_pg(
 ) -> tuple[list[dict], bool]:
     """Fetch scored-search candidates on PostgreSQL via the seam.
 
-    ``where_columns`` is the extra SELECT column list (already ``mi.``-qualified,
-    leading comma) mirroring the SQLite ``extra_sql``. ``search_mode`` is
+    ``extra_columns`` is the resolved extra-column set (the same one the SQLite
+    ``extra_sql`` is rendered from). ``search_mode`` is
     ``semantic`` | ``hybrid`` | ``fts5``:
       * semantic  -> vector candidates only
       * fts5      -> keyword candidates only

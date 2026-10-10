@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_autoenrich.py
-sha1: 7d15cd5ccbc2
-mtime_utc: 2026-10-09T23:19:58.824104+00:00
-generated_utc: 2026-10-09T23:24:13.972212+00:00
+sha1: d17cea406899
+mtime_utc: 2026-10-10T05:25:42.719092+00:00
+generated_utc: 2026-10-10T05:28:10.547262+00:00
 private: false
 ---
 
@@ -32,7 +32,7 @@ way the result is consistent regardless of which shell launched this script.
 
 ## Entry points
 
-- `def main()` (line 156)
+- `def main()` (line 152)
 - `if __name__ == "__main__"` guard
 
 ---

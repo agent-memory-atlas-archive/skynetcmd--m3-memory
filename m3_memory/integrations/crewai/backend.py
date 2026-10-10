@@ -128,8 +128,8 @@ class M3StorageBackend:
         CrewAI hands us a precomputed ``query_embedding`` (it embeds upstream), so
         this scores directly against the CrewAI-identity vectors via m3's
         ``vector_search`` seam — never re-embeds. ``scope_prefix``/``categories``
-        are applied as post-filters (they ride metadata_json). ``metadata_filter``
-        is accepted but unused (CrewAI never passes it in 1.15.3). Score is cosine,
+        and ``metadata_filter`` are applied as post-filters (they ride
+        metadata_json). Score is cosine,
         HIGHER = better (CrewAI's ``compute_composite_score`` blends it with
         recency+importance downstream, so this is an input, not the final rank).
         """
@@ -148,6 +148,8 @@ class M3StorageBackend:
             if not mapping.scope_matches(rec.scope, prefix):
                 continue
             if cat_set and not (cat_set & set(rec.categories)):
+                continue
+            if not mapping.metadata_matches(rec.metadata, metadata_filter):
                 continue
             out.append((rec, float(score)))
         return out[:limit]
@@ -168,12 +170,12 @@ class M3StorageBackend:
         (never a global wipe — that is ``reset``).
         """
         ids = list(record_ids or [])
-        if not ids and (scope_prefix or categories or older_than):
+        if not ids and (scope_prefix or categories or older_than or metadata_filter):
             ids = [
                 item.get("id")
                 for _s, item in self._client._run(self._list_all_async())
                 if _match_for_delete(
-                    item, scope_prefix, categories, older_than
+                    item, scope_prefix, categories, older_than, metadata_filter
                 )
             ]
             ids = [i for i in ids if i]
@@ -563,8 +565,11 @@ def _match_for_delete(
     scope_prefix: str | None,
     categories: list[str] | None,
     older_than: datetime | None,
+    metadata_filter: dict[str, Any] | None = None,
 ) -> bool:
     md = mapping._loads_metadata(item.get("metadata_json"))
+    if not mapping.metadata_matches(md, metadata_filter):
+        return False
     if scope_prefix:
         if not mapping.scope_matches(
             md.get(mapping.SCOPE_PATH_KEY, "/"),

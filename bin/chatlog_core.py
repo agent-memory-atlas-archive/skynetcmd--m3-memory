@@ -257,7 +257,6 @@ def _build_metadata(item: dict, scrubbed: bool = False,
 _QUEUE: asyncio.Queue | None = None
 _FLUSH_TASK: asyncio.Task | None = None
 _LAST_FLUSH_TS: float = 0.0
-_QUEUE_LOCK = asyncio.Lock() if False else None  # set lazily in _ensure_queue
 _WROTE_COUNT = 0
 
 

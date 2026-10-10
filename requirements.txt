@@ -2,7 +2,7 @@
 # The project's dependencies + dependency groups lint, test, resolved
 # for every supported platform and Python. Declarations: pyproject.toml.
 # Pin notes: docs/DEPENDENCY_NOTES.md.
-# declarations sha256: 77db6c8c32296b7fcfa23c924dbe149e9efb190c0ccf8d9004d21ff13c8e562b
+# declarations sha256: acd4df5d88d807947bf86cf379a80772a39c86a709c8d69e1d61dd6528efa6bd
 aiofile==3.12.3
     # via py-key-value-aio
 annotated-doc==0.0.5
@@ -424,6 +424,8 @@ uvicorn==0.54.0
     #   m3-memory (pyproject.toml)
     #   fastmcp-slim
     #   mcp
+vulture==2.16
+    # via m3-memory (pyproject.toml:lint)
 watchfiles==1.3.0
     # via fastmcp-slim
 websockets==17.2

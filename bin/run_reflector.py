@@ -180,8 +180,13 @@ def _load_observations_for_conv(
 
     new_only: when True, return only observations whose Reflector-link edge
     does not already exist (i.e. unprocessed observations the latest pass
-    must consider). Defers implementation — Phase D2.
+    must consider). Not implemented yet (Phase D2), so it raises rather than
+    silently returning every observation.
     """
+    if new_only:
+        raise NotImplementedError(
+            "_load_observations_for_conv: observed: new_only=True, which is not "
+            "implemented (Phase D2). inspect: call with new_only=False")
     # Seam primitives: literal '?', json_extract(), and a whole-column json.loads
     # are all SQLite-only and break on PostgreSQL (syntax error / no json_extract
     # / JSONB returns a dict → json.loads TypeError). Route binds through param(),

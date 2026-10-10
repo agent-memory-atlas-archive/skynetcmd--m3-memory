@@ -669,60 +669,59 @@ def _get_last_turns(main_db: str) -> list[dict[str, str]]:
     turns = []
     # No os.path.exists gate: on PostgreSQL there is no main_db FILE, so the
     # gate reported "no recent turns" for a store full of them.
-    if True:
+    try:
+        from contextlib import ExitStack
+
+        from m3_core.paths import seam_backend
+        _stack = ExitStack()
+        conn = _stack.enter_context(seam_backend().open_readonly(str(main_db)))
         try:
-            from contextlib import ExitStack
-
-            from m3_core.paths import seam_backend
-            _stack = ExitStack()
-            conn = _stack.enter_context(seam_backend().open_readonly(str(main_db)))
-            try:
-                conn.row_factory = sqlite3.Row
-            except Exception:  # noqa: BLE001 — non-SQLite connection
-                pass
-            try:
-                rows = conn.execute(
-                    "SELECT created_at, content FROM memory_items "
-                    "WHERE type='chat_log' AND is_deleted=0 "
-                    "ORDER BY created_at DESC LIMIT 5"
-                ).fetchall()
-                for r in rows:
-                    content = r["content"] or ""
-                    snippet = ""
-                    try:
-                        # Try parsing as JSON to extract a clean summary
-                        turn_data = json.loads(content)
-                        if isinstance(turn_data, dict):
-                            user_req = turn_data.get("request", "") or turn_data.get("user", "")
-                            agent_res = turn_data.get("response", "") or turn_data.get("agent", "")
-                            if user_req:
-                                snippet = f"user: {user_req}"
-                            elif agent_res:
-                                snippet = f"agent: {agent_res}"
-                    except Exception:
-                        pass
-                    if not snippet:
-                        snippet = content.replace("\n", " ")
-
-                    # Clean and truncate
-                    snippet = snippet.strip()
-                    if len(snippet) > 62:
-                        snippet = snippet[:59] + "..."
-
-                    ts = r["created_at"]
-                    try:
-                        dt = datetime.fromisoformat(ts)
-                        ts_str = dt.strftime("%H:%M:%S")
-                    except Exception:
-                        ts_str = ts[:10]
-
-                    turns.append({"time": ts_str, "text": snippet})
-            except Exception:  # noqa: BLE001 — psycopg errors are not sqlite3.Error
-                pass
-            finally:
-                _stack.close()
-        except Exception:
+            conn.row_factory = sqlite3.Row
+        except Exception:  # noqa: BLE001 — non-SQLite connection
             pass
+        try:
+            rows = conn.execute(
+                "SELECT created_at, content FROM memory_items "
+                "WHERE type='chat_log' AND is_deleted=0 "
+                "ORDER BY created_at DESC LIMIT 5"
+            ).fetchall()
+            for r in rows:
+                content = r["content"] or ""
+                snippet = ""
+                try:
+                    # Try parsing as JSON to extract a clean summary
+                    turn_data = json.loads(content)
+                    if isinstance(turn_data, dict):
+                        user_req = turn_data.get("request", "") or turn_data.get("user", "")
+                        agent_res = turn_data.get("response", "") or turn_data.get("agent", "")
+                        if user_req:
+                            snippet = f"user: {user_req}"
+                        elif agent_res:
+                            snippet = f"agent: {agent_res}"
+                except Exception:
+                    pass
+                if not snippet:
+                    snippet = content.replace("\n", " ")
+
+                # Clean and truncate
+                snippet = snippet.strip()
+                if len(snippet) > 62:
+                    snippet = snippet[:59] + "..."
+
+                ts = r["created_at"]
+                try:
+                    dt = datetime.fromisoformat(ts)
+                    ts_str = dt.strftime("%H:%M:%S")
+                except Exception:
+                    ts_str = ts[:10]
+
+                turns.append({"time": ts_str, "text": snippet})
+        except Exception:  # noqa: BLE001 — psycopg errors are not sqlite3.Error
+            pass
+        finally:
+            _stack.close()
+    except Exception:
+        pass
     return list(reversed(turns))
 
 
