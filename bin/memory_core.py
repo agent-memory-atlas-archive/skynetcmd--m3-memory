@@ -429,6 +429,7 @@ async def conversation_summarize_impl(conversation_id: str, threshold: int = 20)
     prompt = f"Summarize this conversation into 3-5 key points. Preserve facts, decisions, and action items.\n\n{messages_text}"
 
     chat_url = f"{base_url}/chat/completions"
+    import importlib
     try:
         resp = await client.post(
             chat_url,
@@ -440,7 +441,9 @@ async def conversation_summarize_impl(conversation_id: str, threshold: int = 20)
                 "temperature": 0.3
             }, chat_url),
             headers={"Authorization": f"Bearer {token}"},
-            timeout=LLM_TIMEOUT
+            # A setting, read at call time (2D.1): never bound into this
+            # module's globals, so the bare name raised NameError here.
+            timeout=importlib.import_module("memory.config").LLM_TIMEOUT
         )
         resp.raise_for_status()
         summary_text = resp.json()["choices"][0]["message"]["content"].strip()
