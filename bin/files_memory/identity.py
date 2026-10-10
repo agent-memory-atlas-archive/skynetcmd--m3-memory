@@ -28,6 +28,8 @@ import os
 import re
 from pathlib import Path
 
+from m3_core.paths import canonical_path
+
 logger = logging.getLogger("files_memory.identity")
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -117,7 +119,7 @@ _HASH_CHUNK = 64 * 1024  # 64 KiB; balances syscall overhead vs RSS
 def file_content_sha256(path: str | Path) -> str:
     """Stream a file through SHA-256. Memory-bounded for large files."""
     h = hashlib.sha256(usedforsecurity=False)
-    with open(path, "rb") as f:
+    with Path(path).open("rb") as f:
         while True:
             buf = f.read(_HASH_CHUNK)
             if not buf:
@@ -202,7 +204,7 @@ def detect_m3_doc_id(path: str | Path, text: str | None = None) -> str | None:
     """
     if text is None:
         try:
-            with open(path, "rb") as f:
+            with Path(path).open("rb") as f:
                 raw = f.read(_HEAD_SCAN_BYTES)
             text = raw.decode("utf-8", errors="ignore")
         except (OSError, UnicodeDecodeError) as e:
@@ -238,7 +240,7 @@ def resolve_identity_key(path: str | Path, text: str | None = None) -> str:
     declared = detect_m3_doc_id(path, text=text)
     if declared:
         return f"doc_id:{declared}"
-    return f"path:{os.path.abspath(str(path))}"
+    return f"path:{canonical_path(path)}"
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -251,7 +253,7 @@ def looks_binary(path: str | Path, sniff_bytes: int = 8192) -> bool:
     (e.g. a .txt that's actually a binary blob).
     """
     try:
-        with open(path, "rb") as f:
+        with Path(path).open("rb") as f:
             buf = f.read(sniff_bytes)
     except OSError:
         return True  # unreadable = treat as binary

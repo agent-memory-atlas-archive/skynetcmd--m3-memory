@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from pathlib import Path
 
 from m3_core.paths import get_m3_config_root
 
@@ -19,7 +20,7 @@ LLM_CONFIG_NAME = ".llm_config.json"
 
 
 def llm_config_path() -> str:
-    return os.path.join(get_m3_config_root(), LLM_CONFIG_NAME)
+    return os.path.join(get_m3_config_root(), LLM_CONFIG_NAME)  # noqa: PTH118 — root-derived string: Path would re-separate a forward-slash root
 
 
 def read_llm_config() -> dict:
@@ -27,7 +28,7 @@ def read_llm_config() -> dict:
     because the daemon would otherwise run without the user's switches."""
     path = llm_config_path()
     try:
-        with open(path, encoding="utf-8") as f:
+        with Path(path).open(encoding="utf-8") as f:
             data = json.load(f)
     except FileNotFoundError:
         return {}
@@ -53,7 +54,7 @@ def write_llm_setting(name: str, value: str) -> str:
     path = llm_config_path()
     data = read_llm_config()
     data[name] = value
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
     from m3_core.atomic_io import atomic_write
     atomic_write(path, json.dumps(data, indent=2, sort_keys=True) + "\n")
     return path

@@ -24,6 +24,9 @@ import logging
 import os
 import sqlite3
 from dataclasses import dataclass, field
+from pathlib import Path
+
+from m3_core.paths import canonical_path
 
 from .config import files_table
 from .db import _db
@@ -173,7 +176,7 @@ def files_staleness_review(
             params.append(corpus_id)
         if directory:
             sql_parts.append(f"AND path_absolute LIKE {_p}")
-            params.append(os.path.abspath(directory).replace("%", "[%]") + "%")
+            params.append(canonical_path(directory).replace("%", "[%]") + "%")
         db_rows = conn.execute(" ".join(sql_parts), params).fetchall()
         report.scanned_db_files = len(db_rows)
 
@@ -185,11 +188,11 @@ def files_staleness_review(
         disk_paths: set[str] = set()
         scan_roots: list[str] = []
         if directory:
-            scan_roots.append(os.path.abspath(directory))
+            scan_roots.append(canonical_path(directory))
         else:
             seen_parents: set[str] = set()
             for p in db_by_path:
-                parent = os.path.dirname(p)
+                parent = os.path.dirname(p)  # noqa: PTH120 — a stored/configured path string (any OS's separators); Path would re-separate it
                 if parent and parent not in seen_parents:
                     seen_parents.add(parent)
                     if os.path.isdir(parent):
@@ -218,7 +221,7 @@ def files_staleness_review(
                 if not os.path.isfile(path):
                     continue
                 try:
-                    st = os.stat(path)
+                    st = Path(path).stat()
                 except OSError:
                     continue
                 if _iso_utc(st.st_mtime) > (db_row["date_modified"] or ""):
@@ -244,7 +247,7 @@ def files_staleness_review(
                 continue
 
             try:
-                st = os.stat(path)
+                st = Path(path).stat()
             except OSError:
                 continue
             disk_mtime_iso = _iso_utc(st.st_mtime)
@@ -285,7 +288,7 @@ def files_staleness_review(
         # 4. New files: on disk, not in db.
         for path in sorted(disk_paths - set(db_by_path.keys())):
             try:
-                st = os.stat(path)
+                st = Path(path).stat()
             except OSError:
                 continue
             from .identity import filetype_for
@@ -316,7 +319,7 @@ def files_staleness_review(
                 extra_params.append(corpus_id)
             if directory:
                 sql += f"  AND fn.path_absolute LIKE {_p} "
-                extra_params.append(os.path.abspath(directory).replace("%", "[%]") + "%")
+                extra_params.append(canonical_path(directory).replace("%", "[%]") + "%")
             sql += "GROUP BY fn.uuid, fn.path_absolute"
             for r in conn.execute(sql, extra_params).fetchall():
                 report.failed_extraction.append(FailedExtraction(
@@ -410,7 +413,7 @@ def link_rename(
         db_path: target files.db.
     """
     import json as _json
-    new_abs = os.path.abspath(new_path)
+    new_abs = canonical_path(new_path)
     if not os.path.isfile(new_abs):
         raise FileNotFoundError(f"new_path is not a file: {new_abs}")
 

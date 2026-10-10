@@ -30,6 +30,8 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from m3_core.paths import canonical_path
+
 from . import config
 from .identity import filetype_for, looks_binary
 
@@ -79,7 +81,7 @@ class _IgnoreMatcher:
     """
 
     def __init__(self, root: str, patterns: list[str]):
-        self.root = os.path.abspath(root)
+        self.root = canonical_path(root)
         self.patterns: list[tuple[str, bool, bool]] = []
         for raw in patterns:
             line = raw.strip()
@@ -100,7 +102,7 @@ class _IgnoreMatcher:
             return False
         if rel == "." or rel.startswith(".."):
             return False
-        basename = os.path.basename(abs_path)
+        basename = Path(abs_path).name
         for pat, anchored, dir_only in self.patterns:
             if dir_only and not is_dir:
                 continue
@@ -121,10 +123,10 @@ def _load_ignore_patterns(root: str) -> list[str]:
     """Collect patterns from <root>/.gitignore and <root>/.m3ignore."""
     pats: list[str] = []
     for name in (".gitignore", ".m3ignore"):
-        p = os.path.join(root, name)
+        p = str(Path(root) / name)
         if os.path.isfile(p):
             try:
-                with open(p, encoding="utf-8", errors="ignore") as f:
+                with Path(p).open(encoding="utf-8", errors="ignore") as f:
                     pats.extend(f.read().splitlines())
             except OSError as e:
                 logger.warning("walker: could not read %s: %s", p, e)
@@ -169,7 +171,7 @@ def walk(
     Yields:
         WalkEntry, one per surviving file.
     """
-    root_abs = os.path.abspath(str(root))
+    root_abs = canonical_path(root)
     if not os.path.isdir(root_abs):
         raise NotADirectoryError(f"walk root is not a directory: {root_abs}")
 
@@ -184,7 +186,7 @@ def walk(
     if extra_dir_ignores:
         dir_ignores |= set(extra_dir_ignores)
 
-    repo_root_abs = os.path.abspath(repo_root) if repo_root else root_abs
+    repo_root_abs = canonical_path(repo_root) if repo_root else root_abs
     matcher = _IgnoreMatcher(root_abs, _load_ignore_patterns(root_abs))
 
     include_globs = include or []
@@ -193,13 +195,13 @@ def walk(
     def _included(path: str) -> bool:
         if not include_globs:
             return True
-        basename = os.path.basename(path)
+        basename = Path(path).name
         return any(fnmatch.fnmatch(basename, g) or fnmatch.fnmatch(path, g) for g in include_globs)
 
     def _excluded(path: str) -> bool:
         if not exclude_globs:
             return False
-        basename = os.path.basename(path)
+        basename = Path(path).name
         return any(fnmatch.fnmatch(basename, g) or fnmatch.fnmatch(path, g) for g in exclude_globs)
 
     def _recurse(dirpath: str, depth: int) -> Iterator[WalkEntry]:
@@ -228,7 +230,7 @@ def walk(
 
             if is_dir:
                 stats.dirs_seen += 1
-                bn = os.path.basename(full)
+                bn = Path(full).name
                 if bn in dir_ignores:
                     stats.dirs_skipped += 1
                     continue
@@ -241,7 +243,7 @@ def walk(
 
             # File path
             stats.files_seen += 1
-            bn = os.path.basename(full)
+            bn = Path(full).name
             ext = os.path.splitext(bn)[1].lower()
 
             if ext in config.BUILTIN_EXT_IGNORES:
@@ -291,7 +293,7 @@ def walk(
 
             stats.files_yielded += 1
             yield WalkEntry(
-                path=os.path.abspath(full),
+                path=canonical_path(full),
                 repo_relative=rel,
                 filename=bn,
                 filetype=filetype_for(full),

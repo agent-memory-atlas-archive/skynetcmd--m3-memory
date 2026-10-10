@@ -88,8 +88,9 @@ def files_index(
         sql_parts.append(f"AND filetype = {_p}")
         params.append(filetype)
     if directory:
-        import os as _os
-        prefix = _os.path.abspath(directory)
+        from m3_core.paths import canonical_path
+
+        prefix = canonical_path(directory)
         sql_parts.append(f"AND path_absolute LIKE {_p}")
         # LIKE uses % for any-chars; escape any literal % in path. (LIKE is
         # portable; the pattern semantics match on both backends.)

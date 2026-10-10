@@ -38,6 +38,8 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from itertools import batched
 
+from m3_core.paths import canonical_path, expand_user
+
 logger = logging.getLogger("files_memory.entities")
 
 
@@ -67,7 +69,7 @@ def _memory_db(path: str | None = None) -> Iterator[sqlite3.Connection]:
         # Explicit-file escape hatch (tests / isolated mutators): raw sqlite3 to the
         # named file, normalized so an explicit path and the on-disk file compare
         # equal regardless of spelling.
-        path = os.path.realpath(os.path.abspath(os.path.expanduser(path)))
+        path = os.path.realpath(canonical_path(expand_user(path)))
         if not os.path.isfile(path):
             raise FileNotFoundError(f"memory.db not found at {path}")
         conn = sqlite3.connect(path, timeout=10.0, isolation_level=None)

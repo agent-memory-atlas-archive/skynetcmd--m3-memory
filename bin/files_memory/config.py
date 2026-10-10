@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import os
 
+from m3_core.paths import canonical_path, expand_user
+
 # Re-exports from memory.config — single source of truth.
 from memory.config import FILES_DB_PATH  # noqa: F401 — re-export
 
@@ -137,7 +139,7 @@ def memory_db_path() -> str:
     M3_DATABASE so it stays correct while M3_DATABASE points at the files DB."""
     explicit = os.environ.get("M3_MEMORY_DB")
     if explicit:
-        return os.path.abspath(os.path.expanduser(explicit))
+        return canonical_path(expand_user(explicit))
     from m3_sdk import _default_db_path
     return _default_db_path()
 

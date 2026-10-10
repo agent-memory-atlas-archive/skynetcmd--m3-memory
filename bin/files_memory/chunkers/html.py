@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterator
+from pathlib import Path
 
 from . import Leaf
 
@@ -68,7 +69,7 @@ def chunk(path: str, text: str | None = None) -> Iterator[Leaf]:
 
     if text is None:
         try:
-            with open(path, encoding="utf-8", errors="replace") as fh:
+            with Path(path).open(encoding="utf-8", errors="replace") as fh:
                 text = fh.read()
         except OSError as e:
             logger.warning("could not read %s: %s", path, e)

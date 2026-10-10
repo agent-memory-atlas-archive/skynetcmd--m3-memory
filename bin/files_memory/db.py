@@ -26,8 +26,9 @@ import sqlite3
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
+from pathlib import Path
 
-from m3_core.paths import current_store
+from m3_core.paths import canonical_path, current_store
 
 from . import config
 
@@ -55,9 +56,9 @@ def _ensure_parent_dir(db_path: str) -> None:
     The default path is ~/.m3/files_database.db; .m3/ probably doesn't
     exist on a fresh install. Create it lazily on first DB open.
     """
-    parent = os.path.dirname(db_path)
+    parent = os.path.dirname(db_path)  # noqa: PTH120 — a stored/configured path string (any OS's separators); Path would re-separate it
     if parent and not os.path.isdir(parent):
-        os.makedirs(parent, exist_ok=True)
+        Path(parent).mkdir(parents=True, exist_ok=True)
         logger.info("files_memory: created parent directory %s", parent)
 
 
@@ -75,7 +76,7 @@ def _resolve_path(path: str | None) -> str:
     it alone silently ignored a later env change — a real footgun in tests that
     point the store at a tmpdir.)"""
     if path:
-        return os.path.abspath(path)
+        return canonical_path(path)
     store = current_store()
     if store is not None and store.backend == "sqlite":
         from m3_core.config.stores import files_db_path
@@ -83,7 +84,7 @@ def _resolve_path(path: str | None) -> str:
         return files_db_path(store)
     env = os.environ.get("M3_FILES_DB_PATH")
     if env:
-        return os.path.abspath(env)
+        return canonical_path(env)
     return config.FILES_DB_PATH
 
 

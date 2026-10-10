@@ -9,6 +9,7 @@ import time
 from collections import OrderedDict
 from collections.abc import Iterator
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -16,6 +17,7 @@ from sqlite_pragmas import apply_pragmas, profile_for_db
 
 from m3_core.gpu import probe_gpu_util
 from m3_core.paths import (
+    canonical_path,
     dotenv_path,
     get_m3_config_root,
     get_m3_engine_root,
@@ -85,8 +87,8 @@ class M3Context:
 
         # Preserve constructor contract: no-arg M3Context() resolves against
         # env + default. Callers passing an explicit path bypass the resolver.
-        self.db_path = os.path.abspath(db_path or resolve_db_path(None))
-        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+        self.db_path = canonical_path(db_path or resolve_db_path(None))
+        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
         self._pool: queue.Queue[sqlite3.Connection] | None = None
         self._pool_lock = threading.Lock()
         # Eager only where SQLite is the store. Elsewhere get_sqlite_conn builds
@@ -147,7 +149,7 @@ class M3Context:
             return ctx
 
     def get_path(self, relative_path: str) -> str:
-        return os.path.join(self.m3_memory_root, relative_path)
+        return os.path.join(self.m3_memory_root, relative_path)  # noqa: PTH118 — root-derived string: Path would re-separate a forward-slash root
 
     def get_setting(self, key: str, default: Any = None) -> Any:
         return os.environ.get(key, default)
@@ -284,7 +286,7 @@ class M3Context:
             return
 
         try:
-            with open(salt_path, "rb") as f:
+            with Path(salt_path).open("rb") as f:
                 salt_bytes = f.read()
             from crypto_provider import get_sha256  # the FIPS boundary: this hashes secret material
             salt_hash = get_sha256(salt_bytes)
@@ -528,7 +530,7 @@ class M3Context:
                 yield conn
             return
 
-        if os.path.abspath(target) == os.path.abspath(self.db_path):
+        if canonical_path(target) == canonical_path(self.db_path):
             # Integrated mode, or an override pointing at the main file. Reuse
             # the pool: a second handle to one file contends for its write lock.
             #
@@ -550,9 +552,7 @@ class M3Context:
         # permission problem. Create the directory instead of failing a send
         # over it; the store itself is bootstrapped just below.
         try:
-            parent = os.path.dirname(os.path.abspath(target))
-            if parent:
-                os.makedirs(parent, exist_ok=True)
+            Path(canonical_path(target)).parent.mkdir(parents=True, exist_ok=True)
         except OSError:
             # Genuinely unwritable: let connect() raise, which reports the real
             # path and permission rather than masking it here.
@@ -635,7 +635,7 @@ class M3Context:
             return
 
         target = chatlog_config.chatlog_db_path()
-        if os.path.abspath(target) == os.path.abspath(self.db_path):
+        if canonical_path(target) == canonical_path(self.db_path):
             with self.get_sqlite_conn() as conn:
                 yield conn
             return
@@ -746,9 +746,8 @@ def _ensure_dispatch_schema_pg(conn) -> None:
         if schema in _DISPATCH_PG_READY:
             return
 
-        boot = os.path.join(dispatch_migrations_dir(), "postgres",
-                            "pg_001_bootstrap.up.sql")
-        with open(boot, encoding="utf-8") as fh:
+        boot = Path(dispatch_migrations_dir()) / "postgres" / "pg_001_bootstrap.up.sql"
+        with boot.open(encoding="utf-8") as fh:
             ddl = fh.read()
 
         cur = conn.cursor()
@@ -817,8 +816,8 @@ def _ensure_dispatch_schema(conn) -> None:
             return
         from m3_core.paths import dispatch_migrations_dir
 
-        boot = os.path.join(dispatch_migrations_dir(), "001_bootstrap.up.sql")
-        with open(boot, encoding="utf-8") as fh:
+        boot = Path(dispatch_migrations_dir()) / "001_bootstrap.up.sql"
+        with boot.open(encoding="utf-8") as fh:
             conn.executescript(fh.read())
         conn.commit()
     except Exception as exc:  # noqa: BLE001 -- a send must not die because the

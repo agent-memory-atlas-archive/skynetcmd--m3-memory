@@ -42,6 +42,8 @@ import logging
 import os
 from pathlib import Path
 
+from m3_core.paths import canonical_path
+
 logger = logging.getLogger("files_memory.provenance")
 
 
@@ -68,7 +70,7 @@ def load_sidecar(path: str) -> dict | None:
     if sidecar is None:
         return None
     try:
-        with open(sidecar, encoding="utf-8") as f:
+        with Path(sidecar).open(encoding="utf-8") as f:
             data = json.load(f)
         if not isinstance(data, dict):
             logger.warning("sidecar %s is not a JSON object; ignoring", sidecar)
@@ -120,9 +122,9 @@ def _normalize_original_path(original: str, *, ingested_path: str) -> str:
     """Return an absolute path. Relative originals resolve against the
     directory of `ingested_path` so the sidecar can be portable."""
     if os.path.isabs(original):
-        return os.path.abspath(original)
-    base = os.path.dirname(os.path.abspath(ingested_path))
-    return os.path.abspath(os.path.join(base, original))
+        return canonical_path(original)
+    base = Path(canonical_path(ingested_path)).parent
+    return canonical_path(base / original)
 
 
 def original_path_for_metadata(metadata_json: str | dict | None) -> str | None:

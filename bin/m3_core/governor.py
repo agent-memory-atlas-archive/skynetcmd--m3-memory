@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import time
+from pathlib import Path
 from typing import Any
 
 from m3_core.paths import get_m3_config_root
@@ -32,7 +33,7 @@ _gov_cfg_cache: dict[str, Any] = {"ts": 0.0, "mtime": None, "initial": None, "li
 
 
 def _governor_config_path() -> str:
-    return os.path.join(get_m3_config_root(), ".governor_config.json")
+    return os.path.join(get_m3_config_root(), ".governor_config.json")  # noqa: PTH118 — root-derived string: Path would re-separate a forward-slash root
 
 
 def _governor_thresholds(now: float | None = None) -> tuple[int, int]:
@@ -48,7 +49,7 @@ def _governor_thresholds(now: float | None = None) -> tuple[int, int]:
         _gov_cfg_cache["ts"] = now
         try:
             path = _governor_config_path()
-            mtime = os.stat(path).st_mtime  # raises if absent
+            mtime = Path(path).stat().st_mtime  # raises if absent
         except OSError:
             mtime = None  # file gone / unreadable -> fall back to env+default
         if mtime != _gov_cfg_cache["mtime"]:
@@ -57,7 +58,7 @@ def _governor_thresholds(now: float | None = None) -> tuple[int, int]:
             if mtime is not None:
                 try:
                     import json as _json
-                    with open(_governor_config_path(), encoding="utf-8") as f:
+                    with Path(_governor_config_path()).open(encoding="utf-8") as f:
                         cfg = _json.load(f) or {}
                 except Exception as e:
                     # §3 never silent: a malformed config would otherwise revert
@@ -113,7 +114,7 @@ def ensure_governor_config() -> str:
         return path
     try:
         initial, limit = _governor_thresholds()
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
         import json as _json
         payload = {
             "_comment": _GOV_CFG_TEMPLATE_COMMENT,

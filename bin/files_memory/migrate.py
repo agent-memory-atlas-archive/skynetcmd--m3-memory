@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import glob
 import logging
-import os
 import re
 import sqlite3
 from pathlib import Path
@@ -77,7 +76,7 @@ def discover_up_migrations(directory: Path | None = None) -> list[tuple[int, Pat
     directory = directory or _migrations_dir()
     out: list[tuple[int, Path]] = []
     for fp in glob.glob(str(directory / "*.up.sql")):
-        m = _VERSION_RE.search(os.path.basename(fp))
+        m = _VERSION_RE.search(Path(fp).name)
         if m:
             out.append((int(m.group(1)), Path(fp)))
     out.sort(key=lambda t: t[0])

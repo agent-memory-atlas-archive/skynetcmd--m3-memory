@@ -142,7 +142,7 @@ def _read(path: Path) -> tuple[bytes, FileIdentity] | None:
     read, so a reload check never compares against content it did not parse)."""
     try:
         data = path.read_bytes()
-        st = os.stat(path)
+        st = path.stat()
     except FileNotFoundError:
         return None
     return data, FileIdentity(dev=st.st_dev, ino=st.st_ino, mtime_ns=st.st_mtime_ns,

@@ -27,9 +27,11 @@ import sqlite3
 import time
 import uuid as _uuid
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from embedding_utils import pack
+from m3_core.paths import canonical_path
 
 from . import config
 from .config import files_table
@@ -112,7 +114,7 @@ def _llm_endpoint() -> str | None:
         return override
     try:
         import sys as _sys
-        _bin = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        _bin = str(Path(canonical_path(__file__)).parent.parent)
         if _bin not in _sys.path:
             _sys.path.insert(0, _bin)
         from llm_failover import LLM_ENDPOINTS
@@ -139,7 +141,7 @@ def _llm_model() -> str | None:
         return None
     import sys as _sys
 
-    _bin = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _bin = str(Path(canonical_path(__file__)).parent.parent)
     if _bin not in _sys.path:
         _sys.path.insert(0, _bin)
     from llm_failover import discover_model_sync

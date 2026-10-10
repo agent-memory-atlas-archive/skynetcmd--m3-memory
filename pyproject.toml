@@ -453,7 +453,15 @@ select = ["E", "F", "W", "I", "UP",
 # E701/E702: one-liner `if x: return` / `try: foo` is used throughout bench
 #   and ingest scripts as a terseness choice; not a readability problem here.
 # E741: single-letter vars (l, O, I) are used intentionally in math/loop contexts.
-ignore = ["E501", "E402", "E701", "E702", "E741", "PERF401", "PERF403"]
+ignore = ["E501", "E402", "E701", "E702", "E741", "PERF401", "PERF403",
+          # pathlib rules whose replacement is NOT equivalent on the supported
+          # matrix (measured 2026-10-10, Windows/Linux, Python 3.12 and 3.14):
+          # Path.exists/is_file/is_dir re-raise PermissionError on 3.12-3.13 where
+          # os.path returns False (PTH110/112/113); Path("/x").is_absolute() is False
+          # on Windows where os.path.isabs is True (PTH117); Path.suffix of "a." is
+          # "" on 3.12 and "." on 3.14 (PTH122); Path.glob matches dotfiles that
+          # glob.glob skips (PTH207). Revisit PTH110/112/113 when the floor is 3.14.
+          "PTH110", "PTH112", "PTH113", "PTH117", "PTH122", "PTH207"]
 
 [tool.ruff.lint.per-file-ignores]
 # memory_core.py uses a module-level __getattr__ for lazy submodule dispatch.
@@ -470,8 +478,14 @@ ignore = ["E501", "E402", "E701", "E702", "E741", "PERF401", "PERF403"]
 # names the problem; next(...) would raise StopIteration (RUF015).
 "tests/**" = ["RUF012", "ASYNC230", "RUF015"]
 # pathlib phases: PTH is ignored everywhere EXCEPT the converted groups.
-# Phase 1 (2026-10-09): bin/memory, bin/wiki. Add the next group to the braces.
-"!{bin/memory/**,bin/wiki/**}" = ["PTH"]
+# Phase 1 (2026-10-09): bin/memory, bin/wiki. Phase 2 (2026-10-10):
+# bin/files_memory, bin/m3_core. Add the next group to the braces.
+"!{bin/memory/**,bin/wiki/**,bin/files_memory/**,bin/m3_core/**}" = ["PTH"]
+# m3_core/paths.py stays on os.path: its root getters build paths for the platform
+# being GENERATED (generate_configs), and tests simulate the other OS by patching
+# os.name/os.path, which pathlib cannot follow (it binds the host flavour when a
+# Path is created: "cannot instantiate PosixPath on your system").
+"bin/m3_core/paths.py" = ["PTH"]
 
 [tool.mypy]
 python_version = "3.12"

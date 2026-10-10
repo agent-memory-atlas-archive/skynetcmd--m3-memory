@@ -22,8 +22,10 @@ from __future__ import annotations
 import logging
 import os
 import time
+from pathlib import Path
 
 from llm_failover import apply_thinking_suppression
+from m3_core.paths import canonical_path
 
 logger = logging.getLogger("files_memory.summarize")
 
@@ -101,7 +103,7 @@ def _summary_model() -> str | None:
         return None
     import sys as _sys
 
-    _bin = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _bin = str(Path(canonical_path(__file__)).parent.parent)
     if _bin not in _sys.path:
         _sys.path.insert(0, _bin)
     from llm_failover import discover_model_sync

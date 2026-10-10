@@ -16,6 +16,7 @@ warns loudly rather than silently reverting.
 import json
 import logging
 import os
+from pathlib import Path
 
 from m3_core.paths import get_m3_config_root
 
@@ -39,7 +40,7 @@ _AUTONOMY_TEMPLATE_COMMENT = (
 
 
 def autonomy_config_path() -> str:
-    return os.path.join(get_m3_config_root(), _AUTONOMY_CONFIG_NAME)
+    return os.path.join(get_m3_config_root(), _AUTONOMY_CONFIG_NAME)  # noqa: PTH118 — root-derived string: Path would re-separate a forward-slash root
 
 
 def _truthy(v) -> bool:
@@ -58,7 +59,7 @@ def autonomy_flag(config_key: str, env_name: str, default: bool = False) -> bool
     """
     path = autonomy_config_path()
     try:
-        with open(path, encoding="utf-8") as f:
+        with Path(path).open(encoding="utf-8") as f:
             cfg = json.load(f) or {}
         if config_key in cfg:
             return _truthy(cfg[config_key])
@@ -85,7 +86,7 @@ def ensure_autonomy_config() -> str:
         payload: dict[str, object] = {"_comment": _AUTONOMY_TEMPLATE_COMMENT}
         for key, env_name in _FLAG_ENV.items():
             payload[key] = _truthy(os.environ.get(env_name, "0"))
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
         # Atomic create: O_EXCL loses the race harmlessly if a peer seeds first.
         fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
         try:

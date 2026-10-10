@@ -2,6 +2,7 @@ import logging
 import os
 import time
 from contextlib import contextmanager
+from pathlib import Path
 
 from m3_core.paths import get_m3_config_root
 from m3_core.runtime import M3_CORE_RS_DISABLE
@@ -16,7 +17,7 @@ def migration_lock():
     If the lock is held by another process, it block-waits (with a timeout of 120s)
     until the lock is released.
     """
-    with file_lock(os.path.join(get_m3_config_root(), ".migration.lock"), purpose="migration"):
+    with file_lock(os.path.join(get_m3_config_root(), ".migration.lock"), purpose="migration"):  # noqa: PTH118 — root-derived string: Path would re-separate a forward-slash root
         yield
 
 
@@ -28,7 +29,7 @@ def file_lock(lock_path: str, *, purpose: str):
     with its owner so a crashed holder's lock is reclaimed rather than wedging
     every waiter. ``purpose`` names it in errors (``migration``, ``secrets file``).
     """
-    os.makedirs(os.path.dirname(lock_path), exist_ok=True)
+    os.makedirs(os.path.dirname(lock_path), exist_ok=True)  # noqa: PTH103, PTH120 — a bare lock name raises here as before; Path('x').parent.mkdir() would silently succeed
 
     # Try native Rust advisory lock first
     if not M3_CORE_RS_DISABLE:
@@ -92,7 +93,7 @@ def file_lock(lock_path: str, *, purpose: str):
             except Exception:  # noqa: BLE001 — releasing a lock fd during cleanup
                 pass
             try:
-                os.unlink(lock_path)
+                Path(lock_path).unlink()
             except Exception:  # noqa: BLE001 — removing a lock file during cleanup
                 pass
 
@@ -133,10 +134,10 @@ def _reclaim_stale_lock(lock_path: str) -> bool:
     import socket
     try:
         raw = ""
-        with open(lock_path, encoding="utf-8") as f:
+        with Path(lock_path).open(encoding="utf-8") as f:
             raw = f.read().strip()
         try:
-            mtime = os.path.getmtime(lock_path)
+            mtime = Path(lock_path).stat().st_mtime
         except OSError:
             mtime = 0.0
     except FileNotFoundError:
@@ -168,7 +169,7 @@ def _reclaim_stale_lock(lock_path: str) -> bool:
     if not stale:
         return False
     try:
-        os.unlink(lock_path)
+        Path(lock_path).unlink()
         logger.warning(
             "Reclaimed stale lock %s (owner pid=%s host=%s age=%.0fs)",
             lock_path, pid or "?", host or "?", age,

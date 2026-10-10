@@ -53,14 +53,14 @@ def atomic_write(path: str | os.PathLike[str], data: str | bytes, *, encoding: s
         os.fsync(tmp.fileno())
         tmp.close()
         if mode is not None:
-            os.chmod(tmp.name, mode)
+            Path(tmp.name).chmod(mode)
         _replace_with_retry(tmp.name, target)
 
 
 def _replace_with_retry(src: str, dst: Path) -> None:
     for attempt in range(_REPLACE_RETRIES):
         try:
-            os.replace(src, dst)
+            Path(src).replace(dst)
             return
         except PermissionError:
             if attempt == _REPLACE_RETRIES - 1:

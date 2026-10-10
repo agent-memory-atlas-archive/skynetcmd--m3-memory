@@ -375,6 +375,31 @@ def resolve_venv_python() -> str:
     return os.path.join(base, ".venv", "bin", "python")
 
 
+def canonical_path(p: "str | os.PathLike[str]") -> str:
+    """The lexical absolute form of ``p``, as a string: the one owner of path IDENTITY.
+
+    Use it wherever a path string is stored, compared, de-duplicated or matched
+    as a prefix. It is ``os.path.abspath``: absolute, ``..`` collapsed, host
+    separators, symlinks NOT followed. pathlib has no equivalent:
+    ``Path.absolute()`` keeps ``..`` (so ``a/../b`` and ``b`` would differ), and
+    ``Path.resolve()`` follows symlinks and junctions and can turn a mapped drive
+    into a UNC path. On a ``canonical_path`` result, pathlib's ``/``, ``.parent`` and
+    ``.name`` match ``os.path.join``/``dirname``/``basename`` byte for byte
+    (measured 2026-10-10 on 3.12 and 3.14, Windows and Linux), so build on it.
+    """
+    return os.path.abspath(p)
+
+
+def expand_user(p: "str | os.PathLike[str]") -> str:
+    """``~`` expanded, or ``p`` unchanged when no home can be determined.
+
+    That is ``os.path.expanduser``. ``Path.expanduser()`` raises RuntimeError
+    instead, and every root here is resolved under services, SYSTEM accounts and
+    containers without HOME, where raising would stop m3 from finding anything.
+    """
+    return os.path.expanduser(p)
+
+
 def _abs_root(root: str) -> str:
     """Expand `~` and make relative roots absolute, WITHOUT rewriting a path that
     is already absolute under either path convention.

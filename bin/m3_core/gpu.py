@@ -2,6 +2,7 @@ import logging
 import os
 import sys
 import time
+from pathlib import Path
 from typing import Any
 
 from m3_core.paths import get_m3_config_root
@@ -60,9 +61,9 @@ def _gpu_probe_ttl(now: float | None = None) -> float:
     now = now if now is not None else time.time()
     if now - _gpu_ttl_cfg_cache["ts"] >= _GPU_TTL_CFG_TTL:
         _gpu_ttl_cfg_cache["ts"] = now
-        path = os.path.join(get_m3_config_root(), ".governor_config.json")
+        path = os.path.join(get_m3_config_root(), ".governor_config.json")  # noqa: PTH118 — root-derived string: Path would re-separate a forward-slash root
         try:
-            mtime = os.stat(path).st_mtime
+            mtime = Path(path).stat().st_mtime
         except OSError:
             mtime = None  # absent/unreadable -> env + default
         if mtime != _gpu_ttl_cfg_cache["mtime"]:
@@ -73,7 +74,7 @@ def _gpu_probe_ttl(now: float | None = None) -> float:
                 try:
                     import json as _json
 
-                    with open(path, encoding="utf-8") as f:
+                    with Path(path).open(encoding="utf-8") as f:
                         _cfg = _json.load(f) or {}
                     val = _cfg.get("gpu_probe_ttl_seconds")
                     _gpu_ttl_cfg_cache["disabled"] = _cfg.get("gpu_probe_disabled")
@@ -243,7 +244,7 @@ def _gpu_util_linux_sysfs() -> float | None:
     vals = []
     for path in glob.glob("/sys/class/drm/card*/device/gpu_busy_percent"):
         try:
-            with open(path) as f:
+            with Path(path).open() as f:
                 vals.append(float(f.read().strip()))
         except (OSError, ValueError):
             continue

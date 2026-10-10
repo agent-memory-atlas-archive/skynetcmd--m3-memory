@@ -26,6 +26,9 @@ import time
 import uuid as _uuid
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
+
+from m3_core.paths import canonical_path
 
 from . import config
 from .chunkers import chunk_file, chunker_version
@@ -152,7 +155,7 @@ def _read_file_text(path: str, max_bytes: int) -> str | None:
     """
     try:
         with _INGEST_FD_SEM:
-            with open(path, "rb") as f:
+            with Path(path).open("rb") as f:
                 raw = f.read(max_bytes)
         return raw.decode("utf-8", errors="replace")
     except OSError as e:
@@ -284,7 +287,7 @@ def ingest_one_file(
         # Build paths_seen — start with current path; prior versions
         # contribute their paths_seen if identity_key matches.
         import json as _json
-        paths_seen = [os.path.abspath(path)]
+        paths_seen = [canonical_path(path)]
         if prior:
             try:
                 prior_paths = _json.loads(prior.get("paths_seen") or "[]")
@@ -318,7 +321,7 @@ def ingest_one_file(
             f"VALUES ({_d.placeholder(17)})",
             (
                 file_node_uuid, identity_key, entry.filename, entry.filetype,
-                os.path.abspath(path), entry.repo_relative,
+                canonical_path(path), entry.repo_relative,
                 entry.size_bytes, content_sha,
                 _iso_utc(entry.ctime), _iso_utc(entry.mtime), _source_host(),
                 version_label,
@@ -614,9 +617,9 @@ def _single_file_entry(path: str, *, repo_root: str | None = None) -> WalkEntry:
     Used when ingest_path() receives a file path rather than a directory.
     Mirrors the per-file fields the walker would populate.
     """
-    abs_path = os.path.abspath(path)
-    st = os.stat(abs_path)
-    repo_root_abs = os.path.abspath(repo_root) if repo_root else os.path.dirname(abs_path)
+    abs_path = canonical_path(path)
+    st = Path(abs_path).stat()
+    repo_root_abs = canonical_path(repo_root) if repo_root else str(Path(abs_path).parent)
     try:
         rel = os.path.relpath(abs_path, repo_root_abs)
     except ValueError:
@@ -625,7 +628,7 @@ def _single_file_entry(path: str, *, repo_root: str | None = None) -> WalkEntry:
     return WalkEntry(
         path=abs_path,
         repo_relative=rel,
-        filename=os.path.basename(abs_path),
+        filename=Path(abs_path).name,
         filetype=filetype_for(abs_path),
         size_bytes=st.st_size,
         mtime=st.st_mtime,
@@ -677,7 +680,7 @@ def ingest_path(
     run_id = f"run_{int(time.time())}_{_uuid.uuid4().hex[:8]}"
     started = time.perf_counter()
     walk_stats = WalkStats()
-    result = IngestResult(run_id=run_id, root=os.path.abspath(root),
+    result = IngestResult(run_id=run_id, root=canonical_path(root),
                           started_at=time.time(), walk_stats=walk_stats)
     corpus = corpus_id or config.FILES_DEFAULT_CORPUS
 
