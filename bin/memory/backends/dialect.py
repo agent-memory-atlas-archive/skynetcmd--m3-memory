@@ -264,6 +264,10 @@ class Dialect:
         type_filter: str = "",
         agent_filter: str = "",
         exclude_types: tuple[str, ...] = (),
+        requesting_agent: str = "",
+        conversation_id: str = "",
+        variant: str | list | tuple | set = "",
+        as_of: str = "",
     ) -> tuple[str, list]:
         """Render the standard row-narrowing WHERE fragment + its bind params.
 
@@ -296,6 +300,16 @@ class Dialect:
 
         ``exclude_types`` drops rows of those exact types (a NULL type is kept):
         memory_search hides ephemeral ``scratchpad`` rows unless asked for them.
+
+        ``requesting_agent`` is the cross-agent isolation boundary: private
+        (``scope='agent'``) rows only for that agent, shared scopes still
+        visible. ``conversation_id`` narrows to one conversation. ``variant`` is
+        an exact name, ``"__none__"`` for NULL, or a list (which may include
+        ``"__none__"``). ``as_of`` keeps rows valid at that instant. These four
+        lived in a hand-built SQLite-only list in memory/search.py, so the
+        keyword short-circuit (both backends) and the PostgreSQL path ignored
+        them: a conversation- or agent-filtered search returned other rows
+        (2026-10-10, tests/test_scored_search_filters_each_backend.py).
         """
         ph = self.param()
         a = table_alias
@@ -328,6 +342,34 @@ class Dialect:
             marks = ", ".join(ph for _ in exclude_types)
             sql += f" AND ({a}.type IS NULL OR {a}.type NOT IN ({marks}))"
             params.extend(exclude_types)
+        if requesting_agent:
+            sql += f" AND ({a}.scope != 'agent' OR {a}.agent_id = {ph})"
+            params.append(requesting_agent)
+        if conversation_id:
+            sql += f" AND {a}.conversation_id = {ph}"
+            params.append(conversation_id)
+        if variant:
+            if isinstance(variant, (list, tuple, set)):
+                names = [v for v in variant if v]
+                include_null = "__none__" in names
+                names = [v for v in names if v != "__none__"]
+                sub: list[str] = []
+                if names:
+                    sub.append(f"{a}.variant IN ({self.placeholder(len(names))})")
+                    params.extend(names)
+                if include_null:
+                    sub.append(f"{a}.variant IS NULL")
+                if sub:
+                    sql += " AND (" + " OR ".join(sub) + ")"
+            elif variant == "__none__":
+                sql += f" AND {a}.variant IS NULL"
+            else:
+                sql += f" AND {a}.variant = {ph}"
+                params.append(variant)
+        if as_of:
+            sql += f" AND {self.temporal_open_clause(f'{a}.valid_from', '<=')}"
+            sql += f" AND {self.temporal_open_clause(f'{a}.valid_to', '>')}"
+            params.extend([as_of, as_of])
 
         return sql, params
 

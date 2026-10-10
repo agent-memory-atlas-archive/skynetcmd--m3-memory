@@ -667,9 +667,20 @@ async def memory_search_scored_impl(
     # same dict to Dialect.scope_predicates, so a new narrowing field cannot be
     # wired into one path and missed in another (tests/test_scratchpad_filter.py
     # holds every scope_predicates call in this module to it).
+    #
+    # Cross-agent isolation (SQL-layer enforcement of the scope model). Opt-in:
+    # when the caller passes `requesting_agent`, restrict private (scope='agent')
+    # rows to that agent's own; shared scopes (org/user/session) stay visible.
+    # M3_ENFORCE_AGENT_ISOLATION makes it the DEFAULT when an agent_filter names
+    # the agent. It only ADDS a boundary, never widens. Off by default.
+    _req_agent = requesting_agent or (
+        agent_filter.strip("\"'") if (_scfg.ENFORCE_AGENT_ISOLATION and agent_filter) else ""
+    )
     _row_filter = {
         "user_id": user_id, "scope": scope, "type_filter": type_filter,
         "agent_filter": agent_filter, "exclude_types": tuple(exclude_types),
+        "requesting_agent": _req_agent, "conversation_id": conversation_id,
+        "variant": variant, "as_of": as_of,
     }
     # Public "keyword" -> the "fts5" this function implements; an unknown mode
     # raises instead of returning an empty result (m3_core.search_modes).
@@ -967,61 +978,9 @@ async def memory_search_scored_impl(
     if _scope_sql:
         where_clauses.append(_scope_sql.removeprefix(" AND ").strip())
         params.extend(_scope_params)
-    # Cross-agent isolation (SQL-layer enforcement of the scope model). Opt-in:
-    # when the caller passes `requesting_agent`, restrict private (scope='agent')
-    # rows to that agent's own — shared scopes (org/user/session) stay visible.
-    # The M3_ENFORCE_AGENT_ISOLATION flag makes this the DEFAULT even when no
-    # requesting_agent is threaded per-call, IF a fallback identity is resolvable
-    # (see _effective_requesting_agent). An explicit `scope`/`agent_filter` above
-    # is respected and narrows further; this only ADDS a boundary, never widens.
-    # Off by default → behavior byte-identical unless a caller/flag opts in.
-    _req_agent = requesting_agent or (
-        agent_filter.strip("\"'") if (_scfg.ENFORCE_AGENT_ISOLATION and agent_filter) else ""
-    )
-    if _req_agent:
-        where_clauses.append("(mi.scope != 'agent' OR mi.agent_id = ?)")
-        params.append(_req_agent)
-    if conversation_id:
-        where_clauses.append("mi.conversation_id = ?")
-        params.append(conversation_id)
-    if variant:
-        # Accept "<name>" for exact-variant, "" for unfiltered (default),
-        # the sentinel "__none__" for rows where variant IS NULL, or a list /
-        # tuple of names for multi-variant retrieval (e.g. paired source +
-        # observation variants in the same scoring pass).
-        # The "__none__" sentinel inside a list is also honored — it expands
-        # to a separate `OR mi.variant IS NULL` clause.
-        if isinstance(variant, (list, tuple, set)):
-            names = [v for v in variant if v]
-            include_null = "__none__" in names
-            names = [v for v in names if v != "__none__"]
-            sub: list[str] = []
-            if names:
-                from .backends import dialect as _dl_v
-                placeholders = _dl_v().placeholder(len(names))
-                sub.append(f"mi.variant IN ({placeholders})")
-                params.extend(names)
-            if include_null:
-                sub.append("mi.variant IS NULL")
-            if sub:
-                where_clauses.append("(" + " OR ".join(sub) + ")")
-        elif variant == "__none__":
-            where_clauses.append("mi.variant IS NULL")
-        else:
-            where_clauses.append("mi.variant = ?")
-            params.append(variant)
-
-    if as_of:
-        # Open-ended validity is represented as NULL by new writes; legacy
-        # SQLite rows may still carry "". The dialect emits the ``= ''`` disjunct
-        # on SQLite (matching both) but drops it on Postgres, where the bound is
-        # a TIMESTAMPTZ that rejects '' (IS NULL already covers the unset case).
-        from memory.backends import dialect
-
-        _d = dialect()
-        where_clauses.append(_d.temporal_open_clause("mi.valid_from", "<="))
-        where_clauses.append(_d.temporal_open_clause("mi.valid_to", ">"))
-        params.extend([as_of, as_of])
+    # requesting_agent / conversation_id / variant / as_of are row predicates
+    # too, and come from scope_predicates(**_row_filter) above, so the keyword
+    # short-circuit and the PostgreSQL path apply them as well.
 
     # v022: filter the embeddings join by vector_kind unless caller opted
     # into cross-kind fusion. Legacy rows (pre-v022 / single-embed ingests)
@@ -1046,7 +1005,7 @@ async def memory_search_scored_impl(
         where_clauses.append(
             f"me.embed_model IN ({_dl_m().placeholder(len(_compat))})")
         params.extend(_compat)
-    where_clauses.append("me.dim = ?")
+    where_clauses.append(f"me.dim = {_dl_m().param()}")
     params.append(config.EMBED_DIM)
 
     where_sql = " AND ".join(where_clauses)
