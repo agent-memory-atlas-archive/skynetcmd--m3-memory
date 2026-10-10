@@ -346,6 +346,7 @@ def extract_facts_for_leaf(
     leaf_uuid: str,
     leaf_text: str,
     *,
+    leaf_division_type: str = "",  # reserved: planned prompt hint for `window` leaves (m3 3e8f0b21)
     file_summary: str | None = None,
     max_tokens: int = 1024,
 ) -> ExtractionResult:
@@ -541,7 +542,7 @@ def extract_for_pending_leaves(
     with _db(db_path) as conn:
         # seam yields name-addressable rows on both backends (no sqlite3.Row).
         rows = conn.execute(
-            f"SELECT l.uuid, l.text, l.file_node, l.ingestion_run, "
+            f"SELECT l.uuid, l.text, l.division_type, l.file_node, l.ingestion_run, "
             f"       fn.file_summary "
             f"FROM {files_table('leaves')} l "
             f"JOIN {files_table('file_nodes')} fn ON fn.uuid = l.file_node "
@@ -555,6 +556,7 @@ def extract_for_pending_leaves(
         for r in rows:
             result = extract_facts_for_leaf(
                 r["uuid"], r["text"],
+                leaf_division_type=r["division_type"],
                 file_summary=r["file_summary"],
             )
             write_extraction_result(

@@ -34,6 +34,13 @@ EXCEPTIONS: dict[tuple[str, str], str] = {
         "ctypes mock of a wolfCrypt AES-GCM entry point: the C signature",
     ("bin/test_fips_integrity.py", "typeH"):
         "ctypes mock of a wolfCrypt HMAC entry point: the C signature",
+    # RESERVED PARAMETERS, not dead code: part of the interface, held for a planned
+    # feature that is not wired yet. vulture cannot tell the difference, so they are
+    # listed here; never delete one to quiet the tool (user rule, 2026-10-10).
+    ("bin/files_memory/extract.py", "leaf_division_type"):
+        "planned: hint the extraction prompt for `window` leaves (refactor to-do, m3)",
+    ("bin/memory_maintenance.py", "output_format"):
+        "planned: export formats beyond JSON (refactor to-do, m3); JSON is the only one today",
 }
 
 _FINDING = re.compile(r"^(?P<path>.+?):(?P<line>\d+): (?P<msg>.*?'(?P<name>[^']+)'.*?)$")
