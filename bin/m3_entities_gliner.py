@@ -29,7 +29,8 @@ Usage:
     python bin/m3_entities_gliner.py --core --source-variant <variant> --dry-run
 
 Env vars (all optional):
-    M3_DATABASE              core DB path (default: memory/agent_memory.db)
+    M3_DATABASE              core SQLite DB path (default: the engine root's
+                             agent_memory.db); ignored on PostgreSQL
     M3_GLINER_MODEL          override model id (default: urchade/gliner_large-v2.1)
     M3_GLINER_THRESHOLD      override threshold (default: 0.5)
     M3_GLINER_BATCH_SIZE     override batch size (default: 32)
@@ -54,11 +55,8 @@ _BIN = REPO / "bin"
 if str(_BIN) not in sys.path:
     sys.path.insert(0, str(_BIN))
 
-# Bootstrap M3_DATABASE so memory_core's _db() resolves correctly. CLI can
-# override via --core-db.
-os.environ.setdefault("M3_DATABASE", str(REPO / "memory" / "agent_memory.db"))
-
 import memory_core as mc  # noqa: E402
+from m3_core.paths import active_database, resolve_db_path, seam_backend, store_is_a_file  # noqa: E402
 
 # GLiNER's published 7-label vocab (person, place, organization, event, concept, object, date).
 GLINER_LABELS: list[str] = [
@@ -193,7 +191,7 @@ def _load_gliner(cfg: _Cfg):
 
 
 def _select_rows(
-    db_path: str,
+    db_path: str | None,
     source_variant: str | None,
     limit: int | None,
     force: bool,
@@ -219,19 +217,11 @@ def _select_rows(
         below-cutoff entities. Mutually exclusive with --force.
       - optional conversation_id allowlist (metadata_json.$.conversation_id OR mi.conversation_id)
     """
-    import sqlite3 as _s3
-    conn = _s3.connect(db_path, timeout=30)
-    conn.row_factory = _s3.Row
-    try:
-        if source_variant == "__none__":
-            variant_clause = "AND mi.variant IS NULL"
-            variant_params: list[str] = []
-        elif source_variant:
-            variant_clause = "AND mi.variant = ?"
-            variant_params = [source_variant]
-        else:
-            variant_clause = ""
-            variant_params = []
+    from memory.backends import dialect as _dialect_fn
+    _d = _dialect_fn()
+    # '__none__' = IS NULL, a name = exact, omitted = every variant.
+    variant_clause, variant_params = _d.scope_predicates(table_alias="mi", variant=source_variant or "")
+    with active_database(db_path), seam_backend().connection() as conn:
         if recovery_pass:
             # Recovery pass: only rows currently absent from memory_item_entities.
             extraction_clause = (
@@ -248,8 +238,6 @@ def _select_rows(
         # Size predicate via the dialect: a bare length() counts CHARACTERS on
         # PostgreSQL, so a CJK row would be measured at ~1/3 its byte size and
         # the min_content_len floor would mean something different per encoding.
-        from memory.backends import dialect as _dialect_fn
-        _d = _dialect_fn()
         sql = f"""
             SELECT mi.id, mi.content, mi.metadata_json, mi.conversation_id
             FROM memory_items mi
@@ -263,24 +251,22 @@ def _select_rows(
         if limit:
             sql += f" LIMIT {int(limit)}"
         rows = conn.execute(sql, variant_params).fetchall()
-    finally:
-        conn.close()
     out: list[tuple[str, str]] = []
-    for r in rows:
-        text = (r["content"] or "").strip()
+    for mid, content, metadata_json, conversation_id in rows:
+        text = (content or "").strip()
         if not text:
             continue
         if conv_allowlist is not None:
-            cid = r["conversation_id"] or ""
+            cid = conversation_id or ""
             if not cid:
                 try:
-                    md = json.loads(r["metadata_json"] or "{}")
+                    md = json.loads(metadata_json or "{}")
                     cid = md.get("conversation_id", "") or ""
-                except Exception:
+                except (ValueError, AttributeError):  # malformed or non-object metadata: no conversation
                     cid = ""
             if cid not in conv_allowlist:
                 continue
-        out.append((r["id"], text))
+        out.append((mid, text))
     return out
 
 
@@ -393,20 +379,35 @@ async def _process_batch(
 async def _run_async(args: argparse.Namespace) -> int:
     cfg = _resolve_cfg(args)
 
-    db_path = args.core_db or os.environ.get("M3_DATABASE")
-    if not db_path or not Path(db_path).exists():
-        print(f"[gliner] FATAL: DB not found at {db_path}; pass --core-db or set M3_DATABASE", flush=True)
+    backend = seam_backend().name
+    db_path: str | None
+    if store_is_a_file():
+        try:
+            file_path = resolve_db_path(args.core_db)
+        except ValueError as e:
+            print(f"[gliner] FATAL: {e}", flush=True)
+            return 2
+        if not Path(file_path).exists():
+            print(f"[gliner] FATAL: observed: no SQLite DB at {file_path}. "
+                  f"inspect: --core-db, M3_DATABASE, or M3_ENGINE_ROOT", flush=True)
+            return 2
+        # memory_core._run_entity_extractor reads M3_DATABASE via the active
+        # context; pin it so an explicit --core-db wins for the write path too.
+        os.environ["M3_DATABASE"] = file_path
+        db_path = file_path
+    elif args.core_db:
+        print(f"[gliner] FATAL: observed: --core-db names a SQLite file but the active "
+              f"backend is {backend}. inspect: drop --core-db, or set M3_DB_BACKEND=sqlite", flush=True)
         return 2
-    # memory_core._run_entity_extractor reads M3_DATABASE via the active
-    # context; pin it now so an explicit --core-db wins over the bootstrap.
-    os.environ["M3_DATABASE"] = db_path
+    else:
+        db_path = None  # one database; the backend's own DSN locates it
 
     conv_allowlist = _load_conv_allowlist(
         args.source_conv_list or os.environ.get("M3_ENTITIES_CONV_LIST")
     )
 
     print(
-        f"[gliner] db={db_path} variant={cfg.source_variant!r} "
+        f"[gliner] db={db_path or backend} variant={cfg.source_variant!r} "
         f"limit={cfg.limit} force={cfg.force}",
         flush=True,
     )
@@ -538,8 +539,6 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
-    from m3_core.paths import require_sqlite_backend
-    require_sqlite_backend("m3_entities_gliner")  # opens SQLite files directly; refuse on PostgreSQL
     args = build_parser().parse_args()
     return asyncio.run(_run_async(args))
 

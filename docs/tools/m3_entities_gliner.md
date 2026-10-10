@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_entities_gliner.py
-sha1: b102eec0bff0
-mtime_utc: 2026-10-10T00:33:23.504710+00:00
-generated_utc: 2026-10-10T00:33:24.263276+00:00
+sha1: 0ece53da3e89
+mtime_utc: 2026-10-10T14:01:31.762367+00:00
+generated_utc: 2026-10-10T14:09:48.871469+00:00
 private: false
 ---
 
@@ -40,7 +40,8 @@ Usage:
     python bin/m3_entities_gliner.py --core --source-variant <variant> --dry-run
 
 Env vars (all optional):
-    M3_DATABASE              core DB path (default: memory/agent_memory.db)
+    M3_DATABASE              core SQLite DB path (default: the engine root's
+                             agent_memory.db); ignored on PostgreSQL
     M3_GLINER_MODEL          override model id (default: urchade/gliner_large-v2.1)
     M3_GLINER_THRESHOLD      override threshold (default: 0.5)
     M3_GLINER_BATCH_SIZE     override batch size (default: 32)
@@ -51,7 +52,7 @@ Env vars (all optional):
 
 ## Entry points
 
-- `def main()` (line 540)
+- `def main()` (line 541)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -104,7 +105,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `gliner (GLiNER)`
 - `importlib (metadata)`
 - `m3_core.gpu (torch_device)`
-- `m3_core.paths (require_sqlite_backend)`
+- `m3_core.paths (active_database, resolve_db_path, seam_backend, store_is_a_file)`
 - `memory.backends (dialect)`
 - `packaging.requirements (Requirement)`
 - `packaging.version (Version)`
@@ -113,7 +114,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## File dependencies (repo paths referenced)
 
-- `agent_memory.db`
+_(none detected)_
 
 ---
 

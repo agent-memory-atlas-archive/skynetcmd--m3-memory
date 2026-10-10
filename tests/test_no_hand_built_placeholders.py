@@ -91,7 +91,6 @@ INLINE_ALLOWED = {
     # SQLite pool users: get_sqlite_conn() is SQLite whatever the backend. Whether
     # these should reach the active backend is a separate audit (m3 task), not a
     # placeholder fix; listed so the ratchet counts only seam connections.
-    "bin/m3_entities_gliner.py": "PARITY GAP: GLiNER entity extraction refuses PostgreSQL (m3 parity task)",
     "bin/memory/search_routing.py": "INHERENT: the SQLite fused FTS5 + sqlite-vec builder; PostgreSQL's sibling is search_pg",
     "bin/m3_core/context.py": "INHERENT: owns the SQLite pool (which refuses other backends)",
 }
@@ -159,7 +158,7 @@ def test_no_parameter_defaults_to_a_placeholder_literal():
 
 # Functional parity (user rule, 2026-10-10): a SQLite-only path is allowed only
 # when the limitation is VERIFIED inherent; anything else is a parity gap to port.
-_PARITY_GAP_BUDGET = 9
+_PARITY_GAP_BUDGET = 8
 
 
 def test_every_exemption_is_inherent_or_a_named_parity_gap():
