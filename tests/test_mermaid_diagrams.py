@@ -154,7 +154,7 @@ def test_every_mermaid_block_renders() -> None:
         pytest.skip(skip_reason("env", f"no mmdc installed (npm i -g @mermaid-js/mermaid-cli@{MERMAID_CLI_VERSION}); "
                     f"the npx download fallback is off unless {_NPX_OPT_IN}=1"))
     if os.environ.get("M3_SKIP_MERMAID_RENDER") == "1":
-        pytest.skip(skip_reason("na", "M3_SKIP_MERMAID_RENDER=1"))
+        pytest.skip(skip_reason("env", "M3_SKIP_MERMAID_RENDER=1 (operator opt-out)"))
 
     failures = []
     with tempfile.TemporaryDirectory() as td:

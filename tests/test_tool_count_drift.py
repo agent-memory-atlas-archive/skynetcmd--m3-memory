@@ -276,7 +276,7 @@ def test_every_doc_quoting_a_tool_count_is_gated():
         ).stdout.split()
     except Exception as exc:  # noqa: BLE001 — not a git checkout / no git
         import pytest
-        pytest.skip(skip_reason("na", f"cannot enumerate tracked docs: {exc}"))
+        pytest.skip(skip_reason("env", f"cannot enumerate tracked docs: {exc}"))
 
     gated = {os.path.normcase(os.path.abspath(p)) for p in _DOC_FILES}
     ungated: list[str] = []

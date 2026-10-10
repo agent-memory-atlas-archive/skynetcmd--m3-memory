@@ -22,8 +22,6 @@ from pathlib import Path
 
 import pytest
 
-from conftest import skip_reason
-
 _BIN = Path(__file__).resolve().parents[1] / "bin"
 if str(_BIN) not in sys.path:
     sys.path.insert(0, str(_BIN))
@@ -85,7 +83,7 @@ def test_relative_reexports_are_present(mod_name):
     was not stripped. This is the ruff-strip guard."""
     py_file = _module_file(mod_name)
     if not py_file.exists():
-        pytest.skip(skip_reason("na", f"{py_file} not found"))
+        pytest.fail(f"observed: {py_file} is missing. inspect: the shim module list in this test")
     mod = importlib.import_module(mod_name)
     expected = _relative_import_names(py_file)
     missing = [name for _submod, name in expected if not hasattr(mod, name)]

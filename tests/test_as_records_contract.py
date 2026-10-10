@@ -196,7 +196,8 @@ def test_as_records_true_returns_parseable_json(name):
     try:
         out = _call(spec, **kwargs)
     except Exception as e:  # noqa: BLE001
-        pytest.skip(skip_reason("na", f"{name} not callable in this environment: {type(e).__name__}: {e}"))
+        pytest.fail(f"observed: {name} raised {type(e).__name__}: {e}. inspect: the tool, or give the "
+                    "test the requires_* marker its environment needs")
     assert isinstance(out, str), "as_records changes the CONTENT, not the return type"
     data = json.loads(out)  # must not raise
     assert isinstance(data, dict)
@@ -222,7 +223,8 @@ def test_default_is_not_json(name):
     try:
         out = _call(spec, **kwargs)
     except Exception as e:  # noqa: BLE001
-        pytest.skip(skip_reason("na", f"{name} not callable: {type(e).__name__}: {e}"))
+        pytest.fail(f"observed: {name} raised {type(e).__name__}: {e}. inspect: the tool, or give the "
+                    "test the requires_* marker its environment needs")
     assert not out.lstrip().startswith("{"), (
         f"{name} returned JSON by default -- every existing caller parses the "
         f"display string"

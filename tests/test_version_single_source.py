@@ -77,7 +77,7 @@ def test_version_is_the_same_from_any_working_directory():
     # disagreeing while the install is current, so compare only then.
     if seen["checkout"] != seen["neutral"] and seen["checkout"] == _pyproject_version():
         pytest.skip(
-            skip_reason("na", f"installed distribution ({seen['neutral']}) is older than the "
+            skip_reason("env", f"installed distribution ({seen['neutral']}) is older than the "
             f"checkout ({seen['checkout']}); reinstall to compare")
         )
     assert seen["checkout"] == seen["neutral"], (
@@ -99,14 +99,14 @@ def test_doctor_agrees_with_the_package():
     import m3_memory
     installed = ep._installed_version()
     if installed is None:
-        pytest.skip(skip_reason("na", "no installed distribution to compare against"))
+        pytest.skip(skip_reason("env", "no installed distribution to compare against"))
     # The doctor deliberately resolves from a NEUTRAL cwd (the installed
     # distribution) while the package reads the checkout's pyproject.toml. When
     # the local install is simply an older release than the working tree, that
     # is expected drift, not the two-sources-of-truth bug this guards.
     if installed != m3_memory.__version__ and _pyproject_version() == m3_memory.__version__:
         pytest.skip(
-            skip_reason("na", f"installed distribution ({installed}) is older than the checkout "
+            skip_reason("env", f"installed distribution ({installed}) is older than the checkout "
             f"({m3_memory.__version__}); reinstall to compare")
         )
     assert installed == m3_memory.__version__, (

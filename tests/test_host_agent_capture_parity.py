@@ -28,8 +28,6 @@ import sys
 
 import pytest
 
-from conftest import skip_reason
-
 _ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
 _BIN = os.path.join(_ROOT, "bin")
 _HOOKS = os.path.join(_BIN, "hooks", "chatlog")
@@ -509,7 +507,8 @@ def test_a_hook_only_passes_ingest_flags_that_exist(script):
     invocations = [ln for ln in text.splitlines()
                    if "chatlog_ingest.py" in ln and not ln.lstrip().startswith("#")]
     if not invocations:
-        pytest.skip(skip_reason("na", "does not invoke chatlog_ingest directly"))
+        _assert_delegates_to_a_checked_py_hook(script, text)
+        return
 
     with open(os.path.join(_BIN, "chatlog_ingest.py"), encoding="utf-8") as fh:
         known = set(re.findall(r'add_argument\(\s*"(--[a-z0-9-]+)"', fh.read()))
@@ -532,13 +531,70 @@ def test_a_hook_passes_a_format_that_exists(script):
     invocations = [ln for ln in text.splitlines()
                    if "chatlog_ingest.py" in ln and not ln.lstrip().startswith("#")]
     if not invocations:
-        pytest.skip(skip_reason("na", "does not invoke chatlog_ingest directly"))
+        _assert_delegates_to_a_checked_py_hook(script, text)
+        return
     for ln in invocations:
         for fmt in re.findall(r'--format\s+([a-z0-9-]+)', ln):
             assert fmt in chatlog_ingest.PARSERS, (
                 f"{script} passes --format {fmt}, which argparse rejects "
                 f"(known: {sorted(chatlog_ingest.PARSERS)})"
             )
+
+
+def _assert_delegates_to_a_checked_py_hook(script: str, text: str) -> None:
+    """A wrapper that does not call chatlog_ingest itself must hand off to a .py
+    hook, whose ingest argv test_a_py_hook_passes_only_real_ingest_args checks."""
+    targets = re.findall(r"hooks[/\\]chatlog[/\\]([a-z_]+\.py)", text)
+    assert targets and all(t in _PY_HOOKS for t in targets), (
+        f"observed: {script} neither calls chatlog_ingest nor delegates to a checked .py "
+        f"hook (found {targets}). inspect: bin/hooks/chatlog/{script}")
+
+
+_PY_HOOKS = sorted(p for p in os.listdir(_HOOKS) if p.endswith(".py") and not p.startswith("_"))
+
+
+def _py_hook_ingest_args(path: str) -> tuple[list[str], str | None]:
+    """(flags, format) from a .py hook's ingest argv: the list
+    literal that carries "--format", plus flags appended with +=."""
+    import ast
+
+    with open(path, encoding="utf-8") as fh:
+        src = fh.read()
+    tree = ast.parse(src)
+    consts = {n.targets[0].id: n.value.value for n in tree.body
+              if isinstance(n, ast.Assign) and len(n.targets) == 1
+              and isinstance(n.targets[0], ast.Name) and isinstance(n.value, ast.Constant)}
+    flags: list[str] = []
+    fmt = None
+    for n in ast.walk(tree):
+        if isinstance(n, ast.List) and any(isinstance(e, ast.Constant) and e.value == "--format"
+                                           for e in n.elts):
+            vals = [e.value if isinstance(e, ast.Constant) else
+                    consts.get(e.id) if isinstance(e, ast.Name) else None for e in n.elts]
+            flags += [v for v in vals if isinstance(v, str) and v.startswith("--")]
+            fmt = vals[vals.index("--format") + 1]
+    for n in ast.walk(tree):
+        if isinstance(n, ast.AugAssign) and isinstance(n.value, ast.List):
+            flags += [e.value for e in n.value.elts if isinstance(e, ast.Constant)
+                      and isinstance(e.value, str) and e.value.startswith("--")]
+    return flags, fmt
+
+
+@pytest.mark.parametrize("hook", _PY_HOOKS)
+def test_a_py_hook_passes_only_real_ingest_args(hook):
+    """The .py hooks build the ingest argv in code, out of reach of the line scan
+    above: check those flags and that format against chatlog_ingest itself."""
+    flags, fmt = _py_hook_ingest_args(os.path.join(_HOOKS, hook))
+    if fmt is None:
+        assert not flags, f"observed: {hook} passes ingest flags {flags} with no --format. inspect: {hook}"
+        return  # not an ingest hook (e.g. the session-start capture check)
+    with open(os.path.join(_BIN, "chatlog_ingest.py"), encoding="utf-8") as fh:
+        known = set(re.findall(r'add_argument\(\s*"(--[a-z0-9-]+)"', fh.read()))
+    assert known, "observed: no flags parsed from chatlog_ingest.py. inspect: this test's regex"
+    unknown = sorted(set(flags) - known)
+    assert not unknown, f"observed: {hook} passes {unknown}, which chatlog_ingest rejects. inspect: {hook}"
+    assert fmt in chatlog_ingest.PARSERS, (
+        f"observed: {hook} passes --format {fmt!r}; known {sorted(chatlog_ingest.PARSERS)}. inspect: {hook}")
 
 
 def test_the_opencode_store_is_located_portably(monkeypatch, tmp_path):

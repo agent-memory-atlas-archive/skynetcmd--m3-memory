@@ -6,8 +6,6 @@ assignment per tool_domains.domain_of_tool().
 """
 from __future__ import annotations
 
-import asyncio
-
 from m3_core.search_modes import PUBLIC_SEARCH_MODES
 
 from .dispatch import _memory_verify_impl
@@ -521,8 +519,8 @@ TOOLS: list[ToolSpec] = [
             },
             "required": [],
         },
-        impl=lambda **kw: asyncio.to_thread(memory_maintenance.memory_maintenance_impl, **kw),
-        is_async=True,
+        impl=memory_maintenance.memory_maintenance_impl,  # sync: dispatch offloads and bounds it
+        is_async=False,
         validators=(),
         default_allowed=False,
         inject_agent_id=False,
@@ -546,8 +544,8 @@ TOOLS: list[ToolSpec] = [
             },
             "required": [],
         },
-        impl=lambda **kw: asyncio.to_thread(memory_maintenance.memory_lifecycle_summary_impl, **kw),
-        is_async=True,
+        impl=memory_maintenance.memory_lifecycle_summary_impl,  # sync: dispatch offloads and bounds it
+        is_async=False,
         validators=(),
         default_allowed=True,
         inject_agent_id=False,

@@ -63,7 +63,7 @@ def stub_venv(tmp_path_factory):
     rc = subprocess.run([str(py), "-c", "import httpx"],
                         capture_output=True).returncode
     if rc == 0:
-        pytest.skip(skip_reason("na", "stub venv unexpectedly has httpx; cannot test the guard"))
+        pytest.skip(skip_reason("env", "stub venv unexpectedly has httpx; cannot test the guard"))
     return root
 
 

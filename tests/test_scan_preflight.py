@@ -26,7 +26,9 @@ from conftest import skip_reason
 _ROOT = Path(__file__).resolve().parent.parent
 _SCRIPT = _ROOT / "scan_repo_v7.py"
 
-pytestmark = pytest.mark.skipif(not _SCRIPT.is_file(), reason=skip_reason("na", "scan_repo_v7.py absent"))
+
+def test_the_scanner_ships():
+    assert _SCRIPT.is_file(), f"observed: {_SCRIPT} is missing. inspect: the repo root (a tracked file)"
 
 
 def _load():

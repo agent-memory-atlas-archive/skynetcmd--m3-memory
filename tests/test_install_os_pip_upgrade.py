@@ -26,8 +26,6 @@ from pathlib import Path
 
 import pytest
 
-from conftest import skip_reason
-
 # The REPO-ROOT file is the source of truth. m3_memory/install_os.py is a BUILD
 # ARTIFACT that setup.py stages from it (_stage_root_file) and .gitignore:231
 # excludes -- editing that copy changes nothing that ships, and a test pointed
@@ -40,7 +38,7 @@ SRC = Path(__file__).resolve().parents[1] / "install_os.py"
 @pytest.fixture(scope="module")
 def source() -> str:
     if not SRC.exists():  # pragma: no cover - packaging guard
-        pytest.skip(skip_reason("na", f"{SRC} not present in this checkout"))
+        pytest.fail(f"observed: {SRC} is missing. inspect: the repo root (it is a tracked file)")
     return SRC.read_text(encoding="utf-8")
 
 

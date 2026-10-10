@@ -85,7 +85,8 @@ def test_array_tools_are_registered_with_the_split_action():
 
     spec = next((t for t in cat.TOOLS if t.name == "chatlog_set_redaction"), None)
     if spec is None:
-        pytest.skip(skip_reason("na", "chatlog_set_redaction not in this catalog build"))
+        pytest.fail("observed: chatlog_set_redaction is missing from the catalog. "
+                    "inspect: bin/catalog (it is a shipped tool)")
     assert not _spec_is_complex(spec), \
         "flat-flag tool became complex; array handling moved to --json"
     assert spec.parameters["properties"]["patterns"]["type"] == "array"

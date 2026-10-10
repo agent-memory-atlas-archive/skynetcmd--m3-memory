@@ -6,8 +6,6 @@ assignment per tool_domains.domain_of_tool().
 """
 from __future__ import annotations
 
-import asyncio
-
 from .lazy import LazyModuleProxy
 from .spec import ToolSpec
 
@@ -71,13 +69,11 @@ TOOLS: list[ToolSpec] = [
             },
             "required": ["query"],
         },
-        # Run off-loop and bounded: files_search does FTS5 + vector cosine +
-        # embedding and previously ran on the sync path with NO timeout, so the
-        # documented 2026-07-01 hang could block the MCP event loop indefinitely
-        # despite the "every call is bounded" contract. to_thread + a generous
-        # timeout_s routes it through the already-bounded async branch. (§6)
-        impl=lambda **kw: asyncio.to_thread(_files_tools.files_search_impl, **kw),
-        is_async=True,
+        # Sync: dispatch runs a sync impl off-loop via asyncio.to_thread under the
+        # same resolved timeout (catalog.dispatch._run_impl_bounded), so the
+        # 2026-07-01 hang stays bounded without a wrapper hiding the signature.
+        impl=_files_tools.files_search_impl,
+        is_async=False,
         timeout_s=120.0,
         validators=(),
         default_allowed=True,
