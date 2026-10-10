@@ -671,16 +671,20 @@ class M3Context:
         return StructuredLogger()
 
     def query_memory(self, sql: str, params: tuple = ()) -> list:
-        """Read-only ad-hoc SQL against the active pool.
+        """Read-only ad-hoc SQL against the active pool, ENFORCED.
 
-        Convenience wrapper for bridges that want to run a quick SELECT
-        without managing their own context manager. Callers must NOT pass
-        mutating SQL here — the wrapper doesn't commit and the connection
-        returns to the pool mid-transaction, which silently loses the
-        write on the next borrow. Use ``get_sqlite_conn()`` for writes.
+        Convenience wrapper for bridges that want to run a quick SELECT without
+        managing their own context manager. It never commits, so a mutating
+        statement used to be silently lost when the connection went back to the
+        pool. The connection now runs with ``PRAGMA query_only`` for the call, so
+        a write raises instead. Use ``get_sqlite_conn()`` for writes.
         """
         with self.get_sqlite_conn() as conn:
-            return conn.execute(sql, params).fetchall()
+            conn.execute("PRAGMA query_only = ON")
+            try:
+                return conn.execute(sql, params).fetchall()
+            finally:
+                conn.execute("PRAGMA query_only = OFF")  # pooled: the next borrower may write
 
     def log_event(self, category: str, detail_a: str,
                   detail_b: str = "", detail_c: str | None = None) -> None:
