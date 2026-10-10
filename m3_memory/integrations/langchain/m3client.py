@@ -42,12 +42,15 @@ from __future__ import annotations
 
 import asyncio
 import atexit
+import logging
 import sys
 import threading
 from collections.abc import Callable, Coroutine
 from concurrent.futures import Future
 from contextlib import nullcontext as _nullcontext
 from typing import Any, ClassVar, cast
+
+logger = logging.getLogger("m3_memory.langchain")
 
 # NOTE: mcp_tool_catalog / catalog.dispatch / memory_core are imported LAZILY
 # inside the call methods, NOT at module top. They pull a heavy dependency chain
@@ -201,8 +204,15 @@ class M3Client:
                 if db is not None:
                     try:
                         db.flush_access_stamps_now()
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        # Logging is still up while atexit handlers run. The
+                        # owner is fetched, not imported: exit imports nothing.
+                        errors = sys.modules.get("m3_core.errors")
+                        msg = "access-stamp drain at shutdown failed; observed: %s: %s. inspect: memory.db flush_access_stamps_now"
+                        if errors is not None:
+                            errors.log_swallowed(logger, e, msg, type(e).__name__, e)
+                        else:
+                            logger.debug(msg, type(e).__name__, e)
                 loop.call_soon_threadsafe(loop.stop)
             if thread is not None:
                 thread.join(timeout=5)
