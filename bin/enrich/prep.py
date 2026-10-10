@@ -1,5 +1,6 @@
 """DB prep / profile loading — _today, _resolve_db, _load_profile_with_path,
 _ensure_migration_025."""
+
 from __future__ import annotations
 
 import os
@@ -83,20 +84,21 @@ def _ensure_migration_025(db_path: Path) -> None:
     sqlite3.connect + executescript + sqlite_master, none of which apply to PG,
     where these tables are created by the pg_040 migration + ensure_schema()."""
     from memory.backends import active_backend
+
     if active_backend().name != "sqlite":
         return  # PG: observation_queue/reflector_queue come from migrations
     import sqlite3
+
     conn = sqlite3.connect(str(db_path), timeout=10.0)
     try:
         # Check what's already present.
         rows = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' "
-            "AND name IN ('observation_queue','reflector_queue')"
+            "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('observation_queue','reflector_queue')"
         ).fetchall()
         existing = {r[0] for r in rows}
 
         # Apply migration 025 if either queue is missing.
-        if not {'observation_queue', 'reflector_queue'}.issubset(existing):
+        if not {"observation_queue", "reflector_queue"}.issubset(existing):
             # 025 also indexes memory_items (an aid to the observation/raw split
             # at retrieval time), so it only applies to a store that HAS that
             # table. A chatlog-only store does not, and executescript() aborts
@@ -125,4 +127,3 @@ def _ensure_migration_025(db_path: Path) -> None:
                 print(f"[m3-enrich] applied migration 025 to {db_path.name}", flush=True)
     finally:
         conn.close()
-

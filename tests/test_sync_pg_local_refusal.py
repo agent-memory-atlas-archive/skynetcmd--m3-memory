@@ -12,6 +12,7 @@ on. A wrong refusal is a red cron job someone fixes the same morning.
 Hermetic: no PostgreSQL, no network, no real store. The backend seam and the
 FDW module are stubbed; nothing here touches a live cluster.
 """
+
 from __future__ import annotations
 
 import pathlib
@@ -45,8 +46,7 @@ class TestGenericBridgeRefusesNonSqliteLocal:
         monkeypatch.setattr(sync_all, "_local_backend_name", lambda: "postgres")
         monkeypatch.setattr(sync_all, "_try_pg_fdw_fastpath", lambda dry_run: None)
         ran = []
-        monkeypatch.setattr(sync_all, "run_pg_sync_for_db",
-                            lambda db, dry: ran.append(db) or True)
+        monkeypatch.setattr(sync_all, "run_pg_sync_for_db", lambda db, dry: ran.append(db) or True)
 
         assert sync_all.run_pg_sync(dry_run=False) is False
         assert ran == [], "the generic bridge must not run on a non-SQLite local store"
@@ -70,11 +70,9 @@ class TestGenericBridgeRefusesNonSqliteLocal:
         """
         monkeypatch.setattr(sync_all, "_local_backend_name", lambda: "sqlite")
         monkeypatch.setattr(sync_all, "_try_pg_fdw_fastpath", lambda dry_run: None)
-        monkeypatch.setattr(sync_all, "_resolve_dbs",
-                            lambda: [pathlib.Path("/nonexistent/agent_memory.db")])
+        monkeypatch.setattr(sync_all, "_resolve_dbs", lambda: [pathlib.Path("/nonexistent/agent_memory.db")])
         ran = []
-        monkeypatch.setattr(sync_all, "run_pg_sync_for_db",
-                            lambda db, dry: ran.append(db) or True)
+        monkeypatch.setattr(sync_all, "run_pg_sync_for_db", lambda db, dry: ran.append(db) or True)
 
         assert sync_all.run_pg_sync(dry_run=False) is True
         assert ran, "SQLite deployments must still reach the generic bridge"
@@ -124,8 +122,7 @@ class TestFdwUsesThePrimaryNotTheWarehouse:
         import memory.backends as backends
         from m3_core import paths
 
-        monkeypatch.setattr(backends, "active_backend",
-                            lambda: type("B", (), {"name": "postgres"})())
+        monkeypatch.setattr(backends, "active_backend", lambda: type("B", (), {"name": "postgres"})())
         monkeypatch.setattr(paths, "resolve_primary_pg_dsn", lambda default=None: None)
         # A warehouse DSN IS available — the point is that it must not be used
         # as the primary just because it is the only one present.
@@ -143,10 +140,8 @@ class TestFdwUsesThePrimaryNotTheWarehouse:
         from m3_core import paths
         from memory.backends import postgres_backend as pgb
 
-        monkeypatch.setattr(backends, "active_backend",
-                            lambda: type("B", (), {"name": "postgres"})())
-        monkeypatch.setattr(paths, "resolve_primary_pg_dsn",
-                            lambda default=None: "postgresql://u@h/same")
+        monkeypatch.setattr(backends, "active_backend", lambda: type("B", (), {"name": "postgres"})())
+        monkeypatch.setattr(paths, "resolve_primary_pg_dsn", lambda default=None: "postgresql://u@h/same")
         monkeypatch.setenv("M3_CDW_PG_URL", "postgresql://u@h/same")
 
         def _reject(url):
@@ -204,8 +199,7 @@ class TestSeamAndPortability:
         from memory.backends.dialect import dialect_for
 
         clauses = {
-            b: dialect_for(b).on_conflict_update("(direction)", ["last_synced_at"])
-            for b in ("sqlite", "postgres")
+            b: dialect_for(b).on_conflict_update("(direction)", ["last_synced_at"]) for b in ("sqlite", "postgres")
         }
         assert len(set(clauses.values())) == 1, clauses
 
@@ -218,8 +212,12 @@ class TestSeamAndPortability:
         """
         import inspect
 
-        for fn in (sync_all.run_pg_sync, sync_all._local_backend_name,
-                   sync_all._fdw_run, sync_all._try_pg_fdw_fastpath):
+        for fn in (
+            sync_all.run_pg_sync,
+            sync_all._local_backend_name,
+            sync_all._fdw_run,
+            sync_all._try_pg_fdw_fastpath,
+        ):
             src = inspect.getsource(fn)
             for token in ("sys.platform", "IS_WIN", "os.name", "winreg", "posix"):
                 assert token not in src, f"{fn.__name__} added a platform branch: {token}"
@@ -279,8 +277,7 @@ class TestNeverCreateTheLocalStore:
             assert cur is None
 
         assert not ghost.exists(), (
-            "probing an absent store must not CREATE it — that is the silent "
-            "empty-sync this guard exists to prevent"
+            "probing an absent store must not CREATE it — that is the silent empty-sync this guard exists to prevent"
         )
 
     def test_the_premise_holds_sqlite_connect_creates_files(self, tmp_path):

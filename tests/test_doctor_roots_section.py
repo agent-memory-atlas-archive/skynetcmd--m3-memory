@@ -6,6 +6,7 @@ hazard (CLAUDE.md "Split-brain hazard") is asymmetric/partial pinning where the
 config and engine roots diverge, or are pinned on only one of the MCP-server /
 hook surfaces. doctor surfaces both. These tests pin that behavior.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -85,6 +86,7 @@ def test_section_never_raises_without_sdk(monkeypatch):
     """
     _clear_roots(monkeypatch)
     import builtins
+
     real_import = builtins.__import__
 
     def _no_sdk(name, *a, **k):

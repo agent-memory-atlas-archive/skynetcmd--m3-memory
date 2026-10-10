@@ -27,6 +27,7 @@ PAYLOAD dir (REPO_ROOT/memory), which a `pipx upgrade` wipes out from under a
 running task; (2) the old check-then-write was NOT atomic, so two simultaneous
 fires (Boot+Logon) could both pass — a double secret_rotator / sync_all, etc.
 """
+
 import datetime
 import logging
 import os
@@ -74,6 +75,7 @@ def no_window_kwargs() -> dict:
     flag = getattr(subprocess, "CREATE_NO_WINDOW", None)
     return {"creationflags": flag} if flag is not None else {}
 
+
 # Module-level guard so a double call (e.g. re-import) is a no-op rather than
 # stacking redirects / handlers.
 _INITIALIZED = False
@@ -106,6 +108,7 @@ def _resolve_log_file(log_file) -> pathlib.Path:
     else:
         stem = pathlib.Path(sys.argv[0]).stem or "task"
         from m3_core.paths import get_m3_logs_root
+
         resolved = pathlib.Path(get_m3_logs_root()) / f"{stem}.log"
     resolved.parent.mkdir(parents=True, exist_ok=True)
     return resolved
@@ -123,9 +126,7 @@ def _log_config_path() -> str:
 
         return os.path.join(get_m3_config_root(), ".log_config.json")
     except Exception:  # noqa: BLE001 — pre-config bootstrap must still rotate
-        return os.path.join(
-            os.path.expanduser("~"), ".m3", "config", ".log_config.json"
-        )
+        return os.path.join(os.path.expanduser("~"), ".m3", "config", ".log_config.json")
 
 
 def _log_max_bytes(now: float | None = None) -> int:
@@ -211,6 +212,7 @@ def ensure_log_config() -> str:
             "max_bytes": _log_max_bytes(),
         }
         from m3_core.atomic_io import atomic_write
+
         atomic_write(path, _json.dumps(payload, indent=2))
     except OSError:
         pass  # env+defaults still apply; seeding is a convenience, not a bound
@@ -278,9 +280,7 @@ class _TimestampedStream:
     def write(self, text: str) -> int:
         if not text:
             return 0
-        stamp = datetime.datetime.now(datetime.UTC).strftime(
-            "%Y-%m-%dT%H:%M:%S.%fZ"
-        )
+        stamp = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
         out = []
         for i, part in enumerate(text.split("\n")):
             if i:
@@ -355,15 +355,19 @@ def setup_task_runtime(
 
     if lock_name:
         from m3_sdk import acquire_or_exit
+
         _log = logging.getLogger(logger_name or lock_name)
         _INSTANCE_LOCK = acquire_or_exit(
             lock_name,
             on_already_running=lambda o: _log.info(
-                "duplicate process (PID %s) already running; exiting",
-                o.pid if o else "?"),
+                "duplicate process (PID %s) already running; exiting", o.pid if o else "?"
+            ),
         )
         if not _INSTANCE_LOCK.acquired:
-            _log.warning("%s: single-instance lock DEGRADED (%s) — running "
-                         "without enforcement", lock_name, _INSTANCE_LOCK.status.value)
+            _log.warning(
+                "%s: single-instance lock DEGRADED (%s) — running without enforcement",
+                lock_name,
+                _INSTANCE_LOCK.status.value,
+            )
 
     return log_path

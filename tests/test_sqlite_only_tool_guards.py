@@ -6,6 +6,7 @@ SQLite file instead of the live PG store. Each calls require_sqlite_backend() at
 entry so PG-primary gets a loud refusal, not silent corruption. These tests assert
 the refusal fires under postgres and is a no-op under the default sqlite.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -18,6 +19,7 @@ def _force_pg(monkeypatch):
     monkeypatch.setenv("M3_DB_BACKEND", "postgres")
     monkeypatch.setenv("M3_PG_URL", "postgresql://u:p@127.0.0.1:5433/none")
     from memory.backends import selector as _sel
+
     _sel._reset_for_tests()
 
 
@@ -28,6 +30,7 @@ def test_curate_memory_apply_works_on_postgres(monkeypatch):
     (Full row-level behavior is covered by test_curator_apply_pg_live.py.)"""
     _force_pg(monkeypatch)
     import curator_apply
+
     out = curator_apply.apply_memory_plan({})  # empty plan: no DB work, no refusal
     assert out["store"] == "memory"
     assert out["errors"] == []
@@ -43,6 +46,7 @@ def test_cognitive_loop_not_gated_on_postgres(monkeypatch):
     Namespace legitimately errors later on a missing attribute, which is fine.)"""
     _force_pg(monkeypatch)
     import m3_cognitive_loop
+
     try:
         asyncio.run(m3_cognitive_loop.main_loop(argparse.Namespace(interval=1)))
     except RuntimeError as e:
@@ -59,6 +63,7 @@ def test_m3_entities_not_gated_on_postgres(monkeypatch):
     (Full DB-path behavior is in test_m3_entities_pg_live.py.)"""
     _force_pg(monkeypatch)
     import m3_entities
+
     try:
         asyncio.run(m3_entities._main_async(argparse.Namespace(profile="__nope__")))
     except SystemExit:
@@ -75,10 +80,9 @@ def test_m3_enrich_not_gated_on_postgres(monkeypatch):
     (Full DB + state-machine behavior is in test_m3_enrich_pg_live.py.)"""
     _force_pg(monkeypatch)
     import m3_enrich
+
     try:
-        asyncio.run(m3_enrich._main_async(
-            argparse.Namespace(profile="__nope__", profile_path=None)
-        ))
+        asyncio.run(m3_enrich._main_async(argparse.Namespace(profile="__nope__", profile_path=None)))
     except SystemExit:
         pass  # profile-not-found exit — acceptable, proves no SQLite refusal
     except RuntimeError as e:
@@ -126,8 +130,8 @@ def test_chatlog_backfill_embed_delegates_on_postgres(monkeypatch):
 
 def _no_sqlite(monkeypatch):
     import sqlite3
-    monkeypatch.setattr(sqlite3, "connect", lambda *a, **k: pytest.fail(
-        "a refused tool must not open a SQLite file"))
+
+    monkeypatch.setattr(sqlite3, "connect", lambda *a, **k: pytest.fail("a refused tool must not open a SQLite file"))
 
 
 @pytest.mark.parametrize("tool", _SQLITE_ONLY_MAINS)
@@ -164,12 +168,12 @@ def test_ai_mechanic_refuses_a_sqlite_path_on_postgres(tmp_path):
     import subprocess
     import sys
 
-    script = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                          "bin", "ai_mechanic.py")
+    script = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bin", "ai_mechanic.py")
     db = tmp_path / "x.db"
     env = dict(os.environ, M3_DB_BACKEND="postgres")
-    r = subprocess.run([sys.executable, script, "--database", str(db), "--force"],
-                       env=env, capture_output=True, text=True, timeout=120)
+    r = subprocess.run(
+        [sys.executable, script, "--database", str(db), "--force"], env=env, capture_output=True, text=True, timeout=120
+    )
     assert r.returncode != 0
     assert "observed: --database names a SQLite file" in r.stderr
     assert not db.exists(), "no SQLite file may be created"
@@ -180,6 +184,7 @@ def test_doctor_fix_skips_sqlite_file_repairs_on_postgres(monkeypatch):
     not run against a stale file and reported fixed."""
     _force_pg(monkeypatch)
     import importlib
+
     doctor = importlib.import_module("memory.doctor")
 
     async def _diag():
@@ -189,15 +194,21 @@ def test_doctor_fix_skips_sqlite_file_repairs_on_postgres(monkeypatch):
     _no_sqlite(monkeypatch)
     out = asyncio.run(doctor.memory_doctor_fix_impl())
     assert {a["action"] for a in out["actions"]} == {
-        "run_migrations", "rebuild_fts5", "embed_backfill", "rebuild_cohesion"}
+        "run_migrations",
+        "rebuild_fts5",
+        "embed_backfill",
+        "rebuild_cohesion",
+    }
     assert all(a["status"] == "skipped" and "postgres" in a["detail"] for a in out["actions"])
 
 
 def test_chatlog_init_skips_sqlite_migrations_on_postgres(monkeypatch):
     _force_pg(monkeypatch)
     import chatlog_init
-    monkeypatch.setattr(chatlog_init.subprocess, "run", lambda *a, **k: pytest.fail(
-        "migrate_memory must not be launched on PostgreSQL"))
+
+    monkeypatch.setattr(
+        chatlog_init.subprocess, "run", lambda *a, **k: pytest.fail("migrate_memory must not be launched on PostgreSQL")
+    )
     monkeypatch.setattr(chatlog_init, "prompt_yes_no", lambda *a, **k: True)
     assert chatlog_init.run_migrations() is True
 
@@ -205,6 +216,7 @@ def test_chatlog_init_skips_sqlite_migrations_on_postgres(monkeypatch):
 def test_selector_reexports_the_single_owner():
     from m3_core import paths
     from memory.backends import selector
+
     assert selector.require_sqlite_backend is paths.require_sqlite_backend
     assert selector._VALID == paths.SELECTABLE_BACKENDS
 
@@ -215,6 +227,7 @@ def test_guards_are_noop_on_sqlite(monkeypatch):
     monkeypatch.delenv("M3_DB_BACKEND", raising=False)
     from memory.backends import require_sqlite_backend
     from memory.backends import selector as _sel
+
     _sel._reset_for_tests()
     # No raise for the still-gated tool name. (curate_memory_apply was ported to
     # PG and no longer uses this guard; chroma_sync was removed entirely.)

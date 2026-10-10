@@ -6,6 +6,7 @@ Cover:
 - targets() recovery path when M3_DATABASE points at the chatlog DB
 - _ensure_sync_tables passes --target chatlog when the active DB is chatlog
 """
+
 from __future__ import annotations
 
 import os
@@ -45,6 +46,7 @@ def _make_chatlog_db(path: str) -> None:
 
 # ── _classify_db ────────────────────────────────────────────────────────────
 
+
 def test_classify_main_db(tmp_path):
     p = tmp_path / "main.db"
     _make_main_db(str(p))
@@ -79,6 +81,7 @@ def test_classify_unknown_db(tmp_path):
 
 # ── targets() hardening ─────────────────────────────────────────────────────
 
+
 def test_targets_refuses_main_when_path_is_chatlog(tmp_path, monkeypatch):
     """Core F1 invariant: if M3_DATABASE points at a chatlog-shaped DB, the
     main target is dropped — never apply main-stack DDL to a chatlog DB.
@@ -89,6 +92,7 @@ def test_targets_refuses_main_when_path_is_chatlog(tmp_path, monkeypatch):
 
     # Force re-resolution
     import importlib
+
     importlib.reload(migrate_memory)
 
     ts = migrate_memory.targets("main")
@@ -104,6 +108,7 @@ def test_targets_recovery_routes_chatlog_migrations(tmp_path, monkeypatch):
     monkeypatch.setenv("CHATLOG_DB_PATH", str(chatlog_path))
 
     import importlib
+
     importlib.reload(migrate_memory)
 
     ts = migrate_memory.targets("chatlog")
@@ -120,6 +125,7 @@ def test_targets_clean_env_returns_main_and_chatlog(monkeypatch):
     monkeypatch.delenv("CHATLOG_DB_PATH", raising=False)
 
     import importlib
+
     importlib.reload(migrate_memory)
 
     ts = migrate_memory.targets("all")
@@ -135,6 +141,7 @@ def test_targets_clean_env_returns_main_and_chatlog(monkeypatch):
 
 
 # ── _ensure_sync_tables guard ───────────────────────────────────────────────
+
 
 def test_ensure_sync_tables_passes_target_chatlog_for_chatlog_path(tmp_path, monkeypatch):
     """When the active DB is a chatlog DB, _ensure_sync_tables must invoke
@@ -157,12 +164,11 @@ def test_ensure_sync_tables_passes_target_chatlog_for_chatlog_path(tmp_path, mon
 
     # Reload memory_core's _ensure_sync_tables module-level constants if needed
     import memory_core
+
     memory_core._ensure_sync_tables(str(chatlog_path))
 
     assert "cmd" in captured, "_ensure_sync_tables did not call subprocess.run"
-    assert "--target" in captured["cmd"], (
-        f"expected --target flag in subprocess args, got {captured['cmd']}"
-    )
+    assert "--target" in captured["cmd"], f"expected --target flag in subprocess args, got {captured['cmd']}"
     target_idx = captured["cmd"].index("--target")
     assert captured["cmd"][target_idx + 1] == "chatlog"
     # And M3_DATABASE in the child env points at the chatlog path
@@ -187,12 +193,11 @@ def test_ensure_sync_tables_no_target_for_main_path(tmp_path, monkeypatch):
     monkeypatch.setattr(subprocess, "run", fake_run)
 
     import memory_core
+
     memory_core._ensure_sync_tables(str(main_path))
 
     assert "cmd" in captured
-    assert "--target" not in captured["cmd"], (
-        f"expected NO --target flag, got {captured['cmd']}"
-    )
+    assert "--target" not in captured["cmd"], f"expected NO --target flag, got {captured['cmd']}"
 
 
 def test_pending_migrations_lists_only_unapplied_versions(tmp_path, monkeypatch):
@@ -221,9 +226,11 @@ def test_pending_migrations_raises_when_it_cannot_check(tmp_path, monkeypatch):
     """A missing migrations directory must not read as "nothing pending" or
     as "run them": the caller reports it."""
     target = migrate_memory.MigrationTarget(
-        name="main", db_path=str(tmp_path / "x.db"), migrations_dir=str(tmp_path / "absent"))
+        name="main", db_path=str(tmp_path / "x.db"), migrations_dir=str(tmp_path / "absent")
+    )
     monkeypatch.setattr(migrate_memory, "targets", lambda selected="all": [target])
     import pytest
+
     with pytest.raises(FileNotFoundError):
         migrate_memory.pending_migrations()
 
@@ -232,6 +239,7 @@ def test_the_doctor_asks_the_runner_and_does_not_rebuild_its_path():
     """The doctor's own copy of the migrations path pointed at a directory that
     does not exist; the runner is the one owner of where migrations live."""
     from pathlib import Path
+
     src = Path(BIN_DIR, "memory", "doctor.py").read_text(encoding="utf-8")
     assert "migrate_memory.pending_migrations()" in src
     assert '"memory", "migrations"' not in src

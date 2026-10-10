@@ -4,6 +4,7 @@ M3 Memory: Cross-Platform Schedule Installer.
 Automatically configures crontab (macOS/Linux) or schtasks (Windows).
 Uses project virtual environment paths and ensures log directories exist.
 """
+
 import argparse
 import html
 import os
@@ -26,12 +27,9 @@ def _run(*args, **kwargs):
         if not kwargs.get("text") and not kwargs.get("universal_newlines"):
             stderr_val = stderr_val.encode()
             stdout_val = b""
-        return subprocess.CompletedProcess(
-            args=e.cmd,
-            returncode=124,
-            stdout=stdout_val,
-            stderr=stderr_val
-        )
+        return subprocess.CompletedProcess(args=e.cmd, returncode=124, stdout=stdout_val, stderr=stderr_val)
+
+
 import sys
 import tempfile
 import time
@@ -59,12 +57,14 @@ def _logs_dir() -> str:
     if bin_dir not in sys.path:
         sys.path.insert(0, bin_dir)
     from m3_core.paths import get_m3_logs_root
+
     return get_m3_logs_root()
 
 
 OK = "[OK]"
 FAIL = "[FAIL]"
 WARN = "[WARN]"
+
 
 def _has_managed_crontab() -> bool:
     try:
@@ -115,6 +115,7 @@ def cron_schedule(spec: dict) -> str:
 def render_cron_block(m3_memory_root) -> str:
     """m3's managed cron block, rendered from the same specs every OS uses."""
     import shlex
+
     python_exe = _venv_python(m3_memory_root)
     lines = ["# >>> m3-managed (do not edit this block) >>>"]
     for spec in unix_periodic_specs(m3_memory_root):
@@ -173,6 +174,7 @@ def install_unix_crontab(m3_memory_root, *, block: bool = True):
     # install, but we print where it landed.
     try:
         from m3_sdk import get_m3_engine_root
+
         _bak_dir = get_m3_engine_root()
     except Exception:
         _bak_dir = os.path.expanduser(os.path.join("~", ".m3", "engine"))
@@ -186,8 +188,7 @@ def install_unix_crontab(m3_memory_root, *, block: bool = True):
         _safe_print(f"{WARN} Could not back up crontab before rewrite: {_be}")
 
     # Append the new content
-    new_cron = (filtered_cron.strip()
-                + ("\n\n" + cron_content.strip() if cron_content else "") + "\n")
+    new_cron = filtered_cron.strip() + ("\n\n" + cron_content.strip() if cron_content else "") + "\n"
 
     # The template carries non-ASCII text; the locale default may be ASCII.
     with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False) as tmp:
@@ -197,8 +198,10 @@ def install_unix_crontab(m3_memory_root, *, block: bool = True):
     try:
         _run(["crontab", tmp_path], check=True)
         if block:
-            _safe_print(f"{OK} Installed m3's cron schedules "
-                        f"({', '.join(x['name'] for x in unix_periodic_specs(m3_memory_root))}).")
+            _safe_print(
+                f"{OK} Installed m3's cron schedules "
+                f"({', '.join(x['name'] for x in unix_periodic_specs(m3_memory_root))})."
+            )
         else:
             _safe_print(f"{OK} Removed m3's cron block; launchd runs these jobs on macOS.")
         _safe_print(f"   Logs available in: {log_dir}")
@@ -208,17 +211,17 @@ def install_unix_crontab(m3_memory_root, *, block: bool = True):
         os.unlink(tmp_path)
 
 
-def _render_template(template_path: str, m3_memory_root: str, python_exe: str,
-                     port: "int | None" = None) -> str:
+def _render_template(template_path: str, m3_memory_root: str, python_exe: str, port: "int | None" = None) -> str:
     """Read a template file and substitute the [M3_MEMORY_ROOT] / [M3_LOGS_ROOT] / [M3_PYTHON]
     (and optional [M3_DASHBOARD_PORT]) placeholders. Used for the launchd plist
     and systemd unit templates."""
     with open(template_path, encoding="utf-8") as f:
         content = f.read()
-    content = (content
-               .replace("[M3_LOGS_ROOT]", _logs_dir())
-               .replace("[M3_MEMORY_ROOT]", m3_memory_root)
-               .replace("[M3_PYTHON]", python_exe))
+    content = (
+        content.replace("[M3_LOGS_ROOT]", _logs_dir())
+        .replace("[M3_MEMORY_ROOT]", m3_memory_root)
+        .replace("[M3_PYTHON]", python_exe)
+    )
     if port is not None:
         content = content.replace("[M3_DASHBOARD_PORT]", str(port))
     return content
@@ -268,7 +271,8 @@ def install_unix_dashboard(m3_memory_root, port: int = 8088):
         _run(["systemctl", "--user", "daemon-reload"], capture_output=True)
         r = _run(
             ["systemctl", "--user", "enable", "--now", "m3-dashboard.service"],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         if r.returncode == 0:
             _safe_print(f"{OK} Installed + started systemd --user unit (dashboard :{port}): {dest}")
@@ -285,10 +289,13 @@ def unix_periodic_specs(m3_memory_root) -> list:
     governor_migration (the owner of that decision), timing from
     get_schedule_specs. Services (the loop, its watchdog) are not periodic."""
     from governor_migration import KEEP_SCHEDULED_FLOOR, NOT_MIGRATABLE
+
     wanted = {n for n, _ in KEEP_SCHEDULED_FLOOR} | {n for n, _ in NOT_MIGRATABLE}
-    return [s for s in get_schedule_specs(m3_memory_root)
-            if s["name"] in wanted and s["schedule"] != "ONSTART"
-            and s["name"] not in _UNIX_TIMER_UNITS]
+    return [
+        s
+        for s in get_schedule_specs(m3_memory_root)
+        if s["name"] in wanted and s["schedule"] != "ONSTART" and s["name"] not in _UNIX_TIMER_UNITS
+    ]
 
 
 # Periodic on Windows, but on macOS/Linux a launchd/systemd timer installed
@@ -318,19 +325,20 @@ def launchd_trigger(spec: dict) -> dict:
     if sched == "DAILY":
         return {"StartCalendarInterval": {"Hour": hour, "Minute": minute}}
     if sched == "WEEKLY":
-        return {"StartCalendarInterval": {"Weekday": _WEEKDAYS.get(mod.upper(), 0),
-                                          "Hour": hour, "Minute": minute}}
+        return {"StartCalendarInterval": {"Weekday": _WEEKDAYS.get(mod.upper(), 0), "Hour": hour, "Minute": minute}}
     if sched == "MONTHLY":
         return {"StartCalendarInterval": {"Day": int(mod), "Hour": hour, "Minute": minute}}
     raise ValueError(f"{spec['name']}: no launchd mapping for schedule {sched!r}")
 
 
 def _launchd_plist(spec: dict, python_exe: str) -> dict:
-    return {"Label": launchd_label(spec["name"]),
-            "ProgramArguments": [python_exe, *spec["args"]],
-            "WorkingDirectory": os.path.expanduser("~"),
-            "RunAtLoad": False,
-            **launchd_trigger(spec)}
+    return {
+        "Label": launchd_label(spec["name"]),
+        "ProgramArguments": [python_exe, *spec["args"]],
+        "WorkingDirectory": os.path.expanduser("~"),
+        "RunAtLoad": False,
+        **launchd_trigger(spec),
+    }
 
 
 def install_macos_periodic(m3_memory_root) -> bool:
@@ -340,6 +348,7 @@ def install_macos_periodic(m3_memory_root) -> bool:
     import plistlib
     import shutil
     import time as _time
+
     python_exe = _venv_python(m3_memory_root)
     dest_dir = os.path.expanduser("~/Library/LaunchAgents")
     os.makedirs(dest_dir, exist_ok=True)
@@ -373,6 +382,7 @@ def verify_macos_periodic(m3_memory_root) -> bool:
     """Each periodic floor exists, is loaded, and matches its spec (trigger and
     program). Read-only."""
     import plistlib
+
     python_exe = _venv_python(m3_memory_root)
     try:
         loaded = _run(["launchctl", "list"], capture_output=True, text=True).stdout or ""
@@ -394,16 +404,18 @@ def verify_macos_periodic(m3_memory_root) -> bool:
             _safe_print(f"{FAIL} {name}: unreadable {dest} ({e}). fix: m3 schedules repair")
             ok = False
             continue
-        drift = [k for k in ("StartInterval", "StartCalendarInterval", "ProgramArguments")
-                 if have.get(k) != want.get(k)]
+        drift = [
+            k for k in ("StartInterval", "StartCalendarInterval", "ProgramArguments") if have.get(k) != want.get(k)
+        ]
         if drift:
-            _safe_print(f"{FAIL} {name}: {', '.join(drift)} differ from the spec "
-                        f"(have {[have.get(k) for k in drift]}, want "
-                        f"{[want.get(k) for k in drift]}). fix: m3 schedules repair")
+            _safe_print(
+                f"{FAIL} {name}: {', '.join(drift)} differ from the spec "
+                f"(have {[have.get(k) for k in drift]}, want "
+                f"{[want.get(k) for k in drift]}). fix: m3 schedules repair"
+            )
             ok = False
         elif want["Label"] not in loaded:
-            _safe_print(f"{FAIL} {name}: {dest} is present but not loaded. "
-                        f"fix: launchctl load {dest}")
+            _safe_print(f"{FAIL} {name}: {dest} is present but not loaded. fix: launchctl load {dest}")
             ok = False
         else:
             _safe_print(f"{OK} {name}: present, loaded, matches spec")
@@ -415,6 +427,7 @@ def verify_linux_periodic(m3_memory_root) -> bool:
     import shlex
 
     from governor_migration import _cron_line_is
+
     try:
         r = _run(["crontab", "-l"], capture_output=True, text=True)
         cron = r.stdout if r.returncode == 0 else ""
@@ -430,8 +443,10 @@ def verify_linux_periodic(m3_memory_root) -> bool:
         if want in have:
             _safe_print(f"{OK} {name}: cron line present and matches spec")
         elif have:
-            _safe_print(f"{FAIL} {name}: cron line differs from the spec "
-                        f"(have {have[0]!r}, want {want!r}). fix: m3 schedules repair")
+            _safe_print(
+                f"{FAIL} {name}: cron line differs from the spec "
+                f"(have {have[0]!r}, want {want!r}). fix: m3 schedules repair"
+            )
             ok = False
         else:
             _safe_print(f"{FAIL} {name}: no cron line. fix: m3 schedules repair")
@@ -485,7 +500,8 @@ def install_unix_cognitive_loop(m3_memory_root):
         _run(["systemctl", "--user", "daemon-reload"], capture_output=True)
         r = _run(
             ["systemctl", "--user", "enable", "--now", "m3-cognitive-loop.service"],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         if r.returncode == 0:
             _safe_print(f"{OK} Installed + started systemd --user unit: {dest}")
@@ -516,8 +532,7 @@ def _install_embed_server_or_report(m3_memory_root: str, python_exe: str) -> Non
     # failure would be a false alarm on every correctly configured host.
     if _os_name() in ("Darwin", "Linux") and _rust_embed_service_loaded() is True:
         label = _RUST_EMBED_LABEL if _os_name() == "Darwin" else _LINUX_EMBED_UNIT
-        _safe_print(f"{OK} embed-server keep-alive: the Rust m3-embed-server "
-                    f"service ({label})")
+        _safe_print(f"{OK} embed-server keep-alive: the Rust m3-embed-server service ({label})")
         return
     try:
         install_unix_embed_server(m3_memory_root, python_exe)
@@ -525,8 +540,7 @@ def _install_embed_server_or_report(m3_memory_root: str, python_exe: str) -> Non
         _safe_print(f"{FAIL} embed-server keep-alive NOT installed:")
         for line in str(e).splitlines():
             _safe_print(f"   {line}")
-        _safe_print(f"{WARN} Everything else installed. Resolve the above if "
-                    f"you want the Python embed-server unit.")
+        _safe_print(f"{WARN} Everything else installed. Resolve the above if you want the Python embed-server unit.")
 
 
 class EmbedServerConflict(RuntimeError):
@@ -571,15 +585,12 @@ def _rust_embed_service_loaded() -> "bool | None":
         if os.path.exists(os.path.expanduser(f"~/Library/LaunchAgents/{label}.plist")):
             return True
         try:
-            r = _run(["launchctl", "list"],
-                               capture_output=True, text=True, timeout=20)
+            r = _run(["launchctl", "list"], capture_output=True, text=True, timeout=20)
         except (OSError, subprocess.SubprocessError) as e:
-            _safe_print(f"{WARN} could not run `launchctl list`: "
-                        f"{type(e).__name__}: {e}")
+            _safe_print(f"{WARN} could not run `launchctl list`: {type(e).__name__}: {e}")
             return None
         if r.returncode != 0:
-            _safe_print(f"{WARN} `launchctl list` failed rc={r.returncode}: "
-                        f"{(r.stderr or '').strip()}")
+            _safe_print(f"{WARN} `launchctl list` failed rc={r.returncode}: {(r.stderr or '').strip()}")
             return None
         return label in (r.stdout or "")
 
@@ -618,11 +629,9 @@ def _rust_embed_service_loaded() -> "bool | None":
         # still owns the port the moment SCM starts it -- the same divergence
         # documented for Darwin above.
         try:
-            r = _run(["sc.exe", "query", _WINDOWS_RUST_EMBED_SERVICE],
-                               capture_output=True, text=True, timeout=20)
+            r = _run(["sc.exe", "query", _WINDOWS_RUST_EMBED_SERVICE], capture_output=True, text=True, timeout=20)
         except (OSError, subprocess.SubprocessError) as e:
-            _safe_print(f"{WARN} could not run `sc.exe query "
-                        f"{_WINDOWS_RUST_EMBED_SERVICE}`: {type(e).__name__}: {e}")
+            _safe_print(f"{WARN} could not run `sc.exe query {_WINDOWS_RUST_EMBED_SERVICE}`: {type(e).__name__}: {e}")
             return None
         blob = f"{r.stdout}\n{r.stderr}"
         # 1060 = ERROR_SERVICE_DOES_NOT_EXIST: a DEFINITE "not registered", the
@@ -631,8 +640,7 @@ def _rust_embed_service_loaded() -> "bool | None":
         if "1060" in blob:
             return False
         if r.returncode != 0:
-            _safe_print(f"{WARN} `sc.exe query {_WINDOWS_RUST_EMBED_SERVICE}` "
-                        f"rc={r.returncode}: {blob.strip()[:160]}")
+            _safe_print(f"{WARN} `sc.exe query {_WINDOWS_RUST_EMBED_SERVICE}` rc={r.returncode}: {blob.strip()[:160]}")
             return None
         return "SERVICE_NAME" in blob or "STATE" in blob
 
@@ -718,8 +726,7 @@ def install_unix_embed_server(m3_memory_root: str, python_exe: "str | None" = No
             with open(dest, "w", encoding="utf-8") as f:
                 f.write(_render_template(template, m3_memory_root, python_exe))
             _run(["launchctl", "unload", dest], capture_output=True)
-            r = _run(["launchctl", "load", dest],
-                               capture_output=True, text=True)
+            r = _run(["launchctl", "load", dest], capture_output=True, text=True)
             if r.returncode == 0:
                 _safe_print(f"{OK} Installed + loaded launchd agent (embed server :8082): {dest}")
             else:
@@ -738,7 +745,8 @@ def install_unix_embed_server(m3_memory_root: str, python_exe: "str | None" = No
         _run(["systemctl", "--user", "daemon-reload"], capture_output=True)
         r = _run(
             ["systemctl", "--user", "enable", "--now", "m3-embed-server.service"],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         if r.returncode == 0:
             _safe_print(f"{OK} Installed + started systemd --user unit (embed server :8082): {dest}")
@@ -767,20 +775,18 @@ def _install_linux_loop_watchdog(m3_memory_root: str, python_exe: str) -> None:
                 return
             with open(os.path.join(dest_dir, unit), "w", encoding="utf-8") as f:
                 f.write(_render_template(template, m3_memory_root, python_exe))
-        _run(["systemctl", "--user", "daemon-reload"],
-                       capture_output=True)
+        _run(["systemctl", "--user", "daemon-reload"], capture_output=True)
         # Enable the TIMER, not the service: the service is oneshot and is meant
         # to be triggered, never enabled on its own.
         r = _run(
             ["systemctl", "--user", "enable", "--now", "m3-loop-watchdog.timer"],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         if r.returncode == 0:
-            _safe_print(f"{OK} Installed + started loop watchdog timer: "
-                        f"{dest_dir}/m3-loop-watchdog.timer")
+            _safe_print(f"{OK} Installed + started loop watchdog timer: {dest_dir}/m3-loop-watchdog.timer")
         else:
-            _safe_print(f"{WARN} watchdog timer enable failed: "
-                        f"{(r.stderr or '').strip()}")
+            _safe_print(f"{WARN} watchdog timer enable failed: {(r.stderr or '').strip()}")
     except (OSError, subprocess.SubprocessError) as e:
         _safe_print(f"{WARN} could not install loop watchdog: {e}")
 
@@ -788,17 +794,14 @@ def _install_linux_loop_watchdog(m3_memory_root: str, python_exe: str) -> None:
 def _remove_linux_loop_watchdog() -> None:
     """Uninstall the watchdog timer + oneshot. Never raises."""
     try:
-        _run(
-            ["systemctl", "--user", "disable", "--now", "m3-loop-watchdog.timer"],
-            capture_output=True)
+        _run(["systemctl", "--user", "disable", "--now", "m3-loop-watchdog.timer"], capture_output=True)
         dest_dir = os.path.expanduser("~/.config/systemd/user")
         for unit in ("m3-loop-watchdog.timer", "m3-loop-watchdog.service"):
             path = os.path.join(dest_dir, unit)
             if os.path.exists(path):
                 os.unlink(path)
                 _safe_print(f"{OK} Removed loop watchdog unit: {path}")
-        _run(["systemctl", "--user", "daemon-reload"],
-                       capture_output=True)
+        _run(["systemctl", "--user", "daemon-reload"], capture_output=True)
     except (OSError, subprocess.SubprocessError) as e:
         _safe_print(f"{WARN} could not remove loop watchdog: {e}")
 
@@ -835,8 +838,7 @@ def _install_unix_notification_waiter(m3_memory_root: str, python_exe: str) -> N
             if r.returncode == 0:
                 _safe_print(f"{OK} Installed + loaded launchd agent: {dest}")
             else:
-                _safe_print(f"{WARN} launchctl load failed for the notification "
-                            f"waiter: {(r.stderr or '').strip()}")
+                _safe_print(f"{WARN} launchctl load failed for the notification waiter: {(r.stderr or '').strip()}")
 
         elif osn == "Linux":
             template = os.path.join(bin_dir, "m3-notification-waiter.service")
@@ -849,18 +851,24 @@ def _install_unix_notification_waiter(m3_memory_root: str, python_exe: str) -> N
             with open(dest, "w", encoding="utf-8") as f:
                 f.write(_render_template(template, m3_memory_root, python_exe))
             _run(["systemctl", "--user", "daemon-reload"], capture_output=True)
-            r = _run(["systemctl", "--user", "enable", "--now",
-                      "m3-notification-waiter.service"],
-                     capture_output=True, text=True)
+            r = _run(
+                ["systemctl", "--user", "enable", "--now", "m3-notification-waiter.service"],
+                capture_output=True,
+                text=True,
+            )
             if r.returncode == 0:
                 _safe_print(f"{OK} Installed + started systemd --user unit: {dest}")
             else:
-                _safe_print(f"{WARN} systemctl enable --now failed for the "
-                            f"notification waiter: {(r.stderr or '').strip()}")
+                _safe_print(
+                    f"{WARN} systemctl enable --now failed for the notification waiter: {(r.stderr or '').strip()}"
+                )
             # A user unit stops at logout unless lingering is enabled, which
             # would silently end the receipt SLA on a headless box.
-            lg = _run(["loginctl", "show-user", os.environ.get("USER", ""),
-                       "--property=Linger"], capture_output=True, text=True)
+            lg = _run(
+                ["loginctl", "show-user", os.environ.get("USER", ""), "--property=Linger"],
+                capture_output=True,
+                text=True,
+            )
             if "Linger=yes" not in (lg.stdout or ""):
                 _safe_print(
                     f"{WARN} systemd --user services stop at logout on this host. "
@@ -869,12 +877,14 @@ def _install_unix_notification_waiter(m3_memory_root: str, python_exe: str) -> N
                     f"inspect: loginctl enable-linger {os.environ.get('USER', '<user>')}"
                 )
     except Exception as e:  # noqa: BLE001 -- see docstring
-        _safe_print(f"{WARN} Notification waiter service not installed. "
-                    f"observed: {type(e).__name__}: {e}. "
-                    f"possible: no launchctl/systemctl on this host, or the "
-                    f"template is missing. "
-                    f"inspect: bin/com.m3memory.notificationwaiter.plist, "
-                    f"bin/m3-notification-waiter.service")
+        _safe_print(
+            f"{WARN} Notification waiter service not installed. "
+            f"observed: {type(e).__name__}: {e}. "
+            f"possible: no launchctl/systemctl on this host, or the "
+            f"template is missing. "
+            f"inspect: bin/com.m3memory.notificationwaiter.plist, "
+            f"bin/m3-notification-waiter.service"
+        )
 
 
 def _install_macos_loop_watchdog(m3_memory_root: str, python_exe: str) -> None:
@@ -887,8 +897,7 @@ def _install_macos_loop_watchdog(m3_memory_root: str, python_exe: str) -> None:
     raises — a watchdog that breaks the installer would be worse than no
     watchdog."""
     try:
-        template = os.path.join(m3_memory_root, "bin",
-                                "com.m3memory.loopwatchdog.plist")
+        template = os.path.join(m3_memory_root, "bin", "com.m3memory.loopwatchdog.plist")
         if not os.path.exists(template):
             _safe_print(f"{WARN} Missing watchdog template: {template}")
             return
@@ -898,13 +907,11 @@ def _install_macos_loop_watchdog(m3_memory_root: str, python_exe: str) -> None:
         with open(dest, "w", encoding="utf-8") as f:
             f.write(_render_template(template, m3_memory_root, python_exe))
         _run(["launchctl", "unload", dest], capture_output=True)
-        r = _run(["launchctl", "load", dest],
-                           capture_output=True, text=True)
+        r = _run(["launchctl", "load", dest], capture_output=True, text=True)
         if r.returncode == 0:
             _safe_print(f"{OK} Installed + loaded loop watchdog: {dest}")
         else:
-            _safe_print(f"{WARN} watchdog launchctl load failed: "
-                        f"{r.stderr.strip()}")
+            _safe_print(f"{WARN} watchdog launchctl load failed: {r.stderr.strip()}")
     except (OSError, subprocess.SubprocessError) as e:
         _safe_print(f"{WARN} could not install loop watchdog: {e}")
 
@@ -912,8 +919,7 @@ def _install_macos_loop_watchdog(m3_memory_root: str, python_exe: str) -> None:
 def _remove_macos_loop_watchdog() -> None:
     """Uninstall the watchdog agent. Never raises."""
     try:
-        dest = os.path.expanduser(
-            "~/Library/LaunchAgents/com.m3memory.loopwatchdog.plist")
+        dest = os.path.expanduser("~/Library/LaunchAgents/com.m3memory.loopwatchdog.plist")
         if os.path.exists(dest):
             r = _run(["launchctl", "unload", dest], capture_output=True)
             if r.returncode == 0:
@@ -929,8 +935,7 @@ def remove_unix_cognitive_loop():
     """Uninstall the launchd agent / systemd unit for the cognitive loop."""
     os_name = _os_name()
     if os_name == "Darwin":
-        dest = os.path.expanduser(
-            "~/Library/LaunchAgents/com.m3memory.cognitiveloop.plist")
+        dest = os.path.expanduser("~/Library/LaunchAgents/com.m3memory.cognitiveloop.plist")
         if os.path.exists(dest):
             r = _run(["launchctl", "unload", dest], capture_output=True)
             if r.returncode == 0:
@@ -943,8 +948,7 @@ def remove_unix_cognitive_loop():
         # Leaving the watchdog behind would kickstart a job that no longer exists.
         _remove_macos_loop_watchdog()
     elif os_name == "Linux":
-        dest = os.path.expanduser(
-            "~/.config/systemd/user/m3-cognitive-loop.service")
+        dest = os.path.expanduser("~/.config/systemd/user/m3-cognitive-loop.service")
         r = _run(
             ["systemctl", "--user", "disable", "--now", "m3-cognitive-loop.service"],
             capture_output=True,
@@ -998,13 +1002,16 @@ def _interpreter_has_deps(candidate: str) -> bool:
     # a scheduled task does not inherit. Measured 2026-10-08: a dependency-less
     # venv passed this probe whenever the cwd held m3_memory/.
     try:
-        return _run(
-            [probe, "-E", "-c", "import m3_memory"],
-            capture_output=True, timeout=10,
-            cwd=os.path.dirname(os.path.abspath(probe)),
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
-            if is_windows() else 0,
-        ).returncode == 0
+        return (
+            _run(
+                [probe, "-E", "-c", "import m3_memory"],
+                capture_output=True,
+                timeout=10,
+                cwd=os.path.dirname(os.path.abspath(probe)),
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if is_windows() else 0,
+            ).returncode
+            == 0
+        )
     except Exception:  # noqa: BLE001 — an unusable probe is an unusable interpreter
         return False
 
@@ -1067,42 +1074,38 @@ def get_schedule_specs(m3_memory_root, dashboard_port: int = 8088):
     return [
         {
             "name": "AgentOS_WeeklyAuditor",
-            "args": [_script("weekly_auditor.py"),
-                     "--log-file", _log("auditor.log")],
+            "args": [_script("weekly_auditor.py"), "--log-file", _log("auditor.log")],
             "schedule": "WEEKLY",
             "modifier": "FRI",
             "time": "16:00",
-            "description": "Run weekly auditor on Fridays at 4pm"
+            "description": "Run weekly auditor on Fridays at 4pm",
         },
         {
             "name": "AgentOS_HourlySync",
-            "args": [_script("sync_all.py"),
-                     "--log-file", _log("sync_all.log")],
+            "args": [_script("sync_all.py"), "--log-file", _log("sync_all.log")],
             "schedule": "HOURLY",
             "modifier": "1",
             "time": "00:00",
-            "description": "Hourly sync: SQLite <-> PostgreSQL"
+            "description": "Hourly sync: SQLite <-> PostgreSQL",
         },
         {
             "name": "AgentOS_Maintenance",
             # Previously invoked via `python -c "...memory_maintenance_impl()"`;
             # memory_maintenance.py now has a real __main__ block so it runs as
             # a script (enables --log-file + single-instance locking).
-            "args": [_script("memory_maintenance.py"),
-                     "--log-file", _log("maintenance.log")],
+            "args": [_script("memory_maintenance.py"), "--log-file", _log("maintenance.log")],
             "schedule": "DAILY",
             "modifier": "",
             "time": "03:00",
-            "description": "Daily memory maintenance (decay, prune orphans)"
+            "description": "Daily memory maintenance (decay, prune orphans)",
         },
         {
             "name": "AgentOS_SecretRotator",
-            "args": [_script("secret_rotator.py"),
-                     "--log-file", _log("secret_rotator.log")],
+            "args": [_script("secret_rotator.py"), "--log-file", _log("secret_rotator.log")],
             "schedule": "MONTHLY",
             "modifier": "1",
             "time": "02:00",
-            "description": "Monthly automated secret rotation"
+            "description": "Monthly automated secret rotation",
         },
         {
             "name": "AgentOS_ChatlogEmbedSweep",
@@ -1110,14 +1113,21 @@ def get_schedule_specs(m3_memory_root, dashboard_port: int = 8088):
             # 60 bounds one run's wall-clock so a large backlog drains across
             # several scheduled runs instead of pinning the GPU in one long run
             # on an interactive machine. --max-per-run still caps total rows.
-            "args": [_script("chatlog_embed_sweeper.py"),
-                     "--batch", "256", "--max-per-run", "10000",
-                     "--deadline", "60",
-                     "--log-file", _log("chatlog_embed_sweep.log")],
+            "args": [
+                _script("chatlog_embed_sweeper.py"),
+                "--batch",
+                "256",
+                "--max-per-run",
+                "10000",
+                "--deadline",
+                "60",
+                "--log-file",
+                _log("chatlog_embed_sweep.log"),
+            ],
             "schedule": "MINUTE",
             "modifier": "30",
             "time": "00:00",
-            "description": "Embed un-embedded chat_log rows using the local embedding server"
+            "description": "Embed un-embedded chat_log rows using the local embedding server",
         },
         {
             "name": "AgentOS_ObservationDrain",
@@ -1125,14 +1135,20 @@ def get_schedule_specs(m3_memory_root, dashboard_port: int = 8088):
             # draining 200 queued observations in one run pins the GPU for a long
             # stretch. Lowered to 8 so each 15-min run is a short burst; the queue
             # still drains steadily across runs and interactive use isn't starved.
-            "args": [_script("m3_enrich.py"),
-                     "--drain-queue", "--drain-batch", "8",
-                     "--profile", "enrich_local_qwen",
-                     "--log-file", _log("observation_drain.log")],
+            "args": [
+                _script("m3_enrich.py"),
+                "--drain-queue",
+                "--drain-batch",
+                "8",
+                "--profile",
+                "enrich_local_qwen",
+                "--log-file",
+                _log("observation_drain.log"),
+            ],
             "schedule": "MINUTE",
             "modifier": "15",
             "time": "00:00",
-            "description": "Drain observation_queue: extract user-facts from chatlog conversations"
+            "description": "Drain observation_queue: extract user-facts from chatlog conversations",
         },
         {
             "name": "AgentOS_CognitiveLoop",
@@ -1144,13 +1160,18 @@ def get_schedule_specs(m3_memory_root, dashboard_port: int = 8088):
             # loop's default (2): a short GPU burst per pass, shrunk to 1 under
             # THROTTLED load. (Previously --interval 300 with the old default-1
             # ceiling drained ~1 item / 5 min even while idle.)
-            "args": [_script("m3_cognitive_loop.py"),
-                     "--interval", "60", "--background",
-                     "--log-file", _log("cognitive_loop.log")],
+            "args": [
+                _script("m3_cognitive_loop.py"),
+                "--interval",
+                "60",
+                "--background",
+                "--log-file",
+                _log("cognitive_loop.log"),
+            ],
             "schedule": "ONSTART",
             "modifier": "",
             "time": "00:00",
-            "description": "Autonomous heartbeat: entity extraction, observations, and reflection (continuous)"
+            "description": "Autonomous heartbeat: entity extraction, observations, and reflection (continuous)",
         },
         {
             "name": "AgentOS_LoopWatchdog",
@@ -1163,7 +1184,7 @@ def get_schedule_specs(m3_memory_root, dashboard_port: int = 8088):
             "schedule": "MINUTE",
             "modifier": "5",
             "time": "00:00",
-            "description": "Watchdog: restart the cognitive loop if its heartbeat goes stale"
+            "description": "Watchdog: restart the cognitive loop if its heartbeat goes stale",
         },
         {
             "name": "AgentOS_EmbedServer",
@@ -1175,13 +1196,17 @@ def get_schedule_specs(m3_memory_root, dashboard_port: int = 8088):
             # The server auto-detects the bge-m3 GGUF (discover_bge_m3_gguf) so it
             # needs no env; binds 127.0.0.1 only. ONSTART so it's the sole embedder
             # from boot, before any client tries to embed.
-            "args": [_script("embed_server_inproc.py"),
-                     "--port", "8082",
-                     "--log-file", _log("embed_server_inproc.log")],
+            "args": [
+                _script("embed_server_inproc.py"),
+                "--port",
+                "8082",
+                "--log-file",
+                _log("embed_server_inproc.log"),
+            ],
             "schedule": "ONSTART",
             "modifier": "",
             "time": "00:00",
-            "description": "Shared in-process GPU embedder server (one CUDA context, localhost HTTP)"
+            "description": "Shared in-process GPU embedder server (one CUDA context, localhost HTTP)",
         },
         {
             "name": "AgentOS_NotificationWaiter",
@@ -1217,14 +1242,20 @@ def get_schedule_specs(m3_memory_root, dashboard_port: int = 8088):
             # problem: 3 of the 5 agents registered on this machine were last
             # seen in April/May, and a per-agent design would keep live tasks
             # running for agents that are gone.
-            "args": ["-u", _script("m3_notification_waiter.py"),
-                     *_waiter_agent_args(),
-                     "--interval", "5", "--supervise",
-                     "--timeout", "3600"],
+            "args": [
+                "-u",
+                _script("m3_notification_waiter.py"),
+                *_waiter_agent_args(),
+                "--interval",
+                "5",
+                "--supervise",
+                "--timeout",
+                "3600",
+            ],
             "schedule": "ONSTART",
             "modifier": "",
             "time": "00:00",
-            "description": "Agent-to-agent notification receipt SLA (<30s ack, WAL-triggered)"
+            "description": "Agent-to-agent notification receipt SLA (<30s ack, WAL-triggered)",
         },
         {
             "name": "AgentOS_Dashboard",
@@ -1236,15 +1267,21 @@ def get_schedule_specs(m3_memory_root, dashboard_port: int = 8088):
             # self-registers in the PID registry and binds 127.0.0.1 only.
             # Optional feature — this task is only registered when the user opts
             # into the dashboard (setup wizard / `install_schedules --add dashboard`).
-            "args": [_script("dashboard_server.py"),
-                     "--foreground", "--port", str(dashboard_port),
-                     "--log-file", _log("dashboard.log")],
+            "args": [
+                _script("dashboard_server.py"),
+                "--foreground",
+                "--port",
+                str(dashboard_port),
+                "--log-file",
+                _log("dashboard.log"),
+            ],
             "schedule": "ONSTART",
             "modifier": "",
             "time": "00:00",
-            "description": "Local web dashboard (windowless, localhost HTTP :8088)"
-        }
+            "description": "Local web dashboard (windowless, localhost HTTP :8088)",
+        },
     ]
+
 
 def _filter_tasks(tasks: list, selector: str | None) -> list:
     """Return tasks matching the selector. selector may be a full name or short alias
@@ -1252,8 +1289,11 @@ def _filter_tasks(tasks: list, selector: str | None) -> list:
     if not selector:
         return tasks
     sel_norm = selector.lower().replace("-", "").replace("_", "")
-    matched = [t for t in tasks if t["name"].lower().replace("_", "") == sel_norm
-               or sel_norm in t["name"].lower().replace("_", "")]
+    matched = [
+        t
+        for t in tasks
+        if t["name"].lower().replace("_", "") == sel_norm or sel_norm in t["name"].lower().replace("_", "")
+    ]
     return matched
 
 
@@ -1281,6 +1321,7 @@ def _xml_escape(text: str) -> str:
         .replace('"', "&quot;")
         .replace("'", "&apos;")
     )
+
 
 # The long-lived ONSTART processes need a self-heal repetition: each is a single
 # continuous process, so if it dies it never restarts until the next boot. The
@@ -1338,12 +1379,7 @@ _SELF_HEAL_TASKS = {
 
 def _xml_repetition(interval_iso: str) -> str:
     """A <Repetition> that repeats every interval_iso forever (no Duration)."""
-    return (
-        "<Repetition>"
-        f"<Interval>{interval_iso}</Interval>"
-        "<StopAtDurationEnd>false</StopAtDurationEnd>"
-        "</Repetition>"
-    )
+    return f"<Repetition><Interval>{interval_iso}</Interval><StopAtDurationEnd>false</StopAtDurationEnd></Repetition>"
 
 
 def _render_trigger_xml(task: dict) -> str:
@@ -1394,8 +1430,13 @@ def _render_trigger_xml(task: dict) -> str:
         # schtasks uses 3-letter day tokens (MON/TUE/.../FRI); XML wants element
         # names (<Monday/> ...). Map, defaulting to Sunday if unrecognised.
         days = {
-            "MON": "Monday", "TUE": "Tuesday", "WED": "Wednesday",
-            "THU": "Thursday", "FRI": "Friday", "SAT": "Saturday", "SUN": "Sunday",
+            "MON": "Monday",
+            "TUE": "Tuesday",
+            "WED": "Wednesday",
+            "THU": "Thursday",
+            "FRI": "Friday",
+            "SAT": "Saturday",
+            "SUN": "Sunday",
         }
         day_el = days.get(mod.upper()[:3], "Sunday")
         return (
@@ -1701,7 +1742,7 @@ def stop_unix_services() -> list:
     names: list = []
     for entry in _ROLE_TO_SERVICE.values():
         val = entry.get(key) if key in ("linux", "darwin") else None
-        for name in (val if isinstance(val, tuple) else (val,)):
+        for name in val if isinstance(val, tuple) else (val,):
             if name and name not in names and name != keep:
                 names.append(name)
     stopped: list = []
@@ -1711,8 +1752,7 @@ def stop_unix_services() -> list:
             if not _service_exists(name):
                 continue
             # Report only what this call stops: an inactive unit is not news.
-            state = _run(["systemctl", "--user", "is-active", name],
-                         capture_output=True, text=True)
+            state = _run(["systemctl", "--user", "is-active", name], capture_output=True, text=True)
             if (state.stdout or "").strip() not in ("active", "activating", "reloading"):
                 continue
             r = _run(["systemctl", "--user", "stop", name], capture_output=True, text=True)
@@ -1823,8 +1863,7 @@ def _service_exists(name: str) -> bool:
     if key == "darwin":
         # launchctl list <label> exits non-zero when the label is not loaded.
         try:
-            return _run(["launchctl", "list", name],
-                        capture_output=True, text=True).returncode == 0
+            return _run(["launchctl", "list", name], capture_output=True, text=True).returncode == 0
         except Exception:  # noqa: BLE001 — probe failure must not block a start
             return True
     if key != "linux":
@@ -1832,7 +1871,8 @@ def _service_exists(name: str) -> bool:
     try:
         probe = _run(
             ["systemctl", "--user", "show", "-p", "LoadState", "--value", name],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
     except Exception:  # noqa: BLE001 — probe failure must not block a start
         return True
@@ -1848,6 +1888,7 @@ def _restart_command(name: str) -> list:
         return ["launchctl", "start", name]
     return ["systemctl", "--user", "start", name]
 
+
 def restart_reaped_services(covered: set) -> None:
     """Restart daemons the reap stopped that the task selector did not cover.
 
@@ -1860,8 +1901,7 @@ def restart_reaped_services(covered: set) -> None:
             # A role we stopped but cannot name on ANY platform. Loud, because
             # "whatever we stop, we start" is the contract and we just broke it.
             _safe_print(
-                f"{WARN} Stopped {role} but it has no entry in _ROLE_TO_SERVICE — "
-                f"it will stay DOWN. Add it there."
+                f"{WARN} Stopped {role} but it has no entry in _ROLE_TO_SERVICE — it will stay DOWN. Add it there."
             )
             continue
 
@@ -1947,7 +1987,9 @@ def _verify_task_registered(name: str) -> "str | None":
     try:
         q = _run(
             ["schtasks", "/Query", "/TN", name, "/XML"],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return f"could not query it back: {exc!r}"
@@ -1964,6 +2006,7 @@ def _verify_task_registered(name: str) -> "str | None":
             "C:/Windows/system32, where the payload may not be importable"
         )
     return None
+
 
 def _service_name_for_task(task_name: str) -> "tuple[str | None, bool]":
     """Translate a Windows TASK name to THIS platform's service name.
@@ -2054,9 +2097,7 @@ def _start_longlived_tasks(tasks: list) -> None:
                 _safe_print(f"{WARN} Started {service} but it is NOT serving: {detail}")
                 _safe_print(f"        check its log, then: {' '.join(cmd)}")
         else:
-            err = (res.stderr or res.stdout).strip() or (
-                f"{service!r} is not a known service on {_platform_key()}"
-            )
+            err = (res.stderr or res.stdout).strip() or (f"{service!r} is not a known service on {_platform_key()}")
             _safe_print(f"{WARN} Registered {name} but could not start it: {err}")
             _safe_print(f"        start it with: {' '.join(cmd)}")
 
@@ -2081,9 +2122,7 @@ def _agent_is_live(agent_id: str, max_age_days: int = 30) -> bool:
             # match at most one row. Materialising a list to read [0] is the
             # Python-side post-processing §4 exists to prevent -- small here,
             # but the habit is what scales badly.
-            row = db.execute(
-                f"SELECT last_seen FROM agents WHERE agent_id = {ph}", (agent_id,)
-            ).fetchone()
+            row = db.execute(f"SELECT last_seen FROM agents WHERE agent_id = {ph}", (agent_id,)).fetchone()
         if row is None or not row["last_seen"]:
             return True
         seen = datetime.fromisoformat(str(row["last_seen"]))
@@ -2106,10 +2145,12 @@ def _waiter_agent_args() -> list:
     ids = []
     try:
         import sys as _sys
+
         _sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
         import re as _re
 
         from memory.orchestration import agent_list_impl
+
         # "@" is in the class: an agent id may be "type@instance" (#170), and a
         # character class that excluded it would silently truncate every
         # instance-addressed inbox to its bare type -- re-creating the shared
@@ -2130,6 +2171,7 @@ def _waiter_agent_args() -> list:
     for a in ids:
         out += ["--agent-id", a]
     return out
+
 
 def _drop_embed_task_if_rust_owns_port(tasks: "list[dict]") -> "list[dict]":
     """Remove AgentOS_EmbedServer when the Rust SCM service already owns :8082.
@@ -2159,19 +2201,19 @@ def _drop_embed_task_if_rust_owns_port(tasks: "list[dict]") -> "list[dict]":
         _safe_print(
             f"{WARN} skipping {task_name}: the Rust m3-embed-server is already "
             f"registered as the SCM service `{_WINDOWS_RUST_EMBED_SERVICE}` and "
-            f"owns :8082.")
-        _safe_print(
-            "      Both bind the same port; registering the task too would put "
-            "two supervisors on one port.")
+            f"owns :8082."
+        )
+        _safe_print("      Both bind the same port; registering the task too would put two supervisors on one port.")
         _safe_print(
             "      `m3 embedder install` owns the embed-server keep-alive here. "
-            "To use the Python task instead: `m3 embedder uninstall` first.")
+            "To use the Python task instead: `m3 embedder uninstall` first."
+        )
     else:
         _safe_print(
             f"{WARN} skipping {task_name}: could not determine whether the Rust "
-            f"m3-embed-server is registered, and both bind :8082.")
-        _safe_print(
-            f"      inspect: sc.exe query {_WINDOWS_RUST_EMBED_SERVICE}")
+            f"m3-embed-server is registered, and both bind :8082."
+        )
+        _safe_print(f"      inspect: sc.exe query {_WINDOWS_RUST_EMBED_SERVICE}")
     return [t for t in tasks if t["name"] != task_name]
 
 
@@ -2231,7 +2273,8 @@ def install_windows_tasks(m3_memory_root, selector: str | None = None, dashboard
                 fh.write(xml_doc)
             result = _run(
                 ["schtasks", "/Create", "/TN", task["name"], "/XML", xml_path, "/F"],
-                capture_output=True, text=True,
+                capture_output=True,
+                text=True,
             )
         finally:
             # Always clean up the temp file — no orphaned artifacts (§12c).
@@ -2245,10 +2288,7 @@ def install_windows_tasks(m3_memory_root, selector: str | None = None, dashboard
             # rc 0 is not proof the task exists. Query it back (#161).
             problem = _verify_task_registered(task["name"])
             if problem:
-                _safe_print(
-                    f"{FAIL} schtasks reported success for {task['name']} but "
-                    f"verification failed: {problem}"
-                )
+                _safe_print(f"{FAIL} schtasks reported success for {task['name']} but verification failed: {problem}")
                 success = False
                 continue
             note = " (+30-min self-heal repetition)" if task["name"] in _SELF_HEAL_TASKS else ""
@@ -2259,8 +2299,10 @@ def install_windows_tasks(m3_memory_root, selector: str | None = None, dashboard
             if "access is denied" in err.lower() and _existing_task_covers(task, xml_doc):
                 # Re-registering a boot task needs elevation, but the one already
                 # registered is current; nothing is missing.
-                _safe_print(f"{OK} Kept {task['name']}: already registered to spec "
-                            f"(re-registering it needs an elevated shell; not needed)")
+                _safe_print(
+                    f"{OK} Kept {task['name']}: already registered to spec "
+                    f"(re-registering it needs an elevated shell; not needed)"
+                )
                 continue
             _safe_print(f"{FAIL} Failed to create task {task['name']}: {err}")
             if "access is denied" in err.lower():
@@ -2297,8 +2339,7 @@ def install_windows_tasks(m3_memory_root, selector: str | None = None, dashboard
             # (resolved from sys.executable + this script's real path, so it is
             # copy-pasteable for a pipx/site-packages install, not a fictional
             # `bin/` on cwd).
-            names = ", ".join(denied_tasks) if denied_tasks else \
-                "CognitiveLoop, EmbedServer, SecretRotator"
+            names = ", ".join(denied_tasks) if denied_tasks else "CognitiveLoop, EmbedServer, SecretRotator"
             script = os.path.abspath(__file__)
             py = sys.executable
             bar = "=" * 74
@@ -2348,20 +2389,24 @@ def remove_windows_tasks(selector: str | None, m3_memory_root: str):
             tasks = exact
         else:
             names = ", ".join(t["name"] for t in tasks)
-            _safe_print(f"{FAIL} Selector {selector!r} matches {len(tasks)} tasks "
-                        f"({names}). Refusing to remove multiple tasks from an "
-                        f"ambiguous selector — pass an exact task name, or "
-                        f"`--remove all` to remove them all.")
+            _safe_print(
+                f"{FAIL} Selector {selector!r} matches {len(tasks)} tasks "
+                f"({names}). Refusing to remove multiple tasks from an "
+                f"ambiguous selector — pass an exact task name, or "
+                f"`--remove all` to remove them all."
+            )
             return
     for task in tasks:
         r = _run(
             ["schtasks", "/Delete", "/TN", task["name"], "/F"],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         if r.returncode == 0:
             _safe_print(f"{OK} Removed: {task['name']}")
         else:
             _safe_print(f"{WARN} Could not remove {task['name']} (may not exist): {r.stderr.strip()}")
+
 
 _TRIGGER_TAGS = ("BootTrigger", "LogonTrigger", "TimeTrigger", "CalendarTrigger")
 
@@ -2371,8 +2416,7 @@ def _existing_task_covers(task: dict, spec_xml: str) -> bool:
     registered with every trigger type the spec has and otherwise to spec? Then
     nothing is missing and there is nothing for an admin to do."""
     try:
-        r = _run(["schtasks", "/Query", "/TN", task["name"], "/XML", "ONE"],
-                 capture_output=True, text=True)
+        r = _run(["schtasks", "/Query", "/TN", task["name"], "/XML", "ONE"], capture_output=True, text=True)
     except subprocess.TimeoutExpired:
         return False
     live = r.stdout if r.returncode == 0 else ""
@@ -2392,7 +2436,8 @@ def _verify_windows_task(name: str, expected_args: "str | None" = None) -> bool:
     try:
         r = _run(
             ["schtasks", "/Query", "/TN", name, "/XML", "ONE"],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
     except subprocess.TimeoutExpired:
         # The docstring above promises this never raises. A query that does not
@@ -2452,9 +2497,11 @@ def _verify_windows_task(name: str, expected_args: "str | None" = None) -> bool:
         m = re.search(r"<Arguments>(.*?)</Arguments>", xml, re.DOTALL)
         live = html.unescape(m.group(1)) if m else ""
         if live != expected_args:
-            _safe_print(f"{WARN} {name}: arguments differ from this payload's spec "
-                        f"(older script or log paths). Re-register with --repair "
-                        f"(needs an elevated shell on Windows).")
+            _safe_print(
+                f"{WARN} {name}: arguments differ from this payload's spec "
+                f"(older script or log paths). Re-register with --repair "
+                f"(needs an elevated shell on Windows)."
+            )
             ok = False
     if ok:
         _safe_print(f"{OK} {name}: registered and matches spec")
@@ -2489,19 +2536,22 @@ def _verify_unix_cognitive_loop() -> bool:
             # raw yields "true" for KeepAlive=true, the sub-key name (e.g.
             # "Crashed") for the dict form, and rc!=0 when the key is absent.
             try:
-                r = _run(["plutil", "-extract", "KeepAlive", "raw",
-                                    "-o", "-", dest],
-                                   capture_output=True, text=True, timeout=20)
+                r = _run(
+                    ["plutil", "-extract", "KeepAlive", "raw", "-o", "-", dest],
+                    capture_output=True,
+                    text=True,
+                    timeout=20,
+                )
                 value = (r.stdout or "").strip()
                 if r.returncode != 0:
-                    _safe_print(f"{WARN} plist has no <key>KeepAlive</key> — "
-                                f"loop won't self-heal")
+                    _safe_print(f"{WARN} plist has no <key>KeepAlive</key> — loop won't self-heal")
                 elif value != "true":
                     _safe_print(
                         f"{WARN} plist has KeepAlive={value} (not true) — the "
                         f"loop will NOT be restarted after a clean exit, which "
                         f"is how an upgrade stops it. Re-run `m3 install` to "
-                        f"get the current template.")
+                        f"get the current template."
+                    )
             except (OSError, subprocess.SubprocessError):
                 pass
             return True
@@ -2514,9 +2564,7 @@ def _verify_unix_cognitive_loop() -> bool:
             _safe_print(f"{FAIL} systemd --user unit not installed: {dest}")
             return False
         try:
-            active = _run(
-                ["systemctl", "--user", "is-active", unit], capture_output=True, text=True
-            )
+            active = _run(["systemctl", "--user", "is-active", unit], capture_output=True, text=True)
         except subprocess.TimeoutExpired:
             _safe_print(f"{FAIL} systemctl is-active timed out; cannot verify {unit}")
             return False
@@ -2532,8 +2580,7 @@ def _verify_unix_cognitive_loop() -> bool:
 
 def _windows_task_registered(name: str) -> bool:
     try:
-        return _run(["schtasks", "/Query", "/TN", name],
-                    capture_output=True, text=True).returncode == 0
+        return _run(["schtasks", "/Query", "/TN", name], capture_output=True, text=True).returncode == 0
     except (OSError, subprocess.SubprocessError):
         return True  # unknown: let the full verify report it
 
@@ -2549,6 +2596,7 @@ def _verify_or_explain_absence(task: dict) -> bool:
     if not _windows_task_registered(name):
         try:
             from governor_migration import GOVERNOR_ELIGIBLE
+
             governed: tuple[str, ...] = tuple(GOVERNOR_ELIGIBLE)
         except Exception:  # noqa: BLE001
             governed = ()
@@ -2556,19 +2604,21 @@ def _verify_or_explain_absence(task: dict) -> bool:
             # The pass only runs if the loop that hosts it is installed.
             try:
                 from governor_migration import cognitive_loop_installed
+
                 loop = cognitive_loop_installed()
             except Exception:  # noqa: BLE001
                 loop = False
             if loop:
                 _safe_print(f"{OK} {name}: runs as a cognitive-loop pass (no task needed)")
                 return True
-            _safe_print(f"{FAIL} {name}: not registered, and the cognitive loop that "
-                        f"would run it is not installed either. fix: m3 schedules add "
-                        f"cognitive-loop")
+            _safe_print(
+                f"{FAIL} {name}: not registered, and the cognitive loop that "
+                f"would run it is not installed either. fix: m3 schedules add "
+                f"cognitive-loop"
+            )
             return False
         if name == _ROLE_TO_SERVICE["embed-server"]["win"] and _rust_embed_service_loaded() is True:
-            _safe_print(f"{OK} {name}: not needed — the Rust m3-embed-server service "
-                        f"is registered and owns :8082")
+            _safe_print(f"{OK} {name}: not needed — the Rust m3-embed-server service is registered and owns :8082")
             return True
     return _verify_windows_task(name, _task_arguments(task))
 
@@ -2591,13 +2641,13 @@ def verify_schedules(selector: str | None, m3_memory_root: str) -> bool:
     if sel in ("cognitiveloop", "agentoscognitiveloop"):
         return _verify_unix_cognitive_loop()
     if selector is not None:
-        _safe_print(f"{WARN} verify on {osn} checks the cognitive loop and the "
-                    f"periodic jobs together; run it without a name.")
+        _safe_print(
+            f"{WARN} verify on {osn} checks the cognitive loop and the periodic jobs together; run it without a name."
+        )
         return True
     # Check both (no short-circuit) so every problem is reported at once.
     loop_ok = _verify_unix_cognitive_loop()
-    periodic_ok = (verify_macos_periodic(m3_memory_root) if osn == "Darwin"
-                   else verify_linux_periodic(m3_memory_root))
+    periodic_ok = verify_macos_periodic(m3_memory_root) if osn == "Darwin" else verify_linux_periodic(m3_memory_root)
     return loop_ok and periodic_ok
 
 
@@ -2612,6 +2662,7 @@ def list_schedules(m3_memory_root):
         print(f"    Schedule: {spec['schedule']} (modifier: {spec['modifier'] or 'N/A'})")
         print()
 
+
 def main():
     script_dir = pathlib.Path(__file__).parent.resolve()
     m3_memory_root = str(script_dir.parent)
@@ -2619,22 +2670,29 @@ def main():
     parser = argparse.ArgumentParser(
         description="Install / remove / list m3-memory scheduled tasks.",
         epilog="Pass --add NAME to install a single task. Running with no flags is a no-op "
-               "(prevents accidental mass-install). Use --add all to install every schedule.",
+        "(prevents accidental mass-install). Use --add all to install every schedule.",
     )
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--list", action="store_true", help="List configured schedules and exit.")
-    group.add_argument("--add", metavar="NAME",
-                       help="Install one schedule by name (e.g. chatlog-embed-sweep) or 'all'.")
-    group.add_argument("--remove", metavar="NAME",
-                       help="Remove one schedule by name, or 'all'.")
-    group.add_argument("--repair", action="store_true",
-                       help="Re-install every configured schedule in place (alias for --add all).")
-    group.add_argument("--verify", metavar="NAME", nargs="?", const="all",
-                       help="Verify the registered job(s) match the spec (Windows task / "
-                            "macOS launchd / Linux systemd). NAME or 'all' (default). "
-                            "Exit code is non-zero if verification fails.")
-    parser.add_argument("--port", type=int, default=8088,
-                        help="Port for the dashboard service (with --add dashboard). Default 8088.")
+    group.add_argument(
+        "--add", metavar="NAME", help="Install one schedule by name (e.g. chatlog-embed-sweep) or 'all'."
+    )
+    group.add_argument("--remove", metavar="NAME", help="Remove one schedule by name, or 'all'.")
+    group.add_argument(
+        "--repair", action="store_true", help="Re-install every configured schedule in place (alias for --add all)."
+    )
+    group.add_argument(
+        "--verify",
+        metavar="NAME",
+        nargs="?",
+        const="all",
+        help="Verify the registered job(s) match the spec (Windows task / "
+        "macOS launchd / Linux systemd). NAME or 'all' (default). "
+        "Exit code is non-zero if verification fails.",
+    )
+    parser.add_argument(
+        "--port", type=int, default=8088, help="Port for the dashboard service (with --add dashboard). Default 8088."
+    )
     args = parser.parse_args()
 
     if args.list:
@@ -2666,10 +2724,13 @@ def main():
         try:
             sys.path.insert(0, str(script_dir))
             from m3_sdk import ensure_governor_config
+
             ensure_governor_config()
             from m3_core.autonomy import ensure_autonomy_config
+
             ensure_autonomy_config()
             from _task_runtime import ensure_log_config
+
             ensure_log_config()
         except Exception:
             pass
@@ -2689,18 +2750,22 @@ def main():
         try:
             sys.path.insert(0, str(script_dir))
             from m3_sdk import kill_stale_daemons
+
             # Only daemons older than this payload run old code; ones started
             # since (e.g. by the setup run that invoked us) are left alone. The
             # Rust embed server does not run payload code at all (see
             # keeps_rust_embed_server); its supervisor would only restart it.
             reaped = kill_stale_daemons(
                 started_before=os.path.getmtime(__file__),
-                exclude_roles=["embed-server"] if keeps_rust_embed_server() else None)
+                exclude_roles=["embed-server"] if keeps_rust_embed_server() else None,
+            )
             killed = [r for r in reaped if r["killed"]]
             stuck = [r for r in reaped if not r["killed"]]
             if killed:
-                _safe_print(f"  Stopped {len(killed)} running m3 daemon(s) before "
-                            f"install: {', '.join(sorted({r['role'] for r in killed}))}")
+                _safe_print(
+                    f"  Stopped {len(killed)} running m3 daemon(s) before "
+                    f"install: {', '.join(sorted({r['role'] for r in killed}))}"
+                )
                 # Remember what we stopped. The reap is fleet-wide but the task
                 # work below is SELECTOR-SCOPED: `m3 setup` passes
                 # --add embed-server, so only AgentOS_EmbedServer is registered
@@ -2715,17 +2780,21 @@ def main():
                 # _ROLE_TO_SERVICE lookup and the service we stopped stays down
                 # behind a warning naming a role that IS mapped.
                 from m3_halt import base_role
+
                 _reaped_roles.update(base_role(r["role"]) for r in killed)
             from m3_halt import holds_store
+
             for r in stuck:
                 if not holds_store(r["role"]):
                     # Holds no store, and this sub-step cannot act on it. The
                     # command that ran us (`m3 stop`, setup) reports it once, and
                     # doctor reports a stale binary.
                     continue
-                _safe_print(f"{WARN} Could not stop {r['role']} (pid {r['pid']}): "
-                            f"{r['error']} — re-run elevated or stop it manually, "
-                            f"else a duplicate may linger.")
+                _safe_print(
+                    f"{WARN} Could not stop {r['role']} (pid {r['pid']}): "
+                    f"{r['error']} — re-run elevated or stop it manually, "
+                    f"else a duplicate may linger."
+                )
         except Exception as e:  # noqa: BLE001 — reap is best-effort; never block install
             _safe_print(f"{WARN} Pre-install daemon reap skipped: {e}")
 
@@ -2756,9 +2825,11 @@ def main():
                     # cognitive loop), not a cron entry — install it on its own.
                     install_unix_dashboard(m3_memory_root, port=getattr(args, "port", 8088) or 8088)
                 else:
-                    _safe_print(f"{WARN} Unix crontab installer currently rewrites all entries. "
-                                "Single-task add on Unix is not supported yet — use --add all or edit "
-                                "crontab directly. (cognitive-loop and dashboard can be added on their own.)")
+                    _safe_print(
+                        f"{WARN} Unix crontab installer currently rewrites all entries. "
+                        "Single-task add on Unix is not supported yet — use --add all or edit "
+                        "crontab directly. (cognitive-loop and dashboard can be added on their own.)"
+                    )
             else:
                 install_unix_periodic(m3_memory_root)
                 # The cognitive loop runs as a launchd/systemd service, not a
@@ -2776,12 +2847,15 @@ def main():
             remove_windows_tasks(selector, m3_memory_root)
         elif os_name in ("Darwin", "Linux"):
             if selector and selector.lower().replace("-", "").replace("_", "") in (
-                "cognitiveloop", "agentoscognitiveloop"
+                "cognitiveloop",
+                "agentoscognitiveloop",
             ):
                 remove_unix_cognitive_loop()
             elif selector:
-                _safe_print(f"{WARN} Unix removal of individual cron entries: edit crontab "
-                            "directly with `crontab -e`. (cognitive-loop can be removed on its own.)")
+                _safe_print(
+                    f"{WARN} Unix removal of individual cron entries: edit crontab "
+                    "directly with `crontab -e`. (cognitive-loop can be removed on its own.)"
+                )
             else:
                 remove_unix_cognitive_loop()
                 _safe_print(f"{WARN} Cron entries: edit crontab directly with `crontab -e` to remove them.")

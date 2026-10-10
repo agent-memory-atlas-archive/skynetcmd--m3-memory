@@ -26,17 +26,14 @@ def _make_store(path, missing=0, embedded=0):
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(path))
     conn.execute(
-        "CREATE TABLE memory_items (id TEXT PRIMARY KEY, content TEXT, "
-        "type TEXT, is_deleted INTEGER DEFAULT 0)"
+        "CREATE TABLE memory_items (id TEXT PRIMARY KEY, content TEXT, type TEXT, is_deleted INTEGER DEFAULT 0)"
     )
     conn.execute("CREATE TABLE memory_embeddings (memory_id TEXT, embedding BLOB)")
     for i in range(missing):
-        conn.execute("INSERT INTO memory_items VALUES (?,?,?,0)",
-                     (f"m{i}", f"body {i}", "chat_log"))
+        conn.execute("INSERT INTO memory_items VALUES (?,?,?,0)", (f"m{i}", f"body {i}", "chat_log"))
     for i in range(embedded):
         rid = f"e{i}"
-        conn.execute("INSERT INTO memory_items VALUES (?,?,?,0)",
-                     (rid, f"body {i}", "chat_log"))
+        conn.execute("INSERT INTO memory_items VALUES (?,?,?,0)", (rid, f"body {i}", "chat_log"))
         conn.execute("INSERT INTO memory_embeddings VALUES (?,?)", (rid, b"\x00"))
     conn.commit()
     conn.close()
@@ -46,6 +43,7 @@ def _make_store(path, missing=0, embedded=0):
 @pytest.fixture
 def doctor():
     from memory import doctor as d
+
     return d
 
 
@@ -58,9 +56,7 @@ def test_split_topology_resolves_both_stores(doctor, tmp_path, monkeypatch):
     chatlog_config.invalidate_cache()
 
     stores = doctor._resolve_embed_stores(main)
-    assert os.path.abspath(chat) in stores, (
-        "chatlog store missing -- --fix would silently skip the real backlog"
-    )
+    assert os.path.abspath(chat) in stores, "chatlog store missing -- --fix would silently skip the real backlog"
     assert len(stores) == 2
 
 

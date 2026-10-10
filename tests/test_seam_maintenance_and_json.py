@@ -5,6 +5,7 @@ checkpoints without knowing it is on SQLite, and a JSON-column read works
 whether the driver hands back TEXT (SQLite) or an already-parsed dict
 (Postgres JSONB / MariaDB JSON).
 """
+
 import os
 import sqlite3
 import sys
@@ -28,25 +29,21 @@ POSTGRES = dialect_for("postgres")
 # SQLite and raises TypeError on Postgres; this is why callers must not roll
 # their own shim.
 
+
 @pytest.mark.parametrize("dialect", [SQLITE, POSTGRES], ids=["sqlite", "postgres"])
 def test_json_column_to_dict_handles_both_driver_shapes(dialect):
     """TEXT (SQLite) and pre-parsed dict (Postgres JSONB) both normalize."""
-    assert dialect.json_column_to_dict('{"authority": "canonical"}') == {
-        "authority": "canonical"
-    }
+    assert dialect.json_column_to_dict('{"authority": "canonical"}') == {"authority": "canonical"}
     # Postgres JSONB: psycopg returns a dict already. json.loads() on this
     # raises TypeError — the trap this helper exists to absorb.
-    assert dialect.json_column_to_dict({"authority": "canonical"}) == {
-        "authority": "canonical"
-    }
+    assert dialect.json_column_to_dict({"authority": "canonical"}) == {"authority": "canonical"}
 
 
 @pytest.mark.parametrize("dialect", [SQLITE, POSTGRES], ids=["sqlite", "postgres"])
 @pytest.mark.parametrize(
     "value",
     [None, "", b"", "not json at all", "[1, 2, 3]", '"a string"', "123", b"\xff\xfe"],
-    ids=["none", "empty-str", "empty-bytes", "garbage", "json-list",
-         "json-str", "json-int", "bad-utf8"],
+    ids=["none", "empty-str", "empty-bytes", "garbage", "json-list", "json-str", "json-int", "bad-utf8"],
 )
 def test_json_column_to_dict_fails_safe(dialect, value):
     """Anything not a JSON OBJECT yields {} — never raises.
@@ -72,10 +69,12 @@ def test_json_column_to_dict_preserves_nested_structure():
         "compiler": {"member_ids": ["a", "b"], "member_count": 2},
     }
     import json
+
     assert SQLITE.json_column_to_dict(json.dumps(meta)) == meta
 
 
 # ── maintenance_checkpoint ───────────────────────────────────────────────────
+
 
 def test_sqlite_maintenance_checkpoint_runs_and_is_idempotent(tmp_path):
     """PASSIVE mid-batch and TRUNCATE at exit both succeed on a real WAL db."""
@@ -87,9 +86,9 @@ def test_sqlite_maintenance_checkpoint_runs_and_is_idempotent(tmp_path):
     conn.commit()
 
     be = SqliteBackend()
-    be.maintenance_checkpoint(conn)                 # mid-batch
-    be.maintenance_checkpoint(conn)                 # idempotent
-    be.maintenance_checkpoint(conn, final=True)     # clean exit
+    be.maintenance_checkpoint(conn)  # mid-batch
+    be.maintenance_checkpoint(conn)  # idempotent
+    be.maintenance_checkpoint(conn, final=True)  # clean exit
 
     # Data survives the checkpoints (TRUNCATE flushes WAL into the main file).
     assert conn.execute("SELECT COUNT(*) FROM t").fetchone()[0] == 200
@@ -106,8 +105,8 @@ def test_sqlite_maintenance_checkpoint_never_raises_on_a_dead_conn():
     conn = sqlite3.connect(":memory:")
     conn.close()
     be = SqliteBackend()
-    be.maintenance_checkpoint(conn)               # must not raise
-    be.maintenance_checkpoint(conn, final=True)   # must not raise
+    be.maintenance_checkpoint(conn)  # must not raise
+    be.maintenance_checkpoint(conn, final=True)  # must not raise
 
 
 def test_backends_expose_maintenance_checkpoint():
@@ -119,6 +118,7 @@ def test_backends_expose_maintenance_checkpoint():
     """
     assert callable(getattr(SqliteBackend(), "maintenance_checkpoint", None))
     from memory.backends import postgres_backend
+
     assert callable(getattr(postgres_backend.PostgresBackend, "maintenance_checkpoint", None))
 
 
@@ -128,10 +128,12 @@ def test_backends_expose_maintenance_checkpoint():
 # bare dict raises psycopg2 "can't adapt type dict". Serializing to a JSON string
 # binds on BOTH backends. Callers must not roll their own json.dumps-if-dict shim.
 
+
 @pytest.mark.parametrize("dialect", [SQLITE, POSTGRES], ids=["sqlite", "postgres"])
 def test_json_bind_value_serializes_dict_and_list(dialect):
     """dict / list → a JSON string (the shape that binds on both backends)."""
     import json
+
     assert dialect.json_bind_value({"a": 1, "b": ["x", "y"]}) == json.dumps({"a": 1, "b": ["x", "y"]})
     assert dialect.json_bind_value([1, 2, 3]) == "[1, 2, 3]"
 
@@ -158,7 +160,7 @@ def test_json_bind_value_round_trips_with_json_column_to_dict():
     """
     meta = {"provider": "anthropic", "nested": {"k": 1}, "list": [1, 2]}
     for dialect in (SQLITE, POSTGRES):
-        bound = dialect.json_bind_value(meta)          # dict -> json string
+        bound = dialect.json_bind_value(meta)  # dict -> json string
         assert isinstance(bound, str)
         assert dialect.json_column_to_dict(bound) == meta  # string -> dict
 
@@ -167,6 +169,7 @@ def test_json_bind_value_round_trips_with_json_column_to_dict():
 # Replaces the `resolve_backend_name() != "sqlite"` VACUUM branch. The dialect
 # owns the compaction decision so a future backend with a real compaction
 # (MariaDB OPTIMIZE TABLE) cannot fall into a call-site no-op silently.
+
 
 def test_compact_storage_sqlite_vacuums_a_real_db(tmp_path):
     """SQLite VACUUMs the active file and reports success."""
@@ -209,6 +212,7 @@ def test_compact_storage_base_default_is_a_safe_noop():
     """A backend that overrides nothing still works — the base is a no-op, so a
     future dialect cannot accidentally crash the maintenance pass by omission."""
     from memory.backends.dialect import Dialect
+
     # Construct the base directly (a stand-in for a future backend that inherits
     # compact_storage without overriding it) — args mirror the concrete dialects.
     # param_style is a Literal["qmark","format"], so pass the bare string.
@@ -221,6 +225,7 @@ def test_compact_storage_base_default_is_a_safe_noop():
 # SQLite keeps a separate-store table BARE (separate DB file); PG qualifies it
 # with the schema (namespace in the one primary DB). The mechanism the files
 # store uses instead of `search_path`, so a pooled connection is leak-safe.
+
 
 def test_qualified_table_sqlite_is_bare():
     """SQLite ignores the schema — the store is a separate file, name is bare."""
@@ -248,6 +253,7 @@ def test_qualified_table_base_is_abstract_not_a_privileged_default():
     new backend inherit SQLite's answer and target the wrong place. Each dialect
     states its own form; the base raises, exactly like insert_or_ignore et al."""
     from memory.backends.dialect import Dialect
+
     base = Dialect(backend="sqlite", param_style="qmark")
     with pytest.raises(NotImplementedError):
         base.qualified_table("leaves", schema="files")
@@ -256,6 +262,7 @@ def test_qualified_table_base_is_abstract_not_a_privileged_default():
 def test_files_table_helper_resolves_per_backend(monkeypatch):
     """files_memory.config.files_table() threads through the ACTIVE dialect."""
     import sys as _sys
+
     _bin = os.path.normpath(os.path.join(_HERE, "..", "bin"))
     if _bin not in _sys.path:
         _sys.path.insert(0, _bin)
@@ -266,11 +273,13 @@ def test_files_table_helper_resolves_per_backend(monkeypatch):
 
     # Point the seam at the postgres dialect and re-resolve -> qualified.
     import memory.backends as _backends
+
     monkeypatch.setattr(_backends, "dialect", lambda: POSTGRES)
     assert files_table("leaves") == "files.leaves"
 
 
 # ── glob_match (shell-glob filename filter, SQLite GLOB vs PG LIKE) ────────────
+
 
 def test_glob_match_sqlite_uses_native_glob():
     """SQLite has a native case-sensitive GLOB; the pattern passes through."""
@@ -303,6 +312,7 @@ def test_glob_match_rejects_non_identifier_column(dialect):
 def test_glob_match_base_is_abstract():
     """Base raises — the operator diverges, so each backend must state its own."""
     from memory.backends.dialect import Dialect
+
     base = Dialect(backend="sqlite", param_style="qmark")
     with pytest.raises(NotImplementedError):
         base.glob_match("filename", "?", "*.md")

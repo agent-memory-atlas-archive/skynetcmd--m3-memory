@@ -5,6 +5,7 @@ Best-effort: silently skips when the binary isn't on PATH (an install
 without `m3 embedder install` is a legitimate state). Bounded timeout
 prevents this phase from hanging.
 """
+
 from __future__ import annotations
 
 import logging
@@ -35,6 +36,7 @@ def _resolve_binary() -> str | None:
         return exe
     try:
         from m3_memory import embedder_admin
+
         found = embedder_admin._server_binary()
         # _server_binary returns a Path; subprocess and the callers here want a
         # str. Normalising at the boundary keeps the rest of this module typed.
@@ -53,6 +55,7 @@ def _port_answers(timeout: float = 2.0) -> bool:
     said "healthy -- shared tier-2 embedder online".
     """
     import urllib.request
+
     try:
         with urllib.request.urlopen(  # nosec B310 — fixed loopback URL
             f"http://127.0.0.1:{_HEALTH_PORT}/health", timeout=timeout
@@ -82,8 +85,7 @@ def run(brief: bool = False) -> int:
 
         _bit = exec_bit_status(exe)
         if _bit.get("state") == "not-executable":
-            print(f"⚠️  embed-server binary is not executable (mode "
-                  f"{_bit.get('mode')}) — {_bit.get('detail')}")
+            print(f"⚠️  embed-server binary is not executable (mode {_bit.get('mode')}) — {_bit.get('detail')}")
     except Exception:  # noqa: BLE001 — a diagnostic must never break the probe
         pass
 
@@ -109,13 +111,16 @@ def run(brief: bool = False) -> int:
         import datetime
 
         from m3_memory.embedder_admin import restart_embed_service_hint, stale_embed_servers
+
         for s in stale_embed_servers():
             fmt = "%Y-%m-%d %H:%M"
-            print(f"⚠️  embed-server: pid {s['pid']} started "
-                  f"{datetime.datetime.fromtimestamp(s['started']).strftime(fmt)}, before the "
-                  f"native core was installed "
-                  f"({datetime.datetime.fromtimestamp(s['installed']).strftime(fmt)}); it still "
-                  f"runs the previous binary. fix: {restart_embed_service_hint()}")
+            print(
+                f"⚠️  embed-server: pid {s['pid']} started "
+                f"{datetime.datetime.fromtimestamp(s['started']).strftime(fmt)}, before the "
+                f"native core was installed "
+                f"({datetime.datetime.fromtimestamp(s['installed']).strftime(fmt)}); it still "
+                f"runs the previous binary. fix: {restart_embed_service_hint()}"
+            )
     except Exception:  # noqa: BLE001 — a diagnostic must never break the probe
         pass
     if not brief:
@@ -140,16 +145,22 @@ def run(brief: bool = False) -> int:
         # about, one layer down. Probe the subcommand instead of assuming it.
         sub = "doctor"
         probe = subprocess.run(
-            [exe, "doctor"], capture_output=True, text=True,
-            timeout=TIMEOUT_SECS, env=env,
+            [exe, "doctor"],
+            capture_output=True,
+            text=True,
+            timeout=TIMEOUT_SECS,
+            env=env,
         )
         if probe.returncode != 0 and "USAGE" in (probe.stdout or "") + (probe.stderr or ""):
             sub = "status"
             # Captured in both modes: an uncaptured child writes straight to the
             # terminal, ahead of this process's buffered section header.
             r = subprocess.run(
-                [exe, "status"], capture_output=True, text=True,
-                timeout=TIMEOUT_SECS, env=env,
+                [exe, "status"],
+                capture_output=True,
+                text=True,
+                timeout=TIMEOUT_SECS,
+                env=env,
             )
             if not brief:
                 print(f"  status   : {(r.stdout or r.stderr or '').strip() or '(no output)'}")
@@ -171,21 +182,20 @@ def run(brief: bool = False) -> int:
                 # precisely the reassurance that masked a killed embedder
                 # (macOS, 2026-09-20). Report the state, not the exit code.
                 if "not installed" in (r.stdout or "").lower():
-                    print("⚠️  embed-server: not installed — shared mode expects "
-                          "a service on this port. fix: m3 embedder install")
+                    print(
+                        "⚠️  embed-server: not installed — shared mode expects "
+                        "a service on this port. fix: m3 embedder install"
+                    )
                 elif sub == "status" and state[0].strip().lower() == "stopped":
-                    print("⚠️  embed-server: registered but stopped. "
-                          "fix: m3 embedder start")
+                    print("⚠️  embed-server: registered but stopped. fix: m3 embedder start")
                 else:
                     print(f"✅ embed-server: ok{detail}")
             else:
                 print(f"❌ embed-server: FAILED ({sub})")
         return r.returncode
     except subprocess.TimeoutExpired:
-        print("embed-server: ❌ timed out" if brief
-              else f"  m3-embed-server doctor timed out after {TIMEOUT_SECS}s")
+        print("embed-server: ❌ timed out" if brief else f"  m3-embed-server doctor timed out after {TIMEOUT_SECS}s")
         return 1
     except Exception as e:
-        print("embed-server: ❌ error" if brief
-              else f"  m3-embed-server doctor failed: {type(e).__name__}: {e}")
+        print("embed-server: ❌ error" if brief else f"  m3-embed-server doctor failed: {type(e).__name__}: {e}")
         return 1

@@ -23,6 +23,7 @@ general. A byte-level BPE model can emit more than one token per character, so
 `test_model_assumption_is_documented` fails loudly if the model tag moves away
 from bge-m3 without this file being revisited.
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -44,8 +45,8 @@ class TestEstimatorProperties(unittest.TestCase):
         """The load-bearing bound: content tokens <= chars, plus BOS/EOS."""
         for s in ("", "a", "ab" * 100, "\x00" * 50, "🎉" * 40, "数据库" * 30):
             self.assertGreaterEqual(
-                T.estimate_tokens(s), len(s) + T.SPECIAL_TOKENS,
-                f"estimate dropped below chars+frame for {s[:20]!r}")
+                T.estimate_tokens(s), len(s) + T.SPECIAL_TOKENS, f"estimate dropped below chars+frame for {s[:20]!r}"
+            )
 
     def test_empty_costs_the_frame_not_zero(self):
         """bge-m3 emits BOS+EOS even for empty input — reporting 0 would be a
@@ -102,32 +103,34 @@ class TestCountTokensCascade(unittest.TestCase):
     def test_exact_fn_failure_degrades_to_estimator(self):
         """A remote counter being down must not fail the embed — it must only
         make the budget more conservative."""
+
         def boom(_ts):
             raise RuntimeError("tokenize endpoint down")
+
         self.assertEqual(T.count_tokens(["abc"], exact_fn=boom), [T.estimate_tokens("abc")])
 
     def test_exact_fn_wrong_length_is_rejected(self):
         """A partial answer is not trusted: a length mismatch means we cannot
         align counts to inputs, so fall back rather than mis-attribute."""
         self.assertEqual(
-            T.count_tokens(["a", "b"], exact_fn=lambda ts: [5]),
-            [T.estimate_tokens("a"), T.estimate_tokens("b")])
+            T.count_tokens(["a", "b"], exact_fn=lambda ts: [5]), [T.estimate_tokens("a"), T.estimate_tokens("b")]
+        )
 
     def test_rust_shape_mismatch_is_rejected(self):
         class FakeRs:
             @staticmethod
             def count_tokens(texts):
                 return [1]  # wrong length for a 2-item batch
+
         T.config.m3_core_rs = FakeRs()
-        self.assertEqual(
-            T.count_tokens(["a", "b"]),
-            [T.estimate_tokens("a"), T.estimate_tokens("b")])
+        self.assertEqual(T.count_tokens(["a", "b"]), [T.estimate_tokens("a"), T.estimate_tokens("b")])
 
     def test_rust_is_used_when_available(self):
         class FakeRs:
             @staticmethod
             def count_tokens(texts):
                 return [7] * len(texts)
+
         T.config.m3_core_rs = FakeRs()
         self.assertEqual(T.count_tokens(["a", "b"]), [7, 7])
 
@@ -140,6 +143,7 @@ class TestCountTokensCascade(unittest.TestCase):
         # that prose as a violation -- penalising the comment that prevents the
         # bug. Only a real import statement counts.
         import ast
+
         tree = ast.parse(pathlib.Path(T.__file__).read_text(encoding="utf-8"))
         imported = set()
         for node in ast.walk(tree):
@@ -148,11 +152,11 @@ class TestCountTokensCascade(unittest.TestCase):
             elif isinstance(node, ast.ImportFrom) and node.module:
                 imported.add(node.module.split(".")[0])
         self.assertNotIn(
-            "m3_core_rs", imported,
-            "tokens.py must reach the Rust core via config.m3_core_rs so "
-            "M3_CORE_RS_DISABLE=1 covers it")
-        self.assertIn("config.m3_core_rs",
-                      pathlib.Path(T.__file__).read_text(encoding="utf-8"))
+            "m3_core_rs",
+            imported,
+            "tokens.py must reach the Rust core via config.m3_core_rs so M3_CORE_RS_DISABLE=1 covers it",
+        )
+        self.assertIn("config.m3_core_rs", pathlib.Path(T.__file__).read_text(encoding="utf-8"))
 
     def test_token_budget_and_fits(self):
         self.assertEqual(T.token_budget("abc"), T.estimate_tokens("abc"))
@@ -216,12 +220,14 @@ class TestAgainstRealTokenizer(unittest.TestCase):
         cls.samples = cls._samples()
         r = subprocess.run(
             [sys.executable, "-c", _TOKENIZER_CHILD],
-            input=json.dumps(cls.samples), capture_output=True,
-            text=True, encoding="utf-8", timeout=600,
+            input=json.dumps(cls.samples),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=600,
         )
         if r.returncode != 0:
-            raise RuntimeError(
-                f"tokenizer child exited {r.returncode}; stderr tail:\n{r.stderr[-2000:]}")
+            raise RuntimeError(f"tokenizer child exited {r.returncode}; stderr tail:\n{r.stderr[-2000:]}")
         out = json.loads(r.stdout)
         if "skip" in out:
             raise unittest.SkipTest(skip_reason("dep", out["skip"]))
@@ -234,6 +240,7 @@ class TestAgainstRealTokenizer(unittest.TestCase):
         import json
         import random
         import uuid
+
         random.seed(7)
         zh = ["数据库", "连接", "失败", "重试", "记录", "详细", "错误", "信息"]
         s = {

@@ -1,8 +1,8 @@
 ---
 tool: bin/weekly_auditor.py
-sha1: 817df686b67c
-mtime_utc: 2026-10-09T18:07:52.883563+00:00
-generated_utc: 2026-10-09T18:10:40.741820+00:00
+sha1: 109b048f479d
+mtime_utc: 2026-10-10T21:05:16.487866+00:00
+generated_utc: 2026-10-10T21:05:30.034610+00:00
 private: false
 ---
 
@@ -25,7 +25,7 @@ Use --no-memory to skip the memory write step.
 
 ## Entry points
 
-- `def main()` (line 426)
+- `def main()` (line 428)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -60,9 +60,9 @@ Use --no-memory to skip the memory write step.
 
 **subprocess**
 
-- `subprocess.check_call()  → `[sys.executable, gen_script]`` (line 301)
+- `subprocess.check_call()  → `[sys.executable, gen_script]`` (line 299)
 - `subprocess.check_call()  → `[sys.executable, graph_script]`` (line 318)
-- `subprocess.check_output()  → `cmd`` (line 251)
+- `subprocess.check_output()  → `cmd`` (line 252)
 
 
 ---

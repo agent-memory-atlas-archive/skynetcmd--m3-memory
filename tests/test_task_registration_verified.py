@@ -17,6 +17,7 @@ Nothing is known to be failing here today -- all 11 specs query back cleanly.
 This guards the class, at the cost of one extra ``schtasks`` call per task at
 install time.
 """
+
 from __future__ import annotations
 
 import os
@@ -52,19 +53,21 @@ def test_the_success_path_verifies_rather_than_trusting_rc_zero():
     # exactly that and checked an unrelated branch.
     tree = ast.parse(src)
     fn = next(
-        (n for n in ast.walk(tree)
-         if isinstance(n, ast.FunctionDef) and "windows" in n.name.lower()
-         and "task" in n.name.lower()),
+        (
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.FunctionDef) and "windows" in n.name.lower() and "task" in n.name.lower()
+        ),
         None,
     )
     if fn is None:
         # Fall back to whichever function actually contains the call.
         fn = next(
-            n for n in ast.walk(tree)
+            n
+            for n in ast.walk(tree)
             if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
             and any(
-                isinstance(c, ast.Call) and getattr(c.func, "id", "") == "_verify_task_registered"
-                for c in ast.walk(n)
+                isinstance(c, ast.Call) and getattr(c.func, "id", "") == "_verify_task_registered" for c in ast.walk(n)
             )
         )
 
@@ -79,9 +82,7 @@ def test_the_success_path_verifies_rather_than_trusting_rc_zero():
         if "returncode" not in test or "== 0" not in test:
             continue
         if any(
-            isinstance(c, ast.Call)
-            and getattr(c.func, "id", "") == "_verify_task_registered"
-            for c in ast.walk(node)
+            isinstance(c, ast.Call) and getattr(c.func, "id", "") == "_verify_task_registered" for c in ast.walk(node)
         ):
             on_success = True
             break
@@ -97,11 +98,10 @@ def test_verification_failure_is_loud_and_fails_the_run():
     with open(isch.__file__, encoding="utf-8") as fh:
         src = fh.read()
     idx = src.index("_verify_task_registered(task[")
-    window = src[idx:idx + 400]
+    window = src[idx : idx + 400]
     assert "FAIL" in window, "a failed verification must be reported as FAIL"
     assert "success = False" in window, (
-        "a failed verification must fail the run; otherwise the installer still "
-        "exits 0 with a task that does not exist"
+        "a failed verification must fail the run; otherwise the installer still exits 0 with a task that does not exist"
     )
 
 
@@ -119,10 +119,8 @@ def test_working_directory_is_part_of_what_gets_verified():
     with open(isch.__file__, encoding="utf-8") as fh:
         body = fh.read()
     idx = body.index("def _verify_task_registered")
-    window = body[idx:idx + 2200]
-    assert "<WorkingDirectory>" in window, (
-        "verification does not check for WorkingDirectory"
-    )
+    window = body[idx : idx + 2200]
+    assert "<WorkingDirectory>" in window, "verification does not check for WorkingDirectory"
 
 
 def test_utf16_output_is_normalised_before_matching():
@@ -133,10 +131,8 @@ def test_utf16_output_is_normalised_before_matching():
     with open(isch.__file__, encoding="utf-8") as fh:
         body = fh.read()
     idx = body.index("def _verify_task_registered")
-    window = body[idx:idx + 2200]
-    assert "\\x00" in window or "replace(" in window, (
-        "UTF-16 NULs are not stripped before matching"
-    )
+    window = body[idx : idx + 2200]
+    assert "\\x00" in window or "replace(" in window, "UTF-16 NULs are not stripped before matching"
 
 
 @_WINDOWS_ONLY
@@ -154,9 +150,7 @@ def test_verifier_is_quiet_on_real_tasks_and_loud_on_a_missing_one():
     # otherwise this check would fire on a healthy install.
     import subprocess
 
-    listing = subprocess.run(
-        ["schtasks", "/Query", "/FO", "LIST"], capture_output=True, text=True, timeout=60
-    )
+    listing = subprocess.run(["schtasks", "/Query", "/FO", "LIST"], capture_output=True, text=True, timeout=60)
     names = [
         ln.split(":", 1)[1].strip().lstrip("\\")
         for ln in (listing.stdout or "").splitlines()

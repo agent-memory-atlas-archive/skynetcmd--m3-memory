@@ -91,9 +91,7 @@ class M3StorageBackend:
         if CrewAI's embed failed — then only the m3-native vector is written.
         """
         for record in records or []:
-            args = mapping.record_to_write_args(
-                record, user_id=self._user_id, scope=_M3_SCOPE
-            )
+            args = mapping.record_to_write_args(record, user_id=self._user_id, scope=_M3_SCOPE)
             raw = self._client._tool(
                 "memory_write",
                 type=args["type"],
@@ -138,9 +136,7 @@ class M3StorageBackend:
         from crewai.memory.types import MemoryRecord
 
         prefix = mapping.normalize_scope_prefix(scope_prefix)
-        rows = self._client._run(
-            self._search_async(list(query_embedding), limit, min_score)
-        )
+        rows = self._client._run(self._search_async(list(query_embedding), limit, min_score))
         out: list = []
         cat_set = set(categories or [])
         for score, item in rows:
@@ -174,9 +170,7 @@ class M3StorageBackend:
             ids = [
                 item.get("id")
                 for _s, item in self._client._run(self._list_all_async())
-                if _match_for_delete(
-                    item, scope_prefix, categories, older_than, metadata_filter
-                )
+                if _match_for_delete(item, scope_prefix, categories, older_than, metadata_filter)
             ]
             ids = [i for i in ids if i]
         if not ids:
@@ -192,9 +186,7 @@ class M3StorageBackend:
         if not rid:
             return
         content = str(getattr(record, "content", "") or "")
-        md = mapping.record_to_write_args(
-            record, user_id=self._user_id, scope=_M3_SCOPE
-        )["metadata"]
+        md = mapping.record_to_write_args(record, user_id=self._user_id, scope=_M3_SCOPE)["metadata"]
         self._client._tool(
             "memory_supersede",
             old_id=rid,
@@ -215,9 +207,7 @@ class M3StorageBackend:
             return None
         return mapping.item_to_record(item, record_cls=MemoryRecord)
 
-    def list_records(
-        self, scope_prefix: str | None = None, limit: int = 200, offset: int = 0
-    ) -> list:
+    def list_records(self, scope_prefix: str | None = None, limit: int = 200, offset: int = 0) -> list:
         """Records in a scope, newest first (introspection: Memory.list_records)."""
         from crewai.memory.types import MemoryRecord
 
@@ -239,9 +229,7 @@ class M3StorageBackend:
             mapping.item_to_record(it, record_cls=MemoryRecord)
             for _s, it in rows
             if mapping.scope_matches(
-                mapping._loads_metadata(it.get("metadata_json")).get(
-                    mapping.SCOPE_PATH_KEY, "/"
-                ),
+                mapping._loads_metadata(it.get("metadata_json")).get(mapping.SCOPE_PATH_KEY, "/"),
                 prefix,
             )
         ]
@@ -270,9 +258,7 @@ class M3StorageBackend:
         rows = self._client._run(self._list_all_async())
         children: set = set()
         for _s, it in rows:
-            sp = mapping._loads_metadata(it.get("metadata_json")).get(
-                mapping.SCOPE_PATH_KEY, "/"
-            )
+            sp = mapping._loads_metadata(it.get("metadata_json")).get(mapping.SCOPE_PATH_KEY, "/")
             if mapping.scope_matches(sp, prefix):
                 child = _immediate_child(prefix, sp)
                 if child:
@@ -301,9 +287,7 @@ class M3StorageBackend:
             1
             for _s, it in rows
             if mapping.scope_matches(
-                mapping._loads_metadata(it.get("metadata_json")).get(
-                    mapping.SCOPE_PATH_KEY, "/"
-                ),
+                mapping._loads_metadata(it.get("metadata_json")).get(mapping.SCOPE_PATH_KEY, "/"),
                 prefix,
             )
         )
@@ -316,9 +300,7 @@ class M3StorageBackend:
             it.get("id")
             for _s, it in self._client._run(self._list_all_async())
             if mapping.scope_matches(
-                mapping._loads_metadata(it.get("metadata_json")).get(
-                    mapping.SCOPE_PATH_KEY, "/"
-                ),
+                mapping._loads_metadata(it.get("metadata_json")).get(mapping.SCOPE_PATH_KEY, "/"),
                 prefix,
             )
         ]
@@ -369,7 +351,9 @@ class M3StorageBackend:
                 "M3StorageBackend: failed to store CrewAI vector for %s (%s: %s) — "
                 "memory saved and searchable by other m3 agents, but CrewAI's own "
                 "recall will miss it until fixed.",
-                memory_id, type(e).__name__, e,
+                memory_id,
+                type(e).__name__,
+                e,
             )
 
     async def _insert_vector_async(self, memory_id: str, vec: list) -> None:
@@ -396,15 +380,18 @@ class M3StorageBackend:
                 "(id, memory_id, embedding, embed_model, dim, created_at, "
                 f"content_hash, vector_kind) VALUES ({_d.placeholder(7)}, {now})",
                 (
-                    str(uuid.uuid4()), memory_id, _pack([float(x) for x in vec]),
-                    model, dim, _content_hash(content), "crewai",
+                    str(uuid.uuid4()),
+                    memory_id,
+                    _pack([float(x) for x in vec]),
+                    model,
+                    dim,
+                    _content_hash(content),
+                    "crewai",
                 ),
             )
             db.commit()
 
-    async def _search_async(
-        self, query_vector: list, limit: int, min_score: float
-    ) -> list:
+    async def _search_async(self, query_vector: list, limit: int, min_score: float) -> list:
         """Score a provided query vector against CrewAI-space vectors, hydrate rows."""
         from memory.backends import active_backend
         from memory.db import _db
@@ -419,9 +406,13 @@ class M3StorageBackend:
         out: list = []
         with _db() as conn:
             hits = backend.vector_search(
-                conn, [float(x) for x in query_vector], limit=max(limit * 4, limit),
-                dim=dim, embed_models=(model,),
-                tenancy_sql=tenancy_sql, tenancy_params=tenancy_params,
+                conn,
+                [float(x) for x in query_vector],
+                limit=max(limit * 4, limit),
+                dim=dim,
+                embed_models=(model,),
+                tenancy_sql=tenancy_sql,
+                tenancy_params=tenancy_params,
             )
             if not hits:
                 return []
@@ -485,8 +476,7 @@ class M3StorageBackend:
         ph = ", ".join([_d.param()] * len(ids))
         with _db() as db:
             db.execute(
-                f"UPDATE memory_items SET last_accessed_at = {_d.now()} "
-                f"WHERE id IN ({ph}) AND user_id = {_d.param()}",
+                f"UPDATE memory_items SET last_accessed_at = {_d.now()} WHERE id IN ({ph}) AND user_id = {_d.param()}",
                 (*ids, self._user_id),
             )
             db.commit()
@@ -509,6 +499,7 @@ class M3StorageBackend:
 
 
 # ── module-level pure helpers (hermetically testable) ─────────────────────────
+
 
 def _import_param() -> str:
     from memory.backends import dialect
@@ -553,7 +544,7 @@ def _immediate_child(prefix: str, scope_path: str) -> str | None:
     base = prefix or ""
     if not scope_path.startswith(base):
         return None
-    rest = scope_path[len(base):].lstrip("/")
+    rest = scope_path[len(base) :].lstrip("/")
     if not rest:
         return None
     first = rest.split("/", 1)[0]

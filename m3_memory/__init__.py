@@ -43,6 +43,7 @@ def _resolve_version() -> str:
     if _os.path.isfile(pyproject):
         try:
             import tomllib
+
             with open(pyproject, "rb") as fh:
                 v = tomllib.load(fh).get("project", {}).get("version")
             if v:

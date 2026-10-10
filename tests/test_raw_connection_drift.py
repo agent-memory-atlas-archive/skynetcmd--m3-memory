@@ -31,6 +31,7 @@ the new floor.
 To ADD a legitimate raw connect: put the file in `_EXEMPT` with a one-line
 reason. That is a visible, reviewable edit rather than a silent new copy.
 """
+
 from __future__ import annotations
 
 import pathlib
@@ -40,14 +41,14 @@ _ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 # Directories whose raw connections are out of scope for the seam.
 _SKIP_DIRS = {
-    "build",            # packaging copy of the tree
-    "tests",            # test fixtures legitimately build throwaway DBs
+    "build",  # packaging copy of the tree
+    "tests",  # test fixtures legitimately build throwaway DBs
     "to_be_deleted",
     ".venv",
     ".git",
-    ".claude",          # nested worktrees from Claude Code
-    "examples",         # standalone samples, shipped to be read not run
-    "scripts",          # one-off operator scripts, not the product
+    ".claude",  # nested worktrees from Claude Code
+    "examples",  # standalone samples, shipped to be read not run
+    "scripts",  # one-off operator scripts, not the product
     "benchmarks",
 }
 
@@ -55,150 +56,106 @@ _SKIP_DIRS = {
 # debt: converting them would be wrong.
 _EXEMPT = {
     # --- The seam itself. It has to open something. ---
-    "bin/memory/backends/sqlite_backend.py":
-        "IS the SQLite backend — the thing every other site routes through.",
+    "bin/memory/backends/sqlite_backend.py": "IS the SQLite backend — the thing every other site routes through.",
     # (bin/memory/backends/base.py is deliberately NOT exempt: it is the
     # ABSTRACT contract and contains no connect call. Exempting it would have
     # silently licensed a future raw connect in the one file that defines what
     # every backend must implement — caught by the staleness check below on this
     # guard's first run.)
-    "bin/m3_core/context.py":
-        "Owns the pool that get_sqlite_conn() hands out.",
-    "bin/m3_core/paths.py":
-        "Resolves and validates DB paths before any context exists.",
-    "bin/sqlite_pragmas.py":
-        "Defines the pragma stack itself; applying it needs a connection.",
-    "bin/sqlite_snapshot.py":
-        "The one owner of the WAL-safe SQLite file copy (backup API + verify); "
-        "SqliteBackend.snapshot, migrate_memory and homecoming route through it.",
-    "bin/chatlog_config.py":
-        "BUILDS the chatlog connection pool (same role as m3_core/context.py) -- "
-        "the thing other code borrows from.",
-    "bin/reembed_space.py":
-        "Already branches on `is_file`; the raw connect is the SQLite arm and "
-        "applies the shared pragma stack.",
-
+    "bin/m3_core/context.py": "Owns the pool that get_sqlite_conn() hands out.",
+    "bin/m3_core/paths.py": "Resolves and validates DB paths before any context exists.",
+    "bin/sqlite_pragmas.py": "Defines the pragma stack itself; applying it needs a connection.",
+    "bin/sqlite_snapshot.py": "The one owner of the WAL-safe SQLite file copy (backup API + verify); "
+    "SqliteBackend.snapshot, migrate_memory and homecoming route through it.",
+    "bin/chatlog_config.py": "BUILDS the chatlog connection pool (same role as m3_core/context.py) -- "
+    "the thing other code borrows from.",
+    "bin/reembed_space.py": "Already branches on `is_file`; the raw connect is the SQLite arm and "
+    "applies the shared pragma stack.",
     # --- Foreign stores: another product's file, not an m3 store. ---
-    "bin/chatlog_ingest.py":
-        "Reads OpenCode's OWN database (opencode.db) to import its transcripts. "
-        "The seam is deliberately wrong here: backend.open_readonly() ignores "
-        "db_path on PostgreSQL and would hand back m3's store instead of the "
-        "file asked for, and the file is SQLite because OpenCode chose SQLite — "
-        "not because m3 did. Adding a backend would not change this line, which "
-        "is DESIGN section 10a's own test for what belongs in the dialect. "
-        "Opened read-only; m3 never writes to it.",
-
+    "bin/chatlog_ingest.py": "Reads OpenCode's OWN database (opencode.db) to import its transcripts. "
+    "The seam is deliberately wrong here: backend.open_readonly() ignores "
+    "db_path on PostgreSQL and would hand back m3's store instead of the "
+    "file asked for, and the file is SQLite because OpenCode chose SQLite — "
+    "not because m3 did. Adding a backend would not change this line, which "
+    "is DESIGN section 10a's own test for what belongs in the dialect. "
+    "Opened read-only; m3 never writes to it.",
     # --- Bootstrap: runs BEFORE a usable schema/seam exists. ---
-    "bin/migrate_memory.py":
-        "Creates and versions the schema the seam later assumes.",
-    "bin/split_chatlog_from_core.py":
-        "One-time topology split: copies between two physical SQLite files.",
-    "bin/setup_memory.py":
-        "Bootstraps the store from nothing; there is no seam to route through "
-        "until it has run.",
-    "bin/migrate_flat_memory.py":
-        "One-way ETL from an EXTERNAL SQLite DB (OpenClaw), opened "
-        "?mode=ro&immutable=1. A foreign file, not m3's store.",
-
+    "bin/migrate_memory.py": "Creates and versions the schema the seam later assumes.",
+    "bin/split_chatlog_from_core.py": "One-time topology split: copies between two physical SQLite files.",
+    "bin/setup_memory.py": "Bootstraps the store from nothing; there is no seam to route through until it has run.",
+    "bin/migrate_flat_memory.py": "One-way ETL from an EXTERNAL SQLite DB (OpenClaw), opened "
+    "?mode=ro&immutable=1. A foreign file, not m3's store.",
     # --- Self-test harnesses that must NOT share the app's pool. ---
-    "bin/test_bulk_parity.py":
-        "Parity harness comparing raw vs seam results — needs the raw side.",
-    "bin/setup_test_db.py":
-        "Builds throwaway fixture databases.",
-
+    "bin/test_bulk_parity.py": "Parity harness comparing raw vs seam results — needs the raw side.",
+    "bin/setup_test_db.py": "Builds throwaway fixture databases.",
     # --- Correctly capability-gated already; converting would be wrong. ---
     # Each of these branches on `backend.name == "sqlite"` (the capability form
     # §10a asks for, not `!= "postgres"`) and takes a real PG path in the other
     # arm. The raw connect is the SQLite ARM of a working branch, not an
     # assumption that SQLite is all there is.
-    "bin/chatlog_decay.py":
-        "SQLite arm of `if backend.name == \"sqlite\"`; PG uses the pooled path.",
-    "bin/chatlog_prune.py":
-        "SQLite arm of an explicit backend branch; dialect drives the SQL.",
-    "bin/curator_apply.py":
-        "SQLite arm of an explicit branch; its docstring records the stale-file "
-        "write on PG that this branch FIXED.",
-    "bin/m3_cognitive_loop.py":
-        "Comment records the raw connect was already replaced; remaining use is "
-        "backend-appropriate.",
-    "bin/memory/db.py":
-        "Both sites are inside _lazy_init holding _init_lock; "
-        "backend.connection() delegates back to _db() -> _lazy_init, so a raw "
-        "handle is REQUIRED to avoid deadlock. Both are gated on "
-        "resolve_backend_name() == \"sqlite\"; PG gets these from its pg_* chain.",
-    "bin/chatlog_status.py":
-        "All sites are SQLite arms of real branches: the main/chatlog counts sit "
-        "under `_primary_is_sqlite`, the files count under `_pg_files`, and "
-        "_recent_write_count now returns its -1 unknown sentinel on non-SQLite "
-        "rather than walking candidate FILE paths that cannot exist on PG.",
-    "bin/enrich/prep.py":
-        "Replays a SQLite-DIALECT migration file (executescript + sqlite_master). "
-        "Returns early on any non-sqlite backend; PG gets these tables from its "
-        "own pg_040 migration. Documented in the function's own docstring.",
-
+    "bin/chatlog_decay.py": 'SQLite arm of `if backend.name == "sqlite"`; PG uses the pooled path.',
+    "bin/chatlog_prune.py": "SQLite arm of an explicit backend branch; dialect drives the SQL.",
+    "bin/curator_apply.py": "SQLite arm of an explicit branch; its docstring records the stale-file "
+    "write on PG that this branch FIXED.",
+    "bin/m3_cognitive_loop.py": "Comment records the raw connect was already replaced; remaining use is "
+    "backend-appropriate.",
+    "bin/memory/db.py": "Both sites are inside _lazy_init holding _init_lock; "
+    "backend.connection() delegates back to _db() -> _lazy_init, so a raw "
+    "handle is REQUIRED to avoid deadlock. Both are gated on "
+    'resolve_backend_name() == "sqlite"; PG gets these from its pg_* chain.',
+    "bin/chatlog_status.py": "All sites are SQLite arms of real branches: the main/chatlog counts sit "
+    "under `_primary_is_sqlite`, the files count under `_pg_files`, and "
+    "_recent_write_count now returns its -1 unknown sentinel on non-SQLite "
+    "rather than walking candidate FILE paths that cannot exist on PG.",
+    "bin/enrich/prep.py": "Replays a SQLite-DIALECT migration file (executescript + sqlite_master). "
+    "Returns early on any non-sqlite backend; PG gets these tables from its "
+    "own pg_040 migration. Documented in the function's own docstring.",
     # --- FILES: the raw connect is the SQLite ARM of a real backend branch. ---
     # FILES fully supports PostgreSQL. The sidecar file (files_database.db)
     # exists ONLY on SQLite; on PG the files tables live in a `files` SCHEMA of
     # the primary DB (tasks #9-#11) and are reached through the seam. Each file
     # below already branches on that, so the raw connect is the correct SQLite
     # half of a working pair -- NOT an assumption that FILES is SQLite-only.
-    "bin/gen_wiki.py":
-        "Branches on backend: sidecar file on SQLite, files_memory.db._db() on "
-        "PG. Its own comment records that this routing is what keeps the files "
-        "corpus VISIBLE on PG (it previously rendered memory-only there).",
-    "bin/files_memory/db.py":
-        "Owns that branch: _files_store_is_a_schema() routes to the seam on PG and to the "
-        "local sidecar only on SQLite.",
-    "bin/files_memory/entities.py":
-        "Default path goes through the seam (both backends); the raw connect is "
-        "the explicit-file escape hatch for tests and isolated mutators.",
-
+    "bin/gen_wiki.py": "Branches on backend: sidecar file on SQLite, files_memory.db._db() on "
+    "PG. Its own comment records that this routing is what keeps the files "
+    "corpus VISIBLE on PG (it previously rendered memory-only there).",
+    "bin/files_memory/db.py": "Owns that branch: _files_store_is_a_schema() routes to the seam on PG and to the "
+    "local sidecar only on SQLite.",
+    "bin/files_memory/entities.py": "Default path goes through the seam (both backends); the raw connect is "
+    "the explicit-file escape hatch for tests and isolated mutators.",
     # --- Benchmarks measure the raw baseline on purpose. ---
-    "bin/bench_memory.py":
-        "Benchmarks the pure-SQLite baseline; routing it through the pool would "
-        "measure the pool instead of the thing under test.",
-
+    "bin/bench_memory.py": "Benchmarks the pure-SQLite baseline; routing it through the pool would "
+    "measure the pool instead of the thing under test.",
     # --- SQLite FILE-level operations; no cross-backend meaning. ---
-    "m3_memory/install/fs.py":
-        "PRAGMA wal_checkpoint(TRUNCATE) and Connection.backup() are SQLite "
-        "file APIs -- this copies/shrinks .db FILES during install, it does not "
-        "query a store. PG has no file to copy.",
-
+    "m3_memory/install/fs.py": "PRAGMA wal_checkpoint(TRUNCATE) and Connection.backup() are SQLite "
+    "file APIs -- this copies/shrinks .db FILES during install, it does not "
+    "query a store. PG has no file to copy.",
     # --- Self-test harnesses that must NOT share the app's pool. ---
-    "bin/test_mcp_proxy.py":
-        "Self-test harness for the MCP proxy.",
-
+    "bin/test_mcp_proxy.py": "Self-test harness for the MCP proxy.",
     # --- Standalone-execution fallbacks and schema repair. ---
-    "bin/embed_backfill.py":
-        "One site: the documented pure-Python fallback for running this sweeper "
-        "standalone, without the payload on sys.path. Every query path goes "
-        "through _bound_db()/active_database().",
-    "bin/chatlog_embed_sweeper.py":
-        "Sweeps a SQLite chatlog FILE by path; the PG chatlog is swept through "
-        "the seam by the cognitive loop's embed pass (see the branch above it).",
-
+    "bin/embed_backfill.py": "One site: the documented pure-Python fallback for running this sweeper "
+    "standalone, without the payload on sys.path. Every query path goes "
+    "through _bound_db()/active_database().",
+    "bin/chatlog_embed_sweeper.py": "Sweeps a SQLite chatlog FILE by path; the PG chatlog is swept through "
+    "the seam by the cognitive loop's embed pass (see the branch above it).",
     # --- Must never fail on a seam import error. ---
-    "bin/auth_utils.py":
-        "Every vault read/write now goes through the seam; the one remaining "
-        "connect is the SQLite-only bootstrap shim in _backend(), reached only "
-        "when the seam is not yet importable (installer bootstrap).",
-    "bin/hooks/chatlog/session_start_capture_check.py":
-        "Session-start hook: a seam import error must not break session start.",
-
+    "bin/auth_utils.py": "Every vault read/write now goes through the seam; the one remaining "
+    "connect is the SQLite-only bootstrap shim in _backend(), reached only "
+    "when the seam is not yet importable (installer bootstrap).",
+    "bin/hooks/chatlog/session_start_capture_check.py": "Session-start hook: a seam import error must not break session start.",
     # --- Test harnesses that BUILD a throwaway store, like tests/ itself. ---
-    "bin/search_differential.py":
-        "Differential harness: seeds and soft-deletes rows in a throwaway "
-        "fixture store to diff two search builds. Same category as the tests/ "
-        "skip -- it is constructing the fixture, not reading product data. "
-        "Surfaced 2026-09-12 when _code_lines stopped dropping whole lines "
-        "containing a string literal; it had been invisible, not absent.",
+    "bin/search_differential.py": "Differential harness: seeds and soft-deletes rows in a throwaway "
+    "fixture store to diff two search builds. Same category as the tests/ "
+    "skip -- it is constructing the fixture, not reading product data. "
+    "Surfaced 2026-09-12 when _code_lines stopped dropping whole lines "
+    "containing a string literal; it had been invisible, not absent.",
 }
 
 
 # Built at runtime, not written literally: a source file containing an
 # f-string that mentions the idiom would be scanned by this very guard.
 PROSE_FSTRING = 'x = f"Do not use ' + "sqlite3.connect" + ' here {var}"\n'
-REAL_FSTRING = 'conn = ' + "sqlite3.connect" + '(f"{root}/a.db")\n'
+REAL_FSTRING = "conn = " + "sqlite3.connect" + '(f"{root}/a.db")\n'
 
 
 def _venv_dirs() -> set[str]:
@@ -302,8 +259,6 @@ def _code_lines(src: str):
             yield i, out
 
 
-
-
 def _raw_sites():
     """(rel_path, lineno, line) for every non-exempt raw sqlite3.connect."""
     out = []
@@ -331,7 +286,6 @@ _BUDGET = 0
 
 
 class TestRawConnectionDrift(unittest.TestCase):
-
     def test_no_new_raw_connections(self):
         sites = _raw_sites()
         n = len(sites)
@@ -357,11 +311,13 @@ class TestRawConnectionDrift(unittest.TestCase):
         """
         n = len(_raw_sites())
         self.assertGreaterEqual(
-            _BUDGET, n,
+            _BUDGET,
+            n,
             "budget below actual — this should have failed the test above",
         )
         self.assertLessEqual(
-            _BUDGET - n, 5,
+            _BUDGET - n,
+            5,
             f"Raw-connect count is {n} but the budget is {_BUDGET}. "
             f"Sites were converted without tightening the ratchet — lower "
             f"_BUDGET to {n}.",
@@ -372,9 +328,9 @@ class TestRawConnectionDrift(unittest.TestCase):
         the fact the guard's coverage changed."""
         missing = [f for f in _EXEMPT if not (_ROOT / f).exists()]
         self.assertEqual(
-            missing, [],
-            f"_EXEMPT names files that no longer exist: {missing}. "
-            f"Remove them so the exemption list reflects reality.",
+            missing,
+            [],
+            f"_EXEMPT names files that no longer exist: {missing}. Remove them so the exemption list reflects reality.",
         )
 
     def test_exempt_entries_actually_contain_the_idiom(self):
@@ -385,11 +341,11 @@ class TestRawConnectionDrift(unittest.TestCase):
             p = _ROOT / f
             if not p.exists():
                 continue
-            if "sqlite3.connect" not in p.read_text(encoding="utf-8",
-                                                    errors="replace"):
+            if "sqlite3.connect" not in p.read_text(encoding="utf-8", errors="replace"):
                 pointless.append(f)
         self.assertEqual(
-            pointless, [],
+            pointless,
+            [],
             f"_EXEMPT names files with no raw sqlite3.connect: {pointless}. "
             f"Drop the exemption so a future raw connect there is caught.",
         )
@@ -412,6 +368,7 @@ class TestRawConnectionDrift(unittest.TestCase):
         prose cases it must NOT flag. A self-test that does not invoke the thing
         it certifies is decoration.
         """
+
         def seen(src):
             return [t for _, t in _code_lines(src)]
 
@@ -470,11 +427,10 @@ class TestRawConnectionDrift(unittest.TestCase):
         # 8. A string MENTIONING the idiom on a line that also has real code.
         hits = seen('LOG = "do not sqlite3.connect"\nconn = sqlite3.connect(p)\n')
         self.assertEqual(
-            sum("sqlite3.connect" in h for h in hits), 1,
+            sum("sqlite3.connect" in h for h in hits),
+            1,
             "must count the real call exactly once and ignore the mention",
         )
-
-
 
 
 if __name__ == "__main__":

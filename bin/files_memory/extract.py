@@ -17,6 +17,7 @@ Public API:
     extract_facts_for_leaf(leaf_row, file_summary=None) -> ExtractionResult
     extract_for_pending_leaves(limit, db_path=None) -> dict (counts)
 """
+
 from __future__ import annotations
 
 import json
@@ -48,6 +49,7 @@ logger = logging.getLogger("files_memory.extract")
 @dataclass(slots=True)
 class ExtractedFact:
     """One fact returned by the LLM. Maps to a row in `facts`."""
+
     statement: str
     source_span_start: int
     source_span_end: int
@@ -58,8 +60,9 @@ class ExtractedFact:
 @dataclass(slots=True)
 class ExtractionResult:
     """Outcome of extracting from one leaf."""
+
     leaf_uuid: str
-    status: str           # 'ok' | 'failed' | 'skipped_size' | 'skipped_type'
+    status: str  # 'ok' | 'failed' | 'skipped_size' | 'skipped_type'
     fact_count: int = 0
     duration_ms: int = 0
     error: str | None = None
@@ -115,10 +118,12 @@ def _llm_endpoint() -> str | None:
         return override
     try:
         import sys as _sys
+
         _bin = str(Path(canonical_path(__file__)).parent.parent)
         if _bin not in _sys.path:
             _sys.path.insert(0, _bin)
         from llm_failover import LLM_ENDPOINTS
+
         return LLM_ENDPOINTS[0] if LLM_ENDPOINTS else None
     except Exception:  # noqa: BLE001 — resolver import/probe failure -> no LLM
         return None
@@ -131,10 +136,7 @@ def _llm_model() -> str | None:
     The old "qwen3-4b-instruct" tail made a specific model NAME the fallback,
     which 404s on any box that does not have it loaded.
     """
-    explicit = (
-        os.environ.get("M3_FILES_EXTRACT_MODEL")
-        or os.environ.get("M3_FILES_SUMMARY_MODEL")
-    )
+    explicit = os.environ.get("M3_FILES_EXTRACT_MODEL") or os.environ.get("M3_FILES_SUMMARY_MODEL")
     if explicit:
         return explicit
     endpoint = _llm_endpoint()
@@ -181,6 +183,7 @@ def _llm_call(content: str, max_tokens: int = 1024) -> str | None:
     # runtimes since "none" 400s on real OpenAI cloud.
     try:
         from llm_failover import suppresses_thinking_via_effort
+
         _suppress = suppresses_thinking_via_effort(endpoint)
     except Exception:  # noqa: BLE001
         _suppress = False
@@ -219,13 +222,19 @@ def _llm_call(content: str, max_tokens: int = 1024) -> str | None:
                         "files extract: %r at %s returned only reasoning (empty "
                         "content) despite reasoning_effort='none' — it did not honor "
                         "suppression -> 0 facts. Disable thinking or use a "
-                        "non-reasoning instruct model.", model, endpoint)
+                        "non-reasoning instruct model.",
+                        model,
+                        endpoint,
+                    )
                 else:
                     logger.warning(
                         "files extract: %r at %s returned only reasoning (empty "
                         "content) -> 0 facts. Reasoning model on an endpoint m3 can't "
                         "auto-suppress (only local LM Studio/Ollama). Disable thinking "
-                        "or use a non-reasoning instruct model.", model, endpoint)
+                        "or use a non-reasoning instruct model.",
+                        model,
+                        endpoint,
+                    )
             return text
     except Exception as e:
         log_swallowed(logger, e, "extract LLM call failed: %s", e)
@@ -260,7 +269,7 @@ def _parse_facts_json(raw: str) -> list[ExtractedFact]:
     last = cleaned.rfind("}")
     if first < 0 or last <= first:
         raise ValueError(f"no JSON object found in LLM response: {raw[:200]!r}")
-    obj_text = cleaned[first:last + 1]
+    obj_text = cleaned[first : last + 1]
 
     try:
         obj = json.loads(obj_text)
@@ -301,13 +310,15 @@ def _parse_facts_json(raw: str) -> list[ExtractedFact]:
             entities = []
         # source_span filled in by the caller after locating `source`
         # within the leaf text. We hold the source phrase as a placeholder.
-        out.append(ExtractedFact(
-            statement=statement,
-            source_span_start=-1,
-            source_span_end=-1,
-            confidence=conf,
-            entities=entities,
-        ))
+        out.append(
+            ExtractedFact(
+                statement=statement,
+                source_span_start=-1,
+                source_span_end=-1,
+                confidence=conf,
+                entities=entities,
+            )
+        )
         # Stash the source phrase in a private attribute the caller reads.
         out[-1]._source_phrase = source  # type: ignore[attr-defined]
     return out
@@ -359,18 +370,21 @@ def extract_facts_for_leaf(
     t0 = time.perf_counter()
     if not leaf_text or not leaf_text.strip():
         return ExtractionResult(
-            leaf_uuid=leaf_uuid, status="skipped_size",
+            leaf_uuid=leaf_uuid,
+            status="skipped_size",
             duration_ms=int((time.perf_counter() - t0) * 1000),
         )
     if len(leaf_text) < config.EXTRACT_MIN_LEAF_CHARS:
         return ExtractionResult(
-            leaf_uuid=leaf_uuid, status="skipped_size",
+            leaf_uuid=leaf_uuid,
+            status="skipped_size",
             duration_ms=int((time.perf_counter() - t0) * 1000),
         )
 
     if not llm_available():
         return ExtractionResult(
-            leaf_uuid=leaf_uuid, status="failed",
+            leaf_uuid=leaf_uuid,
+            status="failed",
             error="no LLM endpoint configured",
             duration_ms=int((time.perf_counter() - t0) * 1000),
         )
@@ -379,7 +393,8 @@ def extract_facts_for_leaf(
     raw = _llm_call(prefix + leaf_text, max_tokens=max_tokens)
     if raw is None:
         return ExtractionResult(
-            leaf_uuid=leaf_uuid, status="failed",
+            leaf_uuid=leaf_uuid,
+            status="failed",
             error="LLM call returned None",
             duration_ms=int((time.perf_counter() - t0) * 1000),
         )
@@ -388,7 +403,8 @@ def extract_facts_for_leaf(
         facts = _parse_facts_json(raw)
     except (ValueError, json.JSONDecodeError) as e:
         return ExtractionResult(
-            leaf_uuid=leaf_uuid, status="failed",
+            leaf_uuid=leaf_uuid,
+            status="failed",
             error=f"parse failed: {e}",
             duration_ms=int((time.perf_counter() - t0) * 1000),
         )
@@ -401,7 +417,8 @@ def extract_facts_for_leaf(
         fact.source_span_end = end if end >= 0 else min(len(leaf_text), 200)
 
     return ExtractionResult(
-        leaf_uuid=leaf_uuid, status="ok",
+        leaf_uuid=leaf_uuid,
+        status="ok",
         fact_count=len(facts),
         facts=facts,
         duration_ms=int((time.perf_counter() - t0) * 1000),
@@ -427,6 +444,7 @@ def write_extraction_result(
     Atomic — caller wraps this in a transaction (or we're inside _db()).
     """
     from memory.backends import dialect as _dialect
+
     _d = _dialect()
     _p = _d.param()
     # Always write an attempt row, success or not.
@@ -437,9 +455,15 @@ def write_extraction_result(
         f"status, fact_count, duration_ms, error) "
         f"VALUES ({_d.placeholder(9)})",
         (
-            attempt_uuid, result.leaf_uuid, ingestion_run_uuid,
-            extractor_version, model_id,
-            result.status, result.fact_count, result.duration_ms, result.error,
+            attempt_uuid,
+            result.leaf_uuid,
+            ingestion_run_uuid,
+            extractor_version,
+            model_id,
+            result.status,
+            result.fact_count,
+            result.duration_ms,
+            result.error,
         ),
     )
 
@@ -463,9 +487,14 @@ def write_extraction_result(
             f"source_span_end, confidence, extraction_run) "
             f"VALUES ({_d.placeholder(8)})",
             (
-                fuuid, result.leaf_uuid, file_node_uuid,
-                fact.statement, fact.source_span_start, fact.source_span_end,
-                fact.confidence, ingestion_run_uuid,
+                fuuid,
+                result.leaf_uuid,
+                file_node_uuid,
+                fact.statement,
+                fact.source_span_start,
+                fact.source_span_end,
+                fact.confidence,
+                ingestion_run_uuid,
             ),
         )
         fact_uuids.append(fuuid)
@@ -474,7 +503,7 @@ def write_extraction_result(
     # Embed facts in one batch.
     if embed_facts and fact_texts:
         try:
-            _fe = files_table('fact_embeddings')
+            _fe = files_table("fact_embeddings")
             vecs = embed_texts(fact_texts)
             for fuuid, (vec, model) in zip(fact_uuids, vecs, strict=True):
                 if vec is not None:
@@ -492,6 +521,7 @@ def write_extraction_result(
     # of memory.entity from this layer.
     if link_entities:
         from .entities import link_facts_to_entities
+
         try:
             link_facts_to_entities(conn, fact_uuids, [f.entities for f in result.facts])
         except Exception as e:
@@ -513,10 +543,13 @@ def has_pending_extraction(db_path: str | None = None) -> bool:
     dialect-resolved via ``files_table`` — no backend-name branch or raw connection
     in this feature function."""
     from .db import readonly_probe
-    return bool(readonly_probe(
-        f"SELECT 1 FROM {files_table('leaves')} WHERE extraction_status = 'pending' LIMIT 1",
-        db_path=db_path,
-    ))
+
+    return bool(
+        readonly_probe(
+            f"SELECT 1 FROM {files_table('leaves')} WHERE extraction_status = 'pending' LIMIT 1",
+            db_path=db_path,
+        )
+    )
 
 
 def extract_for_pending_leaves(
@@ -538,6 +571,7 @@ def extract_for_pending_leaves(
 
     counts: dict[str, Any] = {"ok": 0, "failed": 0, "skipped": 0}
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     with _db(db_path) as conn:
         # seam yields name-addressable rows on both backends (no sqlite3.Row).
@@ -555,12 +589,14 @@ def extract_for_pending_leaves(
 
         for r in rows:
             result = extract_facts_for_leaf(
-                r["uuid"], r["text"],
+                r["uuid"],
+                r["text"],
                 leaf_division_type=r["division_type"],
                 file_summary=r["file_summary"],
             )
             write_extraction_result(
-                conn, result,
+                conn,
+                result,
                 file_node_uuid=r["file_node"],
                 ingestion_run_uuid=r["ingestion_run"],
                 extractor_version=config.EXTRACTOR_VERSION or "unknown",

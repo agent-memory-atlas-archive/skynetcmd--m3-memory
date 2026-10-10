@@ -18,6 +18,7 @@ per-call cost.
 
 Skips cleanly if M3_TEST_GGUF is unset.
 """
+
 from __future__ import annotations
 
 import os
@@ -95,8 +96,7 @@ def test_no_llama_fallback_warnings_in_stderr() -> None:
                 pass
 
     assert proc.returncode == 0, (
-        f"child failed (rc={proc.returncode})\n"
-        f"--- stdout ---\n{proc.stdout}\n--- stderr ---\n{proc.stderr}"
+        f"child failed (rc={proc.returncode})\n--- stdout ---\n{proc.stdout}\n--- stderr ---\n{proc.stderr}"
     )
     assert "OK" in proc.stdout, f"child did not report OK: {proc.stdout!r}"
 

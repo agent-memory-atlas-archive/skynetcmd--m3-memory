@@ -5,6 +5,7 @@ end on PostgreSQL now that its delegated bulk impls (memory_delete/update/link_
 bulk_impl in memory_core) are dialected + backend-routed and the SQLite-only gate
 was removed. DSN from M3_PRIMARY_PG_URL/M3_PG_URL (never PG_URL).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -59,8 +60,7 @@ def pg_seeded(monkeypatch):
     b = PostgresBackend(dsn=_dsn())
     with b.connection() as c:
         c.cursor().execute(
-            "DROP TABLE IF EXISTS memory_history, memory_relationships, "
-            "memory_embeddings, memory_items CASCADE"
+            "DROP TABLE IF EXISTS memory_history, memory_relationships, memory_embeddings, memory_items CASCADE"
         )
     b._schema_ready = False
     b.ensure_schema()
@@ -86,8 +86,8 @@ def test_apply_memory_plan_runs_on_pg(pg_seeded):
     plan = {
         "update": [{"id": ids[0], "title": "CB0-updated"}],
         "link": [{"from_id": ids[0], "to_id": ids[1], "relationship_type": "related"}],
-        "delete": [ids[2]],          # soft
-        "delete_hard": [ids[3]],     # hard
+        "delete": [ids[2]],  # soft
+        "delete_hard": [ids[3]],  # hard
     }
     out = apply_memory_plan(plan)
     assert out["errors"] == [], out["errors"]
@@ -176,14 +176,12 @@ def test_apply_chatlog_plan_prune_on_pg(monkeypatch):
         with b.connection() as c:
             cur = c.cursor()
             cur.execute(
-                "SELECT COUNT(*) FROM chat_log_items "
-                "WHERE conversation_id=%s AND type='chat_log' AND is_deleted=1",
+                "SELECT COUNT(*) FROM chat_log_items WHERE conversation_id=%s AND type='chat_log' AND is_deleted=1",
                 (conv,),
             )
             assert cur.fetchone()[0] == 3  # all 3 chat_log rows soft-deleted
             cur.execute(
-                "SELECT COUNT(*) FROM chat_log_items "
-                "WHERE conversation_id=%s AND type='decision' AND is_deleted=0",
+                "SELECT COUNT(*) FROM chat_log_items WHERE conversation_id=%s AND type='decision' AND is_deleted=0",
                 (conv,),
             )
             assert cur.fetchone()[0] == 1  # the decision row untouched

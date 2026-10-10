@@ -10,6 +10,7 @@ file's mode is kept). Secrets are refused: they never live in this file (§10).
 Writers are the installer, the wizard and (2F) ``m3 config set``; daemons never
 write it (§3).
 """
+
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -36,8 +37,7 @@ def _toml_native(value: ConfigValue) -> object:
     return value
 
 
-def set_values(location: Location, values: Mapping[Key, ConfigValue | None], *,
-               registry: Registry = REGISTRY) -> Path:
+def set_values(location: Location, values: Mapping[Key, ConfigValue | None], *, registry: Registry = REGISTRY) -> Path:
     """Set (or, with None, remove) each key in the file at ``location``.
 
     Refuses, leaving the file untouched: a secret or state key, a key not in the
@@ -52,7 +52,8 @@ def set_values(location: Location, values: Mapping[Key, ConfigValue | None], *,
         if key.klass is not KeyClass.CONFIG:
             raise ConfigWriteError(
                 f"{key.name} is a {key.klass} key and is never written to m3_config.toml"
-                + ("; store it with m3_core.secret_store" if key.klass is KeyClass.SECRET else ""))
+                + ("; store it with m3_core.secret_store" if key.klass is KeyClass.SECRET else "")
+            )
         if values[key] is not None:
             key.check(values[key])
 
@@ -82,20 +83,23 @@ def _check_new_file_would_be_private(directory: Path) -> None:
         with probe_new_file(directory) as probe:
             foreign = file_foreign_principals(probe)
     except AclError as e:
-        raise ConfigWriteError(f"observed: cannot verify who could read a new file in {directory} "
-                               f"({e}); m3_config.toml was NOT written") from e
+        raise ConfigWriteError(
+            f"observed: cannot verify who could read a new file in {directory} ({e}); m3_config.toml was NOT written"
+        ) from e
     if foreign:
         raise ConfigWriteError(
             f"observed: a new file in {directory} could be opened by {', '.join(foreign)} besides you; "
             "m3_config.toml was NOT written. inspect: make the directory user-only "
-            f"(icacls \"{directory}\" /inheritance:r /grant:r \"%USERNAME%:(OI)(CI)F\" "
-            "/grant:r \"SYSTEM:(OI)(CI)F\"), or point M3_CONFIG_ROOT at a user-only directory")
+            f'(icacls "{directory}" /inheritance:r /grant:r "%USERNAME%:(OI)(CI)F" '
+            '/grant:r "SYSTEM:(OI)(CI)F"), or point M3_CONFIG_ROOT at a user-only directory'
+        )
 
 
 def _new_document() -> tomlkit.TOMLDocument:
     doc = tomlkit.document()
-    doc.add(tomlkit.comment("m3 configuration. Every key: docs/CONFIG_REFERENCE.md. "
-                            "Edit by hand or with `m3 config set`."))
+    doc.add(
+        tomlkit.comment("m3 configuration. Every key: docs/CONFIG_REFERENCE.md. Edit by hand or with `m3 config set`.")
+    )
     doc.add("schema_version", SCHEMA_VERSION)
     return doc
 

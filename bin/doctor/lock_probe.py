@@ -18,6 +18,7 @@ invisible in a JSONL file:
 Report-only: never fails the doctor run (returns 0). A wedged/degraded lock is a
 warning, not a hard error — the services still run (fail-safe).
 """
+
 from __future__ import annotations
 
 import logging
@@ -73,8 +74,7 @@ def run(brief: bool = False) -> int:
             if ts is not None and (now - ts) <= _CHURN_WINDOW_S:
                 churn[role] = churn.get(role, 0) + 1
 
-    degraded = {r: e for r, e in latest.items()
-                if e.get("event") in ("config_error", "lock_error")}
+    degraded = {r: e for r, e in latest.items() if e.get("event") in ("config_error", "lock_error")}
     flapping = {r: n for r, n in churn.items() if n >= _CHURN_COUNT}
 
     if brief:
@@ -90,8 +90,7 @@ def run(brief: bool = False) -> int:
     print("=== single-instance locks ===")
 
     if not events:
-        print("  no lock events recorded yet (no service has taken a lock, or the "
-              "event log is empty).")
+        print("  no lock events recorded yet (no service has taken a lock, or the event log is empty).")
         return 0
 
     # Degraded (the important one — running without enforcement).
@@ -99,17 +98,16 @@ def run(brief: bool = False) -> int:
         print("  DEGRADED (running WITHOUT single-instance enforcement):")
         for role, rec in sorted(degraded.items()):
             print(f"    - {role}: {rec.get('event')} — {rec.get('error', '')[:120]}")
-        print("    Fix: check that the engine root's .internal/ dir is writable "
-              "(M3_ENGINE_ROOT); re-run the service.")
+        print("    Fix: check that the engine root's .internal/ dir is writable (M3_ENGINE_ROOT); re-run the service.")
     # Flapping (churn — two launchers fighting).
     if flapping:
-        print("  FLAPPING (many contention events — possible duplicate launcher / "
-              "respawn loop):")
+        print("  FLAPPING (many contention events — possible duplicate launcher / respawn loop):")
         for role, n in sorted(flapping.items()):
-            print(f"    - {role}: {n} 'already running' events in the last "
-                  f"{int(_CHURN_WINDOW_S/60)} min")
-        print("    Fix: check the scheduled task / launchd / systemd for duplicate "
-              "triggers (MultipleInstances, Boot+Logon).")
+            print(f"    - {role}: {n} 'already running' events in the last {int(_CHURN_WINDOW_S / 60)} min")
+        print(
+            "    Fix: check the scheduled task / launchd / systemd for duplicate "
+            "triggers (MultipleInstances, Boot+Logon)."
+        )
 
     # Informational: current holder per known service role.
     print("  current holders:")

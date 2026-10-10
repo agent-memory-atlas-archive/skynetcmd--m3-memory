@@ -21,6 +21,7 @@ guard.
 So this is a correctness/data-loss bug on the second supported backend, not a
 tidiness conversion. These tests pin the behaviour, not the implementation.
 """
+
 from __future__ import annotations
 
 import sys
@@ -66,13 +67,11 @@ def _backend_yielding(row, *, seen=None):
 
 
 class TestVaultProbeIsBackendBlind(unittest.TestCase):
-
     def test_probe_goes_through_the_seam(self):
         """It must ask the backend, not sqlite3 -- that is what makes it work
         on PostgreSQL, where there is no vault FILE at all."""
         seen: list = []
-        with mock.patch.object(auth_utils, "_backend",
-                               return_value=_backend_yielding((1,), seen=seen)):
+        with mock.patch.object(auth_utils, "_backend", return_value=_backend_yielding((1,), seen=seen)):
             self.assertTrue(auth_utils._vault_has_secrets())
         self.assertEqual(len(seen), 1, "open_readonly was not called exactly once")
 
@@ -80,20 +79,20 @@ class TestVaultProbeIsBackendBlind(unittest.TestCase):
         """THE REGRESSION. On PG the db_path names no local file. The old
         os.path.exists() gate returned False here -- the answer that makes a
         caller mint a new salt and orphan the vault."""
-        with mock.patch.object(auth_utils, "_vault_db_path",
-                               return_value="/nonexistent/not-a-real-file.db"), \
-             mock.patch.object(auth_utils, "_backend",
-                               return_value=_backend_yielding((1,))):
+        with (
+            mock.patch.object(auth_utils, "_vault_db_path", return_value="/nonexistent/not-a-real-file.db"),
+            mock.patch.object(auth_utils, "_backend", return_value=_backend_yielding((1,))),
+        ):
             self.assertIs(
-                auth_utils._vault_has_secrets(), True,
+                auth_utils._vault_has_secrets(),
+                True,
                 "vault WITH secrets reported empty because the path is not a "
                 "local file -- this is the salt-orphaning bug",
             )
 
     def test_empty_vault_still_reports_false(self):
         """The fix must not invert the answer: no rows still means no vault."""
-        with mock.patch.object(auth_utils, "_backend",
-                               return_value=_backend_yielding(None)):
+        with mock.patch.object(auth_utils, "_backend", return_value=_backend_yielding(None)):
             self.assertIs(auth_utils._vault_has_secrets(), False)
 
     def test_backend_error_is_treated_as_empty(self):
@@ -111,8 +110,7 @@ class TestVaultProbeIsBackendBlind(unittest.TestCase):
     def test_bootstrap_shim_exists_when_seam_is_unimportable(self):
         """auth_utils runs during installer bootstrap, before the seam is
         importable. It must still work rather than crash the install."""
-        real_import = __builtins__["__import__"] if isinstance(__builtins__, dict) \
-            else __builtins__.__import__
+        real_import = __builtins__["__import__"] if isinstance(__builtins__, dict) else __builtins__.__import__
 
         def _no_backends(name, *a, **k):
             if name == "memory.backends":
@@ -121,8 +119,7 @@ class TestVaultProbeIsBackendBlind(unittest.TestCase):
 
         with mock.patch("builtins.__import__", side_effect=_no_backends):
             b = auth_utils._backend()
-        self.assertTrue(hasattr(b, "open_readonly"),
-                        "bootstrap fallback must still offer open_readonly")
+        self.assertTrue(hasattr(b, "open_readonly"), "bootstrap fallback must still offer open_readonly")
 
     def test_no_raw_sqlite_connect_left_in_the_probe(self):
         """Pin the fix at the source: the probe body must not reach for
@@ -137,8 +134,7 @@ class TestVaultProbeIsBackendBlind(unittest.TestCase):
         import inspect
 
         body = "\n".join(
-            ln for ln in inspect.getsource(auth_utils._vault_has_secrets).splitlines()
-            if not ln.strip().startswith("#")
+            ln for ln in inspect.getsource(auth_utils._vault_has_secrets).splitlines() if not ln.strip().startswith("#")
         )
         # Drop the docstring too -- it also legitimately discusses the old path.
         self.assertNotIn("sqlite3.connect", body)
@@ -159,48 +155,44 @@ class TestSetupSecretIsBackendBlind(unittest.TestCase):
 
     def _mod(self):
         import setup_secret
+
         return setup_secret
 
     def test_no_raw_connects_remain(self):
         import inspect
-        src = "\n".join(
-            ln for ln in inspect.getsource(self._mod()).splitlines()
-            if not ln.strip().startswith("#")
-        )
+
+        src = "\n".join(ln for ln in inspect.getsource(self._mod()).splitlines() if not ln.strip().startswith("#"))
         self.assertNotIn("sqlite3.connect", src)
 
     def test_reads_go_through_open_readonly(self):
         seen: list = []
         m = self._mod()
-        with mock.patch.object(m, "_backend",
-                               return_value=_backend_yielding((3, "2026-01-01"),
-                                                              seen=seen)):
+        with mock.patch.object(m, "_backend", return_value=_backend_yielding((3, "2026-01-01"), seen=seen)):
             self.assertEqual(m._existing_info("SVC"), (3, "2026-01-01"))
         self.assertEqual(len(seen), 1)
 
     def test_existing_info_absent_returns_none(self):
         m = self._mod()
-        with mock.patch.object(m, "_backend",
-                               return_value=_backend_yielding(None)):
+        with mock.patch.object(m, "_backend", return_value=_backend_yielding(None)):
             self.assertIsNone(m._existing_info("NOPE"))
 
     def test_placeholders_come_from_the_dialect(self):
         """A literal `?` is a portability bug (§10a) — PG uses %s."""
         import inspect
+
         for fn in (self._mod()._existing_info, self._mod()._delete_service):
             src = inspect.getsource(fn)
-            self.assertIn("d.param()", src,
-                          f"{fn.__name__} must ask the dialect for placeholders")
+            self.assertIn("d.param()", src, f"{fn.__name__} must ask the dialect for placeholders")
 
     def test_delete_uses_the_pooled_write_connection(self):
         """Writes go through backend.connection() (pooled, commit/rollback
         discipline), never a private handle."""
         import inspect
+
         # CODE only: the function's comment explains the os.path.exists gate it
         # REMOVED, and a naive substring check would flag that explanation.
         src = "\n".join(
-            ln for ln in inspect.getsource(self._mod()._delete_service).splitlines()
-            if not ln.strip().startswith("#")
+            ln for ln in inspect.getsource(self._mod()._delete_service).splitlines() if not ln.strip().startswith("#")
         )
         self.assertIn("connection()", src)
         self.assertNotIn("os.path.exists", src)

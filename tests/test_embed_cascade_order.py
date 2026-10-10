@@ -13,6 +13,7 @@ an independent always-on service.
 These tests mock the HTTP calls to verify tier ORDER without requiring
 the real 8082 service to be running.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -73,6 +74,7 @@ def _isolate_env(monkeypatch, tmp_path):
     # embedder and skip the mocked HTTP tiers (which made vec come back non-None
     # / a real vector when the test expected the HTTP cascade or None).
     import importlib
+
     embed = importlib.import_module("memory.embed")
     embed._embedded_embedder = None
     embed._embedded_embed_checked = False
@@ -96,8 +98,10 @@ async def test_tier2_attempted_when_no_gguf(monkeypatch):
 
     class FakeResp:
         status_code = 200
+
         def raise_for_status(self):
             pass
+
         def json(self):
             return {"data": [{"embedding": _STUB_EMBEDDING, "index": 0}]}
 
@@ -128,8 +132,10 @@ async def test_tier3_skipped_when_tier2_succeeds(monkeypatch):
 
     class FakeResp:
         status_code = 200
+
         def raise_for_status(self):
             pass
+
         def json(self):
             return {"data": [{"embedding": _STUB_EMBEDDING, "index": 0}]}
 
@@ -149,10 +155,7 @@ async def test_tier3_skipped_when_tier2_succeeds(monkeypatch):
 
     vec, _ = await embed._embed("hello")
     assert vec is not None
-    assert tier3_called == [], (
-        f"tier 3 (llm_failover) was called {len(tier3_called)} times "
-        f"despite tier 2 succeeding"
-    )
+    assert tier3_called == [], f"tier 3 (llm_failover) was called {len(tier3_called)} times despite tier 2 succeeding"
 
 
 @pytest.mark.asyncio
@@ -166,6 +169,7 @@ async def test_cold_cascade_fails_fast_when_no_tier_available(monkeypatch):
     class FakeClient:
         async def post(self, url, **kwargs):
             from httpx import ConnectError
+
             raise ConnectError("connection refused (mocked)")
 
     async def fake_get_best_embed(*args, **kwargs):
@@ -184,12 +188,12 @@ async def test_cold_cascade_fails_fast_when_no_tier_available(monkeypatch):
             embed._PRIMARY_BREAKER.record_failure()
 
     import time
+
     t0 = time.perf_counter()
     vec, _model = await asyncio.wait_for(embed._embed("hello"), timeout=10.0)
     elapsed_s = time.perf_counter() - t0
 
     assert vec is None, "expected None when no tier is reachable"
     assert elapsed_s < 5.0, (
-        f"cold cascade took {elapsed_s:.1f}s — must fail fast (<5s) to "
-        f"avoid the historical minute-long hang"
+        f"cold cascade took {elapsed_s:.1f}s — must fail fast (<5s) to avoid the historical minute-long hang"
     )

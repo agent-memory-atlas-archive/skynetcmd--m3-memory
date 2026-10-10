@@ -33,8 +33,7 @@ crewai = pytest.importorskip("crewai", reason=skip_reason("dep", "requires `pip 
 # so the warning is attributed to the TEST line that constructs the record, and a
 # module-scoped filter on "crewai" cannot match it. Scoped to this file so m3's
 # own utcnow() calls still fail everywhere else.
-pytestmark = pytest.mark.filterwarnings(
-    r"ignore:datetime.datetime.utcnow\(\) is deprecated:DeprecationWarning")
+pytestmark = pytest.mark.filterwarnings(r"ignore:datetime.datetime.utcnow\(\) is deprecated:DeprecationWarning")
 
 
 DIM = 8
@@ -63,10 +62,10 @@ def _record(**kw):
 
 
 def test_save_then_vector_search_roundtrip(backend):
-    r1 = _record(content="the capital of France is Paris", scope="/crew/geo",
-                 categories=["fact"], embedding=_vec(1))
-    r2 = _record(content="water boils at 100C at sea level", scope="/crew/science",
-                 categories=["fact"], embedding=_vec(3))
+    r1 = _record(content="the capital of France is Paris", scope="/crew/geo", categories=["fact"], embedding=_vec(1))
+    r2 = _record(
+        content="water boils at 100C at sea level", scope="/crew/science", categories=["fact"], embedding=_vec(3)
+    )
     backend.save([r1, r2])
 
     hits = backend.search(_vec(1), limit=5)
@@ -79,20 +78,24 @@ def test_save_then_vector_search_roundtrip(backend):
 
 
 def test_scope_prefix_filter(backend):
-    backend.save([
-        _record(content="geo fact", scope="/crew/geo", categories=["f"], embedding=_vec(1)),
-        _record(content="sci fact", scope="/crew/science", categories=["f"], embedding=_vec(2)),
-    ])
+    backend.save(
+        [
+            _record(content="geo fact", scope="/crew/geo", categories=["f"], embedding=_vec(1)),
+            _record(content="sci fact", scope="/crew/science", categories=["f"], embedding=_vec(2)),
+        ]
+    )
     geo = backend.search(_vec(1), scope_prefix="/crew/geo", limit=5)
     assert all(r.scope.startswith("/crew/geo") for r, _ in geo)
     assert not any(r.scope.startswith("/crew/science") for r, _ in geo)
 
 
 def test_scope_introspection(backend):
-    backend.save([
-        _record(content="a", scope="/crew/geo", categories=["fact"], embedding=_vec(1)),
-        _record(content="b", scope="/crew/science", categories=["fact"], embedding=_vec(2)),
-    ])
+    backend.save(
+        [
+            _record(content="a", scope="/crew/geo", categories=["fact"], embedding=_vec(1)),
+            _record(content="b", scope="/crew/science", categories=["fact"], embedding=_vec(2)),
+        ]
+    )
     assert set(backend.list_scopes("/crew")) >= {"/crew/geo", "/crew/science"}
     info = backend.get_scope_info("/crew")
     assert info.record_count >= 2
@@ -101,8 +104,7 @@ def test_scope_introspection(backend):
 
 
 def test_get_record_and_list_records(backend):
-    backend.save([_record(content="findme", scope="/crew/x", categories=[],
-                          embedding=_vec(5))])
+    backend.save([_record(content="findme", scope="/crew/x", categories=[], embedding=_vec(5))])
     all_recs = backend.list_records()
     assert len(all_recs) >= 1
     rid = all_recs[0].id
@@ -111,10 +113,12 @@ def test_get_record_and_list_records(backend):
 
 
 def test_delete_by_scope_and_reset(backend):
-    backend.save([
-        _record(content="keep", scope="/crew/geo", categories=[], embedding=_vec(1)),
-        _record(content="drop", scope="/crew/science", categories=[], embedding=_vec(2)),
-    ])
+    backend.save(
+        [
+            _record(content="keep", scope="/crew/geo", categories=[], embedding=_vec(1)),
+            _record(content="drop", scope="/crew/science", categories=[], embedding=_vec(2)),
+        ]
+    )
     n = backend.delete(scope_prefix="/crew/science")
     assert n >= 1
     remaining = backend.list_records()
@@ -127,8 +131,7 @@ def test_tenant_isolation(backend):
     """A second tenant's backend never sees the first tenant's memories (§7)."""
     from m3_memory.integrations.crewai.backend import M3StorageBackend
 
-    backend.save([_record(content="tenant-a secret", scope="/x", categories=[],
-                          embedding=_vec(1))])
+    backend.save([_record(content="tenant-a secret", scope="/x", categories=[], embedding=_vec(1))])
     other = M3StorageBackend(user_id="live-crew-B")
     try:
         assert other.list_records() == [], "tenant B saw tenant A's memories"

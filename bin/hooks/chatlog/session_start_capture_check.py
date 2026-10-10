@@ -12,6 +12,7 @@ flag, or it gets a permanent false alarm (or false comfort).
 Outputs hook JSON on stdout: {"systemMessage": "...", "suppressOutput": true}.
 Never throws — a monitoring check must not break session start.
 """
+
 from __future__ import annotations
 
 import json
@@ -45,6 +46,7 @@ def _resolve_db() -> str:
     try:
         sys.path.insert(0, str(repo / "bin"))
         from m3_sdk import get_m3_engine_root, resolve_db_path
+
         engine_root_fn = get_m3_engine_root
         p = resolve_db_path(None)
         if p:
@@ -110,6 +112,7 @@ def _candidate_dbs() -> list[str]:
     """
     try:
         import chatlog_config
+
         paths = chatlog_config.chat_store_paths()
         if paths:
             return paths

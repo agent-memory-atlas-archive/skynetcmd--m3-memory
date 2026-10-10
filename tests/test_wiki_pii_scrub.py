@@ -9,6 +9,7 @@ Names are deployment-specific and come ONLY from config (`.wiki_pii.json`) — t
 is no shipped default — so the name-redaction tests set a name via a temp config.
 Path abstraction is pattern-based (no names needed) and uses a generic example.
 """
+
 import json
 import os
 import sys
@@ -31,6 +32,7 @@ def _with_names(tmp_path, monkeypatch, *names):
 
 # ── path abstraction (pattern-based — no configured name needed) ─────────────
 
+
 def test_windows_abspath_becomes_basename():
     text = "direct SQLite queries to C:/Users/alice/.m3/engine/agent_memory.db returned instantly"
     out, n = P.scrub_prose(text)
@@ -52,6 +54,7 @@ def test_posix_home_path_becomes_basename():
 
 
 # ── username attribution (config-driven — no shipped default) ────────────────
+
 
 def test_username_attribution_redacted(tmp_path, monkeypatch):
     _with_names(tmp_path, monkeypatch, "alice")
@@ -78,6 +81,7 @@ def test_no_names_configured_is_a_noop_for_names(tmp_path, monkeypatch):
 
 # ── secrets reuse (chatlog_redaction) ────────────────────────────────────────
 
+
 def test_email_redacted():
     out, n = P.scrub_prose("contact user@example.com for access")
     assert "user@example.com" not in out
@@ -85,6 +89,7 @@ def test_email_redacted():
 
 
 # ── safety contract ──────────────────────────────────────────────────────────
+
 
 def test_never_raises_and_preserves_clean_text():
     clean = "# A page\n\nNothing sensitive here — just prose about `memory_search`."

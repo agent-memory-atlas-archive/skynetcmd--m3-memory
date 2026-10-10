@@ -1,8 +1,8 @@
 ---
 tool: bin/run_reflector.py
-sha1: e02ffce37206
-mtime_utc: 2026-10-10T05:27:20.256704+00:00
-generated_utc: 2026-10-10T05:28:10.853788+00:00
+sha1: d7c7f2880440
+mtime_utc: 2026-10-10T21:05:16.503867+00:00
+generated_utc: 2026-10-10T21:05:29.934944+00:00
 private: false
 ---
 
@@ -35,7 +35,7 @@ Status: Phase D Task 4. Pairs with config/slm/reflector_local.yaml.
 
 ## Entry points
 
-- `def main()` (line 379)
+- `def main()` (line 399)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -72,8 +72,8 @@ _(none detected)_
 
 **http**
 
-- `httpx.AsyncClient()` (line 323)
-- `httpx.AsyncClient()` (line 366)
+- `httpx.AsyncClient()` (line 332)
+- `httpx.AsyncClient()` (line 382)
 
 
 ---

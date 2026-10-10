@@ -13,6 +13,7 @@ Approach (self-contained, no baseline snapshot needed): for every `from .sibling
 import NAME` in each shim module, assert the module actually exposes NAME after
 import. If ruff strips a re-export, the name vanishes and this fails.
 """
+
 from __future__ import annotations
 
 import ast
@@ -99,6 +100,7 @@ def test_known_critical_reexports():
     """Belt-and-braces: the specific names that broke live (4d46b97) must resolve
     both on their owning module AND through the shim path downstream uses."""
     from memory import embed
+
     for name in (
         "_augment_embed_text_with_anchors",
         "_chunk_for_sliding_window",

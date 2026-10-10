@@ -22,6 +22,7 @@ and URLs).
 Locking a read-modify-write (two ``config set`` calls racing) is the CALLER's
 job; this guarantees only that each write is all-or-nothing.
 """
+
 from __future__ import annotations
 
 import os
@@ -45,8 +46,12 @@ def atomic_write(path: str | os.PathLike[str], data: str | bytes, *, encoding: s
     except FileNotFoundError:
         mode = None
     with tempfile.NamedTemporaryFile(
-        "wb", dir=target.parent, prefix=f".{target.name}.", suffix=".tmp",
-        delete=True, delete_on_close=False,
+        "wb",
+        dir=target.parent,
+        prefix=f".{target.name}.",
+        suffix=".tmp",
+        delete=True,
+        delete_on_close=False,
     ) as tmp:
         tmp.write(payload)
         tmp.flush()

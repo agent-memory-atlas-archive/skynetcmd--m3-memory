@@ -47,6 +47,7 @@ DESIGN (§1 three-OS, §3 fail-loud/never-silent, §4 cheap, §10a one owner)
     _FAILED_CHECKS consecutive misses, so one slow /health during a model load
     does not trigger a needless bounce.
 """
+
 from __future__ import annotations
 
 import json
@@ -67,11 +68,13 @@ if str(_BIN) not in sys.path:
 try:
     from _task_runtime import no_window_kwargs
 except Exception:  # pragma: no cover - fallback if _task_runtime unavailable
+
     def no_window_kwargs() -> dict:
         # getattr, not subprocess.CREATE_NO_WINDOW: the attribute is
         # Windows-only and a direct reference fails mypy on the Linux runner.
         flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
         return {"creationflags": flags} if flags else {}
+
 
 _WINDOWS_SERVICE = "m3-embed-server"
 _SYSTEMD_UNIT = "m3-embed-server.service"
@@ -107,12 +110,15 @@ def _config_root() -> Path:
     documented precedence when the venv is half-upgraded."""
     try:
         from m3_sdk import get_m3_config_root
+
         return Path(get_m3_config_root())
     except Exception:
         master = os.environ.get("M3_MEMORY_ROOT")
-        return Path(os.environ.get("M3_CONFIG_ROOT")
-                    or (os.path.join(master, "config") if master else None)
-                    or os.path.expanduser("~/.m3/config"))
+        return Path(
+            os.environ.get("M3_CONFIG_ROOT")
+            or (os.path.join(master, "config") if master else None)
+            or os.path.expanduser("~/.m3/config")
+        )
 
 
 CONFIG_ROOT = _config_root()
@@ -154,9 +160,11 @@ def shared_mode() -> tuple[bool, str]:
         return False, _DEFAULT_URL
     except (OSError, ValueError) as e:
         # §3: a malformed config is loud, never a silent revert to defaults.
-        log(f"WARNING: {EMBED_CONFIG} is unreadable "
+        log(
+            f"WARNING: {EMBED_CONFIG} is unreadable "
             f"(observed: {type(e).__name__}: {e}) — cannot tell whether shared "
-            f"mode is on; standing down. inspect: that file, or `m3 embedder shared`")
+            f"mode is on; standing down. inspect: that file, or `m3 embedder shared`"
+        )
         return False, _DEFAULT_URL
     url = str(cfg.get("fallback_url") or _DEFAULT_URL).rstrip("/")
     return bool(cfg.get("disable_inproc_embedder")), url
@@ -181,8 +189,10 @@ def server_healthy(url: str) -> bool:
         # nosec B310 - the scheme is restricted to http/https immediately above,
         # which is exactly what B310 asks be audited. Load-bearing: removing the
         # guard must re-trip this finding, so do not move the nosec off it.
-        with urllib.request.urlopen(url + "/health",  # nosec B310
-                                    timeout=_HEALTH_TIMEOUT_S) as r:
+        with urllib.request.urlopen(
+            url + "/health",  # nosec B310
+            timeout=_HEALTH_TIMEOUT_S,
+        ) as r:
             return 200 <= r.status < 300
     except (urllib.error.URLError, OSError, ValueError):
         return False
@@ -234,11 +244,9 @@ def _restart_backend() -> tuple[list[list[str]], str]:
     osn = _os_name()
     if osn == "Darwin":
         uid = os.getuid() if hasattr(os, "getuid") else 0
-        return ([["launchctl", "kickstart", f"gui/{uid}/{_LAUNCHD_LABEL}"]],
-                f"launchd {_LAUNCHD_LABEL}")
+        return ([["launchctl", "kickstart", f"gui/{uid}/{_LAUNCHD_LABEL}"]], f"launchd {_LAUNCHD_LABEL}")
     if osn == "Linux":
-        return ([["systemctl", "--user", "start", _SYSTEMD_UNIT]],
-                f"systemd {_SYSTEMD_UNIT}")
+        return ([["systemctl", "--user", "start", _SYSTEMD_UNIT]], f"systemd {_SYSTEMD_UNIT}")
     return ([["sc.exe", "start", _WINDOWS_SERVICE]], f"sc.exe {_WINDOWS_SERVICE}")
 
 
@@ -250,8 +258,7 @@ def restart(reason: str, state: dict) -> int:
     log(f"STARTING via {what}: {reason}")
     for cmd in cmds:
         try:
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=60,
-                               **no_window_kwargs())
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=60, **no_window_kwargs())
         except (OSError, subprocess.SubprocessError) as e:
             log(f"  {cmd[0]} failed to spawn: {e}")
             continue
@@ -259,17 +266,20 @@ def restart(reason: str, state: dict) -> int:
             # Name what was OBSERVED and what to inspect; never assert a cause
             # the code has not confirmed (§3).
             detail = (r.stderr or r.stdout or "").strip().splitlines()
-            log(f"  observed: {cmd[0]} exit={r.returncode}"
-                + (f" — {detail[0][:160]}" if detail else ""))
+            log(f"  observed: {cmd[0]} exit={r.returncode}" + (f" — {detail[0][:160]}" if detail else ""))
             if _os_name() == "Windows":
-                log("  possible: insufficient rights — an unelevated watchdog "
+                log(
+                    "  possible: insufficient rights — an unelevated watchdog "
                     "cannot start a LocalSystem service; "
-                    "inspect: `m3 embedder status`")
+                    "inspect: `m3 embedder status`"
+                )
             else:
-                log(f"  possible: no {_SYSTEMD_UNIT if _os_name() == 'Linux' else _LAUNCHD_LABEL} "
+                log(
+                    f"  possible: no {_SYSTEMD_UNIT if _os_name() == 'Linux' else _LAUNCHD_LABEL} "
                     f"is registered on this host — the embed server currently "
                     f"ships an OS service on Windows only; "
-                    f"inspect: `m3 embedder status`")
+                    f"inspect: `m3 embedder status`"
+                )
     state["last_restart_ts"] = time.time()
     state["consecutive_failures"] = 0
     _write_state(state)
@@ -286,8 +296,7 @@ def main() -> int:
     state = _read_state()
     if server_healthy(url):
         if state.get("consecutive_failures"):
-            log(f"OK: {url} healthy again after "
-                f"{state['consecutive_failures']} failed check(s)")
+            log(f"OK: {url} healthy again after {state['consecutive_failures']} failed check(s)")
         state["consecutive_failures"] = 0
         _write_state(state)
         return 0
@@ -297,13 +306,14 @@ def main() -> int:
     _write_state(state)
 
     if fails < _FAILED_CHECKS:
-        log(f"observed: {url}/health unreachable ({fails}/{_FAILED_CHECKS}) "
-            f"— waiting one more tick before acting")
+        log(f"observed: {url}/health unreachable ({fails}/{_FAILED_CHECKS}) — waiting one more tick before acting")
         return 0
 
     return restart(
         f"observed: {url}/health unreachable on {fails} consecutive checks; "
-        f"shared mode is ON, so every m3 process depends on it", state)
+        f"shared mode is ON, so every m3 process depends on it",
+        state,
+    )
 
 
 if __name__ == "__main__":

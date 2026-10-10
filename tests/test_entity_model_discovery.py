@@ -11,6 +11,7 @@ filtering, fresh=cache-bypass, failure->None) and `m3_entities`'s base-url
 derivation + delegation with fresh=True. Hermetic — a fake async client, no real
 server (CI-safe).
 """
+
 import asyncio
 import sys
 from pathlib import Path
@@ -36,6 +37,7 @@ class _Resp:
 
 class _Client:
     """Fake httpx.AsyncClient capturing the GET it receives."""
+
     def __init__(self, resp_json, capture=None):
         self._j = resp_json
         self._cap = capture if capture is not None else {}
@@ -47,6 +49,7 @@ class _Client:
 
 
 # ── llm_failover.discover_model_async (the shared seam) ─────────────────────────
+
 
 def test_async_picks_usable_and_filters_embedders(monkeypatch):
     monkeypatch.setattr(LF, "_SYNC_MODEL_CACHE", {})
@@ -73,10 +76,12 @@ def test_async_failure_returns_none(monkeypatch):
     class _Boom:
         async def get(self, *a, **k):
             raise RuntimeError("server down")
+
     assert asyncio.run(LF.discover_model_async(_Boom(), "http://x/v1", "t", fresh=True)) is None
 
 
 # ── m3_entities: derive the OpenAI-style base + delegate fresh ───────────────────
+
 
 def test_entities_strips_anthropic_suffix_and_forces_fresh(monkeypatch):
     seen = {}
@@ -85,11 +90,12 @@ def test_entities_strips_anthropic_suffix_and_forces_fresh(monkeypatch):
         seen["endpoint"] = endpoint
         seen["fresh"] = fresh
         return "MODEL-X"
+
     monkeypatch.setattr(LF, "discover_model_async", _fake)
     got = asyncio.run(E._discover_loaded_model_async(object(), "http://127.0.0.1:1234/v1/messages", "tok"))
     assert got == "MODEL-X"
-    assert seen["endpoint"] == "http://127.0.0.1:1234/v1"   # /messages stripped -> base
-    assert seen["fresh"] is True                            # per-pass fresh (survives swaps)
+    assert seen["endpoint"] == "http://127.0.0.1:1234/v1"  # /messages stripped -> base
+    assert seen["fresh"] is True  # per-pass fresh (survives swaps)
 
 
 def test_entities_strips_openai_suffix(monkeypatch):
@@ -98,6 +104,7 @@ def test_entities_strips_openai_suffix(monkeypatch):
     async def _fake(client, endpoint, token, *, fresh=False):
         seen["endpoint"] = endpoint
         return "M"
+
     monkeypatch.setattr(LF, "discover_model_async", _fake)
     asyncio.run(E._discover_loaded_model_async(object(), "http://127.0.0.1:1234/v1/chat/completions", None))
     assert seen["endpoint"] == "http://127.0.0.1:1234/v1"
@@ -106,5 +113,6 @@ def test_entities_strips_openai_suffix(monkeypatch):
 def test_entities_discovery_failure_keeps_none(monkeypatch):
     async def _boom(*a, **k):
         raise RuntimeError("nope")
+
     monkeypatch.setattr(LF, "discover_model_async", _boom)
     assert asyncio.run(E._discover_loaded_model_async(object(), "http://x/v1/messages", "t")) is None

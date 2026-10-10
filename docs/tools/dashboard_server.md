@@ -1,8 +1,8 @@
 ---
 tool: bin/dashboard_server.py
-sha1: 4b2710453508
-mtime_utc: 2026-10-10T14:08:30.141486+00:00
-generated_utc: 2026-10-10T14:09:48.625026+00:00
+sha1: 13b32c57505c
+mtime_utc: 2026-10-10T21:05:17.243976+00:00
+generated_utc: 2026-10-10T21:05:29.480542+00:00
 private: false
 ---
 
@@ -105,11 +105,11 @@ you intend to launch the server with (typically ``.venv``).
 
 **subprocess**
 
-- `subprocess.Popen()  → `[exe, script, '--foreground']`` (line 3196)
-- `subprocess.Popen()  → `[sys.executable, script, '--foreground']`` (line 3206)
-- `subprocess.Popen()  → `cmd`` (line 2861)
-- `subprocess.run()  → `['powershell', '-NoProfile', '-Command', ps]`` (line 3076)
-- `subprocess.run()  → `['taskkill', '/F', '/PID', str(pid)]`` (line 3111)
+- `subprocess.Popen()  → `[exe, script, '--foreground']`` (line 3411)
+- `subprocess.Popen()  → `[sys.executable, script, '--foreground']`` (line 3425)
+- `subprocess.Popen()  → `cmd`` (line 3062)
+- `subprocess.run()  → `['powershell', '-NoProfile', '-Command', ps]`` (line 3281)
+- `subprocess.run()  → `['taskkill', '/F', '/PID', str(pid)]`` (line 3321)
 
 
 ---

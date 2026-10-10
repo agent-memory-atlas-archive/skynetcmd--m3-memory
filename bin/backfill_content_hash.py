@@ -52,6 +52,7 @@ Usage:
     python bin/backfill_content_hash.py --db DB --id-prefix 0
     python bin/backfill_content_hash.py --db DB --id-prefix 1
 """
+
 from __future__ import annotations
 
 import argparse
@@ -77,6 +78,7 @@ def _tables(args: argparse.Namespace) -> tuple[str, str]:
     """(items, embeddings) for --target, through the seam's chatlog naming."""
     if args.target == "chatlog":
         from memory.backends.dialect import chatlog_table
+
         return chatlog_table("items"), chatlog_table("embeddings")
     return "memory_items", "memory_embeddings"
 
@@ -89,14 +91,17 @@ def _verify_schema(conn, args: argparse.Namespace) -> None:
     for tbl, required in ((items, ("id", "content", "type")), (embeddings, ("content_hash",))):
         sql, params = d.table_exists(tbl)
         if conn.execute(sql, params).fetchone() is None:
-            raise RuntimeError(f"observed: table {tbl!r} not found in {where}. "
-                               f"inspect: run the migrations (migrate_memory.py / migrate_pg.py)")
+            raise RuntimeError(
+                f"observed: table {tbl!r} not found in {where}. "
+                f"inspect: run the migrations (migrate_memory.py / migrate_pg.py)"
+            )
         sql, params = d.columns_of(tbl)
         cols = {r[0] for r in conn.execute(sql, params).fetchall()}
         for col in required:
             if col not in cols:
-                raise RuntimeError(f"observed: {tbl}.{col} missing from {where}. "
-                                   f"inspect: the schema is too old; run the migrations")
+                raise RuntimeError(
+                    f"observed: {tbl}.{col} missing from {where}. inspect: the schema is too old; run the migrations"
+                )
 
 
 def _build_select(args: argparse.Namespace, after_id: str | None) -> tuple[str, list]:
@@ -136,7 +141,7 @@ def _build_select(args: argparse.Namespace, after_id: str | None) -> tuple[str, 
         SELECT me.id, me.memory_id, mi.content, mi.metadata_json
         FROM {embeddings} me
         JOIN {items} mi ON mi.id = me.memory_id
-        WHERE {' AND '.join(where)}
+        WHERE {" AND ".join(where)}
         ORDER BY me.id
         LIMIT {p}
     """
@@ -197,9 +202,7 @@ def _run_backfill(conn, args: argparse.Namespace) -> dict:
                 counters["skipped_empty"] += 1
                 continue
             if args.augment_anchors:
-                embed_text = mc._augment_embed_text_with_anchors(
-                    base_text, metadata_json
-                )
+                embed_text = mc._augment_embed_text_with_anchors(base_text, metadata_json)
             else:
                 embed_text = base_text
             hash_value = mc._content_hash(embed_text)
@@ -222,9 +225,12 @@ def _run_backfill(conn, args: argparse.Namespace) -> dict:
                 if is_defect(e):
                     raise  # a wrong query fails every batch; stop loudly
                 counters["errors"] += 1
-                print(f"  WRITE_FAIL: observed: {type(e).__name__}: {e}. "
-                      f"inspect: a locked or busy store; this batch is skipped, "
-                      f"re-run to retry it", file=sys.stderr)
+                print(
+                    f"  WRITE_FAIL: observed: {type(e).__name__}: {e}. "
+                    f"inspect: a locked or busy store; this batch is skipped, "
+                    f"re-run to retry it",
+                    file=sys.stderr,
+                )
                 # Don't abort; cursor advanced, next batch tries different rows
                 continue
 
@@ -249,52 +255,79 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
 
     sel = ap.add_argument_group("selection")
-    sel.add_argument("--db", default=None,
-                     help="Target SQLite DB (default: the active store, or the chatlog "
-                          "store with --target chatlog). Not used on PostgreSQL.")
-    sel.add_argument("--target", choices=("core", "chatlog"), default="core",
-                     help="Which store's embeddings to backfill. On PostgreSQL this picks "
-                          "memory_* or chat_log_* in the one database.")
-    sel.add_argument("--type", action="append", default=None,
-                     help=f"Memory type to include. Repeatable. "
-                          f"Defaults to {' + '.join(DEFAULT_TYPES)} (raw-content "
-                          f"hashing is safe for these). For other types, pass "
-                          f"--type explicitly with --augment-anchors so the "
-                          f"hash matches what _embed_many would compute.")
-    sel.add_argument("--all-types", action="store_true",
-                     help="Backfill rows of any type (no type filter). Pair "
-                          "with --augment-anchors so hashes match what "
-                          "memory_write_impl would have computed at write "
-                          "time. Note: rows whose metadata.temporal_anchors "
-                          "predates current schema will get a hash that "
-                          "doesn't match new writes — strictly an improvement "
-                          "on NULL (cache miss → cache hit on identical "
-                          "future text) but may not deduplicate against "
-                          "older inline-written embeddings of the same text.")
-    sel.add_argument("--variant", action="append", default=[],
-                     help="Filter to memory_items.variant. Repeatable for OR.")
-    sel.add_argument("--user-id", type=str, default=None,
-                     help="Filter to one memory_items.user_id.")
-    sel.add_argument("--id-prefix", type=str, default=None,
-                     help="Backfill only embedding rows whose id starts with "
-                          "this hex prefix. Use to shard across instances.")
-    sel.add_argument("--limit", type=int, default=None,
-                     help="Stop after AT LEAST N successful updates. The check "
-                          "fires at batch boundaries; actual stop can overshoot "
-                          "by up to one batch (--batch-size).")
+    sel.add_argument(
+        "--db",
+        default=None,
+        help="Target SQLite DB (default: the active store, or the chatlog "
+        "store with --target chatlog). Not used on PostgreSQL.",
+    )
+    sel.add_argument(
+        "--target",
+        choices=("core", "chatlog"),
+        default="core",
+        help="Which store's embeddings to backfill. On PostgreSQL this picks "
+        "memory_* or chat_log_* in the one database.",
+    )
+    sel.add_argument(
+        "--type",
+        action="append",
+        default=None,
+        help=f"Memory type to include. Repeatable. "
+        f"Defaults to {' + '.join(DEFAULT_TYPES)} (raw-content "
+        f"hashing is safe for these). For other types, pass "
+        f"--type explicitly with --augment-anchors so the "
+        f"hash matches what _embed_many would compute.",
+    )
+    sel.add_argument(
+        "--all-types",
+        action="store_true",
+        help="Backfill rows of any type (no type filter). Pair "
+        "with --augment-anchors so hashes match what "
+        "memory_write_impl would have computed at write "
+        "time. Note: rows whose metadata.temporal_anchors "
+        "predates current schema will get a hash that "
+        "doesn't match new writes — strictly an improvement "
+        "on NULL (cache miss → cache hit on identical "
+        "future text) but may not deduplicate against "
+        "older inline-written embeddings of the same text.",
+    )
+    sel.add_argument(
+        "--variant", action="append", default=[], help="Filter to memory_items.variant. Repeatable for OR."
+    )
+    sel.add_argument("--user-id", type=str, default=None, help="Filter to one memory_items.user_id.")
+    sel.add_argument(
+        "--id-prefix",
+        type=str,
+        default=None,
+        help="Backfill only embedding rows whose id starts with this hex prefix. Use to shard across instances.",
+    )
+    sel.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Stop after AT LEAST N successful updates. The check "
+        "fires at batch boundaries; actual stop can overshoot "
+        "by up to one batch (--batch-size).",
+    )
 
     perf = ap.add_argument_group("performance")
-    perf.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE,
-                      help=f"Rows per UPDATE batch. Default: {DEFAULT_BATCH_SIZE}.")
+    perf.add_argument(
+        "--batch-size",
+        type=int,
+        default=DEFAULT_BATCH_SIZE,
+        help=f"Rows per UPDATE batch. Default: {DEFAULT_BATCH_SIZE}.",
+    )
 
     beh = ap.add_argument_group("behavior")
-    beh.add_argument("--augment-anchors", action="store_true",
-                     help="Apply memory_core._augment_embed_text_with_anchors "
-                          "to content before hashing. Required for non-chatlog "
-                          "types where memory_write_impl applied this transform "
-                          "at write time. Default OFF (chatlog uses raw content).")
-    beh.add_argument("--dry-run", action="store_true",
-                     help="Count rows that would be updated; write nothing.")
+    beh.add_argument(
+        "--augment-anchors",
+        action="store_true",
+        help="Apply memory_core._augment_embed_text_with_anchors "
+        "to content before hashing. Required for non-chatlog "
+        "types where memory_write_impl applied this transform "
+        "at write time. Default OFF (chatlog uses raw content).",
+    )
+    beh.add_argument("--dry-run", action="store_true", help="Count rows that would be updated; write nothing.")
 
     args = ap.parse_args(argv)
     if args.all_types:
@@ -317,8 +350,7 @@ def _chatlog_default() -> str | None:
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     try:
-        args.db = resolve_cli_store(
-            args.db, "--db", default=_chatlog_default() if args.target == "chatlog" else None)
+        args.db = resolve_cli_store(args.db, "--db", default=_chatlog_default() if args.target == "chatlog" else None)
     except ValueError as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 2
@@ -338,10 +370,14 @@ def _main(conn, args: argparse.Namespace) -> int:
     print(f"Pending:   {pending}")
     print("Filters:")
     print(f"  type:        {args.type}")
-    if args.variant:    print(f"  variant:     {args.variant}")
-    if args.user_id:    print(f"  user_id:     {args.user_id}")
-    if args.id_prefix:  print(f"  id_prefix:   {args.id_prefix!r}")
-    if args.limit:      print(f"  limit:       {args.limit}")
+    if args.variant:
+        print(f"  variant:     {args.variant}")
+    if args.user_id:
+        print(f"  user_id:     {args.user_id}")
+    if args.id_prefix:
+        print(f"  id_prefix:   {args.id_prefix!r}")
+    if args.limit:
+        print(f"  limit:       {args.limit}")
     print(f"Behavior:  augment_anchors={args.augment_anchors} batch_size={args.batch_size}")
 
     if args.dry_run:

@@ -4,6 +4,7 @@ Before 2D.1 they were env reads bound at import: m3_config.toml never reached
 them, and neither did the settings test fixture, so a test that wanted a value
 had to patch the module attribute and depended on import order.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -90,9 +91,11 @@ def test_doctor_still_renames_every_registry_alias():
     # those; the drift test then forces the map entry out). Meanwhile the two
     # must name the same canonical variable.
     registry = {a: k.env_names[0] for k in REGISTRY for a in k.env_names[1:]}
-    disagree = {a: (DEPRECATED_ENV_RENAMES[a], registry[a])
-                for a in set(registry) & set(DEPRECATED_ENV_RENAMES)
-                if DEPRECATED_ENV_RENAMES[a] != registry[a]}
+    disagree = {
+        a: (DEPRECATED_ENV_RENAMES[a], registry[a])
+        for a in set(registry) & set(DEPRECATED_ENV_RENAMES)
+        if DEPRECATED_ENV_RENAMES[a] != registry[a]
+    }
     assert not disagree, f"getenv_compat map vs registry: {disagree}"
 
 

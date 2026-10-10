@@ -8,6 +8,7 @@ failure, which every caller up the stack catching a specific type would miss
 (user decision 2026-10-08, m3 74995ad5). gather_or_cancel cancels and awaits
 the siblings, then re-raises the ORIGINAL exception unchanged.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -111,8 +112,14 @@ def test_no_plain_gather_without_return_exceptions():
                 if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     continue
                 for n in ast.walk(fn):
-                    if (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "gather"
-                            and not any(k.arg == "return_exceptions" and isinstance(k.value, ast.Constant)
-                                        and k.value.value is True for k in n.keywords)):
+                    if (
+                        isinstance(n, ast.Call)
+                        and isinstance(n.func, ast.Attribute)
+                        and n.func.attr == "gather"
+                        and not any(
+                            k.arg == "return_exceptions" and isinstance(k.value, ast.Constant) and k.value.value is True
+                            for k in n.keywords
+                        )
+                    ):
                         found.add((rel, fn.name))
     assert found == allowed, f"use gather_or_cancel: {sorted(found - allowed)}; stale: {sorted(allowed - found)}"

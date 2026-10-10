@@ -24,6 +24,7 @@ Usage modes:
 
 Status: Phase D Task 3. Pairs with config/slm/observer_local.yaml.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -149,15 +150,17 @@ def parse_observations(text: str) -> list[dict]:
             sti = int(sti) if sti is not None else None
         except (TypeError, ValueError):
             sti = None
-        out.append({
-            "text": t[:500],
-            "observation_date": obs_date,
-            "referenced_date": ref_date,
-            "relative_date": rel_date,
-            "confidence": max(0.0, min(1.0, conf)),
-            "supersedes_hint": sup_hint,
-            "source_turn_index": sti,
-        })
+        out.append(
+            {
+                "text": t[:500],
+                "observation_date": obs_date,
+                "referenced_date": ref_date,
+                "relative_date": rel_date,
+                "confidence": max(0.0, min(1.0, conf)),
+                "supersedes_hint": sup_hint,
+                "source_turn_index": sti,
+            }
+        )
     return out
 
 
@@ -171,8 +174,10 @@ def _attribute_turn(obs: dict, turns: list[tuple]) -> int | None:
     model call. A defensive fallback so observation provenance is still resolved
     when the model's self-reported index is missing or wrong."""
     import re as _re
+
     def toks(s: str) -> set:
         return set(_re.findall(r"[a-z0-9]{3,}", (s or "").lower()))
+
     o_toks = toks(obs.get("text", ""))
     if not o_toks:
         return None
@@ -237,19 +242,17 @@ async def call_observer(
             "x-api-key": token,
             "anthropic-version": getattr(profile, "anthropic_version", "2023-06-01"),
         }
-        r = await client.post(profile.url, json=payload, headers=headers,
-                              timeout=profile.timeout_s)
+        r = await client.post(profile.url, json=payload, headers=headers, timeout=profile.timeout_s)
         if r.status_code != 200:
-            raise RuntimeError(f"observer HTTP error. "
-                               f"observed: {r.status_code} from {profile.url}. "
-                               f"response: {r.text[:200]}. "
-                               f"inspect: profile.url, model availability, API connectivity.")
+            raise RuntimeError(
+                f"observer HTTP error. "
+                f"observed: {r.status_code} from {profile.url}. "
+                f"response: {r.text[:200]}. "
+                f"inspect: profile.url, model availability, API connectivity."
+            )
         data = r.json()
         blocks = data.get("content", [])
-        text = "".join(
-            b.get("text", "") for b in blocks
-            if isinstance(b, dict) and b.get("type") == "text"
-        ).strip()
+        text = "".join(b.get("text", "") for b in blocks if isinstance(b, dict) and b.get("type") == "text").strip()
         # "Found nothing" and "never got to answer" are different facts. Without
         # this, a truncated reply parses to zero observations and is recorded as
         # a clean, empty result.
@@ -258,7 +261,8 @@ async def call_observer(
                 f"observer: truncated output. "
                 f"observed: {profile.model} returned no text block with stop_reason={data.get('stop_reason')!r}. "
                 f"possible: max_tokens={max_tokens} too small, or thinking/streaming not properly suppressed. "
-                f"inspect: profile.max_tokens, model reasoning mode, response format.")
+                f"inspect: profile.max_tokens, model reasoning mode, response format."
+            )
         # Anthropic usage shape: input_tokens / output_tokens
         u = data.get("usage") or {}
         usage_meta["tokens_in"] = int(u.get("input_tokens") or 0)
@@ -286,13 +290,14 @@ async def call_observer(
             "Content-Type": "application/json",
             "Authorization": f"Bearer {token}",
         }
-        r = await client.post(profile.url, json=payload, headers=headers,
-                              timeout=profile.timeout_s)
+        r = await client.post(profile.url, json=payload, headers=headers, timeout=profile.timeout_s)
         if r.status_code != 200:
-            raise RuntimeError(f"observer HTTP error. "
-                               f"observed: {r.status_code} from {profile.url}. "
-                               f"response: {r.text[:200]}. "
-                               f"inspect: profile.url, model availability, API connectivity.")
+            raise RuntimeError(
+                f"observer HTTP error. "
+                f"observed: {r.status_code} from {profile.url}. "
+                f"response: {r.text[:200]}. "
+                f"inspect: profile.url, model availability, API connectivity."
+            )
         data = r.json()
         choice = (data.get("choices") or [{}])[0]
         text = (choice.get("message", {}).get("content") or "").strip()
@@ -301,7 +306,8 @@ async def call_observer(
                 f"observer: truncated output. "
                 f"observed: {profile.model} returned empty content with finish_reason={choice.get('finish_reason')!r}. "
                 f"possible: max_tokens={max_tokens} too small, or reasoning/streaming not properly suppressed. "
-                f"inspect: profile.max_tokens, model reasoning mode, response format.")
+                f"inspect: profile.max_tokens, model reasoning mode, response format."
+            )
         # OpenAI-compat usage shape: prompt_tokens / completion_tokens.
         # xAI extension: cost_in_usd_ticks (USD * 1e9).
         u = data.get("usage") or {}
@@ -323,10 +329,9 @@ async def call_observer(
         in_per_m = getattr(profile, "input_cost_per_mtok", None)
         out_per_m = getattr(profile, "output_cost_per_mtok", None)
         if in_per_m or out_per_m:
-            usage_meta["cost_usd"] = (
-                (usage_meta["tokens_in"] / 1_000_000.0) * float(in_per_m or 0)
-                + (usage_meta["tokens_out"] / 1_000_000.0) * float(out_per_m or 0)
-            )
+            usage_meta["cost_usd"] = (usage_meta["tokens_in"] / 1_000_000.0) * float(in_per_m or 0) + (
+                usage_meta["tokens_out"] / 1_000_000.0
+            ) * float(out_per_m or 0)
 
     return parse_observations(text), usage_meta
 
@@ -410,6 +415,7 @@ async def write_observation(
             # SQLite file on a PG-primary deployment). On PG this hits the pool; on
             # SQLite it opens the same active-context connection as before.
             from memory.backends import dialect
+
             _p = dialect().param()
             with mc._db() as conn:
                 conn.execute(
@@ -518,9 +524,15 @@ async def process_conversation(
     existing callers that ignore the return value are unaffected."""
     if not turns:
         counters["empty_groups"] += 1
-        return {"outcome": "skipped", "written": 0, "tokens_in": 0,
-                "tokens_out": 0, "cost_usd": 0.0, "partial_failure_chunks": 0,
-                "last_error": None}
+        return {
+            "outcome": "skipped",
+            "written": 0,
+            "tokens_in": 0,
+            "tokens_out": 0,
+            "cost_usd": 0.0,
+            "partial_failure_chunks": 0,
+            "last_error": None,
+        }
     # Use the earliest turn's session_date as the canonical observation_date.
     # Falls back to the row's created_at if no metadata.session_date.
     # While scanning, also lift session_id from the source turns so observations
@@ -541,8 +553,7 @@ async def process_conversation(
     input_max = getattr(profile, "input_max_chars", 20000) or 20000
     chunks = _chunk_turns(turns, input_max)
     if len(chunks) > 1:
-        print(f"[observer] conv={conversation_id[:8]}: {len(turns)} turns -> "
-              f"{len(chunks)} chunks", flush=True)
+        print(f"[observer] conv={conversation_id[:8]}: {len(turns)} turns -> {len(chunks)} chunks", flush=True)
 
     observations: list[dict] = []
     chunk_fail_count = 0
@@ -568,9 +579,10 @@ async def process_conversation(
             # ConnectError frequently has empty str).
             counters["last_error"] = f"{type(e).__name__}: {e!r}"
             if counters["failed"] + chunk_fail_count <= 5:
-                print(f"[observer] FAIL conv={conversation_id[:8]} "
-                      f"chunk={ci}/{len(chunks)}: {type(e).__name__}: {e!r}",
-                      flush=True)
+                print(
+                    f"[observer] FAIL conv={conversation_id[:8]} chunk={ci}/{len(chunks)}: {type(e).__name__}: {e!r}",
+                    flush=True,
+                )
             # Continue to next chunk rather than aborting the whole conversation.
             continue
 
@@ -591,16 +603,25 @@ async def process_conversation(
         # in the caller doesn't double-count.
         if chunk_fail_count > 0:
             counters["failed"] += 1
-            return {"outcome": "failed", "written": 0,
-                    "tokens_in": group_tokens_in, "tokens_out": group_tokens_out,
-                    "cost_usd": group_cost_usd,
-                    "partial_failure_chunks": chunk_fail_count,
-                    "last_error": counters.get("last_error")}
+            return {
+                "outcome": "failed",
+                "written": 0,
+                "tokens_in": group_tokens_in,
+                "tokens_out": group_tokens_out,
+                "cost_usd": group_cost_usd,
+                "partial_failure_chunks": chunk_fail_count,
+                "last_error": counters.get("last_error"),
+            }
         counters["empty_groups"] += 1
-        return {"outcome": "empty", "written": 0,
-                "tokens_in": group_tokens_in, "tokens_out": group_tokens_out,
-                "cost_usd": group_cost_usd, "partial_failure_chunks": 0,
-                "last_error": None}
+        return {
+            "outcome": "empty",
+            "written": 0,
+            "tokens_in": group_tokens_in,
+            "tokens_out": group_tokens_out,
+            "cost_usd": group_cost_usd,
+            "partial_failure_chunks": 0,
+            "last_error": None,
+        }
     counters["processed"] += 1
     # Surface partial-failure count to the caller (m3_enrich) so it can
     # record it on the success row. Multi-chunk groups where some chunks
@@ -631,14 +652,18 @@ async def process_conversation(
             if sti is None or sti not in idx_to_id:
                 sti = _attribute_turn(obs, turns)  # deterministic fallback
             if sti is not None and sti in idx_to_id:
-                src_ids = [idx_to_id[sti]]         # the specific source turn
+                src_ids = [idx_to_id[sti]]  # the specific source turn
             else:
-                src_ids = all_turn_ids             # unresolved -> whole session
+                src_ids = all_turn_ids  # unresolved -> whole session
                 counters["addr_fallback_session"] = counters.get("addr_fallback_session", 0) + 1
         else:
-            src_ids = all_turn_ids                 # default: whole session (unchanged)
+            src_ids = all_turn_ids  # default: whole session (unchanged)
         obs_id = await write_observation(
-            obs, target_variant, user_id, conversation_id, src_ids,
+            obs,
+            target_variant,
+            user_id,
+            conversation_id,
+            src_ids,
             source_group_id=source_group_id,
             session_id=source_session_id,
         )
@@ -651,16 +676,24 @@ async def process_conversation(
         # observations landed for this group; report empty rather than a
         # success with obs_emitted=0 so the caller doesn't mark it done-with-
         # zero and (worse) so a re-run isn't misled about what happened.
-        return {"outcome": "empty", "written": 0,
-                "tokens_in": group_tokens_in, "tokens_out": group_tokens_out,
-                "cost_usd": group_cost_usd,
-                "partial_failure_chunks": chunk_fail_count,
-                "last_error": None}
-    return {"outcome": "written", "written": group_written,
-            "tokens_in": group_tokens_in, "tokens_out": group_tokens_out,
+        return {
+            "outcome": "empty",
+            "written": 0,
+            "tokens_in": group_tokens_in,
+            "tokens_out": group_tokens_out,
             "cost_usd": group_cost_usd,
             "partial_failure_chunks": chunk_fail_count,
-            "last_error": None}
+            "last_error": None,
+        }
+    return {
+        "outcome": "written",
+        "written": group_written,
+        "tokens_in": group_tokens_in,
+        "tokens_out": group_tokens_out,
+        "cost_usd": group_cost_usd,
+        "partial_failure_chunks": chunk_fail_count,
+        "last_error": None,
+    }
 
 
 async def drain_variant_mode(args, profile, token: str) -> None:
@@ -683,11 +716,14 @@ async def drain_variant_mode(args, profile, token: str) -> None:
     # stored under another type (e.g. an imported chat_log corpus) override via
     # --source-type. Allowlist-validated so the value is never unsafely interpolated.
     _ALLOWED_SRC_TYPES = {"message", "conversation", "chat_log"}
-    src_types = [t.strip() for t in (getattr(args, "source_type", None) or "message,conversation").split(",") if t.strip()]
+    src_types = [
+        t.strip() for t in (getattr(args, "source_type", None) or "message,conversation").split(",") if t.strip()
+    ]
     bad = [t for t in src_types if t not in _ALLOWED_SRC_TYPES]
     if bad:
         sys.exit(f"ERROR: --source-type values not allowed: {bad} (allowed: {sorted(_ALLOWED_SRC_TYPES)})")
     from memory.backends import dialect
+
     _d = dialect()
     _p = _d.param()
     type_ph = _d.placeholder(len(src_types))
@@ -747,9 +783,12 @@ async def drain_variant_mode(args, profile, token: str) -> None:
 
     total_groups = len(groups)
     total_turns = sum(len(g) for g in groups.values())
-    print(f"[observer] {total_groups} conversations, {total_turns} turns "
-          f"under variant={args.source_variant!r}; writing to "
-          f"variant={args.target_variant!r}", flush=True)
+    print(
+        f"[observer] {total_groups} conversations, {total_turns} turns "
+        f"under variant={args.source_variant!r}; writing to "
+        f"variant={args.target_variant!r}",
+        flush=True,
+    )
     if total_groups == 0:
         return
 
@@ -758,12 +797,20 @@ async def drain_variant_mode(args, profile, token: str) -> None:
     started = time.monotonic()
 
     from unified_ai import async_client_for_profile
+
     async with async_client_for_profile(profile) as client:
+
         async def gated(uid: str, cid: str, turns: list[tuple]) -> None:
             async with sem:
                 await process_conversation(
-                    cid, uid, turns, args.target_variant,
-                    profile, client, token, counters,
+                    cid,
+                    uid,
+                    turns,
+                    args.target_variant,
+                    profile,
+                    client,
+                    token,
+                    counters,
                 )
                 done = counters["processed"] + counters["empty_groups"] + counters["failed"]
                 if done % 50 == 0:
@@ -776,17 +823,14 @@ async def drain_variant_mode(args, profile, token: str) -> None:
                         f"obs_written={counters['written']} "
                         f"empty={counters['empty_groups']} "
                         f"failed={counters['failed']}  "
-                        f"rate={rate:.2f}conv/s eta={eta/60:.1f}m",
+                        f"rate={rate:.2f}conv/s eta={eta / 60:.1f}m",
                         flush=True,
                     )
 
-        await gather_or_cancel(*(
-            gated(uid, cid, turns)
-            for (uid, cid), turns in groups.items()
-        ))
+        await gather_or_cancel(*(gated(uid, cid, turns) for (uid, cid), turns in groups.items()))
 
     elapsed = time.monotonic() - started
-    print(f"\n[observer] DONE in {elapsed/60:.1f}m", flush=True)
+    print(f"\n[observer] DONE in {elapsed / 60:.1f}m", flush=True)
     print(f"  groups processed: {counters['processed']}", flush=True)
     print(f"  observations written: {counters['written']}", flush=True)
     print(f"  empty groups: {counters['empty_groups']}", flush=True)
@@ -800,6 +844,7 @@ async def drain_queue_mode(args, profile, token: str) -> None:
     counters = {"processed": 0, "written": 0, "failed": 0, "empty_groups": 0}
     started = time.monotonic()
     from memory.backends import dialect
+
     _d = dialect()
     _p = _d.param()
     _je_role = _d.json_extract_text("metadata_json", "role")
@@ -811,6 +856,7 @@ async def drain_queue_mode(args, profile, token: str) -> None:
     _je_cid = _d.json_extract_text("metadata_json", "conversation_id")
 
     from unified_ai import async_client_for_profile
+
     async with async_client_for_profile(profile) as client:
         # Single-shot drain: pull up to --batch rows from the queue. Caller
         # invokes us repeatedly via the CLI (or cron) for ongoing drain.
@@ -823,7 +869,7 @@ async def drain_queue_mode(args, profile, token: str) -> None:
                 ORDER BY attempts ASC, enqueued_at ASC
                 LIMIT {_p}
                 """,
-                (args.batch,)
+                (args.batch,),
             ).fetchall()
         if not queue_rows:
             print("[observer] queue empty; nothing to drain", flush=True)
@@ -849,7 +895,7 @@ async def drain_queue_mode(args, profile, token: str) -> None:
                           AND type IN ('message','conversation')
                         ORDER BY turn_index ASC
                         """,
-                        (conv_id,)
+                        (conv_id,),
                     ).fetchall()
                 if not turns:
                     with mc._db() as db:
@@ -860,8 +906,14 @@ async def drain_queue_mode(args, profile, token: str) -> None:
 
                 try:
                     await process_conversation(
-                        conv_id, uid or "", list(turns),
-                        args.target_variant or "", profile, client, token, counters,
+                        conv_id,
+                        uid or "",
+                        list(turns),
+                        args.target_variant or "",
+                        profile,
+                        client,
+                        token,
+                        counters,
                     )
                     with mc._db() as db:
                         db.execute(f"DELETE FROM observation_queue WHERE id={_p}", (qid,))
@@ -877,12 +929,10 @@ async def drain_queue_mode(args, profile, token: str) -> None:
                         db.commit()
                     counters["failed"] += 1
 
-        await gather_or_cancel(*(
-            drain_one(r[0], r[1], r[2], r[3]) for r in queue_rows
-        ))
+        await gather_or_cancel(*(drain_one(r[0], r[1], r[2], r[3]) for r in queue_rows))
 
     elapsed = time.monotonic() - started
-    print(f"\n[observer] queue drain DONE in {elapsed/60:.1f}m", flush=True)
+    print(f"\n[observer] queue drain DONE in {elapsed / 60:.1f}m", flush=True)
     print(f"  groups processed: {counters['processed']}", flush=True)
     print(f"  observations written: {counters['written']}", flush=True)
     print(f"  empty groups: {counters['empty_groups']}", flush=True)
@@ -896,43 +946,59 @@ def main() -> None:
     # gated SQLite-only because it opened a raw sqlite3.connect; that write path
     # was moved onto the seam and verified on PG, so the gate was removed.)
     ap = argparse.ArgumentParser(description="Phase D Observer drainer (Mastra-style three-date observations)")
-    ap.add_argument("--source-variant", default=None,
-                    help="Variant-mode: pull conversations from this variant. "
-                         "When set, drains the entire variant; ignores observation_queue. "
-                         "Sentinel '__none__' selects rows whose variant IS NULL.")
-    ap.add_argument("--source-type", default=None,
-                    help="Comma-separated source memory types to drain "
-                         "(default: message,conversation; allowed: message,conversation,chat_log).")
-    ap.add_argument("--qid-column", default=None,
-                    help="Column the --qids-file ids filter on: user_id (default) or "
-                         "conversation_id (for corpora where the scoping id lives there).")
-    ap.add_argument("--target-variant", default="",
-                    help="Variant tag for emitted observation rows. REQUIRED in "
-                         "variant/bench mode (when --source-variant is set) — the run "
-                         "aborts if empty, so a bench corpus can't silently write "
-                         "NULL-variant rows into production memory. In queue mode "
-                         "(no --source-variant) empty is allowed and means the "
-                         "production default (NULL).")
-    ap.add_argument("--limit", type=int, default=None,
-                    help="Cap source rows in variant mode (for smokes).")
-    ap.add_argument("--concurrency", type=int, default=4,
-                    help="Concurrent Observer SLM calls.")
-    ap.add_argument("--qids-file", default=None,
-                    help="Optional JSON file with a list of ids; scopes variant-mode work to those ids only.")
-    ap.add_argument("--batch", type=int, default=100,
-                    help="Queue-mode batch size per invocation. Default 100.")
+    ap.add_argument(
+        "--source-variant",
+        default=None,
+        help="Variant-mode: pull conversations from this variant. "
+        "When set, drains the entire variant; ignores observation_queue. "
+        "Sentinel '__none__' selects rows whose variant IS NULL.",
+    )
+    ap.add_argument(
+        "--source-type",
+        default=None,
+        help="Comma-separated source memory types to drain "
+        "(default: message,conversation; allowed: message,conversation,chat_log).",
+    )
+    ap.add_argument(
+        "--qid-column",
+        default=None,
+        help="Column the --qids-file ids filter on: user_id (default) or "
+        "conversation_id (for corpora where the scoping id lives there).",
+    )
+    ap.add_argument(
+        "--target-variant",
+        default="",
+        help="Variant tag for emitted observation rows. REQUIRED in "
+        "variant/bench mode (when --source-variant is set) — the run "
+        "aborts if empty, so a bench corpus can't silently write "
+        "NULL-variant rows into production memory. In queue mode "
+        "(no --source-variant) empty is allowed and means the "
+        "production default (NULL).",
+    )
+    ap.add_argument("--limit", type=int, default=None, help="Cap source rows in variant mode (for smokes).")
+    ap.add_argument("--concurrency", type=int, default=4, help="Concurrent Observer SLM calls.")
+    ap.add_argument(
+        "--qids-file",
+        default=None,
+        help="Optional JSON file with a list of ids; scopes variant-mode work to those ids only.",
+    )
+    ap.add_argument("--batch", type=int, default=100, help="Queue-mode batch size per invocation. Default 100.")
     args = ap.parse_args()
 
     profile = load_profile(PROFILE_NAME)
     if not profile:
-        sys.exit(f"ERROR: profile not found. "
-                 f"observed: load_profile({PROFILE_NAME!r}) returned None. "
-                 f"inspect: OBSERVER_PROFILE env var or config/slm/{PROFILE_NAME}.yaml.")
+        sys.exit(
+            f"ERROR: profile not found. "
+            f"observed: load_profile({PROFILE_NAME!r}) returned None. "
+            f"inspect: OBSERVER_PROFILE env var or config/slm/{PROFILE_NAME}.yaml."
+        )
     token = get_api_key(profile.api_key_service) or ""
     if not token:
-        sys.exit(f"ERROR: API key not found. "
-                 f"observed: {profile.api_key_service!r} service returned no token. "
-                 f"inspect: vault (m3 admin store_secret), M3_VAULT_ADDR, or env var {profile.api_key_service}.")
+        sys.exit(
+            f"ERROR: API key not found. "
+            f"observed: {profile.api_key_service!r} service returned no token. "
+            f"inspect: vault (m3 admin store_secret), M3_VAULT_ADDR, or env var {profile.api_key_service}."
+        )
 
     if args.source_variant:
         if not args.target_variant:

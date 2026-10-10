@@ -20,6 +20,7 @@ where the user expects it), unlike a merely-lagging plugin version.
 
 Cross-platform, best-effort, never raises.
 """
+
 from __future__ import annotations
 
 import glob
@@ -42,8 +43,10 @@ def _scan_mcpservers_hosts() -> list[tuple[str, str, bool]]:
     single source of truth so the probe and `--fix` cover the same set."""
     try:
         import sys
+
         sys.path.insert(0, os.path.join(_payload_bin(), "..", "m3_memory"))
         from m3_memory.installer import _scan_agent_configs
+
         return [(lbl, str(p), dead) for (lbl, p, dead) in _scan_agent_configs()]
     except Exception:  # noqa: BLE001 — installer unavailable: skip this class, others still run
         return []
@@ -64,6 +67,7 @@ def _opencode_configs() -> list[Path]:
 def _scan_opencode() -> list[tuple[str, str, bool]]:
     """OpenCode uses mcp.memory with a LIST command — its own schema."""
     import json
+
     out = []
     for p in _opencode_configs():
         try:
@@ -112,8 +116,10 @@ def _current_payload_bin() -> str | None:
     the single directory every wired m3 command should resolve under."""
     try:
         import sys
+
         sys.path.insert(0, os.path.join(_payload_bin(), "..", "m3_memory"))
         from m3_memory.installer import bin_dir
+
         bd = bin_dir()
         return str(bd.resolve()) if bd else None
     except Exception:  # noqa: BLE001 — resolver unavailable: skip stale detection
@@ -135,9 +141,7 @@ def _current_payload_bin() -> str | None:
 # historically. It is a "did m3 create this?" test, not a "does m3 create this?"
 # one. Removing a legacy name here is only safe once no install can still carry
 # it, which is not a condition this code can verify.
-_M3_SERVER_NAMES = frozenset(
-    {"memory", "custom_pc_tool", "grok_intel", "web_research", "debug_agent"}
-)
+_M3_SERVER_NAMES = frozenset({"memory", "custom_pc_tool", "grok_intel", "web_research", "debug_agent"})
 
 
 def _scan_stale_payload() -> list[tuple[str, str]]:
@@ -178,6 +182,7 @@ def _scan_stale_payload() -> list[tuple[str, str]]:
         script = args[0] if args else None
         if isinstance(script, str) and script.endswith(".py") and not _under(script):
             out.append((f"Claude/{name}", script))
+
     # Hooks + statusline: the m3 script is the second token of the command string.
     def _cmd_script(cmd: object) -> str | None:
         if not isinstance(cmd, str):
@@ -185,8 +190,7 @@ def _scan_stale_payload() -> list[tuple[str, str]]:
         parts = cmd.split()
         # <interpreter> <script...>; find the m3 payload token.
         for tok in parts[1:]:
-            if ("bin/hooks/chatlog/" in tok.replace("\\", "/")
-                    or "bin/statusline-command" in tok.replace("\\", "/")):
+            if "bin/hooks/chatlog/" in tok.replace("\\", "/") or "bin/statusline-command" in tok.replace("\\", "/"):
                 return tok
         return None
 
@@ -221,10 +225,12 @@ def _remediate() -> bool:
         import shutil
         import sys
         import time
+
         bin_dir = _payload_bin()
         if bin_dir not in sys.path:
             sys.path.insert(0, bin_dir)
         import generate_configs
+
         # Idempotent gate: don't back up / rewrite when nothing would change.
         if not generate_configs.install_claude_settings(dry_run=True).get("changed"):
             return False
@@ -253,7 +259,7 @@ def _merge_rows(rows: list[tuple[str, str, bool]]) -> list[tuple[str, str, bool]
 
 def run(brief: bool = False, fix: bool = False) -> int:
     rows = _merge_rows(_scan_mcpservers_hosts() + _scan_opencode() + _scan_hermes())
-    dead =[(lbl, path) for (lbl, path, is_dead) in rows if is_dead]
+    dead = [(lbl, path) for (lbl, path, is_dead) in rows if is_dead]
     stale = _scan_stale_payload()
 
     # --fix-hooks: repair the Claude config via the canonical writer. NOT gated on
@@ -272,8 +278,10 @@ def run(brief: bool = False, fix: bool = False) -> int:
             hosts = ", ".join(sorted({lbl for lbl, _ in dead}))
             print(f"⚠️  agent paths: {len(dead)} dead-path config(s) [{hosts}] — run `m3 setup`")
         elif stale:
-            print(f"⚠️  agent paths: {len(stale)} config(s) point at a STALE payload clone "
-                  "(runs old code) — run `m3 doctor --fix --fix-hooks`")
+            print(
+                f"⚠️  agent paths: {len(stale)} config(s) point at a STALE payload clone "
+                "(runs old code) — run `m3 doctor --fix --fix-hooks`"
+            )
         else:
             print(f"✅ agent paths: OK ({len(rows)} wired host(s), no dead or stale paths)")
         return 1 if (dead or stale) else 0

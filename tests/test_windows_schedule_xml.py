@@ -11,6 +11,7 @@ These tests exercise the pure render functions only: no schtasks, no
 PowerShell, no live Task Scheduler. That keeps them hermetic so they pass in
 CI (Linux, no Windows Task Scheduler) — see DESIGN_PHILOSOPHIES §3.
 """
+
 from __future__ import annotations
 
 import os
@@ -58,6 +59,7 @@ def _render(spec):
 
 # ── Every real spec renders well-formed XML ───────────────────────────────────
 
+
 def test_all_real_specs_render_valid_xml():
     specs = isch.get_schedule_specs(os.path.dirname(_BIN))
     assert specs, "no schedule specs returned"
@@ -67,6 +69,7 @@ def test_all_real_specs_render_valid_xml():
 
 
 # ── Trigger mapping per schedule type ─────────────────────────────────────────
+
 
 def test_minute_schedule_is_timetrigger_with_repetition():
     root = _render(_spec("AgentOS_X", "MINUTE", modifier="15"))
@@ -128,6 +131,7 @@ def test_unsupported_schedule_raises():
 
 # ── Self-heal repetition is scoped to the cognitive loop only ─────────────────
 
+
 def test_cognitive_loop_selfheal_repetition_on_boot_trigger_only():
     # The loop keeps BOTH triggers (it runs as InteractiveToken, so a boot start
     # can be deferred until logon on a machine sitting at the lock screen), but
@@ -153,8 +157,7 @@ def test_cognitive_loop_selfheal_repetition_on_boot_trigger_only():
     logon = root.find(".//t:LogonTrigger", _NS)
     assert logon is not None, "CognitiveLoop must still emit a LogonTrigger"
     assert logon.find("./t:Repetition", _NS) is None, (
-        "LogonTrigger must NOT repeat -- a second cadence only loses the lock "
-        "race and flashes a window"
+        "LogonTrigger must NOT repeat -- a second cadence only loses the lock race and flashes a window"
     )
 
 
@@ -191,9 +194,7 @@ def test_embed_server_has_5min_self_heal_repetition():
     )
     logon = root.find(".//t:LogonTrigger", _NS)
     assert logon is not None, "EmbedServer must still emit a LogonTrigger"
-    assert logon.find("./t:Repetition", _NS) is None, (
-        "LogonTrigger must NOT repeat -- see the CognitiveLoop test above"
-    )
+    assert logon.find("./t:Repetition", _NS) is None, "LogonTrigger must NOT repeat -- see the CognitiveLoop test above"
 
 
 def test_all_tasks_are_hidden():
@@ -218,6 +219,7 @@ def test_selfheal_registry_matches_real_loop_name():
 
 # ── Hardening settings present on every task ──────────────────────────────────
 
+
 def test_settings_ignore_new_and_least_privilege():
     root = _render(_spec("AgentOS_X", "MINUTE", modifier="5"))
     pol = root.find(".//t:Settings/t:MultipleInstancesPolicy", _NS)
@@ -241,9 +243,9 @@ def test_finite_task_has_one_hour_time_limit():
 
 # ── Action / argument construction ────────────────────────────────────────────
 
+
 def test_command_and_quoted_arguments():
-    spec = _spec("AgentOS_X", "MINUTE", modifier="5",
-                 args=[r"C:\bin\job.py", "--flag", r"C:\path with space\out.log"])
+    spec = _spec("AgentOS_X", "MINUTE", modifier="5", args=[r"C:\bin\job.py", "--flag", r"C:\path with space\out.log"])
     root = _render(spec)
     cmd = root.find(".//t:Actions/t:Exec/t:Command", _NS)
     assert cmd is not None and cmd.text == r"C:\venv\pythonw.exe"
@@ -254,8 +256,7 @@ def test_command_and_quoted_arguments():
 
 
 def test_description_is_xml_escaped():
-    root = _render(_spec("AgentOS_X", "MINUTE", modifier="5",
-                         desc="a & b <c> \"d\""))
+    root = _render(_spec("AgentOS_X", "MINUTE", modifier="5", desc='a & b <c> "d"'))
     # ElementTree round-trips the entities, so a successful parse + exact text
     # match proves the raw string was escaped (an unescaped & would ParseError).
     desc = root.find(".//t:RegistrationInfo/t:Description", _NS)
@@ -264,13 +265,13 @@ def test_description_is_xml_escaped():
 
 def test_all_five_xml_metacharacters_escaped():
     # The local escaper must cover & < > " ' — a raw one would break the parse.
-    root = _render(_spec("AgentOS_X", "MINUTE", modifier="5",
-                         desc="""& < > " '"""))
+    root = _render(_spec("AgentOS_X", "MINUTE", modifier="5", desc="""& < > " '"""))
     desc = root.find(".//t:RegistrationInfo/t:Description", _NS)
     assert desc is not None and desc.text == """& < > " '"""
 
 
 # ── --verify mode (hermetic: mock schtasks /Query output) ─────────────────────
+
 
 class _FakeProc:
     def __init__(self, returncode=0, stdout="", stderr=""):
@@ -297,7 +298,8 @@ def test_verify_windows_pass(monkeypatch):
     # the PT30M repetition + IgnoreNew.
     monkeypatch.setattr(isch, "_os_name", lambda: "Windows")
     monkeypatch.setattr(
-        isch.subprocess, "run",
+        isch.subprocess,
+        "run",
         lambda *a, **k: _FakeProc(0, _query_xml(ignore_new=True, repetition="PT30M")),
     )
     assert isch._verify_windows_task("AgentOS_CognitiveLoop") is True
@@ -310,15 +312,15 @@ def test_verify_windows_flags_arguments_from_an_older_payload(monkeypatch):
     expected = isch._task_arguments(task)
     live_xml = _query_xml().replace(
         "</Task>",
-        "<Actions><Exec><Arguments>&quot;C:/old/bin/m3_cognitive_loop.py&quot;"
-        "</Arguments></Exec></Actions></Task>")
+        "<Actions><Exec><Arguments>&quot;C:/old/bin/m3_cognitive_loop.py&quot;</Arguments></Exec></Actions></Task>",
+    )
     monkeypatch.setattr(isch, "_os_name", lambda: "Windows")
     monkeypatch.setattr(isch.subprocess, "run", lambda *a, **k: _FakeProc(0, live_xml))
     assert isch._verify_windows_task("AgentOS_CognitiveLoop", expected) is False
 
     same_xml = _query_xml().replace(
-        "</Task>", f"<Actions><Exec><Arguments>{isch._xml_escape(expected)}"
-                   "</Arguments></Exec></Actions></Task>")
+        "</Task>", f"<Actions><Exec><Arguments>{isch._xml_escape(expected)}</Arguments></Exec></Actions></Task>"
+    )
     monkeypatch.setattr(isch.subprocess, "run", lambda *a, **k: _FakeProc(0, same_xml))
     assert isch._verify_windows_task("AgentOS_CognitiveLoop", expected) is True
 
@@ -328,7 +330,8 @@ def test_verify_windows_not_hidden_fails(monkeypatch):
     # flash a console window on every self-heal fire (the 2026-07-19 regression).
     monkeypatch.setattr(isch, "_os_name", lambda: "Windows")
     monkeypatch.setattr(
-        isch.subprocess, "run",
+        isch.subprocess,
+        "run",
         lambda *a, **k: _FakeProc(0, _query_xml(ignore_new=True, repetition="PT30M", hidden=False)),
     )
     assert isch._verify_windows_task("AgentOS_CognitiveLoop") is False
@@ -337,7 +340,8 @@ def test_verify_windows_not_hidden_fails(monkeypatch):
 def test_verify_windows_missing_repetition_fails(monkeypatch):
     monkeypatch.setattr(isch, "_os_name", lambda: "Windows")
     monkeypatch.setattr(
-        isch.subprocess, "run",
+        isch.subprocess,
+        "run",
         lambda *a, **k: _FakeProc(0, _query_xml(ignore_new=True, repetition="")),
     )
     assert isch._verify_windows_task("AgentOS_CognitiveLoop") is False
@@ -346,7 +350,8 @@ def test_verify_windows_missing_repetition_fails(monkeypatch):
 def test_verify_windows_not_registered_fails(monkeypatch):
     monkeypatch.setattr(isch, "_os_name", lambda: "Windows")
     monkeypatch.setattr(
-        isch.subprocess, "run",
+        isch.subprocess,
+        "run",
         lambda *a, **k: _FakeProc(1, "", "ERROR: The system cannot find the file specified."),
     )
     assert isch._verify_windows_task("AgentOS_CognitiveLoop") is False
@@ -356,7 +361,8 @@ def test_verify_windows_non_selfheal_task_needs_no_repetition(monkeypatch):
     # A task NOT in _SELF_HEAL_TASKS passes with IgnoreNew and no repetition.
     monkeypatch.setattr(isch, "_os_name", lambda: "Windows")
     monkeypatch.setattr(
-        isch.subprocess, "run",
+        isch.subprocess,
+        "run",
         lambda *a, **k: _FakeProc(0, _query_xml(ignore_new=True, repetition="")),
     )
     assert isch._verify_windows_task("AgentOS_SecretRotator") is True
@@ -378,9 +384,9 @@ def test_verify_schedules_reports_all_not_short_circuit(monkeypatch, capsys):
     root = os.path.dirname(_BIN)
     ok = isch.verify_schedules(None, root)
     out = capsys.readouterr().out
-    assert ok is False                          # one failure -> overall False
-    assert "WeeklyAuditor" in out               # the failure is reported
-    assert "CognitiveLoop" in out               # AND later tasks still checked
+    assert ok is False  # one failure -> overall False
+    assert "WeeklyAuditor" in out  # the failure is reported
+    assert "CognitiveLoop" in out  # AND later tasks still checked
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -414,6 +420,7 @@ _BOUNDED = _UNBOUNDED.replace(
 
 def _run_verify(monkeypatch, xml_doc, name="AgentOS_Dashboard"):
     """Drive _verify_windows_task against a canned schtasks /XML response."""
+
     class _R:
         returncode = 0
         stdout = xml_doc
@@ -434,8 +441,7 @@ def test_verify_rejects_a_bounded_self_heal_repetition(monkeypatch):
 
 def test_verify_still_rejects_a_missing_repetition(monkeypatch):
     no_rep = _UNBOUNDED.replace(
-        "<Repetition><Interval>PT5M</Interval>"
-        "<StopAtDurationEnd>false</StopAtDurationEnd></Repetition>",
+        "<Repetition><Interval>PT5M</Interval><StopAtDurationEnd>false</StopAtDurationEnd></Repetition>",
         "",
     )
     assert _run_verify(monkeypatch, no_rep) is False
@@ -468,6 +474,7 @@ def test_generated_xml_has_no_duration_for_self_heal_tasks():
 
 # ── WorkingDirectory: the fix for the 2026-09-12 blind-waiter outage ──────────
 
+
 def test_task_xml_sets_working_directory_to_the_payload():
     """A task with no <WorkingDirectory> runs from C:/Windows/system32.
 
@@ -484,7 +491,9 @@ def test_task_xml_sets_working_directory_to_the_payload():
     """
     doc = isch._render_task_xml(
         _spec("AgentOS_T", "MINUTE", modifier="5"),
-        r"C:\venv\pythonw.exe", "DOMAIN\\user", _ROOT,
+        r"C:\venv\pythonw.exe",
+        "DOMAIN\\user",
+        _ROOT,
     )
     root = ET.fromstring(doc)
     found = [e.text for e in root.iter() if e.tag.endswith("WorkingDirectory")]
@@ -510,8 +519,9 @@ def test_verify_accepts_a_governor_task_that_is_absent(monkeypatch):
 
     monkeypatch.setattr(governor_migration, "cognitive_loop_installed", lambda: True)
     monkeypatch.setattr(isch, "_windows_task_registered", lambda n: False)
-    monkeypatch.setattr(isch, "_verify_windows_task",
-                        lambda *a, **k: pytest.fail("absent governor task must not be verified"))
+    monkeypatch.setattr(
+        isch, "_verify_windows_task", lambda *a, **k: pytest.fail("absent governor task must not be verified")
+    )
     assert isch._verify_or_explain_absence({"name": "AgentOS_Maintenance", "args": []}) is True
 
 
@@ -544,14 +554,16 @@ class _R:
 _SPEC = "<Triggers><BootTrigger/><LogonTrigger/></Triggers>"
 
 
-@pytest.mark.parametrize("live_rc, live_xml, verified, expect", [
-    (0, "<Triggers><BootTrigger/><LogonTrigger/></Triggers>", True, True),
-    (0, "<Triggers><LogonTrigger/></Triggers>", True, False),         # no boot start
-    (0, "<Triggers><BootTrigger/><LogonTrigger/></Triggers>", False, False),  # off spec
-    (1, "", True, False),                                              # not registered
-])
-def test_denied_reregister_keeps_only_a_task_already_to_spec(monkeypatch, live_rc, live_xml,
-                                                             verified, expect):
+@pytest.mark.parametrize(
+    "live_rc, live_xml, verified, expect",
+    [
+        (0, "<Triggers><BootTrigger/><LogonTrigger/></Triggers>", True, True),
+        (0, "<Triggers><LogonTrigger/></Triggers>", True, False),  # no boot start
+        (0, "<Triggers><BootTrigger/><LogonTrigger/></Triggers>", False, False),  # off spec
+        (1, "", True, False),  # not registered
+    ],
+)
+def test_denied_reregister_keeps_only_a_task_already_to_spec(monkeypatch, live_rc, live_xml, verified, expect):
     """An unelevated re-register of an existing boot task is denied; that is
     only "nothing to do" when the registered task starts at boot and matches."""
     monkeypatch.setattr(isch, "_run", lambda *a, **k: _R(live_rc, live_xml))

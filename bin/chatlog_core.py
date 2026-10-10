@@ -58,28 +58,27 @@ MAX_SEARCH_K = 1_000
 # Price table — USD per 1M tokens. Unknown entries → cost_usd stays null (no fake zeros).
 # Keys: (provider, model_id_prefix_or_exact). Lookup walks exact first, then prefix.
 PRICE_TABLE: dict[tuple[str, str], dict[str, float]] = {
-    ("anthropic", "claude-opus-4-7"):    {"in":  15.0, "out": 75.0},
-    ("anthropic", "claude-opus-4-6"):    {"in":  15.0, "out": 75.0},
-    ("anthropic", "claude-opus-4"):      {"in":  15.0, "out": 75.0},
-    ("anthropic", "claude-sonnet-4-6"):  {"in":   3.0, "out": 15.0},
-    ("anthropic", "claude-sonnet-4-5"):  {"in":   3.0, "out": 15.0},
-    ("anthropic", "claude-sonnet-4"):    {"in":   3.0, "out": 15.0},
-    ("anthropic", "claude-haiku-4-5"):   {"in":   1.0, "out":  5.0},
-    ("anthropic", "claude-haiku-4"):     {"in":   1.0, "out":  5.0},
-    ("google",    "gemini-2.5-pro"):     {"in":   1.25,"out": 10.0},
-    ("google",    "gemini-2.5-flash"):   {"in":   0.30,"out":  2.50},
-    ("google",    "gemini-2.0-flash"):   {"in":   0.10,"out":  0.40},
-    ("openai",    "gpt-4.1"):            {"in":   2.0, "out":  8.0},
-    ("openai",    "gpt-4o"):             {"in":   2.50,"out": 10.0},
-    ("openai",    "o3"):                 {"in":   2.0, "out":  8.0},
-    ("openai",    "o1"):                 {"in":  15.0, "out": 60.0},
-    ("xai",       "grok-4"):             {"in":   3.0, "out": 15.0},
-    ("deepseek",  "deepseek-chat"):      {"in":   0.27,"out":  1.10},
+    ("anthropic", "claude-opus-4-7"): {"in": 15.0, "out": 75.0},
+    ("anthropic", "claude-opus-4-6"): {"in": 15.0, "out": 75.0},
+    ("anthropic", "claude-opus-4"): {"in": 15.0, "out": 75.0},
+    ("anthropic", "claude-sonnet-4-6"): {"in": 3.0, "out": 15.0},
+    ("anthropic", "claude-sonnet-4-5"): {"in": 3.0, "out": 15.0},
+    ("anthropic", "claude-sonnet-4"): {"in": 3.0, "out": 15.0},
+    ("anthropic", "claude-haiku-4-5"): {"in": 1.0, "out": 5.0},
+    ("anthropic", "claude-haiku-4"): {"in": 1.0, "out": 5.0},
+    ("google", "gemini-2.5-pro"): {"in": 1.25, "out": 10.0},
+    ("google", "gemini-2.5-flash"): {"in": 0.30, "out": 2.50},
+    ("google", "gemini-2.0-flash"): {"in": 0.10, "out": 0.40},
+    ("openai", "gpt-4.1"): {"in": 2.0, "out": 8.0},
+    ("openai", "gpt-4o"): {"in": 2.50, "out": 10.0},
+    ("openai", "o3"): {"in": 2.0, "out": 8.0},
+    ("openai", "o1"): {"in": 15.0, "out": 60.0},
+    ("xai", "grok-4"): {"in": 3.0, "out": 15.0},
+    ("deepseek", "deepseek-chat"): {"in": 0.27, "out": 1.10},
 }
 
 
-def compute_cost_usd(provider: str, model_id: str,
-                     tokens_in: int | None, tokens_out: int | None) -> float | None:
+def compute_cost_usd(provider: str, model_id: str, tokens_in: int | None, tokens_out: int | None) -> float | None:
     """Client-side cost computation from the price table.
 
     Returns None if provider/model not in table or token counts unavailable
@@ -176,9 +175,11 @@ def _valid_host_agents() -> frozenset[str]:
         global _HOST_AGENTS_WARNED
         if not _HOST_AGENTS_WARNED:
             _HOST_AGENTS_WARNED = True
-            logger.warning(f"chatlog host_agents config unreadable; observed: "
-                           f"{type(e).__name__}: {e}; only the built-in host agents are "
-                           "accepted. inspect: m3 chatlog status")
+            logger.warning(
+                f"chatlog host_agents config unreadable; observed: "
+                f"{type(e).__name__}: {e}; only the built-in host agents are "
+                "accepted. inspect: m3 chatlog status"
+            )
         return VALID_HOST_AGENTS
 
 
@@ -204,15 +205,19 @@ def _validate_write(item: dict) -> None:
         raise ValueError("model_id is required (non-empty string)")
 
 
-def _build_metadata(item: dict, scrubbed: bool = False,
-                    redaction_count: int = 0, groups_fired: list[str] | None = None,
-                    original_hash: str | None = None) -> str:
+def _build_metadata(
+    item: dict,
+    scrubbed: bool = False,
+    redaction_count: int = 0,
+    groups_fired: list[str] | None = None,
+    original_hash: str | None = None,
+) -> str:
     """Assemble metadata_json with full provenance + optional cost + optional redaction stamps."""
     meta: dict[str, Any] = {
-        "role":            item["role"],
-        "host_agent":      item["host_agent"],
-        "provider":        item["provider"],
-        "model_id":        item["model_id"],
+        "role": item["role"],
+        "host_agent": item["host_agent"],
+        "provider": item["provider"],
+        "model_id": item["model_id"],
     }
     # Optional turn index (nullable)
     if item.get("turn_index") is not None:
@@ -224,8 +229,10 @@ def _build_metadata(item: dict, scrubbed: bool = False,
     # Fill cost_usd client-side if missing but tokens are present and model priced
     if "cost_usd" not in meta and item.get("tokens_in") is not None:
         c = compute_cost_usd(
-            item["provider"], item["model_id"],
-            item.get("tokens_in"), item.get("tokens_out"),
+            item["provider"],
+            item["model_id"],
+            item.get("tokens_in"),
+            item.get("tokens_out"),
         )
         if c is not None:
             meta["cost_usd"] = c
@@ -338,14 +345,13 @@ async def _flush_once() -> int:
             logger.error(
                 f"CATASTROPHIC: DB write AND spill both failed for "
                 f"{len(batch)} dequeued chatlog rows (ids={ids}): {spill_err}. "
-                f"Re-enqueuing to avoid capture loss.")
+                f"Re-enqueuing to avoid capture loss."
+            )
             for it in batch:
                 try:
                     q.put_nowait(it)
                 except asyncio.QueueFull:
-                    logger.error(
-                        f"Re-enqueue dropped chatlog row id={it.get('_id')}: "
-                        f"queue full — this row is LOST.")
+                    logger.error(f"Re-enqueue dropped chatlog row id={it.get('_id')}: queue full — this row is LOST.")
         return 0
 
 
@@ -358,10 +364,28 @@ async def _flush_once() -> int:
 # promoted, with no error on any backend. Same argument as
 # `Dialect.lease_expired_predicate`'s docstring makes for a copied predicate.
 _ROW_COLUMNS: tuple[str, ...] = (
-    "id", "type", "title", "content", "metadata_json", "agent_id", "model_id",
-    "change_agent", "importance", "source", "origin_device", "user_id", "scope",
-    "expires_at", "created_at", "valid_from", "valid_to", "conversation_id",
-    "refresh_on", "refresh_reason", "content_hash", "variant",
+    "id",
+    "type",
+    "title",
+    "content",
+    "metadata_json",
+    "agent_id",
+    "model_id",
+    "change_agent",
+    "importance",
+    "source",
+    "origin_device",
+    "user_id",
+    "scope",
+    "expires_at",
+    "created_at",
+    "valid_from",
+    "valid_to",
+    "conversation_id",
+    "refresh_on",
+    "refresh_reason",
+    "content_hash",
+    "variant",
 )
 
 
@@ -417,38 +441,37 @@ def _executemany_insert(batch: list[dict]) -> int:
     _T = chatlog_table("items")
     # Column list and placeholder count both derive from _ROW_COLUMNS, so they
     # cannot drift apart from each other or from the promote paths.
-    sql = (
-        f"INSERT INTO {_T} ({', '.join(_ROW_COLUMNS)}) "
-        f"VALUES ({_d.placeholder(len(_ROW_COLUMNS))})"
-    )
+    sql = f"INSERT INTO {_T} ({', '.join(_ROW_COLUMNS)}) VALUES ({_d.placeholder(len(_ROW_COLUMNS))})"
 
     groups: dict[str, list[tuple]] = {}
     for item in batch:
         db_path = item.get("_db_path") or chatlog_config.chatlog_db_path()
-        groups.setdefault(db_path, []).append((
-            item["_id"],
-            "chat_log",
-            item["_title"],
-            item["_content"],
-            item["_metadata_json"],
-            item.get("agent_id") or "",
-            item["model_id"],
-            item.get("change_agent") or "chatlog_ingest",
-            0.3,  # importance — chat logs start low; promote bumps to 0.5+
-            "chatlog",
-            item.get("origin_device") or "",
-            item.get("user_id") or "",
-            item.get("scope") or "",
-            item.get("expires_at"),
-            item["_created_at"],
-            item.get("valid_from") or item["_created_at"],
-            item.get("valid_to"),
-            item["conversation_id"],
-            item.get("refresh_on"),
-            item.get("refresh_reason"),
-            _content_hash(item["_content"]),
-            item.get("variant"),
-        ))
+        groups.setdefault(db_path, []).append(
+            (
+                item["_id"],
+                "chat_log",
+                item["_title"],
+                item["_content"],
+                item["_metadata_json"],
+                item.get("agent_id") or "",
+                item["model_id"],
+                item.get("change_agent") or "chatlog_ingest",
+                0.3,  # importance — chat logs start low; promote bumps to 0.5+
+                "chatlog",
+                item.get("origin_device") or "",
+                item.get("user_id") or "",
+                item.get("scope") or "",
+                item.get("expires_at"),
+                item["_created_at"],
+                item.get("valid_from") or item["_created_at"],
+                item.get("valid_to"),
+                item["conversation_id"],
+                item.get("refresh_on"),
+                item.get("refresh_reason"),
+                _content_hash(item["_content"]),
+                item.get("variant"),
+            )
+        )
 
     written = 0
     from memory.backends import active_backend as _active_backend
@@ -533,12 +556,14 @@ def _write_state(state: dict) -> None:
     """Atomic write: tmp file + os.replace."""
     os.makedirs(os.path.dirname(chatlog_config.STATE_FILE), exist_ok=True)
     from m3_core.atomic_io import atomic_write
+
     atomic_write(chatlog_config.STATE_FILE, json.dumps(state, ensure_ascii=False))
 
 
 # ---------------------------------------------------------------------------
 # Public write API
 # ---------------------------------------------------------------------------
+
 
 async def chatlog_write_impl(
     content: str,
@@ -594,7 +619,8 @@ async def chatlog_write_impl(
     original_hash: str | None = None
     if cfg.redaction.enabled:
         scrubbed_content, rcount, groups_fired = chatlog_redaction.scrub(
-            content, _redaction_dict(cfg.redaction),
+            content,
+            _redaction_dict(cfg.redaction),
         )
         if rcount > 0:
             scrubbed = True
@@ -604,8 +630,11 @@ async def chatlog_write_impl(
     row_id = str(uuid.uuid4())
     title = _derive_title(role, scrubbed_content, host_agent)
     meta_json = _build_metadata(
-        item, scrubbed=scrubbed, redaction_count=rcount,
-        groups_fired=groups_fired, original_hash=original_hash,
+        item,
+        scrubbed=scrubbed,
+        redaction_count=rcount,
+        groups_fired=groups_fired,
+        original_hash=original_hash,
     )
     now = timestamp or _utcnow_iso()
 
@@ -662,7 +691,8 @@ async def chatlog_write_bulk_impl(items: list[dict], embed: bool = False) -> dic
         original_hash: str | None = None
         if cfg.redaction.enabled:
             scrubbed_content, rcount, groups_fired = chatlog_redaction.scrub(
-                content, _redaction_dict(cfg.redaction),
+                content,
+                _redaction_dict(cfg.redaction),
             )
             if rcount > 0:
                 scrubbed = True
@@ -672,8 +702,11 @@ async def chatlog_write_bulk_impl(items: list[dict], embed: bool = False) -> dic
         row_id = str(uuid.uuid4())
         title = _derive_title(item["role"], scrubbed_content, item["host_agent"])
         meta_json = _build_metadata(
-            item, scrubbed=scrubbed, redaction_count=rcount,
-            groups_fired=groups_fired, original_hash=original_hash,
+            item,
+            scrubbed=scrubbed,
+            redaction_count=rcount,
+            groups_fired=groups_fired,
+            original_hash=original_hash,
         )
         now = item.get("timestamp") or _utcnow_iso()
 
@@ -712,6 +745,7 @@ def _derive_title(role: str, content: str, host_agent: str) -> str:
 # ---------------------------------------------------------------------------
 # Search — FTS5 + facet filters over chat_log rows (via _chatlog_search_separate)
 # ---------------------------------------------------------------------------
+
 
 async def chatlog_search_impl(
     query: str,
@@ -757,22 +791,39 @@ async def chatlog_search_impl(
     # so it raised TypeError the first time the unified path actually ran.
     unified = chatlog_path == main_path
     return await _chatlog_search_separate(
-        query=query, k=k, conversation_id=conversation_id,
-        host_agent=host_agent, provider=provider, model_id=model_id,
-        agent_id=agent_id, since=since, until=until, db_path=chatlog_path,
+        query=query,
+        k=k,
+        conversation_id=conversation_id,
+        host_agent=host_agent,
+        provider=provider,
+        model_id=model_id,
+        agent_id=agent_id,
+        since=since,
+        until=until,
+        db_path=chatlog_path,
         unified=unified,
     )
 
 
 async def _chatlog_search_separate(
-    query: str, k: int, conversation_id: str, host_agent: str,
-    provider: str, model_id: str, agent_id: str, since: str, until: str,
-    db_path: str, unified: bool = False,
+    query: str,
+    k: int,
+    conversation_id: str,
+    host_agent: str,
+    provider: str,
+    model_id: str,
+    agent_id: str,
+    since: str,
+    until: str,
+    db_path: str,
+    unified: bool = False,
 ) -> str:
     from m3_sdk import M3Context
+
     ctx = M3Context.for_db(None)
 
     from memory.backends import active_backend, chatlog_table
+
     _backend = active_backend()
     _d = _backend.dialect()
     _p = _d.param()
@@ -785,10 +836,10 @@ async def _chatlog_search_separate(
             clauses.append(f"mi.conversation_id={_p}")
             params.append(conversation_id)
         if host_agent:
-            clauses.append(f"{_d.json_extract_text('mi.metadata_json','host_agent')}={_p}")
+            clauses.append(f"{_d.json_extract_text('mi.metadata_json', 'host_agent')}={_p}")
             params.append(host_agent)
         if provider:
-            clauses.append(f"{_d.json_extract_text('mi.metadata_json','provider')}={_p}")
+            clauses.append(f"{_d.json_extract_text('mi.metadata_json', 'provider')}={_p}")
             params.append(provider)
         if model_id:
             clauses.append(f"mi.model_id={_p}")
@@ -863,28 +914,33 @@ async def _chatlog_search_separate(
             results = []
             for r in rows:
                 meta = _meta_to_dict(r["metadata_json"])
-                results.append({
-                    "id": r["id"],
-                    "title": r["title"],
-                    "content": r["content"],
-                    "created_at": _ts_to_str(r["created_at"]),
-                    "conversation_id": r["conversation_id"],
-                    "model_id": r["model_id"],
-                    "metadata": meta,
-                })
+                results.append(
+                    {
+                        "id": r["id"],
+                        "title": r["title"],
+                        "content": r["content"],
+                        "created_at": _ts_to_str(r["created_at"]),
+                        "conversation_id": r["conversation_id"],
+                        "model_id": r["model_id"],
+                        "metadata": meta,
+                    }
+                )
             return {"results": results, "count": len(results)}
 
     result = await asyncio.to_thread(_run)
-    return json.dumps({
-        **result,
-        "db_path": db_path,
-        "unified": unified,
-    })
+    return json.dumps(
+        {
+            **result,
+            "db_path": db_path,
+            "unified": unified,
+        }
+    )
 
 
 # ---------------------------------------------------------------------------
 # Promote: copy/move chat_log rows into main DB
 # ---------------------------------------------------------------------------
+
 
 async def chatlog_promote_impl(
     ids: list[str] | None = None,
@@ -908,6 +964,7 @@ async def chatlog_promote_impl(
     unified = chatlog_path == main_path
 
     from memory.backends import active_backend, chatlog_table
+
     _backend = active_backend()
 
     def _run() -> dict:
@@ -972,7 +1029,8 @@ async def chatlog_promote_impl(
         if unified:
             with ctx.get_sqlite_conn() as conn:
                 rows = conn.execute(
-                    f"SELECT id FROM memory_items WHERE {where}", params,
+                    f"SELECT id FROM memory_items WHERE {where}",
+                    params,
                 ).fetchall()
                 row_ids = [r["id"] for r in rows]
                 if row_ids:
@@ -995,7 +1053,8 @@ async def chatlog_promote_impl(
         # degradation). `_assert_promotable` now reports a missing column instead.
         with ctx.get_chatlog_conn() as conn:
             found = conn.execute(
-                f"SELECT id FROM memory_items WHERE {where}", params,
+                f"SELECT id FROM memory_items WHERE {where}",
+                params,
             ).fetchall()
             row_ids = [r["id"] for r in found]
             if not row_ids:
@@ -1039,14 +1098,19 @@ async def chatlog_promote_impl(
 # List conversations
 # ---------------------------------------------------------------------------
 
+
 def chatlog_list_conversations_impl(
-    host_agent: str = "", limit: int = 50, offset: int = 0,
+    host_agent: str = "",
+    limit: int = 50,
+    offset: int = 0,
 ) -> str:
     """List distinct conversation_ids with counts/timespans."""
     from m3_sdk import M3Context
+
     ctx = M3Context.for_db(None)
 
     from memory.backends import chatlog_table, dialect
+
     _d = dialect()
     _p = _d.param()
     _T = chatlog_table("items")
@@ -1072,11 +1136,11 @@ def chatlog_list_conversations_impl(
     out = [
         {
             "conversation_id": r["conversation_id"],
-            "turns":           r["turns"],
-            "first_at":        _ts_to_str(r["first_at"]),
-            "last_at":         _ts_to_str(r["last_at"]),
-            "host_agent":      r["host_agent"],
-            "model_id":        r["model_id"],
+            "turns": r["turns"],
+            "first_at": _ts_to_str(r["first_at"]),
+            "last_at": _ts_to_str(r["last_at"]),
+            "host_agent": r["host_agent"],
+            "model_id": r["model_id"],
         }
         for r in rows
     ]
@@ -1103,9 +1167,11 @@ async def chatlog_cost_report_impl(
         raise ValueError(f"group_by must be one of {sorted(_VALID_GROUPBY)}")
 
     from m3_sdk import M3Context
+
     ctx = M3Context.for_db(None)
 
     from memory.backends import chatlog_table, dialect
+
     _d = dialect()
     _p = _d.param()
     _T = chatlog_table("items")
@@ -1153,11 +1219,11 @@ async def chatlog_cost_report_impl(
             rows = conn.execute(sql, params).fetchall()
         return [
             {
-                "bucket":      r["bucket"],
-                "rows":        r["rows"],
-                "tokens_in":   r["tokens_in"],
-                "tokens_out":  r["tokens_out"],
-                "cost_usd":    r["cost_usd"],
+                "bucket": r["bucket"],
+                "rows": r["rows"],
+                "tokens_in": r["tokens_in"],
+                "tokens_out": r["tokens_out"],
+                "cost_usd": r["cost_usd"],
                 "priced_rows": r["priced_rows"],
             }
             for r in rows
@@ -1170,6 +1236,7 @@ async def chatlog_cost_report_impl(
 # ---------------------------------------------------------------------------
 # Redaction control
 # ---------------------------------------------------------------------------
+
 
 def chatlog_set_redaction_impl(
     enabled: bool,
@@ -1194,12 +1261,12 @@ def chatlog_set_redaction_impl(
     return json.dumps({"ok": True, "redaction": _redaction_dict(cfg.redaction)})
 
 
-def chatlog_scan_where(conversation_id: str = "", since: str = "",
-                       until: str = "") -> tuple[str, list[Any]]:
+def chatlog_scan_where(conversation_id: str = "", since: str = "", until: str = "") -> tuple[str, list[Any]]:
     """WHERE clause and binds for a chat_log row scan: not deleted, optionally one
     conversation and a created_at window. The one owner for rescrub and the
     harness-framing backfill, rendered by the active dialect."""
     from memory.backends import dialect
+
     _d = dialect()
     clauses = ["type='chat_log'", "is_deleted=0"]
     params: list[Any] = []
@@ -1229,6 +1296,7 @@ async def chatlog_rescrub_impl(
 
     from m3_sdk import M3Context
     from memory.backends import chatlog_table, dialect
+
     ctx = M3Context.for_db(None)
     _p = dialect().param()
     _T = chatlog_table("items")
@@ -1244,8 +1312,7 @@ async def chatlog_rescrub_impl(
             # an ARBITRARY subset, so a capped run could re-examine the same rows
             # on every invocation and never converge on the rest of the store.
             rows = conn.execute(
-                f"SELECT id, content, metadata_json FROM {_T} WHERE {where} "
-                f"ORDER BY id LIMIT {_p}",
+                f"SELECT id, content, metadata_json FROM {_T} WHERE {where} ORDER BY id LIMIT {_p}",
                 [*params, limit + 1],
             ).fetchall()
             truncated = len(rows) > limit
@@ -1262,9 +1329,7 @@ async def chatlog_rescrub_impl(
                     meta["original_content_sha256"] = _content_hash(r["content"])
                 meta["redacted"] = True
                 meta["redaction_count"] = int(meta.get("redaction_count", 0)) + count
-                meta["redaction_groups"] = sorted(set(
-                    (meta.get("redaction_groups") or []) + groups
-                ))
+                meta["redaction_groups"] = sorted(set((meta.get("redaction_groups") or []) + groups))
                 conn.execute(
                     f"UPDATE {_T} SET content={_p}, metadata_json={_p}, updated_at={_p} WHERE id={_p}",
                     (scrubbed, json.dumps(meta, ensure_ascii=False), _utcnow_iso(), r["id"]),
@@ -1283,9 +1348,7 @@ async def chatlog_rescrub_impl(
             # covered. Say what was NOT examined, and what to pass to cover it
             # (§3 fail loud, never silent).
             if truncated:
-                total_row = conn.execute(
-                    f"SELECT COUNT(*) AS n FROM {_T} WHERE {where}", params
-                ).fetchone()
+                total_row = conn.execute(f"SELECT COUNT(*) AS n FROM {_T} WHERE {where}", params).fetchone()
                 candidates = int(total_row["n"]) if total_row else len(rows)
                 result["candidates"] = candidates
                 result["remaining"] = max(0, candidates - len(rows))
@@ -1303,6 +1366,7 @@ async def chatlog_rescrub_impl(
 # ---------------------------------------------------------------------------
 # Shutdown drain
 # ---------------------------------------------------------------------------
+
 
 def _final_drain_sync() -> None:
     """atexit hook — runs a final synchronous flush if the loop is still up."""
@@ -1333,9 +1397,11 @@ atexit.register(_final_drain_sync)
 def _install_sigterm_handler() -> None:
     """Best-effort SIGTERM drain. No-op on Windows where SIGTERM is limited."""
     try:
+
         def _handler(signum, frame):
             _final_drain_sync()
             sys.exit(0)
+
         if not is_windows():
             signal.signal(signal.SIGTERM, _handler)
     except (ValueError, OSError):

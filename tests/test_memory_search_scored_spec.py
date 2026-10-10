@@ -40,6 +40,7 @@ asyncio.run() in sync test functions; the side-effect-free shipped corpus is
 used as the search target; assertions are on STRUCTURE, not search content
 (retrieval quality is covered by tests/capture_retrieval_baseline.py, not here).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -75,6 +76,7 @@ def _scored_args() -> dict:
 
 # ── Spec presence (the pre-registered gate) ──────────────────────────────────
 
+
 def test_memory_search_scored_is_catalogued():
     """A `memory_search_scored` ToolSpec must exist, be async, read-only
     (default_allowed=True), and NOT inject agent_id.
@@ -93,9 +95,7 @@ def test_memory_search_scored_is_catalogued():
         f"{_SCORED} is a read-only search — default_allowed must be True so it "
         "is exposed without MCP_PROXY_ALLOW_DESTRUCTIVE (§6)"
     )
-    assert spec.inject_agent_id is False, (
-        f"{_SCORED} is a read path; it must not stamp agent_id (§7)"
-    )
+    assert spec.inject_agent_id is False, f"{_SCORED} is a read path; it must not stamp agent_id (§7)"
     props = spec.parameters.get("properties", {})
     # query must be accepted (empty string allowed = filter-only listing).
     assert "query" in props, f"{_SCORED} must accept a 'query' arg"
@@ -116,12 +116,14 @@ def _require_spec() -> mcp_tool_catalog.ToolSpec:
     green. Once the spec lands they run for real."""
     spec = mcp_tool_catalog.get_tool(_SCORED)
     if spec is None:
-        pytest.skip(skip_reason("na", f"{_SCORED} ToolSpec not added yet (see "
-                    "test_memory_search_scored_is_catalogued)"))
+        pytest.skip(
+            skip_reason("na", f"{_SCORED} ToolSpec not added yet (see test_memory_search_scored_is_catalogued)")
+        )
     return spec
 
 
 # ── Row-shape contract (what the provider actually consumes) ──────────────────
+
 
 def test_scored_returns_ranked_rows_via_execute_tool_structured():
     """execute_tool_structured(memory_search_scored, ...) returns the impl's
@@ -129,29 +131,18 @@ def test_scored_returns_ranked_rows_via_execute_tool_structured():
     NOT an 'Error: …' string. Empty corpus matches are fine; an empty list is
     still a correctly-shaped result (§3: empty=list, never None)."""
     spec = _require_spec()
-    result = asyncio.run(
-        mcp_tool_catalog.execute_tool_structured(spec, _scored_args(), agent_id="")
-    )
+    result = asyncio.run(mcp_tool_catalog.execute_tool_structured(spec, _scored_args(), agent_id=""))
 
     assert result is not None, "scored search must return a list, never None (§3)"
-    assert isinstance(result, list), (
-        f"expected list[(score, item)], got {type(result).__name__}"
-    )
+    assert isinstance(result, list), f"expected list[(score, item)], got {type(result).__name__}"
     for row in result:
         # Tuple from the in-process impl; a 2-element list if it ever round-trips
         # through json. Accept either — the provider unpacks `for s, it in rows`.
         assert len(row) == 2, f"each row must be (score, item); got len {len(row)}"
         score, item = row
-        assert isinstance(score, (int, float)), (
-            f"score must be numeric, got {type(score).__name__}"
-        )
-        assert isinstance(item, dict), (
-            f"item must be a dict, got {type(item).__name__}"
-        )
-        assert "content" in item, (
-            "each item must carry 'content' — the field the provider surfaces "
-            "as the recall line"
-        )
+        assert isinstance(score, (int, float)), f"score must be numeric, got {type(score).__name__}"
+        assert isinstance(item, dict), f"item must be a dict, got {type(item).__name__}"
+        assert "content" in item, "each item must carry 'content' — the field the provider surfaces as the recall line"
 
 
 def test_scored_parity_with_m3_call_dispatch():
@@ -167,16 +158,11 @@ def test_scored_parity_with_m3_call_dispatch():
     import json
 
     spec = _require_spec()
-    direct = asyncio.run(
-        mcp_tool_catalog.execute_tool_structured(spec, _scored_args(), agent_id="")
-    )
-    dispatched = json.loads(asyncio.run(
-        mcp_tool_catalog.m3_call_impl(tool=_SCORED, args=_scored_args())
-    ))
+    direct = asyncio.run(mcp_tool_catalog.execute_tool_structured(spec, _scored_args(), agent_id=""))
+    dispatched = json.loads(asyncio.run(mcp_tool_catalog.m3_call_impl(tool=_SCORED, args=_scored_args())))
 
     assert dispatched["ok"] is True, (
-        f"m3_call({_SCORED}) failed: {dispatched.get('error')} "
-        f"{dispatched.get('detail', '')}"
+        f"m3_call({_SCORED}) failed: {dispatched.get('error')} {dispatched.get('detail', '')}"
     )
     assert dispatched["tool"] == _SCORED
 
@@ -204,12 +190,8 @@ def test_scored_filter_only_query_is_accepted():
     """
     spec = _require_spec()
     args = {"query": "", "type_filter": "note", "k": 10}
-    result = asyncio.run(
-        mcp_tool_catalog.execute_tool_structured(spec, args, agent_id="")
-    )
-    assert isinstance(result, list), (
-        "filter-only (empty-query) scored search must return a list"
-    )
+    result = asyncio.run(mcp_tool_catalog.execute_tool_structured(spec, args, agent_id=""))
+    assert isinstance(result, list), "filter-only (empty-query) scored search must return a list"
 
 
 def test_scored_matches_memory_search_rowset_for_same_query():
@@ -234,11 +216,8 @@ def test_scored_matches_memory_search_rowset_for_same_query():
     q = "memory"
     k = 5
 
-    scored = asyncio.run(mcp_tool_catalog.execute_tool_structured(
-        spec, {"query": q, "k": k}, agent_id=""))
-    scored_ids = {
-        item.get("id") for _s, item in scored if isinstance(item, dict)
-    }
+    scored = asyncio.run(mcp_tool_catalog.execute_tool_structured(spec, {"query": q, "k": k}, agent_id=""))
+    scored_ids = {item.get("id") for _s, item in scored if isinstance(item, dict)}
     scored_ids.discard(None)
 
     # Drive the formatted sibling through the SAME structured path so both get
@@ -251,9 +230,9 @@ def test_scored_matches_memory_search_rowset_for_same_query():
     # which is exactly what the scored spec must default to. If the scored spec
     # is gated correctly, passing variant explicitly here is a no-op; if it is
     # NOT, this exposes the divergence.
-    gated = asyncio.run(mcp_tool_catalog.execute_tool_structured(
-        spec, {"query": q, "k": k, "variant": "__none__"},
-        agent_id=""))
+    gated = asyncio.run(
+        mcp_tool_catalog.execute_tool_structured(spec, {"query": q, "k": k, "variant": "__none__"}, agent_id="")
+    )
     gated_ids = {item.get("id") for _s, item in gated if isinstance(item, dict)}
     gated_ids.discard(None)
 

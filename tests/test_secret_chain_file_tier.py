@@ -1,4 +1,5 @@
 """get_api_key's chain: env > keyring > user-only secrets file > vault (plan 2B.1)."""
+
 from __future__ import annotations
 
 import logging

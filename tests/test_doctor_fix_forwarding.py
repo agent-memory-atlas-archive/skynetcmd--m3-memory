@@ -7,6 +7,7 @@ only --verbose, so the payload doctor ran in REPORT mode — its whole repair pa
 (shared-embedder restart, agent stale-payload rewrite, DB heal) silently never
 fired under `m3 doctor --fix`.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -18,8 +19,7 @@ def _run(monkeypatch, *, fix, fix_hooks, verbose=False):
     captured = {}
     monkeypatch.setattr("m3_memory.installer.doctor", lambda **k: 0)
     monkeypatch.setattr(cli, "_resolve_bin_script", lambda name: "/fake/memory_doctor.py")
-    monkeypatch.setattr(cli, "_run_bin_script",
-                        lambda name, rest: captured.__setitem__("rest", list(rest)) or 0)
+    monkeypatch.setattr(cli, "_run_bin_script", lambda name, rest: captured.__setitem__("rest", list(rest)) or 0)
     ns = argparse.Namespace(fix=fix, fix_hooks=fix_hooks, verbose=verbose, rest=[])
     cli._cmd_doctor(ns)
     return captured.get("rest", [])

@@ -18,6 +18,7 @@ tests DROP the schema first so they measure the bootstrap, not the leftovers.
 Skips cleanly without a reachable cluster (requires_pg). See
 ~/.m3-private/runbooks/WSL_POSTGRES_TEST_DB_RUNBOOK.md to stand one up.
 """
+
 from __future__ import annotations
 
 import sys
@@ -46,6 +47,7 @@ def pg_no_dispatch(monkeypatch, pg_url):
     monkeypatch.setenv("M3_CORE_RS_DISABLE", "1")
 
     from memory.backends import selector as _selector
+
     _selector._reset_for_tests()
     from m3_core.context import _DISPATCH_PG_READY
     from m3_core.paths import dispatch_pg_schema
@@ -74,8 +76,7 @@ def _schema_exists(backend, schema: str) -> bool:
 def _tables(backend, schema: str) -> set:
     with backend.connection() as c:
         cur = c.cursor()
-        cur.execute("SELECT tablename FROM pg_tables WHERE schemaname = %s",
-                    (schema,))
+        cur.execute("SELECT tablename FROM pg_tables WHERE schemaname = %s", (schema,))
         return {r[0] for r in cur.fetchall()}
 
 
@@ -100,8 +101,7 @@ def test_opening_a_dispatch_conn_creates_the_schema(pg_no_dispatch):
     )
     created = _tables(backend, schema)
     assert "notification_dispatch" in created, (
-        f"schema {schema!r} exists but the dispatch table is missing: "
-        f"{sorted(created)}"
+        f"schema {schema!r} exists but the dispatch table is missing: {sorted(created)}"
     )
 
 
@@ -128,9 +128,11 @@ def test_the_schema_name_is_configurable(monkeypatch, pg_url):
     monkeypatch.setenv("M3_DISPATCH_PG_SCHEMA", "m3_dispatch_alt")
 
     from memory.backends import selector as _selector
+
     _selector._reset_for_tests()
     from m3_core.context import _DISPATCH_PG_READY, M3Context
     from memory.backends.postgres_backend import PostgresBackend
+
     _DISPATCH_PG_READY.discard("m3_dispatch_alt")
 
     backend = PostgresBackend(dsn=pg_url)
@@ -170,8 +172,7 @@ def test_the_shipped_pg_ddl_has_an_applier():
         if "__pycache__" in str(path):
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
-        body = "\n".join(ln for ln in text.splitlines()
-                         if not ln.lstrip().startswith("#"))
+        body = "\n".join(ln for ln in text.splitlines() if not ln.lstrip().startswith("#"))
         if re.search(r"pg_001_bootstrap", body):
             hits.append(path.name)
     assert hits, (

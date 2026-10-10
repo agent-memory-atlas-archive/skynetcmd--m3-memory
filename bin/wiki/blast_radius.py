@@ -16,6 +16,7 @@ The same reachability also gives delta-lint its scope: given a set of changed
 nodes, the nodes worth re-checking are those plus everything that consolidates
 from them.
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterable

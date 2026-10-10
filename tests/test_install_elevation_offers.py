@@ -16,6 +16,7 @@ These tests pin the CONTRACT, not the wiring:
   5. non-Windows hosts are unaffected (systemd --user / LaunchAgents need no
      privilege, so they must never see a UAC prompt).
 """
+
 from __future__ import annotations
 
 import pathlib
@@ -33,9 +34,7 @@ DENIED = "[FAIL] Failed to create task AgentOS_Dashboard: ERROR: Access is denie
 
 
 def _proc(returncode: int, stdout: str = "", stderr: str = ""):
-    return subprocess.CompletedProcess(
-        args=[], returncode=returncode, stdout=stdout, stderr=stderr
-    )
+    return subprocess.CompletedProcess(args=[], returncode=returncode, stdout=stdout, stderr=stderr)
 
 
 # --- the dashboard boot task ------------------------------------------------
@@ -43,24 +42,26 @@ def _proc(returncode: int, stdout: str = "", stderr: str = ""):
 
 def test_denied_dashboard_task_offers_elevation(capsys):
     """The regression: a denied registration must reach the elevation offer."""
-    with patch.object(installer, "_install_schedules_script", return_value="sched.py"), \
-         patch.object(installer, "_python_exe", return_value="py"), \
-         patch.object(installer.subprocess, "run", return_value=_proc(1, DENIED)), \
-         patch.object(setup_wizard, "_offer_elevated_schedule_repair",
-                      return_value=True) as offer:
+    with (
+        patch.object(installer, "_install_schedules_script", return_value="sched.py"),
+        patch.object(installer, "_python_exe", return_value="py"),
+        patch.object(installer.subprocess, "run", return_value=_proc(1, DENIED)),
+        patch.object(setup_wizard, "_offer_elevated_schedule_repair", return_value=True) as offer,
+    ):
         installer._register_dashboard_task(non_interactive=False)
 
     assert offer.called, "denied boot task did not offer inline UAC"
-    assert "Access is denied" in capsys.readouterr().out, \
-        "child diagnostics were swallowed instead of shown"
+    assert "Access is denied" in capsys.readouterr().out, "child diagnostics were swallowed instead of shown"
 
 
 def test_successful_registration_does_not_prompt():
     """A task that registers fine must never pop a UAC dialog."""
-    with patch.object(installer, "_install_schedules_script", return_value="sched.py"), \
-         patch.object(installer, "_python_exe", return_value="py"), \
-         patch.object(installer.subprocess, "run", return_value=_proc(0, "[OK] created")), \
-         patch.object(setup_wizard, "_offer_elevated_schedule_repair") as offer:
+    with (
+        patch.object(installer, "_install_schedules_script", return_value="sched.py"),
+        patch.object(installer, "_python_exe", return_value="py"),
+        patch.object(installer.subprocess, "run", return_value=_proc(0, "[OK] created")),
+        patch.object(setup_wizard, "_offer_elevated_schedule_repair") as offer,
+    ):
         installer._register_dashboard_task()
 
     assert not offer.called, "prompted for elevation on a successful registration"
@@ -68,11 +69,12 @@ def test_successful_registration_does_not_prompt():
 
 def test_non_privilege_failure_does_not_prompt(capsys):
     """A failure that is not about privilege gets reported, not elevated."""
-    with patch.object(installer, "_install_schedules_script", return_value="sched.py"), \
-         patch.object(installer, "_python_exe", return_value="py"), \
-         patch.object(installer.subprocess, "run",
-                      return_value=_proc(1, "[FAIL] schtasks not found")), \
-         patch.object(setup_wizard, "_offer_elevated_schedule_repair") as offer:
+    with (
+        patch.object(installer, "_install_schedules_script", return_value="sched.py"),
+        patch.object(installer, "_python_exe", return_value="py"),
+        patch.object(installer.subprocess, "run", return_value=_proc(1, "[FAIL] schtasks not found")),
+        patch.object(setup_wizard, "_offer_elevated_schedule_repair") as offer,
+    ):
         installer._register_dashboard_task()
 
     assert not offer.called, "elevation offered for a non-privilege failure"
@@ -81,11 +83,12 @@ def test_non_privilege_failure_does_not_prompt(capsys):
 
 def test_declined_elevation_names_the_recovery_command(capsys):
     """Declining must leave the user a command, not a dead end."""
-    with patch.object(installer, "_install_schedules_script", return_value="sched.py"), \
-         patch.object(installer, "_python_exe", return_value="py"), \
-         patch.object(installer.subprocess, "run", return_value=_proc(1, DENIED)), \
-         patch.object(setup_wizard, "_offer_elevated_schedule_repair",
-                      return_value=False):
+    with (
+        patch.object(installer, "_install_schedules_script", return_value="sched.py"),
+        patch.object(installer, "_python_exe", return_value="py"),
+        patch.object(installer.subprocess, "run", return_value=_proc(1, DENIED)),
+        patch.object(setup_wizard, "_offer_elevated_schedule_repair", return_value=False),
+    ):
         installer._register_dashboard_task(non_interactive=False)
 
     out = capsys.readouterr().out
@@ -95,9 +98,11 @@ def test_declined_elevation_names_the_recovery_command(capsys):
 
 def test_exception_is_reported_not_swallowed(capsys):
     """The original bare `except: pass` is what made this invisible."""
-    with patch.object(installer, "_install_schedules_script", return_value="sched.py"), \
-         patch.object(installer, "_python_exe", return_value="py"), \
-         patch.object(installer.subprocess, "run", side_effect=OSError("boom")):
+    with (
+        patch.object(installer, "_install_schedules_script", return_value="sched.py"),
+        patch.object(installer, "_python_exe", return_value="py"),
+        patch.object(installer.subprocess, "run", side_effect=OSError("boom")),
+    ):
         installer._register_dashboard_task()
 
     assert "boom" in capsys.readouterr().out, "exception silently swallowed"
@@ -105,18 +110,15 @@ def test_exception_is_reported_not_swallowed(capsys):
 
 def test_headless_run_never_blocks_on_a_dialog():
     """No one can approve UAC on a headless box — don't hang waiting."""
-    with patch.object(setup_wizard.sys, "platform", "win32"), \
-         patch.object(setup_wizard, "_ask_yes_no") as ask:
-        assert setup_wizard._offer_elevated_schedule_repair(
-            "sched.py", non_interactive=True) is False
+    with patch.object(setup_wizard.sys, "platform", "win32"), patch.object(setup_wizard, "_ask_yes_no") as ask:
+        assert setup_wizard._offer_elevated_schedule_repair("sched.py", non_interactive=True) is False
     assert not ask.called, "headless run prompted for consent"
 
 
 @pytest.mark.requires_posix  # POSIX-only path
 def test_posix_never_offers_uac():
     """Linux/macOS register user-level units — no privilege, so no prompt."""
-    assert setup_wizard._offer_elevated_schedule_repair(
-        "sched.py", non_interactive=False) is False
+    assert setup_wizard._offer_elevated_schedule_repair("sched.py", non_interactive=False) is False
 
 
 # --- the retry loop ---------------------------------------------------------
@@ -150,8 +152,7 @@ def test_user_can_stop_retrying():
 
 def test_retry_gives_up_rather_than_looping_forever():
     with patch.object(setup_wizard, "_prompt", return_value="retry"):
-        assert setup_wizard._retry_elevated(
-            lambda: False, what="test", max_attempts=3) is False
+        assert setup_wizard._retry_elevated(lambda: False, what="test", max_attempts=3) is False
 
 
 def test_eof_stops_retrying():
@@ -170,15 +171,18 @@ def test_stuck_writer_elevation_retries():
         attempts["n"] += 1
         return attempts["n"] >= 2
 
-    with patch.object(setup_wizard.sys, "platform", "win32"), \
-         patch.object(setup_wizard, "_kill_process_windows", return_value=False), \
-         patch.object(setup_wizard, "_runas_kill_windows", _flaky_elevate), \
-         patch.object(setup_wizard, "_prompt", return_value="retry"):
+    with (
+        patch.object(setup_wizard.sys, "platform", "win32"),
+        patch.object(setup_wizard, "_kill_process_windows", return_value=False),
+        patch.object(setup_wizard, "_runas_kill_windows", _flaky_elevate),
+        patch.object(setup_wizard, "_prompt", return_value="retry"),
+    ):
         assert setup_wizard._kill_stuck_writers([writer], allow_sudo=True) is True
     assert attempts["n"] == 2, "a missed UAC dialog was not re-offered"
 
 
 # --- the offer must not be gated on the CALLER's non_interactive flag --------
+
 
 def test_offer_survives_a_non_interactive_caller_when_a_console_exists():
     """`non_interactive` means "choices already gathered", NOT "no human".
@@ -192,26 +196,29 @@ def test_offer_survives_a_non_interactive_caller_when_a_console_exists():
 
     What decides "can we ask" is whether a console is attached.
     """
-    with patch.object(setup_wizard.sys, "platform", "win32"), \
-         patch.object(setup_wizard, "_stdin_is_interactive", return_value=True), \
-         patch.object(setup_wizard, "_ask_yes_no", return_value=True) as ask, \
-         patch.object(setup_wizard, "_retry_elevated", return_value=True):
-        assert setup_wizard._offer_elevated_schedule_repair(
-            "sched.py", non_interactive=True) is True
+    with (
+        patch.object(setup_wizard.sys, "platform", "win32"),
+        patch.object(setup_wizard, "_stdin_is_interactive", return_value=True),
+        patch.object(setup_wizard, "_ask_yes_no", return_value=True) as ask,
+        patch.object(setup_wizard, "_retry_elevated", return_value=True),
+    ):
+        assert setup_wizard._offer_elevated_schedule_repair("sched.py", non_interactive=True) is True
     assert ask.called, "a non-interactive CALLER suppressed a prompt a human could answer"
 
 
 def test_no_console_still_falls_back_to_the_banner():
     """A truly headless run must never block on a dialog nobody can approve."""
-    with patch.object(setup_wizard.sys, "platform", "win32"), \
-         patch.object(setup_wizard, "_stdin_is_interactive", return_value=False), \
-         patch.object(setup_wizard, "_ask_yes_no") as ask:
-        assert setup_wizard._offer_elevated_schedule_repair(
-            "sched.py", non_interactive=False) is False
+    with (
+        patch.object(setup_wizard.sys, "platform", "win32"),
+        patch.object(setup_wizard, "_stdin_is_interactive", return_value=False),
+        patch.object(setup_wizard, "_ask_yes_no") as ask,
+    ):
+        assert setup_wizard._offer_elevated_schedule_repair("sched.py", non_interactive=False) is False
     assert not ask.called
 
 
 # --- `m3 doctor --fix` must offer elevation too ------------------------------
+
 
 def test_doctor_fix_offers_elevation_on_a_denied_registration():
     """`--fix` exists to repair what self-repairs; a denied task registration is
@@ -221,9 +228,10 @@ def test_doctor_fix_offers_elevation_on_a_denied_registration():
     sys.path.insert(0, str(_BIN))
     from doctor import shared_embedder_probe as probe
 
-    with patch.object(probe.sys, "platform", "win32"), \
-         patch.object(setup_wizard, "_offer_elevated_schedule_repair",
-                      return_value=True) as offer:
+    with (
+        patch.object(probe.sys, "platform", "win32"),
+        patch.object(setup_wizard, "_offer_elevated_schedule_repair", return_value=True) as offer,
+    ):
         assert probe._offer_elevated_repair("sched.py") is True
     assert offer.called, "doctor --fix did not offer elevation"
     # It must ask as a real prompt, not inherit a caller's "already decided".
@@ -236,6 +244,5 @@ def test_doctor_fix_degrades_when_the_wizard_is_unimportable():
     sys.path.insert(0, str(_BIN))
     from doctor import shared_embedder_probe as probe
 
-    with patch.object(probe.sys, "platform", "win32"), \
-         patch.dict(sys.modules, {"m3_memory.setup_wizard": None}):
+    with patch.object(probe.sys, "platform", "win32"), patch.dict(sys.modules, {"m3_memory.setup_wizard": None}):
         assert probe._offer_elevated_repair("sched.py") is False

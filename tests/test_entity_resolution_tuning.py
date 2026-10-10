@@ -2,6 +2,7 @@
 Verifies that entity resolution thresholds behave correctly under environmental override
 and different levels of naming drift.
 """
+
 from __future__ import annotations
 
 import os
@@ -104,6 +105,7 @@ async def test_cosine_threshold_resolution_tuning(monkeypatch, tmp_path):
         return vec
 
     import memory.embed as me_embed
+
     monkeypatch.setattr(me, "_embed_canonical_cached", stub_canonical)
     monkeypatch.setattr(me_embed, "_embed_canonical_cached", stub_canonical)
     monkeypatch.setattr(me_embed, "_embed", stub_embed)  # belt-and-suspenders

@@ -4,6 +4,7 @@ It opened `open_readonly` (mode=ro on SQLite), so every run failed with "attempt
 to write a readonly database" on the default backend; on PostgreSQL the same call
 was writable, so the bug showed on one backend only.
 """
+
 from __future__ import annotations
 
 import asyncio

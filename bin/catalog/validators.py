@@ -3,6 +3,7 @@
 Moved verbatim from mcp_tool_catalog.py (~lines 122-271 pre-split) as part of
 the catalog/ subpackage split.
 """
+
 from __future__ import annotations
 
 import json
@@ -30,6 +31,7 @@ def _memory_write_validator(args: dict) -> Any:
         args["auto_classify"] = True
     return args
 
+
 def _memory_delete_validator(args: dict) -> Any:
     """Validator for memory_delete. Requires a full UUID, never a prefix —
     a prefix could delete the wrong memory irreversibly (full UUID required
@@ -39,12 +41,15 @@ def _memory_delete_validator(args: dict) -> Any:
         return "Error: id is required (the full UUID of the memory to delete)."
     mid = str(mid).strip()
     if not _is_full_uuid(mid):
-        return ("Error: id must be the full UUID, not a prefix — "
-                "full UUID required for mutation safety. "
-                "Resolve the prefix first with memory_get (which accepts a "
-                "prefix), then pass the returned full id.")
+        return (
+            "Error: id must be the full UUID, not a prefix — "
+            "full UUID required for mutation safety. "
+            "Resolve the prefix first with memory_get (which accepts a "
+            "prefix), then pass the returned full id."
+        )
     args["id"] = mid
     return args
+
 
 def _memory_supersede_validator(args: dict) -> Any:
     """Validator for memory_supersede. Like _memory_write_validator but `type`
@@ -59,10 +64,12 @@ def _memory_supersede_validator(args: dict) -> Any:
     # mutation could close the wrong memory irreversibly, so supersede/delete
     # demand the exact full id. See _is_full_uuid.
     if not _is_full_uuid(old_id):
-        return ("Error: old_id must be the full UUID, not a prefix — "
-                "full UUID required for mutation safety. "
-                "Resolve the prefix first with memory_get (which accepts a "
-                "prefix), then pass the returned full id.")
+        return (
+            "Error: old_id must be the full UUID, not a prefix — "
+            "full UUID required for mutation safety. "
+            "Resolve the prefix first with memory_get (which accepts a "
+            "prefix), then pass the returned full id."
+        )
     args["old_id"] = old_id
     t = args.get("type", "")
     # Empty type is the inherit-from-old sentinel; only validate a non-empty one.
@@ -81,6 +88,7 @@ def _memory_supersede_validator(args: dict) -> Any:
             return "Error: metadata is not valid JSON."
     return args
 
+
 def _memory_search_validator(args: dict) -> Any:
     q = args.get("query", "")
     if not q or not str(q).strip():
@@ -96,6 +104,7 @@ def _memory_search_validator(args: dict) -> Any:
     args["k"] = max(1, min(k, MAX_K))
     return args
 
+
 def _variant_gate(args: dict) -> dict:
     """Bench-data gate for memory_search / memory_suggest. If include_bench_data=True,
     drop the variant filter; otherwise default to '__none__' so bench rows hide."""
@@ -106,14 +115,17 @@ def _variant_gate(args: dict) -> dict:
         args["variant"] = "__none__"
     return args
 
+
 def _memory_search_gated_validator(args: dict) -> Any:
     r = _memory_search_validator(args)
     if isinstance(r, str):
         return r
     return _variant_gate(r)
 
+
 def _memory_suggest_validator(args: dict) -> Any:
     return _variant_gate(args)
+
 
 def _memory_search_scored_validator(args: dict) -> Any:
     """Validator for memory_search_scored.
@@ -138,20 +150,23 @@ def _memory_search_scored_validator(args: dict) -> Any:
     args["k"] = max(1, min(k, MAX_K))
     return _variant_gate(args)
 
+
 def _memory_update_validator(args: dict) -> Any:
     md = args.get("metadata", "")
     if isinstance(md, dict):
         args["metadata"] = json.dumps(md)
     return args
 
+
 def _memory_set_retention_validator(args: dict) -> Any:
     try:
         args["max_memories"] = int(args.get("max_memories", 1000))
-        args["ttl_days"]     = int(args.get("ttl_days", 0))
+        args["ttl_days"] = int(args.get("ttl_days", 0))
         args["auto_archive"] = int(args.get("auto_archive", 1))
     except (TypeError, ValueError):
         return "Error: max_memories, ttl_days, and auto_archive must be integers."
     return args
+
 
 def _gdpr_user_id_validator(args: dict) -> Any:
     uid = args.get("user_id", "")

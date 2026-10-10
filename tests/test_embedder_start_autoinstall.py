@@ -8,6 +8,7 @@ binary exists but the service isn't registered, `cmd_start` delegates to
 Everything that would touch the OS service manager, the network (:8082), or load
 a GGUF is mocked — this is a pure control-flow test.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -76,8 +77,7 @@ def test_install_on_a_running_current_service_runs_nothing(monkeypatch, capsys):
     _patch_common(monkeypatch, calls)
     monkeypatch.setattr(ea, "_service_reports_installed", lambda b, g: True)
     monkeypatch.setattr(ea, "_service_binary_is_stale", lambda b: False)
-    monkeypatch.setattr(ea, "_warn_if_port_busy",
-                        lambda phase: pytest.fail("no port notice for our own service"))
+    monkeypatch.setattr(ea, "_warn_if_port_busy", lambda phase: pytest.fail("no port notice for our own service"))
     assert ea.cmd_install(argparse.Namespace(concurrency=2)) == 0
     assert calls == []
     assert "running on port" in capsys.readouterr().out
@@ -88,7 +88,9 @@ def test_install_on_a_stale_running_service_still_restarts_it(monkeypatch):
     _patch_common(monkeypatch, calls)
     monkeypatch.setattr(ea, "_service_reports_installed", lambda b, g: True)
     monkeypatch.setattr(ea, "_service_binary_is_stale", lambda b: True)
-    monkeypatch.setattr(ea, "_service_cmd", lambda b, g, action, *e: calls.append(action) or (1 if action == "install" else 0))
+    monkeypatch.setattr(
+        ea, "_service_cmd", lambda b, g, action, *e: calls.append(action) or (1 if action == "install" else 0)
+    )
     assert ea.cmd_install(argparse.Namespace(concurrency=2)) == 0
     assert calls == ["install", "stop", "start"]
 

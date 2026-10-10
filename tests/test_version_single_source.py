@@ -19,6 +19,7 @@ numbers and told the user to uninstall a working launcher.
 
 These tests pin the invariant rather than any particular number.
 """
+
 from __future__ import annotations
 
 import os
@@ -35,6 +36,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def _pyproject_version() -> str:
     import tomllib
+
     with open(os.path.join(_ROOT, "pyproject.toml"), "rb") as fh:
         return tomllib.load(fh)["project"]["version"]
 
@@ -47,6 +49,7 @@ def test_package_version_matches_pyproject_in_a_checkout():
     are BOTH present on a normal dev box, and neither may win.
     """
     import m3_memory
+
     assert m3_memory.__version__ == _pyproject_version(), (
         f"package reports {m3_memory.__version__!r} but pyproject.toml says "
         f"{_pyproject_version()!r} — stale egg-info or a frozen editable "
@@ -59,8 +62,7 @@ def test_version_is_the_same_from_any_working_directory():
     code = "import m3_memory;print(m3_memory.__version__)"
     seen = {}
     for label, cwd in (("checkout", _ROOT), ("neutral", tempfile.gettempdir())):
-        proc = subprocess.run([sys.executable, "-c", code],
-                              capture_output=True, text=True, timeout=60, cwd=cwd)
+        proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=60, cwd=cwd)
         if label == "neutral" and "No module named 'm3_memory'" in (proc.stderr or ""):
             # The package is not installed in this interpreter — CI's hermetic
             # lane installs requirements.txt only, never the package itself. The
@@ -77,8 +79,11 @@ def test_version_is_the_same_from_any_working_directory():
     # disagreeing while the install is current, so compare only then.
     if seen["checkout"] != seen["neutral"] and seen["checkout"] == _pyproject_version():
         pytest.skip(
-            skip_reason("env", f"installed distribution ({seen['neutral']}) is older than the "
-            f"checkout ({seen['checkout']}); reinstall to compare")
+            skip_reason(
+                "env",
+                f"installed distribution ({seen['neutral']}) is older than the "
+                f"checkout ({seen['checkout']}); reinstall to compare",
+            )
         )
     assert seen["checkout"] == seen["neutral"], (
         f"version depends on the working directory: {seen} — a *.egg-info or "
@@ -97,6 +102,7 @@ def test_doctor_agrees_with_the_package():
     from doctor import entrypoint_probe as ep
 
     import m3_memory
+
     installed = ep._installed_version()
     if installed is None:
         pytest.skip(skip_reason("env", "no installed distribution to compare against"))
@@ -106,12 +112,14 @@ def test_doctor_agrees_with_the_package():
     # is expected drift, not the two-sources-of-truth bug this guards.
     if installed != m3_memory.__version__ and _pyproject_version() == m3_memory.__version__:
         pytest.skip(
-            skip_reason("env", f"installed distribution ({installed}) is older than the checkout "
-            f"({m3_memory.__version__}); reinstall to compare")
+            skip_reason(
+                "env",
+                f"installed distribution ({installed}) is older than the checkout "
+                f"({m3_memory.__version__}); reinstall to compare",
+            )
         )
     assert installed == m3_memory.__version__, (
-        f"doctor says {ep._installed_version()!r}, package says "
-        f"{m3_memory.__version__!r} — two sources of truth"
+        f"doctor says {ep._installed_version()!r}, package says {m3_memory.__version__!r} — two sources of truth"
     )
 
 
@@ -154,18 +162,17 @@ def test_no_module_resolves_m3s_version_independently():
                     if not isinstance(node, ast.Call) or not node.args:
                         continue
                     fnode = node.func
-                    name = (fnode.attr if isinstance(fnode, ast.Attribute)
-                            else getattr(fnode, "id", ""))
+                    name = fnode.attr if isinstance(fnode, ast.Attribute) else getattr(fnode, "id", "")
                     if name != "version":
                         continue
                     arg = node.args[0]
-                    if (isinstance(arg, ast.Constant)
-                            and isinstance(arg.value, str)
-                            and arg.value.replace("_", "-") == "m3-memory"):
-                        offenders.append(
-                            f"{os.path.relpath(path, _ROOT)}:{node.lineno}")
+                    if (
+                        isinstance(arg, ast.Constant)
+                        and isinstance(arg.value, str)
+                        and arg.value.replace("_", "-") == "m3-memory"
+                    ):
+                        offenders.append(f"{os.path.relpath(path, _ROOT)}:{node.lineno}")
     assert not offenders, (
         "resolved m3's version via importlib.metadata instead of "
-        "m3_memory.__version__ — a second source of truth:\n  "
-        + "\n  ".join(offenders)
+        "m3_memory.__version__ — a second source of truth:\n  " + "\n  ".join(offenders)
     )

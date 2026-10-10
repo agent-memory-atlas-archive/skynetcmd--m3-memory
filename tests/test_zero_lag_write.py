@@ -9,6 +9,7 @@ embed_backfill (which selects WHERE NOT EXISTS an embedding row).
 Correctly-configured installs (fast embedder present) are unaffected — they embed
 inline exactly as before.
 """
+
 from __future__ import annotations
 
 import sys
@@ -76,6 +77,7 @@ async def test_write_defers_and_is_fast_without_embedder(monkeypatch, tmp_path):
     # misses (isolated test passed, full-suite run attempted a real embed and did
     # not defer). Patch the exact object the code under test dereferences.
     import memory.write as _write_mod
+
     for _target in {embed_mod, _write_mod._embed_mod}:
         monkeypatch.setattr(_target, "fast_embedder_available", lambda: False)
 
@@ -95,21 +97,16 @@ async def test_write_defers_and_is_fast_without_embedder(monkeypatch, tmp_path):
     # Kept as a GENEROUS ceiling that still catches the regression it exists for
     # — a write that synchronously embeds takes tens of seconds, not ~7 — without
     # failing on runner jitter. The precise budget lives in the slow lane.
-    assert dt < 30.0, (
-        f"deferred write should not block on embedding, took {dt:.1f}s"
-    )
+    assert dt < 30.0, f"deferred write should not block on embedding, took {dt:.1f}s"
     assert "deferred" in r
     item_id = r.split("Created: ")[1].split(" ")[0]
 
     import sqlite3
+
     conn = sqlite3.connect(db)
     try:
-        (n,) = conn.execute(
-            "SELECT COUNT(*) FROM memory_embeddings WHERE memory_id = ?", (item_id,)
-        ).fetchone()
-        (rows,) = conn.execute(
-            "SELECT COUNT(*) FROM memory_items WHERE id = ?", (item_id,)
-        ).fetchone()
+        (n,) = conn.execute("SELECT COUNT(*) FROM memory_embeddings WHERE memory_id = ?", (item_id,)).fetchone()
+        (rows,) = conn.execute("SELECT COUNT(*) FROM memory_items WHERE id = ?", (item_id,)).fetchone()
     finally:
         conn.close()
 

@@ -5,6 +5,7 @@ memory_write with auto_classify no longer blocks the write on an LLM call
 classification sweep resolves the real type later, fail-open (a down/slow LLM
 leaves the row 'auto', retried next sweep — never lost, never blocking).
 """
+
 import asyncio
 import sqlite3
 import sys
@@ -73,8 +74,10 @@ def test_sweep_failopen_leaves_auto_on_llm_timeout(tmp_path):
         return "decision"
 
     # Tight deadline so the test is fast; the row must stay 'auto', no raise.
-    with patch.dict("os.environ", {"M3_CLASSIFY_DEADLINE_S": "0.2"}), \
-         patch("memory.enrich._auto_classify", side_effect=hang_classify):
+    with (
+        patch.dict("os.environ", {"M3_CLASSIFY_DEADLINE_S": "0.2"}),
+        patch("memory.enrich._auto_classify", side_effect=hang_classify),
+    ):
         asyncio.run(L.run_classify_pass(_Args(db)))
 
     c = sqlite3.connect(db)

@@ -5,6 +5,7 @@ a switch kept only in the user's shell rc (e.g. M3_ENABLE_OLLAMA_FAILOVER) never
 reaches it. ``<config_root>/.llm_config.json`` resolves the same way under every
 launcher. Precedence: environment > this file > the caller's default.
 """
+
 from __future__ import annotations
 
 import json
@@ -33,9 +34,13 @@ def read_llm_config() -> dict:
     except FileNotFoundError:
         return {}
     except (OSError, ValueError) as e:
-        logger.warning("observed: %s is unreadable (%s: %s); LLM endpoint switches "
-                       "fall back to the environment. inspect: that file",
-                       path, type(e).__name__, e)
+        logger.warning(
+            "observed: %s is unreadable (%s: %s); LLM endpoint switches "
+            "fall back to the environment. inspect: that file",
+            path,
+            type(e).__name__,
+            e,
+        )
         return {}
     return data if isinstance(data, dict) else {}
 
@@ -56,5 +61,6 @@ def write_llm_setting(name: str, value: str) -> str:
     data[name] = value
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     from m3_core.atomic_io import atomic_write
+
     atomic_write(path, json.dumps(data, indent=2, sort_keys=True) + "\n")
     return path

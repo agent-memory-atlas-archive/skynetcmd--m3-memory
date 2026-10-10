@@ -11,6 +11,7 @@ The fake embedder below probes the lock from a SECOND connection at the exact
 moment resolution is awaiting: `BEGIN IMMEDIATE` with no wait must succeed.
 Real store (template schema), real `_db()`; only the embedder is faked.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -27,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bin"))
 def _vec(name: str) -> list[float]:
     """Orthogonal per name: nothing resolves by cosine."""
     from conftest import orthogonal_vectors
+
     return orthogonal_vectors(_NAMES)[name]
 
 
@@ -44,13 +46,17 @@ def store(tmp_path, monkeypatch):
     monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
     monkeypatch.setenv("M3_ENABLE_ENTITY_GRAPH", "true")
     with sqlite3.connect(str(db)) as c:
-        c.execute("INSERT INTO memory_items (id, type, title, content, created_at, is_deleted) "
-                  "VALUES ('m1', 'note', 't', 'Alpha Industries hired Beta Logistics', "
-                  "'2026-01-01T00:00:00Z', 0)")
+        c.execute(
+            "INSERT INTO memory_items (id, type, title, content, created_at, is_deleted) "
+            "VALUES ('m1', 'note', 't', 'Alpha Industries hired Beta Logistics', "
+            "'2026-01-01T00:00:00Z', 0)"
+        )
         # An existing entity of the same type, so resolution reaches the
         # embedding tier (no candidates means no await at all).
-        c.execute("INSERT INTO entities (id, canonical_name, entity_type, attributes_json, content_hash) "
-                  "VALUES ('e0', 'Zeta Holdings', 'organization', '{}', 'h0')")
+        c.execute(
+            "INSERT INTO entities (id, canonical_name, entity_type, attributes_json, content_hash) "
+            "VALUES ('e0', 'Zeta Holdings', 'organization', '{}', 'h0')"
+        )
         c.commit()
     return db
 
@@ -59,6 +65,7 @@ def test_no_write_lock_is_held_while_resolution_awaits(store, monkeypatch):
     ent = importlib.import_module("memory.entity")
     try:
         import memory.embed as me
+
         me._ENTITY_NAME_EMBED_CACHE.clear()
     except (ImportError, AttributeError):
         pass
@@ -80,11 +87,14 @@ def test_no_write_lock_is_held_while_resolution_awaits(store, monkeypatch):
     monkeypatch.setattr(ent, "_embed_canonical_cached", probing_embed)
 
     async def extractor(_text):
-        return {"entities": [
-            {"canonical_name": "Alpha Industries", "entity_type": "organization"},
-            {"canonical_name": "Beta Logistics", "entity_type": "organization"},
-            {"canonical_name": "Gamma Freight", "entity_type": "organization"},
-        ], "relationships": []}
+        return {
+            "entities": [
+                {"canonical_name": "Alpha Industries", "entity_type": "organization"},
+                {"canonical_name": "Beta Logistics", "entity_type": "organization"},
+                {"canonical_name": "Gamma Freight", "entity_type": "organization"},
+            ],
+            "relationships": [],
+        }
 
     asyncio.run(ent._run_entity_extractor("m1", "Alpha Industries hired Beta Logistics", extractor))
 
@@ -109,10 +119,13 @@ def test_a_name_repeated_in_one_extraction_creates_one_entity(store, monkeypatch
     monkeypatch.setattr(ent, "_embed_canonical_cached", embed)
 
     async def extractor(_text):
-        return {"entities": [
-            {"canonical_name": "Alpha Industries", "entity_type": "organization"},
-            {"canonical_name": "Alpha Industries", "entity_type": "organization", "mention_offset": 40},
-        ], "relationships": []}
+        return {
+            "entities": [
+                {"canonical_name": "Alpha Industries", "entity_type": "organization"},
+                {"canonical_name": "Alpha Industries", "entity_type": "organization", "mention_offset": 40},
+            ],
+            "relationships": [],
+        }
 
     asyncio.run(ent._run_entity_extractor("m1", "x", extractor))
     with sqlite3.connect(str(store)) as c:
@@ -150,10 +163,13 @@ def test_no_connection_is_open_while_resolution_awaits(store, monkeypatch):
     monkeypatch.setattr(ent, "_embed_canonical_cached", embed)
 
     async def extractor(_text):
-        return {"entities": [
-            {"canonical_name": "Alpha Industries", "entity_type": "organization"},
-            {"canonical_name": "Beta Logistics", "entity_type": "organization"},
-        ], "relationships": []}
+        return {
+            "entities": [
+                {"canonical_name": "Alpha Industries", "entity_type": "organization"},
+                {"canonical_name": "Beta Logistics", "entity_type": "organization"},
+            ],
+            "relationships": [],
+        }
 
     asyncio.run(ent._run_entity_extractor("m1", "x", extractor))
     assert seen, "precondition: resolution never reached the embedding tier"

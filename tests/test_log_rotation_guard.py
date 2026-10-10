@@ -13,6 +13,7 @@ open handle at its stored offset, so the next write zero-fills the gap and the
 file springs back to full size (observed on Windows). The bound has to happen at
 startup, BEFORE the handle is opened. That is what these tests pin.
 """
+
 import json
 import os
 import subprocess
@@ -41,6 +42,7 @@ def _make_oversized(path: Path, size: int = CAP + 1024) -> None:
 
 
 # --- the shared helper ------------------------------------------------------
+
 
 def test_under_cap_is_left_alone(tmp_path):
     log = tmp_path / "d.log"
@@ -88,6 +90,7 @@ def test_cap_zero_disables_rotation(tmp_path, monkeypatch):
 # A Windows scheduled task / launchd agent / systemd --user unit runs with a
 # BARE environment, so an env-only knob is absent in exactly the process whose
 # log grows. Precedence must be: config file > env var > default.
+
 
 def _reset_log_cfg_cache():
     _task_runtime._log_cfg_cache.update({"ts": 0.0, "mtime": None, "max_bytes": None})
@@ -144,9 +147,7 @@ def test_rotation_failure_is_not_silent(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(Path, "replace", _boom)
     monkeypatch.setattr(sys, "__stderr__", sys.stderr)
     _rotate_if_oversized(log)  # must NOT raise
-    assert "WARNING" in capsys.readouterr().err, (
-        "a rotation failure means the only disk-space bound is dead — say so"
-    )
+    assert "WARNING" in capsys.readouterr().err, "a rotation failure means the only disk-space bound is dead — say so"
 
 
 def test_malformed_cap_falls_back_to_default(tmp_path, monkeypatch):
@@ -202,12 +203,9 @@ def test_posix_launchers_reach_rotation_without_a_re_exec():
     import ast
 
     src = (BIN / "m3_cognitive_loop.py").read_text(encoding="utf-8")
-    fn = next(
-        n for n in ast.parse(src).body
-        if isinstance(n, ast.FunctionDef) and n.name == "main"
-    )
+    fn = next(n for n in ast.parse(src).body if isinstance(n, ast.FunctionDef) and n.name == "main")
     lines = src.splitlines()
-    body = "\n".join(lines[fn.lineno - 1: (fn.end_lineno or len(lines))])
+    body = "\n".join(lines[fn.lineno - 1 : (fn.end_lineno or len(lines))])
 
     rotate = body.find("_rotate_task_log(args.log_file)")
     handler = body.find("_attach_log_file(args.log_file")
@@ -215,17 +213,14 @@ def test_posix_launchers_reach_rotation_without_a_re_exec():
     assert handler != -1, "main() no longer attaches the log file; update this guard"
     assert rotate < handler, "must rotate BEFORE opening the handler"
     # _attach_log_file opens the FileHandler (unless stdout already is the file).
-    attach = next(
-        n for n in ast.parse(src).body
-        if isinstance(n, ast.FunctionDef) and n.name == "_attach_log_file"
-    )
-    attach_src = "\n".join(lines[attach.lineno - 1: (attach.end_lineno or len(lines))])
+    attach = next(n for n in ast.parse(src).body if isinstance(n, ast.FunctionDef) and n.name == "_attach_log_file")
+    attach_src = "\n".join(lines[attach.lineno - 1 : (attach.end_lineno or len(lines))])
     assert "logging.FileHandler(log_file" in attach_src, (
-        "_attach_log_file no longer opens a FileHandler; update this guard")
+        "_attach_log_file no longer opens a FileHandler; update this guard"
+    )
 
 
-@pytest.mark.parametrize("unit", ["com.m3memory.cognitiveloop.plist",
-                                  "m3-cognitive-loop.service"])
+@pytest.mark.parametrize("unit", ["com.m3memory.cognitiveloop.plist", "m3-cognitive-loop.service"])
 def test_posix_units_still_pass_a_log_file(unit):
     """If a unit stops passing --log-file the rotation guard above is moot."""
     path = BIN / unit
@@ -247,8 +242,7 @@ def test_rotation_has_no_database_coupling():
     src = (BIN / "_task_runtime.py").read_text(encoding="utf-8")
     for banned in ("sqlite3", "psycopg", "asyncpg", "get_m3_engine_root"):
         assert banned not in src, (
-            f"_task_runtime imports {banned!r}: log rotation must not depend on "
-            f"a database backend"
+            f"_task_runtime imports {banned!r}: log rotation must not depend on a database backend"
         )
 
 
@@ -262,6 +256,8 @@ def test_entrypoint_still_imports_cleanly(name):
     """
     proc = subprocess.run(
         [sys.executable, "-c", f"import py_compile,sys; py_compile.compile(r'{BIN / name}', doraise=True)"],
-        capture_output=True, text=True, env={**os.environ, "M3_SKIP_AUTOSTART": "1"},
+        capture_output=True,
+        text=True,
+        env={**os.environ, "M3_SKIP_AUTOSTART": "1"},
     )
     assert proc.returncode == 0, proc.stderr

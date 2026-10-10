@@ -59,6 +59,7 @@ def _governor_thresholds(now: float | None = None) -> tuple[int, int]:
             if mtime is not None:
                 try:
                     import json as _json
+
                     with Path(_governor_config_path()).open(encoding="utf-8") as f:
                         cfg = _json.load(f) or {}
                 except Exception as e:
@@ -68,7 +69,9 @@ def _governor_thresholds(now: float | None = None) -> tuple[int, int]:
                     logger.warning(
                         "Governor config %s is unreadable/malformed (%s) — "
                         "falling back to env vars + defaults until fixed.",
-                        _governor_config_path(), e)
+                        _governor_config_path(),
+                        e,
+                    )
                     cfg = {}
             _gov_cfg_cache["initial"] = cfg.get("initial_threshold")
             _gov_cfg_cache["limit"] = cfg.get("limit_threshold")
@@ -84,10 +87,10 @@ def _governor_thresholds(now: float | None = None) -> tuple[int, int]:
         except (TypeError, ValueError):
             return default
 
-    initial = min(99, max(10, _resolve(
-        _gov_cfg_cache["initial"], "M3_GOVERNOR_INITIAL_THRESHOLD", _GOV_DEFAULT_INITIAL)))
-    limit = min(100, max(20, _resolve(
-        _gov_cfg_cache["limit"], "M3_GOVERNOR_LIMIT_THRESHOLD", _GOV_DEFAULT_LIMIT)))
+    initial = min(
+        99, max(10, _resolve(_gov_cfg_cache["initial"], "M3_GOVERNOR_INITIAL_THRESHOLD", _GOV_DEFAULT_INITIAL))
+    )
+    limit = min(100, max(20, _resolve(_gov_cfg_cache["limit"], "M3_GOVERNOR_LIMIT_THRESHOLD", _GOV_DEFAULT_LIMIT)))
     # Enforce initial < limit.
     if initial >= limit and limit != 100:
         initial = limit - 5
@@ -117,12 +120,14 @@ def ensure_governor_config() -> str:
         initial, limit = _governor_thresholds()
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         import json as _json
+
         payload = {
             "_comment": _GOV_CFG_TEMPLATE_COMMENT,
             "initial_threshold": initial,
             "limit_threshold": limit,
         }
         from m3_core.atomic_io import atomic_write
+
         # Atomic; if another process raced us, last-writer-wins on identical
         # default content is harmless.
         atomic_write(path, _json.dumps(payload, indent=2))
@@ -148,9 +153,11 @@ LIMIT_THRESHOLD = _import_time_threshold("M3_GOVERNOR_LIMIT_THRESHOLD", _GOV_DEF
 if INITIAL_LIMIT >= LIMIT_THRESHOLD and LIMIT_THRESHOLD != 100:
     INITIAL_LIMIT = LIMIT_THRESHOLD - 5
 
+
 def register_user_interaction():
     global _LAST_USER_INTERACTION
     _LAST_USER_INTERACTION = time.time()
+
 
 # Absolute free-RAM ladder (GiB). RAM is the one resource where a PERCENT gate is
 # wrong: 90% of a 32 GiB box (~3 GiB free) is fine, 90% of an 8 GiB box (~0.8 GiB
@@ -175,14 +182,18 @@ def _ram_free_thresholds() -> "tuple[float, float, float]":
     """(halt_gb, throttle_gb, idle_throttle_gb): free RAM at/below which we HALT /
     THROTTLE-while-active / THROTTLE-while-idle. Default 1 / 4 / 2 GiB. Env
     overrides for smaller/larger hosts."""
+
     def _f(name: str, default: float) -> float:
         try:
             return float(os.environ.get(name, "") or default)
         except ValueError:
             return default
-    return (_f("M3_GOVERNOR_RAM_HALT_GB", 1.0),
-            _f("M3_GOVERNOR_RAM_THROTTLE_GB", 4.0),
-            _f("M3_GOVERNOR_RAM_THROTTLE_IDLE_GB", 2.0))
+
+    return (
+        _f("M3_GOVERNOR_RAM_HALT_GB", 1.0),
+        _f("M3_GOVERNOR_RAM_THROTTLE_GB", 4.0),
+        _f("M3_GOVERNOR_RAM_THROTTLE_IDLE_GB", 2.0),
+    )
 
 
 # State severity for worst-wins combination with the cpu/gpu verdict.
@@ -242,6 +253,7 @@ def get_governor_pacing(telemetry: dict) -> dict:
     if not M3_CORE_RS_DISABLE:
         try:
             import m3_core_rs
+
             if hasattr(m3_core_rs, "Governor"):
                 pacing = m3_core_rs.Governor(initial_limit, limit_threshold).decide(load, elapsed)
         except Exception:
@@ -261,16 +273,15 @@ def get_governor_pacing(telemetry: dict) -> dict:
     return pacing
 
 
-def _cpu_gpu_pacing(load: float, elapsed: float,
-                    initial_limit: float, limit_threshold: float) -> dict:
+def _cpu_gpu_pacing(load: float, elapsed: float, initial_limit: float, limit_threshold: float) -> dict:
     """Pure-Python cpu/gpu load ladder (the native Governor mirrors this)."""
     # 1. Critical Mode (Overall load >= limit_threshold)
     if limit_threshold != 100 and load >= limit_threshold:
-        return {"background": "HALTED", "interactive_delay": 30.0} # 30s-60s delay
+        return {"background": "HALTED", "interactive_delay": 30.0}  # 30s-60s delay
 
     # 2. Throttled Mode (Overall load >= initial_limit but < limit_threshold)
     if load >= initial_limit:
-        return {"background": "THROTTLED", "background_delay": 10.0, "interactive_delay": 0.0} # 5s-10s delay
+        return {"background": "THROTTLED", "background_delay": 10.0, "interactive_delay": 0.0}  # 5s-10s delay
 
     # 3. Normal Mode
     if elapsed < 30.0:
@@ -279,8 +290,10 @@ def _cpu_gpu_pacing(load: float, elapsed: float,
         return {"background": "TAPERED", "background_delay": 5.0, "interactive_delay": 0.0}
     return {"background": "CONTINUOUS", "background_delay": 0.1, "interactive_delay": 0.0}
 
+
 async def pre_execute_interactive_check():
     from m3_core.context import M3Context
+
     register_user_interaction()
 
     ctx = M3Context.for_db()
@@ -289,8 +302,5 @@ async def pre_execute_interactive_check():
 
     delay = pacing.get("interactive_delay", 0.0)
     if delay > 0.0:
-        logger.warning(
-            f"Host load critical. Throttling interactive task by {delay}s "
-            "to prevent system freeze."
-        )
+        logger.warning(f"Host load critical. Throttling interactive task by {delay}s to prevent system freeze.")
         await asyncio.sleep(delay)

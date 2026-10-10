@@ -3,6 +3,7 @@
 The CLI is a repair command: it must start on an invalid file and print every
 problem (exit 2), never a traceback, and it never prints a secret's value.
 """
+
 from __future__ import annotations
 
 import json
@@ -65,10 +66,10 @@ def test_an_invalid_file_is_reported_in_full_with_exit_2(monkeypatch):
     import os
 
     p = _cfg(monkeypatch)
-    p.write_text('[db]\nbakend = 1\n[secrets]\nM3_PRIMARY_PG_URL = "postgresql://u:hunter2@h/d"\n',
-                 encoding="utf-8")
-    r = subprocess.run([sys.executable, str(_CLI), "show"], capture_output=True, text=True,
-                       env={**os.environ}, timeout=60)
+    p.write_text('[db]\nbakend = 1\n[secrets]\nM3_PRIMARY_PG_URL = "postgresql://u:hunter2@h/d"\n', encoding="utf-8")
+    r = subprocess.run(
+        [sys.executable, str(_CLI), "show"], capture_output=True, text=True, env={**os.environ}, timeout=60
+    )
     assert r.returncode == 2, r.stderr
     assert "Traceback" not in r.stderr
     assert "2 invalid entries" in r.stderr and "did you mean [db].backend?" in r.stderr

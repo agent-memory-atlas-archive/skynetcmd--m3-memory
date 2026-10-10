@@ -1,6 +1,7 @@
 """entity-ner pulls a transformers below m3's floor (every gliner release caps
 it); the GLiNER loader says so instead of letting it pass unnoticed. The floor
 is read from the installed package metadata, so pyproject stays its one source."""
+
 from __future__ import annotations
 
 import importlib

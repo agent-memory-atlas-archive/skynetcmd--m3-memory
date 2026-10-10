@@ -11,6 +11,7 @@ Regenerate ``EXPECTED_EXPORTS`` on an INTENDED surface change (a new backend
 export, a renamed accessor) — the assertion prints the diff — exactly like the
 symbol-parity discipline.
 """
+
 from __future__ import annotations
 
 import memory.backends as b

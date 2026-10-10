@@ -19,6 +19,7 @@ Usage:
     python bin/consolidate_beliefs.py [--apply] [--threshold N] [--stale-days N]
                                       [--source-type observation] [--log-file PATH]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -31,10 +32,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # Default policy: only consolidate when a group has well past a session's worth of
 # observations, and only ones that have aged a little (so live conversation isn't
 # rolled up out from under an active agent).
-DEFAULT_THRESHOLD = 50      # mirrors M3_REFLECTOR_THRESHOLD — a session's worth
-DEFAULT_STALE_DAYS = 7      # leave the last week of episodic memory intact
+DEFAULT_THRESHOLD = 50  # mirrors M3_REFLECTOR_THRESHOLD — a session's worth
+DEFAULT_STALE_DAYS = 7  # leave the last week of episodic memory intact
 DEFAULT_SOURCE_TYPE = "observation"
-DEFAULT_BELIEF_CAP = 20     # max belief groups written per run (anti-runaway)
+DEFAULT_BELIEF_CAP = 20  # max belief groups written per run (anti-runaway)
 
 
 def _should_yield_to_user(min_idle_s: float = 30.0) -> str | None:
@@ -49,12 +50,14 @@ def _should_yield_to_user(min_idle_s: float = 30.0) -> str | None:
         # _LAST_USER_INTERACTION is lazily re-exported from m3_core.governor via
         # m3_sdk's module __getattr__, so it's invisible to static analysis.
         from m3_sdk import _LAST_USER_INTERACTION
+
         if time.time() - _LAST_USER_INTERACTION < min_idle_s:
             return f"user active in the last {min_idle_s:.0f}s"
     except Exception:  # noqa: BLE001 — never block on a telemetry import error
         return None
     try:
         from m3_sdk import M3Context, get_governor_pacing
+
         ctx = M3Context.for_db(os.environ.get("M3_DATABASE"))
         pacing = get_governor_pacing(ctx.get_system_telemetry())
         if pacing.get("background") == "HALTED":
@@ -72,12 +75,15 @@ async def _run(apply: bool, threshold: int, stale_days: int, source_type: str) -
     # bare env var: the loop runs under launchd/systemd, which don't inherit shell
     # env, so an env-only gate is permanently off under the daemon (DESIGN §3).
     from m3_core.autonomy import autonomy_flag
+
     auto = autonomy_flag("consolidation_auto", "M3_CONSOLIDATION_AUTO")
     dry_run = not (apply and auto)
     if apply and not auto:
-        prefix = ("[skipped-apply] consolidation_auto is not enabled — running DRY-RUN. "
-                  "Set consolidation_auto=true in .cognitive_loop_config.json (or "
-                  "M3_CONSOLIDATION_AUTO=1) to enable autonomous belief writes.\n")
+        prefix = (
+            "[skipped-apply] consolidation_auto is not enabled — running DRY-RUN. "
+            "Set consolidation_auto=true in .cognitive_loop_config.json (or "
+            "M3_CONSOLIDATION_AUTO=1) to enable autonomous belief writes.\n"
+        )
     else:
         prefix = ""
 
@@ -89,8 +95,7 @@ async def _run(apply: bool, threshold: int, stale_days: int, source_type: str) -
     if not dry_run:
         reason = _should_yield_to_user()
         if reason:
-            return (f"[deferred] belief consolidation skipped — {reason}. "
-                    "Will retry on the next pass.\n")
+            return f"[deferred] belief consolidation skipped — {reason}. Will retry on the next pass.\n"
 
     out = await memory_maintenance.memory_consolidate_impl(
         type_filter=source_type,
@@ -103,19 +108,30 @@ async def _run(apply: bool, threshold: int, stale_days: int, source_type: str) -
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Autonomous episodic->semantic belief consolidation."
+    parser = argparse.ArgumentParser(description="Autonomous episodic->semantic belief consolidation.")
+    parser.add_argument(
+        "--apply", action="store_true", help="Write beliefs (requires M3_CONSOLIDATION_AUTO=1); else dry-run."
     )
-    parser.add_argument("--apply", action="store_true",
-                        help="Write beliefs (requires M3_CONSOLIDATION_AUTO=1); else dry-run.")
-    parser.add_argument("--threshold", type=int, default=DEFAULT_THRESHOLD,
-                        help=f"Min group size before consolidating (default {DEFAULT_THRESHOLD}).")
-    parser.add_argument("--stale-days", type=int, default=DEFAULT_STALE_DAYS,
-                        help=f"Only consolidate items older than N days (default {DEFAULT_STALE_DAYS}).")
-    parser.add_argument("--source-type", default=DEFAULT_SOURCE_TYPE,
-                        help=f"Episodic source memory type (default '{DEFAULT_SOURCE_TYPE}').")
+    parser.add_argument(
+        "--threshold",
+        type=int,
+        default=DEFAULT_THRESHOLD,
+        help=f"Min group size before consolidating (default {DEFAULT_THRESHOLD}).",
+    )
+    parser.add_argument(
+        "--stale-days",
+        type=int,
+        default=DEFAULT_STALE_DAYS,
+        help=f"Only consolidate items older than N days (default {DEFAULT_STALE_DAYS}).",
+    )
+    parser.add_argument(
+        "--source-type",
+        default=DEFAULT_SOURCE_TYPE,
+        help=f"Episodic source memory type (default '{DEFAULT_SOURCE_TYPE}').",
+    )
 
     from _task_runtime import add_log_file_arg, setup_task_runtime
+
     add_log_file_arg(parser)
     args = parser.parse_args()
 

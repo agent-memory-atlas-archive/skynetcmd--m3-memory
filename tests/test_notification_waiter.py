@@ -23,6 +23,7 @@ These tests cover the argument surface and the invariants. The timing figures
 a unit test asserting wall-clock latency would be flaky and would not be
 measuring the thing that matters.
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -55,7 +56,8 @@ def test_change_token_spans_every_store_and_moves_on_a_write(tmp_path):
     con.commit()
     try:
         assert waiter.change_token([main, dispatch]) != before, (
-            "a committed write to the dispatch store did not move the token")
+            "a committed write to the dispatch store did not move the token"
+        )
     finally:
         con.close()
 
@@ -146,7 +148,9 @@ def test_help_renders_without_raising():
 
     proc = subprocess.run(
         [sys.executable, str(_SRC), "--help"],
-        capture_output=True, text=True, timeout=120,
+        capture_output=True,
+        text=True,
+        timeout=120,
     )
     assert proc.returncode == 0, f"--help exited {proc.returncode}; stderr={proc.stderr}"
     assert "--ack" in proc.stdout, proc.stdout
@@ -213,9 +217,7 @@ def test_subprocess_failures_are_reported_not_swallowed():
         "each subprocess failure branch (poll: exception + rc, admin: exception "
         "+ rc) must report; found too few _warn call sites"
     )
-    assert "detection is BLIND" in src, (
-        "the poll failure must say what it COSTS, not just that a command failed"
-    )
+    assert "detection is BLIND" in src, "the poll failure must say what it COSTS, not just that a command failed"
 
 
 def test_failure_message_names_the_interpreter():
@@ -224,10 +226,8 @@ def test_failure_message_names_the_interpreter():
     confusing message into a diagnosis."""
     src = _SRC.read_text(encoding="utf-8")
     assert "def _warn(" in src, "no failure-reporting helper to inspect"
-    warn_calls = src[src.index("def _warn("):]
-    assert "sys.executable!r" in warn_calls, (
-        "failure reports must name the interpreter that failed"
-    )
+    warn_calls = src[src.index("def _warn(") :]
+    assert "sys.executable!r" in warn_calls, "failure reports must name the interpreter that failed"
 
 
 def test_no_bare_m3_and_no_hardcoded_interpreter_paths():
@@ -258,13 +258,11 @@ def test_no_bare_m3_and_no_hardcoded_interpreter_paths():
     import ast as _ast
 
     literals = [
-        n.value for n in _ast.walk(_ast.parse(src))
-        if isinstance(n, _ast.Constant) and isinstance(n.value, str)
+        n.value for n in _ast.walk(_ast.parse(src)) if isinstance(n, _ast.Constant) and isinstance(n.value, str)
     ]
     docstrings = set()
     for node in _ast.walk(_ast.parse(src)):
-        if isinstance(node, (_ast.Module, _ast.FunctionDef,
-                             _ast.AsyncFunctionDef, _ast.ClassDef)):
+        if isinstance(node, (_ast.Module, _ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
             doc = _ast.get_docstring(node, clean=False)
             if doc is not None:
                 docstrings.add(doc)
@@ -272,9 +270,7 @@ def test_no_bare_m3_and_no_hardcoded_interpreter_paths():
 
     for lit in code_literals:
         assert "pipx" not in lit, f"hardcoded interpreter path in literal {lit!r}"
-        assert "Users" not in lit.replace("Users of", ""), (
-            f"a real home path leaked into literal {lit!r}"
-        )
+        assert "Users" not in lit.replace("Users of", ""), f"a real home path leaked into literal {lit!r}"
     # Count the SUBPROCESS invocations, do not require a minimum of them.
     #
     # This asserted >= 2 and went red when the Option D work moved unread_ids
@@ -291,9 +287,7 @@ def test_no_bare_m3_and_no_hardcoded_interpreter_paths():
 
     launches = re.findall(r'\[([^\]]*?)"-m",\s*"m3_memory\.cli"', src, re.DOTALL)
     for head in launches:
-        assert "sys.executable" in head, (
-            f"a CLI launch does not use sys.executable: {head.strip()[:80]!r}"
-        )
+        assert "sys.executable" in head, f"a CLI launch does not use sys.executable: {head.strip()[:80]!r}"
 
 
 def test_window_hiding_has_one_owner_and_uses_sw_hide():
@@ -315,18 +309,16 @@ def test_window_hiding_has_one_owner_and_uses_sw_hide():
 
     tree = ast.parse(src)
     used = {
-        n.attr for n in ast.walk(tree)
-        if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name)
-        and n.value.id == "subprocess"
+        n.attr
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name) and n.value.id == "subprocess"
     }
-    assert "CREATE_NO_WINDOW" not in used, (
-        "CREATE_NO_WINDOW would swallow the stderr the fail-loud path depends on"
-    )
+    assert "CREATE_NO_WINDOW" not in used, "CREATE_NO_WINDOW would swallow the stderr the fail-loud path depends on"
     assert "STARTUPINFO" in used, "SW_HIDE must be applied via STARTUPINFO"
     starts = sum(
-        1 for n in ast.walk(tree)
-        if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
-        and n.func.attr == "STARTUPINFO"
+        1
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "STARTUPINFO"
     )
     assert starts == 1, (
         f"the hide logic must not be duplicated per call site -- copies drift "
@@ -363,11 +355,12 @@ def test_startup_sweep_records_receipt_never_consumes_read():
     # Assert presence before slicing: str.index raises ValueError, which fails
     # the test with a traceback instead of the reason.
     assert "STARTUP SWEEP" in src, "no startup sweep in the waiter"
-    sweep_region = src[src.index("STARTUP SWEEP"):src.index("baselines = {a:")]
+    sweep_region = src[src.index("STARTUP SWEEP") : src.index("baselines = {a:")]
     assert "notifications_mark_received" in sweep_region
     assert "ack" not in sweep_region.lower().replace("baselined", ""), (
         "the startup sweep must not ack -- receipt is not consumption"
     )
+
 
 def test_warn_also_writes_to_a_file_not_only_stderr():
     """stderr alone is fail-SILENT for the process that matters.
@@ -384,7 +377,7 @@ def test_warn_also_writes_to_a_file_not_only_stderr():
     """
     src = _SRC.read_text(encoding="utf-8")
     assert "def _log_path(" in src, "no log-file resolution helper"
-    warn = src[src.index("def _warn("):src.index("def _m3_admin(")]
+    warn = src[src.index("def _warn(") : src.index("def _m3_admin(")]
     assert "_log_path()" in warn, "_warn must write to the log file, not only stderr"
     assert "file=sys.stderr" in warn, "_warn must ALSO keep stderr for interactive runs"
 
@@ -394,10 +387,8 @@ def test_logging_never_takes_down_the_waiter():
     root must not kill the detector. Losing the log is strictly better than
     losing the thing being logged."""
     src = _SRC.read_text(encoding="utf-8")
-    warn = src[src.index("def _log_path("):src.index("def _m3_admin(")]
-    assert warn.count("except Exception") >= 2, (
-        "_log_path and the write must each swallow their own failure"
-    )
+    warn = src[src.index("def _log_path(") : src.index("def _m3_admin(")]
+    assert warn.count("except Exception") >= 2, "_log_path and the write must each swallow their own failure"
     assert "return None" in warn, "_log_path must degrade to None, not raise"
 
 

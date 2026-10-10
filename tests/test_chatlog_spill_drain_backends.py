@@ -12,6 +12,7 @@ wrong three independent ways — the table is `chat_log_items`, `INSERT OR IGNOR
 is SQLite-only syntax, and the placeholder is `%s` — so spilled turns could
 never be recovered. These tests pin the seam-routed behaviour (§10a).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -32,15 +33,20 @@ def _write_spill(spill_dir: Path, marker: str, n: int = 3) -> list[str]:
     ids = [str(uuid.uuid4()) for _ in range(n)]
     with (spill_dir / "20260809.jsonl").open("w", encoding="utf-8") as fh:
         for i, rid in enumerate(ids):
-            fh.write(json.dumps({
-                "_id": rid,
-                "_content": f"{marker} turn {i}",
-                "_title": "spill-drain-test",
-                "role": "user",
-                "conversation_id": f"{marker}-conv",
-                "host_agent": "pytest",
-                "_created_at": "2026-08-09T00:00:00Z",
-            }) + "\n")
+            fh.write(
+                json.dumps(
+                    {
+                        "_id": rid,
+                        "_content": f"{marker} turn {i}",
+                        "_title": "spill-drain-test",
+                        "role": "user",
+                        "conversation_id": f"{marker}-conv",
+                        "host_agent": "pytest",
+                        "_created_at": "2026-08-09T00:00:00Z",
+                    }
+                )
+                + "\n"
+            )
     return ids
 
 
@@ -55,8 +61,7 @@ def _drain_and_count(marker: str) -> tuple[int, int]:
     ctx = M3Context.for_db(None)
     with ctx.get_chatlog_conn() as conn:
         cur = conn.execute(
-            f"SELECT COUNT(*) FROM {chatlog_table('items')} "
-            f"WHERE conversation_id = {dialect().param()}",
+            f"SELECT COUNT(*) FROM {chatlog_table('items')} WHERE conversation_id = {dialect().param()}",
             (f"{marker}-conv",),
         )
         found = cur.fetchone()[0]
@@ -73,6 +78,7 @@ def test_drain_spill_sqlite(tmp_path, monkeypatch):
     monkeypatch.setenv("M3_CHATLOG_DB_PATH", str(db))
 
     import chatlog_config
+
     spill_dir = tmp_path / "spill"
     monkeypatch.setattr(chatlog_config, "SPILL_DIR", str(spill_dir))
 
@@ -98,6 +104,7 @@ def test_drain_spill_postgres(tmp_path, monkeypatch, pg_url):
     monkeypatch.setenv("M3_DB_BACKEND", "postgres")
 
     from memory.backends import dialect
+
     # Guard against a silent sqlite fallback reporting a hollow pass.
     assert dialect().backend == "postgres", (
         f"expected the postgres dialect, resolved {dialect().backend!r} — "
@@ -105,6 +112,7 @@ def test_drain_spill_postgres(tmp_path, monkeypatch, pg_url):
     )
 
     import chatlog_config
+
     spill_dir = tmp_path / "spill"
     monkeypatch.setattr(chatlog_config, "SPILL_DIR", str(spill_dir))
 
@@ -138,30 +146,39 @@ def test_drain_preserves_tenancy_and_provenance_fields(tmp_path, monkeypatch):
     monkeypatch.setenv("M3_CHATLOG_DB_PATH", str(db))
 
     import chatlog_config
+
     spill_dir = tmp_path / "spill"
     spill_dir.mkdir()
     monkeypatch.setattr(chatlog_config, "SPILL_DIR", str(spill_dir))
 
     marker = f"vv-{uuid.uuid4().hex[:10]}"
     rid = str(uuid.uuid4())
-    (spill_dir / "t.jsonl").write_text(json.dumps({
-        "_id": rid,
-        "_content": "tenant-scoped turn",
-        "_title": "t",
-        "_created_at": "2026-08-09T00:00:00Z",
-        "conversation_id": f"{marker}-conv",
-        "user_id": "tenant-alice",
-        "scope": "private",
-        "origin_device": "test-device-01",
-        "model_id": "claude-opus-5",
-        "host_agent": "claude-code",
-    }) + "\n", encoding="utf-8")
+    (spill_dir / "t.jsonl").write_text(
+        json.dumps(
+            {
+                "_id": rid,
+                "_content": "tenant-scoped turn",
+                "_title": "t",
+                "_created_at": "2026-08-09T00:00:00Z",
+                "conversation_id": f"{marker}-conv",
+                "user_id": "tenant-alice",
+                "scope": "private",
+                "origin_device": "test-device-01",
+                "model_id": "claude-opus-5",
+                "host_agent": "claude-code",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
     import chatlog_embed_sweeper
+
     assert asyncio.run(chatlog_embed_sweeper.drain_spill()) == 1
 
     from m3_sdk import M3Context
     from memory.backends import chatlog_table, dialect
+
     ctx = M3Context.for_db(None)
     with ctx.get_chatlog_conn() as conn:
         row = conn.execute(
@@ -196,21 +213,29 @@ def test_stale_target_guard_is_sqlite_only(tmp_path, monkeypatch, pg_url):
     monkeypatch.setenv("M3_DB_BACKEND", "postgres")
 
     from memory.backends import dialect
+
     assert dialect().backend == "postgres"
 
     import chatlog_config
+
     spill_dir = tmp_path / "spill"
     spill_dir.mkdir()
     monkeypatch.setattr(chatlog_config, "SPILL_DIR", str(spill_dir))
 
     marker = f"vv-{uuid.uuid4().hex[:10]}"
     # A DSN-shaped label: no such directory exists anywhere on disk.
-    (spill_dir / "pg.jsonl").write_text(json.dumps({
-        "_id": str(uuid.uuid4()),
-        "_content": "pg spilled turn",
-        "conversation_id": f"{marker}-conv",
-        "_db_path": "postgresql://db.internal:5432/m3",
-    }) + "\n", encoding="utf-8")
+    (spill_dir / "pg.jsonl").write_text(
+        json.dumps(
+            {
+                "_id": str(uuid.uuid4()),
+                "_content": "pg spilled turn",
+                "conversation_id": f"{marker}-conv",
+                "_db_path": "postgresql://db.internal:5432/m3",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
     drained, found = _drain_and_count(marker)
     assert drained == 1, "PG spill was refused by a SQLite-only filesystem guard"
@@ -239,6 +264,7 @@ def test_drain_spill_refuses_stale_target_and_keeps_file(tmp_path, monkeypatch):
     monkeypatch.setenv("M3_CHATLOG_DB_PATH", str(db))
 
     import chatlog_config
+
     spill_dir = tmp_path / "spill"
     monkeypatch.setattr(chatlog_config, "SPILL_DIR", str(spill_dir))
 
@@ -247,14 +273,21 @@ def test_drain_spill_refuses_stale_target_and_keeps_file(tmp_path, monkeypatch):
 
     # Point a spilled row at an unwritable target so its group fails.
     bad = spill_dir / "20260810.jsonl"
-    bad.write_text(json.dumps({
-        "_id": str(uuid.uuid4()),
-        "_content": "unroutable",
-        "conversation_id": f"{marker}-conv",
-        "_db_path": str(tmp_path / "nonexistent-dir" / "nope.db"),
-    }) + "\n", encoding="utf-8")
+    bad.write_text(
+        json.dumps(
+            {
+                "_id": str(uuid.uuid4()),
+                "_content": "unroutable",
+                "conversation_id": f"{marker}-conv",
+                "_db_path": str(tmp_path / "nonexistent-dir" / "nope.db"),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
     import chatlog_embed_sweeper
+
     asyncio.run(chatlog_embed_sweeper.drain_spill())
 
     # The good file drained and is gone; the failing one is retained.

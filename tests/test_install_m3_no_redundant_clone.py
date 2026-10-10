@@ -6,6 +6,7 @@ copy; present -> report "already installed" naming a tree that is NOT where the
 running code lives. The two trees then drift (observed: clone at v2026.8.19.2
 vs wheel 2026.9.13.1, 182 commits) and anything wired to the clone runs stale.
 """
+
 from __future__ import annotations
 
 import pathlib
@@ -18,13 +19,16 @@ from m3_memory import installer
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 
-@pytest.mark.parametrize("root,expected", [
-    ("/usr/lib/python3.12/site-packages/m3_memory", True),
-    ("/usr/lib/python3/dist-packages/m3_memory", True),
-    (r"C:\Users\user\pipx\venvs\m3-memory\Lib\site-packages\m3_memory", True),
-    ("/home/user/src/m3-memory", False),
-    (r"C:\Users\user\.m3-dev\m3-memory", False),
-])
+@pytest.mark.parametrize(
+    "root,expected",
+    [
+        ("/usr/lib/python3.12/site-packages/m3_memory", True),
+        ("/usr/lib/python3/dist-packages/m3_memory", True),
+        (r"C:\Users\user\pipx\venvs\m3-memory\Lib\site-packages\m3_memory", True),
+        ("/home/user/src/m3-memory", False),
+        (r"C:\Users\user\.m3-dev\m3-memory", False),
+    ],
+)
 def test_is_installed_payload_classifies(root, expected):
     assert installer._is_installed_payload(pathlib.Path(root)) is expected
 
@@ -41,8 +45,8 @@ def test_all_three_copies_of_the_predicate_agree():
         sys.path.pop(0)
 
     import importlib.util
-    spec = importlib.util.spec_from_file_location(
-        "_m3_install_os_pred", _ROOT / "install_os.py")
+
+    spec = importlib.util.spec_from_file_location("_m3_install_os_pred", _ROOT / "install_os.py")
     install_os = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(install_os)
 
@@ -80,13 +84,15 @@ def test_installed_payload_short_circuits_before_any_fetch(monkeypatch, tmp_path
             monkeypatch.setattr(installer, name, _boom, raising=False)
 
     monkeypatch.setattr(installer, "save_config", lambda cfg: None)
-    monkeypatch.setattr(installer, "_post_install",
-                        lambda *a, **k: called.__setitem__("post", True))
-    monkeypatch.setattr(installer, "_assert_no_deprecated_pg_url_anywhere",
-                        lambda: None)
-    for p in ("_prompt_endpoint_choice", "_prompt_capture_mode",
-              "_prompt_db_backend", "_prompt_and_install_dashboard",
-              "_prompt_and_install_cognitive_loop"):
+    monkeypatch.setattr(installer, "_post_install", lambda *a, **k: called.__setitem__("post", True))
+    monkeypatch.setattr(installer, "_assert_no_deprecated_pg_url_anywhere", lambda: None)
+    for p in (
+        "_prompt_endpoint_choice",
+        "_prompt_capture_mode",
+        "_prompt_db_backend",
+        "_prompt_and_install_dashboard",
+        "_prompt_and_install_cognitive_loop",
+    ):
         monkeypatch.setattr(installer, p, lambda *a, **k: None, raising=False)
 
     got = installer.install_m3(interactive=False)
@@ -100,6 +106,8 @@ def test_force_still_allows_an_explicit_refetch(monkeypatch):
     """--force is the documented escape hatch for deliberately re-fetching a
     source tree; the guard must not swallow it."""
     import inspect
+
     src = inspect.getsource(installer.install_m3)
     assert "_is_installed_payload(payload_root) and not force" in src, (
-        "the #174 guard must remain conditional on `not force`")
+        "the #174 guard must remain conditional on `not force`"
+    )

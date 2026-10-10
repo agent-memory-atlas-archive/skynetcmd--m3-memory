@@ -3,6 +3,7 @@
 Covers the resolution order in find_bridge and the install_m3 flow end-to-end
 with git + tarball both mocked. Does NOT hit the network.
 """
+
 from __future__ import annotations
 
 import os
@@ -170,7 +171,10 @@ def test_install_m3_via_git_mock(tmp_path, monkeypatch):
         dest = Path(cmd[-1])
         (dest / "bin").mkdir(parents=True)
         (dest / "bin" / "memory_bridge.py").write_text("# fetched")
-        class _R: returncode = 0
+
+        class _R:
+            returncode = 0
+
         return _R()
 
     monkeypatch.setattr(subprocess, "run", fake_run)
@@ -213,6 +217,7 @@ def test_install_m3_falls_back_to_tarball_when_git_missing(tmp_path, monkeypatch
 
     def fake_run(*a, **kw):
         raise FileNotFoundError("git not installed")
+
     monkeypatch.setattr(subprocess, "run", fake_run)
 
     # Mock the tarball downloader by staging a fake tarball layout.
@@ -221,6 +226,7 @@ def test_install_m3_falls_back_to_tarball_when_git_missing(tmp_path, monkeypatch
         dest.mkdir(parents=True)
         (dest / "bin").mkdir()
         (dest / "bin" / "memory_bridge.py").write_text("# via tarball")
+
     monkeypatch.setattr(installer, "_download_tarball", fake_download)
 
     bridge = installer.install_m3(repo_path=repo_path, tag="v1.2.3")
@@ -240,7 +246,8 @@ def test_install_m3_fails_if_bridge_missing_in_fetched_repo(tmp_path, monkeypatc
     # "fetched repo lacks the bridge" error is the one under test.
     monkeypatch.setattr(installer, "bin_dir", lambda: None)
 
-    class _R: returncode = 0
+    class _R:
+        returncode = 0
 
     def fake_run(cmd, **kwargs):
         """Simulate a successful clone that happens to NOT contain the bridge.
@@ -258,11 +265,12 @@ def test_install_m3_fails_if_bridge_missing_in_fetched_repo(tmp_path, monkeypatc
         """
         argv = [str(c) for c in cmd]
         if not (argv and argv[0].endswith("git") and "clone" in argv):
-            return _R()          # not the call under test: touch nothing
+            return _R()  # not the call under test: touch nothing
         dest = Path(argv[-1])
         dest.mkdir(parents=True, exist_ok=True)
         (dest / "README.md").write_text("no bin/ here")
         return _R()
+
     monkeypatch.setattr(subprocess, "run", fake_run)
 
     with pytest.raises(RuntimeError, match="not found"):
@@ -284,10 +292,12 @@ def test_uninstall_with_yes(tmp_path, monkeypatch):
     monkeypatch.setattr(installer, "config_dir", lambda: cfg_dir)
     monkeypatch.setattr(installer, "config_file", lambda: cfg_file)
 
-    installer.save_config({
-        "repo_path": str(repo_path),
-        "bridge_path": str(repo_path / "bin" / "memory_bridge.py"),
-    })
+    installer.save_config(
+        {
+            "repo_path": str(repo_path),
+            "bridge_path": str(repo_path / "bin" / "memory_bridge.py"),
+        }
+    )
 
     installer.uninstall_m3(yes=True)
     assert not repo_path.exists()
@@ -324,11 +334,13 @@ def test_doctor_reports_resolved_bridge(tmp_path, monkeypatch, capsys):
 
     monkeypatch.setattr(installer, "config_dir", lambda: cfg_dir)
     monkeypatch.setattr(installer, "config_file", lambda: cfg_dir / "config.json")
-    installer.save_config({
-        "repo_path": str(fake_bridge.parent.parent),
-        "bridge_path": str(fake_bridge),
-        "version": "1.2.3",
-    })
+    installer.save_config(
+        {
+            "repo_path": str(fake_bridge.parent.parent),
+            "bridge_path": str(fake_bridge),
+            "version": "1.2.3",
+        }
+    )
 
     rc = installer.doctor()
     out = capsys.readouterr().out
@@ -369,19 +381,25 @@ def test_doctor_flags_divergent_bridge_vs_config(tmp_path, monkeypatch, capsys):
     live.parent.mkdir(parents=True)
     live.write_text("# live dev bridge")
     monkeypatch.setenv("M3_PATH_BIN", str(live.parent))
-    monkeypatch.setattr(installer, "load_config", lambda: {
-        "version": "2026.6.23.2", "tag": "v2026.6.23.2", "installed_at": "old",
-        "bridge_path": "/some/other/repo/bin/memory_bridge.py",
-        "repo_path": "/some/other/repo",
-    })
+    monkeypatch.setattr(
+        installer,
+        "load_config",
+        lambda: {
+            "version": "2026.6.23.2",
+            "tag": "v2026.6.23.2",
+            "installed_at": "old",
+            "bridge_path": "/some/other/repo/bin/memory_bridge.py",
+            "repo_path": "/some/other/repo",
+        },
+    )
 
     installer.doctor()
     out = capsys.readouterr().out
-    assert "last fetch version:" in out          # NOT presented as 'installed version'
+    assert "last fetch version:" in out  # NOT presented as 'installed version'
     assert "2026.6.23.2" in out
     assert "LIVE bridge differs" in out
-    assert str(live) in out                       # points at the running code
-    assert "installed version:" not in out        # the misleading label is gone
+    assert str(live) in out  # points at the running code
+    assert "installed version:" not in out  # the misleading label is gone
 
 
 def test_doctor_says_installed_when_bridge_matches_config(tmp_path, monkeypatch, capsys):
@@ -398,10 +416,18 @@ def test_doctor_says_installed_when_bridge_matches_config(tmp_path, monkeypatch,
     # would (correctly) report divergence instead of 'installed'.
     monkeypatch.setattr(installer, "bin_dir", lambda: bridge.parent)
     from m3_memory import __version__
-    monkeypatch.setattr(installer, "load_config", lambda: {
-        "version": __version__, "tag": f"v{__version__}", "installed_at": "now",
-        "bridge_path": str(bridge), "repo_path": str(bridge.parent.parent),
-    })
+
+    monkeypatch.setattr(
+        installer,
+        "load_config",
+        lambda: {
+            "version": __version__,
+            "tag": f"v{__version__}",
+            "installed_at": "now",
+            "bridge_path": str(bridge),
+            "repo_path": str(bridge.parent.parent),
+        },
+    )
 
     installer.doctor()
     out = capsys.readouterr().out
@@ -426,6 +452,7 @@ def test_resolve_chatlog_db_falls_back_to_repo_when_no_engine_db(tmp_path, monke
 
 # ── Auto-install tests (Option C behavior on `mcp-memory` bare invocation) ────
 
+
 def test_auto_install_opt_out_via_env(monkeypatch, tmp_path):
     """M3_AUTO_INSTALL=0 is an absolute opt-out: _auto_install returns None
     in both TTY and non-TTY modes, regardless of what install_m3 would do."""
@@ -438,6 +465,7 @@ def test_auto_install_opt_out_via_env(monkeypatch, tmp_path):
     # If install_m3 got called despite the opt-out we'd blow up loudly.
     def boom(*a, **kw):
         raise AssertionError("install_m3 should not be called when M3_AUTO_INSTALL=0")
+
     monkeypatch.setattr(installer, "install_m3", boom)
 
     assert cli._auto_install(interactive=True) is None
@@ -455,6 +483,7 @@ def test_auto_install_interactive_prompt_declined(monkeypatch, tmp_path):
 
     def boom(*a, **kw):
         raise AssertionError("install_m3 should not be called when user declines")
+
     monkeypatch.setattr(installer, "install_m3", boom)
     monkeypatch.setattr("builtins.input", lambda: "n")
 
@@ -472,11 +501,13 @@ def test_auto_install_interactive_prompt_accepted(monkeypatch, tmp_path):
 
     fake_bridge = tmp_path / "repo" / "bin" / "memory_bridge.py"
     called = []
+
     def fake_install(*a, **kw):
         called.append((a, kw))
         fake_bridge.parent.mkdir(parents=True, exist_ok=True)
         fake_bridge.write_text("# fetched")
         return fake_bridge
+
     monkeypatch.setattr(installer, "install_m3", fake_install)
     monkeypatch.setattr("builtins.input", lambda: "y")
 
@@ -495,10 +526,12 @@ def test_auto_install_non_interactive_auto_fetches(monkeypatch, tmp_path):
     monkeypatch.delenv("M3_AUTO_INSTALL", raising=False)
 
     fake_bridge = tmp_path / "repo" / "bin" / "memory_bridge.py"
+
     def fake_install(*a, **kw):
         fake_bridge.parent.mkdir(parents=True, exist_ok=True)
         fake_bridge.write_text("# fetched")
         return fake_bridge
+
     monkeypatch.setattr(installer, "install_m3", fake_install)
 
     # input() would deadlock or raise EOFError in non-interactive; either way
@@ -506,6 +539,7 @@ def test_auto_install_non_interactive_auto_fetches(monkeypatch, tmp_path):
     # confirms we never call it under interactive=False.
     def boom():
         raise AssertionError("input() should not be called under interactive=False")
+
     monkeypatch.setattr("builtins.input", boom)
 
     result = cli._auto_install(interactive=False)
@@ -524,6 +558,7 @@ def test_auto_install_surfaces_install_m3_failure(monkeypatch, tmp_path, capsys)
 
     def fail(*a, **kw):
         raise RuntimeError("network unreachable")
+
     monkeypatch.setattr(installer, "install_m3", fail)
 
     result = cli._auto_install(interactive=False)
@@ -605,6 +640,7 @@ def test_robust_rmtree_deletes_readonly_tree(tmp_path):
 
 def test_robust_rmtree_missing_path_is_noop(tmp_path):
     from m3_memory.installer import _robust_rmtree
+
     _robust_rmtree(tmp_path / "does-not-exist")  # must not raise
 
 
@@ -639,6 +675,7 @@ def test_drain_wal_checkpoints_and_preserves(tmp_path):
 
 def test_drain_wal_safe_on_missing_and_nondb(tmp_path):
     from m3_memory.installer import _drain_wal
+
     _drain_wal(tmp_path / "missing.db")  # must not raise
     junk = tmp_path / "junk.db"
     junk.write_text("not a database")
@@ -652,6 +689,7 @@ class TestDbBackendSelection:
 
     def test_mask_dsn_redacts_password(self):
         from m3_memory.installer import _mask_dsn
+
         assert _mask_dsn("postgresql://u:secret@h:5432/db") == "postgresql://u:***@h:5432/db"
         # no credential → unchanged (nothing to hide)
         assert _mask_dsn("postgresql://h/db") == "postgresql://h/db"
@@ -659,6 +697,7 @@ class TestDbBackendSelection:
 
     def test_prompt_defaults_to_sqlite_noninteractive(self, monkeypatch):
         from m3_memory.installer import _prompt_db_backend
+
         for k in ("M3_PRIMARY_PG_URL", "M3_PG_URL"):
             monkeypatch.delenv(k, raising=False)
         # non-interactive, no flag → SQLite (None); existing installs unaffected
@@ -668,6 +707,7 @@ class TestDbBackendSelection:
 
     def test_prompt_postgres_flag_needs_dsn(self, monkeypatch):
         from m3_memory.installer import _prompt_db_backend
+
         for k in ("M3_PRIMARY_PG_URL", "M3_PG_URL"):
             monkeypatch.delenv(k, raising=False)
         # postgres flag with NO env DSN → falls back to SQLite (None), never a
@@ -675,12 +715,11 @@ class TestDbBackendSelection:
         assert _prompt_db_backend(False, "postgres") is None
         # postgres flag WITH env DSN → ("postgres", dsn)
         monkeypatch.setenv("M3_PRIMARY_PG_URL", "postgresql://u:p@127.0.0.1:5432/x")
-        assert _prompt_db_backend(False, "postgres") == (
-            "postgres", "postgresql://u:p@127.0.0.1:5432/x"
-        )
+        assert _prompt_db_backend(False, "postgres") == ("postgres", "postgresql://u:p@127.0.0.1:5432/x")
 
     def test_prompt_interactive_choice(self, monkeypatch):
         from m3_memory.installer import _prompt_db_backend
+
         for k in ("M3_PRIMARY_PG_URL", "M3_PG_URL"):
             monkeypatch.delenv(k, raising=False)
         # choose SQLite (1) → None
@@ -698,8 +737,10 @@ class TestDbBackendSelection:
         # it exercises real cross-platform code, not the PG_URL guard the fake
         # was added for.
         import sys as _sys
+
         monkeypatch.setattr(_sys, "platform", _ORIG_PLATFORM)
         from m3_memory.installer import _pg_reachable
+
         monkeypatch.setenv("M3_PG_FORBIDDEN_HOSTS", "198.51.100.9")
         # unreachable port → (False, masked detail)
         ok, detail = _pg_reachable("postgresql://u:p@127.0.0.1:5599/none")
@@ -712,6 +753,7 @@ class TestDbBackendSelection:
 
     def test_append_env_to_profile_fresh_idempotent_partial(self, monkeypatch, tmp_path):
         from m3_memory.installer import _append_env_to_profile
+
         monkeypatch.setenv("HOME", str(tmp_path))
         monkeypatch.setenv("USERPROFILE", str(tmp_path))
         pairs = {"M3_DB_BACKEND": "postgres", "M3_PRIMARY_PG_URL": "postgresql://u:p@h/db"}
@@ -732,6 +774,7 @@ class TestDbBackendSelection:
 
     def test_append_env_preserves_handset_var(self, monkeypatch, tmp_path):
         from m3_memory.installer import _append_env_to_profile
+
         monkeypatch.setenv("HOME", str(tmp_path))
         monkeypatch.setenv("USERPROFILE", str(tmp_path))
         profile = tmp_path / ".profile"
@@ -751,6 +794,7 @@ class TestDbBackendSelection:
     @pytest.fixture
     def unix_home(self, monkeypatch, tmp_path):
         import m3_memory.installer as inst
+
         monkeypatch.setattr(inst, "_os_name", lambda: "Linux")
         monkeypatch.setenv("HOME", str(tmp_path))
         monkeypatch.setenv("USERPROFILE", str(tmp_path))
@@ -790,8 +834,11 @@ class TestDbBackendSelection:
         import m3_memory.installer as inst
 
         (unix_home.parent / ".zshrc").write_text('export M3_PRIMARY_PG_URL="postgresql://z/x"\n')
-        monkeypatch.setattr(inst, "_scan_registry_env_deprecations",
-                            lambda names, unchecked=None: [{"label": "Windows Machine env (HKLM)"}] if "M3_PG_URL" in names else [])
+        monkeypatch.setattr(
+            inst,
+            "_scan_registry_env_deprecations",
+            lambda names, unchecked=None: [{"label": "Windows Machine env (HKLM)"}] if "M3_PG_URL" in names else [],
+        )
         monkeypatch.setenv("M3_PRIMARY_PG_URL", "postgresql://process/x")
         notes = " | ".join(inst._legacy_plaintext_dsn_notes())
         assert ".zshrc" in notes and "M3_PG_URL in Windows Machine env" in notes, notes
@@ -819,8 +866,11 @@ class TestDbBackendSelection:
         import m3_memory.installer as inst
 
         class _Key:
-            def __enter__(self): return self
-            def __exit__(self, *a): return False
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
 
         def open_key(hive, subkey):
             if hive == "HKLM":
@@ -830,8 +880,9 @@ class TestDbBackendSelection:
         def query(key, name):
             raise FileNotFoundError
 
-        fake = types.SimpleNamespace(HKEY_CURRENT_USER="HKCU", HKEY_LOCAL_MACHINE="HKLM",
-                                     OpenKey=open_key, QueryValueEx=query)
+        fake = types.SimpleNamespace(
+            HKEY_CURRENT_USER="HKCU", HKEY_LOCAL_MACHINE="HKLM", OpenKey=open_key, QueryValueEx=query
+        )
         monkeypatch.setitem(sys.modules, "winreg", fake)
         simulate_os(monkeypatch, "Windows")
         unchecked: list[str] = []
@@ -897,7 +948,6 @@ class TestStorePgDsn:
         from m3_core import secret_store as s
 
         monkeypatch.setattr(s, "_keyring_serves_daemons", lambda: False)
-        monkeypatch.setattr(auth_utils, "_keyring_store",
-                            lambda k, v: pytest.fail("wrote a keyring cron cannot read"))
+        monkeypatch.setattr(auth_utils, "_keyring_store", lambda k, v: pytest.fail("wrote a keyring cron cannot read"))
         r = s.store_pg_dsn(s.PgRole.PRIMARY, self.DSN)
         assert r.location.startswith("secrets-file:") and "cron" in r.skipped[0]

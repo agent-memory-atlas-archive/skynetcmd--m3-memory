@@ -32,6 +32,7 @@ one of: remove the stale launcher, or reorder PATH.
 
 Cross-platform, network-free, never raises.
 """
+
 from __future__ import annotations
 
 import os
@@ -61,6 +62,7 @@ def _neutral_cwd() -> str:
     """
     try:
         import tempfile
+
         return tempfile.gettempdir()
     except Exception:  # noqa: BLE001 — a probe must never die on its own setup
         return os.getcwd()
@@ -96,9 +98,11 @@ def _installed_version() -> str | None:
         # Querying metadata directly here would give a SECOND answer to the same
         # question, which is the class of bug this probe exists to report.
         proc = subprocess.run(
-            [sys.executable, "-c",
-             "import m3_memory;print(m3_memory.__version__)"],
-            capture_output=True, text=True, timeout=20, cwd=_neutral_cwd(),
+            [sys.executable, "-c", "import m3_memory;print(m3_memory.__version__)"],
+            capture_output=True,
+            text=True,
+            timeout=20,
+            cwd=_neutral_cwd(),
         )
         if proc.returncode == 0 and proc.stdout.strip():
             return proc.stdout.strip()
@@ -117,6 +121,7 @@ def _installed_version() -> str | None:
             pass
     try:
         from m3_memory import __version__
+
         return str(__version__)
     except Exception:  # noqa: BLE001 — try the next source
         pass
@@ -130,6 +135,7 @@ def _installed_version() -> str | None:
     # pyproject.toml is the documented single source of truth for the version.
     try:
         import re
+
         pyproject = os.path.join(
             os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
             "pyproject.toml",
@@ -181,7 +187,9 @@ def _probe_version(path: str, timeout: float = 20.0) -> tuple[str | None, str | 
     try:
         proc = subprocess.run(
             [path, "--version"],
-            capture_output=True, text=True, timeout=timeout,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
             cwd=_neutral_cwd(),
         )
     except Exception as e:  # noqa: BLE001 — an unrunnable launcher is a finding
@@ -212,21 +220,33 @@ def check() -> list[dict]:
         version, error = _probe_version(winner)
 
         if error is not None:
-            findings.append({
-                "entrypoint": name, "path": winner, "kind": "broken",
-                "detail": error,
-            })
+            findings.append(
+                {
+                    "entrypoint": name,
+                    "path": winner,
+                    "kind": "broken",
+                    "detail": error,
+                }
+            )
         elif expected and version and version != expected:
-            findings.append({
-                "entrypoint": name, "path": winner, "kind": "stale",
-                "detail": f"runs {version}, installed package is {expected}",
-            })
+            findings.append(
+                {
+                    "entrypoint": name,
+                    "path": winner,
+                    "kind": "stale",
+                    "detail": f"runs {version}, installed package is {expected}",
+                }
+            )
 
         if len(launchers) > 1:
-            findings.append({
-                "entrypoint": name, "path": winner, "kind": "shadowed",
-                "detail": "also on PATH: " + ", ".join(launchers[1:]),
-            })
+            findings.append(
+                {
+                    "entrypoint": name,
+                    "path": winner,
+                    "kind": "shadowed",
+                    "detail": "also on PATH: " + ", ".join(launchers[1:]),
+                }
+            )
 
     return findings
 
@@ -248,8 +268,10 @@ def run(brief: bool = False) -> int:
             # "not checked", not "healthy". Exit-code-neutral — an
             # undeterminable version is an environment quirk, not a broken
             # install.
-            print("⚠️  entrypoints: SKIPPED — could not determine the installed "
-                  "m3-memory version (stale/shadowed checks did not run)")
+            print(
+                "⚠️  entrypoints: SKIPPED — could not determine the installed "
+                "m3-memory version (stale/shadowed checks did not run)"
+            )
             return 0
         # `brief` means ONE LINE, not silence. Printing nothing in the default
         # mode hides the check from every user who does not pass --verbose —

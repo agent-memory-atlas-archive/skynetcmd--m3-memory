@@ -11,6 +11,7 @@ listed below WITH its reason; an unlisted finding fails.
 CI runs it after installing requirements.txt, so deptry can map installed
 distributions to import names (yaml -> PyYAML, PIL -> pillow, ...).
 """
+
 from __future__ import annotations
 
 import os
@@ -61,19 +62,25 @@ def first_party() -> list[str]:
 
 
 def main() -> int:
-    if shutil.which("deptry") is None and subprocess.run(
-            [sys.executable, "-m", "deptry", "--version"], capture_output=True).returncode != 0:
-        print("check_deps: observed: deptry is not installed. inspect: pip install deptry",
-              file=sys.stderr)
+    if (
+        shutil.which("deptry") is None
+        and subprocess.run([sys.executable, "-m", "deptry", "--version"], capture_output=True).returncode != 0
+    ):
+        print("check_deps: observed: deptry is not installed. inspect: pip install deptry", file=sys.stderr)
         return 2
     ignores = ",".join(f"{rule}={'|'.join(mods)}" for rule, mods in EXCEPTIONS.items())
     cmd = [sys.executable, "-m", "deptry", "bin", "m3_memory"]
     for name in first_party():  # one flag per name: the option takes a single value
         cmd += ["--known-first-party", name]
-    cmd += ["--optional-dependencies-dev-groups", "dev",
-           "--per-rule-ignores", ignores,
-           # deptry matches from the start of the relative path, hence the leading .*
-           "--extend-exclude", r"tests|.*test_[^/\\]*\.py|.*bench_.*|.*benchmark_.*"]
+    cmd += [
+        "--optional-dependencies-dev-groups",
+        "dev",
+        "--per-rule-ignores",
+        ignores,
+        # deptry matches from the start of the relative path, hence the leading .*
+        "--extend-exclude",
+        r"tests|.*test_[^/\\]*\.py|.*bench_.*|.*benchmark_.*",
+    ]
     return subprocess.run(cmd, cwd=ROOT).returncode
 
 

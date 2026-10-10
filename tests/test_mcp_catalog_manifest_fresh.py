@@ -30,6 +30,7 @@ deterministic boundary.)
 On failure: run `python bin/gen_tool_manifest.py` (and, for the human-readable
 inventory, `python bin/gen_mcp_inventory.py`) and commit the regenerated files.
 """
+
 from __future__ import annotations
 
 import json
@@ -49,9 +50,7 @@ _MANIFEST = os.path.join(_ROOT, "docs", "tools", "MCP_CATALOG.json")
 
 
 def _committed_manifest() -> dict:
-    assert os.path.exists(_MANIFEST), (
-        f"{_MANIFEST} missing — run `python bin/gen_tool_manifest.py`"
-    )
+    assert os.path.exists(_MANIFEST), f"{_MANIFEST} missing — run `python bin/gen_tool_manifest.py`"
     with open(_MANIFEST, encoding="utf-8") as fh:
         return json.load(fh)
 
@@ -71,8 +70,7 @@ def test_committed_manifest_equals_fresh_build():
     # explicitly first for a clear message, then drop it from the structural
     # diff so a wording tweak there doesn't masquerade as catalog drift.
     assert committed.get("generated_note") == fresh.get("generated_note"), (
-        "generated_note text changed — update the committed manifest via "
-        "`python bin/gen_tool_manifest.py`."
+        "generated_note text changed — update the committed manifest via `python bin/gen_tool_manifest.py`."
     )
 
     committed_body = {k: v for k, v in committed.items() if k != "generated_note"}
@@ -85,10 +83,7 @@ def test_committed_manifest_equals_fresh_build():
         f_by_name = {t["name"]: t for t in fresh_body.get("tools", [])}
         added = sorted(set(f_by_name) - set(c_by_name))
         removed = sorted(set(c_by_name) - set(f_by_name))
-        changed = sorted(
-            n for n in (set(c_by_name) & set(f_by_name))
-            if c_by_name[n] != f_by_name[n]
-        )
+        changed = sorted(n for n in (set(c_by_name) & set(f_by_name)) if c_by_name[n] != f_by_name[n])
         raise AssertionError(
             "MCP_CATALOG.json is stale vs the live catalog. Run "
             "`python bin/gen_tool_manifest.py` and commit. "

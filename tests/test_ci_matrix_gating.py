@@ -11,6 +11,7 @@ a stray quote) would silently evaluate falsey â€” leaving 3.15 blocking again â€
 worse, evaluate truthy for every lane and make the entire matrix advisory. Either
 way CI would still look configured. These tests pin both directions.
 """
+
 from __future__ import annotations
 
 import os

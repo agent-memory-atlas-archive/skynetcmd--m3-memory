@@ -7,6 +7,7 @@ rides the backend seam and scope_predicates; the path comes from
 resolve_db_path. The model is an optional extra, so it is stubbed: what this
 pins is selection, the variant scope, the write, and idempotence.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -41,19 +42,28 @@ def test_extracts_only_the_selected_variant_once(each_backend, monkeypatch):
 
     seen: list[str] = []
     monkeypatch.setattr(g, "_load_gliner", lambda cfg: object())
-    monkeypatch.setattr(g, "_gliner_predict_batch", lambda model, texts, cfg: [
-        seen.append(t) or [{"text": person, "label": "person", "score": 0.9, "start": 0}] for t in texts])
+    monkeypatch.setattr(
+        g,
+        "_gliner_predict_batch",
+        lambda model, texts, cfg: [
+            seen.append(t) or [{"text": person, "label": "person", "score": 0.9, "start": 0}] for t in texts
+        ],
+    )
 
     assert _run("--source-variant", variant, "--device", "cpu") == 0
     where = f"on {each_backend.name}. inspect: bin/m3_entities_gliner.py _select_rows"
     assert len(seen) == 1 and seen[0].startswith(person), f"observed: model saw {seen!r} {where}"
 
     from memory.backends import dialect
+
     p = dialect().param()
     with each_backend.connection() as conn:
-        linked = {r[0] for r in conn.execute(
-            f"SELECT memory_id FROM memory_item_entities WHERE memory_id IN ({p}, {p})",
-            (picked, skipped)).fetchall()}
+        linked = {
+            r[0]
+            for r in conn.execute(
+                f"SELECT memory_id FROM memory_item_entities WHERE memory_id IN ({p}, {p})", (picked, skipped)
+            ).fetchall()
+        }
     assert linked == {picked}, f"observed: linked {linked!r} {where}"
 
     seen.clear()

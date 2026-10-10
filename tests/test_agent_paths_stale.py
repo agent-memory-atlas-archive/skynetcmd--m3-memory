@@ -6,6 +6,7 @@ old ~/.m3/repo clone. The files still EXIST (so the dead-path check passes) yet
 run old code. `_scan_stale_payload` catches "exists but not under the current
 payload bin_dir()".
 """
+
 from __future__ import annotations
 
 import json
@@ -38,11 +39,18 @@ def _write_settings(home, payload_bin, clone_bin):
             "user_thing": {"command": "/py", "args": [str(clone_bin / "not_ours.py")]},
         },
         "hooks": {
-            "Stop": [{"hooks": [{"type": "command",
-                                 "command": f"/py {clone_bin / 'hooks' / 'chatlog' / 'claude_code_precompact.sh'}"}]}],
+            "Stop": [
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": f"/py {clone_bin / 'hooks' / 'chatlog' / 'claude_code_precompact.sh'}",
+                        }
+                    ]
+                }
+            ],
         },
-        "statusLine": {"type": "command",
-                       "command": f"/py {clone_bin / 'statusline-command.sh'}"},
+        "statusLine": {"type": "command", "command": f"/py {clone_bin / 'statusline-command.sh'}"},
     }
     (claude / "settings.json").write_text(json.dumps(settings))
 
@@ -87,7 +95,7 @@ def test_run_fix_remediates_via_canonical_writer(monkeypatch):
     monkeypatch.setattr(p, "_remediate", fake_remediate)
 
     rc = p.run(brief=True, fix=True)
-    assert calls["remediate"] == 1          # remediation ran despite no stale finding
+    assert calls["remediate"] == 1  # remediation ran despite no stale finding
     assert rc == 0
 
 
@@ -100,8 +108,8 @@ def test_run_without_fix_does_not_remediate(monkeypatch):
     monkeypatch.setattr(p, "_remediate", lambda: calls.__setitem__("remediate", calls["remediate"] + 1) or True)
 
     rc = p.run(brief=True, fix=False)
-    assert calls["remediate"] == 0          # report-only: never rewrites
-    assert rc == 1                          # still flags the stale finding
+    assert calls["remediate"] == 0  # report-only: never rewrites
+    assert rc == 1  # still flags the stale finding
 
 
 def test_no_flags_when_everything_under_payload(monkeypatch, tmp_path):

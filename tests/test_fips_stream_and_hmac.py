@@ -7,6 +7,7 @@ check runs in a child process that must also EXIT cleanly, since an undersized
 opaque context corrupts the heap and shows up only at shutdown (see
 test_fips_aes_context_size.py).
 """
+
 from __future__ import annotations
 
 import os
@@ -36,15 +37,19 @@ print(type(s).__name__, c.provider.backend)
 
 
 def _env(**extra: str) -> dict[str, str]:
-    env = {k: v for k, v in os.environ.items()
-           if k not in ("M3_FIPS_MODE", "M3_FIPS_STRICT", "M3_CRYPTO_BACKEND", "M3_WOLFSSL_LIB")}
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k not in ("M3_FIPS_MODE", "M3_FIPS_STRICT", "M3_CRYPTO_BACKEND", "M3_WOLFSSL_LIB")
+    }
     env.update(extra)
     return env
 
 
 def _run(env: dict[str, str]) -> subprocess.CompletedProcess:
-    return subprocess.run([sys.executable, "-c", _CHILD.format(bin=str(_BIN))],
-                          capture_output=True, text=True, env=env, timeout=120)
+    return subprocess.run(
+        [sys.executable, "-c", _CHILD.format(bin=str(_BIN))], capture_output=True, text=True, env=env, timeout=120
+    )
 
 
 def test_default_backend_matches_the_standard_answers():
@@ -55,16 +60,22 @@ def test_default_backend_matches_the_standard_answers():
 
 def test_wolfcrypt_backend_matches_the_standard_answers_and_exits_cleanly():
     probe = subprocess.run(
-        [sys.executable, "-c",
-         f"import sys; sys.path.insert(0, {str(_BIN)!r}); import crypto_provider as c;"
-         "print(c._resolve_wolfssl_path() or '')"],
-        capture_output=True, text=True, env=_env(), timeout=60)
+        [
+            sys.executable,
+            "-c",
+            f"import sys; sys.path.insert(0, {str(_BIN)!r}); import crypto_provider as c;"
+            "print(c._resolve_wolfssl_path() or '')",
+        ],
+        capture_output=True,
+        text=True,
+        env=_env(),
+        timeout=60,
+    )
     lib = probe.stdout.strip()
     if not lib:
         pytest.skip(skip_reason("env", "wolfSSL is not installed on this host"))
     r = _run(_env(M3_FIPS_MODE="1", M3_WOLFSSL_LIB=lib))
-    assert r.returncode == 0, (
-        f"FIPS-mode child exited {r.returncode}; stderr: {r.stderr[-600:]}")
+    assert r.returncode == 0, f"FIPS-mode child exited {r.returncode}; stderr: {r.stderr[-600:]}"
     assert r.stdout.split() == ["_WolfSha256Stream", "WOLFSSL"], r.stdout
 
 

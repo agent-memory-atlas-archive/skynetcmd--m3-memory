@@ -11,6 +11,7 @@ holds NO presentation. Backend identity/counts go through the storage-backend
 seam (active_backend / dialect), so a future backend (MariaDB, …) is picked up
 with no change here.
 """
+
 from __future__ import annotations
 
 import os
@@ -47,8 +48,7 @@ def _fmt_dual_time(value: object) -> str:
     else:
         tzname = raw_tz or local.strftime("%z")
     utc = dt.astimezone(_dt.UTC)
-    return (f"{local.strftime('%Y-%m-%d %H:%M:%S')} {tzname} "
-            f"({utc.strftime('%Y-%m-%dT%H:%M:%SZ')})")
+    return f"{local.strftime('%Y-%m-%d %H:%M:%S')} {tzname} ({utc.strftime('%Y-%m-%dT%H:%M:%SZ')})"
 
 
 def _verdict(inference: dict | None = None, pipeline: dict | None = None) -> dict:
@@ -74,10 +74,16 @@ def _verdict(inference: dict | None = None, pipeline: dict | None = None) -> dic
     """
     try:
         from m3_memory.installer import status_summary
+
         s = status_summary()
     except Exception as e:  # noqa: BLE001
-        return {"verdict": "unknown", "label": "UNKNOWN", "tone": "warn",
-                "headline": f"status unavailable: {e}", "reasons": []}
+        return {
+            "verdict": "unknown",
+            "label": "UNKNOWN",
+            "tone": "warn",
+            "headline": f"status unavailable: {e}",
+            "reasons": [],
+        }
 
     verdict = s.get("verdict", "unknown")
     reasons: list[str] = []
@@ -85,8 +91,13 @@ def _verdict(inference: dict | None = None, pipeline: dict | None = None) -> dic
     # Broken/uninstalled is the only genuinely-bad state.
     if verdict == "broken" or not s.get("installed", True):
         reasons.append("m3 payload is not installed — run `m3 setup`.")
-        return {"verdict": verdict, "label": "NEEDS SETUP", "tone": "bad",
-                "headline": s.get("headline", ""), "reasons": reasons}
+        return {
+            "verdict": verdict,
+            "label": "NEEDS SETUP",
+            "tone": "bad",
+            "headline": s.get("headline", ""),
+            "reasons": reasons,
+        }
 
     # PRIMARY "why": live load-throttle from the governor. When the governor is
     # pacing background work because a resource is over threshold, THAT is the
@@ -96,6 +107,7 @@ def _verdict(inference: dict | None = None, pipeline: dict | None = None) -> dic
         from m3_sdk import resolve_db_path
 
         from dashboard.queue_stats import collect_governor
+
         gov = collect_governor(resolve_db_path(None))
         if gov.get("available") and str(gov.get("mode", "")).upper() in ("THROTTLED", "HALTED"):
             init = float(gov.get("initial_threshold", 80) or 80)
@@ -114,7 +126,8 @@ def _verdict(inference: dict | None = None, pipeline: dict | None = None) -> dic
             reasons.append(
                 f"Background work is being paced by the governor because "
                 f"{'/'.join(throttled_res)} load is high{detail}. Interactive use "
-                "is unaffected; queued work simply drains more slowly until load eases.")
+                "is unaffected; queued work simply drains more slowly until load eases."
+            )
     except Exception:  # noqa: BLE001 — governor telemetry is optional
         pass
 
@@ -128,11 +141,11 @@ def _verdict(inference: dict | None = None, pipeline: dict | None = None) -> dic
         reasons.append(
             f"{unembedded:,} items are still awaiting embedding and the current "
             "embedder is the pure-Python (HTTP) tier — the backlog will clear, "
-            "just slowly. The native tier (`m3 embedder install-gpu`) speeds it up.")
+            "just slowly. The native tier (`m3 embedder install-gpu`) speeds it up."
+        )
 
     if s.get("chatlog") == "unreadable":
-        reasons.append("Chatlog DB is unreadable — capture may be failing; "
-                       "check `m3 chatlog status`.")
+        reasons.append("Chatlog DB is unreadable — capture may be failing; check `m3 chatlog status`.")
 
     # Inference-backend stall: the cognitive loop / entity extraction / enrichment
     # need an LLM at the configured endpoint. If that backend is DOWN or has NO
@@ -165,15 +178,17 @@ def _verdict(inference: dict | None = None, pipeline: dict | None = None) -> dic
                 why = "rejecting m3's credentials"
             else:  # unknown — model state unverifiable; warn, don't alarm red
                 why = "reachable but its model state could not be verified"
-            reasons.insert(0, f"Inference backend (LLM/SLM) is {why} — background "
-                           f"pipelines are backlogged and cannot drain. {remedy}")
+            reasons.insert(
+                0,
+                f"Inference backend (LLM/SLM) is {why} — background "
+                f"pipelines are backlogged and cannot drain. {remedy}",
+            )
     elif inf_status == "failover_active":
         # Working, but the PREFERRED endpoint(s) failed and m3 fell through to a
         # secondary. Always worth a warn (even with no backlog) — the operator
         # should know the primary is down before the secondary also fails.
         failover_active = True
-        reasons.insert(0, (inference or {}).get(
-            "remedy", "LLM failover is active — a preferred endpoint is down."))
+        reasons.insert(0, (inference or {}).get("remedy", "LLM failover is active — a preferred endpoint is down."))
 
     # Choose the least-alarming accurate label from the real cause.
     if inference_stall:
@@ -201,17 +216,21 @@ def _verdict(inference: dict | None = None, pipeline: dict | None = None) -> dic
     headline = str(s.get("headline", ""))
     for raw in ("HEALTHY", "DEGRADED", "BROKEN"):
         if headline.upper().startswith(raw):
-            headline = headline[len(raw):].lstrip(" ·-—").strip()
+            headline = headline[len(raw) :].lstrip(" ·-—").strip()
             break
-    return {"verdict": verdict, "label": label, "tone": tone,
-            "headline": headline, "reasons": reasons}
+    return {"verdict": verdict, "label": label, "tone": tone, "headline": headline, "reasons": reasons}
 
 
 # Human-facing backend names (tall-man / correct casing). The seam uses lowercase
 # identifiers; map them for display. Unknown backends fall back to a title-cased
 # form so a future engine still reads sensibly.
-_BACKEND_DISPLAY = {"sqlite": "SQLite", "postgres": "PostgreSQL",
-                    "postgresql": "PostgreSQL", "mariadb": "MariaDB", "mysql": "MySQL"}
+_BACKEND_DISPLAY = {
+    "sqlite": "SQLite",
+    "postgres": "PostgreSQL",
+    "postgresql": "PostgreSQL",
+    "mariadb": "MariaDB",
+    "mysql": "MySQL",
+}
 
 
 def _backend_display(name: str) -> str:
@@ -224,6 +243,7 @@ def _unembedded_count() -> int:
     blind via the active backend's connection."""
     try:
         from memory.db import _db
+
         with _db() as db:
             row = db.execute(
                 "SELECT COUNT(*) FROM memory_items mi WHERE COALESCE(mi.is_deleted,0)=0 "
@@ -257,14 +277,24 @@ def _llm_token() -> str:
     with LM Studio's conventional "lm-studio" placeholder as the fallback."""
     try:
         from auth_utils import get_api_key
+
         return get_api_key("LM_API_TOKEN") or "lm-studio"
     except Exception:  # noqa: BLE001 — never let key resolution break the panel
         # Last-ditch: honor the raw env var directly, else the LM Studio default.
-        return (os.environ.get("LM_API_TOKEN", "").strip() or "lm-studio")
+        return os.environ.get("LM_API_TOKEN", "").strip() or "lm-studio"
 
 
-_CLOUD_HOST_HINTS = ("anthropic.com", "googleapis.com", "openai.com", "x.ai",
-                     "mistral.ai", "cohere.", "groq.com", "together.", "openrouter.")
+_CLOUD_HOST_HINTS = (
+    "anthropic.com",
+    "googleapis.com",
+    "openai.com",
+    "x.ai",
+    "mistral.ai",
+    "cohere.",
+    "groq.com",
+    "together.",
+    "openrouter.",
+)
 
 
 def _is_loopback_url(url: str) -> bool:
@@ -272,6 +302,7 @@ def _is_loopback_url(url: str) -> bool:
     _is_local_llm_url discriminator (m3_cognitive_loop)."""
     try:
         from urllib.parse import urlparse
+
         host = (urlparse(url).hostname or "").lower()
     except Exception:  # noqa: BLE001
         return False
@@ -307,11 +338,11 @@ def _cloud_backend_label(url: str) -> str:
     if "openrouter." in u:
         return "OpenRouter"
     from urllib.parse import urlparse
-    return (urlparse(url).hostname or "cloud endpoint")
+
+    return urlparse(url).hostname or "cloud endpoint"
 
 
-def _probe_cloud_endpoint(endpoint: str, api_key_service: str, connect_timeout: float,
-                          read_timeout: float) -> dict:
+def _probe_cloud_endpoint(endpoint: str, api_key_service: str, connect_timeout: float, read_timeout: float) -> dict:
     """PING-ONLY health for a cloud/frontier endpoint. Verifies the API key
     RESOLVES and the API is REACHABLE via a free, non-generating GET /models — NO
     completion, so zero token cost and no rate-limit burn. For cloud the only local
@@ -319,15 +350,24 @@ def _probe_cloud_endpoint(endpoint: str, api_key_service: str, connect_timeout: 
     Auth style follows the wire: Anthropic uses x-api-key, others Bearer."""
     import httpx
 
-    out = {"url": endpoint, "backend": _cloud_backend_label(endpoint), "cloud": True,
-           "reachable": False, "model_loaded": False, "model_id": "",
-           "queryable": False, "loaded_confirmed": False, "detail": "",
-           "api_key_service": api_key_service}
+    out = {
+        "url": endpoint,
+        "backend": _cloud_backend_label(endpoint),
+        "cloud": True,
+        "reachable": False,
+        "model_loaded": False,
+        "model_id": "",
+        "queryable": False,
+        "loaded_confirmed": False,
+        "detail": "",
+        "api_key_service": api_key_service,
+    }
     # Resolve the key the SAME way m3 does for this profile (its api_key_service),
     # falling back to LM_API_TOKEN only if the profile didn't name one.
     key = ""
     try:
         from auth_utils import get_api_key
+
         if api_key_service:
             key = get_api_key(api_key_service) or ""
         if not key:
@@ -344,11 +384,11 @@ def _probe_cloud_endpoint(endpoint: str, api_key_service: str, connect_timeout: 
     base = re.sub(r"/(v1|v1beta)(/openai)?/(chat/completions|messages).*$", r"/\1\2", endpoint)
     base = base.rstrip("/")
     models_url = f"{base}/models"
-    headers = ({"x-api-key": key, "anthropic-version": "2023-06-01"} if is_anthropic
-               else {"Authorization": f"Bearer {key}"})
+    headers = (
+        {"x-api-key": key, "anthropic-version": "2023-06-01"} if is_anthropic else {"Authorization": f"Bearer {key}"}
+    )
     try:
-        r = httpx.get(models_url, headers=headers,
-                      timeout=httpx.Timeout(connect_timeout, read=read_timeout))
+        r = httpx.get(models_url, headers=headers, timeout=httpx.Timeout(connect_timeout, read=read_timeout))
     except Exception as e:  # noqa: BLE001 — network down / DNS / TLS
         out["detail"] = f"unreachable ({type(e).__name__})"
         return out
@@ -372,8 +412,7 @@ def _probe_cloud_endpoint(endpoint: str, api_key_service: str, connect_timeout: 
     return out
 
 
-def _probe_llm_endpoint(endpoint: str, connect_timeout: float, read_timeout: float,
-                        api_key_service: str = "") -> dict:
+def _probe_llm_endpoint(endpoint: str, connect_timeout: float, read_timeout: float, api_key_service: str = "") -> dict:
     """Probe one LLM endpoint (sync, read-only). Never raises. For a CLOUD endpoint
     (Anthropic/Gemini/OpenAI/xAI/…) delegates to a ping-only check (reachable + key
     present, no billed completion). For a LOCAL endpoint, uses cache-safe readiness
@@ -388,9 +427,17 @@ def _probe_llm_endpoint(endpoint: str, connect_timeout: float, read_timeout: flo
     if _is_cloud_url(endpoint):
         return _probe_cloud_endpoint(endpoint, api_key_service, connect_timeout, read_timeout)
 
-    out = {"url": endpoint, "backend": _backend_label_for_endpoint(endpoint),
-           "reachable": False, "model_loaded": False, "model_id": "",
-           "queryable": False, "loaded_confirmed": False, "cloud": False, "detail": ""}
+    out = {
+        "url": endpoint,
+        "backend": _backend_label_for_endpoint(endpoint),
+        "reachable": False,
+        "model_loaded": False,
+        "model_id": "",
+        "queryable": False,
+        "loaded_confirmed": False,
+        "cloud": False,
+        "detail": "",
+    }
     token = _llm_token()
 
     # (1) CACHE-SAFE preferred path for LM Studio: native /api/v0/models returns
@@ -399,9 +446,11 @@ def _probe_llm_endpoint(endpoint: str, connect_timeout: float, read_timeout: flo
     # falls through to the standard /v1/models listing below.
     base = re.sub(r"/v1/?$", "", endpoint)  # strip the OpenAI /v1 suffix
     try:
-        rv0 = httpx.get(f"{base}/api/v0/models",
-                        headers={"Authorization": f"Bearer {token}"},
-                        timeout=httpx.Timeout(connect_timeout, read=read_timeout))
+        rv0 = httpx.get(
+            f"{base}/api/v0/models",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=httpx.Timeout(connect_timeout, read=read_timeout),
+        )
         if rv0.status_code == 200:
             out["reachable"] = True
             out["queryable"] = True
@@ -430,9 +479,11 @@ def _probe_llm_endpoint(endpoint: str, connect_timeout: float, read_timeout: flo
     # fall through to /v1/models to confirm it's installed rather than cry "down".
     if ":11434" in endpoint or "ollama" in endpoint.lower():
         try:
-            rps = httpx.get(f"{base}/api/ps",
-                            headers={"Authorization": f"Bearer {token}"},
-                            timeout=httpx.Timeout(connect_timeout, read=read_timeout))
+            rps = httpx.get(
+                f"{base}/api/ps",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=httpx.Timeout(connect_timeout, read=read_timeout),
+            )
             if rps.status_code == 200:
                 out["reachable"] = True
                 out["queryable"] = True
@@ -456,9 +507,11 @@ def _probe_llm_endpoint(endpoint: str, connect_timeout: float, read_timeout: flo
     # 200 {"status":"ok"} only when a model is loaded, 503 {"status":"loading
     # model"} while loading — zero inference. Definitive readiness for llama.cpp.
     try:
-        rh = httpx.get(f"{base}/health",
-                       headers={"Authorization": f"Bearer {token}"},
-                       timeout=httpx.Timeout(connect_timeout, read=read_timeout))
+        rh = httpx.get(
+            f"{base}/health",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=httpx.Timeout(connect_timeout, read=read_timeout),
+        )
         if rh.status_code in (200, 503):
             hstatus = ""
             try:
@@ -485,9 +538,11 @@ def _probe_llm_endpoint(endpoint: str, connect_timeout: float, read_timeout: flo
 
     # (2) Standard OpenAI /v1/models listing — cache-safe, provider-agnostic.
     try:
-        r = httpx.get(f"{endpoint}/models",
-                      headers={"Authorization": f"Bearer {token}"},
-                      timeout=httpx.Timeout(connect_timeout, read=read_timeout))
+        r = httpx.get(
+            f"{endpoint}/models",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=httpx.Timeout(connect_timeout, read=read_timeout),
+        )
     except Exception as e:  # noqa: BLE001 — connection refused/timeout = backend down
         out["detail"] = type(e).__name__
         return out
@@ -535,7 +590,7 @@ def _probe_llm_endpoint(endpoint: str, connect_timeout: float, read_timeout: flo
 #       most one stable cache slot, never churns), and is opt-out-able entirely.
 # Default TTL is deliberately long (15 min): the failover selection rarely changes
 # and we must not periodically cold-start the server's cache.
-_SMOKE_CACHE: dict = {}                     # key -> (monotonic_deadline, result)
+_SMOKE_CACHE: dict = {}  # key -> (monotonic_deadline, result)
 _SMOKE_TTL_S = float(os.environ.get("M3_DASHBOARD_LLM_SMOKE_TTL_S", "900"))  # 15 min
 _SMOKE_LOCK = __import__("threading").Lock()
 # A single constant, innocuous prompt so repeated smokes reuse ONE cache slot
@@ -580,10 +635,15 @@ def _smoke_llm_completion(base_url: str, model: str, token: str, timeout_s: floa
         r = httpx.post(
             smoke_url,
             json=apply_thinking_suppression(
-                {"model": model,
-                 "messages": [{"role": "user", "content": _SMOKE_PROMPT}],
-                 "max_tokens": 1, "temperature": 0.0, "stream": False},
-                smoke_url),
+                {
+                    "model": model,
+                    "messages": [{"role": "user", "content": _SMOKE_PROMPT}],
+                    "max_tokens": 1,
+                    "temperature": 0.0,
+                    "stream": False,
+                },
+                smoke_url,
+            ),
             headers={"Authorization": f"Bearer {token}"},
             timeout=httpx.Timeout(min(3.0, timeout_s), read=timeout_s),
         )
@@ -630,6 +690,7 @@ def _cached_smoke(base_url: str, model: str, token: str) -> dict:
     short token fingerprint (so rotating the key re-smokes). Uses a monotonic
     clock via time.perf_counter — no wall-clock, safe across DST."""
     import time
+
     fp = str(abs(hash(token)) % 10_000_000)  # non-secret fingerprint, not the key
     key = (base_url, model, fp)
     now = time.perf_counter()
@@ -652,7 +713,7 @@ def _cached_smoke(base_url: str, model: str, token: str) -> dict:
 # to refresh them every 30-60s; this cache only spares rapid /api/health polls
 # (which can fire every few seconds) from re-hitting even the cheap endpoints.
 # Separate from _SMOKE_CACHE (15 min) which guards the rare real completion.
-_BLOCK_CACHE: dict = {}                      # {"v": (deadline, result)}
+_BLOCK_CACHE: dict = {}  # {"v": (deadline, result)}
 _BLOCK_TTL_S = float(os.environ.get("M3_DASHBOARD_LLM_BLOCK_TTL_S", "45"))  # 30-60s band
 
 
@@ -661,14 +722,17 @@ def _inference_block() -> dict:
     rapid dashboard polls don't re-probe every few seconds. The underlying checks
     are cache-safe, so this TTL is about politeness, not cache protection."""
     import time
+
     now = time.perf_counter()
     hit = _BLOCK_CACHE.get("v")
     if hit and hit[0] > now:
-        r = dict(hit[1]); r["block_cached"] = True
+        r = dict(hit[1])
+        r["block_cached"] = True
         return r
     result = _inference_block_uncached()
     _BLOCK_CACHE["v"] = (now + _BLOCK_TTL_S, result)
-    r = dict(result); r["block_cached"] = False
+    r = dict(result)
+    r["block_cached"] = False
     return r
 
 
@@ -684,11 +748,19 @@ def _inference_block_uncached() -> dict:
     this backend; if it can't serve, those pipelines stall (queue backs up, never
     drains). status ∈ {ok, failover_active, no_model, auth_failed, down,
     unknown, none_configured}."""
-    out: dict = {"status": "none_configured", "endpoints": [], "primary": None,
-                 "expected_url": "", "backend": "", "model_id": "", "remedy": "",
-                 "verified_by": "inference"}
+    out: dict = {
+        "status": "none_configured",
+        "endpoints": [],
+        "primary": None,
+        "expected_url": "",
+        "backend": "",
+        "model_id": "",
+        "remedy": "",
+        "verified_by": "inference",
+    }
     try:
         import llm_failover as lf
+
         endpoints = list(lf.LLM_ENDPOINTS)
         connect_to = getattr(lf, "CONNECT_TIMEOUT", 0.3)
     except Exception as e:  # noqa: BLE001
@@ -696,10 +768,12 @@ def _inference_block_uncached() -> dict:
         return out
 
     if not endpoints:
-        out["remedy"] = ("No LLM endpoint is configured. Set M3_LLM_URL to your "
-                         "OpenAI-compatible server, or enable LM Studio "
-                         "(M3_ENABLE_LMSTUDIO_FAILOVER=1) / Ollama "
-                         "(M3_ENABLE_OLLAMA_FAILOVER=1).")
+        out["remedy"] = (
+            "No LLM endpoint is configured. Set M3_LLM_URL to your "
+            "OpenAI-compatible server, or enable LM Studio "
+            "(M3_ENABLE_LMSTUDIO_FAILOVER=1) / Ollama "
+            "(M3_ENABLE_OLLAMA_FAILOVER=1)."
+        )
         return out
 
     token = _llm_token()
@@ -720,8 +794,15 @@ def _inference_block_uncached() -> dict:
     chain: list[dict] = []
     landed = None
     for p in probes:
-        hop = {"url": p["url"], "backend": p["backend"], "ok": False,
-               "status": "", "detail": "", "model_id": "", "cloud": p.get("cloud", False)}
+        hop = {
+            "url": p["url"],
+            "backend": p["backend"],
+            "ok": False,
+            "status": "",
+            "detail": "",
+            "model_id": "",
+            "cloud": p.get("cloud", False),
+        }
         # Cloud auth failures are their own class: a missing/rejected API key means
         # m3's real calls to that frontier model fail too. Surface as auth_failed
         # regardless of the reachable/queryable flags (a missing key never reached
@@ -807,12 +888,15 @@ def _inference_block_uncached() -> dict:
             # Landed on a SECONDARY — failover is ACTIVE. Working, but degraded:
             # the preferred endpoint(s) failed. Surface which, and why.
             out["status"] = "failover_active"
-            trail = "; ".join(f"{h['backend']} {h['url']} ({h['status']}"
-                              + (f": {h['detail']}" if h['detail'] else "") + ")"
-                              for h in failed_hops)
-            out["remedy"] = (f"Primary LLM endpoint(s) failed; m3 failed over to "
-                             f"{landed['backend']} at {landed['url']}. Inference works, "
-                             f"but the preferred backend is down — {trail}.")
+            trail = "; ".join(
+                f"{h['backend']} {h['url']} ({h['status']}" + (f": {h['detail']}" if h["detail"] else "") + ")"
+                for h in failed_hops
+            )
+            out["remedy"] = (
+                f"Primary LLM endpoint(s) failed; m3 failed over to "
+                f"{landed['backend']} at {landed['url']}. Inference works, "
+                f"but the preferred backend is down — {trail}."
+            )
         return out
 
     # Whole chain exhausted — nothing could take an inference request. Report the
@@ -824,26 +908,33 @@ def _inference_block_uncached() -> dict:
         out["status"] = "no_model"
     else:
         out["status"] = "down"
-    trail = "; ".join(f"{h['backend']} {h['url']} ({h['status']}"
-                      + (f": {h['detail']}" if h['detail'] else "") + ")"
-                      for h in chain)
+    trail = "; ".join(
+        f"{h['backend']} {h['url']} ({h['status']}" + (f": {h['detail']}" if h["detail"] else "") + ")" for h in chain
+    )
     if out["status"] == "no_model":
-        out["remedy"] = (f"An LLM server is up but no chat model can serve a request. "
-                         f"Load a model (`lms load <model>` / `ollama run <model>`); the "
-                         f"pipeline drains once a model serves. Failover chain: {trail}.")
+        out["remedy"] = (
+            f"An LLM server is up but no chat model can serve a request. "
+            f"Load a model (`lms load <model>` / `ollama run <model>`); the "
+            f"pipeline drains once a model serves. Failover chain: {trail}."
+        )
     elif out["status"] == "auth_failed":
-        out["remedy"] = (f"Every LLM endpoint rejected m3's credentials — its real calls "
-                         f"fail too. Set LM_API_TOKEN (or the profile's api_key_service) "
-                         f"to the server's key. Failover chain: {trail}.")
+        out["remedy"] = (
+            f"Every LLM endpoint rejected m3's credentials — its real calls "
+            f"fail too. Set LM_API_TOKEN (or the profile's api_key_service) "
+            f"to the server's key. Failover chain: {trail}."
+        )
     else:
-        out["remedy"] = (f"No LLM backend could take an inference request across the whole "
-                         f"failover chain. Start one (LM Studio: `lms server start` + load "
-                         f"a model; Ollama: `ollama serve`). Failover chain: {trail}.")
+        out["remedy"] = (
+            f"No LLM backend could take an inference request across the whole "
+            f"failover chain. Start one (LM Studio: `lms server start` + load "
+            f"a model; Ollama: `ollama serve`). Failover chain: {trail}."
+        )
     return out
 
 
 def _active_backend():
     from memory.backends import active_backend
+
     return active_backend()
 
 
@@ -857,25 +948,22 @@ def _sqlite_store(db_path: str) -> dict | None:
     except Exception:  # noqa: BLE001 — unreachable store → no block to render
         return None
     try:
-      with _cm as conn:
-        def _has(t: str) -> bool:
-            # sqlite_master is a SQLite-only catalog; table_exists() renders the
-            # portable probe (information_schema on PG) with the same
-            # "one row iff present" contract.
-            _sql, _params = _d.table_exists(t)
-            return conn.execute(_sql, _params).fetchone() is not None
+        with _cm as conn:
 
-        rows, last = 0, None
-        if _has("memory_items"):
-            rows = conn.execute(
-                "SELECT COUNT(*) FROM memory_items WHERE COALESCE(is_deleted,0)=0"
-            ).fetchone()[0]
-            last = conn.execute(
-                "SELECT MAX(COALESCE(updated_at, created_at)) FROM memory_items"
-            ).fetchone()[0]
-        elif _has("leaves"):
-            rows = conn.execute("SELECT COUNT(*) FROM leaves").fetchone()[0]
-        return {"path": db_path, "rows": rows, "last_updated": _fmt_dual_time(last)}
+            def _has(t: str) -> bool:
+                # sqlite_master is a SQLite-only catalog; table_exists() renders the
+                # portable probe (information_schema on PG) with the same
+                # "one row iff present" contract.
+                _sql, _params = _d.table_exists(t)
+                return conn.execute(_sql, _params).fetchone() is not None
+
+            rows, last = 0, None
+            if _has("memory_items"):
+                rows = conn.execute("SELECT COUNT(*) FROM memory_items WHERE COALESCE(is_deleted,0)=0").fetchone()[0]
+                last = conn.execute("SELECT MAX(COALESCE(updated_at, created_at)) FROM memory_items").fetchone()[0]
+            elif _has("leaves"):
+                rows = conn.execute("SELECT COUNT(*) FROM leaves").fetchone()[0]
+            return {"path": db_path, "rows": rows, "last_updated": _fmt_dual_time(last)}
     except Exception:  # noqa: BLE001 — a health probe never breaks the page
         return None
 
@@ -885,6 +973,7 @@ def _backend_block() -> dict:
     out: dict[str, Any] = {"backend": "unknown", "stores": [], "note": ""}
     try:
         from memory.backends import resolve_backend_name
+
         out["backend"] = resolve_backend_name()
     except Exception as e:  # noqa: BLE001
         out["note"] = f"backend unresolved: {e}"
@@ -901,6 +990,7 @@ def _backend_block() -> dict:
             files_db = ""
         try:
             from m3_sdk import resolve_db_path
+
             core_db = resolve_db_path(None)
         except Exception:  # noqa: BLE001
             core_db = ""
@@ -920,25 +1010,29 @@ def _backend_block() -> dict:
             if ap:
                 seen.add(ap)
             st = _sqlite_store(path) if path else None
-            out["stores"].append({
-                "label": label,
-                "path": path or "(not discernible)",
-                "present": st is not None,
-                "rows": st["rows"] if st else None,
-                "last_updated": st["last_updated"] if st else "—",
-                "shared": shared,
-            })
+            out["stores"].append(
+                {
+                    "label": label,
+                    "path": path or "(not discernible)",
+                    "present": st is not None,
+                    "rows": st["rows"] if st else None,
+                    "last_updated": st["last_updated"] if st else "—",
+                    "shared": shared,
+                }
+            )
     else:
         # PostgreSQL / other SQL backend: report identity + counts via a probe.
         try:
             import re
 
             from m3_sdk import PgRole, resolve_pg_dsn
+
             dsn = resolve_pg_dsn(PgRole.PRIMARY)
             masked = re.sub(r"(://[^:/@]+:)[^@/]+(@)", r"\1***\2", dsn) if dsn else ""
             rows, last, reachable = None, "—", False
             if dsn:
                 import psycopg2
+
                 conn = psycopg2.connect(dsn, connect_timeout=5)
                 cur = conn.cursor()
                 cur.execute("SELECT COUNT(*) FROM memory_items WHERE COALESCE(is_deleted,0)=0")
@@ -950,10 +1044,16 @@ def _backend_block() -> dict:
                     pass
                 conn.close()
                 reachable = True
-            out["stores"].append({
-                "label": "primary", "path": masked or "(no DSN set)",
-                "present": reachable, "rows": rows, "last_updated": last, "shared": False,
-            })
+            out["stores"].append(
+                {
+                    "label": "primary",
+                    "path": masked or "(no DSN set)",
+                    "present": reachable,
+                    "rows": rows,
+                    "last_updated": last,
+                    "shared": False,
+                }
+            )
         except Exception as e:  # noqa: BLE001
             out["note"] = f"backend probe failed: {e}"
     return out
@@ -963,12 +1063,14 @@ def _cdw_block() -> dict | None:
     """CDW warehouse sync watermarks, or None if no warehouse is configured."""
     try:
         from m3_sdk import PgRole, resolve_db_path, resolve_pg_dsn
+
         cdw = resolve_pg_dsn(PgRole.WAREHOUSE)
     except Exception:  # noqa: BLE001
         return None
     if not cdw:
         return None
     import re
+
     masked = re.sub(r"(://[^:/@]+:)[^@/]+(@)", r"\1***\2", cdw)
     out: dict[str, Any] = {"dsn": masked, "watermarks": []}
     try:
@@ -984,12 +1086,9 @@ def _cdw_block() -> dict | None:
             _sql, _params = _d.table_exists("sync_watermarks")
             if conn.execute(_sql, _params).fetchone():
                 for direction, ts in conn.execute(
-                    "SELECT direction, last_synced_at FROM sync_watermarks "
-                    "ORDER BY direction"
+                    "SELECT direction, last_synced_at FROM sync_watermarks ORDER BY direction"
                 ).fetchall():
-                    out["watermarks"].append(
-                        {"direction": direction, "last_sync": _fmt_dual_time(ts)}
-                    )
+                    out["watermarks"].append({"direction": direction, "last_sync": _fmt_dual_time(ts)})
     except Exception:  # noqa: BLE001 — a health probe never breaks the page
         pass
     return out
@@ -1011,6 +1110,7 @@ def _pipeline_block(core_db: str) -> dict:
     out: dict[str, Any] = {"pipelines": [], "governor": None}
     try:
         from dashboard.queue_stats import collect_governor, collect_pipeline_stats
+
         raw = collect_pipeline_stats(core_db).get("pipelines", [])
         for p in raw:
             qlen = int(p.get("queue_len", 0) or 0)
@@ -1022,13 +1122,15 @@ def _pipeline_block(core_db: str) -> dict:
                 status, tone = "processing", "ok"
             else:
                 status, tone = "backlog (worker idle)", "warn"
-            out["pipelines"].append({
-                "label": p.get("label", p.get("key", "queue")),
-                "queue_len": qlen,
-                "eta_human": p.get("eta_human", ""),
-                "status": status,
-                "tone": tone,
-            })
+            out["pipelines"].append(
+                {
+                    "label": p.get("label", p.get("key", "queue")),
+                    "queue_len": qlen,
+                    "eta_human": p.get("eta_human", ""),
+                    "status": status,
+                    "tone": tone,
+                }
+            )
         gov = collect_governor(core_db)
         out["governor"] = gov if gov.get("available") else None
     except Exception:  # noqa: BLE001 — pipeline detail is optional
@@ -1041,6 +1143,7 @@ def collect_health() -> dict:
     core_db = ""
     try:
         from m3_sdk import resolve_db_path
+
         core_db = resolve_db_path(None)
     except Exception:  # noqa: BLE001
         pass
@@ -1052,6 +1155,5 @@ def collect_health() -> dict:
         "inference": inference,
         "cdw": _cdw_block(),
         "pipeline": pipeline,
-        "generated_at": _fmt_dual_time(__import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc)),
+        "generated_at": _fmt_dual_time(__import__("datetime").datetime.now(__import__("datetime").timezone.utc)),
     }

@@ -1,8 +1,8 @@
 ---
 tool: bin/build_kg_variant.py
-sha1: 6b029d60d0ca
-mtime_utc: 2026-10-10T16:50:49.966686+00:00
-generated_utc: 2026-10-10T16:50:50.314845+00:00
+sha1: a60334770c39
+mtime_utc: 2026-10-10T21:05:16.686941+00:00
+generated_utc: 2026-10-10T21:05:29.311466+00:00
 private: false
 ---
 
@@ -28,7 +28,7 @@ uses the configured database and refuses a path.
 
 ## Entry points
 
-- `def main()` (line 183)
+- `def main()` (line 212)
 - `if __name__ == "__main__"` guard
 
 ---

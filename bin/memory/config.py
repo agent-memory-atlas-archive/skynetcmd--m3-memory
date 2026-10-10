@@ -14,6 +14,7 @@ Phase 3 moved the HTTP-client singleton and backend stats to `embed.py` but
 kept the thresholds here.
 Phase 5 introduced circuit-breaker thresholds.
 """
+
 from __future__ import annotations
 
 import os
@@ -35,8 +36,9 @@ def _setting(name: str) -> Any:
     raises here, at import, rather than reading a default nobody declared."""
     key = _REGISTRY.get(name)
     if key is None:
-        raise KeyError(f"observed: memory.config reads {name!r}, which is not a registry key. "
-                       "inspect: m3_core/config/keys*.py")
+        raise KeyError(
+            f"observed: memory.config reads {name!r}, which is not a registry key. inspect: m3_core/config/keys*.py"
+        )
     return _settings.current()[key]
 
 
@@ -55,6 +57,7 @@ def _set_by_file_or_canonical_env(name: str) -> bool:
         return False
     return got.env_name is None or got.env_name == key.env_names[0]
 
+
 # Oxidation / Rust availability.
 # _OXIDATION_DISABLED must be bound UNCONDITIONALLY — `memory_core.py`
 # re-exports it via `from memory.config import _OXIDATION_DISABLED`, and
@@ -62,9 +65,7 @@ def _set_by_file_or_canonical_env(name: str) -> bool:
 # crashes at import time on a host without `m3_core_rs` installed. The
 # Phase 7+8 refactor (commit bd07525) inlined this read inside the try/
 # except, which made the symbol conditionally bound — fixed here.
-_OXIDATION_DISABLED: bool = os.environ.get("M3_CORE_RS_DISABLE", "0").lower() in (
-    "1", "true", "yes"
-)
+_OXIDATION_DISABLED: bool = os.environ.get("M3_CORE_RS_DISABLE", "0").lower() in ("1", "true", "yes")
 # Typed `Any` so callers can access the Rust extension's attributes without
 # mypy flagging every use as "None has no attribute ..."; the None case is a
 # real runtime fallback (extension not installed / disabled).
@@ -92,8 +93,8 @@ if not _OXIDATION_DISABLED:
 _EMBED_URL_OVERRIDE: str | None = (_setting("embed.url") or "").strip() or None
 # An override only when SET (file or env), not the registry default.
 _EMBED_MODEL_OVERRIDE: str | None = (
-    (_setting("embed.model") or "").strip() or None
-    if _set_by_file_or_canonical_env("embed.model") else None)
+    (_setting("embed.model") or "").strip() or None if _set_by_file_or_canonical_env("embed.model") else None
+)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -128,8 +129,7 @@ ARCHIVE_DB_PATH: str = _resolve_engine_file("agent_memory_archive.db")
 # abspath, not Path.absolute(): this is an identity string compared with
 # files_memory.db's own abspath of the same file, and only abspath collapses "..".
 FILES_DB_PATH: str = os.path.abspath(  # noqa: PTH100 — identity string; see above
-    os.environ.get("M3_FILES_DB_PATH")
-    or _resolve_engine_file("files_database.db")
+    os.environ.get("M3_FILES_DB_PATH") or _resolve_engine_file("files_database.db")
 )
 # When true, the ingester prompts on first-ever invocation to confirm the
 # files.db path (and offers to write M3_FILES_DB_PATH to a user-shell env
@@ -356,54 +356,109 @@ VALID_SCOPES: set[str] = {"user", "session", "agent", "org"}
 # ──────────────────────────────────────────────────────────────────────────────
 # Entity vocab bootstrap defaults (mirrored in config/lists/entity_graph_default.yaml)
 # ──────────────────────────────────────────────────────────────────────────────
-_DEFAULT_VALID_ENTITY_TYPES: frozenset[str] = frozenset({
-    # Human-life active (v2)
-    "person", "place", "organization", "event", "date",
-    "quantity", "preference", "product", "topic",
-    # Human-life legacy (preserved-but-deprecated)
-    "legacy_concept", "legacy_object",
-    # Technical: homelab infrastructure (m3)
-    "host", "container", "service", "device", "ip_address", "vlan",
-    "port", "mac_address", "endpoint_url", "firewall_rule",
-    # Technical: code + software engineering (m3)
-    "file_path", "function", "class_or_table", "cli_flag", "env_var",
-    "module", "commit_or_branch", "migration",
-    # Technical: benchmark + ML (m3)
-    "benchmark", "model", "variant", "metric", "dataset_field",
-    "bench_artifact", "task_category", "bench_run_id",
-    # Technical: memory-system primitives (m3)
-    "memory_id", "memory_type", "task_id",
-    # Technical: misc (m3)
-    "protocol", "datetime",
-})
-_DEFAULT_VALID_ENTITY_PREDICATES: frozenset[str] = frozenset({
-    # Cross-domain: provenance/aliasing
-    "mentions", "same_as", "source_of",
-    # Cross-domain: change
-    "supersedes",
-    # Human-life Layer 2: stable person attributes
-    "located_in", "works_at", "family_of", "knows", "prefers", "owns",
-    # Human-life Layer 3: event/object attributes
-    "has_participant", "has_location", "has_time", "has_quantity",
-    # Human-life legacy (preserved-but-deprecated)
-    "before", "after",
-    # Technical: infrastructure topology (m3)
-    "runs_on", "hosts", "listens_on", "assigned_ip", "on_vlan",
-    "fails_over_to",
-    # Technical: code structure (m3)
-    "defined_in", "imports", "calls",
-    # Technical: provenance (m3)
-    "references", "introduced_in", "deprecates",
-    # Technical: bench/ML (m3)
-    "measured_on", "uses_model", "judged_by", "produced_artifact",
-    "affects_category",
-    # Technical: human signals (m3)
-    "authorizes_budget",
-})
-
-DEFAULT_ENTITY_VOCAB_YAML: Path = (
-    Path(BASE_DIR) / "config" / "lists" / "entity_graph_default.yaml"
+_DEFAULT_VALID_ENTITY_TYPES: frozenset[str] = frozenset(
+    {
+        # Human-life active (v2)
+        "person",
+        "place",
+        "organization",
+        "event",
+        "date",
+        "quantity",
+        "preference",
+        "product",
+        "topic",
+        # Human-life legacy (preserved-but-deprecated)
+        "legacy_concept",
+        "legacy_object",
+        # Technical: homelab infrastructure (m3)
+        "host",
+        "container",
+        "service",
+        "device",
+        "ip_address",
+        "vlan",
+        "port",
+        "mac_address",
+        "endpoint_url",
+        "firewall_rule",
+        # Technical: code + software engineering (m3)
+        "file_path",
+        "function",
+        "class_or_table",
+        "cli_flag",
+        "env_var",
+        "module",
+        "commit_or_branch",
+        "migration",
+        # Technical: benchmark + ML (m3)
+        "benchmark",
+        "model",
+        "variant",
+        "metric",
+        "dataset_field",
+        "bench_artifact",
+        "task_category",
+        "bench_run_id",
+        # Technical: memory-system primitives (m3)
+        "memory_id",
+        "memory_type",
+        "task_id",
+        # Technical: misc (m3)
+        "protocol",
+        "datetime",
+    }
 )
+_DEFAULT_VALID_ENTITY_PREDICATES: frozenset[str] = frozenset(
+    {
+        # Cross-domain: provenance/aliasing
+        "mentions",
+        "same_as",
+        "source_of",
+        # Cross-domain: change
+        "supersedes",
+        # Human-life Layer 2: stable person attributes
+        "located_in",
+        "works_at",
+        "family_of",
+        "knows",
+        "prefers",
+        "owns",
+        # Human-life Layer 3: event/object attributes
+        "has_participant",
+        "has_location",
+        "has_time",
+        "has_quantity",
+        # Human-life legacy (preserved-but-deprecated)
+        "before",
+        "after",
+        # Technical: infrastructure topology (m3)
+        "runs_on",
+        "hosts",
+        "listens_on",
+        "assigned_ip",
+        "on_vlan",
+        "fails_over_to",
+        # Technical: code structure (m3)
+        "defined_in",
+        "imports",
+        "calls",
+        # Technical: provenance (m3)
+        "references",
+        "introduced_in",
+        "deprecates",
+        # Technical: bench/ML (m3)
+        "measured_on",
+        "uses_model",
+        "judged_by",
+        "produced_artifact",
+        "affects_category",
+        # Technical: human signals (m3)
+        "authorizes_budget",
+    }
+)
+
+DEFAULT_ENTITY_VOCAB_YAML: Path = Path(BASE_DIR) / "config" / "lists" / "entity_graph_default.yaml"
 # Env override: when set, load_entity_vocab(None) reads this YAML instead of
 # DEFAULT_ENTITY_VOCAB_YAML.
 _ENV_ENTITY_VOCAB_YAML: str | None  # accessor (registry)
@@ -456,7 +511,12 @@ _ACCESSORS: dict[str, Callable[[], Any]] = {
     "EMBED_FALLBACK_MODEL_TAG": lambda: (_setting("embed.fallback_model_tag") or "").strip() or _get("EMBED_MODEL"),
     "EMBED_COMPATIBLE_MODELS": lambda: tuple(_setting("embed.compatible_models")),
     "EMBED_SEARCH_DEADLINE_S": lambda: _setting("embed.search_deadline_s"),
-    "ORIGIN_DEVICE": lambda: _setting("identity.origin_device") or os.environ.get("COMPUTERNAME") or os.environ.get("HOSTNAME") or platform.node(),
+    "ORIGIN_DEVICE": lambda: (
+        _setting("identity.origin_device")
+        or os.environ.get("COMPUTERNAME")
+        or os.environ.get("HOSTNAME")
+        or platform.node()
+    ),
     "DB_BACKEND": lambda: _setting("db.backend"),
     "EMBED_BREAKER_EMBEDDED_THRESHOLD": lambda: _setting("embed.breaker.embedded_threshold"),
     "EMBED_BREAKER_EMBEDDED_RESET_SECS": lambda: _setting("embed.breaker.embedded_reset_s"),
@@ -469,7 +529,9 @@ _ACCESSORS: dict[str, Callable[[], Any]] = {
     "CONTRADICTION_THRESHOLD": lambda: _setting("memory.contradiction.threshold"),
     "SUPERSEDES_PENALTY": lambda: _setting("search.supersedes_penalty"),
     "CONTRADICTION_TITLE_GATE": lambda: _setting("memory.contradiction.title_gate").lower(),
-    "CONTRADICTION_TYPE_EXCLUSIONS": lambda: frozenset(t.lower() for t in _setting("memory.contradiction.type_exclusions")),
+    "CONTRADICTION_TYPE_EXCLUSIONS": lambda: frozenset(
+        t.lower() for t in _setting("memory.contradiction.type_exclusions")
+    ),
     "SEARCH_ROW_CAP": lambda: _setting("search.row_cap"),
     "LLM_TIMEOUT": lambda: _setting("llm.timeout_s"),
     "SPEAKER_IN_TITLE": lambda: _setting("search.speaker_in_title"),
@@ -506,7 +568,9 @@ _ACCESSORS: dict[str, Callable[[], Any]] = {
     "ENTITY_EXTRACT_MAX_ATTEMPTS": lambda: _setting("entity.extract_max_attempts"),
     "ENTITY_RESOLVE_FUZZY_MIN": lambda: _setting("entity.resolve_fuzzy_min"),
     "ENTITY_RESOLVE_COSINE_MIN": lambda: _setting("entity.resolve_cosine_min"),
-    "_ENV_ENTITY_VOCAB_YAML": lambda: str(_setting("entity.vocab_yaml")) if _setting("entity.vocab_yaml") is not None else None,
+    "_ENV_ENTITY_VOCAB_YAML": lambda: (
+        str(_setting("entity.vocab_yaml")) if _setting("entity.vocab_yaml") is not None else None
+    ),
     "DEFAULT_RERANK_MODEL": lambda: _setting("search.rerank_model"),
     "AUTO_RELATED_LINK": lambda: _setting("memory.auto_related_link"),
     "AUTO_RELATED_LINK_SCOPE_BY_VARIANT": lambda: _setting("memory.auto_related_link_scope_by_variant"),

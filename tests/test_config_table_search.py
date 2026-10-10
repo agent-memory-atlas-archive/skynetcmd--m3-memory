@@ -1,4 +1,5 @@
 """Registry tables [search], [memory.*] (plan 2C.1). Defaults pinned to today's constants."""
+
 from __future__ import annotations
 
 _C = "memory.config"
@@ -58,6 +59,8 @@ def test_an_unknown_title_gate_is_an_error_not_off(tmp_path):
     from m3_core.config.settings import build
 
     with pytest.raises(ConfigEnvErrors) as exc:
-        build(Location(file=tmp_path / "m3_config.toml", root=tmp_path, tier="t"),
-              environ={"M3_CONTRADICTION_TITLE_GATE": "lose"})
+        build(
+            Location(file=tmp_path / "m3_config.toml", root=tmp_path, tier="t"),
+            environ={"M3_CONTRADICTION_TITLE_GATE": "lose"},
+        )
     assert "not one of strict, loose, off" in format_config_error(exc.value)

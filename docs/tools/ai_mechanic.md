@@ -1,8 +1,8 @@
 ---
 tool: bin/ai_mechanic.py
-sha1: 15f47d2888b5
-mtime_utc: 2026-10-10T16:52:23.463741+00:00
-generated_utc: 2026-10-10T16:52:52.567725+00:00
+sha1: ff94300432f8
+mtime_utc: 2026-10-10T21:05:16.465796+00:00
+generated_utc: 2026-10-10T21:05:29.262538+00:00
 private: false
 ---
 
@@ -16,7 +16,7 @@ _(no module docstring — update the source file.)_
 
 ## Entry points
 
-- `def main()` (line 84)
+- `def main()` (line 90)
 - `if __name__ == "__main__"` guard
 
 ---

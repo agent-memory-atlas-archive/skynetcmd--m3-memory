@@ -12,6 +12,7 @@ Thin CLI over bin/governor_migration.py so the detection/removal logic stays in
 one tested module. Always exits 0 on `status`; `migrate` exits 0 unless every
 removal failed (so scripts can detect a no-op-due-to-permission).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -117,8 +118,7 @@ def cmd_migrate(*, yes: bool) -> int:
     for name in removed:
         print(f"  [OK] removed {name}")
     for name in failed:
-        _hint = "needs an elevated shell" if is_windows() else \
-            "needs sudo / the task owner"
+        _hint = "needs an elevated shell" if is_windows() else "needs sudo / the task owner"
         print(f"  [WARN] could not remove {name} ({_hint})")
 
     if failed:
@@ -140,8 +140,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="action", metavar="<status|migrate>")
     sub.add_parser("status", help="Report governor-eligible scheduled tasks still installed.")
     p_mig = sub.add_parser("migrate", help="Remove governor-eligible scheduled tasks.")
-    p_mig.add_argument("--yes", "-y", action="store_true",
-                       help="Skip the confirmation prompt (headless use).")
+    p_mig.add_argument("--yes", "-y", action="store_true", help="Skip the confirmation prompt (headless use).")
     args = parser.parse_args(argv)
 
     if args.action == "migrate":

@@ -20,6 +20,7 @@ Modes:
 
 Status: Phase D Task 4. Pairs with config/slm/reflector_local.yaml.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -112,19 +113,17 @@ async def call_reflector(
             "x-api-key": token,
             "anthropic-version": getattr(profile, "anthropic_version", "2023-06-01"),
         }
-        r = await client.post(profile.url, json=payload, headers=headers,
-                              timeout=profile.timeout_s)
+        r = await client.post(profile.url, json=payload, headers=headers, timeout=profile.timeout_s)
         if r.status_code != 200:
-            raise RuntimeError(f"reflector HTTP error. "
-                               f"observed: {r.status_code} from {profile.url}. "
-                               f"response: {r.text[:200]}. "
-                               f"inspect: profile.url, model availability, API connectivity.")
+            raise RuntimeError(
+                f"reflector HTTP error. "
+                f"observed: {r.status_code} from {profile.url}. "
+                f"response: {r.text[:200]}. "
+                f"inspect: profile.url, model availability, API connectivity."
+            )
         data = r.json()
         blocks = data.get("content", [])
-        text = "".join(
-            b.get("text", "") for b in blocks
-            if isinstance(b, dict) and b.get("type") == "text"
-        ).strip()
+        text = "".join(b.get("text", "") for b in blocks if isinstance(b, dict) and b.get("type") == "text").strip()
         # A truncated reply is not "no reflection" — say so rather than
         # recording an empty result as a successful one.
         if reply_ran_out_of_room(text, data.get("stop_reason")):
@@ -132,7 +131,8 @@ async def call_reflector(
                 f"reflector: truncated output. "
                 f"observed: {profile.model} returned no text block with stop_reason={data.get('stop_reason')!r}. "
                 f"possible: max_tokens={max_tokens} too small, or thinking/streaming not properly suppressed. "
-                f"inspect: profile.max_tokens, model reasoning mode, response format.")
+                f"inspect: profile.max_tokens, model reasoning mode, response format."
+            )
     else:
         payload = {
             "model": profile.model,
@@ -150,13 +150,14 @@ async def call_reflector(
             "Content-Type": "application/json",
             "Authorization": f"Bearer {token}",
         }
-        r = await client.post(profile.url, json=payload, headers=headers,
-                              timeout=profile.timeout_s)
+        r = await client.post(profile.url, json=payload, headers=headers, timeout=profile.timeout_s)
         if r.status_code != 200:
-            raise RuntimeError(f"reflector HTTP error. "
-                               f"observed: {r.status_code} from {profile.url}. "
-                               f"response: {r.text[:200]}. "
-                               f"inspect: profile.url, model availability, API connectivity.")
+            raise RuntimeError(
+                f"reflector HTTP error. "
+                f"observed: {r.status_code} from {profile.url}. "
+                f"response: {r.text[:200]}. "
+                f"inspect: profile.url, model availability, API connectivity."
+            )
         data = r.json()
         choice = (data.get("choices") or [{}])[0]
         text = (choice.get("message", {}).get("content") or "").strip()
@@ -165,7 +166,8 @@ async def call_reflector(
                 f"reflector: truncated output. "
                 f"observed: {profile.model} returned empty content with finish_reason={choice.get('finish_reason')!r}. "
                 f"possible: max_tokens={max_tokens} too small, or reasoning/streaming not properly suppressed. "
-                f"inspect: profile.max_tokens, model reasoning mode, response format.")
+                f"inspect: profile.max_tokens, model reasoning mode, response format."
+            )
     return parse_reflector_output(text)
 
 
@@ -186,7 +188,8 @@ def _load_observations_for_conv(
     if new_only:
         raise NotImplementedError(
             "_load_observations_for_conv: observed: new_only=True, which is not "
-            "implemented (Phase D2). inspect: call with new_only=False")
+            "implemented (Phase D2). inspect: call with new_only=False"
+        )
     # Seam primitives: literal '?', json_extract(), and a whole-column json.loads
     # are all SQLite-only and break on PostgreSQL (syntax error / no json_extract
     # / JSONB returns a dict → json.loads TypeError). Route binds through param(),
@@ -210,19 +213,22 @@ def _load_observations_for_conv(
     out: list[tuple[str, dict]] = []
     for rid, content, vfrom, cat, meta in rows:
         md = _d.json_column_to_dict(meta)
-        out.append((rid, {
-            "text": content or "",
-            "observation_date": md.get("observation_date") or (cat[:10] if cat else None),
-            "referenced_date": md.get("referenced_date") or vfrom,
-            "relative_date": md.get("relative_date"),
-            "confidence": md.get("confidence", 0.85),
-        }))
+        out.append(
+            (
+                rid,
+                {
+                    "text": content or "",
+                    "observation_date": md.get("observation_date") or (cat[:10] if cat else None),
+                    "referenced_date": md.get("referenced_date") or vfrom,
+                    "relative_date": md.get("relative_date"),
+                    "confidence": md.get("confidence", 0.85),
+                },
+            )
+        )
     return out
 
 
-def _find_observation_id_by_text(
-    rows: list[tuple[str, dict]], target_text: str
-) -> str | None:
+def _find_observation_id_by_text(rows: list[tuple[str, dict]], target_text: str) -> str | None:
     """Linear scan for an observation row whose text matches the
     Reflector's text reference. Used to translate supersedes pairs into
     actual memory_item id pairs for memory_link_impl. Trims and lowercases
@@ -299,8 +305,11 @@ async def drain_queue_mode(args, profile, token: str) -> None:
     """Pop rows from reflector_queue, run Reflector, mark complete or update last_error."""
     sem = asyncio.Semaphore(args.concurrency)
     counters = {
-        "processed": 0, "sup_emitted": 0, "sup_written": 0,
-        "failed": 0, "empty_groups": 0,
+        "processed": 0,
+        "sup_emitted": 0,
+        "sup_written": 0,
+        "failed": 0,
+        "empty_groups": 0,
     }
     started = time.monotonic()
 
@@ -313,7 +322,7 @@ async def drain_queue_mode(args, profile, token: str) -> None:
             ORDER BY attempts ASC, enqueued_at ASC
             LIMIT {dialect().param()}
             """,
-            (args.batch,)
+            (args.batch,),
         ).fetchall()
     if not queue_rows:
         print("[reflector] queue empty; nothing to drain", flush=True)
@@ -321,13 +330,19 @@ async def drain_queue_mode(args, profile, token: str) -> None:
     print(f"[reflector] queue: {len(queue_rows)} rows pending", flush=True)
 
     async with httpx.AsyncClient() as client:
+
         async def drain_one(qid: int, conv_id: str, uid: str, _attempts: int) -> None:
             _d = dialect()
             _p = _d.param()
             async with sem:
                 try:
                     await reflect_conversation(
-                        uid or "", conv_id, profile, client, token, counters,
+                        uid or "",
+                        conv_id,
+                        profile,
+                        client,
+                        token,
+                        counters,
                     )
                     with mc._db() as db:
                         db.execute(f"DELETE FROM reflector_queue WHERE id={_p}", (qid,))
@@ -343,12 +358,10 @@ async def drain_queue_mode(args, profile, token: str) -> None:
                         db.commit()
                     counters["failed"] += 1
 
-        await gather_or_cancel(*(
-            drain_one(r[0], r[1], r[2], r[3]) for r in queue_rows
-        ))
+        await gather_or_cancel(*(drain_one(r[0], r[1], r[2], r[3]) for r in queue_rows))
 
     elapsed = time.monotonic() - started
-    print(f"\n[reflector] queue drain DONE in {elapsed/60:.1f}m", flush=True)
+    print(f"\n[reflector] queue drain DONE in {elapsed / 60:.1f}m", flush=True)
     print(f"  groups processed:   {counters['processed']}", flush=True)
     print(f"  supersedes emitted: {counters['sup_emitted']}", flush=True)
     print(f"  supersedes written: {counters['sup_written']}", flush=True)
@@ -360,13 +373,20 @@ async def force_mode(args, profile, token: str) -> None:
     """Run Reflector immediately on a single (user_id, conversation_id) pair,
     bypassing the queue. Used for tests and one-off triggering."""
     counters = {
-        "processed": 0, "sup_emitted": 0, "sup_written": 0,
-        "failed": 0, "empty_groups": 0,
+        "processed": 0,
+        "sup_emitted": 0,
+        "sup_written": 0,
+        "failed": 0,
+        "empty_groups": 0,
     }
     async with httpx.AsyncClient() as client:
         await reflect_conversation(
-            args.force_user or "", args.force_conversation,
-            profile, client, token, counters,
+            args.force_user or "",
+            args.force_conversation,
+            profile,
+            client,
+            token,
+            counters,
         )
     print(f"[reflector] force-mode result for conv={args.force_conversation[:12]}: ", flush=True)
     print(f"  processed:          {counters['processed']}", flush=True)
@@ -377,31 +397,35 @@ async def force_mode(args, profile, token: str) -> None:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(
-        description="Phase D Reflector drainer (Mastra-style merge/supersede LLM pass)"
+    ap = argparse.ArgumentParser(description="Phase D Reflector drainer (Mastra-style merge/supersede LLM pass)")
+    ap.add_argument("--concurrency", type=int, default=2, help="Concurrent Reflector SLM calls.")
+    ap.add_argument("--batch", type=int, default=50, help="Queue-mode batch size per invocation. Default 50.")
+    ap.add_argument(
+        "--force-conversation",
+        default=None,
+        help="Bypass queue: run Reflector on this conversation_id right now. Useful for tests.",
     )
-    ap.add_argument("--concurrency", type=int, default=2,
-                    help="Concurrent Reflector SLM calls.")
-    ap.add_argument("--batch", type=int, default=50,
-                    help="Queue-mode batch size per invocation. Default 50.")
-    ap.add_argument("--force-conversation", default=None,
-                    help="Bypass queue: run Reflector on this conversation_id "
-                         "right now. Useful for tests.")
-    ap.add_argument("--force-user", default=None,
-                    help="Required when --force-conversation is set: the user_id "
-                         "to scope the observation lookup.")
+    ap.add_argument(
+        "--force-user",
+        default=None,
+        help="Required when --force-conversation is set: the user_id to scope the observation lookup.",
+    )
     args = ap.parse_args()
 
     profile = load_profile(PROFILE_NAME)
     if not profile:
-        sys.exit(f"ERROR: profile not found. "
-                 f"observed: load_profile({PROFILE_NAME!r}) returned None. "
-                 f"inspect: REFLECTOR_PROFILE env var or config/slm/{PROFILE_NAME}.yaml.")
+        sys.exit(
+            f"ERROR: profile not found. "
+            f"observed: load_profile({PROFILE_NAME!r}) returned None. "
+            f"inspect: REFLECTOR_PROFILE env var or config/slm/{PROFILE_NAME}.yaml."
+        )
     token = get_api_key(profile.api_key_service) or ""
     if not token:
-        sys.exit(f"ERROR: API key not found. "
-                 f"observed: {profile.api_key_service!r} service returned no token. "
-                 f"inspect: vault (m3 admin store_secret), M3_VAULT_ADDR, or env var {profile.api_key_service}.")
+        sys.exit(
+            f"ERROR: API key not found. "
+            f"observed: {profile.api_key_service!r} service returned no token. "
+            f"inspect: vault (m3 admin store_secret), M3_VAULT_ADDR, or env var {profile.api_key_service}."
+        )
 
     if args.force_conversation:
         asyncio.run(force_mode(args, profile, token))

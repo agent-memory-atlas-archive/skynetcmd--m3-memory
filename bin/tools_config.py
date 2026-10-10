@@ -42,6 +42,7 @@ would otherwise hand the user a session quietly missing its most-used tool —
 and the agent, seeing no such tool, concludes the capability does not exist and
 routes around it.
 """
+
 from __future__ import annotations
 
 import difflib
@@ -99,8 +100,7 @@ def config_path() -> str:
     root = os.environ.get("M3_CONFIG_ROOT")
     if not root:
         m3_root = os.environ.get("M3_MEMORY_ROOT")
-        root = os.path.join(m3_root, "config") if m3_root else \
-            os.path.join(os.path.expanduser("~"), ".m3", "config")
+        root = os.path.join(m3_root, "config") if m3_root else os.path.join(os.path.expanduser("~"), ".m3", "config")
     return os.path.join(root, CONFIG_FILENAME)
 
 
@@ -165,9 +165,7 @@ def resolve_startup_tools() -> tuple[list[str] | None, str]:
     if "startup_tools" in data:
         names = data["startup_tools"]
         if not isinstance(names, list) or not all(isinstance(n, str) for n in names):
-            raise ToolsConfigError(
-                f"{config_path()}: startup_tools must be a list of tool names."
-            )
+            raise ToolsConfigError(f"{config_path()}: startup_tools must be a list of tool names.")
         if not names:
             raise ToolsConfigError(
                 f"{config_path()}: startup_tools is empty. An empty startup set "
@@ -220,21 +218,18 @@ def validate_against_catalog(names: list[str], catalog_names: set[str]) -> None:
     unknown = sorted(set(names) - catalog_names)
     if not unknown:
         return
-    lines = ["Unknown tool name(s) in the startup set: "
-             + ", ".join(repr(n) for n in unknown)]
+    lines = ["Unknown tool name(s) in the startup set: " + ", ".join(repr(n) for n in unknown)]
     for name in unknown:
         near = difflib.get_close_matches(name, sorted(catalog_names), n=1, cutoff=0.6)
         if near:
             lines.append(f"  did you mean {near[0]!r} instead of {name!r}?")
     lines.append(
-        "  A tool renamed by an upgrade shows up here. Fix the name, or remove "
-        "the key to take this version's default."
+        "  A tool renamed by an upgrade shows up here. Fix the name, or remove the key to take this version's default."
     )
     raise ToolsConfigError("\n".join(lines))
 
 
-def write_starter_config(path: str | None = None,
-                         names: list[str] | None = None) -> str:
+def write_starter_config(path: str | None = None, names: list[str] | None = None) -> str:
     """Write a starter .tools_config.json. Only ever on EXPLICIT request.
 
     Never called at install. The `_comment` is not decoration: a user who opts
@@ -253,5 +248,6 @@ def write_starter_config(path: str | None = None,
     }
     os.makedirs(os.path.dirname(target), exist_ok=True)
     from m3_core.atomic_io import atomic_write
+
     atomic_write(target, json.dumps(payload, indent=2) + "\n")
     return target

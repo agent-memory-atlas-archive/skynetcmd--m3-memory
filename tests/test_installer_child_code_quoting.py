@@ -6,6 +6,7 @@ when the path contains a quote (a home directory like `O'Brien`) or ends in a
 backslash, and the schema step then fails on that user's machine. The path is
 now embedded with repr(), which round-trips every str.
 """
+
 from __future__ import annotations
 
 import ast
@@ -30,6 +31,9 @@ def test_child_program_compiles_and_names_the_path(monkeypatch, tmp_path, name):
     installer._run_pg_migrations(bin_dir / "memory_bridge.py", "postgresql://u@h/db")
 
     tree = ast.parse(seen["code"])  # raises SyntaxError on a broken quote
-    inserted = [ast.literal_eval(n.args[1]) for n in ast.walk(tree)
-                if isinstance(n, ast.Call) and ast.unparse(n.func) == "sys.path.insert"]
+    inserted = [
+        ast.literal_eval(n.args[1])
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Call) and ast.unparse(n.func) == "sys.path.insert"
+    ]
     assert [Path(p) for p in inserted] == [bin_dir]

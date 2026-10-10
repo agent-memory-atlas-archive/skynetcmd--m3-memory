@@ -5,6 +5,7 @@ ledger, corroboration-on-write (flag-gated), the contradiction ledger event, and
 ABSENCE-TOLERANCE on a DB without migration 036. The pure aggregation math is in
 test_confidence_math.py; here we test the DB wiring and the write-path behavior.
 """
+
 from __future__ import annotations
 
 import os
@@ -25,12 +26,14 @@ def _skip_migrations(monkeypatch):
 
 def _full_db(db_path):
     from conftest import create_full_main_schema
+
     create_full_main_schema(db_path)
 
 
 async def _write(db_path, monkeypatch, **kw):
     monkeypatch.setenv("M3_DATABASE", str(db_path))
     from memory.write import memory_write_impl
+
     res = await memory_write_impl(embed=False, **kw)
     if isinstance(res, str):
         return res.split(":", 1)[1].strip() if ":" in res else res.strip()
@@ -39,10 +42,12 @@ async def _write(db_path, monkeypatch, **kw):
 
 # ── trust get/set ────────────────────────────────────────────────────────────
 
+
 def test_get_agent_trust_neutral_when_absent(tmp_path):
     db = tmp_path / "t.db"
     _full_db(db)
     from memory import trust
+
     with sqlite3.connect(str(db)) as conn:
         assert trust.get_agent_trust(conn, "nobody") == C.TRUST_NEUTRAL
 
@@ -51,6 +56,7 @@ def test_set_and_get_agent_trust_clamped(tmp_path):
     db = tmp_path / "t.db"
     _full_db(db)
     from memory import trust
+
     with sqlite3.connect(str(db)) as conn:
         # Above the ceiling clamps to 1.0; below the floor clamps to 0.5.
         assert trust.set_agent_trust(conn, "a1", 2.0) == C.TRUST_MAX
@@ -62,15 +68,19 @@ def test_set_and_get_agent_trust_clamped(tmp_path):
 
 # ── corroboration ledger ─────────────────────────────────────────────────────
 
+
 def test_record_corroboration_is_idempotent_per_source(tmp_path):
     db = tmp_path / "t.db"
     _full_db(db)
     from memory import trust
+
     with sqlite3.connect(str(db)) as conn:
-        first = trust.record_corroboration(conn, "m1", source_kind="agent",
-                                           source_ref="claude", trust_at_write=1.0, delta=1.0)
-        dup = trust.record_corroboration(conn, "m1", source_kind="agent",
-                                         source_ref="claude", trust_at_write=1.0, delta=1.0)
+        first = trust.record_corroboration(
+            conn, "m1", source_kind="agent", source_ref="claude", trust_at_write=1.0, delta=1.0
+        )
+        dup = trust.record_corroboration(
+            conn, "m1", source_kind="agent", source_ref="claude", trust_at_write=1.0, delta=1.0
+        )
         conn.commit()
         assert first is True and dup is False  # second is a dedup no-op
         ts, contradictions = trust.corroboration_inputs(conn, "m1")
@@ -81,17 +91,17 @@ def test_distinct_sources_sum_trust(tmp_path):
     db = tmp_path / "t.db"
     _full_db(db)
     from memory import trust
+
     with sqlite3.connect(str(db)) as conn:
-        trust.record_corroboration(conn, "m1", source_kind="agent", source_ref="claude",
-                                   trust_at_write=1.0, delta=1.0)
-        trust.record_corroboration(conn, "m1", source_kind="agent", source_ref="gemini",
-                                   trust_at_write=0.8, delta=0.8)
+        trust.record_corroboration(conn, "m1", source_kind="agent", source_ref="claude", trust_at_write=1.0, delta=1.0)
+        trust.record_corroboration(conn, "m1", source_kind="agent", source_ref="gemini", trust_at_write=0.8, delta=0.8)
         conn.commit()
         ts, _ = trust.corroboration_inputs(conn, "m1")
         assert ts == pytest.approx(1.8)
 
 
 # ── corroboration on write ───────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_corroboration_off_by_default_creates_two_rows(monkeypatch, tmp_path):
@@ -126,14 +136,14 @@ async def test_corroboration_on_strengthens_existing(monkeypatch, tmp_path):
     monkeypatch.setattr(cfg, "CORROBORATION_THRESHOLD", 0.0)
 
     from embedding_utils import pack as _pack_vec
+
     vec = [1.0, 0.0]
     existing_id = "11111111-1111-1111-1111-111111111111"
     with sqlite3.connect(str(db)) as conn:
         conn.execute(
             "INSERT INTO memory_items (id, type, title, content, source, change_agent, "
             "created_at, confidence) VALUES (?,?,?,?,?,?,?,?)",
-            (existing_id, "fact", "t", "local-first wins", "agent", "claude",
-             "2026-06-01T00:00:00Z", C.AGENT_PRIOR),
+            (existing_id, "fact", "t", "local-first wins", "agent", "claude", "2026-06-01T00:00:00Z", C.AGENT_PRIOR),
         )
         conn.execute(
             "INSERT INTO memory_embeddings (memory_id, embedding, embed_model, dim) VALUES (?,?,?,?)",
@@ -153,13 +163,17 @@ async def test_corroboration_on_strengthens_existing(monkeypatch, tmp_path):
 
     # _check_contradictions calls _db() inside write.py's module namespace.
     import memory.write as wmod
+
     monkeypatch.setattr(wmod, "_db", fake_db)
 
     base_conf = _col(db, existing_id, "confidence")
     # A new write (different agent) with the SAME content + vector.
     await wmod._check_contradictions(
         item_id="22222222-2222-2222-2222-222222222222",
-        content="local-first wins", title="t", vec=vec, type_="fact",
+        content="local-first wins",
+        title="t",
+        vec=vec,
+        type_="fact",
         agent_id="gemini",
     )
 
@@ -168,12 +182,10 @@ async def test_corroboration_on_strengthens_existing(monkeypatch, tmp_path):
             "SELECT COUNT(*) FROM memory_corroborations WHERE memory_id=? AND delta>0",
             (existing_id,),
         ).fetchone()[0]
-        corr_count = conn.execute(
-            "SELECT corroboration_count FROM memory_items WHERE id=?", (existing_id,)
-        ).fetchone()[0]
-        new_conf = conn.execute(
-            "SELECT confidence FROM memory_items WHERE id=?", (existing_id,)
-        ).fetchone()[0]
+        corr_count = conn.execute("SELECT corroboration_count FROM memory_items WHERE id=?", (existing_id,)).fetchone()[
+            0
+        ]
+        new_conf = conn.execute("SELECT confidence FROM memory_items WHERE id=?", (existing_id,)).fetchone()[0]
     assert led >= 1, "a corroboration ledger row should exist"
     assert corr_count >= 1, "corroboration_count should be bumped"
     assert new_conf >= base_conf, "confidence should not drop after corroboration"
@@ -184,6 +196,7 @@ async def test_corroboration_absence_tolerant_pre_036(monkeypatch, tmp_path):
     """With the ledger table dropped (pre-036), corroboration silently no-ops and
     the write still succeeds."""
     import memory.config as cfg
+
     db = tmp_path / "t.db"
     _full_db(db)
     with sqlite3.connect(str(db)) as conn:
@@ -206,10 +219,12 @@ def _col(db_path, item_id, col):
 
 # ── agent_set_trust MCP tool ─────────────────────────────────────────────────
 
+
 def test_agent_set_trust_tool_clamps_and_surfaces(tmp_path, monkeypatch):
     from contextlib import contextmanager
 
     import memory_core
+
     db = tmp_path / "t.db"
     _full_db(db)
 
@@ -228,7 +243,7 @@ def test_agent_set_trust_tool_clamps_and_surfaces(tmp_path, monkeypatch):
     monkeypatch.setattr(memory_core, "_db", fake_db)
     monkeypatch.setattr(orchestration, "_db", fake_db)
     assert "0.80" in memory_core.agent_set_trust_impl("claude", 0.8)
-    assert "1.00" in memory_core.agent_set_trust_impl("claude", 9.0)   # clamped high
+    assert "1.00" in memory_core.agent_set_trust_impl("claude", 9.0)  # clamped high
     assert "0.50" in memory_core.agent_set_trust_impl("claude", -1.0)  # clamped low
     assert "Trust: 0.5" in memory_core.agent_get_impl("claude")
     assert "required" in memory_core.agent_set_trust_impl("", 0.9).lower()
@@ -236,5 +251,6 @@ def test_agent_set_trust_tool_clamps_and_surfaces(tmp_path, monkeypatch):
 
 def test_agent_set_trust_registered_in_catalog():
     import mcp_tool_catalog
+
     names = {t.name for t in mcp_tool_catalog.TOOLS}
     assert "agent_set_trust" in names

@@ -22,6 +22,7 @@ Aggregates printed at the end:
 
 Writes a CSV at .scratch/integration_chunking_2k.csv.
 """
+
 from __future__ import annotations
 
 import csv
@@ -82,17 +83,25 @@ def main():
     t0 = time.perf_counter()
     embedder = m3_core_rs.EmbeddedEmbedder(os.environ["M3_EMBED_GGUF"])
     dim = embedder.embedding_dim()
-    print(f"  loaded in {time.perf_counter()-t0:.1f}s, dim={dim}, backend={m3_core_rs.embed_backend_label()}\n")
+    print(f"  loaded in {time.perf_counter() - t0:.1f}s, dim={dim}, backend={m3_core_rs.embed_backend_label()}\n")
     assert dim == 1024
 
     CSV_OUT.parent.mkdir(parents=True, exist_ok=True)
     csv_f = CSV_OUT.open("w", newline="", encoding="utf-8")
     csv_w = csv.writer(csv_f)
-    csv_w.writerow([
-        "memory_id", "raw_chars", "aug_chars", "n_chunks",
-        "chunk_chars", "approx_tokens", "embed_ok_per_chunk",
-        "row_embed_s", "errors",
-    ])
+    csv_w.writerow(
+        [
+            "memory_id",
+            "raw_chars",
+            "aug_chars",
+            "n_chunks",
+            "chunk_chars",
+            "approx_tokens",
+            "embed_ok_per_chunk",
+            "row_embed_s",
+            "errors",
+        ]
+    )
 
     counters = Counter()
     n_chunks_hist = Counter()
@@ -162,21 +171,26 @@ def main():
         else:
             counters["all_fail"] += 1
 
-        csv_w.writerow([
-            mid, raw_chars, aug_chars, n_chunks,
-            ";".join(str(c) for c in chunk_chars),
-            ";".join(str(t) for t in approx_tokens),
-            ";".join("1" if ok else "0" for ok in per_chunk_ok),
-            f"{row_s:.3f}",
-            " | ".join(row_errors) if row_errors else "",
-        ])
+        csv_w.writerow(
+            [
+                mid,
+                raw_chars,
+                aug_chars,
+                n_chunks,
+                ";".join(str(c) for c in chunk_chars),
+                ";".join(str(t) for t in approx_tokens),
+                ";".join("1" if ok else "0" for ok in per_chunk_ok),
+                f"{row_s:.3f}",
+                " | ".join(row_errors) if row_errors else "",
+            ]
+        )
 
         if (i + 1) % PROGRESS_EVERY == 0:
             elapsed = time.perf_counter() - t_run
             rate = (i + 1) / elapsed if elapsed > 0 else 0
             eta = (N_TOTAL - i - 1) / rate if rate > 0 else 0
             print(
-                f"  {i+1}/{N_TOTAL} rows  chunks_total={total_chunks}  "
+                f"  {i + 1}/{N_TOTAL} rows  chunks_total={total_chunks}  "
                 f"chunks_ok={total_chunks_embedded_ok}  "
                 f"row_rate={rate:.1f}/s  eta={eta:.0f}s",
                 flush=True,
@@ -189,36 +203,36 @@ def main():
     print("\n=== TIMING ===")
     print(f"  total wall: {total_wall:.1f}s")
     print(f"  total embed time: {total_embed_s:.1f}s")
-    print(f"  rows/sec: {N_TOTAL/total_wall:.1f}")
-    print(f"  chunks/sec: {total_chunks/total_wall:.1f}")
+    print(f"  rows/sec: {N_TOTAL / total_wall:.1f}")
+    print(f"  chunks/sec: {total_chunks / total_wall:.1f}")
     print(f"  total chunks: {total_chunks}")
-    print(f"  chunks/row avg: {total_chunks/N_TOTAL:.2f}")
+    print(f"  chunks/row avg: {total_chunks / N_TOTAL:.2f}")
 
     print("\n=== ROW BUCKETS ===")
-    print(f"  single_chunk rows: {counters['single_chunk']}  ({100*counters['single_chunk']/N_TOTAL:.1f}%)")
-    print(f"  multi_chunk rows:  {counters['multi_chunk']}  ({100*counters['multi_chunk']/N_TOTAL:.1f}%)")
-    print(f"  all_chunks_ok:     {counters['all_chunks_ok']}  ({100*counters['all_chunks_ok']/N_TOTAL:.1f}%)")
+    print(f"  single_chunk rows: {counters['single_chunk']}  ({100 * counters['single_chunk'] / N_TOTAL:.1f}%)")
+    print(f"  multi_chunk rows:  {counters['multi_chunk']}  ({100 * counters['multi_chunk'] / N_TOTAL:.1f}%)")
+    print(f"  all_chunks_ok:     {counters['all_chunks_ok']}  ({100 * counters['all_chunks_ok'] / N_TOTAL:.1f}%)")
     print(f"  partial_ok:        {counters['partial_ok']}")
     print(f"  all_fail:          {counters['all_fail']}")
 
     print("\n=== n_chunks distribution ===")
     for nc in sorted(n_chunks_hist):
-        print(f"  n_chunks={nc:>3}: {n_chunks_hist[nc]:>4} rows  ({100*n_chunks_hist[nc]/N_TOTAL:.1f}%)")
+        print(f"  n_chunks={nc:>3}: {n_chunks_hist[nc]:>4} rows  ({100 * n_chunks_hist[nc] / N_TOTAL:.1f}%)")
 
     print("\n=== chunk char-length distribution (5000-char bins) ===")
     for bucket in sorted(chunk_char_hist):
-        print(f"  [{bucket:>6}, {bucket+5000:>6}): {chunk_char_hist[bucket]:>5} chunks")
+        print(f"  [{bucket:>6}, {bucket + 5000:>6}): {chunk_char_hist[bucket]:>5} chunks")
 
     print("\n=== chunk approx-token distribution (1000-token bins, chars/4) ===")
     for bucket in sorted(chunk_tok_hist):
-        print(f"  [{bucket:>5}, {bucket+1000:>5}): {chunk_tok_hist[bucket]:>5} chunks")
+        print(f"  [{bucket:>5}, {bucket + 1000:>5}): {chunk_tok_hist[bucket]:>5} chunks")
 
     print(f"\n=== DENSE OVERFLOW (chunks tokenized > 8192 despite < {mc.MAX_CHARS_PER_CHUNK} chars) ===")
     print(f"  count: {len(dense_overflow_rows)} rows")
     for mid, rc, nc, err in dense_overflow_rows[:10]:
         print(f"  {mid[:8]} raw_chars={rc} n_chunks={nc}  err: {err[:120]}")
     if len(dense_overflow_rows) > 10:
-        print(f"  ... and {len(dense_overflow_rows)-10} more")
+        print(f"  ... and {len(dense_overflow_rows) - 10} more")
 
     print("\n=== OTHER EMBED FAILURES ===")
     print(f"  count: {len(embed_failures)} rows")

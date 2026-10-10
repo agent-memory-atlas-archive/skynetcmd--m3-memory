@@ -17,6 +17,7 @@ DB list:
     Example self-host override:
         M3_SYNC_DBS=memory/agent_memory.db:../m3-memory-bench/data/agent_bench.db
 """
+
 import argparse
 import logging
 import os
@@ -34,7 +35,7 @@ IS_WIN = is_windows()
 # minutes; delta syncs are much faster. Override with M3_PG_SYNC_TIMEOUT (seconds).
 PG_SYNC_TIMEOUT = int(os.environ.get("M3_PG_SYNC_TIMEOUT", "600"))
 
-BASE    = pathlib.Path(__file__).parent.parent.resolve()
+BASE = pathlib.Path(__file__).parent.parent.resolve()
 sys.path.insert(0, str(BASE / "bin"))
 from m3_core.paths import get_m3_logs_root  # noqa: E402
 
@@ -68,11 +69,15 @@ def _resolve_python() -> str:
 
 
 PY = _resolve_python()
+
+
 def _warehouse_host_from_env() -> str:
     """The host env vars, read when asked: a value captured at import is the
     importing process's environment, not the one sync runs in."""
-    return (getenv_compat("M3_POSTGRES_SERVER", "POSTGRES_SERVER",
-                          getenv_compat("M3_SYNC_TARGET_IP", "SYNC_TARGET_IP", "")) or "").strip()
+    return (
+        getenv_compat("M3_POSTGRES_SERVER", "POSTGRES_SERVER", getenv_compat("M3_SYNC_TARGET_IP", "SYNC_TARGET_IP", ""))
+        or ""
+    ).strip()
 
 
 def warehouse_target() -> "tuple[str, int, str] | None":
@@ -85,10 +90,10 @@ def warehouse_target() -> "tuple[str, int, str] | None":
         return host, 5432, "M3_POSTGRES_SERVER"
     try:
         from m3_sdk import resolve_warehouse_dsn
+
         dsn = resolve_warehouse_dsn()
     except Exception as e:  # noqa: BLE001 — reported, then treated as unconfigured
-        log.warning(f"could not read the warehouse DSN ({type(e).__name__}: {e}); "
-                    f"sync is skipped. inspect: m3 doctor")
+        log.warning(f"could not read the warehouse DSN ({type(e).__name__}: {e}); sync is skipped. inspect: m3 doctor")
         return None
     if not dsn:
         return None
@@ -99,10 +104,10 @@ def warehouse_target() -> "tuple[str, int, str] | None":
     parts = parse_pg_dsn(dsn)
     if parts is None or not parts.host:
         why = "is not a DSN libpq can parse" if parts is None else "has no host"
-        log.warning(f"the warehouse DSN {why}; sync is skipped. "
-                    "inspect: M3_CDW_PG_URL or the stored PG_URL")
+        log.warning(f"the warehouse DSN {why}; sync is skipped. inspect: M3_CDW_PG_URL or the stored PG_URL")
         return None
     return parts.host, parts.port, "warehouse DSN"
+
 
 # Logging is configured in main() via setup_task_runtime so scheduled-task
 # runs self-log without a shell `>>` redirect. This minimal fallback keeps
@@ -155,6 +160,7 @@ def _resolve_dbs() -> list[pathlib.Path]:
     # sync the live database.
     try:
         from m3_sdk import resolve_db_path
+
         return [pathlib.Path(resolve_db_path()).resolve()]
     except Exception as exc:
         log.warning(f"m3_sdk.resolve_db_path() unavailable ({exc}); falling back to repo default")
@@ -163,6 +169,7 @@ def _resolve_dbs() -> list[pathlib.Path]:
 
 
 # ── Network check ─────────────────────────────────────────────────────────────
+
 
 def is_reachable(host: str, port: int = 5432, timeout: float = 3.0) -> bool:
     """TCP probe — faster and more reliable than ping across platforms."""
@@ -174,6 +181,7 @@ def is_reachable(host: str, port: int = 5432, timeout: float = 3.0) -> bool:
 
 
 # ── pg_sync runner ────────────────────────────────────────────────────────────
+
 
 def run_pg_sync_for_db(db_path: pathlib.Path, dry_run: bool) -> bool | None:
     """Run pg_sync.py --db <path> for one database. Returns True on success."""
@@ -188,9 +196,12 @@ def run_pg_sync_for_db(db_path: pathlib.Path, dry_run: bool) -> bool | None:
     log.info(f"Running pg_sync.py --db {db_path} ...")
     try:
         from _task_runtime import no_window_kwargs
+
         result = subprocess.run(
             [str(PY), str(BASE / "bin" / "pg_sync.py"), "--db", str(db_path)],
-            capture_output=True, text=True, timeout=PG_SYNC_TIMEOUT,
+            capture_output=True,
+            text=True,
+            timeout=PG_SYNC_TIMEOUT,
             **no_window_kwargs(),
         )
         for line in (result.stdout + result.stderr).splitlines():
@@ -254,6 +265,7 @@ def _try_pg_fdw_fastpath(dry_run: bool) -> "bool | None":
     primary, missing extension, unreachable warehouse). Never raises."""
     try:
         from memory.backends import active_backend
+
         if active_backend().name != "postgres":
             return None  # SQLite/MariaDB primary -> generic bridge
     except Exception:
@@ -265,13 +277,15 @@ def _try_pg_fdw_fastpath(dry_run: bool) -> "bool | None":
     try:
         import pg_fdw_sync
     except Exception as e:  # noqa: BLE001 — reported, then the generic bridge runs
-        _set_fdw_reason(f"FDW fast-path unavailable: pg_fdw_sync did not import "
-                        f"({type(e).__name__}: {e})")
-        log.warning(f"FDW fast-path unavailable: pg_fdw_sync did not import "
-                    f"({type(e).__name__}: {e}) — falling back to generic bridge.")
+        _set_fdw_reason(f"FDW fast-path unavailable: pg_fdw_sync did not import ({type(e).__name__}: {e})")
+        log.warning(
+            f"FDW fast-path unavailable: pg_fdw_sync did not import "
+            f"({type(e).__name__}: {e}) — falling back to generic bridge."
+        )
         return None
     try:
         from m3_sdk import resolve_warehouse_dsn
+
         warehouse_dsn = resolve_warehouse_dsn()
         if not warehouse_dsn:
             # Deliberate skip, not a failure: sync is opt-in, and main() already
@@ -343,8 +357,7 @@ def _try_pg_fdw_fastpath(dry_run: bool) -> "bool | None":
         return None
     except Exception as e:
         _set_fdw_reason(f"FDW fast-path errored: {type(e).__name__}: {e}")
-        log.warning(f"FDW fast-path errored ({type(e).__name__}: {e}) — "
-                    f"falling back to generic bridge.")
+        log.warning(f"FDW fast-path errored ({type(e).__name__}: {e}) — falling back to generic bridge.")
         return None
 
 
@@ -367,6 +380,7 @@ def _fdw_run(primary_backend, pg_fdw_sync, warehouse_dsn: str, dry_run: bool) ->
 
     with primary_backend.connection() as primary_conn:
         primary_conn.autocommit = False
+
         # No ad-hoc CREATE TABLE here: sync_watermarks is declared by pg_053 on
         # the PostgreSQL primary, which is the only store this path touches. The
         # DDL that used to live here was a second, independently-written copy of
@@ -375,20 +389,18 @@ def _fdw_run(primary_backend, pg_fdw_sync, warehouse_dsn: str, dry_run: bool) ->
         # in the first place.
         def get_wm(direction: str):
             with primary_conn.cursor() as c:
-                c.execute(
-                    f"SELECT last_synced_at FROM sync_watermarks WHERE direction={p}",
-                    (direction,))
+                c.execute(f"SELECT last_synced_at FROM sync_watermarks WHERE direction={p}", (direction,))
                 row = c.fetchone()
                 return row[0] if row else None
 
         def set_wm(direction: str, ts: str):
             with primary_conn.cursor() as c:
                 c.execute(
-                    f"INSERT INTO sync_watermarks (direction, last_synced_at) "
-                    f"VALUES ({p}, {p}) {upsert_clause}", (direction, ts))
+                    f"INSERT INTO sync_watermarks (direction, last_synced_at) VALUES ({p}, {p}) {upsert_clause}",
+                    (direction, ts),
+                )
 
-        res = pg_fdw_sync.sync_pg_to_pg(primary_conn, warehouse_dsn,
-                                        get_wm, set_wm, dry_run=dry_run)
+        res = pg_fdw_sync.sync_pg_to_pg(primary_conn, warehouse_dsn, get_wm, set_wm, dry_run=dry_run)
         primary_conn.commit()
         log.info(f"PG->PG FDW fast-path completed: {res}")
         return True
@@ -403,6 +415,7 @@ def _local_backend_name() -> str:
     """
     try:
         from memory.backends import active_backend
+
         return active_backend().name
     except Exception:  # noqa: BLE001 — seam unavailable: assume the legacy shape
         return "sqlite"
@@ -458,12 +471,14 @@ def run_pg_sync(dry_run: bool) -> bool | None:
 
 # ── main ──────────────────────────────────────────────────────────────────────
 
+
 def main():
     parser = argparse.ArgumentParser(description="Hourly sync runner")
     parser.add_argument("--dry-run", action="store_true", help="Check connectivity only")
     sys.path.insert(0, str(BASE / "bin"))
     from _task_runtime import add_log_file_arg, setup_task_runtime
     from m3_sdk import add_database_arg
+
     add_log_file_arg(parser)
     add_database_arg(parser)
     args = parser.parse_args()
@@ -480,18 +495,18 @@ def main():
 
     target = warehouse_target()
     if target is None:
-        log.info("No warehouse configured (M3_POSTGRES_SERVER, M3_CDW_PG_URL or a "
-                 "stored PG_URL) — skipping sync.")
+        log.info("No warehouse configured (M3_POSTGRES_SERVER, M3_CDW_PG_URL or a stored PG_URL) — skipping sync.")
         sys.exit(0)
     host, port, source = target
 
     if not is_reachable(host, port):
-        log.warning(f"PostgreSQL data warehouse ({host}:{port}, from {source}) "
-                    f"unreachable — skipping sync until the next scheduled run.")
+        log.warning(
+            f"PostgreSQL data warehouse ({host}:{port}, from {source}) "
+            f"unreachable — skipping sync until the next scheduled run."
+        )
         sys.exit(0)
 
-    log.info(f"PostgreSQL data warehouse ({host}:{port}, from {source}) reachable "
-             f"— running full sync.")
+    log.info(f"PostgreSQL data warehouse ({host}:{port}, from {source}) reachable — running full sync.")
 
     pg_ok = run_pg_sync(args.dry_run)
 

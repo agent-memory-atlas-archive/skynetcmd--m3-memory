@@ -18,6 +18,7 @@ that fail silently if they regress:
     raises TypeError on exactly the strings OpenClaw prints.
   * the failure path echoes the exact argv, and that argv carries no secrets.
 """
+
 from __future__ import annotations
 
 import json
@@ -37,8 +38,8 @@ import m3_memory.setup_wizard as sw  # noqa: E402
 _REAL_OPENCLAW_CURRENT = sw._openclaw_entry_current
 
 _REAL_BANNER = "OpenClaw 2026.3.28 (f9b1079)"
-_FAKE_EXE = "/usr/local/bin/openclaw"       # POSIX-shaped on purpose: the test
-_FAKE_EXE_WIN = "C:/npm/openclaw.CMD"       # must not bake in a .CMD assumption
+_FAKE_EXE = "/usr/local/bin/openclaw"  # POSIX-shaped on purpose: the test
+_FAKE_EXE_WIN = "C:/npm/openclaw.CMD"  # must not bake in a .CMD assumption
 
 
 @pytest.fixture
@@ -46,8 +47,7 @@ def wired(monkeypatch):
     """Patch the four things _wire_openclaw touches; record every argv."""
     calls: list[list[str]] = []
 
-    def _install(*, version: str = _REAL_BANNER, set_rc: int = 0,
-                 exe: str | None = _FAKE_EXE, set_out: str = "saved"):
+    def _install(*, version: str = _REAL_BANNER, set_rc: int = 0, exe: str | None = _FAKE_EXE, set_out: str = "saved"):
         monkeypatch.setattr(sw.shutil, "which", lambda name: exe)
 
         def fake_run(cmd, *a, **k):
@@ -60,9 +60,10 @@ def wired(monkeypatch):
         # _canonical_memory_env is imported lazily INSIDE the installer call, so
         # patch it on the installer module — patching sw would not take effect.
         import m3_memory.installer as inst
-        monkeypatch.setattr(inst, "_canonical_memory_env",
-                            lambda: {"M3_ENGINE_ROOT": "/data/e",
-                                     "M3_CONFIG_ROOT": "/data/c"})
+
+        monkeypatch.setattr(
+            inst, "_canonical_memory_env", lambda: {"M3_ENGINE_ROOT": "/data/e", "M3_CONFIG_ROOT": "/data/c"}
+        )
         return calls
 
     return _install
@@ -76,6 +77,7 @@ def _payload(calls: list[list[str]]) -> dict:
 
 
 # ── happy path ───────────────────────────────────────────────────────────────
+
 
 def test_registers_with_absolute_exe_and_stdio_spec(wired):
     calls = wired()
@@ -115,10 +117,7 @@ def test_tool_filter_is_derived_from_the_bridge_startup_set(wired):
     import tool_domains
 
     meta = set(memory_bridge._META_TOOLS)
-    expected = sorted({
-        s.name for s in mcp_tool_catalog.TOOLS
-        if s.name in meta or tool_domains.is_essential(s.name)
-    })
+    expected = sorted({s.name for s in mcp_tool_catalog.TOOLS if s.name in meta or tool_domains.is_essential(s.name)})
 
     calls = wired()
     assert sw._wire_openclaw() is True
@@ -131,6 +130,7 @@ def test_tool_filter_is_derived_from_the_bridge_startup_set(wired):
 
 
 # ── the version gate: it must trip, and it must stay quiet ───────────────────
+
 
 def test_gate_trips_below_the_floor_and_writes_nothing(wired, capsys):
     """Planted violation. A gate that warns but still writes is blind."""
@@ -161,14 +161,17 @@ def test_exact_floor_version_is_accepted(wired):
     assert [c for c in calls if "set" in c]
 
 
-@pytest.mark.parametrize("banner", [
-    _REAL_BANNER,                                   # the real shape
-    "OpenClaw 2026.4.1-beta.1 (deadbee)",           # prerelease suffix
-    "[warn] config anomaly at line 12\nOpenClaw 2026.3.28 (f9b1079)\nWhy did the claw cross the road?",
-    "",                                             # empty
-    "OpenClaw (dev build)",                         # no digits at all
-    "totally unexpected output",
-])
+@pytest.mark.parametrize(
+    "banner",
+    [
+        _REAL_BANNER,  # the real shape
+        "OpenClaw 2026.4.1-beta.1 (deadbee)",  # prerelease suffix
+        "[warn] config anomaly at line 12\nOpenClaw 2026.3.28 (f9b1079)\nWhy did the claw cross the road?",
+        "",  # empty
+        "OpenClaw (dev build)",  # no digits at all
+        "totally unexpected output",
+    ],
+)
 def test_unparseable_or_noisy_version_never_raises(wired, banner):
     """_parse_version RAISES TypeError on these; the regex must run first.
 
@@ -178,11 +181,12 @@ def test_unparseable_or_noisy_version_never_raises(wired, banner):
     what makes these safe. A raise here would abort `m3 setup`.
     """
     calls = wired(version=banner)
-    assert sw._wire_openclaw() is True          # unknown version proceeds
+    assert sw._wire_openclaw() is True  # unknown version proceeds
     assert [c for c in calls if "set" in c]
 
 
 # ── failure paths ────────────────────────────────────────────────────────────
+
 
 def test_missing_cli_warns_and_runs_nothing(wired, capsys):
     calls = wired(exe=None)
@@ -192,8 +196,7 @@ def test_missing_cli_warns_and_runs_nothing(wired, capsys):
 
 
 @pytest.mark.parametrize("leftover", [True, False])
-def test_missing_cli_names_the_folder_setup_detects(wired, capsys, monkeypatch,
-                                                    tmp_path, leftover):
+def test_missing_cli_names_the_folder_setup_detects(wired, capsys, monkeypatch, tmp_path, leftover):
     """Setup detects OpenClaw from ~/.openclaw; a user who uninstalled it is told
     which folder keeps the warning coming back."""
     if leftover:
@@ -315,6 +318,7 @@ def _not_already_registered(monkeypatch):
     """The "already registered" checks read the developer's real ~/.claude.json
     and ~/.openclaw; pin them so these tests exercise registration everywhere."""
     from m3_memory import setup_wizard as _sw
+
     monkeypatch.setattr(_sw, "_claude_registration_current", lambda env: False)
     monkeypatch.setattr(_sw, "_openclaw_entry_current", lambda spec: False)
 

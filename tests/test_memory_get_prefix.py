@@ -106,9 +106,12 @@ def test_8char_prefix_happy_path(isolated_db):
 def test_8char_prefix_miss_returns_not_found(isolated_db):
     from memory_core import memory_get_impl
 
-    _seed(isolated_db, [
-        {"id": "aaaaaaaa-1111-2222-3333-444455556666", "title": "x"},
-    ])
+    _seed(
+        isolated_db,
+        [
+            {"id": "aaaaaaaa-1111-2222-3333-444455556666", "title": "x"},
+        ],
+    )
 
     out = memory_get_impl("deadbeef")
     assert out == "Error: not found"
@@ -119,10 +122,13 @@ def test_8char_prefix_ambiguous_lists_all_matches(isolated_db):
 
     a = "0906f86c-1111-2222-3333-444455556666"
     b = "0906f86c-aaaa-bbbb-cccc-dddddddddddd"
-    _seed(isolated_db, [
-        {"id": a, "title": "first"},
-        {"id": b, "title": "second"},
-    ])
+    _seed(
+        isolated_db,
+        [
+            {"id": a, "title": "first"},
+            {"id": b, "title": "second"},
+        ],
+    )
 
     out = memory_get_impl("0906f86c")
     assert out.startswith("Error: ambiguous prefix '0906f86c': matches ")

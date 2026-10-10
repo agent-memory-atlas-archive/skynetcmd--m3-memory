@@ -21,6 +21,7 @@ stay consistent, and only the CLI keeps them so.
 
 Cross-platform, network-free (reads local Claude Code config only), never raises.
 """
+
 from __future__ import annotations
 
 import json
@@ -70,8 +71,7 @@ def _latest_cached_version() -> str | None:
     marketplace update lands a new cache dir here)."""
     cache = os.path.join(_claude_dir(), "plugins", "cache", "skynetcmd", "m3")
     try:
-        versions = [d for d in os.listdir(cache)
-                    if os.path.isdir(os.path.join(cache, d))]
+        versions = [d for d in os.listdir(cache) if os.path.isdir(os.path.join(cache, d))]
     except OSError:
         return None
     return max(versions, key=_ver_key) if versions else None
@@ -100,6 +100,7 @@ def _marketplace_age_days() -> float | None:
         if isinstance(raw, str) and raw:
             try:
                 from datetime import datetime
+
                 ts = datetime.fromisoformat(raw)
                 if ts.tzinfo is None:
                     ts = ts.replace(tzinfo=UTC)
@@ -113,6 +114,7 @@ def _marketplace_age_days() -> float | None:
         loc = os.path.join(_claude_dir(), "plugins", "marketplaces", "skynetcmd")
     try:
         from datetime import datetime
+
         mtime = os.path.getmtime(os.path.join(loc, ".git", "FETCH_HEAD"))
         ts = datetime.fromtimestamp(mtime, tz=UTC)
         return (datetime.now(UTC) - ts).total_seconds() / 86400.0
@@ -154,6 +156,7 @@ def _package_version() -> str | None:
     """
     try:
         from m3_memory import __version__
+
         return str(__version__) or None
     except Exception:  # noqa: BLE001
         return None
@@ -163,8 +166,8 @@ def _release_key(v: str) -> tuple[int, ...]:
     """Numeric release parts only ("2026.10.6.0rc13" -> (2026, 10, 6, 0)), so a
     pre-release package is not counted as ahead of the matching plugin."""
     import re
-    return tuple(int(m.group()) for p in str(v).split(".")[:4]
-                 if (m := re.match(r"\d+", p)))
+
+    return tuple(int(m.group()) for p in str(v).split(".")[:4] if (m := re.match(r"\d+", p)))
 
 
 def run(brief: bool = False) -> int:
@@ -189,12 +192,7 @@ def run(brief: bool = False) -> int:
     # blind, not healthy — say so rather than claiming currency we can't verify.
     # This is explicitly NOT a fault: an offline/air-gapped install has no way to
     # refresh and is working exactly as intended.
-    clone_cold = (
-        installed is not None
-        and not stale
-        and age_days is not None
-        and age_days >= _MARKETPLACE_STALE_DAYS
-    )
+    clone_cold = installed is not None and not stale and age_days is not None and age_days >= _MARKETPLACE_STALE_DAYS
     problem = stale or disabled
 
     if brief:
@@ -203,8 +201,10 @@ def run(brief: bool = False) -> int:
         elif disabled:
             print(f"⚠️  plugin: {installed} but DISABLED — enable it + /reload-plugins")
         elif stale:
-            print(f"⚠️  plugin: {installed} installed, {gap} — update: "
-                  "`m3 doctor --fix --fix-hooks`, then restart Claude Code")
+            print(
+                f"⚠️  plugin: {installed} installed, {gap} — update: "
+                "`m3 doctor --fix --fix-hooks`, then restart Claude Code"
+            )
         elif clone_cold:
             # No ⚠️ — an unrefreshed clone is not a fault (air-gapped installs
             # never refresh), so this stays a plain FYI in the one-line summary.
@@ -213,9 +213,11 @@ def run(brief: bool = False) -> int:
             # sit on the install version indefinitely (observed: 620 commits /
             # 68 days behind on one host, 132 on another). Stating the problem
             # without the fix is what let that happen twice.
-            print(f"✅ plugin: {installed} (marketplace clone {age_days:.0f}d old — "
-                  "version check may be behind upstream; enable auto-update in "
-                  "/plugin -> Marketplaces -> skynetcmd)")
+            print(
+                f"✅ plugin: {installed} (marketplace clone {age_days:.0f}d old — "
+                "version check may be behind upstream; enable auto-update in "
+                "/plugin -> Marketplaces -> skynetcmd)"
+            )
         else:
             print(f"✅ plugin: {installed}" + (" (enabled)" if enabled else ""))
         return 0
@@ -240,7 +242,7 @@ def run(brief: bool = False) -> int:
         print("              m3 is absent from /mcp. `/plugin install` can silently flip")
         print("              the enabled flag off on re-install.")
         print("  fix       : 1. edit ~/.claude/settings.json -> enabledPlugins ->")
-        print(f"                 set \"{PLUGIN_KEY}\": true")
+        print(f'                 set "{PLUGIN_KEY}": true')
         print("              2. /reload-plugins")
     if stale:
         print(f"  status    : [NAG] {installed} installed, {gap}. Update:")
@@ -340,38 +342,41 @@ def repair(dry_run: bool = False) -> dict:
         ("plugin", ["claude", "plugin", "update", "m3@skynetcmd"]),
     ):
         if dry_run:
-            actions.append({"action": label, "status": "skipped",
-                            "detail": f"dry_run=True; would run: {' '.join(argv)}"})
+            actions.append(
+                {"action": label, "status": "skipped", "detail": f"dry_run=True; would run: {' '.join(argv)}"}
+            )
             continue
         try:
-            proc = subprocess.run(argv, capture_output=True, text=True,
-                                  timeout=300, **_no_window_kwargs())
+            proc = subprocess.run(argv, capture_output=True, text=True, timeout=300, **_no_window_kwargs())
         except (OSError, subprocess.SubprocessError) as exc:
-            actions.append({"action": label, "status": "failed",
-                            "detail": f"{type(exc).__name__}: {exc}"})
+            actions.append({"action": label, "status": "failed", "detail": f"{type(exc).__name__}: {exc}"})
             continue
         detail = (proc.stdout or proc.stderr or "").strip().splitlines()
-        actions.append({
-            "action": label,
-            "status": "ok" if proc.returncode == 0 else "failed",
-            "detail": (detail[-1][:160] if detail else f"rc={proc.returncode}"),
-        })
+        actions.append(
+            {
+                "action": label,
+                "status": "ok" if proc.returncode == 0 else "failed",
+                "detail": (detail[-1][:160] if detail else f"rc={proc.returncode}"),
+            }
+        )
 
     after = _disabled_servers()
     if not dry_run and before and after != before:
-        actions.append({
-            "action": "invariant", "status": "failed",
-            "detail": (
-                f"disabledMcpServers changed: {before} -> {after}. The plugin's "
-                f"own MCP servers must stay disabled or two memory servers run "
-                f"at once. inspect: ~/.claude/settings.json"
-            ),
-        })
+        actions.append(
+            {
+                "action": "invariant",
+                "status": "failed",
+                "detail": (
+                    f"disabledMcpServers changed: {before} -> {after}. The plugin's "
+                    f"own MCP servers must stay disabled or two memory servers run "
+                    f"at once. inspect: ~/.claude/settings.json"
+                ),
+            }
+        )
 
     # Only when the installed version moved: "already at the latest" exits 0 too.
     if not dry_run and _installed_version() != installed_before:
-        actions.append({"action": "restart", "status": "ok",
-                        "detail": "restart Claude Code to load the new version"})
+        actions.append({"action": "restart", "status": "ok", "detail": "restart Claude Code to load the new version"})
     return {"actions": actions}
 
 
@@ -379,8 +384,10 @@ def _no_window_kwargs() -> dict:
     """CREATE_NO_WINDOW on Windows so a repair never flashes a console."""
     try:
         from _task_runtime import no_window_kwargs
+
         return no_window_kwargs()
     except ImportError:
         import subprocess as _sp
+
         flag = getattr(_sp, "CREATE_NO_WINDOW", 0)
         return {"creationflags": flag} if flag else {}

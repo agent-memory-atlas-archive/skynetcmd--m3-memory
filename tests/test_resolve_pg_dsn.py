@@ -3,6 +3,7 @@
 The keyring, secrets-file and vault tiers are replaced by fakes keyed by name,
 so no real keyring or vault is touched.
 """
+
 from __future__ import annotations
 
 import logging
@@ -26,6 +27,7 @@ def tiers(monkeypatch):
             if isinstance(v, Exception):
                 return None, f"{kind}: {type(v).__name__}: {v}"
             return v, None
+
         return read
 
     monkeypatch.setattr(auth_utils, "_keyring_tier", make("keyring"))
@@ -38,6 +40,7 @@ def tiers(monkeypatch):
 
 def _explain(role):
     from m3_core.secret_store import PgRole, explain_pg_dsn
+
     return explain_pg_dsn(PgRole(role))
 
 

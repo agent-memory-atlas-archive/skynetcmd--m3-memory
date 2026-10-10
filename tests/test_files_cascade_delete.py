@@ -8,6 +8,7 @@ silently no-op and deleting a corpus leaves orphaned leaves + ingestion_runs
 behind. These pin (a) the pragma is on for a fresh connection and (b) a real
 cascade delete removes the descendants. Hermetic — a temp SQLite file, no server.
 """
+
 import sys
 from pathlib import Path
 

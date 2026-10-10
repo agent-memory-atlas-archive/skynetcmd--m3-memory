@@ -23,8 +23,10 @@ def _owner_migrations() -> list[str]:
     """The active backend's migration chain, in order: the one owner of the DDL."""
     if store_is_a_file():
         from migrate_memory import MIGRATIONS_DIR
+
         return sorted(glob.glob(os.path.join(MIGRATIONS_DIR, "*.sql")))
     from migrate_pg import _PG_MIGRATIONS_DIR
+
     return sorted(glob.glob(os.path.join(_PG_MIGRATIONS_DIR, "pg_*.up.sql")))
 
 
@@ -39,7 +41,9 @@ def owner_ddl(table: str) -> list[str]:
     pat = re.compile(
         rf"^\s*(CREATE\s+TABLE\s+(IF\s+NOT\s+EXISTS\s+)?{table}\b"
         rf"|CREATE\s+(UNIQUE\s+)?INDEX\b[^;]*\bON\s+{table}\b"
-        rf"|ALTER\s+TABLE\s+{table}\b)", re.IGNORECASE | re.DOTALL)
+        rf"|ALTER\s+TABLE\s+{table}\b)",
+        re.IGNORECASE | re.DOTALL,
+    )
     out: list[str] = []
     for path in _owner_migrations():
         if path.endswith(".down.sql"):
@@ -48,8 +52,10 @@ def owner_ddl(table: str) -> list[str]:
             body = "\n".join(ln for ln in fh.read().splitlines() if not ln.lstrip().startswith("--"))
         out.extend(st.strip() for st in body.split(";") if pat.match(st))
     if not any(re.match(r"\s*CREATE\s+TABLE", st, re.IGNORECASE) for st in out):
-        raise RuntimeError(f"observed: no CREATE TABLE {table} in the {seam_backend().name} migrations. "
-                           f"inspect: memory/migrations (SQLite) / memory/migrations/postgres")
+        raise RuntimeError(
+            f"observed: no CREATE TABLE {table} in the {seam_backend().name} migrations. "
+            f"inspect: memory/migrations (SQLite) / memory/migrations/postgres"
+        )
     return out
 
 
@@ -65,8 +71,8 @@ def repair_database(db_path: str | None):
             conn.execute("INSERT INTO system_focus (id, summary) VALUES (1, 'System Repaired & Calibrated')")
         print("✅ Database Schema Aligned.")
     except Exception as e:
-        print(f"❌ Database Repair Failed: observed: {type(e).__name__}: {e}. "
-              f"inspect: the store and its migrations")
+        print(f"❌ Database Repair Failed: observed: {type(e).__name__}: {e}. inspect: the store and its migrations")
+
 
 def check_bridges():
     print("🛠️  Checking MCP Bridges...")

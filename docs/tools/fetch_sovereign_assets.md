@@ -1,8 +1,8 @@
 ---
 tool: bin/fetch_sovereign_assets.py
-sha1: 019e20067347
-mtime_utc: 2026-05-07T03:32:14.556216+00:00
-generated_utc: 2026-05-09T13:54:34.165911+00:00
+sha1: 0a6501a5bf6b
+mtime_utc: 2026-10-10T21:05:17.181244+00:00
+generated_utc: 2026-10-10T21:05:29.518365+00:00
 private: false
 ---
 
@@ -17,7 +17,7 @@ Usage: python bin/fetch_sovereign_assets.py
 
 ## Entry points
 
-- `def main()` (line 55)
+- `def main()` (line 59)
 - `if __name__ == "__main__"` guard
 
 ---

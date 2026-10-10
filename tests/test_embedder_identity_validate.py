@@ -5,6 +5,7 @@ A vector is only acceptable for the store if it came from the configured
 required) unit-length. A tier whose output fails identity must be treated as a
 failed tier so the cascade tries the next one — never store a non-proper vector.
 """
+
 from __future__ import annotations
 
 import math
@@ -125,6 +126,7 @@ def test_warns_once_per_reason():
 
 # ── _accept_bulk: assign proper vectors, keep failures in the miss set ──────────
 
+
 def test_accept_bulk_assigns_proper_and_reports_misses():
     dim = config.EMBED_DIM
     out: list = [None, None, None]
@@ -149,6 +151,7 @@ def test_accept_bulk_rejects_whole_foreign_batch():
 
 # ── Search read-path identity filter (SQL construction) ────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_search_sql_includes_identity_filter(monkeypatch):
     """The semantic/hybrid search SQL must restrict the embeddings join to the
@@ -157,21 +160,31 @@ async def test_search_sql_includes_identity_filter(monkeypatch):
 
     async def fake_embed(_q):
         return (_unit(config.EMBED_DIM), config.EMBED_MODEL)
+
     monkeypatch.setattr(memory_core, "_embed", fake_embed)
 
     captured: list[str] = []
 
     class _Cur:
-        def fetchall(self): return []
-        def fetchone(self): return None
+        def fetchall(self):
+            return []
+
+        def fetchone(self):
+            return None
 
     class _DB:
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
         def execute(self, sql, params=None):
             captured.append(sql)
             return _Cur()
-        def commit(self): pass
+
+        def commit(self):
+            pass
 
     monkeypatch.setattr(memory_core, "_db", lambda: _DB())
 

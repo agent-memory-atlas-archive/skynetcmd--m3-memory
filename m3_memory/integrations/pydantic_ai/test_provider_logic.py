@@ -25,10 +25,14 @@ from m3_memory.integrations.pydantic_ai.deps import (  # noqa: E402
 
 # ── mapping ──────────────────────────────────────────────────────────────────
 
+
 def test_recall_hit_to_dict_surfaces_only_safe_fields():
     item = {
-        "id": "m1", "content": "likes dark roast", "type": "preference",
-        "importance": 0.7, "created_at": "2026-01-01T00:00:00Z",
+        "id": "m1",
+        "content": "likes dark roast",
+        "type": "preference",
+        "importance": 0.7,
+        "created_at": "2026-01-01T00:00:00Z",
         "embedding": b"\x00\x01",  # internal — must NOT surface
         "content_hash": "deadbeef",  # internal — must NOT surface
         "metadata_json": '{"role": "user"}',
@@ -59,9 +63,9 @@ def test_recalled_block_skips_when_all_blank():
 
 # ── deps parse helpers ───────────────────────────────────────────────────────
 
+
 def test_parse_written_id():
-    assert _parse_written_id("Created: 123e4567-e89b-12d3-a456-426614174000") \
-        == "123e4567-e89b-12d3-a456-426614174000"
+    assert _parse_written_id("Created: 123e4567-e89b-12d3-a456-426614174000") == "123e4567-e89b-12d3-a456-426614174000"
     assert _parse_written_id("Created: abc (superseded def)") == "abc"
     assert _parse_written_id("Error: nope") == ""
     assert _parse_written_id(None) == ""
@@ -76,6 +80,7 @@ def test_deleted_any():
 
 
 # ── tenancy (§7) + operation routing with a stub client ──────────────────────
+
 
 class _StubClient:
     def __init__(self):
@@ -100,6 +105,7 @@ def _deps_with_stub():
 
 def test_m3deps_requires_user_id():
     import pytest
+
     with pytest.raises(ValueError):
         M3Deps(user_id="")
     with pytest.raises(ValueError):

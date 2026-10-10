@@ -22,6 +22,7 @@ The test that matters most here is the faithful-copy one: it compares every
 column, so it fails if any value arrives NULL — which is precisely what the old
 per-column `except` produced silently.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -65,32 +66,36 @@ def _seed(n: int = 3, conv: str = CONV) -> list[str]:
     import chatlog_core
 
     ids = [f"{conv}-{i:03d}" for i in range(n)]
-    batch = [{
-        "_id": rid,
-        "_title": f"title-{i}",
-        "_content": f"content-{i}",
-        "_metadata_json": json.dumps({"i": i}),
-        "model_id": f"model-{i}",
-        "agent_id": f"agent-{i}",
-        "change_agent": f"changer-{i}",
-        "origin_device": f"device-{i}",
-        "user_id": f"user-{i}",
-        "scope": f"scope-{i}",
-        "expires_at": "2099-01-01T00:00:00Z",
-        "valid_from": "2026-01-01T00:00:00Z",
-        "valid_to": "2099-01-01T00:00:00Z",
-        "refresh_on": "2027-01-01T00:00:00Z",
-        "refresh_reason": f"reason-{i}",
-        "variant": f"variant-{i}",
-        "conversation_id": conv,
-        "_created_at": "2026-09-29T00:00:00Z",
-    } for i, rid in enumerate(ids)]
+    batch = [
+        {
+            "_id": rid,
+            "_title": f"title-{i}",
+            "_content": f"content-{i}",
+            "_metadata_json": json.dumps({"i": i}),
+            "model_id": f"model-{i}",
+            "agent_id": f"agent-{i}",
+            "change_agent": f"changer-{i}",
+            "origin_device": f"device-{i}",
+            "user_id": f"user-{i}",
+            "scope": f"scope-{i}",
+            "expires_at": "2099-01-01T00:00:00Z",
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2099-01-01T00:00:00Z",
+            "refresh_on": "2027-01-01T00:00:00Z",
+            "refresh_reason": f"reason-{i}",
+            "variant": f"variant-{i}",
+            "conversation_id": conv,
+            "_created_at": "2026-09-29T00:00:00Z",
+        }
+        for i, rid in enumerate(ids)
+    ]
     assert chatlog_core._executemany_insert(batch) == n
     return ids
 
 
 def _promote(**kw) -> dict:
     import chatlog_core
+
     return json.loads(asyncio.run(chatlog_core.chatlog_promote_impl(**kw)))
 
 
@@ -98,13 +103,13 @@ def _rows(db_path, where="1=1") -> dict[str, sqlite3.Row]:
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
     try:
-        return {r["id"]: r for r in
-                conn.execute(f"SELECT * FROM memory_items WHERE {where}")}
+        return {r["id"]: r for r in conn.execute(f"SELECT * FROM memory_items WHERE {where}")}
     finally:
         conn.close()
 
 
 # ── the branch works at all ──────────────────────────────────────────────────
+
 
 def test_promote_moves_rows_into_the_other_file(two_files):
     res = _promote(conversation_id=CONV, target_type="conversation")
@@ -135,8 +140,7 @@ def test_every_column_survives_the_copy(two_files):
                 assert copied[rid]["type"] == "conversation"
                 continue
             assert copied[rid][col] == source[rid][col], (
-                f"column {col!r} did not survive promote for {rid}: "
-                f"{copied[rid][col]!r} != {source[rid][col]!r}"
+                f"column {col!r} did not survive promote for {rid}: {copied[rid][col]!r} != {source[rid][col]!r}"
             )
         # and nothing arrived empty
         assert copied[rid]["content_hash"], "content_hash lost"
@@ -178,6 +182,7 @@ def test_promote_requires_a_selector(two_files):
 
 # ── a missing column is reported, not silently promoted as NULL ──────────────
 
+
 def test_a_missing_column_is_reported_not_nulled(two_files, monkeypatch):
     """The old code turned an absent column into NULL, per row, silently.
 
@@ -191,8 +196,8 @@ def test_a_missing_column_is_reported_not_nulled(two_files, monkeypatch):
         # the dependants first. Derived from the catalog rather than hard-coded,
         # because an index added later would silently re-skip this test.
         for (name,) in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='index' "
-            "AND tbl_name='memory_items' AND sql LIKE '%variant%'").fetchall():
+            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='memory_items' AND sql LIKE '%variant%'"
+        ).fetchall():
             conn.execute(f"DROP INDEX IF EXISTS {name}")
         conn.execute("ALTER TABLE memory_items DROP COLUMN variant")
         conn.commit()
@@ -208,6 +213,7 @@ def test_a_missing_column_is_reported_not_nulled(two_files, monkeypatch):
 
 
 # ── the column list has ONE owner ────────────────────────────────────────────
+
 
 def test_row_columns_match_the_chatlog_schema(two_files):
     """`_ROW_COLUMNS` drifting from the table is the §10a failure this constant

@@ -9,6 +9,7 @@ budget, so it recovers on the first tick after the environment heals.
 Hermetic by construction (§3): no HTTP, no subprocess, no service manager, no
 database. Every boundary is mocked at the layer the call actually happens.
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -31,8 +32,7 @@ def _load(cfg_root: Path):
     """
     if str(_BIN) not in sys.path:
         sys.path.insert(0, str(_BIN))
-    spec = importlib.util.spec_from_file_location(
-        "m3_embed_watchdog_t", _BIN / "m3_embed_watchdog.py")
+    spec = importlib.util.spec_from_file_location("m3_embed_watchdog_t", _BIN / "m3_embed_watchdog.py")
     mod = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(mod)
@@ -50,9 +50,15 @@ def cfg_root(tmp_path, monkeypatch):
 
 
 def _write_shared(cfg_root: Path, *, enabled=True, url="http://127.0.0.1:8082"):
-    (cfg_root / ".embed_config.json").write_text(json.dumps({
-        "disable_inproc_embedder": enabled, "fallback_url": url,
-    }), encoding="utf-8")
+    (cfg_root / ".embed_config.json").write_text(
+        json.dumps(
+            {
+                "disable_inproc_embedder": enabled,
+                "fallback_url": url,
+            }
+        ),
+        encoding="utf-8",
+    )
 
 
 class _Calls:
@@ -67,6 +73,7 @@ class _Calls:
 
         class R:
             pass
+
         r = R()
         r.returncode = self.returncode
         r.stdout = ""
@@ -100,10 +107,11 @@ def test_recovers_after_supervisor_budget_would_be_exhausted(cfg_root, monkeypat
     # happens at all — an SCM-style budget would have stopped after 3.
     assert len(calls.cmds) == 100 // m._FAILED_CHECKS, (
         f"liveness check made {len(calls.cmds)} attempts over 100 ticks — "
-        "expected one per _FAILED_CHECKS ticks, forever")
+        "expected one per _FAILED_CHECKS ticks, forever"
+    )
     assert len(calls.cmds) > 3, (
-        "stopped retrying like a budgeted supervisor — that reintroduces "
-        "the exhausted-budget bug")
+        "stopped retrying like a budgeted supervisor — that reintroduces the exhausted-budget bug"
+    )
 
 
 def test_first_miss_does_not_act(cfg_root, monkeypatch):
@@ -138,9 +146,9 @@ def test_recovery_resets_the_failure_counter(cfg_root, monkeypatch):
     monkeypatch.setattr(m, "server_healthy", lambda url: healthy["v"])
     monkeypatch.setattr(m.subprocess, "run", _Calls())
 
-    m.main()                     # miss 1
+    m.main()  # miss 1
     healthy["v"] = True
-    m.main()                     # recovered
+    m.main()  # recovered
     state = json.loads((cfg_root / ".embed_watchdog_state.json").read_text())
     assert state["consecutive_failures"] == 0
 
@@ -166,10 +174,10 @@ def test_backoff_prevents_fork_bomb(cfg_root, monkeypatch):
     monkeypatch.setattr(m.subprocess, "run", calls)
 
     m.main()
-    m.main()                     # acts, stamps last_restart_ts
+    m.main()  # acts, stamps last_restart_ts
     assert len(calls.cmds) == 1
     m.main()
-    m.main()                     # inside the backoff window
+    m.main()  # inside the backoff window
     assert len(calls.cmds) == 1, "backoff did not suppress a rapid re-start"
 
 
@@ -180,12 +188,14 @@ def test_backoff_expires(cfg_root, monkeypatch):
     calls = _Calls()
     monkeypatch.setattr(m.subprocess, "run", calls)
 
-    m.main(); m.main()
+    m.main()
+    m.main()
     assert len(calls.cmds) == 1
     state = json.loads((cfg_root / ".embed_watchdog_state.json").read_text())
     state["last_restart_ts"] = time.time() - (m._MIN_RESTART_GAP_S + 1)
     (cfg_root / ".embed_watchdog_state.json").write_text(json.dumps(state))
-    m.main(); m.main()
+    m.main()
+    m.main()
     assert len(calls.cmds) == 2, "backoff never expired"
 
 
@@ -234,6 +244,7 @@ def test_custom_fallback_url_is_honored(cfg_root, monkeypatch):
     def _probe(url):
         seen.append(url)
         return False
+
     monkeypatch.setattr(m, "server_healthy", _probe)
     monkeypatch.setattr(m.subprocess, "run", _Calls())
     m.main()
@@ -241,11 +252,14 @@ def test_custom_fallback_url_is_honored(cfg_root, monkeypatch):
 
 
 # ── §1: three OSes, one detector, per-OS action only ──────────────────────────
-@pytest.mark.parametrize("osname,expect", [
-    ("Windows", "sc.exe"),
-    ("Linux", "systemctl"),
-    ("Darwin", "launchctl"),
-])
+@pytest.mark.parametrize(
+    "osname,expect",
+    [
+        ("Windows", "sc.exe"),
+        ("Linux", "systemctl"),
+        ("Darwin", "launchctl"),
+    ],
+)
 def test_restart_backend_per_os(cfg_root, monkeypatch, osname, expect):
     m = _load(cfg_root)
     monkeypatch.setattr(m, "_os_name", lambda: osname)
@@ -274,7 +288,8 @@ def test_unelevated_failure_is_reported_not_swallowed(cfg_root, monkeypatch):
     said: list[str] = []
     m.log = lambda msg: said.append(msg)
 
-    m.main(); m.main()
+    m.main()
+    m.main()
     assert any("observed:" in s for s in said), "no observed-level evidence logged"
     assert any("inspect:" in s for s in said), "no knob named to inspect"
 
@@ -294,6 +309,7 @@ def test_subprocess_failure_to_spawn_is_non_fatal(cfg_root, monkeypatch):
 
     def _boom(cmd, **kw):
         raise OSError("not found")
+
     monkeypatch.setattr(m.subprocess, "run", _boom)
     m.main()
     assert m.main() in (0, 1)  # did not raise
@@ -307,6 +323,7 @@ def test_health_probe_refuses_non_http_schemes(capsys):
     healthy while nothing is listening. That is the section 3 failure this
     watchdog exists to prevent, so the scheme is checked before the request."""
     import m3_embed_watchdog as w
+
     for bad in ("file:///etc/passwd", "ftp://host/x", "custom://x", "/tmp/x"):
         assert w.server_healthy(bad) is False, f"{bad} must not be probed"
 
@@ -315,6 +332,7 @@ def test_health_probe_refusal_is_logged(capsys):
     """Loud, not silent: an operator with a malformed fallback_url needs to see
     why their embedder reads as down."""
     import m3_embed_watchdog as w
+
     w.server_healthy("file:///etc/passwd")
     out = capsys.readouterr()
     assert "refusing health probe" in (out.out + out.err)
@@ -326,12 +344,19 @@ def test_health_probe_still_accepts_http_and_https(monkeypatch):
 
     class _R:
         status = 200
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
     seen = {}
+
     def _fake(url, timeout=None):
         seen["url"] = url
         return _R()
+
     monkeypatch.setattr(w.urllib.request, "urlopen", _fake)
     assert w.server_healthy("http://127.0.0.1:8082") is True
     assert seen["url"] == "http://127.0.0.1:8082/health"

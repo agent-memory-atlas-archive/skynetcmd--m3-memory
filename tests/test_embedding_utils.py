@@ -19,6 +19,7 @@ def test_pack_unpack():
     for a, b in zip(vec, unpacked, strict=True):
         assert pytest.approx(a) == b
 
+
 def test_cosine_similarity():
     """Test cosine similarity calculation."""
     v1 = [1.0, 0.0]
@@ -32,14 +33,15 @@ def test_cosine_similarity():
     # 45 degree angle
     assert embedding_utils.cosine(v1, v3) > 0.7
 
+
 def test_batch_cosine_inhomogeneous():
     """Test batch_cosine robust handling of inhomogeneous dimensions."""
     query = [1.0, 0.0]
     matrix = [
-        [1.0, 0.0],    # matching dim, match
-        [0.0, 1.0],    # matching dim, orthogonal
-        [1.0, 0.0, 0.0], # different dim, should be ignored (0.0 score)
-        [0.5, 0.5]     # matching dim, partial match
+        [1.0, 0.0],  # matching dim, match
+        [0.0, 1.0],  # matching dim, orthogonal
+        [1.0, 0.0, 0.0],  # different dim, should be ignored (0.0 score)
+        [0.5, 0.5],  # matching dim, partial match
     ]
 
     scores = embedding_utils.batch_cosine(query, matrix)

@@ -7,6 +7,7 @@ selection query filtering.
 Test isolation pattern: Each test gets a fresh tmp_path and creates isolated
 DB schemas with the fact_enrichment_queue table.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -38,6 +39,7 @@ def _create_fact_enriched_schema(db_path):
     migration 023). No test-specific DDL needed.
     """
     from conftest import create_full_main_schema
+
     create_full_main_schema(db_path)
     return  # template covers everything; legacy fallback below
     conn = sqlite3.connect(str(db_path))
@@ -149,12 +151,8 @@ async def test_default_off_no_enrichment(monkeypatch, tmp_path):
 
     # Verify no fact rows created
     with sqlite3.connect(str(db_path)) as conn:
-        fact_count = conn.execute(
-            "SELECT COUNT(*) FROM memory_items WHERE type='fact_enriched'"
-        ).fetchone()[0]
-        queue_count = conn.execute(
-            "SELECT COUNT(*) FROM fact_enrichment_queue WHERE memory_id='test-1'"
-        ).fetchone()[0]
+        fact_count = conn.execute("SELECT COUNT(*) FROM memory_items WHERE type='fact_enriched'").fetchone()[0]
+        queue_count = conn.execute("SELECT COUNT(*) FROM fact_enrichment_queue WHERE memory_id='test-1'").fetchone()[0]
 
     assert fact_count == 0, "No fact rows should be created when ENABLE_FACT_ENRICHED=False"
     assert queue_count == 0, "No queue rows should be created when ENABLE_FACT_ENRICHED=False"
@@ -179,7 +177,17 @@ async def test_verbatim_first_on_enricher_exception(monkeypatch, tmp_path):
             """INSERT INTO memory_items
             (id, type, title, content, created_at, source, origin_device, scope, change_agent)
             VALUES (?,?,?,?,?,?,?,?,?)""",
-            ("source-1", "note", "test", "source content", "2026-04-25T00:00:00Z", "agent", "test", "agent", "test_agent"),
+            (
+                "source-1",
+                "note",
+                "test",
+                "source content",
+                "2026-04-25T00:00:00Z",
+                "agent",
+                "test",
+                "agent",
+                "test_agent",
+            ),
         )
         conn.commit()
 
@@ -190,9 +198,7 @@ async def test_verbatim_first_on_enricher_exception(monkeypatch, tmp_path):
 
     # Verify source persisted + queue row has error
     with sqlite3.connect(str(db_path)) as conn:
-        source = conn.execute(
-            "SELECT id, type, content FROM memory_items WHERE id='source-1'"
-        ).fetchone()
+        source = conn.execute("SELECT id, type, content FROM memory_items WHERE id='source-1'").fetchone()
         queue_row = conn.execute(
             "SELECT memory_id, attempts, last_error FROM fact_enrichment_queue WHERE memory_id='source-1'"
         ).fetchone()
@@ -229,7 +235,18 @@ async def test_variant_skip_default(monkeypatch, tmp_path):
             """INSERT INTO memory_items
             (id, type, title, content, variant, created_at, source, origin_device, scope, change_agent)
             VALUES (?,?,?,?,?,?,?,?,?,?)""",
-            ("bench-1", "note", "test", "bench content", "lme-test", "2026-04-25T00:00:00Z", "agent", "test", "agent", "test_agent"),
+            (
+                "bench-1",
+                "note",
+                "test",
+                "bench content",
+                "lme-test",
+                "2026-04-25T00:00:00Z",
+                "agent",
+                "test",
+                "agent",
+                "test_agent",
+            ),
         )
         conn.commit()
 
@@ -244,9 +261,7 @@ async def test_variant_skip_default(monkeypatch, tmp_path):
     assert len(enricher_calls) == 0, "Variant row should skip enrichment when allowlist=None"
 
     with sqlite3.connect(str(db_path)) as conn:
-        queue_count = conn.execute(
-            "SELECT COUNT(*) FROM fact_enrichment_queue WHERE memory_id='bench-1'"
-        ).fetchone()[0]
+        queue_count = conn.execute("SELECT COUNT(*) FROM fact_enrichment_queue WHERE memory_id='bench-1'").fetchone()[0]
 
     assert queue_count == 0, "No queue row should exist for variant rows without allowlist"
 
@@ -272,7 +287,18 @@ async def test_variant_allowlist_override(monkeypatch, tmp_path):
             """INSERT INTO memory_items
             (id, type, title, content, variant, created_at, source, origin_device, scope, change_agent)
             VALUES (?,?,?,?,?,?,?,?,?,?)""",
-            ("bench-2", "note", "test", "bench content 2", "lme-test", "2026-04-25T00:00:00Z", "agent", "test", "agent", "test_agent"),
+            (
+                "bench-2",
+                "note",
+                "test",
+                "bench content 2",
+                "lme-test",
+                "2026-04-25T00:00:00Z",
+                "agent",
+                "test",
+                "agent",
+                "test_agent",
+            ),
         )
         conn.commit()
 
@@ -325,7 +351,17 @@ async def test_semaphore_concurrency_behavior(monkeypatch, tmp_path):
                 """INSERT INTO memory_items
                 (id, type, title, content, created_at, source, origin_device, scope, change_agent)
                 VALUES (?,?,?,?,?,?,?,?,?)""",
-                (f"slow-{i}", "note", "test", f"content {i}", "2026-04-25T00:00:00Z", "agent", "test", "agent", "test_agent"),
+                (
+                    f"slow-{i}",
+                    "note",
+                    "test",
+                    f"content {i}",
+                    "2026-04-25T00:00:00Z",
+                    "agent",
+                    "test",
+                    "agent",
+                    "test_agent",
+                ),
             )
         conn.commit()
 
@@ -343,9 +379,7 @@ async def test_semaphore_concurrency_behavior(monkeypatch, tmp_path):
 
     # Verify one got enriched (acquired semaphore) and one got enqueued
     with sqlite3.connect(str(db_path)) as conn:
-        queue_count = conn.execute(
-            "SELECT COUNT(*) FROM fact_enrichment_queue"
-        ).fetchone()[0]
+        queue_count = conn.execute("SELECT COUNT(*) FROM fact_enrichment_queue").fetchone()[0]
 
     # At least one should be queued (the second call hit the semaphore)
     assert queue_count >= 1, "Second concurrent write should enqueue due to full semaphore"
@@ -369,7 +403,17 @@ async def test_references_edge_created(monkeypatch, tmp_path):
             """INSERT INTO memory_items
             (id, type, title, content, created_at, source, origin_device, scope, change_agent)
             VALUES (?,?,?,?,?,?,?,?,?)""",
-            ("source-ref", "note", "test", "source content", "2026-04-25T00:00:00Z", "agent", "test", "agent", "test_agent"),
+            (
+                "source-ref",
+                "note",
+                "test",
+                "source content",
+                "2026-04-25T00:00:00Z",
+                "agent",
+                "test",
+                "agent",
+                "test_agent",
+            ),
         )
         conn.commit()
 
@@ -379,9 +423,7 @@ async def test_references_edge_created(monkeypatch, tmp_path):
 
     # Verify fact row created and linked
     with sqlite3.connect(str(db_path)) as conn:
-        fact_row = conn.execute(
-            "SELECT id FROM memory_items WHERE type='fact_enriched'"
-        ).fetchone()
+        fact_row = conn.execute("SELECT id FROM memory_items WHERE type='fact_enriched'").fetchone()
         assert fact_row is not None, "Fact row should exist"
         fact_id = fact_row[0]
 
@@ -409,7 +451,17 @@ async def test_select_pending_excludes_fact_enriched_children(monkeypatch, tmp_p
             """INSERT INTO memory_items
             (id, type, title, content, created_at, source, origin_device, scope, change_agent)
             VALUES (?,?,?,?,?,?,?,?,?)""",
-            ("source-with-fact", "note", "test", "content", "2026-04-25T00:00:00Z", "agent", "test", "agent", "test_agent"),
+            (
+                "source-with-fact",
+                "note",
+                "test",
+                "content",
+                "2026-04-25T00:00:00Z",
+                "agent",
+                "test",
+                "agent",
+                "test_agent",
+            ),
         )
 
         # Create existing fact_enriched child
@@ -418,7 +470,17 @@ async def test_select_pending_excludes_fact_enriched_children(monkeypatch, tmp_p
             """INSERT INTO memory_items
             (id, type, title, content, created_at, source, origin_device, scope, change_agent)
             VALUES (?,?,?,?,?,?,?,?,?)""",
-            (fact_id, "fact_enriched", "existing fact", "fact text", "2026-04-25T00:00:00Z", "fact_enricher", "test", "agent", "fact_enricher"),
+            (
+                fact_id,
+                "fact_enriched",
+                "existing fact",
+                "fact text",
+                "2026-04-25T00:00:00Z",
+                "fact_enricher",
+                "test",
+                "agent",
+                "fact_enricher",
+            ),
         )
 
         # Create references edge: fact -> source
@@ -452,7 +514,18 @@ async def test_select_pending_excludes_variant_by_default(monkeypatch, tmp_path)
             """INSERT INTO memory_items
             (id, type, title, content, variant, created_at, source, origin_device, scope, change_agent)
             VALUES (?,?,?,?,?,?,?,?,?,?)""",
-            ("null-var", "note", "test", "content", None, "2026-04-25T00:00:00Z", "agent", "test", "agent", "test_agent"),
+            (
+                "null-var",
+                "note",
+                "test",
+                "content",
+                None,
+                "2026-04-25T00:00:00Z",
+                "agent",
+                "test",
+                "agent",
+                "test_agent",
+            ),
         )
 
         # Create variant item
@@ -460,7 +533,18 @@ async def test_select_pending_excludes_variant_by_default(monkeypatch, tmp_path)
             """INSERT INTO memory_items
             (id, type, title, content, variant, created_at, source, origin_device, scope, change_agent)
             VALUES (?,?,?,?,?,?,?,?,?,?)""",
-            ("bench-var", "note", "test", "content", "lme-baseline", "2026-04-25T00:00:00Z", "agent", "test", "agent", "test_agent"),
+            (
+                "bench-var",
+                "note",
+                "test",
+                "content",
+                "lme-baseline",
+                "2026-04-25T00:00:00Z",
+                "agent",
+                "test",
+                "agent",
+                "test_agent",
+            ),
         )
         conn.commit()
 
@@ -486,13 +570,35 @@ async def test_select_pending_includes_allowed_variants(monkeypatch, tmp_path):
             """INSERT INTO memory_items
             (id, type, title, content, variant, created_at, source, origin_device, scope, change_agent)
             VALUES (?,?,?,?,?,?,?,?,?,?)""",
-            ("allowed-var", "note", "test", "content", "lme-test", "2026-04-25T00:00:00Z", "agent", "test", "agent", "test_agent"),
+            (
+                "allowed-var",
+                "note",
+                "test",
+                "content",
+                "lme-test",
+                "2026-04-25T00:00:00Z",
+                "agent",
+                "test",
+                "agent",
+                "test_agent",
+            ),
         )
         conn.execute(
             """INSERT INTO memory_items
             (id, type, title, content, variant, created_at, source, origin_device, scope, change_agent)
             VALUES (?,?,?,?,?,?,?,?,?,?)""",
-            ("blocked-var", "note", "test", "content", "lme-other", "2026-04-25T00:00:00Z", "agent", "test", "agent", "test_agent"),
+            (
+                "blocked-var",
+                "note",
+                "test",
+                "content",
+                "lme-other",
+                "2026-04-25T00:00:00Z",
+                "agent",
+                "test",
+                "agent",
+                "test_agent",
+            ),
         )
         conn.commit()
 
@@ -573,7 +679,18 @@ async def test_select_pending_excludes_soft_deleted(monkeypatch, tmp_path):
             """INSERT INTO memory_items
             (id, type, title, content, is_deleted, created_at, source, origin_device, scope, change_agent)
             VALUES (?,?,?,?,?,?,?,?,?,?)""",
-            ("deleted-item", "note", "test", "content", 1, "2026-04-25T00:00:00Z", "agent", "test", "agent", "test_agent"),
+            (
+                "deleted-item",
+                "note",
+                "test",
+                "content",
+                1,
+                "2026-04-25T00:00:00Z",
+                "agent",
+                "test",
+                "agent",
+                "test_agent",
+            ),
         )
         conn.commit()
 
@@ -603,7 +720,17 @@ async def test_enrich_pending_impl_dry_run(monkeypatch, tmp_path):
                 """INSERT INTO memory_items
                 (id, type, title, content, created_at, source, origin_device, scope, change_agent)
                 VALUES (?,?,?,?,?,?,?,?,?)""",
-                (f"item-{i}", "note", "test", f"content {i}", "2026-04-25T00:00:00Z", "agent", "test", "agent", "test_agent"),
+                (
+                    f"item-{i}",
+                    "note",
+                    "test",
+                    f"content {i}",
+                    "2026-04-25T00:00:00Z",
+                    "agent",
+                    "test",
+                    "agent",
+                    "test_agent",
+                ),
             )
         conn.commit()
 
@@ -641,25 +768,16 @@ async def test_locomo_audit_fact_enricher_none(monkeypatch, tmp_path):
 
     monkeypatch.setattr(memory_core, "_embed_many", fake_embed_many)
 
-    items = [
-        {"id": str(uuid.uuid4()), "type": "note", "content": f"content {i}"}
-        for i in range(5)
-    ]
+    items = [{"id": str(uuid.uuid4()), "type": "note", "content": f"content {i}"} for i in range(5)]
 
     # Write with fact_enricher=None (default)
     await memory_core.memory_write_bulk_impl(items, fact_enricher=None)
 
     # Verify insertion
     with sqlite3.connect(str(db_path)) as conn:
-        item_count = conn.execute(
-            "SELECT COUNT(*) FROM memory_items"
-        ).fetchone()[0]
-        fact_count = conn.execute(
-            "SELECT COUNT(*) FROM memory_items WHERE type='fact_enriched'"
-        ).fetchone()[0]
-        queue_count = conn.execute(
-            "SELECT COUNT(*) FROM fact_enrichment_queue"
-        ).fetchone()[0]
+        item_count = conn.execute("SELECT COUNT(*) FROM memory_items").fetchone()[0]
+        fact_count = conn.execute("SELECT COUNT(*) FROM memory_items WHERE type='fact_enriched'").fetchone()[0]
+        queue_count = conn.execute("SELECT COUNT(*) FROM fact_enrichment_queue").fetchone()[0]
 
     assert item_count == 5, "All 5 items should be persisted"
     assert fact_count == 0, "No fact_enriched rows should be created (enricher=None)"
@@ -672,19 +790,14 @@ async def test_migration_023_up_creates_table(tmp_path):
     db_path = tmp_path / "test.db"
 
     # Apply migration
-    migrations_dir = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "memory", "migrations"
-    )
+    migrations_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "memory", "migrations")
     migration_up = os.path.join(migrations_dir, "023_fact_enrichment_queue.up.sql")
 
     conn = sqlite3.connect(str(db_path))
     cursor = conn.cursor()
 
     # First create memory_items (required for FK)
-    cursor.execute(
-        """CREATE TABLE memory_items (id TEXT PRIMARY KEY)"""
-    )
+    cursor.execute("""CREATE TABLE memory_items (id TEXT PRIMARY KEY)""")
 
     if os.path.exists(migration_up):
         with open(migration_up, encoding="utf-8") as f:
@@ -694,9 +807,7 @@ async def test_migration_023_up_creates_table(tmp_path):
     conn.commit()
 
     # Verify table exists
-    cursor.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='fact_enrichment_queue'"
-    )
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='fact_enrichment_queue'")
     assert cursor.fetchone() is not None, "fact_enrichment_queue table should exist"
 
     # Verify schema
@@ -715,10 +826,7 @@ async def test_migration_023_down_removes_table(tmp_path):
     """Migration 023 down removes fact_enrichment_queue table."""
     db_path = tmp_path / "test.db"
 
-    migrations_dir = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "memory", "migrations"
-    )
+    migrations_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "memory", "migrations")
     migration_up = os.path.join(migrations_dir, "023_fact_enrichment_queue.up.sql")
     migration_down = os.path.join(migrations_dir, "023_fact_enrichment_queue.down.sql")
 
@@ -726,9 +834,7 @@ async def test_migration_023_down_removes_table(tmp_path):
     cursor = conn.cursor()
 
     # Create memory_items (required for FK)
-    cursor.execute(
-        """CREATE TABLE memory_items (id TEXT PRIMARY KEY)"""
-    )
+    cursor.execute("""CREATE TABLE memory_items (id TEXT PRIMARY KEY)""")
 
     # Apply up
     if os.path.exists(migration_up):
@@ -737,9 +843,7 @@ async def test_migration_023_down_removes_table(tmp_path):
         cursor.executescript(sql)
 
     # Verify table exists
-    cursor.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='fact_enrichment_queue'"
-    )
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='fact_enrichment_queue'")
     assert cursor.fetchone() is not None
 
     # Apply down
@@ -751,9 +855,7 @@ async def test_migration_023_down_removes_table(tmp_path):
     conn.commit()
 
     # Verify table removed
-    cursor.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='fact_enrichment_queue'"
-    )
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='fact_enrichment_queue'")
     assert cursor.fetchone() is None, "fact_enrichment_queue table should be removed"
 
     conn.close()

@@ -17,6 +17,7 @@ Design note: this file is intentionally thin — narrow CLI + phase
 dispatch only. Logic lives in the bin/doctor/ submodules so each can be
 tested in isolation.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -24,7 +25,7 @@ import logging
 import os
 import sys
 
-logging.basicConfig(level=logging.WARNING, format='%(name)s: [%(levelname)s] %(message)s')
+logging.basicConfig(level=logging.WARNING, format="%(name)s: [%(levelname)s] %(message)s")
 # This script's own INFO lines stay visible; library INFO chatter (connection
 # pools, HTTP requests) would bury the readable report. memory.doctor stays at
 # WARNING: its INFO lines repeat the repair results this script prints as the
@@ -51,8 +52,7 @@ def _repair_embed_server(args) -> None:
 
         _res = repair_exec_bit(dry_run=args.dry_run)
         if _res["status"] != "ok":
-            print(f"  [{_res['status']}] embed-server exec bit: "
-                  f"{_res['detail']}")
+            print(f"  [{_res['status']}] embed-server exec bit: {_res['detail']}")
     except Exception as _exc:  # noqa: BLE001 — never break doctor
         print(f"  [skipped] embed-server exec bit: {_exc}")
 
@@ -66,20 +66,22 @@ def _repair_embed_server(args) -> None:
 
             _r = restart_stale_embed_service(allow_elevation=console_has_person())
             _p = ", ".join(str(p) for p in _r["pids"])
-            match _r['outcome']:
-                case 'restarted':
-                    print(f"  [fixed] embed-server restarted on the new native core "
-                          f"(was pid {_p})")
-                case 'needs-admin':
-                    print(f"  [needs admin] embed-server (pid {_p}) still runs the "
-                          "previous core; run `m3 doctor --fix` at a console to "
-                          "approve the restart")
-                case 'declined':
-                    print(f"  [not fixed] embed-server (pid {_p}): the administrator "
-                          "prompt was declined or missed")
-                case 'still-stale':
-                    print(f"  [not fixed] embed-server (pid {_p}) still runs the "
-                          f"previous core{': ' + _r['detail'] if _r['detail'] else ''}")
+            match _r["outcome"]:
+                case "restarted":
+                    print(f"  [fixed] embed-server restarted on the new native core (was pid {_p})")
+                case "needs-admin":
+                    print(
+                        f"  [needs admin] embed-server (pid {_p}) still runs the "
+                        "previous core; run `m3 doctor --fix` at a console to "
+                        "approve the restart"
+                    )
+                case "declined":
+                    print(f"  [not fixed] embed-server (pid {_p}): the administrator prompt was declined or missed")
+                case "still-stale":
+                    print(
+                        f"  [not fixed] embed-server (pid {_p}) still runs the "
+                        f"previous core{': ' + _r['detail'] if _r['detail'] else ''}"
+                    )
         except Exception as _exc:  # noqa: BLE001 — never break doctor
             print(f"  [skipped] embed-server restart: {_exc}")
 
@@ -101,63 +103,78 @@ def main() -> int:
     )
     add_database_arg(parser)
     parser.add_argument(
-        "--skip-repair", action="store_true",
+        "--skip-repair",
+        action="store_true",
         help="Skip the legacy DB-repair phase (read-only health check).",
     )
     parser.add_argument(
-        "--skip-cascade", action="store_true",
+        "--skip-cascade",
+        action="store_true",
         help="Skip the embedding-cascade health probe.",
     )
     parser.add_argument(
-        "--skip-embed-server", action="store_true",
+        "--skip-embed-server",
+        action="store_true",
         help="Skip the Rust-side m3-embed-server doctor subprocess.",
     )
     parser.add_argument(
-        "--skip-oxidation", action="store_true",
+        "--skip-oxidation",
+        action="store_true",
         help="Skip the m3_core_rs native-extension status report.",
     )
     parser.add_argument(
-        "--skip-governor", action="store_true",
+        "--skip-governor",
+        action="store_true",
         help="Skip the governor scheduled-task migration check.",
     )
     parser.add_argument(
-        "--skip-locks", action="store_true",
+        "--skip-locks",
+        action="store_true",
         help="Skip the single-instance lock health check.",
     )
     parser.add_argument(
-        "--skip-embed-space", action="store_true",
+        "--skip-embed-space",
+        action="store_true",
         help="Skip the mixed embed-space check (vectors from >1 model in one index).",
     )
     parser.add_argument(
-        "--skip-schedule", action="store_true",
+        "--skip-schedule",
+        action="store_true",
         help="Skip the dangling scheduled-task interpreter check.",
     )
     parser.add_argument(
-        "--skip-startup-tools", action="store_true",
+        "--skip-startup-tools",
+        action="store_true",
         help="Skip the MCP startup tool-set check (resolved set + its source).",
     )
     parser.add_argument(
-        "--skip-shared-embedder", action="store_true",
+        "--skip-shared-embedder",
+        action="store_true",
         help="Skip the shared-embedder-mode check (config + server + keep-alive task).",
     )
     parser.add_argument(
-        "--skip-plugin", action="store_true",
+        "--skip-plugin",
+        action="store_true",
         help="Skip the Claude Code plugin version/enabled check.",
     )
     parser.add_argument(
-        "--skip-agent-paths", action="store_true",
+        "--skip-agent-paths",
+        action="store_true",
         help="Skip the cross-agent dead-path check (Gemini/OpenCode/Hermes/...).",
     )
     parser.add_argument(
-        "--skip-entrypoints", action="store_true",
+        "--skip-entrypoints",
+        action="store_true",
         help="Skip the console-entrypoint check (does `m3` on PATH run this install?).",
     )
     parser.add_argument(
-        "--skip-environment", action="store_true",
+        "--skip-environment",
+        action="store_true",
         help="Skip the hook-wiring check (do the chatlog hooks point at this install?).",
     )
     parser.add_argument(
-        "--fix-hooks", action="store_true",
+        "--fix-hooks",
+        action="store_true",
         help=(
             "With --fix: also re-wire broken m3 hook entries in "
             "~/.claude/settings.json. OFF by default because that file is the "
@@ -166,31 +183,36 @@ def main() -> int:
         ),
     )
     parser.add_argument(
-        "--skip-dashboard", action="store_true",
+        "--skip-dashboard",
+        action="store_true",
         help="Skip the web-dashboard liveness check (registry + port probe).",
     )
     parser.add_argument(
-        "--skip-cognitive-loop", action="store_true",
-        help="Skip the cognitive-loop dormancy check (installed + running + "
-             "entities extracted?).",
+        "--skip-cognitive-loop",
+        action="store_true",
+        help="Skip the cognitive-loop dormancy check (installed + running + entities extracted?).",
     )
     parser.add_argument(
-        "--skip-claude-mcp", action="store_true",
+        "--skip-claude-mcp",
+        action="store_true",
         help="Skip the Claude single-server check (is exactly ONE m3 memory "
-             "server live — not the direct server AND the plugin's together?).",
+        "server live — not the direct server AND the plugin's together?).",
     )
     parser.add_argument(
-        "--verbose", action="store_true",
+        "--verbose",
+        action="store_true",
         help="Show the full detail (DB-repair steps + each probe's expanded "
-             "report + model-load logs). Default is a compact one-line-per-check "
-             "summary of high-yield verdicts.",
+        "report + model-load logs). Default is a compact one-line-per-check "
+        "summary of high-yield verdicts.",
     )
     parser.add_argument(
-        "--fix", action="store_true",
+        "--fix",
+        action="store_true",
         help="Run quick-repair mode to auto-fix common deployment issues.",
     )
     parser.add_argument(
-        "--dry-run", action="store_true",
+        "--dry-run",
+        action="store_true",
         help="Use with --fix to simulate repair steps without making changes.",
     )
     args = parser.parse_args()
@@ -228,12 +250,14 @@ def main() -> int:
         shared_rc = 0
         if not args.skip_shared_embedder:
             from doctor import shared_embedder_probe
+
             shared_rc = shared_embedder_probe.run(brief=brief, fix=not args.dry_run)
 
         # Dashboard self-heal: kill a wedged instance, reap its stale registry
         # entry, and restart it on its recorded host/port. Dry-run only reports.
         if not args.skip_dashboard:
             from doctor import dashboard_probe
+
             dashboard_probe.run(brief=brief, fix=not args.dry_run)
 
         # Hook re-wiring is opt-in even under --fix: ~/.claude/settings.json is
@@ -242,32 +266,32 @@ def main() -> int:
         # --fix --fix-hooks writes, and only after a timestamped backup.
         if not args.skip_environment:
             from doctor import environment_probe
+
             if args.fix_hooks:
                 env_res = environment_probe.repair(dry_run=args.dry_run)
                 for act in env_res["actions"]:
                     if brief and act["status"] == "skipped":
-                        continue   # nothing was wrong; --verbose lists it
+                        continue  # nothing was wrong; --verbose lists it
                     print(f"  [{act['status']}] {act['action']}: {act['detail']}")
                 if env_res.get("backup"):
                     print(f"  settings.json backed up to {env_res['backup']}")
             else:
                 rc = environment_probe.run(brief=brief, fix=False)
                 if rc:
-                    print("  (hook repair not attempted — re-run with "
-                          "`--fix --fix-hooks` to re-wire)")
+                    print("  (hook repair not attempted — re-run with `--fix --fix-hooks` to re-wire)")
 
         # Agent stale-payload rewrite is also settings.json surgery (it repoints
         # memory + aux bridges + hooks + statusline to the current payload), so it
         # shares the --fix-hooks opt-in gate and backs settings.json up first.
         if not args.skip_agent_paths:
             from doctor import agent_paths_probe
+
             if args.fix_hooks:
                 agent_paths_probe.run(brief=brief, fix=not args.dry_run)
             else:
                 rc = agent_paths_probe.run(brief=brief, fix=False)
                 if rc:
-                    print("  (agent stale-payload rewrite not attempted — re-run "
-                          "with `--fix --fix-hooks`)")
+                    print("  (agent stale-payload rewrite not attempted — re-run with `--fix --fix-hooks`)")
 
         # Claude single-server convergence: turn off the plugin's competing
         # server and/or drop a legacy roots-less `memory` entry so exactly one m3
@@ -276,22 +300,23 @@ def main() -> int:
         # `claude mcp remove`). --fix alone reports; --fix --fix-hooks converges.
         if not args.skip_claude_mcp:
             from doctor import claude_mcp_probe
+
             if args.fix_hooks:
                 claude_mcp_probe.run(brief=brief, fix=not args.dry_run)
             else:
                 claude_mcp_probe.run(brief=brief, fix=False)
-                print("  (Claude single-server convergence not attempted — re-run "
-                      "with `--fix --fix-hooks`)")
+                print("  (Claude single-server convergence not attempted — re-run with `--fix --fix-hooks`)")
 
         # The plugin repair belongs to --fix --fix-hooks (it touches ~/.claude).
         # It must run in THIS branch: the report-only section further down is
         # not reached under --fix.
         if args.fix_hooks and not args.skip_plugin:
             from doctor import plugin_version_probe
+
             prv = plugin_version_probe.repair(dry_run=args.dry_run)
             for act in prv.get("actions", []):
                 if brief and act["action"] == "marketplace" and act["status"] == "ok":
-                    continue   # the plugin line that follows carries the outcome
+                    continue  # the plugin line that follows carries the outcome
                 print(f"  [{act['status']}] plugin {act['action']}: {act['detail']}")
 
         if not args.skip_embed_server:
@@ -312,20 +337,25 @@ def main() -> int:
     # comparing file timestamps against doctor's output has no way to tell.
     try:
         from memory.backends import active_backend
+
         _b = active_backend()
         if _b.name == "sqlite":
             from m3_sdk import resolve_db_path
+
             print(f"store: SQLite — {resolve_db_path(args.database)}")
         else:
             print(f"store: {_b.name} (pooled; db_path is a label, not a location)")
             # An agent_memory.db beside a pooled backend is NOT the live store.
             try:
                 from m3_core.paths import resolve_engine_file
+
                 _stray = resolve_engine_file("agent_memory.db")
                 if os.path.exists(_stray):
-                    print(f"       note: {_stray} exists but is NOT in use — a "
-                          "leftover from a pre-2026-08 install. Safe to archive "
-                          "once you have confirmed the PG store is authoritative.")
+                    print(
+                        f"       note: {_stray} exists but is NOT in use — a "
+                        "leftover from a pre-2026-08 install. Safe to archive "
+                        "once you have confirmed the PG store is authoritative."
+                    )
             except Exception:  # noqa: BLE001 — a note is never worth failing on
                 pass
     except Exception as e:  # noqa: BLE001 — never let the header break the doctor
@@ -336,30 +366,34 @@ def main() -> int:
     # unless the operator explicitly asked to repair.
     if not args.skip_repair and not brief:
         from doctor import db_repair
+
         exit_code = max(exit_code, db_repair.run(args.database))
 
     if not args.skip_cascade:
         from doctor import cascade_probe
+
         exit_code = max(exit_code, cascade_probe.run(brief=brief))
 
         # File fact-extraction reaches an LLM? (Surfaces the previously-silent
         # "file-extraction says no LLM while the main path has one" gap.)
         try:
             from doctor import files_extraction_probe
+
             exit_code = max(exit_code, files_extraction_probe.run(brief=brief))
         except Exception:  # noqa: BLE001 — a probe must never crash the doctor
             pass
 
     if not args.skip_embed_server:
         from doctor import embed_server_probe
+
         # Rust-side probe doesn't bump exit code on its own — operators
         # legitimately run m3 without `m3 embedder install`, and a missing
         # binary is not a Python-side failure.
         embed_server_probe.run(brief=brief)
 
-
     if not args.skip_oxidation:
         from doctor import oxidation_probe
+
         # Report-only: a pure-Python deployment (no/old wheel) is supported, so
         # this never bumps the exit code — it surfaces a stale wheel that would
         # otherwise degrade silently.
@@ -367,6 +401,7 @@ def main() -> int:
 
     if not args.skip_governor:
         from doctor import governor_probe
+
         # Report-only: leftover cron/schtasks entries are a suboptimal-but-
         # supported state, so this never bumps the exit code — it nags and
         # prints the fix command when the governor should own scheduled work.
@@ -374,6 +409,7 @@ def main() -> int:
 
     if not getattr(args, "skip_locks", False):
         from doctor import lock_probe
+
         # Report-only: a degraded lock (running without single-instance
         # enforcement) or a flapping one (duplicate launchers) is a warning, not a
         # hard failure — the services still run (fail-safe). Surfaces the state
@@ -382,6 +418,7 @@ def main() -> int:
 
     if not getattr(args, "skip_embed_space", False):
         from doctor import embed_space_probe
+
         # Report-only: a store mixing two embedding models still "works" — cosine
         # just returns nonsense for the minority rows, silently. Re-embedding is a
         # deliberate one-time cost the operator chooses, so this warns and never
@@ -390,6 +427,7 @@ def main() -> int:
 
     if not getattr(args, "skip_startup_tools", False):
         from doctor import startup_tools_probe
+
         # DOES bump the exit code, but only when the configured set cannot be
         # honored (unknown tool name, empty set, missing escape hatch). Those
         # are not degraded-but-working states: m3 would start with a surface the
@@ -401,6 +439,7 @@ def main() -> int:
 
     if not args.skip_schedule:
         from doctor import schedule_probe
+
         # Report-only: a task pointing at a deleted interpreter is a recoverable
         # state (re-register via `m3 setup`), so this never bumps the exit code —
         # it nags and prints the fix when a registered AgentOS_* task is dangling.
@@ -408,6 +447,7 @@ def main() -> int:
 
     if not args.skip_shared_embedder:
         from doctor import shared_embedder_probe
+
         # DOES bump the exit code: shared mode is the shipped default, so a missing
         # config / dead server / unregistered keep-alive task is a real degraded
         # state (silent fleet-wide embedding outage), not a supported variant.
@@ -416,6 +456,7 @@ def main() -> int:
 
     if not args.skip_plugin:
         from doctor import plugin_version_probe
+
         # Report-only: a stale or disabled plugin is user-recoverable and never
         # bumps the exit code. The repair (`claude plugin marketplace update` +
         # `claude plugin update`) runs in the --fix branch above, under the
@@ -424,6 +465,7 @@ def main() -> int:
 
     if not args.skip_entrypoints:
         from doctor import entrypoint_probe
+
         # DOES bump the exit code: if `m3` on PATH resolves to a stale or
         # orphaned launcher, every command in every runbook and error message
         # does something other than what it says. That is a broken install,
@@ -437,10 +479,12 @@ def main() -> int:
     # correctness issue in the user's own notes, not a broken install, and
     # failing anyone's CI over it would be wrong. Detection only, never writes.
     from doctor import agent_guidance_probe
+
     agent_guidance_probe.run(brief=brief)
 
     if not args.skip_environment:
         from doctor import environment_probe
+
         # DOES bump the exit code: a hook pointing at a path a reinstall moved
         # fails silently on every fire, so conversation capture is dead with no
         # error surfaced anywhere — the 48-hour context-loss failure in
@@ -450,6 +494,7 @@ def main() -> int:
 
     if not args.skip_agent_paths:
         from doctor import agent_paths_probe
+
         # DOES bump the exit code: a dead-path agent config means m3 silently does
         # not load in that host (Gemini/OpenCode/Hermes/... after a relocation).
         # `m3 setup` self-heals it (installer owns the canonical write path).
@@ -457,6 +502,7 @@ def main() -> int:
 
     if not args.skip_dashboard:
         from doctor import dashboard_probe
+
         # Report-only and exit-code-neutral: a stopped dashboard is a supported
         # state (the user simply hasn't launched it), not a degraded fleet. It
         # prints the URL when healthy, and on a wedged/dead entry nags with
@@ -465,6 +511,7 @@ def main() -> int:
 
     if not args.skip_cognitive_loop:
         from doctor import cognitive_loop_probe
+
         # Report-only and exit-code-neutral: whether to run the derived-knowledge
         # loop is the user's operational choice (some hosts capture-only), so a
         # dormant loop nags with the one-command fix but never fails the doctor.
@@ -474,6 +521,7 @@ def main() -> int:
 
     if not args.skip_claude_mcp:
         from doctor import claude_mcp_probe
+
         # Report-only and exit-code-neutral: a double-run (direct server AND the
         # plugin's server both live) still WORKS, just wastefully (payload loaded
         # twice, tools split across two prefixes), and a plugin-only setup is a

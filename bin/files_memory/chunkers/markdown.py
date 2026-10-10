@@ -21,6 +21,7 @@ Yields Leaf with:
   division_label = the literal heading text
   boundary_confidence = 1.0 (structural split — high confidence)
 """
+
 from __future__ import annotations
 
 import logging
@@ -61,10 +62,10 @@ def _strip_frontmatter(text: str) -> tuple[str, int]:
     """
     m = _YAML_FM_RE.match(text)
     if m:
-        return text[m.end():], m.end()
+        return text[m.end() :], m.end()
     m = _TOML_FM_RE.match(text)
     if m:
-        return text[m.end():], m.end()
+        return text[m.end() :], m.end()
     return text, 0
 
 
@@ -138,7 +139,10 @@ def chunk(path: str, text: str | None = None) -> Iterator[Leaf]:
         # Oversize sections split mid-paragraph
         if len(cleaned) > MAX_SECTION_CHARS:
             yield from _split_oversize(
-                cleaned, start + fm_offset, div_id, label,
+                cleaned,
+                start + fm_offset,
+                div_id,
+                label,
             )
             continue
 

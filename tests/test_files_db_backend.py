@@ -10,6 +10,7 @@ The SQLite tests run by default; the PG test is requires_pg (skips without a
 reachable cluster). Together they prove the same code path builds and read/writes
 the files store on both backends.
 """
+
 from __future__ import annotations
 
 import os
@@ -40,12 +41,15 @@ def sqlite_files(tmp_path, monkeypatch):
     # otherwise the migration runner emits PG-qualified `files.` names against a
     # SQLite connection (test-pollution OperationalError, hit 2026-07-24).
     from memory.backends import selector
+
     selector._reset_for_tests()
     import importlib
 
     import files_memory.config as fc
+
     importlib.reload(fc)
     import files_memory.db as fdb
+
     importlib.reload(fdb)
     fdb._initialized_dbs.clear()
     yield fdb
@@ -72,9 +76,19 @@ def test_sqlite_schema_has_expected_tables_and_fts(sqlite_files):
     conn = sqlite3.connect(path)
     tabs = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     conn.close()
-    for t in ("file_nodes", "ingestion_runs", "leaves", "leaf_embeddings",
-              "facts", "promotion_markers", "memory_links", "corpus_settings",
-              "extraction_attempts", "fact_hit_stats", "semantic_dedup_candidates"):
+    for t in (
+        "file_nodes",
+        "ingestion_runs",
+        "leaves",
+        "leaf_embeddings",
+        "facts",
+        "promotion_markers",
+        "memory_links",
+        "corpus_settings",
+        "extraction_attempts",
+        "fact_hit_stats",
+        "semantic_dedup_candidates",
+    ):
         assert t in tabs, f"missing {t}"
     assert "leaves_fts" in tabs and "file_summaries_fts" in tabs
 
@@ -83,8 +97,8 @@ def test_sqlite_init_is_idempotent(sqlite_files):
     """Re-init applies nothing new (all versions already stamped)."""
     fdb = sqlite_files
     fdb.init_db()
-    fdb._initialized_dbs.clear()   # force re-entry into init_db
-    fdb.init_db()                  # must not raise or double-apply
+    fdb._initialized_dbs.clear()  # force re-entry into init_db
+    fdb.init_db()  # must not raise or double-apply
     with fdb._db() as db:
         assert [r[0] for r in db.execute("SELECT version FROM schema_versions ORDER BY version")] == [1, 2, 3, 4]
 
@@ -119,20 +133,28 @@ def pg_files(monkeypatch, pg_url):
     monkeypatch.setenv("M3_PG_URL", pg_url)
     monkeypatch.setenv("M3_CORE_RS_DISABLE", "1")
     import psycopg2
-    c = psycopg2.connect(pg_url); c.autocommit = True
-    c.cursor().execute("DROP SCHEMA IF EXISTS files CASCADE"); c.close()
+
+    c = psycopg2.connect(pg_url)
+    c.autocommit = True
+    c.cursor().execute("DROP SCHEMA IF EXISTS files CASCADE")
+    c.close()
     from memory.backends import selector
+
     selector._reset_for_tests()
     import importlib
 
     import files_memory.config as fc
+
     importlib.reload(fc)
     import files_memory.db as fdb
+
     importlib.reload(fdb)
     fdb._initialized_dbs.clear()
     yield fdb
-    c = psycopg2.connect(pg_url); c.autocommit = True
-    c.cursor().execute("DROP SCHEMA IF EXISTS files CASCADE"); c.close()
+    c = psycopg2.connect(pg_url)
+    c.autocommit = True
+    c.cursor().execute("DROP SCHEMA IF EXISTS files CASCADE")
+    c.close()
     # The schema is gone, so init_db's "already migrated" memo is now false;
     # left in place, the next init_db() on PostgreSQL skipped migration and every
     # files query in a later test found no table (test_files_readonly_probe).
@@ -145,6 +167,7 @@ def test_pg_init_creates_files_schema_and_applies_migrations(pg_files):
     fdb = pg_files
     fdb.init_db()
     from memory.db import _db as seam_db
+
     with seam_db() as conn:
         cur = conn.cursor()
         cur.execute("SELECT tablename FROM pg_tables WHERE schemaname='files'")
@@ -152,9 +175,11 @@ def test_pg_init_creates_files_schema_and_applies_migrations(pg_files):
         cur.execute("SELECT version FROM files.schema_versions ORDER BY version")
         versions = [r[0] for r in cur.fetchall()]
         # pg_004 adds the tsvector search_vector columns + GIN indexes.
-        cur.execute("SELECT column_name FROM information_schema.columns "
-                    "WHERE table_schema='files' AND table_name='leaves' "
-                    "AND column_name='search_vector'")
+        cur.execute(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema='files' AND table_name='leaves' "
+            "AND column_name='search_vector'"
+        )
         has_search_vector = cur.fetchone() is not None
     assert versions == [1, 2, 3, 4]
     assert has_search_vector, "pg_004 should add files.leaves.search_vector"
@@ -170,9 +195,7 @@ def test_pg_read_write_routes_to_files_schema(pg_files):
     """files_memory._db() writes/reads the `files` schema via the primary pool."""
     fdb = pg_files
     with fdb._db() as db:
-        db.execute(
-            f"INSERT INTO files.file_nodes ({_FILE_NODE_COLS}) VALUES ({_FILE_NODE_VALS})"
-        )
+        db.execute(f"INSERT INTO files.file_nodes ({_FILE_NODE_COLS}) VALUES ({_FILE_NODE_VALS})")
     with fdb._db() as db:
         r = db.execute("SELECT COUNT(*) AS c FROM files.file_nodes").fetchone()
     assert (r["c"] if hasattr(r, "keys") else r[0]) == 1
@@ -225,17 +248,31 @@ def test_pg_files_search_keyword_channel_tsvector(pg_files):
     fdb = pg_files
     fdb.init_db()
     import uuid as _uuid
+
     fn = f"fn-{_uuid.uuid4().hex[:8]}"
     run = f"run-{_uuid.uuid4().hex[:8]}"
     target = f"lf-{_uuid.uuid4().hex[:8]}"
     other = f"lf-{_uuid.uuid4().hex[:8]}"
     with fdb._db() as db:
-        _seed_leaf(db, fn_uuid=fn, run_uuid=run, leaf_uuid=target,
-                   text="the quick brown fox jumps over the lazy dog", div_id="h1")
-        _seed_leaf(db, fn_uuid=fn, run_uuid=run, leaf_uuid=other,
-                   text="completely unrelated content about umbrellas", div_id="h2")
+        _seed_leaf(
+            db,
+            fn_uuid=fn,
+            run_uuid=run,
+            leaf_uuid=target,
+            text="the quick brown fox jumps over the lazy dog",
+            div_id="h1",
+        )
+        _seed_leaf(
+            db,
+            fn_uuid=fn,
+            run_uuid=run,
+            leaf_uuid=other,
+            text="completely unrelated content about umbrellas",
+            div_id="h2",
+        )
 
     from files_memory.search import files_search
+
     hits = files_search("brown fox", limit=10)
     hit_ids = {h.leaf_uuid for h in hits}
     assert target in hit_ids, f"tsvector keyword channel should surface the fox leaf; got {hit_ids}"

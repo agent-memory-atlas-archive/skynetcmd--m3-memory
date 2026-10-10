@@ -28,6 +28,7 @@ dangling job is a recoverable state (re-register via ``m3 setup``), not a doctor
 failure. Detection is per-OS backends behind a common ``find_dangling`` shape so
 the check degrades gracefully rather than going blind on 2 of 3 platforms.
 """
+
 from __future__ import annotations
 
 import logging
@@ -83,6 +84,7 @@ def _flag_missing(job: str, interpreter: str | None, script: str | None) -> dict
 
 # ── Windows backend ────────────────────────────────────────────────────────
 
+
 def _expected_task_names(m3_memory_root: str) -> list[str]:
     """AgentOS_* task names this install registers — sourced from
     install_schedules.get_schedule_specs so the names stay single-sourced."""
@@ -97,9 +99,7 @@ def _expected_task_names(m3_memory_root: str) -> list[str]:
 def _query_task_xml(name: str) -> str | None:
     """Task Scheduler XML for ``name``, or None if not installed. Raises on an
     unexpected schtasks failure (caught by the backend)."""
-    proc = subprocess.run(
-        ["schtasks", "/Query", "/TN", name, "/XML"], capture_output=True, text=True, timeout=20
-    )
+    proc = subprocess.run(["schtasks", "/Query", "/TN", name, "/XML"], capture_output=True, text=True, timeout=20)
     if proc.returncode != 0:
         stderr = (proc.stderr or "").upper()
         if proc.returncode == _SCHTASKS_NOT_FOUND_RC or "ERROR:" in stderr:
@@ -174,8 +174,9 @@ def _dangling_windows(m3_memory_root: str) -> list[dict]:
         try:
             task_xml = _query_task_xml(name)
         except Exception as e:  # noqa: BLE001 — one bad task must not sink the probe
-            dangling.append({"job": name, "interpreter": None, "script": None,
-                             "missing": ["query-error"], "error": str(e)})
+            dangling.append(
+                {"job": name, "interpreter": None, "script": None, "missing": ["query-error"], "error": str(e)}
+            )
             continue
         if task_xml is None:
             continue
@@ -187,6 +188,7 @@ def _dangling_windows(m3_memory_root: str) -> list[dict]:
 
 
 # ── macOS backend (launchd plist + crontab) ────────────────────────────────
+
 
 def _dangling_darwin(m3_memory_root: str) -> list[dict]:
     dangling: list[dict] = []
@@ -203,8 +205,15 @@ def _dangling_darwin(m3_memory_root: str) -> list[dict]:
             if rec:
                 dangling.append(rec)
         except Exception as e:  # noqa: BLE001
-            dangling.append({"job": f"launchd:{plist_path}", "interpreter": None,
-                             "script": None, "missing": ["parse-error"], "error": str(e)})
+            dangling.append(
+                {
+                    "job": f"launchd:{plist_path}",
+                    "interpreter": None,
+                    "script": None,
+                    "missing": ["parse-error"],
+                    "error": str(e),
+                }
+            )
     dangling.extend(_dangling_crontab())
     return dangling
 
@@ -238,13 +247,21 @@ def _dangling_linux(m3_memory_root: str) -> list[dict]:
             if rec:
                 dangling.append(rec)
         except Exception as e:  # noqa: BLE001
-            dangling.append({"job": f"systemd:{unit_path}", "interpreter": None,
-                             "script": None, "missing": ["parse-error"], "error": str(e)})
+            dangling.append(
+                {
+                    "job": f"systemd:{unit_path}",
+                    "interpreter": None,
+                    "script": None,
+                    "missing": ["parse-error"],
+                    "error": str(e),
+                }
+            )
     dangling.extend(_dangling_crontab())
     return dangling
 
 
 # ── Shared Unix crontab backend ────────────────────────────────────────────
+
 
 def _read_crontab() -> str | None:
     """Current user's crontab text, or None if there is none / crontab absent."""
@@ -304,6 +321,7 @@ def _dangling_crontab() -> list[dict]:
 
 
 # ── Dispatcher ─────────────────────────────────────────────────────────────
+
 
 def find_dangling(m3_memory_root: str) -> list[dict]:
     """Return one record per installed background job whose interpreter or

@@ -17,6 +17,7 @@ must still not. The second half matters as much as the first -- a trigger
 widened to everything would run a multi-second regeneration on every push and
 train people to reach for --no-verify (DESIGN_PHILOSOPHIES section 3).
 """
+
 from __future__ import annotations
 
 import pathlib
@@ -52,7 +53,9 @@ def _fires(path: str) -> bool:
     """
     proc = subprocess.run(
         ["grep", "-qE", _trigger_regex()],
-        input=path + "\n", text=True, capture_output=True,
+        input=path + "\n",
+        text=True,
+        capture_output=True,
     )
     return proc.returncode == 0
 
@@ -60,13 +63,13 @@ def _fires(path: str) -> bool:
 @pytest.mark.parametrize(
     "path",
     [
-        "bin/mcp_tool_catalog.py",        # the original five...
+        "bin/mcp_tool_catalog.py",  # the original five...
         "bin/gen_tool_inventory.py",
         "bin/m3_notification_waiter.py",  # ...and the ones that used to slip
         "bin/install_schedules.py",
         "bin/setup_memory.py",
         "bin/m3_upgrade.py",
-        "bin/ai-audit.sh",                # the generator reads *.sh too
+        "bin/ai-audit.sh",  # the generator reads *.sh too
         "scripts/inventory_graph.py",
         "docs/tools/agent_protocol.md",
         "README.md",
@@ -83,9 +86,9 @@ def test_inventoried_sources_arm_the_gate(path):
 @pytest.mark.parametrize(
     "path",
     [
-        "m3_memory/cli.py",          # package code: no docs/tools/ page
+        "m3_memory/cli.py",  # package code: no docs/tools/ page
         "tests/test_notification_waiter.py",
-        "bin/notes.txt",             # not a script
+        "bin/notes.txt",  # not a script
         "docs/DESIGN_PHILOSOPHIES.md",
         ".github/workflows/ci.yml",
     ],

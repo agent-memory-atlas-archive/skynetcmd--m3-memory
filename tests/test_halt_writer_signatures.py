@@ -17,6 +17,7 @@ real:
 
 The signature was, in effect, inverted. These tests pin both directions.
 """
+
 from __future__ import annotations
 
 import sys
@@ -77,8 +78,7 @@ def test_the_old_executable_substrings_are_gone():
     sigs = m3_halt._WRITER_CMDLINE_SIGNATURES.get("mcp", ())
     for bad in ("/m3.exe", "\\m3.exe", "/m3 ", "\\m3 "):
         assert bad not in sigs, (
-            f"{bad!r} matches the executable, not the invocation — `m3 setup` "
-            f"would flag itself again"
+            f"{bad!r} matches the executable, not the invocation — `m3 setup` would flag itself again"
         )
 
 
@@ -99,8 +99,11 @@ def test_the_real_bridge_still_matches_a_signature():
 # then failed with 0xC0000142. These are argv lists, as psutil returns them.
 
 MENTIONS_ONLY = [
-    ["C:/Program Files/Git/bin/bash.exe", "-c",
-     "echo $(powershell -c \"Get-Process | ? { $_.Name -eq 'm3-embed-server.exe' }\")"],
+    [
+        "C:/Program Files/Git/bin/bash.exe",
+        "-c",
+        "echo $(powershell -c \"Get-Process | ? { $_.Name -eq 'm3-embed-server.exe' }\")",
+    ],
     ["grep", "-n", "m3_cognitive_loop.py", "bin/install_schedules.py"],
     ["tail", "-f", "/var/log/m3/m3_embed_server_inproc.log"],
     ["code", "bin/m3_cognitive_loop.py"],
@@ -111,16 +114,28 @@ MENTIONS_ONLY = [
 
 REAL_WRITERS = [
     # Task Scheduler: pythonw + quoted script path + args
-    ([r"C:\v\Scripts\pythonw.exe", r'"C:\v\Lib\site-packages\m3_memory\bin\m3_cognitive_loop.py"',
-      "--interval", "60", "--background"], "cognitive-loop"),
+    (
+        [
+            r"C:\v\Scripts\pythonw.exe",
+            r'"C:\v\Lib\site-packages\m3_memory\bin\m3_cognitive_loop.py"',
+            "--interval",
+            "60",
+            "--background",
+        ],
+        "cognitive-loop",
+    ),
     # the waiter is launched with -u before its script
-    (["/opt/pipx/venvs/m3-memory/bin/python", "-u",
-      "/opt/pipx/venvs/m3-memory/lib/python3.13/site-packages/m3_memory/bin/m3_notification_waiter.py"],
-     "waiter"),
+    (
+        [
+            "/opt/pipx/venvs/m3-memory/bin/python",
+            "-u",
+            "/opt/pipx/venvs/m3-memory/lib/python3.13/site-packages/m3_memory/bin/m3_notification_waiter.py",
+        ],
+        "waiter",
+    ),
     (["/v/bin/python3.14", "-X", "utf8", "/v/bin/embed_server_inproc.py"], "embed-server"),
     # systemd/launchd run the Rust server binary directly
-    (["/opt/pipx/venvs/m3-memory/lib/python3.13/site-packages/m3_core_rs/m3-embed-server"],
-     "embed-server"),
+    (["/opt/pipx/venvs/m3-memory/lib/python3.13/site-packages/m3_core_rs/m3-embed-server"], "embed-server"),
     # a Linux console script runs as interpreter + script
     (["/v/bin/python", "/opt/pipx/bin/mcp-memory"], "mcp"),
     ([r"C:\py\python.exe", r"C:\v\bin\mcp_proxy.py"], "mcp"),

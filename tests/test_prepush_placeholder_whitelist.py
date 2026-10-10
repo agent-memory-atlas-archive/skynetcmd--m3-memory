@@ -16,6 +16,7 @@ the same letter as the placeholder `u`.
 Both directions are asserted here. A whitelist that is only tested for quiet is
 one nobody has proven still catches anything.
 """
+
 from __future__ import annotations
 
 import pathlib
@@ -52,9 +53,9 @@ def _blocked(line: str) -> bool:
         # Added 2026-10-02: names the PUBLISHED docs actually use. They went
         # unnoticed while the scan was dead on macOS; with it live they would
         # block legitimate doc edits.
-        '+All state now lives under `/home/bob/.m3-memory/` and',
+        "+All state now lives under `/home/bob/.m3-memory/` and",
         '+gguf = "C:/Users/<USER>/.lmstudio/models/bge-m3-GGUF-Q4_K_M.gguf"',
-        '+  shown as `/home/alice/...` on Linux or `C:\\Users\\Alice\\...` on Windows',
+        "+  shown as `/home/alice/...` on Linux or `C:\\Users\\Alice\\...` on Windows",
         '+    home = "/home/clawuser/.m3"',
     ],
 )
@@ -87,9 +88,7 @@ def test_whitelist_does_not_exclude_test_directories():
     """Excluding tests/ wholesale would be a blind spot: a real credential can
     land in a test file."""
     whitelist, _ = _patterns()
-    assert "tests/" not in whitelist, (
-        "the placeholder whitelist must not exempt whole directories"
-    )
+    assert "tests/" not in whitelist, "the placeholder whitelist must not exempt whole directories"
     assert "bench" not in whitelist
 
 
@@ -128,11 +127,8 @@ def test_prohibited_patterns_are_not_hardcoded_in_the_public_hook():
     """
     src = _HOOK.read_text(encoding="utf-8")
     assert "PROHIBITED_FILE=" in src, "the hook must read an external pattern file"
-    for private_token in ("lme-m/v3", "smoke-142", "237,655", "2,446,993",
-                          "SCHEMA_MIGRATION_FORK"):
-        assert private_token not in src, (
-            f"bench token {private_token!r} is hardcoded in the PUBLIC hook"
-        )
+    for private_token in ("lme-m/v3", "smoke-142", "237,655", "2,446,993", "SCHEMA_MIGRATION_FORK"):
+        assert private_token not in src, f"bench token {private_token!r} is hardcoded in the PUBLIC hook"
 
 
 def test_missing_pattern_file_fails_closed_and_says_so():
@@ -143,9 +139,7 @@ def test_missing_pattern_file_fails_closed_and_says_so():
     """
     src = _HOOK.read_text(encoding="utf-8")
     assert "LEAK_PATTERN='" in src, "a built-in fallback pattern must exist"
-    assert "NOT BEING CHECKED" in src, (
-        "falling back must be announced loudly, not silently"
-    )
+    assert "NOT BEING CHECKED" in src, "falling back must be announced loudly, not silently"
 
 
 def test_fallback_still_catches_credentials_and_pii():

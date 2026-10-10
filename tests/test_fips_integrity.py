@@ -10,6 +10,7 @@ Exit criteria (Milestone 2):
     DEFAULT backend (standard cryptography library).
   • No silent fallback from wolfSSL to stdlib under FIPS mode.
 """
+
 import hashlib
 import importlib
 import json
@@ -37,6 +38,7 @@ sys.path.insert(0, _BIN)
 # ctypes-mocked build) runs its assertions in a subprocess and we inspect the
 # JSON verdict here. DEFAULT-backend tests don't touch native code and stay
 # in-process. This mirrors conftest's native-embedder-disabled discipline.
+
 
 def _run_fips_subprocess(body: str, env: dict) -> dict:
     """Execute `body` in a fresh interpreter with `env` overlaid; return the dict
@@ -105,7 +107,8 @@ def _run_fips_subprocess(body: str, env: dict) -> dict:
     """)
     proc = subprocess.run(
         [sys.executable, "-c", prelude + textwrap.dedent(body)],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
         env={**os.environ, **{k: str(v) for k, v in env.items()}},
         timeout=120,
     )
@@ -115,19 +118,17 @@ def _run_fips_subprocess(body: str, env: dict) -> dict:
         f"FIPS subprocess produced no verdict (rc={proc.returncode}).\n"
         f"stdout:\n{proc.stdout[-3000:]}\nstderr:\n{proc.stderr[-2000:]}"
     )
-    return json.loads(line[len(marker):])
+    return json.loads(line[len(marker) :])
 
 
 # The crypto env as it was when this module was imported -- i.e. the state
 # every test in the session inherits. Captured at import because os.environ
 # is mid-restore during fixture finalizers and cannot be trusted there.
-_SESSION_CRYPTO_ENV = {
-    k: os.environ.get(k)
-    for k in ("M3_FIPS_MODE", "M3_FIPS_STRICT")
-}
+_SESSION_CRYPTO_ENV = {k: os.environ.get(k) for k in ("M3_FIPS_MODE", "M3_FIPS_STRICT")}
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
+
 
 @pytest.fixture(autouse=True)
 def _restore_crypto_provider():
@@ -195,9 +196,14 @@ def _restore_crypto_provider():
     #   grep -oE 'M3_[A-Z0-9_]+' bin/crypto_provider.py | sort -u
     # (M3_CONFIG_ROOT / M3_MEMORY_ROOT are also read, but conftest's sandbox owns
     # those and M3_LIB_DIR outranks both for library discovery.)
-    _RESTORE_KEYS = ("M3_CRYPTO_BACKEND", "M3_LIB_DIR",
-                     "M3_FIPS_MODE", "M3_FIPS_STRICT",
-                     "M3_WOLFSSL_LIB", "M3_WOLFSSL_SHA256")
+    _RESTORE_KEYS = (
+        "M3_CRYPTO_BACKEND",
+        "M3_LIB_DIR",
+        "M3_FIPS_MODE",
+        "M3_FIPS_STRICT",
+        "M3_WOLFSSL_LIB",
+        "M3_WOLFSSL_SHA256",
+    )
     _saved = {k: os.environ.get(k) for k in _RESTORE_KEYS}
 
     # The reload must run under the SESSION's FIPS state, which is what the next
@@ -232,6 +238,7 @@ def _restore_crypto_provider():
         os.environ["M3_LIB_DIR"] = _real_lib
     try:
         import crypto_provider
+
         importlib.reload(crypto_provider)
     finally:
         # Restore what we touched; monkeypatch owns everything else.
@@ -261,11 +268,13 @@ def _reload_provider(monkeypatch, backend=None, fips_mode=None, strict=None):
 
     # Reload so module-level BACKEND and provider re-evaluate env vars
     import crypto_provider
+
     importlib.reload(crypto_provider)
     return crypto_provider
 
 
 # ── DEFAULT backend: correctness ───────────────────────────────────────────────
+
 
 class TestDefaultBackend:
     """Standard library path — always available, no wolfSSL required."""
@@ -316,6 +325,7 @@ class TestDefaultBackend:
 
 
 # ── FIPS mode fail-closed enforcement ─────────────────────────────────────────
+
 
 class TestFIPSEnforcement:
     """Validate that M3_FIPS_MODE=1 enforces fail-closed policy."""
@@ -369,9 +379,7 @@ class TestFIPSEnforcement:
         if v["outcome"] == "raised":
             assert "FIPS" in v["msg"] or "FATAL" in v["msg"]
         else:
-            assert v["outcome"] == "boundary", (
-                f"{primitive} must not silently use stdlib under FIPS mode"
-            )
+            assert v["outcome"] == "boundary", f"{primitive} must not silently use stdlib under FIPS mode"
             assert "FIPS boundary violation" in v["msg"]
 
     def test_fips_mode_without_wolfssl_raises_on_sha256(self):
@@ -395,11 +403,13 @@ class TestFIPSEnforcement:
 
 # ── TLS context ────────────────────────────────────────────────────────────────
 
+
 class TestTLSContext:
     """The SSL context from the DEFAULT backend must enforce TLS 1.3."""
 
     def test_default_ssl_context_tls13_minimum(self, monkeypatch):
         import ssl
+
         cp = _reload_provider(monkeypatch, backend="DEFAULT")
         ctx = cp.provider.get_ssl_context()
         assert isinstance(ctx, ssl.SSLContext)
@@ -409,6 +419,7 @@ class TestTLSContext:
 
 
 # ── Error code table ───────────────────────────────────────────────────────────
+
 
 class TestErrorCodeTable:
     def test_known_fips_error_codes_present(self, monkeypatch):
@@ -442,9 +453,7 @@ class TestPowerUpKATs:
         """Lock the published KAT constants so a future edit can't silently
         weaken them (SHA-256('abc') is the NIST FIPS 180-4 example)."""
         cp = _reload_provider(monkeypatch, backend="DEFAULT")
-        assert cp._KAT_SHA256_DIGEST == (
-            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
-        )
+        assert cp._KAT_SHA256_DIGEST == ("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
         assert cp._KAT_SHA256_INPUT == b"abc"
         assert len(bytes.fromhex(cp._KAT_PBKDF2_KEY_HEX)) == 32
         assert len(cp._KAT_AESGCM_KEY) == 32
@@ -477,6 +486,7 @@ class TestPowerUpKATs:
 
 # ── Tiered FIPS mode: M3_FIPS_MODE vs M3_FIPS_STRICT (Phase 4) ──────────────────
 
+
 class TestTieredFipsMode:
     """M3_FIPS_MODE accepts the open-source (non-FIPS) wolfCrypt build for
     homelab/dev use; M3_FIPS_STRICT additionally requires the CMVP-validated
@@ -498,7 +508,7 @@ class TestTieredFipsMode:
         assert v["initialized"] is True
         assert v["backend"] == "WOLFSSL"
         assert v["validated"] is False  # open-source build is NOT validated
-        assert v["sha_ok"] is True      # real wolfCrypt crypto still works
+        assert v["sha_ok"] is True  # real wolfCrypt crypto still works
 
     def test_fips_strict_refuses_non_fips_wolfssl(self):
         """Strict tier: M3_FIPS_STRICT=1 + open-source wolfSSL -> FATAL, with a
@@ -541,6 +551,7 @@ class TestTieredFipsMode:
 
 # ── Secure wolfSSL discovery: DLL-hijack hardening (Phase 5) ────────────────────
 
+
 class TestSecureWolfsslDiscovery:
     """The crypto lib must load ONLY from trusted absolute paths M3 controls —
     never a bare name (which would let the OS search the CWD / %PATH% /
@@ -581,14 +592,12 @@ class TestSecureWolfsslDiscovery:
         for c in cands:
             assert os.path.dirname(os.path.abspath(c)) != cwd, "CWD is a hijack vector"
         # No candidate should come from a %PATH%/LD_LIBRARY_PATH dir.
-        path_dirs = (os.environ.get("PATH", "") + os.pathsep +
-                     os.environ.get("LD_LIBRARY_PATH", "")).split(os.pathsep)
+        path_dirs = (os.environ.get("PATH", "") + os.pathsep + os.environ.get("LD_LIBRARY_PATH", "")).split(os.pathsep)
         path_dirs = {os.path.abspath(d) for d in path_dirs if d}
         for c in cands:
             assert os.path.dirname(os.path.abspath(c)) not in path_dirs
 
-    def test_lib_dir_pin_relocates_search_but_keeps_per_os_filename(
-            self, monkeypatch, tmp_path):
+    def test_lib_dir_pin_relocates_search_but_keeps_per_os_filename(self, monkeypatch, tmp_path):
         """M3_LIB_DIR pins the DIRECTORY; the filename stays platform-derived.
 
         This is the difference from M3_WOLFSSL_LIB (used verbatim, any name).
@@ -632,6 +641,7 @@ class TestSecureWolfsslDiscovery:
         # M3_MEMORY_ROOT, so on a dev box that has a real ~/.m3/lib/wolfssl.dll,
         # redirecting only M3_MEMORY_ROOT leaves the real lib discoverable.
         import tempfile
+
         empty = tempfile.mkdtemp(prefix="m3empty-")
         monkeypatch.setenv("M3_MEMORY_ROOT", empty)
         monkeypatch.setenv("M3_CONFIG_ROOT", os.path.join(empty, "config"))
@@ -649,6 +659,7 @@ class TestSecureWolfsslDiscovery:
 
     def test_integrity_pin_accepts_match(self, monkeypatch, tmp_path):
         import hashlib
+
         cp = _reload_provider(monkeypatch, backend="DEFAULT")
         lib = tmp_path / "wolfssl.dll"
         data = b"the-real-bytes"

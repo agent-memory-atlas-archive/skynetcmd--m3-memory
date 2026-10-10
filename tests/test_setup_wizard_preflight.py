@@ -12,6 +12,7 @@ These tests are deliberately filesystem-isolated (tmp_path) and never
 spawn real processes. The tasklist parser test feeds canned output via
 a monkey-patched subprocess.run.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -44,6 +45,7 @@ def _no_real_supervised_stop(monkeypatch):
     test_upgrade_restarts_stale_embed_unix.py."""
     monkeypatch.setattr(setup_wizard, "_stop_supervised_services", lambda: None)
     monkeypatch.setattr(setup_wizard, "_restart_stale_embed_server", lambda *a, **k: None)
+
 
 # ────────────────────────────────────────────────────────────────────────
 # _discover_bge_m3_gguf
@@ -112,9 +114,7 @@ def test_discover_priority_lmstudio_wins_over_models_dir(monkeypatch, tmp_path):
     monkeypatch.setattr(Path, "home", lambda: home)
     found = setup_wizard._discover_bge_m3_gguf()
     assert found is not None
-    assert "lmstudio" in found.lower(), (
-        f"expected LM Studio path to win priority, got: {found}"
-    )
+    assert "lmstudio" in found.lower(), f"expected LM Studio path to win priority, got: {found}"
 
 
 # ────────────────────────────────────────────────────────────────────────
@@ -136,8 +136,7 @@ def test_find_running_parses_csv_pids(monkeypatch):
     """CSV-format tasklist output is parsed into a list of integer PIDs."""
     fake_result = mock.Mock()
     fake_result.stdout = (
-        '"mcp-memory.exe","12345","Console","1","123,456 K"\n'
-        '"mcp-memory.exe","67890","Console","1","98,765 K"\n'
+        '"mcp-memory.exe","12345","Console","1","123,456 K"\n"mcp-memory.exe","67890","Console","1","98,765 K"\n'
     )
     monkeypatch.setattr(subprocess, "run", lambda *a, **kw: fake_result)
     pids = setup_wizard._find_running_mcp_memory_processes()
@@ -204,6 +203,7 @@ def test_kill_process_returns_false_on_failure(monkeypatch):
 def test_setup_plan_has_embed_gguf_field():
     """B15 adds SetupPlan.embed_gguf for downstream wiring."""
     import dataclasses
+
     plan = setup_wizard.SetupPlan()
     fields = {f.name for f in dataclasses.fields(plan)}
     assert "embed_gguf" in fields
@@ -218,6 +218,7 @@ def test_setup_plan_has_embed_gguf_field():
 def test_detect_agents_none_found(monkeypatch, tmp_path):
     """When no agent binaries or directories are present, all fields are False."""
     import shutil
+
     monkeypatch.setattr(shutil, "which", lambda name: None)
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
     monkeypatch.setattr(setup_wizard, "_find_hermes_plugins_dir", lambda: None)
@@ -251,6 +252,7 @@ def test_detect_agents_all_found(monkeypatch, tmp_path):
 def test_detect_agents_fallback_paths(monkeypatch, tmp_path):
     """Fallback paths (like ~/.gemini/antigravity-cli or ~/.openclaw) are correctly scanned."""
     import shutil
+
     monkeypatch.setattr(shutil, "which", lambda name: None)
 
     home = tmp_path / "home"
@@ -308,8 +310,7 @@ def test_find_hermes_plugins_dir_via_localappdata(monkeypatch, tmp_path):
 def test_gather_plan_interactive_defaults(monkeypatch):
     """When agents are detected, interactive gather_plan defaults are optimal (True)."""
     detected = setup_wizard.AgentTargets(
-        claude=True, gemini=True, antigravity=True,
-        opencode=True, openclaw=True, hermes=True
+        claude=True, gemini=True, antigravity=True, opencode=True, openclaw=True, hermes=True
     )
 
     class FakeArgs:
@@ -340,6 +341,7 @@ def test_gather_plan_interactive_defaults(monkeypatch):
     # otherwise install_gpu_embedder flips between hosts (that env-dependence was a
     # latent bug the tier-2-default change exposed).
     import m3_memory.rust_core_install as _rci
+
     monkeypatch.setattr(_rci, "active_embedder_tier", lambda: {"native": False})
 
     plan = setup_wizard._gather_plan(detected, args)
@@ -368,6 +370,7 @@ def test_wire_opencode_writes_json(monkeypatch, tmp_path):
     must pin _opencode_config_paths to a hermetic tmp path — otherwise the real
     user's ~/.config/opencode/opencode.json short-circuits the write."""
     import json
+
     cfg_file = tmp_path / "opencode" / "opencode.json"
     # No file exists at this path yet -> _wire_opencode creates it at paths[0].
     monkeypatch.setattr(setup_wizard, "_opencode_config_paths", lambda: [cfg_file])
@@ -441,6 +444,7 @@ def test_gather_plan_interactive_decouple_and_fips(monkeypatch):
     detected = setup_wizard.AgentTargets(claude=True)
 
     calls = []
+
     def mock_ask_yes_no(question, default):
         calls.append(question)
         # The separate-config+database-folders prompt (formerly "decoupled").
@@ -450,6 +454,7 @@ def test_gather_plan_interactive_decouple_and_fips(monkeypatch):
         return default
 
     choice_calls = []
+
     def mock_ask_choice(question, choices, default):
         choice_calls.append(question)
         # FIPS is now a tiered choice (off/mode/strict) — pick 'mode'.
@@ -497,6 +502,7 @@ def test_step_install_m3_passes_force(monkeypatch):
     # the --force install-m3 command is actually issued. find_bridge is imported
     # inside the function from m3_memory.installer, so patch it at the source.
     from m3_memory import installer
+
     monkeypatch.setattr(installer, "find_bridge", lambda: None)
 
     plan = setup_wizard.SetupPlan()
@@ -506,16 +512,20 @@ def test_step_install_m3_passes_force(monkeypatch):
     assert len(captured) == 1
     cmd = captured[0]
     assert "install-m3" in cmd
-    assert "--force" in cmd, (
-        f"_step_install_m3 must pass --force; got: {cmd}"
-    )
+    assert "--force" in cmd, f"_step_install_m3 must pass --force; got: {cmd}"
     assert "--non-interactive" in cmd
     assert "--capture-mode" in cmd
 
 
-@pytest.mark.parametrize("platform, enabled, expect", [
-    ("linux", True, 1), ("darwin", True, 1), ("linux", False, 0), ("win32", True, 0),
-])
+@pytest.mark.parametrize(
+    "platform, enabled, expect",
+    [
+        ("linux", True, 1),
+        ("darwin", True, 1),
+        ("linux", False, 0),
+        ("win32", True, 0),
+    ],
+)
 def test_present_payload_still_reregisters_the_loop(monkeypatch, platform, enabled, expect):
     """On a pipx upgrade the payload is present, so install-m3 (which registers
     the loop) is skipped; the loop unit must still be rewritten from the new
@@ -524,8 +534,7 @@ def test_present_payload_still_reregisters_the_loop(monkeypatch, platform, enabl
 
     calls = []
     monkeypatch.setattr(installer, "find_bridge", lambda: "/payload/bin/memory_bridge.py")
-    monkeypatch.setattr(installer, "_register_cognitive_loop_task",
-                        lambda: calls.append(1) or True)
+    monkeypatch.setattr(installer, "_register_cognitive_loop_task", lambda: calls.append(1) or True)
     monkeypatch.setattr(sys, "platform", platform)
     plan = setup_wizard.SetupPlan()
     plan.cognitive_loop = enabled
@@ -574,9 +583,7 @@ def test_persist_embed_gguf_idempotent(monkeypatch, tmp_path):
     setup_wizard._persist_embed_gguf("/new/path.gguf", non_interactive=True)
 
     content = rc.read_text(encoding="utf-8")
-    assert content.count("M3_EMBED_GGUF") == 1, (
-        "Expected exactly one M3_EMBED_GGUF entry; got duplicate writes"
-    )
+    assert content.count("M3_EMBED_GGUF") == 1, "Expected exactly one M3_EMBED_GGUF entry; got duplicate writes"
     # Pre-existing path is left untouched (user already configured it)
     assert "/old/path.gguf" in content
 
@@ -590,9 +597,14 @@ def test_persist_embed_gguf_patches_claude_settings(monkeypatch, tmp_path):
     claude_dir = home / ".claude"
     claude_dir.mkdir()
     settings = claude_dir / "settings.json"
-    settings.write_text(json.dumps({
-        "mcpServers": {"memory": {"command": "mcp-memory"}},
-    }), encoding="utf-8")
+    settings.write_text(
+        json.dumps(
+            {
+                "mcpServers": {"memory": {"command": "mcp-memory"}},
+            }
+        ),
+        encoding="utf-8",
+    )
 
     monkeypatch.setattr(Path, "home", lambda: home)
     monkeypatch.setenv("SHELL", "/bin/zsh")
@@ -675,15 +687,19 @@ def test_persist_embed_gguf_patches_mcp_settings_on_windows(monkeypatch, tmp_pat
     home.mkdir()
     (home / ".claude").mkdir()
     settings = home / ".claude" / "settings.json"
-    settings.write_text(json.dumps({
-        "mcpServers": {"memory": {"command": "mcp-memory"}},
-    }), encoding="utf-8")
+    settings.write_text(
+        json.dumps(
+            {
+                "mcpServers": {"memory": {"command": "mcp-memory"}},
+            }
+        ),
+        encoding="utf-8",
+    )
 
     monkeypatch.setattr(Path, "home", lambda: home)
     simulate_os(monkeypatch, "Windows")
     # Stub setx so the shell-env step doesn't try to execute a real binary.
-    monkeypatch.setattr(subprocess, "run",
-                        lambda *a, **kw: mock.Mock(returncode=0, stdout="", stderr=""))
+    monkeypatch.setattr(subprocess, "run", lambda *a, **kw: mock.Mock(returncode=0, stdout="", stderr=""))
 
     setup_wizard._persist_embed_gguf("C:\\path\\bge-m3.gguf", non_interactive=True)
 
@@ -760,9 +776,8 @@ def test_discover_finds_gguf_in_linux_lmstudio_cache(monkeypatch, tmp_path):
     assert Path(found) == target
 
 
-
-
 # ── Probe 5: LLM endpoint detection + failover wiring ────────────────────────
+
 
 def _probe_args(non_interactive=True):
     return argparse.Namespace(non_interactive=non_interactive)
@@ -794,11 +809,9 @@ def test_probe_enables_ollama_when_only_ollama_reachable(monkeypatch):
     monkeypatch.delenv("M3_ENABLE_OLLAMA_FAILOVER", raising=False)
     monkeypatch.delenv("M3_ENABLE_LMSTUDIO_FAILOVER", raising=False)
     # Only Ollama (:11434) answers; LM Studio (:1234) is dead.
-    monkeypatch.setattr(setup_wizard, "_endpoint_reachable",
-                        lambda url, **k: "11434" in url)
+    monkeypatch.setattr(setup_wizard, "_endpoint_reachable", lambda url, **k: "11434" in url)
     persisted = {}
-    monkeypatch.setattr(setup_wizard, "_persist_env_var",
-                        lambda n, v, **k: persisted.__setitem__(n, v))
+    monkeypatch.setattr(setup_wizard, "_persist_env_var", lambda n, v, **k: persisted.__setitem__(n, v))
     setup_wizard._probe_llm_endpoints(object(), _probe_args(non_interactive=True))
     # Ollama enabled, LM Studio probe disabled (it's not reachable).
     assert persisted.get("M3_ENABLE_OLLAMA_FAILOVER") == "1"
@@ -812,11 +825,9 @@ def test_probe_no_op_when_only_lmstudio_reachable(monkeypatch):
     monkeypatch.delenv("M3_LLM_URL", raising=False)
     monkeypatch.delenv("M3_ENABLE_LMSTUDIO_FAILOVER", raising=False)
     monkeypatch.delenv("M3_ENABLE_OLLAMA_FAILOVER", raising=False)
-    monkeypatch.setattr(setup_wizard, "_endpoint_reachable",
-                        lambda url, **k: "1234" in url)
+    monkeypatch.setattr(setup_wizard, "_endpoint_reachable", lambda url, **k: "1234" in url)
     persisted = {}
-    monkeypatch.setattr(setup_wizard, "_persist_env_var",
-                        lambda n, v, **k: persisted.__setitem__(n, v))
+    monkeypatch.setattr(setup_wizard, "_persist_env_var", lambda n, v, **k: persisted.__setitem__(n, v))
     setup_wizard._probe_llm_endpoints(object(), _probe_args(non_interactive=True))
     assert persisted == {}
 
@@ -843,6 +854,7 @@ def _hermes_dirs(tmp_path, plugin_content="SRC"):
 def _no_input(monkeypatch):
     def _boom(*a, **k):
         raise AssertionError("input() called in non-interactive mode")
+
     monkeypatch.setattr("builtins.input", _boom)
 
 
@@ -923,6 +935,7 @@ class _FakeProc:
 
 class _FakeHalt:
     """Records set/clear/kill and returns scripted quiesce results."""
+
     def __init__(self, live, quiesce_results):
         self._live = live
         self._results = list(quiesce_results)  # popped per wait_for_quiesce call
@@ -959,8 +972,7 @@ def _R(ok, stuck=()):
 
 
 def _q_args(**kw):
-    base = {"non_interactive": True, "force_quiesce": False, "force_kill_mcp": False,
-                "quiesce_timeout": 1.0}
+    base = {"non_interactive": True, "force_quiesce": False, "force_kill_mcp": False, "quiesce_timeout": 1.0}
     base.update(kw)
     return argparse.Namespace(**base)
 
@@ -973,8 +985,7 @@ def test_quiesce_no_writers_proceeds(monkeypatch):
 
 
 def test_quiesce_writers_pause_in_time(monkeypatch):
-    fake = _FakeHalt(live=[_FakeProc("cognitive-loop", 111)],
-                     quiesce_results=[_R(True)])
+    fake = _FakeHalt(live=[_FakeProc("cognitive-loop", 111)], quiesce_results=[_R(True)])
     monkeypatch.setattr(setup_wizard, "_import_m3_halt", lambda: fake)
     assert setup_wizard._quiesce_db_writers(_q_args()) is True
     assert fake.set_called == 1
@@ -983,8 +994,9 @@ def test_quiesce_writers_pause_in_time(monkeypatch):
 
 
 def test_quiesce_stuck_non_interactive_no_force_aborts(monkeypatch):
-    fake = _FakeHalt(live=[_FakeProc("cognitive-loop", 111)],
-                     quiesce_results=[_R(False, [_FakeProc("cognitive-loop", 111)])])
+    fake = _FakeHalt(
+        live=[_FakeProc("cognitive-loop", 111)], quiesce_results=[_R(False, [_FakeProc("cognitive-loop", 111)])]
+    )
     monkeypatch.setattr(setup_wizard, "_import_m3_halt", lambda: fake)
     assert setup_wizard._quiesce_db_writers(_q_args(force_quiesce=False)) is False
     assert fake.cleared == 1  # abort path clears its own HALT
@@ -992,8 +1004,7 @@ def test_quiesce_stuck_non_interactive_no_force_aborts(monkeypatch):
 
 def test_quiesce_stuck_non_interactive_force_kills_then_proceeds(monkeypatch):
     stuck = [_FakeProc("cognitive-loop", 111)]
-    fake = _FakeHalt(live=list(stuck),
-                     quiesce_results=[_R(False, stuck), _R(True)])
+    fake = _FakeHalt(live=list(stuck), quiesce_results=[_R(False, stuck), _R(True)])
     killed = []
     monkeypatch.setattr(setup_wizard, "_import_m3_halt", lambda: fake)
     monkeypatch.setattr(setup_wizard, "_kill_process_windows", lambda pid: killed.append(pid) or True)
@@ -1058,8 +1069,7 @@ def test_interactive_kill_retries_with_sudo(monkeypatch, capsys):
     # unprivileged kill refused, sudo kill succeeds
     monkeypatch.setattr(setup_wizard, "_kill_process_posix", lambda pid: False)
     sudo_calls = []
-    monkeypatch.setattr(setup_wizard, "_sudo_kill_posix",
-                        lambda pid: sudo_calls.append(pid) or True)
+    monkeypatch.setattr(setup_wizard, "_sudo_kill_posix", lambda pid: sudo_calls.append(pid) or True)
     simulate_os(monkeypatch, "Linux")
 
     assert setup_wizard._quiesce_db_writers(_q_args(non_interactive=False)) is True
@@ -1075,8 +1085,7 @@ def test_noninteractive_force_does_not_use_sudo(monkeypatch):
     monkeypatch.setattr(setup_wizard, "_kill_process_posix", lambda pid: False)
     monkeypatch.setattr(setup_wizard, "_kill_process_windows", lambda pid: False)
     sudo_called = []
-    monkeypatch.setattr(setup_wizard, "_sudo_kill_posix",
-                        lambda pid: sudo_called.append(pid) or True)
+    monkeypatch.setattr(setup_wizard, "_sudo_kill_posix", lambda pid: sudo_called.append(pid) or True)
 
     assert setup_wizard._quiesce_db_writers(_q_args(force_quiesce=True)) is False
     assert sudo_called == []  # sudo NEVER attempted headless
@@ -1093,16 +1102,14 @@ def test_interactive_kill_retries_with_runas_on_windows(monkeypatch):
     simulate_os(monkeypatch, "Windows")
     monkeypatch.setattr(setup_wizard, "_kill_process_windows", lambda pid: False)
     runas_calls = []
-    monkeypatch.setattr(setup_wizard, "_runas_kill_windows",
-                        lambda pid: runas_calls.append(pid) or True)
+    monkeypatch.setattr(setup_wizard, "_runas_kill_windows", lambda pid: runas_calls.append(pid) or True)
     # sudo path must NOT be used on Windows
     sudo_calls = []
-    monkeypatch.setattr(setup_wizard, "_sudo_kill_posix",
-                        lambda pid: sudo_calls.append(pid) or True)
+    monkeypatch.setattr(setup_wizard, "_sudo_kill_posix", lambda pid: sudo_calls.append(pid) or True)
 
     assert setup_wizard._quiesce_db_writers(_q_args(non_interactive=False)) is True
-    assert runas_calls == [321]   # RunAs (UAC) attempted
-    assert sudo_calls == []        # sudo NOT used on Windows
+    assert runas_calls == [321]  # RunAs (UAC) attempted
+    assert sudo_calls == []  # sudo NOT used on Windows
 
 
 def test_runas_kill_windows_reads_elevated_exit_code(monkeypatch):
@@ -1117,9 +1124,11 @@ def test_runas_kill_windows_reads_elevated_exit_code(monkeypatch):
     # exit 1 (access denied / still there) -> False
     monkeypatch.setattr(subprocess, "run", lambda *a, **k: mock.Mock(returncode=1))
     assert setup_wizard._runas_kill_windows(123) is False
+
     # UAC cancelled -> subprocess raises -> False
     def boom(*a, **k):
         raise OSError("user cancelled UAC")
+
     monkeypatch.setattr(subprocess, "run", boom)
     assert setup_wizard._runas_kill_windows(123) is False
 
@@ -1132,8 +1141,7 @@ def test_quiesce_registers_atexit_clear(monkeypatch):
     fake = _FakeHalt(live=list(stuck), quiesce_results=[_R(True)])
     monkeypatch.setattr(setup_wizard, "_import_m3_halt", lambda: fake)
     registered = []
-    monkeypatch.setattr(setup_wizard.atexit, "register",
-                        lambda fn, *a, **k: registered.append(fn))
+    monkeypatch.setattr(setup_wizard.atexit, "register", lambda fn, *a, **k: registered.append(fn))
 
     assert setup_wizard._quiesce_db_writers(_q_args()) is True
     # the fake's clear_halt bound method must be what got registered
@@ -1173,10 +1181,8 @@ def test_offer_elevated_repair_runs_on_yes(monkeypatch):
     monkeypatch.setattr(setup_wizard, "_stdin_is_interactive", lambda: True)
     monkeypatch.setattr(setup_wizard, "_ask_yes_no", lambda *a, **k: True)
     ran = []
-    monkeypatch.setattr(setup_wizard, "_runas_schedule_repair_windows",
-                        lambda s: ran.append(s) or True)
-    assert setup_wizard._offer_elevated_schedule_repair(r"C:\x\install_schedules.py",
-                                                        non_interactive=False) is True
+    monkeypatch.setattr(setup_wizard, "_runas_schedule_repair_windows", lambda s: ran.append(s) or True)
+    assert setup_wizard._offer_elevated_schedule_repair(r"C:\x\install_schedules.py", non_interactive=False) is True
     assert ran == [r"C:\x\install_schedules.py"]
 
 
@@ -1196,8 +1202,10 @@ def test_runas_schedule_repair_reads_exit_code(monkeypatch):
     assert setup_wizard._runas_schedule_repair_windows("s") is True
     monkeypatch.setattr(subprocess, "run", lambda *a, **k: mock.Mock(returncode=1))
     assert setup_wizard._runas_schedule_repair_windows("s") is False
+
     def boom(*a, **k):
         raise OSError("UAC cancelled")
+
     monkeypatch.setattr(subprocess, "run", boom)
     assert setup_wizard._runas_schedule_repair_windows("s") is False
 
@@ -1214,49 +1222,47 @@ class TestGuiChildElevation:
     def test_headless_noninteractive_skips_uac(self, monkeypatch):
         simulate_os(monkeypatch, "Windows")
         called = {"runas": False}
-        monkeypatch.setattr(setup_wizard, "_runas_delete_tasks_windows",
-                            lambda names: called.__setitem__("runas", True) or True)
-        out = setup_wizard._offer_elevated_task_delete(
-            ["AgentOS_Maintenance"], non_interactive=True, gui=False)
+        monkeypatch.setattr(
+            setup_wizard, "_runas_delete_tasks_windows", lambda names: called.__setitem__("runas", True) or True
+        )
+        out = setup_wizard._offer_elevated_task_delete(["AgentOS_Maintenance"], non_interactive=True, gui=False)
         assert out is False
         assert called["runas"] is False  # never attempted headless
 
     def test_gui_child_attempts_uac_without_prompt(self, monkeypatch):
         simulate_os(monkeypatch, "Windows")
         called = {"runas": False, "asked": False}
-        monkeypatch.setattr(setup_wizard, "_runas_delete_tasks_windows",
-                            lambda names: called.__setitem__("runas", True) or True)
-        monkeypatch.setattr(setup_wizard, "_ask_yes_no",
-                            lambda *a, **k: called.__setitem__("asked", True) or True)
-        out = setup_wizard._offer_elevated_task_delete(
-            ["AgentOS_Maintenance"], non_interactive=True, gui=True)
+        monkeypatch.setattr(
+            setup_wizard, "_runas_delete_tasks_windows", lambda names: called.__setitem__("runas", True) or True
+        )
+        monkeypatch.setattr(setup_wizard, "_ask_yes_no", lambda *a, **k: called.__setitem__("asked", True) or True)
+        out = setup_wizard._offer_elevated_task_delete(["AgentOS_Maintenance"], non_interactive=True, gui=True)
         assert out is True
-        assert called["runas"] is True   # UAC attempted
+        assert called["runas"] is True  # UAC attempted
         assert called["asked"] is False  # no terminal prompt (can't, in a GUI child)
 
     def test_terminal_interactive_asks_first(self, monkeypatch):
         simulate_os(monkeypatch, "Windows")
         called = {"runas": False, "asked": False}
-        monkeypatch.setattr(setup_wizard, "_runas_delete_tasks_windows",
-                            lambda names: called.__setitem__("runas", True) or True)
-        monkeypatch.setattr(setup_wizard, "_ask_yes_no",
-                            lambda *a, **k: called.__setitem__("asked", True) or True)
-        out = setup_wizard._offer_elevated_task_delete(
-            ["AgentOS_Maintenance"], non_interactive=False, gui=False)
+        monkeypatch.setattr(
+            setup_wizard, "_runas_delete_tasks_windows", lambda names: called.__setitem__("runas", True) or True
+        )
+        monkeypatch.setattr(setup_wizard, "_ask_yes_no", lambda *a, **k: called.__setitem__("asked", True) or True)
+        out = setup_wizard._offer_elevated_task_delete(["AgentOS_Maintenance"], non_interactive=False, gui=False)
         assert out is True
-        assert called["asked"] is True   # prompted first in a terminal
+        assert called["asked"] is True  # prompted first in a terminal
         assert called["runas"] is True
 
     def test_non_windows_never_elevates(self, monkeypatch):
         simulate_os(monkeypatch, "Linux")
-        out = setup_wizard._offer_elevated_task_delete(
-            ["AgentOS_Maintenance"], non_interactive=True, gui=True)
+        out = setup_wizard._offer_elevated_task_delete(["AgentOS_Maintenance"], non_interactive=True, gui=True)
         assert out is False
 
     def test_gui_child_flag_is_distinct_from_gui(self):
         # --gui LAUNCHES the window; --gui-child is the human-present UAC signal.
         # They must not collide, and gui-child must not trigger _should_use_gui.
         import argparse
+
         p = argparse.ArgumentParser()
         setup_wizard.add_arguments(p)
         a = p.parse_args(["--non-interactive", "--gui-child"])
@@ -1266,6 +1272,7 @@ class TestGuiChildElevation:
 
     def test_gui_emits_gui_child_not_gui(self):
         from m3_memory.setup_gui import _build_flags
+
         flags = _build_flags({"agent_claude": True})
         assert "--gui-child" in flags
         assert "--gui" not in flags  # would recursively re-launch the window
@@ -1279,8 +1286,9 @@ class TestGuiChildElevationMacOS:
     def test_task_delete_is_noop_on_macos_even_with_gui(self, monkeypatch):
         # _offer_elevated_task_delete is Windows-only by construction.
         simulate_os(monkeypatch, "Darwin")
-        assert setup_wizard._offer_elevated_task_delete(
-            ["AgentOS_Maintenance"], non_interactive=True, gui=True) is False
+        assert (
+            setup_wizard._offer_elevated_task_delete(["AgentOS_Maintenance"], non_interactive=True, gui=True) is False
+        )
 
     def test_kill_stuck_writers_does_not_sudo_when_allow_sudo_false(self, monkeypatch):
         # The GUI path passes allow_sudo = (gui and win32); on macOS that's False,
@@ -1288,13 +1296,15 @@ class TestGuiChildElevationMacOS:
         simulate_os(monkeypatch, "Darwin")
         sudo_called = {"n": 0}
         monkeypatch.setattr(setup_wizard, "_kill_process_posix", lambda pid: False)
-        monkeypatch.setattr(setup_wizard, "_sudo_kill_posix",
-                            lambda pid: sudo_called.__setitem__("n", sudo_called["n"] + 1) or True)
+        monkeypatch.setattr(
+            setup_wizard, "_sudo_kill_posix", lambda pid: sudo_called.__setitem__("n", sudo_called["n"] + 1) or True
+        )
         from types import SimpleNamespace
+
         stuck = [SimpleNamespace(pid=4242, role="cognitive-loop")]
         ok = setup_wizard._kill_stuck_writers(stuck, allow_sudo=False)
-        assert ok is False               # kill refused, not escalated
-        assert sudo_called["n"] == 0     # sudo NEVER attempted (no console hang)
+        assert ok is False  # kill refused, not escalated
+        assert sudo_called["n"] == 0  # sudo NEVER attempted (no console hang)
 
 
 class TestCursorClineVisibility:
@@ -1331,18 +1341,20 @@ class TestCursorClineVisibility:
         assert t.cursor and t.cline
 
 
-@pytest.mark.parametrize("registered, expect", [
-    (True, "keeps :8082 up"),
-    (False, "NOT registered"),
-])
+@pytest.mark.parametrize(
+    "registered, expect",
+    [
+        (True, "keeps :8082 up"),
+        (False, "NOT registered"),
+    ],
+)
 def test_keep_alive_line_reflects_the_service_manager(monkeypatch, capsys, registered, expect):
     """The Rust binary being present does not mean step 2 registered it."""
     from m3_memory import embedder_admin
 
     monkeypatch.setattr(embedder_admin, "_server_binary", lambda: Path("/bin/m3-embed-server"))
     monkeypatch.setattr(embedder_admin, "_find_bundled_gguf", lambda: None)
-    monkeypatch.setattr(embedder_admin, "_service_reports_installed",
-                        lambda b, g: registered)
+    monkeypatch.setattr(embedder_admin, "_service_reports_installed", lambda b, g: registered)
     setup_wizard._register_embed_server_task(non_interactive=True)
     out = capsys.readouterr().out
     assert expect in out
@@ -1362,8 +1374,7 @@ def test_setup_lowers_its_halt_before_verifying(monkeypatch):
         if name.startswith("_step_"):
             monkeypatch.setattr(setup_wizard, name, lambda *a, **k: True)
     monkeypatch.setattr(setup_wizard, "_step_doctor", lambda *a, **k: events.append("doctor") or True)
-    monkeypatch.setattr(setup_wizard, "_step_verify_daemons",
-                        lambda *a, **k: events.append("verify") or True)
+    monkeypatch.setattr(setup_wizard, "_step_verify_daemons", lambda *a, **k: events.append("verify") or True)
     monkeypatch.setattr(setup_wizard, "_import_m3_halt", lambda: _Halt())
     monkeypatch.setattr(setup_wizard, "_should_use_gui", lambda a: False)
     monkeypatch.setattr(setup_wizard, "_detect_agents", lambda: {})
@@ -1381,8 +1392,11 @@ def test_settle_wait_outlasts_the_launchd_respawn_throttle():
 
     bin_dir = Path(setup_wizard.__file__).resolve().parent.parent / "bin"
     throttles = []
-    for name in ("com.m3memory.cognitiveloop.plist", "com.m3memory.dashboard.plist",
-                 "com.m3memory.notificationwaiter.plist"):
+    for name in (
+        "com.m3memory.cognitiveloop.plist",
+        "com.m3memory.dashboard.plist",
+        "com.m3memory.notificationwaiter.plist",
+    ):
         # Templates carry `--` in comments, so they are not strict XML.
         text = (bin_dir / name).read_text(encoding="utf-8")
         m = re.search(r"<key>ThrottleInterval</key>\s*<integer>(\d+)</integer>", text)
@@ -1475,7 +1489,8 @@ def test_gguf_question_is_skipped_when_already_configured(monkeypatch, tmp_path)
     gguf = tmp_path / "bge-m3-Q4_K_M.gguf"
     gguf.write_bytes(b"x")
     (tmp_path / ".embed_config.json").write_text(
-        _json.dumps({"gguf_path": str(gguf).replace("\\", "/")}), encoding="utf-8")
+        _json.dumps({"gguf_path": str(gguf).replace("\\", "/")}), encoding="utf-8"
+    )
     monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path))
     assert setup_wizard._shared_gguf_is(str(gguf)) is True
     assert setup_wizard._shared_gguf_is(str(tmp_path / "other.gguf")) is False
@@ -1488,8 +1503,7 @@ def test_persist_skips_the_question_when_the_rc_already_has_it(monkeypatch, tmp_
     rc = tmp_path / ".zshrc"
     rc.write_text('export M3_ENABLE_OLLAMA_FAILOVER="1"\n', encoding="utf-8")
     monkeypatch.setattr(persist, "_pick_unix_shell_rc", lambda: rc)
-    monkeypatch.setattr(setup_wizard, "_ask_yes_no",
-                        lambda *a, **k: pytest.fail("must not ask when already persisted"))
+    monkeypatch.setattr(setup_wizard, "_ask_yes_no", lambda *a, **k: pytest.fail("must not ask when already persisted"))
     persist._persist_env_var_shell("M3_ENABLE_OLLAMA_FAILOVER", "1", non_interactive=False)
     assert persist.shell_rc_has("M3_ENABLE_OLLAMA_FAILOVER", "1")
 
@@ -1500,8 +1514,7 @@ def test_gui_is_not_offered_on_an_existing_install(monkeypatch):
     monkeypatch.setattr(setup_gui, "gui_available", lambda: (True, ""))
     monkeypatch.setattr(setup_wizard.sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr(setup_wizard, "_existing_install", lambda: "/e/agent_memory.db")
-    monkeypatch.setattr(setup_wizard, "_ask_yes_no",
-                        lambda *a, **k: pytest.fail("no GUI offer on an existing install"))
+    monkeypatch.setattr(setup_wizard, "_ask_yes_no", lambda *a, **k: pytest.fail("no GUI offer on an existing install"))
     assert setup_wizard._should_use_gui(_setup_args()) is False
 
 
@@ -1616,8 +1629,7 @@ def _stub_setup_steps(monkeypatch, events):
     monkeypatch.setattr(setup_wizard, "_should_use_gui", lambda a: False)
     monkeypatch.setattr(setup_wizard, "_detect_agents", lambda: {})
     monkeypatch.setattr(setup_wizard, "_gather_plan", lambda d, a: setup_wizard.SetupPlan())
-    monkeypatch.setattr(setup_wizard, "_summary",
-                        lambda *a, **k: events.append(("summary", k.get("brief"))))
+    monkeypatch.setattr(setup_wizard, "_summary", lambda *a, **k: events.append(("summary", k.get("brief"))))
 
 
 def test_setup_run_by_upgrade_leaves_verification_to_it(monkeypatch):
@@ -1628,7 +1640,7 @@ def test_setup_run_by_upgrade_leaves_verification_to_it(monkeypatch):
     monkeypatch.setenv(setup_wizard.UPGRADE_CALLER_ENV, "upgrade")
     assert setup_wizard.run_setup(argparse.Namespace(non_interactive=True)) == 0
     assert "doctor" not in events
-    assert "verify" in events                       # daemons are still checked
+    assert "verify" in events  # daemons are still checked
     assert ("summary", True) in events
 
 
@@ -1643,6 +1655,7 @@ def test_setup_run_directly_still_verifies(monkeypatch):
 def test_openclaw_tool_derivation_leaves_no_logging_behind(monkeypatch):
     """Importing the bridge configured INFO logging in setup's own process."""
     import logging
+
     root = logging.getLogger()
     before = (list(root.handlers), root.level)
     try:
@@ -1667,6 +1680,7 @@ def test_the_plan_is_shown_only_when_setup_is_run_directly(monkeypatch, capsys, 
 
 class _HaltWithEmbedServer(_FakeHalt):
     """An embed server that holds no DB: listed, but not blocking."""
+
     def __init__(self):
         super().__init__(live=[], quiesce_results=[])
 
@@ -1698,6 +1712,7 @@ def test_step_headers_are_numbered_in_order_and_labelled_under_upgrade(monkeypat
     1/5 -> 3/5; inside `m3 upgrade` "[4/5]", setup's own "Step N/5" read as the
     upgrade's steps."""
     import re
+
     src = Path(setup_wizard.__file__).read_text(encoding="utf-8")
     assert not re.search(r'_say\(f?"Step \d/5', src), "step headers go through _step()"
     assert sorted({int(n) for n in re.findall(r"_step\((\d),", src)}) == [0, 1, 2, 3, 4, 5]
@@ -1706,17 +1721,20 @@ def test_step_headers_are_numbered_in_order_and_labelled_under_upgrade(monkeypat
     assert "Step 2/5: native core" in capsys.readouterr().out
 
 
-@pytest.mark.parametrize("stdout,rc,shown", [
-    ("M3 Memory: Detecting platform... Windows\n[OK] AgentOS_Dashboard: registered\n", 0, False),
-    ("[WARN] AgentOS_Dashboard: needs an elevated shell\n", 0, True),
-    ("[FAIL] schtasks refused\n", 1, True),
-])
-def test_dashboard_registration_shows_detail_only_when_it_matters(monkeypatch, capsys, tmp_path,
-                                                                    stdout, rc, shown):
+@pytest.mark.parametrize(
+    "stdout,rc,shown",
+    [
+        ("M3 Memory: Detecting platform... Windows\n[OK] AgentOS_Dashboard: registered\n", 0, False),
+        ("[WARN] AgentOS_Dashboard: needs an elevated shell\n", 0, True),
+        ("[FAIL] schtasks refused\n", 1, True),
+    ],
+)
+def test_dashboard_registration_shows_detail_only_when_it_matters(monkeypatch, capsys, tmp_path, stdout, rc, shown):
     (tmp_path / "install_schedules.py").write_text("", encoding="utf-8")
     monkeypatch.setattr(setup_wizard, "_bin_dir", lambda: tmp_path)
-    monkeypatch.setattr(setup_wizard.subprocess, "run",
-                        lambda *a, **k: SimpleNamespace(returncode=rc, stdout=stdout, stderr=""))
+    monkeypatch.setattr(
+        setup_wizard.subprocess, "run", lambda *a, **k: SimpleNamespace(returncode=rc, stdout=stdout, stderr="")
+    )
     setup_wizard._register_dashboard_task(8088)
     out = capsys.readouterr().out
     assert (stdout.strip() in out) is shown
@@ -1744,6 +1762,7 @@ def test_hermes_home_is_read_without_a_deprecation_warning(monkeypatch, tmp_path
     """HERMES_HOME belongs to Hermes Agent; m3 told users to rename it, which
     would break Hermes. M3_HERMES_HOME still overrides it."""
     import logging
+
     own = tmp_path / "hermes_own"
     (own / "plugins" / "memory").mkdir(parents=True)
     monkeypatch.delenv("M3_HERMES_HOME", raising=False)

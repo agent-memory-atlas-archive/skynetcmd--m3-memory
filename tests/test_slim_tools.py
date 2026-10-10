@@ -16,6 +16,7 @@ What this pins:
      import, not ship a slim variant whose description promises parameters that
      no longer exist.
 """
+
 from __future__ import annotations
 
 import sys
@@ -53,8 +54,7 @@ def test_full_tool_is_untouched(full_name):
     full_props = set((full.parameters or {}).get("properties", {}))
     slim_props = set((slim.parameters or {}).get("properties", {}))
     assert slim_props <= full_props, (
-        f"{full_name}_slim advertises parameters the full tool lacks: "
-        f"{slim_props - full_props}"
+        f"{full_name}_slim advertises parameters the full tool lacks: {slim_props - full_props}"
     )
     assert len(full_props) > len(slim_props), (
         f"{full_name} appears to have been narrowed in place; the slim variant "
@@ -77,9 +77,7 @@ def test_kept_parameters_are_derived_not_copied(full_name):
     for key, schema in slim_props.items():
         if key in _UNIVERSAL:
             continue
-        assert schema == full_props[key], (
-            f"{full_name}_slim[{key}] has drifted from the full tool's schema"
-        )
+        assert schema == full_props[key], f"{full_name}_slim[{key}] has drifted from the full tool's schema"
 
 
 @pytest.mark.parametrize("full_name", list(tools_slim._SLIM))
@@ -87,9 +85,7 @@ def test_required_parameters_survive(full_name):
     """A slim variant that cannot supply a required argument is unusable."""
     full_req = set((_BY_NAME[full_name].parameters or {}).get("required", []))
     slim_props = set((_BY_NAME[f"{full_name}_slim"].parameters or {}).get("properties", {}))
-    assert full_req <= slim_props, (
-        f"{full_name}_slim drops required parameter(s) {full_req - slim_props}"
-    )
+    assert full_req <= slim_props, f"{full_name}_slim drops required parameter(s) {full_req - slim_props}"
 
 
 @pytest.mark.parametrize("slim_name", SLIM_NAMES)
@@ -99,10 +95,7 @@ def test_description_names_the_escape_hatch(slim_name):
     desc = _BY_NAME[slim_name].description
     assert "m3_call" in desc, f"{slim_name} does not name the escape hatch"
     full_name = slim_name[: -len("_slim")]
-    assert full_name in desc, (
-        f"{slim_name} does not name the full tool it narrows, so an agent has "
-        f"nothing to route TO"
-    )
+    assert full_name in desc, f"{slim_name} does not name the full tool it narrows, so an agent has nothing to route TO"
 
 
 @pytest.mark.parametrize("full_name", list(tools_slim._SLIM))
@@ -116,15 +109,13 @@ def test_description_names_the_omitted_parameters(full_name):
     if not omitted:
         pytest.skip(skip_reason("na", f"{full_name} omits nothing"))
     named = [p for p in omitted if p in slim.description]
-    assert named, (
-        f"{full_name}_slim omits {sorted(omitted)} but names none of them in "
-        f"its description"
-    )
+    assert named, f"{full_name}_slim omits {sorted(omitted)} but names none of them in its description"
 
 
 def test_slim_variants_are_cheaper_than_the_originals():
     """The entire point. Compares schema size, the thing that costs tokens."""
     import json
+
     for full_name in tools_slim._SLIM:
         full = _BY_NAME[full_name]
         slim = _BY_NAME[f"{full_name}_slim"]

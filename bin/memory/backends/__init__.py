@@ -23,6 +23,7 @@ is deliberately out of scope. See docs/EXTENDING.md (Recipe 1).
 Cycle-break rule (§2): modules in this package must NOT top-level-import
 ``memory_core``. Resolve any core callback lazily inside a function body.
 """
+
 from __future__ import annotations
 
 import sys as _sys
@@ -85,6 +86,7 @@ if not callable(dialect):  # pragma: no cover - guards a reordering mistake
         "would raise \"'module' object is not callable\"."
     )
 
+
 # The import-time check above catches a REORDERING of the lines above it. It
 # cannot catch a LATER rebind: anything that imports the `dialect` SUBMODULE
 # while this package is already loaded makes the import machinery `setattr` the
@@ -103,11 +105,7 @@ class _BackendsModule(_ModuleType):
 
     @override
     def __setattr__(self, name: str, value: object) -> None:
-        if (
-            name == "dialect"
-            and isinstance(value, _ModuleType)
-            and callable(self.__dict__.get("dialect"))
-        ):
+        if name == "dialect" and isinstance(value, _ModuleType) and callable(self.__dict__.get("dialect")):
             import logging
             import traceback
 

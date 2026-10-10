@@ -11,6 +11,7 @@ script has no such flag, so the only lever is choosing the windowless binary.
 This guard keeps the two halves consistent: a future edit that adds a Windows
 candidate must add the pythonw form too.
 """
+
 from __future__ import annotations
 
 import re
@@ -21,8 +22,7 @@ import pytest
 _HOOKS = Path(__file__).resolve().parent.parent / "bin" / "hooks" / "chatlog"
 
 # Every .sh wrapper that resolves a Windows interpreter.
-_WRAPPERS = sorted(p for p in _HOOKS.glob("*.sh")
-                   if "Scripts/python" in p.read_text(encoding="utf-8"))
+_WRAPPERS = sorted(p for p in _HOOKS.glob("*.sh") if "Scripts/python" in p.read_text(encoding="utf-8"))
 
 
 def test_wrappers_exist():

@@ -6,6 +6,7 @@ developer running the upgrade from a checkout) runs from a repo root that
 contains m3_memory/, so a probe that inherits the cwd reported a removed m3 as
 installed. These tests run from that root, which makes them the planted case.
 """
+
 from __future__ import annotations
 
 import os

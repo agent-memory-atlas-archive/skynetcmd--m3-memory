@@ -13,6 +13,7 @@ looking right:
 2. the timestamp must come from the DATABASE clock, not the caller's;
 3. an unregistered poller must be TOLD it left no trace.
 """
+
 from __future__ import annotations
 
 import os
@@ -40,6 +41,7 @@ _ANCIENT = "2020-01-01T00:00:00Z"
 @pytest.fixture
 def agents(monkeypatch, tmp_path):
     from conftest import create_full_main_schema
+
     db_path = tmp_path / "heartbeat.db"
     create_full_main_schema(db_path)
     monkeypatch.setenv("M3_DATABASE", str(db_path))
@@ -56,9 +58,7 @@ def agents(monkeypatch, tmp_path):
 def _last_seen(agent_id: str):
     with _db() as db:
         p = dialect().param()
-        row = db.execute(
-            f"SELECT last_seen FROM agents WHERE agent_id = {p}", (agent_id,)
-        ).fetchone()
+        row = db.execute(f"SELECT last_seen FROM agents WHERE agent_id = {p}", (agent_id,)).fetchone()
     return row["last_seen"] if row else None
 
 
@@ -75,8 +75,7 @@ def test_polling_records_a_heartbeat_for_the_poller(agents):
     _backdate(agents.s1)
     notifications_poll_impl(agents.s1)
     assert _last_seen(agents.s1) != _ANCIENT, (
-        "polling did not record a heartbeat -- the agent is invisible to "
-        "liveness checks despite demonstrably running"
+        "polling did not record a heartbeat -- the agent is invisible to liveness checks despite demonstrably running"
     )
 
 
@@ -95,13 +94,9 @@ def test_a_fan_out_poll_does_not_revive_the_sisters_it_read_for(agents):
 
     notifications_poll_impl(agents.type, unread_only=False)
 
-    assert _last_seen(agents.s1) == _ANCIENT, (
-        "a bare-type poll revived sister s1 -- a dead agent now looks alive"
-    )
+    assert _last_seen(agents.s1) == _ANCIENT, "a bare-type poll revived sister s1 -- a dead agent now looks alive"
     assert _last_seen(agents.s2) == _ANCIENT
-    assert _last_seen(agents.type) != _ANCIENT, (
-        "the poller itself must be stamped"
-    )
+    assert _last_seen(agents.type) != _ANCIENT, "the poller itself must be stamped"
 
 
 def test_the_heartbeat_uses_the_database_clock(agents):
@@ -118,16 +113,13 @@ def test_the_heartbeat_uses_the_database_clock(agents):
         db_now = db.execute(f"SELECT {dialect().now()}").fetchone()[0]
 
     assert stamped.endswith("Z"), (
-        f"last_seen {stamped!r} is not in the DB's format -- a Python "
-        f"datetime.isoformat() leaks a +00:00 offset"
+        f"last_seen {stamped!r} is not in the DB's format -- a Python datetime.isoformat() leaks a +00:00 offset"
     )
     assert "." not in stamped, (
         f"last_seen {stamped!r} carries microseconds, which the DB clock does "
         f"not emit -- this was written by the caller"
     )
-    assert stamped[:13] == db_now[:13], (
-        f"last_seen {stamped!r} does not track the DB clock {db_now!r}"
-    )
+    assert stamped[:13] == db_now[:13], f"last_seen {stamped!r} does not track the DB clock {db_now!r}"
 
 
 def test_an_unregistered_poller_is_told_it_left_no_trace(agents):
@@ -138,9 +130,7 @@ def test_an_unregistered_poller_is_told_it_left_no_trace(agents):
     """
     out = notifications_poll_impl(f"{agents.type}@never-registered")
 
-    assert "not registered" in out, (
-        f"an unregistered poll recorded no heartbeat and said nothing: {out!r}"
-    )
+    assert "not registered" in out, f"an unregistered poll recorded no heartbeat and said nothing: {out!r}"
     assert "agent_register" in out, "the note must say how to fix it"
 
 
@@ -148,9 +138,7 @@ def test_a_registered_poller_gets_no_warning(agents):
     """The other polarity. A note that fires when nothing is wrong trains
     people to ignore the one that matters (§3)."""
     out = notifications_poll_impl(agents.s1)
-    assert "not registered" not in out, (
-        f"false alarm on a registered agent: {out!r}"
-    )
+    assert "not registered" not in out, f"false alarm on a registered agent: {out!r}"
 
 
 def test_structured_output_carries_the_heartbeat_flag(agents):
@@ -158,10 +146,6 @@ def test_structured_output_carries_the_heartbeat_flag(agents):
     import json
 
     reg = json.loads(notifications_poll_impl(agents.s1, as_records=True))
-    unreg = json.loads(
-        notifications_poll_impl(
-            f"{agents.type}@never-registered", as_records=True
-        )
-    )
+    unreg = json.loads(notifications_poll_impl(f"{agents.type}@never-registered", as_records=True))
     assert reg.get("heartbeat_recorded") is True
     assert unreg.get("heartbeat_recorded") is False

@@ -32,6 +32,7 @@ Usage:
     python bin/release_orphan_claims.py --db memory/your-corpus.db \\
         --run-id <enrichment_runs.id>
 """
+
 from __future__ import annotations
 
 import argparse
@@ -44,23 +45,23 @@ from m3_core.runtime import utc_iso as _utcnow_iso  # noqa: E402
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--db", required=True, help="Path to the SQLite DB.")
-    ap.add_argument("--run-id", default=None,
-                    help="Release rows where enrich_run_id = this value.")
-    ap.add_argument("--older-than", type=int, default=None,
-                    help="Release rows where claimed_at older than N minutes.")
-    ap.add_argument("--all", action="store_true",
-                    help="Release ALL in_progress rows (DANGEROUS — only use "
-                         "when no live workers exist).")
-    ap.add_argument("--skip-qps-done", action="store_true",
-                    help="Skip rows whose question_pipeline_state already says "
-                         "done_text/done_empty/failed (prevents reverse-drift).")
-    ap.add_argument("--dry-run", action="store_true",
-                    help="Preview without committing.")
-    ap.add_argument("-y", "--yes", action="store_true",
-                    help="Skip the interactive confirm prompt.")
+    ap.add_argument("--run-id", default=None, help="Release rows where enrich_run_id = this value.")
+    ap.add_argument("--older-than", type=int, default=None, help="Release rows where claimed_at older than N minutes.")
+    ap.add_argument(
+        "--all",
+        action="store_true",
+        help="Release ALL in_progress rows (DANGEROUS — only use when no live workers exist).",
+    )
+    ap.add_argument(
+        "--skip-qps-done",
+        action="store_true",
+        help="Skip rows whose question_pipeline_state already says "
+        "done_text/done_empty/failed (prevents reverse-drift).",
+    )
+    ap.add_argument("--dry-run", action="store_true", help="Preview without committing.")
+    ap.add_argument("-y", "--yes", action="store_true", help="Skip the interactive confirm prompt.")
     args = ap.parse_args()
 
     if not (args.run_id or args.older_than or args.all):
@@ -93,8 +94,7 @@ def main() -> int:
             params.append(args.run_id)
             desc_lines.append(f"  enrich_run_id = {args.run_id}")
         elif args.older_than:
-            cutoff = (datetime.now(UTC) - timedelta(minutes=args.older_than)).strftime(
-                "%Y-%m-%dT%H:%M:%SZ")
+            cutoff = (datetime.now(UTC) - timedelta(minutes=args.older_than)).strftime("%Y-%m-%dT%H:%M:%SZ")
             where += f" AND claimed_at < {_p}"
             params.append(cutoff)
             desc_lines.append(f"  claimed_at < {cutoff}  (older than {args.older_than} min)")

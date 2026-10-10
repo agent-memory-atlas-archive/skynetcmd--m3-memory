@@ -75,8 +75,7 @@ def _row_to_message(row: dict) -> BaseMessage:
     content = row.get("content", "")
     if role == "tool":
         # ToolMessage requires a tool_call_id; synthesize from metadata or a stub.
-        return ToolMessage(content=content,
-                           tool_call_id=str(row.get("id", "") or "unknown"))
+        return ToolMessage(content=content, tool_call_id=str(row.get("id", "") or "unknown"))
     cls = _MSG_BY_ROLE.get(role, HumanMessage)
     return cls(content=content)
 
@@ -124,13 +123,14 @@ class M3ChatMessageHistory(BaseChatMessageHistory):
             pass
         try:
             import chatlog_config
+
             self._client.ensure_schema(chatlog_config.chatlog_db_path())
         except Exception as e:  # never block construction on a heal attempt
             import logging
 
             from m3_core.errors import log_swallowed
-            log_swallowed(logging.getLogger("m3_memory.langchain"), e,
-                          "chatlog schema self-heal skipped: %s", e)
+
+            log_swallowed(logging.getLogger("m3_memory.langchain"), e, "chatlog schema self-heal skipped: %s", e)
 
     # ── read: messages (chronological) ────────────────────────────────────────
     def _fetch_rows(self) -> list[dict]:
@@ -143,7 +143,9 @@ class M3ChatMessageHistory(BaseChatMessageHistory):
         ``metadata``). Rows without a turn_index sort last, by created_at.
         """
         raw = self._client._tool(
-            "chatlog_search", query="", conversation_id=self.conversation_id,
+            "chatlog_search",
+            query="",
+            conversation_id=self.conversation_id,
             k=self._window,
         )
         rows = mapping.parse_chatlog_search(raw)  # JSON string → list[dict]
@@ -224,7 +226,9 @@ class M3ChatMessageHistory(BaseChatMessageHistory):
         no-op. Two steps (search ids → bulk delete), hidden behind one call.
         """
         raw = self._client._tool(
-            "chatlog_search", query="", conversation_id=self.conversation_id,
+            "chatlog_search",
+            query="",
+            conversation_id=self.conversation_id,
             k=mapping.MAX_CLEAR_ROWS,
         )
         rows = mapping.parse_chatlog_search(raw)
@@ -256,7 +260,10 @@ def with_m3_history(
 
     def _factory(session_id: str) -> M3ChatMessageHistory:
         return M3ChatMessageHistory(
-            session_id, user_id=user_id, provider=provider, model_id=model_id,
+            session_id,
+            user_id=user_id,
+            provider=provider,
+            model_id=model_id,
             **history_kwargs,
         )
 

@@ -21,6 +21,7 @@ if BIN not in sys.path:
 @pytest.fixture
 def loop_mod():
     import m3_cognitive_loop
+
     return m3_cognitive_loop
 
 
@@ -40,9 +41,7 @@ def test_split_topology_targets_both_stores(loop_mod, tmp_path, monkeypatch):
 
     targets = loop_mod._embed_target_dbs(main)
     assert os.path.abspath(main) in targets
-    assert os.path.abspath(chat) in targets, (
-        "chatlog store missing -- its backlog would never be embedded"
-    )
+    assert os.path.abspath(chat) in targets, "chatlog store missing -- its backlog would never be embedded"
 
 
 def test_unified_topology_yields_one_target(loop_mod, tmp_path, monkeypatch):
@@ -82,8 +81,7 @@ def test_m3_database_override_does_not_mask_the_chatlog(loop_mod, tmp_path, monk
 
     targets = loop_mod._embed_target_dbs(main)
     assert os.path.abspath(chat) in targets, (
-        "chatlog collapsed onto the main DB via the M3_DATABASE fallback -- "
-        "its backlog would never be embedded"
+        "chatlog collapsed onto the main DB via the M3_DATABASE fallback -- its backlog would never be embedded"
     )
     assert len(targets) == 2
 

@@ -13,6 +13,7 @@ same process is REENTRANT), so that path is covered by the primitive's suite.
 
 Filesystem-isolated via M3_ENGINE_ROOT → tmp.
 """
+
 from __future__ import annotations
 
 import json
@@ -61,6 +62,7 @@ def test_acquire_runs_degraded_on_lock_subsystem_failure(engine_root, monkeypatc
     # loop down.
     def _boom(*a, **k):
         raise OSError("no dir")
+
     monkeypatch.setattr(m3_halt.Path, "mkdir", _boom)
     cl.acquire_lock()  # must not raise SystemExit
     assert cl._INSTANCE_LOCK is not None and not cl._INSTANCE_LOCK.acquired

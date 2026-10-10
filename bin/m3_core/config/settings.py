@@ -11,6 +11,7 @@ startup value and logs "restart required".
 Tests override with ``dataclasses.replace`` (``override()`` wraps it), never 3.13
 ``copy.replace``.
 """
+
 from __future__ import annotations
 
 import dataclasses
@@ -54,8 +55,9 @@ class Settings:
 
     def legacy_env_in_use(self) -> list[str]:
         """Env names honoured only by the N..N+2 window (§13): what to migrate."""
-        return sorted(r.origin.removeprefix("env-legacy:") for r in self.resolved.values()
-                      if r.origin.startswith("env-legacy:"))
+        return sorted(
+            r.origin.removeprefix("env-legacy:") for r in self.resolved.values() if r.origin.startswith("env-legacy:")
+        )
 
     def deprecated_aliases_in_use(self) -> dict[str, str]:
         """{old name: canonical name} for every key whose value came from a
@@ -73,8 +75,13 @@ class Settings:
         return sorted({n for r in self.resolved.values() for n in r.shadowed})
 
 
-def build(location: Location | None = None, *, registry: Registry = REGISTRY,
-          environ: Mapping[str, str] | None = None, dotenv: DotEnv | None = None) -> Settings:
+def build(
+    location: Location | None = None,
+    *,
+    registry: Registry = REGISTRY,
+    environ: Mapping[str, str] | None = None,
+    dotenv: DotEnv | None = None,
+) -> Settings:
     """Load and resolve a snapshot. Raises ``ConfigFileError`` / ``ConfigEnvErrors``."""
     from .keys import RETIRED
 
@@ -86,8 +93,14 @@ def build(location: Location | None = None, *, registry: Registry = REGISTRY,
         dotenv = DotEnv(path=path, values=values)
     resolved = resolve_all(registry, loaded, env, dotenv)
     retired = tuple(sorted(n for n in RETIRED if (env.get(n) or "").strip()))
-    return Settings(location=loc, identity=loaded.identity, resolved=MappingProxyType(resolved),
-                    warnings=loaded.warnings, retired_env=retired, stores=loaded.stores)
+    return Settings(
+        location=loc,
+        identity=loaded.identity,
+        resolved=MappingProxyType(resolved),
+        warnings=loaded.warnings,
+        retired_env=retired,
+        stores=loaded.stores,
+    )
 
 
 def override(settings: Settings, values: Mapping[Key, ConfigValue]) -> Settings:
@@ -108,9 +121,13 @@ def _warn_deprecated_aliases(settings: Settings) -> None:
     for old, new in sorted(settings.deprecated_aliases_in_use().items()):
         if old not in _ALIAS_WARNED:
             _ALIAS_WARNED.add(old)
-            logger.warning("Deprecated env var %s is set; use %s instead (or m3_config.toml). The "
-                           "old name still works for now but will be removed. (`m3 doctor` lists "
-                           "all in use.)", old, new)
+            logger.warning(
+                "Deprecated env var %s is set; use %s instead (or m3_config.toml). The "
+                "old name still works for now but will be removed. (`m3 doctor` lists "
+                "all in use.)",
+                old,
+                new,
+            )
 
 
 class _Cache:
@@ -144,16 +161,18 @@ class _Cache:
             new = build(old.location)
         except Exception as e:  # noqa: BLE001 -- keep the last good snapshot (§3)
             self._last_error = format_config_error(e)
-            logger.error("m3 config reload failed; still using the settings loaded before.\n%s",
-                         self._last_error)
+            logger.error("m3 config reload failed; still using the settings loaded before.\n%s", self._last_error)
             return old
         self._last_error = None
-        frozen = {k.name: old.resolved[k.name] for k in REGISTRY
-                  if not k.reloadable and k.name in old.resolved
-                  and new.resolved[k.name].value != old.resolved[k.name].value}
+        frozen = {
+            k.name: old.resolved[k.name]
+            for k in REGISTRY
+            if not k.reloadable and k.name in old.resolved and new.resolved[k.name].value != old.resolved[k.name].value
+        }
         for name in frozen:
-            logger.warning("m3 config: %s changed in %s; restart required (it is not reloadable)",
-                           name, old.location.file)
+            logger.warning(
+                "m3 config: %s changed in %s; restart required (it is not reloadable)", name, old.location.file
+            )
         if not frozen:
             return new
         return dataclasses.replace(new, resolved=MappingProxyType({**new.resolved, **frozen}))
@@ -197,4 +216,3 @@ def _install_for_tests(settings: Settings) -> None:
 # Tests and the CLI may set the TTL; daemons use the default.
 def set_ttl_for_tests(ttl_s: float) -> None:
     _CACHE.ttl_s = ttl_s
-

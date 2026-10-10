@@ -31,6 +31,7 @@ Heavier ML "unified" options (docling, unstructured, markitdown) were rejected:
 they pull torch/onnxruntime and, in docling's case, fetch model weights from
 HuggingFace at first use — a runtime network dependency m3 will not take.
 """
+
 from __future__ import annotations
 
 import logging
@@ -63,10 +64,7 @@ def chunk(path: str, text: str | None = None) -> Iterator[Leaf]:
     the ChunkerProtocol signature.
     """
     if not available:
-        logger.warning(
-            "office chunker unavailable (sharepoint-to-text not installed); "
-            "falling back for %s", path
-        )
+        logger.warning("office chunker unavailable (sharepoint-to-text not installed); falling back for %s", path)
         return
 
     try:
@@ -87,7 +85,8 @@ def chunk(path: str, text: str | None = None) -> Iterator[Leaf]:
             "cannot extract %s. observed: file is encrypted/password-protected. "
             "possible: an intentionally protected document. "
             "inspect: decrypt it before ingestion if its content should be "
-            "searchable.", path
+            "searchable.",
+            path,
         )
         return
     except _s2t.ExtractionError as e:
@@ -99,7 +98,10 @@ def chunk(path: str, text: str | None = None) -> Iterator[Leaf]:
             "possible: corrupt file, an unsupported variant of the format, or a "
             "safety limit (size / zip-bomb / path-traversal) rejecting it. "
             "inspect: open the file in its native application to confirm it is "
-            "readable.", path, type(e).__name__, e
+            "readable.",
+            path,
+            type(e).__name__,
+            e,
         )
         return
     except Exception as e:  # noqa: BLE001 — one bad file must not kill an ingest
@@ -107,7 +109,9 @@ def chunk(path: str, text: str | None = None) -> Iterator[Leaf]:
             "cannot extract %s. observed: unexpected %s: %s. "
             "possible: a library defect or an unhandled format edge case. "
             "inspect: report this with the file's extension and size.",
-            path, type(e).__name__, e
+            path,
+            type(e).__name__,
+            e,
         )
         return
 
@@ -127,9 +131,7 @@ def chunk(path: str, text: str | None = None) -> Iterator[Leaf]:
         # merging and the size caps. Passing `text` means it never re-reads the
         # binary from disk.
         for leaf in _markdown_chunker.chunk(path, text=md):
-            leaf.extra = {**(leaf.extra or {}),
-                          "source_format": getattr(doc, "format", None),
-                          "via": "office"}
+            leaf.extra = {**(leaf.extra or {}), "source_format": getattr(doc, "format", None), "via": "office"}
             emitted += 1
             yield leaf
 
@@ -137,5 +139,4 @@ def chunk(path: str, text: str | None = None) -> Iterator[Leaf]:
         # Extraction succeeded but produced nothing. Distinct from a failure,
         # and worth saying: an empty result that looks like success is how the
         # text-chunker fallback hid this whole class of bug for so long.
-        logger.info("no text content extracted from %s (document may be "
-                    "image-only or empty)", path)
+        logger.info("no text content extracted from %s (document may be image-only or empty)", path)

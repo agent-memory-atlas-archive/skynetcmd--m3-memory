@@ -8,6 +8,7 @@ protected-type skipping, and the consolidate_beliefs job's hard safety gate
 The LLM + embedder are stubbed so the write path is exercised deterministically
 offline.
 """
+
 from __future__ import annotations
 
 import os
@@ -27,6 +28,7 @@ def _skip_migrations(monkeypatch):
 
 def _full_db(db_path):
     from conftest import create_full_main_schema
+
     create_full_main_schema(db_path)
 
 
@@ -35,8 +37,7 @@ def _seed_observations(conn, n, *, agent="claude", user="u1", typ="observation")
         conn.execute(
             "INSERT INTO memory_items (id, type, title, content, agent_id, user_id, "
             "created_at, importance, is_deleted) VALUES (?,?,?,?,?,?,?,?,0)",
-            (f"obs-{i}", typ, f"obs {i}", f"the user did thing {i}", agent, user,
-             "2026-01-01T00:00:00Z", 0.3),
+            (f"obs-{i}", typ, f"obs {i}", f"the user did thing {i}", agent, user, "2026-01-01T00:00:00Z", 0.3),
         )
 
 
@@ -69,6 +70,7 @@ def _patch_db(monkeypatch, db_path):
 
 def _patch_llm(monkeypatch, mm):
     """Stub the LLM + embedder so consolidation writes without a live server."""
+
     class _Resp:
         def raise_for_status(self):
             pass
@@ -96,8 +98,10 @@ def _patch_llm(monkeypatch, mm):
 
 # ── belief target_type ───────────────────────────────────────────────────────
 
+
 def test_belief_is_a_valid_memory_type():
     import mcp_tool_catalog
+
     assert "belief" in mcp_tool_catalog.VALID_MEMORY_TYPES
 
 
@@ -114,7 +118,9 @@ async def test_consolidate_emits_belief_with_confidence_and_edges(monkeypatch, t
 
     # threshold=2 → 3 of the 5 observations get consolidated into one belief.
     out = await mm.memory_consolidate_impl(
-        type_filter="observation", threshold=2, target_type="belief",
+        type_filter="observation",
+        threshold=2,
+        target_type="belief",
     )
     assert "belief" in out.lower()
 
@@ -143,7 +149,10 @@ async def test_dry_run_writes_nothing(monkeypatch, tmp_path):
         conn.commit()
     mm = _patch_db(monkeypatch, db)
     out = await mm.memory_consolidate_impl(
-        type_filter="observation", threshold=2, target_type="belief", dry_run=True,
+        type_filter="observation",
+        threshold=2,
+        target_type="belief",
+        dry_run=True,
     )
     assert "DRY RUN" in out
     with sqlite3.connect(str(db)) as conn:
@@ -166,6 +175,7 @@ async def test_protected_types_never_consolidated(monkeypatch, tmp_path):
 
 # ── consolidate_beliefs job safety gate ──────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_job_gate_forces_dry_run_without_env(monkeypatch, tmp_path):
     """--apply WITHOUT M3_CONSOLIDATION_AUTO=1 must still be a dry-run (safe
@@ -180,8 +190,8 @@ async def test_job_gate_forces_dry_run_without_env(monkeypatch, tmp_path):
     monkeypatch.delenv("M3_CONSOLIDATION_AUTO", raising=False)
 
     import consolidate_beliefs
-    out = await consolidate_beliefs._run(apply=True, threshold=2, stale_days=0,
-                                         source_type="observation")
+
+    out = await consolidate_beliefs._run(apply=True, threshold=2, stale_days=0, source_type="observation")
     assert "skipped-apply" in out and "DRY RUN" in out
     with sqlite3.connect(str(db)) as conn:
         n_belief = conn.execute("SELECT COUNT(*) FROM memory_items WHERE type='belief'").fetchone()[0]
@@ -200,10 +210,10 @@ async def test_job_writes_when_apply_and_env_set(monkeypatch, tmp_path):
     monkeypatch.setenv("M3_CONSOLIDATION_AUTO", "1")
 
     import consolidate_beliefs
+
     # Idle host: the governor/activity guard must not defer.
     monkeypatch.setattr(consolidate_beliefs, "_should_yield_to_user", lambda *a, **k: None)
-    out = await consolidate_beliefs._run(apply=True, threshold=2, stale_days=0,
-                                         source_type="observation")
+    out = await consolidate_beliefs._run(apply=True, threshold=2, stale_days=0, source_type="observation")
     assert "skipped-apply" not in out
     with sqlite3.connect(str(db)) as conn:
         n_belief = conn.execute("SELECT COUNT(*) FROM memory_items WHERE type='belief'").fetchone()[0]
@@ -224,10 +234,9 @@ async def test_apply_defers_when_user_active(monkeypatch, tmp_path):
     monkeypatch.setenv("M3_CONSOLIDATION_AUTO", "1")
 
     import consolidate_beliefs
-    monkeypatch.setattr(consolidate_beliefs, "_should_yield_to_user",
-                        lambda *a, **k: "user active in the last 30s")
-    out = await consolidate_beliefs._run(apply=True, threshold=2, stale_days=0,
-                                         source_type="observation")
+
+    monkeypatch.setattr(consolidate_beliefs, "_should_yield_to_user", lambda *a, **k: "user active in the last 30s")
+    out = await consolidate_beliefs._run(apply=True, threshold=2, stale_days=0, source_type="observation")
     assert "[deferred]" in out
     with sqlite3.connect(str(db)) as conn:
         n_belief = conn.execute("SELECT COUNT(*) FROM memory_items WHERE type='belief'").fetchone()[0]
@@ -251,10 +260,10 @@ async def test_dry_run_not_deferred_by_governor(monkeypatch, tmp_path):
         return "busy"
 
     import consolidate_beliefs
+
     monkeypatch.setattr(consolidate_beliefs, "_should_yield_to_user", _guard)
     # apply=False -> dry_run -> guard must not even be consulted.
-    out = await consolidate_beliefs._run(apply=False, threshold=2, stale_days=0,
-                                         source_type="observation")
+    out = await consolidate_beliefs._run(apply=False, threshold=2, stale_days=0, source_type="observation")
     assert "[deferred]" not in out
     assert yielded["called"] is False
 
@@ -263,5 +272,6 @@ def test_consolidate_beliefs_main_importable():
     import inspect
 
     import consolidate_beliefs
+
     assert hasattr(consolidate_beliefs, "main")
     assert inspect.iscoroutinefunction(consolidate_beliefs._run)

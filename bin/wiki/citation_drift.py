@@ -26,6 +26,7 @@ synth.py's lede path — it is EXCLUDED from the byte-identity drift test; only 
 stub-driven plumbing is drift-tested, and a `requires_llm` fixture test validates
 the prompt's recall/precision against labelled pairs (tests/fixtures/citation_drift/).
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -45,6 +46,7 @@ class DriftVerdict:
     """One judge decision for one synthesis. `drifted=None` means "no opinion"
     (judge unavailable / errored / abstained) — treated as fail-open (no finding),
     never as a positive drift."""
+
     synthesis_id: str
     drifted: bool | None
     reason: str = ""
@@ -56,8 +58,7 @@ class DriftJudge(Protocol):
     Injected so the plumbing is deterministically testable with a stub and no
     model runs on the drift-tested path (mirrors wiki.synth.Synthesizer)."""
 
-    def judge(self, synthesis_content: str, source_contents: list[str]) -> DriftVerdict:
-        ...
+    def judge(self, synthesis_content: str, source_contents: list[str]) -> DriftVerdict: ...
 
 
 @dataclass(slots=True)
@@ -65,6 +66,7 @@ class DriftReport:
     """Collected findings + coverage, for the lint section. Coverage is REPORTED
     (§3): a check that silently skipped syntheses reads as 'clean' when it merely
     did not look."""
+
     checked: int = 0
     skipped_no_sources: int = 0
     abstained: int = 0
@@ -143,11 +145,13 @@ def render_section(report: DriftReport | None, links, self_path: str) -> list[st
     lines.append(
         f"_Checked {report.checked} synthesis(es) against their sources; "
         f"{report.skipped_no_sources} had no sources, "
-        f"{report.abstained} abstained (judge unavailable)._")
+        f"{report.abstained} abstained (judge unavailable)._"
+    )
     lines.append("")
     if drifted:
-        lines.append("> ⚠️ These syntheses may no longer match their sources — "
-                     "review (this is a flag, not an automatic change):")
+        lines.append(
+            "> ⚠️ These syntheses may no longer match their sources — review (this is a flag, not an automatic change):"
+        )
         lines.append("")
         for v in sorted(drifted, key=lambda x: x.synthesis_id):
             why = f" — {v.reason}" if v.reason else ""
@@ -203,9 +207,9 @@ _JUDGE_SYSTEM = (
     "OR STRONGER THAN THE FACTS the sources establish — never merely because it "
     "generalises, compresses, or renames them.\n"
     "Judge ONLY against the sources shown; do not use outside knowledge. When the "
-    "sources are ambiguous or insufficient to tell, answer \"drifted\": false "
+    'sources are ambiguous or insufficient to tell, answer "drifted": false '
     "(do not manufacture a finding).\n"
-    'Reply with ONE line of strict JSON and nothing else: '
+    "Reply with ONE line of strict JSON and nothing else: "
     '{"drifted": true|false, "reason": "<=15 words"}.'
 )
 
@@ -213,11 +217,12 @@ _JUDGE_SYSTEM = (
 @dataclass
 class DriftConfig:
     """Model-endpoint config for the judge (mirrors wiki.synth.SynthConfig)."""
+
     url: str = "http://127.0.0.1:1234/v1/chat/completions"
-    model: str = ""            # empty → let the server pick its loaded model
+    model: str = ""  # empty → let the server pick its loaded model
     api_key_service: str = "LM_API_TOKEN"
     timeout_s: float = 30.0
-    temperature: float = 0.0   # judge wants determinism, not creativity
+    temperature: float = 0.0  # judge wants determinism, not creativity
     # Sized for a one-line JSON verdict. A REASONING model would blow this in
     # its thinking channel, so the fix is to turn thinking OFF (see the
     # reasoning_effort block in _call_model), not to inflate the budget.
@@ -227,10 +232,8 @@ class DriftConfig:
     @classmethod
     def from_env(cls, cache_dir: str | None = None) -> DriftConfig:
         return cls(
-            url=os.environ.get("M3_WIKI_DRIFT_URL",
-                               os.environ.get("M3_WIKI_SYNTH_URL", cls.url)),
-            model=os.environ.get("M3_WIKI_DRIFT_MODEL",
-                                 os.environ.get("M3_WIKI_SYNTH_MODEL", cls.model)),
+            url=os.environ.get("M3_WIKI_DRIFT_URL", os.environ.get("M3_WIKI_SYNTH_URL", cls.url)),
+            model=os.environ.get("M3_WIKI_DRIFT_MODEL", os.environ.get("M3_WIKI_SYNTH_MODEL", cls.model)),
             timeout_s=float(os.environ.get("M3_WIKI_DRIFT_TIMEOUT", cls.timeout_s)),
             cache_dir=cache_dir,
         )
@@ -258,7 +261,7 @@ def _build_judge_prompt(synthesis_content: str, source_contents: list[str]) -> s
         body = (body[:1200] + "…") if len(body) > 1200 else body
         lines.append(f"[{i}] {body}")
     lines.append("")
-    lines.append('Has the synthesis drifted from these sources? Reply with the JSON only.')
+    lines.append("Has the synthesis drifted from these sources? Reply with the JSON only.")
     return "\n".join(lines)
 
 
@@ -277,7 +280,7 @@ def _parse_verdict(text: str) -> tuple[bool | None, str]:
     if start == -1 or end == -1 or end <= start:
         return None, "no JSON object in judge reply"
     try:
-        obj = json.loads(raw[start:end + 1])
+        obj = json.loads(raw[start : end + 1])
     except Exception:
         return None, "unparseable JSON in judge reply"
     d = obj.get("drifted")
@@ -305,8 +308,7 @@ class ModelDriftJudge:
         if cached is not None:
             self.cache_hits += 1
             return DriftVerdict(synthesis_id="?", drifted=cached[0], reason=cached[1])
-        reply, finish_reason = self._call_model(
-            _build_judge_prompt(synthesis_content, source_contents))
+        reply, finish_reason = self._call_model(_build_judge_prompt(synthesis_content, source_contents))
         self.calls += 1
         drifted, reason = _parse_verdict(reply or "")
         if drifted is None:
@@ -315,16 +317,17 @@ class ModelDriftJudge:
                 # Distinguish "model ran out of room" from "model said nothing":
                 # a bare "empty judge reply" sent readers looking at the wrong
                 # thing entirely (see DriftConfig.max_tokens).
-                reason = ("judge hit max_tokens before answering — raise "
-                          "DriftConfig.max_tokens (reasoning models need room "
-                          "for the reasoning channel plus the reply)")
+                reason = (
+                    "judge hit max_tokens before answering — raise "
+                    "DriftConfig.max_tokens (reasoning models need room "
+                    "for the reasoning channel plus the reply)"
+                )
         else:
             self._write_cache(digest, drifted, reason)
         return DriftVerdict(synthesis_id="?", drifted=drifted, reason=reason)
 
     def summary(self) -> str:
-        return (f"citation-drift judge: {self.calls} judged, "
-                f"{self.cache_hits} cached, {self.abstentions} abstained")
+        return f"citation-drift judge: {self.calls} judged, {self.cache_hits} cached, {self.abstentions} abstained"
 
     # -- model call (mirrors wiki.synth._call_model) -------------------------
     def _call_model(self, user_prompt: str) -> tuple[str | None, str]:
@@ -356,13 +359,13 @@ class ModelDriftJudge:
         # local runtimes that honor it ("none" 400s on real OpenAI cloud).
         try:
             from llm_failover import suppresses_thinking_via_effort
+
             if suppresses_thinking_via_effort(self.cfg.url):
                 payload["reasoning_effort"] = "none"
         except Exception:  # noqa: BLE001
             pass
         try:
-            r = httpx.post(self.cfg.url, json=payload, headers=headers,
-                           timeout=self.cfg.timeout_s)
+            r = httpx.post(self.cfg.url, json=payload, headers=headers, timeout=self.cfg.timeout_s)
             r.raise_for_status()
             choice = r.json()["choices"][0]
             return choice["message"].get("content"), (choice.get("finish_reason") or "")
@@ -375,8 +378,10 @@ class ModelDriftJudge:
             return None
         try:
             import sys
+
             sys.path.insert(0, str(Path(__file__).absolute().parents[1]))
             from auth_utils import get_api_key
+
             return get_api_key(service)
         except Exception:
             return None
@@ -408,7 +413,6 @@ class ModelDriftJudge:
         try:
             Path(path).parent.mkdir(parents=True, exist_ok=True)
             with Path(path).open("w", encoding="utf-8", newline="\n") as f:
-                json.dump({"hash": digest, "drifted": drifted, "reason": reason},
-                          f, ensure_ascii=False, indent=2)
+                json.dump({"hash": digest, "drifted": drifted, "reason": reason}, f, ensure_ascii=False, indent=2)
         except Exception:
             pass  # a cache write failure must never break the check

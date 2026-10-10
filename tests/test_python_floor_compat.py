@@ -22,6 +22,7 @@ internals rather than emulating an older interpreter. It cannot catch
 everything -- only a real floor lane does that -- but it catches the shape that
 actually bit us, at no CI cost.
 """
+
 from __future__ import annotations
 
 import ast
@@ -135,9 +136,7 @@ def test_the_guard_can_actually_fail():
     assert "__static_attributes__" in used, "a real use is invisible to the scan"
 
     mentioned = _code_only('S = "we avoid __static_attributes__ here"\n')
-    assert "__static_attributes__" not in mentioned, (
-        "a mention inside a string is counted as a use"
-    )
+    assert "__static_attributes__" not in mentioned, "a mention inside a string is counted as a use"
 
     commented = _code_only("# never touch __static_attributes__\n")
     assert "__static_attributes__" not in commented, "a comment is counted as a use"
@@ -160,8 +159,7 @@ def test_declared_floor_matches_what_this_guard_assumes():
     assert m, "requires-python not found in pyproject.toml"
     floor = ".".join(str(x) for x in _FLOOR)
     assert f">={floor}" in m.group(1), (
-        f"declared floor is {m.group(1)!r} but this guard assumes >={floor}; "
-        f"update _FLOOR and _TOO_NEW together"
+        f"declared floor is {m.group(1)!r} but this guard assumes >={floor}; update _FLOOR and _TOO_NEW together"
     )
 
 
@@ -200,6 +198,4 @@ def test_every_source_file_parses_at_the_floor():
         except SyntaxError as exc:
             bad.append(f"{p.relative_to(_ROOT)}: {exc.msg}")
     floor = ".".join(str(x) for x in _FLOOR)
-    assert not bad, (
-        f"files that do not parse on the {floor} floor:\n  " + "\n  ".join(bad)
-    )
+    assert not bad, f"files that do not parse on the {floor} floor:\n  " + "\n  ".join(bad)

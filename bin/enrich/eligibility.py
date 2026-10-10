@@ -1,4 +1,5 @@
 """Eligible-group SQL + conv-list loader — _query_eligible_groups, _load_conv_list."""
+
 from __future__ import annotations
 
 import json
@@ -19,21 +20,27 @@ def _load_conv_list(path: Path) -> set[str]:
     Returns a deduplicated set; raises SystemExit on malformed input.
     """
     if not path.exists():
-        sys.exit(f"ERROR: --source-conv-list path not found. "
-                 f"observed: {path}. "
-                 f"inspect: --source-conv-list argument or SOURCE_CONV_LIST env var.")
+        sys.exit(
+            f"ERROR: --source-conv-list path not found. "
+            f"observed: {path}. "
+            f"inspect: --source-conv-list argument or SOURCE_CONV_LIST env var."
+        )
     raw = path.read_text(encoding="utf-8").strip()
     if not raw:
-        sys.exit(f"ERROR: --source-conv-list is empty. "
-                 f"observed: {path} contains no content. "
-                 f"inspect: --source-conv-list argument.")
+        sys.exit(
+            f"ERROR: --source-conv-list is empty. "
+            f"observed: {path} contains no content. "
+            f"inspect: --source-conv-list argument."
+        )
     if raw.lstrip().startswith("["):
         try:
             data = json.loads(raw)
         except json.JSONDecodeError as e:
-            sys.exit(f"ERROR: --source-conv-list JSON parse failed. "
-                     f"observed: {type(e).__name__} at {e.pos if hasattr(e, 'pos') else '?'}. "
-                     f"inspect: --source-conv-list JSON format.")
+            sys.exit(
+                f"ERROR: --source-conv-list JSON parse failed. "
+                f"observed: {type(e).__name__} at {e.pos if hasattr(e, 'pos') else '?'}. "
+                f"inspect: --source-conv-list JSON format."
+            )
         if not isinstance(data, list) or not all(isinstance(x, str) for x in data):
             sys.exit("ERROR: --source-conv-list JSON must be an array of strings.")
         return {x for x in data if x}
@@ -44,9 +51,11 @@ def _load_conv_list(path: Path) -> set[str]:
             continue
         out.add(line)
     if not out:
-        sys.exit(f"ERROR: --source-conv-list contained no usable entries. "
-                 f"observed: {path} parsed but found 0 valid group_keys after filtering blanks/comments. "
-                 f"inspect: --source-conv-list file contents.")
+        sys.exit(
+            f"ERROR: --source-conv-list contained no usable entries. "
+            f"observed: {path} parsed but found 0 valid group_keys after filtering blanks/comments. "
+            f"inspect: --source-conv-list file contents."
+        )
     return out
 
 
@@ -74,12 +83,14 @@ def _query_eligible_groups(
     sorted by turn_index ASC. Same shape run_observer.process_conversation expects.
     """
     from m3_core.paths import seam_backend, seam_dialect
+
     _d = seam_dialect()
     # ExitStack rather than a `with` block: the connection is used across a
     # long branchy body below, and re-indenting all of it would bury the
     # behavioural change in whitespace noise. The stack closes it on ANY exit
     # path, including the exceptions the old bare conn.close() would have leaked.
     from contextlib import ExitStack
+
     _stack = ExitStack()
     conn = _stack.enter_context(seam_backend().open_readonly(str(db_path or "")))
     placeholders = _d.placeholder(len(type_allowlist))

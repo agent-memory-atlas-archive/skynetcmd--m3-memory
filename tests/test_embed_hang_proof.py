@@ -11,6 +11,7 @@ Covers the three defects that lined up to cause a multi-minute read/write hang:
 All hermetic (§3): no live embed server / GPU assumed; module state is patched
 at the layer the code reads.
 """
+
 from __future__ import annotations
 
 import importlib
@@ -28,8 +29,7 @@ def _fresh_embed(monkeypatch, **env):
     module-level safe-default resolution runs under the given env. Snapshot +
     restore memory.* (the sys.modules-evict discipline — see
     m3-test-sysmodules-evict-must-restore)."""
-    for k in ("M3_EMBED_GGUF", "M3_CONFIG_ROOT", "M3_MEMORY_ROOT",
-              "M3_EMBED_INPROC", "M3_EMBED_GGUF_AUTODETECT"):
+    for k in ("M3_EMBED_GGUF", "M3_CONFIG_ROOT", "M3_MEMORY_ROOT", "M3_EMBED_INPROC", "M3_EMBED_GGUF_AUTODETECT"):
         monkeypatch.delenv(k, raising=False)
     for k, v in env.items():
         monkeypatch.setenv(k, v)
@@ -46,12 +46,12 @@ def _fresh_embed(monkeypatch, **env):
 
 # ── Defect 2: safe-by-default when config is unresolved ───────────────────────
 
+
 def test_no_config_plus_gguf_defaults_to_shared(monkeypatch):
     """The exact footgun: M3_EMBED_GGUF set but no .embed_config.json found ->
     inproc must be OFF (defer to shared), not spin up a per-process CUDA context."""
     empty_root = tempfile.mkdtemp()  # no .embed_config.json here
-    e = _fresh_embed(monkeypatch, M3_CONFIG_ROOT=empty_root,
-                     M3_EMBED_GGUF="C:/fake/model.gguf")
+    e = _fresh_embed(monkeypatch, M3_CONFIG_ROOT=empty_root, M3_EMBED_GGUF="C:/fake/model.gguf")
     assert e._EMBED_CFG_PRESENT is False
     assert e._INPROC_ALLOWED is False, "missing config must default to shared"
     assert e._EMBED_GGUF_PATH is None, "GGUF path must be cleared when inproc off"
@@ -62,8 +62,7 @@ def test_explicit_opt_in_allows_inproc(monkeypatch):
     """M3_EMBED_INPROC=1 is the deliberate escape hatch — inproc allowed even
     with no config file."""
     empty_root = tempfile.mkdtemp()
-    e = _fresh_embed(monkeypatch, M3_CONFIG_ROOT=empty_root,
-                     M3_EMBED_GGUF="C:/fake/model.gguf", M3_EMBED_INPROC="1")
+    e = _fresh_embed(monkeypatch, M3_CONFIG_ROOT=empty_root, M3_EMBED_GGUF="C:/fake/model.gguf", M3_EMBED_INPROC="1")
     assert e._INPROC_ALLOWED is True
     assert e._EMBED_GGUF_PATH == "C:/fake/model.gguf"
 
@@ -73,10 +72,8 @@ def test_config_present_shared_disables_inproc(monkeypatch):
     env var is set (config is the headless-safe source of truth)."""
     root = tempfile.mkdtemp()
     with open(os.path.join(root, ".embed_config.json"), "w") as f:
-        json.dump({"disable_inproc_embedder": True,
-                   "fallback_url": "http://127.0.0.1:8082"}, f)
-    e = _fresh_embed(monkeypatch, M3_CONFIG_ROOT=root,
-                     M3_EMBED_GGUF="C:/fake/model.gguf")
+        json.dump({"disable_inproc_embedder": True, "fallback_url": "http://127.0.0.1:8082"}, f)
+    e = _fresh_embed(monkeypatch, M3_CONFIG_ROOT=root, M3_EMBED_GGUF="C:/fake/model.gguf")
     assert e._EMBED_CFG_PRESENT is True
     assert e._INPROC_ALLOWED is False
     assert e._EMBED_GGUF_PATH is None
@@ -88,14 +85,14 @@ def test_config_present_not_shared_allows_inproc(monkeypatch):
     root = tempfile.mkdtemp()
     with open(os.path.join(root, ".embed_config.json"), "w") as f:
         json.dump({"fallback_url": "http://127.0.0.1:8082"}, f)
-    e = _fresh_embed(monkeypatch, M3_CONFIG_ROOT=root,
-                     M3_EMBED_GGUF="C:/fake/model.gguf")
+    e = _fresh_embed(monkeypatch, M3_CONFIG_ROOT=root, M3_EMBED_GGUF="C:/fake/model.gguf")
     assert e._EMBED_CFG_PRESENT is True
     assert e._INPROC_ALLOWED is True
     assert e._EMBED_GGUF_PATH == "C:/fake/model.gguf"
 
 
 # ── Defect 3: the CUDA init is timeout-bounded ────────────────────────────────
+
 
 def test_inproc_init_times_out_instead_of_hanging(monkeypatch):
     """A hanging EmbeddedEmbedder(path) must be abandoned within the deadline and
@@ -106,9 +103,7 @@ def test_inproc_init_times_out_instead_of_hanging(monkeypatch):
     root = tempfile.mkdtemp()
     with open(os.path.join(root, ".embed_config.json"), "w") as f:
         json.dump({"fallback_url": "http://127.0.0.1:8082"}, f)  # inproc allowed
-    e = _fresh_embed(monkeypatch, M3_CONFIG_ROOT=root,
-                     M3_EMBED_GGUF="C:/fake/model.gguf",
-                     M3_EMBED_INIT_TIMEOUT_S="1")
+    e = _fresh_embed(monkeypatch, M3_CONFIG_ROOT=root, M3_EMBED_GGUF="C:/fake/model.gguf", M3_EMBED_INIT_TIMEOUT_S="1")
 
     # The wedge must stay blocked while the caller's 1s deadline elapses (that's
     # what proves the abandon path). But `embed.py` runs the init on a daemon
@@ -159,8 +154,7 @@ def test_inproc_init_succeeds_fast_when_healthy(monkeypatch):
     root = tempfile.mkdtemp()
     with open(os.path.join(root, ".embed_config.json"), "w") as f:
         json.dump({"fallback_url": "http://127.0.0.1:8082"}, f)
-    e = _fresh_embed(monkeypatch, M3_CONFIG_ROOT=root,
-                     M3_EMBED_GGUF="C:/fake/model.gguf")
+    e = _fresh_embed(monkeypatch, M3_CONFIG_ROOT=root, M3_EMBED_GGUF="C:/fake/model.gguf")
 
     class _GoodEmbedder:
         def __init__(self, *_a):
@@ -183,8 +177,10 @@ def test_inproc_init_succeeds_fast_when_healthy(monkeypatch):
 
 # ── Defect 1: installer/config seeding never writes the env footgun ───────────
 
+
 def test_seed_shared_config_shape_and_idempotency():
     from m3_memory.embedder_admin import seed_shared_config
+
     root = tempfile.mkdtemp()
     path, wrote1 = seed_shared_config(root, gguf_path="C:/m/bge.gguf")
     assert wrote1 is True
@@ -199,6 +195,7 @@ def test_seed_shared_config_shape_and_idempotency():
 
 def test_seed_preserves_existing_keys():
     from m3_memory.embedder_admin import seed_shared_config
+
     root = tempfile.mkdtemp()
     with open(os.path.join(root, ".embed_config.json"), "w") as f:
         json.dump({"fallback_url": "http://127.0.0.1:9999", "custom": "keep"}, f)
@@ -213,21 +210,30 @@ def test_seed_preserves_existing_keys():
 def test_installer_memory_env_never_has_gguf(monkeypatch):
     monkeypatch.setenv("M3_CONFIG_ROOT", tempfile.mkdtemp())
     from m3_memory import installer
+
     env = installer._canonical_memory_env()
     assert "M3_EMBED_GGUF" not in env, "MCP server env must never carry the GGUF path"
 
 
 # ── Defect 1 auto-heal: scrub existing settings + doctor detection/fix ────────
 
+
 def _write_settings_with_leak(tmp: str) -> str:
     path = os.path.join(tmp, "settings.json")
     with open(path, "w") as f:
-        json.dump({"mcpServers": {
-            "memory": {"args": ["bin/memory_bridge.py"],
-                       "env": {"M3_ENGINE_ROOT": "/x", "M3_EMBED_GGUF": "/m/bge.gguf"}},
-            "unrelated": {"args": ["bin/other.py"],
-                          "env": {"M3_EMBED_GGUF": "/m/bge.gguf"}},
-        }}, f, indent=2)
+        json.dump(
+            {
+                "mcpServers": {
+                    "memory": {
+                        "args": ["bin/memory_bridge.py"],
+                        "env": {"M3_ENGINE_ROOT": "/x", "M3_EMBED_GGUF": "/m/bge.gguf"},
+                    },
+                    "unrelated": {"args": ["bin/other.py"], "env": {"M3_EMBED_GGUF": "/m/bge.gguf"}},
+                }
+            },
+            f,
+            indent=2,
+        )
     return path
 
 
@@ -235,6 +241,7 @@ def test_installer_scrub_is_m3_only_and_idempotent():
     from pathlib import Path
 
     from m3_memory import installer
+
     tmp = tempfile.mkdtemp()
     path = _write_settings_with_leak(tmp)
     actions = installer._scrub_embed_gguf_from_settings(Path(path), apply=True)
@@ -250,6 +257,7 @@ def test_installer_scrub_is_m3_only_and_idempotent():
 
 def test_doctor_detects_and_fixes_env_leak(monkeypatch):
     from doctor import shared_embedder_probe as p
+
     monkeypatch.delenv("M3_EMBED_GGUF", raising=False)
     monkeypatch.setattr(p, "_windows_user_env_has", lambda var: False)  # not the real registry
     tmp = tempfile.mkdtemp()
@@ -266,6 +274,7 @@ def test_doctor_detects_and_fixes_env_leak(monkeypatch):
 
 def test_doctor_detects_process_env_leak(monkeypatch):
     from doctor import shared_embedder_probe as p
+
     monkeypatch.setenv("M3_EMBED_GGUF", "/m/bge.gguf")
     monkeypatch.setattr(p, "_known_agent_settings", lambda: [])
     monkeypatch.setattr(p, "_windows_user_env_has", lambda var: False)  # not the real registry
@@ -275,16 +284,17 @@ def test_doctor_detects_process_env_leak(monkeypatch):
 
 # ── UX: shared mode must read as HEALTHY, not a scary "degraded/init-failed" ───
 
+
 def test_probe_tier1_reports_shared_mode_not_init_failed(monkeypatch):
     """On a shared-embedder box, tier-1 is intentionally off — the probe must say
     'shared-mode', never 'init-failed' (which reads as broken to a user)."""
     root = tempfile.mkdtemp()
     with open(os.path.join(root, ".embed_config.json"), "w") as f:
-        json.dump({"disable_inproc_embedder": True,
-                   "fallback_url": "http://127.0.0.1:8082"}, f)
+        json.dump({"disable_inproc_embedder": True, "fallback_url": "http://127.0.0.1:8082"}, f)
     e = _fresh_embed(monkeypatch, M3_CONFIG_ROOT=root)
     # doctor imports memory.embed fresh; make sure it sees the same shared config
     import importlib
+
     d = importlib.reload(importlib.import_module("memory.doctor"))
     out = d._probe_tier1()
     assert out["status"] == "shared-mode", out
@@ -298,6 +308,7 @@ def test_doctor_summary_healthy_in_shared_mode_when_tier2_up():
     import importlib
 
     from memory import doctor as d
+
     importlib.reload(d)
     # Build the classification the way memory_doctor_impl does, but drive the
     # tier states directly so the test is hermetic (no live server needed).
@@ -309,8 +320,7 @@ def test_doctor_summary_healthy_in_shared_mode_when_tier2_up():
     shared_mode = tier1.get("shared_mode") is True
     rt_ok = db_ok = True
     if rt_ok and db_ok and (t1_ok or t2_ok):
-        summary = "healthy" if (t1_ok and t2_ok) else (
-            "healthy" if (shared_mode and t2_ok) else "degraded")
+        summary = "healthy" if (t1_ok and t2_ok) else ("healthy" if (shared_mode and t2_ok) else "degraded")
     else:
         summary = "broken"
     assert summary == "healthy"
@@ -327,8 +337,7 @@ def test_doctor_summary_degraded_when_not_shared_and_tier1_down():
     shared_mode = tier1.get("shared_mode") is True
     rt_ok = db_ok = True
     if rt_ok and db_ok and (t1_ok or t2_ok):
-        summary = "healthy" if (t1_ok and t2_ok) else (
-            "healthy" if (shared_mode and t2_ok) else "degraded")
+        summary = "healthy" if (t1_ok and t2_ok) else ("healthy" if (shared_mode and t2_ok) else "degraded")
     else:
         summary = "broken"
     assert summary == "degraded"
@@ -461,9 +470,19 @@ async def test_search_scored_degrades_when_no_fast_tier(monkeypatch):
     # can only mean the embed was skipped, not that the store was empty.
     class _Cur:
         def fetchall(self):
-            return [{"id": "x", "content": "c", "title": "t", "type": "concept",
-                     "importance": 0.5, "embedding": b"\x00" * 12,
-                     "vec_score": 0.9, "bm25_score": 0.0}]
+            return [
+                {
+                    "id": "x",
+                    "content": "c",
+                    "title": "t",
+                    "type": "concept",
+                    "importance": 0.5,
+                    "embedding": b"\x00" * 12,
+                    "vec_score": 0.9,
+                    "bm25_score": 0.0,
+                }
+            ]
+
         def fetchone(self):
             return None
 
@@ -473,9 +492,13 @@ async def test_search_scored_degrades_when_no_fast_tier(monkeypatch):
 
     conn = sqlite3.connect(":memory:", factory=_Conn)
     try:
+
         class _Ctx:
-            def __enter__(self): return conn
-            def __exit__(self, *a): return False
+            def __enter__(self):
+                return conn
+
+            def __exit__(self, *a):
+                return False
 
         monkeypatch.setattr(search, "_db", lambda: _Ctx())
         monkeypatch.setattr(memory_core, "_db", lambda: _Ctx())

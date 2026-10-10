@@ -10,6 +10,7 @@ every surface (catalog dispatch, m3_call, the CLI, the MCP bridge) calls it.
 The backend is selected by env alone here: the refusal happens before any
 connection, so the PostgreSQL cases need no server.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -65,7 +66,8 @@ def test_execute_tool_reports_the_refusal_without_running(monkeypatch, tmp_path)
 
     ran = []
     spec = cat.ToolSpec(
-        name="memory_probe", description="probe",
+        name="memory_probe",
+        description="probe",
         parameters={"type": "object", "properties": {"database": {"type": "string"}}},
         impl=lambda: ran.append(1) or "ran",
     )
@@ -73,8 +75,7 @@ def test_execute_tool_reports_the_refusal_without_running(monkeypatch, tmp_path)
     out = asyncio.run(cat.execute_tool(spec, {"database": str(tmp_path / "a.db")}, agent_id=""))
     assert out.startswith("Error: ValueError: memory_probe: `database` would be ignored"), out
     with pytest.raises(ValueError, match="would be ignored"):
-        asyncio.run(cat.execute_tool_structured(
-            spec, {"database": str(tmp_path / "a.db")}, agent_id=""))
+        asyncio.run(cat.execute_tool_structured(spec, {"database": str(tmp_path / "a.db")}, agent_id=""))
     assert ran == []
 
 
@@ -94,9 +95,11 @@ def test_bridge_wrapper_reports_the_refusal_without_running(monkeypatch, tmp_pat
         return "ran"
 
     spec = cat.ToolSpec(
-        name="memory_probe", description="probe",
+        name="memory_probe",
+        description="probe",
         parameters={"type": "object", "properties": {"database": {"type": "string"}}},
-        impl=_async_impl if is_async else _sync_impl, is_async=is_async,
+        impl=_async_impl if is_async else _sync_impl,
+        is_async=is_async,
     )
     _set_backend(monkeypatch, "postgres")
     fn = memory_bridge._build_typed_function(spec)

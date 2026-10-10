@@ -8,6 +8,7 @@ Two guards:
   2. `m3 doctor --fix` (via installer._dedupe_mcp_registration) must AUTO-REMOVE a
      same-client duplicate, keeping the complete (env-carrying) def.
 """
+
 from __future__ import annotations
 
 import json
@@ -59,8 +60,7 @@ def test_dedupe_removes_bare_keeps_complete(tmp_path, monkeypatch):
     mcp = tmp_path / ".mcp.json"
     _mk(settings, {"memory": {"command": "py", "args": ["b"], "env": {"M3_ENGINE_ROOT": "x"}}})
     _mk(mcp, {"memory": {"command": "py", "args": ["b"]}})  # bare dup
-    monkeypatch.setattr(I, "_client_config_sources",
-                        lambda: {"Claude Code": [settings, mcp]})
+    monkeypatch.setattr(I, "_client_config_sources", lambda: {"Claude Code": [settings, mcp]})
 
     actions = I._dedupe_mcp_registration(apply=True)
     assert any("removed" in a and "memory" in a for a in actions)
@@ -75,8 +75,7 @@ def test_dedupe_is_idempotent_and_noop_when_clean(tmp_path, monkeypatch):
     mcp = tmp_path / ".mcp.json"
     _mk(settings, {"memory": {"command": "py", "env": {"M3_ENGINE_ROOT": "x"}}})
     _mk(mcp, {})  # already clean
-    monkeypatch.setattr(I, "_client_config_sources",
-                        lambda: {"Claude Code": [settings, mcp]})
+    monkeypatch.setattr(I, "_client_config_sources", lambda: {"Claude Code": [settings, mcp]})
     assert I._dedupe_mcp_registration(apply=True) == []
 
 
@@ -85,8 +84,7 @@ def test_dedupe_dry_run_does_not_write(tmp_path, monkeypatch):
     mcp = tmp_path / ".mcp.json"
     _mk(settings, {"memory": {"command": "py", "env": {"M3_ENGINE_ROOT": "x"}}})
     _mk(mcp, {"memory": {"command": "py"}})
-    monkeypatch.setattr(I, "_client_config_sources",
-                        lambda: {"Claude Code": [settings, mcp]})
+    monkeypatch.setattr(I, "_client_config_sources", lambda: {"Claude Code": [settings, mcp]})
     before = mcp.read_text()
     actions = I._dedupe_mcp_registration(apply=False)
     assert actions and "would remove" in actions[0]

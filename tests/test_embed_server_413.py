@@ -13,6 +13,7 @@ through TestClient and stub only the embedder call itself; the client tests feed
 
 Hermetic (§3): no GPU, no model, no network, no live 8082 service.
 """
+
 from __future__ import annotations
 
 import json
@@ -104,6 +105,7 @@ class TestServerReturnsStructured413(unittest.TestCase):
         upgrading the SERVER alone must repair clients already in the field: the
         413 body still contains the original "N tokens > n_ctx M"."""
         import re
+
         legacy = re.compile(r"(\d+)\s*tokens\s*>\s*n_ctx")
         with _StubEmbed(_raise_overflow):
             r = self.client.post("/embedding", json={"input": ["x"]})
@@ -114,12 +116,16 @@ class TestClientParsesRealServerBodies(unittest.TestCase):
     """Both skew directions, using bodies a real server actually emits."""
 
     def test_structured_413_needs_no_string_parsing(self):
-        body = json.dumps({"error": {
-            "code": "context_length_exceeded",
-            "message": _OVERFLOW_MSG,
-            "observed_tokens": 16875,
-            "max_tokens": 8192,
-        }})
+        body = json.dumps(
+            {
+                "error": {
+                    "code": "context_length_exceeded",
+                    "message": _OVERFLOW_MSG,
+                    "observed_tokens": 16875,
+                    "max_tokens": 8192,
+                }
+            }
+        )
         err = _parse_context_overflow(413, body)
         self.assertIsInstance(err, ContextLengthExceeded)
         self.assertEqual((err.observed_tokens, err.max_tokens), (16875, 8192))
@@ -132,11 +138,12 @@ class TestClientParsesRealServerBodies(unittest.TestCase):
     def test_variant_wording_without_counts_is_still_recognised(self):
         """Recovery must depend on knowing the input is too long, not on the
         server having been chatty about numbers."""
-        for body in ('{"error":"maximum context length is 8192"}',
-                     "token length exceeds limit",
-                     "<html>413 Request Entity Too Large: input too long</html>"):
-            self.assertIsInstance(
-                _parse_context_overflow(413, body), ContextLengthExceeded, body)
+        for body in (
+            '{"error":"maximum context length is 8192"}',
+            "token length exceeds limit",
+            "<html>413 Request Entity Too Large: input too long</html>",
+        ):
+            self.assertIsInstance(_parse_context_overflow(413, body), ContextLengthExceeded, body)
 
     def test_infra_failure_is_not_an_overflow(self):
         self.assertIsNone(_parse_context_overflow(500, "embed pool mutex poisoned"))
@@ -156,6 +163,7 @@ class TestSubdivideWithoutCounts(unittest.TestCase):
         """A server reporting the CLASS of error without a count must not leave
         the chunk unsplit -- that would drop the row."""
         from memory.chunking import _subdivide_dense_chunk
+
         text = "数据库连接失败" * 3000
         self.assertGreater(len(_subdivide_dense_chunk(text, 0)), 1)
 

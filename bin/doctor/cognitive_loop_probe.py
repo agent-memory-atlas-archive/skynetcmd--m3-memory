@@ -16,6 +16,7 @@ systemd --user / Task Scheduler) so it degrades gracefully rather than going
 blind on 2 of 3 platforms (DESIGN §1). The entity/memory counts come through the
 storage seam's ``open_readonly`` so the same probe works on SQLite and Postgres.
 """
+
 from __future__ import annotations
 
 import os
@@ -54,7 +55,9 @@ def _installed_active() -> tuple[bool, bool | None, str]:
         try:
             active = subprocess.run(
                 ["systemctl", "--user", "is-active", _SYSTEMD_UNIT],
-                capture_output=True, text=True, timeout=20,
+                capture_output=True,
+                text=True,
+                timeout=20,
             )
             return True, ((active.stdout or "").strip() == "active"), "systemd --user"
         except Exception:  # noqa: BLE001
@@ -63,7 +66,9 @@ def _installed_active() -> tuple[bool, bool | None, str]:
         try:
             proc = subprocess.run(
                 ["schtasks", "/Query", "/TN", _WINDOWS_TASK],
-                capture_output=True, text=True, timeout=20,
+                capture_output=True,
+                text=True,
+                timeout=20,
             )
             if proc.returncode != 0:
                 return False, None, "Task Scheduler"
@@ -97,6 +102,7 @@ def _process_running() -> bool | None:
     # something asked about it.
     try:
         import psutil
+
         for p in psutil.process_iter(["name", "cmdline"]):
             try:
                 name = (p.info.get("name") or "").lower()
@@ -115,9 +121,7 @@ def _process_running() -> bool | None:
             # No psutil: tasklist cannot match on the script arg, so we cannot
             # tell. Unknown, never a false "down".
             return None
-        proc = subprocess.run(
-            ["pgrep", "-f", "m3_cognitive_loop"], capture_output=True, text=True
-        )
+        proc = subprocess.run(["pgrep", "-f", "m3_cognitive_loop"], capture_output=True, text=True)
         # pgrep: rc 0 = match, 1 = no match, 2/3 = usage/error → unknown.
         if proc.returncode in (0, 1):
             return proc.returncode == 0
@@ -143,9 +147,7 @@ def _entity_stats() -> tuple[int, int] | None:
     try:
         db_path = resolve_engine_file("agent_memory.db")
         with active_backend().open_readonly(db_path) as conn:
-            mem = conn.execute(
-                "SELECT COUNT(*) FROM memory_items WHERE is_deleted = 0"
-            ).fetchone()
+            mem = conn.execute("SELECT COUNT(*) FROM memory_items WHERE is_deleted = 0").fetchone()
             memories = int(mem[0]) if mem else 0
             try:
                 ent = conn.execute("SELECT COUNT(*) FROM entities").fetchone()
@@ -174,6 +176,7 @@ def _chat_model_reachable() -> bool | None:
     """
     try:
         from doctor.files_extraction_probe import _main_path_endpoints, _reach
+
         endpoints = _main_path_endpoints()
     except Exception:  # noqa: BLE001 — unknown, not absent
         return None
@@ -211,12 +214,13 @@ def run(brief: bool = False) -> int:
             print("⚠️  cognitive loop: installed but not running; `m3 setup`")
         elif memories and entities == 0:
             if _chat_model_reachable() is False:
-                print("⚠️  cognitive loop: 0 entities — entity extraction needs a "
-                      "chat model and none is reachable. fix: load a model in LM "
-                      "Studio or Ollama, then run `m3 setup`")
+                print(
+                    "⚠️  cognitive loop: 0 entities — entity extraction needs a "
+                    "chat model and none is reachable. fix: load a model in LM "
+                    "Studio or Ollama, then run `m3 setup`"
+                )
             else:
-                print("⚠️  cognitive loop: 0 entities extracted from "
-                      f"{memories} memories (loop hasn't distilled yet)")
+                print(f"⚠️  cognitive loop: 0 entities extracted from {memories} memories (loop hasn't distilled yet)")
         else:
             suffix = f" · {entities} entities" if entities else ""
             print(f"✅ cognitive loop: OK ({backend}{suffix})")

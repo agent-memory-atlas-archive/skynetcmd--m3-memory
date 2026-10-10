@@ -23,6 +23,7 @@ Public API:
                   scope=None, importance=None, agent_id=None) -> dict
     files_promotion_list(source_file_node=None, source_superseded=None) -> list
 """
+
 from __future__ import annotations
 
 import json
@@ -55,6 +56,7 @@ def _resolve_source(conn: sqlite3.Connection, source_uuid: str) -> dict | None:
         version_label: ingest-N label
     """
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     # Try facts first (most likely target).
     row = conn.execute(
@@ -148,6 +150,7 @@ def _find_promoted_orphan(source_uuid: str) -> str | None:
     from memory.backends import dialect as _dialect
 
     from .entities import _memory_db  # reuse the same connection helper
+
     _d = _dialect()
     _p = _d.param()
     try:
@@ -200,6 +203,7 @@ def files_promote(
         scope = config.PROMOTION_DEFAULT_SCOPE
 
     from memory.backends import dialect as _dialect
+
     _d = _dialect()
     _p = _d.param()
     with _db(db_path) as conn:
@@ -240,15 +244,20 @@ def files_promote(
                 f"reason, mapped_type, memory_db_path) "
                 f"VALUES ({_d.placeholder(8)})",
                 (
-                    marker_uuid, source_uuid, source["kind"],
-                    orphan, agent_id,
+                    marker_uuid,
+                    source_uuid,
+                    source["kind"],
+                    orphan,
+                    agent_id,
                     f"{reason} [orphan-recovered]" if reason else "[orphan-recovered]",
-                    promoted_type, config.MEMORY_DB_PATH,
+                    promoted_type,
+                    config.MEMORY_DB_PATH,
                 ),
             )
             logger.info(
                 "promote: recovered orphan memory_items row %s for source %s",
-                orphan, source_uuid,
+                orphan,
+                source_uuid,
             )
             return {
                 "promoted_to": orphan,
@@ -292,8 +301,13 @@ def files_promote(
             f"reason, mapped_type, memory_db_path) "
             f"VALUES ({_d.placeholder(8)})",
             (
-                marker_uuid, source_uuid, source["kind"],
-                memory_uuid, agent_id, reason, promoted_type,
+                marker_uuid,
+                source_uuid,
+                source["kind"],
+                memory_uuid,
+                agent_id,
+                reason,
+                promoted_type,
                 config.MEMORY_DB_PATH,  # NULL = active M3Context default
             ),
         )
@@ -339,7 +353,8 @@ def _write_to_memory_db(
             from memory_core import memory_write_impl  # type: ignore[no-redef]
         except ImportError as e:
             logger.error(
-                "neither memory.write nor memory_core exposes memory_write_impl: %s", e,
+                "neither memory.write nor memory_core exposes memory_write_impl: %s",
+                e,
             )
             return None
 
@@ -396,6 +411,7 @@ def files_promotion_list(
         limit: cap on results.
     """
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     sql_parts = [
         f"SELECT pm.uuid AS marker_uuid, pm.source_memory, pm.source_memory_type, "

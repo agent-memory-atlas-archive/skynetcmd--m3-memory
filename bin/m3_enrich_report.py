@@ -20,6 +20,7 @@ Designed to be called automatically at the end of m3_enrich runs so that
 every run leaves an artifact behind, mirroring the docs/audits/ pattern
 for security scans.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -75,32 +76,41 @@ def _summarize(conn: sqlite3.Connection, where: str, params: list) -> dict:
     cur = conn.cursor()
 
     # Status breakdown
-    cur.execute(f"""
+    cur.execute(
+        f"""
         SELECT status, COUNT(*) AS n
         FROM enrichment_groups
         WHERE {where}
         GROUP BY status
-    """, params)
+    """,
+        params,
+    )
     status: dict[str, int] = {r["status"]: r["n"] for r in cur.fetchall()}
     total = sum(status.values())
 
     # Error class distribution (failed rows only)
-    cur.execute(f"""
+    cur.execute(
+        f"""
         SELECT COALESCE(error_class, '(none)') AS error_class, COUNT(*) AS n
         FROM enrichment_groups
         WHERE {where} AND status='failed'
         GROUP BY error_class
         ORDER BY n DESC
-    """, params)
+    """,
+        params,
+    )
     error_classes: list[tuple[str, int]] = [(r["error_class"], r["n"]) for r in cur.fetchall()]
 
     # Sample error messages (deduped by class)
-    cur.execute(f"""
+    cur.execute(
+        f"""
         SELECT error_class, last_error
         FROM enrichment_groups
         WHERE {where} AND status='failed' AND last_error IS NOT NULL
         ORDER BY id DESC LIMIT 500
-    """, params)
+    """,
+        params,
+    )
     seen_class: set[str] = set()
     samples: list[tuple[str, str]] = []
     for r in cur.fetchall():
@@ -113,7 +123,8 @@ def _summarize(conn: sqlite3.Connection, where: str, params: list) -> dict:
             break
 
     # Size-band success rate
-    cur.execute(f"""
+    cur.execute(
+        f"""
         SELECT
           CASE
             WHEN content_size_k IS NULL THEN '(unknown)'
@@ -128,13 +139,16 @@ def _summarize(conn: sqlite3.Connection, where: str, params: list) -> dict:
         FROM enrichment_groups
         WHERE {where}
         GROUP BY band, status
-    """, params)
+    """,
+        params,
+    )
     band_status: dict[str, dict[str, int]] = {}
     for r in cur.fetchall():
         band_status.setdefault(r["band"], {})[r["status"]] = r["n"]
 
     # Throughput
-    cur.execute(f"""
+    cur.execute(
+        f"""
         SELECT MIN(first_attempt_at) AS started,
                MAX(last_attempt_at)  AS ended,
                COUNT(*) AS n_attempted,
@@ -142,19 +156,24 @@ def _summarize(conn: sqlite3.Connection, where: str, params: list) -> dict:
                AVG(enrichment_ms)    AS mean_ms
         FROM enrichment_groups
         WHERE {where} AND first_attempt_at IS NOT NULL
-    """, params)
+    """,
+        params,
+    )
     perf = dict(cur.fetchone() or {})
 
     # Run rows (if any) for profile/model info
     runs: list[dict] = []
     try:
-        cur.execute(f"""
+        cur.execute(
+            f"""
             SELECT DISTINCT enrich_run_id, profile, model
             FROM enrichment_groups
             WHERE {where} AND enrich_run_id IS NOT NULL
             ORDER BY enrich_run_id
             LIMIT 20
-        """, params)
+        """,
+            params,
+        )
         runs = [dict(r) for r in cur.fetchall()]
     except sqlite3.OperationalError:
         pass
@@ -209,19 +228,20 @@ def _format(data: dict, where_label: str) -> str:
 
     obs = data["perf"].get("total_obs") or 0
     if succ:
-        lines.append(f"- Observations written: **{obs:,}** "
-                     f"(mean {obs / succ:.1f} per successful group)")
+        lines.append(f"- Observations written: **{obs:,}** (mean {obs / succ:.1f} per successful group)")
 
     # Cascade detection
     if failed > 0:
         top_err_class, top_err_n = data["error_classes"][0] if data["error_classes"] else ("(none)", 0)
         if top_err_class == "http_status" and top_err_n / max(failed, 1) > 0.5:
             lines.append("")
-            lines.append("> ⚠️ **Quota / rate-limit cascade detected.** "
-                         f"{top_err_n:,} of {failed:,} failures are `http_status` "
-                         "errors — this is the signature of a 429 / quota wall, "
-                         "not real per-group bugs. Wait for the upstream quota "
-                         "reset, then re-run with `--resume` to retry these.")
+            lines.append(
+                "> ⚠️ **Quota / rate-limit cascade detected.** "
+                f"{top_err_n:,} of {failed:,} failures are `http_status` "
+                "errors — this is the signature of a 429 / quota wall, "
+                "not real per-group bugs. Wait for the upstream quota "
+                "reset, then re-run with `--resume` to retry these."
+            )
 
     # Throughput
     lines.append("")
@@ -243,8 +263,7 @@ def _format(data: dict, where_label: str) -> str:
             wall = (t1 - t0).total_seconds()
             if wall > 0 and n_attempted:
                 rate = n_attempted / wall
-                lines.append(f"- Wallclock: {wall / 60:.1f} min "
-                             f"(effective rate {rate:.2f} g/s)")
+                lines.append(f"- Wallclock: {wall / 60:.1f} min (effective rate {rate:.2f} g/s)")
         except (ValueError, TypeError):
             pass
 
@@ -298,8 +317,11 @@ def _format(data: dict, where_label: str) -> str:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--db", default=os.environ.get("M3_DATABASE", "memory/agent_memory.db"),
-                    help="SQLite DB path. Default: memory/agent_memory.db or $M3_DATABASE.")
+    ap.add_argument(
+        "--db",
+        default=os.environ.get("M3_DATABASE", "memory/agent_memory.db"),
+        help="SQLite DB path. Default: memory/agent_memory.db or $M3_DATABASE.",
+    )
     ap.add_argument("--run-id", help="enrich_run_id to summarize (UUID).")
     ap.add_argument("--variant", help="source_variant to summarize across all runs.")
     ap.add_argument("--target", help="Output file (default: stdout).")

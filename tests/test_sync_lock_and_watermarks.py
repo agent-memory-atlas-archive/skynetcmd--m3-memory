@@ -18,6 +18,7 @@ Hermetic: a temp SQLite store built through the real migration chain. The
 PostgreSQL half is covered by test_schema_parity_pg_live (the tables must exist
 on both backends) and by the live lane.
 """
+
 from __future__ import annotations
 
 import pathlib
@@ -180,11 +181,13 @@ class TestPortability:
 
         tree = ast.parse(textwrap.dedent(inspect.getsource(pg_sync._acquire_sync_lock)))
         sql = " ".join(
-            n.value for n in ast.walk(tree)
-            if isinstance(n, ast.Constant) and isinstance(n.value, str)
+            n.value for n in ast.walk(tree) if isinstance(n, ast.Constant) and isinstance(n.value, str)
         ) + " ".join(
-            v.value for n in ast.walk(tree) if isinstance(n, ast.JoinedStr)
-            for v in n.values if isinstance(v, ast.Constant) and isinstance(v.value, str)
+            v.value
+            for n in ast.walk(tree)
+            if isinstance(n, ast.JoinedStr)
+            for v in n.values
+            if isinstance(v, ast.Constant) and isinstance(v.value, str)
         )
         assert "INSERT OR REPLACE" not in sql, "SQLite-only syntax in the lock write"
         assert "ON CONFLICT" in sql
@@ -195,7 +198,7 @@ class TestPortability:
         for fn in (pg_sync._acquire_sync_lock, pg_sync._release_sync_lock):
             src = inspect.getsource(fn)
             assert "= '?'" not in src
-            assert 'lock_name = ?' not in src
+            assert "lock_name = ?" not in src
 
     def test_hostname_lookup_never_raises(self, monkeypatch):
         """A lock must not fail to be taken because gethostname() misbehaved."""

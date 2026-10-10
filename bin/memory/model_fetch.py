@@ -19,6 +19,7 @@ MIRROR SELECTION (verified 2026-07-27, not assumed):
   than by a hardcoded sha256 — a checksum from one mirror would reject the other
   even though both are correct.
 """
+
 from __future__ import annotations
 
 import logging
@@ -154,9 +155,11 @@ def fetch_bge_m3(dest_dir: Path | None = None, *, quiet: bool = False) -> Path |
             continue
 
     if not quiet:
-        print("[!] could not download the model from any mirror.\n"
-              "    m3 still embeds via its in-process / HTTP tiers — this is not fatal.\n"
-              f"    To add it by hand, place a bge-m3 GGUF at: {final}")
+        print(
+            "[!] could not download the model from any mirror.\n"
+            "    m3 still embeds via its in-process / HTTP tiers — this is not fatal.\n"
+            f"    To add it by hand, place a bge-m3 GGUF at: {final}"
+        )
     return None
 
 
@@ -171,7 +174,6 @@ def _progress_bar(total: int, quiet: bool):
             return None
         from tqdm import tqdm
 
-        return tqdm(total=total, unit="iB", unit_scale=True,
-                    unit_divisor=1024, desc="  bge-m3")
+        return tqdm(total=total, unit="iB", unit_scale=True, unit_divisor=1024, desc="  bge-m3")
     except Exception:  # noqa: BLE001 — the progress bar is optional
         return None

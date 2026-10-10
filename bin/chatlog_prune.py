@@ -30,6 +30,7 @@ USAGE
     options: --fresh-days 14 --prune-days 45 --status-min-cluster 5
              --generic-imp-max 0.3 --no-generic
 """
+
 from __future__ import annotations
 
 import argparse
@@ -55,22 +56,42 @@ _STATUS_RE = re.compile(
     r"|workers?\s+alive[:\s]+\d+|slice\s+\d+\s+poll\s*#?\d+)",
     re.IGNORECASE,
 )
-_SHORT_COMMAND_WORDS = frozenset({
-    "status", "start", "stop", "go", "yes", "y", "ok", "proceed", "continue",
-    "do it", "kick off", "run it", "fire", "fire it",
-})
+_SHORT_COMMAND_WORDS = frozenset(
+    {
+        "status",
+        "start",
+        "stop",
+        "go",
+        "yes",
+        "y",
+        "ok",
+        "proceed",
+        "continue",
+        "do it",
+        "kick off",
+        "run it",
+        "fire",
+        "fire it",
+    }
+)
 _REFUSAL_WORDS = frozenset({"no", "stop", "kill", "abort", "wait", "hold"})
 # status request/response vocabulary for the repeated-status detector
 _STATUS_REQ_RE = re.compile(
     r"\b(status|progress|any\s+update|update\??|how('?s| is)\s+it\s+going"
-    r"|where\s+are\s+we|eta|done\s*\??|finished\s*\??|ready\s*\??)\b", re.IGNORECASE)
+    r"|where\s+are\s+we|eta|done\s*\??|finished\s*\??|ready\s*\??)\b",
+    re.IGNORECASE,
+)
 _STATUS_RESP_RE = re.compile(
     r"(\bstatus\b|\bprogress\b|\d+\s*%|\d+\s*/\s*\d+|\bremaining\b|\bso far\b"
-    r"|\bin[_\s]?progress\b|\bcompleted?\b|\bpending\b|\bworkers?\b|\beta\b)", re.IGNORECASE)
+    r"|\bin[_\s]?progress\b|\bcompleted?\b|\bpending\b|\bworkers?\b|\beta\b)",
+    re.IGNORECASE,
+)
 # strong-signal markers that protect a generic turn from being pruned
 _SIGNAL_RE = re.compile(
     r"```|\bdecid(e|ed|ing|sion)\b|\bbecause\b|\btherefore\b|\bremember\b"
-    r"|\bnever\b|\balways\b|\bIMPORTANT\b|\bnote that\b|\bgotcha\b|\bTODO\b", re.IGNORECASE)
+    r"|\bnever\b|\balways\b|\bIMPORTANT\b|\bnote that\b|\bgotcha\b|\bTODO\b",
+    re.IGNORECASE,
+)
 
 # Durable-knowledge signals (same family used by the promotion scan). A turn
 # carrying any of these is PROTECTED from soft-delete: it may be suppressed
@@ -82,7 +103,9 @@ _DURABLE_RE = re.compile(
     r"|from now on|going forward|always (use|do|prefer)|never (use|do)"
     r"|by default|prefer \w+ (over|to)|hostname is|runs on port \d|listening on \d"
     r"|configured (to|with)|the (endpoint|url|path|model|db|database) (is|=|:)"
-    r"|installed (at|in)|API key|lives (at|in) /|stored (at|in))\b", re.IGNORECASE)
+    r"|installed (at|in)|API key|lives (at|in) /|stored (at|in))\b",
+    re.IGNORECASE,
+)
 _STRUCT_RE = re.compile(r"(^|\n)\s*(#{1,3}\s|\*\s|-\s|\d+[.)]\s)", re.MULTILINE)
 
 # Noise categories that are ALWAYS safe to soft-delete (unambiguous chatter).
@@ -116,9 +139,9 @@ def _norm_key(content: str) -> str:
     """Normalized form for clustering: strip volatile tokens, lowercase, head."""
     s = content[:400].lower()
     s = _PID_OR_UUID_RE.sub(" ", s)
-    s = re.sub(r"[0-9a-f]{6,}", " ", s)          # hex blobs / hashes
-    s = re.sub(r"\d+", " ", s)                    # all digits
-    s = re.sub(r"[^a-z ]+", " ", s)               # punctuation
+    s = re.sub(r"[0-9a-f]{6,}", " ", s)  # hex blobs / hashes
+    s = re.sub(r"\d+", " ", s)  # all digits
+    s = re.sub(r"[^a-z ]+", " ", s)  # punctuation
     s = re.sub(r"\s+", " ", s).strip()
     return s[:120]
 
@@ -170,8 +193,7 @@ def _has_column(conn, dialect, table, col) -> bool:
     return any(r[0] == col for r in conn.execute(sql, params).fetchall())
 
 
-def classify(role: str, content: str, importance: float, norm: str,
-             cluster_size: int, args) -> tuple[str | None, str]:
+def classify(role: str, content: str, importance: float, norm: str, cluster_size: int, args) -> tuple[str | None, str]:
     """Return (noise_category | None, reason). None => keep."""
     # KEEP guards first
     if importance is not None and importance > args.keep_imp_floor:
@@ -218,19 +240,32 @@ def role_from_title_sql(d) -> tuple[str, tuple]:
 
 def run(db_path: str, args) -> dict:
     from m3_core.paths import store_is_a_file
+
     # Only a file-per-database backend has a file to find.
     if store_is_a_file() and not os.path.exists(db_path):
         return {"error": f"DB not found: {db_path}"}
     now_ts = time.time()
     S: dict[str, Any] = {
-        "db": db_path, "apply": args.apply, "scanned": 0,
-        "fresh_kept": 0, "decay": {}, "prune": {}, "kept_noise_recent": 0,
+        "db": db_path,
+        "apply": args.apply,
+        "scanned": 0,
+        "fresh_kept": 0,
+        "decay": {},
+        "prune": {},
+        "kept_noise_recent": 0,
         "kept_already_decayed": 0,
-        "writes_decay": 0, "writes_prune": 0,
-        "prune_rows": 0, "prune_content_mb": 0.0, "errors": [],
-        "params": {"fresh_days": args.fresh_days, "prune_days": args.prune_days,
-                   "status_min_cluster": args.status_min_cluster,
-                   "generic_imp_max": args.generic_imp_max, "generic": not args.no_generic},
+        "writes_decay": 0,
+        "writes_prune": 0,
+        "prune_rows": 0,
+        "prune_content_mb": 0.0,
+        "errors": [],
+        "params": {
+            "fresh_days": args.fresh_days,
+            "prune_days": args.prune_days,
+            "status_min_cluster": args.status_min_cluster,
+            "generic_imp_max": args.generic_imp_max,
+            "generic": not args.no_generic,
+        },
     }
     # Backend-aware. On SQLite: connect directly to the caller's chatlog file
     # (byte-identical to the original) — the core table name, no path indirection
@@ -263,8 +298,10 @@ def _run_sweep(conn, db_path, args, now_ts, S, _d, _p, _tbl, _is_sqlite) -> dict
     if _is_sqlite:
         try:
             import sys as _sys
+
             _sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
             from sqlite_pragmas import apply_pragmas, checkpoint_truncate, profile_for_db
+
             apply_pragmas(conn, profile_for_db(db_path))
         except Exception:
             checkpoint_truncate = None
@@ -282,9 +319,7 @@ def _run_sweep(conn, db_path, args, now_ts, S, _d, _p, _tbl, _is_sqlite) -> dict
         # cluster build stay bounded to what we might act on. `created_at` is
         # indexed on the chatlog DB; a missing index just degrades to a scan of
         # the same rows we'd have read anyway.
-        fresh_cutoff = datetime.fromtimestamp(
-            now_ts - args.fresh_days * 86400.0, UTC
-        ).isoformat()
+        fresh_cutoff = datetime.fromtimestamp(now_ts - args.fresh_days * 86400.0, UTC).isoformat()
         # Select aged candidates. We DO still pull already-decayed rows (valid_to
         # set) here, because a row decayed while it was in the DECAY tier must
         # still be re-examined once it ages past prune_days so it can be
@@ -292,11 +327,14 @@ def _run_sweep(conn, db_path, args, now_ts, S, _d, _p, _tbl, _is_sqlite) -> dict
         # infinite re-decay loop is applied per-row in PASS 2 (see `already_decayed`
         # below), NOT by excluding decayed rows from the scan — excluding them
         # here would strand them from ever being pruned.
-        rows = conn.execute(f"""SELECT id, {role_sql} AS role, content, importance, created_at{', valid_to' if has_valid_to else ''}
+        rows = conn.execute(
+            f"""SELECT id, {role_sql} AS role, content, importance, created_at{", valid_to" if has_valid_to else ""}
                                 FROM {_tbl}
                                 WHERE type='chat_log' AND is_deleted=0
                                   AND created_at < {_p}
-                                ORDER BY created_at ASC""", (*role_params, fresh_cutoff)).fetchall()
+                                ORDER BY created_at ASC""",
+            (*role_params, fresh_cutoff),
+        ).fetchall()
         # PASS 1: build normalized-content cluster sizes (for repeat-status)
         cluster: dict[str, int] = {}
         norms: dict[str, str] = {}
@@ -323,7 +361,7 @@ def _run_sweep(conn, db_path, args, now_ts, S, _d, _p, _tbl, _is_sqlite) -> dict
             if cat is None:
                 continue
             if age < args.fresh_days:
-                S["kept_noise_recent"] += 1          # noise but recent -> keep
+                S["kept_noise_recent"] += 1  # noise but recent -> keep
                 continue
             if max_actions and (len(decay_buf) + len(prune_buf)) >= max_actions:
                 # Hit the per-run action cap. Stop accumulating; the remaining
@@ -336,7 +374,8 @@ def _run_sweep(conn, db_path, args, now_ts, S, _d, _p, _tbl, _is_sqlite) -> dict
             # never tombstoned — at most suppressed. Hard-noise bypasses this.
             protected = (cat not in _HARD_NOISE) and (
                 _is_protected(content, args.generic_protect_len)
-                or (cat == "generic_low" and len(content) >= args.generic_delete_maxlen))
+                or (cat == "generic_low" and len(content) >= args.generic_delete_maxlen)
+            )
             if age < args.prune_days or protected:
                 # DECAY/SUPPRESS tier.
                 # CONVERGENCE GUARD: if this row was already decayed on a prior
@@ -384,14 +423,17 @@ def _run_sweep(conn, db_path, args, now_ts, S, _d, _p, _tbl, _is_sqlite) -> dict
                 conn.executemany(
                     f"UPDATE {_tbl} SET importance={_p}, valid_to={_p}, updated_at={_p} "
                     f"WHERE id={_p} AND type='chat_log'",
-                    [(ni, ts, ts, rid) for rid, ni in decay_buf])
+                    [(ni, ts, ts, rid) for rid, ni in decay_buf],
+                )
             else:
                 conn.executemany(
                     f"UPDATE {_tbl} SET importance={_p}, updated_at={_p} WHERE id={_p} AND type='chat_log'",
-                    [(ni, ts, rid) for rid, ni in decay_buf])
+                    [(ni, ts, rid) for rid, ni in decay_buf],
+                )
             conn.executemany(
                 f"UPDATE {_tbl} SET is_deleted=1, updated_at={_p} WHERE id={_p} AND type='chat_log'",
-                [(ts, rid) for (rid,) in prune_buf])
+                [(ts, rid) for (rid,) in prune_buf],
+            )
             conn.commit()
             S["writes_decay"], S["writes_prune"] = len(decay_buf), len(prune_buf)
             # §10: truncate the WAL after a write batch so it doesn't grow unbounded.
@@ -401,7 +443,8 @@ def _run_sweep(conn, db_path, args, now_ts, S, _d, _p, _tbl, _is_sqlite) -> dict
                 except Exception as exc:
                     S["errors"].append(f"wal_checkpoint: {exc!r}")
     except Exception as exc:
-        conn.rollback(); S["errors"].append(repr(exc))
+        conn.rollback()
+        S["errors"].append(repr(exc))
     return S
 
 
@@ -413,21 +456,35 @@ def main() -> int:
     ap.add_argument("--status-min-cluster", type=int, default=5)
     ap.add_argument("--generic-imp-max", type=float, default=0.3)
     ap.add_argument("--keep-imp-floor", type=float, default=0.4)
-    ap.add_argument("--generic-protect-len", type=int, default=300,
-                    help="generic turns >= this length (if structured) are suppress-only")
-    ap.add_argument("--generic-delete-maxlen", type=int, default=300,
-                    help="generic turns >= this length are never tombstoned (suppress-only)")
+    ap.add_argument(
+        "--generic-protect-len",
+        type=int,
+        default=300,
+        help="generic turns >= this length (if structured) are suppress-only",
+    )
+    ap.add_argument(
+        "--generic-delete-maxlen",
+        type=int,
+        default=300,
+        help="generic turns >= this length are never tombstoned (suppress-only)",
+    )
     ap.add_argument("--no-generic", action="store_true")
-    ap.add_argument("--max-actions", type=int, default=0,
-                    help="Max decay+prune writes per run (0 = no cap). Bounds a "
-                         "single pass so a large backlog drains across runs "
-                         "instead of one monster pass; oldest noise goes first.")
+    ap.add_argument(
+        "--max-actions",
+        type=int,
+        default=0,
+        help="Max decay+prune writes per run (0 = no cap). Bounds a "
+        "single pass so a large backlog drains across runs "
+        "instead of one monster pass; oldest noise goes first.",
+    )
     ap.add_argument("--apply", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
     if args.apply and args.dry_run:
-        print("error: --apply and --dry-run are mutually exclusive", file=sys.stderr); return 2
+        print("error: --apply and --dry-run are mutually exclusive", file=sys.stderr)
+        return 2
     import json
+
     print(json.dumps(run(args.db, args), indent=2, sort_keys=True))
     return 0
 

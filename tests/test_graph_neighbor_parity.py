@@ -9,6 +9,7 @@ set as the Python path for every graph shape and depth.
 
 If Rust and Python diverge on any input, that's a finding to surface, not hide.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -119,8 +120,7 @@ def test_rust_python_parity(monkeypatch, edges, seeds, depth):
     rs_result = graph_mod._graph_neighbor_ids(list(seeds), depth)
 
     assert rs_result == py_result, (
-        f"divergence: edges={edges} seeds={seeds} depth={depth}\n"
-        f"  rust={sorted(rs_result)}\n  py  ={sorted(py_result)}"
+        f"divergence: edges={edges} seeds={seeds} depth={depth}\n  rust={sorted(rs_result)}\n  py  ={sorted(py_result)}"
     )
 
 

@@ -9,7 +9,7 @@ from mcp_compat import FastMCP
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
-    format='%(name)s: [%(levelname)s] %(message)s',
+    format="%(name)s: [%(levelname)s] %(message)s",
     stream=sys.stderr,
 )
 logger = logging.getLogger("memory_bridge")
@@ -68,22 +68,24 @@ _conn = memory_core._conn
 _embed = memory_core._embed
 _db = memory_core._db
 _ensure_sync_tables = memory_core._ensure_sync_tables
-_content_hash       = memory_core._content_hash
-_pack               = memory_core._pack
+_content_hash = memory_core._content_hash
+_pack = memory_core._pack
 
 # Re-export catalog validation constants — tests and external callers import
 # VALID_MEMORY_TYPES from memory_bridge directly.
 VALID_MEMORY_TYPES = mcp_tool_catalog.VALID_MEMORY_TYPES
 VALID_ENTITY_TYPES = mcp_tool_catalog.VALID_ENTITY_TYPES
 VALID_ENTITY_PREDICATES = mcp_tool_catalog.VALID_ENTITY_PREDICATES
-MAX_CONTENT_SIZE   = mcp_tool_catalog.MAX_CONTENT_SIZE
-MAX_QUERY_LENGTH   = mcp_tool_catalog.MAX_QUERY_LENGTH
-MAX_K              = mcp_tool_catalog.MAX_K
+MAX_CONTENT_SIZE = mcp_tool_catalog.MAX_CONTENT_SIZE
+MAX_QUERY_LENGTH = mcp_tool_catalog.MAX_QUERY_LENGTH
+MAX_K = mcp_tool_catalog.MAX_K
+
 
 # ── Helper functions still used directly by tests / other modules ────────────
 def conversation_messages(conversation_id):
     """Returns all messages in a conversation as a formatted string (role: content)."""
     from memory.backends import dialect
+
     _p = dialect().param()
     with memory_core._db() as db:
         rows = db.execute(
@@ -92,11 +94,12 @@ def conversation_messages(conversation_id):
                JOIN memory_items mi ON mr.to_id = mi.id
                WHERE mr.from_id = {_p} AND mr.relationship_type = 'message' AND mi.is_deleted = 0
                ORDER BY mi.created_at ASC""",
-            (conversation_id,)
+            (conversation_id,),
         ).fetchall()
     if not rows:
         return f"Error: no messages found for conversation {conversation_id}"
     return "\n".join(f"{row['role']}: {row['content']}" for row in rows)
+
 
 # ── Typed function builder for FastMCP schema introspection ──────────────────
 def _build_typed_function(spec, *, for_mcp: bool = False):
@@ -126,8 +129,10 @@ def _build_typed_function(spec, *, for_mcp: bool = False):
     # parameter that isn't in the catalog's properties.
     try:
         impl_param_order = [
-            p.name for p in inspect.signature(spec.impl).parameters.values()
-            if p.kind in (
+            p.name
+            for p in inspect.signature(spec.impl).parameters.values()
+            if p.kind
+            in (
                 inspect.Parameter.POSITIONAL_OR_KEYWORD,
                 inspect.Parameter.KEYWORD_ONLY,
             )
@@ -146,18 +151,22 @@ def _build_typed_function(spec, *, for_mcp: bool = False):
     for pname in ordered:
         pdef = props[pname]
         ptype = {
-            "string": "str", "integer": "int", "number": "float",
-            "boolean": "bool", "array": "list", "object": "dict",
+            "string": "str",
+            "integer": "int",
+            "number": "float",
+            "boolean": "bool",
+            "array": "list",
+            "object": "dict",
         }.get(pdef.get("type", "string"), "str")
 
         if pname in required:
             parts.append(f"{pname}: {ptype}")
         else:
             default = pdef.get("default", None)
-            if isinstance(default, bool):           # before int — bool is an int subclass
+            if isinstance(default, bool):  # before int — bool is an int subclass
                 default_repr = str(default)
             elif isinstance(default, str):
-                default_repr = repr(default)        # repr handles quoting + escapes
+                default_repr = repr(default)  # repr handles quoting + escapes
             elif isinstance(default, (int, float)):
                 default_repr = str(default)
             elif default is None:
@@ -218,9 +227,11 @@ def _build_typed_function(spec, *, for_mcp: bool = False):
             except ValueError as e:  # the routing args cannot be honoured: refuse
                 return f"Error: {e}"
             if args.pop("timeout", None) is not None:
-                return (f"Error: {spec.name}: observed: timeout given to a direct synchronous "
-                        "call, which cannot be bounded. inspect: call it through MCP, m3_call "
-                        "or the m3 CLI to have the timeout enforced")
+                return (
+                    f"Error: {spec.name}: observed: timeout given to a direct synchronous "
+                    "call, which cannot be bounded. inspect: call it through MCP, m3_call "
+                    "or the m3 CLI to have the timeout enforced"
+                )
             args, err = mcp_tool_catalog.validate_args(spec, args)
             if err:
                 return err
@@ -237,6 +248,7 @@ def _build_typed_function(spec, *, for_mcp: bool = False):
     fn.__name__ = spec.name
     fn.__doc__ = spec.description
     return fn
+
 
 # ── Catalog-driven MCP tool registration ──────────────────────────────────────
 # Lazy mode (default): only the essentials + the two meta-tools register at
@@ -326,11 +338,13 @@ def _register_domain_callback(domain: str) -> dict:
             continue
         if _register_one(spec):
             newly_registered.append(spec.name)
-            schemas.append({
-                "name": spec.name,
-                "description": spec.description,
-                "inputSchema": spec.parameters,
-            })
+            schemas.append(
+                {
+                    "name": spec.name,
+                    "description": spec.description,
+                    "inputSchema": spec.parameters,
+                }
+            )
 
     return {
         "domain": domain,
@@ -359,16 +373,17 @@ for _spec in mcp_tool_catalog.TOOLS:
 
 if __name__ == "__main__":
     import os as _os
+
     logger.info("Memory Bridge (catalog-driven) starting...")
     # B17: detect version drift between currently-imported package and the
     # previous boot. Warns (without aborting) if the user upgraded
     # m3-memory while the old server is still running.
     try:
         from version_drift import check_and_record as _check_drift
+
         _drift = _check_drift()
         logger.info(
-            f"version: {_drift.get('current_version')} "
-            f"(prior boot: {_drift.get('prior_version') or 'first run'})"
+            f"version: {_drift.get('current_version')} (prior boot: {_drift.get('prior_version') or 'first run'})"
         )
     except Exception as _e:
         log_swallowed(logger, _e, f"version-drift check skipped: {type(_e).__name__}: {_e}")
@@ -378,14 +393,16 @@ if __name__ == "__main__":
     # never abort — the bridge still works from wherever it was started.
     try:
         from pathlib import Path as _Path
+
         _self = _Path(__file__).resolve()
         # M3_PATH_BIN is the bin/ DIRECTORY (replaces the removed M3_BRIDGE_PATH
         # file-var); the expected bridge is <M3_PATH_BIN>/memory_bridge.py.
         _pb = _os.environ.get("M3_PATH_BIN")
-        _want = (str(_Path(_pb) / "memory_bridge.py") if _pb else None)
+        _want = str(_Path(_pb) / "memory_bridge.py") if _pb else None
         if not _want:
             try:
                 from m3_memory.installer import load_config as _lc
+
                 _want = (_lc() or {}).get("bridge_path")
             except Exception:
                 _want = None
@@ -393,7 +410,8 @@ if __name__ == "__main__":
             logger.warning(
                 "this bridge (%s) differs from the recorded install (%s) — the "
                 "launching agent config may be stale. Run `m3 doctor --fix` to repoint it.",
-                _self, _want,
+                _self,
+                _want,
             )
     except Exception as _e:
         log_swallowed(logger, _e, f"canonical-path guard skipped: {type(_e).__name__}: {_e}")
@@ -443,6 +461,7 @@ if __name__ == "__main__":
         import atexit as _atexit
 
         import m3_halt as _m3_halt
+
         _m3_halt.register_process("mcp", extra={"transport": transport})
         _atexit.register(_m3_halt.deregister, "mcp")
         logger.debug("registered with the HALT protocol as role 'mcp'")
@@ -455,11 +474,7 @@ if __name__ == "__main__":
         # Public hostnames a tunnel/proxy will present in the Host header.
         # Comma-separated so a single env var covers the systemd/docker case;
         # `m3 serve --public-host` sets this for the CLI path.
-        public_hosts = [
-            h.strip()
-            for h in (_os.environ.get("M3_HTTP_PUBLIC_HOST", "") or "").split(",")
-            if h.strip()
-        ]
+        public_hosts = [h.strip() for h in (_os.environ.get("M3_HTTP_PUBLIC_HOST", "") or "").split(",") if h.strip()]
 
         # ── Bearer auth: MANDATORY on the HTTP transport ──────────────────────
         # Unlike stdio (a pipe to a child process this machine already trusts),

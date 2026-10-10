@@ -4,6 +4,7 @@ Extracted verbatim from installer.py. None of these are monkeypatch targets
 and none call any patched function, so they're safe to live in their own
 module. installer.py re-imports them so `installer.<name>` still resolves.
 """
+
 from __future__ import annotations
 
 import os

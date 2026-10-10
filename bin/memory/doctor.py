@@ -21,6 +21,7 @@ Design notes:
   - Effectiveness: solves "MCP hung — why?" without manual triage
   - Hardening: read-only, no write paths, no destructive ops
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -40,8 +41,10 @@ from m3_core.aio import gather_or_cancel
 # (Finding L), so the SQLite dialect is resolved here.
 try:  # pragma: no cover - import shim for standalone execution
     from memory.backends.sqlite_backend import SqliteDialect as _SqliteDialect
+
     _has_content = _SqliteDialect(backend="sqlite", param_style="qmark").has_content
 except Exception:  # pragma: no cover
+
     def _has_content(column: str) -> str:
         return f"LENGTH(TRIM(COALESCE({column}, ''))) > 0"
 
@@ -71,6 +74,7 @@ def _probe_tier1() -> dict[str, Any]:
     # cascade verdict hinges on it (see the summary logic in memory_doctor_impl).
     try:
         from memory import embed as _emb_cfg
+
         if not _emb_cfg._INPROC_ALLOWED and _emb_cfg._EMBED_CFG.get("disable_inproc_embedder"):
             res["status"] = "shared-mode"
             res["shared_mode"] = True
@@ -78,6 +82,7 @@ def _probe_tier1() -> dict[str, Any]:
             # Record whether the extension is importable, for diagnostics only.
             try:
                 import m3_core_rs  # noqa: F401
+
                 res["m3_core_rs_importable"] = True
             except Exception:  # noqa: BLE001
                 pass
@@ -92,6 +97,7 @@ def _probe_tier1() -> dict[str, Any]:
     if not gguf and os.environ.get("M3_EMBED_GGUF_AUTODETECT", "1") != "0":
         try:
             from memory.embed import discover_bge_m3_gguf
+
             detected = discover_bge_m3_gguf()
             if detected:
                 gguf = detected
@@ -113,18 +119,21 @@ def _probe_tier1() -> dict[str, Any]:
         # Still record whether the extension is importable for diagnostics.
         try:
             import m3_core_rs  # noqa: F401
+
             res["m3_core_rs_importable"] = True
         except Exception:  # noqa: BLE001 — informational only on this path
             pass
         return res
     try:
         import m3_core_rs  # noqa: F401
+
         res["m3_core_rs_importable"] = True
     except Exception as e:
         res["error"] = f"m3_core_rs import: {type(e).__name__}: {e}"
         return res
     try:
         from memory import embed as _embed_mod
+
         emb = _embed_mod._get_embedded_embedder()
         res["embedder_initialized"] = emb is not None
         res["status"] = "online" if emb is not None else "init-failed"
@@ -168,6 +177,7 @@ def _probe_tier2() -> dict[str, Any]:
         healthy = resp.status == 200
         if healthy and body != "OK":
             import json as _json
+
             try:
                 hj = _json.loads(body)
             except Exception:
@@ -186,6 +196,7 @@ def _probe_tier2() -> dict[str, Any]:
         mresp = conn.getresponse()
         if mresp.status == 200:
             import json as _json
+
             try:
                 metrics = _json.loads(mresp.read().decode())
                 res["metrics"] = metrics
@@ -214,6 +225,7 @@ def _probe_db() -> dict[str, Any]:
         from m3_sdk import resolve_db_path
 
         from memory import db as _db_mod
+
         path = resolve_db_path(None)
         res["db_path"] = str(path)
         with _db_mod._db() as conn:
@@ -224,24 +236,36 @@ def _probe_db() -> dict[str, Any]:
                 from memory.backends import dialect as _dialect
 
                 _d = _dialect()
-                table = next((t for t in ("schema_versions", "schema_migrations")
-                              if conn.execute(*_d.table_exists(t)).fetchone() is not None), None)
+                table = next(
+                    (
+                        t
+                        for t in ("schema_versions", "schema_migrations")
+                        if conn.execute(*_d.table_exists(t)).fetchone() is not None
+                    ),
+                    None,
+                )
                 if table is None:
-                    logger.warning("doctor: no schema version table; observed: neither "
-                                   "schema_versions nor schema_migrations exists. inspect: "
-                                   "python bin/migrate_memory.py status")
+                    logger.warning(
+                        "doctor: no schema version table; observed: neither "
+                        "schema_versions nor schema_migrations exists. inspect: "
+                        "python bin/migrate_memory.py status"
+                    )
                 else:
                     row = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
                     res["schema_migrations"] = int(row[0]) if row else 0
             except Exception as le:  # noqa: BLE001 — logged; the caller carries on
-                logger.warning(f"doctor: schema version count failed; observed: {type(le).__name__}: {le}. "
-                               "inspect: python bin/migrate_memory.py status")
+                logger.warning(
+                    f"doctor: schema version count failed; observed: {type(le).__name__}: {le}. "
+                    "inspect: python bin/migrate_memory.py status"
+                )
             try:
                 row = conn.execute("SELECT COUNT(*) FROM memory_items").fetchone()
                 res["memory_items_count"] = int(row[0]) if row else 0
             except Exception as le:  # noqa: BLE001 — logged; the caller carries on
-                logger.warning(f"doctor: memory_items count failed; observed: {type(le).__name__}: {le}. "
-                               "inspect: python bin/migrate_memory.py status")
+                logger.warning(
+                    f"doctor: memory_items count failed; observed: {type(le).__name__}: {le}. "
+                    "inspect: python bin/migrate_memory.py status"
+                )
             res["status"] = "online"
     except Exception as e:
         res["error"] = f"{type(e).__name__}: {e}"
@@ -259,6 +283,7 @@ async def _probe_roundtrip() -> dict[str, Any]:
     }
     try:
         from memory import embed as _embed_mod
+
         t0 = time.perf_counter()
         async with asyncio.timeout(10.0):
             vec, model = await _embed_mod._embed("ping")
@@ -318,16 +343,13 @@ async def memory_doctor_impl() -> dict[str, Any]:
                 "M3_EMBED_GGUF to a BGE-M3 GGUF path (costs one model copy per process)."
             )
         elif not tier1["gguf_exists"]:
-            issues.append(
-                f"M3_EMBED_GGUF points to a missing file: {tier1['gguf_path']}"
-            )
+            issues.append(f"M3_EMBED_GGUF points to a missing file: {tier1['gguf_path']}")
     elif tier1.get("error"):
         issues.append(f"tier-1 error: {tier1['error']}")
 
     if not t2_ok:
         issues.append(
-            f"tier-2 (m3-embed-server at {tier2['url']}) is {tier2['status']}: "
-            f"{tier2.get('error') or 'no error'}"
+            f"tier-2 (m3-embed-server at {tier2['url']}) is {tier2['status']}: {tier2.get('error') or 'no error'}"
         )
         recommendations.append(
             "Install/start the m3-embed-server service. On Windows: "
@@ -385,6 +407,7 @@ async def memory_doctor_impl() -> dict[str, Any]:
 
 # ── Quick-repair mode (m3 doctor --fix) ──────────────────────────────────────
 
+
 def _resolve_embed_stores(main_db: Any) -> list[str]:
     """Every SQLite store whose missing embeddings `--fix` should backfill.
 
@@ -408,6 +431,7 @@ def _resolve_embed_stores(main_db: Any) -> list[str]:
         paths.append(_os.path.abspath(str(main_db)))  # noqa: PTH100 — identity string; see above
     try:
         import chatlog_config
+
         chat = chatlog_config._path_from_env()
         if not chat:
             chat = chatlog_config._build_from_dict(chatlog_config._load_file()).db_path
@@ -442,6 +466,7 @@ def _fts5_index_matches_content(db_path: str) -> bool:
     report a stale index as consistent, so it answers False (rebuild).
     """
     import sqlite3 as _sq
+
     if _sq.sqlite_version_info < (3, 44, 0):
         return False
     try:
@@ -449,8 +474,7 @@ def _fts5_index_matches_content(db_path: str) -> bool:
         # connection refuses. It writes nothing; roll back regardless.
         conn = _sq.connect(db_path, timeout=5.0)
         try:
-            conn.execute(
-                "INSERT INTO memory_items_fts(memory_items_fts, rank) VALUES('integrity-check', 1)")
+            conn.execute("INSERT INTO memory_items_fts(memory_items_fts, rank) VALUES('integrity-check', 1)")
             return True
         finally:
             conn.rollback()
@@ -522,12 +546,16 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
     if not migration_needed:
         try:
             import migrate_memory
+
             pending = {t: v for t, v in migrate_memory.pending_migrations().items() if v}
             migration_needed = bool(pending)
         except Exception as e:  # noqa: BLE001 — recorded as an error here, not swallowed
-            _record("run_migrations", "error",
-                    f"could not check for pending migrations ({type(e).__name__}: {e}); "
-                    "inspect: `python bin/migrate_memory.py status`")
+            _record(
+                "run_migrations",
+                "error",
+                f"could not check for pending migrations ({type(e).__name__}: {e}); "
+                "inspect: `python bin/migrate_memory.py status`",
+            )
             migration_needed = None
 
     if migration_needed:
@@ -536,6 +564,7 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
         else:
             try:
                 import os as _os
+
                 env = _os.environ.copy()
                 env["M3_DATABASE"] = str(db_path)
                 mig_script = str(Path(__file__).absolute().parents[1] / "migrate_memory.py")
@@ -555,7 +584,8 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
                     stderr = result.stderr.strip()
                     if "database is locked" in stderr:
                         _record(
-                            "run_migrations", "error",
+                            "run_migrations",
+                            "error",
                             "database is locked — the MCP server holds open connections. "
                             "Stop Claude Code (or the m3 MCP server), run "
                             "`python bin/migrate_memory.py up --target main -y` "
@@ -574,9 +604,10 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
         conn.row_factory = _sq.Row
         try:
             # Check whether FTS index exists
-            fts_exists = conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='memory_items_fts'"
-            ).fetchone() is not None
+            fts_exists = (
+                conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='memory_items_fts'").fetchone()
+                is not None
+            )
         finally:
             conn.close()
     except Exception:
@@ -586,7 +617,11 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
         _record("rebuild_fts5", "skipped", "FTS5 index matches its content; no rebuild needed")
     elif fts_exists:
         if dry_run:
-            _record("rebuild_fts5", "skipped", "dry_run=True; would run INSERT INTO memory_items_fts(memory_items_fts) VALUES('rebuild')")
+            _record(
+                "rebuild_fts5",
+                "skipped",
+                "dry_run=True; would run INSERT INTO memory_items_fts(memory_items_fts) VALUES('rebuild')",
+            )
         else:
             try:
                 conn = _sq.connect(str(db_path), timeout=30.0)
@@ -614,6 +649,7 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
     def _count_missing(path: str) -> int:
         try:
             import sqlite3 as _sq
+
             conn = _sq.connect(f"file:{path}?mode=ro", uri=True, timeout=2.0)
             try:
                 # An uninitialised store has nothing to backfill; only a store
@@ -635,10 +671,13 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
             finally:
                 conn.close()
         except Exception as e:  # noqa: BLE001 — recorded in the report, not counted as 0
-            _record("embed_backfill_count", "error",
-                    f"could not count missing embeddings in {Path(path).name}; "
-                    f"observed: {type(e).__name__}: {e}. "
-                    f"inspect: python bin/embed_backfill.py --db {path} --limit 1")
+            _record(
+                "embed_backfill_count",
+                "error",
+                f"could not count missing embeddings in {Path(path).name}; "
+                f"observed: {type(e).__name__}: {e}. "
+                f"inspect: python bin/embed_backfill.py --db {path} --limit 1",
+            )
             return 0
 
     _missing_by_store = {p: _count_missing(p) for p in _embed_stores}
@@ -647,10 +686,7 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
     # Name the store in every message. "2 items missing embeddings" against an
     # unnamed DB is what made the earlier no-op so hard to spot.
     def _breakdown() -> str:
-        return ", ".join(
-            f"{Path(p).name}={n}"
-            for p, n in _missing_by_store.items() if n > 0
-        )
+        return ", ".join(f"{Path(p).name}={n}" for p, n in _missing_by_store.items() if n > 0)
 
     if missing_embeds > 0:
         if dry_run:
@@ -662,6 +698,7 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
             )
         else:
             import os as _os
+
             bf_script = _embed_backfill_script()
             _ok: list[str] = []
             _err: list[str] = []
@@ -677,9 +714,7 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
                     # ModuleNotFoundError. Propagate our own import paths so the
                     # child finds them regardless of which python sys.executable
                     # points at (the child has no -E, so PYTHONPATH is honored).
-                    env["PYTHONPATH"] = _os.pathsep.join(
-                        p for p in ([env.get("PYTHONPATH", ""), *sys.path]) if p
-                    )
+                    env["PYTHONPATH"] = _os.pathsep.join(p for p in ([env.get("PYTHONPATH", ""), *sys.path]) if p)
                     result = await asyncio.to_thread(
                         subprocess.run,
                         [sys.executable, bf_script, "--db", str(_store), "--limit", "500"],
@@ -691,40 +726,43 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
                     if result.returncode == 0:
                         _ok.append(f"{Path(_store).name}={_n}")
                     else:
-                        _err.append(
-                            f"{Path(_store).name}: "
-                            f"{result.stderr.strip()[:150]}"
-                        )
+                        _err.append(f"{Path(_store).name}: {result.stderr.strip()[:150]}")
                 except Exception as e:
                     _err.append(f"{Path(_store).name}: {e}")
 
             if _ok and not _err:
                 _record(
-                    "embed_backfill", "ok",
+                    "embed_backfill",
+                    "ok",
                     f"backfilled {', '.join(_ok)} (capped at 500 per store per run)",
                 )
             elif _ok:
                 _record(
-                    "embed_backfill", "error",
+                    "embed_backfill",
+                    "error",
                     f"backfilled {', '.join(_ok)}; failed: {'; '.join(_err)}",
                 )
             else:
                 _record("embed_backfill", "error", "; ".join(_err))
     else:
         _record(
-            "embed_backfill", "skipped",
-            "no items missing embeddings in "
-            + ", ".join(Path(p).name for p in _embed_stores),
+            "embed_backfill",
+            "skipped",
+            "no items missing embeddings in " + ", ".join(Path(p).name for p in _embed_stores),
         )
 
     # ── Action 4: Cohesion table rebuild ──────────────────────────────────────
     try:
         import sqlite3 as _sq
+
         conn = _sq.connect(f"file:{db_path}?mode=ro", uri=True, timeout=2.0)
         try:
-            cohesion_ok = conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='m3_system_cohesion'"
-            ).fetchone() is not None
+            cohesion_ok = (
+                conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='m3_system_cohesion'"
+                ).fetchone()
+                is not None
+            )
         finally:
             conn.close()
     except Exception:
@@ -736,6 +774,7 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
         else:
             try:
                 from m3_sdk import M3Context
+
                 # Trigger a re-init of the cohesion table by opening a connection
                 ctx = M3Context.for_db(str(db_path))
                 _ = ctx.get_sqlite_conn()
@@ -745,16 +784,18 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
                 # record.
                 conn = _sq.connect(f"file:{db_path}?mode=ro", uri=True, timeout=2.0)
                 try:
-                    created = conn.execute(
-                        "SELECT name FROM sqlite_master WHERE type='table' AND name='m3_system_cohesion'"
-                    ).fetchone() is not None
+                    created = (
+                        conn.execute(
+                            "SELECT name FROM sqlite_master WHERE type='table' AND name='m3_system_cohesion'"
+                        ).fetchone()
+                        is not None
+                    )
                 finally:
                     conn.close()
                 if created:
                     _record("rebuild_cohesion", "ok", "m3_system_cohesion table rebuilt via M3Context init")
                 else:
-                    _record("rebuild_cohesion", "skipped",
-                            "no encryption salt configured; no cohesion record to keep")
+                    _record("rebuild_cohesion", "skipped", "no encryption salt configured; no cohesion record to keep")
             except Exception as e:
                 _record("rebuild_cohesion", "error", str(e))
     else:
@@ -776,4 +817,3 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
         "actions": actions,
         "summary": summary,
     }
-

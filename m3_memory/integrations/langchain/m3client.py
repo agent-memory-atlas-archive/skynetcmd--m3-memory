@@ -129,9 +129,7 @@ class M3Client:
             if cls._loop is not None and cls._loop.is_running():
                 return
             loop = asyncio.new_event_loop()
-            t = threading.Thread(
-                target=loop.run_forever, name="m3client-langchain-loop", daemon=True
-            )
+            t = threading.Thread(target=loop.run_forever, name="m3client-langchain-loop", daemon=True)
             t.start()
             cls._loop, cls._thread = loop, t
             # Shut the loop down while the interpreter is still intact. Without
@@ -195,7 +193,8 @@ class M3Client:
     def _run(self, coro: Awaitable[Any]) -> Any:
         """Run a coroutine on the shared loop from a sync caller and block."""
         fut: Future = asyncio.run_coroutine_threadsafe(
-            coro, self._loop  # type: ignore[arg-type]
+            coro,
+            self._loop,  # type: ignore[arg-type]
         )
         return fut.result(timeout=self._timeout)
 
@@ -299,8 +298,7 @@ class M3Client:
             ctx = M3Context.for_db(None)
             with ctx.get_chatlog_conn() as conn:
                 cur = conn.execute(
-                    f"UPDATE {items_table} SET is_deleted = 1 "
-                    f"WHERE id IN ({placeholders})",
+                    f"UPDATE {items_table} SET is_deleted = 1 WHERE id IN ({placeholders})",
                     list(ids),
                 )
                 n = cur.rowcount
@@ -366,7 +364,11 @@ class M3Client:
 
     # ── deterministic per-user listing (no embedding dependency) ──────────────
     async def _list_by_user_async(
-        self, user_id: str, *, scope: str = "user", limit: int = 1000,
+        self,
+        user_id: str,
+        *,
+        scope: str = "user",
+        limit: int = 1000,
     ) -> list[dict]:
         """List a user's live memories deterministically, newest-first.
 
@@ -385,8 +387,7 @@ class M3Client:
         from memory.db import _db  # canonical pooled connection
 
         _p = dialect().param()
-        cols = ("id, content, title, type, importance, confidence, "
-                "valid_from, valid_to, metadata_json")
+        cols = "id, content, title, type, importance, confidence, valid_from, valid_to, metadata_json"
         rows: list[dict] = []
         with _db() as db:
             cur = db.execute(
@@ -400,8 +401,7 @@ class M3Client:
                 rows.append(dict(r))
         return rows
 
-    def list_by_user(self, user_id: str, *, scope: str = "user",
-                     limit: int = 1000) -> list[dict]:
+    def list_by_user(self, user_id: str, *, scope: str = "user", limit: int = 1000) -> list[dict]:
         """Sync bridge over :meth:`_list_by_user_async`."""
         return cast("list[dict]", self._run(self._list_by_user_async(user_id, scope=scope, limit=limit)))
 

@@ -11,6 +11,7 @@ looked complete when nothing had been assigned. DESIGN_PHILOSOPHIES section 3 --
 fail loud, never silent; a call that reports success while discarding your intent
 is the worst version of a silent failure.
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -27,11 +28,16 @@ def _run(args: list[str]) -> subprocess.CompletedProcess:
 
 def test_unknown_json_key_is_rejected():
     """The exact mistake that motivated this: `owner` instead of `owner_agent`."""
-    r = _run([
-        "tasks", "task_create",
-        "--json", '{"title":"t","created_by":"c","owner":"someone"}',
-        "--dry-run", "--yes",
-    ])
+    r = _run(
+        [
+            "tasks",
+            "task_create",
+            "--json",
+            '{"title":"t","created_by":"c","owner":"someone"}',
+            "--dry-run",
+            "--yes",
+        ]
+    )
     assert r.returncode == 2, f"expected rejection, got {r.returncode}: {r.stdout}{r.stderr}"
     err = r.stderr
     assert "unknown key" in err
@@ -40,21 +46,31 @@ def test_unknown_json_key_is_rejected():
 
 def test_rejection_suggests_the_intended_key():
     """A near-miss should name the parameter the user meant."""
-    r = _run([
-        "tasks", "task_create",
-        "--json", '{"title":"t","created_by":"c","owner":"someone"}',
-        "--dry-run", "--yes",
-    ])
+    r = _run(
+        [
+            "tasks",
+            "task_create",
+            "--json",
+            '{"title":"t","created_by":"c","owner":"someone"}',
+            "--dry-run",
+            "--yes",
+        ]
+    )
     assert "owner_agent" in r.stderr, r.stderr
 
 
 def test_rejection_lists_accepted_keys():
     """Tell the user what IS accepted; a bare rejection makes them guess."""
-    r = _run([
-        "tasks", "task_create",
-        "--json", '{"title":"t","created_by":"c","bogus":1}',
-        "--dry-run", "--yes",
-    ])
+    r = _run(
+        [
+            "tasks",
+            "task_create",
+            "--json",
+            '{"title":"t","created_by":"c","bogus":1}',
+            "--dry-run",
+            "--yes",
+        ]
+    )
     assert "accepted:" in r.stderr
     for expected in ("title", "created_by", "owner_agent"):
         assert expected in r.stderr
@@ -62,11 +78,16 @@ def test_rejection_lists_accepted_keys():
 
 def test_valid_keys_still_pass():
     """The guard must not reject a correct call."""
-    r = _run([
-        "tasks", "task_create",
-        "--json", '{"title":"t","created_by":"c","owner_agent":"a"}',
-        "--dry-run", "--yes",
-    ])
+    r = _run(
+        [
+            "tasks",
+            "task_create",
+            "--json",
+            '{"title":"t","created_by":"c","owner_agent":"a"}',
+            "--dry-run",
+            "--yes",
+        ]
+    )
     assert r.returncode == 0, f"{r.stdout}{r.stderr}"
     assert '"ok": true' in r.stdout
 

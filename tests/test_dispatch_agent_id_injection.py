@@ -15,6 +15,7 @@ trusted non-LLM entry points pass ``allow_caller_agent_id=True``; m3_call never
 does. Both halves are pinned here, because a fix that only proves the happy path
 would silently re-open the spoof.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -36,16 +37,14 @@ _POLL = [s for s in TOOLS if s.name == "notifications_poll"]
 @pytest.fixture(scope="module")
 def poll_spec():
     if not _POLL:
-        pytest.fail("observed: notifications_poll is missing from the catalog. "
-                    "inspect: bin/catalog (it is a shipped tool)")
+        pytest.fail(
+            "observed: notifications_poll is missing from the catalog. inspect: bin/catalog (it is a shipped tool)"
+        )
     return _POLL[0]
 
 
 def _call(spec, args, agent_id, *, allow=False):
-    return asyncio.run(
-        execute_tool_structured(spec, args, agent_id=agent_id,
-                                allow_caller_agent_id=allow)
-    )
+    return asyncio.run(execute_tool_structured(spec, args, agent_id=agent_id, allow_caller_agent_id=allow))
 
 
 def test_injecting_tool_is_still_marked_as_such(poll_spec):
@@ -67,29 +66,24 @@ def test_llm_path_cannot_spoof_another_agent(poll_spec):
     particular string the old behaviour produced.
     """
     try:
-        out = str(_call(poll_spec, {"agent_id": "someone-else", "unread_only": False},
-                        agent_id=""))
+        out = str(_call(poll_spec, {"agent_id": "someone-else", "unread_only": False}, agent_id=""))
     except ValueError as e:
         out = str(e)
         assert "requires an agent_id" in out, f"unexpected refusal: {out}"
-    assert "someone-else" not in out, (
-        "LLM path leaked a caller-supplied agent_id -- spoofing is possible"
-    )
+    assert "someone-else" not in out, "LLM path leaked a caller-supplied agent_id -- spoofing is possible"
 
 
 def test_authenticated_caller_identity_still_wins(poll_spec):
     """A real caller identity overrides whatever the args claim, even when the
     entry point opted in."""
-    out = str(_call(poll_spec, {"agent_id": "someone-else", "unread_only": False},
-                    agent_id="real-caller", allow=True))
+    out = str(_call(poll_spec, {"agent_id": "someone-else", "unread_only": False}, agent_id="real-caller", allow=True))
     assert "someone-else" not in out
     assert "real-caller" in out
 
 
 def test_cli_path_preserves_an_explicit_agent_id(poll_spec):
     """The human CLI opts in, so `--agent_id X` survives and the tool works."""
-    out = str(_call(poll_spec, {"agent_id": "antigravity-agent", "unread_only": False},
-                    agent_id="", allow=True))
+    out = str(_call(poll_spec, {"agent_id": "antigravity-agent", "unread_only": False}, agent_id="", allow=True))
     assert "Notifications for antigravity-agent" in out, out
 
 
@@ -106,6 +100,4 @@ def test_m3_call_dispatcher_does_not_opt_in():
     src = (_BIN / "catalog" / "dispatch.py").read_text(encoding="utf-8")
     after = src.split("async def dispatch", 1)
     body = after[1] if len(after) > 1 else src
-    assert "allow_caller_agent_id=True" not in body, (
-        "the m3_call dispatcher opted in -- that re-opens agent spoofing"
-    )
+    assert "allow_caller_agent_id=True" not in body, "the m3_call dispatcher opted in -- that re-opens agent spoofing"

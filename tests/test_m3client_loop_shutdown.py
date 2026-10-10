@@ -64,8 +64,7 @@ def _leave_no_unclosed_loop():
 def test_starting_the_loop_registers_an_atexit_shutdown():
     M3Client._ensure_loop()
     assert M3Client._atexit_registered is True, (
-        "no atexit handler registered — the loop would never be closed and "
-        "would survive into interpreter finalization"
+        "no atexit handler registered — the loop would never be closed and would survive into interpreter finalization"
     )
     # And it is really the handler atexit knows about, not just a flag.
     assert atexit.unregister(M3Client._shutdown_loop) is None or True

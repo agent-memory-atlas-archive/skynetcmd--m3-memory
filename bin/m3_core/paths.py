@@ -33,45 +33,45 @@ logger = logging.getLogger("M3_SDK")
 # can't silently fall out of sync with the call sites. Aliases of config-registry
 # keys live in the registry instead (registry_env_renames(); plan 2D.1).
 DEPRECATED_ENV_RENAMES: dict[str, str] = {
-    "AGENT_DB":                        "M3_AGENT_DB",
-    "CHATLOG_DB":                      "M3_CHATLOG_DB",
-    "CHATLOG_DB_PATH":                 "M3_CHATLOG_DB_PATH",
-    "CHATLOG_DB_POOL_SIZE":            "M3_CHATLOG_DB_POOL_SIZE",
-    "CHATLOG_DB_POOL_TIMEOUT":         "M3_CHATLOG_DB_POOL_TIMEOUT",
-    "CHATLOG_EMBED_DEADLINE_S":        "M3_CHATLOG_EMBED_DEADLINE_S",
-    "CHATLOG_EMBED_MAX_PER_RUN":       "M3_CHATLOG_EMBED_MAX_PER_RUN",
-    "CHATLOG_STATUSLINE":              "M3_CHATLOG_STATUSLINE",
-    "CHATLOG_STATUSLINE_ASCII":        "M3_CHATLOG_STATUSLINE_ASCII",
-    "EMBED_BULK_CHUNK":                "M3_EMBED_BULK_CHUNK",
-    "EMBED_BULK_CONCURRENCY":          "M3_EMBED_BULK_CONCURRENCY",
-    "EMBED_SERVER_GPU_HOST":           "M3_EMBED_SERVER_GPU_HOST",
-    "EMBED_SERVER_HOST":               "M3_EMBED_SERVER_HOST",
-    "ENTITY_NAME_EMBED_CACHE_MAX":     "M3_ENTITY_NAME_EMBED_CACHE_MAX",
-    "GGUF_MODEL_PATH":                 "M3_GGUF_MODEL_PATH",
-    "LLAMA_PORT":                      "M3_LLAMA_PORT",
-    "LLAMA_SERVER_EXE":                "M3_LLAMA_SERVER_EXE",
-    "LM_MODEL":                        "M3_LM_MODEL",
-    "LM_READ_TIMEOUT":                 "M3_LM_READ_TIMEOUT",
-    "LM_URL":                          "M3_LM_URL",
-    "MACBOOK_STATUS_HOST":             "M3_MACBOOK_STATUS_HOST",
-    "MCP_PROXY_ALLOW_DESTRUCTIVE":     "M3_MCP_PROXY_ALLOW_DESTRUCTIVE",
-    "MCP_PROXY_HOST":                  "M3_MCP_PROXY_HOST",
-    "OBSERVER_PROFILE":                "M3_OBSERVER_PROFILE",
-    "REFLECTOR_PROFILE":               "M3_REFLECTOR_PROFILE",
+    "AGENT_DB": "M3_AGENT_DB",
+    "CHATLOG_DB": "M3_CHATLOG_DB",
+    "CHATLOG_DB_PATH": "M3_CHATLOG_DB_PATH",
+    "CHATLOG_DB_POOL_SIZE": "M3_CHATLOG_DB_POOL_SIZE",
+    "CHATLOG_DB_POOL_TIMEOUT": "M3_CHATLOG_DB_POOL_TIMEOUT",
+    "CHATLOG_EMBED_DEADLINE_S": "M3_CHATLOG_EMBED_DEADLINE_S",
+    "CHATLOG_EMBED_MAX_PER_RUN": "M3_CHATLOG_EMBED_MAX_PER_RUN",
+    "CHATLOG_STATUSLINE": "M3_CHATLOG_STATUSLINE",
+    "CHATLOG_STATUSLINE_ASCII": "M3_CHATLOG_STATUSLINE_ASCII",
+    "EMBED_BULK_CHUNK": "M3_EMBED_BULK_CHUNK",
+    "EMBED_BULK_CONCURRENCY": "M3_EMBED_BULK_CONCURRENCY",
+    "EMBED_SERVER_GPU_HOST": "M3_EMBED_SERVER_GPU_HOST",
+    "EMBED_SERVER_HOST": "M3_EMBED_SERVER_HOST",
+    "ENTITY_NAME_EMBED_CACHE_MAX": "M3_ENTITY_NAME_EMBED_CACHE_MAX",
+    "GGUF_MODEL_PATH": "M3_GGUF_MODEL_PATH",
+    "LLAMA_PORT": "M3_LLAMA_PORT",
+    "LLAMA_SERVER_EXE": "M3_LLAMA_SERVER_EXE",
+    "LM_MODEL": "M3_LM_MODEL",
+    "LM_READ_TIMEOUT": "M3_LM_READ_TIMEOUT",
+    "LM_URL": "M3_LM_URL",
+    "MACBOOK_STATUS_HOST": "M3_MACBOOK_STATUS_HOST",
+    "MCP_PROXY_ALLOW_DESTRUCTIVE": "M3_MCP_PROXY_ALLOW_DESTRUCTIVE",
+    "MCP_PROXY_HOST": "M3_MCP_PROXY_HOST",
+    "OBSERVER_PROFILE": "M3_OBSERVER_PROFILE",
+    "REFLECTOR_PROFILE": "M3_REFLECTOR_PROFILE",
     # CHROMA_BASE_URL is NOT here: the ChromaDB feature was retired, so there is
     # no live getenv_compat call site for it. It moved to RETIRED_ENV_RENAMES so
     # `m3 doctor` still cleans a stale CHROMA_BASE_URL out of on-disk config. See
     # below.
-    "DB_BACKEND":                      "M3_DB_BACKEND",
-    "DB_POOL_SIZE":                    "M3_DB_POOL_SIZE",
-    "DB_POOL_TIMEOUT":                 "M3_DB_POOL_TIMEOUT",
-    "LLM_ENDPOINTS_CSV":               "M3_LLM_ENDPOINTS_CSV",
-    "ORIGIN_DEVICE":                   "M3_ORIGIN_DEVICE",
+    "DB_BACKEND": "M3_DB_BACKEND",
+    "DB_POOL_SIZE": "M3_DB_POOL_SIZE",
+    "DB_POOL_TIMEOUT": "M3_DB_POOL_TIMEOUT",
+    "LLM_ENDPOINTS_CSV": "M3_LLM_ENDPOINTS_CSV",
+    "ORIGIN_DEVICE": "M3_ORIGIN_DEVICE",
     # PG_URL is NOT here: it was split by role (primary vs warehouse), so it lives
     # in ROLE_SPLIT_ENV_RENAMES (-> M3_CDW_PG_URL) and is resolved by the
     # role-specific resolvers, not getenv_compat. See below.
-    "POSTGRES_SERVER":                 "M3_POSTGRES_SERVER",
-    "SYNC_TARGET_IP":                  "M3_SYNC_TARGET_IP",
+    "POSTGRES_SERVER": "M3_POSTGRES_SERVER",
+    "SYNC_TARGET_IP": "M3_SYNC_TARGET_IP",
 }
 
 # ROLE_SPLIT_ENV_RENAMES: deprecations that are NOT pure M3_ namespacing because
@@ -161,7 +161,8 @@ def getenv_compat(new_name: str, old_name: str, default: str | None = None) -> s
             logger.warning(
                 "Deprecated env var %s is set; use %s instead. The old name still "
                 "works for now but will be removed. (`m3 doctor` lists all in use.)",
-                old_name, new_name,
+                old_name,
+                new_name,
             )
         return old_val
     return default
@@ -185,9 +186,12 @@ def deprecated_env_in_use() -> dict[str, str]:
 
         seen.update(_settings.current().deprecated_aliases_in_use())
     except Exception as e:  # noqa: BLE001 -- see docstring
-        logger.warning("deprecated env report: the config registry's legacy aliases are not "
-                       "included (observed: %s: %s). inspect: `m3 config show`",
-                       type(e).__name__, e)
+        logger.warning(
+            "deprecated env report: the config registry's legacy aliases are not "
+            "included (observed: %s: %s). inspect: `m3 config show`",
+            type(e).__name__,
+            e,
+        )
     return seen
 
 
@@ -232,7 +236,8 @@ def _warn_pg_url_deprecated() -> None:
             "DSN. The old name still works for now but will be removed, and "
             "`m3 install`/`update` will refuse to run while it is set. "
             "(`m3 doctor --fix` renames it.)",
-            old, new,
+            old,
+            new,
         )
 
 
@@ -307,9 +312,7 @@ def assert_no_deprecated_pg_url_on_install() -> None:
 # Consulted by callers that want "whatever DB the surrounding request/CLI
 # specified, else the default". The MCP tool dispatcher sets this before each
 # tool call; CLI scripts set it once at startup.
-_active_db: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "m3_active_db", default=None
-)
+_active_db: contextvars.ContextVar[str | None] = contextvars.ContextVar("m3_active_db", default=None)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -337,8 +340,7 @@ class _Unset(enum.Enum):
 # A store, None for an explicit "main", or UNSET (defer to the process's store).
 type _StoreSelection = StoreRef | None | Literal[_Unset.UNSET]
 
-_active_store: contextvars.ContextVar[_StoreSelection] = (
-    contextvars.ContextVar("m3_active_store", default=_Unset.UNSET))
+_active_store: contextvars.ContextVar[_StoreSelection] = contextvars.ContextVar("m3_active_store", default=_Unset.UNSET)
 
 # The PROCESS's store, set once by a CLI's --store (m3_core.config.stores
 # .set_process_store). Below the ContextVar, so a per-call store= or "main"
@@ -568,10 +570,7 @@ def node_id() -> str:
     explicit = os.environ.get("M3_NODE_ID")
     if explicit:
         return explicit.strip()
-    host = (os.environ.get("COMPUTERNAME")
-            or os.environ.get("HOSTNAME")
-            or platform.node()
-            or "unknown")
+    host = os.environ.get("COMPUTERNAME") or os.environ.get("HOSTNAME") or platform.node() or "unknown"
     return host.upper() if is_windows() else host
 
 
@@ -710,6 +709,7 @@ def notification_store_paths() -> "list[str]":
     # sibling-of-the-engine-root guess would see.
     try:
         from m3_sdk import resolve_db_path  # lazy: avoid an import cycle
+
         _add(resolve_db_path(None))
     except Exception:  # noqa: BLE001 -- fall through to the documented default
         _add(os.environ.get("M3_DATABASE") or resolve_engine_file("agent_memory.db"))
@@ -786,14 +786,16 @@ def _default_db_path() -> str:
         # DB under the same root before falling back to the empty engine path.
         legacy_under_root = os.path.join(
             os.path.abspath(os.path.expanduser(mem_root)),
-            "memory", "agent_memory.db",
+            "memory",
+            "agent_memory.db",
         )
         if _db_is_populated(legacy_under_root):
             logger.warning(
                 "M3_MEMORY_ROOT engine DB (%s) is missing or unmigrated; using the "
                 "populated legacy store at %s. Run bin/homecoming.py to migrate, or "
                 "set M3_ENGINE_ROOT explicitly to silence this.",
-                engine_db, legacy_under_root,
+                engine_db,
+                legacy_under_root,
             )
             return legacy_under_root
         return engine_db
@@ -819,7 +821,11 @@ def _default_db_path() -> str:
 #: never something to coerce. Kept broad on purpose: any scheme here is a
 #: connection string for SOME backend, and none of them is ever a SQLite file.
 _DSN_SCHEMES: tuple[str, ...] = (
-    "postgres://", "postgresql://", "mysql://", "mariadb://", "sqlite://",
+    "postgres://",
+    "postgresql://",
+    "mysql://",
+    "mariadb://",
+    "sqlite://",
 )
 
 
@@ -860,15 +866,16 @@ def resolve_db_path(explicit: str | None = None) -> str:
     """
     store = current_store()
     store_path = store.path if store is not None and store.backend == "sqlite" else None
-    candidate = (explicit or store_path or os.environ.get("M3_DATABASE") or _active_db.get()
-                 or _default_db_path())
+    candidate = explicit or store_path or os.environ.get("M3_DATABASE") or _active_db.get() or _default_db_path()
     if _looks_like_dsn(candidate):
         # Name the source so the operator knows WHICH knob to fix; the value is
         # echoed scheme-only because a DSN carries a password.
         scheme = candidate.strip().split("://", 1)[0]
         source = (
-            "the explicit argument" if explicit
-            else "M3_DATABASE" if os.environ.get("M3_DATABASE")
+            "the explicit argument"
+            if explicit
+            else "M3_DATABASE"
+            if os.environ.get("M3_DATABASE")
             else "the active_database() context"
         )
         raise ValueError(
@@ -1019,8 +1026,7 @@ def _sqlite_bootstrap_shim():
     return _SqliteOnlyShim()
 
 
-def resolve_cli_store(explicit: str | None, flag: str = "--db",
-                      default: str | None = None) -> str | None:
+def resolve_cli_store(explicit: str | None, flag: str = "--db", default: str | None = None) -> str | None:
     """The store a CLI tool's database argument names, for the active backend.
 
     File backend: the SQLite path (``explicit`` > ``default`` > store >
@@ -1034,12 +1040,13 @@ def resolve_cli_store(explicit: str | None, flag: str = "--db",
     if store_is_a_file():
         path = resolve_db_path(explicit or default)
         if not os.path.exists(path):
-            raise ValueError(f"observed: no SQLite DB at {path}. "
-                             f"inspect: {flag}, M3_DATABASE, or M3_ENGINE_ROOT")
+            raise ValueError(f"observed: no SQLite DB at {path}. inspect: {flag}, M3_DATABASE, or M3_ENGINE_ROOT")
         return path
     if explicit:
-        raise ValueError(f"observed: {flag} names a SQLite file but the active backend is "
-                         f"{resolve_backend_name()}. inspect: drop {flag}, or set M3_DB_BACKEND=sqlite")
+        raise ValueError(
+            f"observed: {flag} names a SQLite file but the active backend is "
+            f"{resolve_backend_name()}. inspect: drop {flag}, or set M3_DB_BACKEND=sqlite"
+        )
     return None
 
 
@@ -1164,6 +1171,7 @@ def seam_dialect():
     except ImportError:  # bootstrap: seam not importable yet
         backend = resolve_backend_name()
         if backend == "sqlite":
+
             class _SqliteParams:
                 @staticmethod
                 def param() -> str:
@@ -1219,9 +1227,11 @@ def deprecated_alias(new_flag: str) -> type[argparse.Action]:
 
         @override
         def __call__(self, parser, namespace, values, option_string=None):
-            print(f"warning: observed: {option_string} is the old spelling of {new_flag}. "
-                  f"inspect: use {new_flag}; --store now names a store from m3_config.toml.",
-                  file=sys.stderr)
+            print(
+                f"warning: observed: {option_string} is the old spelling of {new_flag}. "
+                f"inspect: use {new_flag}; --store now names a store from m3_config.toml.",
+                file=sys.stderr,
+            )
             setattr(namespace, self.dest, values)
 
     return _DeprecatedAlias
@@ -1242,10 +1252,7 @@ def add_database_arg(parser: argparse.ArgumentParser) -> None:
         "--database",
         default=None,
         metavar="PATH",
-        help=(
-            "SQLite database path. "
-            "Env: M3_DATABASE. Default: memory/agent_memory.db."
-        ),
+        help=("SQLite database path. Env: M3_DATABASE. Default: memory/agent_memory.db."),
     )
     group.add_argument(
         "--store",

@@ -103,8 +103,7 @@ class Memory(M3ExtrasMixin):
         self._client = M3Client(agent_id=agent_id, call_timeout=call_timeout)
         if _ignored:
             logger.info(
-                "m3 Memory: ignored unsupported constructor keys %s "
-                "(m3 self-configures its embedder + store).",
+                "m3 Memory: ignored unsupported constructor keys %s (m3 self-configures its embedder + store).",
                 sorted(_ignored),
             )
 
@@ -120,17 +119,16 @@ class Memory(M3ExtrasMixin):
         success so an existing mem0 config just works.
         """
         config = config or {}
-        overridden = [k for k in ("embedder", "vector_store", "llm", "graph_store")
-                      if k in config]
+        overridden = [k for k in ("embedder", "vector_store", "llm", "graph_store") if k in config]
         if overridden:
             logger.info(
-                "m3 Memory.from_config: using m3's in-process embedder + hybrid "
-                "store; ignored mem0 infra config %s.", overridden,
+                "m3 Memory.from_config: using m3's in-process embedder + hybrid store; ignored mem0 infra config %s.",
+                overridden,
             )
         # Pass through only the keys we understand as construction defaults.
-        known = {k: config[k] for k in
-                 ("user_id", "agent_id", "conversation_id", "provider", "model_id")
-                 if k in config}
+        known = {
+            k: config[k] for k in ("user_id", "agent_id", "conversation_id", "provider", "model_id") if k in config
+        }
         return cls(**known)
 
     # ── tenancy (§7 privacy — enforced HERE, the tools don't) ─────────────────
@@ -197,10 +195,10 @@ class Memory(M3ExtrasMixin):
                     "type": "conversation",
                     "content": _msg_text(m),
                     "user_id": uid,
-                    "scope": "user",         # user_id is the tenancy key; scope
-                                             # is a bounded category {user,session,
-                                             # agent,org} — anything else coerces
-                                             # to "agent" (verified §2.1)
+                    "scope": "user",  # user_id is the tenancy key; scope
+                    # is a bounded category {user,session,
+                    # agent,org} — anything else coerces
+                    # to "agent" (verified §2.1)
                     "auto_classify": True,
                     "source": "langchain",
                     "metadata": metadata or {},
@@ -221,9 +219,14 @@ class Memory(M3ExtrasMixin):
         ``check_contradictions=True`` — bulk speed WITH normal supersession."""
         from memory_core import memory_write_bulk_impl
 
-        return self._client._call_impl(
-            memory_write_bulk_impl, items, check_contradictions=True,
-        ) or []
+        return (
+            self._client._call_impl(
+                memory_write_bulk_impl,
+                items,
+                check_contradictions=True,
+            )
+            or []
+        )
 
     def _enqueue_chatlog(self, msgs: list[dict], uid: str, conv: str) -> None:
         """Fire async Observer extraction (best-effort — never fails ``.add()``).
@@ -247,6 +250,7 @@ class Memory(M3ExtrasMixin):
                 )
             except Exception as e:  # extraction is a bonus, not the contract
                 from m3_core.errors import log_swallowed
+
                 log_swallowed(logger, e, "chatlog_write enqueue skipped: %s", e)
 
     # ── .search() — mem0-shaped, temporal-aware ───────────────────────────────
@@ -272,8 +276,13 @@ class Memory(M3ExtrasMixin):
         if filters and isinstance(filters, dict):
             type_filter = str(filters.get("type", "") or "")
         rows = self._search_impl(
-            query=query, user_id=uid, scope="user", k=limit,
-            as_of=as_of, recency_bias=recency_bias, type_filter=type_filter,
+            query=query,
+            user_id=uid,
+            scope="user",
+            k=limit,
+            as_of=as_of,
+            recency_bias=recency_bias,
+            type_filter=type_filter,
         )
         return mapping.to_mem0_results(rows)
 
@@ -293,8 +302,7 @@ class Memory(M3ExtrasMixin):
         kwargs.setdefault("extra_columns", mapping.EXTRA_COLUMNS)
         return self._client._call_impl(memory_search_scored_impl, **kwargs) or []
 
-    def get_all(self, *, user_id: str | None = None, limit: int = 100,
-                **_ignored: Any) -> dict:
+    def get_all(self, *, user_id: str | None = None, limit: int = 100, **_ignored: Any) -> dict:
         """All memories for a user → mem0 shape, deterministic + newest-first.
 
         Uses a direct listing (NOT empty-query semantic search) so it returns

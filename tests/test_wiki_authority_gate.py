@@ -8,6 +8,7 @@ synthesis must never read as authoritative.
 The gate is exercised end-to-end through build_wiki (metadata_json threaded
 select -> Mem -> render), and the policy resolver is unit-tested directly.
 """
+
 import json
 import os
 import sqlite3
@@ -22,6 +23,7 @@ from wiki import authority as A  # noqa: E402
 from wiki.build import WikiOptions, build_wiki  # noqa: E402
 
 # ── policy resolver (unit) ───────────────────────────────────────────────────
+
 
 def test_canonical_renders_as_body():
     assert A.renders_as_body({"authority": "canonical"}) is True
@@ -47,8 +49,7 @@ def test_restricted_overrides_even_canonical():
     # restricted is a legal-hold dimension, not an editorial one: a canonical
     # page still stops rendering when restricted.
     assert A.renders_as_body({"authority": "canonical", "restricted": True}) is False
-    assert A.renders_as_body(
-        {"authority": "canonical", "review": {"restricted": True}}) is False
+    assert A.renders_as_body({"authority": "canonical", "review": {"restricted": True}}) is False
 
 
 def test_marker_names_the_reason():
@@ -60,11 +61,11 @@ def test_marker_names_the_reason():
 
 def test_body_authorities_config_override(tmp_path, monkeypatch):
     """An org can widen the body set via a config file — no code edit, no fork."""
-    A._CACHE.clear(); A._WARNED.clear()
+    A._CACHE.clear()
+    A._WARNED.clear()
     cfg = tmp_path / "config"
     cfg.mkdir()
-    (cfg / ".wiki_authority.json").write_text(
-        json.dumps({"body_authorities": ["canonical", "peer-reviewed"]}))
+    (cfg / ".wiki_authority.json").write_text(json.dumps({"body_authorities": ["canonical", "peer-reviewed"]}))
     monkeypatch.setenv("M3_CONFIG_ROOT", str(cfg))
     A._CACHE.clear()  # force re-read under the new root
     assert A.renders_as_body({"authority": "peer-reviewed"}) is True
@@ -73,7 +74,8 @@ def test_body_authorities_config_override(tmp_path, monkeypatch):
 
 
 def test_malformed_config_falls_back_to_default(tmp_path, monkeypatch):
-    A._CACHE.clear(); A._WARNED.clear()
+    A._CACHE.clear()
+    A._WARNED.clear()
     cfg = tmp_path / "config"
     cfg.mkdir()
     (cfg / ".wiki_authority.json").write_text("{ this is not json")
@@ -86,6 +88,7 @@ def test_malformed_config_falls_back_to_default(tmp_path, monkeypatch):
 
 
 # ── end-to-end through build_wiki ────────────────────────────────────────────
+
 
 def _mem_db_with_authority():
     """A minimal store where two synthesis rows differ only in authority."""
@@ -115,24 +118,48 @@ def _mem_db_with_authority():
         ("a-can", "belief", "Canon Anchor", "anchor one", "{}"),
         ("a-prov", "belief", "Prov Anchor", "anchor two", "{}"),
         ("a-rest", "belief", "Rest Anchor", "anchor three", "{}"),
-        ("s-can", "synthesis", "Canon Topic", "CANON BODY VISIBLE",
-         json.dumps({"authority": "canonical", "synthesis_kind": "compiled"})),
-        ("s-prov", "synthesis", "Prov Topic", "PROVISIONAL BODY HIDDEN",
-         json.dumps({"authority": "provisional", "synthesis_kind": "compiled"})),
-        ("s-rest", "synthesis", "Restricted Topic", "RESTRICTED BODY HIDDEN",
-         json.dumps({"authority": "canonical", "restricted": True})),
+        (
+            "s-can",
+            "synthesis",
+            "Canon Topic",
+            "CANON BODY VISIBLE",
+            json.dumps({"authority": "canonical", "synthesis_kind": "compiled"}),
+        ),
+        (
+            "s-prov",
+            "synthesis",
+            "Prov Topic",
+            "PROVISIONAL BODY HIDDEN",
+            json.dumps({"authority": "provisional", "synthesis_kind": "compiled"}),
+        ),
+        (
+            "s-rest",
+            "synthesis",
+            "Restricted Topic",
+            "RESTRICTED BODY HIDDEN",
+            json.dumps({"authority": "canonical", "restricted": True}),
+        ),
     ]
     conn.executemany(
         "INSERT INTO memory_items (id,type,title,content,importance,confidence,"
         "pinned,valid_from,created_at,updated_at,metadata_json) "
         "VALUES (?,?,?,?,0.9,0.8,0,?,?,?,?)",
-        [(r[0], r[1], r[2], r[3], "2026-01-01T00:00:00+00:00",
-          "2026-01-01T00:00:00+00:00", "2026-01-02T00:00:00+00:00", r[4])
-         for r in rows],
+        [
+            (
+                r[0],
+                r[1],
+                r[2],
+                r[3],
+                "2026-01-01T00:00:00+00:00",
+                "2026-01-01T00:00:00+00:00",
+                "2026-01-02T00:00:00+00:00",
+                r[4],
+            )
+            for r in rows
+        ],
     )
     conn.executemany(
-        "INSERT INTO memory_relationships (from_id,to_id,relationship_type) "
-        "VALUES (?,?,'consolidates')",
+        "INSERT INTO memory_relationships (from_id,to_id,relationship_type) VALUES (?,?,'consolidates')",
         [("s-can", "a-can"), ("s-prov", "a-prov"), ("s-rest", "a-rest")],
     )
     conn.commit()
@@ -142,8 +169,7 @@ def _mem_db_with_authority():
 def test_gate_end_to_end():
     conn = _mem_db_with_authority()
     try:
-        pages = build_wiki(conn, None, WikiOptions(importance_threshold=0.6,
-                                                   admission_gate=False))
+        pages = build_wiki(conn, None, WikiOptions(importance_threshold=0.6, admission_gate=False))
     finally:
         conn.close()
     body = "\n".join(pages.values())
@@ -183,8 +209,7 @@ def test_restricted_orphan_shows_marker_not_silent():
     )
     conn.commit()
     try:
-        pages = build_wiki(conn, None, WikiOptions(importance_threshold=0.6,
-                                                   admission_gate=False))
+        pages = build_wiki(conn, None, WikiOptions(importance_threshold=0.6, admission_gate=False))
     finally:
         conn.close()
     orph = pages["topics/orphans.md"]
@@ -201,15 +226,14 @@ def test_canonical_synthesis_renders_as_topic_BODY_above_members():
     prose was stored but only appeared as a member bullet.)"""
     conn = _mem_db_with_authority()
     try:
-        pages = build_wiki(conn, None, WikiOptions(importance_threshold=0.6,
-                                                   admission_gate=False))
+        pages = build_wiki(conn, None, WikiOptions(importance_threshold=0.6, admission_gate=False))
     finally:
         conn.close()
-    canon = [t for p, t in pages.items()
-             if p.startswith("topics/") and "Canon Topic" in t][0]
+    canon = [t for p, t in pages.items() if p.startswith("topics/") and "Canon Topic" in t][0]
     before_members = canon.split("## Members")[0]
-    assert "CANON BODY VISIBLE" in before_members, \
+    assert "CANON BODY VISIBLE" in before_members, (
         "canonical synthesis prose must render as the topic body, above Members"
+    )
 
 
 def test_gate_is_deterministic():
@@ -218,8 +242,7 @@ def test_gate_is_deterministic():
     for _ in range(3):
         conn = _mem_db_with_authority()
         try:
-            pages = build_wiki(conn, None, WikiOptions(importance_threshold=0.6,
-                                                       admission_gate=False))
+            pages = build_wiki(conn, None, WikiOptions(importance_threshold=0.6, admission_gate=False))
         finally:
             conn.close()
         h.append("".join(f"{k}\x00{pages[k]}" for k in sorted(pages)))

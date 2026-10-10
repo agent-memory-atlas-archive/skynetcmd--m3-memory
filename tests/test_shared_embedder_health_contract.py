@@ -12,6 +12,7 @@ stale-contract bug cannot silently return.
 Hermetic: urllib.request.urlopen is mocked (no live server, CI-safe). The logic
 is pure HTTP/JSON with no OS branch, so one test covers all three supported OSes.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -84,6 +85,7 @@ def test_bad_scheme_is_rejected():
 
 def test_connection_error_is_down(monkeypatch):
     """urlopen raising (connection refused / timeout) → 'down', never propagates."""
+
     def _boom(url, timeout=3.0):  # noqa: ARG001
         raise OSError("connection refused")
 

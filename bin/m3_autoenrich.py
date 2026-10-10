@@ -17,6 +17,7 @@ Persistence:
 Detection of current state reads the persistent store, NOT os.environ — that
 way the result is consistent regardless of which shell launched this script.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -39,6 +40,7 @@ def _is_windows() -> bool:
 
 # --- Windows persistence ---------------------------------------------------
 
+
 def _read_windows() -> str | None:
     """Read the User-scope env var (the OS seam owns the store)."""
     from m3_core.seams import user_env_get
@@ -59,10 +61,7 @@ def _write_windows(value: str | None) -> None:
     # getattr: CREATE_NO_WINDOW is Windows-only; on non-Windows the `else {}`
     # branch wins so the value is never used, but getattr keeps a Linux-based
     # type checker (CI runs on Ubuntu) from flagging the attribute.
-    no_window: dict[str, Any] = (
-        {"creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0)}
-        if _is_windows() else {}
-    )
+    no_window: dict[str, Any] = {"creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0)} if _is_windows() else {}
     if value is None:
         subprocess.run(
             ["reg", "delete", "HKCU\\Environment", "/F", "/V", VAR],
@@ -75,6 +74,7 @@ def _write_windows(value: str | None) -> None:
 
 
 # --- Unix persistence ------------------------------------------------------
+
 
 def _env_file_path() -> Path:
     return Path.home() / ".config" / "m3-memory" / "env"
@@ -106,13 +106,11 @@ def _write_unix(value: str | None) -> None:
 
 def _shell_rc_hint() -> str:
     """Suggest the right shell rc snippet for sourcing the env file."""
-    return (
-        'echo \'[ -f "$HOME/.config/m3-memory/env" ] && '
-        '. "$HOME/.config/m3-memory/env"\' >> "$HOME/.zshrc"'
-    )
+    return 'echo \'[ -f "$HOME/.config/m3-memory/env" ] && . "$HOME/.config/m3-memory/env"\' >> "$HOME/.zshrc"'
 
 
 # --- Cross-platform read / write -------------------------------------------
+
 
 def read_persistent() -> str | None:
     return _read_windows() if _is_windows() else _read_unix()
@@ -131,6 +129,7 @@ def is_truthy(v: str | None) -> bool:
 
 # --- Revert command --------------------------------------------------------
 
+
 def revert_command() -> str:
     """The command that flips back to the previous state: re-running this
     script, which toggles, whichever way the last run went."""
@@ -138,7 +137,7 @@ def revert_command() -> str:
     py = "python" if not _is_windows() else r".venv\Scripts\python.exe"
     if _is_windows():
         return f'{py} "{script}"'
-    return f'{shutil.which("python3") or "python3"} {script}'
+    return f"{shutil.which('python3') or 'python3'} {script}"
 
 
 def main() -> int:
@@ -146,12 +145,9 @@ def main() -> int:
         description="Toggle M3_AUTO_ENRICH on or off (cross-platform).",
         epilog="Without flags: flips current state. Use --status to read only.",
     )
-    parser.add_argument("--status", action="store_true",
-                        help="Print current state and exit (no flip).")
-    parser.add_argument("--on", action="store_true",
-                        help="Force on regardless of current state.")
-    parser.add_argument("--off", action="store_true",
-                        help="Force off regardless of current state.")
+    parser.add_argument("--status", action="store_true", help="Print current state and exit (no flip).")
+    parser.add_argument("--on", action="store_true", help="Force on regardless of current state.")
+    parser.add_argument("--off", action="store_true", help="Force off regardless of current state.")
     args = parser.parse_args()
 
     if args.on and args.off:

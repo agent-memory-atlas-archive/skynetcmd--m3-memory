@@ -44,8 +44,7 @@ _BLOCK_ROW = (
 # This is the exact false-positive class the LIKE '%<tag>%' count over-reports.
 _PROSE_ROW = (
     "prose-mention",
-    "The loop wakes when its events arrive as `<task-notification>` messages; "
-    "you do not poll for them.",
+    "The loop wakes when its events arrive as `<task-notification>` messages; you do not poll for them.",
 )
 # A row with no framing at all — untouched, and not counted.
 _CLEAN_ROW = ("clean", "just an ordinary turn about the deploy")

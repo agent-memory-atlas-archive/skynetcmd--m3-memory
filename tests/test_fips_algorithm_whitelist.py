@@ -13,6 +13,7 @@ Allowed exceptions (deliberate, narrow):
     `Fernet(...).encrypt`.
   - Test files and the m3-redact fixtures (which embed fake secrets on purpose).
 """
+
 from __future__ import annotations
 
 import ast
@@ -24,8 +25,11 @@ SCAN_DIRS = [os.path.join(REPO, "bin"), os.path.join(REPO, "m3_memory")]
 # Files/dirs exempt from the scan (tests + the m3-redact fixtures embed fake
 # secrets on purpose; crypto_provider declares the BLOCKED list as constants).
 _EXEMPT_SUBSTR = (
-    os.sep + "test" + os.sep, os.sep + "tests" + os.sep, "test_", "redact",
-    "crypto_provider.py",   # declares FIPS_BLOCKED_ALGORITHMS (string names)
+    os.sep + "test" + os.sep,
+    os.sep + "tests" + os.sep,
+    "test_",
+    "redact",
+    "crypto_provider.py",  # declares FIPS_BLOCKED_ALGORITHMS (string names)
 )
 
 # Hash constructors that are non-approved for SECURITY use. Allowed only when
@@ -33,7 +37,15 @@ _EXEMPT_SUBSTR = (
 _WEAK_HASH_NAMES = {"md5", "sha1", "md4", "md2"}
 # Cipher/primitive names blocked entirely (no security exception).
 _BLOCKED_CIPHER_NAMES = {
-    "TripleDES", "Blowfish", "ARC4", "RC4", "RC2", "DES", "DES3", "CAST5", "IDEA",
+    "TripleDES",
+    "Blowfish",
+    "ARC4",
+    "RC4",
+    "RC2",
+    "DES",
+    "DES3",
+    "CAST5",
+    "IDEA",
 }
 
 # Approved hashes called straight from hashlib bypass crypto_provider, so under
@@ -41,12 +53,23 @@ _BLOCKED_CIPHER_NAMES = {
 # non-security hash (usedforsecurity=False); a security use calls the provider
 # (get_sha256 / sha256_stream / get_hmac_sha256).
 _HASHLIB_DIGESTS = {
-    "sha224", "sha256", "sha384", "sha512", "sha3_224", "sha3_256", "sha3_384",
-    "sha3_512", "shake_128", "shake_256", "blake2b", "blake2s", "new", "file_digest",
+    "sha224",
+    "sha256",
+    "sha384",
+    "sha512",
+    "sha3_224",
+    "sha3_256",
+    "sha3_384",
+    "sha3_512",
+    "shake_128",
+    "shake_256",
+    "blake2b",
+    "blake2s",
+    "new",
+    "file_digest",
 }
 # Keyed primitives: always a security use, so always through the provider.
-_KEYED = {("hmac", "new"), ("hmac", "digest"), ("hmac", "HMAC"),
-          ("hashlib", "pbkdf2_hmac"), ("hashlib", "scrypt")}
+_KEYED = {("hmac", "new"), ("hmac", "digest"), ("hmac", "HMAC"), ("hashlib", "pbkdf2_hmac"), ("hashlib", "scrypt")}
 # Files allowed a direct digest, each with the reason it cannot use the provider.
 _DIRECT_DIGEST_ALLOWED = {
     "bin/install_wolfssl.py": "verifies the wolfSSL download before wolfCrypt exists",
@@ -103,8 +126,7 @@ def _call_name(node: ast.Call) -> str:
 
 def _has_usedforsecurity_false(node: ast.Call) -> bool:
     for kw in node.keywords:
-        if kw.arg == "usedforsecurity" and isinstance(kw.value, ast.Constant) \
-                and kw.value.value is False:
+        if kw.arg == "usedforsecurity" and isinstance(kw.value, ast.Constant) and kw.value.value is False:
             return True
     return False
 
@@ -129,32 +151,46 @@ def _scan(scan_dirs=None, repo=None):
             if not isinstance(node, ast.Call):
                 continue
             digest = _qualified(node, "hashlib", *mods["hashlib"])
-            if (digest in _HASHLIB_DIGESTS and not _has_usedforsecurity_false(node)
-                    and rel_posix not in _DIRECT_DIGEST_ALLOWED):
-                violations.append((rel, node.lineno,
-                                   f"hashlib.{digest}() outside crypto_provider "
-                                   "(security use: call the provider; otherwise "
-                                   "mark usedforsecurity=False)"))
+            if (
+                digest in _HASHLIB_DIGESTS
+                and not _has_usedforsecurity_false(node)
+                and rel_posix not in _DIRECT_DIGEST_ALLOWED
+            ):
+                violations.append(
+                    (
+                        rel,
+                        node.lineno,
+                        f"hashlib.{digest}() outside crypto_provider "
+                        "(security use: call the provider; otherwise "
+                        "mark usedforsecurity=False)",
+                    )
+                )
             for mod in ("hashlib", "hmac"):
                 fn = _qualified(node, mod, *mods[mod])
                 if (mod, fn) in _KEYED:
-                    violations.append((rel, node.lineno,
-                                       f"{mod}.{fn}() outside crypto_provider "
-                                       "(keyed: use get_hmac_sha256 / pbkdf2_sha256)"))
+                    violations.append(
+                        (
+                            rel,
+                            node.lineno,
+                            f"{mod}.{fn}() outside crypto_provider (keyed: use get_hmac_sha256 / pbkdf2_sha256)",
+                        )
+                    )
             name = _call_name(node)
             if name in _WEAK_HASH_NAMES and not _has_usedforsecurity_false(node):
-                violations.append((rel, node.lineno,
-                                   f"{name}() for security use "
-                                   "(mark usedforsecurity=False if non-crypto)"))
+                violations.append(
+                    (rel, node.lineno, f"{name}() for security use (mark usedforsecurity=False if non-crypto)")
+                )
             elif name in _BLOCKED_CIPHER_NAMES:
                 violations.append((rel, node.lineno, f"{name} (blocked cipher)"))
             # Flag Fernet(...).encrypt(...) — new writes must use AES-256-GCM.
             # Fernet construction itself is allowed (legacy decrypt path).
-            if (isinstance(node.func, ast.Attribute) and node.func.attr == "encrypt"
-                    and isinstance(node.func.value, ast.Call)
-                    and _call_name(node.func.value) == "Fernet"):
-                violations.append((rel, node.lineno,
-                                   "Fernet.encrypt (non-approved; use AES-256-GCM)"))
+            if (
+                isinstance(node.func, ast.Attribute)
+                and node.func.attr == "encrypt"
+                and isinstance(node.func.value, ast.Call)
+                and _call_name(node.func.value) == "Fernet"
+            ):
+                violations.append((rel, node.lineno, "Fernet.encrypt (non-approved; use AES-256-GCM)"))
     return violations
 
 
@@ -175,8 +211,10 @@ def test_no_nonapproved_primitives_in_shipped_code():
 
 def test_whitelist_constants_present():
     import sys
+
     sys.path.insert(0, os.path.join(REPO, "bin"))
     import crypto_provider as cp
+
     assert "AES-256-GCM" in cp.FIPS_APPROVED_ALGORITHMS
     assert "PBKDF2-HMAC-SHA256" in cp.FIPS_APPROVED_ALGORITHMS
     assert "MD5" in cp.FIPS_BLOCKED_ALGORITHMS
@@ -194,10 +232,10 @@ def test_scanner_catches_a_planted_violation(tmp_path):
     bad.mkdir(parents=True)
     (bad / "evil.py").write_text(
         "import hashlib\n"
-        "x = hashlib.md5(b'secret').hexdigest()\n"          # VIOLATION
-        "y = hashlib.sha1(b'x', usedforsecurity=False)\n"   # OK (non-crypto)
-        "# hashlib.md5(this is a comment) -> ignored\n"     # OK (comment)
-        "z = 'TripleDES is just a string here'\n"           # OK (string literal)
+        "x = hashlib.md5(b'secret').hexdigest()\n"  # VIOLATION
+        "y = hashlib.sha1(b'x', usedforsecurity=False)\n"  # OK (non-crypto)
+        "# hashlib.md5(this is a comment) -> ignored\n"  # OK (comment)
+        "z = 'TripleDES is just a string here'\n"  # OK (string literal)
     )
     v = _scan(scan_dirs=[str(bad)], repo=str(tmp_path))
     whys = " ".join(w for _f, _ln, w in v)
@@ -217,16 +255,16 @@ def test_scanner_routes_security_digests_to_the_provider(tmp_path):
         "import hashlib as _h\n"
         "import hmac\n"
         "from hashlib import sha256\n"
-        "a = hashlib.sha256(b'k')\n"                              # 5 VIOLATION
-        "b = _h.sha512(b'k')\n"                                   # 6 VIOLATION
-        "c = sha256(b'k')\n"                                      # 7 VIOLATION
-        "d = hmac.new(b'k' * 16, b'm', hashlib.sha256)\n"         # 8 VIOLATION
-        "e = hashlib.pbkdf2_hmac('sha256', b'p', b's', 1)\n"      # 9 VIOLATION
-        "f = hashlib.sha256(b'x', usedforsecurity=False)\n"       # OK
-        "g = hmac.compare_digest(b'a', b'b')\n"                   # OK (compare only)
+        "a = hashlib.sha256(b'k')\n"  # 5 VIOLATION
+        "b = _h.sha512(b'k')\n"  # 6 VIOLATION
+        "c = sha256(b'k')\n"  # 7 VIOLATION
+        "d = hmac.new(b'k' * 16, b'm', hashlib.sha256)\n"  # 8 VIOLATION
+        "e = hashlib.pbkdf2_hmac('sha256', b'p', b's', 1)\n"  # 9 VIOLATION
+        "f = hashlib.sha256(b'x', usedforsecurity=False)\n"  # OK
+        "g = hmac.compare_digest(b'a', b'b')\n"  # OK (compare only)
         "class P:\n"
         "    def sha256(self, d): return d\n"
-        "h = P().sha256(b'x')\n"                                  # OK (not hashlib)
+        "h = P().sha256(b'x')\n"  # OK (not hashlib)
     )
     v = _scan(scan_dirs=[str(src)], repo=str(tmp_path))
     assert sorted(ln for _f, ln, _w in v) == [5, 6, 7, 8, 9], v

@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.join(BASE_DIR, "bin"))
 from m3_sdk import getenv_compat
 
 if sys.platform == "win32":
-    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stdout.reconfigure(encoding="utf-8")
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 PASS, FAIL, SKIP = "✅", "❌", "⏭ "
@@ -64,6 +64,7 @@ def _open():
 def _instant(value):
     """A stored timestamp as an instant: SQLite TEXT or a PostgreSQL datetime."""
     import datetime as _dt
+
     if isinstance(value, _dt.datetime):
         return value
     return _dt.datetime.fromisoformat(str(value))  # parses "Z" (3.11+; floor 3.12)
@@ -76,7 +77,9 @@ def _tables(conn) -> set[str]:
 def _columns(conn, table: str) -> list[str]:
     sql, params = _D.columns_of(table)
     return [r[0] for r in conn.execute(sql, params).fetchall()]
-AGENT   = "test_e2e_agent"
+
+
+AGENT = "test_e2e_agent"
 
 
 # ── LM Studio probe ───────────────────────────────────────────────────────────
@@ -84,6 +87,7 @@ async def probe_lm_studio() -> tuple[bool, bool]:
     """Returns (lm_online, embed_loaded)."""
     try:
         from auth_utils import get_api_key
+
         token = get_api_key("LM_API_TOKEN") or get_api_key("LM_STUDIO_API_KEY")
 
         timeout = httpx.Timeout(connect=3.0, read=5.0, write=3.0, pool=3.0)
@@ -108,12 +112,21 @@ async def probe_lm_studio() -> tuple[bool, bool]:
 
 # ── DB helpers ────────────────────────────────────────────────────────────────
 _VALID_TABLES = {
-    "memory_items", "memory_embeddings", "memory_relationships",
-    "activity_logs", "project_decisions",
-    "hardware_specs", "system_focus", "synchronized_secrets",
-    "session_handoff", "conversation_log", "memory_history",
-    "agent_retention_policies", "gdpr_requests",
+    "memory_items",
+    "memory_embeddings",
+    "memory_relationships",
+    "activity_logs",
+    "project_decisions",
+    "hardware_specs",
+    "system_focus",
+    "synchronized_secrets",
+    "session_handoff",
+    "conversation_log",
+    "memory_history",
+    "agent_retention_policies",
+    "gdpr_requests",
 }
+
 
 def db_count(table: str, where: str = "", params: tuple = ()) -> int:
     if table not in _VALID_TABLES:
@@ -130,25 +143,28 @@ def db_count(table: str, where: str = "", params: tuple = ()) -> int:
 
 def cleanup():
     conn = _open()
-    ids = [
-        r[0] for r in conn.execute(
-            f"SELECT id FROM memory_items WHERE agent_id = {_P}", (AGENT,)
-        ).fetchall()
-    ]
+    ids = [r[0] for r in conn.execute(f"SELECT id FROM memory_items WHERE agent_id = {_P}", (AGENT,)).fetchall()]
     if ids:
         placeholders = _D.placeholder(len(ids))
         conn.execute(f"DELETE FROM memory_embeddings WHERE memory_id IN ({placeholders})", ids)
-        conn.execute(f"DELETE FROM memory_relationships WHERE from_id IN ({placeholders}) OR to_id IN ({placeholders})", ids + ids)
+        conn.execute(
+            f"DELETE FROM memory_relationships WHERE from_id IN ({placeholders}) OR to_id IN ({placeholders})",
+            ids + ids,
+        )
         conn.execute(f"DELETE FROM memory_history WHERE memory_id IN ({placeholders})", ids)
         conn.execute(f"DELETE FROM memory_items WHERE agent_id = {_P}", (AGENT,))
     # Also clean up handoff items for test-agent-B
     conn.execute(f"DELETE FROM memory_items WHERE agent_id = {_P} AND type = 'handoff'", ("test-agent-B",))
     # Clean up new orchestration tables for test agents
     conn.execute(f"DELETE FROM notifications WHERE agent_id IN ({_P}, {_P})", (AGENT, "test-agent-B"))
-    conn.execute(f"DELETE FROM memory_history WHERE memory_id IN (SELECT id FROM tasks WHERE created_by IN ({_P}, {_P}) OR owner_agent IN ({_P}, {_P}))",
-                 (AGENT, "test-agent-B", AGENT, "test-agent-B"))
-    conn.execute(f"DELETE FROM tasks WHERE created_by IN ({_P}, {_P}) OR owner_agent IN ({_P}, {_P})",
-                 (AGENT, "test-agent-B", AGENT, "test-agent-B"))
+    conn.execute(
+        f"DELETE FROM memory_history WHERE memory_id IN (SELECT id FROM tasks WHERE created_by IN ({_P}, {_P}) OR owner_agent IN ({_P}, {_P}))",
+        (AGENT, "test-agent-B", AGENT, "test-agent-B"),
+    )
+    conn.execute(
+        f"DELETE FROM tasks WHERE created_by IN ({_P}, {_P}) OR owner_agent IN ({_P}, {_P})",
+        (AGENT, "test-agent-B", AGENT, "test-agent-B"),
+    )
     conn.execute(f"DELETE FROM agents WHERE agent_id IN ({_P}, {_P})", (AGENT, "test-agent-B"))
     conn.commit()
     conn.close()
@@ -232,13 +248,19 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
     g1 = memory_get(item_id_1) if item_id_1 else "skipped"
     if item_id_1:
         data = json.loads(g1)
-        check("type=note",            data.get("type") == "note")
-        check("title correct",         data.get("title") == "LM Studio cert fix")
-        check("importance=0.8",        abs(data.get("importance", 0) - 0.8) < 0.01, f"{data.get('importance')}")
+        check("type=note", data.get("type") == "note")
+        check("title correct", data.get("title") == "LM Studio cert fix")
+        check("importance=0.8", abs(data.get("importance", 0) - 0.8) < 0.01, f"{data.get('importance')}")
         import platform
-        expected_device = getenv_compat("M3_ORIGIN_DEVICE", "ORIGIN_DEVICE") or os.environ.get("COMPUTERNAME") or os.environ.get("HOSTNAME") or platform.node()
+
+        expected_device = (
+            getenv_compat("M3_ORIGIN_DEVICE", "ORIGIN_DEVICE")
+            or os.environ.get("COMPUTERNAME")
+            or os.environ.get("HOSTNAME")
+            or platform.node()
+        )
         check("origin_device=macbook", data.get("origin_device") == expected_device)
-        check("is_deleted=0",          data.get("is_deleted") == 0)
+        check("is_deleted=0", data.get("is_deleted") == 0)
     else:
         skip("memory_get", "no item from step 1")
 
@@ -262,13 +284,11 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
         check("returns Created: <uuid>", bool(item_id_2), r2)
         if item_id_2:
             emb = db_count("memory_embeddings", f"memory_id={_P}", (item_id_2,))
-            check("embedding row exists",     emb == 1, f"count={emb}")
+            check("embedding row exists", emb == 1, f"count={emb}")
             conn = _open()
-            dim = conn.execute(
-                f"SELECT dim FROM memory_embeddings WHERE memory_id={_P}", (item_id_2,)
-            ).fetchone()
+            dim = conn.execute(f"SELECT dim FROM memory_embeddings WHERE memory_id={_P}", (item_id_2,)).fetchone()
             conn.close()
-            check("embedding dim stored",      dim is not None, f"dim={dim[0] if dim else 'none'}")
+            check("embedding dim stored", dim is not None, f"dim={dim[0] if dim else 'none'}")
             # Verify blob is valid packed floats
             conn = _open()
             blob = conn.execute(
@@ -291,9 +311,9 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
             type_filter="note",
             agent_filter=AGENT,
         )
-        check("returns Top N header",    s1.startswith("Top"), s1[:60])
+        check("returns Top N header", s1.startswith("Top"), s1[:60])
         check("contains target item id", item_id_2 in s1)
-        check("shows score",             "score=" in s1)
+        check("shows score", "score=" in s1)
 
         s_empty = await memory_search(
             query="quantum entanglement dark matter",
@@ -312,15 +332,15 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
             title="LM Studio cert fix — VERIFIED",
             importance=0.9,
         )
-        check("returns Updated: <uuid>",      "Updated:" in u1, u1)
+        check("returns Updated: <uuid>", "Updated:" in u1, u1)
         d2 = json.loads(memory_get(item_id_1))
-        check("title persisted",              d2.get("title") == "LM Studio cert fix — VERIFIED")
-        check("importance persisted",         abs(d2.get("importance", 0) - 0.9) < 0.01)
-        check("updated_at set",               d2.get("updated_at") is not None)
+        check("title persisted", d2.get("title") == "LM Studio cert fix — VERIFIED")
+        check("importance persisted", abs(d2.get("importance", 0) - 0.9) < 0.01)
+        check("updated_at set", d2.get("updated_at") is not None)
 
         # Update with no fields → only updated_at should change
         u_noop = await memory_update(id=item_id_1)
-        check("no-field update succeeds",     "Updated:" in u_noop)
+        check("no-field update succeeds", "Updated:" in u_noop)
     else:
         skip("memory_update", "no item from step 1")
 
@@ -337,9 +357,9 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
 
     if conv_id:
         d_conv = json.loads(memory_get(conv_id))
-        check("conversation type=conversation",  d_conv.get("type") == "conversation")
+        check("conversation type=conversation", d_conv.get("type") == "conversation")
         meta = json.loads(d_conv.get("metadata_json") or "{}")
-        check("tags stored in metadata",         "test" in meta.get("tags", []))
+        check("tags stored in metadata", "test" in meta.get("tags", []))
 
         # Append two messages (embed=False to avoid needing jina)
         a1 = await conversation_append(
@@ -349,7 +369,7 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
             agent_id=AGENT,
             embed=False,
         )
-        check("append user message",       "Appended:" in a1, a1)
+        check("append user message", "Appended:" in a1, a1)
 
         a2 = await conversation_append(
             conversation_id=conv_id,
@@ -359,7 +379,7 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
             model_id="claude-sonnet-4-6",
             embed=False,
         )
-        check("append assistant message",  "Appended:" in a2, a2)
+        check("append assistant message", "Appended:" in a2, a2)
 
         # Append to nonexistent conversation
         a_bad = await conversation_append(
@@ -373,14 +393,14 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
 
         # conversation_messages
         msgs = conversation_messages(conv_id)
-        check("conversation_messages returns text",    isinstance(msgs, str) and len(msgs) > 10)
-        check("contains user role",                    "user:" in msgs)
-        check("contains assistant role",               "assistant:" in msgs)
-        check("messages in order (user first)",        msgs.index("user:") < msgs.index("assistant:"))
+        check("conversation_messages returns text", isinstance(msgs, str) and len(msgs) > 10)
+        check("contains user role", "user:" in msgs)
+        check("contains assistant role", "assistant:" in msgs)
+        check("messages in order (user first)", msgs.index("user:") < msgs.index("assistant:"))
 
         # Verify relationship rows
         rel_count = db_count("memory_relationships", f"from_id={_P}", (conv_id,))
-        check("2 relationship rows created",           rel_count == 2, f"count={rel_count}")
+        check("2 relationship rows created", rel_count == 2, f"count={rel_count}")
 
     # ── 7: conversation_search ────────────────────────────────────────────────
     print("\n── 7: conversation_search ──────────────────────────────────────")
@@ -397,8 +417,8 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
         d_soft = memory_delete(item_id_1, hard=False)
         check("soft delete returns Soft-deleted:", "Soft-deleted:" in d_soft, d_soft)
         d3 = json.loads(memory_get(item_id_1))
-        check("is_deleted=1 after soft delete",   d3.get("is_deleted") == 1)
-        check("soft-deleted item still in DB",    d3.get("id") == item_id_1)
+        check("is_deleted=1 after soft delete", d3.get("is_deleted") == 1)
+        check("soft-deleted item still in DB", d3.get("id") == item_id_1)
         # Soft-deleted item must not appear in search
         if lm_online and jina_loaded and item_id_1:
             s2 = await memory_search("LM Studio cert fix", k=10, agent_filter=AGENT)
@@ -412,9 +432,9 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
         d_hard = memory_delete(conv_id, hard=True)
         check("hard delete returns Hard-deleted:", "Hard-deleted:" in d_hard, d_hard)
         g_gone = memory_get(conv_id)
-        check("item gone from DB",                "Error:" in g_gone)
+        check("item gone from DB", "Error:" in g_gone)
         rel_after = db_count("memory_relationships", f"from_id={_P}", (conv_id,))
-        check("relationships cascade-deleted",    rel_after == 0, f"remaining={rel_after}")
+        check("relationships cascade-deleted", rel_after == 0, f"remaining={rel_after}")
 
     d_miss = memory_delete("00000000-0000-0000-0000-000000000000")
     check("delete missing ID → error string", "Error:" in d_miss)
@@ -422,9 +442,9 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
     # ── 11: memory_maintenance ────────────────────────────────────────────────
     print("\n── 11: memory_maintenance ─────────────────────────────────────")
     maint = memory_maintenance(decay=True, purge_expired=True, prune_orphan_embeddings=True)
-    check("returns Maintenance complete:",     "Maintenance complete:" in maint, maint[:120])
-    check("reports decay step",               "Decayed" in maint)
-    check("reports orphan prune step",        "Pruned" in maint)
+    check("returns Maintenance complete:", "Maintenance complete:" in maint, maint[:120])
+    check("reports decay step", "Decayed" in maint)
+    check("reports orphan prune step", "Pruned" in maint)
 
     # ── 12: _ensure_sync_tables ──────────────────────────────────────────────
     print("\n── 12: _ensure_sync_tables ────────────────────────────────────")
@@ -440,9 +460,9 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
     h1 = _content_hash("hello world")
     h2 = _content_hash("hello world")
     h3 = _content_hash("different text")
-    check("content_hash deterministic",      h1 == h2)
-    check("content_hash differs for diff",   h1 != h3)
-    check("content_hash is hex string",      len(h1) == 64 and all(c in "0123456789abcdef" for c in h1))
+    check("content_hash deterministic", h1 == h2)
+    check("content_hash differs for diff", h1 != h3)
+    check("content_hash is hex string", len(h1) == 64 and all(c in "0123456789abcdef" for c in h1))
 
     # ── 19: memory_write with scoping ──────────────────────────────────────
     print("\n── 19: memory_write with scoping ──────────────────────────────")
@@ -480,7 +500,9 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
         row = conn.execute(f"SELECT scope, expires_at FROM memory_items WHERE id = {_P}", (session_id,)).fetchone()
         conn.close()
         check("session scope stored", row[0] == "session" if row else False)
-        check("session auto-expires_at set", row[1] is not None if row else False, f"expires_at={row[1] if row else None}")
+        check(
+            "session auto-expires_at set", row[1] is not None if row else False, f"expires_at={row[1] if row else None}"
+        )
 
     # ── 20: memory_search with scope filter ──────────────────────────────
     print("\n── 20: memory_search with scope filter ────────────────────────")
@@ -520,7 +542,9 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
 
     # History for nonexistent item
     h_miss = memory_history("00000000-0000-0000-0000-000000000000")
-    check("history missing item returns info string", "No history" in h_miss or "not found" in h_miss.lower(), h_miss[:80])
+    check(
+        "history missing item returns info string", "No history" in h_miss or "not found" in h_miss.lower(), h_miss[:80]
+    )
 
     # ── 22: memory_link ──────────────────────────────────────────────────
     print("\n── 22: memory_link ────────────────────────────────────────────")
@@ -599,7 +623,7 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
             conn = _open()
             rel = conn.execute(
                 f"SELECT relationship_type FROM memory_relationships WHERE to_id = {_P} AND relationship_type = 'supersedes'",
-                (c1_id,)
+                (c1_id,),
             ).fetchone()
             conn.close()
             check("supersedes relationship created", rel is not None)
@@ -693,7 +717,7 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
     try:
         pol = conn.execute(
             f"SELECT max_memories, ttl_days FROM agent_retention_policies WHERE agent_id = {_P}",
-            ("test_retention_agent",)
+            ("test_retention_agent",),
         ).fetchone()
         check("retention policy stored in DB", pol is not None)
         if pol:
@@ -727,7 +751,9 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
     try:
         export_data = json.loads(export_r)
         check("export contains user_id", export_data.get("user_id") == "gdpr_test_user")
-        check("export contains items", export_data.get("items_count", 0) >= 1, f"count={export_data.get('items_count')}")
+        check(
+            "export contains items", export_data.get("items_count", 0) >= 1, f"count={export_data.get('items_count')}"
+        )
     except json.JSONDecodeError:
         check("gdpr_export returns valid JSON", False, export_r[:80])
 
@@ -738,13 +764,15 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
     # ── 31: gdpr_forget ──────────────────────────────────────────────────
     print("\n── 31: gdpr_forget ────────────────────────────────────────────")
     forget_r = gdpr_forget(user_id="gdpr_test_user")
-    check("gdpr_forget returns completion message", "completed" in forget_r.lower() or "deleted" in forget_r.lower(), forget_r[:80])
+    check(
+        "gdpr_forget returns completion message",
+        "completed" in forget_r.lower() or "deleted" in forget_r.lower(),
+        forget_r[:80],
+    )
 
     # Verify items are gone
     conn = _open()
-    remaining = conn.execute(
-        "SELECT COUNT(*) FROM memory_items WHERE user_id = 'gdpr_test_user'"
-    ).fetchone()[0]
+    remaining = conn.execute("SELECT COUNT(*) FROM memory_items WHERE user_id = 'gdpr_test_user'").fetchone()[0]
     conn.close()
     check("all items hard-deleted after forget", remaining == 0, f"remaining={remaining}")
 
@@ -775,13 +803,19 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
     bt_id = bt_r.split("Created: ")[1].split()[0] if "Created:" in bt_r else None
     if bt_id:
         conn = _open()
-        row = conn.execute(f"SELECT valid_from, valid_to, content_hash FROM memory_items WHERE id = {_P}", (bt_id,)).fetchone()
+        row = conn.execute(
+            f"SELECT valid_from, valid_to, content_hash FROM memory_items WHERE id = {_P}", (bt_id,)
+        ).fetchone()
         conn.close()
         # TEXT on SQLite, TIMESTAMPTZ (a datetime) on PostgreSQL: compare the
         # instants, not the spelling.
         check("valid_from stored", _instant(row[0]) == _instant("2026-01-01T00:00:00Z") if row else False)
         check("valid_to stored", _instant(row[1]) == _instant("2027-01-01T00:00:00Z") if row else False)
-        check("content_hash stored (non-empty)", bool(row[2]) if row else False, f"hash={row[2][:16] if row and row[2] else 'none'}...")
+        check(
+            "content_hash stored (non-empty)",
+            bool(row[2]) if row else False,
+            f"hash={row[2][:16] if row and row[2] else 'none'}...",
+        )
     else:
         skip("bitemporal write", "couldn't create item")
 
@@ -844,7 +878,7 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
             conn = _open()
             rel = conn.execute(
                 f"SELECT from_id FROM memory_relationships WHERE to_id = {_P} AND relationship_type = 'references'",
-                (c_sum_id,)
+                (c_sum_id,),
             ).fetchone()
             conn.close()
             check("references relationship created", rel is not None)
@@ -859,14 +893,22 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
     # required"), so configurability is checked in a fresh process, through the
     # canonical name. Re-importing in this process tested the pre-2D.1 contract.
     probe = await asyncio.create_subprocess_exec(
-        sys.executable, "-c", "import memory_core; print(memory_core.SEARCH_ROW_CAP)",
-        cwd=os.path.join(BASE_DIR, "bin"), env={**os.environ, "M3_SEARCH_ROW_CAP": "999"},
-        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        sys.executable,
+        "-c",
+        "import memory_core; print(memory_core.SEARCH_ROW_CAP)",
+        cwd=os.path.join(BASE_DIR, "bin"),
+        env={**os.environ, "M3_SEARCH_ROW_CAP": "999"},
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
     async with asyncio.timeout(120):
         out, err = await probe.communicate()
     lines = out.decode(errors="replace").strip().splitlines()
-    check("SEARCH_ROW_CAP configurable", lines[-1:] == ["999"],
-          (lines[-1] if lines else err.decode(errors="replace"))[-120:])
+    check(
+        "SEARCH_ROW_CAP configurable",
+        lines[-1:] == ["999"],
+        (lines[-1] if lines else err.decode(errors="replace"))[-120:],
+    )
 
     # ── 38: Portable Export/Import ───────────────────────────────────────
     print("\n── 38: Portable Export/Import ──────────────────────────────────")
@@ -881,7 +923,7 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
     import_payload = json.loads(export_data)
     for item in import_payload["items"]:
         item["agent_id"] = NEW_AGENT
-        item["id"] = str(_uuid.uuid4()) # New ID to avoid collision if desired, though UPSERT is tested
+        item["id"] = str(_uuid.uuid4())  # New ID to avoid collision if desired, though UPSERT is tested
 
     import_res = memory_import(json.dumps(import_payload))
     check("import successful", "Imported" in import_res)
@@ -895,15 +937,16 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
     # A scored row explains itself as a Breakdown; one that skipped scoring (the
     # exact-substring short-circuit, or no query vector) names its Source. It
     # printed nothing for the latter until 2026-10-10.
-    check("suggest explains every result",
-          "Breakdown:" in suggest_res or "Source:" in suggest_res, suggest_res[:160])
+    check("suggest explains every result", "Breakdown:" in suggest_res or "Source:" in suggest_res, suggest_res[:160])
 
     # ── 40: memory_consolidate ───────────────────────────────────────────
     print("\n── 40: memory_consolidate ──────────────────────────────────────")
     if lm_online:
         CONS_AGENT = f"cons_{_uuid.uuid4().hex[:4]}"
         for i in range(5):
-            await memory_write(type="note", content=f"Consolidation note {i}", title=f"Note {i}", agent_id=CONS_AGENT, embed=False)
+            await memory_write(
+                type="note", content=f"Consolidation note {i}", title=f"Note {i}", agent_id=CONS_AGENT, embed=False
+            )
 
         cons_res = await memory_consolidate(type_filter="note", agent_filter=CONS_AGENT, threshold=3)
         check("consolidate returns success", "Consolidated 2 note items" in cons_res)
@@ -917,7 +960,12 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
     # ── 41: LLM Auto-Classification ──────────────────────────────────────
     print("\n── 41: LLM Auto-Classification ──────────────────────────────────")
     if lm_online:
-        auto_res = await memory_write(type="auto", content="There is a bug in the login screen where the password field doesn't mask characters.", title="Login bug", agent_id=AGENT)
+        auto_res = await memory_write(
+            type="auto",
+            content="There is a bug in the login screen where the password field doesn't mask characters.",
+            title="Login bug",
+            agent_id=AGENT,
+        )
         auto_id = auto_res.split("Created: ")[1].split()[0]
 
         # Zero-lag write path (2026-07-03): the row is stored as type='auto' and
@@ -927,10 +975,14 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
         from types import SimpleNamespace
 
         from m3_cognitive_loop import run_classify_pass
+
         await run_classify_pass(SimpleNamespace(database=DB_PATH, limit_per_pass=50))
         item_data = json.loads(memory_get(auto_id))
-        check("auto-classify assigned a type", item_data["type"] != "auto" and item_data["type"] in VALID_MEMORY_TYPES,
-              f"type={item_data['type']!r} after the classification pass")
+        check(
+            "auto-classify assigned a type",
+            item_data["type"] != "auto" and item_data["type"] in VALID_MEMORY_TYPES,
+            f"type={item_data['type']!r} after the classification pass",
+        )
         print(f"   Classified as: {item_data['type']}")
     else:
         skip("LLM Auto-Classification", "local LLM offline")
@@ -943,14 +995,20 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
     agent_register("test-agent-B", role="receiver", capabilities=["handoff"])
 
     # Write 2 seed context memories
-    ctx1_res = await memory_write(type="note", content="Context 1 for handoff", title="Context 1", agent_id=AGENT, embed=False)
+    ctx1_res = await memory_write(
+        type="note", content="Context 1 for handoff", title="Context 1", agent_id=AGENT, embed=False
+    )
     ctx1_id = ctx1_res.split("Created: ")[1].split()[0]
 
-    ctx2_res = await memory_write(type="note", content="Context 2 for handoff", title="Context 2", agent_id=AGENT, embed=False)
+    ctx2_res = await memory_write(
+        type="note", content="Context 2 for handoff", title="Context 2", agent_id=AGENT, embed=False
+    )
     ctx2_id = ctx2_res.split("Created: ")[1].split()[0]
 
     # Call memory_handoff
-    handoff_res = memory_handoff(AGENT, "test-agent-B", "Finish the TPS report", context_ids=[ctx1_id, ctx2_id], note="due Friday")
+    handoff_res = memory_handoff(
+        AGENT, "test-agent-B", "Finish the TPS report", context_ids=[ctx1_id, ctx2_id], note="due Friday"
+    )
     check("handoff creation", handoff_res.startswith("Handoff created:"))
 
     # Parse new memory id from response
@@ -965,7 +1023,7 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
     conn = _open()
     edge_count = conn.execute(
         f"SELECT COUNT(*) FROM memory_relationships WHERE from_id = {_P} AND relationship_type = 'handoff'",
-        (handoff_id,)
+        (handoff_id,),
     ).fetchone()[0]
     conn.close()
     check("handoff edges created", edge_count == 2, f"expected 2 edges, got {edge_count}")
@@ -984,7 +1042,7 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
 
     # ── 43: agent registry ───────────────────────────────────────────────────
     print("\n── 43: agent registry ──────────────────────────────────────────")
-    reg_res = agent_register("agent-X", role="tester", capabilities=["a","b"], metadata={"k":"v"})
+    reg_res = agent_register("agent-X", role="tester", capabilities=["a", "b"], metadata={"k": "v"})
     check("agent_register success", reg_res.startswith("Registered:"))
 
     get_res = agent_get("agent-X")
@@ -1039,7 +1097,10 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
     notify("notif-test", "k1", {})
     notify("notif-test", "k2", {})
     ack_all_res = notifications_ack_all("notif-test")
-    check("notifications_ack_all returns count", ack_all_res.startswith("Acked ") and "notifications for notif-test" in ack_all_res)
+    check(
+        "notifications_ack_all returns count",
+        ack_all_res.startswith("Acked ") and "notifications for notif-test" in ack_all_res,
+    )
 
     # Cleanup
     conn = _open()
@@ -1102,7 +1163,10 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
 
     if root_id:
         tree_res = task_tree(root_id, max_depth=3)
-        check("task_tree contains all 4 ids", root_id_8 in tree_res and c1_id_8 in tree_res and c2_id_8 in tree_res and g_id_8 in tree_res)
+        check(
+            "task_tree contains all 4 ids",
+            root_id_8 in tree_res and c1_id_8 in tree_res and c2_id_8 in tree_res and g_id_8 in tree_res,
+        )
 
     # Cleanup
     conn = _open()
@@ -1125,16 +1189,17 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
 
         conn = _open()
         count = conn.execute(
-            f"SELECT COUNT(*) FROM memory_history WHERE memory_id = {_P} AND field='state'",
-            (hist_task_id,)
+            f"SELECT COUNT(*) FROM memory_history WHERE memory_id = {_P} AND field='state'", (hist_task_id,)
         ).fetchone()[0]
         conn.close()
         check("task state history recorded", count == 2, f"expected 2 state transitions, got {count}")
 
     # Cleanup
     conn = _open()
-    conn.execute(f"DELETE FROM tasks WHERE created_by = {_P} OR owner_agent IN ({_P}, {_P})",
-                 (AGENT, "hist-agent-1", "hist-agent-2"))
+    conn.execute(
+        f"DELETE FROM tasks WHERE created_by = {_P} OR owner_agent IN ({_P}, {_P})",
+        (AGENT, "hist-agent-1", "hist-agent-2"),
+    )
     conn.execute(f"DELETE FROM agents WHERE agent_id IN ({_P}, {_P})", ("hist-agent-1", "hist-agent-2"))
     conn.commit()
     conn.close()
@@ -1157,13 +1222,19 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
         check("task_assign triggers notification", "task_assigned" in notifs)
 
         # Seed context and handoff with task_id
-        ctx_res = await memory_write(type="note", content="Integration context", title="Context", agent_id=AGENT, embed=False)
+        ctx_res = await memory_write(
+            type="note", content="Integration context", title="Context", agent_id=AGENT, embed=False
+        )
         ctx_id = ctx_res.split("Created: ")[1].split()[0] if "Created:" in ctx_res else ""
 
         if ctx_id:
-            handoff_integ = memory_handoff(AGENT, "test-agent-B", "integrate the thing", context_ids=[ctx_id], task_id=integ_task_id)
+            handoff_integ = memory_handoff(
+                AGENT, "test-agent-B", "integrate the thing", context_ids=[ctx_id], task_id=integ_task_id
+            )
             check("memory_handoff with task_id", handoff_integ.startswith("Handoff created:"))
-            handoff_integ_id = handoff_integ.split("Handoff created: ")[1].split()[0] if "Handoff created:" in handoff_integ else ""
+            handoff_integ_id = (
+                handoff_integ.split("Handoff created: ")[1].split()[0] if "Handoff created:" in handoff_integ else ""
+            )
 
             # Check notifications include task_id
             notifs2 = notifications_poll("test-agent-B")
@@ -1181,7 +1252,9 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
                 memory_inbox_ack(handoff_integ_id)
 
             # Seed result and close task
-            result_res = await memory_write(type="note", content="Integration result", title="Result", agent_id=AGENT, embed=False)
+            result_res = await memory_write(
+                type="note", content="Integration result", title="Result", agent_id=AGENT, embed=False
+            )
             result_id = result_res.split("Created: ")[1].split()[0] if "Created:" in result_res else ""
 
             if result_id:
@@ -1190,7 +1263,10 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
 
                 # Check planner notification
                 planner_notifs = notifications_poll(AGENT)
-                check("task_completed notification sent", "task_completed" in planner_notifs and integ_task_id_8 in planner_notifs)
+                check(
+                    "task_completed notification sent",
+                    "task_completed" in planner_notifs and integ_task_id_8 in planner_notifs,
+                )
 
     # Cleanup
     conn = _open()
@@ -1202,13 +1278,13 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
     # ── Summary ───────────────────────────────────────────────────────────────
     cleanup()
 
-    passed  = sum(1 for s, _, _ in results if s == PASS)
-    failed  = sum(1 for s, _, _ in results if s == FAIL)
+    passed = sum(1 for s, _, _ in results if s == PASS)
+    failed = sum(1 for s, _, _ in results if s == FAIL)
     skipped = sum(1 for s, _, _ in results if s == SKIP)
 
-    print(f"\n{'='*62}")
+    print(f"\n{'=' * 62}")
     print(f"  RESULTS:  {passed} passed  |  {failed} failed  |  {skipped} skipped")
-    print(f"{'='*62}")
+    print(f"{'=' * 62}")
 
     if failed:
         print("\nFailed tests:")
@@ -1228,6 +1304,7 @@ async def main() -> None:
     # first verification query: on a fresh scratch DB (the usage line above)
     # cleanup() otherwise failed with "no such table: memory_items".
     from memory.db import _db
+
     with _db():
         pass
 

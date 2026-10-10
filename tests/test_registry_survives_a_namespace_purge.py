@@ -14,6 +14,7 @@ all as `'module' object is not callable` from the shadowed `dialect` symbol).
 The package object is never replaced here; only the single
 `memory.backends.registry` key is swapped, inside a monkeypatch context.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -40,8 +41,7 @@ def _restored_backends():
     alive after this file; search_profile's timing broke on it). Restoring each
     module's namespace puts the originals back for everything after us.
     """
-    saved = {name: dict(sys.modules[name].__dict__)
-             for name in _BACKEND_MODULES if name in sys.modules}
+    saved = {name: dict(sys.modules[name].__dict__) for name in _BACKEND_MODULES if name in sys.modules}
     try:
         yield
     finally:
@@ -60,11 +60,13 @@ def _restore_backend_modules():
 
 def _live_copies() -> int:
     gc.collect()
-    return sum(1 for o in gc.get_objects()
-               # type(), not isinstance: isinstance falls back to o.__class__,
-               # and some objects (a deprecated torch alias) warn when it is read.
-               if type(o) is FunctionType
-               and o.__qualname__ == "SqliteBackend.keyword_search_with_row_data")
+    return sum(
+        1
+        for o in gc.get_objects()
+        # type(), not isinstance: isinstance falls back to o.__class__,
+        # and some objects (a deprecated torch alias) warn when it is read.
+        if type(o) is FunctionType and o.__qualname__ == "SqliteBackend.keyword_search_with_row_data"
+    )
 
 
 def _second_instance() -> ModuleType:
@@ -136,6 +138,7 @@ def test_the_reload_leaves_no_backend_copy_behind(monkeypatch):
 
     held._ensure_registered("sqlite")
     import memory.backends.sqlite_backend  # noqa: F401 - the module the reload replaces
+
     before = _live_copies()
     with _restored_backends(), monkeypatch.context() as m:
         m.setattr(held, "_REGISTRY", {}, raising=False)

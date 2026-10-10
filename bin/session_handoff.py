@@ -34,6 +34,7 @@ from datetime import UTC, datetime
 def _ensure_table():
     import memory_core as mc
     from memory.backends import active_backend
+
     is_pg = active_backend().name != "sqlite"
     id_col = "id SERIAL PRIMARY KEY" if is_pg else "id INTEGER PRIMARY KEY"
     ts_col = (
@@ -47,7 +48,9 @@ def _ensure_table():
             f"summary TEXT, next_steps TEXT, {ts_col})"
         )
 
+
 _ensure_table()
+
 
 @mcp.tool()
 def save_handoff(project: str, summary: str, next_steps: str):
@@ -55,6 +58,7 @@ def save_handoff(project: str, summary: str, next_steps: str):
     try:
         import memory_core as mc
         from memory.backends import dialect
+
         _p = dialect().param()
         with mc._db() as conn:
             now = datetime.now(UTC).isoformat()
@@ -66,6 +70,7 @@ def save_handoff(project: str, summary: str, next_steps: str):
         return f"State saved for {project}."
     except Exception as exc:
         return f"Error saving handoff: {type(exc).__name__}"
+
 
 if __name__ == "__main__":
     mcp.run()

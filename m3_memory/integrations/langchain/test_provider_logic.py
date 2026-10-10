@@ -18,8 +18,7 @@ import sys
 # Allow running as a bare script: put the repo root (four levels up:
 # m3_memory/integrations/langchain/test_provider_logic.py) on sys.path so
 # `import m3_memory...` resolves without an editable install.
-_REPO_ROOT = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -37,8 +36,14 @@ def test_mapping() -> None:
     from m3_memory.integrations.langchain import mapping
 
     print("mapping.to_mem0_result — field rename + temporal metadata")
-    item = {"id": "x1", "content": "hi", "confidence": 0.8,
-            "valid_from": "2026-01-01", "valid_to": "", "metadata_json": '{"k":"v"}'}
+    item = {
+        "id": "x1",
+        "content": "hi",
+        "confidence": 0.8,
+        "valid_from": "2026-01-01",
+        "valid_to": "",
+        "metadata_json": '{"k":"v"}',
+    }
     r = mapping.to_mem0_result(0.9, item)
     _c(r["memory"] == "hi", "content mapped to 'memory'")
     _c("content" not in r, "'content' key NOT present (mem0 trap)")
@@ -53,30 +58,28 @@ def test_mapping() -> None:
     content, md = mapping.split_value(val)
     _c(content == "body", "content extracted")
     _c(md == {"tag": "a", "n": 3}, "non-content keys -> metadata")
-    merged = mapping.merge_value({"content": content,
-                                  "metadata_json": '{"tag":"a","n":3}'})
-    _c(merged["content"] == "body" and merged["tag"] == "a",
-       "merge_value reconstructs value")
+    merged = mapping.merge_value({"content": content, "metadata_json": '{"tag":"a","n":3}'})
+    _c(merged["content"] == "body" and merged["tag"] == "a", "merge_value reconstructs value")
 
     print("mapping.parse_get — JSON string / not-found sentinel")
     got = mapping.parse_get('{"id":"a","content":"c"}')
-    _c(got is not None and got["content"] == "c",
-       "JSON string parsed")
+    _c(got is not None and got["content"] == "c", "JSON string parsed")
     _c(mapping.parse_get("Error: not found") is None, "not-found -> None")
     _c(mapping.parse_get(None) is None, "None -> None")
 
     print("mapping.parse_written_id — 'Created:' / 'Superseded' / error / suffix")
     u1 = "3f3a44a1-06d9-462b-8c43-7c2a007063c8"
     u2 = "09ae9bf0-bdc7-4d0c-b00b-2c6bf49c475b"
-    _c(mapping.parse_written_id("Created: " + u1) == u1,
-       "Created: <uuid> extracted")
+    _c(mapping.parse_written_id("Created: " + u1) == u1, "Created: <uuid> extracted")
     # the fresh-write suffix must NOT contaminate the id (the real bug we hit)
-    _c(mapping.parse_written_id(
-        f"Created: {u1} (embedding deferred — searchable now via FTS)") == u1,
-       "trailing suffix stripped")
-    _c(mapping.parse_written_id(
-        f"Superseded {u2} -> Created: {u1}") == u1,
-       "Superseded tail extracted (not the old id)")
+    _c(
+        mapping.parse_written_id(f"Created: {u1} (embedding deferred — searchable now via FTS)") == u1,
+        "trailing suffix stripped",
+    )
+    _c(
+        mapping.parse_written_id(f"Superseded {u2} -> Created: {u1}") == u1,
+        "Superseded tail extracted (not the old id)",
+    )
     _c(mapping.parse_written_id("Error: too large") is None, "error -> None")
 
     print("mapping.parse_chatlog_search — JSON string envelope")
@@ -89,10 +92,11 @@ def test_message_normalization() -> None:
     from m3_memory.integrations.langchain.mem0_compat import _msg_text, _normalize_messages
 
     print("mem0 message normalization — str / dict / list")
-    _c(_normalize_messages("hi") == [{"role": "user", "content": "hi"}],
-       "bare string")
-    _c(_normalize_messages({"role": "assistant", "content": "yo"})
-       == [{"role": "assistant", "content": "yo"}], "single dict")
+    _c(_normalize_messages("hi") == [{"role": "user", "content": "hi"}], "bare string")
+    _c(
+        _normalize_messages({"role": "assistant", "content": "yo"}) == [{"role": "assistant", "content": "yo"}],
+        "single dict",
+    )
     lst = _normalize_messages(["a", {"role": "user", "content": "b"}])
     _c(len(lst) == 2 and lst[0]["content"] == "a", "mixed list")
     _c(_msg_text({"content": "x"}) == "x", "content field read")

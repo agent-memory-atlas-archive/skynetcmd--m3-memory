@@ -16,6 +16,7 @@ Every backend: on SQLite the chatlog is its own file (--chatlog-db) and the
 queue is in the main file (--main-db); on PostgreSQL both are tables of the one
 configured database and the path flags are refused.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -29,12 +30,14 @@ from m3_core.paths import resolve_cli_store, seam_backend, seam_dialect
 # excluded the entire requested day). See memory/backends/dialect.py.
 try:  # pragma: no cover - import shim for standalone execution
     from memory.backends.dialect import Dialect as _Dialect
+
     _normalize_date_bound = _Dialect.normalize_date_bound
     _date_bound_op = _Dialect.date_bound_op
 except ImportError:  # pragma: no cover - bootstrap: no memory package
     import re as _re_db
     from datetime import date as _d_db
     from datetime import timedelta as _td_db
+
     _BARE = _re_db.compile(r"^\d{4}-\d{2}-\d{2}$")
 
     def _normalize_date_bound(value: str, side: str) -> str:
@@ -51,8 +54,7 @@ except ImportError:  # pragma: no cover - bootstrap: no memory package
 
 
 def _ensure_observation_queue(con) -> None:
-    """Verify the queue table exists; we don't create it (migrations own that).
-    """
+    """Verify the queue table exists; we don't create it (migrations own that)."""
     sql, params = seam_dialect().table_exists("observation_queue")
     if con.execute(sql, params).fetchone() is None:
         raise SystemExit(
@@ -75,10 +77,7 @@ def _conversations_reverse_chrono(
     items = chatlog_table("items")
     with seam_backend().open_readonly(str(chatlog_db or "")) as con:
         params: list[object] = []
-        where = (
-            "WHERE type='chat_log' "
-            "AND conversation_id IS NOT NULL AND conversation_id != ''"
-        )
+        where = "WHERE type='chat_log' AND conversation_id IS NOT NULL AND conversation_id != ''"
         if since:
             where += f" AND created_at {_date_bound_op('since')} {seam_dialect().param()}"
             params.append(_normalize_date_bound(since, "since"))
@@ -122,27 +121,28 @@ def _chatlog_default() -> str | None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Enqueue chatlog conversations into observation_queue, "
-                    "newest first.",
+        description="Enqueue chatlog conversations into observation_queue, newest first.",
     )
-    parser.add_argument("--main-db", default=None,
-                        help="Main SQLite DB (default: the active store). Not used on PostgreSQL.")
-    parser.add_argument("--chatlog-db", default=None,
-                        help="Chatlog SQLite DB (default: the configured chatlog store). "
-                             "Not used on PostgreSQL.")
-    parser.add_argument("--since", default=None,
-                        help="Only enqueue conversations with rows since this "
-                             "ISO timestamp (e.g. 2026-04-01).")
-    parser.add_argument("--skip-already-enriched", default=None,
-                        metavar="VARIANT",
-                        help="Skip conversation_ids already present under this "
-                             "variant in memory_items.")
-    parser.add_argument("--limit", type=int, default=None,
-                        help="Cap how many conversations to enqueue.")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Count what would be enqueued, write nothing.")
-    parser.add_argument("--yes", action="store_true",
-                        help="Skip the confirmation prompt.")
+    parser.add_argument(
+        "--main-db", default=None, help="Main SQLite DB (default: the active store). Not used on PostgreSQL."
+    )
+    parser.add_argument(
+        "--chatlog-db",
+        default=None,
+        help="Chatlog SQLite DB (default: the configured chatlog store). Not used on PostgreSQL.",
+    )
+    parser.add_argument(
+        "--since", default=None, help="Only enqueue conversations with rows since this ISO timestamp (e.g. 2026-04-01)."
+    )
+    parser.add_argument(
+        "--skip-already-enriched",
+        default=None,
+        metavar="VARIANT",
+        help="Skip conversation_ids already present under this variant in memory_items.",
+    )
+    parser.add_argument("--limit", type=int, default=None, help="Cap how many conversations to enqueue.")
+    parser.add_argument("--dry-run", action="store_true", help="Count what would be enqueued, write nothing.")
+    parser.add_argument("--yes", action="store_true", help="Skip the confirmation prompt.")
     args = parser.parse_args()
 
     try:
@@ -153,14 +153,12 @@ def main() -> int:
         return 1
 
     convos = _conversations_reverse_chrono(chatlog_db, args.since)
-    print(f"found {len(convos)} conversations in chatlog "
-          f"(since={args.since or 'beginning'})")
+    print(f"found {len(convos)} conversations in chatlog (since={args.since or 'beginning'})")
 
     skip = set()
     if args.skip_already_enriched:
         skip = _already_enriched(main_db, args.skip_already_enriched)
-        print(f"  excluding {len(skip)} already enriched under "
-              f"variant={args.skip_already_enriched!r}")
+        print(f"  excluding {len(skip)} already enriched under variant={args.skip_already_enriched!r}")
 
     candidates = [(cid, uid, ts) for cid, uid, ts in convos if cid not in skip]
     if args.limit:
@@ -178,8 +176,14 @@ def main() -> int:
 
     if not args.yes:
         try:
-            resp = input(f"\nenqueue {len(candidates)} rows into "
-                         f"{main_db or seam_backend().name}::observation_queue ? [y/N]: ").strip().lower()
+            resp = (
+                input(
+                    f"\nenqueue {len(candidates)} rows into "
+                    f"{main_db or seam_backend().name}::observation_queue ? [y/N]: "
+                )
+                .strip()
+                .lower()
+            )
         except EOFError:
             resp = ""
         if resp not in ("y", "yes"):
@@ -208,14 +212,11 @@ def main() -> int:
             cur.execute(sql, (cid, uid))
             rowcount += cur.rowcount
         con.commit()
-        print(f"\nenqueued {rowcount} new rows "
-              f"({len(candidates) - rowcount} were already in the queue).")
+        print(f"\nenqueued {rowcount} new rows ({len(candidates) - rowcount} were already in the queue).")
 
-    print("\nnext step: the AgentOS_ObservationDrain scheduled task will "
-          "process them on its next fire (every 15 min).")
+    print("\nnext step: the AgentOS_ObservationDrain scheduled task will process them on its next fire (every 15 min).")
     print("or run manually:")
-    print("  python bin/m3_enrich.py --drain-queue --drain-batch 200 "
-          "--profile enrich_local_qwen")
+    print("  python bin/m3_enrich.py --drain-queue --drain-batch 200 --profile enrich_local_qwen")
     return 0
 
 

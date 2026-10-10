@@ -15,6 +15,7 @@ mode reports the tier-2 state and names `m3 doctor --fix`. These tests pin both
 halves, because the fix is one `and` away from regressing and the failure mode
 is silent — the line still prints, it just lies.
 """
+
 from __future__ import annotations
 
 import io
@@ -56,7 +57,7 @@ def _run_brief(monkeypatch, summary: str, *, shared: bool = True) -> str:
         return payload
 
     pkg = types.ModuleType("memory")
-    pkg.__path__ = []           # mark it a package so `memory.doctor` resolves
+    pkg.__path__ = []  # mark it a package so `memory.doctor` resolves
     doctor = types.ModuleType("memory.doctor")
     doctor.memory_doctor_impl = _fake_impl
     # setitem so monkeypatch restores sys.modules exactly, including the case
@@ -92,9 +93,7 @@ def test_an_unhealthy_cascade_names_a_remedy(monkeypatch, summary):
 def test_an_unhealthy_cascade_reports_the_tier_that_is_wrong(monkeypatch):
     """`tier-1 off by design` alone explains nothing; tier-2's state is the signal."""
     line = _run_brief(monkeypatch, "broken")
-    assert "tier-2" in line and "unreachable" in line, (
-        f"the failing tier's state must appear: {line!r}"
-    )
+    assert "tier-2" in line and "unreachable" in line, f"the failing tier's state must appear: {line!r}"
 
 
 def test_a_healthy_shared_cascade_KEEPS_the_reassuring_wording(monkeypatch):
@@ -102,9 +101,7 @@ def test_a_healthy_shared_cascade_KEEPS_the_reassuring_wording(monkeypatch):
     as a problem — otherwise the fix just trades a false alarm for a false one."""
     line = _run_brief(monkeypatch, "healthy")
     assert "healthy" in line
-    assert "appropriately offline" in line, (
-        "a correct shared-mode cascade must still be described as fine"
-    )
+    assert "appropriately offline" in line, "a correct shared-mode cascade must still be described as fine"
     assert "m3 doctor --fix" not in line, "do not prescribe a fix for a healthy state"
 
 

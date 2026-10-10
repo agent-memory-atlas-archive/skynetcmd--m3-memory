@@ -1,8 +1,8 @@
 ---
 tool: bin/test_mcp_proxy.py
-sha1: 346c4299e9ca
-mtime_utc: 2026-05-23T14:11:18.014264+00:00
-generated_utc: 2026-05-23T17:51:49.315116+00:00
+sha1: 7a120136adc2
+mtime_utc: 2026-10-10T21:05:16.622919+00:00
+generated_utc: 2026-10-10T21:05:29.992898+00:00
 private: false
 ---
 
@@ -28,7 +28,7 @@ Usage:
 
 ## Entry points
 
-- `async def main()` (line 233)
+- `async def main()` (line 245)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -56,7 +56,7 @@ _(no argparse arguments detected)_
 **subprocess**
 
 - `subprocess.run()  → `['security', 'find-generic-password', '-s', 'ANTHROPIC_API_KEY', '-w']`` (line 181)
-- `subprocess.run()  → `cmd`` (line 209)
+- `subprocess.run()  → `cmd`` (line 216)
 
 **http**
 

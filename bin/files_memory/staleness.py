@@ -18,6 +18,7 @@ batch flags, or just a report).
 Public API:
     files_staleness_review(directory, ...) -> StalenessReport
 """
+
 from __future__ import annotations
 
 import logging
@@ -39,21 +40,23 @@ logger = logging.getLogger("files_memory.staleness")
 @dataclass(slots=True)
 class StaleFile:
     """One file flagged as stale (changed since last ingest)."""
+
     path: str
     identity_key: str
-    last_ingested_version: str          # e.g. "ingest-2"
-    last_ingest_date: str               # ISO 8601
+    last_ingested_version: str  # e.g. "ingest-2"
+    last_ingest_date: str  # ISO 8601
     last_sha256: str
     current_sha256: str
-    mtime: str                          # ISO 8601
+    mtime: str  # ISO 8601
     fact_count: int
-    promoted_count: int                 # facts/leaves/summary already promoted
-    suggested_action: str               # "re-ingest" | "skip-touched" | etc.
+    promoted_count: int  # facts/leaves/summary already promoted
+    suggested_action: str  # "re-ingest" | "skip-touched" | etc.
 
 
 @dataclass(slots=True)
 class MissingFile:
     """File in files.db, no longer on disk."""
+
     path: str
     file_node_uuid: str
     last_ingest_date: str
@@ -65,6 +68,7 @@ class MissingFile:
 @dataclass(slots=True)
 class NewFile:
     """File on disk, never ingested."""
+
     path: str
     size_bytes: int
     mtime: str
@@ -74,6 +78,7 @@ class NewFile:
 @dataclass(slots=True)
 class FailedExtraction:
     """File with at least one extraction_status='failed' leaf."""
+
     path: str
     file_node_uuid: str
     failed_leaf_count: int
@@ -84,6 +89,7 @@ class FailedExtraction:
 @dataclass(slots=True)
 class DriftedPromotion:
     """Promoted memory whose source has been superseded."""
+
     marker_uuid: str
     promoted_to: str
     source_memory: str
@@ -101,6 +107,7 @@ class RenameCandidate:
     longer on disk. Always user-confirmed — `files_link_rename` does
     the explicit linking.
     """
+
     missing_file_node_uuid: str
     missing_path: str
     new_path: str
@@ -112,6 +119,7 @@ class RenameCandidate:
 @dataclass(slots=True)
 class StalenessReport:
     """Full review output."""
+
     directory: str | None
     corpus_id: str | None
     stale: list[StaleFile] = field(default_factory=list)
@@ -154,10 +162,12 @@ def files_staleness_review(
         db_path: target files.db.
     """
     import time
+
     t0 = time.perf_counter()
     report = StalenessReport(directory=directory, corpus_id=corpus_id)
 
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     with _db(db_path) as conn:
         # seam yields name-addressable rows on both backends (no sqlite3.Row).
@@ -203,6 +213,7 @@ def files_staleness_review(
             # Use the walker so we get the same filtering as the ingester.
             try:
                 from .walker import walk
+
                 for entry in walk(root):
                     disk_paths.add(entry.path)
             except Exception as e:
@@ -238,13 +249,15 @@ def files_staleness_review(
             if not os.path.isfile(path):
                 # Missing.
                 fact_n, promoted_n = _fact_and_promotion_counts(conn, db_row["uuid"])
-                report.missing.append(MissingFile(
-                    path=path,
-                    file_node_uuid=db_row["uuid"],
-                    last_ingest_date=last_ingest,
-                    fact_count=fact_n,
-                    promoted_count=promoted_n,
-                ))
+                report.missing.append(
+                    MissingFile(
+                        path=path,
+                        file_node_uuid=db_row["uuid"],
+                        last_ingest_date=last_ingest,
+                        fact_count=fact_n,
+                        promoted_count=promoted_n,
+                    )
+                )
                 continue
 
             try:
@@ -293,12 +306,15 @@ def files_staleness_review(
             except OSError:
                 continue
             from .identity import filetype_for
-            report.new.append(NewFile(
-                path=path,
-                size_bytes=st.st_size,
-                mtime=_iso_utc(st.st_mtime),
-                filetype=filetype_for(path),
-            ))
+
+            report.new.append(
+                NewFile(
+                    path=path,
+                    size_bytes=st.st_size,
+                    mtime=_iso_utc(st.st_mtime),
+                    filetype=filetype_for(path),
+                )
+            )
 
         # 5. Failed extractions.
         if include_failed_extraction:
@@ -323,13 +339,15 @@ def files_staleness_review(
                 extra_params.append(canonical_path(directory).replace("%", "[%]") + "%")
             sql += "GROUP BY fn.uuid, fn.path_absolute"
             for r in conn.execute(sql, extra_params).fetchall():
-                report.failed_extraction.append(FailedExtraction(
-                    path=r["path_absolute"],
-                    file_node_uuid=r["uuid"],
-                    failed_leaf_count=r["failed_count"],
-                    total_leaf_count=r["total_count"],
-                    last_error=r["last_error"],
-                ))
+                report.failed_extraction.append(
+                    FailedExtraction(
+                        path=r["path_absolute"],
+                        file_node_uuid=r["uuid"],
+                        failed_leaf_count=r["failed_count"],
+                        total_leaf_count=r["total_count"],
+                        last_error=r["last_error"],
+                    )
+                )
 
         # 6. Drifted promotions (source superseded after promotion).
         if include_drifted_promotions:
@@ -345,14 +363,16 @@ def files_staleness_review(
                 f"WHERE fn.superseded_by IS NOT NULL"
             )
             for r in conn.execute(sql).fetchall():
-                report.drifted_promotions.append(DriftedPromotion(
-                    marker_uuid=r["marker_uuid"],
-                    promoted_to=r["promoted_to"],
-                    source_memory=r["source_memory"],
-                    source_path=r["path_absolute"],
-                    source_superseded_at=r["superseded_at"],
-                    reason=r["reason"],
-                ))
+                report.drifted_promotions.append(
+                    DriftedPromotion(
+                        marker_uuid=r["marker_uuid"],
+                        promoted_to=r["promoted_to"],
+                        source_memory=r["source_memory"],
+                        source_path=r["path_absolute"],
+                        source_superseded_at=r["superseded_at"],
+                        reason=r["reason"],
+                    )
+                )
 
         # 7. Rename heuristic. Pair every `missing` file with a `new` file
         #    whose on-disk content_sha256 matches. Exact match only; never
@@ -380,13 +400,15 @@ def files_staleness_review(
                 if hit is None or hit.file_node_uuid in seen_missing:
                     continue
                 seen_missing.add(hit.file_node_uuid)
-                report.rename_candidates.append(RenameCandidate(
-                    missing_file_node_uuid=hit.file_node_uuid,
-                    missing_path=hit.path,
-                    new_path=n.path,
-                    content_sha256=sha,
-                    confidence="exact_sha",
-                ))
+                report.rename_candidates.append(
+                    RenameCandidate(
+                        missing_file_node_uuid=hit.file_node_uuid,
+                        missing_path=hit.path,
+                        new_path=n.path,
+                        content_sha256=sha,
+                        confidence="exact_sha",
+                    )
+                )
 
     report.duration_ms = int((time.perf_counter() - t0) * 1000)
     return report
@@ -414,17 +436,17 @@ def link_rename(
         db_path: target files.db.
     """
     import json as _json
+
     new_abs = canonical_path(new_path)
     if not os.path.isfile(new_abs):
         raise FileNotFoundError(f"new_path is not a file: {new_abs}")
 
     actual_sha = file_content_sha256(new_abs)
     if expect_sha256 and actual_sha != expect_sha256:
-        raise ValueError(
-            f"sha mismatch: expected {expect_sha256!r}, got {actual_sha!r}"
-        )
+        raise ValueError(f"sha mismatch: expected {expect_sha256!r}, got {actual_sha!r}")
 
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     with _db(db_path) as conn:
         # seam yields name-addressable rows on both backends (no sqlite3.Row).
@@ -464,12 +486,15 @@ def link_rename(
             md = {}
         renames = md.get("rename_history") or []
         import datetime as _dt
-        renames.append({
-            "from": row["path_absolute"],
-            "to": new_abs,
-            "at": _dt.datetime.now(_dt.UTC).isoformat(),
-            "method": "files_link_rename",
-        })
+
+        renames.append(
+            {
+                "from": row["path_absolute"],
+                "to": new_abs,
+                "at": _dt.datetime.now(_dt.UTC).isoformat(),
+                "method": "files_link_rename",
+            }
+        )
         md["rename_history"] = renames
 
         conn.execute(
@@ -489,9 +514,11 @@ def link_rename(
 def _fact_and_promotion_counts(conn, file_node_uuid: str) -> tuple[int, int]:
     """Return (fact_count, promoted_count) for a file_node."""
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     facts = conn.execute(
-        f"SELECT COUNT(*) FROM {files_table('facts')} WHERE file_node = {_p}", (file_node_uuid,),
+        f"SELECT COUNT(*) FROM {files_table('facts')} WHERE file_node = {_p}",
+        (file_node_uuid,),
     ).fetchone()[0]
     # Promoted = anything in promotion_markers whose source is owned by this file_node.
     promoted = conn.execute(
@@ -506,4 +533,5 @@ def _fact_and_promotion_counts(conn, file_node_uuid: str) -> tuple[int, int]:
 
 def _iso_utc(ts: float) -> str:
     import datetime as _dt
+
     return _dt.datetime.fromtimestamp(ts, tz=_dt.UTC).isoformat()

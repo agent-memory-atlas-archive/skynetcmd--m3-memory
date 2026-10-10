@@ -84,7 +84,7 @@ from m3_sdk import M3Context, resolve_db_path
 # Python 3.12+ sqlite3 datetime adapter deprecation fix
 sqlite3.register_adapter(datetime, lambda val: val.isoformat())
 
-logging.basicConfig(level=logging.INFO, format='%(name)s: [%(levelname)s] %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(name)s: [%(levelname)s] %(message)s")
 logger = logging.getLogger("pg_sync")
 
 # Initialize SDK context
@@ -97,6 +97,7 @@ MANIFEST_DIR = os.path.join(BASE_DIR, "config", "sync_manifests")
 
 
 # ── Manifest loading ─────────────────────────────────────────────────────────
+
 
 def _load_manifest(manifest_path: str) -> dict[str, Any]:
     """Load and validate a sync manifest YAML file."""
@@ -122,6 +123,7 @@ def _infer_manifest_path(db_path: str) -> str:
 
 # ── Credentials ──────────────────────────────────────────────────────────────
 
+
 def _get_pg_url() -> str:
     """Resolve the data-warehouse PostgreSQL URL from environment or vault.
 
@@ -129,6 +131,7 @@ def _get_pg_url() -> str:
     read M3_PG_URL (the primary-store var) — pg_sync fans in to the CDW mirror.
     """
     from m3_sdk import resolve_warehouse_dsn
+
     url = resolve_warehouse_dsn()
     if url:
         return url
@@ -140,6 +143,7 @@ def _get_pg_url() -> str:
 
 
 # ── Watermarks ───────────────────────────────────────────────────────────────
+
 
 def _ensure_watermark_table(sl_cur) -> None:
     """Guarantee the sync_watermarks table exists on the local store.
@@ -156,10 +160,7 @@ def _ensure_watermark_table(sl_cur) -> None:
     pg_053) — that one ran against the PG PRIMARY, which the migration covers.
     Idempotent — safe to call once per target before syncing.
     """
-    sl_cur.execute(
-        "CREATE TABLE IF NOT EXISTS sync_watermarks "
-        "(direction TEXT PRIMARY KEY, last_synced_at TEXT)"
-    )
+    sl_cur.execute("CREATE TABLE IF NOT EXISTS sync_watermarks (direction TEXT PRIMARY KEY, last_synced_at TEXT)")
 
 
 def _get_watermark(sl_cur, direction: str, target_name: str) -> str | None:
@@ -168,8 +169,8 @@ def _get_watermark(sl_cur, direction: str, target_name: str) -> str | None:
     prefixed_direction = f"{target_name}_{direction}" if target_name != "main" else direction
     try:
         sl_cur.execute(
-            f"SELECT last_synced_at FROM sync_watermarks WHERE direction = {_param_of(sl_cur)}",
-            (prefixed_direction,))
+            f"SELECT last_synced_at FROM sync_watermarks WHERE direction = {_param_of(sl_cur)}", (prefixed_direction,)
+        )
         row = sl_cur.fetchone()
         return row[0] if row else None
     except Exception as exc:
@@ -204,6 +205,7 @@ def _set_watermark(sl_cur, direction: str, ts: str, target_name: str) -> None:
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 def _table_exists(sl_cur, table_name: str) -> bool:
     """Check if a table exists in the local store.
 
@@ -224,6 +226,7 @@ def _build_conflict_clause(pk_columns: list[str]) -> str:
 
 
 # ── PG schema helpers (legacy — agent_memory.db only) ────────────────────────
+
 
 def _ensure_pg_schema(pg_cur):
     """Auto-add columns from newer migrations that PG may be missing."""
@@ -288,6 +291,7 @@ def _ensure_pg_tier_tables(pg_cur):
 # ── Legacy per-table sync functions (agent_memory.db) ────────────────────────
 # These are preserved verbatim so test_pg_sync_fk_safety.py continues to pass.
 
+
 def sync_memory_items(sl_cur, pg_cur, sl_conn, target_name: str):
     logger.info(f"[{target_name}] Synchronizing memory_items (UUID-based, delta sync)...")
     _ensure_pg_schema(pg_cur)
@@ -296,7 +300,8 @@ def sync_memory_items(sl_cur, pg_cur, sl_conn, target_name: str):
     # 1. PUSH: Local to Remote (delta — only changed rows since last push)
     watermark = _get_watermark(sl_cur, "pg_push", target_name)
     if watermark:
-        sl_cur.execute(f"""
+        sl_cur.execute(
+            f"""
             SELECT id, type, title, content, metadata_json, agent_id, model_id,
                    change_agent, importance, source, origin_device, is_deleted,
                    expires_at, decay_rate, created_at, updated_at,
@@ -304,7 +309,9 @@ def sync_memory_items(sl_cur, pg_cur, sl_conn, target_name: str):
                    valid_from, valid_to, COALESCE(content_hash, '') as content_hash
             FROM memory_items
             WHERE updated_at > {_param_of(sl_cur)} OR (updated_at IS NULL AND created_at > {_param_of(sl_cur)})
-        """, (watermark, watermark))
+        """,
+            (watermark, watermark),
+        )
         logger.info(f"[{target_name}] Delta push: rows changed since {watermark}")
     else:
         sl_cur.execute("""
@@ -355,6 +362,7 @@ def sync_memory_items(sl_cur, pg_cur, sl_conn, target_name: str):
             if p < len(r) and not _valid_ts(r[p]):
                 r[p] = None
         return tuple(r)
+
     local_rows = [_norm_ts(r) for r in local_rows]
 
     # Batch UPSERT using execute_values or manual batching for PostgreSQL
@@ -412,7 +420,8 @@ def sync_memory_items(sl_cur, pg_cur, sl_conn, target_name: str):
     except Exception:
         pull_watermark = now
     if watermark:
-        pg_cur.execute("""
+        pg_cur.execute(
+            """
             SELECT id, type, title, content, metadata_json, agent_id, model_id,
                    change_agent, importance, source, origin_device, is_deleted,
                    expires_at, decay_rate, created_at, updated_at,
@@ -420,7 +429,9 @@ def sync_memory_items(sl_cur, pg_cur, sl_conn, target_name: str):
                    valid_from, valid_to, COALESCE(content_hash, '') as content_hash
             FROM memory_items
             WHERE updated_at > %s OR (updated_at IS NULL AND created_at > %s)
-        """, (watermark, watermark))
+        """,
+            (watermark, watermark),
+        )
         logger.info(f"[{target_name}] Delta pull: rows changed since {watermark}")
     else:
         pg_cur.execute("""
@@ -440,16 +451,41 @@ def sync_memory_items(sl_cur, pg_cur, sl_conn, target_name: str):
     if remote_rows:
         try:
             cols = [
-                "id", "type", "title", "content", "metadata_json", "agent_id",
-                "model_id", "change_agent", "importance", "source", "origin_device",
-                "is_deleted", "expires_at", "decay_rate", "created_at", "updated_at",
-                "user_id", "scope", "valid_from", "valid_to", "content_hash",
+                "id",
+                "type",
+                "title",
+                "content",
+                "metadata_json",
+                "agent_id",
+                "model_id",
+                "change_agent",
+                "importance",
+                "source",
+                "origin_device",
+                "is_deleted",
+                "expires_at",
+                "decay_rate",
+                "created_at",
+                "updated_at",
+                "user_id",
+                "scope",
+                "valid_from",
+                "valid_to",
+                "content_hash",
             ]
             # Columns the remote may overwrite. Deliberately NOT every column:
             # created_at, agent_id, importance and friends stay as first written.
             update_cols = [
-                "title", "content", "metadata_json", "updated_at", "is_deleted",
-                "change_agent", "user_id", "scope", "valid_from", "valid_to",
+                "title",
+                "content",
+                "metadata_json",
+                "updated_at",
+                "is_deleted",
+                "change_agent",
+                "user_id",
+                "scope",
+                "valid_from",
+                "valid_to",
                 "content_hash",
             ]
             # Last-write-wins, plus the manual/system protection: a locally
@@ -471,8 +507,12 @@ def sync_memory_items(sl_cur, pg_cur, sl_conn, target_name: str):
                     batch.append(tuple(row_list))
 
                 pull_count += _local_backend().bulk_upsert(
-                    sl_conn, "memory_items", cols, batch,
-                    conflict_target="(id)", update_columns=update_cols,
+                    sl_conn,
+                    "memory_items",
+                    cols,
+                    batch,
+                    conflict_target="(id)",
+                    update_columns=update_cols,
                     guard_sql=guard,
                 )
                 sl_conn.commit()
@@ -488,6 +528,7 @@ def sync_memory_relationships(sl_cur, pg_cur, sl_conn, target_name: str):
     """Synchronizes the memory_relationships table bi-directionally with watermark logic."""
     logger.info(f"[{target_name}] Synchronizing memory_relationships...")
     from psycopg2.extras import execute_values
+
     now = datetime.now(UTC).isoformat()
 
     # 1. PUSH: Local to Remote
@@ -496,7 +537,8 @@ def sync_memory_relationships(sl_cur, pg_cur, sl_conn, target_name: str):
         sl_cur.execute(
             f"SELECT id, from_id, to_id, relationship_type, created_at "
             f"FROM memory_relationships WHERE created_at > {_param_of(sl_cur)}",
-            (watermark,))
+            (watermark,),
+        )
     else:
         sl_cur.execute("SELECT id, from_id, to_id, relationship_type, created_at FROM memory_relationships")
 
@@ -504,7 +546,11 @@ def sync_memory_relationships(sl_cur, pg_cur, sl_conn, target_name: str):
     push_count = 0
     if local_rows:
         try:
-            execute_values(pg_cur, "INSERT INTO memory_relationships (id, from_id, to_id, relationship_type, created_at) VALUES %s ON CONFLICT (id) DO NOTHING", local_rows)
+            execute_values(
+                pg_cur,
+                "INSERT INTO memory_relationships (id, from_id, to_id, relationship_type, created_at) VALUES %s ON CONFLICT (id) DO NOTHING",
+                local_rows,
+            )
             push_count = len(local_rows)
         except Exception as exc:
             logger.warning(f"[{target_name}] Batch Relationship push failed: {type(exc).__name__}")
@@ -523,7 +569,10 @@ def sync_memory_relationships(sl_cur, pg_cur, sl_conn, target_name: str):
     except Exception:
         pull_watermark = now
     if watermark:
-        pg_cur.execute("SELECT id, from_id, to_id, relationship_type, created_at FROM memory_relationships WHERE created_at > %s", (watermark,))
+        pg_cur.execute(
+            "SELECT id, from_id, to_id, relationship_type, created_at FROM memory_relationships WHERE created_at > %s",
+            (watermark,),
+        )
     else:
         pg_cur.execute("SELECT id, from_id, to_id, relationship_type, created_at FROM memory_relationships")
 
@@ -537,7 +586,8 @@ def sync_memory_relationships(sl_cur, pg_cur, sl_conn, target_name: str):
             # PG in a trailing clause), which is why it is a seam primitive
             # rather than a template a caller could fill in.
             pull_count = _local_backend().bulk_insert_ignore(
-                sl_conn, "memory_relationships",
+                sl_conn,
+                "memory_relationships",
                 ["id", "from_id", "to_id", "relationship_type", "created_at"],
                 [tuple(r) for r in remote_rows],
                 conflict_target="(id)",
@@ -561,7 +611,9 @@ def sync_secrets(sl_cur, pg_cur, target_name: str):
     push_count = 0
     if local_rows:
         try:
-            execute_values(pg_cur, """
+            execute_values(
+                pg_cur,
+                """
                 INSERT INTO synchronized_secrets (service_name, encrypted_value, version, origin_device, updated_at)
                 VALUES %s
                 ON CONFLICT (service_name) DO UPDATE SET
@@ -571,7 +623,9 @@ def sync_secrets(sl_cur, pg_cur, target_name: str):
                     updated_at = EXCLUDED.updated_at
                 WHERE EXCLUDED.version > synchronized_secrets.version
                    OR (EXCLUDED.version = synchronized_secrets.version AND EXCLUDED.updated_at > synchronized_secrets.updated_at)
-            """, local_rows)
+            """,
+                local_rows,
+            )
             push_count = len(local_rows)
         except Exception as exc:
             logger.warning(f"[{target_name}] Batch Secret push failed: {type(exc).__name__}")
@@ -596,13 +650,12 @@ def sync_secrets(sl_cur, pg_cur, target_name: str):
                 "AND excluded.updated_at > synchronized_secrets.updated_at)"
             )
             pull_count = _local_backend().bulk_upsert(
-                sl_cur.connection, "synchronized_secrets",
-                ["service_name", "encrypted_value", "version", "origin_device",
-                 "updated_at"],
+                sl_cur.connection,
+                "synchronized_secrets",
+                ["service_name", "encrypted_value", "version", "origin_device", "updated_at"],
                 [tuple(r) for r in remote_rows],
                 conflict_target="(service_name)",
-                update_columns=["encrypted_value", "version", "origin_device",
-                                "updated_at"],
+                update_columns=["encrypted_value", "version", "origin_device", "updated_at"],
                 guard_sql=guard,
             )
         except Exception as exc:
@@ -648,6 +701,7 @@ def sync_tasks(sl_cur, pg_cur, sl_conn, target_name: str):
     """
     logger.info(f"[{target_name}] Synchronizing tasks...")
     from psycopg2.extras import execute_values
+
     now = datetime.now(UTC).isoformat()
 
     _ensure_pg_tasks_schema(pg_cur)
@@ -719,18 +773,28 @@ def sync_tasks(sl_cur, pg_cur, sl_conn, target_name: str):
             # Columns the remote may overwrite. Deliberately NOT `created_by` or
             # `created_at`: provenance stays as first written.
             update_cols = [
-                "title", "description", "state", "owner_agent", "parent_task_id",
-                "result_memory_id", "metadata_json", "updated_at", "completed_at",
+                "title",
+                "description",
+                "state",
+                "owner_agent",
+                "parent_task_id",
+                "result_memory_id",
+                "metadata_json",
+                "updated_at",
+                "completed_at",
                 "deleted_at",
             ]
-            guard = ("WHERE tasks.updated_at IS NULL "
-                     "OR excluded.updated_at > tasks.updated_at")
+            guard = "WHERE tasks.updated_at IS NULL OR excluded.updated_at > tasks.updated_at"
             cols = [c.strip() for c in task_cols.split(",")]
             for chunk in batched(remote_rows, BATCH_SIZE):
                 batch = [tuple(r) for r in chunk]
                 pull_count += _local_backend().bulk_upsert(
-                    sl_conn, "tasks", cols, batch,
-                    conflict_target="(id)", update_columns=update_cols,
+                    sl_conn,
+                    "tasks",
+                    cols,
+                    batch,
+                    conflict_target="(id)",
+                    update_columns=update_cols,
                     guard_sql=guard,
                 )
                 sl_conn.commit()
@@ -772,8 +836,10 @@ def _embed_families(cur) -> set:
     try:
         from doctor.embed_space_probe import _family
     except Exception:  # noqa: BLE001 — fall back to a crude normaliser
+
         def _family(t):  # type: ignore[misc]
             return (t or "").strip().lower()
+
     try:
         cur.execute("SELECT DISTINCT embed_model FROM memory_embeddings")
         return {_family(str(t or "")) for (t,) in cur.fetchall() if t}
@@ -808,6 +874,7 @@ def sync_memory_embeddings(sl_cur, pg_cur, sl_conn, target_name: str):
     logger.info(f"[{target_name}] Synchronizing memory_embeddings...")
     from psycopg2 import Binary
     from psycopg2.extras import execute_values
+
     now = datetime.now(UTC).isoformat()
 
     _ensure_pg_embeddings_schema(pg_cur)
@@ -819,14 +886,17 @@ def sync_memory_embeddings(sl_cur, pg_cur, sl_conn, target_name: str):
     watermark = _get_watermark(sl_cur, "emb_push", target_name)
     if watermark:
         # memory_embeddings has no updated_at, so filter by parent memory_item timestamps
-        sl_cur.execute(f"""
+        sl_cur.execute(
+            f"""
             SELECT id, memory_id, embedding, embed_model, dim
             FROM memory_embeddings
             WHERE memory_id IN (
                 SELECT id FROM memory_items
                 WHERE updated_at > {_param_of(sl_cur)} OR (updated_at IS NULL AND created_at > {_param_of(sl_cur)})
             )
-        """, (watermark, watermark))
+        """,
+            (watermark, watermark),
+        )
         logger.info(f"[{target_name}] Delta embedding push: rows changed since {watermark}")
     else:
         sl_cur.execute("SELECT id, memory_id, embedding, embed_model, dim FROM memory_embeddings")
@@ -846,17 +916,13 @@ def sync_memory_embeddings(sl_cur, pg_cur, sl_conn, target_name: str):
         for chunk in batched(candidate_ids, BATCH_SIZE):
             # list, not the tuple batched yields: psycopg2 adapts a list to an
             # ARRAY for ANY(), but a tuple to a ROW, which ANY() rejects.
-            pg_cur.execute(
-                "SELECT mi.id FROM memory_items mi WHERE mi.id = ANY(%s)", (list(chunk),)
-            )
+            pg_cur.execute("SELECT mi.id FROM memory_items mi WHERE mi.id = ANY(%s)", (list(chunk),))
             existing_ids.update(r[0] for r in pg_cur.fetchall())
 
         filtered_rows = [r for r in local_rows if r[1] in existing_ids]
         skipped_fk = len(local_rows) - len(filtered_rows)
         if skipped_fk:
-            logger.info(
-                f"[{target_name}] Skipping {skipped_fk} embeddings whose memory_item is not yet in PG"
-            )
+            logger.info(f"[{target_name}] Skipping {skipped_fk} embeddings whose memory_item is not yet in PG")
 
         try:
             # Convert sqlite3.Row to tuples with Binary-wrapped embedding blobs
@@ -868,14 +934,18 @@ def sync_memory_embeddings(sl_cur, pg_cur, sl_conn, target_name: str):
                 values.append(tuple(row_list))
 
             for chunk in batched(values, BATCH_SIZE):
-                execute_values(pg_cur, """
+                execute_values(
+                    pg_cur,
+                    """
                     INSERT INTO memory_embeddings (id, memory_id, embedding, embed_model, dim)
                     VALUES %s
                     ON CONFLICT (id) DO UPDATE SET
                         embedding = EXCLUDED.embedding,
                         embed_model = EXCLUDED.embed_model,
                         dim = EXCLUDED.dim
-                """, chunk)
+                """,
+                    chunk,
+                )
                 push_count += len(chunk)
         except Exception as exc:
             logger.error(f"[{target_name}] Batch embedding push failed: {type(exc).__name__}: {exc}")
@@ -891,12 +961,15 @@ def sync_memory_embeddings(sl_cur, pg_cur, sl_conn, target_name: str):
     # 2. PULL: Remote to Local (delta)
     watermark = _get_watermark(sl_cur, "emb_pull", target_name)
     if watermark:
-        pg_cur.execute("""
+        pg_cur.execute(
+            """
             SELECT me.id, me.memory_id, me.embedding, me.embed_model, me.dim
             FROM memory_embeddings me
             JOIN memory_items mi ON me.memory_id = mi.id
             WHERE mi.updated_at > %s OR (mi.updated_at IS NULL AND mi.created_at > %s)
-        """, (watermark, watermark))
+        """,
+            (watermark, watermark),
+        )
         logger.info(f"[{target_name}] Delta embedding pull: rows changed since {watermark}")
     else:
         pg_cur.execute("SELECT id, memory_id, embedding, embed_model, dim FROM memory_embeddings")
@@ -924,7 +997,8 @@ def sync_memory_embeddings(sl_cur, pg_cur, sl_conn, target_name: str):
                 # a second one here could strand a row's vector a version behind
                 # its content.
                 pull_count += _local_backend().bulk_upsert(
-                    sl_conn, "memory_embeddings",
+                    sl_conn,
+                    "memory_embeddings",
                     ["id", "memory_id", "embedding", "embed_model", "dim"],
                     [tuple(r) for r in batch],
                     conflict_target="(id)",
@@ -941,6 +1015,7 @@ def sync_memory_embeddings(sl_cur, pg_cur, sl_conn, target_name: str):
 
 
 # ── Sync lock ─────────────────────────────────────────────────────────────────
+
 
 def _set_warehouse_search_path(pg_conn) -> str:
     """If the target PG holds the warehouse schema `m3_warehouse`, prepend it to
@@ -991,10 +1066,7 @@ def _ensure_sync_lock_table(sl_cur) -> None:
     A store that predates 044, or a target DB running a different migration set,
     must therefore still be able to take the lock on first run rather than
     wedging. Idempotent."""
-    sl_cur.execute(
-        "CREATE TABLE IF NOT EXISTS sync_locks "
-        "(lock_name TEXT PRIMARY KEY, holder TEXT, acquired_at TEXT)"
-    )
+    sl_cur.execute("CREATE TABLE IF NOT EXISTS sync_locks (lock_name TEXT PRIMARY KEY, holder TEXT, acquired_at TEXT)")
 
 
 # Staleness ceiling for a lock whose owner PID we can't evaluate (e.g. a legacy
@@ -1021,6 +1093,7 @@ _LOCK_SKIP_REASON: str = ""
 # conventional "temporary failure, retry later", which is exactly this.
 _EXIT_SKIPPED = 75
 
+
 # Bind placeholder for the LOCAL store. The local half is SQLite today (Phase 3
 # ports it), but a literal '?' in feature code is a portability bug the moment a
 # second local backend lands — ask the seam, which knows. Falls back to the
@@ -1039,9 +1112,11 @@ def _local_dialect():
     """
     try:
         from memory.backends import dialect
+
         return dialect()
     except ImportError:  # bootstrap: seam not importable yet
         from memory.backends.dialect import dialect_for
+
         return dialect_for("sqlite")
 
 
@@ -1096,6 +1171,7 @@ def _param_of(cur) -> str:
     """
     try:
         from memory.backends.dialect import dialect_for_connection
+
         return dialect_for_connection(cur).param()
     except ImportError:  # bootstrap: seam not importable yet
         return _LOCAL_PARAM
@@ -1105,6 +1181,7 @@ def _this_host() -> str:
     """This machine's name, for lock ownership. Never raises."""
     try:
         import socket
+
         return socket.gethostname() or "unknown-host"
     except Exception:  # noqa: BLE001 — a lock must not fail to be taken over this
         return "unknown-host"
@@ -1170,6 +1247,7 @@ def _sync_lock_is_stale(raw: str) -> bool:
         # (A live PID means a sync really is in progress -> not stale.)
         try:
             from m3_halt import pid_is_alive
+
             if not pid_is_alive(pid):
                 return True
         except Exception:
@@ -1201,10 +1279,7 @@ def _acquire_sync_lock(sl_cur) -> bool:
         logger.warning(f"Could not ensure sync_locks table ({e}); proceeding without lock.")
         return True
     try:
-        sl_cur.execute(
-            f"SELECT holder FROM sync_locks WHERE lock_name = {_param_of(sl_cur)}",
-            (_SYNC_LOCK_NAME,)
-        )
+        sl_cur.execute(f"SELECT holder FROM sync_locks WHERE lock_name = {_param_of(sl_cur)}", (_SYNC_LOCK_NAME,))
         row = sl_cur.fetchone()
         if row and row[0] and not _sync_lock_is_stale(row[0]):
             # ⚠ RECORD WHY, not just that it failed. This returns False for a
@@ -1226,7 +1301,7 @@ def _acquire_sync_lock(sl_cur) -> bool:
             f"VALUES ({_param_of(sl_cur)}, {_param_of(sl_cur)}, {_param_of(sl_cur)}) "
             f"ON CONFLICT (lock_name) DO UPDATE SET "
             f"holder = excluded.holder, acquired_at = excluded.acquired_at",
-            (_SYNC_LOCK_NAME, _lock_value(now_iso), now_iso)
+            (_SYNC_LOCK_NAME, _lock_value(now_iso), now_iso),
         )
         return True
     except Exception as e:
@@ -1238,15 +1313,13 @@ def _acquire_sync_lock(sl_cur) -> bool:
 def _release_sync_lock(sl_cur):
     """Releases the global sync lock."""
     try:
-        sl_cur.execute(
-            f"DELETE FROM sync_locks WHERE lock_name = {_param_of(sl_cur)}",
-            (_SYNC_LOCK_NAME,)
-        )
+        sl_cur.execute(f"DELETE FROM sync_locks WHERE lock_name = {_param_of(sl_cur)}", (_SYNC_LOCK_NAME,))
     except Exception as e:
         logger.warning(f"Lock release failed: {e}")
 
 
 # ── Generic manifest-driven sync ─────────────────────────────────────────────
+
 
 def _sync_table_generic(
     sl_cur,
@@ -1294,8 +1367,7 @@ def _sync_table_generic(
             # below makes a re-push idempotent, so the only cost is a little
             # redundant traffic — far better than permanent row loss.
             sl_cur.execute(
-                f"SELECT * FROM {name} WHERE {ts_col} > {_param_of(sl_cur)} "
-                f"OR {ts_col} IS NULL",
+                f"SELECT * FROM {name} WHERE {ts_col} > {_param_of(sl_cur)} OR {ts_col} IS NULL",
                 (watermark,),
             )
             logger.info(f"[{target_name}] [{name}] Delta push: rows changed since {watermark}")
@@ -1325,6 +1397,7 @@ def _sync_table_generic(
             set_clause = ", ".join(f"{c} = EXCLUDED.{c}" for c in non_pk_cols) if non_pk_cols else "id = EXCLUDED.id"
 
             from psycopg2.extras import execute_values
+
             placeholders = ", ".join(["%s"] * len(col_names))
             col_list = ", ".join(col_names)
 
@@ -1388,7 +1461,9 @@ def _sync_table_generic(
                 col_names = [d[0] for d in pg_cur.description]
                 conflict_clause = _build_conflict_clause(pk_columns)
                 non_pk_cols = [c for c in col_names if c not in pk_columns]
-                set_clause = ", ".join(f"{c} = excluded.{c}" for c in non_pk_cols) if non_pk_cols else "id = excluded.id"
+                set_clause = (
+                    ", ".join(f"{c} = excluded.{c}" for c in non_pk_cols) if non_pk_cols else "id = excluded.id"
+                )
                 placeholders = _local_dialect().placeholder(len(col_names))
                 col_list = ", ".join(col_names)
 
@@ -1417,6 +1492,7 @@ def _sync_table_generic(
 
 # ── Per-DB sync dispatcher ───────────────────────────────────────────────────
 
+
 def _sync_agent_memory_db(sl_cur, pg_cur, sl_conn, target_name: str, dry_run: bool = False) -> None:
     """Sync agent_memory.db using the legacy per-table functions.
 
@@ -1425,8 +1501,10 @@ def _sync_agent_memory_db(sl_cur, pg_cur, sl_conn, target_name: str, dry_run: bo
     memory_items, version-based conflict resolution for secrets).
     """
     if dry_run:
-        logger.info(f"[{target_name}] [DRY-RUN] Would sync: memory_items, memory_embeddings, "
-                    f"memory_relationships, tasks, synchronized_secrets")
+        logger.info(
+            f"[{target_name}] [DRY-RUN] Would sync: memory_items, memory_embeddings, "
+            f"memory_relationships, tasks, synchronized_secrets"
+        )
         return
 
     # Step 1: Memory Items
@@ -1483,8 +1561,9 @@ def _sync_agent_memory_db(sl_cur, pg_cur, sl_conn, target_name: str, dry_run: bo
             logger.warning(f"[{target_name}] Secrets sync failed: {e}")
 
 
-def _sync_generic_db(sl_cur, pg_cur, sl_conn, manifest: dict[str, Any],
-                     target_name: str, dry_run: bool = False) -> None:
+def _sync_generic_db(
+    sl_cur, pg_cur, sl_conn, manifest: dict[str, Any], target_name: str, dry_run: bool = False
+) -> None:
     """Sync any DB using manifest-driven generic sync loop."""
     table_map = manifest["_table_map"]
     sync_order: list[str] = manifest["sync_order"]
@@ -1532,6 +1611,7 @@ def _sync_generic_db(sl_cur, pg_cur, sl_conn, manifest: dict[str, Any],
 # Iterating FILES therefore has no meaning on PostgreSQL, and a port that kept
 # the file loop would not crash — it would sync the wrong table set, silently.
 # That is why this resolves from the BACKEND rather than the filesystem.
+
 
 class SyncTarget:
     """One (store, table-set) pair. `uri` is a path on SQLite, a DSN on PG."""
@@ -1602,14 +1682,17 @@ def resolve_sync_targets(main_uri: str | None = None) -> list[SyncTarget]:
         # produces on a split install; name it so the reader can tell which.
         try:
             from chatlog_config import chatlog_db_path
+
             chat = chatlog_db_path()
         except Exception as exc:  # noqa: BLE001 — diagnostic only
             chat = f"unresolved ({exc})"
         main = next((t.uri for t in out if t.name == "main"), main_uri)
-        logger.info(f"No separate chatlog target: the chatlog resolves to {chat} and "
-                    f"the main store is {main}, so both sync as one. If they should "
-                    f"be separate, pin db_path in .chatlog_config.json or set "
-                    f"M3_CHATLOG_DB_PATH.")
+        logger.info(
+            f"No separate chatlog target: the chatlog resolves to {chat} and "
+            f"the main store is {main}, so both sync as one. If they should "
+            f"be separate, pin db_path in .chatlog_config.json or set "
+            f"M3_CHATLOG_DB_PATH."
+        )
     return out
 
 
@@ -1635,8 +1718,7 @@ def _open_local_store(target: SyncTarget):
     if backend.name == "sqlite":
         if target.uri and not os.path.exists(target.uri):
             logger.warning(
-                f"[{target.name}] local store not present at {target.uri} — "
-                "skipping (refusing to create it)."
+                f"[{target.name}] local store not present at {target.uri} — skipping (refusing to create it)."
             )
             yield None, None
             return
@@ -1656,6 +1738,7 @@ def _open_local_store(target: SyncTarget):
 
 # ── main() ────────────────────────────────────────────────────────────────────
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="Bidirectional SQLite ↔ PostgreSQL sync with per-DB manifests.",
@@ -1664,8 +1747,8 @@ def main():
         "--db",
         default=None,
         help="Path to the SQLite database to sync. Default: the SDK-resolved "
-             "canonical path (M3_DATABASE env / engine root / populated legacy "
-             "store) — never a hardcoded repo-relative guess.",
+        "canonical path (M3_DATABASE env / engine root / populated legacy "
+        "store) — never a hardcoded repo-relative guess.",
     )
     parser.add_argument(
         "--manifest",
@@ -1713,7 +1796,7 @@ def main():
 
     # For agent_memory.db, use the legacy multi-target path (preserves current behaviour).
     # For any other DB, use the manifest-driven generic path with a single target.
-    is_agent_memory = (db_stem == "agent_memory")
+    is_agent_memory = db_stem == "agent_memory"
 
     try:
         if is_agent_memory:
@@ -1728,8 +1811,10 @@ def main():
             if args.dry_run:
                 for target in targets:
                     logger.info(f"[DRY-RUN] Would sync target {target.name} ({target.uri})")
-                    logger.info("[DRY-RUN] Tables: memory_items, memory_embeddings, "
-                                "memory_relationships, tasks, synchronized_secrets")
+                    logger.info(
+                        "[DRY-RUN] Tables: memory_items, memory_embeddings, "
+                        "memory_relationships, tasks, synchronized_secrets"
+                    )
                 return None
 
             with ctx.pg_connection() as pg_conn:
@@ -1778,8 +1863,7 @@ def main():
                                 sl_conn.commit()
 
                             with pg_conn.cursor() as pg_cur:
-                                _sync_agent_memory_db(sl_cur, pg_cur, sl_conn,
-                                                      target.name, dry_run=False)
+                                _sync_agent_memory_db(sl_cur, pg_cur, sl_conn, target.name, dry_run=False)
 
                             pg_conn.commit()
                             sl_conn.commit()

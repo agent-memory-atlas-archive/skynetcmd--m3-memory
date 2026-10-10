@@ -9,6 +9,7 @@ without BOTH --apply and M3_DISTILL_AUTO=1).
 The distillation model + embedder are stubbed so the write path runs offline and
 deterministically.
 """
+
 from __future__ import annotations
 
 import json
@@ -29,31 +30,47 @@ def _skip_migrations(monkeypatch):
 
 def _full_db(db_path):
     from conftest import create_full_main_schema
+
     create_full_main_schema(db_path)
 
 
-def _seed_completed_task(conn, *, task_id="t1", result_id="m-result",
-                         conv="conv-1", user="u1"):
+def _seed_completed_task(conn, *, task_id="t1", result_id="m-result", conv="conv-1", user="u1"):
     """A completed task with a result memory and one sibling step memory."""
     conn.execute(
         "INSERT INTO memory_items (id, type, title, content, user_id, agent_id, "
         "conversation_id, created_at, is_deleted) VALUES (?,?,?,?,?,?,?,?,0)",
-        (result_id, "note", "final result", "the deploy succeeded on retry",
-         user, "claude", conv, "2026-01-01T00:00:00Z"),
+        (
+            result_id,
+            "note",
+            "final result",
+            "the deploy succeeded on retry",
+            user,
+            "claude",
+            conv,
+            "2026-01-01T00:00:00Z",
+        ),
     )
     conn.execute(
         "INSERT INTO memory_items (id, type, title, content, user_id, agent_id, "
         "conversation_id, created_at, is_deleted) VALUES (?,?,?,?,?,?,?,?,0)",
-        ("m-step", "note", "step 1", "ran the migration first",
-         user, "claude", conv, "2026-01-01T00:00:00Z"),
+        ("m-step", "note", "step 1", "ran the migration first", user, "claude", conv, "2026-01-01T00:00:00Z"),
     )
     conn.execute(
         "INSERT INTO tasks (id, title, description, state, owner_agent, created_by, "
         "result_memory_id, created_at, updated_at, completed_at) "
         "VALUES (?,?,?,?,?,?,?,?,?,?)",
-        (task_id, "Deploy the service", "deploy steps", "completed", "claude",
-         "claude", result_id, "2026-01-01T00:00:00Z", "2026-01-01T00:00:00Z",
-         "2026-01-01T00:00:00Z"),
+        (
+            task_id,
+            "Deploy the service",
+            "deploy steps",
+            "completed",
+            "claude",
+            "claude",
+            result_id,
+            "2026-01-01T00:00:00Z",
+            "2026-01-01T00:00:00Z",
+            "2026-01-01T00:00:00Z",
+        ),
     )
 
 
@@ -82,13 +99,15 @@ def _patch_db(monkeypatch, db_path):
 def _patch_model_and_embed(monkeypatch, mm):
     """Stub the distillation model (return a canned procedure JSON) + the embedder
     that memory_write_impl invokes."""
-    canned = json.dumps({
-        "name": "Deploy the service safely",
-        "procedure_kind": "runbook",
-        "preconditions": ["migration ready"],
-        "steps": ["run the migration", "deploy", "verify on retry"],
-        "gotchas": ["first deploy can fail; retry"],
-    })
+    canned = json.dumps(
+        {
+            "name": "Deploy the service safely",
+            "procedure_kind": "runbook",
+            "preconditions": ["migration ready"],
+            "steps": ["run the migration", "deploy", "verify on retry"],
+            "gotchas": ["first deploy can fail; retry"],
+        }
+    )
 
     async def _fake_call(prompt):
         return canned
@@ -129,8 +148,7 @@ async def test_distill_writes_procedure_with_provenance_and_preserves_sources(mo
         assert meta.get("distilled_from_task") == "t1"
 
         edges = conn.execute(
-            "SELECT COUNT(*) FROM memory_relationships "
-            "WHERE from_id=? AND relationship_type='distills_from'",
+            "SELECT COUNT(*) FROM memory_relationships WHERE from_id=? AND relationship_type='distills_from'",
             (proc["id"],),
         ).fetchone()[0]
         assert edges >= 2, "procedure must link to result + step sources"
@@ -170,6 +188,7 @@ async def test_distill_skips_when_no_completed_tasks(monkeypatch, tmp_path):
 
 # ── distill_procedures job safety gate ───────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_job_gate_forces_dry_run_without_env(monkeypatch, tmp_path):
     db = tmp_path / "t.db"
@@ -182,6 +201,7 @@ async def test_job_gate_forces_dry_run_without_env(monkeypatch, tmp_path):
     monkeypatch.delenv("M3_DISTILL_AUTO", raising=False)
 
     import distill_procedures
+
     out = await distill_procedures._run(apply=True, threshold=1, stale_days=0, max_procedures=5)
     assert "skipped-apply" in out and "DRY RUN" in out
     with sqlite3.connect(str(db)) as conn:
@@ -201,6 +221,7 @@ async def test_job_writes_when_apply_and_env_set(monkeypatch, tmp_path):
     monkeypatch.setenv("M3_DISTILL_AUTO", "1")
 
     import distill_procedures
+
     monkeypatch.setattr(distill_procedures, "_should_yield_to_user", lambda *a, **k: None)
     out = await distill_procedures._run(apply=True, threshold=1, stale_days=0, max_procedures=5)
     assert "skipped-apply" not in out
@@ -221,8 +242,8 @@ async def test_job_defers_when_user_active(monkeypatch, tmp_path):
     monkeypatch.setenv("M3_DISTILL_AUTO", "1")
 
     import distill_procedures
-    monkeypatch.setattr(distill_procedures, "_should_yield_to_user",
-                        lambda *a, **k: "user active in the last 30s")
+
+    monkeypatch.setattr(distill_procedures, "_should_yield_to_user", lambda *a, **k: "user active in the last 30s")
     out = await distill_procedures._run(apply=True, threshold=1, stale_days=0, max_procedures=5)
     assert "deferred" in out
     with sqlite3.connect(str(db)) as conn:
@@ -231,6 +252,7 @@ async def test_job_defers_when_user_active(monkeypatch, tmp_path):
 
 
 # ── a distilled task is never re-distilled (2026-10-04) ──────────────────────
+
 
 @pytest.mark.asyncio
 async def test_a_distilled_task_is_not_distilled_again(monkeypatch, tmp_path):
@@ -279,19 +301,29 @@ def test_loop_work_gate_agrees_after_distillation(monkeypatch, tmp_path):
 
 # ── a local LLM that cannot answer stops the pass (2026-10-03) ───────────────
 
+
 def _seed_second_task(conn):
     conn.execute(
         "INSERT INTO memory_items (id, type, title, content, user_id, agent_id, "
         "conversation_id, created_at, is_deleted) VALUES (?,?,?,?,?,?,?,?,0)",
-        ("m-result-2", "note", "second result", "it worked", "u1", "claude",
-         "conv-2", "2026-01-02T00:00:00Z"),
+        ("m-result-2", "note", "second result", "it worked", "u1", "claude", "conv-2", "2026-01-02T00:00:00Z"),
     )
     conn.execute(
         "INSERT INTO tasks (id, title, description, state, owner_agent, created_by, "
         "result_memory_id, created_at, updated_at, completed_at) "
         "VALUES (?,?,?,?,?,?,?,?,?,?)",
-        ("t2", "Second task", "steps", "completed", "claude", "claude", "m-result-2",
-         "2026-01-02T00:00:00Z", "2026-01-02T00:00:00Z", "2026-01-02T00:00:00Z"),
+        (
+            "t2",
+            "Second task",
+            "steps",
+            "completed",
+            "claude",
+            "claude",
+            "m-result-2",
+            "2026-01-02T00:00:00Z",
+            "2026-01-02T00:00:00Z",
+            "2026-01-02T00:00:00Z",
+        ),
     )
 
 
@@ -348,9 +380,11 @@ async def test_distill_call_keeps_a_request_error_per_task(monkeypatch, caplog):
     import slm_intent
 
     async def _bad(prof, prompt, client):
-        raise httpx.HTTPStatusError("400 Bad Request from x: prompt too long",
-                                    request=httpx.Request("POST", "http://x"),
-                                    response=httpx.Response(400))
+        raise httpx.HTTPStatusError(
+            "400 Bad Request from x: prompt too long",
+            request=httpx.Request("POST", "http://x"),
+            response=httpx.Response(400),
+        )
 
     monkeypatch.setattr(slm_intent, "_call_model", _bad)
     monkeypatch.delenv("M3_DISTILL_MODEL", raising=False)

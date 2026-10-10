@@ -8,13 +8,14 @@ equally silent. Every mode now passes through ``normalize_search_mode``: a
 public or internal name maps to the mode the search implements, anything else
 raises with the valid names.
 """
+
 from __future__ import annotations
 
 # public name -> the mode memory_search_scored_impl implements
 SEARCH_MODES: dict[str, str] = {
-    "hybrid": "hybrid",      # lexical + vector
+    "hybrid": "hybrid",  # lexical + vector
     "semantic": "semantic",  # vector only
-    "keyword": "fts5",       # lexical only
+    "keyword": "fts5",  # lexical only
 }
 # Accepted from internal callers as well; never advertised in a schema.
 _INTERNAL = {"fts5": "fts5"}
@@ -36,9 +37,11 @@ def normalize_chatlog_search_mode(mode: str) -> str:
     key = (mode or "").strip().lower()
     if key in CHATLOG_SEARCH_MODES or key in _CHATLOG_LEGACY or key == "":
         return "keyword"
-    raise ValueError(f"observed: search_mode={mode!r}. cause: chat log search is lexical (FTS5) "
-                     "only; it has no vector path. inspect: use keyword, or memory_search for "
-                     "semantic search over memories")
+    raise ValueError(
+        f"observed: search_mode={mode!r}. cause: chat log search is lexical (FTS5) "
+        "only; it has no vector path. inspect: use keyword, or memory_search for "
+        "semantic search over memories"
+    )
 
 
 def normalize_search_mode(mode: str) -> str:
@@ -46,6 +49,5 @@ def normalize_search_mode(mode: str) -> str:
     key = (mode or "").strip().lower()
     found = SEARCH_MODES.get(key) or _INTERNAL.get(key)
     if found is None:
-        raise ValueError(f"observed: search_mode={mode!r}. inspect: use one of "
-                         f"{', '.join(PUBLIC_SEARCH_MODES)}")
+        raise ValueError(f"observed: search_mode={mode!r}. inspect: use one of {', '.join(PUBLIC_SEARCH_MODES)}")
     return found

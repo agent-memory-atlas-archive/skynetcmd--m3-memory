@@ -12,6 +12,7 @@ Two properties carry equal weight here:
 Hermetic: token resolution is stubbed, so nothing here reads the real keyring or
 vault and the tests run on a CI box that has neither.
 """
+
 from __future__ import annotations
 
 import pathlib
@@ -159,9 +160,7 @@ class TestHttpFlow:
         monkeypatch.setattr(A, "resolve_token", lambda *a, **k: (_TOKEN, A.TokenState.OK))
         # Advance past the refresh TTL rather than sleeping through it.
         base = _time.monotonic()
-        monkeypatch.setattr(
-            D.time, "monotonic", lambda: base + D.DashboardAuthMiddleware._TTL_SECONDS + 1
-        )
+        monkeypatch.setattr(D.time, "monotonic", lambda: base + D.DashboardAuthMiddleware._TTL_SECONDS + 1)
         assert c.get("/api/health").status_code == 401
 
     def test_open_dashboard_serves__historical_default_canary(self, stub_token):

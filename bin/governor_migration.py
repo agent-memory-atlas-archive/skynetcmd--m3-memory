@@ -37,6 +37,7 @@ This module is pure detection + command-generation + best-effort removal. It doe
 NOT register the governor loops (that is install_schedules / the daemon's job) —
 it only clears the legacy schedules that would otherwise double-fire.
 """
+
 from __future__ import annotations
 
 import os
@@ -51,9 +52,9 @@ from m3_core.seams import is_macos, is_windows
 # has no execution loop of its own). Keep in sync with m3_cognitive_loop's pass
 # registry and install_schedules.get_schedule_specs().
 GOVERNOR_ELIGIBLE = (
-    "AgentOS_ObservationDrain",    # -> loop 'enrich' pass (Observer/Reflector)
-    "AgentOS_Maintenance",         # -> loop 'maintenance' pass
-    "AgentOS_WeeklyAuditor",       # -> loop 'audit' pass
+    "AgentOS_ObservationDrain",  # -> loop 'enrich' pass (Observer/Reflector)
+    "AgentOS_Maintenance",  # -> loop 'maintenance' pass
+    "AgentOS_WeeklyAuditor",  # -> loop 'audit' pass
 )
 
 # Tasks the loop runs AS A PASS but whose scheduled entry must ALSO be KEPT as a
@@ -62,27 +63,36 @@ GOVERNOR_ELIGIBLE = (
 # scheduled run guarantees a floor. `governor migrate` must NOT remove them.
 # (name, reason)
 KEEP_SCHEDULED_FLOOR = (
-    ("AgentOS_HourlySync",
-     "governor-paced in-loop AND kept as an hourly floor — the governor HALTs "
-     "under load, and the warehouse must not drift stale indefinitely"),
-    ("AgentOS_ChatlogEmbedSweep",
-     "governor-paced in-loop AND kept as a low-frequency floor — the governor "
-     "HALTs under sustained load, and undrained spill is unbounded data at risk "
-     "on disk (a spilled turn is not in the DB and not searchable until drained)"),
+    (
+        "AgentOS_HourlySync",
+        "governor-paced in-loop AND kept as an hourly floor — the governor HALTs "
+        "under load, and the warehouse must not drift stale indefinitely",
+    ),
+    (
+        "AgentOS_ChatlogEmbedSweep",
+        "governor-paced in-loop AND kept as a low-frequency floor — the governor "
+        "HALTs under sustained load, and undrained spill is unbounded data at risk "
+        "on disk (a spilled turn is not in the DB and not searchable until drained)",
+    ),
 )
 
 # (name, reason) — surfaced to the user so they know WHY these stay scheduled.
 # These are NOT run by the loop at all; they must stay on their own schedule.
 NOT_MIGRATABLE = (
-    ("AgentOS_SecretRotator",
-     "security/compliance-anchored — rotation must run on a fixed cadence, "
-     "not when the host happens to be idle"),
-    ("AgentOS_CognitiveLoop",
-     "already a governor-paced keepalive service (m3_cognitive_loop.py calls "
-     "get_governor_pacing), not a periodic scheduler entry"),
-    ("AgentOS_LoopWatchdog",
-     "supervises the cognitive loop — governor-pacing the watchdog would defer "
-     "it exactly when the host is loaded and the loop is most likely wedged"),
+    (
+        "AgentOS_SecretRotator",
+        "security/compliance-anchored — rotation must run on a fixed cadence, not when the host happens to be idle",
+    ),
+    (
+        "AgentOS_CognitiveLoop",
+        "already a governor-paced keepalive service (m3_cognitive_loop.py calls "
+        "get_governor_pacing), not a periodic scheduler entry",
+    ),
+    (
+        "AgentOS_LoopWatchdog",
+        "supervises the cognitive loop — governor-pacing the watchdog would defer "
+        "it exactly when the host is loaded and the loop is most likely wedged",
+    ),
 )
 
 
@@ -125,11 +135,7 @@ def detect_scheduled_tasks() -> dict[str, list[str]]:
     # action-detected m3 tasks (see _list_installed_task_names ->
     # detect_windows_legacy_action_tasks), so a user's unrelated third-party
     # scheduled task never appears here and is never removed.
-    reserved = (
-        set(GOVERNOR_ELIGIBLE)
-        | {n for n, _ in KEEP_SCHEDULED_FLOOR}
-        | {n for n, _ in NOT_MIGRATABLE}
-    )
+    reserved = set(GOVERNOR_ELIGIBLE) | {n for n, _ in KEEP_SCHEDULED_FLOOR} | {n for n, _ in NOT_MIGRATABLE}
     legacy_action = [n for n in sorted(installed) if n not in reserved]
     eligible.extend(legacy_action)
 
@@ -144,11 +150,7 @@ def _list_installed_task_names() -> set[str]:
     """Best-effort set of installed AgentOS_* scheduler entries on this host."""
     os_name = _os_name()
     names: set[str] = set()
-    candidates = (
-        list(GOVERNOR_ELIGIBLE)
-        + [n for n, _ in KEEP_SCHEDULED_FLOOR]
-        + [n for n, _ in NOT_MIGRATABLE]
-    )
+    candidates = list(GOVERNOR_ELIGIBLE) + [n for n, _ in KEEP_SCHEDULED_FLOOR] + [n for n, _ in NOT_MIGRATABLE]
 
     if os_name == "Windows":
         try:
@@ -157,7 +159,9 @@ def _list_installed_task_names() -> set[str]:
             for name in candidates:
                 r = subprocess.run(
                     ["schtasks", "/Query", "/TN", name],
-                    capture_output=True, text=True, timeout=20,
+                    capture_output=True,
+                    text=True,
+                    timeout=20,
                 )
                 if r.returncode == 0 and name in r.stdout:
                     names.add(name)
@@ -171,8 +175,7 @@ def _list_installed_task_names() -> set[str]:
 
     # Unix: cron entries carry the invoked command, not the AgentOS_* name.
     try:
-        r = subprocess.run(["crontab", "-l"], capture_output=True, text=True,
-                           timeout=20)
+        r = subprocess.run(["crontab", "-l"], capture_output=True, text=True, timeout=20)
         cron = r.stdout if r.returncode == 0 else ""
     except (FileNotFoundError, subprocess.TimeoutExpired):
         cron = ""
@@ -181,11 +184,7 @@ def _list_installed_task_names() -> set[str]:
 
 def _canonical_task_names() -> set[str]:
     """Every task name the current installer emits — canonical AgentOS_* set."""
-    return (
-        set(GOVERNOR_ELIGIBLE)
-        | {name for name, _ in KEEP_SCHEDULED_FLOOR}
-        | {name for name, _ in NOT_MIGRATABLE}
-    )
+    return set(GOVERNOR_ELIGIBLE) | {name for name, _ in KEEP_SCHEDULED_FLOOR} | {name for name, _ in NOT_MIGRATABLE}
 
 
 def _leaf_task_name(task_name: str) -> str:
@@ -239,7 +238,9 @@ def detect_windows_legacy_action_tasks() -> set[str]:
     try:
         r = subprocess.run(
             ["schtasks", "/Query", "/FO", "LIST", "/V"],
-            capture_output=True, text=True, timeout=20,
+            capture_output=True,
+            text=True,
+            timeout=20,
         )
     except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
         return set()
@@ -306,6 +307,7 @@ def _cron_line_is(name: str, line: str) -> bool:
     """Whether a crontab line runs the job ``name`` (any of its markers)."""
     return any(m in line for m in _UNIX_CRON_MARKERS.get(name, ()))
 
+
 # Map AgentOS_* names to the token that appears in the WINDOWS task ACTION
 # ("Task To Run"), so we can recognise a legacy/hand-named scheduled task by what
 # it RUNS even when its task name is not the canonical AgentOS_* one. This is the
@@ -337,13 +339,11 @@ def _unix_service_paths() -> dict[str, str]:
     ``~`` expands for the current user."""
     if _os_name() == "Darwin":
         return {
-            "AgentOS_CognitiveLoop":
-                os.path.expanduser("~/Library/LaunchAgents/com.m3memory.cognitiveloop.plist"),
+            "AgentOS_CognitiveLoop": os.path.expanduser("~/Library/LaunchAgents/com.m3memory.cognitiveloop.plist"),
         }
     if _os_name() == "Linux":
         return {
-            "AgentOS_CognitiveLoop":
-                os.path.expanduser("~/.config/systemd/user/m3-cognitive-loop.service"),
+            "AgentOS_CognitiveLoop": os.path.expanduser("~/.config/systemd/user/m3-cognitive-loop.service"),
         }
     return {}
 
@@ -368,7 +368,9 @@ def try_remove_scheduled_tasks(names: list[str]) -> tuple[list[str], list[str]]:
             try:
                 r = subprocess.run(
                     ["schtasks", "/Delete", "/TN", name, "/F"],
-                    capture_output=True, text=True, timeout=30,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
                 )
             except subprocess.TimeoutExpired:
                 # A timed-out DELETE is reported FAILED, never silently dropped:
@@ -381,8 +383,7 @@ def try_remove_scheduled_tasks(names: list[str]) -> tuple[list[str], list[str]]:
 
     # Unix: rewrite the user crontab, dropping the matched lines.
     try:
-        r = subprocess.run(["crontab", "-l"], capture_output=True, text=True,
-                           timeout=20)
+        r = subprocess.run(["crontab", "-l"], capture_output=True, text=True, timeout=20)
         if r.returncode != 0:
             return [], list(names)
         lines = r.stdout.splitlines()
@@ -398,14 +399,14 @@ def try_remove_scheduled_tasks(names: list[str]) -> tuple[list[str], list[str]]:
             kept.append(line)
     if dropped:
         import tempfile
+
         new_cron = "\n".join(kept).strip() + "\n"
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as tmp:
             tmp.write(new_cron)
             tmp_path = tmp.name
         try:
             try:
-                w = subprocess.run(["crontab", tmp_path], capture_output=True,
-                                   text=True, timeout=30)
+                w = subprocess.run(["crontab", tmp_path], capture_output=True, text=True, timeout=30)
             except subprocess.TimeoutExpired:
                 # Same rule as the Windows delete: unknown outcome is FAILED.
                 failed.extend(sorted(dropped))

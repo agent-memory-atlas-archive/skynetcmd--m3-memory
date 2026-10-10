@@ -21,6 +21,7 @@ These tests make the two maps agree, and force the choice to be explicit: either
 a chunker claims the filetype, or it is listed in `TEXT_CHUNKED_FILETYPES` as a
 deliberate plain-text split. "We forgot" no longer resolves to a silent pass.
 """
+
 from __future__ import annotations
 
 import os
@@ -38,9 +39,20 @@ from files_memory import chunkers, identity  # noqa: E402
 #: Formats whose bytes are a container, not text. Text-chunking these produces
 #: garbage rather than degraded output, so a missing chunker here is a DEFECT --
 #: never something TEXT_CHUNKED_FILETYPES may excuse.
-_BINARY_FILETYPES = frozenset({
-    "pdf", "docx", "doc", "pptx", "ppt", "xlsx", "xls", "epub", "rtf", "odt",
-})
+_BINARY_FILETYPES = frozenset(
+    {
+        "pdf",
+        "docx",
+        "doc",
+        "pptx",
+        "ppt",
+        "xlsx",
+        "xls",
+        "epub",
+        "rtf",
+        "odt",
+    }
+)
 
 
 def test_every_known_filetype_is_handled_deliberately():
@@ -53,8 +65,9 @@ def test_every_known_filetype_is_handled_deliberately():
     assert not unaccounted, (
         "these filetypes resolve from an extension but no chunker claims them, "
         "and they are not declared text-chunked -- they silently fall back to "
-        "the text chunker:\n  " + "\n  ".join(unaccounted) +
-        "\nAdd a chunker, or add them to TEXT_CHUNKED_FILETYPES if plain-text "
+        "the text chunker:\n  "
+        + "\n  ".join(unaccounted)
+        + "\nAdd a chunker, or add them to TEXT_CHUNKED_FILETYPES if plain-text "
         "splitting is genuinely correct."
     )
 
@@ -70,33 +83,35 @@ def test_binary_filetypes_are_never_declared_text_chunked():
     )
 
 
-@pytest.mark.parametrize("ext,filetype", [
-    (".html", "html"), (".htm", "html"), (".xhtml", "html"), (".pdf", "pdf"),
-])
+@pytest.mark.parametrize(
+    "ext,filetype",
+    [
+        (".html", "html"),
+        (".htm", "html"),
+        (".xhtml", "html"),
+        (".pdf", "pdf"),
+    ],
+)
 def test_structured_formats_reach_their_own_chunker(ext, filetype):
     """The regression that started this: recognised, mapped, but text-chunked.
 
     Asserts the WHOLE path -- extension resolves to the filetype, and the
     filetype resolves to its dedicated chunker rather than the text fallback.
     """
-    assert identity.FILETYPE_BY_EXT.get(ext) == filetype, (
-        f"{ext} no longer maps to {filetype}")
+    assert identity.FILETYPE_BY_EXT.get(ext) == filetype, f"{ext} no longer maps to {filetype}"
     mod = chunkers.get_chunker(filetype)
     if not getattr(chunkers.CHUNKER_REGISTRY[filetype], "available", True):
         pytest.skip(skip_reason("dep", f"{filetype} chunker deps not installed in this environment"))
     assert mod.__name__.endswith(f".{filetype}"), (
-        f"{ext} ({filetype}) resolved to {mod.__name__}, not the {filetype} "
-        f"chunker -- it would be ingested as raw text"
+        f"{ext} ({filetype}) resolved to {mod.__name__}, not the {filetype} chunker -- it would be ingested as raw text"
     )
 
 
 def test_registry_entries_satisfy_the_chunker_protocol():
     """A registered module must actually be usable as a chunker."""
-    for filetype, mod in sorted(
-        chunkers.CHUNKER_REGISTRY.items(), key=lambda kv: kv[0]
-    ):
+    for filetype, mod in sorted(chunkers.CHUNKER_REGISTRY.items(), key=lambda kv: kv[0]):
         assert hasattr(mod, "chunk"), f"{filetype}: no chunk() function"
         assert callable(mod.chunk), f"{filetype}: chunk is not callable"
         assert hasattr(mod, "CHUNKER_VERSION"), (
-            f"{filetype}: no CHUNKER_VERSION -- the ingester stamps it on every "
-            f"leaf so a re-chunk can be detected")
+            f"{filetype}: no CHUNKER_VERSION -- the ingester stamps it on every leaf so a re-chunk can be detected"
+        )

@@ -8,6 +8,7 @@
 - Every upgrade repeated "no local LLM runtime detected" on a host that never
   had one.
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -53,8 +54,15 @@ def test_no_plugin_line_means_no_plugin_update():
 
 
 def _summary(**kw):
-    base = {"old": "2026.10.6.0", "new": "2026.10.7.0", "unchanged": False,
-                "agents_stopped": 0, "failed_step": "", "rc": 0, "log": ""}
+    base = {
+        "old": "2026.10.6.0",
+        "new": "2026.10.7.0",
+        "unchanged": False,
+        "agents_stopped": 0,
+        "failed_step": "",
+        "rc": 0,
+        "log": "",
+    }
     return "\n".join(m3u.summary_lines(**{**base, **kw}))
 
 
@@ -73,16 +81,13 @@ def test_the_uncached_retry_fires_only_when_pypi_has_another_version():
     retry = m3u.should_retry_uncached
     assert retry(unchanged=True, local_source=False, latest="2026.10.7.0", installed="2026.10.6.0")
     # Already current: no second install.
-    assert not retry(unchanged=True, local_source=False, latest="2026.10.7.0",
-                     installed="2026.10.7.0")
+    assert not retry(unchanged=True, local_source=False, latest="2026.10.7.0", installed="2026.10.7.0")
     # PyPI unreachable: do not guess.
     assert not retry(unchanged=True, local_source=False, latest=None, installed="2026.10.6.0")
     # A local wheel or path source: the index is not involved.
-    assert not retry(unchanged=True, local_source=True, latest="2026.10.7.0",
-                     installed="2026.10.6.0")
+    assert not retry(unchanged=True, local_source=True, latest="2026.10.7.0", installed="2026.10.6.0")
     # It changed: nothing to retry.
-    assert not retry(unchanged=False, local_source=False, latest="2026.10.7.0",
-                     installed="2026.10.6.0")
+    assert not retry(unchanged=False, local_source=False, latest="2026.10.7.0", installed="2026.10.6.0")
 
 
 def test_the_retry_bypasses_both_caches():

@@ -4,6 +4,7 @@ Verifies:
 1. When m3_core_rs implements the oxidized functions/classes, m3_sdk calls them successfully.
 2. When m3_core_rs is absent, disabled, or missing these attributes, the system falls back open gracefully to the Python implementation.
 """
+
 from __future__ import annotations
 
 import os
@@ -113,10 +114,12 @@ def test_migration_lock_native(tmp_path, monkeypatch):
     mock_rs = mock.Mock()
     # Mock call constructor
     mock_lock = None
+
     def ctor(path):
         nonlocal mock_lock
         mock_lock = MockNativeMigrationLock(path)
         return mock_lock
+
     mock_rs.NativeMigrationLock = ctor
 
     monkeypatch.setitem(sys.modules, "m3_core_rs", mock_rs)
@@ -158,10 +161,12 @@ def test_circuit_breaker_native(tmp_path, monkeypatch):
     # Mock m3_core_rs
     mock_rs = mock.Mock()
     mock_breaker = None
+
     def ctor(threshold, cooldown):
         nonlocal mock_breaker
         mock_breaker = MockNativeCircuitBreaker(threshold, cooldown)
         return mock_breaker
+
     mock_rs.NativeCircuitBreaker = ctor
 
     monkeypatch.setitem(sys.modules, "m3_core_rs", mock_rs)

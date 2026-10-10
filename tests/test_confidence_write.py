@@ -7,6 +7,7 @@ on a DB without the column (pre-migration-035), writes still succeed and just
 skip confidence. The pure math itself is covered exhaustively in
 test_confidence_math.py; here we test the wiring.
 """
+
 from __future__ import annotations
 
 import os
@@ -27,12 +28,14 @@ def _skip_migrations(monkeypatch):
 
 def _full_db(db_path):
     from conftest import create_full_main_schema
+
     create_full_main_schema(db_path)
 
 
 async def _write(db_path, monkeypatch, **kw):
     monkeypatch.setenv("M3_DATABASE", str(db_path))
     from memory.write import memory_write_impl
+
     res = await memory_write_impl(embed=False, **kw)
     # memory_write_impl returns "Created: <uuid>" (or a dict in some paths).
     if isinstance(res, str):
@@ -42,9 +45,7 @@ async def _write(db_path, monkeypatch, **kw):
 
 def _confidence_of(db_path, item_id):
     with sqlite3.connect(str(db_path)) as conn:
-        row = conn.execute(
-            "SELECT confidence FROM memory_items WHERE id = ?", (item_id,)
-        ).fetchone()
+        row = conn.execute("SELECT confidence FROM memory_items WHERE id = ?", (item_id,)).fetchone()
     return row[0] if row else None
 
 
@@ -60,8 +61,7 @@ async def test_user_source_gets_high_confidence(monkeypatch, tmp_path):
 async def test_agent_assertion_gets_agent_prior(monkeypatch, tmp_path):
     db = tmp_path / "t.db"
     _full_db(db)
-    item_id = await _write(db, monkeypatch, type="fact", content="claude asserted Y",
-                       change_agent="claude")
+    item_id = await _write(db, monkeypatch, type="fact", content="claude asserted Y", change_agent="claude")
     assert _confidence_of(db, item_id) == pytest.approx(C.AGENT_PRIOR)
 
 
@@ -69,8 +69,7 @@ async def test_agent_assertion_gets_agent_prior(monkeypatch, tmp_path):
 async def test_observer_confidence_flows_from_metadata(monkeypatch, tmp_path):
     db = tmp_path / "t.db"
     _full_db(db)
-    item_id = await _write(db, monkeypatch, type="observation", content="obs",
-                       metadata='{"confidence": 0.77}')
+    item_id = await _write(db, monkeypatch, type="observation", content="obs", metadata='{"confidence": 0.77}')
     # Observer's own confidence wins over the provenance prior.
     assert _confidence_of(db, item_id) == pytest.approx(0.77)
 
@@ -79,8 +78,7 @@ async def test_observer_confidence_flows_from_metadata(monkeypatch, tmp_path):
 async def test_explicit_confidence_overrides(monkeypatch, tmp_path):
     db = tmp_path / "t.db"
     _full_db(db)
-    item_id = await _write(db, monkeypatch, type="fact", content="pinned", source="user",
-                       confidence=0.33)
+    item_id = await _write(db, monkeypatch, type="fact", content="pinned", source="user", confidence=0.33)
     assert _confidence_of(db, item_id) == pytest.approx(0.33)
 
 

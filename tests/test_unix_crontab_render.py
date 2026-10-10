@@ -4,6 +4,7 @@ Hazard: a cron line naming `<install root>/.venv/bin/python3` points at a file
 pip and pipx installs do not have, and a block nothing rewrites keeps an old
 payload's paths after an upgrade.
 """
+
 from __future__ import annotations
 
 import os
@@ -60,7 +61,8 @@ def test_refresh_rewrites_only_an_existing_managed_block(monkeypatch, tmp_path):
     sched._refresh_managed_crontab(_ROOT)
     assert calls == []
 
-    monkeypatch.setattr(sched, "_run", lambda *a, **k: _Res(
-        0, "# >>> m3-managed (do not edit this block) >>>\n# <<< m3-managed <<<\n"))
+    monkeypatch.setattr(
+        sched, "_run", lambda *a, **k: _Res(0, "# >>> m3-managed (do not edit this block) >>>\n# <<< m3-managed <<<\n")
+    )
     sched._refresh_managed_crontab(_ROOT)
     assert calls == [_ROOT]

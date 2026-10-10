@@ -3,6 +3,7 @@
 Each case pins the new behaviour: a failure is classified, raised, recorded or
 warned, never silently turned into a default that looks like success.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -20,20 +21,29 @@ def _status_error(code: int) -> httpx.HTTPStatusError:
     return httpx.HTTPStatusError("x", request=req, response=httpx.Response(code, request=req, text="body"))
 
 
-@pytest.mark.parametrize("exc", [
-    httpx.ConnectError("refused"), httpx.ReadTimeout("slow"), _status_error(503),
-    _status_error(429), _status_error(413),
-])
+@pytest.mark.parametrize(
+    "exc",
+    [
+        httpx.ConnectError("refused"),
+        httpx.ReadTimeout("slow"),
+        _status_error(503),
+        _status_error(429),
+        _status_error(413),
+    ],
+)
 def test_retryable_failures_are_transient(exc):
     emb = importlib.import_module("memory.embed")
     assert emb._classify_bulk_post_error(exc) is emb._EMBED_TRANSIENT
 
 
-@pytest.mark.parametrize("exc, text", [
-    (_status_error(400), "HTTP 400"),
-    (KeyError("data"), "KeyError"),
-    (TypeError("'NoneType' object is not subscriptable"), "TypeError"),
-])
+@pytest.mark.parametrize(
+    "exc, text",
+    [
+        (_status_error(400), "HTTP 400"),
+        (KeyError("data"), "KeyError"),
+        (TypeError("'NoneType' object is not subscriptable"), "TypeError"),
+    ],
+)
 def test_everything_else_is_permanent_and_keeps_its_message(exc, text):
     emb = importlib.import_module("memory.embed")
     kind, msg = emb._classify_bulk_post_error(exc)

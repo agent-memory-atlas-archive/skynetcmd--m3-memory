@@ -5,6 +5,7 @@ should activate automatically by finding a bge-m3 GGUF in the canonical model
 dirs — bounded by depth and a wall-clock budget so a huge models directory can't
 stall cold start. Opt out with M3_EMBED_GGUF_AUTODETECT=0.
 """
+
 from __future__ import annotations
 
 import os
@@ -94,8 +95,7 @@ async def test_autodetect_wires_into_embedder_resolution(monkeypatch, tmp_path):
         def embedding_dim(self):
             return E.config.EMBED_DIM  # pass the dim guard
 
-    monkeypatch.setattr(E.config, "m3_core_rs",
-                        type("RS", (), {"EmbeddedEmbedder": _FakeEmb}))
+    monkeypatch.setattr(E.config, "m3_core_rs", type("RS", (), {"EmbeddedEmbedder": _FakeEmb}))
 
     emb = E._get_embedded_embedder()
     assert emb is not None
@@ -111,6 +111,5 @@ def test_autodetect_off_skips_discovery(monkeypatch, tmp_path):
     monkeypatch.setattr(E, "_embedded_embed_checked", False, raising=False)
     monkeypatch.setattr(E, "_EMBED_GGUF_AUTODETECT", False, raising=False)
     # Native extension present, but autodetect off -> no path -> None.
-    monkeypatch.setattr(E.config, "m3_core_rs",
-                        type("RS", (), {"EmbeddedEmbedder": object}))
+    monkeypatch.setattr(E.config, "m3_core_rs", type("RS", (), {"EmbeddedEmbedder": object}))
     assert E._get_embedded_embedder() is None

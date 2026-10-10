@@ -72,8 +72,7 @@ def test_no_style_rule_names_a_missing_node() -> None:
         for m in re.finditer(r"^\s*style\s+([A-Za-z0-9_]+)\b", body, re.MULTILINE):
             if m.group(1) not in declared:
                 problems.append(
-                    f"{path} block {idx}: `style {m.group(1)}` names nothing — "
-                    "it will render as an empty box"
+                    f"{path} block {idx}: `style {m.group(1)}` names nothing — it will render as an empty box"
                 )
     assert not problems, "\n  ".join(["dangling style rules:", *problems])
 
@@ -139,7 +138,9 @@ def _render(cli: list[str], src: Path, cfg: Path) -> tuple[bool, subprocess.Comp
     try:
         proc = subprocess.run(
             [*cli, "-i", str(src), "-o", str(out), "-p", str(cfg)],
-            capture_output=True, text=True, timeout=180,
+            capture_output=True,
+            text=True,
+            timeout=180,
         )
     except (subprocess.TimeoutExpired, OSError) as exc:
         pytest.skip(skip_reason("env", f"mermaid-cli unusable: {exc}"))
@@ -151,8 +152,13 @@ def test_every_mermaid_block_renders() -> None:
     """Authoritative check: hand each block to the real Mermaid parser."""
     cli = _mermaid_cli()
     if cli is None:
-        pytest.skip(skip_reason("env", f"no mmdc installed (npm i -g @mermaid-js/mermaid-cli@{MERMAID_CLI_VERSION}); "
-                    f"the npx download fallback is off unless {_NPX_OPT_IN}=1"))
+        pytest.skip(
+            skip_reason(
+                "env",
+                f"no mmdc installed (npm i -g @mermaid-js/mermaid-cli@{MERMAID_CLI_VERSION}); "
+                f"the npx download fallback is off unless {_NPX_OPT_IN}=1",
+            )
+        )
     if os.environ.get("M3_SKIP_MERMAID_RENDER") == "1":
         pytest.skip(skip_reason("env", "M3_SKIP_MERMAID_RENDER=1 (operator opt-out)"))
 
@@ -183,9 +189,13 @@ def test_every_mermaid_block_renders() -> None:
         ok, proc = _render(cli, canary, cfg)
         if not ok:
             err = (proc.stderr or proc.stdout or "").strip().splitlines()
-            pytest.skip(skip_reason("env", "mermaid-cli cannot render a known-good diagram, so this "
-                        "environment cannot judge ours: "
-                        + (err[-1][:200] if err else "no output and no error")))
+            pytest.skip(
+                skip_reason(
+                    "env",
+                    "mermaid-cli cannot render a known-good diagram, so this "
+                    "environment cannot judge ours: " + (err[-1][:200] if err else "no output and no error"),
+                )
+            )
 
         for path, idx, body in _blocks():
             src = tmp / f"{Path(path).stem}_{idx}.mmd"

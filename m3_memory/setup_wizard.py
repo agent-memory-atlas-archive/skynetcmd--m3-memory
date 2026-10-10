@@ -13,6 +13,7 @@ agent. That's it.
 Non-interactive mode mirrors every prompt with a flag so `install.sh` and
 `install.ps1` can drive the same logic unattended.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -85,11 +86,11 @@ def _bin_dir() -> Path:
     Checks the installed location first (the common case for users), then the
     dev sibling.
     """
-    here = Path(__file__).resolve().parent          # .../m3_memory
+    here = Path(__file__).resolve().parent  # .../m3_memory
     for cand in (here / "bin", here.parent / "bin"):
         if (cand / "install_schedules.py").is_file():
             return cand
-    return here.parent / "bin"                      # legacy default
+    return here.parent / "bin"  # legacy default
 
 
 def _env_compat(new_name: str, old_name: str, default: str | None = None) -> str | None:
@@ -100,6 +101,7 @@ def _env_compat(new_name: str, old_name: str, default: str | None = None) -> str
     try:
         sys.path.insert(0, str(_bin_dir()))
         from m3_core.paths import getenv_compat
+
         return cast("str | None", getenv_compat(new_name, old_name, default))
     except Exception:  # noqa: BLE001 — resolver unreachable: degrade, never break setup
         val = os.environ.get(new_name)
@@ -113,8 +115,7 @@ def _ask_yes_no(question: str, default: bool) -> bool:
     while True:
         raw = _prompt(question + suffix + " ")
         if raw is None:
-            print(f"  (no input available — using default: "
-                  f"{'yes' if default else 'no'})")
+            print(f"  (no input available — using default: {'yes' if default else 'no'})")
             return default
         ans = raw.strip().lower()
         if not ans:
@@ -143,6 +144,7 @@ def _ask_choice(question: str, choices: list[str], default: str) -> str:
 
 # ── agent detection ───────────────────────────────────────────────────────────
 
+
 @dataclass(slots=True)
 class AgentTargets:
     claude: bool = False
@@ -155,18 +157,25 @@ class AgentTargets:
     cline: bool = False
 
     def any(self) -> bool:
-        return any((self.claude, self.gemini, self.antigravity, self.opencode,
-                    self.openclaw, self.hermes, self.cursor, self.cline))
+        return any(
+            (
+                self.claude,
+                self.gemini,
+                self.antigravity,
+                self.opencode,
+                self.openclaw,
+                self.hermes,
+                self.cursor,
+                self.cline,
+            )
+        )
 
 
 def _detect_agents() -> AgentTargets:
     """Probe PATH (and well-known fallback locations) for each agent CLI."""
     claude = bool(shutil.which("claude"))
     # Gemini may be installed via npm-global and not on PATH yet.
-    gemini = bool(
-        shutil.which("gemini")
-        or (Path.home() / ".npm-global" / "bin" / "gemini").exists()
-    )
+    gemini = bool(shutil.which("gemini") or (Path.home() / ".npm-global" / "bin" / "gemini").exists())
     # Antigravity CLI (agy)
     antigravity = bool(
         shutil.which("agy")
@@ -195,13 +204,19 @@ def _detect_agents() -> AgentTargets:
     cursor = (Path.home() / ".cursor").is_dir()
     try:
         from m3_memory.installer import _cline_config_path
+
         cline = _cline_config_path().parent.parent.is_dir()
     except Exception:
         cline = False
     return AgentTargets(
-        claude=claude, gemini=gemini, antigravity=antigravity,
-        opencode=opencode, openclaw=openclaw, hermes=hermes,
-        cursor=cursor, cline=cline,
+        claude=claude,
+        gemini=gemini,
+        antigravity=antigravity,
+        opencode=opencode,
+        openclaw=openclaw,
+        hermes=hermes,
+        cursor=cursor,
+        cline=cline,
     )
 
 
@@ -236,8 +251,7 @@ def _find_hermes_plugins_dir() -> Path | None:
         Path.home() / "code" / "hermes-agent",
     ]
     for root in roots:
-        for pm in (root / "plugins" / "memory",
-                   root / "hermes-agent" / "plugins" / "memory"):
+        for pm in (root / "plugins" / "memory", root / "hermes-agent" / "plugins" / "memory"):
             try:
                 if pm.is_dir():
                     return pm
@@ -263,10 +277,11 @@ def _find_m3_hermes_plugin_src() -> Path | None:
 
 # ── plan dataclass ────────────────────────────────────────────────────────────
 
+
 @dataclass(slots=True)
 class SetupPlan:
     targets: AgentTargets = field(default_factory=AgentTargets)
-    capture_mode: str = "both"      # both | stop | precompact | none
+    capture_mode: str = "both"  # both | stop | precompact | none
     # Default OFF: the SHARED tier-2 embedder (one localhost HTTP server on :8082,
     # see use_shared_embedder below) is the preferred shipped configuration.
     # The reason is architectural, NOT speed — an embed call is already low-µs to
@@ -336,6 +351,7 @@ class SetupPlan:
 
 # ── prompt phase ──────────────────────────────────────────────────────────────
 
+
 def _gather_plan(detected: AgentTargets, args: argparse.Namespace) -> SetupPlan:
     """Interactive (or flag-driven) construction of the SetupPlan.
 
@@ -346,8 +362,7 @@ def _gather_plan(detected: AgentTargets, args: argparse.Namespace) -> SetupPlan:
     plan.endpoint = args.endpoint
     # --cognitive-loop forces on; --no-cognitive-loop forces off. The interactive
     # branch below re-asks (default yes) unless a flag already pinned the choice.
-    plan.cognitive_loop = bool(args.cognitive_loop) and not bool(
-        getattr(args, "no_cognitive_loop", False))
+    plan.cognitive_loop = bool(args.cognitive_loop) and not bool(getattr(args, "no_cognitive_loop", False))
 
     if args.non_interactive:
         # Honor explicit --agent flags; otherwise wire whatever we detected.
@@ -361,9 +376,8 @@ def _gather_plan(detected: AgentTargets, args: argparse.Namespace) -> SetupPlan:
         # install it only when explicitly requested via --install-gpu-embedder.
         # --no-native-wheel still forces it off (wins over the flag) for scripts
         # that pass both / want to be explicit.
-        plan.install_gpu_embedder = (
-            bool(args.install_gpu_embedder)
-            and not bool(getattr(args, "no_native_wheel", False))
+        plan.install_gpu_embedder = bool(args.install_gpu_embedder) and not bool(
+            getattr(args, "no_native_wheel", False)
         )
         plan.allow_native_source_build = bool(getattr(args, "allow_native_source_build", False))
         plan.decouple_roots = bool(getattr(args, "decouple_roots", False))
@@ -408,11 +422,10 @@ def _gather_plan(detected: AgentTargets, args: argparse.Namespace) -> SetupPlan:
     if existing:
         print()
         _say(f"m3 is already set up here (store: {existing}).")
-        if _ask_yes_no("  Keep the current settings and just update this install?",
-                       default=True):
+        if _ask_yes_no("  Keep the current settings and just update this install?", default=True):
             keep = argparse.Namespace(**vars(args))
             keep.non_interactive = True
-            keep.agents = ""           # leave agent wiring exactly as it is
+            keep.agents = ""  # leave agent wiring exactly as it is
             keep.cognitive_loop = plan.cognitive_loop or bool(_cognitive_loop_installed())
             kept = _gather_plan(AgentTargets(), keep)
             kept.agents_kept = True
@@ -424,14 +437,14 @@ def _gather_plan(detected: AgentTargets, args: argparse.Namespace) -> SetupPlan:
     _say("m3-memory setup — answer a few quick questions, then sit back.")
     print()
     print("  Agents detected on PATH:")
-    print(f"    {'[x]' if detected.claude      else '[ ]'} Claude Code          (claude)")
-    print(f"    {'[x]' if detected.gemini      else '[ ]'} Gemini CLI           (gemini)")
+    print(f"    {'[x]' if detected.claude else '[ ]'} Claude Code          (claude)")
+    print(f"    {'[x]' if detected.gemini else '[ ]'} Gemini CLI           (gemini)")
     print(f"    {'[x]' if detected.antigravity else '[ ]'} Antigravity CLI/Desktop (antigravity)")
-    print(f"    {'[x]' if detected.opencode    else '[ ]'} OpenCode             (opencode)")
-    print(f"    {'[x]' if detected.openclaw    else '[ ]'} OpenClaw             (native MCP since 2026.3.22)")
-    print(f"    {'[x]' if detected.hermes      else '[ ]'} Hermes Agent         (file-based memory-provider plugin)")
-    print(f"    {'[x]' if detected.cursor      else '[ ]'} Cursor               (~/.cursor/mcp.json)")
-    print(f"    {'[x]' if detected.cline       else '[ ]'} Cline                (VS Code extension MCP settings)")
+    print(f"    {'[x]' if detected.opencode else '[ ]'} OpenCode             (opencode)")
+    print(f"    {'[x]' if detected.openclaw else '[ ]'} OpenClaw             (native MCP since 2026.3.22)")
+    print(f"    {'[x]' if detected.hermes else '[ ]'} Hermes Agent         (file-based memory-provider plugin)")
+    print(f"    {'[x]' if detected.cursor else '[ ]'} Cursor               (~/.cursor/mcp.json)")
+    print(f"    {'[x]' if detected.cline else '[ ]'} Cline                (VS Code extension MCP settings)")
     print()
 
     if detected.claude:
@@ -463,6 +476,7 @@ def _gather_plan(detected: AgentTargets, args: argparse.Namespace) -> SetupPlan:
             from pathlib import Path as _Path
 
             from m3_sdk import get_m3_root
+
             _doc_path = f"file:///{_Path(get_m3_root()).resolve().as_posix()}/docs/HERMES.md"
         except Exception:
             _doc_path = "docs/HERMES.md"
@@ -493,6 +507,7 @@ def _gather_plan(detected: AgentTargets, args: argparse.Namespace) -> SetupPlan:
     _embedder_already_native = False
     try:
         from m3_memory.rust_core_install import active_embedder_tier
+
         _embedder_already_native = bool(active_embedder_tier().get("native"))
     except Exception:  # noqa: BLE001 — best-effort; fall through to the prompt
         _embedder_already_native = False
@@ -505,8 +520,10 @@ def _gather_plan(detected: AgentTargets, args: argparse.Namespace) -> SetupPlan:
         # _step_rust_core regardless of this flag; this only preserves the
         # user's existing choice to also run tier 1 IN-PROCESS.)
         plan.install_gpu_embedder = True
-        _ok("  Tier-1 in-process embedder already active — keeping it "
-            "(skipping the embedder prompt; this is an upgrade).")
+        _ok(
+            "  Tier-1 in-process embedder already active — keeping it "
+            "(skipping the embedder prompt; this is an upgrade)."
+        )
     else:
         print()
         print("  Embedder — the native Rust core is installed EITHER WAY (it is")
@@ -522,15 +539,13 @@ def _gather_plan(detected: AgentTargets, args: argparse.Namespace) -> SetupPlan:
         print("    The cost: tier 1 can't be shared, so each process that uses")
         print("    it loads its own model/GPU context.")
         plan.install_gpu_embedder = _ask_yes_no(
-            "  Also run the tier-1 in-process embedder? (the shared tier-2 "
-            "server is installed regardless)",
+            "  Also run the tier-1 in-process embedder? (the shared tier-2 server is installed regardless)",
             default=False,
         )
         if plan.install_gpu_embedder:
             # Default OFF — never surprise the user with a multi-minute Rust build.
             plan.allow_native_source_build = _ask_yes_no(
-                "    If no prebuilt wheel matches, build it from source? "
-                "(needs Rust+cmake+C++; slow)",
+                "    If no prebuilt wheel matches, build it from source? (needs Rust+cmake+C++; slow)",
                 default=False,
             )
         # Shared-embedder mode is the SHIPPED DEFAULT, not a user choice: ONE
@@ -600,7 +615,8 @@ def _gather_plan(detected: AgentTargets, args: argparse.Namespace) -> SetupPlan:
         print("    'mode' is offered as the default because the library is already")
         print("    installed — the build cost is paid and the hardened provider works.")
     fips_choice = _ask_choice(
-        "  FIPS mode?", choices=["off", "mode", "strict"],
+        "  FIPS mode?",
+        choices=["off", "mode", "strict"],
         default="mode" if _wolfssl_path else "off",
     )
     plan.fips_mode = fips_choice in ("mode", "strict")
@@ -649,7 +665,8 @@ def _gather_plan(detected: AgentTargets, args: argparse.Namespace) -> SetupPlan:
         print("    needs no external scheduler. Replacing the cron/schtasks entries")
         print("    prevents them from double-firing alongside the governor.")
         plan.migrate_to_governor = _ask_yes_no(
-            "  Replace these scheduled tasks with the governor?", default=True,
+            "  Replace these scheduled tasks with the governor?",
+            default=True,
         )
 
     # Offer the local web dashboard. Default YES — it's a lightweight, useful
@@ -664,7 +681,8 @@ def _gather_plan(detected: AgentTargets, args: argparse.Namespace) -> SetupPlan:
     print("    Loopback-only (localhost); it is NOT authenticated, so don't expose it.")
     print("    Installs two small deps (fastapi + uvicorn).")
     plan.install_dashboard = _ask_yes_no(
-        "  Install the web dashboard (auto-start on boot)?", default=True,
+        "  Install the web dashboard (auto-start on boot)?",
+        default=True,
     )
     if plan.install_dashboard:
         # Guard the raw input(): a non-readable stdin (piped/headless run, or a
@@ -718,6 +736,7 @@ def _detect_governor_eligible_tasks() -> list[str]:
     try:
         sys.path.insert(0, str(_bin_dir()))
         import governor_migration
+
         return cast("list[str]", governor_migration.detect_scheduled_tasks().get("eligible", []))
     except Exception:
         return []
@@ -725,6 +744,7 @@ def _detect_governor_eligible_tasks() -> list[str]:
 
 def _shared_gguf_is(path: str) -> bool:
     from m3_memory.embedder_admin import shared_gguf_is
+
     return shared_gguf_is(path)
 
 
@@ -733,6 +753,7 @@ def _cognitive_loop_installed() -> bool | None:
     try:
         sys.path.insert(0, str(_bin_dir()))
         import governor_migration
+
         return cast("bool | None", governor_migration.cognitive_loop_installed())
     except Exception:  # noqa: BLE001
         return None
@@ -744,10 +765,13 @@ def _pin_chatlog_store() -> None:
     try:
         sys.path.insert(0, str(_bin_dir()))
         import chatlog_config
+
         pinned = chatlog_config.pin_split_path()
     except (ImportError, OSError) as e:
-        _warn(f"  could not record the chatlog store path ({e}); a job that sets "
-              f"M3_DATABASE may sync only the main store. inspect: m3 chatlog status")
+        _warn(
+            f"  could not record the chatlog store path ({e}); a job that sets "
+            f"M3_DATABASE may sync only the main store. inspect: m3 chatlog status"
+        )
         return
     if pinned:
         _ok(f"  recorded the chatlog store: {pinned}")
@@ -758,8 +782,11 @@ def _existing_install() -> str | None:
     try:
         sys.path.insert(0, str(_bin_dir()))
         from m3_core.paths import get_m3_config_root, get_m3_engine_root
-        candidates = (os.path.join(get_m3_engine_root(), "agent_memory.db"),
-                      os.path.join(get_m3_config_root(), ".chatlog_config.json"))
+
+        candidates = (
+            os.path.join(get_m3_engine_root(), "agent_memory.db"),
+            os.path.join(get_m3_config_root(), ".chatlog_config.json"),
+        )
     except Exception:  # noqa: BLE001
         return None
     return next((c for c in candidates if os.path.exists(c)), None)
@@ -767,8 +794,10 @@ def _existing_install() -> str | None:
 
 # ── execution phase ───────────────────────────────────────────────────────────
 
-def _run(cmd: list[str], *, check: bool = True, env: dict | None = None,
-         timeout: float | None = None) -> subprocess.CompletedProcess:
+
+def _run(
+    cmd: list[str], *, check: bool = True, env: dict | None = None, timeout: float | None = None
+) -> subprocess.CompletedProcess:
     """Shell out, streaming output. Returns the completed process.
 
     `env`, when given, replaces the child's environment (used to strip
@@ -788,14 +817,15 @@ def _import_m3_halt():
     degrades gracefully rather than crashing setup."""
     try:
         from m3_memory.installer import bin_dir
+
         bd = bin_dir()
         if bd and str(bd) not in sys.path:
             sys.path.insert(0, str(bd))
         import m3_halt
+
         return m3_halt
     except Exception as e:  # noqa: BLE001 — coordination is best-effort
-        _warn(f"  quiesce: m3_halt unavailable ({type(e).__name__}) — "
-              "skipping cooperative DB-writer quiesce")
+        _warn(f"  quiesce: m3_halt unavailable ({type(e).__name__}) — skipping cooperative DB-writer quiesce")
         return None
 
 
@@ -851,14 +881,14 @@ def _stop_supervised_services() -> None:
     try:
         sys.path.insert(0, str(_bin_dir()))
         import install_schedules
+
         stopped = install_schedules.stop_unix_services()
     except Exception as e:  # noqa: BLE001 — the HALT quiesce below still runs
         _warn(f"  could not stop m3's services first ({type(e).__name__}: {e})")
         return
     _STOPPED_SERVICES.extend(stopped)
     if stopped:
-        _say(f"  stopped {len(stopped)} m3 service(s) for the update; "
-             f"setup starts them again")
+        _say(f"  stopped {len(stopped)} m3 service(s) for the update; setup starts them again")
 
 
 # m3's own scheduled daemons that do not release the store promptly under HALT:
@@ -893,23 +923,23 @@ def _restore_stopped_services() -> None:
     try:
         sys.path.insert(0, str(_bin_dir()))
         import install_schedules
+
         started = install_schedules.start_unix_services(list(_STOPPED_SERVICES))
     except Exception as e:  # noqa: BLE001
-        _warn(f"  could not restart m3's services ({type(e).__name__}: {e}); "
-              f"run `m3 setup` again")
+        _warn(f"  could not restart m3's services ({type(e).__name__}: {e}); run `m3 setup` again")
         return
     finally:
         _STOPPED_SERVICES.clear()
     # A start request is not a running service; report what the manager says.
     if started:
         import time
+
         time.sleep(3)  # let launchd/systemd bring the process up before asking
     for name in started:
         if install_schedules.service_running(name):
             _ok(f"  restarted {name} (stopped for the update)")
         else:
-            _warn(f"  start requested for {name}, but it is not running yet. "
-                  f"inspect: m3 doctor")
+            _warn(f"  start requested for {name}, but it is not running yet. inspect: m3 doctor")
 
 
 def _quiesce_db_writers(args: argparse.Namespace) -> bool:
@@ -985,8 +1015,7 @@ def _quiesce_db_writers(args: argparse.Namespace) -> bool:
     _quiesce_tick_done(args)
     while not result.ok:
         stuck = ", ".join(f"{p.role}(pid {p.pid})" for p in result.stuck)
-        _warn(f"  {len(result.stuck)} writer(s) still holding the DB after "
-              f"{timeout:.0f}s: {stuck}")
+        _warn(f"  {len(result.stuck)} writer(s) still holding the DB after {timeout:.0f}s: {stuck}")
 
         # An ANCESTOR writer is unkillable by design, so NO branch below can ever
         # resolve it: --force-quiesce refuses it, the interactive "kill" refuses
@@ -1001,12 +1030,16 @@ def _quiesce_db_writers(args: argparse.Namespace) -> bool:
         ancestors = [p for p in result.stuck if _is_own_ancestor(p.pid)]
         if ancestors:
             who = ", ".join(f"{p.role}(pid {p.pid})" for p in ancestors)
-            _err(f"  cannot quiesce {who}: it is this install's own parent "
-                 f"process — no privilege level or retry can stop it.")
-            _err("  You are running setup FROM the m3 process it must stop. "
-                 "Start it from a plain shell instead — e.g. "
-                 "`python -m m3_memory.cli setup` — or run `m3 stop` from a "
-                 "separate terminal first.")
+            _err(
+                f"  cannot quiesce {who}: it is this install's own parent "
+                f"process — no privilege level or retry can stop it."
+            )
+            _err(
+                "  You are running setup FROM the m3 process it must stop. "
+                "Start it from a plain shell instead — e.g. "
+                "`python -m m3_memory.cli setup` — or run `m3 stop` from a "
+                "separate terminal first."
+            )
             halt.clear_halt()  # abort: no exclusive step to protect
             return False
         force = getattr(args, "force_quiesce", False) or getattr(args, "force_kill_mcp", False)
@@ -1048,8 +1081,10 @@ def _quiesce_db_writers(args: argparse.Namespace) -> bool:
                 result = halt.wait_for_quiesce(timeout=5.0, on_tick=_quiesce_tick(args))
                 _quiesce_tick_done(args)
                 continue
-            _err("  refusing to migrate with live DB-writers. Re-run with "
-                 "--force-quiesce (kills stuck writers) or stop them first.")
+            _err(
+                "  refusing to migrate with live DB-writers. Re-run with "
+                "--force-quiesce (kills stuck writers) or stop them first."
+            )
             halt.clear_halt()  # abort: no exclusive step to protect
             return False
         # Interactive: the human has context we don't (a task finishing) — but
@@ -1065,8 +1100,8 @@ def _quiesce_db_writers(args: argparse.Namespace) -> bool:
         # still choose wait or abort explicitly when they know a real task is
         # finishing.
         choice = _ask_choice(
-            "  A writer hasn't paused — it may have a task finishing.",
-            ["kill", "wait", "abort"], default="kill")
+            "  A writer hasn't paused — it may have a task finishing.", ["kill", "wait", "abort"], default="kill"
+        )
         if choice == "kill":
             # Interactive → allow a sudo retry (sudo prompts inline) for an
             # elevated writer, auto-elevating the cleanup during the install.
@@ -1092,6 +1127,7 @@ def _kill_process_posix(pid: int) -> bool:
     PermissionError (an elevated target an unprivileged installer can't signal)
     or if the process is already gone."""
     import signal as _signal
+
     try:
         os.kill(pid, _signal.SIGTERM)
         return True
@@ -1105,17 +1141,18 @@ def _surface_elevated_kill_help(halt, stuck) -> None:
     """Tell the user exactly how to clear a stale/elevated m3 writer the installer
     couldn't stop, then retry — the ready-to-run elevated command(s) for THIS OS
     (Windows / Linux / macOS), targeting the actual stuck PIDs."""
-    _err("  could not stop an elevated m3 writer. Run the command(s) below from "
-         "an ELEVATED shell (Windows: 'Run as administrator'; Linux/macOS: sudo), "
-         "then re-run the installer:")
+    _err(
+        "  could not stop an elevated m3 writer. Run the command(s) below from "
+        "an ELEVATED shell (Windows: 'Run as administrator'; Linux/macOS: sudo), "
+        "then re-run the installer:"
+    )
     try:
         cmds = halt.elevated_kill_commands([p.pid for p in stuck])
     except Exception:  # noqa: BLE001 — never let help-text generation abort
         cmds = []
     if not cmds:  # fallback if the helper is unavailable (older m3_halt)
         pids = " ".join(str(p.pid) for p in stuck)
-        cmds = ([f"taskkill /F /T {pids}"] if is_windows()
-                else [f"sudo kill {pids}"])
+        cmds = [f"taskkill /F /T {pids}"] if is_windows() else [f"sudo kill {pids}"]
     for c in cmds:
         print(f"      {c}")
 
@@ -1129,13 +1166,11 @@ def _sudo_kill_posix(pid: int) -> bool:
     if not shutil.which("sudo"):
         return False
     try:
-        out = subprocess.run(["sudo", "kill", str(pid)],
-                             timeout=60, check=False)
+        out = subprocess.run(["sudo", "kill", str(pid)], timeout=60, check=False)
         if out.returncode == 0:
             return True
         # Escalate to SIGKILL once if TERM didn't take.
-        out = subprocess.run(["sudo", "kill", "-9", str(pid)],
-                             timeout=60, check=False)
+        out = subprocess.run(["sudo", "kill", "-9", str(pid)], timeout=60, check=False)
         return out.returncode == 0
     except Exception:  # noqa: BLE001 — sudo unavailable / user aborted / timeout
         return False
@@ -1162,7 +1197,10 @@ def _runas_kill_windows(pid: int) -> bool:
     try:
         out = subprocess.run(
             ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
-            timeout=120, check=False, **_hidden_window_kwargs())
+            timeout=120,
+            check=False,
+            **_hidden_window_kwargs(),
+        )
         # taskkill exit 0 = killed; 128 = not found (already gone → goal met).
         return out.returncode in (0, 128)
     except Exception:  # noqa: BLE001 — UAC cancelled / powershell missing / timeout
@@ -1190,7 +1228,10 @@ def _runas_schedule_repair_windows(script: str) -> bool:
     try:
         out = subprocess.run(
             ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
-            timeout=300, check=False, **_hidden_window_kwargs())
+            timeout=300,
+            check=False,
+            **_hidden_window_kwargs(),
+        )
         return out.returncode == 0
     except Exception:  # noqa: BLE001 — UAC cancelled / powershell missing / timeout
         return False
@@ -1205,9 +1246,7 @@ def _runas_delete_tasks_windows(task_names: list[str]) -> bool:
     prompt)."""
     # Build one elevated command that deletes each task; /F force, ignore a
     # not-found (already gone) as success.
-    deletes = "; ".join(
-        f"schtasks /Delete /TN '{n}' /F" for n in task_names
-    )
+    deletes = "; ".join(f"schtasks /Delete /TN '{n}' /F" for n in task_names)
     ps = (
         "$p = Start-Process -FilePath 'powershell' "
         f"-ArgumentList '-NoProfile','-Command',\"{deletes}\" "
@@ -1216,7 +1255,10 @@ def _runas_delete_tasks_windows(task_names: list[str]) -> bool:
     try:
         out = subprocess.run(
             ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
-            timeout=120, check=False, **_hidden_window_kwargs())
+            timeout=120,
+            check=False,
+            **_hidden_window_kwargs(),
+        )
         return out.returncode == 0
     except Exception:  # noqa: BLE001 — UAC cancelled / powershell missing / timeout
         return False
@@ -1239,6 +1281,7 @@ def _begin_elevation_batch(*, gui: bool = False) -> None:
     global _ELEVATION
     if _on_windows() and (gui or _stdin_is_interactive()):
         from m3_memory.elevate import ElevationBatch
+
         _ELEVATION = ElevationBatch()
 
 
@@ -1266,9 +1309,11 @@ def _flush_elevation(*, gui: bool = False) -> None:
         if raw is None:
             # Nobody to answer here means nobody to approve the UAC dialog
             # either; raising it would only wait out setup's time budget.
-            _warn("  not run: no one is here to approve the administrator prompt. "
-                  "At a console, run `m3 doctor --fix` (and `m3 schedules repair` "
-                  "for scheduled tasks) and approve it.")
+            _warn(
+                "  not run: no one is here to approve the administrator prompt. "
+                "At a console, run `m3 doctor --fix` (and `m3 schedules repair` "
+                "for scheduled tasks) and approve it."
+            )
             return
         if raw.strip().lower() in ("n", "no"):
             _warn("  skipped; run `m3 schedules repair` from an admin shell later.")
@@ -1301,6 +1346,7 @@ def _offer_touchid_sudo() -> None:
         return
     try:
         from m3_memory import touchid
+
         sys.path.insert(0, str(_bin_dir()))
         from m3_core.paths import get_m3_config_root
     except ImportError:
@@ -1308,9 +1354,11 @@ def _offer_touchid_sudo() -> None:
     marker = os.path.join(get_m3_config_root(), ".touchid_sudo_declined")
     if not touchid.at_the_mac() or os.path.exists(marker) or touchid.status() != "available":
         return
-    if not _ask_yes_no("  Let sudo accept Touch ID instead of your password? (adds one "
-                       f"line to {touchid.SUDO_LOCAL}; asks for your password once now)",
-                       default=True):
+    if not _ask_yes_no(
+        "  Let sudo accept Touch ID instead of your password? (adds one "
+        f"line to {touchid.SUDO_LOCAL}; asks for your password once now)",
+        default=True,
+    ):
         try:
             os.makedirs(os.path.dirname(marker), exist_ok=True)
             open(marker, "w", encoding="utf-8").close()
@@ -1333,6 +1381,7 @@ def _restart_stale_embed_server() -> None:
     unit, so re-registering it is not enough on Linux."""
     try:
         from m3_memory.embedder_admin import restart_embed_service_hint, stale_embed_servers
+
         stale = stale_embed_servers()
     except Exception:  # noqa: BLE001 — diagnostic only
         return
@@ -1341,25 +1390,27 @@ def _restart_stale_embed_server() -> None:
     pids = ", ".join(str(s["pid"]) for s in stale)
     if _on_windows():
         cli = _m3_cli("embedder")
-        if (_queue_elevated(f"stop the embed service still running the previous core (pid {pids})",
-                            [*cli, "stop"])
-                and _queue_elevated("start the embed service on the new core", [*cli, "start"])):
+        if _queue_elevated(
+            f"stop the embed service still running the previous core (pid {pids})", [*cli, "stop"]
+        ) and _queue_elevated("start the embed service on the new core", [*cli, "start"]):
             return
     else:
         from m3_memory.embedder_admin import restart_stale_embed_service
+
         try:
             res = restart_stale_embed_service(allow_elevation=False)
         except Exception as e:  # noqa: BLE001 — reported below, never fatal
-            res = {"outcome": "still-stale", "pids": [s["pid"] for s in stale],
-                   "detail": f"{type(e).__name__}: {e}"}
+            res = {"outcome": "still-stale", "pids": [s["pid"] for s in stale], "detail": f"{type(e).__name__}: {e}"}
         if res["outcome"] in ("restarted", "none"):
             _ok(f"  embed server restarted on the new native core (was pid {pids})")
             return
         pids = ", ".join(str(p) for p in res["pids"])
         if res["detail"]:
             _say(f"    {res['detail']}")
-    _warn(f"  the embed server (pid {pids}) still runs the previous native core. "
-          f"restart it: {restart_embed_service_hint()}")
+    _warn(
+        f"  the embed server (pid {pids}) still runs the previous native core. "
+        f"restart it: {restart_embed_service_hint()}"
+    )
 
 
 def _report_unrun_elevation() -> None:
@@ -1373,8 +1424,7 @@ def _report_unrun_elevation() -> None:
         print("    run `m3 schedules repair` from an admin shell once setup completes.")
 
 
-def _offer_elevated_task_delete(task_names: list[str], *, non_interactive: bool,
-                                gui: bool = False) -> bool | None:
+def _offer_elevated_task_delete(task_names: list[str], *, non_interactive: bool, gui: bool = False) -> bool | None:
     """On Windows with a HUMAN PRESENT, elevate deleting the governor-eligible
     scheduled tasks that an unelevated remove was denied — the UAC dialog itself
     is the user's consent. Returns True if the elevated delete succeeded.
@@ -1387,19 +1437,18 @@ def _offer_elevated_task_delete(task_names: list[str], *, non_interactive: bool,
         return False
     if _ELEVATION is not None:
         for n in task_names:
-            _queue_elevated(f"remove legacy scheduled task {n}",
-                            ["schtasks", "/Delete", "/TN", n, "/F"])
+            _queue_elevated(f"remove legacy scheduled task {n}", ["schtasks", "/Delete", "/TN", n, "/F"])
         return None  # queued; reported when the batch runs
     if non_interactive and not gui:
         return False  # truly headless — no one to approve UAC
     if not gui:
         # Terminal interactive: ask before popping UAC.
         if not _ask_yes_no(
-            "  Remove them now? (opens a Windows admin prompt)", default=True,
+            "  Remove them now? (opens a Windows admin prompt)",
+            default=True,
         ):
             return False
-    if _retry_elevated(lambda: _runas_delete_tasks_windows(task_names),
-                       what="elevated removal"):
+    if _retry_elevated(lambda: _runas_delete_tasks_windows(task_names), what="elevated removal"):
         _ok("  legacy scheduled task(s) removed (elevated).")
         return True
     return False
@@ -1418,18 +1467,17 @@ def _retry_elevated(action, *, what: str, max_attempts: int = 5) -> bool:
     """
     # Name the mechanism the user will actually see. This helper is also reached
     # from the POSIX kill path, where the prompt is sudo, not a UAC dialog.
-    _how = ("approve the Windows UAC dialog" if is_windows()
-            else "enter your sudo password")
+    _how = "approve the Windows UAC dialog" if is_windows() else "enter your sudo password"
     for attempt in range(1, max_attempts + 1):
-        _say(f"  Requesting administrator access ({_how})"
-             f"{'' if attempt == 1 else f' — attempt {attempt}/{max_attempts}'}...")
+        _say(
+            f"  Requesting administrator access ({_how})"
+            f"{'' if attempt == 1 else f' — attempt {attempt}/{max_attempts}'}..."
+        )
         if action():
             return True
-        _warn(f"  {what} was cancelled or failed"
-              f"{' (UAC declined, or the dialog was missed)' if attempt == 1 else ''}.")
+        _warn(f"  {what} was cancelled or failed{' (UAC declined, or the dialog was missed)' if attempt == 1 else ''}.")
         if attempt >= max_attempts:
-            _warn(f"  giving up after {max_attempts} attempts — run the command "
-                  "above yourself from an admin shell.")
+            _warn(f"  giving up after {max_attempts} attempts — run the command above yourself from an admin shell.")
             return False
         # Explicit opt-out: anything other than 'retry' stops. The prompt names
         # the quit words so declining never requires guessing.
@@ -1458,6 +1506,7 @@ def _stdin_is_interactive() -> bool:
     raised a UAC prompt nobody saw and waited out setup's whole budget.
     """
     from m3_memory.wizard.ui import console_has_person
+
     return console_has_person()
 
 
@@ -1470,8 +1519,9 @@ def _offer_elevated_schedule_repair(script: str, *, non_interactive: bool) -> bo
     if not _on_windows():
         return False
     # None = queued for the single prompt at the end of setup (not done yet).
-    if _queue_elevated("register m3's boot-start services (install_schedules --repair)",
-                       [_python_exe(), script, "--repair"]):
+    if _queue_elevated(
+        "register m3's boot-start services (install_schedules --repair)", [_python_exe(), script, "--repair"]
+    ):
         return None
     # `non_interactive` here means "the caller already gathered its choices", NOT
     # "there is no human". `m3 setup` runs its install step non-interactively by
@@ -1491,8 +1541,7 @@ def _offer_elevated_schedule_repair(script: str, *, non_interactive: bool) -> bo
         default=True,
     ):
         return False
-    if _retry_elevated(lambda: _runas_schedule_repair_windows(script),
-                       what="elevated registration"):
+    if _retry_elevated(lambda: _runas_schedule_repair_windows(script), what="elevated registration"):
         _ok("  boot-start services registered (elevated).")
         return True
     return False
@@ -1572,8 +1621,7 @@ def _kill_stuck_writers(stuck, *, allow_sudo: bool = False) -> bool:
             # 30s, which is the E2E lane's "hang"). The caller must treat an
             # unkillable writer as terminal, not retryable — see the
             # `unkillable` short-circuit in _step_preflight.
-            _warn(f"    refusing to kill {p.role} (pid {p.pid}) — it is this "
-                  f"install's own parent process")
+            _warn(f"    refusing to kill {p.role} (pid {p.pid}) — it is this install's own parent process")
             all_ok = False
             continue
         if killer(p.pid):
@@ -1587,14 +1635,11 @@ def _kill_stuck_writers(stuck, *, allow_sudo: bool = False) -> bool:
         # eats a reflexive Enter), and a single missed consent used to abandon
         # the writer silently — setup then carried on with a stale process still
         # holding the DB. Re-ask instead; the user can still decline explicitly.
-        if allow_sudo and _retry_elevated(
-            lambda p=p: elevate(p.pid), what=f"elevated stop of {p.role} (pid {p.pid})"
-        ):
+        if allow_sudo and _retry_elevated(lambda p=p: elevate(p.pid), what=f"elevated stop of {p.role} (pid {p.pid})"):
             _ok(f"    stopped {p.role} (pid {p.pid}) via {how}")
             continue
         all_ok = False
-        _warn(f"    could NOT stop {p.role} (pid {p.pid}) — likely elevated / "
-              "owned by another user")
+        _warn(f"    could NOT stop {p.role} (pid {p.pid}) — likely elevated / owned by another user")
     return all_ok
 
 
@@ -1606,8 +1651,7 @@ def _pycache_scope(args: argparse.Namespace) -> tuple[Path, bool, list]:
     forces it."""
     root = Path(__file__).resolve().parent.parent
     editable = "site-packages" not in root.parts
-    dirs = list(root.rglob("__pycache__")) \
-        if editable or getattr(args, "clean_cache", False) else []
+    dirs = list(root.rglob("__pycache__")) if editable or getattr(args, "clean_cache", False) else []
     return root, editable, dirs
 
 
@@ -1636,6 +1680,7 @@ def _step_preflight(plan: SetupPlan, args: argparse.Namespace) -> bool:
     # stale copy. That broke bridge resolution on 2026-05-27.
     try:
         import m3_memory as _mm
+
         installed_path = Path(_mm.__file__).resolve().parent
         canonical = Path(__file__).resolve().parent
         if installed_path != canonical:
@@ -1688,11 +1733,14 @@ def _step_preflight(plan: SetupPlan, args: argparse.Namespace) -> bool:
             _warn("launcher shadowing: more than one m3 install is on PATH.")
             for f in _bad:
                 _warn(f"    {f['entrypoint']} ({f['kind']}): {f['path']} — {f['detail']}")
-            _warn("    Which copy answers `m3` depends on PATH ORDER, so an "
-                  "unrelated change can silently swap versions.")
-            _warn("    fix: keep ONE install. `pip uninstall m3-memory` removes a "
-                  "pip --user copy; `pipx ensurepath` puts the pipx bin dir first. "
-                  "Then re-run `m3 doctor` to confirm.")
+            _warn(
+                "    Which copy answers `m3` depends on PATH ORDER, so an unrelated change can silently swap versions."
+            )
+            _warn(
+                "    fix: keep ONE install. `pip uninstall m3-memory` removes a "
+                "pip --user copy; `pipx ensurepath` puts the pipx bin dir first. "
+                "Then re-run `m3 doctor` to confirm."
+            )
         else:
             _ok_unchanged("  launchers on PATH: one install")
 
@@ -1710,8 +1758,10 @@ def _step_preflight(plan: SetupPlan, args: argparse.Namespace) -> bool:
                         _kill_process_windows(pid)
                     _ok(f"  killed {len(running)} mcp-memory.exe process(es)")
                 else:
-                    _err("  refusing to install with mcp-memory.exe locked. "
-                         "Re-run with --force-kill-mcp or stop the agent first.")
+                    _err(
+                        "  refusing to install with mcp-memory.exe locked. "
+                        "Re-run with --force-kill-mcp or stop the agent first."
+                    )
                     return False
             else:
                 if _ask_yes_no("  Kill running mcp-memory.exe so install can proceed?", default=True):
@@ -1746,8 +1796,7 @@ def _step_preflight(plan: SetupPlan, args: argparse.Namespace) -> bool:
     if pycache_dirs:
         _say(f"  found {len(pycache_dirs)} __pycache__ dirs in {canonical_root}")
         if getattr(args, "clean_cache", False) or (
-            not args.non_interactive
-            and _ask_yes_no("  Wipe __pycache__ before install? (recommended)", default=True)
+            not args.non_interactive and _ask_yes_no("  Wipe __pycache__ before install? (recommended)", default=True)
         ):
             wiped = 0
             for d in pycache_dirs:
@@ -1760,8 +1809,10 @@ def _step_preflight(plan: SetupPlan, args: argparse.Namespace) -> bool:
         else:
             # Python checks each cached file against its source and never
             # imports one whose source is gone, so leaving them is safe.
-            _say(f"  left {len(pycache_dirs)} __pycache__ dirs in place "
-                 f"(Python rebuilds any that no longer match their source)")
+            _say(
+                f"  left {len(pycache_dirs)} __pycache__ dirs in place "
+                f"(Python rebuilds any that no longer match their source)"
+            )
     elif editable:
         _ok("  no stale __pycache__ to wipe")
 
@@ -1775,28 +1826,30 @@ def _step_preflight(plan: SetupPlan, args: argparse.Namespace) -> bool:
         _ok_unchanged(f"  shared embedder already uses {discovered}")
     elif discovered:
         _say(f"  discovered BGE-M3 GGUF: {discovered}")
-        _say("  wiring it into the SHARED embedder config so the single :8082 "
-             "server loads it (one model in memory, shared by every m3 process)")
-        if args.non_interactive or _ask_yes_no(
-            "  Use this GGUF for the shared embedder?", default=True
-        ):
+        _say(
+            "  wiring it into the SHARED embedder config so the single :8082 "
+            "server loads it (one model in memory, shared by every m3 process)"
+        )
+        if args.non_interactive or _ask_yes_no("  Use this GGUF for the shared embedder?", default=True):
             # Seed the shared config (NOT an env var). An env var would force
             # every MCP-server process to open its OWN CUDA context — a hang risk
             # (§3 headless knob -> config file). The shared :8082 server owns the
             # one context; clients defer to it. Idempotent.
             try:
                 from m3_memory.embedder_admin import seed_shared_config
+
                 _cfg_path, _wrote = seed_shared_config(gguf_path=discovered)
                 plan.embed_gguf = discovered
                 _ok(f"  shared embedder config {'seeded' if _wrote else 'already set'}: {_cfg_path}")
-                _say("  (start/keep the :8082 server via `m3 embedder install`; "
-                     "clients defer to it automatically)")
+                _say("  (start/keep the :8082 server via `m3 embedder install`; clients defer to it automatically)")
             except Exception as _e:  # noqa: BLE001 — best-effort, don't abort setup
                 _warn(f"  could not seed shared embedder config: {_e}")
     else:
         _say("  no BGE-M3 GGUF auto-discovered; tier-2 (:8082) will serve all embeds")
-        _say("  (drop a bge-m3 GGUF in the LM Studio models dir + run "
-             "`m3 doctor --fix` later to wire tier-1; see EMBEDDER_ARCHITECTURE.md)")
+        _say(
+            "  (drop a bge-m3 GGUF in the LM Studio models dir + run "
+            "`m3 doctor --fix` later to wire tier-1; see EMBEDDER_ARCHITECTURE.md)"
+        )
 
     # ── Probe 5: LLM endpoint detection + failover wiring ───────────────
     # Enrichment features (auto-classify, summarize) discover a chat model via
@@ -1815,7 +1868,7 @@ def _step_preflight(plan: SetupPlan, args: argparse.Namespace) -> bool:
 _LLM_RUNTIMES = (
     # (label, url, env var that enables it, value to set)
     ("LM Studio", "http://localhost:1234/v1", "M3_ENABLE_LMSTUDIO_FAILOVER", "1"),
-    ("Ollama",    "http://localhost:11434/v1", "M3_ENABLE_OLLAMA_FAILOVER", "1"),
+    ("Ollama", "http://localhost:11434/v1", "M3_ENABLE_OLLAMA_FAILOVER", "1"),
 )
 
 
@@ -1852,18 +1905,18 @@ def _probe_llm_endpoints(plan: SetupPlan, args: argparse.Namespace) -> None:
         _record_llm_switch("M3_LLM_URL", custom)
         return
 
-    reachable = [(label, url, var, val) for (label, url, var, val) in _LLM_RUNTIMES
-                 if _endpoint_reachable(url)]
+    reachable = [(label, url, var, val) for (label, url, var, val) in _LLM_RUNTIMES if _endpoint_reachable(url)]
     if not reachable:
         if _called_by_upgrade():
             # A runtime that was enabled is a change worth reporting: enrichment
             # just stopped. None ever enabled is the standing state, which the
             # last setup explained; an upgrade reports only changes.
-            enabled = [label for (label, _url, var, _val) in _LLM_RUNTIMES
-                       if _llm_switch_enabled(var)]
+            enabled = [label for (label, _url, var, _val) in _LLM_RUNTIMES if _llm_switch_enabled(var)]
             if enabled:
-                _warn(f"  {', '.join(enabled)} enabled for enrichment but not reachable "
-                      "now; enrichment pauses until it is running again")
+                _warn(
+                    f"  {', '.join(enabled)} enabled for enrichment but not reachable "
+                    "now; enrichment pauses until it is running again"
+                )
             return
         _say("  no local LLM runtime detected on :1234 (LM Studio) or :11434 (Ollama)")
         _say("  enrichment needs a chat model. Start one, then run `m3 setup` again")
@@ -1881,15 +1934,14 @@ def _probe_llm_endpoints(plan: SetupPlan, args: argparse.Namespace) -> None:
             continue  # default already on; nothing to persist
         already = os.environ.get(var, "").strip()
         from m3_memory.wizard.persist import shell_rc_has
+
         if already in ("1", "true", "yes") or shell_rc_has(var, val):
             # The shell has it, but launchd/systemd daemons never read the rc;
             # record it where they look.
             os.environ[var] = val
             _record_llm_switch(var, val)
             continue
-        if args.non_interactive or _ask_yes_no(
-            f"  Enable {label} for enrichment (persist {var}=1)?", default=True
-        ):
+        if args.non_interactive or _ask_yes_no(f"  Enable {label} for enrichment (persist {var}=1)?", default=True):
             os.environ[var] = val
             _persist_env_var(var, val, non_interactive=args.non_interactive)
             _record_llm_switch(var, val)
@@ -1910,6 +1962,7 @@ def _llm_switch_enabled(var: str) -> bool:
     try:
         sys.path.insert(0, str(_bin_dir()))
         from m3_core.llm_config import read_llm_config
+
         return str(read_llm_config().get(var, "")).strip().lower() in ("1", "true", "yes", "on")
     except (ImportError, OSError, ValueError):
         return False
@@ -1921,17 +1974,20 @@ def _record_llm_switch(var: str, val: str) -> None:
     try:
         sys.path.insert(0, str(_bin_dir()))
         from m3_core.llm_config import read_llm_config, write_llm_setting
+
         if str(read_llm_config().get(var, "")) == val:
             return
         path = write_llm_setting(var, val)
     except (ImportError, OSError) as e:
-        _warn(f"    could not record {var}={val} for background services ({e}); "
-              f"they will not see it. inspect: m3 doctor")
+        _warn(
+            f"    could not record {var}={val} for background services ({e}); they will not see it. inspect: m3 doctor"
+        )
         return
     _ok(f"    recorded {var}={val} for background services ({path})")
 
 
 # ── B15 helpers ──────────────────────────────────────────────────────────
+
 
 def _find_running_mcp_memory_processes() -> list[int]:
     """Return PIDs of any running mcp-memory.exe processes. Windows only."""
@@ -1940,7 +1996,12 @@ def _find_running_mcp_memory_processes() -> list[int]:
     try:
         out = subprocess.run(
             ["tasklist", "/fi", "imagename eq mcp-memory.exe", "/fo", "csv", "/nh"],
-            capture_output=True, text=True, timeout=10, check=False, **_hidden_window_kwargs())
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+            **_hidden_window_kwargs(),
+        )
         pids: list[int] = []
         for line in out.stdout.splitlines():
             # CSV: "mcp-memory.exe","PID","...","..."
@@ -1964,7 +2025,12 @@ def _kill_process_windows(pid: int) -> bool:
     try:
         out = subprocess.run(
             ["taskkill", "/PID", str(pid), "/F"],
-            capture_output=True, text=True, timeout=10, check=False, **_hidden_window_kwargs())
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+            **_hidden_window_kwargs(),
+        )
         if out.returncode == 0:
             return True
         # 128 = process not found (already gone → goal met). Any other non-zero
@@ -2042,6 +2108,7 @@ def _discover_bge_m3_gguf() -> str | None:
     try:
         sys.path.insert(0, str(_bin_dir()))
         from memory.embed import discover_bge_m3_gguf as _discover
+
         return cast("str | None", _discover())
     except Exception:  # noqa: BLE001 — keep setup resilient if bin/ isn't importable
         home = Path.home()
@@ -2053,10 +2120,14 @@ def _discover_bge_m3_gguf() -> str | None:
             # m3's OWN dir first — the only one that survives the user dropping
             # LM Studio / Ollama / llama.cpp. Mirrors get_m3_models_root()'s
             # precedence without importing it (bin/ is unavailable on this path).
-            Path(os.environ.get("M3_MODELS_ROOT")
-                 or (Path(os.environ["M3_MEMORY_ROOT"]).expanduser() / "models"
-                     if os.environ.get("M3_MEMORY_ROOT")
-                     else home / ".m3" / "models")).expanduser(),
+            Path(
+                os.environ.get("M3_MODELS_ROOT")
+                or (
+                    Path(os.environ["M3_MEMORY_ROOT"]).expanduser() / "models"
+                    if os.environ.get("M3_MEMORY_ROOT")
+                    else home / ".m3" / "models"
+                )
+            ).expanduser(),
             home / ".lmstudio" / "models",
             home / "Library" / "Application Support" / "LM Studio" / "models",
             home / ".cache" / "lm-studio" / "models",
@@ -2085,8 +2156,10 @@ def _reregister_cognitive_loop() -> None:
     if _register_cognitive_loop_task():
         _ok_unchanged("  cognitive loop service re-registered from this payload")
     else:
-        _warn("  cognitive loop service NOT re-registered; it may still run the "
-              "previous payload's paths. Fix: m3 schedules add cognitive-loop")
+        _warn(
+            "  cognitive loop service NOT re-registered; it may still run the "
+            "previous payload's paths. Fix: m3 schedules add cognitive-loop"
+        )
 
 
 def _step_install_m3(plan: SetupPlan) -> bool:
@@ -2126,10 +2199,16 @@ def _step_install_m3(plan: SetupPlan) -> bool:
     child_env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
     try:
         import m3_memory as _wiz_pkg
+
         wiz_path = Path(_wiz_pkg.__file__).resolve()
         probe = subprocess.run(
             [sys.executable, "-c", "import m3_memory,sys; print(m3_memory.__file__)"],
-            capture_output=True, text=True, env=child_env, timeout=30, **_hidden_window_kwargs())
+            capture_output=True,
+            text=True,
+            env=child_env,
+            timeout=30,
+            **_hidden_window_kwargs(),
+        )
         child_path = Path(probe.stdout.strip()).resolve() if probe.stdout.strip() else None
         if child_path is not None and child_path != wiz_path:
             _err(
@@ -2144,8 +2223,7 @@ def _step_install_m3(plan: SetupPlan) -> bool:
     except Exception as e:  # noqa: BLE001 — probe is best-effort; don't block install on it
         _warn(f"could not verify subprocess package resolution: {e} (continuing)")
 
-    cmd = _m3_cli("install-m3",
-           "--non-interactive", "--force", "--capture-mode", plan.capture_mode)
+    cmd = _m3_cli("install-m3", "--non-interactive", "--force", "--capture-mode", plan.capture_mode)
     if plan.endpoint:
         cmd += ["--endpoint", plan.endpoint]
     if plan.cognitive_loop:
@@ -2175,8 +2253,8 @@ def _step_cpu_sovereign_embedder() -> bool:
     # Lazy import: setup_wizard is imported during install, and embedder_admin
     # pulls in the payload-root helpers (§2 cycle-breaking via lazy imports).
     from m3_memory.embedder_admin import EXIT_REGISTERED_NOT_RUNNING
-    cmd = _m3_cli("embedder", "install",
-           "--concurrency", "2")
+
+    cmd = _m3_cli("embedder", "install", "--concurrency", "2")
     try:
         _run(cmd)  # reports "running on port 8082" itself
         return True
@@ -2187,8 +2265,7 @@ def _step_cpu_sovereign_embedder() -> bool:
         # service nothing will ever start, and would contradict the diagnostic
         # `m3 embedder install` just printed. Surface it instead (§3).
         if getattr(e, "returncode", None) == EXIT_REGISTERED_NOT_RUNNING:
-            _warn("sovereign CPU embedder is REGISTERED but NOT running — see the "
-                  "diagnosis above.")
+            _warn("sovereign CPU embedder is REGISTERED but NOT running — see the diagnosis above.")
             _say("  Tier-1 in-process embedding still works, so setup continues,")
             _say("  but the shared :8082 server will stay down until it is fixed:")
             _say("    m3 embedder status     # what the service manager thinks")
@@ -2219,7 +2296,7 @@ def _step_cpu_sovereign_embedder() -> bool:
         else:
             # Linux: two common failure modes — missing binary and missing systemd user session.
             has_systemctl = bool(shutil.which("systemctl"))
-            has_loginctl  = bool(shutil.which("loginctl"))
+            has_loginctl = bool(shutil.which("loginctl"))
             print("    Linux — step 1: install the binary (no Rust needed, prebuilt wheel):")
             print("        m3 embedder install-gpu")
             print()
@@ -2234,7 +2311,7 @@ def _step_cpu_sovereign_embedder() -> bool:
                 print("    systemctl not found — run the server directly:")
             gguf_hint = os.environ.get("M3_EMBED_GGUF", "~/bge-m3-GGUF-Q4_K_M.gguf")
             print(f"        M3_EMBED_GGUF={gguf_hint} \\")
-            print( "            nohup m3-embed-server > ~/.m3/engine/embed-server.log 2>&1 &")
+            print("            nohup m3-embed-server > ~/.m3/engine/embed-server.log 2>&1 &")
             print()
             print("    To start automatically on boot (no systemd needed):")
             print("        crontab -e   # then add:")
@@ -2242,7 +2319,7 @@ def _step_cpu_sovereign_embedder() -> bool:
             if has_systemctl and has_loginctl:
                 print()
                 print("    To keep the systemd service running after logout (headless / server):")
-                print("        loginctl enable-linger \"$USER\"")
+                print('        loginctl enable-linger "$USER"')
             elif has_systemctl and not has_loginctl:
                 print()
                 print("    (loginctl not found — linger not available on this system)")
@@ -2306,8 +2383,7 @@ def _step_rust_core(plan: SetupPlan) -> bool:
     try:
         if is_rust_core_current():
             cur = active_embedder_tier()
-            _ok_unchanged(f"native core current: m3_core_rs {cur.get('version')} "
-                f"({cur.get('backend') or 'cpu'})")
+            _ok_unchanged(f"native core current: m3_core_rs {cur.get('version')} ({cur.get('backend') or 'cpu'})")
             return True
     except Exception:  # noqa: BLE001 — fall through and (re)install
         pass
@@ -2327,13 +2403,13 @@ def _step_rust_core(plan: SetupPlan) -> bool:
                 active_embedder_tier,
                 native_core_outcome_note,
             )
+
             # The exit code reports the FETCH, not the capability. On an upgrade
             # the old wheel is still loaded and still fast, so ask the live tier
             # before choosing the headline.
             still_native = active_embedder_tier().get("native", False)
             if still_native:
-                _warn(f"native core upgrade did not land (exit {rc}) — "
-                      f"the loaded core keeps serving:")
+                _warn(f"native core upgrade did not land (exit {rc}) — the loaded core keeps serving:")
             else:
                 _warn(f"native core not installed (exit {rc}) — m3 remains fully usable:")
             print(native_core_outcome_note(indent="    "))
@@ -2370,20 +2446,22 @@ def _step_gpu_embedder(plan: SetupPlan) -> bool:
                 active_embedder_tier,
                 native_core_outcome_note,
             )
+
             # See _step_native_core: rc != 0 is a FETCH result. Probe the live
             # tier so an upgrade-over-a-working-wheel is not reported as a loss
             # of the hot path — and so we do not tell a user with a healthy
             # native core to install a Rust toolchain.
             still_native = active_embedder_tier().get("native", False)
             if still_native:
-                _warn(f"native wheel upgrade did not land (exit {e.returncode}) "
-                      f"— that's OK:")
+                _warn(f"native wheel upgrade did not land (exit {e.returncode}) — that's OK:")
                 print(native_core_outcome_note(indent="    "))
             else:
                 _warn(f"native wheel not installed (exit {e.returncode}) — that's OK:")
                 print(native_core_outcome_note(indent="    "))
-                print("    To build your own wheel, see docs/BUILD_WHEELS.md or run "
-                      "`m3 embedder install-gpu` with a Rust toolchain installed.")
+                print(
+                    "    To build your own wheel, see docs/BUILD_WHEELS.md or run "
+                    "`m3 embedder install-gpu` with a Rust toolchain installed."
+                )
         except Exception:  # noqa: BLE001 — reassurance is best-effort
             _warn(f"native wheel not installed (exit {e.returncode}) — that's OK:")
             print("    m3 stays fully functional via its pure-Python embed path.")
@@ -2395,12 +2473,13 @@ def _step_shared_embedder(plan: SetupPlan, *, non_interactive: bool = False) -> 
     so every m3 process defers to ONE shared embedder server (GPU-accelerated
     where available, CPU-only otherwise), AND register the self-healing
     embed-server task so that server is always up. Non-fatal at each step."""
-    quiet = _called_by_upgrade()   # only changes and problems under the upgrade
+    quiet = _called_by_upgrade()  # only changes and problems under the upgrade
     if not quiet:
         print()
         print("[~] Enabling shared embedder (one shared server for all m3 processes)")
     try:
         from m3_memory.embedder_admin import seed_shared_config
+
         # seed_shared_config writes .embed_config.json idempotently — the single
         # source of truth shared with the installer/doctor, so all stay in lockstep.
         _path, _wrote = seed_shared_config(port=8082)
@@ -2435,6 +2514,7 @@ def _register_embed_server_task(*, non_interactive: bool = False) -> None:
     which we pass through."""
     try:
         from m3_memory import embedder_admin
+
         binary = embedder_admin._server_binary()
         if binary is not None:
             # Ask the service manager: the binary being present does not mean the
@@ -2442,11 +2522,14 @@ def _register_embed_server_task(*, non_interactive: bool = False) -> None:
             gguf = embedder_admin._find_bundled_gguf() or Path("")
             if embedder_admin._service_reports_installed(binary, gguf):
                 if not _called_by_upgrade():
-                    print("    Keep-alive: the Rust m3-embed-server OS service keeps "
-                          ":8082 up — no scheduled task needed.")
+                    print(
+                        "    Keep-alive: the Rust m3-embed-server OS service keeps :8082 up — no scheduled task needed."
+                    )
             else:
-                print("    [!] the Rust m3-embed-server is present but NOT registered "
-                      "as a service, so nothing keeps :8082 up. Register it with:")
+                print(
+                    "    [!] the Rust m3-embed-server is present but NOT registered "
+                    "as a service, so nothing keeps :8082 up. Register it with:"
+                )
                 print("        m3 embedder install")
             return
     except Exception:  # noqa: BLE001 — detection failure: fall through to the fallback
@@ -2463,8 +2546,10 @@ def _register_embed_server_task(*, non_interactive: bool = False) -> None:
         print("        m3 embedder install-gpu && m3 embedder install")
         return
 
-    print("    Rust m3-embed-server not present — registering the Python embed-"
-          "server keep-alive task as a fallback (Windows).")
+    print(
+        "    Rust m3-embed-server not present — registering the Python embed-"
+        "server keep-alive task as a fallback (Windows)."
+    )
     # Locate the payload's bin/install_schedules.py. In the dev checkout bin/ is
     # a sibling of the m3_memory package (parent.parent/bin, the same idiom the
     # GGUF-discovery step uses); a pipx install fetches the payload to the same
@@ -2480,7 +2565,9 @@ def _register_embed_server_task(*, non_interactive: bool = False) -> None:
         # 'Access is denied' boot-task case to offer inline UAC elevation.
         proc = subprocess.run(
             [_python_exe(), script, "--add", "embed-server"],
-            check=False, capture_output=True, text=True,
+            check=False,
+            capture_output=True,
+            text=True,
             **_hidden_window_kwargs(),
         )
         if proc.stdout:
@@ -2531,7 +2618,9 @@ def _verify_and_report_schedules(script: str, *, non_interactive: bool) -> None:
     try:
         proc = subprocess.run(
             [_python_exe(), script, "--verify"],
-            check=False, capture_output=True, text=True,
+            check=False,
+            capture_output=True,
+            text=True,
             **_hidden_window_kwargs(),
         )
     except Exception as e:  # noqa: BLE001 — verification must never fail setup
@@ -2559,7 +2648,9 @@ def _verify_and_report_schedules(script: str, *, non_interactive: bool) -> None:
             print("    Repaired elevated; re-verifying...")
             re_proc = subprocess.run(
                 [_python_exe(), script, "--verify"],
-                check=False, capture_output=True, text=True,
+                check=False,
+                capture_output=True,
+                text=True,
                 **_hidden_window_kwargs(),
             )
             if re_proc.returncode == 0:
@@ -2580,6 +2671,7 @@ def _existing_wolfssl() -> str | None:
         if _bin not in sys.path:
             sys.path.insert(0, _bin)
         from crypto_provider import _resolve_wolfssl_path
+
         return cast("str | None", _resolve_wolfssl_path())
     except Exception:  # noqa: BLE001 -- detection is advisory; absent == unknown
         return None
@@ -2624,6 +2716,7 @@ def _step_install_wolfssl(plan: SetupPlan) -> bool:
 
 # ── per-agent wiring ──────────────────────────────────────────────────────────
 
+
 def _wire_claude(capture_mode: str) -> bool:
     """Wire Claude Code to m3 the canonical way and LOUDLY default to the direct
     MCP server:
@@ -2643,11 +2736,14 @@ def _wire_claude(capture_mode: str) -> bool:
     hooks_ok = _wire_claude_hooks(capture_mode)
 
     if not shutil.which("claude"):
-        _warn("Claude CLI not on PATH; skipping `claude mcp add` — install the "
-              "Claude Code CLI and re-run, or add the m3 plugin.")
+        _warn(
+            "Claude CLI not on PATH; skipping `claude mcp add` — install the "
+            "Claude Code CLI and re-run, or add the m3 plugin."
+        )
         return hooks_ok
 
     from m3_memory.installer import _canonical_memory_env
+
     # Roots-bearing env so the server, the hooks, and every other m3 process agree
     # on the same databases (the split-brain guard). Same source of truth the
     # other agents' memory entries use.
@@ -2701,7 +2797,7 @@ def _wire_claude(capture_mode: str) -> bool:
         _ok("  Claude memory server: mcp__m3_memory__ (direct — low-friction, roots-pinned).")
         print("     The optional m3 plugin (marketplace discovery) ships its own memory")
         print("     server; it is kept DISABLED so you never run two. To switch to the")
-        print("     plugin instead, remove \"plugin:m3:memory\" from disabledMcpServers")
+        print('     plugin instead, remove "plugin:m3:memory" from disabledMcpServers')
         print("     in ~/.claude/settings.json.")
     return reg_ok or hooks_ok
 
@@ -2715,16 +2811,25 @@ def _claude_registration_current(env: dict[str, str]) -> bool:
     except (OSError, ValueError, AttributeError):
         return False
     entry = servers.get("m3_memory")
-    return (isinstance(entry, dict) and "memory" not in servers
-            and entry.get("command") == "m3" and not entry.get("args")
-            and (entry.get("env") or {}) == env)
+    return (
+        isinstance(entry, dict)
+        and "memory" not in servers
+        and entry.get("command") == "m3"
+        and not entry.get("args")
+        and (entry.get("env") or {}) == env
+    )
 
 
 def _claude_mcp_remove(name: str) -> None:
     """Best-effort `claude mcp remove --scope user <name>`; never raises."""
     try:
-        subprocess.run(["claude", "mcp", "remove", "--scope", "user", name],
-                       check=False, capture_output=True, text=True, **_hidden_window_kwargs())
+        subprocess.run(
+            ["claude", "mcp", "remove", "--scope", "user", name],
+            check=False,
+            capture_output=True,
+            text=True,
+            **_hidden_window_kwargs(),
+        )
     except Exception:  # noqa: BLE001 — cleanup is best-effort
         pass
 
@@ -2740,8 +2845,7 @@ def _claude_mcp_add(add_cmd: list[str]) -> bool:
     try:
         proc = subprocess.run(add_cmd, check=False, capture_output=True, text=True)
     except FileNotFoundError:
-        _warn("`claude` CLI failed to invoke; manual: "
-              "`claude mcp add --scope user m3_memory m3`")
+        _warn("`claude` CLI failed to invoke; manual: `claude mcp add --scope user m3_memory m3`")
         return False
     blob = f"{proc.stdout or ''}\n{proc.stderr or ''}".strip()
     if proc.returncode == 0:
@@ -2759,8 +2863,8 @@ def _claude_mcp_add(add_cmd: list[str]) -> bool:
     # chatlog hook writes to the pinned ones — the split-brain hazard in
     # CLAUDE.md, arrived at by following our own advice.
     import shlex
-    _warn(f"`claude mcp add m3_memory` failed (exit {proc.returncode}); "
-          f"manual: {shlex.join(add_cmd)}")
+
+    _warn(f"`claude mcp add m3_memory` failed (exit {proc.returncode}); manual: {shlex.join(add_cmd)}")
     return False
 
 
@@ -2820,15 +2924,17 @@ def _wire_claude_hooks(capture_mode: str) -> bool:
         return True
     try:
         from m3_memory._platform import hidden_window_kwargs, python_exe
+
         bin_dir = _bin_dir()
         chatlog_init = Path(bin_dir) / "chatlog_init.py"
         if not chatlog_init.is_file():
             _warn("chatlog_init.py not found; skipping Claude hook wiring")
             return False
         proc = subprocess.run(
-            [python_exe(), str(chatlog_init), "--non-interactive",
-             "--capture-mode", capture_mode, "--apply-claude"],
-            check=False, capture_output=True, text=True,
+            [python_exe(), str(chatlog_init), "--non-interactive", "--capture-mode", capture_mode, "--apply-claude"],
+            check=False,
+            capture_output=True,
+            text=True,
             **hidden_window_kwargs(),
         )
         if proc.returncode != 0:
@@ -2845,6 +2951,7 @@ def _wire_gemini() -> bool:
     """Write the m3 MCP entry into ~/.gemini/settings.json. Reuses the
     installer's helper so the wizard never reimplements JSON-merge semantics."""
     from m3_memory.installer import _register_gemini_mcp
+
     msg = _register_gemini_mcp()
     if msg:
         _say(f"  · {msg.lstrip('[+=!]').strip()}")
@@ -2929,8 +3036,7 @@ def _wire_opencode() -> bool:
         cfg_path = _opencode_config_paths()[0]
         cfg_path.parent.mkdir(parents=True, exist_ok=True)
         cfg_path.write_text(
-            json.dumps({"$schema": "https://opencode.ai/config.json",
-                        "mcp": {"memory": canonical}}, indent=2) + "\n",
+            json.dumps({"$schema": "https://opencode.ai/config.json", "mcp": {"memory": canonical}}, indent=2) + "\n",
             encoding="utf-8",
         )
         _say(f"  · wrote OpenCode config to {cfg_path}")
@@ -2956,6 +3062,7 @@ def _prune_opencode_mcpservers(cfg_path: Path, data: dict) -> None:
 def _wire_antigravity() -> bool:
     """Write the m3 MCP entry into ~/.gemini/antigravity-cli/settings.json."""
     from m3_memory.installer import _register_antigravity_mcp
+
     msg = _register_antigravity_mcp()
     if msg:
         _say(f"  · {msg.lstrip('[+=!]').strip()}")
@@ -2965,6 +3072,7 @@ def _wire_antigravity() -> bool:
 def _wire_cursor() -> bool:
     """Write the m3 MCP entry into Cursor's ~/.cursor/mcp.json."""
     from m3_memory.installer import _register_cursor_mcp
+
     msg = _register_cursor_mcp()
     if msg:
         _say(f"  · {msg.lstrip('[+=!]').strip()}")
@@ -2974,6 +3082,7 @@ def _wire_cursor() -> bool:
 def _wire_cline() -> bool:
     """Write the m3 MCP entry into Cline's cline_mcp_settings.json (VS Code)."""
     from m3_memory.installer import _register_cline_mcp
+
     msg = _register_cline_mcp()
     if msg:
         _say(f"  · {msg.lstrip('[+=!]').strip()}")
@@ -3046,10 +3155,7 @@ def _openclaw_startup_tools() -> list[str]:
         root.setLevel(level)
 
     meta = set(getattr(memory_bridge, "_META_TOOLS", None) or ())
-    names = {
-        s.name for s in mcp_tool_catalog.TOOLS
-        if s.name in meta or tool_domains.is_essential(s.name)
-    }
+    names = {s.name for s in mcp_tool_catalog.TOOLS if s.name in meta or tool_domains.is_essential(s.name)}
     return sorted(names)
 
 
@@ -3077,8 +3183,9 @@ def _openclaw_version(exe: str) -> tuple[bool, str]:
     import re  # noqa: PLC0415
 
     try:
-        proc = subprocess.run([exe, "--version"], check=False, capture_output=True,
-                              text=True, timeout=60, **_hidden_window_kwargs())
+        proc = subprocess.run(
+            [exe, "--version"], check=False, capture_output=True, text=True, timeout=60, **_hidden_window_kwargs()
+        )
         blob = f"{proc.stdout or ''}\n{proc.stderr or ''}"
     except Exception:  # noqa: BLE001 — an unreadable version is "unknown", not fatal
         return True, "unknown"
@@ -3091,6 +3198,7 @@ def _openclaw_version(exe: str) -> tuple[bool, str]:
     found = m.group(1)
 
     from m3_memory.rust_core_install import _parse_version  # noqa: PLC0415
+
     try:
         ok = _parse_version(found) >= _parse_version(_OPENCLAW_MIN_MCP_VERSION)
     except Exception:  # noqa: BLE001 — see docstring: unparseable proceeds
@@ -3111,8 +3219,7 @@ def _openclaw_mcp_set(argv: list[str]) -> bool:
     import shlex  # noqa: PLC0415
 
     try:
-        proc = subprocess.run(argv, check=False, capture_output=True, text=True,
-                              timeout=180, **_hidden_window_kwargs())
+        proc = subprocess.run(argv, check=False, capture_output=True, text=True, timeout=180, **_hidden_window_kwargs())
     except FileNotFoundError:
         # Unreachable via _wire_openclaw (it resolves an absolute path first,
         # because bare "openclaw" is an npm .CMD shim that CreateProcess cannot
@@ -3120,9 +3227,11 @@ def _openclaw_mcp_set(argv: list[str]) -> bool:
         _warn(f"`openclaw` failed to invoke; manual: {shlex.join(argv)}")
         return False
     except Exception as e:  # noqa: BLE001
-        _warn(f"OpenClaw was NOT wired. "
-              f"observed: `openclaw mcp set` did not complete ({type(e).__name__}: {e}). "
-              f"inspect: run `{shlex.join(argv)}` by hand to see the client's own error.")
+        _warn(
+            f"OpenClaw was NOT wired. "
+            f"observed: `openclaw mcp set` did not complete ({type(e).__name__}: {e}). "
+            f"inspect: run `{shlex.join(argv)}` by hand to see the client's own error."
+        )
         return False
 
     blob = f"{proc.stdout or ''}\n{proc.stderr or ''}".strip()
@@ -3136,8 +3245,7 @@ def _openclaw_mcp_set(argv: list[str]) -> bool:
     # arrived at by following our own advice. Same rationale as _claude_mcp_add.
     # Safe to print: _canonical_memory_env() carries only M3_*_ROOT paths, no
     # secrets (pinned by tests/test_openclaw_registration.py).
-    _warn(f"`openclaw mcp set {_OPENCLAW_SERVER_NAME}` failed "
-          f"(exit {proc.returncode}); manual: {shlex.join(argv)}")
+    _warn(f"`openclaw mcp set {_OPENCLAW_SERVER_NAME}` failed (exit {proc.returncode}); manual: {shlex.join(argv)}")
     return False
 
 
@@ -3163,13 +3271,20 @@ def _wire_openclaw() -> bool:
         leftover = (Path.home() / ".openclaw").is_dir()
         if _called_by_upgrade():
             # Same state on every upgrade; `m3 setup` gives the full guidance.
-            _warn("OpenClaw CLI not found; skipped"
-                  + (" (delete ~/.openclaw if you no longer use OpenClaw)" if leftover else ""))
+            _warn(
+                "OpenClaw CLI not found; skipped"
+                + (" (delete ~/.openclaw if you no longer use OpenClaw)" if leftover else "")
+            )
             return False
-        _warn("OpenClaw CLI not on PATH; skipping MCP registration. Install it "
-              "(`npm install -g openclaw`) and re-run `m3 setup`"
-              + (", or delete ~/.openclaw if you no longer use OpenClaw "
-                 "(setup detects it from that folder)." if leftover else "."))
+        _warn(
+            "OpenClaw CLI not on PATH; skipping MCP registration. Install it "
+            "(`npm install -g openclaw`) and re-run `m3 setup`"
+            + (
+                ", or delete ~/.openclaw if you no longer use OpenClaw (setup detects it from that folder)."
+                if leftover
+                else "."
+            )
+        )
         return False
 
     supported, version = _openclaw_version(exe)
@@ -3177,28 +3292,33 @@ def _wire_openclaw() -> bool:
         # observed:/cause:/inspect: triad, per the evidence-level idiom used in
         # bin/auth_utils.py. `cause:` and not `possible:` because the mechanism
         # IS verified here: the `mcp` subcommand does not exist below the floor.
-        _warn(f"OpenClaw was NOT wired. "
-              f"observed: OpenClaw {version}, below the {_OPENCLAW_MIN_MCP_VERSION} "
-              f"native-MCP floor. "
-              f"cause: builds before {_OPENCLAW_MIN_MCP_VERSION} have no `openclaw mcp` "
-              f"subcommand, so the server entry would never be read. "
-              f"inspect: `openclaw --version`, then `npm install -g openclaw@latest`.")
+        _warn(
+            f"OpenClaw was NOT wired. "
+            f"observed: OpenClaw {version}, below the {_OPENCLAW_MIN_MCP_VERSION} "
+            f"native-MCP floor. "
+            f"cause: builds before {_OPENCLAW_MIN_MCP_VERSION} have no `openclaw mcp` "
+            f"subcommand, so the server entry would never be read. "
+            f"inspect: `openclaw --version`, then `npm install -g openclaw@latest`."
+        )
         print("    After upgrading, re-run:  m3 setup --agents openclaw")
         return False
 
     from m3_memory.installer import _canonical_memory_server  # noqa: PLC0415
+
     try:
-        _ensure_payload_importable()   # m3_sdk lives in bin/; see the helper
+        _ensure_payload_importable()  # m3_sdk lives in bin/; see the helper
         spec = dict(_canonical_memory_server())
     except Exception as e:  # noqa: BLE001
         # Diverges from _wire_claude, which degrades to an empty env and still
         # registers. For a NEW integration an env-less entry is the config drift
         # installer.py:322's docstring warns about, so refuse instead.
-        _warn(f"OpenClaw was NOT wired. "
-              f"observed: the canonical server spec could not be built "
-              f"({type(e).__name__}: {e}). "
-              f"inspect: `m3 doctor` — this resolves the same roots the MCP "
-              f"registration and the chatlog hook share.")
+        _warn(
+            f"OpenClaw was NOT wired. "
+            f"observed: the canonical server spec could not be built "
+            f"({type(e).__name__}: {e}). "
+            f"inspect: `m3 doctor` — this resolves the same roots the MCP "
+            f"registration and the chatlog hook share."
+        )
         return False
 
     spec["enabled"] = True
@@ -3213,8 +3333,10 @@ def _wire_openclaw() -> bool:
         # Loud, not silent: registering all 118 tools is correct but costs ~27K
         # extra tokens of schema every session, and a silent 7x regression in
         # context cost is exactly the kind of thing that goes unnoticed.
-        _warn(f"could not derive the startup tool set ({type(e).__name__}: {e}); "
-              "registering the FULL catalog (heavier context, still correct).")
+        _warn(
+            f"could not derive the startup tool set ({type(e).__name__}: {e}); "
+            "registering the FULL catalog (heavier context, still correct)."
+        )
     if startup:
         # min-length 1 is schema-enforced on each toolFilter array, so an empty
         # list would reject the whole entry — omit the key instead.
@@ -3232,12 +3354,13 @@ def _wire_openclaw() -> bool:
         _ok_unchanged(f"  OpenClaw: m3 memory server already registered (mcp__{_OPENCLAW_SERVER_NAME}__)")
         return True
 
-    _say(f"  · registering m3 memory server in OpenClaw (mcp__{_OPENCLAW_SERVER_NAME}__, "
-         f"{len(startup) or 'all'} tools exposed)")
+    _say(
+        f"  · registering m3 memory server in OpenClaw (mcp__{_OPENCLAW_SERVER_NAME}__, "
+        f"{len(startup) or 'all'} tools exposed)"
+    )
     ok = _openclaw_mcp_set(argv)
     if ok:
-        _ok(f"  OpenClaw memory server: mcp__{_OPENCLAW_SERVER_NAME}__ "
-            f"(native MCP, roots-pinned).")
+        _ok(f"  OpenClaw memory server: mcp__{_OPENCLAW_SERVER_NAME}__ (native MCP, roots-pinned).")
         if startup:
             print(f"     {len(startup)} startup tools; `m3_call` reaches any other tool by")
             print("     name and `tools_load_domain` loads a whole domain on demand.")
@@ -3332,8 +3455,7 @@ def _wire_hermes(*, non_interactive: bool = False) -> bool:
         return False
 
     verb = "updated" if existed else "installed"
-    _say(f"  · Hermes: m3 SOTA provider {verb} at {dst}"
-         + (" (previous backed up to m3.m3bak)" if existed else ""))
+    _say(f"  · Hermes: m3 SOTA provider {verb} at {dst}" + (" (previous backed up to m3.m3bak)" if existed else ""))
     print("    To complete configuration:")
     print("    1. Add m3-memory's bin/ to PYTHONPATH in Hermes' launch environment.")
     print("    2. Enable and select 'm3' inside `hermes plugins` to replace/run alongside default memory.")
@@ -3341,6 +3463,7 @@ def _wire_hermes(*, non_interactive: bool = False) -> bool:
         from pathlib import Path as _Path
 
         from m3_sdk import get_m3_root
+
         _doc_path = f"file:///{_Path(get_m3_root()).resolve().as_posix()}/docs/HERMES.md"
     except Exception:
         _doc_path = "docs/HERMES.md"
@@ -3382,9 +3505,14 @@ def _step_install_dashboard(plan: SetupPlan) -> bool:
     # distribution name so the extra resolves regardless of how m3 was installed.
     try:
         from m3_memory._pip import pip_command
+
         proc = subprocess.run(
             [*pip_command(), "install", "m3-memory[dashboard]"],
-            check=False, capture_output=True, text=True, **_hidden_window_kwargs())
+            check=False,
+            capture_output=True,
+            text=True,
+            **_hidden_window_kwargs(),
+        )
         if proc.returncode == 0:
             print("    [OK] web dashboard installed.")
             _register_dashboard_task(plan.dashboard_port)
@@ -3413,12 +3541,14 @@ def _register_dashboard_task(port: int = 8088) -> None:
     script = str(_bin_dir() / "install_schedules.py")
     if not os.path.exists(script):
         print("    [!] boot task not registered (install_schedules.py not found);")
-        print(f'        add it later with `python bin/install_schedules.py --add dashboard --port {port}`.')
+        print(f"        add it later with `python bin/install_schedules.py --add dashboard --port {port}`.")
         return
     try:
         proc = subprocess.run(
             [_python_exe(), script, "--add", "dashboard", "--port", str(port)],
-            check=False, capture_output=True, text=True,
+            check=False,
+            capture_output=True,
+            text=True,
             **_hidden_window_kwargs(),
         )
         # The scheduler's step-by-step output (platform, project root, each
@@ -3427,12 +3557,13 @@ def _register_dashboard_task(port: int = 8088) -> None:
         if proc.returncode != 0 or any(m in out for m in ("[WARN]", "[FAIL]", "[!]")):
             print(out, end="")
         if proc.returncode == 0:
-            if not _called_by_upgrade():   # routine re-registration under the upgrade
-                print(f"    [OK] dashboard starts on boot → http://127.0.0.1:{port} "
-                      "(stop: `m3 dashboard --stop`)")
+            if not _called_by_upgrade():  # routine re-registration under the upgrade
+                print(f"    [OK] dashboard starts on boot → http://127.0.0.1:{port} (stop: `m3 dashboard --stop`)")
         else:
             print("    [!] boot task not registered (see above). The dashboard still")
-            print(f'        runs on demand: `m3 dashboard`. Retry: `python bin/install_schedules.py --add dashboard --port {port}`')
+            print(
+                f"        runs on demand: `m3 dashboard`. Retry: `python bin/install_schedules.py --add dashboard --port {port}`"
+            )
     except Exception as e:  # noqa: BLE001 — never fail setup on the task step
         print(f"    [!] could not register the boot task ({e}); the dashboard still")
         print("        runs on demand via `m3 dashboard`.")
@@ -3441,8 +3572,7 @@ def _register_dashboard_task(port: int = 8088) -> None:
 def _step_wire_agents(plan: SetupPlan, *, non_interactive: bool = False) -> bool:
     """Wire MCP entries for every selected agent."""
     if not plan.targets.any():
-        _step(4, "agent wiring kept as it is" if plan.agents_kept
-              else "no agents selected — skipping wiring")
+        _step(4, "agent wiring kept as it is" if plan.agents_kept else "no agents selected — skipping wiring")
         return True
     _step(4, "wiring selected agents")
     if plan.targets.claude:
@@ -3464,8 +3594,7 @@ def _step_wire_agents(plan: SetupPlan, *, non_interactive: bool = False) -> bool
     return True
 
 
-def _step_governor_migration(plan: SetupPlan, *, non_interactive: bool = False,
-                             gui: bool = False) -> dict:
+def _step_governor_migration(plan: SetupPlan, *, non_interactive: bool = False, gui: bool = False) -> dict:
     """Replace governor-eligible scheduled tasks with the governor.
 
     Returns a dict the summary uses to surface results / privileged commands:
@@ -3607,28 +3736,30 @@ def _doctor_failure_telemetry(argv: list, rc: int | None) -> None:
     with the exception type rather than swallowing it — a diagnostic that can fail
     silently would be repeating the bug it exists to explain.
     """
-    _warn(f"  [telemetry] verification exited {rc}; re-running captured to "
-          f"recover what it emitted...")
+    _warn(f"  [telemetry] verification exited {rc}; re-running captured to recover what it emitted...")
     try:
         cp = subprocess.run(  # noqa: S603 — same fixed argv we just ran
-            argv, capture_output=True, text=True, errors="backslashreplace",
+            argv,
+            capture_output=True,
+            text=True,
+            errors="backslashreplace",
             timeout=_DOCTOR_TIMEOUT_S,
         )
     except subprocess.TimeoutExpired:
-        _warn(f"  [telemetry] the captured re-run TIMED OUT after "
-              f"{_DOCTOR_TIMEOUT_S:.0f}s — the doctor is hanging, not exiting.")
+        _warn(
+            f"  [telemetry] the captured re-run TIMED OUT after "
+            f"{_DOCTOR_TIMEOUT_S:.0f}s — the doctor is hanging, not exiting."
+        )
         return
     except BaseException as e:  # noqa: BLE001 — diagnostic must never mask the verdict
         if isinstance(e, (KeyboardInterrupt, SystemExit)):
             raise
-        _warn(f"  [telemetry] the captured re-run could not start: "
-              f"{type(e).__name__}: {e}")
+        _warn(f"  [telemetry] the captured re-run could not start: {type(e).__name__}: {e}")
         return
 
     out = (cp.stdout or "").strip()
     err = (cp.stderr or "").strip()
-    _warn(f"  [telemetry] captured rc={cp.returncode} "
-          f"stdout={len(out)}B stderr={len(err)}B")
+    _warn(f"  [telemetry] captured rc={cp.returncode} stdout={len(out)}B stderr={len(err)}B")
     # Tail, not head: a traceback's useful end is the last lines, and a doctor
     # report's verdict lines come last too.
     for label, blob in (("stdout", out), ("stderr", err)):
@@ -3642,9 +3773,11 @@ def _doctor_failure_telemetry(argv: list, rc: int | None) -> None:
         # The signature we are hunting: the child produced NOTHING even when we
         # own the pipes. That rules out "output was lost in the stream" and
         # points at the process dying before it writes at all.
-        _warn("  [telemetry] the captured re-run ALSO produced no output on "
-              "either stream — the child is dying before it writes, not losing "
-              "its output in transit.")
+        _warn(
+            "  [telemetry] the captured re-run ALSO produced no output on "
+            "either stream — the child is dying before it writes, not losing "
+            "its output in transit."
+        )
 
 
 _ROLE_TO_TASK = {
@@ -3684,6 +3817,7 @@ def _start_service_for_role(role: str) -> bool:
         return False
     try:
         from m3_memory.installer import bin_dir
+
         bd = bin_dir()
         if bd and str(bd) not in sys.path:
             sys.path.insert(0, str(bd))
@@ -3691,6 +3825,7 @@ def _start_service_for_role(role: str) -> bool:
         import io
 
         import install_schedules
+
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             install_schedules._start_longlived_tasks([{"name": task}])
@@ -3744,8 +3879,9 @@ def _step_verify_daemons(plan=None) -> bool:
     if plan is not None:
         for field, role in _SERVICES:
             if not hasattr(plan, field):  # fail loud on drift, never silently skip
-                _warn(f"  internal: SetupPlan has no {field!r}; cannot verify "
-                      f"{role}. This is a bug — please report it.")
+                _warn(
+                    f"  internal: SetupPlan has no {field!r}; cannot verify {role}. This is a bug — please report it."
+                )
                 continue
             if getattr(plan, field):
                 expected.append(role)
@@ -3760,19 +3896,17 @@ def _step_verify_daemons(plan=None) -> bool:
     # produced the suffixed role in the first place. Both ship in one payload,
     # so an absent attribute means a broken import, which the guard below
     # already reports.
-    if halt is None or not all(hasattr(halt, a) for a in
-                               ("list_live_processes", "base_role",
-                                "wait_for_roles")):
-        _warn("  could not read the process registry — service state UNKNOWN. "
-              "Run `m3 doctor` to check.")
+    if halt is None or not all(hasattr(halt, a) for a in ("list_live_processes", "base_role", "wait_for_roles")):
+        _warn("  could not read the process registry — service state UNKNOWN. Run `m3 doctor` to check.")
         return True
 
     try:
-        live_roles = {halt.base_role(p.role)
-                      for p in halt.list_live_processes()}
+        live_roles = {halt.base_role(p.role) for p in halt.list_live_processes()}
     except Exception as e:  # noqa: BLE001 — a probe must not fail the install
-        _warn(f"  could not read the process registry ({type(e).__name__}) — "
-              f"service state UNKNOWN. Run `m3 doctor` to check.")
+        _warn(
+            f"  could not read the process registry ({type(e).__name__}) — "
+            f"service state UNKNOWN. Run `m3 doctor` to check."
+        )
         return True
 
     missing = [r for r in expected if r not in live_roles]
@@ -3813,23 +3947,24 @@ def _step_verify_daemons(plan=None) -> bool:
             except Exception:  # noqa: BLE001 — a settle wait must not fail setup
                 pass
         try:
-            live_roles = {halt.base_role(p.role)
-                          for p in halt.list_live_processes()}
+            live_roles = {halt.base_role(p.role) for p in halt.list_live_processes()}
             missing = [r for r in expected if r not in live_roles]
         except Exception:  # noqa: BLE001 — keep the pre-restart verdict
             pass
 
     running = [r for r in expected if r in live_roles]
     if running and _called_by_upgrade():
-        _ok(f"  services running: {', '.join(running)}")   # verified; one line under the upgrade
+        _ok(f"  services running: {', '.join(running)}")  # verified; one line under the upgrade
     else:
         for role in running:
             _ok(f"  {role}: running")
     for role in missing:
         _warn(f"  {role}: NOT running")
     if missing:
-        _warn(f"  {len(missing)} of {len(expected)} background service(s) are "
-              f"not running. `m3 doctor --fix` restarts what self-repairs.")
+        _warn(
+            f"  {len(missing)} of {len(expected)} background service(s) are "
+            f"not running. `m3 doctor --fix` restarts what self-repairs."
+        )
         return False
     return True
 
@@ -3883,9 +4018,11 @@ def _step_doctor(plan=None) -> bool:
         # declining what depends on it.
         argv.append("--skip-cascade")
     _trace(f"doctor: about to spawn argv={argv}")
-    _trace(f"doctor: sys.executable={sys.executable!r} "
-           f"utf8_mode={sys.flags.utf8_mode} "
-           f"sentinel={os.environ.get('_M3_UTF8_REEXEC')!r}")
+    _trace(
+        f"doctor: sys.executable={sys.executable!r} "
+        f"utf8_mode={sys.flags.utf8_mode} "
+        f"sentinel={os.environ.get('_M3_UTF8_REEXEC')!r}"
+    )
     try:
         # BOUNDED (§3): verification must not be able to hang the install. The
         # doctor probes live endpoints (embedder, LLM, warehouse) and a probe
@@ -3899,16 +4036,19 @@ def _step_doctor(plan=None) -> bool:
         return True
     except subprocess.TimeoutExpired:
         _trace("doctor: TIMED OUT")
-        _warn(f"VERIFICATION TIMED OUT after {_DOCTOR_TIMEOUT_S:.0f}s — `m3 doctor` "
-              "did not finish. The install itself completed; a probe is hanging, "
-              "not failing.")
+        _warn(
+            f"VERIFICATION TIMED OUT after {_DOCTOR_TIMEOUT_S:.0f}s — `m3 doctor` "
+            "did not finish. The install itself completed; a probe is hanging, "
+            "not failing."
+        )
         _warn("Run `m3 doctor --verbose` by hand to see which probe blocks.")
         return False
     except subprocess.CalledProcessError as e:
-        _warn("VERIFICATION FAILED — the install completed but m3 is not fully "
-              "healthy. The doctor output above names each issue and its fix.")
-        _warn("Re-run `m3 doctor` after fixing, or `m3 doctor --fix` for the "
-              "issues that self-repair.")
+        _warn(
+            "VERIFICATION FAILED — the install completed but m3 is not fully "
+            "healthy. The doctor output above names each issue and its fix."
+        )
+        _warn("Re-run `m3 doctor` after fixing, or `m3 doctor --fix` for the issues that self-repair.")
         _doctor_failure_telemetry(argv, e.returncode)
         return False
     except BaseException as e:  # noqa: BLE001 — see below; re-raises KeyboardInterrupt
@@ -3928,8 +4068,10 @@ def _step_doctor(plan=None) -> bool:
         if isinstance(e, (KeyboardInterrupt, SystemExit)):
             raise
         _warn(f"VERIFICATION COULD NOT RUN — {type(e).__name__}: {e}")
-        _warn("The install itself completed; only the `m3 doctor` check failed "
-              "to execute. Run `m3 doctor` manually to see the real state.")
+        _warn(
+            "The install itself completed; only the `m3 doctor` check failed "
+            "to execute. Run `m3 doctor` manually to see the real state."
+        )
         _doctor_failure_telemetry(argv, None)
         return False
 
@@ -3942,12 +4084,12 @@ from .wizard.summary import _os_name_for_summary, _summary  # noqa: F401,E402
 
 def _should_use_gui(args: argparse.Namespace) -> bool:
     """Decide whether to launch the graphical setup. Rules (in order):
-      - never in --non-interactive (that IS the child the GUI spawns — prevents
-        an infinite GUI->child->GUI loop) or when --terminal is forced;
-      - --gui forces it (but gracefully falls back if no display);
-      - otherwise OFFER it only on an interactive TTY with a usable display;
-        default answer is the terminal wizard, so muscle memory / SSH / headless
-        are never surprised by a window.
+    - never in --non-interactive (that IS the child the GUI spawns — prevents
+      an infinite GUI->child->GUI loop) or when --terminal is forced;
+    - --gui forces it (but gracefully falls back if no display);
+    - otherwise OFFER it only on an interactive TTY with a usable display;
+      default answer is the terminal wizard, so muscle memory / SSH / headless
+      are never surprised by a window.
     """
     if getattr(args, "non_interactive", False) or getattr(args, "terminal", False):
         return False
@@ -3989,22 +4131,29 @@ def _print_plan(plan) -> None:
     """The plan summary shown before an interactive or scripted setup runs."""
     print()
     _say("Plan:")
-    targets = [n for n, v in {
-        "Claude Code": plan.targets.claude,
-        "Gemini CLI": plan.targets.gemini,
-        "Antigravity CLI/Desktop": plan.targets.antigravity,
-        "OpenCode": plan.targets.opencode,
-        "Cursor": plan.targets.cursor,
-        "Cline": plan.targets.cline,
-        "OpenClaw": plan.targets.openclaw,
-        "Hermes Agent": plan.targets.hermes,
-    }.items() if v]
+    targets = [
+        n
+        for n, v in {
+            "Claude Code": plan.targets.claude,
+            "Gemini CLI": plan.targets.gemini,
+            "Antigravity CLI/Desktop": plan.targets.antigravity,
+            "OpenCode": plan.targets.opencode,
+            "Cursor": plan.targets.cursor,
+            "Cline": plan.targets.cline,
+            "OpenClaw": plan.targets.openclaw,
+            "Hermes Agent": plan.targets.hermes,
+        }.items()
+        if v
+    ]
     _no_targets = "unchanged (current wiring kept)" if plan.agents_kept else "(none)"
     print(f"  agents       : {', '.join(targets) if targets else _no_targets}")
     print(f"  capture mode : {plan.capture_mode}")
     print("  Embedder     : sovereign CPU (BGE-M3 on :8082) — always installed")
-    _src = "prebuilt; source-build if no match" if plan.allow_native_source_build \
+    _src = (
+        "prebuilt; source-build if no match"
+        if plan.allow_native_source_build
         else "prebuilt only (pure-Python fallback if no match)"
+    )
     print(f"  Rust core    : m3-core-rs, verified latest ({_src})")
     if plan.install_gpu_embedder:
         print("  Embed tiers  : tier 1 (in-process) + tier 2 (shared :8082)")
@@ -4033,6 +4182,7 @@ def run_setup(args: argparse.Namespace) -> int:
     """Top-level entry point invoked by `m3 setup`."""
     if _should_use_gui(args):
         from m3_memory.setup_gui import run_gui
+
         return run_gui()
 
     detected = _detect_agents()
@@ -4049,9 +4199,11 @@ def run_setup(args: argparse.Namespace) -> int:
     # Set decoupled paths in environment so child commands inherit them.
     if plan.decouple_roots:
         if plan.config_root is None or plan.engine_root is None:
-            _warn("decoupled roots requested but not both resolved; observed: "
-                  f"config_root={plan.config_root!r}, engine_root={plan.engine_root!r}. "
-                  "inspect: the wizard's root step (both roots must be chosen)")
+            _warn(
+                "decoupled roots requested but not both resolved; observed: "
+                f"config_root={plan.config_root!r}, engine_root={plan.engine_root!r}. "
+                "inspect: the wizard's root step (both roots must be chosen)"
+            )
             return 1
         os.environ["M3_CONFIG_ROOT"] = plan.config_root
         os.environ["M3_ENGINE_ROOT"] = plan.engine_root
@@ -4071,8 +4223,10 @@ def run_setup(args: argparse.Namespace) -> int:
                 os.environ["M3_FIPS_STRICT"] = "1"
         else:
             _warn("Not setting M3_FIPS_MODE for this run — wolfSSL is not present,")
-            _warn("so enabling it would fail closed. Install wolfSSL "
-                  "(`m3 fips install-wolfssl`), then export the FIPS vars.")
+            _warn(
+                "so enabling it would fail closed. Install wolfSSL "
+                "(`m3 fips install-wolfssl`), then export the FIPS vars."
+            )
             plan.fips_mode = plan.fips_strict = False
 
     # Execute. Step 0 (preflight) and Step 1 (install-m3) can hard-abort.
@@ -4105,7 +4259,8 @@ def run_setup(args: argparse.Namespace) -> int:
         _step_install_dashboard(plan)
         _trace("after install_dashboard")
         governor_result = _step_governor_migration(
-            plan, non_interactive=args.non_interactive, gui=getattr(args, "gui_child", False))
+            plan, non_interactive=args.non_interactive, gui=getattr(args, "gui_child", False)
+        )
         _trace("after governor_migration")
         # The exclusive steps are done. Lower the halt BEFORE verifying: a
         # writer paused by it drops out of the PID registry, so verification
@@ -4149,7 +4304,6 @@ def run_setup(args: argparse.Namespace) -> int:
         _report_unrun_elevation()
 
 
-
 def _ok_unchanged(msg: str) -> None:
     """An [OK] that only confirms something was already as it should be.
     Under `m3 upgrade` only changes and problems are shown."""
@@ -4184,7 +4338,8 @@ def _lower_halt() -> None:
 def add_arguments(parser: argparse.ArgumentParser) -> None:
     """Add `m3 setup` flags to an argparse subparser."""
     parser.add_argument(
-        "--non-interactive", action="store_true",
+        "--non-interactive",
+        action="store_true",
         help="Run unattended with flag-driven choices (used by install.sh/install.ps1).",
     )
     # Configuration-UX selector. Default: ask (TTY + display) else terminal.
@@ -4192,153 +4347,182 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     # so it never duplicates the engine. --terminal/--gui skip the prompt and
     # are scriptable; --gui is a no-op (falls back to terminal) when no display.
     parser.add_argument(
-        "--gui", action="store_true",
+        "--gui",
+        action="store_true",
         help="Use the graphical setup window (falls back to the terminal wizard "
-             "if no display / tkinter is unavailable).",
+        "if no display / tkinter is unavailable).",
     )
     parser.add_argument(
-        "--terminal", action="store_true",
+        "--terminal",
+        action="store_true",
         help="Force the terminal wizard, skipping the graphical-setup prompt.",
     )
     parser.add_argument(
-        "--agents", default=None,
+        "--agents",
+        default=None,
         help="Comma-separated list of agents to wire in non-interactive mode "
-             "(any of: claude,gemini,antigravity,opencode,openclaw,cursor,cline,hermes). "
-             "Default: every agent detected on PATH.",
+        "(any of: claude,gemini,antigravity,opencode,openclaw,cursor,cline,hermes). "
+        "Default: every agent detected on PATH.",
     )
     parser.add_argument(
-        "--capture-mode", default=None, choices=("both", "stop", "precompact", "none"),
+        "--capture-mode",
+        default=None,
+        choices=("both", "stop", "precompact", "none"),
         help="Chatlog capture mode for Claude Code. Default: both.",
     )
     # ── B15 preflight flags ─────────────────────────────────────────────
     parser.add_argument(
-        "--clean-cache", action="store_true",
+        "--clean-cache",
+        action="store_true",
         help="Wipe __pycache__ dirs before install (non-interactive default: skip).",
     )
     parser.add_argument(
-        "--force-kill-mcp", action="store_true",
+        "--force-kill-mcp",
+        action="store_true",
         help="Kill any running mcp-memory.exe before install (Windows only; "
-             "required if MCP is currently in use and you're running "
-             "non-interactively).",
+        "required if MCP is currently in use and you're running "
+        "non-interactively).",
     )
     parser.add_argument(
-        "--force-quiesce", action="store_true",
+        "--force-quiesce",
+        action="store_true",
         help="In non-interactive mode, force-kill any autonomous m3 DB-writer "
-             "(cognitive loop / embed / MCP) that hasn't paused within "
-             "--quiesce-timeout, instead of aborting. Cross-platform superset of "
-             "--force-kill-mcp for the HALT_m3 quiesce step.",
+        "(cognitive loop / embed / MCP) that hasn't paused within "
+        "--quiesce-timeout, instead of aborting. Cross-platform superset of "
+        "--force-kill-mcp for the HALT_m3 quiesce step.",
     )
     parser.add_argument(
-        "--quiesce-timeout", type=float, default=30.0,
-        help="Seconds to wait for autonomous m3 DB-writers to pause before "
-             "install (HALT_m3 protocol). Default: 30.",
+        "--quiesce-timeout",
+        type=float,
+        default=30.0,
+        help="Seconds to wait for autonomous m3 DB-writers to pause before install (HALT_m3 protocol). Default: 30.",
     )
     parser.add_argument(
-        "--gui-child", action="store_true",
+        "--gui-child",
+        action="store_true",
         help="Internal: setup was launched by the graphical front-end "
-             "(setup_gui.py) as its non-interactive worker. Prompts are "
-             "pre-answered via flags, but a HUMAN IS WATCHING the GUI — so Windows "
-             "elevation steps (UAC) for killing a stuck process or deleting a "
-             "scheduled task are still OFFERED/attempted rather than skipped. "
-             "Without this, the GUI's non-interactive child would silently skip "
-             "every UAC prompt (nothing to consent to on a headless run), leaving "
-             "those steps 'insufficient privilege'. NOT the same as --gui (which "
-             "LAUNCHES the graphical window).",
+        "(setup_gui.py) as its non-interactive worker. Prompts are "
+        "pre-answered via flags, but a HUMAN IS WATCHING the GUI — so Windows "
+        "elevation steps (UAC) for killing a stuck process or deleting a "
+        "scheduled task are still OFFERED/attempted rather than skipped. "
+        "Without this, the GUI's non-interactive child would silently skip "
+        "every UAC prompt (nothing to consent to on a headless run), leaving "
+        "those steps 'insufficient privilege'. NOT the same as --gui (which "
+        "LAUNCHES the graphical window).",
     )
 
     parser.add_argument(
-        "--install-gpu-embedder", action="store_true",
+        "--install-gpu-embedder",
+        action="store_true",
         help="Force-install the Project Oxidation native in-process embedder "
-             "(CPU/GPU autodetected). Now ON by default — this flag is kept for "
-             "back-compat and is redundant unless paired with a config that "
-             "disabled it.",
+        "(CPU/GPU autodetected). Now ON by default — this flag is kept for "
+        "back-compat and is redundant unless paired with a config that "
+        "disabled it.",
     )
     parser.add_argument(
-        "--no-native-wheel", action="store_true",
+        "--no-native-wheel",
+        action="store_true",
         help="Do NOT attempt the Project Oxidation native wheel; run pure-Python "
-             "only. m3 stays fully functional but embeds run on the slower HTTP "
-             "fallback path (see docs/BUILD_WHEELS.md).",
+        "only. m3 stays fully functional but embeds run on the slower HTTP "
+        "fallback path (see docs/BUILD_WHEELS.md).",
     )
     parser.add_argument(
-        "--allow-native-source-build", action="store_true",
+        "--allow-native-source-build",
+        action="store_true",
         help="If no prebuilt native wheel matches this platform/Python, build it "
-             "from source (needs Rust + cmake + a C++ compiler; multi-minute "
-             "compile). Default: skip the source build and fall back to "
-             "pure-Python.",
+        "from source (needs Rust + cmake + a C++ compiler; multi-minute "
+        "compile). Default: skip the source build and fall back to "
+        "pure-Python.",
     )
     parser.add_argument(
-        "--shared-embedder", action="store_true",
+        "--shared-embedder",
+        action="store_true",
         help="Enable shared-embedder mode: all m3 processes defer to ONE shared "
-             "GPU embedder server (one CUDA context, ~9-10 GB reclaimed). Writes "
-             ".embed_config.json. Toggle later with `m3 embedder shared/unshared`.",
+        "GPU embedder server (one CUDA context, ~9-10 GB reclaimed). Writes "
+        ".embed_config.json. Toggle later with `m3 embedder shared/unshared`.",
     )
     parser.add_argument(
-        "--endpoint", default=None,
+        "--endpoint",
+        default=None,
         help="Pin LLM_ENDPOINTS_CSV (forwarded to install-m3).",
     )
     parser.add_argument(
-        "--cognitive-loop", action="store_true",
+        "--cognitive-loop",
+        action="store_true",
         help="Enable the background cognitive loop worker (pre-answers the "
-             "interactive prompt; forces install in non-interactive mode).",
+        "interactive prompt; forces install in non-interactive mode).",
     )
     parser.add_argument(
-        "--no-cognitive-loop", action="store_true",
-        help="Do not install the cognitive loop worker (opt out of the "
-             "default-yes interactive prompt).",
+        "--no-cognitive-loop",
+        action="store_true",
+        help="Do not install the cognitive loop worker (opt out of the default-yes interactive prompt).",
     )
     parser.add_argument(
-        "--decouple-roots", action="store_true",
+        "--decouple-roots",
+        action="store_true",
         help="Configure decoupled directories (~/.m3/config and ~/.m3/engine).",
     )
     parser.add_argument(
-        "--config-root", default=None,
+        "--config-root",
+        default=None,
         help="Explicit M3_CONFIG_ROOT path.",
     )
     parser.add_argument(
-        "--engine-root", default=None,
+        "--engine-root",
+        default=None,
         help="Explicit M3_ENGINE_ROOT path.",
     )
     parser.add_argument(
-        "--fips-mode", action="store_true",
+        "--fips-mode",
+        action="store_true",
         help="Enable M3_FIPS_MODE=1 — route crypto through wolfCrypt (hardened, "
-             "fail-closed; accepts the open-source wolfSSL build).",
+        "fail-closed; accepts the open-source wolfSSL build).",
     )
     parser.add_argument(
-        "--fips-strict", action="store_true",
+        "--fips-strict",
+        action="store_true",
         help="Enable M3_FIPS_STRICT=1 (implies --fips-mode) — additionally require "
-             "the CMVP-validated wolfCrypt FIPS module (commercial wolfSSL).",
+        "the CMVP-validated wolfCrypt FIPS module (commercial wolfSSL).",
     )
     parser.add_argument(
-        "--install-wolfssl", action="store_true",
+        "--install-wolfssl",
+        action="store_true",
         help="When FIPS is enabled, build + install the open-source wolfSSL from "
-             "source during setup so FIPS mode works (avoids a fail-closed crash).",
+        "source during setup so FIPS mode works (avoids a fail-closed crash).",
     )
     parser.add_argument(
-        "--no-governor-migration", action="store_true",
+        "--no-governor-migration",
+        action="store_true",
         help="Do NOT replace governor-eligible cron/schtasks entries with the "
-             "Adaptive Background Workload Governor. By default the wizard offers "
-             "to remove legacy scheduled tasks the governor can take over.",
+        "Adaptive Background Workload Governor. By default the wizard offers "
+        "to remove legacy scheduled tasks the governor can take over.",
     )
     parser.add_argument(
-        "--no-shared-embedder", action="store_true",
+        "--no-shared-embedder",
+        action="store_true",
         help="Debug escape hatch: do NOT enable shared-embedder mode. Shared mode "
-             "(one shared embedder server for all m3 processes, GPU or CPU, kept up "
-             "by a self-healing task) is the shipped default; disabling it means "
-             "each process loads its own embedder. Not recommended.",
+        "(one shared embedder server for all m3 processes, GPU or CPU, kept up "
+        "by a self-healing task) is the shipped default; disabling it means "
+        "each process loads its own embedder. Not recommended.",
     )
     parser.add_argument(
-        "--dashboard", action="store_true",
+        "--dashboard",
+        action="store_true",
         help="Install the local web dashboard's deps ([dashboard] extra) "
-             "unattended. Interactive setup offers this by default; use this flag "
-             "for headless runs to force it on.",
+        "unattended. Interactive setup offers this by default; use this flag "
+        "for headless runs to force it on.",
     )
     parser.add_argument(
-        "--no-dashboard", action="store_true",
+        "--no-dashboard",
+        action="store_true",
         help="Do NOT install the web dashboard deps. By default the wizard offers "
-             "the dashboard (fastapi + uvicorn) with a yes default.",
+        "the dashboard (fastapi + uvicorn) with a yes default.",
     )
     parser.add_argument(
-        "--dashboard-port", type=int, default=None, metavar="PORT",
+        "--dashboard-port",
+        type=int,
+        default=None,
+        metavar="PORT",
         help="Port for the web dashboard + its boot service (default 8088).",
     )
     parser.set_defaults(func=run_setup)

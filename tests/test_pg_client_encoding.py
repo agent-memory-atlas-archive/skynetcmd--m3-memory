@@ -15,6 +15,7 @@ codebase that was perfectly healthy — the symptom pointed nowhere near encodin
 These are unit tests on purpose: no live PostgreSQL, so the contract is pinned on
 every OS and every Python in the matrix, including the runners that have no PG.
 """
+
 from __future__ import annotations
 
 import sys
@@ -82,20 +83,22 @@ def test_the_dsn_is_still_passed_through(captured):
     assert _build(dsn, captured)["dsn"] == dsn
 
 
-@pytest.mark.parametrize("dsn", [
-    "postgresql://u:p@h:5432/db?client_encoding=LATIN1",
-    "postgresql://u:p@h:5432/db?client_encoding=UTF8",
-    "host=h dbname=db client_encoding=LATIN1",
-    # NOT tested: an uppercase CLIENT_ENCODING keyword. libpq conninfo keywords
-    # are lowercase-only, so it is an invalid DSN that connect() rejects however
-    # we behave — asserting anything there would pin undefined behaviour.
-])
+@pytest.mark.parametrize(
+    "dsn",
+    [
+        "postgresql://u:p@h:5432/db?client_encoding=LATIN1",
+        "postgresql://u:p@h:5432/db?client_encoding=UTF8",
+        "host=h dbname=db client_encoding=LATIN1",
+        # NOT tested: an uppercase CLIENT_ENCODING keyword. libpq conninfo keywords
+        # are lowercase-only, so it is an invalid DSN that connect() rejects however
+        # we behave — asserting anything there would pin undefined behaviour.
+    ],
+)
 def test_an_explicit_choice_in_the_dsn_wins(dsn, captured):
     """Never override the operator. Passing it twice would also hand libpq a
     duplicate keyword, where last-one-wins silently decides which applies."""
     assert "client_encoding" not in _build(dsn, captured), (
-        f"the DSN already sets client_encoding ({dsn!r}); the pool must not "
-        "also pass one"
+        f"the DSN already sets client_encoding ({dsn!r}); the pool must not also pass one"
     )
 
 
@@ -103,6 +106,4 @@ def test_a_dsn_mentioning_encoding_elsewhere_is_not_mistaken_for_a_choice(captur
     """The guard is a substring test, so pin what it must NOT match: a database
     or password that merely contains the words."""
     got = _build("postgresql://u:p@h:5432/client_encoding_notes", captured)
-    assert got.get("client_encoding") == "UTF8", (
-        "a database NAMED like the option is not the option being set"
-    )
+    assert got.get("client_encoding") == "UTF8", "a database NAMED like the option is not the option being set"

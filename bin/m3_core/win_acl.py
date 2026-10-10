@@ -9,6 +9,7 @@ user, SYSTEM, Administrators or OWNER RIGHTS -- the ACL a file under the user
 profile inherits (measured on SkyPC, 2026-10-08). A local administrator can
 read any file regardless, so admitting them adds no exposure.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -108,16 +109,16 @@ def file_sddl(path: str) -> str:
     info = _OWNER_SECURITY_INFORMATION | _DACL_SECURITY_INFORMATION
     psd = ctypes.c_void_p()
     rc = adv.GetNamedSecurityInfoW(
-        wintypes.LPCWSTR(str(path)), _SE_FILE_OBJECT, info,
-        None, None, None, None, ctypes.byref(psd))
+        wintypes.LPCWSTR(str(path)), _SE_FILE_OBJECT, info, None, None, None, None, ctypes.byref(psd)
+    )
     if rc != 0:
         raise AclError(f"GetNamedSecurityInfoW({path}) failed (winerror {rc})")
     try:
         out = wintypes.LPWSTR()
         if not adv.ConvertSecurityDescriptorToStringSecurityDescriptorW(
-                psd, _SDDL_REVISION_1, info, ctypes.byref(out), None):
-            raise AclError(f"ConvertSecurityDescriptorToStringSecurityDescriptorW failed "
-                           f"(winerror {_last_error()})")
+            psd, _SDDL_REVISION_1, info, ctypes.byref(out), None
+        ):
+            raise AclError(f"ConvertSecurityDescriptorToStringSecurityDescriptorW failed (winerror {_last_error()})")
         try:
             return str(out.value)
         finally:
@@ -145,9 +146,15 @@ def foreign_principals(sddl: str, user_sid: str) -> list[str]:
 
 # Readable names for the principals a too-broad ACL usually names.
 _NAMES = {
-    "WD": "Everyone", "S-1-1-0": "Everyone", "AU": "Authenticated Users",
-    "BU": "Users", "S-1-5-32-545": "Users", "IU": "Interactive users",
-    "SU": "Service logons", "S-1-5-3": "Batch logons", "AN": "Anonymous",
+    "WD": "Everyone",
+    "S-1-1-0": "Everyone",
+    "AU": "Authenticated Users",
+    "BU": "Users",
+    "S-1-5-32-545": "Users",
+    "IU": "Interactive users",
+    "SU": "Service logons",
+    "S-1-5-3": "Batch logons",
+    "AN": "Anonymous",
 }
 
 
@@ -157,8 +164,9 @@ def probe_new_file(directory: str | os.PathLike[str]) -> Iterator[str]:
     A new file takes its directory's inheritable ACL, so this is how a writer
     learns what its file WOULD inherit before any content is written.
     (3.12 ``delete_on_close=False``: closed before the ACL is read.)"""
-    with tempfile.NamedTemporaryFile(dir=directory, prefix=".m3_acl_probe.",
-                                     delete=True, delete_on_close=False) as probe:
+    with tempfile.NamedTemporaryFile(
+        dir=directory, prefix=".m3_acl_probe.", delete=True, delete_on_close=False
+    ) as probe:
         probe.close()
         yield probe.name
 

@@ -66,10 +66,7 @@ def fts_table():
     """An in-memory FTS5 table mirroring how memory_items_fts is queried."""
     conn = sqlite3.connect(":memory:")
     conn.executescript("CREATE VIRTUAL TABLE t USING fts5(x);")
-    conn.execute(
-        "INSERT INTO t(x) VALUES "
-        "('alpha gpt-4o claude-code beta nomatch model_id claude foo bar 100 200MB')"
-    )
+    conn.execute("INSERT INTO t(x) VALUES ('alpha gpt-4o claude-code beta nomatch model_id claude foo bar 100 200MB')")
     conn.commit()
     yield conn
     conn.close()

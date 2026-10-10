@@ -33,6 +33,7 @@ side effects. The runtime "stamp the current process" wrappers live in
 Re-exported through ``m3_sdk`` so any consumer reaches the schema as
 ``from m3_sdk import parse_payload, ProcInfo, build_payload``.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -95,8 +96,7 @@ def build_payload(
     }
     if extra:
         # Drop any key that would collide with a reserved field (defense in depth).
-        payload["extra"] = {k: v for k, v in dict(extra).items()
-                            if k not in RESERVED_PAYLOAD_KEYS}
+        payload["extra"] = {k: v for k, v in dict(extra).items() if k not in RESERVED_PAYLOAD_KEYS}
     return payload
 
 

@@ -5,6 +5,7 @@ ones: dry-run must be the default and must not touch the DB, a backup must be
 taken before the first delete, and the family-folding must never mistake two
 tags of the SAME model for a mix (which would delete perfectly good vectors).
 """
+
 from __future__ import annotations
 
 import os
@@ -34,8 +35,7 @@ def _store(tmp_path, rows):
         for _ in range(count):
             n += 1
             con.execute(
-                "INSERT INTO memory_embeddings (id, memory_id, embed_model, dim, "
-                "vector_kind) VALUES (?,?,?,?,?)",
+                "INSERT INTO memory_embeddings (id, memory_id, embed_model, dim, vector_kind) VALUES (?,?,?,?,?)",
                 (str(n), str(n), model, dim, kind),
             )
     con.commit()
@@ -58,6 +58,7 @@ MIXED = [
 
 
 # ── safety ───────────────────────────────────────────────────────────────────
+
 
 def test_dry_run_is_the_default_and_deletes_nothing(tmp_path, capsys):
     db = _store(tmp_path, MIXED)
@@ -100,32 +101,42 @@ def test_no_backup_flag_skips_the_copy(tmp_path, backup_dir):
 
 # ── correctness of what gets chosen ──────────────────────────────────────────
 
+
 def test_single_family_with_two_tags_is_a_no_op(tmp_path, capsys):
     """The dangerous false positive: two bge-m3 tags are ONE model. Deleting
     either would destroy good vectors for nothing."""
-    db = _store(tmp_path, [
-        ("default", "bge-m3-GGUF-Q4_K_M.gguf", 1024, 50),
-        ("default", "text-embedding-bge-m3", 1024, 50),
-    ])
+    db = _store(
+        tmp_path,
+        [
+            ("default", "bge-m3-GGUF-Q4_K_M.gguf", 1024, 50),
+            ("default", "text-embedding-bge-m3", 1024, 50),
+        ],
+    )
     assert reembed_space.main(["--db", db, "--apply", "--no-backfill"]) == 0
     assert _count(db) == 100
     assert "nothing to retire" in capsys.readouterr().out
 
 
 def test_keeps_the_largest_family_by_default(tmp_path, capsys):
-    db = _store(tmp_path, [
-        ("default", "qwen3-embedding:0.6b", 1024, 90),
-        ("default", "bge-m3-GGUF-Q4_K_M.gguf", 1024, 10),
-    ])
+    db = _store(
+        tmp_path,
+        [
+            ("default", "qwen3-embedding:0.6b", 1024, 90),
+            ("default", "bge-m3-GGUF-Q4_K_M.gguf", 1024, 10),
+        ],
+    )
     reembed_space.main(["--db", db])
     assert "Keeping : qwen3-embedding" in capsys.readouterr().out
 
 
 def test_explicit_keep_overrides_the_majority(tmp_path, capsys):
-    db = _store(tmp_path, [
-        ("default", "qwen3-embedding:0.6b", 1024, 90),
-        ("default", "bge-m3-GGUF-Q4_K_M.gguf", 1024, 10),
-    ])
+    db = _store(
+        tmp_path,
+        [
+            ("default", "qwen3-embedding:0.6b", 1024, 90),
+            ("default", "bge-m3-GGUF-Q4_K_M.gguf", 1024, 10),
+        ],
+    )
     reembed_space.main(["--db", db, "--keep", "bge-m3"])
     out = capsys.readouterr().out
     assert "Keeping : bge-m3" in out
@@ -191,6 +202,7 @@ def test_backfill_failure_is_reported_not_swallowed(tmp_path, capsys, monkeypatc
 
 # ── backend portability (SQLite / PostgreSQL / future MariaDB) ───────────────
 
+
 def test_pooled_backend_uses_the_seam_not_a_file_handle(tmp_path, monkeypatch):
     """On a pooled backend there is ONE store: the delete must go through
     active_backend().connection(), never sqlite3.connect(db_path)."""
@@ -198,6 +210,7 @@ def test_pooled_backend_uses_the_seam_not_a_file_handle(tmp_path, monkeypatch):
 
     class _Cur:
         rowcount = 3
+
         def execute(self, sql, params):
             used.setdefault("sql", sql)
             used.setdefault("params", []).append(params)
@@ -206,10 +219,13 @@ def test_pooled_backend_uses_the_seam_not_a_file_handle(tmp_path, monkeypatch):
     class _Conn:
         def cursor(self):
             return _Cur()
+
         def __enter__(self):
             return self
+
         def __exit__(self, *a):
             return False
+
         def commit(self):
             used["committed"] = True
 
@@ -246,11 +262,10 @@ def test_pooled_backend_uses_the_seam_not_a_file_handle(tmp_path, monkeypatch):
     mb = importlib.import_module("memory.backends")
     monkeypatch.setattr(mb, "active_backend", lambda: _Backend())
     import sqlite3 as _s
-    monkeypatch.setattr(_s, "connect", lambda *a, **k: pytest.fail(
-        "pooled backend must not open a sqlite file"))
 
-    n = reembed_space._delete_doomed("ignored", [("default", "qwen3-embedding:0.6b",
-                                                  "qwen3-embedding", 1024, 3)])
+    monkeypatch.setattr(_s, "connect", lambda *a, **k: pytest.fail("pooled backend must not open a sqlite file"))
+
+    n = reembed_space._delete_doomed("ignored", [("default", "qwen3-embedding:0.6b", "qwen3-embedding", 1024, 3)])
     assert n == 3
     assert "%s" in used["sql"], "binds must use the backend's placeholder"
     assert "?" not in used["sql"]
@@ -264,8 +279,7 @@ def test_file_backend_honours_the_db_path(tmp_path, monkeypatch):
     other_dir.mkdir()
     other = _store(other_dir, MIXED)
     monkeypatch.setattr(reembed_space, "store_is_a_file", lambda: True)
-    reembed_space._delete_doomed(db, [("default", "qwen3-embedding:0.6b",
-                                       "qwen3-embedding", 1024, 7)])
+    reembed_space._delete_doomed(db, [("default", "qwen3-embedding:0.6b", "qwen3-embedding", 1024, 7)])
     assert _count(db) == 100, "target file must lose exactly its stale rows"
     assert _count(other) == 107, "a different store must be untouched"
 
@@ -284,11 +298,13 @@ def test_a_failed_snapshot_aborts_before_any_delete(tmp_path, capsys, monkeypatc
     assert _count(db) == 107, "nothing may be deleted without a backup"
 
 
-@pytest.mark.parametrize("rows,expected_kept", [
-    # vector_kind partitions spaces by design, so one model per kind is fine.
-    ([("default", "bge-m3-GGUF-Q4_K_M.gguf", 1024, 10),
-      ("fallback", "qwen3-embedding:0.6b", 1024, 10)], 20),
-])
+@pytest.mark.parametrize(
+    "rows,expected_kept",
+    [
+        # vector_kind partitions spaces by design, so one model per kind is fine.
+        ([("default", "bge-m3-GGUF-Q4_K_M.gguf", 1024, 10), ("fallback", "qwen3-embedding:0.6b", 1024, 10)], 20),
+    ],
+)
 def test_separate_vector_kinds_are_not_a_mix(tmp_path, rows, expected_kept):
     db = _store(tmp_path, rows)
     reembed_space.main(["--db", db, "--apply", "--no-backfill"])

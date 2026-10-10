@@ -3,6 +3,7 @@
 N..N+2: env (env_override keys only) > m3_config.toml > legacy env > default.
 The environment is passed in as a mapping; no test touches os.environ.
 """
+
 from __future__ import annotations
 
 import logging
@@ -61,15 +62,16 @@ def test_a_non_override_key_from_env_ranks_below_the_file(tmp_path):
     from m3_core.config import keys as k
     from m3_core.config.settings import build
 
-    knob = Key[bool](name="log.verbose", parse=parse_bool, default=False, doc="t",
-                     env_names=("M3_VERBOSE",))
+    knob = Key[bool](name="log.verbose", parse=parse_bool, default=False, doc="t", env_names=("M3_VERBOSE",))
     reg = Registry([*k.REGISTRY, knob])
-    file_wins = build(_loc(tmp_path, "[log]\nverbose = false\n"), registry=reg,
-                      environ={"M3_VERBOSE": "1"})
+    file_wins = build(_loc(tmp_path, "[log]\nverbose = false\n"), registry=reg, environ={"M3_VERBOSE": "1"})
     assert file_wins[knob] is False and file_wins.shadowed_env() == ["M3_VERBOSE"]
 
-    env_wins = build(_loc(tmp_path / "x" if (tmp_path / "x").mkdir() is None else tmp_path, None),
-                     registry=reg, environ={"M3_VERBOSE": "yes"})
+    env_wins = build(
+        _loc(tmp_path / "x" if (tmp_path / "x").mkdir() is None else tmp_path, None),
+        registry=reg,
+        environ={"M3_VERBOSE": "yes"},
+    )
     assert env_wins[knob] is True and env_wins.origin(knob) == "env-legacy:M3_VERBOSE"
     assert env_wins.legacy_env_in_use() == ["M3_VERBOSE"]
 
@@ -128,7 +130,7 @@ def test_a_bad_reload_keeps_the_last_good_snapshot(cache, caplog):
 
     cache.write_text('[secrets]\nfile = "/a/1"\n', encoding="utf-8")
     good = st.current()
-    cache.write_text('[secrets]\nfile = 7\n', encoding="utf-8")
+    cache.write_text("[secrets]\nfile = 7\n", encoding="utf-8")
     with caplog.at_level(logging.ERROR):
         again = st.current()
     assert again is good and "reload failed" in caplog.text and "[secrets].file" in caplog.text
@@ -175,8 +177,11 @@ def _with_dotenv(tmp_path, text, environ, dotenv):
         p.write_text(text, encoding="utf-8")
     from m3_core.config import Location
 
-    return build(Location(file=p, root=tmp_path, tier="t"), environ=environ,
-                 dotenv=DotEnv(path=str(tmp_path / ".env"), values=dotenv))
+    return build(
+        Location(file=p, root=tmp_path, tier="t"),
+        environ=environ,
+        dotenv=DotEnv(path=str(tmp_path / ".env"), values=dotenv),
+    )
 
 
 def test_dotenv_is_the_lowest_source(tmp_path):

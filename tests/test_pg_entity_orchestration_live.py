@@ -10,6 +10,7 @@ The DSN is resolved from M3_PG_URL / PG_URL and MUST be a throwaway cluster; a
 forbidden-host guard (M3_PG_FORBIDDEN_HOSTS) refuses to run destructively against
 named infrastructure hosts.
 """
+
 from __future__ import annotations
 
 import json
@@ -18,9 +19,7 @@ import uuid
 
 import pytest
 
-_FORBIDDEN = [
-    h.strip() for h in os.environ.get("M3_PG_FORBIDDEN_HOSTS", "").split(",") if h.strip()
-]
+_FORBIDDEN = [h.strip() for h in os.environ.get("M3_PG_FORBIDDEN_HOSTS", "").split(",") if h.strip()]
 
 
 # Gated by the requires_pg marker (auto-skips when no Postgres reachable).
@@ -112,8 +111,7 @@ def test_entity_count_ci_equals_on_pg(pg_backend, monkeypatch):
     with pg_backend.connection() as c:
         cur = c.cursor()
         cur.execute(
-            "INSERT INTO memory_items (id, type, content, conversation_id, scope) "
-            "VALUES (%s,'note','x',%s,'agent')",
+            "INSERT INTO memory_items (id, type, content, conversation_id, scope) VALUES (%s,'note','x',%s,'agent')",
             (mem_id, conv),
         )
         cur.execute(
@@ -121,8 +119,7 @@ def test_entity_count_ci_equals_on_pg(pg_backend, monkeypatch):
             (ent_id, "Widget"),
         )
         cur.execute(
-            "INSERT INTO memory_item_entities (memory_id, entity_id, mention_offset) "
-            "VALUES (%s,%s,0)",
+            "INSERT INTO memory_item_entities (memory_id, entity_id, mention_offset) VALUES (%s,%s,0)",
             (mem_id, ent_id),
         )
     try:
@@ -216,6 +213,7 @@ def test_entity_writer_holds_no_connection_across_embedding_awaits_on_pg(pg_back
     monkeypatch.setenv("M3_PG_URL", _DSN)
     monkeypatch.setenv("M3_ENABLE_ENTITY_GRAPH", "true")
     from memory.backends import selector as _selector
+
     _selector._reset_for_tests()
 
     tag = uuid.uuid4().hex[:8]
@@ -223,11 +221,12 @@ def test_entity_writer_holds_no_connection_across_embedding_awaits_on_pg(pg_back
     names = [f"Alpha {tag} Industries", f"Beta {tag} Logistics"]
     with pg_backend.connection() as c:
         cur = c.cursor()
-        cur.execute("INSERT INTO memory_items (id, type, content, scope) VALUES (%s,'note','x','agent')",
-                    (mem_id,))
+        cur.execute("INSERT INTO memory_items (id, type, content, scope) VALUES (%s,'note','x','agent')", (mem_id,))
         # An existing same-type entity so resolution reaches the embedding tier.
-        cur.execute("INSERT INTO entities (id, canonical_name, entity_type) VALUES (%s,%s,'organization')",
-                    (f"e-{tag}", f"Zeta {tag} Holdings"))
+        cur.execute(
+            "INSERT INTO entities (id, canonical_name, entity_type) VALUES (%s,%s,'organization')",
+            (f"e-{tag}", f"Zeta {tag} Holdings"),
+        )
 
     ent = importlib.import_module("memory.entity")
     real_db = ent._db
@@ -244,6 +243,7 @@ def test_entity_writer_holds_no_connection_across_embedding_awaits_on_pg(pg_back
             open_now[0] -= 1
 
     from conftest import orthogonal_vectors
+
     vecs = orthogonal_vectors([*names, f"Zeta {tag} Holdings"])
 
     async def embed(name):
@@ -252,8 +252,7 @@ def test_entity_writer_holds_no_connection_across_embedding_awaits_on_pg(pg_back
         return vecs[name]
 
     async def extractor(_text):
-        return {"entities": [{"canonical_name": n, "entity_type": "organization"} for n in names],
-                "relationships": []}
+        return {"entities": [{"canonical_name": n, "entity_type": "organization"} for n in names], "relationships": []}
 
     monkeypatch.setattr(ent, "_db", counting_db)
     monkeypatch.setattr(ent, "_embed_canonical_cached", embed)
@@ -271,8 +270,11 @@ def test_entity_writer_holds_no_connection_across_embedding_awaits_on_pg(pg_back
         with pg_backend.connection() as c:
             cur = c.cursor()
             cur.execute("DELETE FROM memory_item_entities WHERE memory_id=%s", (mem_id,))
-            cur.execute("DELETE FROM entity_embeddings WHERE entity_id IN "
-                        "(SELECT id FROM entities WHERE canonical_name LIKE %s)", (f"%{tag}%",))
+            cur.execute(
+                "DELETE FROM entity_embeddings WHERE entity_id IN "
+                "(SELECT id FROM entities WHERE canonical_name LIKE %s)",
+                (f"%{tag}%",),
+            )
             cur.execute("DELETE FROM entities WHERE canonical_name LIKE %s", (f"%{tag}%",))
             cur.execute("DELETE FROM memory_items WHERE id=%s", (mem_id,))
         _selector._reset_for_tests()

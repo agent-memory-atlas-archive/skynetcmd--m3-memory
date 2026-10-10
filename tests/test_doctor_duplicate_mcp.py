@@ -6,6 +6,7 @@ for ~2h43m (2026-07-02). The detector must catch that, but must NOT flag the
 same server registered across DIFFERENT clients (Claude/Gemini/Antigravity each
 registering `memory` is normal multi-client use, not a bug).
 """
+
 from __future__ import annotations
 
 import json
@@ -26,8 +27,7 @@ def test_same_client_duplicate_is_flagged(tmp_path, monkeypatch):
     mcp = tmp_path / ".mcp.json"
     _write(settings, ["memory", "grok_intel"])
     _write(mcp, ["memory"])  # memory in BOTH sources of one client
-    monkeypatch.setattr(I, "_client_config_sources",
-                        lambda: {"Claude Code": [settings, mcp]})
+    monkeypatch.setattr(I, "_client_config_sources", lambda: {"Claude Code": [settings, mcp]})
 
     dupes = I._duplicate_mcp_registration()
     assert "Claude Code" in dupes
@@ -42,9 +42,15 @@ def test_cross_client_same_server_is_NOT_flagged(tmp_path, monkeypatch):
     c = tmp_path / "antigravity.json"
     for f in (a, b, c):
         _write(f, ["memory"])  # same server, but each is a DIFFERENT client
-    monkeypatch.setattr(I, "_client_config_sources", lambda: {
-        "Claude Code": [a], "Gemini CLI": [b], "Antigravity": [c],
-    })
+    monkeypatch.setattr(
+        I,
+        "_client_config_sources",
+        lambda: {
+            "Claude Code": [a],
+            "Gemini CLI": [b],
+            "Antigravity": [c],
+        },
+    )
     dupes = I._duplicate_mcp_registration()
     assert dupes == {}, f"cross-client registration wrongly flagged: {dupes}"
 
@@ -54,8 +60,7 @@ def test_clean_config_returns_empty(tmp_path, monkeypatch):
     mcp = tmp_path / ".mcp.json"
     _write(settings, ["memory"])
     _write(mcp, [])  # deduped — .mcp.json empty
-    monkeypatch.setattr(I, "_client_config_sources",
-                        lambda: {"Claude Code": [settings, mcp]})
+    monkeypatch.setattr(I, "_client_config_sources", lambda: {"Claude Code": [settings, mcp]})
     assert I._duplicate_mcp_registration() == {}
 
 
@@ -64,8 +69,7 @@ def test_unreadable_file_skipped(tmp_path, monkeypatch):
     bad = tmp_path / ".mcp.json"
     _write(settings, ["memory"])
     bad.write_text("{ not valid json", encoding="utf-8")
-    monkeypatch.setattr(I, "_client_config_sources",
-                        lambda: {"Claude Code": [settings, bad]})
+    monkeypatch.setattr(I, "_client_config_sources", lambda: {"Claude Code": [settings, bad]})
     # must not raise, and the unreadable file can't contribute a duplicate
     assert I._duplicate_mcp_registration() == {}
 
@@ -88,6 +92,7 @@ def _fake_psutil(procs):
         @staticmethod
         def process_iter(_attrs):
             return list(procs)
+
     return _P
 
 
@@ -95,7 +100,7 @@ def test_bridge_count_windows_shim_worker_counts_as_one(monkeypatch):
     """Windows: a bridge is a venv SHIM (parent) + its re-exec'd WORKER (child),
     both carrying <bridge>.py. The pair is ONE logical bridge — must NOT flag."""
     procs = [
-        _FakeProc(100, 5, ["python.exe", "memory_bridge.py"]),   # shim, parent=client
+        _FakeProc(100, 5, ["python.exe", "memory_bridge.py"]),  # shim, parent=client
         _FakeProc(101, 100, ["python.exe", "memory_bridge.py"]),  # worker, parent=shim
     ]
     monkeypatch.setitem(sys.modules, "psutil", _fake_psutil(procs))
@@ -114,9 +119,9 @@ def test_bridge_count_genuine_double_launch_is_flagged(monkeypatch):
     """A REAL double-launch = two independent trees (neither parent a bridge).
     Must flag 2x — the fix must not blind the check to real duplicates."""
     procs = [
-        _FakeProc(100, 5, ["python", "memory_bridge.py"]),    # tree 1 root
+        _FakeProc(100, 5, ["python", "memory_bridge.py"]),  # tree 1 root
         _FakeProc(101, 100, ["python", "memory_bridge.py"]),  # tree 1 worker (shim child)
-        _FakeProc(200, 6, ["python", "memory_bridge.py"]),    # tree 2 root — 2nd launch
+        _FakeProc(200, 6, ["python", "memory_bridge.py"]),  # tree 2 root — 2nd launch
         _FakeProc(201, 200, ["python", "memory_bridge.py"]),  # tree 2 worker
     ]
     monkeypatch.setitem(sys.modules, "psutil", _fake_psutil(procs))
@@ -127,6 +132,7 @@ def test_bridge_count_no_psutil_returns_empty(monkeypatch):
     """psutil absent → best-effort empty (the config check is the primary signal),
     never a crash."""
     import builtins
+
     real_import = builtins.__import__
 
     def _no_psutil(name, *a, **k):

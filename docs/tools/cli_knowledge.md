@@ -1,8 +1,8 @@
 ---
 tool: bin/cli_knowledge.py
-sha1: 7b176e12faa4
-mtime_utc: 2026-10-09T22:00:46.546056+00:00
-generated_utc: 2026-10-09T22:03:20.882108+00:00
+sha1: 8c5a27a84e9a
+mtime_utc: 2026-10-10T21:05:16.995550+00:00
+generated_utc: 2026-10-10T21:05:29.414685+00:00
 private: false
 ---
 
@@ -16,7 +16,7 @@ _(no module docstring — update the source file.)_
 
 ## Entry points
 
-- `def main()` (line 32)
+- `def main()` (line 33)
 - `if __name__ == "__main__"` guard
 
 ---

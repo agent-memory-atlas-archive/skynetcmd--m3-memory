@@ -5,6 +5,7 @@ as part of the catalog/ subpackage split. Defers `import module_name` until
 first call, so heavyweight modules (memory_core, memory_maintenance, ...) are
 not imported at catalog-build time.
 """
+
 from __future__ import annotations
 
 import importlib
@@ -21,6 +22,7 @@ class LazyImpl:
             mod = importlib.import_module(self.module_name)
             self._cached_func = getattr(mod, self.attr_name)
         return self._cached_func(*args, **kwargs)
+
 
 class LazyModuleProxy:
     def __init__(self, module_name: str):

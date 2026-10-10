@@ -19,6 +19,7 @@ events are recorded separately. The invariant every test here defends:
 never hardcode a placeholder -- ``dialect().param()`` renders it, so the same
 test body exercises SQLite and PostgreSQL (DESIGN_PHILOSOPHIES 10a).
 """
+
 from __future__ import annotations
 
 import os
@@ -42,6 +43,7 @@ _AGENT = "pytest-received-at-probe"
 
 
 # ── the migration itself, against a scratch DB ───────────────────────────────
+
 
 def _apply(db: sqlite3.Connection, name: str) -> None:
     db.executescript((_MIGRATIONS / name).read_text(encoding="utf-8"))
@@ -127,8 +129,8 @@ def test_postgres_baseline_declares_the_column():
     install must get the column from the baseline rather than relying on the
     migration having run."""
     base = (_MIGRATIONS / "postgres" / "pg_primary_v1.sql").read_text(encoding="utf-8")
-    notif = base[base.index("CREATE TABLE IF NOT EXISTS notifications"):]
-    notif = notif[:notif.index(");")]
+    notif = base[base.index("CREATE TABLE IF NOT EXISTS notifications") :]
+    notif = notif[: notif.index(");")]
     assert "received_at" in notif
 
 
@@ -142,8 +144,8 @@ def test_sqlite_baseline_does_NOT_declare_the_column():
     execution, not assumed.
     """
     base = (_MIGRATIONS / "012_orchestration.sql").read_text(encoding="utf-8")
-    notif = base[base.index("CREATE TABLE IF NOT EXISTS notifications"):]
-    notif = notif[:notif.index(");")]
+    notif = base[base.index("CREATE TABLE IF NOT EXISTS notifications") :]
+    notif = notif[: notif.index(");")]
     assert "received_at" not in notif, (
         "012 must not declare received_at -- 045's ALTER would then fail with "
         "'duplicate column name' on every fresh SQLite install"
@@ -158,6 +160,7 @@ def test_fresh_sqlite_install_applies_both_in_order(scratch_db):
 
 
 # ── the invariant: receipt must not consume the unread flag ──────────────────
+
 
 @pytest.fixture
 def live_notifications():
@@ -220,8 +223,7 @@ def test_a_received_notification_is_still_unread(live_notifications):
 
     out = notifications_poll_impl(_AGENT, unread_only=True, limit=10)
     assert "(empty)" not in out, (
-        "a received notification vanished from the unread inbox -- the inbox "
-        "must stay the record of UNPROCESSED work"
+        "a received notification vanished from the unread inbox -- the inbox must stay the record of UNPROCESSED work"
     )
     assert "1 unread" in out, out
 
@@ -239,8 +241,7 @@ def test_mark_received_is_idempotent_and_keeps_the_first_receipt(live_notificati
     with live_notifications() as db:
         p = dialect().param()
         first = db.execute(
-            f"SELECT received_at FROM {dispatch_table_for_tests()} "
-            f"WHERE agent_id = {p}",
+            f"SELECT received_at FROM {dispatch_table_for_tests()} WHERE agent_id = {p}",
             (_AGENT,),
         ).fetchall()[0]["received_at"]
 
@@ -250,8 +251,7 @@ def test_mark_received_is_idempotent_and_keeps_the_first_receipt(live_notificati
     with live_notifications() as db:
         p = dialect().param()
         second = db.execute(
-            f"SELECT received_at FROM {dispatch_table_for_tests()} "
-            f"WHERE agent_id = {p}",
+            f"SELECT received_at FROM {dispatch_table_for_tests()} WHERE agent_id = {p}",
             (_AGENT,),
         ).fetchall()[0]["received_at"]
 
@@ -276,6 +276,7 @@ def test_ack_still_sets_read_at(live_notifications):
 
 # ── the tool surface ─────────────────────────────────────────────────────────
 
+
 def test_tool_is_registered_and_injects_the_agent_id():
     """`inject_agent_id=True` is the anti-spoofing guard: without it one agent
     could stamp receipt on another agent's inbox, falsely recording delivery of
@@ -287,9 +288,7 @@ def test_tool_is_registered_and_injects_the_agent_id():
         None,
     )
     assert spec is not None, "notifications_mark_received is not in the catalog"
-    assert spec.inject_agent_id is True, (
-        "without inject_agent_id a caller could stamp another agent's inbox"
-    )
+    assert spec.inject_agent_id is True, "without inject_agent_id a caller could stamp another agent's inbox"
 
 
 def test_waiter_records_receipt_by_default_and_acks_only_on_opt_in():
@@ -297,10 +296,7 @@ def test_waiter_records_receipt_by_default_and_acks_only_on_opt_in():
     stays behind --ack."""
     src = (_ROOT / "bin" / "m3_notification_waiter.py").read_text(encoding="utf-8")
     assert "notifications_mark_received" in src, (
-        "the waiter must record receipt -- that is how the <30s SLA is met "
-        "without an agent turn"
+        "the waiter must record receipt -- that is how the <30s SLA is met without an agent turn"
     )
     mark = src.index("notifications_mark_received")
-    assert "if args.ack:" in src[mark:], (
-        "receipt must be unconditional and the ack must remain gated after it"
-    )
+    assert "if args.ack:" in src[mark:], "receipt must be unconditional and the ack must remain gated after it"

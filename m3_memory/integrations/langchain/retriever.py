@@ -51,15 +51,13 @@ class M3Retriever(BaseRetriever):
 
     def _get_client(self) -> M3Client:
         if self._client is None:
-            self._client = M3Client(agent_id=self.agent_id,
-                                    call_timeout=self.call_timeout)
+            self._client = M3Client(agent_id=self.agent_id, call_timeout=self.call_timeout)
         return self._client
 
     def _require_user(self) -> str:
         if not self.user_id:
             raise ValueError(
-                "M3Retriever requires user_id (m3 enforces per-user tenancy). "
-                "Construct as M3Retriever(user_id='...')."
+                "M3Retriever requires user_id (m3 enforces per-user tenancy). Construct as M3Retriever(user_id='...')."
             )
         return self.user_id
 
@@ -68,13 +66,20 @@ class M3Retriever(BaseRetriever):
         uid = self._require_user()
         from memory_core import memory_search_scored_impl
 
-        rows = self._get_client()._call_impl(
-            memory_search_scored_impl,
-            query=query, user_id=uid, scope=self.scope, k=self.k,
-            type_filter=self.type_filter, as_of=self.as_of,
-            recency_bias=self.recency_bias,
-            extra_columns=mapping.EXTRA_COLUMNS,
-        ) or []
+        rows = (
+            self._get_client()._call_impl(
+                memory_search_scored_impl,
+                query=query,
+                user_id=uid,
+                scope=self.scope,
+                k=self.k,
+                type_filter=self.type_filter,
+                as_of=self.as_of,
+                recency_bias=self.recency_bias,
+                extra_columns=mapping.EXTRA_COLUMNS,
+            )
+            or []
+        )
         return [self._to_document(score, item) for score, item in rows]
 
     @staticmethod
@@ -113,8 +118,10 @@ class M3Retriever(BaseRetriever):
         return {
             "query": query,
             "config": {
-                "k": self.k, "type_filter": self.type_filter or None,
-                "as_of": self.as_of or None, "recency_bias": self.recency_bias,
+                "k": self.k,
+                "type_filter": self.type_filter or None,
+                "as_of": self.as_of or None,
+                "recency_bias": self.recency_bias,
                 "scope": self.scope,
             },
             "results": [
@@ -133,9 +140,7 @@ class M3Retriever(BaseRetriever):
 
     # ── BaseRetriever contract ────────────────────────────────────────────────
     @override
-    def _get_relevant_documents(
-        self, query: str, *, run_manager: CallbackManagerForRetrieverRun
-    ) -> list[Document]:
+    def _get_relevant_documents(self, query: str, *, run_manager: CallbackManagerForRetrieverRun) -> list[Document]:
         return self._search(query)
 
     @override

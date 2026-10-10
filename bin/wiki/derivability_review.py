@@ -32,6 +32,7 @@ has-surviving-sources + age signal is always computed and is the queue's floor.
 Backend-agnostic: operates on the (clusters, edges) already in hand at render
 time — no direct sqlite3/psycopg, no new query.
 """
+
 from __future__ import annotations
 
 import json
@@ -59,6 +60,7 @@ REVIEW_SLA_DAYS = 30
 class DerivabilityVerdict:
     """One optional-judge opinion. `derivable=None` = abstain (judge unavailable /
     errored) — fail-open, never forces a decision either way."""
+
     synthesis_id: str
     derivable: bool | None
     reason: str = ""
@@ -70,21 +72,21 @@ class DerivabilityJudge(Protocol):
     deterministically testable with a stub and no model runs on the drift-tested
     path (mirrors wiki.citation_drift.DriftJudge)."""
 
-    def judge(self, synthesis_content: str, surviving_source_contents: list[str]) -> DerivabilityVerdict:
-        ...
+    def judge(self, synthesis_content: str, surviving_source_contents: list[str]) -> DerivabilityVerdict: ...
 
 
 @dataclass(slots=True)
 class ReviewItem:
     """One restricted synthesis in the queue, with its derivability signal."""
+
     synthesis_id: str
     title: str
     rank_key: tuple
-    surviving_sources: int          # live provenance sources still present
-    erasure_count: int              # how many erasures have touched this page
-    erased_at: str | None        # most recent erasure timestamp (ISO), or None
-    age_days: float | None       # days since erased_at (None if unknown)
-    overdue: bool                   # age_days > REVIEW_SLA_DAYS
+    surviving_sources: int  # live provenance sources still present
+    erasure_count: int  # how many erasures have touched this page
+    erased_at: str | None  # most recent erasure timestamp (ISO), or None
+    age_days: float | None  # days since erased_at (None if unknown)
+    overdue: bool  # age_days > REVIEW_SLA_DAYS
     # derivable_candidate: the DETERMINISTIC floor — has ≥1 surviving source, so the
     # prose MIGHT be fully derivable without the erased content. Not a decision.
     derivable_candidate: bool
@@ -96,6 +98,7 @@ class ReviewItem:
 @dataclass(slots=True)
 class ReviewReport:
     """The queue + coverage counts for the lint section."""
+
     items: list[ReviewItem] = field(default_factory=list)
     judged: int = 0
     abstained: int = 0
@@ -160,8 +163,9 @@ def _surviving_source_ids(synthesis_id: str, edges, live_ids: set) -> list[str]:
     return out
 
 
-def build_queue(clusters, edges, *, judge: DerivabilityJudge | None = None,
-                now: datetime | None = None) -> ReviewReport:
+def build_queue(
+    clusters, edges, *, judge: DerivabilityJudge | None = None, now: datetime | None = None
+) -> ReviewReport:
     """Build the GDPR derivability review queue from the in-hand (clusters, edges).
 
     Deterministic floor always computed (surviving-source count + 30-day age). If
@@ -236,19 +240,23 @@ def render_section(report: ReviewReport | None) -> list[str]:
         return lines
     orphaned = report.orphaned
     candidates = report.unrestrict_candidates
-    summary = (f"_{len(items)} restricted synthesis(es) awaiting review — "
-               f"{len(overdue)} OVERDUE (>{REVIEW_SLA_DAYS}d), "
-               f"{len(candidates)} may be derivable from surviving sources "
-               f"(unrestrict candidate), {len(orphaned)} orphaned (no surviving "
-               f"source — keep restricted or supersede).")
+    summary = (
+        f"_{len(items)} restricted synthesis(es) awaiting review — "
+        f"{len(overdue)} OVERDUE (>{REVIEW_SLA_DAYS}d), "
+        f"{len(candidates)} may be derivable from surviving sources "
+        f"(unrestrict candidate), {len(orphaned)} orphaned (no surviving "
+        f"source — keep restricted or supersede)."
+    )
     if report.judged:
         summary += f" Judge ran on {report.judged}, abstained on {report.abstained}."
     summary += "_"
     lines.append(summary)
     lines.append("")
-    lines.append("> Report-only: `restricted` is never cleared automatically. A "
-                 "reviewer decides whether the prose survives without the erased "
-                 "source (unrestrict) or must be superseded.")
+    lines.append(
+        "> Report-only: `restricted` is never cleared automatically. A "
+        "reviewer decides whether the prose survives without the erased "
+        "source (unrestrict) or must be superseded."
+    )
     lines.append("")
     for i in sorted(items, key=lambda x: (not x.overdue, x.rank_key)):
         age = f"{i.age_days:.0f}d" if i.age_days is not None else "age?"
@@ -262,8 +270,7 @@ def render_section(report: ReviewReport | None) -> list[str]:
         else:
             state = f"unrestrict candidate ({i.surviving_sources} surviving src)"
         why = f" — {i.judge_reason}" if i.judge_reason else ""
-        lines.append(f"- {i.title} · `id:{i.synthesis_id[:8]}` · {age}{flag} · "
-                     f"{state}{why}")
+        lines.append(f"- {i.title} · `id:{i.synthesis_id[:8]}` · {age}{flag} · {state}{why}")
     lines.append("")
     return lines
 
@@ -283,13 +290,13 @@ _DERIV_SYSTEM = (
     "SYNTHESIS (a compiled claim) and only its SURVIVING sources (the erased one is "
     "gone). Decide whether EVERY claim in the synthesis is still supported by the "
     "surviving sources alone.\n"
-    "Answer \"derivable\": true only if nothing in the synthesis depends on the "
+    'Answer "derivable": true only if nothing in the synthesis depends on the '
     "erased content — i.e. the surviving sources fully support it (the erased source "
     "was redundant). Answer false if any claim now lacks support (the synthesis "
     "leaned on the erased source). When unsure, answer false (fail safe: keep the "
     "page restricted rather than wrongly unrestrict privacy-erased content).\n"
     "Judge ONLY against the surviving sources shown; do not use outside knowledge.\n"
-    'Reply with ONE line of strict JSON and nothing else: '
+    "Reply with ONE line of strict JSON and nothing else: "
     '{"derivable": true|false, "reason": "<=15 words"}.'
 )
 
@@ -302,8 +309,7 @@ def _build_deriv_prompt(synthesis_content: str, surviving: list[str]) -> str:
         body = (body[:1200] + "…") if len(body) > 1200 else body
         lines.append(f"[{i}] {body}")
     lines.append("")
-    lines.append("Is the synthesis still fully derivable from these surviving "
-                 "sources alone? Reply with the JSON only.")
+    lines.append("Is the synthesis still fully derivable from these surviving sources alone? Reply with the JSON only.")
     return "\n".join(lines)
 
 
@@ -314,6 +320,7 @@ class ModelDerivabilityJudge:
     def __init__(self, cfg=None) -> None:
         # Reuse citation_drift's DriftConfig for the endpoint (single config).
         from .citation_drift import DriftConfig
+
         self.cfg = cfg or DriftConfig.from_env()
         self.calls = 0
         self.cache_hits = 0
@@ -321,9 +328,8 @@ class ModelDerivabilityJudge:
 
     def judge(self, synthesis_content: str, surviving_source_contents: list[str]) -> DerivabilityVerdict:
         from .citation_drift import _judge_hash
-        digest = _judge_hash(synthesis_content,
-                             [*surviving_source_contents, _DERIV_PROMPT_VERSION],
-                             self.cfg.model)
+
+        digest = _judge_hash(synthesis_content, [*surviving_source_contents, _DERIV_PROMPT_VERSION], self.cfg.model)
         cached = self._read_cache(digest)
         if cached is not None:
             self.cache_hits += 1
@@ -340,8 +346,7 @@ class ModelDerivabilityJudge:
         return DerivabilityVerdict(synthesis_id="?", derivable=derivable, reason=reason)
 
     def summary(self) -> str:
-        return (f"derivability judge: {self.calls} judged, "
-                f"{self.cache_hits} cached, {self.abstentions} abstained")
+        return f"derivability judge: {self.calls} judged, {self.cache_hits} cached, {self.abstentions} abstained"
 
     def _call_model(self, user_prompt: str) -> str | None:
         try:
@@ -353,8 +358,7 @@ class ModelDerivabilityJudge:
         if token:
             headers["Authorization"] = f"Bearer {token}"
         payload: dict = {
-            "messages": [{"role": "system", "content": _DERIV_SYSTEM},
-                         {"role": "user", "content": user_prompt}],
+            "messages": [{"role": "system", "content": _DERIV_SYSTEM}, {"role": "user", "content": user_prompt}],
             "temperature": self.cfg.temperature,
             "max_tokens": self.cfg.max_tokens,
             "stream": False,
@@ -366,8 +370,7 @@ class ModelDerivabilityJudge:
         # a clean result (the citation-drift failure, same shape).
         apply_thinking_suppression(payload, self.cfg.url)
         try:
-            r = httpx.post(self.cfg.url, json=payload, headers=headers,
-                           timeout=self.cfg.timeout_s)
+            r = httpx.post(self.cfg.url, json=payload, headers=headers, timeout=self.cfg.timeout_s)
             r.raise_for_status()
             return r.json()["choices"][0]["message"]["content"]
         except Exception:
@@ -379,8 +382,10 @@ class ModelDerivabilityJudge:
             return None
         try:
             import sys
+
             sys.path.insert(0, str(Path(__file__).absolute().parents[1]))
             from auth_utils import get_api_key
+
             return get_api_key(service)
         except Exception:
             return None
@@ -411,8 +416,7 @@ class ModelDerivabilityJudge:
         try:
             Path(path).parent.mkdir(parents=True, exist_ok=True)
             with Path(path).open("w", encoding="utf-8", newline="\n") as f:
-                json.dump({"hash": digest, "derivable": derivable, "reason": reason},
-                          f, ensure_ascii=False, indent=2)
+                json.dump({"hash": digest, "derivable": derivable, "reason": reason}, f, ensure_ascii=False, indent=2)
         except Exception:
             pass
 
@@ -430,7 +434,7 @@ def _parse_bool(text: str, key: str) -> tuple[bool | None, str]:
     if start == -1 or end == -1 or end <= start:
         return None, "no JSON object in judge reply"
     try:
-        obj = json.loads(raw[start:end + 1])
+        obj = json.loads(raw[start : end + 1])
     except Exception:
         return None, "unparseable JSON in judge reply"
     val = obj.get(key)

@@ -48,8 +48,15 @@ def _make_db(tmp_path, items: list[dict]) -> str:
         db.execute(
             "INSERT INTO memory_items(id,type,title,content,agent_id,is_deleted,variant,created_at) "
             "VALUES (?,?,?,?,?,0,?,?)",
-            (it["id"], it["type"], it.get("title", ""), it["content"], it.get("agent_id", ""),
-             it.get("variant"), "2026-05-08T00:00:00Z"),
+            (
+                it["id"],
+                it["type"],
+                it.get("title", ""),
+                it["content"],
+                it.get("agent_id", ""),
+                it.get("variant"),
+                "2026-05-08T00:00:00Z",
+            ),
         )
         db.execute(
             "INSERT INTO memory_embeddings(memory_id,embedding,embed_model,dim) VALUES (?,?,?,?)",
@@ -91,17 +98,27 @@ def test_scope_on_filters_out_other_variant(tmp_path, monkeypatch):
     so the path that lands in `related` (not contradiction) is exercised.
     """
     target_id = "00000000-0000-0000-0000-000000000001"
-    twin_id   = "00000000-0000-0000-0000-000000000002"
+    twin_id = "00000000-0000-0000-0000-000000000002"
     # Vectors with cosine ~0.85 (related band). Both unit-length.
     target_vec = [1.0, 0.0]
-    twin_vec   = [0.85, 0.5267]  # cos(target,twin) ≈ 0.85
+    twin_vec = [0.85, 0.5267]  # cos(target,twin) ≈ 0.85
     items = [
-        {"id": target_id, "type": "observation", "title": "title-a",
-         "content": "User likes coffee", "variant": "tier-a/main",
-         "embedding": target_vec},
-        {"id": twin_id, "type": "observation", "title": "title-b",
-         "content": "User likes tea", "variant": "tier-b/smoke",
-         "embedding": twin_vec},
+        {
+            "id": target_id,
+            "type": "observation",
+            "title": "title-a",
+            "content": "User likes coffee",
+            "variant": "tier-a/main",
+            "embedding": target_vec,
+        },
+        {
+            "id": twin_id,
+            "type": "observation",
+            "title": "title-b",
+            "content": "User likes tea",
+            "variant": "tier-b/smoke",
+            "embedding": twin_vec,
+        },
     ]
     db_path = _make_db(tmp_path, items)
     mc = _patch_memory_core_db(monkeypatch, db_path, scope_on=True)
@@ -118,25 +135,33 @@ def test_scope_on_filters_out_other_variant(tmp_path, monkeypatch):
         )
     )
     twin_ids = {r[0] for r in related}
-    assert twin_id not in twin_ids, (
-        f"scope ON must exclude cross-variant candidate twin; got related={related!r}"
-    )
+    assert twin_id not in twin_ids, f"scope ON must exclude cross-variant candidate twin; got related={related!r}"
     assert superseded == [], "no supersedes expected (identical-content case skipped)"
 
 
 def test_scope_off_includes_other_variant(tmp_path, monkeypatch):
     """With scope OFF (legacy), cross-variant candidates remain visible."""
     target_id = "00000000-0000-0000-0000-000000000003"
-    twin_id   = "00000000-0000-0000-0000-000000000004"
+    twin_id = "00000000-0000-0000-0000-000000000004"
     target_vec = [1.0, 0.0]
-    twin_vec   = [0.85, 0.5267]
+    twin_vec = [0.85, 0.5267]
     items = [
-        {"id": target_id, "type": "observation", "title": "title-c",
-         "content": "User likes apples", "variant": "tier-a/main",
-         "embedding": target_vec},
-        {"id": twin_id, "type": "observation", "title": "title-d",
-         "content": "User likes oranges", "variant": "tier-b/smoke",
-         "embedding": twin_vec},
+        {
+            "id": target_id,
+            "type": "observation",
+            "title": "title-c",
+            "content": "User likes apples",
+            "variant": "tier-a/main",
+            "embedding": target_vec,
+        },
+        {
+            "id": twin_id,
+            "type": "observation",
+            "title": "title-d",
+            "content": "User likes oranges",
+            "variant": "tier-b/smoke",
+            "embedding": twin_vec,
+        },
     ]
     db_path = _make_db(tmp_path, items)
     mc = _patch_memory_core_db(monkeypatch, db_path, scope_on=False)
@@ -153,22 +178,32 @@ def test_scope_off_includes_other_variant(tmp_path, monkeypatch):
         )
     )
     twin_ids = {r[0] for r in related}
-    assert twin_id in twin_ids, (
-        f"scope OFF must restore legacy variant-blind behavior; got related={related!r}"
-    )
+    assert twin_id in twin_ids, f"scope OFF must restore legacy variant-blind behavior; got related={related!r}"
 
 
 def test_variant_none_preserves_legacy(tmp_path, monkeypatch):
     """When the inserted item has variant=None, no scope filter applies even with scope env ON."""
     target_id = "00000000-0000-0000-0000-000000000005"
-    other_id  = "00000000-0000-0000-0000-000000000006"
+    other_id = "00000000-0000-0000-0000-000000000006"
     target_vec = [1.0, 0.0]
-    other_vec  = [0.85, 0.5267]
+    other_vec = [0.85, 0.5267]
     items = [
-        {"id": target_id, "type": "observation", "title": "title-e",
-         "content": "alpha", "variant": None, "embedding": target_vec},
-        {"id": other_id, "type": "observation", "title": "title-f",
-         "content": "beta", "variant": "some/variant", "embedding": other_vec},
+        {
+            "id": target_id,
+            "type": "observation",
+            "title": "title-e",
+            "content": "alpha",
+            "variant": None,
+            "embedding": target_vec,
+        },
+        {
+            "id": other_id,
+            "type": "observation",
+            "title": "title-f",
+            "content": "beta",
+            "variant": "some/variant",
+            "embedding": other_vec,
+        },
     ]
     db_path = _make_db(tmp_path, items)
     mc = _patch_memory_core_db(monkeypatch, db_path, scope_on=True)

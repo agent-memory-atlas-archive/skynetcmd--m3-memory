@@ -43,15 +43,19 @@ def _host_neutral(monkeypatch):
 
 # ── name mapping (must mirror build_wheel.py) ──────────────────────────────────
 
-@pytest.mark.parametrize("os_tok,backend,expected", [
-    ("windows", "cpu", "m3-core-rs-windows-cpu"),
-    ("windows", "cuda", "m3-core-rs-windows-cuda"),
-    ("windows", "vulkan", "m3-core-rs-windows-vulkan"),
-    ("linux", "cpu", "m3-core-rs-linux-cpu"),
-    ("linux", "cuda", "m3-core-rs-linux-cuda"),
-    ("linux", "vulkan", "m3-core-rs-linux-vulkan"),
-    ("macos", "metal", "m3-core-rs-macos-metal"),
-])
+
+@pytest.mark.parametrize(
+    "os_tok,backend,expected",
+    [
+        ("windows", "cpu", "m3-core-rs-windows-cpu"),
+        ("windows", "cuda", "m3-core-rs-windows-cuda"),
+        ("windows", "vulkan", "m3-core-rs-windows-vulkan"),
+        ("linux", "cpu", "m3-core-rs-linux-cpu"),
+        ("linux", "cuda", "m3-core-rs-linux-cuda"),
+        ("linux", "vulkan", "m3-core-rs-linux-vulkan"),
+        ("macos", "metal", "m3-core-rs-macos-metal"),
+    ],
+)
 def test_package_name(os_tok, backend, expected):
     assert rci.package_name(os_tok, backend) == expected
 
@@ -75,6 +79,7 @@ def test_macos_is_metal_only():
 
 
 # ── detection ──────────────────────────────────────────────────────────────────
+
 
 def test_detect_macos_is_metal(monkeypatch):
     c = rci.detect_backend("macos")
@@ -114,8 +119,7 @@ def test_detect_cpu_when_nothing(monkeypatch):
 
 def test_cuda_preferred_over_vulkan(monkeypatch):
     # both present -> CUDA wins (matches legacy precedence)
-    monkeypatch.setattr(rci.shutil, "which",
-                        lambda x: "/usr/bin/nvcc" if x == "nvcc" else "/usr/bin/vulkaninfo")
+    monkeypatch.setattr(rci.shutil, "which", lambda x: "/usr/bin/nvcc" if x == "nvcc" else "/usr/bin/vulkaninfo")
     monkeypatch.setenv("VULKAN_SDK", "/opt/vulkan")
     c = rci.detect_backend("linux")
     assert c.backend == "cuda"
@@ -123,8 +127,10 @@ def test_cuda_preferred_over_vulkan(monkeypatch):
 
 # ── install flow (mocked pip) ──────────────────────────────────────────────────
 
+
 class _FakeProc:
-    def __init__(self, rc): self.returncode = rc
+    def __init__(self, rc):
+        self.returncode = rc
 
 
 def test_install_prebuilt_argv(monkeypatch):
@@ -162,8 +168,7 @@ def _capture_pip_argv(monkeypatch) -> list:
     """
     calls: list = []
     monkeypatch.setattr(rci, "_check_build_tools", lambda: [])
-    monkeypatch.setattr(rci.subprocess, "run",
-                        lambda argv, env=None, **kwargs: calls.append(argv) or _FakeProc(0))
+    monkeypatch.setattr(rci.subprocess, "run", lambda argv, env=None, **kwargs: calls.append(argv) or _FakeProc(0))
     return calls
 
 
@@ -208,14 +213,10 @@ def test_install_rust_core_github_release_success_skips_fallbacks(monkeypatch):
     because pip exits 0 — a stale success the cascade cannot recover from.
     """
     calls = []
-    monkeypatch.setattr(rci, "install_prebuilt",
-                        lambda c, calls=calls, **k: calls.append("prebuilt") or 0)
-    monkeypatch.setattr(rci, "install_from_github_release",
-                        lambda c, calls=calls, **k: calls.append("github") or 0)
-    monkeypatch.setattr(rci, "install_from_source",
-                        lambda c, calls=calls, **k: calls.append("source") or 0)
-    monkeypatch.setattr(rci, "detect_backend",
-                        lambda os_tok=None: rci.BackendChoice("linux", "cuda", "t"))
+    monkeypatch.setattr(rci, "install_prebuilt", lambda c, calls=calls, **k: calls.append("prebuilt") or 0)
+    monkeypatch.setattr(rci, "install_from_github_release", lambda c, calls=calls, **k: calls.append("github") or 0)
+    monkeypatch.setattr(rci, "install_from_source", lambda c, calls=calls, **k: calls.append("source") or 0)
+    monkeypatch.setattr(rci, "detect_backend", lambda os_tok=None: rci.BackendChoice("linux", "cuda", "t"))
     rc = rci.install_rust_core()
     assert rc == 0
     assert calls == ["github"], "pip must not be consulted when the Release has it"
@@ -227,14 +228,10 @@ def test_install_rust_core_falls_back_github_to_pip(monkeypatch):
     Locks in the 3-tier order: GitHub Release -> pip -> source.
     """
     calls = []
-    monkeypatch.setattr(rci, "install_prebuilt",
-                        lambda c, calls=calls, **k: calls.append("prebuilt") or 0)
-    monkeypatch.setattr(rci, "install_from_github_release",
-                        lambda c, **k: calls.append("github") or 1)
-    monkeypatch.setattr(rci, "install_from_source",
-                        lambda c, calls=calls, **k: calls.append("source") or 0)
-    monkeypatch.setattr(rci, "detect_backend",
-                        lambda os_tok=None: rci.BackendChoice("macos", "metal", "t"))
+    monkeypatch.setattr(rci, "install_prebuilt", lambda c, calls=calls, **k: calls.append("prebuilt") or 0)
+    monkeypatch.setattr(rci, "install_from_github_release", lambda c, **k: calls.append("github") or 1)
+    monkeypatch.setattr(rci, "install_from_source", lambda c, calls=calls, **k: calls.append("source") or 0)
+    monkeypatch.setattr(rci, "detect_backend", lambda os_tok=None: rci.BackendChoice("macos", "metal", "t"))
     rc = rci.install_rust_core()
     assert rc == 0
     assert calls == ["github", "prebuilt"]
@@ -249,20 +246,19 @@ def test_install_rust_core_falls_back_all_three_tiers(monkeypatch):
     a host that can compile should compile the backend its hardware wants.
     """
     calls = []
-    monkeypatch.setattr(rci, "install_prebuilt",
-                        lambda c, **k: calls.append(("prebuilt", c.backend)) or 1)
-    monkeypatch.setattr(rci, "install_from_github_release",
-                        lambda c, **k: calls.append(("github", c.backend)) or 1)
-    monkeypatch.setattr(rci, "install_from_source",
-                        lambda c, **k: calls.append(("source", c.backend)) or 0)
-    monkeypatch.setattr(rci, "detect_backend",
-                        lambda os_tok=None: rci.BackendChoice("linux", "cuda", "t"))
+    monkeypatch.setattr(rci, "install_prebuilt", lambda c, **k: calls.append(("prebuilt", c.backend)) or 1)
+    monkeypatch.setattr(rci, "install_from_github_release", lambda c, **k: calls.append(("github", c.backend)) or 1)
+    monkeypatch.setattr(rci, "install_from_source", lambda c, **k: calls.append(("source", c.backend)) or 0)
+    monkeypatch.setattr(rci, "detect_backend", lambda os_tok=None: rci.BackendChoice("linux", "cuda", "t"))
     rc = rci.install_rust_core()
     assert rc == 0
     assert calls == [
-        ("github", "cuda"), ("prebuilt", "cuda"),
-        ("github", "vulkan"), ("prebuilt", "vulkan"),
-        ("github", "cpu"), ("prebuilt", "cpu"),
+        ("github", "cuda"),
+        ("prebuilt", "cuda"),
+        ("github", "vulkan"),
+        ("prebuilt", "vulkan"),
+        ("github", "cpu"),
+        ("prebuilt", "cpu"),
         ("source", "cuda"),
     ]
 
@@ -273,14 +269,10 @@ def test_install_rust_core_no_source_fallback_when_disabled(monkeypatch):
     flow passes False so users aren't surprised by a multi-minute Rust build.
     """
     calls = []
-    monkeypatch.setattr(rci, "install_prebuilt",
-                        lambda c, **k: calls.append("prebuilt") or 1)
-    monkeypatch.setattr(rci, "install_from_github_release",
-                        lambda c, **k: calls.append("github") or 1)
-    monkeypatch.setattr(rci, "install_from_source",
-                        lambda c, calls=calls, **k: calls.append("source") or 0)
-    monkeypatch.setattr(rci, "detect_backend",
-                        lambda os_tok=None: rci.BackendChoice("macos", "metal", "t"))
+    monkeypatch.setattr(rci, "install_prebuilt", lambda c, **k: calls.append("prebuilt") or 1)
+    monkeypatch.setattr(rci, "install_from_github_release", lambda c, **k: calls.append("github") or 1)
+    monkeypatch.setattr(rci, "install_from_source", lambda c, calls=calls, **k: calls.append("source") or 0)
+    monkeypatch.setattr(rci, "detect_backend", lambda os_tok=None: rci.BackendChoice("macos", "metal", "t"))
     rc = rci.install_rust_core(allow_source_fallback=False)
     assert rc != 0
     assert calls == ["github", "prebuilt"]  # source NOT attempted
@@ -295,15 +287,10 @@ def test_cuda_never_wastes_a_pypi_roundtrip(monkeypatch):
     """
     for os_tok in ("windows", "linux"):
         calls = []
-        monkeypatch.setattr(rci, "install_prebuilt",
-                            lambda c, calls=calls, **k: calls.append("prebuilt") or 0)
-        monkeypatch.setattr(rci, "install_from_github_release",
-                            lambda c, calls=calls, **k: calls.append("github") or 0)
-        monkeypatch.setattr(rci, "install_from_source",
-                            lambda c, calls=calls, **k: calls.append("source") or 0)
-        monkeypatch.setattr(
-            rci, "detect_backend",
-            lambda os_tok=None, _o=os_tok: rci.BackendChoice(_o, "cuda", "t"))
+        monkeypatch.setattr(rci, "install_prebuilt", lambda c, calls=calls, **k: calls.append("prebuilt") or 0)
+        monkeypatch.setattr(rci, "install_from_github_release", lambda c, calls=calls, **k: calls.append("github") or 0)
+        monkeypatch.setattr(rci, "install_from_source", lambda c, calls=calls, **k: calls.append("source") or 0)
+        monkeypatch.setattr(rci, "detect_backend", lambda os_tok=None, _o=os_tok: rci.BackendChoice(_o, "cuda", "t"))
         assert rci.install_rust_core() == 0
         assert "prebuilt" not in calls, f"{os_tok}-cuda consulted PyPI"
 
@@ -313,6 +300,7 @@ def test_cuda_never_wastes_a_pypi_roundtrip(monkeypatch):
 
 class _FakeRespCtx:
     """Mimics urlopen()'s context-manager + .read() interface."""
+
     def __init__(self, payload: bytes, chunks: int = 0):
         self._payload = payload
         self._chunks = chunks
@@ -326,16 +314,15 @@ class _FakeRespCtx:
 
     def read(self, size: int = -1) -> bytes:
         if size < 0:
-            data = self._payload[self._offset:]
+            data = self._payload[self._offset :]
             self._offset = len(self._payload)
             return data
-        data = self._payload[self._offset:self._offset + size]
+        data = self._payload[self._offset : self._offset + size]
         self._offset += len(data)
         return data
 
 
-def _gh_release_payload(asset_names: list[str], *, size: int = 1024,
-                        sizes: dict[str, int] | None = None) -> bytes:
+def _gh_release_payload(asset_names: list[str], *, size: int = 1024, sizes: dict[str, int] | None = None) -> bytes:
     """Build a minimal GitHub release JSON with the named assets.
 
     ``size`` must equal the byte length the fake download will actually
@@ -344,18 +331,21 @@ def _gh_release_payload(asset_names: list[str], *, size: int = 1024,
     to override per asset (e.g. to simulate exactly that truncation).
     """
     import json as _json
+
     sizes = sizes or {}
-    return _json.dumps({
-        "tag_name": rci.M3_CORE_RS_GIT_TAG,
-        "assets": [
-            {
-                "name": name,
-                "size": sizes.get(name, size),
-                "browser_download_url": f"https://example.com/{name}",
-            }
-            for name in asset_names
-        ],
-    }).encode("utf-8")
+    return _json.dumps(
+        {
+            "tag_name": rci.M3_CORE_RS_GIT_TAG,
+            "assets": [
+                {
+                    "name": name,
+                    "size": sizes.get(name, size),
+                    "browser_download_url": f"https://example.com/{name}",
+                }
+                for name in asset_names
+            ],
+        }
+    ).encode("utf-8")
 
 
 def test_github_release_finds_and_installs_matching_asset(monkeypatch):
@@ -366,11 +356,14 @@ def test_github_release_finds_and_installs_matching_asset(monkeypatch):
     ver = rci.M3_CORE_RS_VERSION
     matching_name = f"m3_core_rs_macos_metal-{ver}-{py_tag}-{py_tag}-macosx_11_0_arm64.whl"
     fake_wheel = b"PK\x03\x04" + b"fake wheel" * 100  # ZIP-ish header so it looks plausible
-    payload = _gh_release_payload([
-        f"m3_core_rs_macos_metal-{ver}-cp310-cp310-macosx_11_0_arm64.whl",  # wrong py
-        matching_name,                                                       # match
-        f"m3_core_rs_linux_cuda-{ver}-{py_tag}-{py_tag}-linux_x86_64.whl",   # wrong os
-    ], size=len(fake_wheel))
+    payload = _gh_release_payload(
+        [
+            f"m3_core_rs_macos_metal-{ver}-cp310-cp310-macosx_11_0_arm64.whl",  # wrong py
+            matching_name,  # match
+            f"m3_core_rs_linux_cuda-{ver}-{py_tag}-{py_tag}-linux_x86_64.whl",  # wrong os
+        ],
+        size=len(fake_wheel),
+    )
 
     urlopen_calls = []
 
@@ -384,11 +377,11 @@ def test_github_release_finds_and_installs_matching_asset(monkeypatch):
     # install_from_github_release imports urllib lazily — patch the global
     # module so the lazy import in the function picks up our fake.
     import urllib.request as _ur
+
     monkeypatch.setattr(_ur, "urlopen", fake_urlopen)
 
     pip_argv = []
-    monkeypatch.setattr(rci, "_pip_install_with_pep668_fallback",
-                        lambda *a: pip_argv.append(a) or 0)
+    monkeypatch.setattr(rci, "_pip_install_with_pep668_fallback", lambda *a: pip_argv.append(a) or 0)
 
     choice = rci.BackendChoice("macos", "metal", "test")
     rc = rci.install_from_github_release(choice)
@@ -414,8 +407,11 @@ def test_github_release_404_returns_nonzero(monkeypatch):
 
     def fake_urlopen(req, timeout=None):
         raise _ue.HTTPError(
-            url="https://api.github.com/...", code=404, msg="Not Found",
-            hdrs=None, fp=None,
+            url="https://api.github.com/...",
+            code=404,
+            msg="Not Found",
+            hdrs=None,
+            fp=None,
         )
 
     monkeypatch.setattr(_ur, "urlopen", fake_urlopen)
@@ -427,14 +423,16 @@ def test_github_release_404_returns_nonzero(monkeypatch):
 def test_github_release_no_matching_asset_returns_nonzero(monkeypatch):
     """API succeeds but no asset starts with the expected prefix."""
     import urllib.request as _ur
-    py_tag = wheel_python_tag()
-    payload = _gh_release_payload([
-        f"m3_core_rs_linux_cpu-{rci.M3_CORE_RS_VERSION}-{py_tag}-{py_tag}-manylinux2014.whl",
-        # No macos_metal asset
-    ])
 
-    monkeypatch.setattr(_ur, "urlopen",
-                        lambda req, timeout=None: _FakeRespCtx(payload))
+    py_tag = wheel_python_tag()
+    payload = _gh_release_payload(
+        [
+            f"m3_core_rs_linux_cpu-{rci.M3_CORE_RS_VERSION}-{py_tag}-{py_tag}-manylinux2014.whl",
+            # No macos_metal asset
+        ]
+    )
+
+    monkeypatch.setattr(_ur, "urlopen", lambda req, timeout=None: _FakeRespCtx(payload))
 
     choice = rci.BackendChoice("macos", "metal", "test")
     rc = rci.install_from_github_release(choice)
@@ -490,19 +488,19 @@ def test_find_cargo_via_rustup_toolchain(monkeypatch, tmp_path):
 
 # ── skip-if-current guard ──────────────────────────────────────────────────────
 
+
 def test_skips_install_when_already_current(monkeypatch):
     """When the embedded wheel is already at the target version, install_rust_core
     short-circuits — no PyPI / GitHub / source attempt, no re-download."""
     calls = []
     monkeypatch.setattr(rci, "is_rust_core_current", lambda: True)
-    monkeypatch.setattr(rci, "active_embedder_tier",
-                        lambda: {"native": True, "version": rci.M3_CORE_RS_VERSION,
-                                 "summary": "current"})
+    monkeypatch.setattr(
+        rci, "active_embedder_tier", lambda: {"native": True, "version": rci.M3_CORE_RS_VERSION, "summary": "current"}
+    )
     monkeypatch.setattr(rci, "install_prebuilt", lambda c, **k: calls.append("prebuilt") or 0)
     monkeypatch.setattr(rci, "install_from_github_release", lambda c, **k: calls.append("github") or 0)
     monkeypatch.setattr(rci, "install_from_source", lambda c, **k: calls.append("source") or 0)
-    monkeypatch.setattr(rci, "detect_backend",
-                        lambda os_tok=None: rci.BackendChoice("linux", "cuda", "t"))
+    monkeypatch.setattr(rci, "detect_backend", lambda os_tok=None: rci.BackendChoice("linux", "cuda", "t"))
     rc = rci.install_rust_core()
     assert rc == 0
     assert calls == [], "current wheel must not be reinstalled"
@@ -517,12 +515,10 @@ def test_force_reinstalls_even_when_current(monkeypatch):
     """
     calls = []
     monkeypatch.setattr(rci, "is_rust_core_current", lambda: True)
-    monkeypatch.setattr(rci, "install_from_github_release",
-                        lambda c, calls=calls, **k: calls.append("github") or 0)
+    monkeypatch.setattr(rci, "install_from_github_release", lambda c, calls=calls, **k: calls.append("github") or 0)
     monkeypatch.setattr(rci, "install_prebuilt", lambda c, **k: 0)
     monkeypatch.setattr(rci, "install_from_source", lambda c, **k: 0)
-    monkeypatch.setattr(rci, "detect_backend",
-                        lambda os_tok=None: rci.BackendChoice("linux", "cpu", "t"))
+    monkeypatch.setattr(rci, "detect_backend", lambda os_tok=None: rci.BackendChoice("linux", "cpu", "t"))
     rc = rci.install_rust_core(force=True)
     assert rc == 0
     assert calls == ["github"], "force must reinstall"
@@ -533,8 +529,7 @@ def test_explicit_backend_bypasses_skip(monkeypatch):
     even if the current version matches."""
     calls = []
     monkeypatch.setattr(rci, "is_rust_core_current", lambda: True)
-    monkeypatch.setattr(rci, "install_from_github_release",
-                        lambda c, calls=calls, **k: calls.append("github") or 0)
+    monkeypatch.setattr(rci, "install_from_github_release", lambda c, calls=calls, **k: calls.append("github") or 0)
     monkeypatch.setattr(rci, "install_prebuilt", lambda c, **k: 0)
     monkeypatch.setattr(rci, "install_from_source", lambda c, **k: 0)
     rc = rci.install_rust_core(backend="cpu", os_tok="linux")
@@ -546,9 +541,11 @@ def test_explicit_backend_bypasses_skip(monkeypatch):
 def test_is_rust_core_current_false_without_version(monkeypatch):
     """CONSERVATIVE: a wheel with no __version__ is NOT treated as current — we
     must not skip an upgrade on a guess."""
+
     class _FakeRS:
         EmbeddedEmbedder = object  # has the feature
         # no __version__
+
     monkeypatch.setitem(sys.modules, "m3_core_rs", _FakeRS())
     assert rci.is_rust_core_current() is False
 
@@ -566,15 +563,17 @@ def test_is_rust_core_current_compares_version(monkeypatch):
     monkeypatch.setitem(sys.modules, "m3_core_rs", _Old())
     assert rci.is_rust_core_current() is False  # older than target
     monkeypatch.setitem(sys.modules, "m3_core_rs", _New())
-    assert rci.is_rust_core_current() is True   # newer than target
+    assert rci.is_rust_core_current() is True  # newer than target
 
 
 @pytest.mark.real_is_current
 def test_is_rust_core_current_false_without_embedded_feature(monkeypatch):
     """A wheel built WITHOUT the embedded feature must reinstall."""
+
     class _NoFeature:
         __version__ = "999.0.0"
         # no EmbeddedEmbedder
+
     monkeypatch.setitem(sys.modules, "m3_core_rs", _NoFeature())
     assert rci.is_rust_core_current() is False
 
@@ -600,10 +599,9 @@ def test_pip_success_is_not_labelled_a_pypi_install(monkeypatch, capsys):
     # (§3 — a test that depends on a reachable external service is not hermetic).
     monkeypatch.setattr(rci, "install_from_github_release", lambda choice, **kw: 1)
     monkeypatch.setattr(
-        rci, "detect_backend",
-        lambda *a, **k: rci.BackendChoice(
-            os_tok="windows", backend="cuda",
-            reason="NVIDIA CUDA toolchain detected"),
+        rci,
+        "detect_backend",
+        lambda *a, **k: rci.BackendChoice(os_tok="windows", backend="cuda", reason="NVIDIA CUDA toolchain detected"),
     )
     assert rci.install_rust_core() == 0
     out = capsys.readouterr().out
@@ -623,13 +621,14 @@ def test_pip_success_is_not_labelled_a_pypi_install(monkeypatch, capsys):
 # the bad member, and pip still reported "Would install".
 # ---------------------------------------------------------------------------
 
+
 def _sha256_hex(data: bytes) -> str:
     import hashlib
+
     return hashlib.sha256(data).hexdigest()
 
 
-def _release_with_sums(wheel_bytes_by_name, *, sums_text=None,
-                       include_sums=True, declared_sizes=None):
+def _release_with_sums(wheel_bytes_by_name, *, sums_text=None, include_sums=True, declared_sizes=None):
     """(api_payload, sha256sums_body) for a release carrying these wheels.
 
     Sizes default to the true body length: the installer compares the API's
@@ -637,13 +636,11 @@ def _release_with_sums(wheel_bytes_by_name, *, sums_text=None,
     would trip the truncation check instead of the one under test.
     """
     import json as _json
+
     declared = dict(declared_sizes or {})
     names = list(wheel_bytes_by_name)
     if sums_text is None:
-        sums_text = "".join(
-            f"{_sha256_hex(b)} *{n}\n"
-            for n, b in sorted(wheel_bytes_by_name.items())
-        )
+        sums_text = "".join(f"{_sha256_hex(b)} *{n}\n" for n, b in sorted(wheel_bytes_by_name.items()))
     assets = [
         {
             "name": n,
@@ -653,21 +650,26 @@ def _release_with_sums(wheel_bytes_by_name, *, sums_text=None,
         for n in names
     ]
     if include_sums:
-        assets.append({
-            "name": "SHA256SUMS",
-            "size": len(sums_text.encode("utf-8")),
-            "browser_download_url": "https://example.com/SHA256SUMS",
-        })
-    payload = _json.dumps({
-        "tag_name": rci.M3_CORE_RS_GIT_TAG,
-        "assets": assets,
-    }).encode("utf-8")
+        assets.append(
+            {
+                "name": "SHA256SUMS",
+                "size": len(sums_text.encode("utf-8")),
+                "browser_download_url": "https://example.com/SHA256SUMS",
+            }
+        )
+    payload = _json.dumps(
+        {
+            "tag_name": rci.M3_CORE_RS_GIT_TAG,
+            "assets": assets,
+        }
+    ).encode("utf-8")
     return payload, sums_text
 
 
 def _wire_release(monkeypatch, payload, sums_text, wheel_bodies):
     """Serve the API payload, SHA256SUMS, and one body per download attempt."""
     import urllib.request as _ur
+
     bodies = list(wheel_bodies)
     calls = {"api": 0, "sums": 0, "wheel": 0}
 
@@ -693,7 +695,7 @@ def _metal_target():
 
 
 GOOD_WHEEL = b"PK\x03\x04" + b"good wheel" * 200
-BAD_WHEEL = b"PK\x03\x04" + b"BAD! wheel" * 200      # same length, different bytes
+BAD_WHEEL = b"PK\x03\x04" + b"BAD! wheel" * 200  # same length, different bytes
 
 
 def test_wheel_sha256_match_installs_and_reports_success(monkeypatch, capsys):
@@ -707,8 +709,7 @@ def test_wheel_sha256_match_installs_and_reports_success(monkeypatch, capsys):
     calls = _wire_release(monkeypatch, payload, sums, [GOOD_WHEEL])
 
     pip_argv = []
-    monkeypatch.setattr(rci, "_pip_install_with_pep668_fallback",
-                        lambda *a: pip_argv.append(a) or 0)
+    monkeypatch.setattr(rci, "_pip_install_with_pep668_fallback", lambda *a: pip_argv.append(a) or 0)
 
     assert rci.install_from_github_release(choice) == 0
     assert len(pip_argv) == 1, "a verified wheel must reach pip"
@@ -732,8 +733,7 @@ def test_wheel_sha256_mismatch_retries_once_then_refuses(monkeypatch, capsys):
     calls = _wire_release(monkeypatch, payload, sums, [BAD_WHEEL, BAD_WHEEL])
 
     pip_argv = []
-    monkeypatch.setattr(rci, "_pip_install_with_pep668_fallback",
-                        lambda *a: pip_argv.append(a) or 0)
+    monkeypatch.setattr(rci, "_pip_install_with_pep668_fallback", lambda *a: pip_argv.append(a) or 0)
 
     assert rci.install_from_github_release(choice) == 1
     assert pip_argv == [], "a wheel failing its digest must never reach pip"
@@ -755,8 +755,7 @@ def test_wheel_sha256_mismatch_recovers_on_retry(monkeypatch, capsys):
     calls = _wire_release(monkeypatch, payload, sums, [BAD_WHEEL, GOOD_WHEEL])
 
     pip_argv = []
-    monkeypatch.setattr(rci, "_pip_install_with_pep668_fallback",
-                        lambda *a: pip_argv.append(a) or 0)
+    monkeypatch.setattr(rci, "_pip_install_with_pep668_fallback", lambda *a: pip_argv.append(a) or 0)
 
     assert rci.install_from_github_release(choice) == 0
     assert calls["wheel"] == 2
@@ -780,8 +779,7 @@ def test_truncated_download_is_caught_by_size_before_pip(monkeypatch, capsys):
     calls = _wire_release(monkeypatch, payload, sums, [short, short])
 
     pip_argv = []
-    monkeypatch.setattr(rci, "_pip_install_with_pep668_fallback",
-                        lambda *a: pip_argv.append(a) or 0)
+    monkeypatch.setattr(rci, "_pip_install_with_pep668_fallback", lambda *a: pip_argv.append(a) or 0)
 
     assert rci.install_from_github_release(choice) == 1
     assert pip_argv == []
@@ -801,8 +799,7 @@ def test_release_without_sha256sums_still_installs(monkeypatch, capsys):
     _wire_release(monkeypatch, payload, sums, [GOOD_WHEEL])
 
     pip_argv = []
-    monkeypatch.setattr(rci, "_pip_install_with_pep668_fallback",
-                        lambda *a: pip_argv.append(a) or 0)
+    monkeypatch.setattr(rci, "_pip_install_with_pep668_fallback", lambda *a: pip_argv.append(a) or 0)
 
     assert rci.install_from_github_release(choice) == 0
     assert len(pip_argv) == 1
@@ -821,8 +818,7 @@ def test_sha256sums_without_an_entry_for_this_wheel_installs(monkeypatch, capsys
     _wire_release(monkeypatch, payload, sums, [GOOD_WHEEL])
 
     pip_argv = []
-    monkeypatch.setattr(rci, "_pip_install_with_pep668_fallback",
-                        lambda *a: pip_argv.append(a) or 0)
+    monkeypatch.setattr(rci, "_pip_install_with_pep668_fallback", lambda *a: pip_argv.append(a) or 0)
 
     assert rci.install_from_github_release(choice) == 0
     assert len(pip_argv) == 1
@@ -837,19 +833,21 @@ def test_sha256sums_parser_accepts_both_coreutils_forms(monkeypatch):
     hiding an entry.
     """
     body = (
-        "aa" * 32 + "  plain_text_form.whl\n"
-        + "bb" * 32 + " *binary_form.whl\n"
-        + "cc" * 32 + " *dist/with_a_path.whl\n"
+        "aa" * 32
+        + "  plain_text_form.whl\n"
+        + "bb" * 32
+        + " *binary_form.whl\n"
+        + "cc" * 32
+        + " *dist/with_a_path.whl\n"
         + "not-a-digest  ignored.whl\n"
         + "\n"
     )
     import urllib.request as _ur
-    monkeypatch.setattr(_ur, "urlopen",
-                        lambda url, timeout=None: _FakeRespCtx(body.encode()))
+
+    monkeypatch.setattr(_ur, "urlopen", lambda url, timeout=None: _FakeRespCtx(body.encode()))
 
     got = rci._fetch_release_sha256sums(
-        [{"name": "SHA256SUMS",
-          "browser_download_url": "https://example.com/SHA256SUMS"}],
+        [{"name": "SHA256SUMS", "browser_download_url": "https://example.com/SHA256SUMS"}],
         git_tag="vtest",
     )
     assert got == {
@@ -861,11 +859,13 @@ def test_sha256sums_parser_accepts_both_coreutils_forms(monkeypatch):
 
 def test_sha256sums_non_https_url_is_refused():
     """The manifest URL is external data; pin the scheme as the wheel URL is."""
-    assert rci._fetch_release_sha256sums(
-        [{"name": "SHA256SUMS",
-          "browser_download_url": "http://example.com/SHA256SUMS"}],
-        git_tag="vtest",
-    ) is None
+    assert (
+        rci._fetch_release_sha256sums(
+            [{"name": "SHA256SUMS", "browser_download_url": "http://example.com/SHA256SUMS"}],
+            git_tag="vtest",
+        )
+        is None
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -885,6 +885,7 @@ def test_sha256sums_non_https_url_is_refused():
 # branch into tmp_path so the test stays hermetic (never touching the runner's
 # real ~/Library/Logs).
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def install_log(monkeypatch, tmp_path):
@@ -943,8 +944,7 @@ def test_install_log_records_the_version_transition(monkeypatch, tmp_path, insta
     monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path / "config"))
     monkeypatch.setattr(rci, "installed_rust_core_version", lambda: "3.9.7")
     monkeypatch.setattr(rci, "is_rust_core_current", lambda: False)
-    monkeypatch.setattr(rci, "detect_backend",
-                        lambda os_tok=None: rci.BackendChoice("macos", "metal", "t"))
+    monkeypatch.setattr(rci, "detect_backend", lambda os_tok=None: rci.BackendChoice("macos", "metal", "t"))
     monkeypatch.setattr(rci, "install_from_github_release", lambda c, **k: 0)
 
     assert rci.install_rust_core() == 0
@@ -960,8 +960,7 @@ def test_install_log_records_a_total_failure(monkeypatch, tmp_path, install_log)
     monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path / "config"))
     monkeypatch.setattr(rci, "installed_rust_core_version", lambda: None)
     monkeypatch.setattr(rci, "is_rust_core_current", lambda: False)
-    monkeypatch.setattr(rci, "detect_backend",
-                        lambda os_tok=None: rci.BackendChoice("linux", "cuda", "t"))
+    monkeypatch.setattr(rci, "detect_backend", lambda os_tok=None: rci.BackendChoice("linux", "cuda", "t"))
     monkeypatch.setattr(rci, "install_from_github_release", lambda c, **k: 1)
     monkeypatch.setattr(rci, "install_prebuilt", lambda c, **k: 1)
     monkeypatch.setattr(rci, "install_from_source", lambda c, **k: 1)
@@ -995,8 +994,7 @@ def test_install_log_failure_never_breaks_the_install(monkeypatch, tmp_path):
     _wire_release(monkeypatch, payload, sums, [GOOD_WHEEL])
     monkeypatch.setattr(rci, "_pip_install_with_pep668_fallback", lambda *a: 0)
 
-    assert rci.install_from_github_release(choice) == 0, \
-        "logging is best-effort; it must never fail the install"
+    assert rci.install_from_github_release(choice) == 0, "logging is best-effort; it must never fail the install"
 
 
 # ── backend fallback chain: cuda -> vulkan -> cpu ─────────────────────────────
@@ -1006,22 +1004,25 @@ def test_install_log_failure_never_breaks_the_install(monkeypatch, tmp_path):
 # still run the next backend down in-process at native speed, so the installer
 # must exhaust the chain before conceding the hot path.
 
+
 def _chain_backends(os_tok):
     return [c.backend for c in rci.detect_backend_chain(os_tok)]
 
 
 def test_chain_on_nvidia_host_is_cuda_then_vulkan_then_cpu(monkeypatch):
     """An NVIDIA box degrades through Vulkan before it ever reaches CPU."""
-    monkeypatch.setattr(rci, "detect_backend", lambda os_tok=None:
-                        rci.BackendChoice(os_tok or "windows", "cuda", "test"))
+    monkeypatch.setattr(
+        rci, "detect_backend", lambda os_tok=None: rci.BackendChoice(os_tok or "windows", "cuda", "test")
+    )
     assert _chain_backends("windows") == ["cuda", "vulkan", "cpu"]
     assert _chain_backends("linux") == ["cuda", "vulkan", "cpu"]
 
 
 def test_chain_on_vulkan_host_does_not_offer_cuda(monkeypatch):
     """No CUDA step for a host with no NVIDIA toolchain — it would only 404."""
-    monkeypatch.setattr(rci, "detect_backend", lambda os_tok=None:
-                        rci.BackendChoice(os_tok or "windows", "vulkan", "test"))
+    monkeypatch.setattr(
+        rci, "detect_backend", lambda os_tok=None: rci.BackendChoice(os_tok or "windows", "vulkan", "test")
+    )
     assert _chain_backends("windows") == ["vulkan", "cpu"]
 
 
@@ -1031,8 +1032,9 @@ def test_chain_on_cpu_host_never_offers_vulkan(monkeypatch):
     It would install happily and then fail at RUNTIME for want of a device —
     strictly worse than not installing it (§3: fail loud, not late).
     """
-    monkeypatch.setattr(rci, "detect_backend", lambda os_tok=None:
-                        rci.BackendChoice(os_tok or "windows", "cpu", "test"))
+    monkeypatch.setattr(
+        rci, "detect_backend", lambda os_tok=None: rci.BackendChoice(os_tok or "windows", "cpu", "test")
+    )
     assert _chain_backends("windows") == ["cpu"]
 
 
@@ -1040,19 +1042,17 @@ def test_chain_never_names_an_unpublished_package(monkeypatch):
     """Every step must exist in _VALID; macOS ships metal only, so no cpu step."""
     for os_tok in ("windows", "linux", "macos"):
         for c in rci.detect_backend_chain(os_tok):
-            assert (c.os_tok, c.backend) in rci._VALID, \
-                f"{c.package} is not a published wheel"
-    monkeypatch.setattr(rci, "detect_backend", lambda os_tok=None:
-                        rci.BackendChoice("macos", "metal", "test"))
+            assert (c.os_tok, c.backend) in rci._VALID, f"{c.package} is not a published wheel"
+    monkeypatch.setattr(rci, "detect_backend", lambda os_tok=None: rci.BackendChoice("macos", "metal", "test"))
     assert _chain_backends("macos") == ["metal"]
 
 
 def _wire_chain(monkeypatch, available):
     """Only wheels whose backend is in `available` can be fetched."""
-    monkeypatch.setattr(rci, "detect_backend", lambda os_tok=None:
-                        rci.BackendChoice(os_tok or "windows", "cuda", "test"))
-    monkeypatch.setattr(rci, "install_from_github_release",
-                        lambda c, **k: 0 if c.backend in available else 1)
+    monkeypatch.setattr(
+        rci, "detect_backend", lambda os_tok=None: rci.BackendChoice(os_tok or "windows", "cuda", "test")
+    )
+    monkeypatch.setattr(rci, "install_from_github_release", lambda c, **k: 0 if c.backend in available else 1)
     monkeypatch.setattr(rci, "install_prebuilt", lambda c, **k: 1)
     monkeypatch.setattr(rci, "installed_rust_core_version", lambda: None)
     monkeypatch.setattr(rci, "install_log", lambda *a, **k: None)
@@ -1081,12 +1081,12 @@ def test_explicit_backend_override_never_falls_back(monkeypatch):
     flag's only purpose, so an override that cannot be satisfied must FAIL.
     """
     _wire_chain(monkeypatch, {"vulkan", "cpu"})
-    rc = rci.install_rust_core(os_tok="windows", backend="cuda",
-                               allow_source_fallback=False)
+    rc = rci.install_rust_core(os_tok="windows", backend="cuda", allow_source_fallback=False)
     assert rc != 0, "an unsatisfiable override must not silently substitute"
 
 
 # ── a CUDA toolchain without a driver; a wheel that installs but won't import ──
+
 
 def test_detect_skips_cuda_without_a_driver(monkeypatch):
     """nvcc present, libcuda absent (a GPU-less container): the CUDA wheel
@@ -1101,10 +1101,8 @@ def test_detect_skips_cuda_without_a_driver(monkeypatch):
 def test_unimportable_wheel_is_removed_and_the_chain_continues(monkeypatch, capsys):
     _wire_chain(monkeypatch, {"cuda", "vulkan", "cpu"})
     landed = []
-    monkeypatch.setattr(rci, "install_from_github_release",
-                        lambda c, **k: landed.append(c.backend) or 0)
-    monkeypatch.setattr(rci, "_core_imports",
-                        lambda: (landed[-1] != "cuda", "OSError: libcuda.so.1"))
+    monkeypatch.setattr(rci, "install_from_github_release", lambda c, **k: landed.append(c.backend) or 0)
+    monkeypatch.setattr(rci, "_core_imports", lambda: (landed[-1] != "cuda", "OSError: libcuda.so.1"))
     removed = []
     monkeypatch.setattr(rci, "_pip", lambda *a, **k: removed.append(a))
 
@@ -1120,6 +1118,5 @@ def test_no_source_build_when_the_detected_backend_will_not_import(monkeypatch):
     _wire_chain(monkeypatch, {"cuda"})
     monkeypatch.setattr(rci, "_core_imports", lambda: (False, "ImportError"))
     monkeypatch.setattr(rci, "_pip", lambda *a, **k: None)
-    monkeypatch.setattr(rci, "install_from_source",
-                        lambda *a, **k: pytest.fail("source build attempted"))
+    monkeypatch.setattr(rci, "install_from_source", lambda *a, **k: pytest.fail("source build attempted"))
     assert rci.install_rust_core(os_tok="windows") == 1

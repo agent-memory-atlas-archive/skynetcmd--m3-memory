@@ -15,6 +15,7 @@ bare `pipx upgrade m3-memory` -- which, against a pip install, exits 0 having
 upgraded NOTHING and reads as success. A correct tool nobody can find does not
 prevent that.
 """
+
 from __future__ import annotations
 
 import os
@@ -42,7 +43,10 @@ def test_the_subcommand_is_discoverable_in_help():
 
     out = subprocess.run(
         [sys.executable, "-m", "m3_memory.cli", "--help"],
-        capture_output=True, text=True, timeout=120, cwd=_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        cwd=_ROOT,
     )
     text = (out.stdout or "") + (out.stderr or "")
 
@@ -52,7 +56,10 @@ def test_the_subcommand_is_discoverable_in_help():
     # upgrade`"). A guard that cannot fail is worse than none (§12c).
     probe = subprocess.run(
         [sys.executable, "-m", "m3_memory.cli", "upgrade", "--help"],
-        capture_output=True, text=True, timeout=120, cwd=_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        cwd=_ROOT,
     )
     assert probe.returncode == 0, (
         f"`m3 upgrade --help` exited {probe.returncode}; the subcommand is not "
@@ -72,7 +79,10 @@ def test_help_does_not_send_users_to_a_bare_pipx_upgrade():
 
     out = subprocess.run(
         [sys.executable, "-m", "m3_memory.cli", "upgrade", "--help"],
-        capture_output=True, text=True, timeout=120, cwd=_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        cwd=_ROOT,
     )
     text = (out.stdout or "") + (out.stderr or "")
     assert not re.search(r"use `?pipx upgrade", text), (

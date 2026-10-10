@@ -15,6 +15,7 @@ Stub points for future:
 Calling code uses BatchRequest/BatchResult dataclasses; runners translate
 to/from native API formats. See bin/m3_enrich_batch.py for usage.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -29,6 +30,7 @@ from unified_ai import _is_gemini_endpoint
 
 # ── Provider-neutral request/result shapes ─────────────────────────────────
 
+
 @dataclass(slots=True)
 class BatchRequest:
     """One LLM call inside a batch.
@@ -41,6 +43,7 @@ class BatchRequest:
     cache_system: when True, mark the system prompt for caching (Anthropic
         ephemeral cache; ignored on providers without prompt caching).
     """
+
     custom_id: str
     system: str
     user_text: str
@@ -60,15 +63,15 @@ class BatchUsage:
 class BatchResult:
     custom_id: str
     succeeded: bool
-    text: str = ""           # the assistant reply when succeeded=True
-    error: str = ""          # error description when succeeded=False
+    text: str = ""  # the assistant reply when succeeded=True
+    error: str = ""  # error description when succeeded=False
     usage: BatchUsage = field(default_factory=BatchUsage)
 
 
 @dataclass(slots=True)
 class BatchStatus:
     batch_id: str
-    state: str               # "in_progress", "ended", "failed", "canceled"
+    state: str  # "in_progress", "ended", "failed", "canceled"
     n_processing: int = 0
     n_succeeded: int = 0
     n_errored: int = 0
@@ -77,6 +80,7 @@ class BatchStatus:
 
 
 # ── Protocol the rest of the codebase calls ───────────────────────────────
+
 
 class BatchRunner(Protocol):
     """Provider-neutral batch interface. Implementations encapsulate the
@@ -92,23 +96,17 @@ class BatchRunner(Protocol):
     reads this to decide how many slices to create. Anthropic: 100K,
     Gemini Tier-1 with real-shape requests: ~1K."""
 
-    async def submit(
-        self, requests: list[BatchRequest], *, client: httpx.AsyncClient
-    ) -> str:
+    async def submit(self, requests: list[BatchRequest], *, client: httpx.AsyncClient) -> str:
         """Submit a list of requests as ONE batch. Returns a provider-native
         batch_id used by poll/fetch_results.
         """
         ...
 
-    async def poll(
-        self, batch_id: str, *, client: httpx.AsyncClient
-    ) -> BatchStatus:
+    async def poll(self, batch_id: str, *, client: httpx.AsyncClient) -> BatchStatus:
         """Return current status of the batch."""
         ...
 
-    def fetch_results(
-        self, batch_id: str, *, client: httpx.AsyncClient
-    ) -> AsyncIterator[BatchResult]:
+    def fetch_results(self, batch_id: str, *, client: httpx.AsyncClient) -> AsyncIterator[BatchResult]:
         """Yield each completed result via async-for iteration. Caller is
         responsible for not iterating until poll() reports state='ended'.
 
@@ -164,11 +162,13 @@ class AnthropicBatchRunner:
         # ephemeral caching.
         system_field: Any
         if req.cache_system and getattr(self.profile, "cache_system", True):
-            system_field = [{
-                "type": "text",
-                "text": req.system,
-                "cache_control": {"type": "ephemeral"},
-            }]
+            system_field = [
+                {
+                    "type": "text",
+                    "text": req.system,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ]
         else:
             system_field = req.system
         return {
@@ -182,40 +182,27 @@ class AnthropicBatchRunner:
             },
         }
 
-    async def submit(
-        self, requests: list[BatchRequest], *, client: httpx.AsyncClient
-    ) -> str:
+    async def submit(self, requests: list[BatchRequest], *, client: httpx.AsyncClient) -> str:
         if not requests:
             raise ValueError("submit() requires at least one request")
         if len(requests) > 100_000:
             raise ValueError(
-                f"Anthropic batch limit is 100,000 requests; got {len(requests)}. "
-                f"Split into multiple batches."
+                f"Anthropic batch limit is 100,000 requests; got {len(requests)}. Split into multiple batches."
             )
         payload = {"requests": [self._build_one(r) for r in requests]}
-        r = await client.post(
-            self._base, json=payload, headers=self._headers(), timeout=120.0
-        )
+        r = await client.post(self._base, json=payload, headers=self._headers(), timeout=120.0)
         if r.status_code != 200:
-            raise RuntimeError(
-                f"anthropic batch submit http {r.status_code}: {r.text[:500]}"
-            )
+            raise RuntimeError(f"anthropic batch submit http {r.status_code}: {r.text[:500]}")
         data = r.json()
         bid = data.get("id")
         if not bid:
             raise RuntimeError(f"anthropic batch submit returned no id: {data}")
         return bid
 
-    async def poll(
-        self, batch_id: str, *, client: httpx.AsyncClient
-    ) -> BatchStatus:
-        r = await client.get(
-            f"{self._base}/{batch_id}", headers=self._headers(), timeout=30.0
-        )
+    async def poll(self, batch_id: str, *, client: httpx.AsyncClient) -> BatchStatus:
+        r = await client.get(f"{self._base}/{batch_id}", headers=self._headers(), timeout=30.0)
         if r.status_code != 200:
-            raise RuntimeError(
-                f"anthropic batch poll http {r.status_code}: {r.text[:300]}"
-            )
+            raise RuntimeError(f"anthropic batch poll http {r.status_code}: {r.text[:300]}")
         data = r.json()
         # Anthropic states: in_progress, canceling, ended (per docs)
         ps = data.get("processing_status", "in_progress")
@@ -231,32 +218,21 @@ class AnthropicBatchRunner:
             n_expired=int(rc.get("expired", 0)),
         )
 
-    async def fetch_results(
-        self, batch_id: str, *, client: httpx.AsyncClient
-    ) -> AsyncIterator[BatchResult]:
+    async def fetch_results(self, batch_id: str, *, client: httpx.AsyncClient) -> AsyncIterator[BatchResult]:
         # First, get results_url from the batch metadata.
-        r = await client.get(
-            f"{self._base}/{batch_id}", headers=self._headers(), timeout=30.0
-        )
+        r = await client.get(f"{self._base}/{batch_id}", headers=self._headers(), timeout=30.0)
         if r.status_code != 200:
-            raise RuntimeError(
-                f"anthropic batch metadata http {r.status_code}: {r.text[:300]}"
-            )
+            raise RuntimeError(f"anthropic batch metadata http {r.status_code}: {r.text[:300]}")
         results_url = r.json().get("results_url")
         if not results_url:
             raise RuntimeError(
-                f"anthropic batch {batch_id} has no results_url; status was "
-                f"{r.json().get('processing_status')!r}"
+                f"anthropic batch {batch_id} has no results_url; status was {r.json().get('processing_status')!r}"
             )
         # Stream JSONL results
-        async with client.stream(
-            "GET", results_url, headers=self._headers(), timeout=300.0
-        ) as resp:
+        async with client.stream("GET", results_url, headers=self._headers(), timeout=300.0) as resp:
             if resp.status_code != 200:
                 body = await resp.aread()
-                raise RuntimeError(
-                    f"anthropic batch results http {resp.status_code}: {body[:300]!r}"
-                )
+                raise RuntimeError(f"anthropic batch results http {resp.status_code}: {body[:300]!r}")
             buf = b""
             async for chunk in resp.aiter_bytes():
                 buf += chunk
@@ -276,8 +252,7 @@ class AnthropicBatchRunner:
         if kind == "succeeded":
             msg = result.get("message", {}) or {}
             text = "".join(
-                b.get("text", "") for b in (msg.get("content") or [])
-                if isinstance(b, dict) and b.get("type") == "text"
+                b.get("text", "") for b in (msg.get("content") or []) if isinstance(b, dict) and b.get("type") == "text"
             )
             u = msg.get("usage", {}) or {}
             return BatchResult(
@@ -303,6 +278,7 @@ class AnthropicBatchRunner:
 
 
 # ── Gemini implementation ──────────────────────────────────────────────────
+
 
 class GeminiBatchRunner:
     """Google Gemini Developer API batch — 50% off list pricing.
@@ -371,15 +347,12 @@ class GeminiBatchRunner:
             "metadata": {"key": req.custom_id},
         }
 
-    async def submit(
-        self, requests: list[BatchRequest], *, client: httpx.AsyncClient
-    ) -> str:
+    async def submit(self, requests: list[BatchRequest], *, client: httpx.AsyncClient) -> str:
         if not requests:
             raise ValueError("submit() requires at least one request")
         if len(requests) > self.INLINE_LIMIT:
             raise ValueError(
-                f"Gemini inline batch limit is {self.INLINE_LIMIT}; got "
-                f"{len(requests)}. Split into multiple batches."
+                f"Gemini inline batch limit is {self.INLINE_LIMIT}; got {len(requests)}. Split into multiple batches."
             )
         payload = {
             "batch": {
@@ -404,26 +377,20 @@ class GeminiBatchRunner:
         headers = {"x-goog-api-key": self._token}
         r = await client.post(url, json=payload, headers=headers, timeout=120.0)
         if r.status_code != 200:
-            raise RuntimeError(
-                f"gemini batch submit http {r.status_code}: {r.text[:500]}"
-            )
+            raise RuntimeError(f"gemini batch submit http {r.status_code}: {r.text[:500]}")
         data = r.json()
         bid = data.get("name") or (data.get("metadata") or {}).get("name")
         if not bid:
             raise RuntimeError(f"gemini batch submit returned no name: {data}")
         return bid
 
-    async def poll(
-        self, batch_id: str, *, client: httpx.AsyncClient
-    ) -> BatchStatus:
+    async def poll(self, batch_id: str, *, client: httpx.AsyncClient) -> BatchStatus:
         # See note on x-goog-api-key in submit() — same rationale here.
         url = f"{self._base}/{batch_id}"
         headers = {"x-goog-api-key": self._token}
         r = await client.get(url, headers=headers, timeout=30.0)
         if r.status_code != 200:
-            raise RuntimeError(
-                f"gemini batch poll http {r.status_code}: {r.text[:300]}"
-            )
+            raise RuntimeError(f"gemini batch poll http {r.status_code}: {r.text[:300]}")
         data = r.json()
         meta = data.get("metadata", {}) or {}
         gstate = meta.get("state", "BATCH_STATE_PENDING")
@@ -443,8 +410,7 @@ class GeminiBatchRunner:
         rc_total = int(stats.get("requestCount") or 0)
         n_succ = int(stats.get("successfulRequestCount") or 0)
         n_fail = int(stats.get("failedRequestCount") or 0)
-        n_pend = int(stats.get("pendingRequestCount") or
-                     max(0, rc_total - n_succ - n_fail))
+        n_pend = int(stats.get("pendingRequestCount") or max(0, rc_total - n_succ - n_fail))
         return BatchStatus(
             batch_id=batch_id,
             state=state,
@@ -455,18 +421,14 @@ class GeminiBatchRunner:
             n_expired=1 if gstate == "BATCH_STATE_EXPIRED" else 0,
         )
 
-    async def fetch_results(
-        self, batch_id: str, *, client: httpx.AsyncClient
-    ) -> AsyncIterator[BatchResult]:
+    async def fetch_results(self, batch_id: str, *, client: httpx.AsyncClient) -> AsyncIterator[BatchResult]:
         # Gemini returns results inline on the batch resource itself.
         # See note on x-goog-api-key in submit() — same rationale here.
         url = f"{self._base}/{batch_id}"
         headers = {"x-goog-api-key": self._token}
         r = await client.get(url, headers=headers, timeout=120.0)
         if r.status_code != 200:
-            raise RuntimeError(
-                f"gemini batch fetch http {r.status_code}: {r.text[:300]}"
-            )
+            raise RuntimeError(f"gemini batch fetch http {r.status_code}: {r.text[:300]}")
         data = r.json()
         # Output lives at metadata.output.inlinedResponses.inlinedResponses
         # (also mirrored at response.inlinedResponses.inlinedResponses).
@@ -522,6 +484,7 @@ class GeminiBatchRunner:
 
 # ── Helper: pick runner from profile.backend ───────────────────────────────
 
+
 def make_runner(profile, *, token: str) -> BatchRunner:
     """Factory: return the right BatchRunner for profile.backend.
 
@@ -549,6 +512,7 @@ def make_runner(profile, *, token: str) -> BatchRunner:
 
 
 # ── Convenience: high-level submit-poll-fetch loop ─────────────────────────
+
 
 async def run_to_completion_chunked(
     runner: BatchRunner,
@@ -586,7 +550,9 @@ async def run_to_completion_chunked(
             except Exception:  # noqa: BLE001
                 pass
         bid, results = await run_to_completion(
-            runner, slice_requests, client=client,
+            runner,
+            slice_requests,
+            client=client,
             poll_interval_s=poll_interval_s,
             max_wait_s=max_wait_s_per_slice,
             on_status=on_status,
@@ -631,13 +597,9 @@ async def run_to_completion(
         if status.state == "ended":
             break
         if status.state in ("canceled", "failed"):
-            raise RuntimeError(
-                f"batch {batch_id} ended in non-success state {status.state!r}"
-            )
+            raise RuntimeError(f"batch {batch_id} ended in non-success state {status.state!r}")
         if time.monotonic() >= deadline:
-            raise TimeoutError(
-                f"batch {batch_id} did not complete within {max_wait_s}s"
-            )
+            raise TimeoutError(f"batch {batch_id} did not complete within {max_wait_s}s")
         await asyncio.sleep(poll_interval_s)
     results: list[BatchResult] = []
     async for r in runner.fetch_results(batch_id, client=client):

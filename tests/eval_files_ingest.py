@@ -16,6 +16,7 @@ Run:
     python tests/eval_files_ingest.py --topn 3
     python tests/eval_files_ingest.py --no-llm   # disables summarizer
 """
+
 from __future__ import annotations
 
 import argparse
@@ -43,11 +44,9 @@ def _ingest(corpus_dir: Path, db_path: Path) -> None:
     """Fresh ingest of the eval corpus into the temp DB."""
     os.environ["M3_FILES_DB_PATH"] = str(db_path)
     from files_memory.ingest import ingest_path
+
     r = ingest_path(str(corpus_dir))
-    print(
-        f"[ingest] {r.files_created} files, {r.leaves_written} leaves "
-        f"in {r.duration_ms} ms"
-    )
+    print(f"[ingest] {r.files_created} files, {r.leaves_written} leaves in {r.duration_ms} ms")
     if r.files_failed:
         print(f"[ingest] FAIL: {r.failures}")
         sys.exit(2)
@@ -76,15 +75,17 @@ def _run_eval(topn: int) -> dict:
                     if i == 1:
                         file_match_top = True
 
-        results.append({
-            "q": q["q"],
-            "expect_text": q["expect_text"],
-            "expect_file": q.get("expect_file"),
-            "text_match": text_match,
-            "file_match_top1": file_match_top,
-            "first_match_rank": first_match_rank,
-            "top_filenames": [h.filename for h in hits[:topn]],
-        })
+        results.append(
+            {
+                "q": q["q"],
+                "expect_text": q["expect_text"],
+                "expect_file": q.get("expect_file"),
+                "text_match": text_match,
+                "file_match_top1": file_match_top,
+                "first_match_rank": first_match_rank,
+                "top_filenames": [h.filename for h in hits[:topn]],
+            }
+        )
         if text_match:
             text_hits += 1
         if file_match_top:
@@ -103,12 +104,9 @@ def _run_eval(topn: int) -> dict:
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--topn", type=int, default=5, help="top-N for recall check")
-    p.add_argument("--no-llm", action="store_true",
-                   help="disable summarizer LLM (fallback summaries)")
-    p.add_argument("--pass-threshold", type=float, default=0.80,
-                   help="pass rate floor (0.0-1.0); default 0.80")
-    p.add_argument("--keep-db", action="store_true",
-                   help="don't delete the temp DB after running")
+    p.add_argument("--no-llm", action="store_true", help="disable summarizer LLM (fallback summaries)")
+    p.add_argument("--pass-threshold", type=float, default=0.80, help="pass rate floor (0.0-1.0); default 0.80")
+    p.add_argument("--keep-db", action="store_true", help="don't delete the temp DB after running")
     p.add_argument("--verbose", "-v", action="store_true")
     args = p.parse_args()
 
@@ -127,10 +125,11 @@ def main() -> int:
         print()
         print(f"=== Eval results (top-{args.topn}) ===")
         print(f"Total questions:    {summary['total']}")
-        print(f"Text recall:        {summary['text_recall']} / {summary['total']} "
-              f"({summary['text_recall_pct']:.1f}%)")
-        print(f"File localization:  {summary['file_localization']} / {summary['total']} "
-              f"({summary['file_localization'] / summary['total'] * 100:.1f}%)")
+        print(f"Text recall:        {summary['text_recall']} / {summary['total']} ({summary['text_recall_pct']:.1f}%)")
+        print(
+            f"File localization:  {summary['file_localization']} / {summary['total']} "
+            f"({summary['file_localization'] / summary['total'] * 100:.1f}%)"
+        )
 
         if args.verbose:
             print()
@@ -143,8 +142,7 @@ def main() -> int:
 
         passed = summary["text_recall"] / summary["total"] >= args.pass_threshold
         print()
-        print(f"{'PASS' if passed else 'FAIL'} "
-              f"(threshold = {args.pass_threshold * 100:.0f}%)")
+        print(f"{'PASS' if passed else 'FAIL'} (threshold = {args.pass_threshold * 100:.0f}%)")
         return 0 if passed else 1
     finally:
         if not args.keep_db:

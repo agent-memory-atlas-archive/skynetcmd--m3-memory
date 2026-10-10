@@ -30,6 +30,7 @@ Output:
 
 Status: Phase D user-facing CLI. Pairs with bin/run_observer.py + bin/run_reflector.py.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -91,9 +92,15 @@ DEFAULT_PROFILE = os.environ.get("M3_ENRICH_PROFILE", "enrich_local_qwen")
 DEFAULT_TYPES = ("message", "conversation", "chat_log")  # chatlog default; also no-flag back-compat
 DEFAULT_CHATLOG_TYPES = DEFAULT_TYPES
 DEFAULT_CORE_TYPES = (
-    "summary", "note", "decision", "plan",
-    "knowledge", "fact", "preference",
-    "message", "conversation",
+    "summary",
+    "note",
+    "decision",
+    "plan",
+    "knowledge",
+    "fact",
+    "preference",
+    "message",
+    "conversation",
 )
 from enrich import (
     ALWAYS_SKIP_TYPES,  # single source of truth (package leaf); re-exported as m3_enrich.ALWAYS_SKIP_TYPES
@@ -112,12 +119,16 @@ async def _smoke_profile(profile: Profile) -> None:
     # Use a trivially-empty turns block; expect {observations:[]} back.
     test_block = {"session_date": "2025-01-01", "turns": []}
     from unified_ai import async_client_for_profile
+
     try:
         async with async_client_for_profile(profile, timeout=30.0) as client:
             obs, _usage = await observer.call_observer(test_block, profile, client, token)
         # Empty list is a clean pass; non-empty also fine (model just made stuff up).
-        print(f"[m3-enrich] profile smoke OK: model={profile.model} backend={profile.backend} "
-              f"({len(obs)} obs returned on empty input)", flush=True)
+        print(
+            f"[m3-enrich] profile smoke OK: model={profile.model} backend={profile.backend} "
+            f"({len(obs)} obs returned on empty input)",
+            flush=True,
+        )
     except Exception as e:
         sys.exit(
             f"ERROR: profile smoke failed.\n"
@@ -127,12 +138,6 @@ async def _smoke_profile(profile: Profile) -> None:
             f"  error: {e}\n"
             f"Check that your endpoint is reachable + auth is correct."
         )
-
-
-
-
-
-
 
 
 async def _run_db(
@@ -168,10 +173,15 @@ async def _run_db(
     """
     import random as _random
     import sqlite3
+
     os.environ["M3_DATABASE"] = str(db_path)
     _ensure_migration_025(db_path)
     groups = _query_eligible_groups(
-        db_path, type_allowlist, limit, source_variant, conv_filter,
+        db_path,
+        type_allowlist,
+        limit,
+        source_variant,
+        conv_filter,
     )
 
     # ── Sample (post-query, pre-state) ───────────────────────────────────
@@ -207,8 +217,7 @@ async def _run_db(
             # _query_eligible_groups already sorts by size desc — so 'first'
             # = N largest groups.
             groups = groups[:sample]
-        print(f"[m3-enrich] --sample {sample} ({sample_strategy}): "
-              f"{len(groups)} groups selected", flush=True)
+        print(f"[m3-enrich] --sample {sample} ({sample_strategy}): {len(groups)} groups selected", flush=True)
 
     # ── State-tracking wiring (opt-in) ──────────────────────────────────
     # When --track-state is set we open a writer connection on db_path,
@@ -245,15 +254,18 @@ async def _run_db(
             # --max-size-k) can pick the right concurrency for the bucket.
             enroll_input = []
             for uid, cid, turns in groups:
-                enroll_input.append({
-                    "group_key": cid,
-                    "user_id": uid,
-                    "turn_count": len(turns),
-                    "source_content_hash": estate.compute_source_content_hash(turns),
-                    "content_size_k": estate.compute_content_size_k(turns),
-                })
+                enroll_input.append(
+                    {
+                        "group_key": cid,
+                        "user_id": uid,
+                        "turn_count": len(turns),
+                        "source_content_hash": estate.compute_source_content_hash(turns),
+                        "content_size_k": estate.compute_content_size_k(turns),
+                    }
+                )
             actions = estate.enroll_groups_bulk(
-                state_conn, enroll_input,
+                state_conn,
+                enroll_input,
                 source_variant=source_variant,
                 target_variant=target_variant,
                 db_path=str(db_path),
@@ -267,6 +279,7 @@ async def _run_db(
             # those two columns makes this fast, and avoids hitting SQLite's
             # SQLITE_MAX_VARIABLE_NUMBER (32,766) on large corpora.
             from memory.backends import dialect as _dialect
+
             _p = _dialect().param()
             cur = state_conn.execute(
                 f"""SELECT id, user_id, group_key FROM enrichment_groups
@@ -318,7 +331,9 @@ async def _run_db(
     budget_check_interval = 25
 
     from unified_ai import async_client_for_profile
+
     async with async_client_for_profile(profile) as client:
+
         async def gated(uid: str, cid: str, turns: list[tuple]) -> None:
             nonlocal abort_reason
             if abort_reason is not None:
@@ -332,7 +347,9 @@ async def _run_db(
                     gid = group_id_by_key.get((uid, cid))
                     if gid is not None:
                         claim_token = estate.claim_group(
-                            state_conn, gid, enrich_run_id=enrich_run_id or "",
+                            state_conn,
+                            gid,
+                            enrich_run_id=enrich_run_id or "",
                         )
                         if claim_token is None:
                             # Raced or already terminal — skip silently.
@@ -341,8 +358,14 @@ async def _run_db(
                 t0 = time.monotonic()
                 try:
                     result = await observer.process_conversation(
-                        cid, uid, turns, target_variant,
-                        profile, client, token, counters,
+                        cid,
+                        uid,
+                        turns,
+                        target_variant,
+                        profile,
+                        client,
+                        token,
+                        counters,
                         source_group_id=gid,
                     )
                 except BaseException as exc:  # noqa: BLE001
@@ -361,9 +384,12 @@ async def _run_db(
                         )
                     if track_state and gid is not None and state_conn is not None:
                         new_status = estate.mark_failed(
-                            state_conn, gid,
-                            error_class=ec, last_error=err_repr,
-                            max_attempts=max_attempts, enrichment_ms=elapsed_ms,
+                            state_conn,
+                            gid,
+                            error_class=ec,
+                            last_error=err_repr,
+                            max_attempts=max_attempts,
+                            enrichment_ms=elapsed_ms,
                         )
                         if new_status == "dead_letter":
                             print(f"[m3-enrich] DEAD_LETTER conv={cid[:8]} class={ec}", flush=True)
@@ -400,12 +426,18 @@ async def _run_db(
                         # with the exception type name, e.g. "ReadTimeout: ReadTimeout('')"
                         ec = "other"
                         low = raw_err.lower()
-                        if "timeout" in low: ec = "http_timeout"
-                        elif "connect" in low: ec = "http_connect"
-                        elif "json" in low and "decode" in low: ec = "json_decode"
-                        elif "httpstatus" in low or " http " in low: ec = "http_status"
-                        elif "tokeniz" in low: ec = "tokenizer_error"
-                        elif "too large" in low or "context" in low: ec = "content_too_large"
+                        if "timeout" in low:
+                            ec = "http_timeout"
+                        elif "connect" in low:
+                            ec = "http_connect"
+                        elif "json" in low and "decode" in low:
+                            ec = "json_decode"
+                        elif "httpstatus" in low or " http " in low:
+                            ec = "http_status"
+                        elif "tokeniz" in low:
+                            ec = "tokenizer_error"
+                        elif "too large" in low or "context" in low:
+                            ec = "content_too_large"
                         cascade.record_failure(ec, raw_err)
                         if cascade.should_abort() and abort_reason is None:
                             abort_reason = "rate_limit_cascade"
@@ -420,26 +452,40 @@ async def _run_db(
                         # before the failing one) to this row. Zero for clean
                         # failures where no chunk succeeded.
                         estate.mark_failed(
-                            state_conn, gid,
-                            error_class=ec, last_error=raw_err,
-                            max_attempts=max_attempts, enrichment_ms=elapsed_ms,
-                            tokens_in=g_tin, tokens_out=g_tout, cost_usd=g_cost,
+                            state_conn,
+                            gid,
+                            error_class=ec,
+                            last_error=raw_err,
+                            max_attempts=max_attempts,
+                            enrichment_ms=elapsed_ms,
+                            tokens_in=g_tin,
+                            tokens_out=g_tout,
+                            cost_usd=g_cost,
                         )
                     elif outcome == "written":
                         estate.mark_success(
-                            state_conn, gid,
-                            obs_emitted=g_written, enrichment_ms=elapsed_ms,
-                            tokens_in=g_tin, tokens_out=g_tout, cost_usd=g_cost,
+                            state_conn,
+                            gid,
+                            obs_emitted=g_written,
+                            enrichment_ms=elapsed_ms,
+                            tokens_in=g_tin,
+                            tokens_out=g_tout,
+                            cost_usd=g_cost,
                             partial_failure_chunks=g_pfc,
                         )
                         if g_pfc > 0:
-                            print(f"[m3-enrich] PARTIAL conv={cid[:8]} "
-                                  f"{g_pfc} chunk(s) failed, {g_written} obs kept",
-                                  flush=True)
+                            print(
+                                f"[m3-enrich] PARTIAL conv={cid[:8]} {g_pfc} chunk(s) failed, {g_written} obs kept",
+                                flush=True,
+                            )
                     elif outcome == "empty":
                         estate.mark_empty(
-                            state_conn, gid, enrichment_ms=elapsed_ms,
-                            tokens_in=g_tin, tokens_out=g_tout, cost_usd=g_cost,
+                            state_conn,
+                            gid,
+                            enrichment_ms=elapsed_ms,
+                            tokens_in=g_tin,
+                            tokens_out=g_tout,
+                            cost_usd=g_cost,
                         )
                     # else: outcome == "skipped" (empty turns) — leave row
                     #       as-is; claim already updated attempts.
@@ -455,16 +501,18 @@ async def _run_db(
                         f"obs_written={counters['written']} "
                         f"empty={counters['empty_groups']} "
                         f"failed={counters['failed']}  "
-                        f"rate={rate:.2f}/s eta={eta/60:.1f}m",
+                        f"rate={rate:.2f}/s eta={eta / 60:.1f}m",
                         flush=True,
                     )
 
                 # Budget watchdog (post-call). Cheap query — runs every N groups.
                 if (
                     budget_usd is not None
-                    and track_state and state_conn is not None
+                    and track_state
+                    and state_conn is not None
                     and enrich_run_id
-                    and done > 0 and done % budget_check_interval == 0
+                    and done > 0
+                    and done % budget_check_interval == 0
                 ):
                     spent = estate.run_total_cost_usd(state_conn, enrich_run_id)
                     if spent >= budget_usd:
@@ -475,9 +523,7 @@ async def _run_db(
                             flush=True,
                         )
 
-        await asyncio.gather(*(
-            gated(uid, cid, turns) for uid, cid, turns in groups
-        ), return_exceptions=True)
+        await asyncio.gather(*(gated(uid, cid, turns) for uid, cid, turns in groups), return_exceptions=True)
 
     if state_conn is not None:
         state_conn.close()
@@ -494,6 +540,7 @@ async def _run_reflector_pass(
     observation count meets `threshold`. Returns a counters dict."""
     os.environ["M3_DATABASE"] = str(db_path)
     from memory.backends import active_backend
+
     _backend = active_backend()
     _d = _backend.dialect()
     _p = _d.param()
@@ -502,7 +549,8 @@ async def _run_reflector_pass(
     # Read-only connection: SQLite honors the explicit db_path (?mode=ro), PG
     # yields a pooled connection (db_path ignored). Backend-blind via the seam.
     with _backend.open_readonly(str(db_path)) as conn:
-        rows = conn.execute(f"""
+        rows = conn.execute(
+            f"""
             SELECT COALESCE(user_id,'') AS uid,
                    {_je_cid} AS cid,
                    COUNT(*) AS n
@@ -510,24 +558,31 @@ async def _run_reflector_pass(
             WHERE type='observation' AND COALESCE(is_deleted,0)=0
             GROUP BY uid, cid
             HAVING COUNT(*) >= {_p}
-        """, (threshold,)).fetchall()
+        """,
+            (threshold,),
+        ).fetchall()
     counters = {
-        "processed": 0, "sup_emitted": 0, "sup_written": 0,
-        "failed": 0, "empty_groups": 0,
+        "processed": 0,
+        "sup_emitted": 0,
+        "sup_written": 0,
+        "failed": 0,
+        "empty_groups": 0,
     }
     if not rows:
         print(f"[m3-enrich] reflector: no groups exceed threshold={threshold}", flush=True)
         return counters
 
-    print(f"[m3-enrich] reflector: {len(rows)} groups eligible (threshold={threshold})",
-          flush=True)
+    print(f"[m3-enrich] reflector: {len(rows)} groups eligible (threshold={threshold})", flush=True)
     token = get_api_key(profile.api_key_service) or ""
     sem = asyncio.Semaphore(concurrency)
     from unified_ai import async_client_for_profile
+
     async with async_client_for_profile(profile) as client:
+
         async def gated(uid: str, cid: str) -> None:
             async with sem:
                 await reflector.reflect_conversation(uid, cid, profile, client, token, counters)
+
         await gather_or_cancel(*(gated(r[0], r[1]) for r in rows if r[1]))
     return counters
 
@@ -599,11 +654,7 @@ async def _drain_queue_mode(args, profile, token: str) -> int:
         # fired 129 consecutive times without telling anyone which path failed.
         from m3_core.paths import get_m3_engine_root
 
-        scope = (
-            "chatlog only" if args.chatlog_only
-            else "core only" if args.core_only
-            else "core + chatlog"
-        )
+        scope = "chatlog only" if args.chatlog_only else "core only" if args.core_only else "core + chatlog"
         sys.exit(
             f"ERROR: no DBs found to drain. "
             f"observed: scope={scope}, engine_root={get_m3_engine_root()}, "
@@ -617,12 +668,12 @@ async def _drain_queue_mode(args, profile, token: str) -> int:
             f"inspect: M3_ENGINE_ROOT, and `m3 doctor` for the resolved roots."
         )
 
-    print(f"[m3-enrich] drain-queue mode  profile={profile.name}  "
-          f"batch={args.drain_batch}", flush=True)
+    print(f"[m3-enrich] drain-queue mode  profile={profile.name}  batch={args.drain_batch}", flush=True)
 
     # Build a tiny argparse.Namespace for run_observer.drain_queue_mode —
     # it expects target_variant + concurrency + batch on the args object.
     import argparse as _argparse
+
     drainer_args = _argparse.Namespace(
         target_variant=args.target_variant,
         concurrency=args.concurrency,
@@ -646,12 +697,11 @@ async def _drain_queue_mode(args, profile, token: str) -> int:
             # Count pending rows up-front so we can show what we're about to do.
             # Read-only via the seam (SQLite honors db_path ?mode=ro, PG pools).
             from memory.backends import active_backend as _ab
+
             pending = 0
             try:
                 with _ab().open_readonly(str(db_path)) as conn:
-                    pending = conn.execute(
-                        "SELECT COUNT(*) FROM observation_queue WHERE attempts < 5"
-                    ).fetchone()[0]
+                    pending = conn.execute("SELECT COUNT(*) FROM observation_queue WHERE attempts < 5").fetchone()[0]
             except Exception:
                 pending = 0
             if pending == 0:
@@ -689,15 +739,15 @@ async def _main_async(args) -> int:
         except Exception:
             # Frozen dataclass (some Profile flavors) — can't set attrs.
             pass
-        print(f"[m3-enrich] --input-max-k: input cap "
-              f"{old_cap or '(profile default)'} -> {new_cap} chars "
-              f"({args.input_max_k} KB)", flush=True)
+        print(
+            f"[m3-enrich] --input-max-k: input cap "
+            f"{old_cap or '(profile default)'} -> {new_cap} chars "
+            f"({args.input_max_k} KB)",
+            flush=True,
+        )
     token = get_api_key(profile.api_key_service) or ""
     if not token and profile.api_key_service:
-        sys.exit(
-            f"ERROR: env var {profile.api_key_service!r} is empty. "
-            f"Set it before running."
-        )
+        sys.exit(f"ERROR: env var {profile.api_key_service!r} is empty. Set it before running.")
 
     # Pin the embedder endpoint if --embed-url / M3_EMBED_URL is set. Default
     # discovery prefers LMS :1234 (1-slot), which throttles ingest under
@@ -714,13 +764,14 @@ async def _main_async(args) -> int:
             os.environ["M3_EMBED_MODEL"] = embed_model
         try:
             import memory_core as _mc
+
             _mc.set_embed_override(embed_url, embed_model)
-            print(f"[enrich] embedder pinned: {embed_url}"
-                  + (f" (model={embed_model})" if embed_model else ""),
-                  flush=True)
+            print(
+                f"[enrich] embedder pinned: {embed_url}" + (f" (model={embed_model})" if embed_model else ""),
+                flush=True,
+            )
         except Exception as e:  # noqa: BLE001
-            print(f"[enrich] WARN: set_embed_override failed: {e!r}",
-                  flush=True)
+            print(f"[enrich] WARN: set_embed_override failed: {e!r}", flush=True)
 
     # Phase E2: drain-queue mode dispatches early — doesn't need profile smoke
     # or backups since it only enriches queue rows that were validated at
@@ -740,37 +791,36 @@ async def _main_async(args) -> int:
     conv_filter: set[str] | None = None
     if getattr(args, "source_conv_list", None):
         conv_filter = _load_conv_list(Path(args.source_conv_list).expanduser().resolve())
-        print(f"[m3-enrich] --source-conv-list: {len(conv_filter)} group_keys "
-              f"loaded from {args.source_conv_list}", flush=True)
+        print(
+            f"[m3-enrich] --source-conv-list: {len(conv_filter)} group_keys loaded from {args.source_conv_list}",
+            flush=True,
+        )
 
     # Implication: --resume / --include-dead-letter / --budget-usd all require
     # the state machine. Auto-enable --track-state rather than error out, so
     # users don't have to remember the dependency.
-    if (args.resume or args.include_dead_letter or args.budget_usd is not None) \
-            and not args.track_state:
+    if (args.resume or args.include_dead_letter or args.budget_usd is not None) and not args.track_state:
         args.track_state = True
     if args.include_dead_letter:
         args.resume = True
     if args.track_state and not args.source_variant:
         sys.exit(
             "ERROR: --track-state / --resume / --budget-usd require --source-variant "
-            "(state rows are keyed by (source_variant, target_variant, group_key)).")
+            "(state rows are keyed by (source_variant, target_variant, group_key))."
+        )
 
     # Pick which DBs to enrich.
     db_targets: list[tuple[str, Path]] = []
     if not args.chatlog_only:
-        core_db = _resolve_db(args.core_db, "M3_DATABASE",
-                              "agent_memory.db")
+        core_db = _resolve_db(args.core_db, "M3_DATABASE", "agent_memory.db")
         if core_db:
             db_targets.append(("core", core_db))
     if not args.core_only:
-        chatlog_db = _resolve_db(args.chatlog_db, "M3_CHATLOG_DATABASE",
-                                 "agent_chatlog.db")
+        chatlog_db = _resolve_db(args.chatlog_db, "M3_CHATLOG_DATABASE", "agent_chatlog.db")
         if chatlog_db:
             db_targets.append(("chatlog", chatlog_db))
     if not db_targets:
-        sys.exit("ERROR: no DBs found to enrich. "
-                 "Set M3_DATABASE / M3_CHATLOG_DATABASE or use --core-db/--chatlog-db.")
+        sys.exit("ERROR: no DBs found to enrich. Set M3_DATABASE / M3_CHATLOG_DATABASE or use --core-db/--chatlog-db.")
 
     # Build dry-run plan first (cheap; useful as both preview AND the
     # source of truth for cost/wall estimates we print at the end).
@@ -786,7 +836,11 @@ async def _main_async(args) -> int:
     }
     for label, db_path in db_targets:
         groups = _query_eligible_groups(
-            db_path, type_allowlist, args.limit, args.source_variant, conv_filter,
+            db_path,
+            type_allowlist,
+            args.limit,
+            args.source_variant,
+            conv_filter,
         )
         n_turns = sum(len(g[2]) for g in groups)
         cost, wall = _estimate_cost_wall(profile, len(groups))
@@ -839,7 +893,8 @@ async def _main_async(args) -> int:
                 )
             per_db_run_id = estate.start_run(
                 _sc,
-                profile=profile.name, model=profile.model,
+                profile=profile.name,
+                model=profile.model,
                 source_variant=args.source_variant,
                 target_variant=args.target_variant,
                 db_path=str(db_path),
@@ -857,8 +912,13 @@ async def _main_async(args) -> int:
         # targets and stalled the unembedded backlog (#180).
         with scoped_db_env(db_path):
             abort_reason = await _run_db(
-                db_path, profile, args.target_variant, type_allowlist,
-                args.concurrency, args.limit, counters,
+                db_path,
+                profile,
+                args.target_variant,
+                type_allowlist,
+                args.concurrency,
+                args.limit,
+                counters,
                 source_variant=args.source_variant,
                 conv_filter=conv_filter,
                 track_state=args.track_state,
@@ -883,20 +943,23 @@ async def _main_async(args) -> int:
             _sc = estate.open_state_conn(db_path)
             run_status = "aborted" if abort_reason else "completed"
             estate.end_run(
-                _sc, per_db_run_id,
-                status=run_status, abort_reason=abort_reason,
+                _sc,
+                per_db_run_id,
+                status=run_status,
+                abort_reason=abort_reason,
             )
             _sc.close()
 
         for k in counters_total:
             counters_total[k] += counters[k]
-        print(f"[m3-enrich] {label} done: "
-              f"{counters['processed']} groups processed, "
-              f"{counters['written']} observations written, "
-              f"{counters['empty_groups']} empty, "
-              f"{counters['failed']} failed"
-              + (f" [ABORTED: {abort_reason}]" if abort_reason else ""),
-              flush=True)
+        print(
+            f"[m3-enrich] {label} done: "
+            f"{counters['processed']} groups processed, "
+            f"{counters['written']} observations written, "
+            f"{counters['empty_groups']} empty, "
+            f"{counters['failed']} failed" + (f" [ABORTED: {abort_reason}]" if abort_reason else ""),
+            flush=True,
+        )
         if abort_reason:
             # Skip the reflector pass + remaining DBs when budget tripped.
             break
@@ -907,12 +970,17 @@ async def _main_async(args) -> int:
             # Same multi-store scoping as the _run_db loop above (#180).
             with scoped_db_env(db_path):
                 r_counters = await _run_reflector_pass(
-                    db_path, reflector_profile, args.reflector_threshold,
+                    db_path,
+                    reflector_profile,
+                    args.reflector_threshold,
                     args.concurrency,
                 )
-            print(f"[m3-enrich] reflector {label}: "
-                  f"{r_counters['processed']} groups, "
-                  f"{r_counters['sup_written']} supersedes edges written", flush=True)
+            print(
+                f"[m3-enrich] reflector {label}: "
+                f"{r_counters['processed']} groups, "
+                f"{r_counters['sup_written']} supersedes edges written",
+                flush=True,
+            )
 
     print()
     print("=" * 62)
@@ -935,15 +1003,21 @@ async def _main_async(args) -> int:
         try:
             from datetime import UTC as _UTC
             from datetime import datetime as _dt
+
             report_path = (
-                Path(args.report) if args.report not in (True, "1", "auto")
+                Path(args.report)
+                if args.report not in (True, "1", "auto")
                 else Path("docs/audits") / f"enrich-run-{_dt.now(_UTC).strftime('%Y-%m-%d')}.md"
             )
             import subprocess as _sp
+
             cmd = [
-                sys.executable, str(Path(__file__).parent / "m3_enrich_report.py"),
-                "--variant", args.source_variant,
-                "--target", str(report_path),
+                sys.executable,
+                str(Path(__file__).parent / "m3_enrich_report.py"),
+                "--variant",
+                args.source_variant,
+                "--target",
+                str(report_path),
             ]
             # Pass through the first DB target so the report reads the
             # right SQLite. (Reports across multiple DBs would need
@@ -982,179 +1056,266 @@ Profile picker:
   enrich_custom_stub       —      Template; copy + edit, use --profile-path
 """,
     )
-    ap.add_argument("--profile", default=DEFAULT_PROFILE,
-                    help=f"Profile name in config/slm/. Default: {DEFAULT_PROFILE}.")
-    ap.add_argument("--profile-path", default=None,
-                    help="Explicit YAML path. Overrides --profile when set.")
-    ap.add_argument("--reflector-profile", default=None,
-                    help="Override the Reflector stage with a different profile. "
-                         "Defaults to --profile (same model for both stages).")
-    ap.add_argument("--embed-url",
-                    default=os.environ.get("M3_EMBED_URL"),
-                    help="Hard override for the embedder endpoint URL "
-                         "(e.g. http://127.0.0.1:8081/v1). Bypasses "
-                         "llm_failover discovery so observation embeds during "
-                         "ingest pin to a chosen server. Without this, the "
-                         "default discovery prefers LMS :1234 (often a single-"
-                         "slot server that throttles ingest under multi-stream "
-                         "load). Env: M3_EMBED_URL.")
-    ap.add_argument("--embed-model",
-                    default=os.environ.get("M3_EMBED_MODEL"),
-                    help="Model id for the override endpoint. llama.cpp "
-                         "default: 'bge-m3-GGUF-Q4_K_M.gguf'. LM Studio: "
-                         "'text-embedding-bge-m3'. Required only when "
-                         "--embed-url is set and the default model id is "
-                         "wrong for that server. Env: M3_EMBED_MODEL.")
-    ap.add_argument("--core", action="store_true", dest="core_only",
-                    help="Only enrich the core memory DB (skip chatlog). "
-                         "Auto-broadens default type allowlist to: "
-                         f"{','.join(DEFAULT_CORE_TYPES)}.")
-    ap.add_argument("--chatlog", action="store_true", dest="chatlog_only",
-                    help="Only enrich the chatlog DB (skip core). "
-                         "Default type allowlist stays message-shaped: "
-                         f"{','.join(DEFAULT_CHATLOG_TYPES)}.")
-    ap.add_argument("--core-db", default=None,
-                    help="Explicit path to the core memory DB.")
-    ap.add_argument("--chatlog-db", default=None,
-                    help="Explicit path to the chatlog DB.")
-    ap.add_argument("--target-variant", default=f"m3-observations-{_today()}",
-                    help="Variant tag for emitted observations. Default: m3-observations-YYYYMMDD.")
-    ap.add_argument("--source-variant", default=None,
-                    help="Filter source rows by variant. '__none__' = true core memory only "
-                         "(variant IS NULL). A name string = single-variant scope. "
-                         "Default: no filter (all rows).")
-    ap.add_argument("--source-conv-list",
-                    default=os.environ.get("M3_ENRICH_CONV_LIST"),
-                    help="Path to a file listing group_keys (conversation_ids) to "
-                         "process. Format: newline-delimited text (with optional "
-                         "# comments) OR a JSON array of strings. Narrows the "
-                         "eligible-groups set AFTER --source-variant + type "
-                         "filtering — opt-in lever, no effect on default "
-                         "behavior. Env: M3_ENRICH_CONV_LIST.")
-    ap.add_argument("--track-state", action="store_true",
-                    default=os.environ.get("M3_ENRICH_TRACK_STATE", "0").lower() in ("1", "true", "yes"),
-                    help="Record per-group enrichment state in the enrichment_groups "
-                         "table (migration 028). Required for --resume / --budget-usd. "
-                         "Requires --source-variant. Env: M3_ENRICH_TRACK_STATE.")
-    ap.add_argument("--resume", action="store_true",
-                    help="Skip groups already at status='success' or 'empty' for the "
-                         "current (source_variant, target_variant) pair. Implies "
-                         "--track-state. Picks up pending + failed-with-retries-left.")
-    ap.add_argument("--include-dead-letter", action="store_true",
-                    help="Also retry groups currently at status='dead_letter'. Manual "
-                         "override; implies --resume. Use after fixing the underlying "
-                         "issue (prompt change, model upgrade, etc.).")
-    ap.add_argument("--max-attempts", type=int,
-                    default=int(os.environ.get("M3_ENRICH_MAX_ATTEMPTS",
-                                               estate.DEFAULT_MAX_ATTEMPTS)),
-                    help=f"Per-group retry cap before promotion to dead_letter. "
-                         f"Default {estate.DEFAULT_MAX_ATTEMPTS}. "
-                         f"Env: M3_ENRICH_MAX_ATTEMPTS.")
-    ap.add_argument("--budget-usd", type=float,
-                    default=(float(os.environ["M3_ENRICH_BUDGET_USD"])
-                             if os.environ.get("M3_ENRICH_BUDGET_USD") else None),
-                    help="Hard ceiling on cumulative cost_usd across this run. When "
-                         "tripped, drains inflight calls and exits cleanly with "
-                         "status='aborted'. Implies --track-state. "
-                         "Env: M3_ENRICH_BUDGET_USD.")
-    ap.add_argument("--sample", type=int, default=None,
-                    help="Process at most N groups, selected via --sample-strategy. "
-                         "Independent of --limit (which caps the SQL pull).")
-    ap.add_argument("--sample-strategy", default="first",
-                    choices=("first", "random", "stratified"),
-                    help="How --sample picks groups. 'first' = top-N by turn-count "
-                         "desc (cheapest). 'random' = uniform random. 'stratified' = "
-                         "balanced by turn-count quartile. Default 'first'.")
-    ap.add_argument("--input-max-k", type=int,
-                    default=(int(os.environ["M3_ENRICH_INPUT_MAX_K"])
-                             if os.environ.get("M3_ENRICH_INPUT_MAX_K") else None),
-                    help="Override the per-call input cap for the SLM, in KB. "
-                         "Caps the total chars sent to the model at N*1024. "
-                         "Use to fit a smaller per-slot ctx budget when raising "
-                         "concurrency in the model server. Falls back to "
-                         "profile.input_max_chars when unset. "
-                         "Env: M3_ENRICH_INPUT_MAX_K.")
-    ap.add_argument("--min-size-k", type=int,
-                    default=(int(os.environ["M3_ENRICH_MIN_SIZE_K"])
-                             if os.environ.get("M3_ENRICH_MIN_SIZE_K") else None),
-                    help="--resume only: pick groups whose total source content "
-                         "is at least N KB. Use with --max-attempts to retry the "
-                         "big groups at lower concurrency. Excludes legacy rows "
-                         "where content_size_k is NULL. Env: M3_ENRICH_MIN_SIZE_K.")
-    ap.add_argument("--max-size-k", type=int,
-                    default=(int(os.environ["M3_ENRICH_MAX_SIZE_K"])
-                             if os.environ.get("M3_ENRICH_MAX_SIZE_K") else None),
-                    help="--resume only: pick groups whose total source content "
-                         "is at most N KB. Pair with --concurrency to fit per-slot "
-                         "ctx budget. Excludes legacy rows where content_size_k "
-                         "is NULL. Env: M3_ENRICH_MAX_SIZE_K.")
-    ap.add_argument("--send-to", type=str, default=os.environ.get("M3_ENRICH_SEND_TO"),
-                    help="--resume only: pick groups whose send_to column matches "
-                         "this name. Use for parallel multi-provider runs where "
-                         "each provider's worker should claim only its assigned "
-                         "rows. Rows with send_to IS NULL are EXCLUDED in routed "
-                         "mode — assign rows via bin/m3_enrich_assign.py before "
-                         "running with --send-to. When this flag is omitted, the "
-                         "send_to column is ignored entirely (backwards compatible "
-                         "with non-routed runs). Env: M3_ENRICH_SEND_TO.")
-    ap.add_argument("--limit", type=int, default=None,
-                    help="Cap conversations enriched per DB (smoke testing).")
-    ap.add_argument("--concurrency", type=int, default=4,
-                    help="Concurrent SLM calls. Default 4.")
-    ap.add_argument("--cascade-threshold", type=int, default=10,
-                    help="Abort the run after N consecutive rate-limit (429) "
-                         "failures within --cascade-window-s seconds. Catches "
-                         "upstream quota walls before the run dirties the DB "
-                         "with thousands of phantom failures. Default 10.")
-    ap.add_argument("--cascade-window-s", type=float, default=60.0,
-                    help="Time window for the consecutive-429 cascade detector. "
-                         "Default 60s. Any successful call resets the counter, "
-                         "so isolated 429s during normal operation don't trip.")
-    ap.add_argument("--report", nargs="?", const="auto", default="auto",
-                    help="Write a per-run summary report at the end of the run. "
-                         "Default 'auto' = docs/audits/enrich-run-<date>.md. "
-                         "Pass an explicit path (--report path/to/file.md) to "
-                         "override. Pair with --no-report to disable.")
-    ap.add_argument("--no-report", action="store_const", const=None, dest="report",
-                    help="Disable the auto-generated end-of-run report.")
-    ap.add_argument("--include-summaries", action="store_true",
-                    help="Add type='summary' rows to the active allowlist "
-                         "(extends whichever default applies; redundant under --core).")
-    ap.add_argument("--include-notes", action="store_true",
-                    help="Add type='note' rows to the active allowlist "
-                         "(extends whichever default applies; redundant under --core).")
-    ap.add_argument("--include-types", default=None,
-                    help="Comma-separated types to ADD to the active allowlist "
-                         "(extends whichever default applies). E.g. "
-                         "'--include-types reference,project' adds those alongside "
-                         "the per-DB default.")
-    ap.add_argument("--only-use-types", default=None,
-                    help="Comma-separated types -- REPLACES the default allowlist "
-                         "entirely (e.g. '--only-use-types decision,plan' selects "
-                         "ONLY those, no defaults merged in). Use this when you "
-                         "want a precise narrow list. --include-summaries / "
-                         "--include-notes / --include-types still extend after "
-                         "replacement.")
-    ap.add_argument("--drain-queue", action="store_true",
-                    help="Phase E2: drain pending observation_queue rows that "
-                         "were enqueued by the chatlog auto-enrich hook "
-                         "(M3_AUTO_ENRICH=1). Single-shot, returns when the "
-                         "queue is empty. Use in cron / scheduled task for "
-                         "continuous enrichment.")
-    ap.add_argument("--drain-batch", type=int, default=100,
-                    help="Max queue rows to process per --drain-queue invocation. "
-                         "Default 100 (a few minutes of work for typical convs).")
-    ap.add_argument("--no-reflect", action="store_true",
-                    help="Skip the Reflector merge/supersede pass.")
-    ap.add_argument("--reflector-threshold", type=int, default=50,
-                    help="Min observations per (user,conv) before Reflector fires. Default 50.")
-    ap.add_argument("--dry-run", action="store_true",
-                    help="Preview what would happen without writing.")
-    ap.add_argument("--skip-preflight", action="store_true",
-                    help="Skip endpoint-smoke and DB backup. Power-user only.")
-    ap.add_argument("--yes", "-y", action="store_true",
-                    help="Skip the interactive confirm prompt.")
+    ap.add_argument(
+        "--profile", default=DEFAULT_PROFILE, help=f"Profile name in config/slm/. Default: {DEFAULT_PROFILE}."
+    )
+    ap.add_argument("--profile-path", default=None, help="Explicit YAML path. Overrides --profile when set.")
+    ap.add_argument(
+        "--reflector-profile",
+        default=None,
+        help="Override the Reflector stage with a different profile. "
+        "Defaults to --profile (same model for both stages).",
+    )
+    ap.add_argument(
+        "--embed-url",
+        default=os.environ.get("M3_EMBED_URL"),
+        help="Hard override for the embedder endpoint URL "
+        "(e.g. http://127.0.0.1:8081/v1). Bypasses "
+        "llm_failover discovery so observation embeds during "
+        "ingest pin to a chosen server. Without this, the "
+        "default discovery prefers LMS :1234 (often a single-"
+        "slot server that throttles ingest under multi-stream "
+        "load). Env: M3_EMBED_URL.",
+    )
+    ap.add_argument(
+        "--embed-model",
+        default=os.environ.get("M3_EMBED_MODEL"),
+        help="Model id for the override endpoint. llama.cpp "
+        "default: 'bge-m3-GGUF-Q4_K_M.gguf'. LM Studio: "
+        "'text-embedding-bge-m3'. Required only when "
+        "--embed-url is set and the default model id is "
+        "wrong for that server. Env: M3_EMBED_MODEL.",
+    )
+    ap.add_argument(
+        "--core",
+        action="store_true",
+        dest="core_only",
+        help="Only enrich the core memory DB (skip chatlog). "
+        "Auto-broadens default type allowlist to: "
+        f"{','.join(DEFAULT_CORE_TYPES)}.",
+    )
+    ap.add_argument(
+        "--chatlog",
+        action="store_true",
+        dest="chatlog_only",
+        help="Only enrich the chatlog DB (skip core). "
+        "Default type allowlist stays message-shaped: "
+        f"{','.join(DEFAULT_CHATLOG_TYPES)}.",
+    )
+    ap.add_argument("--core-db", default=None, help="Explicit path to the core memory DB.")
+    ap.add_argument("--chatlog-db", default=None, help="Explicit path to the chatlog DB.")
+    ap.add_argument(
+        "--target-variant",
+        default=f"m3-observations-{_today()}",
+        help="Variant tag for emitted observations. Default: m3-observations-YYYYMMDD.",
+    )
+    ap.add_argument(
+        "--source-variant",
+        default=None,
+        help="Filter source rows by variant. '__none__' = true core memory only "
+        "(variant IS NULL). A name string = single-variant scope. "
+        "Default: no filter (all rows).",
+    )
+    ap.add_argument(
+        "--source-conv-list",
+        default=os.environ.get("M3_ENRICH_CONV_LIST"),
+        help="Path to a file listing group_keys (conversation_ids) to "
+        "process. Format: newline-delimited text (with optional "
+        "# comments) OR a JSON array of strings. Narrows the "
+        "eligible-groups set AFTER --source-variant + type "
+        "filtering — opt-in lever, no effect on default "
+        "behavior. Env: M3_ENRICH_CONV_LIST.",
+    )
+    ap.add_argument(
+        "--track-state",
+        action="store_true",
+        default=os.environ.get("M3_ENRICH_TRACK_STATE", "0").lower() in ("1", "true", "yes"),
+        help="Record per-group enrichment state in the enrichment_groups "
+        "table (migration 028). Required for --resume / --budget-usd. "
+        "Requires --source-variant. Env: M3_ENRICH_TRACK_STATE.",
+    )
+    ap.add_argument(
+        "--resume",
+        action="store_true",
+        help="Skip groups already at status='success' or 'empty' for the "
+        "current (source_variant, target_variant) pair. Implies "
+        "--track-state. Picks up pending + failed-with-retries-left.",
+    )
+    ap.add_argument(
+        "--include-dead-letter",
+        action="store_true",
+        help="Also retry groups currently at status='dead_letter'. Manual "
+        "override; implies --resume. Use after fixing the underlying "
+        "issue (prompt change, model upgrade, etc.).",
+    )
+    ap.add_argument(
+        "--max-attempts",
+        type=int,
+        default=int(os.environ.get("M3_ENRICH_MAX_ATTEMPTS", estate.DEFAULT_MAX_ATTEMPTS)),
+        help=f"Per-group retry cap before promotion to dead_letter. "
+        f"Default {estate.DEFAULT_MAX_ATTEMPTS}. "
+        f"Env: M3_ENRICH_MAX_ATTEMPTS.",
+    )
+    ap.add_argument(
+        "--budget-usd",
+        type=float,
+        default=(float(os.environ["M3_ENRICH_BUDGET_USD"]) if os.environ.get("M3_ENRICH_BUDGET_USD") else None),
+        help="Hard ceiling on cumulative cost_usd across this run. When "
+        "tripped, drains inflight calls and exits cleanly with "
+        "status='aborted'. Implies --track-state. "
+        "Env: M3_ENRICH_BUDGET_USD.",
+    )
+    ap.add_argument(
+        "--sample",
+        type=int,
+        default=None,
+        help="Process at most N groups, selected via --sample-strategy. "
+        "Independent of --limit (which caps the SQL pull).",
+    )
+    ap.add_argument(
+        "--sample-strategy",
+        default="first",
+        choices=("first", "random", "stratified"),
+        help="How --sample picks groups. 'first' = top-N by turn-count "
+        "desc (cheapest). 'random' = uniform random. 'stratified' = "
+        "balanced by turn-count quartile. Default 'first'.",
+    )
+    ap.add_argument(
+        "--input-max-k",
+        type=int,
+        default=(int(os.environ["M3_ENRICH_INPUT_MAX_K"]) if os.environ.get("M3_ENRICH_INPUT_MAX_K") else None),
+        help="Override the per-call input cap for the SLM, in KB. "
+        "Caps the total chars sent to the model at N*1024. "
+        "Use to fit a smaller per-slot ctx budget when raising "
+        "concurrency in the model server. Falls back to "
+        "profile.input_max_chars when unset. "
+        "Env: M3_ENRICH_INPUT_MAX_K.",
+    )
+    ap.add_argument(
+        "--min-size-k",
+        type=int,
+        default=(int(os.environ["M3_ENRICH_MIN_SIZE_K"]) if os.environ.get("M3_ENRICH_MIN_SIZE_K") else None),
+        help="--resume only: pick groups whose total source content "
+        "is at least N KB. Use with --max-attempts to retry the "
+        "big groups at lower concurrency. Excludes legacy rows "
+        "where content_size_k is NULL. Env: M3_ENRICH_MIN_SIZE_K.",
+    )
+    ap.add_argument(
+        "--max-size-k",
+        type=int,
+        default=(int(os.environ["M3_ENRICH_MAX_SIZE_K"]) if os.environ.get("M3_ENRICH_MAX_SIZE_K") else None),
+        help="--resume only: pick groups whose total source content "
+        "is at most N KB. Pair with --concurrency to fit per-slot "
+        "ctx budget. Excludes legacy rows where content_size_k "
+        "is NULL. Env: M3_ENRICH_MAX_SIZE_K.",
+    )
+    ap.add_argument(
+        "--send-to",
+        type=str,
+        default=os.environ.get("M3_ENRICH_SEND_TO"),
+        help="--resume only: pick groups whose send_to column matches "
+        "this name. Use for parallel multi-provider runs where "
+        "each provider's worker should claim only its assigned "
+        "rows. Rows with send_to IS NULL are EXCLUDED in routed "
+        "mode — assign rows via bin/m3_enrich_assign.py before "
+        "running with --send-to. When this flag is omitted, the "
+        "send_to column is ignored entirely (backwards compatible "
+        "with non-routed runs). Env: M3_ENRICH_SEND_TO.",
+    )
+    ap.add_argument("--limit", type=int, default=None, help="Cap conversations enriched per DB (smoke testing).")
+    ap.add_argument("--concurrency", type=int, default=4, help="Concurrent SLM calls. Default 4.")
+    ap.add_argument(
+        "--cascade-threshold",
+        type=int,
+        default=10,
+        help="Abort the run after N consecutive rate-limit (429) "
+        "failures within --cascade-window-s seconds. Catches "
+        "upstream quota walls before the run dirties the DB "
+        "with thousands of phantom failures. Default 10.",
+    )
+    ap.add_argument(
+        "--cascade-window-s",
+        type=float,
+        default=60.0,
+        help="Time window for the consecutive-429 cascade detector. "
+        "Default 60s. Any successful call resets the counter, "
+        "so isolated 429s during normal operation don't trip.",
+    )
+    ap.add_argument(
+        "--report",
+        nargs="?",
+        const="auto",
+        default="auto",
+        help="Write a per-run summary report at the end of the run. "
+        "Default 'auto' = docs/audits/enrich-run-<date>.md. "
+        "Pass an explicit path (--report path/to/file.md) to "
+        "override. Pair with --no-report to disable.",
+    )
+    ap.add_argument(
+        "--no-report",
+        action="store_const",
+        const=None,
+        dest="report",
+        help="Disable the auto-generated end-of-run report.",
+    )
+    ap.add_argument(
+        "--include-summaries",
+        action="store_true",
+        help="Add type='summary' rows to the active allowlist "
+        "(extends whichever default applies; redundant under --core).",
+    )
+    ap.add_argument(
+        "--include-notes",
+        action="store_true",
+        help="Add type='note' rows to the active allowlist "
+        "(extends whichever default applies; redundant under --core).",
+    )
+    ap.add_argument(
+        "--include-types",
+        default=None,
+        help="Comma-separated types to ADD to the active allowlist "
+        "(extends whichever default applies). E.g. "
+        "'--include-types reference,project' adds those alongside "
+        "the per-DB default.",
+    )
+    ap.add_argument(
+        "--only-use-types",
+        default=None,
+        help="Comma-separated types -- REPLACES the default allowlist "
+        "entirely (e.g. '--only-use-types decision,plan' selects "
+        "ONLY those, no defaults merged in). Use this when you "
+        "want a precise narrow list. --include-summaries / "
+        "--include-notes / --include-types still extend after "
+        "replacement.",
+    )
+    ap.add_argument(
+        "--drain-queue",
+        action="store_true",
+        help="Phase E2: drain pending observation_queue rows that "
+        "were enqueued by the chatlog auto-enrich hook "
+        "(M3_AUTO_ENRICH=1). Single-shot, returns when the "
+        "queue is empty. Use in cron / scheduled task for "
+        "continuous enrichment.",
+    )
+    ap.add_argument(
+        "--drain-batch",
+        type=int,
+        default=100,
+        help="Max queue rows to process per --drain-queue invocation. "
+        "Default 100 (a few minutes of work for typical convs).",
+    )
+    ap.add_argument("--no-reflect", action="store_true", help="Skip the Reflector merge/supersede pass.")
+    ap.add_argument(
+        "--reflector-threshold",
+        type=int,
+        default=50,
+        help="Min observations per (user,conv) before Reflector fires. Default 50.",
+    )
+    ap.add_argument("--dry-run", action="store_true", help="Preview what would happen without writing.")
+    ap.add_argument("--skip-preflight", action="store_true", help="Skip endpoint-smoke and DB backup. Power-user only.")
+    ap.add_argument("--yes", "-y", action="store_true", help="Skip the interactive confirm prompt.")
     from _task_runtime import add_log_file_arg, setup_task_runtime
+
     add_log_file_arg(ap)
     args = ap.parse_args()
     if args.core_only and args.chatlog_only:

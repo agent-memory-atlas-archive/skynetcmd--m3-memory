@@ -1,8 +1,8 @@
 ---
 tool: bin/check_unreferenced.py
-sha1: ba1cc020dae2
-mtime_utc: 2026-10-10T08:45:03.708847+00:00
-generated_utc: 2026-10-10T08:45:10.379715+00:00
+sha1: 8192a4384f40
+mtime_utc: 2026-10-10T21:05:16.884017+00:00
+generated_utc: 2026-10-10T21:05:29.406217+00:00
 private: false
 ---
 
@@ -31,7 +31,7 @@ fails too, so the lists cannot rot.
 
 ## Entry points
 
-- `def main()` (line 59)
+- `def main()` (line 63)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -58,8 +58,8 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `[sys.executable, '-m', 'vulture', '--version']`` (line 60)
-- `subprocess.run()` (line 65)
+- `subprocess.run()  → `[sys.executable, '-m', 'vulture', '--version']`` (line 64)
+- `subprocess.run()` (line 67)
 
 
 ---

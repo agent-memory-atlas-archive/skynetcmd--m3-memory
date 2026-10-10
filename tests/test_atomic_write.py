@@ -9,6 +9,7 @@ identical on every OS -- text mode would emit CRLF on Windows), fsyncs, keeps an
 existing file's mode, creates a new file user-only, and removes the temp when
 the replace never happens.
 """
+
 from __future__ import annotations
 
 import os
@@ -94,7 +95,8 @@ _MOVES = {
     ("bin/memory/model_fetch.py", "part"): "publishes a finished, validated download",
     ("m3_memory/embedder_admin.py", "tmp"): (
         "NOT a move: a hand-rolled temp-then-replace config WRITE that should use "
-        "atomic_write; listed so the guard runs, to be converted (m3_memory phase)"),
+        "atomic_write; listed so the guard runs, to be converted (m3_memory phase)"
+    ),
 }
 
 
@@ -108,14 +110,17 @@ def test_no_hand_rolled_temp_then_replace():
     for top in ("bin", "m3_memory"):
         for p in (root / top).rglob("*.py"):
             rel = p.relative_to(root).as_posix()
-            if p.name.startswith(("bench_", "benchmark_")) or "__pycache__" in p.parts or rel == "bin/m3_core/atomic_io.py":
+            if (
+                p.name.startswith(("bench_", "benchmark_"))
+                or "__pycache__" in p.parts
+                or rel == "bin/m3_core/atomic_io.py"
+            ):
                 continue
             for n in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
-                if not (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
-                        and n.func.attr == "replace"):
+                if not (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "replace"):
                     continue
                 if isinstance(n.func.value, ast.Name) and n.func.value.id == "os" and n.args:
-                    src = n.args[0]                     # os.replace(src, dst)
+                    src = n.args[0]  # os.replace(src, dst)
                 elif len(n.args) == 1 and not n.keywords:
                     # Path(src).replace(dst) / p.replace(dst): pathlib's move.
                     # str/bytes .replace always take 2+ arguments, so one
@@ -128,7 +133,8 @@ def test_no_hand_rolled_temp_then_replace():
                 found.add((rel, ast.unparse(src)))
     assert found == set(_MOVES), (
         f"new os.replace (use atomic_write for writes): {sorted(found - set(_MOVES))}; "
-        f"stale allowlist entries: {sorted(set(_MOVES) - found)}")
+        f"stale allowlist entries: {sorted(set(_MOVES) - found)}"
+    )
 
 
 @posix_only

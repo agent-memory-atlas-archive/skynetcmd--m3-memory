@@ -4,6 +4,7 @@ Five tools answered it themselves with three fallbacks; reembed_space said True
 on ANY error, so a misconfigured PostgreSQL install silently took the SQLite
 file path. Pins the backend fact, the resolver, and its two failure modes.
 """
+
 from __future__ import annotations
 
 import builtins
@@ -21,7 +22,8 @@ def test_every_registered_backend_declares_it():
         cls = registry._REGISTRY[name].backend_factory
         assert isinstance(getattr(cls, "stores_databases_as_files", None), bool), (
             f"observed: backend {name!r} does not declare stores_databases_as_files. "
-            f"inspect: memory/backends/base.py StorageBackend")
+            f"inspect: memory/backends/base.py StorageBackend"
+        )
 
 
 def test_resolver_follows_the_active_backend(each_backend):

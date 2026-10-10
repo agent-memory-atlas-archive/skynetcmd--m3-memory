@@ -5,6 +5,7 @@ Read-only; both queries hit indexed `created_at`. Old-DB tolerance: a pre-036 DB
 (no memory_corroborations) must degrade the contradiction section to zeros, not
 raise — mirroring the reinforcement pass's _is_missing_schema guard.
 """
+
 from __future__ import annotations
 
 import os
@@ -24,6 +25,7 @@ def _skip_migrations(monkeypatch):
 
 def _full_db(db_path):
     from conftest import create_full_main_schema
+
     create_full_main_schema(db_path)
 
 
@@ -38,8 +40,7 @@ def _seed_item(conn, mid, title="t"):
 
 def _hist(conn, mid, event, *, days_ago=0):
     conn.execute(
-        "INSERT INTO memory_history (id, memory_id, event, created_at) "
-        "VALUES (?, ?, ?, datetime('now', ?))",
+        "INSERT INTO memory_history (id, memory_id, event, created_at) VALUES (?, ?, ?, datetime('now', ?))",
         (str(uuid.uuid4()), mid, event, f"-{days_ago} days"),
     )
 
@@ -68,11 +69,12 @@ def test_event_counts_in_window(tmp_path, monkeypatch):
 
     monkeypatch.setenv("M3_DATABASE", str(db))
     import memory_maintenance
+
     out = memory_maintenance.memory_lifecycle_summary_impl(window_days=7)
 
     assert out["events"]["create"] == 1
     assert out["events"]["update"] == 2
-    assert out["events"]["supersede"] == 0   # the 100-day-old one is excluded
+    assert out["events"]["supersede"] == 0  # the 100-day-old one is excluded
 
 
 def test_corroboration_vs_contradiction_split(tmp_path, monkeypatch):
@@ -89,6 +91,7 @@ def test_corroboration_vs_contradiction_split(tmp_path, monkeypatch):
 
     monkeypatch.setenv("M3_DATABASE", str(db))
     import memory_maintenance
+
     out = memory_maintenance.memory_lifecycle_summary_impl(window_days=7)
 
     assert out["corroboration"]["corroborated"] == 1
@@ -109,6 +112,7 @@ def test_top_lists_populated_and_capped(tmp_path, monkeypatch):
 
     monkeypatch.setenv("M3_DATABASE", str(db))
     import memory_maintenance
+
     out = memory_maintenance.memory_lifecycle_summary_impl(window_days=7, top_n=5)
 
     assert out["most_revised"][0]["memory_id"] == hot
@@ -137,8 +141,9 @@ def test_tolerates_missing_corroborations_table(tmp_path, monkeypatch):
 
     monkeypatch.setenv("M3_DATABASE", str(db))
     import memory_maintenance
+
     out = memory_maintenance.memory_lifecycle_summary_impl(window_days=7)  # must not raise
 
-    assert out["events"]["create"] == 1               # history still works
+    assert out["events"]["create"] == 1  # history still works
     assert out["corroboration"]["contradicted"] == 0  # degraded, not crashed
     assert out["top_contradicted"] == []

@@ -23,6 +23,7 @@ What we DO snapshot:
 - Value (or repr) for constants.
 - Module docstring presence.
 """
+
 from __future__ import annotations
 
 import inspect
@@ -90,7 +91,7 @@ def _canonical_annotation(text: str) -> str:
 
     Normalise toward the PEP 604 form, which is what the code actually writes.
     """
-    text = re.sub(r"\btyping\.", "", text)     # `typing.Optional` -> `Optional`
+    text = re.sub(r"\btyping\.", "", text)  # `typing.Optional` -> `Optional`
 
     def _split_top(inner: str) -> list[str]:
         """Split on commas that are NOT inside nested brackets."""
@@ -101,7 +102,8 @@ def _canonical_annotation(text: str) -> str:
             elif ch == "]":
                 depth -= 1
             if ch == "," and depth == 0:
-                parts.append("".join(buf).strip()); buf = []
+                parts.append("".join(buf).strip())
+                buf = []
             else:
                 buf.append(ch)
         if buf:
@@ -127,17 +129,17 @@ def _canonical_annotation(text: str) -> str:
             elif text[j] == "]":
                 depth -= 1
                 if depth == 0:
-                    inner = text[start + 1:j]
+                    inner = text[start + 1 : j]
                     parts = _split_top(inner)
                     if name == "Optional":
                         repl = f"{inner.strip()} | None"
                     else:
                         repl = " | ".join(parts)
-                    return text[:i] + repl + text[j + 1:]
+                    return text[:i] + repl + text[j + 1 :]
         return text
 
     prev = None
-    while prev != text:                       # nested: Optional[Union[a, b]]
+    while prev != text:  # nested: Optional[Union[a, b]]
         prev = text
         text = _rewrite("Optional", text)
         text = _rewrite("Union", text)
@@ -320,9 +322,7 @@ def _canonical_repr(obj) -> str:
         # otherwise still hash-ordered inside. `TASK_STATE_TRANSITIONS` maps each
         # state to a set of successors and was the last entry that varied
         # between runs after the set branch above was added.
-        inner = ", ".join(
-            f"{_canonical_repr(k)}: {_canonical_repr(v)}" for k, v in obj.items()
-        )
+        inner = ", ".join(f"{_canonical_repr(k)}: {_canonical_repr(v)}" for k, v in obj.items())
         return f"{{{inner}}}"
     # Default `object.__repr__` embeds the instance's memory ADDRESS, which is
     # different on every run: ten entries here are locks and semaphores whose
@@ -395,6 +395,7 @@ def _build_snapshot():
     re-export is materialized and captured deterministically.
     """
     import memory_core  # noqa: F401 — picked up by the snapshot
+
     symbols = {}
     for name in dir(memory_core):
         if not _is_public(name):
@@ -458,15 +459,21 @@ class MemoryCoreParityTests(unittest.TestCase):
         if not SNAPSHOT_PATH.exists() and not refresh:
             # A missing snapshot is a failure, never a silent re-baseline: the
             # snapshot IS the parity contract.
-            self.fail(f"observed: the API-parity snapshot {SNAPSHOT_PATH} is missing. "
-                      "inspect: restore it from git, or set M3_MIGRATION_REFRESH_SNAPSHOT=1 "
-                      "to write a new one deliberately")
+            self.fail(
+                f"observed: the API-parity snapshot {SNAPSHOT_PATH} is missing. "
+                "inspect: restore it from git, or set M3_MIGRATION_REFRESH_SNAPSHOT=1 "
+                "to write a new one deliberately"
+            )
         if refresh:
             SNAPSHOT_PATH.parent.mkdir(parents=True, exist_ok=True)
             SNAPSHOT_PATH.write_text(json.dumps(current, indent=2, sort_keys=True))
-            self.skipTest(skip_reason(
-                "na", f"snapshot refreshed at {SNAPSHOT_PATH}; re-run without "
-                "M3_MIGRATION_REFRESH_SNAPSHOT to enforce parity"))
+            self.skipTest(
+                skip_reason(
+                    "na",
+                    f"snapshot refreshed at {SNAPSHOT_PATH}; re-run without "
+                    "M3_MIGRATION_REFRESH_SNAPSHOT to enforce parity",
+                )
+            )
 
         saved = json.loads(SNAPSHOT_PATH.read_text())
 
@@ -477,10 +484,7 @@ class MemoryCoreParityTests(unittest.TestCase):
 
         added = cur_names - old_names
         removed = old_names - cur_names
-        self.assertFalse(
-            removed,
-            f"public API symbols REMOVED (would break callers): {sorted(removed)}"
-        )
+        self.assertFalse(removed, f"public API symbols REMOVED (would break callers): {sorted(removed)}")
         if added:
             # Adding new public symbols is fine; the migration may legitimately
             # expose a helper that was always there but didn't appear in the
@@ -503,10 +507,7 @@ class MemoryCoreParityTests(unittest.TestCase):
             # different reprs at different times; we skip those by allowing
             # value_repr to drift WITHIN A KIND (which is why kind drift is
             # checked separately above).
-        self.assertFalse(
-            mismatches,
-            "public API changed:\n  " + "\n  ".join(mismatches)
-        )
+        self.assertFalse(mismatches, "public API changed:\n  " + "\n  ".join(mismatches))
 
 
 if __name__ == "__main__":

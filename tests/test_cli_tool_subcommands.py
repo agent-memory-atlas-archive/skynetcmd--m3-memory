@@ -14,6 +14,7 @@ against an in-process `execute_tool_structured` call for round-trip parity.
 Conventions mirrored from test_lazy_tool_loading.py: bin/ is on sys.path via
 conftest.py; the files DB is built fresh per test by the `files_db` fixture.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -92,11 +93,15 @@ def _run_cli_force_reexec(*argv: str) -> subprocess.CompletedProcess:
     env.pop("_M3_UTF8_REEXEC", None)
     return subprocess.run(
         [sys.executable, "-m", "m3_memory.cli", *argv],
-        capture_output=True, text=True, cwd=str(_REPO_ROOT), env=env,
+        capture_output=True,
+        text=True,
+        cwd=str(_REPO_ROOT),
+        env=env,
     )
 
 
 # ── files_stats: happy path ──────────────────────────────────────────────────
+
 
 def test_files_stats_returns_json_with_file_nodes_total(files_db):
     """`m3 files files_stats` exits 0 and emits parseable JSON
@@ -119,18 +124,11 @@ def test_files_stats_roundtrip_parity_with_execute_tool_structured(files_db):
     cli_result = json.loads(proc.stdout)
 
     spec = next(t for t in mcp_tool_catalog.TOOLS if t.name == "files_stats")
-    direct = asyncio.run(
-        mcp_tool_catalog.execute_tool_structured(
-            spec, {}, agent_id="", dry_run=False
-        )
-    )
+    direct = asyncio.run(mcp_tool_catalog.execute_tool_structured(spec, {}, agent_id="", dry_run=False))
     # Normalize through json so dict/tuple coercion matches the CLI's
     # json.dumps(default=str) boundary.
     direct_norm = json.loads(json.dumps(direct, default=str))
-    assert cli_result == direct_norm, (
-        f"CLI surface diverged from m3_call path:\n"
-        f"cli={cli_result}\ndirect={direct_norm}"
-    )
+    assert cli_result == direct_norm, f"CLI surface diverged from m3_call path:\ncli={cli_result}\ndirect={direct_norm}"
 
 
 def _seed_routing_probe(files_db) -> None:
@@ -157,7 +155,8 @@ def test_files_tools_read_the_pinned_files_store(files_db):
     assert proc.returncode == 0, f"stderr={proc.stderr}\nstdout={proc.stdout}"
     result = json.loads(proc.stdout)
     assert result and result.get("corpus_id") == "routing-probe", (
-        f"files_corpus_get did not read M3_FILES_DB_PATH: {result}")
+        f"files_corpus_get did not read M3_FILES_DB_PATH: {result}"
+    )
 
 
 def test_files_tools_refuse_the_database_argument(files_db, tmp_path):
@@ -168,8 +167,7 @@ def test_files_tools_refuse_the_database_argument(files_db, tmp_path):
     The refusal stands until named stores (`--store`, plan step 2C.3) route it."""
     _seed_routing_probe(files_db)
     elsewhere = tmp_path / "elsewhere.db"
-    proc = _run_cli("files", "files_corpus_get", "--corpus_id", "routing-probe",
-                    "--database", str(elsewhere))
+    proc = _run_cli("files", "files_corpus_get", "--corpus_id", "routing-probe", "--database", str(elsewhere))
     assert proc.returncode != 0, f"refusal exited 0: stdout={proc.stdout}"
     out = proc.stdout + proc.stderr
     assert "`database` would be ignored" in out and "`store`" in out, out
@@ -178,6 +176,7 @@ def test_files_tools_refuse_the_database_argument(files_db, tmp_path):
 
 
 # ── --help lists generated tools ─────────────────────────────────────────────
+
 
 def test_files_help_lists_generated_tools():
     """`m3 files --help` exits 0 and lists the generated file tools."""
@@ -212,6 +211,7 @@ def test_destructive_tool_dry_run_needs_no_yes():
 
 # ── complex-arg tools take --json ────────────────────────────────────────────
 
+
 def test_complex_arg_tool_rejects_invalid_json():
     """A complex-arg tool (task_create) with malformed --json exits 2."""
     proc = _run_cli("tasks", "task_create", "--json", "{invalid")
@@ -230,8 +230,10 @@ def test_complex_arg_tool_accepts_valid_json_dry_run():
     here rather than the guard being loosened to keep a bad payload green.
     """
     proc = _run_cli(
-        "tasks", "task_create",
-        "--json", json.dumps({"title": "x", "created_by": "t"}),
+        "tasks",
+        "task_create",
+        "--json",
+        json.dumps({"title": "x", "created_by": "t"}),
         "--dry-run",
     )
     assert proc.returncode == 0, f"stderr={proc.stderr}\nstdout={proc.stdout}"
@@ -240,6 +242,7 @@ def test_complex_arg_tool_accepts_valid_json_dry_run():
 
 
 # ── chat namespace (chatlog domain → `chat` command + op subcommands) ─────────
+
 
 def test_chat_status_is_operational_and_exits_zero():
     """`m3 chat status` runs the operational chatlog status command (not a
@@ -268,6 +271,7 @@ def test_chatlog_status_alias_still_works():
 
 # ── exclusions: dispatcher/meta tools are NOT generated subcommands ───────────
 
+
 def test_m3_call_is_not_a_generated_subcommand():
     """m3_call is excluded from the human CLI surface — `m3 admin m3_call`
     must fail (argparse rejects the unknown choice, exit 2)."""
@@ -283,6 +287,7 @@ def test_admin_help_does_not_list_m3_call():
 
 
 # ── exit-code propagation through the UTF-8 re-exec (§3 fail-loud) ────────────
+
 
 def test_error_exit_code_propagates_through_utf8_reexec():
     """A failing command MUST exit non-zero even when _ensure_utf8 takes the

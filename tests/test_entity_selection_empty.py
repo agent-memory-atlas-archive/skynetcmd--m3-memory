@@ -7,6 +7,7 @@ under ORDER BY LENGTH DESC), burning tokens forever. Fix: a processed turn (empt
 OR success) is marked status='done' in entity_extraction_queue, and selection
 skips done rows. These tests pin that + old-DB tolerance.
 """
+
 from __future__ import annotations
 
 import sqlite3

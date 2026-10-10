@@ -14,6 +14,7 @@ and it costs trust in exactly the moment we asked for the highest privilege.
 The guard: prompt only when stdin is a tty. Otherwise refuse the destructive
 default, name the flag that makes it non-interactive, and exit 0.
 """
+
 from __future__ import annotations
 
 import io
@@ -38,8 +39,7 @@ class _IsATty(io.StringIO):
 
 
 def _fake_eligible(monkeypatch, names=("AgentOS_Fake1", "AgentOS_Fake2")):
-    monkeypatch.setattr(gc.gm, "detect_scheduled_tasks",
-                        lambda: {"eligible": list(names)})
+    monkeypatch.setattr(gc.gm, "detect_scheduled_tasks", lambda: {"eligible": list(names)})
 
 
 def test_no_tty_refuses_instead_of_prompting(monkeypatch, capsys):
@@ -81,8 +81,11 @@ def test_yes_flag_skips_the_prompt_entirely(monkeypatch):
     """--yes is the documented unattended path; it must not consult stdin."""
     _fake_eligible(monkeypatch)
     removed = {}
-    monkeypatch.setattr(gc.gm, "try_remove_scheduled_tasks",
-                        lambda names: (removed.setdefault("names", list(names)), [])[1] or (list(names), []))
+    monkeypatch.setattr(
+        gc.gm,
+        "try_remove_scheduled_tasks",
+        lambda names: (removed.setdefault("names", list(names)), [])[1] or (list(names), []),
+    )
 
     def _boom(*_a, **_k):
         raise AssertionError("input() called despite --yes")
@@ -113,6 +116,7 @@ def test_a_real_tty_still_gets_the_confirmation(monkeypatch):
 
 
 # ── the same rule, everywhere a prompt can land in an unattended console ─────
+
 
 def test_migrate_memory_confirm_declines_without_a_tty(monkeypatch):
     """migrate_memory._confirm must not block either.

@@ -26,13 +26,13 @@ if BIN not in sys.path:
 @pytest.fixture
 def probe():
     from doctor import entrypoint_probe
+
     return entrypoint_probe
 
 
 def test_clean_install_reports_nothing(probe, monkeypatch):
     monkeypatch.setattr(probe, "_installed_version", lambda: "2026.7.25.0")
-    monkeypatch.setattr(probe, "_which_all",
-                        lambda n: [f"/pipx/bin/{n}"] if n == "m3" else [])
+    monkeypatch.setattr(probe, "_which_all", lambda n: [f"/pipx/bin/{n}"] if n == "m3" else [])
     monkeypatch.setattr(probe, "_probe_version", lambda p, timeout=20.0: ("2026.7.25.0", None))
     assert probe.check() == []
     assert probe.run(brief=True) == 0
@@ -41,8 +41,7 @@ def test_clean_install_reports_nothing(probe, monkeypatch):
 def test_stale_entrypoint_is_flagged(probe, monkeypatch):
     """The launcher runs, but it is an older build than the installed package."""
     monkeypatch.setattr(probe, "_installed_version", lambda: "2026.7.25.0")
-    monkeypatch.setattr(probe, "_which_all",
-                        lambda n: [f"/old/bin/{n}"] if n == "m3" else [])
+    monkeypatch.setattr(probe, "_which_all", lambda n: [f"/old/bin/{n}"] if n == "m3" else [])
     monkeypatch.setattr(probe, "_probe_version", lambda p, timeout=20.0: ("2026.4.8", None))
 
     findings = probe.check()
@@ -55,10 +54,10 @@ def test_orphaned_launcher_is_flagged(probe, monkeypatch):
     """Package uninstalled, .exe left behind -> ModuleNotFoundError on invoke.
     PATH lookup succeeds, so only actually RUNNING it reveals the breakage."""
     monkeypatch.setattr(probe, "_installed_version", lambda: "2026.7.25.0")
-    monkeypatch.setattr(probe, "_which_all",
-                        lambda n: [f"/dead/bin/{n}"] if n == "m3" else [])
+    monkeypatch.setattr(probe, "_which_all", lambda n: [f"/dead/bin/{n}"] if n == "m3" else [])
     monkeypatch.setattr(
-        probe, "_probe_version",
+        probe,
+        "_probe_version",
         lambda p, timeout=20.0: (None, "ModuleNotFoundError: No module named 'm3_memory'"),
     )
 
@@ -72,7 +71,8 @@ def test_shadowing_is_flagged_even_when_the_winner_is_current(probe, monkeypatch
     A second copy on PATH is reported so it can be removed before it wins."""
     monkeypatch.setattr(probe, "_installed_version", lambda: "2026.7.25.0")
     monkeypatch.setattr(
-        probe, "_which_all",
+        probe,
+        "_which_all",
         lambda n: [f"/pipx/bin/{n}", f"/usr/local/bin/{n}"] if n == "m3" else [],
     )
     monkeypatch.setattr(probe, "_probe_version", lambda p, timeout=20.0: ("2026.7.25.0", None))
@@ -92,8 +92,10 @@ def test_absent_optional_entrypoint_is_not_a_finding(probe, monkeypatch):
 
 def test_probe_never_raises(probe, monkeypatch):
     """The doctor must survive a probe blowing up."""
+
     def boom(*a, **k):
         raise RuntimeError("PATH exploded")
+
     monkeypatch.setattr(probe, "_which_all", boom)
     assert probe.run(brief=True) == 0
 
@@ -128,6 +130,7 @@ def test_undeterminable_version_reports_skipped_not_ok(probe, monkeypatch, capsy
 
 
 # ── cwd must not change the verdict ──────────────────────────────────────────
+
 
 def test_version_probes_run_from_a_neutral_cwd():
     """The probe's answer must not depend on where the doctor was launched.
@@ -184,8 +187,7 @@ def test_installed_version_ignores_a_shadowing_cwd(tmp_path, monkeypatch):
 
     fake = tmp_path / "m3_memory-1.2.3.dist-info"
     fake.mkdir()
-    (fake / "METADATA").write_text(
-        "Metadata-Version: 2.1\nName: m3-memory\nVersion: 1.2.3\n", encoding="utf-8")
+    (fake / "METADATA").write_text("Metadata-Version: 2.1\nName: m3-memory\nVersion: 1.2.3\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
 
     # Assert the MECHANISM, not just the answer. Checking `got != "1.2.3"` alone

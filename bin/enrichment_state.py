@@ -17,6 +17,7 @@ All callers should hold a per-DB sqlite3.Connection in WAL mode. The module
 neither opens nor closes connections — that's the caller's responsibility,
 matching the rest of bin/.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -38,16 +39,18 @@ logger = logging.getLogger(__name__)
 
 # ── Tunables ───────────────────────────────────────────────────────────────
 DEFAULT_MAX_ATTEMPTS = 3
-CLAIM_TIMEOUT_SEC = 3600          # in_progress → pending if claimed_at older
-BACKOFF_BASE_SEC = 30             # exp backoff: 30, 60, 120, ...
+CLAIM_TIMEOUT_SEC = 3600  # in_progress → pending if claimed_at older
+BACKOFF_BASE_SEC = 30  # exp backoff: 30, 60, 120, ...
 
 # Errors that won't change on retry — straight to dead_letter on first failure.
-DETERMINISTIC_ERROR_CLASSES = frozenset({
-    "json_decode",
-    "tokenizer_error",
-    "content_too_large",
-    "schema_violation",
-})
+DETERMINISTIC_ERROR_CLASSES = frozenset(
+    {
+        "json_decode",
+        "tokenizer_error",
+        "content_too_large",
+        "schema_violation",
+    }
+)
 
 
 # ── Time helpers ───────────────────────────────────────────────────────────
@@ -56,9 +59,7 @@ from m3_core.runtime import utc_iso as _utcnow_iso  # noqa: E402
 
 
 def _iso_plus(seconds: int) -> str:
-    return (datetime.now(UTC) + timedelta(seconds=seconds)).strftime(
-        "%Y-%m-%dT%H:%M:%SZ"
-    )
+    return (datetime.now(UTC) + timedelta(seconds=seconds)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 # ── Hashing ────────────────────────────────────────────────────────────────
@@ -106,6 +107,7 @@ def open_state_conn(db_path: Path | str | None):
 def has_state_tables(conn: sqlite3.Connection) -> bool:
     """True iff migration 028 has been applied to this DB."""
     from memory.backends import dialect
+
     _d = dialect()
     found = 0
     for t in ("enrichment_groups", "enrichment_runs"):
@@ -120,7 +122,9 @@ def _git_sha() -> str:
     try:
         out = subprocess.run(
             ["git", "rev-parse", "HEAD"],
-            capture_output=True, text=True, timeout=2,
+            capture_output=True,
+            text=True,
+            timeout=2,
             # git is a console app on Windows — flash-free background call.
             **no_window_kwargs(),
         )
@@ -145,6 +149,7 @@ def start_run(
     """Insert a new enrichment_runs row at status='running'. Returns run_id."""
     run_id = str(uuid.uuid4())
     from memory.backends import dialect
+
     _d = dialect()
     conn.execute(
         f"""
@@ -154,8 +159,14 @@ def start_run(
         ) VALUES ({_d.placeholder(11)}, 'running')
         """,
         (
-            run_id, _utcnow_iso(), profile, model, source_variant, target_variant,
-            db_path, concurrency,
+            run_id,
+            _utcnow_iso(),
+            profile,
+            model,
+            source_variant,
+            target_variant,
+            db_path,
+            concurrency,
             json.dumps(launch_argv if launch_argv is not None else sys.argv),
             socket.gethostname(),
             _git_sha(),
@@ -175,6 +186,7 @@ def end_run(
 ) -> None:
     """Update enrichment_runs row with final counts + status."""
     from memory.backends import dialect
+
     _d = dialect()
     _p = _d.param()
     counts = conn.execute(
@@ -202,9 +214,17 @@ def end_run(
         WHERE id = {_p}
         """,
         (
-            _utcnow_iso(), status,
-            n["pending"], n["success"], n["failed"], n["empty"], n["dead_letter"],
-            total_cost, abort_reason, notes, run_id,
+            _utcnow_iso(),
+            status,
+            n["pending"],
+            n["success"],
+            n["failed"],
+            n["empty"],
+            n["dead_letter"],
+            total_cost,
+            abort_reason,
+            notes,
+            run_id,
         ),
     )
     conn.commit()
@@ -213,11 +233,11 @@ def end_run(
 def run_total_cost_usd(conn: sqlite3.Connection, run_id: str) -> float:
     """Sum cost_usd across all groups linked to a run. Used for budget checks."""
     from memory.backends import dialect
+
     _d = dialect()
     _p = _d.param()
     row = conn.execute(
-        f"SELECT COALESCE(SUM(cost_usd), 0) FROM enrichment_groups "
-        f"WHERE enrich_run_id = {_p}",
+        f"SELECT COALESCE(SUM(cost_usd), 0) FROM enrichment_groups WHERE enrich_run_id = {_p}",
         (run_id,),
     ).fetchone()
     return float(row[0] or 0.0)
@@ -246,6 +266,7 @@ def enroll_group(
     Caller is responsible for `commit()` — we keep this fast for batch enroll.
     """
     from memory.backends import dialect
+
     _d = dialect()
     _p = _d.param()
     cur = conn.execute(
@@ -266,8 +287,7 @@ def enroll_group(
         # the full source content. The first real run that touches such a
         # row should UPDATE the hash without resetting status — otherwise
         # we wipe legitimate prior progress (success/empty/dead_letter).
-        is_placeholder = (old_hash or "").startswith("backfill::") or \
-                         (old_hash or "").startswith("backfill-pending::")
+        is_placeholder = (old_hash or "").startswith("backfill::") or (old_hash or "").startswith("backfill-pending::")
         if is_placeholder:
             conn.execute(
                 f"""
@@ -279,8 +299,7 @@ def enroll_group(
                     enrich_run_id=COALESCE({_p}, enrich_run_id)
                 WHERE id = {_p}
                 """,
-                (source_content_hash, turn_count, content_size_k,
-                 profile, model, enrich_run_id, old_id),
+                (source_content_hash, turn_count, content_size_k, profile, model, enrich_run_id, old_id),
             )
             return (old_id, "unchanged")
         # Real hash mismatch = source content actually drifted. Reset the
@@ -301,11 +320,11 @@ def enroll_group(
                 profile={_p}, model={_p}, enrich_run_id={_p}
             WHERE id = {_p}
             """,
-            (source_content_hash, turn_count, content_size_k,
-             profile, model, enrich_run_id, old_id),
+            (source_content_hash, turn_count, content_size_k, profile, model, enrich_run_id, old_id),
         )
         return (old_id, "superseded")
     from memory.backends import dialect
+
     _d = dialect()
     # Backend-neutral generated-id read via the dialect (RETURNING id on PG/MariaDB,
     # cur.lastrowid on SQLite) — not a `== "postgres"` name check.
@@ -318,9 +337,17 @@ def enroll_group(
         ) VALUES ({_d.placeholder(11)}){_d.returning_id_clause()}
         """,
         (
-            source_variant, target_variant, group_key, user_id, db_path,
-            turn_count, source_content_hash, content_size_k,
-            profile, model, enrich_run_id,
+            source_variant,
+            target_variant,
+            group_key,
+            user_id,
+            db_path,
+            turn_count,
+            source_content_hash,
+            content_size_k,
+            profile,
+            model,
+            enrich_run_id,
         ),
     )
     new_id = cast(int, _d.last_insert_id(cur))  # dialect returns object; the id is an int
@@ -373,6 +400,7 @@ def recover_stale_claims(
     Returns count of recovered rows."""
     cutoff = _iso_plus(-timeout_sec)
     from memory.backends import dialect
+
     _d = dialect()
     _p = _d.param()
     cur = conn.execute(
@@ -405,6 +433,7 @@ def claim_group(
     token = str(uuid.uuid4())
     now = _utcnow_iso()
     from memory.backends import dialect
+
     _p = dialect().param()
     # Plain UPDATE (not ON CONFLICT), so bare `attempts = attempts + 1` is
     # unambiguous on both backends.
@@ -448,6 +477,7 @@ def mark_success(
     on un-migrated DBs don't error out — the column simply stays NULL.
     """
     from memory.backends import dialect
+
     _d = dialect()
     _p = _d.param()
     if partial_failure_chunks:
@@ -461,8 +491,7 @@ def mark_success(
                 claim_token=NULL, claimed_at=NULL
             WHERE id = {_p}
             """,
-            (obs_emitted, enrichment_ms, tokens_in, tokens_out, cost_usd,
-             partial_failure_chunks, group_id),
+            (obs_emitted, enrichment_ms, tokens_in, tokens_out, cost_usd, partial_failure_chunks, group_id),
         )
     else:
         conn.execute(
@@ -489,6 +518,7 @@ def mark_empty(
     cost_usd: float | None = None,
 ) -> None:
     from memory.backends import dialect
+
     _d = dialect()
     _p = _d.param()
     conn.execute(
@@ -548,6 +578,7 @@ def mark_failed(
     branch only if classified as such (they aren't — http_status is not
     deterministic), so in practice 429s always stay at status='failed'."""
     from memory.backends import dialect
+
     _d = dialect()
     _p = _d.param()
     row = conn.execute(
@@ -581,8 +612,17 @@ def mark_failed(
             claim_token=NULL, claimed_at=NULL
         WHERE id = {_p}
         """,
-        (new_status, error_class, truncated, next_eligible_at, enrichment_ms,
-         tokens_in, tokens_out, cost_usd, group_id),
+        (
+            new_status,
+            error_class,
+            truncated,
+            next_eligible_at,
+            enrichment_ms,
+            tokens_in,
+            tokens_out,
+            cost_usd,
+            group_id,
+        ),
     )
     conn.commit()
     return new_status
@@ -619,6 +659,7 @@ def eligible_for_resume(
     ignored entirely (backwards compatible).
     """
     from memory.backends import dialect
+
     _d = dialect()
     _p = _d.param()
     statuses = ["pending", "failed"]
@@ -659,6 +700,7 @@ def status_counts(
 ) -> dict[str, int]:
     """Per-status row counts. Useful for status-report CLI."""
     from memory.backends import dialect
+
     _d = dialect()
     _p = _d.param()
     where = "1=1"

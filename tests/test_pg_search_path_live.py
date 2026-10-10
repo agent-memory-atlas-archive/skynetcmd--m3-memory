@@ -5,6 +5,7 @@ Skips cleanly without a reachable cluster. Exercises the PG candidate-fetch path
 to end through the real scored-search function, and asserts the query-aligned,
 title-matching item ranks first — the functional contract, backend-independent.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -15,9 +16,7 @@ import pytest
 
 # Hosts these destructive tests must never touch, supplied via env (comma-
 # separated) so no internal infrastructure address is hardcoded in source.
-_FORBIDDEN = [
-    h.strip() for h in os.environ.get("M3_PG_FORBIDDEN_HOSTS", "").split(",") if h.strip()
-]
+_FORBIDDEN = [h.strip() for h in os.environ.get("M3_PG_FORBIDDEN_HOSTS", "").split(",") if h.strip()]
 
 
 # Gated by the requires_pg marker (auto-skips when no Postgres reachable).
@@ -25,6 +24,8 @@ _FORBIDDEN = [
 from conftest import pg_dsn
 
 pytestmark = pytest.mark.requires_pg
+
+
 def _dsn() -> str:
     """Resolve the DSN LAZILY, at fixture time — never at module import.
 
@@ -110,8 +111,7 @@ def pg_seeded(monkeypatch):
                 (mid, title, content),
             )
             cur.execute(
-                "INSERT INTO memory_embeddings(memory_id,embedding,dim,embed_model) "
-                "VALUES (%s,%s,%s,%s)",
+                "INSERT INTO memory_embeddings(memory_id,embedding,dim,embed_model) VALUES (%s,%s,%s,%s)",
                 (mid, _blob(vec), dim, model),
             )
     yield qvec, [i[0] for i in items]
@@ -127,9 +127,7 @@ def pg_seeded(monkeypatch):
     # Dropping the tables and clearing _schema_ready makes the NEXT
     # ensure_schema() rebuild the full shape.
     with b.connection() as c:
-        c.cursor().execute(
-            "DROP TABLE IF EXISTS memory_embeddings, memory_items CASCADE"
-        )
+        c.cursor().execute("DROP TABLE IF EXISTS memory_embeddings, memory_items CASCADE")
     b._schema_ready = False
     b.close()
 
@@ -173,22 +171,29 @@ def test_pg_memory_write_impl_end_to_end(monkeypatch):
         c.cursor().execute("DELETE FROM memory_items WHERE title LIKE 'e2e_%'")
 
     try:
-        res_normal = asyncio.run(memory_write_impl(
-            "note", "e2e content one", title="e2e_normal",
-            metadata='{"role":"user"}', embed=False,
-        ))
-        res_empty = asyncio.run(memory_write_impl(
-            "note", "e2e content two", title="e2e_empty",
-            metadata="", embed=False,  # JSONB '' trap -> normalized to {}
-        ))
+        res_normal = asyncio.run(
+            memory_write_impl(
+                "note",
+                "e2e content one",
+                title="e2e_normal",
+                metadata='{"role":"user"}',
+                embed=False,
+            )
+        )
+        res_empty = asyncio.run(
+            memory_write_impl(
+                "note",
+                "e2e content two",
+                title="e2e_empty",
+                metadata="",
+                embed=False,  # JSONB '' trap -> normalized to {}
+            )
+        )
         assert isinstance(res_normal, str) and isinstance(res_empty, str)
 
         with b.connection() as c:
             cur = c.cursor()
-            cur.execute(
-                "SELECT title, metadata_json FROM memory_items "
-                "WHERE title LIKE 'e2e_%' ORDER BY title"
-            )
+            cur.execute("SELECT title, metadata_json FROM memory_items WHERE title LIKE 'e2e_%' ORDER BY title")
             rows = {r[0]: r[1] for r in cur.fetchall()}
         assert rows["e2e_normal"] == {"role": "user"}
         assert rows["e2e_empty"] == {}  # '' was normalized, not a crash
@@ -230,27 +235,20 @@ def test_pg_write_supersede_lifecycle_persists(monkeypatch):
         c.cursor().execute("DELETE FROM memory_items WHERE title LIKE 'lc_%'")
 
     try:
-        r1 = asyncio.run(memory_write_impl(
-            "note", "original content", title="lc_original", embed=False
-        ))
+        r1 = asyncio.run(memory_write_impl("note", "original content", title="lc_original", embed=False))
         old_id = r1.split("Created:", 1)[1].strip().split()[0]
-        asyncio.run(memory_supersede_impl(
-            old_id, "replacement content", title="lc_replacement", embed=False
-        ))
+        asyncio.run(memory_supersede_impl(old_id, "replacement content", title="lc_replacement", embed=False))
 
         with b.connection() as conn:
             cur = conn.cursor()
             cur.execute("SELECT is_deleted FROM memory_items WHERE id = %s", (old_id,))
             assert cur.fetchone()[0] == 1  # old row actually closed
             cur.execute(
-                "SELECT count(*) FROM memory_relationships "
-                "WHERE to_id = %s AND relationship_type = 'supersedes'",
+                "SELECT count(*) FROM memory_relationships WHERE to_id = %s AND relationship_type = 'supersedes'",
                 (old_id,),
             )
             assert cur.fetchone()[0] == 1  # supersedes edge written
-            cur.execute(
-                "SELECT count(*) FROM memory_history WHERE memory_id = %s", (old_id,)
-            )
+            cur.execute("SELECT count(*) FROM memory_history WHERE memory_id = %s", (old_id,))
             assert cur.fetchone()[0] >= 1  # history event recorded
     finally:
         with b.connection() as conn:

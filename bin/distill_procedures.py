@@ -22,6 +22,7 @@ Usage:
     python bin/distill_procedures.py [--apply] [--threshold N] [--stale-days N]
                                      [--max-procedures N] [--log-file PATH]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -47,12 +48,14 @@ def _should_yield_to_user(min_idle_s: float = 30.0) -> str | None:
         import time
 
         from m3_sdk import _LAST_USER_INTERACTION
+
         if time.time() - _LAST_USER_INTERACTION < min_idle_s:
             return f"user active in the last {min_idle_s:.0f}s"
     except Exception:  # noqa: BLE001
         return None
     try:
         from m3_sdk import M3Context, get_governor_pacing
+
         ctx = M3Context.for_db(os.environ.get("M3_DATABASE"))
         pacing = get_governor_pacing(ctx.get_system_telemetry())
         if pacing.get("background") == "HALTED":
@@ -69,8 +72,10 @@ async def _run(apply: bool, threshold: int, stale_days: int, max_procedures: int
     auto = os.environ.get("M3_DISTILL_AUTO", "0") == "1"
     dry_run = not (apply and auto)
     if apply and not auto:
-        prefix = ("[skipped-apply] M3_DISTILL_AUTO is not set — running DRY-RUN. "
-                  "Set M3_DISTILL_AUTO=1 to enable autonomous procedure writes.\n")
+        prefix = (
+            "[skipped-apply] M3_DISTILL_AUTO is not set — running DRY-RUN. "
+            "Set M3_DISTILL_AUTO=1 to enable autonomous procedure writes.\n"
+        )
     else:
         prefix = ""
 
@@ -78,8 +83,7 @@ async def _run(apply: bool, threshold: int, stale_days: int, max_procedures: int
     if not dry_run:
         reason = _should_yield_to_user()
         if reason:
-            return (f"[deferred] procedural distillation skipped — {reason}. "
-                    "Will retry on the next pass.\n")
+            return f"[deferred] procedural distillation skipped — {reason}. Will retry on the next pass.\n"
 
     out = await memory_maintenance.memory_distill_procedures_impl(
         stale_days=stale_days,
@@ -91,19 +95,31 @@ async def _run(apply: bool, threshold: int, stale_days: int, max_procedures: int
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Autonomous procedural distillation (tasks → procedures)."
+    parser = argparse.ArgumentParser(description="Autonomous procedural distillation (tasks → procedures).")
+    parser.add_argument(
+        "--apply", action="store_true", help="Write procedures (requires M3_DISTILL_AUTO=1); else dry-run."
     )
-    parser.add_argument("--apply", action="store_true",
-                        help="Write procedures (requires M3_DISTILL_AUTO=1); else dry-run.")
-    parser.add_argument("--threshold", type=int, default=DEFAULT_THRESHOLD,
-                        help=f"Min completed tasks before distilling (default {DEFAULT_THRESHOLD}).")
-    parser.add_argument("--stale-days", type=int, default=DEFAULT_STALE_DAYS,
-                        help=f"Only distill tasks completed > N days ago (default {DEFAULT_STALE_DAYS}).")
-    parser.add_argument("--max-procedures", type=int, default=DEFAULT_MAX_PROCEDURES,
-                        help=f"Max procedures written per run (default {DEFAULT_MAX_PROCEDURES}).")
+    parser.add_argument(
+        "--threshold",
+        type=int,
+        default=DEFAULT_THRESHOLD,
+        help=f"Min completed tasks before distilling (default {DEFAULT_THRESHOLD}).",
+    )
+    parser.add_argument(
+        "--stale-days",
+        type=int,
+        default=DEFAULT_STALE_DAYS,
+        help=f"Only distill tasks completed > N days ago (default {DEFAULT_STALE_DAYS}).",
+    )
+    parser.add_argument(
+        "--max-procedures",
+        type=int,
+        default=DEFAULT_MAX_PROCEDURES,
+        help=f"Max procedures written per run (default {DEFAULT_MAX_PROCEDURES}).",
+    )
 
     from _task_runtime import add_log_file_arg, setup_task_runtime
+
     add_log_file_arg(parser)
     args = parser.parse_args()
 

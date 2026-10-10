@@ -22,6 +22,7 @@ line, so a GENUINELY missing embedder would read identically to this false
 alarm. §3: "a warning that fires when nothing is wrong trains users to ignore
 the one that matters."
 """
+
 from __future__ import annotations
 
 import os
@@ -42,9 +43,7 @@ def test_binary_resolution_does_not_stop_at_PATH():
 
     src = inspect.getsource(esp._resolve_binary)
     assert "shutil.which" in src, "PATH is still worth trying first"
-    assert "_server_binary" in src, (
-        "resolution stops at PATH; the wheel-internal binary will read as absent"
-    )
+    assert "_server_binary" in src, "resolution stops at PATH; the wheel-internal binary will read as absent"
 
 
 def test_a_live_port_is_not_reported_as_not_installed():
@@ -63,10 +62,7 @@ def test_a_live_port_is_not_reported_as_not_installed():
     # The 'not installed' wording must sit on the branch where the port is also
     # silent -- otherwise it is the same false alarm with extra steps.
     idx = src.index("not installed (optional)")
-    assert "_port_answers" in src[:idx], (
-        "'not installed' is printed without first checking whether the port "
-        "answers"
-    )
+    assert "_port_answers" in src[:idx], "'not installed' is printed without first checking whether the port answers"
 
 
 def test_missing_subcommand_is_not_reported_as_a_health_failure():
@@ -82,8 +78,7 @@ def test_missing_subcommand_is_not_reported_as_a_health_failure():
 
     src = inspect.getsource(esp.run)
     assert "USAGE" in src, (
-        "an unsupported subcommand (USAGE + non-zero rc) is indistinguishable "
-        "from a real health failure"
+        "an unsupported subcommand (USAGE + non-zero rc) is indistinguishable from a real health failure"
     )
     assert '"status"' in src, "no fallback to a subcommand the binary supports"
 
@@ -134,11 +129,9 @@ def test_resolution_never_raises_when_the_package_is_absent(monkeypatch):
     )
     out = subprocess.run(
         [sys.executable, "-c", code, _ROOT],
-        capture_output=True, text=True, timeout=120,
+        capture_output=True,
+        text=True,
+        timeout=120,
     )
-    assert "RAISED:" not in out.stdout, (
-        f"_resolve_binary raised instead of degrading: {out.stdout.strip()}"
-    )
-    assert "RESULT: None" in out.stdout, (
-        f"expected None when nothing is resolvable, got: {out.stdout.strip()}"
-    )
+    assert "RAISED:" not in out.stdout, f"_resolve_binary raised instead of degrading: {out.stdout.strip()}"
+    assert "RESULT: None" in out.stdout, f"expected None when nothing is resolvable, got: {out.stdout.strip()}"

@@ -10,6 +10,7 @@ each step is still reported as done or not.
 Windows only. Never raises; a cancelled prompt or a missing results file means
 no step ran.
 """
+
 from __future__ import annotations
 
 import json
@@ -39,8 +40,7 @@ class ElevationBatch:
     def __len__(self) -> int:
         return len(self.actions)
 
-    def render_script(self, results_path: str, log_dir: str,
-                      expires_epoch: int | None = None) -> str:
+    def render_script(self, results_path: str, log_dir: str, expires_epoch: int | None = None) -> str:
         """The PowerShell the elevated process runs: each action in order, its
         output to its own log and its exit code under its label, then the codes
         written as JSON.
@@ -57,15 +57,17 @@ class ElevationBatch:
             lines.append(
                 f"if ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds() -gt {int(expires_epoch)}) {{ "
                 f"@{{expired = 1}} | ConvertTo-Json | Set-Content -LiteralPath "
-                f"{_ps_quote(results_path)} -Encoding UTF8; exit 0 }}")
+                f"{_ps_quote(results_path)} -Encoding UTF8; exit 0 }}"
+            )
         for i, (label, argv) in enumerate(self.actions):
             call = "& " + " ".join(_ps_quote(a) for a in argv)
             log = _ps_quote(os.path.join(log_dir, f"{i}.log"))
-            lines.append(f"try {{ {call} *> {log}; $r[{_ps_quote(label)}] = $LASTEXITCODE }} "
-                         f"catch {{ $_ | Out-File -LiteralPath {log} -Append; "
-                         f"$r[{_ps_quote(label)}] = -1 }}")
-        lines.append(f"$r | ConvertTo-Json | Set-Content -LiteralPath {_ps_quote(results_path)} "
-                     f"-Encoding UTF8")
+            lines.append(
+                f"try {{ {call} *> {log}; $r[{_ps_quote(label)}] = $LASTEXITCODE }} "
+                f"catch {{ $_ | Out-File -LiteralPath {log} -Append; "
+                f"$r[{_ps_quote(label)}] = -1 }}"
+            )
+        lines.append(f"$r | ConvertTo-Json | Set-Content -LiteralPath {_ps_quote(results_path)} -Encoding UTF8")
         return "\r\n".join(lines) + "\r\n"
 
     def run(self, timeout: int = 300) -> dict[str, dict] | None:
@@ -84,6 +86,7 @@ class ElevationBatch:
         if not is_windows():
             return None
         import time
+
         expires = int(time.time()) + timeout
         tmp = _workdir()
         try:
@@ -102,8 +105,12 @@ class ElevationBatch:
             "-Verb RunAs -PassThru -Wait -WindowStyle Hidden; exit $p.ExitCode"
         )
         try:
-            subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", launcher],
-                           timeout=timeout, check=False, capture_output=True)
+            subprocess.run(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command", launcher],
+                timeout=timeout,
+                check=False,
+                capture_output=True,
+            )
         except (OSError, subprocess.SubprocessError):
             return None
         try:
@@ -114,8 +121,7 @@ class ElevationBatch:
             out: dict[str, dict] = {}
             for i, (label, _argv) in enumerate(self.actions):
                 rc = data.get(label)
-                out[label] = {"rc": -1 if rc is None else int(rc),
-                              "output": _tail(os.path.join(tmp, f"{i}.log"))}
+                out[label] = {"rc": -1 if rc is None else int(rc), "output": _tail(os.path.join(tmp, f"{i}.log"))}
             return out
         except (OSError, ValueError):
             return None  # declined, or the elevated process never got that far
@@ -134,7 +140,10 @@ def _remove_workdir(path: str) -> None:
         logging.getLogger(__name__).warning(
             "elevation workdir not fully removed. observed: %s: %s. "
             "inspect: an elevated process owns it; delete %s from an elevated shell",
-            type(exc).__name__, p, path)
+            type(exc).__name__,
+            p,
+            path,
+        )
 
     shutil.rmtree(path, onexc=_report)
 
@@ -147,6 +156,7 @@ def _workdir() -> str:
     not read results.json and reported an approved, successful batch as
     declined. A plain mkdir inherits %TEMP%'s ACL, which names the user."""
     import uuid
+
     path = os.path.join(tempfile.gettempdir(), f"m3-elevate-{uuid.uuid4().hex[:12]}")
     os.mkdir(path)
     return path

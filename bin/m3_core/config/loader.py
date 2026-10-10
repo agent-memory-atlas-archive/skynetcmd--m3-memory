@@ -8,6 +8,7 @@ repair. Line numbers are best-effort by design: on 3.12 ``tomllib`` reports a
 decode position only inside its message text, and none for a well-formed but
 unknown key, so the source text is scanned (code never reads ``e.lineno``, 3.14).
 """
+
 from __future__ import annotations
 
 import difflib
@@ -64,7 +65,9 @@ def _warn_legacy_once(root: str) -> None:
         _LEGACY_WARNED.add(root)
         logger.warning(
             "The m3 config root comes from the legacy M3_MEMORY_ROOT/config tier (%s), which is "
-            "removed at N+3. Set M3_CONFIG_ROOT, or pass --config <file>.", root)
+            "removed at N+3. Set M3_CONFIG_ROOT, or pass --config <file>.",
+            root,
+        )
 
 
 # ── Errors ───────────────────────────────────────────────────────────────────
@@ -94,6 +97,7 @@ def format_config_error(exc: BaseException) -> str:
     sub-error with its notes. ``str()`` of a group shows only the header, and a
     note never appears in ``str()``, so a log line built any other way loses the
     key, the line and the repair (DESIGN_PHILOSOPHIES §3)."""
+
     def one(e: BaseException, indent: str) -> list[str]:
         lines = [f"{indent}{e}"]
         pad = " " * (len(indent) + 2)  # notes sit under their error, not as new bullets
@@ -130,7 +134,7 @@ class FileIdentity:
 @dataclass(frozen=True, slots=True, kw_only=True)
 class LoadedFile:
     location: Location
-    identity: FileIdentity | None          # None: the file does not exist
+    identity: FileIdentity | None  # None: the file does not exist
     values: Mapping[str, ConfigValue] = field(default_factory=lambda: MappingProxyType({}))
     schema_version: int = SCHEMA_VERSION
     warnings: tuple[str, ...] = ()
@@ -145,8 +149,13 @@ def _read(path: Path) -> tuple[bytes, FileIdentity] | None:
         st = path.stat()
     except FileNotFoundError:
         return None
-    return data, FileIdentity(dev=st.st_dev, ino=st.st_ino, mtime_ns=st.st_mtime_ns,
-                              size=st.st_size, sha256=hashlib.sha256(data, usedforsecurity=False).hexdigest())
+    return data, FileIdentity(
+        dev=st.st_dev,
+        ino=st.st_ino,
+        mtime_ns=st.st_mtime_ns,
+        size=st.st_size,
+        sha256=hashlib.sha256(data, usedforsecurity=False).hexdigest(),
+    )
 
 
 def file_identity(path: Path) -> FileIdentity | None:
@@ -168,8 +177,14 @@ def load(location: Location, registry: Registry) -> LoadedFile:
     except UnicodeDecodeError as e:
         raise _syntax_error(path, e) from None
     values, schema, warnings, stores = validate_text(path, text, registry)
-    return LoadedFile(location=location, identity=identity, values=MappingProxyType(values),
-                      schema_version=schema, warnings=tuple(warnings), stores=MappingProxyType(stores))
+    return LoadedFile(
+        location=location,
+        identity=identity,
+        values=MappingProxyType(values),
+        schema_version=schema,
+        warnings=tuple(warnings),
+        stores=MappingProxyType(stores),
+    )
 
 
 def _syntax_error(path: Path, e: Exception) -> ConfigFileError:
@@ -178,8 +193,9 @@ def _syntax_error(path: Path, e: Exception) -> ConfigFileError:
     return ConfigFileError(f"{path} could not be read", [err])
 
 
-def validate_text(path: Path, text: str, registry: Registry
-                  ) -> tuple[dict[str, ConfigValue], int, list[str], dict[str, StoreRef]]:
+def validate_text(
+    path: Path, text: str, registry: Registry
+) -> tuple[dict[str, ConfigValue], int, list[str], dict[str, StoreRef]]:
     """THE validation of m3_config.toml content: (values, schema_version, warnings, stores),
     or ``ConfigFileError`` naming every problem. The loader runs it on the file;
     the writer runs it on the NEW text before replacing the file (§12)."""
@@ -192,36 +208,52 @@ def validate_text(path: Path, text: str, registry: Registry
     warnings: list[str] = []
     schema = doc.pop("schema_version", SCHEMA_VERSION)
     if not isinstance(schema, int) or isinstance(schema, bool) or schema < 1:
-        errors.append(_key_error(path, text, "schema_version",
-                                 f"must be a positive integer, found {schema!r}"))
+        errors.append(_key_error(path, text, "schema_version", f"must be a positive integer, found {schema!r}"))
         schema = SCHEMA_VERSION
     newer = schema > SCHEMA_VERSION
 
     # [stores.<name>] tables are dynamic: validated by the stores module (§14).
-    stores = parse_stores(doc.pop("stores"), lambda key, msg: errors.append(_key_error(path, text, key, msg)))         if "stores" in doc else {}
+    stores = (
+        parse_stores(doc.pop("stores"), lambda key, msg: errors.append(_key_error(path, text, key, msg)))
+        if "stores" in doc
+        else {}
+    )
 
     values: dict[str, ConfigValue] = {}
     for name, raw in _leaves(doc):
         key = registry.get(name) or registry.by_env(name.rpartition(".")[2])
         if key is not None and key.klass is KeyClass.SECRET:
             # Never echo the value: it is the hazard (§10 Secret Invariant).
-            errors.append(_key_error(
-                path, text, name, f"{key.name} is a secret and is never read from this file",
-                "move it to the keyring or the secrets file, then delete this line"))
+            errors.append(
+                _key_error(
+                    path,
+                    text,
+                    name,
+                    f"{key.name} is a secret and is never read from this file",
+                    "move it to the keyring or the secrets file, then delete this line",
+                )
+            )
             continue
         if key is not None and key.name != name:
-            errors.append(_key_error(path, text, name,
-                                     f"{name.rpartition('.')[2]} is an environment variable name",
-                                     f"in this file the setting is {show_key(key.name)}"))
+            errors.append(
+                _key_error(
+                    path,
+                    text,
+                    name,
+                    f"{name.rpartition('.')[2]} is an environment variable name",
+                    f"in this file the setting is {show_key(key.name)}",
+                )
+            )
             continue
         if key is None:
             problem = "unknown key"
             if newer:
-                warnings.append(f"{path}: {show_key(name)}: unknown to schema {SCHEMA_VERSION}, "
-                                f"file declares schema {schema}; ignored")
+                warnings.append(
+                    f"{path}: {show_key(name)}: unknown to schema {SCHEMA_VERSION}, "
+                    f"file declares schema {schema}; ignored"
+                )
                 continue
-            errors.append(_key_error(path, text, name, problem,
-                                     _did_you_mean(name, registry)))
+            errors.append(_key_error(path, text, name, problem, _did_you_mean(name, registry)))
             continue
         if key.klass is KeyClass.STATE:
             errors.append(_key_error(path, text, name, "is machine state and is not configurable"))
@@ -232,8 +264,7 @@ def validate_text(path: Path, text: str, registry: Registry
             errors.append(_key_error(path, text, name, str(e)))
 
     if errors:
-        raise ConfigFileError(f"{path} has {len(errors)} invalid "
-                              f"{'entry' if len(errors) == 1 else 'entries'}", errors)
+        raise ConfigFileError(f"{path} has {len(errors)} invalid {'entry' if len(errors) == 1 else 'entries'}", errors)
     return values, schema, warnings, stores
 
 

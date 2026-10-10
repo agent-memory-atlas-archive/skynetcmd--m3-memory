@@ -21,6 +21,7 @@ Cycle-break (§2): no top-level import of ``memory_core``; resolve lazily.
 Fail loud (§3): a missing DSN or driver raises with an actionable message, never
 a silent fallback to SQLite.
 """
+
 from __future__ import annotations
 
 import os
@@ -334,15 +335,15 @@ def _resolve_store_dsn(store) -> str:
     and the warehouse DSN are refused, so a store can never become the warehouse."""
     from m3_core.secret_store import VaultPolicy, _env_first, explain_secret
 
-    found = explain_secret((store.dsn_secret,), env_hit=_env_first((store.dsn_secret,)),
-                           vault=VaultPolicy.NEVER)
+    found = explain_secret((store.dsn_secret,), env_hit=_env_first((store.dsn_secret,)), vault=VaultPolicy.NEVER)
     if not found.value:
         tiers = ("; tiers reported: " + " | ".join(found.errors)) if found.errors else ""
         raise RuntimeError(
             f"observed: store {store.name!r} (backend postgres) names dsn_secret "
             f"{store.dsn_secret}, which is not set in the environment, the keyring or the "
             f"secrets file{tiers}. inspect: `python -m keyring set system {store.dsn_secret}` "
-            f"(prompts for the DSN), or [stores.{store.name}] in m3_config.toml")
+            f"(prompts for the DSN), or [stores.{store.name}] in m3_config.toml"
+        )
     _reject_forbidden_host(found.value)
     _reject_same_as_warehouse(found.value)
     return found.value
@@ -472,11 +473,15 @@ def _archive_row_counts(pg_restore: str, archive: str, schema: str) -> dict[str,
     # that fills while we read stdout deadlocks both processes.
     import tempfile
 
-    with tempfile.TemporaryFile() as errf, subprocess.Popen(  # nosec B603 — absolute tool path, no shell, argv list
-        # `--file=-` explicitly: pg_restore 18 refuses to default to stdout.
-        [pg_restore, "--data-only", "--file=-", archive],
-        stdout=subprocess.PIPE, stderr=errf,
-    ) as proc:
+    with (
+        tempfile.TemporaryFile() as errf,
+        subprocess.Popen(  # nosec B603 — absolute tool path, no shell, argv list
+            # `--file=-` explicitly: pg_restore 18 refuses to default to stdout.
+            [pg_restore, "--data-only", "--file=-", archive],
+            stdout=subprocess.PIPE,
+            stderr=errf,
+        ) as proc,
+    ):
         assert proc.stdout is not None
         for line in proc.stdout:
             if current is None:
@@ -526,13 +531,9 @@ class PostgresDialect(Dialect):
         return "INSERT INTO"
 
     @override
-    def on_conflict_ignore(
-        self, *, conflict_target: str = "", index_predicate: str = ""
-    ) -> str:
+    def on_conflict_ignore(self, *, conflict_target: str = "", index_predicate: str = "") -> str:
         if index_predicate and not conflict_target:
-            raise ValueError(
-                "index_predicate requires a conflict_target (partial-index arbiter)"
-            )
+            raise ValueError("index_predicate requires a conflict_target (partial-index arbiter)")
         tgt = f" {conflict_target}" if conflict_target else ""
         pred = f" WHERE {index_predicate}" if index_predicate else ""
         return f"ON CONFLICT{tgt}{pred} DO NOTHING"
@@ -658,8 +659,14 @@ class PostgresDialect(Dialect):
 
     @override
     def claim_message(
-        self, conn: object, *, table: str, where_sql: str, where_params: tuple,
-        claimant: str, lease_ttl: int = 300,
+        self,
+        conn: object,
+        *,
+        table: str,
+        where_sql: str,
+        where_params: tuple,
+        claimant: str,
+        lease_ttl: int = 300,
     ) -> tuple | None:
         """Claim via ``FOR UPDATE SKIP LOCKED`` -- the native primitive.
 
@@ -697,7 +704,11 @@ class PostgresDialect(Dialect):
 
     @override
     def sweep_expired_leases(
-        self, conn: object, *, table: str, max_attempts: int = 5,
+        self,
+        conn: object,
+        *,
+        table: str,
+        max_attempts: int = 5,
         limit: int = 100,
     ) -> tuple[int, int]:
         """Reclaim lapsed leases, dividing the work between concurrent sweepers.
@@ -792,18 +803,12 @@ class PostgresDialect(Dialect):
 
     @override
     def _columns_of_query(self, table: str) -> tuple[str, tuple]:
-        sql = (
-            "SELECT column_name FROM information_schema.columns "
-            "WHERE table_name = %s ORDER BY ordinal_position"
-        )
+        sql = "SELECT column_name FROM information_schema.columns WHERE table_name = %s ORDER BY ordinal_position"
         return (sql, (table,))
 
     @override
     def _column_exists_query(self, table: str, column: str) -> tuple[str, tuple]:
-        sql = (
-            "SELECT 1 FROM information_schema.columns "
-            "WHERE table_name = %s AND column_name = %s"
-        )
+        sql = "SELECT 1 FROM information_schema.columns WHERE table_name = %s AND column_name = %s"
         return (sql, (table, column))
 
     @override
@@ -819,24 +824,21 @@ class PostgresDialect(Dialect):
         # to LIKE ones. Escape literal % and _ (LIKE wildcards) in the SOURCE first
         # so they stay literal, THEN map glob * -> % and ? -> _.
         translated = (
-            pattern.replace("\\", "\\\\")   # escape the escape char itself
-                   .replace("%", "\\%")
-                   .replace("_", "\\_")
-                   .replace("*", "%")
-                   .replace("?", "_")
+            pattern.replace("\\", "\\\\")  # escape the escape char itself
+            .replace("%", "\\%")
+            .replace("_", "\\_")
+            .replace("*", "%")
+            .replace("?", "_")
         )
         return (f"{column} LIKE {placeholder}", translated)
 
     @override
-    def compact_storage(self, *, sqlite_path: str | None = None,
-                        max_bytes: int = 500 * 1024 * 1024) -> str:
+    def compact_storage(self, *, sqlite_path: str | None = None, max_bytes: int = 500 * 1024 * 1024) -> str:
         # No client-issued compaction: autovacuum reclaims dead tuples in the
         # background, and a manual VACUUM here would need its own out-of-txn
         # connection without shrinking the files (only VACUUM FULL does, under an
         # exclusive lock — not something a routine maintenance pass should take).
         return "VACUUM skipped: not applicable on PostgreSQL (autovacuum handles this)"
-
-
 
     @override
     def set_statement_timeout(self, conn: object, ms: int) -> None:
@@ -844,6 +846,7 @@ class PostgresDialect(Dialect):
         # parameter either.
         with conn.cursor() as cur:  # type: ignore[attr-defined]
             cur.execute(f"SET statement_timeout = {int(ms)}")
+
 
 # The one shared frozen singleton for PostgreSQL.
 POSTGRES = PostgresDialect()
@@ -1000,9 +1003,7 @@ class PostgresBackend:
                 already_set = False
             if not already_set:
                 connect_kwargs["client_encoding"] = "UTF8"
-            self._pool = ThreadedConnectionPool(
-                minconn, maxconn, dsn=self._dsn, **connect_kwargs
-            )
+            self._pool = ThreadedConnectionPool(minconn, maxconn, dsn=self._dsn, **connect_kwargs)
             return self._pool
 
     def close(self) -> None:
@@ -1073,7 +1074,7 @@ class PostgresBackend:
             return False
         code = getattr(exc, "pgcode", None)
         if code == "25006":  # read_only_sql_transaction: a write through open_readonly,
-            return True      # as SQLite's "attempt to write a readonly database"
+            return True  # as SQLite's "attempt to write a readonly database"
         return isinstance(exc, pg.ProgrammingError) and code != "42P01"
 
     def placeholder(self, n: int = 1) -> str:
@@ -1125,10 +1126,7 @@ class PostgresBackend:
 
         col_list = ", ".join(columns)
         set_clause = ", ".join(f"{c} = EXCLUDED.{c}" for c in update_columns)
-        sql = (
-            f"INSERT INTO {table} ({col_list}) VALUES %s "
-            f"ON CONFLICT {conflict_target} DO UPDATE SET {set_clause}"
-        )
+        sql = f"INSERT INTO {table} ({col_list}) VALUES %s ON CONFLICT {conflict_target} DO UPDATE SET {set_clause}"
         if guard_sql:
             sql += f" {guard_sql}"
         cur = conn.cursor()  # type: ignore[attr-defined]
@@ -1177,10 +1175,10 @@ class PostgresBackend:
         """``postgres:host:port/dbname`` — core and chatlog share it (one database)."""
         ident = _dsn_identity(self._dsn or "")
         if ident is None:
-
             # Unparseable: still stable and credential-free.
             # Through the FIPS boundary: a DSN can carry a password.
             from crypto_provider import get_sha256
+
             return "postgres:" + get_sha256((self._dsn or "").encode())[:16]
         host, port, db = ident
         return f"postgres:{host}:{port}/{db}"
@@ -1228,14 +1226,20 @@ class PostgresBackend:
             snap_id, schema = cur.fetchone()
             expected: dict[str, int] = {}
             for t in sorted(self.list_tables(conn)):
-                cur.execute(sql.SQL("SELECT COUNT(*) FROM {}.{}").format(
-                    sql.Identifier(schema), sql.Identifier(t)))
+                cur.execute(sql.SQL("SELECT COUNT(*) FROM {}.{}").format(sql.Identifier(schema), sql.Identifier(t)))
                 expected[t] = int(cur.fetchone()[0])
-            self._run_pg_dump([
-                pg_dump, "--format=custom", f"--snapshot={snap_id}",
-                "--schema=" + '"' + schema.replace('"', '""') + '"',
-                "--no-password", f"--file={partial}", f"--dbname={conninfo}",
-            ], env)
+            self._run_pg_dump(
+                [
+                    pg_dump,
+                    "--format=custom",
+                    f"--snapshot={snap_id}",
+                    "--schema=" + '"' + schema.replace('"', '""') + '"',
+                    "--no-password",
+                    f"--file={partial}",
+                    f"--dbname={conninfo}",
+                ],
+                env,
+            )
         except SnapshotError:
             _remove_file(partial)
             raise
@@ -1269,9 +1273,7 @@ class PostgresBackend:
         """MAX(version) from schema_versions, or None if the table is absent."""
         with self.connection() as conn:
             cur = conn.cursor()
-            cur.execute(
-                "SELECT to_regclass('public.schema_versions')"
-            )
+            cur.execute("SELECT to_regclass('public.schema_versions')")
             if cur.fetchone()[0] is None:
                 return None
             cur.execute("SELECT MAX(version) FROM schema_versions")

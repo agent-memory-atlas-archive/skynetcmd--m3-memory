@@ -5,6 +5,7 @@ the one property that matters is: it must NEVER stay equal across a committed
 write. It must also stay connection-free and never create the store, because
 the waiter calls it before a schema (or, on PostgreSQL, a DSN) exists.
 """
+
 from __future__ import annotations
 
 import os
@@ -51,8 +52,7 @@ def test_sqlite_token_moves_on_every_commit_in_wal_mode(tmp_path):
     con.execute("INSERT INTO t VALUES ('z')")
     con.commit()
     try:
-        _assert_every_commit_moves(
-            con, db, lambda c, i: c.execute("UPDATE t SET x = ?", ("ab"[i % 2],)))
+        _assert_every_commit_moves(con, db, lambda c, i: c.execute("UPDATE t SET x = ?", ("ab"[i % 2],)))
     finally:
         con.close()
 
@@ -65,8 +65,7 @@ def test_sqlite_token_moves_on_a_commit_in_rollback_journal_mode(tmp_path):
     con.execute("CREATE TABLE t (x)")
     con.commit()
     try:
-        _assert_every_commit_moves(
-            con, db, lambda c, i: c.execute("INSERT INTO t VALUES (?)", (i,)))
+        _assert_every_commit_moves(con, db, lambda c, i: c.execute("INSERT INTO t VALUES (?)", (i,)))
     finally:
         con.close()
 

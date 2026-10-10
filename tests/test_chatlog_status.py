@@ -239,9 +239,7 @@ def _create_recent_schema(db_path):
     cur = conn.cursor()
     cur.execute("DROP TABLE IF EXISTS memory_items")
     cur.execute("DROP TABLE IF EXISTS memory_embeddings")
-    cur.execute(
-        "CREATE TABLE memory_items (id TEXT PRIMARY KEY, type TEXT, created_at TEXT)"
-    )
+    cur.execute("CREATE TABLE memory_items (id TEXT PRIMARY KEY, type TEXT, created_at TEXT)")
     cur.execute("CREATE TABLE memory_embeddings (id TEXT, memory_id TEXT)")
     conn.commit()
     conn.close()
@@ -353,10 +351,7 @@ def test_recent_write_count_readable_but_empty_returns_zero(status_test_env):
 
     # One old row, outside the 15-min window, in the chatlog DB.
     conn = sqlite3.connect(str(chatlog_db))
-    conn.execute(
-        "INSERT INTO memory_items (id, type, created_at) "
-        "VALUES ('old', 'chat_log', '2020-01-01T00:00:00Z')"
-    )
+    conn.execute("INSERT INTO memory_items (id, type, created_at) VALUES ('old', 'chat_log', '2020-01-01T00:00:00Z')")
     conn.commit()
     conn.close()
 
@@ -364,9 +359,7 @@ def test_recent_write_count_readable_but_empty_returns_zero(status_test_env):
     assert chatlog_status._recent_write_count(cfg) == 0
 
 
-def test_recent_write_count_missing_dbs_returns_unknown(
-    status_test_env, tmp_path, monkeypatch
-):
+def test_recent_write_count_missing_dbs_returns_unknown(status_test_env, tmp_path, monkeypatch):
     """No candidate DB exists on disk -> -1 unknown (never a false 0)."""
     import chatlog_config
     import chatlog_status
@@ -397,18 +390,14 @@ def test_lull_does_not_trigger_capture_down_alarm(status_test_env):
 
     # An OLD row (outside the 15-min window) so total_rows > 0 and recent == 0...
     conn = sqlite3.connect(str(chatlog_db))
-    conn.execute(
-        "INSERT INTO memory_items (id, type, created_at) "
-        "VALUES ('old', 'chat_log', '2020-01-01T00:00:00Z')"
-    )
+    conn.execute("INSERT INTO memory_items (id, type, created_at) VALUES ('old', 'chat_log', '2020-01-01T00:00:00Z')")
     conn.commit()
     conn.close()
 
     # ...but the state file says the last write was 3 minutes ago (a lull).
     from datetime import datetime, timedelta
-    recent = (datetime.now(UTC) - timedelta(minutes=3)).strftime(
-        "%Y-%m-%dT%H:%M:%SZ"
-    )
+
+    recent = (datetime.now(UTC) - timedelta(minutes=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
     with open(str(status_test_env["state_file"]), "w") as f:
         json.dump({"last_write_at": recent}, f)
 
@@ -432,10 +421,7 @@ def test_stale_last_write_still_triggers_capture_down_alarm(status_test_env):
     _create_recent_schema(str(main_db))
 
     conn = sqlite3.connect(str(chatlog_db))
-    conn.execute(
-        "INSERT INTO memory_items (id, type, created_at) "
-        "VALUES ('old', 'chat_log', '2020-01-01T00:00:00Z')"
-    )
+    conn.execute("INSERT INTO memory_items (id, type, created_at) VALUES ('old', 'chat_log', '2020-01-01T00:00:00Z')")
     conn.commit()
     conn.close()
 
@@ -460,10 +446,7 @@ def test_missing_last_write_triggers_capture_down_alarm(status_test_env):
     _create_recent_schema(str(main_db))
 
     conn = sqlite3.connect(str(chatlog_db))
-    conn.execute(
-        "INSERT INTO memory_items (id, type, created_at) "
-        "VALUES ('old', 'chat_log', '2020-01-01T00:00:00Z')"
-    )
+    conn.execute("INSERT INTO memory_items (id, type, created_at) VALUES ('old', 'chat_log', '2020-01-01T00:00:00Z')")
     conn.commit()
     conn.close()
 
@@ -506,6 +489,7 @@ def test_recent_write_probe_opens_read_only(status_test_env):
 # whose hooks omit per-agent write timestamps (the state file has no "hooks" key
 # at all). The alarm was permanently on and therefore carried no signal.
 
+
 def _warn_cfg(**hook_flags):
     """A ChatlogConfig with only the named host agents enabled."""
     import chatlog_config
@@ -520,7 +504,11 @@ def _warnings_for(state, cfg):
     import chatlog_status
 
     return chatlog_status._compute_warnings(
-        state, cfg, row_counts={}, recent_writes=5, recent_window_min=15,
+        state,
+        cfg,
+        row_counts={},
+        recent_writes=5,
+        recent_window_min=15,
     )
 
 
@@ -564,11 +552,10 @@ def test_disabled_hook_never_warns_even_when_stale():
 # "embed backlog 13011" sent a user reading source to find embed_backfill.py;
 # the remedy after " -> " is what the renderer splits onto its own line.
 
+
 def test_embed_backlog_warning_names_the_drain_command():
     row_counts = {"chatlog_without_embed": 50_000}
-    warnings = [
-        w for w in _warnings_for_counts(row_counts) if "embed backlog" in w
-    ]
+    warnings = [w for w in _warnings_for_counts(row_counts) if "embed backlog" in w]
     assert warnings, "expected an embed-backlog warning"
     assert "memory_doctor_fix" in warnings[0], warnings[0]
 
@@ -614,5 +601,9 @@ def _warnings_for_counts(row_counts):
     for spec in cfg.host_agents.values():
         spec.enabled = False
     return chatlog_status._compute_warnings(
-        {}, cfg, row_counts, recent_writes=5, recent_window_min=15,
+        {},
+        cfg,
+        row_counts,
+        recent_writes=5,
+        recent_window_min=15,
     )

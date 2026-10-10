@@ -24,6 +24,7 @@ readers import THIS. The dependency flows one way: backend module -> registry
 <- shared reader. Registration happens as a side effect of importing the backend
 module, which ``selector.active_backend`` triggers lazily on first use.
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -39,9 +40,7 @@ class _Entry:
 
     __slots__ = ("backend_factory", "dialect")
 
-    def __init__(
-        self, backend_factory: type[StorageBackend], dialect: Dialect
-    ) -> None:
+    def __init__(self, backend_factory: type[StorageBackend], dialect: Dialect) -> None:
         self.backend_factory = backend_factory
         self.dialect = dialect
 
@@ -50,9 +49,7 @@ class _Entry:
 _REGISTRY: dict[str, _Entry] = {}
 
 
-def register_backend(
-    name: str, *, dialect: Dialect
-) -> Callable[[type[StorageBackend]], type[StorageBackend]]:
+def register_backend(name: str, *, dialect: Dialect) -> Callable[[type[StorageBackend]], type[StorageBackend]]:
     """Decorator a backend module applies to its backend class (or factory).
 
     Usage, at the bottom of ``sqlite_backend.py``::
@@ -89,12 +86,9 @@ def register_backend(
             # _reset_for_tests(). Comparing __module__ + __qualname__ keeps the
             # real invariant — a genuinely different claimant still raises —
             # while letting the same class re-register itself.
-            same = (
-                getattr(prior.backend_factory, "__module__", None)
-                == getattr(factory, "__module__", object())
-                and getattr(prior.backend_factory, "__qualname__", None)
-                == getattr(factory, "__qualname__", object())
-            )
+            same = getattr(prior.backend_factory, "__module__", None) == getattr(
+                factory, "__module__", object()
+            ) and getattr(prior.backend_factory, "__qualname__", None) == getattr(factory, "__qualname__", object())
             if not same:
                 raise ValueError(
                     f"backend {name!r} is already registered by "

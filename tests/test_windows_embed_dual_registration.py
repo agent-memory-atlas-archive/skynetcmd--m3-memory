@@ -12,6 +12,7 @@ Both armed, racing for one port.
 
 Hermetic (§3): sc.exe is mocked at subprocess.run. No SCM, no Task Scheduler.
 """
+
 from __future__ import annotations
 
 import sys
@@ -52,8 +53,10 @@ _NOT_REGISTERED = (
 def _win(monkeypatch, result):
     monkeypatch.setattr(sched, "_os_name", lambda: "Windows")
     if isinstance(result, Exception):
+
         def _boom(*a, **k):
             raise result
+
         monkeypatch.setattr(sched.subprocess, "run", _boom)
     else:
         monkeypatch.setattr(sched.subprocess, "run", lambda *a, **k: result)
@@ -80,11 +83,14 @@ def test_registered_but_stopped_still_counts(monkeypatch):
     assert sched._rust_embed_service_loaded() is True
 
 
-@pytest.mark.parametrize("result", [
-    _SC(5, "", "Access is denied."),
-    _SC(1, "", "The service control manager is unavailable"),
-    OSError("sc.exe not found"),
-])
+@pytest.mark.parametrize(
+    "result",
+    [
+        _SC(5, "", "Access is denied."),
+        _SC(1, "", "The service control manager is unavailable"),
+        OSError("sc.exe not found"),
+    ],
+)
 def test_indeterminate_is_none_not_false(monkeypatch, result):
     """§3: returning False on an error path installs a second supervisor on
     EVERY error. Indeterminate must be None so the caller refuses."""
@@ -140,8 +146,7 @@ def test_noop_when_embed_task_not_in_selection(monkeypatch):
     """A selector like --only dashboard must not trigger an sc.exe query."""
     calls = []
     monkeypatch.setattr(sched, "_os_name", lambda: "Windows")
-    monkeypatch.setattr(sched.subprocess, "run",
-                        lambda *a, **k: calls.append(a) or _SC(0, _REGISTERED))
+    monkeypatch.setattr(sched.subprocess, "run", lambda *a, **k: calls.append(a) or _SC(0, _REGISTERED))
     tasks = [{"name": "AgentOS_Dashboard"}]
     assert sched._drop_embed_task_if_rust_owns_port(tasks) == tasks
     assert calls == [], "queried SCM when no embed task was selected"
@@ -152,6 +157,5 @@ def test_filter_is_wired_into_the_installer():
     src = (_BIN / "install_schedules.py").read_text(encoding="utf-8")
     idx = src.find("def install_windows_tasks(")
     assert idx != -1
-    body = src[idx:idx + 4000]
-    assert "_drop_embed_task_if_rust_owns_port" in body, \
-        "install_windows_tasks does not call the guard"
+    body = src[idx : idx + 4000]
+    assert "_drop_embed_task_if_rust_owns_port" in body, "install_windows_tasks does not call the guard"

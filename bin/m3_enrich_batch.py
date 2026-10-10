@@ -48,6 +48,7 @@ drain them later, or bin/release_orphan_claims.py --run-id to reset.
 
 Status:  Phase E worker. Pairs with batch_runner.py (provider abstraction).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -119,12 +120,13 @@ def _emit_stop_message(reason: str, *, where: str) -> None:
 
 
 # ── Default core type allowlist (same as m3_enrich.py default) ─────────────
-DEFAULT_CORE_ALLOWLIST = ("decision", "plan", "knowledge", "fact", "preference",
-                         "message", "conversation")
+DEFAULT_CORE_ALLOWLIST = ("decision", "plan", "knowledge", "fact", "preference", "message", "conversation")
 
 
 def _build_chunks_for_group(
-    turns: list[tuple], profile, group_id: int,
+    turns: list[tuple],
+    profile,
+    group_id: int,
 ) -> list[tuple[int, str]]:
     """Mirror run_observer.process_conversation's chunking. Returns a list
     of (chunk_idx, user_text_json) for each chunk. The same session_block
@@ -162,6 +164,7 @@ def _build_chunks_for_group(
 
 # ── DB helpers ────────────────────────────────────────────────────────────
 
+
 def _p(conn) -> str:
     """The bind placeholder for the connection actually held."""
     from memory.backends.dialect import dialect_for_connection
@@ -187,8 +190,8 @@ def _reap_stale_runs(state_conn, *, stale_after_minutes: int = 360) -> int:
     Returns: count of rows reaped.
     """
     from datetime import timedelta
-    cutoff = (datetime.now(UTC) - timedelta(minutes=stale_after_minutes)).strftime(
-        "%Y-%m-%dT%H:%M:%SZ")
+
+    cutoff = (datetime.now(UTC) - timedelta(minutes=stale_after_minutes)).strftime("%Y-%m-%dT%H:%M:%SZ")
     p = _p(state_conn)
     cur = state_conn.execute(
         f"""UPDATE enrichment_runs
@@ -204,9 +207,18 @@ def _reap_stale_runs(state_conn, *, stale_after_minutes: int = 360) -> int:
     return cur.rowcount
 
 
-def _record_run_started(state_conn, *, profile, db_path: Path | None, source_variant: str,
-                        target_variant: str, batch_id: str, n_groups: int,
-                        slice_size: int, argv: list[str]) -> str:
+def _record_run_started(
+    state_conn,
+    *,
+    profile,
+    db_path: Path | None,
+    source_variant: str,
+    target_variant: str,
+    batch_id: str,
+    n_groups: int,
+    slice_size: int,
+    argv: list[str],
+) -> str:
     """Insert a new enrichment_runs row with structured notes for resume.
 
     notes schema (load-bearing — see _resume_batch_run):
@@ -220,11 +232,13 @@ def _record_run_started(state_conn, *, profile, db_path: Path | None, source_var
       }
     """
     run_id = str(uuid.uuid4())
-    notes = json.dumps({
-        "n_groups_submitted": n_groups,
-        "slice_size": slice_size,
-        "batches": [{"slice_idx": 0, "batch_id": batch_id, "ingested": False}],
-    })
+    notes = json.dumps(
+        {
+            "n_groups_submitted": n_groups,
+            "slice_size": slice_size,
+            "batches": [{"slice_idx": 0, "batch_id": batch_id, "ingested": False}],
+        }
+    )
     state_conn.execute(
         f"""
         INSERT INTO enrichment_runs(id, started_at, profile, model, source_variant, target_variant,
@@ -232,10 +246,21 @@ def _record_run_started(state_conn, *, profile, db_path: Path | None, source_var
             n_empty, n_dead_letter, total_cost_usd, notes)
         VALUES ({_ph(state_conn, 12)}, 0, 0, 0, 0, 0, 0, {_p(state_conn)})
         """,
-        (run_id, _utcnow_iso(), getattr(profile, "name", "?"), profile.model,
-         source_variant, target_variant, str(db_path) if db_path is not None else "(server store)", 0,
-         json.dumps(argv), os.environ.get("COMPUTERNAME", "?"), "",
-         "running", notes),
+        (
+            run_id,
+            _utcnow_iso(),
+            getattr(profile, "name", "?"),
+            profile.model,
+            source_variant,
+            target_variant,
+            str(db_path) if db_path is not None else "(server store)",
+            0,
+            json.dumps(argv),
+            os.environ.get("COMPUTERNAME", "?"),
+            "",
+            "running",
+            notes,
+        ),
     )
     state_conn.commit()
     return run_id
@@ -244,7 +269,8 @@ def _record_run_started(state_conn, *, profile, db_path: Path | None, source_var
 def _read_run_notes(state_conn, run_id: str) -> dict:
     """Load notes JSON from enrichment_runs row. Returns {} if missing/malformed."""
     row = state_conn.execute(
-        f"SELECT notes FROM enrichment_runs WHERE id={_p(state_conn)}", (run_id,),
+        f"SELECT notes FROM enrichment_runs WHERE id={_p(state_conn)}",
+        (run_id,),
     ).fetchone()
     if not row or not row[0]:
         return {}
@@ -263,8 +289,7 @@ def _write_run_notes(state_conn, run_id: str, notes: dict) -> None:
     state_conn.commit()
 
 
-def _record_batch_submitted(state_conn, run_id: str, *, slice_idx: int,
-                             batch_id: str) -> None:
+def _record_batch_submitted(state_conn, run_id: str, *, slice_idx: int, batch_id: str) -> None:
     """Append a new batch_id to the run's notes.batches array. Idempotent
     on (slice_idx, batch_id) — won't duplicate if called twice."""
     notes = _read_run_notes(state_conn, run_id)
@@ -286,10 +311,18 @@ def _record_batch_ingested(state_conn, run_id: str, *, batch_id: str) -> None:
     _write_run_notes(state_conn, run_id, notes)
 
 
-def _record_run_finished(state_conn, run_id: str, *, status: str,
-                         n_success: int, n_failed: int, n_empty: int,
-                         total_cost_usd: float, abort_reason: str | None,
-                         batch_id: str = "") -> None:
+def _record_run_finished(
+    state_conn,
+    run_id: str,
+    *,
+    status: str,
+    n_success: int,
+    n_failed: int,
+    n_empty: int,
+    total_cost_usd: float,
+    abort_reason: str | None,
+    batch_id: str = "",
+) -> None:
     # Preserve existing notes.batches structure; just merge in the
     # comma-joined batch_id for legacy readers, and stamp status.
     notes = _read_run_notes(state_conn, run_id)
@@ -304,19 +337,26 @@ def _record_run_finished(state_conn, run_id: str, *, status: str,
             total_cost_usd={p}, abort_reason={p}, notes={p}
         WHERE id={p}
         """,
-        (_utcnow_iso(), status, n_success, n_failed, n_empty,
-         total_cost_usd, abort_reason, json.dumps(notes), run_id),
+        (_utcnow_iso(), status, n_success, n_failed, n_empty, total_cost_usd, abort_reason, json.dumps(notes), run_id),
     )
     state_conn.commit()
 
 
 # ── Result ingestion ───────────────────────────────────────────────────────
 
+
 async def _ingest_one_group(
-    *, group_id: int, conv_id: str, user_id: str, turns: list,
+    *,
+    group_id: int,
+    conv_id: str,
+    user_id: str,
+    turns: list,
     chunk_results: list,  # list of BatchResult, ordered by chunk_idx
-    target_variant: str, state_conn, db_path: Path | None,
-    cost_per_in: float, cost_per_out: float,
+    target_variant: str,
+    state_conn,
+    db_path: Path | None,
+    cost_per_in: float,
+    cost_per_out: float,
 ) -> dict:
     """Parse all chunk results for one group, write observations,
     update state-machine row. Returns a per-group summary dict.
@@ -358,16 +398,22 @@ async def _ingest_one_group(
         # is genuinely 'empty'. Mirrors run_observer.process_conversation. (§3/§5)
         if n_chunk_failed > 0:
             estate.mark_failed(
-                state_conn, group_id,
+                state_conn,
+                group_id,
                 error_class="batch_error",  # non-deterministic → retryable w/ backoff
                 last_error=last_err[:200],
-                tokens_in=tokens_in, tokens_out=tokens_out, cost_usd=cost_usd,
+                tokens_in=tokens_in,
+                tokens_out=tokens_out,
+                cost_usd=cost_usd,
             )
             return {"status": "failed", "obs": 0, "cost": cost_usd}
         else:
             estate.mark_empty(
-                state_conn, group_id,
-                tokens_in=tokens_in, tokens_out=tokens_out, cost_usd=cost_usd,
+                state_conn,
+                group_id,
+                tokens_in=tokens_in,
+                tokens_out=tokens_out,
+                cost_usd=cost_usd,
             )
             return {"status": "empty", "obs": 0, "cost": cost_usd}
 
@@ -393,6 +439,7 @@ async def _ingest_one_group(
     # (memory 914843f8, 2026-05-05); mirrors run_observer.process_conversation.
     source_session_id, _ = observer.session_identity(turns)
     sem = asyncio.Semaphore(8)
+
     async def _write_one(obs: dict) -> bool:
         nonlocal n_chunk_failed, last_err
         if precise:
@@ -405,7 +452,11 @@ async def _ingest_one_group(
         async with sem:
             try:
                 obs_id = await observer.write_observation(
-                    obs, target_variant, user_id, conv_id, src_ids,
+                    obs,
+                    target_variant,
+                    user_id,
+                    conv_id,
+                    src_ids,
                     source_group_id=group_id,
                     session_id=source_session_id,
                 )
@@ -414,6 +465,7 @@ async def _ingest_one_group(
                 last_err = f"write_observation: {type(e).__name__}: {e!r}"
                 n_chunk_failed += 1
                 return False
+
     results = await gather_or_cancel(*(_write_one(o) for o in observations))
     written = sum(1 for r in results if r)
 
@@ -424,17 +476,23 @@ async def _ingest_one_group(
         # retryable instead (§3 never-silent, §5). write_error is non-deterministic
         # → mark_failed leaves it at 'failed' with backoff, not dead_letter.
         estate.mark_failed(
-            state_conn, group_id,
+            state_conn,
+            group_id,
             error_class="write_error",
             last_error=(last_err or "all observation writes failed")[:200],
-            tokens_in=tokens_in, tokens_out=tokens_out, cost_usd=cost_usd,
+            tokens_in=tokens_in,
+            tokens_out=tokens_out,
+            cost_usd=cost_usd,
         )
         return {"status": "failed", "obs": 0, "cost": cost_usd}
 
     estate.mark_success(
-        state_conn, group_id,
+        state_conn,
+        group_id,
         obs_emitted=written,
-        tokens_in=tokens_in, tokens_out=tokens_out, cost_usd=cost_usd,
+        tokens_in=tokens_in,
+        tokens_out=tokens_out,
+        cost_usd=cost_usd,
         partial_failure_chunks=n_chunk_failed,
     )
     return {"status": "success", "obs": written, "cost": cost_usd}
@@ -442,11 +500,20 @@ async def _ingest_one_group(
 
 # ── Main flow ──────────────────────────────────────────────────────────────
 
+
 async def _poll_fetch_ingest_one_batch(
-    runner, batch_id: str, *, client: httpx.AsyncClient,
-    group_meta: dict, target_variant: str, state_conn, db_path: Path | None,
-    cost_per_in: float, cost_per_out: float,
-    poll_interval_s: float, max_wait_s: float,
+    runner,
+    batch_id: str,
+    *,
+    client: httpx.AsyncClient,
+    group_meta: dict,
+    target_variant: str,
+    state_conn,
+    db_path: Path | None,
+    cost_per_in: float,
+    cost_per_out: float,
+    poll_interval_s: float,
+    max_wait_s: float,
     label: str = "batch",
 ) -> tuple[int, int, int, float]:
     """Wait for a single batch to end, fetch its results, ingest each
@@ -465,23 +532,30 @@ async def _poll_fetch_ingest_one_batch(
         if status.state != last_state or (poll_n % 10 == 0):
             done = status.n_succeeded + status.n_errored + status.n_canceled + status.n_expired
             total = done + status.n_processing
-            print(f"[batch] {label} poll #{poll_n}: state={status.state} "
-                  f"done={done}/{total} success={status.n_succeeded} "
-                  f"errored={status.n_errored}", flush=True)
+            print(
+                f"[batch] {label} poll #{poll_n}: state={status.state} "
+                f"done={done}/{total} success={status.n_succeeded} "
+                f"errored={status.n_errored}",
+                flush=True,
+            )
             last_state = status.state
         if status.state == "ended":
             break
         if status.state in ("canceled", "failed"):
-            raise RuntimeError(f"{label} ended in terminal state. "
-                               f"observed: {label} batch state={status.state!r}. "
-                               f"possible: provider canceled the batch or reported failure. "
-                               f"inspect: batch_id in provider dashboard, provider logs.")
+            raise RuntimeError(
+                f"{label} ended in terminal state. "
+                f"observed: {label} batch state={status.state!r}. "
+                f"possible: provider canceled the batch or reported failure. "
+                f"inspect: batch_id in provider dashboard, provider logs."
+            )
         if time.monotonic() >= deadline:
-            raise TimeoutError(f"{label} timeout. "
-                               f"observed: elapsed={time.monotonic() - (deadline - max_wait_s):.0f}s, "
-                               f"max_wait_s={max_wait_s}s, state={status.state}. "
-                               f"possible: provider is slow, or batch is stuck in 'processing'. "
-                               f"inspect: batch_id in provider dashboard; increase --max-wait-s or check provider status.")
+            raise TimeoutError(
+                f"{label} timeout. "
+                f"observed: elapsed={time.monotonic() - (deadline - max_wait_s):.0f}s, "
+                f"max_wait_s={max_wait_s}s, state={status.state}. "
+                f"possible: provider is slow, or batch is stuck in 'processing'. "
+                f"inspect: batch_id in provider dashboard; increase --max-wait-s or check provider status."
+            )
         await asyncio.sleep(poll_interval_s)
 
     # Fetch + ingest
@@ -500,8 +574,7 @@ async def _poll_fetch_ingest_one_batch(
             print(f"[batch] WARN: bad custom_id {r.custom_id!r}", flush=True)
             continue
         results_by_gid.setdefault(gid, []).append((ci, r))
-    print(f"[batch] {label} fetched {n_results} results across "
-          f"{len(results_by_gid)} groups; ingesting...", flush=True)
+    print(f"[batch] {label} fetched {n_results} results across {len(results_by_gid)} groups; ingesting...", flush=True)
 
     n_success = n_empty = n_failed = 0
     cost_added = 0.0
@@ -509,16 +582,20 @@ async def _poll_fetch_ingest_one_batch(
     for gid, chunk_results in results_by_gid.items():
         meta = group_meta.get(str(gid))
         if meta is None:
-            print(f"[batch] WARN: gid {gid} not in group_meta (orphan result?)",
-                  flush=True)
+            print(f"[batch] WARN: gid {gid} not in group_meta (orphan result?)", flush=True)
             continue
         _, uid, conv_id, turns = meta
         res = await _ingest_one_group(
-            group_id=gid, conv_id=conv_id, user_id=uid, turns=turns,
+            group_id=gid,
+            conv_id=conv_id,
+            user_id=uid,
+            turns=turns,
             chunk_results=chunk_results,
             target_variant=target_variant,
-            state_conn=state_conn, db_path=db_path,
-            cost_per_in=cost_per_in, cost_per_out=cost_per_out,
+            state_conn=state_conn,
+            db_path=db_path,
+            cost_per_in=cost_per_in,
+            cost_per_out=cost_per_out,
         )
         cost_added += res["cost"]
         if res["status"] == "success":
@@ -529,12 +606,14 @@ async def _poll_fetch_ingest_one_batch(
             n_failed += 1
         ingested_in_slice += 1
         if ingested_in_slice % 100 == 0:
-            print(f"[batch] {label} ingested "
-                  f"{ingested_in_slice}/{len(results_by_gid)} "
-                  f"(success={n_success} empty={n_empty} failed={n_failed} "
-                  f"cost+=${cost_added:.2f})", flush=True)
-    print(f"[batch] {label} done: groups_ingested={ingested_in_slice}",
-          flush=True)
+            print(
+                f"[batch] {label} ingested "
+                f"{ingested_in_slice}/{len(results_by_gid)} "
+                f"(success={n_success} empty={n_empty} failed={n_failed} "
+                f"cost+=${cost_added:.2f})",
+                flush=True,
+            )
+    print(f"[batch] {label} done: groups_ingested={ingested_in_slice}", flush=True)
     return n_success, n_empty, n_failed, cost_added
 
 
@@ -551,8 +630,7 @@ async def _resume_run(args, *, profile, token: str, db_path: Path | None) -> int
     state_conn = estate.open_state_conn(db_path)
     n_reaped = _reap_stale_runs(state_conn, stale_after_minutes=360)
     if n_reaped:
-        print(f"[batch] reaped {n_reaped} stale 'running' enrichment_runs rows",
-              flush=True)
+        print(f"[batch] reaped {n_reaped} stale 'running' enrichment_runs rows", flush=True)
 
     run_id = args.resume_run
     row = state_conn.execute(
@@ -561,38 +639,50 @@ async def _resume_run(args, *, profile, token: str, db_path: Path | None) -> int
         (run_id,),
     ).fetchone()
     if row is None:
-        sys.exit(f"ERROR: enrichment_runs row not found. "
-                 f"observed: enrichment_runs.id={run_id} missing from database. "
-                 f"inspect: enrichment_runs table in {db_path}; verify --resume-run argument.")
+        sys.exit(
+            f"ERROR: enrichment_runs row not found. "
+            f"observed: enrichment_runs.id={run_id} missing from database. "
+            f"inspect: enrichment_runs table in {db_path}; verify --resume-run argument."
+        )
     _, prior_status, src_v, tgt_v, prior_profile, _prior_model = row
-    print(f"[resume] run_id={run_id} prior_status={prior_status!r} "
-          f"profile={prior_profile!r} target_variant={tgt_v!r}", flush=True)
+    print(
+        f"[resume] run_id={run_id} prior_status={prior_status!r} profile={prior_profile!r} target_variant={tgt_v!r}",
+        flush=True,
+    )
     if prior_profile and prior_profile != getattr(profile, "name", "?"):
-        print(f"[resume] WARN: --profile mismatch ({prior_profile!r} vs "
-              f"{getattr(profile,'name','?')!r}); proceeding with --profile",
-              flush=True)
+        print(
+            f"[resume] WARN: --profile mismatch ({prior_profile!r} vs "
+            f"{getattr(profile, 'name', '?')!r}); proceeding with --profile",
+            flush=True,
+        )
 
     notes = _read_run_notes(state_conn, run_id)
     batches = notes.get("batches", [])
     if not batches:
-        sys.exit("ERROR: no batches recorded in run notes; nothing to resume. "
-                 "observed: enrichment_runs.id=" + run_id + " has no 'batches' array in notes JSON. "
-                 "inspect: enrichment_runs.notes for run_id; verify it was submitted (batches array should exist).")
+        sys.exit(
+            "ERROR: no batches recorded in run notes; nothing to resume. "
+            "observed: enrichment_runs.id=" + run_id + " has no 'batches' array in notes JSON. "
+            "inspect: enrichment_runs.notes for run_id; verify it was submitted (batches array should exist)."
+        )
 
     not_ingested = [b for b in batches if not b.get("ingested")]
-    print(f"[resume] {len(batches)} batches recorded, "
-          f"{len(not_ingested)} not yet ingested", flush=True)
+    print(f"[resume] {len(batches)} batches recorded, {len(not_ingested)} not yet ingested", flush=True)
     if not not_ingested:
         # Just finalize the run row if it's still 'running'
         if prior_status == "running":
-            _record_run_finished(state_conn, run_id,
-                status="completed", n_success=0, n_failed=0, n_empty=0,
-                total_cost_usd=0.0, abort_reason=None)
-            print("[resume] all batches already ingested; finalized run row",
-                  flush=True)
+            _record_run_finished(
+                state_conn,
+                run_id,
+                status="completed",
+                n_success=0,
+                n_failed=0,
+                n_empty=0,
+                total_cost_usd=0.0,
+                abort_reason=None,
+            )
+            print("[resume] all batches already ingested; finalized run row", flush=True)
         else:
-            print("[resume] all batches already ingested; nothing to do",
-                  flush=True)
+            print("[resume] all batches already ingested; nothing to do", flush=True)
         state_conn.close()
         return 0
 
@@ -605,18 +695,23 @@ async def _resume_run(args, *, profile, token: str, db_path: Path | None) -> int
         (run_id,),
     ).fetchall()
     if not rows:
-        sys.exit(f"ERROR: no in_progress claims under run_id={run_id}. "
-                 f"observed: enrichment_groups.status='in_progress' AND enrich_run_id={run_id} returned 0 rows. "
-                 f"possible: run was fully ingested in a prior worker invocation, or claims were released. "
-                 f"inspect: enrichment_groups table; verify --resume-run corresponds to a still-pending run.")
+        sys.exit(
+            f"ERROR: no in_progress claims under run_id={run_id}. "
+            f"observed: enrichment_groups.status='in_progress' AND enrich_run_id={run_id} returned 0 rows. "
+            f"possible: run was fully ingested in a prior worker invocation, or claims were released. "
+            f"inspect: enrichment_groups table; verify --resume-run corresponds to a still-pending run."
+        )
 
     # Load full turn lists for these convos via _query_eligible_groups path
     conv_filter = {r[2] for r in rows}
-    print(f"[resume] {len(conv_filter)} convs still in_progress; "
-          f"re-loading turns...", flush=True)
+    print(f"[resume] {len(conv_filter)} convs still in_progress; re-loading turns...", flush=True)
     type_allowlist = DEFAULT_CORE_ALLOWLIST
     groups = _query_eligible_groups(
-        db_path, type_allowlist, None, src_v or args.source_variant, conv_filter,
+        db_path,
+        type_allowlist,
+        None,
+        src_v or args.source_variant,
+        conv_filter,
     )
     # Build group_meta same shape as live path
     gid_by_key = {(r[1], r[2]): r[0] for r in rows}
@@ -625,8 +720,7 @@ async def _resume_run(args, *, profile, token: str, db_path: Path | None) -> int
         gid = gid_by_key.get((uid, conv_id))
         if gid is not None:
             group_meta[str(gid)] = (gid, uid, conv_id, turns)
-    print(f"[resume] re-derived group_meta with {len(group_meta)} entries",
-          flush=True)
+    print(f"[resume] re-derived group_meta with {len(group_meta)} entries", flush=True)
 
     cost_per_in = float(getattr(profile, "input_cost_per_mtok", 0) or 0)
     cost_per_out = float(getattr(profile, "output_cost_per_mtok", 0) or 0)
@@ -642,17 +736,21 @@ async def _resume_run(args, *, profile, token: str, db_path: Path | None) -> int
             label = f"resume-slice-{slice_idx}" if slice_idx >= 0 else "resume-batch"
             try:
                 ns, ne, nf, cost = await _poll_fetch_ingest_one_batch(
-                    runner, batch_id, client=client,
-                    group_meta=group_meta, target_variant=tgt_v,
-                    state_conn=state_conn, db_path=db_path,
-                    cost_per_in=cost_per_in, cost_per_out=cost_per_out,
+                    runner,
+                    batch_id,
+                    client=client,
+                    group_meta=group_meta,
+                    target_variant=tgt_v,
+                    state_conn=state_conn,
+                    db_path=db_path,
+                    cost_per_in=cost_per_in,
+                    cost_per_out=cost_per_out,
                     poll_interval_s=args.poll_interval_s,
                     max_wait_s=args.max_wait_s,
                     label=label,
                 )
             except (RuntimeError, TimeoutError) as e:
-                print(f"[resume] {label} FAILED: {type(e).__name__}: {e}",
-                      flush=True)
+                print(f"[resume] {label} FAILED: {type(e).__name__}: {e}", flush=True)
                 # Don't release claims here — user may want to re-run resume
                 # again. Exit with non-zero so caller sees the failure.
                 state_conn.close()
@@ -666,19 +764,28 @@ async def _resume_run(args, *, profile, token: str, db_path: Path | None) -> int
         # Catch groups that had no result in any batch
         for gid_str, (gid, uid, conv_id, turns) in group_meta.items():
             r2 = state_conn.execute(
-                f"SELECT status FROM enrichment_groups WHERE id={_p(state_conn)}", (int(gid_str),),
+                f"SELECT status FROM enrichment_groups WHERE id={_p(state_conn)}",
+                (int(gid_str),),
             ).fetchone()
             if r2 and r2[0] == "in_progress":
                 estate.mark_failed(
-                    state_conn, int(gid_str),
+                    state_conn,
+                    int(gid_str),
                     error_class="batch_no_result",
                     last_error="no batch result returned for this group on resume",
                 )
                 n_failed += 1
 
-    _record_run_finished(state_conn, run_id,
-        status="completed", n_success=n_success, n_failed=n_failed,
-        n_empty=n_empty, total_cost_usd=total_cost, abort_reason=None)
+    _record_run_finished(
+        state_conn,
+        run_id,
+        status="completed",
+        n_success=n_success,
+        n_failed=n_failed,
+        n_empty=n_empty,
+        total_cost_usd=total_cost,
+        abort_reason=None,
+    )
 
     elapsed = time.time() - submitted_at
     print()
@@ -689,7 +796,7 @@ async def _resume_run(args, *, profile, token: str, db_path: Path | None) -> int
     print(f"  batches resumed: {len(not_ingested)}")
     print(f"  groups:     {len(group_meta)} (success={n_success} empty={n_empty} failed={n_failed})")
     print(f"  cost added: ${total_cost:.4f}")
-    print(f"  wallclock:  {elapsed:.1f}s ({elapsed/60:.1f} min)")
+    print(f"  wallclock:  {elapsed:.1f}s ({elapsed / 60:.1f} min)")
     state_conn.close()
     return 0
 
@@ -703,8 +810,11 @@ async def _run_async(args) -> int:
         _emit_stop_message(early_stop, where="startup (before enumeration)")
         return 5
 
-    profile = _parse_profile(args.profile, Path(args.profile_path)) if args.profile_path \
+    profile = (
+        _parse_profile(args.profile, Path(args.profile_path))
+        if args.profile_path
         else _parse_profile(args.profile, REPO_ROOT / "config" / "slm" / f"{args.profile}.yaml")
+    )
     # Validate the profile's backend is supported by some BatchRunner.
     # make_runner() does the strict dispatch (anthropic | gemini-OAI-shim);
     # we fail fast here with a clearer error.
@@ -712,22 +822,28 @@ async def _run_async(args) -> int:
         # dry-run dispatch to surface unsupported backends before the slow
         # enumeration step
         from batch_runner import make_runner as _check_runner
+
         # Sentinel string — this dispatch never makes a network call, just
         # validates backend support. Real token resolved below from vault.
         _check_runner(profile, token="placeholder")  # nosec B106
     except NotImplementedError as e:
-        sys.exit(f"ERROR: unsupported batch backend. "
-                 f"observed: make_runner raised NotImplementedError. "
-                 f"possible: {e!s}. "
-                 f"inspect: --profile argument; batch API only supports anthropic and gemini-OAI-shim.")
+        sys.exit(
+            f"ERROR: unsupported batch backend. "
+            f"observed: make_runner raised NotImplementedError. "
+            f"possible: {e!s}. "
+            f"inspect: --profile argument; batch API only supports anthropic and gemini-OAI-shim."
+        )
 
     token = get_api_key(profile.api_key_service) or ""
     if not token:
-        sys.exit(f"ERROR: API key not found. "
-                 f"observed: {profile.api_key_service} service returned no token. "
-                 f"inspect: vault (m3 admin store_secret), M3_VAULT_ADDR, or env var {profile.api_key_service}.")
+        sys.exit(
+            f"ERROR: API key not found. "
+            f"observed: {profile.api_key_service} service returned no token. "
+            f"inspect: vault (m3 admin store_secret), M3_VAULT_ADDR, or env var {profile.api_key_service}."
+        )
 
     from m3_core.paths import resolve_cli_store
+
     try:
         store = resolve_cli_store(args.core_db, "--core-db")
     except ValueError as e:
@@ -754,13 +870,13 @@ async def _run_async(args) -> int:
             os.environ["M3_EMBED_MODEL"] = embed_model
         try:
             import memory_core as _mc
+
             _mc.set_embed_override(embed_url, embed_model)
-            print(f"[batch] embedder pinned: {embed_url}"
-                  + (f" (model={embed_model})" if embed_model else ""),
-                  flush=True)
+            print(
+                f"[batch] embedder pinned: {embed_url}" + (f" (model={embed_model})" if embed_model else ""), flush=True
+            )
         except Exception as e:  # noqa: BLE001
-            print(f"[batch] WARN: set_embed_override failed: {e!r}",
-                  flush=True)
+            print(f"[batch] WARN: set_embed_override failed: {e!r}", flush=True)
 
     # Resume path: if --resume-run is given, skip enumeration + claim + submit.
     # Goes straight to poll/ingest for any non-ingested batches in notes.
@@ -779,13 +895,16 @@ async def _run_async(args) -> int:
     conv_filter: set[str] | None = None
     if args.source_conv_list:
         conv_filter = _load_conv_list(Path(args.source_conv_list).resolve())
-        print(f"[batch] --source-conv-list: {len(conv_filter)} group_keys loaded",
-              flush=True)
+        print(f"[batch] --source-conv-list: {len(conv_filter)} group_keys loaded", flush=True)
 
     # Enumerate groups (same as live mode)
     type_allowlist = DEFAULT_CORE_ALLOWLIST
     groups = _query_eligible_groups(
-        db_path, type_allowlist, args.limit, args.source_variant, conv_filter,
+        db_path,
+        type_allowlist,
+        args.limit,
+        args.source_variant,
+        conv_filter,
     )
     if not groups:
         print("[batch] no eligible groups found", flush=True)
@@ -799,8 +918,7 @@ async def _run_async(args) -> int:
     # legitimate run wallclock).
     n_reaped = _reap_stale_runs(state_conn, stale_after_minutes=360)
     if n_reaped:
-        print(f"[batch] reaped {n_reaped} stale 'running' enrichment_runs rows (>6h old)",
-              flush=True)
+        print(f"[batch] reaped {n_reaped} stale 'running' enrichment_runs rows (>6h old)", flush=True)
     enrich_run_id_placeholder = "pending-batch-submit"
     batch_requests: list[BatchRequest] = []
     group_meta: dict[str, tuple[int, str, str, list]] = {}  # custom_id_prefix -> (gid, uid, cid, turns)
@@ -833,27 +951,30 @@ async def _run_async(args) -> int:
             # Anthropic requires custom_id to match ^[a-zA-Z0-9_-]{1,64}$,
             # so use '_' separator (not '::').
             cid_str = f"g{gid}_c{ci}"
-            batch_requests.append(BatchRequest(
-                custom_id=cid_str,
-                system=profile.system,
-                user_text=user_text,
-                cache_system=getattr(profile, "cache_system", True),
-            ))
+            batch_requests.append(
+                BatchRequest(
+                    custom_id=cid_str,
+                    system=profile.system,
+                    user_text=user_text,
+                    cache_system=getattr(profile, "cache_system", True),
+                )
+            )
         group_meta[str(gid)] = (gid, uid, cid, turns)
         n_claimed += 1
 
     if not batch_requests:
-        print("[batch] nothing to submit (all groups raced or already terminal)",
-              flush=True)
+        print("[batch] nothing to submit (all groups raced or already terminal)", flush=True)
         state_conn.close()
         return 0
-    print(f"[batch] claimed {n_claimed} groups, "
-          f"{n_skipped} skipped (raced/terminal/no-state-row), "
-          f"built {len(batch_requests)} chunk requests", flush=True)
+    print(
+        f"[batch] claimed {n_claimed} groups, "
+        f"{n_skipped} skipped (raced/terminal/no-state-row), "
+        f"built {len(batch_requests)} chunk requests",
+        flush=True,
+    )
 
     if args.dry_run:
-        print("[batch] --dry-run: would submit; not calling Anthropic. Releasing claims.",
-              flush=True)
+        print("[batch] --dry-run: would submit; not calling Anthropic. Releasing claims.", flush=True)
         # Roll back claims
         gids = [int(g) for g in group_meta]
         ph = _ph(state_conn, len(gids)) if gids else ""
@@ -881,8 +1002,7 @@ async def _run_async(args) -> int:
             pass
     max_slice = getattr(runner, "max_batch_size", 100_000)
     n_slices = (len(batch_requests) + max_slice - 1) // max_slice
-    print(f"[batch] runner={type(runner).__name__} max_batch_size={max_slice} "
-          f"-> {n_slices} slice(s)", flush=True)
+    print(f"[batch] runner={type(runner).__name__} max_batch_size={max_slice} -> {n_slices} slice(s)", flush=True)
 
     # Record the run with the FIRST batch's id (we'll append more in notes).
     enrich_run_id: str | None = None
@@ -921,15 +1041,12 @@ async def _run_async(args) -> int:
         put_task = asyncio.ensure_future(ingest_queue.put(item))
         done_task = asyncio.ensure_future(consumer_done.wait())
         try:
-            await asyncio.wait({put_task, done_task},
-                               return_when=asyncio.FIRST_COMPLETED)
+            await asyncio.wait({put_task, done_task}, return_when=asyncio.FIRST_COMPLETED)
             if put_task.done() and not put_task.cancelled():
                 return  # our item landed on the queue
             # Consumer exited first (queue still full) — abandon the put.
             put_task.cancel()
-            raise RuntimeError(
-                f"consumer exited while producer was queueing; aborting: "
-                f"{consumer_failure['err']!r}")
+            raise RuntimeError(f"consumer exited while producer was queueing; aborting: {consumer_failure['err']!r}")
         finally:
             done_task.cancel()
 
@@ -947,7 +1064,7 @@ async def _run_async(args) -> int:
                 if stop_reason:
                     _emit_stop_message(
                         stop_reason,
-                        where=f"producer pre-submit slice {slice_idx+1}/{n_slices}",
+                        where=f"producer pre-submit slice {slice_idx + 1}/{n_slices}",
                     )
                     raise StopIteration(stop_reason)
 
@@ -956,25 +1073,30 @@ async def _run_async(args) -> int:
                 # ingest and then block forever on a full queue (§3 deadlock).
                 if consumer_failure["err"] is not None:
                     raise RuntimeError(
-                        f"consumer died before slice {slice_idx+1} submit; "
-                        f"aborting producer: {consumer_failure['err']!r}")
+                        f"consumer died before slice {slice_idx + 1} submit; "
+                        f"aborting producer: {consumer_failure['err']!r}"
+                    )
 
-                slice_requests = batch_requests[slice_idx*max_slice:(slice_idx+1)*max_slice]
-                print(f"[batch] slice {slice_idx+1}/{n_slices}: submitting "
-                      f"{len(slice_requests)} requests...", flush=True)
+                slice_requests = batch_requests[slice_idx * max_slice : (slice_idx + 1) * max_slice]
+                print(
+                    f"[batch] slice {slice_idx + 1}/{n_slices}: submitting {len(slice_requests)} requests...",
+                    flush=True,
+                )
                 batch_id = await runner.submit(slice_requests, client=client)
                 batch_ids.append(batch_id)
-                print(f"[batch] slice {slice_idx+1} submitted batch_id={batch_id}",
-                      flush=True)
+                print(f"[batch] slice {slice_idx + 1} submitted batch_id={batch_id}", flush=True)
 
                 # Record the run row on first successful submit; thereafter
                 # append batch_ids to notes.
                 if enrich_run_id is None:
                     enrich_run_id = _record_run_started(
-                        state_conn, profile=profile, db_path=db_path,
+                        state_conn,
+                        profile=profile,
+                        db_path=db_path,
                         source_variant=args.source_variant or "",
                         target_variant=args.target_variant,
-                        batch_id=batch_id, n_groups=n_claimed,
+                        batch_id=batch_id,
+                        n_groups=n_claimed,
                         slice_size=max_slice,
                         argv=sys.argv,
                     )
@@ -985,8 +1107,7 @@ async def _run_async(args) -> int:
                     )
                     state_conn.commit()
                 else:
-                    _record_batch_submitted(state_conn, enrich_run_id,
-                                            slice_idx=slice_idx, batch_id=batch_id)
+                    _record_batch_submitted(state_conn, enrich_run_id, slice_idx=slice_idx, batch_id=batch_id)
 
                 # Poll this slice
                 last_state = None
@@ -998,24 +1119,23 @@ async def _run_async(args) -> int:
                     if status.state != last_state or (poll_n % 10 == 0):
                         done = status.n_succeeded + status.n_errored + status.n_canceled + status.n_expired
                         total = done + status.n_processing
-                        print(f"[batch] slice {slice_idx+1} poll #{poll_n}: "
-                              f"state={status.state} done={done}/{total} "
-                              f"success={status.n_succeeded} errored={status.n_errored}",
-                              flush=True)
+                        print(
+                            f"[batch] slice {slice_idx + 1} poll #{poll_n}: "
+                            f"state={status.state} done={done}/{total} "
+                            f"success={status.n_succeeded} errored={status.n_errored}",
+                            flush=True,
+                        )
                         last_state = status.state
                     if status.state == "ended":
                         break
                     if status.state in ("canceled", "failed"):
-                        raise RuntimeError(
-                            f"slice {slice_idx+1} batch ended in state {status.state!r}")
+                        raise RuntimeError(f"slice {slice_idx + 1} batch ended in state {status.state!r}")
                     if time.monotonic() >= deadline:
-                        raise TimeoutError(
-                            f"slice {slice_idx+1} batch still in_progress after "
-                            f"{args.max_wait_s}s")
+                        raise TimeoutError(f"slice {slice_idx + 1} batch still in_progress after {args.max_wait_s}s")
                     await asyncio.sleep(args.poll_interval_s)
 
                 # Fetch
-                print(f"[batch] slice {slice_idx+1} fetching results...", flush=True)
+                print(f"[batch] slice {slice_idx + 1} fetching results...", flush=True)
                 results_by_gid: dict[int, list[tuple[int, object]]] = {}
                 n_results = 0
                 async for r in runner.fetch_results(batch_id, client=client):
@@ -1027,13 +1147,14 @@ async def _run_async(args) -> int:
                         gid = int(gid_str)
                         ci = int(ci_str)
                     except Exception:
-                        print(f"[batch] WARN: bad custom_id {r.custom_id!r}",
-                              flush=True)
+                        print(f"[batch] WARN: bad custom_id {r.custom_id!r}", flush=True)
                         continue
                     results_by_gid.setdefault(gid, []).append((ci, r))
-                print(f"[batch] slice {slice_idx+1} fetched {n_results} results "
-                      f"across {len(results_by_gid)} groups; queued for ingest",
-                      flush=True)
+                print(
+                    f"[batch] slice {slice_idx + 1} fetched {n_results} results "
+                    f"across {len(results_by_gid)} groups; queued for ingest",
+                    flush=True,
+                )
 
                 # Hand off to the consumer; if the queue is full (consumer
                 # falling behind), this awaits naturally — preventing the
@@ -1065,17 +1186,21 @@ async def _run_async(args) -> int:
                 for gid in results_by_gid:
                     meta = group_meta.get(str(gid))
                     if meta is None:
-                        print(f"[batch] WARN: gid {gid} not in group_meta",
-                              flush=True)
+                        print(f"[batch] WARN: gid {gid} not in group_meta", flush=True)
                         continue
                     _, uid, conv_id, turns = meta
                     chunk_results = results_by_gid[gid]
                     res = await _ingest_one_group(
-                        group_id=gid, conv_id=conv_id, user_id=uid, turns=turns,
+                        group_id=gid,
+                        conv_id=conv_id,
+                        user_id=uid,
+                        turns=turns,
                         chunk_results=chunk_results,
                         target_variant=args.target_variant,
-                        state_conn=state_conn, db_path=db_path,
-                        cost_per_in=cost_per_in, cost_per_out=cost_per_out,
+                        state_conn=state_conn,
+                        db_path=db_path,
+                        cost_per_in=cost_per_in,
+                        cost_per_out=cost_per_out,
                     )
                     total_cost += res["cost"]
                     if res["status"] == "success":
@@ -1086,13 +1211,14 @@ async def _run_async(args) -> int:
                         n_failed += 1
                     ingested_in_slice += 1
                     if ingested_in_slice % 100 == 0:
-                        print(f"[batch] slice {slice_idx+1} ingested "
-                              f"{ingested_in_slice}/{len(results_by_gid)} "
-                              f"(cumul: success={n_success} empty={n_empty} "
-                              f"failed={n_failed} cost=${total_cost:.2f})",
-                              flush=True)
-                print(f"[batch] slice {slice_idx+1} done: groups_ingested="
-                      f"{ingested_in_slice}", flush=True)
+                        print(
+                            f"[batch] slice {slice_idx + 1} ingested "
+                            f"{ingested_in_slice}/{len(results_by_gid)} "
+                            f"(cumul: success={n_success} empty={n_empty} "
+                            f"failed={n_failed} cost=${total_cost:.2f})",
+                            flush=True,
+                        )
+                print(f"[batch] slice {slice_idx + 1} done: groups_ingested={ingested_in_slice}", flush=True)
                 if enrich_run_id is not None:
                     _record_batch_ingested(state_conn, enrich_run_id, batch_id=batch_id)
         except Exception as e:  # noqa: BLE001
@@ -1129,28 +1255,36 @@ async def _run_async(args) -> int:
                 # buckets and operator can choose `--resume-run` (drain
                 # mid-poll batches) or `release_orphan_claims.py
                 # --run-id <id>` (reset everything).
-                print(f"[batch] STOP — pipeline drained gracefully. "
-                      f"{n_success} success / {n_empty} empty / {n_failed} failed; "
-                      f"cost=${total_cost:.2f}", flush=True)
-                print(f"[batch] STOP — leaving {n_claimed - n_success - n_empty - n_failed} "
-                      f"claim(s) in_progress under run_id={enrich_run_id}. "
-                      f"To drain mid-flight Anthropic batches: --resume-run {enrich_run_id}. "
-                      f"To reset everything: bin/release_orphan_claims.py "
-                      f"--run-id {enrich_run_id}", flush=True)
+                print(
+                    f"[batch] STOP — pipeline drained gracefully. "
+                    f"{n_success} success / {n_empty} empty / {n_failed} failed; "
+                    f"cost=${total_cost:.2f}",
+                    flush=True,
+                )
+                print(
+                    f"[batch] STOP — leaving {n_claimed - n_success - n_empty - n_failed} "
+                    f"claim(s) in_progress under run_id={enrich_run_id}. "
+                    f"To drain mid-flight Anthropic batches: --resume-run {enrich_run_id}. "
+                    f"To reset everything: bin/release_orphan_claims.py "
+                    f"--run-id {enrich_run_id}",
+                    flush=True,
+                )
                 if enrich_run_id:
-                    _record_run_finished(state_conn, enrich_run_id,
+                    _record_run_finished(
+                        state_conn,
+                        enrich_run_id,
                         status="aborted",
                         n_success=n_success,
                         n_failed=n_failed,
                         n_empty=n_empty,
                         total_cost_usd=total_cost,
                         abort_reason=f"stop_flag: {str(err)[:200]}",
-                        batch_id=",".join(batch_ids) if batch_ids else "")
+                        batch_id=",".join(batch_ids) if batch_ids else "",
+                    )
                 state_conn.close()
                 return 5
 
-            print(f"[batch] FATAL: pipeline aborted at slice {slice_idx+1}: "
-                  f"{type(err).__name__}: {err}", flush=True)
+            print(f"[batch] FATAL: pipeline aborted at slice {slice_idx + 1}: {type(err).__name__}: {err}", flush=True)
             ids_to_release = [enrich_run_id_placeholder]
             if enrich_run_id:
                 ids_to_release.append(enrich_run_id)
@@ -1163,14 +1297,17 @@ async def _run_async(args) -> int:
             )
             state_conn.commit()
             if enrich_run_id:
-                _record_run_finished(state_conn, enrich_run_id,
+                _record_run_finished(
+                    state_conn,
+                    enrich_run_id,
                     status="aborted",
                     n_success=n_success,
                     n_failed=n_claimed - n_success - n_empty,
                     n_empty=n_empty,
                     total_cost_usd=total_cost,
                     abort_reason=f"pipeline_{type(err).__name__.lower()}",
-                    batch_id=",".join(batch_ids) if batch_ids else "")
+                    batch_id=",".join(batch_ids) if batch_ids else "",
+                )
             state_conn.close()
             return 1
 
@@ -1182,8 +1319,7 @@ async def _run_async(args) -> int:
         # adjusts the abort_reason if cost overshot.
         budget = getattr(args, "budget_usd", None)
         if budget is not None and total_cost >= budget:
-            print(f"[batch] BUDGET CAP HIT post-pipeline: cost=${total_cost:.4f} "
-                  f">= budget=${budget:.4f}", flush=True)
+            print(f"[batch] BUDGET CAP HIT post-pipeline: cost=${total_cost:.4f} >= budget=${budget:.4f}", flush=True)
             # Release any still-in_progress claims (some may remain if a slice
             # had no result for a group).
             state_conn.execute(
@@ -1194,11 +1330,17 @@ async def _run_async(args) -> int:
             )
             state_conn.commit()
             if enrich_run_id is not None:
-                _record_run_finished(state_conn, enrich_run_id,
-                status="aborted", n_success=n_success, n_failed=n_failed,
-                n_empty=n_empty, total_cost_usd=total_cost,
-                abort_reason=f"budget_cap_${budget:.2f}",
-                batch_id=",".join(batch_ids))
+                _record_run_finished(
+                    state_conn,
+                    enrich_run_id,
+                    status="aborted",
+                    n_success=n_success,
+                    n_failed=n_failed,
+                    n_empty=n_empty,
+                    total_cost_usd=total_cost,
+                    abort_reason=f"budget_cap_${budget:.2f}",
+                    batch_id=",".join(batch_ids),
+                )
             state_conn.close()
             return 3
 
@@ -1207,11 +1349,13 @@ async def _run_async(args) -> int:
         # defensive).
         for gid_str, (gid, uid, conv_id, turns) in group_meta.items():
             row = state_conn.execute(
-                f"SELECT status FROM enrichment_groups WHERE id={_p(state_conn)}", (int(gid_str),),
+                f"SELECT status FROM enrichment_groups WHERE id={_p(state_conn)}",
+                (int(gid_str),),
             ).fetchone()
             if row and row[0] == "in_progress":
                 estate.mark_failed(
-                    state_conn, int(gid_str),
+                    state_conn,
+                    int(gid_str),
                     error_class="batch_no_result",
                     last_error="no batch result returned for this group",
                 )
@@ -1219,10 +1363,17 @@ async def _run_async(args) -> int:
 
     # Finalize
     if enrich_run_id is not None:
-        _record_run_finished(state_conn, enrich_run_id,
-        status="completed", n_success=n_success, n_failed=n_failed, n_empty=n_empty,
-        total_cost_usd=total_cost, abort_reason=None,
-        batch_id=",".join(batch_ids))
+        _record_run_finished(
+            state_conn,
+            enrich_run_id,
+            status="completed",
+            n_success=n_success,
+            n_failed=n_failed,
+            n_empty=n_empty,
+            total_cost_usd=total_cost,
+            abort_reason=None,
+            batch_id=",".join(batch_ids),
+        )
 
     elapsed = time.time() - submitted_at
     print()
@@ -1230,80 +1381,114 @@ async def _run_async(args) -> int:
     print("  m3-enrich-batch COMPLETE")
     print("=" * 62)
     print(f"  slices:     {n_slices}")
-    print(f"  batch_ids:  {batch_ids[0] if len(batch_ids)==1 else f'{len(batch_ids)} batches'}")
+    print(f"  batch_ids:  {batch_ids[0] if len(batch_ids) == 1 else f'{len(batch_ids)} batches'}")
     print(f"  groups:     {len(group_meta)} (success={n_success} empty={n_empty} failed={n_failed})")
     print(f"  cost:       ${total_cost:.4f}")
-    print(f"  wallclock:  {elapsed:.1f}s ({elapsed/60:.1f} min)")
+    print(f"  wallclock:  {elapsed:.1f}s ({elapsed / 60:.1f} min)")
     state_conn.close()
     return 0
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--profile", required=True,
-                    help="profile name from config/slm/<name>.yaml. Supported backends: "
-                         "anthropic, openai (Gemini OAI shim only).")
-    ap.add_argument("--profile-path", default=None,
-                    help="Override profile YAML path. Default: config/slm/<profile>.yaml")
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument(
+        "--profile",
+        required=True,
+        help="profile name from config/slm/<name>.yaml. Supported backends: anthropic, openai (Gemini OAI shim only).",
+    )
+    ap.add_argument(
+        "--profile-path", default=None, help="Override profile YAML path. Default: config/slm/<profile>.yaml"
+    )
     ap.add_argument("--core", action="store_true", help="Process the core memory DB.")
-    ap.add_argument("--core-db", default=None,
-                    help="SQLite DB path (default: the active store). Not used on PostgreSQL.")
+    ap.add_argument(
+        "--core-db", default=None, help="SQLite DB path (default: the active store). Not used on PostgreSQL."
+    )
     ap.add_argument("--source-variant", default=None)
-    ap.add_argument("--target-variant", default=None,
-                    help="Required for new runs; ignored for --resume-run "
-                         "(target_variant is read from the existing run row).")
-    ap.add_argument("--resume-run", default=None,
-                    help="Resume an existing enrichment_runs row by id. Skips "
-                         "enumeration + claim + submit; goes straight to poll "
-                         "and ingest for any batches in notes.batches that are "
-                         "not yet ingested. Re-derives group_meta from rows "
-                         "still in_progress under this run_id. The remaining "
-                         "args (--profile, --core-db, --source-variant) must "
-                         "match the original run.")
-    ap.add_argument("--source-conv-list", default=None,
-                    help="File path: newline-list or JSON array of group_keys to filter.")
-    ap.add_argument("--track-state", action="store_true", default=True,
-                    help="Use enrichment_groups state machine. Always on for batch.")
-    ap.add_argument("--resume", action="store_true", default=True,
-                    help="Resume mode (only claims pending/failed groups). Always on for batch.")
-    ap.add_argument("--limit", type=int, default=None,
-                    help="Cap number of conversations submitted (smoke testing).")
-    ap.add_argument("--poll-interval-s", type=float, default=30.0,
-                    help="Seconds between batch poll requests. Default 30.")
-    ap.add_argument("--max-wait-s", type=float, default=24*3600,
-                    help="Max seconds to wait for batch completion. Default 86400 (24h).")
-    ap.add_argument("--embed-url",
-                    default=os.environ.get("M3_EMBED_URL"),
-                    help="Hard override for the embedder endpoint URL "
-                         "(e.g. http://127.0.0.1:8081/v1). Bypasses "
-                         "llm_failover discovery so observation embeds during "
-                         "ingest pin to a chosen server. Without this, the "
-                         "default discovery prefers LMS :1234 (1-slot), which "
-                         "throttles ingest under multi-worker load. Set to "
-                         "the multi-slot llama.cpp endpoint instead. "
-                         "Env: M3_EMBED_URL.")
-    ap.add_argument("--embed-model",
-                    default=os.environ.get("M3_EMBED_MODEL"),
-                    help="Model id for the override endpoint. llama.cpp "
-                         "default: 'bge-m3-GGUF-Q4_K_M.gguf'. LM Studio: "
-                         "'text-embedding-bge-m3'. Required only when "
-                         "--embed-url is set and the default model id is "
-                         "wrong for that server. Env: M3_EMBED_MODEL.")
-    ap.add_argument("--slice-size", type=int, default=None,
-                    help="Override runner.max_batch_size. Use to fit Gemini's "
-                         "Tier-1 enqueued-tokens cap (3M) — at ~5,600 tok/req "
-                         "set this to ~500 for 16k-input convos.")
-    ap.add_argument("--budget-usd", type=float, default=None,
-                    help="Hard cap on total run cost in USD. The worker checks "
-                         "after each slice ingest; if cumulative cost exceeds "
-                         "the cap, the run aborts cleanly (claims released, "
-                         "remaining slices NOT submitted). Use to prevent "
-                         "runaway spend on a misconfigured conv-list.")
+    ap.add_argument(
+        "--target-variant",
+        default=None,
+        help="Required for new runs; ignored for --resume-run (target_variant is read from the existing run row).",
+    )
+    ap.add_argument(
+        "--resume-run",
+        default=None,
+        help="Resume an existing enrichment_runs row by id. Skips "
+        "enumeration + claim + submit; goes straight to poll "
+        "and ingest for any batches in notes.batches that are "
+        "not yet ingested. Re-derives group_meta from rows "
+        "still in_progress under this run_id. The remaining "
+        "args (--profile, --core-db, --source-variant) must "
+        "match the original run.",
+    )
+    ap.add_argument(
+        "--source-conv-list", default=None, help="File path: newline-list or JSON array of group_keys to filter."
+    )
+    ap.add_argument(
+        "--track-state",
+        action="store_true",
+        default=True,
+        help="Use enrichment_groups state machine. Always on for batch.",
+    )
+    ap.add_argument(
+        "--resume",
+        action="store_true",
+        default=True,
+        help="Resume mode (only claims pending/failed groups). Always on for batch.",
+    )
+    ap.add_argument("--limit", type=int, default=None, help="Cap number of conversations submitted (smoke testing).")
+    ap.add_argument(
+        "--poll-interval-s", type=float, default=30.0, help="Seconds between batch poll requests. Default 30."
+    )
+    ap.add_argument(
+        "--max-wait-s",
+        type=float,
+        default=24 * 3600,
+        help="Max seconds to wait for batch completion. Default 86400 (24h).",
+    )
+    ap.add_argument(
+        "--embed-url",
+        default=os.environ.get("M3_EMBED_URL"),
+        help="Hard override for the embedder endpoint URL "
+        "(e.g. http://127.0.0.1:8081/v1). Bypasses "
+        "llm_failover discovery so observation embeds during "
+        "ingest pin to a chosen server. Without this, the "
+        "default discovery prefers LMS :1234 (1-slot), which "
+        "throttles ingest under multi-worker load. Set to "
+        "the multi-slot llama.cpp endpoint instead. "
+        "Env: M3_EMBED_URL.",
+    )
+    ap.add_argument(
+        "--embed-model",
+        default=os.environ.get("M3_EMBED_MODEL"),
+        help="Model id for the override endpoint. llama.cpp "
+        "default: 'bge-m3-GGUF-Q4_K_M.gguf'. LM Studio: "
+        "'text-embedding-bge-m3'. Required only when "
+        "--embed-url is set and the default model id is "
+        "wrong for that server. Env: M3_EMBED_MODEL.",
+    )
+    ap.add_argument(
+        "--slice-size",
+        type=int,
+        default=None,
+        help="Override runner.max_batch_size. Use to fit Gemini's "
+        "Tier-1 enqueued-tokens cap (3M) — at ~5,600 tok/req "
+        "set this to ~500 for 16k-input convos.",
+    )
+    ap.add_argument(
+        "--budget-usd",
+        type=float,
+        default=None,
+        help="Hard cap on total run cost in USD. The worker checks "
+        "after each slice ingest; if cumulative cost exceeds "
+        "the cap, the run aborts cleanly (claims released, "
+        "remaining slices NOT submitted). Use to prevent "
+        "runaway spend on a misconfigured conv-list.",
+    )
     ap.add_argument("--skip-preflight", action="store_true", default=True)
     ap.add_argument("--yes", "-y", action="store_true", default=True)
-    ap.add_argument("--dry-run", action="store_true",
-                    help="Preview chunks; release claims; do not submit to Anthropic.")
+    ap.add_argument(
+        "--dry-run", action="store_true", help="Preview chunks; release claims; do not submit to Anthropic."
+    )
     args = ap.parse_args()
     return asyncio.run(_run_async(args))
 

@@ -6,6 +6,7 @@ tests instead exercise the gate, the profile-loading machinery, and the
 label-matching logic that runs *after* the HTTP call. Network behavior
 is covered by the bench harness in an end-to-end run.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -20,6 +21,7 @@ def _isolate_slm_env(monkeypatch):
     for k in ("M3_SLM_CLASSIFIER", "M3_SLM_PROFILE", "M3_SLM_PROFILES_DIR"):
         monkeypatch.delenv(k, raising=False)
     import slm_intent
+
     slm_intent.invalidate_cache()
     yield
     slm_intent.invalidate_cache()
@@ -28,6 +30,7 @@ def _isolate_slm_env(monkeypatch):
 def _write_profile(path, **fields):
     """Build a minimal valid profile YAML with fields overridable."""
     import yaml
+
     base = {
         "url": "http://127.0.0.1:0/",  # unroutable, never actually called
         "model": "test-model",
@@ -189,6 +192,7 @@ def test_pick_label_fallback_on_mismatch(tmp_path, monkeypatch):
 
 # ── extract_text tests ───────────────────────────────────────────────────────
 
+
 def test_extract_text_returns_none_when_gate_off(tmp_path, monkeypatch):
     """Gate off → immediate None, no profile load attempted."""
     import slm_intent
@@ -238,9 +242,11 @@ def test_extract_text_returns_none_when_profile_missing(tmp_path, monkeypatch):
 
 # ── post-processing tests ────────────────────────────────────────────────────
 
+
 def _write_profile_with_post(path, post_block):
     """Write a minimal profile with a `post:` block."""
     import yaml
+
     base = {
         "url": "http://x/v1/chat/completions",
         "model": "m",
@@ -394,6 +400,7 @@ def test_parse_profile_rejects_format_without_placeholder(tmp_path, monkeypatch)
 
 # ── Backend dispatch tests ───────────────────────────────────────────────────
 
+
 def test_parse_profile_default_backend_is_openai(tmp_path, monkeypatch):
     """Profiles without `backend:` default to 'openai' (back-compat)."""
     import slm_intent
@@ -524,7 +531,9 @@ async def test_call_model_anthropic_no_cache(tmp_path, monkeypatch):
 
     _write_profile(
         tmp_path / "a.yaml",
-        backend="anthropic", cache_system=False, api_key_service=None,
+        backend="anthropic",
+        cache_system=False,
+        api_key_service=None,
     )
     monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
     slm_intent.invalidate_cache()
@@ -535,7 +544,8 @@ async def test_call_model_anthropic_no_cache(tmp_path, monkeypatch):
     def handler(request: httpx.Request) -> httpx.Response:
         captured["json"] = json.loads(request.content)
         return httpx.Response(
-            200, json={"content": [{"type": "text", "text": "ok"}]},
+            200,
+            json={"content": [{"type": "text", "text": "ok"}]},
         )
 
     transport = httpx.MockTransport(handler)
@@ -571,7 +581,8 @@ async def test_call_model_anthropic_uses_x_api_key(tmp_path, monkeypatch):
     def handler(request: httpx.Request) -> httpx.Response:
         captured["headers"] = {k.lower(): v for k, v in request.headers.items()}
         return httpx.Response(
-            200, json={"content": [{"type": "text", "text": "ok"}]},
+            200,
+            json={"content": [{"type": "text", "text": "ok"}]},
         )
 
     transport = httpx.MockTransport(handler)

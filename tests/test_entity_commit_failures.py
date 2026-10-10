@@ -5,6 +5,7 @@ db.commit() and still reported the rows as written. The flush stays
 best-effort (its contract says it never raises) but returns 0 and warns; the
 builder, which makes no such promise, raises.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -31,8 +32,9 @@ class _CommitFails:
 
 def _vec_table() -> sqlite3.Connection:
     conn = sqlite3.connect(":memory:")
-    conn.execute("CREATE TABLE entity_embeddings (entity_id TEXT PRIMARY KEY, "
-                 "embedding BLOB, embed_model TEXT, dim INTEGER)")
+    conn.execute(
+        "CREATE TABLE entity_embeddings (entity_id TEXT PRIMARY KEY, embedding BLOB, embed_model TEXT, dim INTEGER)"
+    )
     return conn
 
 
@@ -62,7 +64,8 @@ def test_bypass_build_raises_when_the_commit_fails(request, monkeypatch):
 
     monkeypatch.setattr(E, "_db", failing_db)
     with pytest.raises(sqlite3.OperationalError, match="disk I/O error"):
-        E.build_bypass_surface(strategy_for={"convA": "COMPUTE", "convB": "COMPUTE"},
-                               category_for={"convA": "person", "convB": "person"},
-                               type_rules={"person": ("person",)})
-
+        E.build_bypass_surface(
+            strategy_for={"convA": "COMPUTE", "convB": "COMPUTE"},
+            category_for={"convA": "person", "convB": "person"},
+            type_rules={"person": ("person",)},
+        )

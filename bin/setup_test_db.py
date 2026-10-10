@@ -11,6 +11,7 @@ Usage:
 
 Exits non-zero if any migration fails.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -31,7 +32,7 @@ MIGRATIONS_DIR = os.path.join(BASE_DIR, "memory", "migrations")
 # migrate_memory.py wraps each migration in a SAVEPOINT; executescript opens
 # its own implicit transaction instead, so top-level BEGIN / COMMIT confuse
 # it. Strip them.
-_BEGIN_RE  = re.compile(r"\bBEGIN\s*(TRANSACTION)?\s*;", re.IGNORECASE)
+_BEGIN_RE = re.compile(r"\bBEGIN\s*(TRANSACTION)?\s*;", re.IGNORECASE)
 _COMMIT_RE = re.compile(r"\bCOMMIT\s*;", re.IGNORECASE)
 
 

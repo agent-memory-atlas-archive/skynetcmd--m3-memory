@@ -3,6 +3,7 @@
 Guards the §4/§8 bounding added so a large chatlog backlog drains across many
 cognitive-loop cycles instead of one unbounded whole-table pass.
 """
+
 from __future__ import annotations
 
 import datetime
@@ -20,9 +21,15 @@ import chatlog_prune as cp
 
 def _opts(**over):
     base = {
-        "fresh_days": 14.0, "prune_days": 45.0, "status_min_cluster": 5,
-        "generic_imp_max": 0.3, "keep_imp_floor": 0.4, "generic_protect_len": 300,
-        "generic_delete_maxlen": 300, "no_generic": False, "max_actions": 0,
+        "fresh_days": 14.0,
+        "prune_days": 45.0,
+        "status_min_cluster": 5,
+        "generic_imp_max": 0.3,
+        "keep_imp_floor": 0.4,
+        "generic_protect_len": 300,
+        "generic_delete_maxlen": 300,
+        "no_generic": False,
+        "max_actions": 0,
         "apply": True,
     }
     base.update(over)
@@ -45,9 +52,7 @@ def _seed(db_path, *, aged_noise: int, fresh_noise: int):
     for i in range(fresh_noise):  # 1 day old => must be left untouched
         ts = (now - datetime.timedelta(days=1)).isoformat()
         rows.append((f"fresh{i}", "chat_log", "user@x", "status", 0.1, ts))
-    conn.executemany(
-        "INSERT INTO memory_items(id,type,title,content,importance,created_at) "
-        "VALUES(?,?,?,?,?,?)", rows)
+    conn.executemany("INSERT INTO memory_items(id,type,title,content,importance,created_at) VALUES(?,?,?,?,?,?)", rows)
     conn.commit()
     conn.close()
 
@@ -61,9 +66,7 @@ def test_max_actions_caps_writes_and_flags(tmp_path):
     assert summary["capped"] is True
     # 6 aged rows remain un-deleted for the next run.
     conn = sqlite3.connect(db)
-    remaining = conn.execute(
-        "SELECT COUNT(*) FROM memory_items WHERE type='chat_log' AND is_deleted=0"
-    ).fetchone()[0]
+    remaining = conn.execute("SELECT COUNT(*) FROM memory_items WHERE type='chat_log' AND is_deleted=0").fetchone()[0]
     conn.close()
     # 6 aged not-yet-pruned + 3 fresh untouched = 9.
     assert remaining == 9
@@ -102,9 +105,7 @@ def _seed_decay_tier(db_path, *, n: int):
     for i in range(n):  # 20 days old => decay tier (>=fresh_days, <prune_days)
         ts = (now - datetime.timedelta(days=20)).isoformat()
         rows.append((f"decay{i}", "chat_log", "user@x", "status", 0.1, ts))
-    conn.executemany(
-        "INSERT INTO memory_items(id,type,title,content,importance,created_at) "
-        "VALUES(?,?,?,?,?,?)", rows)
+    conn.executemany("INSERT INTO memory_items(id,type,title,content,importance,created_at) VALUES(?,?,?,?,?,?)", rows)
     conn.commit()
     conn.close()
 
@@ -152,9 +153,9 @@ def test_decayed_row_still_prunes_when_aged(tmp_path):
     old_ts = (now - datetime.timedelta(days=90)).isoformat()
     decayed_ts = (now - datetime.timedelta(days=30)).isoformat()
     conn.execute(
-        "INSERT INTO memory_items(id,type,title,content,importance,created_at,valid_to) "
-        "VALUES(?,?,?,?,?,?,?)",
-        ("aged", "chat_log", "user@x", "status", 0.06, old_ts, decayed_ts))
+        "INSERT INTO memory_items(id,type,title,content,importance,created_at,valid_to) VALUES(?,?,?,?,?,?,?)",
+        ("aged", "chat_log", "user@x", "status", 0.06, old_ts, decayed_ts),
+    )
     conn.commit()
     conn.close()
 

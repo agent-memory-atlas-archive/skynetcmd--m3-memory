@@ -8,6 +8,7 @@ toward better-corroborated facts.
 Drives memory_search_scored_impl against a real full-schema DB with seeded rows +
 embeddings (query embedder stubbed for determinism).
 """
+
 from __future__ import annotations
 
 import os
@@ -29,6 +30,7 @@ def _skip_migrations(monkeypatch):
 
 def _full_db(db_path):
     from conftest import create_full_main_schema
+
     create_full_main_schema(db_path)
 
 
@@ -42,11 +44,11 @@ def _vec(primary: float, dim: int):
 
 def _seed(conn, mid, content, vec, confidence, *, importance=0.5):
     from memory.config import EMBED_MODEL
+
     conn.execute(
         "INSERT INTO memory_items (id, type, title, content, source, change_agent, "
         "created_at, importance, confidence, is_deleted) VALUES (?,?,?,?,?,?,?,?,?,0)",
-        (mid, "fact", content[:20], content, "agent", "claude",
-         "2026-01-01T00:00:00Z", importance, confidence),
+        (mid, "fact", content[:20], content, "agent", "claude", "2026-01-01T00:00:00Z", importance, confidence),
     )
     # Tag with the configured embedder so the row survives search's proper-identity
     # filter (embed_model IN compatible AND dim == EMBED_DIM); this test exercises
@@ -82,9 +84,7 @@ def _patch(monkeypatch, db_path, qvec):
 
 
 async def _ranked_ids(mc, **kw):
-    res = await mc.memory_search_scored_impl(
-        query="anything", k=5, mmr=False, search_mode="semantic", **kw
-    )
+    res = await mc.memory_search_scored_impl(query="anything", k=5, mmr=False, search_mode="semantic", **kw)
     # scored impl returns a list of (score, item) or item dicts depending on path;
     # normalize to a list of ids in rank order.
     out = []
@@ -101,6 +101,7 @@ async def test_flag_off_ranking_ignores_confidence(monkeypatch, tmp_path):
     """The contract: with the flag OFF, two rows of equal relevance rank by the
     existing signals only — their confidence is irrelevant to order and score."""
     from memory.config import EMBED_DIM
+
     db = tmp_path / "t.db"
     _full_db(db)
     qv = _vec(1.0, EMBED_DIM)
@@ -113,17 +114,16 @@ async def test_flag_off_ranking_ignores_confidence(monkeypatch, tmp_path):
 
     monkeypatch.delenv("M3_CONFIDENCE_RANKING", raising=False)
     import memory.config as cfg
+
     monkeypatch.setattr(cfg, "CONFIDENCE_RANKING", False)
     mc = _patch(monkeypatch, db, qv)
 
     res = await mc.memory_search_scored_impl(query="x", k=5, mmr=False, search_mode="semantic")
-    scores = {r[1]["id"] if isinstance(r, tuple) else r["id"]:
-              (r[0] if isinstance(r, tuple) else None) for r in res}
+    scores = {r[1]["id"] if isinstance(r, tuple) else r["id"]: (r[0] if isinstance(r, tuple) else None) for r in res}
     # Both present; with the flag off their scores are equal (confidence ignored).
     assert "lowconf" in scores and "hiconf" in scores
     if scores["lowconf"] is not None and scores["hiconf"] is not None:
-        assert scores["lowconf"] == pytest.approx(scores["hiconf"]), (
-            "flag OFF must not let confidence change the score")
+        assert scores["lowconf"] == pytest.approx(scores["hiconf"]), "flag OFF must not let confidence change the score"
 
 
 @pytest.mark.asyncio
@@ -131,6 +131,7 @@ async def test_flag_on_confidence_breaks_ties(monkeypatch, tmp_path):
     """With the flag ON, the higher-confidence row of an equal-relevance pair
     ranks first."""
     from memory.config import EMBED_DIM
+
     db = tmp_path / "t.db"
     _full_db(db)
     qv = _vec(1.0, EMBED_DIM)
@@ -140,6 +141,7 @@ async def test_flag_on_confidence_breaks_ties(monkeypatch, tmp_path):
         conn.commit()
 
     import memory.config as cfg
+
     monkeypatch.setattr(cfg, "CONFIDENCE_RANKING", True)
     monkeypatch.setattr(cfg, "CONFIDENCE_WEIGHT", 0.5)  # exaggerate for a clear gap
     mc = _patch(monkeypatch, db, qv)
@@ -153,6 +155,7 @@ async def test_flag_on_null_confidence_falls_back_to_importance(monkeypatch, tmp
     """A row with NULL confidence must not be penalized — it falls back to its
     importance, so an un-derived legacy row is unaffected."""
     from memory.config import EMBED_DIM
+
     db = tmp_path / "t.db"
     _full_db(db)
     qv = _vec(1.0, EMBED_DIM)
@@ -162,6 +165,7 @@ async def test_flag_on_null_confidence_falls_back_to_importance(monkeypatch, tmp
         conn.commit()
 
     import memory.config as cfg
+
     monkeypatch.setattr(cfg, "CONFIDENCE_RANKING", True)
     monkeypatch.setattr(cfg, "CONFIDENCE_WEIGHT", 0.5)
     mc = _patch(monkeypatch, db, qv)

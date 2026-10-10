@@ -17,6 +17,7 @@ Deliberately OUT OF SCOPE (per the intended UX): interactive entrypoints — the
 mission_control dashboard, setup/install wizards, dev CLIs — SHOULD show a
 window; the user invoked them and is watching. Only unattended paths are guarded.
 """
+
 from __future__ import annotations
 
 import ast
@@ -29,8 +30,19 @@ _BIN = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "bin"))
 # Commands that are POSIX-only (or otherwise never a Windows console app), so a
 # missing no-window flag can't flash on Windows. Keyed on argv[0] literal.
 _POSIX_ONLY_CMDS = {
-    "crontab", "launchctl", "systemctl", "sysctl", "ioreg", "sensors",
-    "sh", "/bin/sh", "bash", "osascript", "defaults", "sw_vers", "uname",
+    "crontab",
+    "launchctl",
+    "systemctl",
+    "sysctl",
+    "ioreg",
+    "sensors",
+    "sh",
+    "/bin/sh",
+    "bash",
+    "osascript",
+    "defaults",
+    "sw_vers",
+    "uname",
 }
 
 # The spawn call names we police.
@@ -40,8 +52,7 @@ _SPAWN_ATTRS = {"run", "Popen", "call", "check_call", "check_output"}
 _NOWINDOW_KWARG = "creationflags"
 # The OS seam's primitives count too: detached_spawn_kwargs carries
 # CREATE_NO_WINDOW on Windows; hidden_window_kwargs hides via STARTUPINFO.
-_NOWINDOW_HELPERS = {"no_window_kwargs", "_no_window", "_nw",
-                     "detached_spawn_kwargs", "hidden_window_kwargs"}
+_NOWINDOW_HELPERS = {"no_window_kwargs", "_no_window", "_nw", "detached_spawn_kwargs", "hidden_window_kwargs"}
 
 
 def _unattended_files() -> list[str]:
@@ -53,6 +64,7 @@ def _unattended_files() -> list[str]:
       * the cognitive loop + the telemetry/probe modules it calls per cycle.
     """
     import sys
+
     if _BIN not in sys.path:
         sys.path.insert(0, _BIN)
     import install_schedules as isch
@@ -73,8 +85,13 @@ def _unattended_files() -> list[str]:
                 files.add(os.path.join(hooks_dir, name))
 
     # The cognitive loop + the modules it polls every cycle.
-    for name in ("m3_cognitive_loop.py", "m3_sdk.py", "thermal_utils.py",
-                 "enrichment_state.py", "m3_enrich_batch_parallel.py"):
+    for name in (
+        "m3_cognitive_loop.py",
+        "m3_sdk.py",
+        "thermal_utils.py",
+        "enrichment_state.py",
+        "m3_enrich_batch_parallel.py",
+    ):
         p = os.path.join(_BIN, name)
         if os.path.exists(p):
             files.add(p)
@@ -128,8 +145,7 @@ def _local_imports(path: str) -> set:
 
 def _resolve_bin_module(mod: str) -> str | None:
     """Resolve a module name to a file under bin/, or None if it is not ours."""
-    for cand in (os.path.join(_BIN, mod + ".py"),
-                 os.path.join(_BIN, mod, "__init__.py")):
+    for cand in (os.path.join(_BIN, mod + ".py"), os.path.join(_BIN, mod, "__init__.py")):
         if os.path.exists(cand):
             return os.path.abspath(cand)
     return None
@@ -157,8 +173,7 @@ def _call_has_no_window(call: ast.Call) -> bool:
         # **no_window_kwargs() / **_no_window() / **_nw
         if kw.arg is None:
             val = kw.value
-            if isinstance(val, ast.Call) and isinstance(val.func, ast.Name) \
-                    and val.func.id in _NOWINDOW_HELPERS:
+            if isinstance(val, ast.Call) and isinstance(val.func, ast.Name) and val.func.id in _NOWINDOW_HELPERS:
                 return True
             if isinstance(val, ast.Name) and val.id in _NOWINDOW_HELPERS:
                 return True
@@ -220,8 +235,7 @@ def _offending_spawns(path: str) -> list[tuple[int, str]]:
     return bad
 
 
-@pytest.mark.parametrize("path", _unattended_files(),
-                         ids=lambda p: os.path.relpath(p, _BIN))
+@pytest.mark.parametrize("path", _unattended_files(), ids=lambda p: os.path.relpath(p, _BIN))
 def test_unattended_spawns_are_windowless(path):
     """Every subprocess spawn in an unattended entrypoint must suppress the
     console window (creationflags / no_window helper), or be a POSIX-only cmd."""

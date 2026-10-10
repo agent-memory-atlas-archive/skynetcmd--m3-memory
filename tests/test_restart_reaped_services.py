@@ -11,6 +11,7 @@ These tests pin the two things that made the first fix attempt wrong:
 * service identifiers come from a MAP, never a derivation
 * a wrong or missing name FAILS LOUD rather than reading as a successful restart
 """
+
 from __future__ import annotations
 
 import os
@@ -48,19 +49,17 @@ def test_identifiers_come_from_a_map_not_a_derivation():
     # drift guard pass against the very bug it was written for (§12c).
     tree = ast.parse(text)
     fn = next(
-        (n for n in ast.walk(tree)
-         if isinstance(n, ast.FunctionDef) and n.name == "restart_reaped_services"),
+        (n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "restart_reaped_services"),
         None,
     )
     assert fn is not None, "restart_reaped_services not found"
     derived = [
-        n for n in ast.walk(fn)
-        if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
-        and n.func.attr == "replace"
+        n
+        for n in ast.walk(fn)
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "replace"
     ]
     assert not derived, (
-        "restart_reaped_services derives a service name with .replace(); "
-        "names must be looked up in _ROLE_TO_SERVICE"
+        "restart_reaped_services derives a service name with .replace(); names must be looked up in _ROLE_TO_SERVICE"
     )
 
 
@@ -116,9 +115,8 @@ def test_unix_install_restarts_what_the_reap_stopped(monkeypatch):
         calls.append(list(cmd))
         return _Res()
 
-    monkeypatch.setattr(m3_sdk, "kill_stale_daemons", lambda **k: [
-        {"role": "embed-server", "pid": 1, "killed": True}])
-    monkeypatch.setattr(isch, "keeps_rust_embed_server", lambda: False)   # Python server
+    monkeypatch.setattr(m3_sdk, "kill_stale_daemons", lambda **k: [{"role": "embed-server", "pid": 1, "killed": True}])
+    monkeypatch.setattr(isch, "keeps_rust_embed_server", lambda: False)  # Python server
     monkeypatch.setattr(isch, "_reaped_roles", set())
     monkeypatch.setattr(isch, "_os_name", lambda: "Linux")
     monkeypatch.setattr(isch, "_platform_key", lambda: "linux")
@@ -155,9 +153,7 @@ def test_linux_existence_is_checked_because_systemd_start_returns_zero():
     """
     with open(isch.__file__, encoding="utf-8") as fh:
         text = fh.read()
-    assert "LoadState" in text, (
-        "no LoadState probe: on Linux a bad unit name would look like success"
-    )
+    assert "LoadState" in text, "no LoadState probe: on Linux a bad unit name would look like success"
     assert "not-found" in text, "the LoadState result is not being compared"
 
 
@@ -168,16 +164,13 @@ def test_missing_service_manager_reports_once_and_stops():
     with open(isch.__file__, encoding="utf-8") as fh:
         text = fh.read()
     assert "except FileNotFoundError" in text, (
-        "the service manager being absent must be caught distinctly from a "
-        "per-service failure"
+        "the service manager being absent must be caught distinctly from a per-service failure"
     )
-    assert "stay DOWN" in text, (
-        "the operator must be told what the failure COSTS, not just that a "
-        "command failed"
-    )
+    assert "stay DOWN" in text, "the operator must be told what the failure COSTS, not just that a command failed"
 
 
 # ── which inboxes the waiter is launched with (#170 / the agy miss) ───────────
+
 
 def test_agent_id_pattern_accepts_instance_addressing():
     """The registry scrape must not truncate `type@instance` to `type`.
@@ -219,6 +212,8 @@ def test_agent_id_pattern_accepts_instance_addressing():
         f"every instance inbox would collapse back to its bare type"
     )
     assert "agy" in found, f"bare types must still be scraped -- got {found}"
+
+
 def test_a_stale_registry_row_is_not_watched():
     """A registry row is forever; a dead identity is not.
 

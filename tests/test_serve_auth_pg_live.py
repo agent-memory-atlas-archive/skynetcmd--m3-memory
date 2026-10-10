@@ -33,6 +33,7 @@ Verified after pg_051 on live PG 16: set_api_key -> get_api_key round-trips, and
 these tests run instead of skipping. A deployment still at v50 will skip them,
 which is correct -- the fixture probes for the table rather than assuming it.
 """
+
 from __future__ import annotations
 
 import sys
@@ -75,13 +76,15 @@ def pg_backend(monkeypatch, pg_url):
         p = auth_utils._dialect_param()
         with auth_utils._backend().open_readonly("") as conn:
             cur = conn.cursor()
-            cur.execute(f"SELECT 1 FROM synchronized_secrets WHERE service_name = {p}",
-                        ("__schema_probe__",))
+            cur.execute(f"SELECT 1 FROM synchronized_secrets WHERE service_name = {p}", ("__schema_probe__",))
             cur.fetchone()
     except Exception as exc:  # noqa: BLE001
         pytest.skip(
-            skip_reason("db", "target Postgres has no reachable synchronized_secrets table "
-            f"(not an m3 primary store -- a warehouse/mirror will do this): {exc}")
+            skip_reason(
+                "db",
+                "target Postgres has no reachable synchronized_secrets table "
+                f"(not an m3 primary store -- a warehouse/mirror will do this): {exc}",
+            )
         )
     return auth_utils
 
@@ -179,9 +182,7 @@ def _delete_secret(service: str) -> None:
         p = auth_utils._dialect_param()
         with auth_utils._backend().connection() as conn:
             cur = conn.cursor()
-            cur.execute(
-                f"DELETE FROM synchronized_secrets WHERE service_name = {p}", (service,)
-            )
+            cur.execute(f"DELETE FROM synchronized_secrets WHERE service_name = {p}", (service,))
             conn.commit()
     except Exception:  # noqa: BLE001 -- cleanup must not mask a real assertion
         pass

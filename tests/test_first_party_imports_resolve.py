@@ -5,6 +5,7 @@ name. Each import sat inside `except Exception`, so the ImportError vanished
 and on PostgreSQL the status tools described the files store as a SQLite file
 (2026-10-10). Static: reads the AST of both sides, imports nothing.
 """
+
 from __future__ import annotations
 
 import ast
@@ -60,8 +61,9 @@ def _defined(path: Path) -> set[str] | None:
                 if isinstance(n, (ast.For, ast.With)) and not visit(n.body):
                     return False
             elif isinstance(n, (ast.If, ast.Try)):
-                blocks = [n.body, n.orelse] + ([h.body for h in n.handlers] + [n.finalbody]
-                                               if isinstance(n, ast.Try) else [])
+                blocks = [n.body, n.orelse] + (
+                    [h.body for h in n.handlers] + [n.finalbody] if isinstance(n, ast.Try) else []
+                )
                 if not all(visit(b) for b in blocks):
                     return False
         return True
@@ -105,6 +107,8 @@ def test_imported_names_exist():
     stale_known = set(KNOWN) - {k for k, _ in missing}
     assert not stale_known, f"observed: KNOWN entries no longer seen: {stale_known}. inspect: delete them"
     missing = [f"{k} (line {ln})" for k, ln in missing if k not in KNOWN]
-    assert not missing, ("observed: imports of names their module does not define:\n  "
-                         + "\n  ".join(missing)
-                         + "\ninspect: a rename left these callers behind; a broad except around one hides it")
+    assert not missing, (
+        "observed: imports of names their module does not define:\n  "
+        + "\n  ".join(missing)
+        + "\ninspect: a rename left these callers behind; a broad except around one hides it"
+    )

@@ -11,6 +11,7 @@ Usage:
     python bin/setup_secret.py --list       # show stored services (no values)
     python bin/setup_secret.py --delete KEY # remove one entry
 """
+
 from __future__ import annotations
 
 import argparse
@@ -42,12 +43,15 @@ def _dialect():
     """
     try:
         from memory.backends import dialect  # type: ignore
+
         return dialect()
     except ImportError:  # bootstrap: seam not importable yet
+
         class _SqliteParams:
             @staticmethod
             def param() -> str:
                 return "?"
+
         return _SqliteParams()
 
 
@@ -69,8 +73,10 @@ KNOWN_SERVICES: list[dict] = [
         "description": "OpenAI API key — used by eval judge and OpenAI LLM calls",
         "url": "https://platform.openai.com/api-keys",
         "validator": lambda v: (
-            (True, "project-scoped key") if v.startswith("sk-proj-")
-            else (True, "legacy key") if v.startswith("sk-")
+            (True, "project-scoped key")
+            if v.startswith("sk-proj-")
+            else (True, "legacy key")
+            if v.startswith("sk-")
             else (False, "expected prefix 'sk-' or 'sk-proj-'")
         ),
     },
@@ -79,8 +85,7 @@ KNOWN_SERVICES: list[dict] = [
         "description": "Anthropic API key — for Claude API calls",
         "url": "https://console.anthropic.com/settings/keys",
         "validator": lambda v: (
-            (True, "looks like an Anthropic key") if v.startswith("sk-ant-")
-            else (False, "expected prefix 'sk-ant-'")
+            (True, "looks like an Anthropic key") if v.startswith("sk-ant-") else (False, "expected prefix 'sk-ant-'")
         ),
     },
     {
@@ -88,7 +93,8 @@ KNOWN_SERVICES: list[dict] = [
         "description": "Google Gemini API key — for Gemini API calls",
         "url": "https://aistudio.google.com/apikey",
         "validator": lambda v: (
-            (True, "looks like a Google API key") if v.startswith("AIza") and len(v) >= 35
+            (True, "looks like a Google API key")
+            if v.startswith("AIza") and len(v) >= 35
             else (False, "expected prefix 'AIza' and length >= 35")
         ),
     },
@@ -97,8 +103,7 @@ KNOWN_SERVICES: list[dict] = [
         "description": "xAI / Grok API key",
         "url": "https://console.x.ai",
         "validator": lambda v: (
-            (True, "looks like an xAI key") if v.startswith("xai-")
-            else (False, "expected prefix 'xai-'")
+            (True, "looks like an xAI key") if v.startswith("xai-") else (False, "expected prefix 'xai-'")
         ),
     },
 ]
@@ -118,8 +123,10 @@ def _check_master_key() -> None:
     print("  The master key encrypts everything in the vault. Without it, set_api_key")
     print("  will fail. Generate one and store it in the OS keyring before continuing:")
     print()
-    print("    python -c \"import secrets, keyring; keyring.set_password("
-          "'system', 'AGENT_OS_MASTER_KEY', secrets.token_urlsafe(32))\"")
+    print(
+        '    python -c "import secrets, keyring; keyring.set_password('
+        "'system', 'AGENT_OS_MASTER_KEY', secrets.token_urlsafe(32))\""
+    )
     print()
     print("  Back up the generated value to a password manager immediately — losing it")
     print("  makes every secret in the vault unrecoverable.")
@@ -157,8 +164,7 @@ def _delete_service(service: str) -> None:
     d = _dialect()
     with _backend().connection() as conn:
         cur = conn.execute(
-            "SELECT version, updated_at FROM synchronized_secrets "
-            f"WHERE service_name = {d.param()}",
+            f"SELECT version, updated_at FROM synchronized_secrets WHERE service_name = {d.param()}",
             (service,),
         )
         row = cur.fetchone()
@@ -182,8 +188,7 @@ def _existing_info(service: str) -> tuple[int, str] | None:
         d = _dialect()
         with _backend().open_readonly(_db_path()) as conn:
             row = conn.execute(
-                "SELECT version, updated_at FROM synchronized_secrets "
-                f"WHERE service_name = {d.param()}",
+                f"SELECT version, updated_at FROM synchronized_secrets WHERE service_name = {d.param()}",
                 (service,),
             ).fetchone()
             return (row[0], row[1]) if row else None
@@ -274,8 +279,7 @@ def _interactive_add() -> None:
     # an unreadable vault must surface, not be swallowed into "row missing".
     with _backend().open_readonly(_db_path()) as conn:
         row = conn.execute(
-            "SELECT encrypted_value FROM synchronized_secrets "
-            f"WHERE service_name = {d.param()}",
+            f"SELECT encrypted_value FROM synchronized_secrets WHERE service_name = {d.param()}",
             (name,),
         ).fetchone()
     if not row or not row[0]:
@@ -323,6 +327,7 @@ def main() -> None:
     parser.add_argument("--list", action="store_true", help="list stored services (no values)")
     parser.add_argument("--delete", metavar="SERVICE", help="remove a service from the vault")
     from m3_sdk import add_database_arg
+
     add_database_arg(parser)
     args = parser.parse_args()
 

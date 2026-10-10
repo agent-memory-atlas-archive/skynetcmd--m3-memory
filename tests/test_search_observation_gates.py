@@ -5,6 +5,7 @@ dropped the implementations (they raised NameError when the gates fired).
 Deterministic: the helpers are pure list transforms over synthetic ranked data
 (no embedder; two-stage's DB lookup is exercised against a tmp memory_items DB).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -22,8 +23,7 @@ import memory.search as s  # noqa: E402
 
 
 def _obs(i, content, **md):
-    return {"id": f"obs{i}", "type": "observation", "content": content,
-            "metadata": md}
+    return {"id": f"obs{i}", "type": "observation", "content": content, "metadata": md}
 
 
 def _raw(i, content="x"):
@@ -69,10 +69,10 @@ def tmp_memory_db(tmp_path, monkeypatch):
     )
     conn.executemany(
         "INSERT INTO memory_items(id, content, title, type, importance) VALUES (?,?,?,?,?)",
-        [("turnA", "verbatim turn A", "A", "message", 0.5),
-         ("turnB", "verbatim turn B", "B", "message", 0.5)],
+        [("turnA", "verbatim turn A", "A", "message", 0.5), ("turnB", "verbatim turn B", "B", "message", 0.5)],
     )
-    conn.commit(); conn.close()
+    conn.commit()
+    conn.close()
     monkeypatch.setenv("M3_DATABASE", str(db))
     return db
 
@@ -83,8 +83,8 @@ def test_two_stage_expands_observation_source_turns(tmp_memory_db, monkeypatch):
     ranked = [(1.0, _obs(1, "summary", source_turn_ids=["turnA", "turnB"]))]
     out = asyncio.run(s._apply_two_stage_expansion(ranked, k=10))
     ids = [it["id"] for _, it in out]
-    assert "turnA" in ids and "turnB" in ids        # expanded turns appended
-    assert ids[0] == "obs1"                          # observation still ranks top
+    assert "turnA" in ids and "turnB" in ids  # expanded turns appended
+    assert ids[0] == "obs1"  # observation still ranks top
     exp = [it for _, it in out if it["id"] == "turnA"][0]
     assert exp["_two_stage_expanded"] is True
     # expanded turns sit below the observation (penalty applied)
@@ -101,7 +101,9 @@ def test_two_stage_noop_when_no_source_turns(tmp_memory_db):
 
 def test_two_stage_skips_already_present_turn(tmp_memory_db):
     # if a source turn is already in the ranked list, don't duplicate it
-    ranked = [(1.0, _obs(1, "s", source_turn_ids=["turnA"])),
-              (0.9, {"id": "turnA", "type": "message", "content": "already here"})]
+    ranked = [
+        (1.0, _obs(1, "s", source_turn_ids=["turnA"])),
+        (0.9, {"id": "turnA", "type": "message", "content": "already here"}),
+    ]
     out = asyncio.run(s._apply_two_stage_expansion(ranked, k=10))
     assert sum(1 for _, it in out if it["id"] == "turnA") == 1

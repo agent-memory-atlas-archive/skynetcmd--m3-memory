@@ -12,6 +12,7 @@ What this pins:
   4. NO IMPORT CYCLE. memory_bridge imports this at startup, so this module must
      not reach back into mcp_tool_catalog / memory_core / memory_bridge.
 """
+
 from __future__ import annotations
 
 import json
@@ -132,8 +133,7 @@ def test_malformed_json_warns_and_falls_back(_clean_env, caplog):
 
 
 def test_duplicates_are_deduped_in_order(monkeypatch):
-    monkeypatch.setenv(tc.ENV_STARTUP,
-                       "memory_search,memory_search," + ",".join(tc.ESCAPE_HATCH))
+    monkeypatch.setenv(tc.ENV_STARTUP, "memory_search,memory_search," + ",".join(tc.ESCAPE_HATCH))
     names, _ = tc.resolve_startup_tools()
     assert names.count("memory_search") == 1
     assert names[0] == "memory_search"
@@ -148,8 +148,7 @@ def test_unknown_tool_name_raises():
 def test_unknown_name_gets_a_did_you_mean():
     """A tool renamed by an upgrade must say so, not vanish silently."""
     with pytest.raises(tc.ToolsConfigError) as e:
-        tc.validate_against_catalog(["memory_search_slm"],
-                                    {"memory_search_slim", "m3_call"})
+        tc.validate_against_catalog(["memory_search_slm"], {"memory_search_slim", "m3_call"})
     assert "did you mean" in str(e.value)
     assert "memory_search_slim" in str(e.value)
 
@@ -163,8 +162,8 @@ def test_the_shipped_default_is_valid_against_the_real_catalog():
     actually exist in this version's catalog. Importing the catalog in the TEST
     is fine -- it is the resolver that must not."""
     import mcp_tool_catalog as cat
-    tc.validate_against_catalog(list(tc.DEFAULT_STARTUP_TOOLS),
-                                {t.name for t in cat.TOOLS})
+
+    tc.validate_against_catalog(list(tc.DEFAULT_STARTUP_TOOLS), {t.name for t in cat.TOOLS})
 
 
 # ── the default is never materialized ────────────────────────────────────────
@@ -196,9 +195,14 @@ def test_resolver_does_not_import_the_catalog():
     """memory_bridge imports this at startup; an import back would mean the
     catalog has to be built before the set that decides what to build."""
     src = (_BIN / "tools_config.py").read_text(encoding="utf-8")
-    for banned in ("import mcp_tool_catalog", "import memory_core",
-                   "import memory_bridge", "from mcp_tool_catalog",
-                   "from memory_core", "from memory_bridge"):
+    for banned in (
+        "import mcp_tool_catalog",
+        "import memory_core",
+        "import memory_bridge",
+        "from mcp_tool_catalog",
+        "from memory_core",
+        "from memory_bridge",
+    ):
         assert banned not in src, f"tools_config must not {banned!r} (cycle)"
 
 
@@ -206,6 +210,7 @@ def test_resolver_imports_without_the_catalog_on_the_path(tmp_path):
     """Stronger than reading the source: import it in a subprocess whose path
     cannot see the catalog, and confirm it still resolves."""
     import subprocess
+
     code = (
         f"import sys; sys.path.insert(0, {str(_BIN)!r});"
         "import tools_config as tc;"
@@ -220,6 +225,7 @@ def test_resolver_imports_without_the_catalog_on_the_path(tmp_path):
 # ── the doctor probe (section 3: observable, not guessed) ────────────────────
 def test_probe_reports_the_set_and_its_source(capsys):
     from doctor import startup_tools_probe
+
     assert startup_tools_probe.run() == 0
     out = capsys.readouterr().out
     assert "shipped default" in out, "the probe must name the precedence level"
@@ -233,6 +239,7 @@ def test_probe_fails_when_the_escape_hatch_is_missing(monkeypatch, capsys):
     did not ask for, and from inside a session that looks like the tool simply
     not existing."""
     from doctor import startup_tools_probe
+
     monkeypatch.setenv(tc.ENV_STARTUP, "memory_search")
     assert startup_tools_probe.run() == 1
     assert "escape hatch" in capsys.readouterr().out
@@ -240,8 +247,8 @@ def test_probe_fails_when_the_escape_hatch_is_missing(monkeypatch, capsys):
 
 def test_probe_fails_on_an_unknown_tool_name(monkeypatch, capsys):
     from doctor import startup_tools_probe
-    monkeypatch.setenv(tc.ENV_STARTUP,
-                       "memory_search_slm," + ",".join(tc.ESCAPE_HATCH))
+
+    monkeypatch.setenv(tc.ENV_STARTUP, "memory_search_slm," + ",".join(tc.ESCAPE_HATCH))
     assert startup_tools_probe.run() == 1
     out = capsys.readouterr().out
     assert "did you mean" in out and "memory_search_slim" in out
@@ -249,6 +256,7 @@ def test_probe_fails_on_an_unknown_tool_name(monkeypatch, capsys):
 
 def test_probe_handles_lazy_disabled(monkeypatch, capsys):
     from doctor import startup_tools_probe
+
     monkeypatch.setenv(tc.ENV_LAZY, "0")
     assert startup_tools_probe.run() == 0
     assert "ALL tools" in capsys.readouterr().out

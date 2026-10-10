@@ -6,6 +6,7 @@ Three layers, all model-free / store-free:
   3. the gate wired into compile_clusters (_admit) and the CompileStats.admitted
      property the two-pass retry keys on.
 """
+
 import json
 import os
 import sys
@@ -24,9 +25,20 @@ from wiki.select import Edge, Mem  # noqa: E402
 
 
 def _m(id, type="belief"):
-    return Mem(id=id, type=type, title=id, content=f"c-{id}", importance=0.5,
-               confidence=0.7, valid_from=None, valid_to=None, pinned=0,
-               created_at=None, updated_at=None, metadata={})
+    return Mem(
+        id=id,
+        type=type,
+        title=id,
+        content=f"c-{id}",
+        importance=0.5,
+        confidence=0.7,
+        valid_from=None,
+        valid_to=None,
+        pinned=0,
+        created_at=None,
+        updated_at=None,
+        metadata={},
+    )
 
 
 def _clu(*mems):
@@ -40,6 +52,7 @@ def _E(a, b, rel):
 
 # ── structural_signals: the state-independent scorer ─────────────────────────
 
+
 def test_signals_ignore_compile_produced_consolidates():
     """The whole point: a `consolidates` edge (compile-produced) must NOT change
     the gate's view. Same members, same authored edges, +consolidates → identical
@@ -48,8 +61,7 @@ def test_signals_ignore_compile_produced_consolidates():
     authored = [_E("a", "b", "supersedes"), _E("b", "c", "related")]
     s1 = A.structural_signals(c, authored)
     s2 = A.structural_signals(c, [*authored, _E("a", "b", "consolidates"), _E("a", "c", "consolidates")])
-    assert (s1.provenance, s1.backbone_ratio, s1.kas) == \
-           (s2.provenance, s2.backbone_ratio, s2.kas)
+    assert (s1.provenance, s1.backbone_ratio, s1.kas) == (s2.provenance, s2.backbone_ratio, s2.kas)
 
 
 def test_signals_exclude_synthesis_members():
@@ -89,7 +101,12 @@ def test_admission_is_state_independent_across_compiles():
     cold_edges = [_E("a", "b", "supersedes"), _E("b", "c", "extends")]
     # Warm: same members PLUS the synthesis pulled in by consolidates edges.
     warm = _clu(_m("a"), _m("b"), _m("c"), _m("syn", type="synthesis"))
-    warm_edges = [*cold_edges, _E("syn", "a", "consolidates"), _E("syn", "b", "consolidates"), _E("syn", "c", "consolidates")]
+    warm_edges = [
+        *cold_edges,
+        _E("syn", "a", "consolidates"),
+        _E("syn", "b", "consolidates"),
+        _E("syn", "c", "consolidates"),
+    ]
     assert g.admits(cold, cold_edges) == g.admits(warm, warm_edges)
     # And the same for a grab-bag: demoted in both states.
     cold_bb = _clu(_m("x"), _m("y"))
@@ -106,14 +123,14 @@ def test_ratio_one_topic_admitted_without_any_provenance():
     admitted on the ratio path. Requiring provenance too would wrongly demote it —
     this is the exact case that broke the AND-gate on the real cold corpus."""
     c = _clu(_m("a"), _m("b"), _m("c"))
-    edges = [_E("a", "b", "related"), _E("b", "c", "related"),
-             _E("a", "c", "related")]
+    edges = [_E("a", "b", "related"), _E("b", "c", "related"), _E("a", "c", "related")]
     s = A.structural_signals(c, edges)
     assert s.backbone_ratio == 1.0 and s.provenance == 0.0 and s.kas < 0.5
     assert A.AdmissionGate().admits(c, edges) is True  # ratio path carries it
 
 
 # ── the gate tuple + admits() decision (via real clusters+edges) ─────────────
+
 
 def test_default_gate_values():
     g = A.AdmissionGate()
@@ -138,8 +155,7 @@ def test_authored_provenance_cluster_admitted():
     """Dense authored lineage clears both floors → admitted, with NO consolidates
     edge anywhere (proving cold-corpus admission works)."""
     c = _clu(_m("a"), _m("b"), _m("c"))
-    edges = [_E("a", "b", "supersedes"), _E("b", "c", "extends"),
-             _E("a", "c", "refines")]
+    edges = [_E("a", "b", "supersedes"), _E("b", "c", "extends"), _E("a", "c", "refines")]
     assert A.AdmissionGate().admits(c, edges) is True
 
 
@@ -147,9 +163,12 @@ def test_thin_related_only_demoted():
     """Only weak `related` edges + co-mention: low provenance, diluted ratio →
     demoted (the thin-page case)."""
     c = _clu(_m("a"), _m("b"), _m("c"), _m("d"))
-    edges = [_E("a", "b", "related"),
-             _E("a", "c", "co_mentions"), _E("b", "d", "co_mentions"),
-             _E("c", "d", "co_mentions")]
+    edges = [
+        _E("a", "b", "related"),
+        _E("a", "c", "co_mentions"),
+        _E("b", "d", "co_mentions"),
+        _E("c", "d", "co_mentions"),
+    ]
     assert A.AdmissionGate().admits(c, edges) is False
 
 
@@ -166,16 +185,17 @@ def test_disabled_gate_admits_everything():
 
 # ── partition ────────────────────────────────────────────────────────────────
 
+
 def test_partition_splits_admitted_and_demoted():
     good = _clu(_m("a"), _m("b"))
     bad = _clu(_m("x"), _m("y"), _m("z"))
-    edges = [_E("a", "b", "supersedes"),
-             _E("x", "y", "co_mentions"), _E("y", "z", "co_mentions")]
+    edges = [_E("a", "b", "supersedes"), _E("x", "y", "co_mentions"), _E("y", "z", "co_mentions")]
     admitted, demoted = A.partition([good, bad], edges, A.AdmissionGate())
     assert admitted == [good] and demoted == [bad]
 
 
 # ── config load / override / validation ──────────────────────────────────────
+
 
 def _write_cfg(tmp_path, data):
     (tmp_path / A._CONFIG_BASENAME).write_text(json.dumps(data), encoding="utf-8")
@@ -197,8 +217,7 @@ def test_load_gate_defaults_when_no_config(tmp_path, monkeypatch):
 
 def test_load_gate_overrides_from_config(tmp_path, monkeypatch):
     monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path))
-    _write_cfg(tmp_path, {"min_kas": 0.6, "min_provenance": 0.7,
-                          "min_backbone_ratio": 0.8})
+    _write_cfg(tmp_path, {"min_kas": 0.6, "min_provenance": 0.7, "min_backbone_ratio": 0.8})
     g = A.load_gate()
     assert (g.min_kas, g.min_provenance, g.min_backbone_ratio) == (0.6, 0.7, 0.8)
     assert g.enabled is True
@@ -240,9 +259,20 @@ def test_non_bool_enabled_falls_back(tmp_path, monkeypatch):
 
 
 def _mem(id, conf=0.7):
-    return Mem(id=id, type="belief", title=id, content=f"c-{id}", importance=0.5,
-               confidence=conf, valid_from=None, valid_to=None, pinned=0,
-               created_at=None, updated_at=None, metadata={})
+    return Mem(
+        id=id,
+        type="belief",
+        title=id,
+        content=f"c-{id}",
+        importance=0.5,
+        confidence=conf,
+        valid_from=None,
+        valid_to=None,
+        pinned=0,
+        created_at=None,
+        updated_at=None,
+        metadata={},
+    )
 
 
 def _cluster(*ids):
@@ -290,9 +320,16 @@ async def _run(clusters, edges=None, gate=None):
             return "PROSE"
 
     stats = await WC.compile_clusters(
-        clusters, _C(), heads={}, edges=edges, gate=gate,
-        _write=_write, _supersede=_supersede, _ensure_prompt=_ensure_prompt,
-        _link=_link)
+        clusters,
+        _C(),
+        heads={},
+        edges=edges,
+        gate=gate,
+        _write=_write,
+        _supersede=_supersede,
+        _ensure_prompt=_ensure_prompt,
+        _link=_link,
+    )
     return stats, writes
 
 
@@ -311,8 +348,7 @@ async def test_gate_demotes_grab_bag_before_model_call():
     consolidates-only cluster would (correctly) be demoted too."""
     good = _cluster("a", "b")
     bad = _cluster("c", "d")
-    edges = [Edge("a", "b", "supersedes"),
-             Edge("c", "d", "co_mentions")]
+    edges = [Edge("a", "b", "supersedes"), Edge("c", "d", "co_mentions")]
     stats, writes = await _run([good, bad], edges=edges)
     assert stats.created == 1 and stats.demoted == 1
     assert len(writes) == 1
@@ -328,9 +364,9 @@ async def test_disabled_gate_compiles_all_even_with_edges():
 
 # ── CompileStats.admitted / demoted (reporting) ──────────────────────────────
 
+
 def test_admitted_counts_all_reached_clusters():
-    s = WC.CompileStats(created=3, superseded=1, skipped_hash=2,
-                        skipped_identical=1, failed=1, demoted=5)
+    s = WC.CompileStats(created=3, superseded=1, skipped_hash=2, skipped_identical=1, failed=1, demoted=5)
     assert s.admitted == 8  # everything that reached the compiler, not demoted
 
 

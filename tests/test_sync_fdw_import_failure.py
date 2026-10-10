@@ -6,6 +6,7 @@ it) failed, evaluating that except clause raised UnboundLocalError, which
 escaped the function and hid the real import error. Found by mypy
 `possibly-undefined` (plan 2D.M).
 """
+
 from __future__ import annotations
 
 import importlib

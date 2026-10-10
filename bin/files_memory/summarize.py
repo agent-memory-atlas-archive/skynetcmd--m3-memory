@@ -17,6 +17,7 @@ Public API:
 
 Both return (summary_text, used_llm_bool).
 """
+
 from __future__ import annotations
 
 import logging
@@ -77,11 +78,7 @@ def _llm_available() -> bool:
 
 
 def _summary_endpoint() -> str | None:
-    return (
-        os.environ.get("M3_FILES_SUMMARY_URL")
-        or os.environ.get("M3_LMSTUDIO_URL")
-        or None
-    )
+    return os.environ.get("M3_FILES_SUMMARY_URL") or os.environ.get("M3_LMSTUDIO_URL") or None
 
 
 def _summary_model() -> str | None:
@@ -164,18 +161,23 @@ def prewarm(timeout: float | None = None) -> bool:
                 # the same shape it is warming for. At max_tokens=1 a reasoning
                 # model would otherwise spend the whole budget thinking and
                 # return an empty choice, making a healthy server look slow/bad.
-                json=apply_thinking_suppression({
-                    "model": model,
-                    "messages": [{"role": "user", "content": "ok"}],
-                    "max_tokens": 1,
-                }, warm_url),
+                json=apply_thinking_suppression(
+                    {
+                        "model": model,
+                        "messages": [{"role": "user", "content": "ok"}],
+                        "max_tokens": 1,
+                    },
+                    warm_url,
+                ),
             )
         elapsed = time.perf_counter() - t0
         if resp.status_code != 200:
             logger.warning(
                 "files summarize: pre-warm got HTTP %s for %s after %.1fs — "
                 "batch continues, first real call will pay the load cost",
-                resp.status_code, model, elapsed,
+                resp.status_code,
+                model,
+                elapsed,
             )
             return False
         # Log at INFO when the load was slow enough to have threatened the
@@ -185,16 +187,20 @@ def prewarm(timeout: float | None = None) -> bool:
             logger.info(
                 "files summarize: pre-warmed %s in %.1fs (a cold call would have "
                 "spent this against the %.0fs per-call timeout)",
-                model, elapsed, 30.0,
+                model,
+                elapsed,
+                30.0,
             )
         else:
             logger.debug("files summarize: pre-warmed %s in %.1fs", model, elapsed)
         return True
     except Exception as exc:  # noqa: BLE001 — pre-warm must never fail a batch
         logger.warning(
-            "files summarize: pre-warm failed for %s after %.1fs (%s: %s) — "
-            "batch continues unwarmed",
-            model, time.perf_counter() - t0, type(exc).__name__, exc,
+            "files summarize: pre-warm failed for %s after %.1fs (%s: %s) — batch continues unwarmed",
+            model,
+            time.perf_counter() - t0,
+            type(exc).__name__,
+            exc,
         )
         return False
 
@@ -220,7 +226,8 @@ def _llm_call(prompt: str, content: str, max_tokens: int = 256) -> str | None:
     if not model:
         logger.warning(
             "files summarize: no model resolved for %s (discovery found none and "
-            "M3_FILES_SUMMARY_MODEL is unset) — skipping summary", endpoint,
+            "M3_FILES_SUMMARY_MODEL is unset) — skipping summary",
+            endpoint,
         )
         return None
 
@@ -233,15 +240,18 @@ def _llm_call(prompt: str, content: str, max_tokens: int = 256) -> str | None:
                 # A reasoning model answers in the `reasoning` channel and
                 # leaves `content` empty — the summary would silently come back
                 # blank and fall through to the truncation fallback.
-                json=apply_thinking_suppression({
-                    "model": model,
-                    "messages": [
-                        {"role": "system", "content": prompt},
-                        {"role": "user", "content": content},
-                    ],
-                    "temperature": 0.0,
-                    "max_tokens": max_tokens,
-                }, url),
+                json=apply_thinking_suppression(
+                    {
+                        "model": model,
+                        "messages": [
+                            {"role": "system", "content": prompt},
+                            {"role": "user", "content": content},
+                        ],
+                        "temperature": 0.0,
+                        "max_tokens": max_tokens,
+                    },
+                    url,
+                ),
             )
             resp.raise_for_status()
             data = resp.json()
@@ -291,10 +301,7 @@ def summarize_file(text: str, filename: str, filetype: str) -> tuple[str, bool]:
         return (f"Empty {filetype} file: {filename}", False)
 
     if _llm_available():
-        content_for_llm = (
-            f"Filename: {filename}\nFiletype: {filetype}\n\n"
-            f"Content:\n{_truncate_for_input(text)}"
-        )
+        content_for_llm = f"Filename: {filename}\nFiletype: {filetype}\n\nContent:\n{_truncate_for_input(text)}"
         result = _llm_call(_FILE_SUMMARY_PROMPT, content_for_llm, max_tokens=160)
         if result:
             return (result, True)
@@ -313,10 +320,7 @@ def summarize_leaf(text: str, file_summary: str | None = None) -> tuple[str, boo
         return ("", False)
 
     if _llm_available():
-        prefix = (
-            f"Parent file context: {file_summary}\n\nSection text:\n"
-            if file_summary else "Section text:\n"
-        )
+        prefix = f"Parent file context: {file_summary}\n\nSection text:\n" if file_summary else "Section text:\n"
         content_for_llm = prefix + _truncate_for_input(text)
         result = _llm_call(_LEAF_SUMMARY_PROMPT, content_for_llm, max_tokens=120)
         if result:

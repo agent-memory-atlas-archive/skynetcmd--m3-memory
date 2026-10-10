@@ -4,6 +4,7 @@ No database needed — these are pure env-resolution + guard tests. They lock in
 the invariant that killed the footgun: the primary store and the data-warehouse
 resolve from DISJOINT env vars, so neither can silently arm the other.
 """
+
 from __future__ import annotations
 
 import sys
@@ -21,8 +22,7 @@ from conftest import simulate_os
 
 @pytest.fixture(autouse=True)
 def _clear_pg_env(monkeypatch):
-    for v in ("M3_PRIMARY_PG_URL", "M3_PG_URL", "M3_CDW_PG_URL", "PG_URL",
-              "M3_PG_FORBIDDEN_HOSTS"):
+    for v in ("M3_PRIMARY_PG_URL", "M3_PG_URL", "M3_CDW_PG_URL", "PG_URL", "M3_PG_FORBIDDEN_HOSTS"):
         monkeypatch.delenv(v, raising=False)
     # reset the one-time deprecation-warning latch so each test sees a fresh warn
     _paths._reset_pg_url_deprecation_state_for_tests()
@@ -62,8 +62,7 @@ class TestCdwResolver:
 
         with caplog.at_level(logging.WARNING, logger="M3_SDK"):
             assert _paths.resolve_cdw_pg_dsn() == "postgresql://w/legacy"
-        assert any("PG_URL" in r.message and "M3_CDW_PG_URL" in r.message
-                   for r in caplog.records)
+        assert any("PG_URL" in r.message and "M3_CDW_PG_URL" in r.message for r in caplog.records)
         # and it is recorded for `m3 doctor`
         assert _paths.deprecated_env_in_use().get("PG_URL") == "M3_CDW_PG_URL"
 
@@ -111,21 +110,17 @@ class TestInstallerMultiLocationScan:
         # 2. a client settings.json with PG_URL in an mcpServers env block
         settings = tmp_path / "settings.json"
         settings.write_text(
-            '{"mcpServers": {"memory": {"command": "py", "env": '
-            '{"PG_URL": "postgresql://cfg/legacy"}}}}',
+            '{"mcpServers": {"memory": {"command": "py", "env": {"PG_URL": "postgresql://cfg/legacy"}}}}',
             encoding="utf-8",
         )
-        monkeypatch.setattr(I, "_client_config_sources",
-                            lambda: {"Claude Code": [settings]})
+        monkeypatch.setattr(I, "_client_config_sources", lambda: {"Claude Code": [settings]})
         # no cwd .env
         monkeypatch.chdir(tmp_path)
 
         # 3. a shell profile that exports PG_URL — point HOME at tmp_path
         home = tmp_path / "home"
         home.mkdir()
-        (home / ".zshenv").write_text(
-            "# shell rc\nexport PG_URL=postgresql://shell/legacy\n", encoding="utf-8"
-        )
+        (home / ".zshenv").write_text("# shell rc\nexport PG_URL=postgresql://shell/legacy\n", encoding="utf-8")
         monkeypatch.setattr(I.Path, "home", staticmethod(lambda: home))
         # Isolate from the host's real Windows registry so the count is deterministic.
         simulate_os(monkeypatch, "Linux")
@@ -174,8 +169,7 @@ class TestInstallerMultiLocationScan:
 
         # Fake winreg: PG_URL present at HKCU\Environment, absent at HKLM.
         store = {("HKCU", r"Environment"): {"PG_URL": ("postgresql://reg/legacy", 1)}}
-        monkeypatch.setitem(__import__("sys").modules, "winreg",
-                            _make_fake_winreg(store))
+        monkeypatch.setitem(__import__("sys").modules, "winreg", _make_fake_winreg(store))
 
         locs = I._find_deprecated_pg_url_locations()
         assert any("HKEY_CURRENT_USER" in x for x in locs), locs
@@ -190,8 +184,7 @@ class TestInstallerMultiLocationScan:
         home = tmp_path / "home"
         home.mkdir()
         (home / ".bashrc").write_text(
-            "export M3_CDW_PG_URL=postgresql://ok/new\n"
-            "# export PG_URL=postgresql://old/commented\n",
+            "export M3_CDW_PG_URL=postgresql://ok/new\n# export PG_URL=postgresql://old/commented\n",
             encoding="utf-8",
         )
         monkeypatch.setattr(I.Path, "home", staticmethod(lambda: home))
@@ -231,9 +224,7 @@ class TestPrimaryBackendGuards:
 
     def test_forbidden_host_not_matched_inside_password(self, monkeypatch):
         # The forbidden host string appearing only in the password must not trigger.
-        monkeypatch.setenv(
-            "M3_PRIMARY_PG_URL", "postgresql://u:198.51.100.51pw@safehost:5432/db"
-        )
+        monkeypatch.setenv("M3_PRIMARY_PG_URL", "postgresql://u:198.51.100.51pw@safehost:5432/db")
         monkeypatch.setenv("M3_PG_FORBIDDEN_HOSTS", "198.51.100.51")
         from memory.backends import postgres_backend as pb
 
@@ -278,7 +269,8 @@ class TestPrimaryBackendGuards:
 
         # The vault TIER (what resolve_pg_dsn reads) holds the warehouse DSN.
         monkeypatch.setattr(
-            auth_utils, "_vault_tier",
+            auth_utils,
+            "_vault_tier",
             lambda key: (same, None) if key == "PG_URL" else (None, None),
         )
         with pytest.raises(RuntimeError) as ei:
@@ -315,8 +307,10 @@ def _make_fake_winreg(store):
     class _Key:
         def __init__(self, hive, subkey):
             self.k = (hive, subkey)
+
         def __enter__(self):
             return self
+
         def __exit__(self, *a):
             return False
 
@@ -349,22 +343,22 @@ class TestRegistryEnvMigration:
         from m3_memory import installer as I
 
         simulate_os(monkeypatch, "Windows")
-        monkeypatch.setitem(__import__("sys").modules, "winreg",
-                            _make_fake_winreg(store))
+        monkeypatch.setitem(__import__("sys").modules, "winreg", _make_fake_winreg(store))
         # avoid a real WM_SETTINGCHANGE broadcast in the test
         monkeypatch.setattr(I, "_broadcast_env_change", lambda: None)
         return I
 
     def test_scan_all_names_not_just_pg_url(self, monkeypatch):
-        store = {("HKCU", r"Environment"): {
-            "PG_URL": ("postgresql://legacy", 1),
-            "SYNC_TARGET_IP": ("198.51.100.9", 1),  # RFC 5737 doc IP, not real infra
-            "M3_CHROMA_BASE_URL": ("http://ok", 1),  # already-new, must NOT flag
-        }}
+        store = {
+            ("HKCU", r"Environment"): {
+                "PG_URL": ("postgresql://legacy", 1),
+                "SYNC_TARGET_IP": ("198.51.100.9", 1),  # RFC 5737 doc IP, not real infra
+                "M3_CHROMA_BASE_URL": ("http://ok", 1),  # already-new, must NOT flag
+            }
+        }
         I = self._wire(monkeypatch, store)
         hits = I._scan_registry_env_deprecations(
-            {"PG_URL": "M3_CDW_PG_URL", "SYNC_TARGET_IP": "M3_SYNC_TARGET_IP",
-             "CHROMA_BASE_URL": "M3_CHROMA_BASE_URL"}
+            {"PG_URL": "M3_CDW_PG_URL", "SYNC_TARGET_IP": "M3_SYNC_TARGET_IP", "CHROMA_BASE_URL": "M3_CHROMA_BASE_URL"}
         )
         olds = {h["old"] for h in hits}
         assert olds == {"PG_URL", "SYNC_TARGET_IP"}  # not the already-migrated one
@@ -384,17 +378,18 @@ class TestRegistryEnvMigration:
         # unmistakably fake and never a real secret.
         secret_pw = "DUMMYPWDONOTLOG"
         secret_host = "198.51.100.200"
-        store = {("HKCU", r"Environment"):
-                 {"PG_URL": (f"postgresql://user:{secret_pw}@{secret_host}/db", 1)}}
+        store = {("HKCU", r"Environment"): {"PG_URL": (f"postgresql://user:{secret_pw}@{secret_host}/db", 1)}}
         I = self._wire(monkeypatch, store)
         blob = "\n".join(I._migrate_registry_env_names(apply=False))
         assert secret_pw not in blob and secret_host not in blob
 
     def test_conflict_drops_old_keeps_new(self, monkeypatch):
-        store = {("HKCU", r"Environment"): {
-            "PG_URL": ("postgresql://old", 1),
-            "M3_CDW_PG_URL": ("postgresql://new", 1),
-        }}
+        store = {
+            ("HKCU", r"Environment"): {
+                "PG_URL": ("postgresql://old", 1),
+                "M3_CDW_PG_URL": ("postgresql://new", 1),
+            }
+        }
         I = self._wire(monkeypatch, store)
         actions = I._migrate_registry_env_names(apply=True)
         env = store[("HKCU", r"Environment")]
@@ -405,8 +400,9 @@ class TestRegistryEnvMigration:
     def test_hklm_machine_scope_reported_not_written(self, monkeypatch):
         store = {
             ("HKCU", r"Environment"): {},
-            ("HKLM", r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment"):
-                {"PG_URL": ("postgresql://machine", 1)},
+            ("HKLM", r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment"): {
+                "PG_URL": ("postgresql://machine", 1)
+            },
         }
         I = self._wire(monkeypatch, store)
         actions = I._migrate_registry_env_names(apply=True)
@@ -416,6 +412,7 @@ class TestRegistryEnvMigration:
 
     def test_noop_on_non_windows(self, monkeypatch):
         from m3_memory import installer as I
+
         simulate_os(monkeypatch, "Linux")
         assert I._migrate_registry_env_names(apply=True) == []
         assert I._scan_registry_env_deprecations({"PG_URL": "M3_CDW_PG_URL"}) == []

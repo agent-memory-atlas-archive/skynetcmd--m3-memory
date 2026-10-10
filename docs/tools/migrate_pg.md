@@ -1,8 +1,8 @@
 ---
 tool: bin/migrate_pg.py
-sha1: fdc7a34ecb7d
-mtime_utc: 2026-10-09T02:23:31.486102+00:00
-generated_utc: 2026-10-09T02:27:13.130094+00:00
+sha1: 8ae338b1d242
+mtime_utc: 2026-10-10T21:05:16.630924+00:00
+generated_utc: 2026-10-10T21:05:29.867820+00:00
 private: false
 ---
 
@@ -44,7 +44,7 @@ or call :func:`run_pending_pg_migrations` programmatically (what the backend doe
 
 ## Entry points
 
-- `def main()` (line 351)
+- `def main()` (line 349)
 - `if __name__ == "__main__"` guard
 
 ---

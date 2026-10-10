@@ -6,6 +6,7 @@ shared row filter, which did not carry them. A filter that one backend ignores
 returns another conversation's (or agent's) rows. Keyword mode, so no embedder
 is needed.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -34,14 +35,18 @@ def test_conversation_filter_holds(each_backend):
     a = _write(f"{_WORD} alpha turn", conversation_id="conv-a")
     b = _write(f"{_WORD} beta turn", conversation_id="conv-b")
     got = _ids(conversation_id="conv-a")
-    assert a in got and b not in got, f"observed: {got} for conversation conv-a. inspect: the {each_backend.name} search filter"
+    assert a in got and b not in got, (
+        f"observed: {got} for conversation conv-a. inspect: the {each_backend.name} search filter"
+    )
 
 
 def test_variant_filter_holds(each_backend):
     a = _write(f"{_WORD} gamma variant", variant="var-x")
     b = _write(f"{_WORD} delta variant", variant="var-y")
     got = _ids(variant="var-x")
-    assert a in got and b not in got, f"observed: {got} for variant var-x. inspect: the {each_backend.name} search filter"
+    assert a in got and b not in got, (
+        f"observed: {got} for variant var-x. inspect: the {each_backend.name} search filter"
+    )
 
 
 def test_agent_isolation_boundary_holds(each_backend):
@@ -51,4 +56,5 @@ def test_agent_isolation_boundary_holds(each_backend):
     shared = _write(f"{_WORD} shared with all", agent_id="agent-alpha", scope="user")
     got = _ids(requesting_agent="agent-beta")
     assert shared in got and mine not in got, (
-        f"observed: {got} for requesting_agent agent-beta. inspect: the {each_backend.name} isolation filter")
+        f"observed: {got} for requesting_agent agent-beta. inspect: the {each_backend.name} isolation filter"
+    )

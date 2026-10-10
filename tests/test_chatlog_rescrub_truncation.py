@@ -21,6 +21,7 @@ placeholder and the conditional `COUNT(*)` all go through the dialect seam
 (§10a), and a claim about portability that only ever ran on SQLite is not a
 claim (§0.4).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -46,6 +47,7 @@ SECRET = "sk-" + "ant-" + "abc123def456xyz789abcd"
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
+
 def _seed(n: int, *, conv: str = "rescrub-cap", prefix: str = "rescrub") -> list[str]:
     """Insert `n` rows each holding a scrubbable secret, ids ascending.
 
@@ -61,15 +63,18 @@ def _seed(n: int, *, conv: str = "rescrub-cap", prefix: str = "rescrub") -> list
     import chatlog_core
 
     ids = [f"{prefix}-{i:05d}" for i in range(n)]
-    batch = [{
-        "_id": rid,
-        "_title": "rescrub-cap-test",
-        "_content": f"turn {i} key={SECRET}",
-        "_metadata_json": json.dumps({}),
-        "model_id": "test-model",
-        "conversation_id": conv,
-        "_created_at": "2026-09-27T00:00:00Z",
-    } for i, rid in enumerate(ids)]
+    batch = [
+        {
+            "_id": rid,
+            "_title": "rescrub-cap-test",
+            "_content": f"turn {i} key={SECRET}",
+            "_metadata_json": json.dumps({}),
+            "model_id": "test-model",
+            "conversation_id": conv,
+            "_created_at": "2026-09-27T00:00:00Z",
+        }
+        for i, rid in enumerate(ids)
+    ]
     written = chatlog_core._executemany_insert(batch)
     assert written == n, f"seed wrote {written} of {n}"
     return ids
@@ -80,11 +85,10 @@ def _purge(conv: str) -> None:
     test is repeatable rather than green-once (§10 DB hygiene)."""
     from m3_sdk import M3Context
     from memory.backends import chatlog_table, dialect
+
     ctx = M3Context.for_db(None)
     with ctx.get_chatlog_conn() as conn:
-        conn.execute(
-            f"DELETE FROM {chatlog_table('items')} "
-            f"WHERE conversation_id = {dialect().param()}", (conv,))
+        conn.execute(f"DELETE FROM {chatlog_table('items')} WHERE conversation_id = {dialect().param()}", (conv,))
         conn.commit()
 
 
@@ -102,8 +106,8 @@ def _enable_redaction(monkeypatch, tmp_path, enabled: bool = True) -> None:
     sandbox.
     """
     import chatlog_config
-    monkeypatch.setattr(
-        chatlog_config, "CONFIG_PATH", str(tmp_path / ".chatlog_config.json"))
+
+    monkeypatch.setattr(chatlog_config, "CONFIG_PATH", str(tmp_path / ".chatlog_config.json"))
     cfg = chatlog_config.resolve_config()
     cfg.redaction.enabled = enabled
     cfg.redaction.patterns = ["api_keys"]
@@ -113,6 +117,7 @@ def _enable_redaction(monkeypatch, tmp_path, enabled: bool = True) -> None:
 
 def _rescrub(**kw) -> dict:
     import chatlog_core
+
     return json.loads(asyncio.run(chatlog_core.chatlog_rescrub_impl(**kw)))
 
 
@@ -124,9 +129,9 @@ def _contents(conv: str | None = None) -> dict[str, str]:
     """
     from m3_sdk import M3Context
     from memory.backends import chatlog_table, dialect
+
     ctx = M3Context.for_db(None)
-    sql = (f"SELECT id, content FROM {chatlog_table('items')} "
-           "WHERE type='chat_log' AND is_deleted=0")
+    sql = f"SELECT id, content FROM {chatlog_table('items')} WHERE type='chat_log' AND is_deleted=0"
     params: tuple = ()
     if conv is not None:
         sql += f" AND conversation_id = {dialect().param()}"
@@ -158,6 +163,7 @@ def sqlite_store(tmp_path, monkeypatch):
 
 
 # ── the defect: a cap that reports nothing ───────────────────────────────────
+
 
 def test_capped_run_reports_what_it_did_not_examine(sqlite_store):
     """THE DEFECT. A cap must be visible in the result, with the remaining count
@@ -248,6 +254,7 @@ def test_rescrub_refuses_when_redaction_is_off(tmp_path, monkeypatch):
 
 # ── the same claim on PostgreSQL ─────────────────────────────────────────────
 
+
 @pytest.mark.requires_pg
 def test_truncation_report_holds_on_postgres(monkeypatch, tmp_path, pg_url):
     """ORDER BY id, the LIMIT placeholder and the conditional COUNT(*) must all
@@ -262,6 +269,7 @@ def test_truncation_report_holds_on_postgres(monkeypatch, tmp_path, pg_url):
     monkeypatch.setenv("M3_DB_BACKEND", "postgres")
 
     from memory.backends import dialect
+
     # Guard against a silent sqlite fallback reporting a hollow pass.
     assert dialect().backend == "postgres", (
         f"expected the postgres dialect, resolved {dialect().backend!r} — "
@@ -292,6 +300,7 @@ def test_truncation_report_holds_on_postgres(monkeypatch, tmp_path, pg_url):
 
 # ── the sandbox must make this write impossible ──────────────────────────────
 
+
 def test_save_config_cannot_reach_the_live_config(tmp_path):
     """`chatlog_config.save_config()` must never write the developer's real
     ~/.m3/config/.chatlog_config.json from a test.
@@ -317,6 +326,7 @@ def test_save_config_cannot_reach_the_live_config(tmp_path):
     suite followed by reading ~/.m3/config/.chatlog_config.json.
     """
     import chatlog_config
+
     real = Path.home() / ".m3" / "config" / ".chatlog_config.json"
     assert Path(chatlog_config.CONFIG_PATH).resolve() != real.resolve(), (
         "chatlog_config.CONFIG_PATH points at the LIVE config; a save_config() "

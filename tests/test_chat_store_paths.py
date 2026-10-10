@@ -19,6 +19,7 @@ particular that the chatlog half comes from the CANONICAL resolver rather than
 a sibling-of-the-main-DB guess -- a guess sees neither CHATLOG_DB_PATH, nor the
 active-database ContextVar, nor a pinned `db_path`.
 """
+
 from __future__ import annotations
 
 import os
@@ -58,8 +59,7 @@ class TestChatStorePaths(unittest.TestCase):
         """The reason to call the resolver instead of guessing a sibling: a
         relocated chatlog must still be found."""
         saved = os.environ.get("CHATLOG_DB_PATH")
-        target = os.path.abspath(os.path.join(
-            os.path.dirname(__file__), "_relocated_chatlog.db"))
+        target = os.path.abspath(os.path.join(os.path.dirname(__file__), "_relocated_chatlog.db"))
         try:
             os.environ["CHATLOG_DB_PATH"] = target
             C.invalidate_cache()
@@ -94,19 +94,18 @@ class TestSessionStartHookUsesIt(unittest.TestCase):
 
     def test_hook_prefers_the_shared_resolver(self):
         import inspect
-        sys.path.insert(0, str(
-            pathlib.Path(__file__).resolve().parents[1] / "bin" / "hooks" / "chatlog"))
+
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "bin" / "hooks" / "chatlog"))
         import session_start_capture_check as H
+
         src = inspect.getsource(H._candidate_dbs)
-        self.assertIn("chat_store_paths", src,
-                      "hook must use the shared resolver, not hand-roll paths")
+        self.assertIn("chat_store_paths", src, "hook must use the shared resolver, not hand-roll paths")
 
     def test_hook_finds_both_stores(self):
-        sys.path.insert(0, str(
-            pathlib.Path(__file__).resolve().parents[1] / "bin" / "hooks" / "chatlog"))
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "bin" / "hooks" / "chatlog"))
         import session_start_capture_check as H
-        self.assertIn(os.path.abspath(C.chatlog_db_path()),
-                      [os.path.abspath(p) for p in H._candidate_dbs()])
+
+        self.assertIn(os.path.abspath(C.chatlog_db_path()), [os.path.abspath(p) for p in H._candidate_dbs()])
 
 
 class TestEnvPollutionCollapsesStores(unittest.TestCase):
@@ -144,7 +143,8 @@ class TestEnvPollutionCollapsesStores(unittest.TestCase):
         C.invalidate_cache()
         paths = [os.path.abspath(p) for p in C.chat_store_paths()]
         self.assertEqual(
-            paths, [chat],
+            paths,
+            [chat],
             "a leaked M3_DATABASE should collapse the list to the chatlog store "
             "-- if this no longer holds, the #180 mechanism has changed and the "
             "scoped_db_env callers should be re-reviewed",
@@ -166,8 +166,7 @@ class TestEnvPollutionCollapsesStores(unittest.TestCase):
             with scoped_db_env(db):
                 pass
 
-        self.assertEqual(os.environ.get("M3_DATABASE"), main,
-                         "scoped_db_env must restore the prior value")
+        self.assertEqual(os.environ.get("M3_DATABASE"), main, "scoped_db_env must restore the prior value")
         C.invalidate_cache()
         paths = [os.path.abspath(p) for p in C.chat_store_paths()]
         self.assertIn(chat, paths)
@@ -180,7 +179,8 @@ class TestEnvPollutionCollapsesStores(unittest.TestCase):
         with scoped_db_env(os.path.abspath(C.chatlog_db_path())):
             pass
         self.assertNotIn(
-            "M3_DATABASE", os.environ,
+            "M3_DATABASE",
+            os.environ,
             "absence must restore as absence: an empty string falls through "
             "resolve_db_path's `or`, but readers that test for the KEY see a "
             "variable that did not exist before",

@@ -1,8 +1,8 @@
 ---
 tool: bin/consolidate_beliefs.py
-sha1: cfe29a49f58c
-mtime_utc: 2026-10-09T23:19:58.839504+00:00
-generated_utc: 2026-10-09T23:24:13.747593+00:00
+sha1: 52285e662259
+mtime_utc: 2026-10-10T21:05:17.125061+00:00
+generated_utc: 2026-10-10T21:05:29.425522+00:00
 private: false
 ---
 
@@ -34,7 +34,7 @@ Usage:
 
 ## Entry points
 
-- `def main()` (line 105)
+- `def main()` (line 110)
 - `if __name__ == "__main__"` guard
 
 ---

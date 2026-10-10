@@ -31,7 +31,8 @@ logger = logging.getLogger("embed_proxy_gpu")
 # M3_-namespaced like LLAMA_PORT; the bare names still work, with a deprecation
 # notice (getenv_compat), until the alias window closes (U4, 2026-10-08).
 LLAMA_SERVER_EXE = getenv_compat(
-    "M3_LLAMA_SERVER_EXE", "LLAMA_SERVER_EXE",
+    "M3_LLAMA_SERVER_EXE",
+    "LLAMA_SERVER_EXE",
     os.path.join(os.path.expanduser("~"), "llama.cpp", "bin", "llama-server.exe"),
 )
 GGUF_MODEL_PATH = getenv_compat(
@@ -42,14 +43,18 @@ LLAMA_PORT = int(getenv_compat("M3_LLAMA_PORT", "LLAMA_PORT", "9904"))
 app = FastAPI(title="M3 Qwen3 GPU Proxy")
 llama_process = None
 
+
 class EmbeddingRequest(BaseModel):
     model: str = ""
     input: str | list[str] = Field(...)
 
+
 def l2_normalize(v):
     norm = np.linalg.norm(v)
-    if norm < 1e-9: return v
+    if norm < 1e-9:
+        return v
     return (v / norm).tolist()
+
 
 @app.post("/v1/embeddings")
 async def create_embeddings(req: EmbeddingRequest):
@@ -67,7 +72,7 @@ async def create_embeddings(req: EmbeddingRequest):
         response = await client.post(
             f"http://localhost:{LLAMA_PORT}/v1/embeddings",
             json={"input": processed_texts, "model": "qwen3"},
-            timeout=60.0
+            timeout=60.0,
         )
 
     if response.status_code != 200:
@@ -87,10 +92,14 @@ async def create_embeddings(req: EmbeddingRequest):
         logger.error(f"llama-server error {response.status_code}: {body[:2000]}")
         low = body.lower()
         if re.search(r"(\d+)\s*tokens\s*>\s*n_ctx", body, re.IGNORECASE) or any(
-            h in low for h in (
-                "input too long", "context length exceeded",
-                "maximum context length", "token length exceeds",
-                "too many tokens", "exceeds context window",
+            h in low
+            for h in (
+                "input too long",
+                "context length exceeded",
+                "maximum context length",
+                "token length exceeds",
+                "too many tokens",
+                "exceeds context window",
             )
         ):
             m = re.search(r"(\d+)\s*tokens\s*>\s*n_ctx\s*(\d+)", body, re.IGNORECASE)
@@ -123,18 +132,23 @@ async def create_embeddings(req: EmbeddingRequest):
 
     return data
 
+
 def start_llama_server():
     global llama_process
     # Force -ngl 0 to use CPU only, leaving RTX 5080 for LM Studio.
     # Ryzen 9800X3D (Zen 5) is exceptionally fast for CPU embeddings.
     cmd = [
         LLAMA_SERVER_EXE,
-        "-m", GGUF_MODEL_PATH,
-        "--port", str(LLAMA_PORT),
-        "-ngl", "0",
+        "-m",
+        GGUF_MODEL_PATH,
+        "--port",
+        str(LLAMA_PORT),
+        "-ngl",
+        "0",
         "--embedding",
-        "--pooling", "last",
-        "--log-disable"
+        "--pooling",
+        "last",
+        "--log-disable",
     ]
 
     logger.info(f"Starting llama-server: {' '.join(cmd)}")
@@ -147,6 +161,7 @@ def start_llama_server():
     for i in range(max_retries):
         try:
             import httpx
+
             with httpx.Client() as client:
                 r = client.get(f"http://localhost:{LLAMA_PORT}/health")
                 if r.status_code == 200:
@@ -158,6 +173,7 @@ def start_llama_server():
 
     logger.error("llama-server failed to start in 30s")
     return False
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -189,6 +205,7 @@ def main():
                     llama_process.terminate()
     else:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

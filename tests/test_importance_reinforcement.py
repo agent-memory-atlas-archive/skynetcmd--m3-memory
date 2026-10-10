@@ -21,6 +21,7 @@ feature working:
 masquerade as a corroborated one") and had ZERO callers. This wires it up rather
 than authoring a second curve.
 """
+
 from __future__ import annotations
 
 import os
@@ -59,8 +60,7 @@ def store(main_db_template, monkeypatch, tmp_path):
                 "(id, content, title, type, importance, importance_raw, "
                 " access_count, helpful_count, pinned, source, created_at) "
                 f"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-{age_days} days'))",
-                (mid, "probe", "probe", "belief", importance, importance,
-                 access_count, helpful, pinned, "agent"),
+                (mid, "probe", "probe", "belief", importance, importance, access_count, helpful, pinned, "agent"),
             )
         return mid
 
@@ -69,9 +69,7 @@ def store(main_db_template, monkeypatch, tmp_path):
 
 def _importance(mid: str) -> float:
     with mc._db() as db:
-        return db.execute(
-            "SELECT importance FROM memory_items WHERE id = ?", (mid,)
-        ).fetchone()[0]
+        return db.execute("SELECT importance FROM memory_items WHERE id = ?", (mid,)).fetchone()[0]
 
 
 def _reinforce() -> int:
@@ -81,14 +79,14 @@ def _reinforce() -> int:
 
 # ── the feature ──────────────────────────────────────────────────────────────
 
+
 def test_read_memories_are_lifted_above_unread_ones(store):
     """The asymmetry the change exists to create."""
     cold = store(access_count=0)
     warm = store(access_count=10)
     _reinforce()
     assert _importance(warm) > _importance(cold), (
-        "a memory read 10 times is no better off than one never read — "
-        "access_count is being ignored again."
+        "a memory read 10 times is no better off than one never read — access_count is being ignored again."
     )
 
 
@@ -111,6 +109,7 @@ def test_lift_never_lowers_importance(store):
 
 # ── the constraints (retrieval is weak evidence) ─────────────────────────────
 
+
 def test_lift_is_capped_against_a_runaway(store):
     """⚠ THE RUNAWAY GUARD.
 
@@ -126,8 +125,7 @@ def test_lift_is_capped_against_a_runaway(store):
     _reinforce()
     ceiling = mm._ORDINARY_FLOOR + _conf.ACCESS_REINFORCE_CAP
     assert _importance(swept) <= ceiling + 1e-9, (
-        f"importance {_importance(swept)} exceeded the reinforced ceiling "
-        f"{ceiling} — the cap is not binding."
+        f"importance {_importance(swept)} exceeded the reinforced ceiling {ceiling} — the cap is not binding."
     )
 
 
@@ -140,8 +138,7 @@ def test_retrieval_never_reaches_the_graded_floor(store):
     swept = store(access_count=100_000)
     _reinforce()
     assert _importance(swept) < mm._GRADED_FLOOR, (
-        "retrieval alone reached the graded floor; frequency is masquerading "
-        "as usefulness."
+        "retrieval alone reached the graded floor; frequency is masquerading as usefulness."
     )
 
 
@@ -187,10 +184,14 @@ def test_a_heavily_read_memory_holds_an_equilibrium_above_the_floor(store):
     the right shape — ten reads should not confer permanence, and being read
     constantly should.
     """
+
     def full_pass():
         mm.memory_maintenance_impl(
-            decay=True, purge_expired=False, prune_orphan_embeddings=False,
-            reinforce=True, prune_orphan_queues=False,
+            decay=True,
+            purge_expired=False,
+            prune_orphan_embeddings=False,
+            reinforce=True,
+            prune_orphan_queues=False,
         )
 
     cold = store(importance=0.5, access_count=0)
@@ -204,8 +205,7 @@ def test_a_heavily_read_memory_holds_an_equilibrium_above_the_floor(store):
     hot_settled = _importance(hot)
 
     assert _importance(cold) == pytest.approx(mm._ORDINARY_FLOOR, abs=0.005), (
-        f"an unread memory settled at {_importance(cold)}, not the "
-        f"{mm._ORDINARY_FLOOR} floor"
+        f"an unread memory settled at {_importance(cold)}, not the {mm._ORDINARY_FLOOR} floor"
     )
     assert hot_settled > 0.2, (
         f"a memory read 762 times settled at {hot_settled} — reinforcement is "
@@ -228,14 +228,18 @@ def test_pinned_rows_are_skipped(store):
 
 # ── interaction with decay ───────────────────────────────────────────────────
 
+
 def test_hot_memory_settles_higher_than_a_cold_one_under_decay(store):
     """End to end: decay pulls both down, reinforcement holds one higher."""
     cold = store(importance=0.5, access_count=0)
     hot = store(importance=0.5, access_count=762)
     for _ in range(300):
         mm.memory_maintenance_impl(
-            decay=True, purge_expired=False, prune_orphan_embeddings=False,
-            reinforce=True, prune_orphan_queues=False,
+            decay=True,
+            purge_expired=False,
+            prune_orphan_embeddings=False,
+            reinforce=True,
+            prune_orphan_queues=False,
         )
     assert _importance(hot) > _importance(cold)
     assert _importance(hot) < mm._GRADED_FLOOR, "still must not reach graded"
@@ -251,6 +255,5 @@ def test_the_reinforcement_curve_is_the_shared_one():
 
     src = inspect.getsource(mm._reinforce_importance)
     assert "access_reinforcement" in src, (
-        "reinforcement stopped using the shared curve — a second implementation "
-        "will drift from the first."
+        "reinforcement stopped using the shared curve — a second implementation will drift from the first."
     )

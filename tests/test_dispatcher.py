@@ -16,6 +16,7 @@ dependency on a particular pytest-asyncio mode.
 The read tool used throughout is files_stats against the shipped
 memory/files_database.db — a real, side-effect-free corpus read.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -42,6 +43,7 @@ def _files_stats_args() -> dict:
 
 # ── m3_index ──────────────────────────────────────────────────────────────────
 
+
 def test_m3_index_returns_all_non_excluded_tools():
     """m3_index() (no domain) lists every catalog tool except the four
     dispatcher/meta tools in _DISPATCH_EXCLUDE."""
@@ -49,14 +51,8 @@ def test_m3_index_returns_all_non_excluded_tools():
     assert "count" in data and "tools" in data
     names = {t["name"] for t in data["tools"]}
 
-    expected = {
-        s.name for s in mcp_tool_catalog.TOOLS
-        if s.name not in mcp_tool_catalog._DISPATCH_EXCLUDE
-    }
-    assert names == expected, (
-        f"m3_index drift: extra={sorted(names - expected)}, "
-        f"missing={sorted(expected - names)}"
-    )
+    expected = {s.name for s in mcp_tool_catalog.TOOLS if s.name not in mcp_tool_catalog._DISPATCH_EXCLUDE}
+    assert names == expected, f"m3_index drift: extra={sorted(names - expected)}, missing={sorted(expected - names)}"
     assert data["count"] == len(data["tools"])
 
     # Excluded tools must never appear.
@@ -84,11 +80,11 @@ def test_m3_index_domain_filter_is_strict_subset():
 
 # ── m3_call: single read tool ───────────────────────────────────────────────────
 
+
 def test_m3_call_single_read_tool_ok():
     """A single files_stats dispatch returns ok with a structured result that
     carries the corpus counters."""
-    out = asyncio.run(mcp_tool_catalog.m3_call_impl(
-        tool="files_stats", args=_files_stats_args()))
+    out = asyncio.run(mcp_tool_catalog.m3_call_impl(tool="files_stats", args=_files_stats_args()))
     data = json.loads(out)
     assert data["ok"] is True
     assert data["tool"] == "files_stats"
@@ -106,23 +102,18 @@ def test_m3_call_parity_with_execute_tool_structured():
 
     # execute_tool_structured mutates the args dict in place (pops 'database',
     # filters keys), so hand each call its own copy.
-    direct = asyncio.run(mcp_tool_catalog.execute_tool_structured(
-        spec, _files_stats_args(), ""))
+    direct = asyncio.run(mcp_tool_catalog.execute_tool_structured(spec, _files_stats_args(), ""))
 
-    dispatched = json.loads(asyncio.run(mcp_tool_catalog.m3_call_impl(
-        tool="files_stats", args=_files_stats_args())))
+    dispatched = json.loads(asyncio.run(mcp_tool_catalog.m3_call_impl(tool="files_stats", args=_files_stats_args())))
 
     assert dispatched["ok"] is True
-    assert dispatched["result"] == direct, (
-        "m3_call result payload diverged from execute_tool_structured"
-    )
+    assert dispatched["result"] == direct, "m3_call result payload diverged from execute_tool_structured"
 
 
 def test_m3_call_dry_run_does_not_execute():
     """dry_run=True returns ok with the dry_run marker and never calls the impl
     (validation + gate only)."""
-    out = asyncio.run(mcp_tool_catalog.m3_call_impl(
-        tool="files_stats", args=_files_stats_args(), dry_run=True))
+    out = asyncio.run(mcp_tool_catalog.m3_call_impl(tool="files_stats", args=_files_stats_args(), dry_run=True))
     data = json.loads(out)
     assert data["ok"] is True
     assert data["tool"] == "files_stats"
@@ -133,6 +124,7 @@ def test_m3_call_dry_run_does_not_execute():
 
 
 # ── m3_call: error shapes ────────────────────────────────────────────────────────
+
 
 def test_m3_call_unknown_tool():
     out = asyncio.run(mcp_tool_catalog.m3_call_impl(tool="no_such_tool", args={}))
@@ -152,9 +144,9 @@ def test_m3_call_destructive_gated_when_env_unset():
         "this test assumes destructive dispatch is disabled; "
         "MCP_PROXY_ALLOW_DESTRUCTIVE appears to have been set at import time"
     )
-    out = asyncio.run(mcp_tool_catalog.m3_call_impl(
-        tool="memory_delete",
-        args={"id": "11111111-2222-3333-4444-555555555555"}))
+    out = asyncio.run(
+        mcp_tool_catalog.m3_call_impl(tool="memory_delete", args={"id": "11111111-2222-3333-4444-555555555555"})
+    )
     data = json.loads(out)
     assert data["ok"] is False
     assert data["error"] == "destructive_gated"
@@ -165,9 +157,9 @@ def test_m3_call_destructive_allowed_when_flag_monkeypatched(monkeypatch):
     call proceeds past it (it may still fail in the impl because the UUID isn't
     a real row — but it is NOT destructive_gated)."""
     monkeypatch.setattr(mcp_tool_catalog, "_DESTRUCTIVE_ALLOWED", True)
-    out = asyncio.run(mcp_tool_catalog.m3_call_impl(
-        tool="memory_delete",
-        args={"id": "11111111-2222-3333-4444-555555555555"}))
+    out = asyncio.run(
+        mcp_tool_catalog.m3_call_impl(tool="memory_delete", args={"id": "11111111-2222-3333-4444-555555555555"})
+    )
     data = json.loads(out)
     # Past the gate: either it ran (ok True) or the impl reported call_failed —
     # the one thing it must NOT be is destructive_gated.
@@ -193,13 +185,18 @@ def test_m3_call_excluded_tool_not_dispatchable():
 
 # ── m3_call: batch ───────────────────────────────────────────────────────────────
 
+
 def test_m3_call_batch_preserves_order_and_isolates_failures():
     """A two-item batch [good read tool, unknown tool] returns both results in
     order: [0] ok, [1] unknown_tool. One failure does not abort the rest."""
-    out = asyncio.run(mcp_tool_catalog.m3_call_impl(batch=[
-        {"tool": "files_stats", "args": _files_stats_args()},
-        {"tool": "no_such_tool", "args": {}},
-    ]))
+    out = asyncio.run(
+        mcp_tool_catalog.m3_call_impl(
+            batch=[
+                {"tool": "files_stats", "args": _files_stats_args()},
+                {"tool": "no_such_tool", "args": {}},
+            ]
+        )
+    )
     data = json.loads(out)
     assert "batch" in data
     results = data["batch"]
@@ -221,14 +218,13 @@ def test_m3_call_batch_too_large():
 
 # ── m3_call: async tool dispatch ────────────────────────────────────────────────
 
+
 def test_m3_call_async_tool_dispatches():
     """memory_search is an async impl. Dispatching it through m3_call must not
     raise — it returns valid JSON with an 'ok' key (True if the DB/embedder are
     available, or a structured call_failed otherwise). We don't assert on search
     content, only that the async path round-trips cleanly."""
-    out = asyncio.run(mcp_tool_catalog.m3_call_impl(
-        tool="memory_search",
-        args={"query": "x"}))
+    out = asyncio.run(mcp_tool_catalog.m3_call_impl(tool="memory_search", args={"query": "x"}))
     data = json.loads(out)  # must be valid JSON
     assert "ok" in data
     if data["ok"] is False:

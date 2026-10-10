@@ -3,6 +3,7 @@
 crypto_provider.py — Abstraction layer for FIPS-ready cryptography.
 Supports standard Python crypto and wolfSSL/wolfCrypt backends.
 """
+
 import ctypes
 import hashlib
 import logging
@@ -31,22 +32,36 @@ WOLF_ERROR_CODES = {
 #      RC4, new Fernet) is used directly — Python imports can't be sandboxed, so
 #      enforcement-by-test is the mechanism. Non-security hashes must pass
 #      `usedforsecurity=False`; legacy Fernet is decrypt-only (migration).
-FIPS_APPROVED_ALGORITHMS = frozenset({
-    "AES-256-GCM",          # authenticated encryption (vault)
-    "SHA-256", "SHA-384", "SHA-512",
-    "HMAC-SHA-256",
-    "PBKDF2-HMAC-SHA256",   # key derivation
-    "CTR-DRBG",             # via the validated module when present
-    "TLS1.3",               # transport
-})
+FIPS_APPROVED_ALGORITHMS = frozenset(
+    {
+        "AES-256-GCM",  # authenticated encryption (vault)
+        "SHA-256",
+        "SHA-384",
+        "SHA-512",
+        "HMAC-SHA-256",
+        "PBKDF2-HMAC-SHA256",  # key derivation
+        "CTR-DRBG",  # via the validated module when present
+        "TLS1.3",  # transport
+    }
+)
 
 # Primitives that are NEVER approved for security use anywhere in M3.
-FIPS_BLOCKED_ALGORITHMS = frozenset({
-    "MD5", "MD4", "MD2",
-    "SHA-1",                # allowed ONLY with usedforsecurity=False (non-crypto)
-    "DES", "3DES", "TripleDES", "RC4", "ARC4", "Blowfish", "RC2",
-    "Fernet",               # AES-128-CBC; legacy decrypt-only, never new writes
-})
+FIPS_BLOCKED_ALGORITHMS = frozenset(
+    {
+        "MD5",
+        "MD4",
+        "MD2",
+        "SHA-1",  # allowed ONLY with usedforsecurity=False (non-crypto)
+        "DES",
+        "3DES",
+        "TripleDES",
+        "RC4",
+        "ARC4",
+        "Blowfish",
+        "RC2",
+        "Fernet",  # AES-128-CBC; legacy decrypt-only, never new writes
+    }
+)
 
 # ── FIPS 140-3 power-up Known-Answer-Test (KAT) vectors ──────────────────────
 # In-process self-tests run at provider init (wolfSSL backend) to prove each
@@ -90,7 +105,7 @@ _WC_AES_CTX_BYTES = 4096
 # exports no wc_Sha256New/Delete, so the caller supplies the storage; the
 # streaming KAT below proves the binding works before any real data is hashed.
 _WC_SHA256_CTX_BYTES = 4096
-_WC_HMAC_CTX_BYTES = 4096   # same rule for the opaque Hmac context
+_WC_HMAC_CTX_BYTES = 4096  # same rule for the opaque Hmac context
 # The hash-type value wolfCrypt's PBKDF2 and HMAC calls take for SHA-256.
 # MEASURED against wolfSSL 5.9.2: 6 gives the RFC 7914 / RFC 4231 answers; 2
 # returns BAD_FUNC_ARG (-173) from both wc_PBKDF2 and wc_HmacSetKey. A mock
@@ -104,10 +119,11 @@ _KAT_HMAC_KEY = bytes([0x0B] * 20)
 _KAT_HMAC_DATA = b"Hi There"
 _KAT_HMAC_SHA256_HEX = "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"
 
-_KAT_AESGCM_KEY = bytes(range(32))            # 256-bit key 00..1f
-_KAT_AESGCM_NONCE = bytes(range(12))          # 96-bit nonce 00..0b
-_KAT_AESGCM_PLAINTEXT = b"FIPS-KAT-AESGCM!"   # 16 bytes
+_KAT_AESGCM_KEY = bytes(range(32))  # 256-bit key 00..1f
+_KAT_AESGCM_NONCE = bytes(range(12))  # 96-bit nonce 00..0b
+_KAT_AESGCM_PLAINTEXT = b"FIPS-KAT-AESGCM!"  # 16 bytes
 _KAT_AESGCM_CT_TAG_HEX = "014b8648e8ae834fa000d2d8f6aa354c6279c93ba1d84effc8a3bae200a581a8"
+
 
 # ── Tiered FIPS mode (see docs/FIPS_MODULE_BOUNDARY.md) ──────────────────────
 # Three tiers so homelab/dev users can use wolfCrypt's performance + the
@@ -178,8 +194,7 @@ def _m3_lib_dir() -> str:
         base = os.path.dirname(os.path.abspath(os.path.expanduser(cfg)))
     else:
         mem = os.environ.get("M3_MEMORY_ROOT")
-        base = (os.path.abspath(os.path.expanduser(mem)) if mem
-                else os.path.join(os.path.expanduser("~"), ".m3"))
+        base = os.path.abspath(os.path.expanduser(mem)) if mem else os.path.join(os.path.expanduser("~"), ".m3")
     return os.path.join(base, "lib")
 
 
@@ -384,44 +399,63 @@ class CryptoProvider:
             if hasattr(self._libwolf, "wc_AesGcmSetKey"):
                 self._libwolf.wc_AesGcmSetKey.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_uint]
                 self._libwolf.wc_AesGcmSetKey.restype = ctypes.c_int
-            elif (_fips_mode() or _fips_strict()):
+            elif _fips_mode() or _fips_strict():
                 raise RuntimeError("FATAL: wc_AesGcmSetKey symbol not found in loaded wolfSSL library.")
 
             if hasattr(self._libwolf, "wc_AesGcmEncrypt"):
                 self._libwolf.wc_AesGcmEncrypt.argtypes = [
-                    ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint,
-                    ctypes.c_char_p, ctypes.c_uint, ctypes.c_char_p, ctypes.c_uint,
-                    ctypes.c_char_p, ctypes.c_uint
+                    ctypes.c_void_p,
+                    ctypes.c_char_p,
+                    ctypes.c_char_p,
+                    ctypes.c_uint,
+                    ctypes.c_char_p,
+                    ctypes.c_uint,
+                    ctypes.c_char_p,
+                    ctypes.c_uint,
+                    ctypes.c_char_p,
+                    ctypes.c_uint,
                 ]
                 self._libwolf.wc_AesGcmEncrypt.restype = ctypes.c_int
-            elif (_fips_mode() or _fips_strict()):
+            elif _fips_mode() or _fips_strict():
                 raise RuntimeError("FATAL: wc_AesGcmEncrypt symbol not found in loaded wolfSSL library.")
 
             if hasattr(self._libwolf, "wc_AesGcmDecrypt"):
                 self._libwolf.wc_AesGcmDecrypt.argtypes = [
-                    ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint,
-                    ctypes.c_char_p, ctypes.c_uint, ctypes.c_char_p, ctypes.c_uint,
-                    ctypes.c_char_p, ctypes.c_uint
+                    ctypes.c_void_p,
+                    ctypes.c_char_p,
+                    ctypes.c_char_p,
+                    ctypes.c_uint,
+                    ctypes.c_char_p,
+                    ctypes.c_uint,
+                    ctypes.c_char_p,
+                    ctypes.c_uint,
+                    ctypes.c_char_p,
+                    ctypes.c_uint,
                 ]
                 self._libwolf.wc_AesGcmDecrypt.restype = ctypes.c_int
-            elif (_fips_mode() or _fips_strict()):
+            elif _fips_mode() or _fips_strict():
                 raise RuntimeError("FATAL: wc_AesGcmDecrypt symbol not found in loaded wolfSSL library.")
 
             if hasattr(self._libwolf, "wc_Sha256Hash"):
                 self._libwolf.wc_Sha256Hash.argtypes = [ctypes.c_char_p, ctypes.c_uint, ctypes.c_char_p]
                 self._libwolf.wc_Sha256Hash.restype = ctypes.c_int
-            elif (_fips_mode() or _fips_strict()):
+            elif _fips_mode() or _fips_strict():
                 raise RuntimeError("FATAL: wc_Sha256Hash symbol not found in loaded wolfSSL library.")
 
             if hasattr(self._libwolf, "wc_PBKDF2"):
                 # wc_PBKDF2(out, passwd, pLen, salt, sLen, iterations, kLen, typeH)
                 self._libwolf.wc_PBKDF2.argtypes = [
-                    ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int,
-                    ctypes.c_char_p, ctypes.c_int, ctypes.c_int,
-                    ctypes.c_int, ctypes.c_int,
+                    ctypes.c_char_p,
+                    ctypes.c_char_p,
+                    ctypes.c_int,
+                    ctypes.c_char_p,
+                    ctypes.c_int,
+                    ctypes.c_int,
+                    ctypes.c_int,
+                    ctypes.c_int,
                 ]
                 self._libwolf.wc_PBKDF2.restype = ctypes.c_int
-            elif (_fips_mode() or _fips_strict()):
+            elif _fips_mode() or _fips_strict():
                 raise RuntimeError("FATAL: wc_PBKDF2 symbol not found in loaded wolfSSL library.")
 
             # 1. Register FIPS Status Callback
@@ -429,7 +463,7 @@ class CryptoProvider:
             FIPS_CB_TYPE = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_int, ctypes.c_char_p)
 
             def myFipsCb(status, msg):
-                msg_str = msg.decode('utf-8') if msg else "No message"
+                msg_str = msg.decode("utf-8") if msg else "No message"
                 err_desc = WOLF_ERROR_CODES.get(status, "Status OK" if status == 0 else "Unknown Status")
                 logger.info(f"FIPS Status: {status} ({err_desc}) - {msg_str}")
                 return 0
@@ -440,10 +474,7 @@ class CryptoProvider:
 
             # 2. Register Entropy Seed Callback (CMVP FIPS module only).
             # wc_SetSeed_Cb(wc_GenerateSeed)
-            has_entropy_cb = (
-                hasattr(self._libwolf, "wc_SetSeed_Cb")
-                and hasattr(self._libwolf, "wc_GenerateSeed")
-            )
+            has_entropy_cb = hasattr(self._libwolf, "wc_SetSeed_Cb") and hasattr(self._libwolf, "wc_GenerateSeed")
             if has_entropy_cb:
                 self._libwolf.wc_SetSeed_Cb(self._libwolf.wc_GenerateSeed)
                 logger.info("M3 Crypto: Entropy seed callback registered.")
@@ -512,7 +543,7 @@ class CryptoProvider:
             logger.info(f"M3 Crypto: wolfSSL backend initialized ({_tier} wolfCrypt).")
 
         except Exception as e:
-            if (_fips_mode() or _fips_strict()):
+            if _fips_mode() or _fips_strict():
                 raise RuntimeError(
                     f"FATAL: FIPS 140-3 Compliance Mode Enforced, but FIPS-validated "
                     f"wolfSSL/wolfCrypt backend failed to initialize: {e}."
@@ -533,9 +564,7 @@ class CryptoProvider:
         aes = ctypes.create_string_buffer(_WC_AES_CTX_BYTES)
         if self._libwolf.wc_AesGcmSetKey(aes, key, len(key)) != 0:
             raise RuntimeError("wc_AesGcmSetKey failed in KAT")
-        ret = self._libwolf.wc_AesGcmEncrypt(
-            aes, out_buf, data, len(data), iv, len(iv), tag_buf, 16, None, 0
-        )
+        ret = self._libwolf.wc_AesGcmEncrypt(aes, out_buf, data, len(data), iv, len(iv), tag_buf, 16, None, 0)
         if ret != 0:
             raise RuntimeError(f"wc_AesGcmEncrypt failed in KAT: {ret}")
         return iv + out_buf.raw + tag_buf.raw
@@ -574,17 +603,17 @@ class CryptoProvider:
         # PBKDF2-SHA256 KAT (only if the binding is present)
         if hasattr(self._libwolf, "wc_PBKDF2"):
             key = self._wolf_pbkdf2_sha256(
-                _KAT_PBKDF2_PASSWORD, _KAT_PBKDF2_SALT,
-                _KAT_PBKDF2_ITERATIONS, _KAT_PBKDF2_DKLEN,
+                _KAT_PBKDF2_PASSWORD,
+                _KAT_PBKDF2_SALT,
+                _KAT_PBKDF2_ITERATIONS,
+                _KAT_PBKDF2_DKLEN,
             )
             if key.hex() != _KAT_PBKDF2_KEY_HEX:
                 raise RuntimeError(f"PBKDF2-SHA256 KAT failed: got {key.hex()}")
 
         # AES-256-GCM KAT — known-answer (fixed nonce) + authenticated round-trip.
-        token = self._wolf_aes_gcm_encrypt_fixed_nonce(
-            _KAT_AESGCM_PLAINTEXT, _KAT_AESGCM_KEY, _KAT_AESGCM_NONCE
-        )
-        ct_tag = token[len(_KAT_AESGCM_NONCE):]  # strip the prepended IV
+        token = self._wolf_aes_gcm_encrypt_fixed_nonce(_KAT_AESGCM_PLAINTEXT, _KAT_AESGCM_KEY, _KAT_AESGCM_NONCE)
+        ct_tag = token[len(_KAT_AESGCM_NONCE) :]  # strip the prepended IV
         if ct_tag.hex() != _KAT_AESGCM_CT_TAG_HEX:
             raise RuntimeError(f"AES-256-GCM encrypt KAT failed: got {ct_tag.hex()}")
         # Decrypt must recover the plaintext (exercises GCM tag verification).
@@ -616,11 +645,7 @@ class CryptoProvider:
         if ret_key != 0:
             raise RuntimeError(f"wc_AesGcmSetKey failed with code: {ret_key}")
 
-        ret_enc = self._libwolf.wc_AesGcmEncrypt(
-            aes, out_buf, data, len(data),
-            iv, len(iv), tag_buf, 16,
-            None, 0
-        )
+        ret_enc = self._libwolf.wc_AesGcmEncrypt(aes, out_buf, data, len(data), iv, len(iv), tag_buf, 16, None, 0)
         if ret_enc != 0:
             raise RuntimeError(f"wc_AesGcmEncrypt failed with code: {ret_enc}")
 
@@ -645,9 +670,7 @@ class CryptoProvider:
             raise RuntimeError(f"wc_AesGcmSetKey failed with code: {ret_key}")
 
         ret_dec = self._libwolf.wc_AesGcmDecrypt(
-            aes, out_buf, ciphertext, len(ciphertext),
-            iv, len(iv), tag, 16,
-            None, 0
+            aes, out_buf, ciphertext, len(ciphertext), iv, len(iv), tag, 16, None, 0
         )
         if ret_dec != 0:
             raise RuntimeError(f"wc_AesGcmDecrypt failed with code: {ret_dec}")
@@ -670,13 +693,16 @@ class CryptoProvider:
             try:
                 return self._wolf_pbkdf2_sha256(password, salt, iterations, length)
             except Exception as e:
-                if (_fips_mode() or _fips_strict()):
-                    raise RuntimeError(f"FIPS PBKDF2 derivation failed: {e}. Raising to prevent unsafe fallback.") from e
+                if _fips_mode() or _fips_strict():
+                    raise RuntimeError(
+                        f"FIPS PBKDF2 derivation failed: {e}. Raising to prevent unsafe fallback."
+                    ) from e
                 logger.debug(f"M3 Crypto: wolfSSL PBKDF2 failed ({e}), using default fallback.")
 
         # Default Fallback: PBKDF2-HMAC-SHA256 via cryptography
         from cryptography.hazmat.primitives import hashes
         from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
         kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=length, salt=salt, iterations=iterations)
         return kdf.derive(password)
 
@@ -693,8 +719,14 @@ class CryptoProvider:
         # hashType: see _WC_SHA256_HASH_TYPE (measured; 2 is BAD_FUNC_ARG).
         out_buf = ctypes.create_string_buffer(length)
         ret = self._libwolf.wc_PBKDF2(
-            out_buf, password, len(password),
-            salt, len(salt), iterations, length, _WC_SHA256_HASH_TYPE,
+            out_buf,
+            password,
+            len(password),
+            salt,
+            len(salt),
+            iterations,
+            length,
+            _WC_SHA256_HASH_TYPE,
         )
         if ret != 0:
             raise RuntimeError(f"wc_PBKDF2 failed with code: {ret}")
@@ -711,7 +743,8 @@ class CryptoProvider:
                 "FIPS boundary violation: FIPS mode is set but wolfCrypt is not serving; "
                 f"observed: backend={backend}, initialized={initialized}. "
                 "inspect: `m3 doctor` (crypto) and the wolfSSL library at "
-                f"{getattr(self, '_lib_path', None)}")
+                f"{getattr(self, '_lib_path', None)}"
+            )
 
     def sha256(self, data: bytes) -> str:
         """Returns the SHA-256 hex digest of the data."""
@@ -721,7 +754,7 @@ class CryptoProvider:
             try:
                 return self._wolf_sha256(data)
             except Exception as e:
-                if (_fips_mode() or _fips_strict()):
+                if _fips_mode() or _fips_strict():
                     raise RuntimeError(f"FIPS SHA-256 Hashing Failed: {e}. Raising to prevent unsafe fallback.") from e
                 logger.debug(f"M3 Crypto: wolfSSL SHA-256 hashing failed ({e}), using default fallback.")
 
@@ -737,14 +770,21 @@ class CryptoProvider:
             raise RuntimeError(
                 "FIPS boundary: this wolfSSL build has no streaming SHA-256 "
                 "(wc_InitSha256); observed: the export is missing. "
-                f"inspect: the library at {self._lib_path}")
-        if self.backend == "WOLFSSL" and self._initialized and self._libwolf \
-                and hasattr(self._libwolf, "wc_InitSha256"):
+                f"inspect: the library at {self._lib_path}"
+            )
+        if (
+            self.backend == "WOLFSSL"
+            and self._initialized
+            and self._libwolf
+            and hasattr(self._libwolf, "wc_InitSha256")
+        ):
             try:
                 return _WolfSha256Stream(self._libwolf)
             except Exception as e:
-                if (_fips_mode() or _fips_strict()):
-                    raise RuntimeError(f"FIPS SHA-256 stream init failed: {e}. Raising to prevent unsafe fallback.") from e
+                if _fips_mode() or _fips_strict():
+                    raise RuntimeError(
+                        f"FIPS SHA-256 stream init failed: {e}. Raising to prevent unsafe fallback."
+                    ) from e
                 logger.debug(f"M3 Crypto: wolfSSL SHA-256 stream failed ({e}), using default fallback.")
         return hashlib.sha256()
 
@@ -761,7 +801,9 @@ class CryptoProvider:
                 ("wc_HmacUpdate", self._libwolf.wc_HmacUpdate(ctx, data, len(data))),
             ):
                 if ret != 0:
-                    raise RuntimeError(f"{step} failed with code: {ret} ({WOLF_ERROR_CODES.get(ret, 'see wolfSSL error codes')})")
+                    raise RuntimeError(
+                        f"{step} failed with code: {ret} ({WOLF_ERROR_CODES.get(ret, 'see wolfSSL error codes')})"
+                    )
             out = ctypes.create_string_buffer(32)
             ret = self._libwolf.wc_HmacFinal(ctx, out)
             if ret != 0:
@@ -774,15 +816,20 @@ class CryptoProvider:
         """HMAC-SHA-256 hex digest, on the same backend and with the same FIPS
         rules as sha256()."""
         self._require_fips_backend()
-        if self.backend == "WOLFSSL" and self._initialized and self._libwolf \
-                and hasattr(self._libwolf, "wc_HmacSetKey"):
+        if (
+            self.backend == "WOLFSSL"
+            and self._initialized
+            and self._libwolf
+            and hasattr(self._libwolf, "wc_HmacSetKey")
+        ):
             try:
                 return self._wolf_hmac_sha256(key, data)
             except Exception as e:
-                if (_fips_mode() or _fips_strict()):
+                if _fips_mode() or _fips_strict():
                     raise RuntimeError(f"FIPS HMAC-SHA-256 failed: {e}. Raising to prevent unsafe fallback.") from e
                 logger.debug(f"M3 Crypto: wolfSSL HMAC-SHA-256 failed ({e}), using default fallback.")
         import hmac
+
         return hmac.new(key, data, hashlib.sha256).hexdigest()
 
     def encrypt(self, data: bytes, key: bytes) -> bytes:
@@ -793,12 +840,13 @@ class CryptoProvider:
             try:
                 return self._wolf_aes_gcm_encrypt(data, key)
             except Exception as e:
-                if (_fips_mode() or _fips_strict()):
+                if _fips_mode() or _fips_strict():
                     raise RuntimeError(f"FIPS AES-GCM Encrypt Failed: {e}. Raising to prevent unsafe leakage.") from e
                 logger.debug(f"M3 Crypto: wolfSSL AES-GCM encrypt failed ({e}), using default fallback.")
 
         # Default Fallback: AES-256-GCM via cryptography
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
         aesgcm = AESGCM(key)
         nonce = os.urandom(12)
         ciphertext = aesgcm.encrypt(nonce, data, None)
@@ -812,12 +860,13 @@ class CryptoProvider:
             try:
                 return self._wolf_aes_gcm_decrypt(token, key)
             except Exception as e:
-                if (_fips_mode() or _fips_strict()):
+                if _fips_mode() or _fips_strict():
                     raise RuntimeError(f"FIPS AES-GCM Decrypt Failed: {e}. Raising to prevent unsafe leakage.") from e
                 logger.debug(f"M3 Crypto: wolfSSL AES-GCM decrypt failed ({e}), using default fallback.")
 
         # Default Fallback: AES-256-GCM via cryptography
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
         aesgcm = AESGCM(key)
         nonce = token[:12]
         ciphertext = token[12:]
@@ -842,6 +891,7 @@ class CryptoProvider:
         if self.backend == "WOLFSSL" and self._initialized:
             try:
                 import wolfssl
+
                 # Hardened wolfSSL context
                 ctx = wolfssl.SSLContext(wolfssl.PROTOCOL_TLS_CLIENT)
                 ctx.set_ciphers("TLS13-AES256-GCM-SHA384:TLS13-AES128-GCM-SHA256")
@@ -853,6 +903,7 @@ class CryptoProvider:
 
         # Default Fallback (Standard Python ssl)
         import ssl
+
         ctx = ssl.create_default_context()
         # Enforce TLS 1.3 via minimum_version (modern API; OP_NO_TLS* deprecated in 3.10+)
         if hasattr(ssl, "TLSVersion"):
@@ -860,22 +911,31 @@ class CryptoProvider:
             ctx.maximum_version = ssl.TLSVersion.TLSv1_3
         else:
             # Fallback for older Python without TLSVersion enum
-            if hasattr(ssl, "OP_NO_SSLv2"): ctx.options |= ssl.OP_NO_SSLv2  # noqa: E701
-            if hasattr(ssl, "OP_NO_SSLv3"): ctx.options |= ssl.OP_NO_SSLv3  # noqa: E701
-            if hasattr(ssl, "OP_NO_TLSv1"): ctx.options |= ssl.OP_NO_TLSv1  # noqa: E701
-            if hasattr(ssl, "OP_NO_TLSv1_1"): ctx.options |= ssl.OP_NO_TLSv1_1  # noqa: E701
-            if hasattr(ssl, "OP_NO_TLSv1_2"): ctx.options |= ssl.OP_NO_TLSv1_2  # noqa: E701
+            if hasattr(ssl, "OP_NO_SSLv2"):
+                ctx.options |= ssl.OP_NO_SSLv2  # noqa: E701
+            if hasattr(ssl, "OP_NO_SSLv3"):
+                ctx.options |= ssl.OP_NO_SSLv3  # noqa: E701
+            if hasattr(ssl, "OP_NO_TLSv1"):
+                ctx.options |= ssl.OP_NO_TLSv1  # noqa: E701
+            if hasattr(ssl, "OP_NO_TLSv1_1"):
+                ctx.options |= ssl.OP_NO_TLSv1_1  # noqa: E701
+            if hasattr(ssl, "OP_NO_TLSv1_2"):
+                ctx.options |= ssl.OP_NO_TLSv1_2  # noqa: E701
 
         # Configure FIPS-validated ciphers for default SSL context if possible
         try:
-            ctx.set_ciphers("ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256")
+            ctx.set_ciphers(
+                "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256"
+            )
         except ssl.SSLError:
             pass
 
         return ctx
 
+
 # Global Instance
 provider = CryptoProvider(BACKEND)
+
 
 def get_sha256(data: bytes) -> str:
     return provider.sha256(data)
@@ -921,15 +981,14 @@ def active_crypto_status() -> dict:
             "no wolfCrypt loaded. Set M3_FIPS_MODE=1 to route through wolfCrypt."
         )
     elif out["fips_validated"]:
-        out["summary"] = (
-            f"wolfCrypt CMVP-validated FIPS module — loaded from {out['lib_path']}"
-            + (" (integrity-pinned)" if out["integrity_pinned"] else "")
+        out["summary"] = f"wolfCrypt CMVP-validated FIPS module — loaded from {out['lib_path']}" + (
+            " (integrity-pinned)" if out["integrity_pinned"] else ""
         )
     else:
         out["summary"] = (
             f"wolfCrypt OPEN-SOURCE (non-FIPS) build — loaded from {out['lib_path']}"
             + (" (integrity-pinned)" if out["integrity_pinned"] else "")
             + ". Hardened + fail-closed, but NOT the CMVP-validated module "
-              "(M3_FIPS_STRICT would refuse this)."
+            "(M3_FIPS_STRICT would refuse this)."
         )
     return out

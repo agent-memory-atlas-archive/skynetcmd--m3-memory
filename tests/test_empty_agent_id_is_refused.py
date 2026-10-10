@@ -14,6 +14,7 @@ agent uses to decide whether it has work. Measured 2026-09-12::
 An agent that trusts the empty answer silently drops work addressed to it --
 which is exactly how the #170 silent-theft bug felt from the inside.
 """
+
 from __future__ import annotations
 
 import os
@@ -40,9 +41,7 @@ _INBOX_IMPLS = [
 ]
 
 
-@pytest.mark.parametrize(
-    "fn,tool", _INBOX_IMPLS, ids=[t for _f, t in _INBOX_IMPLS]
-)
+@pytest.mark.parametrize("fn,tool", _INBOX_IMPLS, ids=[t for _f, t in _INBOX_IMPLS])
 def test_empty_agent_id_raises_rather_than_reporting_an_empty_inbox(fn, tool):
     with pytest.raises(ValueError) as ei:
         fn("")
@@ -54,9 +53,7 @@ def test_empty_agent_id_raises_rather_than_reporting_an_empty_inbox(fn, tool):
     )
 
 
-@pytest.mark.parametrize(
-    "fn,tool", _INBOX_IMPLS, ids=[t for _f, t in _INBOX_IMPLS]
-)
+@pytest.mark.parametrize("fn,tool", _INBOX_IMPLS, ids=[t for _f, t in _INBOX_IMPLS])
 def test_a_real_agent_id_still_works(fn, tool):
     """The guard must reject ONLY the empty id. A guard that also broke the
     normal path would be trivially green on the test above."""
@@ -72,16 +69,13 @@ def test_the_guard_has_exactly_one_owner():
     import pathlib
 
     owners = []
-    for path in [pathlib.Path(orchestration.__file__),
-                 pathlib.Path(memory_core.__file__)]:
+    for path in [pathlib.Path(orchestration.__file__), pathlib.Path(memory_core.__file__)]:
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if isinstance(node, ast.FunctionDef) and node.name == "require_agent_id":
                 owners.append(f"{path.name}:{node.lineno}")
 
-    assert len(owners) == 1, (
-        f"require_agent_id must have exactly ONE definition; found {owners}"
-    )
+    assert len(owners) == 1, f"require_agent_id must have exactly ONE definition; found {owners}"
 
 
 def test_the_refusal_hint_names_a_flag_the_cli_actually_accepts():
@@ -113,6 +107,5 @@ def test_the_refusal_hint_names_a_flag_the_cli_actually_accepts():
         f"{expected} -- the suggested command fails with a usage error"
     )
     assert "--agent-id" not in flags, (
-        "the hyphenated spelling is not accepted by `m3 admin` for this "
-        "parameter; it is a different tool's flag"
+        "the hyphenated spelling is not accepted by `m3 admin` for this parameter; it is a different tool's flag"
     )

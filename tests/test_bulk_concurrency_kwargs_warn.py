@@ -1,5 +1,6 @@
 """memory_write_bulk_impl's *_concurrency arguments are accepted but do not govern
 anything (process-wide semaphores do): a caller who sets one is told, once."""
+
 from __future__ import annotations
 
 import importlib

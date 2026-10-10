@@ -49,8 +49,7 @@ def main():
         fail(f"cannot import m3_core_rs: {e}")
 
     if not hasattr(m3_core_rs, "EmbeddedEmbedder"):
-        fail("m3_core_rs has no EmbeddedEmbedder — wheel was NOT built with "
-             "--features embedded")
+        fail("m3_core_rs has no EmbeddedEmbedder — wheel was NOT built with --features embedded")
 
     if not os.path.exists(GGUF):
         fail(f"GGUF model not found at {GGUF}")
@@ -64,8 +63,7 @@ def main():
     print(f"embedding_dim() reported: {dim_reported}")
 
     # --- embed test strings ------------------------------------------------
-    texts = ["hello world", "the quick brown fox", "machine learning",
-             "hello there"]
+    texts = ["hello world", "the quick brown fox", "machine learning", "hello there"]
     rows = emb.embed(texts)
     print(f"embed() returned {len(rows)} rows")
 
@@ -75,8 +73,7 @@ def main():
     dims = {len(r) for r in rows}
     print(f"row dimensions: {dims}")
     if dims != {EMBED_DIM}:
-        fail(f"dimension is {dims}, expected exactly {{{EMBED_DIM}}}. "
-             "Model or quantization is wrong.")
+        fail(f"dimension is {dims}, expected exactly {{{EMBED_DIM}}}. Model or quantization is wrong.")
     if dim_reported != EMBED_DIM:
         fail(f"embedding_dim() returned {dim_reported}, expected {EMBED_DIM}")
 
@@ -90,19 +87,17 @@ def main():
             fail(f"row {i} ({texts[i]!r}) is all zeros")
     print("OK: all vectors finite and non-zero")
 
-    print(f"sample row 0 ('hello world') first 6: "
-          f"{[round(x, 5) for x in rows[0][:6]]}")
+    print(f"sample row 0 ('hello world') first 6: {[round(x, 5) for x in rows[0][:6]]}")
 
     # --- semantic sanity ---------------------------------------------------
-    sim_close = cosine(rows[0], rows[3])   # hello world / hello there
-    sim_far = cosine(rows[0], rows[2])     # hello world / machine learning
+    sim_close = cosine(rows[0], rows[3])  # hello world / hello there
+    sim_far = cosine(rows[0], rows[2])  # hello world / machine learning
     print(f"cosine('hello world','hello there')   = {sim_close:.4f}")
     print(f"cosine('hello world','machine learning') = {sim_far:.4f}")
     if sim_close > sim_far:
         print("OK: semantically similar texts score higher than dissimilar")
     else:
-        print("WARN: semantic ordering FAILED — similar texts did NOT score "
-              "higher. Embeddings may be broken.")
+        print("WARN: semantic ordering FAILED — similar texts did NOT score higher. Embeddings may be broken.")
 
     # --- optional: compare against a stored bge-m3 vector ------------------
     print("\n--- DB stored-vector parity check ---")
@@ -118,7 +113,9 @@ def main():
             "JOIN memory_items mi ON mi.id = me.memory_id "
             "WHERE me.embed_model = 'bge-m3-GGUF-Q4_K_M.gguf' "
             "AND me.dim = ? AND length(mi.content) BETWEEN 20 AND 400 "
-            "LIMIT 3", (EMBED_DIM,))
+            "LIMIT 3",
+            (EMBED_DIM,),
+        )
         candidates = cur.fetchall()
         con.close()
     except Exception as e:
@@ -140,11 +137,12 @@ def main():
             all_high = False
 
     if all_high:
-        print("OK: re-embedded vectors match stored bge-m3 vectors "
-              "(cosine >= 0.99) — same model confirmed")
+        print("OK: re-embedded vectors match stored bge-m3 vectors (cosine >= 0.99) — same model confirmed")
     else:
-        print("WARN: at least one cosine < 0.99 — embedded backend may differ "
-              "from the HTTP path (pooling/normalization/quantization drift)")
+        print(
+            "WARN: at least one cosine < 0.99 — embedded backend may differ "
+            "from the HTTP path (pooling/normalization/quantization drift)"
+        )
 
 
 if __name__ == "__main__":

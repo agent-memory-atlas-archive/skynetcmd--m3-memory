@@ -14,6 +14,7 @@ These tests must hold for EVERY agent hook, since the selection logic is
 duplicated across them by design (the hooks run standalone, without package
 imports, so they cannot share a helper module).
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -60,8 +61,7 @@ def stub_venv(tmp_path_factory):
     if py is None:
         pytest.skip(skip_reason("os", "could not create a stub venv on this platform"))
     # Sanity: the stub must genuinely lack httpx, or the test proves nothing.
-    rc = subprocess.run([str(py), "-c", "import httpx"],
-                        capture_output=True).returncode
+    rc = subprocess.run([str(py), "-c", "import httpx"], capture_output=True).returncode
     if rc == 0:
         pytest.skip(skip_reason("env", "stub venv unexpectedly has httpx; cannot test the guard"))
     return root
@@ -114,8 +114,10 @@ def test_find_python_prefers_a_working_repo_venv(name, monkeypatch, tmp_path):
 
 # ── scheduled-task interpreter: existence is not usability ───────────────────
 
+
 def _sched():
     import install_schedules
+
     return install_schedules
 
 
@@ -163,7 +165,11 @@ def test_scheduled_task_interpreter_accepts_one_that_imports_m3(tmp_path):
     exe = env_dir / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
     purelib = subprocess.run(
         [str(exe), "-E", "-c", "import sysconfig; print(sysconfig.get_paths()['purelib'])"],
-        capture_output=True, text=True, check=True, timeout=30).stdout.strip()
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=30,
+    ).stdout.strip()
     repo_root = Path(__file__).resolve().parents[1]
     Path(purelib, "m3_checkout.pth").write_text(str(repo_root) + "\n", encoding="utf-8")
     assert _sched()._interpreter_has_deps(str(exe)) is True

@@ -8,6 +8,7 @@ what's under test.
 
 DSN from M3_PRIMARY_PG_URL/M3_PG_URL (never PG_URL).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -89,9 +90,7 @@ def test_work_gates_on_pg(pg):
             "INSERT INTO memory_items (id,type,content,scope) VALUES (%s,'auto','x','agent')",
             (aid,),
         )
-        cur.execute(
-            "INSERT INTO observation_queue (conversation_id,user_id,attempts) VALUES ('cv','u',0)"
-        )
+        cur.execute("INSERT INTO observation_queue (conversation_id,user_id,attempts) VALUES ('cv','u',0)")
         cur.execute(
             "INSERT INTO chat_log_items (id,type,content,scope) VALUES (%s,'chat_log','y','agent')",
             (str(uuid.uuid4()),),
@@ -109,8 +108,8 @@ def test_work_gates_on_pg(pg):
             (str(uuid.uuid4()),),
         )
     try:
-        assert L.has_classify_work(None) is True   # the 'auto' row
-        assert L.has_enrich_work(None) is True      # observation_queue non-empty
+        assert L.has_classify_work(None) is True  # the 'auto' row
+        assert L.has_enrich_work(None) is True  # observation_queue non-empty
         assert L.has_entity_work(None, None) is True  # rows without entities
         # no aged data -> these are False (probes run without error, which is the point)
         assert L.has_consolidate_work(None, "observation", 1, 0) is False
@@ -147,9 +146,7 @@ def test_classify_pass_updates_on_pg(pg, monkeypatch):
             (aid,),
         )
     try:
-        asyncio.run(L.run_classify_pass(
-            argparse.Namespace(database=None, limit_per_pass=10)
-        ))
+        asyncio.run(L.run_classify_pass(argparse.Namespace(database=None, limit_per_pass=10)))
         with pg.connection() as c:
             cur = c.cursor()
             cur.execute("SELECT type FROM memory_items WHERE id=%s", (aid,))

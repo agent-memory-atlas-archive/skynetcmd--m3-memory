@@ -27,6 +27,7 @@ takes a filesystem-level backup of the database (including -wal/-shm) before
 running, so operations are reversible at the file level even if the in-DB
 transaction already committed.
 """
+
 import argparse
 import glob
 import json
@@ -44,7 +45,7 @@ from m3_core.seams import is_windows
 sys.path.insert(0, os.path.dirname(__file__))
 from m3_sdk import get_m3_config_root, get_m3_engine_root, get_m3_root
 
-logging.basicConfig(level=logging.INFO, format='%(name)s: [%(levelname)s] %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(name)s: [%(levelname)s] %(message)s")
 logger = logging.getLogger("migrate_memory")
 
 _M3_CONFIG_ROOT = get_m3_config_root()
@@ -67,10 +68,12 @@ MIGRATIONS_DIR = os.path.join(BASE_DIR, "memory", "migrations")
 
 # ── Migration Target ────────────────────────────────────────────────────────
 
+
 @dataclass(slots=True)
 class MigrationTarget:
     """Represents a migration target: name, path to DB, and migrations directory."""
-    name: str              # "main" or "chatlog"
+
+    name: str  # "main" or "chatlog"
     db_path: str
     migrations_dir: str
 
@@ -86,22 +89,26 @@ class MigrationTarget:
 # positively. Classification is "main if any of these markers exist, chatlog
 # if none of them do AND the file has the storage tables". This asymmetry is
 # why we cannot just symmetrically check both signatures.
-_MAIN_SIGNATURE_TABLES: frozenset[str] = frozenset({
-    "agents",
-    "memory_history",
-    "tasks",
-    "gdpr_requests",
-    "agent_retention_policies",
-    "activity_logs",
-})
+_MAIN_SIGNATURE_TABLES: frozenset[str] = frozenset(
+    {
+        "agents",
+        "memory_history",
+        "tasks",
+        "gdpr_requests",
+        "agent_retention_policies",
+        "activity_logs",
+    }
+)
 
 # Tables present on any post-bootstrap chatlog DB. Used to distinguish
 # "chatlog" from "unknown" when the main signatures are absent.
-_CHATLOG_STORAGE_TABLES: frozenset[str] = frozenset({
-    "memory_items",
-    "memory_embeddings",
-    "memory_relationships",
-})
+_CHATLOG_STORAGE_TABLES: frozenset[str] = frozenset(
+    {
+        "memory_items",
+        "memory_embeddings",
+        "memory_relationships",
+    }
+)
 
 # Tables that only a DISPATCH store has. Checked BEFORE the chatlog signature
 # because a dispatch store has neither main-only nor chatlog storage tables, so
@@ -110,9 +117,11 @@ _CHATLOG_STORAGE_TABLES: frozenset[str] = frozenset({
 # replacing the dispatch schema. Measured while building the split: a
 # bootstrapped agent_dispatch.db came back "unknown", was migrated as a main
 # store, and its notification_dispatch table vanished.
-_DISPATCH_STORAGE_TABLES: frozenset[str] = frozenset({
-    "notification_dispatch",
-})
+_DISPATCH_STORAGE_TABLES: frozenset[str] = frozenset(
+    {
+        "notification_dispatch",
+    }
+)
 
 
 def _classify_db(db_path: str) -> str:
@@ -144,9 +153,7 @@ def _classify_db(db_path: str) -> str:
         # "unknown" as "do not auto-migrate".
         return "unknown"
     try:
-        rows = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
-        ).fetchall()
+        rows = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").fetchall()
     except sqlite3.Error:
         return "unknown"
     finally:
@@ -192,6 +199,7 @@ def targets(selected: str = "all") -> list[MigrationTarget]:
     # caller is targeting, not always agent_memory.db.
     try:
         from m3_sdk import resolve_db_path as _resolve_main
+
         main_path = os.path.abspath(_resolve_main(None))
     except ImportError:
         main_path = os.path.abspath(DB_PATH)
@@ -206,18 +214,19 @@ def targets(selected: str = "all") -> list[MigrationTarget]:
             logger.error(
                 "Refusing to apply main migrations to %s — schema fingerprint says "
                 "this is a chatlog DB. Set M3_DATABASE to your main agent_memory.db, "
-                "or use --target chatlog.", main_path,
+                "or use --target chatlog.",
+                main_path,
             )
         else:  # unknown
             logger.error(
                 "Refusing to apply main migrations to %s — schema fingerprint is "
                 "unrecognised (kind=%s). Inspect the file or restore from backup.",
-                main_path, main_kind,
+                main_path,
+                main_kind,
             )
 
     main_target = (
-        MigrationTarget(name="main", db_path=main_path, migrations_dir=MIGRATIONS_DIR)
-        if main_target_valid else None
+        MigrationTarget(name="main", db_path=main_path, migrations_dir=MIGRATIONS_DIR) if main_target_valid else None
     )
 
     if selected == "main":
@@ -234,6 +243,7 @@ def targets(selected: str = "all") -> list[MigrationTarget]:
         # migration run.
         try:
             from chatlog_config import CHATLOG_MIGRATIONS_DIR, chatlog_db_path
+
             chatlog_path = os.path.abspath(chatlog_db_path())
 
             # Case-insensitive comparison on Windows for path equality
@@ -262,7 +272,9 @@ def targets(selected: str = "all") -> list[MigrationTarget]:
                         "delete the file and re-run (`rm %s`). "
                         "If it contains data you want to keep, set CHATLOG_DB_PATH "
                         "to a real chatlog DB or omit it to use the default path.",
-                        chatlog_path, chatlog_kind, chatlog_path,
+                        chatlog_path,
+                        chatlog_kind,
+                        chatlog_path,
                     )
                     if selected == "chatlog":
                         return []
@@ -274,7 +286,8 @@ def targets(selected: str = "all") -> list[MigrationTarget]:
                 logger.warning(
                     "Main path resolves to a chatlog DB; routing chatlog migrations "
                     "to %s. Set M3_DATABASE to your main agent_memory.db to avoid "
-                    "this fallback.", chatlog_path,
+                    "this fallback.",
+                    chatlog_path,
                 )
                 chatlog_target = MigrationTarget(
                     name="chatlog",
@@ -298,7 +311,9 @@ def targets(selected: str = "all") -> list[MigrationTarget]:
     logger.error(f"Unknown target selection: {selected}")
     return [main_target] if main_target else []
 
+
 # ── Config (backup dir persistence) ─────────────────────────────────────────
+
 
 def load_config():
     if os.path.exists(CONFIG_PATH):
@@ -309,6 +324,7 @@ def load_config():
             return {}
     return {}
 
+
 def save_config(cfg):
     # atomic_write, not open(path, "w"): that empties the file first, so a failed
     # write lost the user's remembered backup_dir.
@@ -316,6 +332,7 @@ def save_config(cfg):
 
     os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
     atomic_write(CONFIG_PATH, json.dumps(cfg, indent=2))
+
 
 def prompt_backup_dir(assume_yes: bool) -> str:
     cfg = load_config()
@@ -373,9 +390,13 @@ def prompt_backup_dir(assume_yes: bool) -> str:
     save_config(cfg)
     return backup_dir
 
+
 # ── Backup / restore ────────────────────────────────────────────────────────
 
-def take_backup(backup_dir: str, version_before: int, tag: str, target: MigrationTarget, src_conn: sqlite3.Connection | None = None) -> str:
+
+def take_backup(
+    backup_dir: str, version_before: int, tag: str, target: MigrationTarget, src_conn: sqlite3.Connection | None = None
+) -> str:
     if not os.path.exists(target.db_path):
         logger.info(f"No existing database to back up: {target.db_path}")
         return ""
@@ -393,6 +414,7 @@ def take_backup(backup_dir: str, version_before: int, tag: str, target: Migratio
     counts = snapshot_sqlite(target.db_path, dst, src_conn=src_conn)
     logger.info(f"Backup written: {dst} (verified: {len(counts)} tables match)")
     return dst
+
 
 def restore_backup(backup_path: str, target: MigrationTarget):
     if not os.path.exists(backup_path):
@@ -423,9 +445,11 @@ def restore_backup(backup_path: str, target: MigrationTarget):
         logger.error(f"Restore failed: {e}")
         sys.exit(1)
 
+
 # ── Migration discovery ─────────────────────────────────────────────────────
 
 _FNAME_RE = re.compile(r"^(\d+)_(.+?)(?:\.(up|down))?\.sql$")
+
 
 def discover_migrations(migrations_dir: str):
     """
@@ -466,6 +490,7 @@ def discover_migrations(migrations_dir: str):
             entry["name"] = name
     return out
 
+
 def init_migrations_table(conn):
     # FK enforcement matches the runtime pool settings in m3_sdk so that
     # migrations which rely on ON DELETE CASCADE (e.g. 002) behave identically
@@ -479,6 +504,7 @@ def init_migrations_table(conn):
         );
     """)
     conn.commit()
+
 
 def get_applied_versions(conn):
     """Return integer-valued schema version markers from `schema_versions`.
@@ -494,8 +520,9 @@ def get_applied_versions(conn):
         try:
             out.append(int(v))
         except (TypeError, ValueError):
-            continue   # skip non-numeric markers (bench DBs may use TEXT labels)
+            continue  # skip non-numeric markers (bench DBs may use TEXT labels)
     return out
+
 
 def current_version(conn) -> int:
     applied = get_applied_versions(conn)
@@ -520,16 +547,19 @@ def pending_migrations(selected: str = "all") -> "dict[str, list[int]]":
             continue
         conn = sqlite3.connect(f"file:{target.db_path}?mode=ro", uri=True, timeout=5.0)
         try:
-            has_table = conn.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema_versions'"
-            ).fetchone() is not None
+            has_table = (
+                conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema_versions'").fetchone()
+                is not None
+            )
             applied = set(get_applied_versions(conn)) if has_table else set()
         finally:
             conn.close()
         out[target.name] = sorted(v for v in migs if v not in applied)
     return out
 
+
 # ── Core apply / revert ─────────────────────────────────────────────────────
+
 
 def _run_sql_transaction(conn, filepath: str):
     """Run a migration script atomically.
@@ -544,25 +574,25 @@ def _run_sql_transaction(conn, filepath: str):
     with open(filepath, encoding="utf-8") as f:
         sql_script = f.read()
     _validate_migration_sql(filepath, sql_script)
-    wrapped = (
-        "SAVEPOINT mig_apply;\n"
-        f"{sql_script}\n"
-        "RELEASE SAVEPOINT mig_apply;\n"
-    )
+    wrapped = f"SAVEPOINT mig_apply;\n{sql_script}\nRELEASE SAVEPOINT mig_apply;\n"
     try:
         conn.executescript(wrapped)
     except sqlite3.Error:
         # Best-effort rollback of the savepoint; swallow if the script never
         # got far enough to open it.
-        try: conn.execute("ROLLBACK TO SAVEPOINT mig_apply")
-        except sqlite3.Error: pass
-        try: conn.execute("RELEASE SAVEPOINT mig_apply")
-        except sqlite3.Error: pass
+        try:
+            conn.execute("ROLLBACK TO SAVEPOINT mig_apply")
+        except sqlite3.Error:
+            pass
+        try:
+            conn.execute("RELEASE SAVEPOINT mig_apply")
+        except sqlite3.Error:
+            pass
         raise
 
-_FORBIDDEN_STATEMENTS_RE = re.compile(
-    r"(?im)^\s*(COMMIT|ROLLBACK|BEGIN|END\s+TRANSACTION)\b"
-)
+
+_FORBIDDEN_STATEMENTS_RE = re.compile(r"(?im)^\s*(COMMIT|ROLLBACK|BEGIN|END\s+TRANSACTION)\b")
+
 
 def _validate_migration_sql(filepath: str, sql: str) -> None:
     """Reject migration files that issue their own COMMIT / ROLLBACK / BEGIN.
@@ -582,6 +612,7 @@ def _validate_migration_sql(filepath: str, sql: str) -> None:
             f"migrations run inside an implicit transaction."
         )
 
+
 def apply_migration(conn, version: int, name: str, up_path: str):
     logger.info(f"Applying migration {version:03d}: {os.path.basename(up_path)}")
     try:
@@ -593,14 +624,15 @@ def apply_migration(conn, version: int, name: str, up_path: str):
         conn.commit()
         logger.info(f"  -> applied v{version:03d}")
     except sqlite3.OperationalError as e:
-        try: conn.rollback()
-        except sqlite3.Error: pass
+        try:
+            conn.rollback()
+        except sqlite3.Error:
+            pass
         err = str(e).lower()
         if "duplicate column name" in err or "already exists" in err:
             # Preserve legacy idempotency: schema already has what this migration adds
             logger.warning(
-                f"v{version:03d} partial-apply detected ({e}); marking applied. "
-                "Inspect schema if this recurs."
+                f"v{version:03d} partial-apply detected ({e}); marking applied. Inspect schema if this recurs."
             )
             conn.execute(
                 "INSERT OR IGNORE INTO schema_versions (version, filename) VALUES (?, ?)",
@@ -611,6 +643,7 @@ def apply_migration(conn, version: int, name: str, up_path: str):
             logger.error(f"Failed to apply v{version:03d}: {e}")
             raise
 
+
 def revert_migration(conn, version: int, down_path: str):
     logger.info(f"Reverting migration {version:03d}: {os.path.basename(down_path)}")
     try:
@@ -619,12 +652,16 @@ def revert_migration(conn, version: int, down_path: str):
         conn.commit()
         logger.info(f"  -> reverted v{version:03d}")
     except sqlite3.OperationalError as e:
-        try: conn.rollback()
-        except sqlite3.Error: pass
+        try:
+            conn.rollback()
+        except sqlite3.Error:
+            pass
         logger.error(f"Failed to revert v{version:03d}: {e}")
         raise
 
+
 # ── Subcommands ─────────────────────────────────────────────────────────────
+
 
 def cmd_status(args):
     target_list = targets(args.target)
@@ -669,6 +706,7 @@ def cmd_status(args):
         if len(target_list) > 1:
             print()
 
+
 def _confirm(prompt: str, assume_yes: bool) -> bool:
     """Ask for consent — but only where a human can actually answer.
 
@@ -692,8 +730,7 @@ def _confirm(prompt: str, assume_yes: bool) -> bool:
     except Exception:  # noqa: BLE001 — a stdin that cannot be probed is not a tty
         interactive = False
     if not interactive:
-        print(f"{prompt} [y/N]: (no interactive console — declining; pass --yes "
-              "to confirm non-interactively)")
+        print(f"{prompt} [y/N]: (no interactive console — declining; pass --yes to confirm non-interactively)")
         return False
     try:
         ans = input(f"{prompt} [y/N]: ").strip().lower()
@@ -701,6 +738,7 @@ def _confirm(prompt: str, assume_yes: bool) -> bool:
         print()
         return False
     return ans in ("y", "yes")
+
 
 def _print_pending_plan(pending: list[int], migs: dict, direction: str) -> None:
     """Pretty-print the SQL that would run for each pending/to-revert version."""
@@ -718,6 +756,7 @@ def _print_pending_plan(pending: list[int], migs: dict, direction: str) -> None:
         except OSError as e:
             print(f"# <error reading {path}: {e}>")
     print("\n--- end of plan ---\n")
+
 
 def cmd_up(args):
     target_list = targets(args.target)
@@ -778,8 +817,8 @@ def cmd_up(args):
             if not _confirm(
                 f"\nApply {len(pending)} migration(s) to '{target.name}' "
                 f"(family: core memories) DB at {target.db_path}?"
-                if target.name == "main" else
-                f"\nApply {len(pending)} migration(s) to '{target.name}' "
+                if target.name == "main"
+                else f"\nApply {len(pending)} migration(s) to '{target.name}' "
                 f"(family: chatlog memories) DB at {target.db_path}?",
                 args.yes,
             ):
@@ -798,6 +837,7 @@ def cmd_up(args):
             logger.info(f"{target.name}: Done. Now at v{current_version(conn):03d}.")
         finally:
             conn.close()
+
 
 def cmd_down(args):
     if args.to is None:
@@ -874,6 +914,7 @@ def cmd_down(args):
         finally:
             conn.close()
 
+
 def cmd_backup(args):
     target_list = targets(args.target)
     if not target_list:
@@ -891,12 +932,15 @@ def cmd_backup(args):
             conn.close()
         take_backup(backup_dir, cur, "manual", target)
 
+
 def cmd_restore(args):
     # Restore always requires explicit target specification; default to "main"
     # Warn if user picks "all"
     if args.target == "all":
-        logger.warning("Restore with --target all is ambiguous (which backup file for each target?). "
-                      "Defaulting to --target main. Use --target chatlog for the chat log DB.")
+        logger.warning(
+            "Restore with --target all is ambiguous (which backup file for each target?). "
+            "Defaulting to --target main. Use --target chatlog for the chat log DB."
+        )
         target_list = targets("main")
     else:
         target_list = targets(args.target)
@@ -910,6 +954,7 @@ def cmd_restore(args):
         logger.info("Aborted by user.")
         return
     restore_backup(args.path, target)
+
 
 def cmd_plan(args):
     """Dry-run preview: print DDL for every pending migration without touching the DB."""
@@ -938,7 +983,9 @@ def cmd_plan(args):
         finally:
             conn.close()
 
+
 # ── Entry point ─────────────────────────────────────────────────────────────
+
 
 def build_parser():
     p = argparse.ArgumentParser(description="m3-memory database migration runner")
@@ -950,83 +997,109 @@ def build_parser():
         default=None,
         metavar="PATH",
         help="Override the file path for the 'main' (core memories) target. "
-             "Sets M3_DATABASE for this run; targets() resolves the main DB "
-             "via that env. The 'chatlog' target is unaffected — to override "
-             "the chatlog DB path, set M3_CHATLOG_DATABASE in the environment "
-             "before running. Default main DB: memory/agent_memory.db.",
+        "Sets M3_DATABASE for this run; targets() resolves the main DB "
+        "via that env. The 'chatlog' target is unaffected — to override "
+        "the chatlog DB path, set M3_CHATLOG_DATABASE in the environment "
+        "before running. Default main DB: memory/agent_memory.db.",
     )
     sub = p.add_subparsers(dest="command")
 
     sp = sub.add_parser("status", help="Show current version and pending migrations")
-    sp.add_argument("--target", choices=["main", "chatlog", "all"], default="all",
-                    help="Memory FAMILY to migrate (NOT a git branch): "
-                         "'main' = core memories DB (default agent_memory.db, "
-                         "overridable via --database / M3_DATABASE); "
-                         "'chatlog' = chatlog memories DB (default "
-                         "agent_chatlog.db, overridable via M3_CHATLOG_DATABASE); "
-                         "'all' = both. Default: all configured.")
+    sp.add_argument(
+        "--target",
+        choices=["main", "chatlog", "all"],
+        default="all",
+        help="Memory FAMILY to migrate (NOT a git branch): "
+        "'main' = core memories DB (default agent_memory.db, "
+        "overridable via --database / M3_DATABASE); "
+        "'chatlog' = chatlog memories DB (default "
+        "agent_chatlog.db, overridable via M3_CHATLOG_DATABASE); "
+        "'all' = both. Default: all configured.",
+    )
     sp.set_defaults(func=cmd_status)
 
     sp = sub.add_parser("up", help="Apply pending migrations")
     sp.add_argument("--to", type=int, default=None, help="Apply up to this version (default: latest)")
-    sp.add_argument("--target", choices=["main", "chatlog", "all"], default="all",
-                    help="Memory FAMILY to migrate (NOT a git branch): "
-                         "'main' = core memories DB (default agent_memory.db, "
-                         "overridable via --database / M3_DATABASE); "
-                         "'chatlog' = chatlog memories DB (default "
-                         "agent_chatlog.db, overridable via M3_CHATLOG_DATABASE); "
-                         "'all' = both. Default: all configured.")
+    sp.add_argument(
+        "--target",
+        choices=["main", "chatlog", "all"],
+        default="all",
+        help="Memory FAMILY to migrate (NOT a git branch): "
+        "'main' = core memories DB (default agent_memory.db, "
+        "overridable via --database / M3_DATABASE); "
+        "'chatlog' = chatlog memories DB (default "
+        "agent_chatlog.db, overridable via M3_CHATLOG_DATABASE); "
+        "'all' = both. Default: all configured.",
+    )
     sp.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompts")
     sp.add_argument("--dry-run", action="store_true", help="Print the plan + DDL without applying anything")
     sp.set_defaults(func=cmd_up)
 
     sp = sub.add_parser("down", help="Roll back migrations")
     sp.add_argument("--to", type=int, required=True, help="Roll back to this version")
-    sp.add_argument("--target", choices=["main", "chatlog", "all"], default="all",
-                    help="Memory FAMILY to migrate (NOT a git branch): "
-                         "'main' = core memories DB (default agent_memory.db, "
-                         "overridable via --database / M3_DATABASE); "
-                         "'chatlog' = chatlog memories DB (default "
-                         "agent_chatlog.db, overridable via M3_CHATLOG_DATABASE); "
-                         "'all' = both. Default: all configured.")
+    sp.add_argument(
+        "--target",
+        choices=["main", "chatlog", "all"],
+        default="all",
+        help="Memory FAMILY to migrate (NOT a git branch): "
+        "'main' = core memories DB (default agent_memory.db, "
+        "overridable via --database / M3_DATABASE); "
+        "'chatlog' = chatlog memories DB (default "
+        "agent_chatlog.db, overridable via M3_CHATLOG_DATABASE); "
+        "'all' = both. Default: all configured.",
+    )
     sp.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompts")
     sp.add_argument("--dry-run", action="store_true", help="Print the plan + DDL without reverting anything")
     sp.set_defaults(func=cmd_down)
 
     sp = sub.add_parser("plan", help="Preview DDL that pending migrations would run (no changes)")
     sp.add_argument("--to", type=int, default=None, help="Plan up to this version (default: latest)")
-    sp.add_argument("--target", choices=["main", "chatlog", "all"], default="all",
-                    help="Memory FAMILY to migrate (NOT a git branch): "
-                         "'main' = core memories DB (default agent_memory.db, "
-                         "overridable via --database / M3_DATABASE); "
-                         "'chatlog' = chatlog memories DB (default "
-                         "agent_chatlog.db, overridable via M3_CHATLOG_DATABASE); "
-                         "'all' = both. Default: all configured.")
+    sp.add_argument(
+        "--target",
+        choices=["main", "chatlog", "all"],
+        default="all",
+        help="Memory FAMILY to migrate (NOT a git branch): "
+        "'main' = core memories DB (default agent_memory.db, "
+        "overridable via --database / M3_DATABASE); "
+        "'chatlog' = chatlog memories DB (default "
+        "agent_chatlog.db, overridable via M3_CHATLOG_DATABASE); "
+        "'all' = both. Default: all configured.",
+    )
     sp.set_defaults(func=cmd_plan)
 
     sp = sub.add_parser("backup", help="Take a standalone backup of the database")
     sp.add_argument("--out", type=str, default=None, help="Backup directory (overrides saved default)")
-    sp.add_argument("--target", choices=["main", "chatlog", "all"], default="all",
-                    help="Memory FAMILY to migrate (NOT a git branch): "
-                         "'main' = core memories DB (default agent_memory.db, "
-                         "overridable via --database / M3_DATABASE); "
-                         "'chatlog' = chatlog memories DB (default "
-                         "agent_chatlog.db, overridable via M3_CHATLOG_DATABASE); "
-                         "'all' = both. Default: all configured.")
+    sp.add_argument(
+        "--target",
+        choices=["main", "chatlog", "all"],
+        default="all",
+        help="Memory FAMILY to migrate (NOT a git branch): "
+        "'main' = core memories DB (default agent_memory.db, "
+        "overridable via --database / M3_DATABASE); "
+        "'chatlog' = chatlog memories DB (default "
+        "agent_chatlog.db, overridable via M3_CHATLOG_DATABASE); "
+        "'all' = both. Default: all configured.",
+    )
     sp.add_argument("-y", "--yes", action="store_true", help="Skip interactive prompts")
     sp.set_defaults(func=cmd_backup)
 
     sp = sub.add_parser("restore", help="Restore the database from a backup file")
     sp.add_argument("path", help="Path to the backup .db file")
-    sp.add_argument("--target", choices=["main", "chatlog", "all"], default="main",
-                    help="Which DB target to restore (default: main; use chatlog for chat log DB)")
+    sp.add_argument(
+        "--target",
+        choices=["main", "chatlog", "all"],
+        default="main",
+        help="Which DB target to restore (default: main; use chatlog for chat log DB)",
+    )
     sp.add_argument("-y", "--yes", action="store_true", help="Skip confirmation")
     sp.set_defaults(func=cmd_restore)
 
     return p
 
+
 def main():
     from m3_core.paths import require_sqlite_backend
+
     require_sqlite_backend("migrate_memory")  # opens SQLite files directly; refuse on PostgreSQL
     if not os.path.exists(MIGRATIONS_DIR):
         logger.error(f"Migrations directory not found: {MIGRATIONS_DIR}")
@@ -1045,6 +1118,7 @@ def main():
         args = parser.parse_args(["up"])
 
     args.func(args)
+
 
 if __name__ == "__main__":
     main()

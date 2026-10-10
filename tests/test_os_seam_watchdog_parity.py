@@ -2,6 +2,7 @@
 repair path and must run when the m3 package is broken, so it cannot import the
 OS seam. That makes the copies the seam's one documented exemption, and this
 test holds them to it on every OS, so the copies cannot drift."""
+
 from __future__ import annotations
 
 import importlib

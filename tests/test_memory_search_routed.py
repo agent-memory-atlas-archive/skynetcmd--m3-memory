@@ -6,6 +6,7 @@ Tests cover:
 - Non-temporal route using max-kind and optional fact-variant fusion
 - Env-var override for temporal_k_bump
 """
+
 from __future__ import annotations
 
 import os
@@ -93,9 +94,7 @@ async def test_temporal_route_uses_k_plus_bump(monkeypatch):
 
     monkeypatch.setattr(memory_core, "memory_search_scored_impl", stub_search)
 
-    result = await memory_core.memory_search_routed_impl(
-        "when did that happen?", k=5, temporal_k_bump=5
-    )
+    result = await memory_core.memory_search_routed_impl("when did that happen?", k=5, temporal_k_bump=5)
 
     assert len(recorded_calls) == 1
     call = recorded_calls[0]
@@ -115,16 +114,11 @@ async def test_non_temporal_no_fact_variant(monkeypatch):
         recorded_calls.append({"args": args, "kwargs": kwargs})
         # Return k results
         k_val = kwargs.get("k", 5)
-        return [
-            (0.9 - i * 0.01, {"id": f"mem{i}", "content": f"hit{i}", "title": f"t{i}"})
-            for i in range(k_val)
-        ]
+        return [(0.9 - i * 0.01, {"id": f"mem{i}", "content": f"hit{i}", "title": f"t{i}"}) for i in range(k_val)]
 
     monkeypatch.setattr(memory_core, "memory_search_scored_impl", stub_search)
 
-    result = await memory_core.memory_search_routed_impl(
-        "what is my favorite color?", k=5, fact_variant=""
-    )
+    result = await memory_core.memory_search_routed_impl("what is my favorite color?", k=5, fact_variant="")
 
     assert len(recorded_calls) == 1
     call = recorded_calls[0]
@@ -194,9 +188,7 @@ async def test_env_var_temporal_k_bump_override(monkeypatch):
     monkeypatch.setattr(memory_core, "memory_search_scored_impl", stub_search)
     monkeypatch.setenv("M3_ROUTER_TEMPORAL_K_BUMP", "10")
 
-    await memory_core.memory_search_routed_impl(
-        "when was that?", k=5, temporal_k_bump=5
-    )
+    await memory_core.memory_search_routed_impl("when was that?", k=5, temporal_k_bump=5)
 
     assert len(recorded_calls) == 1
     call = recorded_calls[0]
@@ -210,7 +202,11 @@ async def test_no_expansion_returns_primary_unchanged():
 
     primary = [(0.9, {"id": "a"}), (0.8, {"id": "b"})]
     out = await memory_core._maybe_expand_routed(
-        "anything", primary, k=5, graph_depth=0, expand_sessions=False,
+        "anything",
+        primary,
+        k=5,
+        graph_depth=0,
+        expand_sessions=False,
     )
     assert out == primary
 
@@ -232,17 +228,35 @@ async def test_graph_depth_calls_neighbor_helper(monkeypatch):
         return [(0.95, {"id": "neighbor_x", "title": "from graph"})]
 
     class StubCursor:
-        def __init__(self, rows): self.rows = rows
-        def fetchall(self): return self.rows
+        def __init__(self, rows):
+            self.rows = rows
+
+        def fetchall(self):
+            return self.rows
 
     class StubConn:
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
         def execute(self, sql, params=None):
             if "memory_items" in sql.lower() and "id in" in sql.lower():
-                return StubCursor([{"id": "neighbor_x", "type": "note", "title": "from graph",
-                                    "content": "neighbor content", "metadata_json": "{}",
-                                    "conversation_id": "", "valid_from": "", "user_id": ""}])
+                return StubCursor(
+                    [
+                        {
+                            "id": "neighbor_x",
+                            "type": "note",
+                            "title": "from graph",
+                            "content": "neighbor content",
+                            "metadata_json": "{}",
+                            "conversation_id": "",
+                            "valid_from": "",
+                            "user_id": "",
+                        }
+                    ]
+                )
             return StubCursor([])
 
     monkeypatch.setattr(memory_core, "_graph_neighbor_ids", stub_graph_neighbors)
@@ -251,7 +265,11 @@ async def test_graph_depth_calls_neighbor_helper(monkeypatch):
 
     primary = [(0.9, {"id": "a"})]
     out = await memory_core._maybe_expand_routed(
-        "anything", primary, k=5, graph_depth=2, expand_sessions=False,
+        "anything",
+        primary,
+        k=5,
+        graph_depth=2,
+        expand_sessions=False,
     )
     assert captured["called"]
     assert captured["seed_ids"] == ["a"]
@@ -282,7 +300,12 @@ async def test_expand_sessions_calls_session_helper(monkeypatch):
 
     primary = [(0.9, {"id": "a"})]
     out = await memory_core._maybe_expand_routed(
-        "anything", primary, k=5, graph_depth=0, expand_sessions=True, session_cap=8,
+        "anything",
+        primary,
+        k=5,
+        graph_depth=0,
+        expand_sessions=True,
+        session_cap=8,
     )
     assert captured["called"]
     assert captured["cap"] == 8
@@ -294,6 +317,7 @@ async def test_expand_sessions_calls_session_helper(monkeypatch):
 def test_graph_neighbor_ids_edge_cases():
     """_graph_neighbor_ids returns empty set on empty seeds or zero depth."""
     import memory_core
+
     assert memory_core._graph_neighbor_ids([], depth=2) == set()
     assert memory_core._graph_neighbor_ids(["x", "y"], depth=0) == set()
 
@@ -321,9 +345,7 @@ async def test_auto_route_off_is_identity(monkeypatch):
     monkeypatch.setattr(mc, "memory_search_scored_impl", tracking_scored)
 
     cap = {}
-    await mc.memory_search_routed_impl(
-        "what is my favorite color", k=10, auto_route=False, _capture_dict=cap
-    )
+    await mc.memory_search_routed_impl("what is my favorite color", k=10, auto_route=False, _capture_dict=cap)
 
     # When auto_route=False, _capture_dict must not be populated by AUTO layer
     assert cap == {}, f"Expected empty capture dict when auto_route=False; got {cap}"
@@ -343,13 +365,9 @@ async def test_auto_route_temporal_branch_fires(monkeypatch):
     monkeypatch.setattr(mc, "memory_search_scored_impl", stub_scored)
 
     cap = {}
-    await mc.memory_search_routed_impl(
-        "when did I last visit Paris", auto_route=True, _capture_dict=cap
-    )
+    await mc.memory_search_routed_impl("when did I last visit Paris", auto_route=True, _capture_dict=cap)
 
-    assert cap.get("auto_branch") == "temporal", (
-        f"Expected auto_branch='temporal', got {cap.get('auto_branch')!r}"
-    )
+    assert cap.get("auto_branch") == "temporal", f"Expected auto_branch='temporal', got {cap.get('auto_branch')!r}"
     branch_vals = cap.get("auto_branch_values", {})
     assert branch_vals.get("graph_depth") == 1, (
         f"AUTO_v2 fix: temporal branch must set graph_depth=1; got {branch_vals.get('graph_depth')!r}"
@@ -367,9 +385,7 @@ async def test_auto_route_caller_override_wins(monkeypatch):
     monkeypatch.setattr(mc, "memory_search_scored_impl", stub_scored)
 
     cap = {}
-    await mc.memory_search_routed_impl(
-        "when did X happen", k=20, auto_route=True, _capture_dict=cap
-    )
+    await mc.memory_search_routed_impl("when did X happen", k=20, auto_route=True, _capture_dict=cap)
 
     assert cap.get("auto_branch") == "temporal"
     # The caller passed k=20 (non-default, default is 10), so caller_overrides must record it
@@ -397,9 +413,7 @@ async def test_auto_route_default_branch_is_passthrough(monkeypatch):
     monkeypatch.setattr(mc, "memory_search_scored_impl", stub_scored)
 
     cap = {}
-    await mc.memory_search_routed_impl(
-        "tell me about the project", auto_route=True, _capture_dict=cap
-    )
+    await mc.memory_search_routed_impl("tell me about the project", auto_route=True, _capture_dict=cap)
 
     assert cap.get("auto_branch") == "default", (
         f"Expected default branch for low-score flat curve; got {cap.get('auto_branch')!r}"
@@ -448,13 +462,9 @@ async def test_auto_route_with_M3_QUERY_TYPE_ROUTING(monkeypatch):
 
     cap = {}
     # Temporal query → should still resolve to temporal branch despite env var
-    await mc.memory_search_routed_impl(
-        "when did this happen", auto_route=True, _capture_dict=cap
-    )
+    await mc.memory_search_routed_impl("when did this happen", auto_route=True, _capture_dict=cap)
 
-    assert cap.get("auto_branch") == "temporal", (
-        f"Expected temporal branch; got {cap.get('auto_branch')!r}"
-    )
+    assert cap.get("auto_branch") == "temporal", f"Expected temporal branch; got {cap.get('auto_branch')!r}"
     # No assertion on M3_QUERY_TYPE_ROUTING side effect — just verifying no crash
     # and that auto_branch still fires correctly.
 
@@ -531,8 +541,7 @@ async def test_auto_route_thresholds_are_overridable(monkeypatch):
     )
 
     assert cap.get("auto_branch") != "sharp", (
-        f"sharp must not fire when auto_top1_sharp_min=0.99 and top_1=0.95; "
-        f"got branch={cap.get('auto_branch')!r}"
+        f"sharp must not fire when auto_top1_sharp_min=0.99 and top_1=0.95; got branch={cap.get('auto_branch')!r}"
     )
     # Should fall to default since: no temporal, no comparison, low diversity, top_1 < 0.99
     assert cap.get("auto_branch") == "default", (
@@ -598,11 +607,20 @@ async def test_expanded_via_tags_set_on_session_and_graph_hits(monkeypatch):
 
         def execute(self, sql, params=None):
             if "graph-c" in str(params or []):
-                return StubCursor([{
-                    "id": "graph-c", "type": "note", "title": "graph hit",
-                    "content": "graph content", "metadata_json": "{}",
-                    "conversation_id": "", "valid_from": "", "user_id": "",
-                }])
+                return StubCursor(
+                    [
+                        {
+                            "id": "graph-c",
+                            "type": "note",
+                            "title": "graph hit",
+                            "content": "graph content",
+                            "metadata_json": "{}",
+                            "conversation_id": "",
+                            "valid_from": "",
+                            "user_id": "",
+                        }
+                    ]
+                )
             return StubCursor([])
 
     async def stub_score(query, rows_by_id, base_score=0.0):
@@ -740,15 +758,13 @@ async def test_caller_explicit_entity_graph_false_overrides_auto(monkeypatch):
     await mc.memory_search_routed_impl(
         "Did Alice meet Bob Smith",
         auto_route=True,
-        auto_entity_graph_enabled=False,   # caller disables AUTO entity branch
+        auto_entity_graph_enabled=False,  # caller disables AUTO entity branch
         _capture_dict=cap,
     )
 
     # entity_graph must NOT be enabled after resolution
     for eg_val in expand_calls:
-        assert eg_val is False, (
-            f"entity_graph must remain False when auto_entity_graph_enabled=False; got {eg_val!r}"
-        )
+        assert eg_val is False, f"entity_graph must remain False when auto_entity_graph_enabled=False; got {eg_val!r}"
 
 
 @pytest.mark.asyncio
@@ -762,17 +778,20 @@ async def test_entity_graph_valid_types_override(monkeypatch):
     async def stub_scored(*args, **kwargs):
         return []
 
-    async def stub_entity_neighbor_ids(query, depth, max_neighbors, db,
-                                        valid_types=None, valid_predicates=None,
-                                        **kwargs):
+    async def stub_entity_neighbor_ids(
+        query, depth, max_neighbors, db, valid_types=None, valid_predicates=None, **kwargs
+    ):
         # **kwargs absorbs additions like entity_stoplist / _capture_dict.
         captured["valid_types"] = valid_types
         captured["valid_predicates"] = valid_predicates
         return set()
 
     class StubConn:
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
 
     monkeypatch.setattr(mc, "memory_search_scored_impl", stub_scored)
     monkeypatch.setattr(mc, "_entity_graph_neighbor_ids", stub_entity_neighbor_ids)
@@ -802,17 +821,20 @@ async def test_entity_graph_valid_predicates_override(monkeypatch):
     async def stub_scored(*args, **kwargs):
         return []
 
-    async def stub_entity_neighbor_ids(query, depth, max_neighbors, db,
-                                        valid_types=None, valid_predicates=None,
-                                        **kwargs):
+    async def stub_entity_neighbor_ids(
+        query, depth, max_neighbors, db, valid_types=None, valid_predicates=None, **kwargs
+    ):
         # **kwargs absorbs additions like entity_stoplist / _capture_dict.
         captured["valid_types"] = valid_types
         captured["valid_predicates"] = valid_predicates
         return set()
 
     class StubConn:
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
 
     monkeypatch.setattr(mc, "memory_search_scored_impl", stub_scored)
     monkeypatch.setattr(mc, "_entity_graph_neighbor_ids", stub_entity_neighbor_ids)
@@ -848,13 +870,12 @@ async def test_named_entity_threshold_respected(monkeypatch):
     await mc.memory_search_routed_impl(
         "Alice Smith lives in New York",
         auto_route=True,
-        auto_entity_graph_named_entity_threshold=3,   # require 3; we only have 2
+        auto_entity_graph_named_entity_threshold=3,  # require 3; we only have 2
         _capture_dict=cap,
     )
 
     assert cap.get("auto_branch") != "entity_anchored", (
-        f"entity_anchored must NOT fire when named entity count < threshold=3; "
-        f"got branch={cap.get('auto_branch')!r}"
+        f"entity_anchored must NOT fire when named entity count < threshold=3; got branch={cap.get('auto_branch')!r}"
     )
 
 
@@ -886,8 +907,7 @@ async def test_entity_branch_capture_includes_neighbor_count(monkeypatch):
     # entity_anchored branch must fire (Alice + Bob Smith are named entities)
     if cap.get("auto_branch") == "entity_anchored":
         assert "entity_graph_neighbors_added" in cap, (
-            f"entity_graph_neighbors_added must be in capture when entity_anchored fires; "
-            f"got {list(cap.keys())}"
+            f"entity_graph_neighbors_added must be in capture when entity_anchored fires; got {list(cap.keys())}"
         )
         assert cap["entity_graph_neighbors_added"] == 2, (
             f"Expected 2 entity_graph neighbors added; got {cap['entity_graph_neighbors_added']!r}"
@@ -935,6 +955,7 @@ async def test_byte_identity_invariant_with_entity_params_unset(monkeypatch):
 # the two pools' scores are not calibrated against each other. The guard
 # enforces: at ranks 1..M3_EXPANSION_PROTECTED_RANKS, an expansion row may
 # only outrank a primary if expansion_score >= margin * primary_score.
+
 
 def _make_hit(score, item_id, source):
     """Build a (score, dict) hit shaped like memory_search_scored_impl output."""
@@ -1127,14 +1148,14 @@ async def test_fts_short_circuit_bypasses_embedding(monkeypatch, tmp_path):
             INSERT INTO memory_items (id, content, title, type, importance, is_deleted)
             VALUES (?, ?, ?, ?, ?, 0)
             """,
-            ("key1", "My secret API key is SK-983271", "grok api key", "note", 0.95)
+            ("key1", "My secret API key is SK-983271", "grok api key", "note", 0.95),
         )
         conn.execute(
             """
             INSERT INTO memory_items_fts (rowid, content, title)
             VALUES (last_insert_rowid(), ?, ?)
             """,
-            ("My secret API key is SK-983271", "grok api key")
+            ("My secret API key is SK-983271", "grok api key"),
         )
         conn.commit()
 
@@ -1148,9 +1169,7 @@ async def test_fts_short_circuit_bypasses_embedding(monkeypatch, tmp_path):
     monkeypatch.setattr(mc, "_embed", mock_embed)
 
     # Search for the exact high-specificity phrase
-    results = await mc.memory_search_routed_impl(
-        "My secret API key", k=5
-    )
+    results = await mc.memory_search_routed_impl("My secret API key", k=5)
 
     # 1. The exact hit LEADS, at the short-circuit's score of 1.0.
     #
@@ -1173,9 +1192,7 @@ async def test_fts_short_circuit_bypasses_embedding(monkeypatch, tmp_path):
     assert len(results) <= 5, f"must not exceed k=5, got {len(results)}"
 
     # 2. Nothing else may claim the exact-match score.
-    assert [s for s, _ in results].count(1.0) == 1, (
-        "only the true exact-substring hit should score 1.0"
-    )
+    assert [s for s, _ in results].count(1.0) == 1, "only the true exact-substring hit should score 1.0"
 
 
 @pytest.mark.asyncio
@@ -1198,14 +1215,14 @@ async def test_fts_short_circuit_conversational_skip(monkeypatch, tmp_path):
             INSERT INTO memory_items (id, content, title, type, importance, is_deleted)
             VALUES (?, ?, ?, ?, ?, 0)
             """,
-            ("key1", "show me details about coding bots", "show me", "note", 0.95)
+            ("key1", "show me details about coding bots", "show me", "note", 0.95),
         )
         conn.execute(
             """
             INSERT INTO memory_items_fts (rowid, content, title)
             VALUES (last_insert_rowid(), ?, ?)
             """,
-            ("show me details about coding bots", "show me")
+            ("show me details about coding bots", "show me"),
         )
         conn.commit()
 
@@ -1256,7 +1273,7 @@ def test_elbow_quality_gating_floor(monkeypatch):
         (0.90, {"id": "mem1"}),
         (0.85, {"id": "mem2"}),
         (0.80, {"id": "mem3"}),
-        (0.40, {"id": "mem4"}), # huge drop here
+        (0.40, {"id": "mem4"}),  # huge drop here
         (0.38, {"id": "mem5"}),
         (0.36, {"id": "mem6"}),
     ]
@@ -1271,6 +1288,7 @@ def test_elbow_quality_gating_floor(monkeypatch):
 # threads at once. Without the _RERANKER_LOCK, they race the first-time model
 # load. This verifies concurrent _get_reranker calls load the model exactly once
 # and all return the same instance.
+
 
 def test_get_reranker_concurrent_loads_once(monkeypatch):
     import threading as _threading
@@ -1292,6 +1310,7 @@ def test_get_reranker_concurrent_loads_once(monkeypatch):
     # `from sentence_transformers import CrossEncoder`, so patch there.
     import sys as _sys
     import types as _types
+
     fake_mod = _types.ModuleType("sentence_transformers")
     fake_mod.CrossEncoder = _FakeCE
     monkeypatch.setitem(_sys.modules, "sentence_transformers", fake_mod)

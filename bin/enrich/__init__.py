@@ -5,4 +5,3 @@
 # in the package leaf so both m3_enrich (the facade) and enrich.eligibility can
 # import it without a cycle — do NOT redefine it in either place.
 ALWAYS_SKIP_TYPES = ("observation",)  # already enriched; idempotency
-

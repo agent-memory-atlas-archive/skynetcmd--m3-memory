@@ -17,6 +17,7 @@ default in the wizard; only pass a flag to OPT OUT." The cognitive loop simply
 did not follow it. These tests pin the convention for both, because the failure
 is invisible — the install succeeds either way.
 """
+
 from __future__ import annotations
 
 import os
@@ -60,10 +61,8 @@ def test_the_opt_out_is_documented_in_BOTH_usage_blocks():
     cannot find. A draft of this change put both copies in the header block,
     because "  --flag" is a substring of "#   --flag"."""
     s = _src()
-    assert re.search(r"^#\s+--no-cognitive-loop\s+\S", s, re.MULTILINE), \
-        "missing from the header comment block"
-    assert re.search(r"^\s\s--no-cognitive-loop\s+\S", s, re.MULTILINE), \
-        "missing from the --help heredoc block"
+    assert re.search(r"^#\s+--no-cognitive-loop\s+\S", s, re.MULTILINE), "missing from the header comment block"
+    assert re.search(r"^\s\s--no-cognitive-loop\s+\S", s, re.MULTILINE), "missing from the --help heredoc block"
 
 
 def test_the_native_wheel_convention_is_unchanged():
@@ -106,8 +105,7 @@ _POSIX_ONLY = pytest.mark.skipif(
 def test_install_sh_is_syntactically_valid():
     """`bash -n` on the real file. A broken installer is invisible to the Python
     suite otherwise — nothing else here executes this script."""
-    r = subprocess.run(["bash", "-n", str(_SH)], capture_output=True, text=True,
-                       timeout=60)
+    r = subprocess.run(["bash", "-n", str(_SH)], capture_output=True, text=True, timeout=60)
     assert r.returncode == 0, f"bash -n failed: {r.stderr.strip()}"
 
 
@@ -118,12 +116,10 @@ def test_help_runs_and_lists_the_new_flag():
     file to read). Running it proves the heredoc is intact and the flag reaches
     the user who looks for it.
     """
-    r = subprocess.run(["bash", str(_SH), "--help"], capture_output=True,
-                       text=True, timeout=120)
+    r = subprocess.run(["bash", str(_SH), "--help"], capture_output=True, text=True, timeout=120)
     assert r.returncode == 0, f"--help exited {r.returncode}: {r.stderr[:300]}"
     assert "--no-cognitive-loop" in r.stdout, (
-        "--help does not mention --no-cognitive-loop, so the only documented way "
-        "to decline a boot service is invisible"
+        "--help does not mention --no-cognitive-loop, so the only documented way to decline a boot service is invisible"
     )
     assert "--no-native-wheel" in r.stdout, "usage block looks truncated"
 
@@ -132,8 +128,7 @@ def test_help_runs_and_lists_the_new_flag():
 def test_an_unknown_flag_does_not_silently_proceed():
     """Pins that arg parsing still rejects typos. A `--no-cognitive-lop` typo
     must not quietly install the service the user tried to decline."""
-    r = subprocess.run(["bash", str(_SH), "--no-cognitive-lop"],
-                       capture_output=True, text=True, timeout=120)
+    r = subprocess.run(["bash", str(_SH), "--no-cognitive-lop"], capture_output=True, text=True, timeout=120)
     # Assert the SPECIFIC rejection, not merely a non-zero exit: this script
     # also exits non-zero on an unsupported OS and on failed prereqs, so a bare
     # `!= 0` would pass for the wrong reason on a machine that cannot install

@@ -34,6 +34,7 @@ Usage:
 
 Exit: 0 = ok / no drift; 1 = drift; 2 = cannot check (missing key or baseline).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -62,12 +63,25 @@ SCHEMA = 1
 # could run its side effects, so scripts are listed in the snapshot as
 # uncaptured instead (measured 2026-10-08: 38 files read the env at import).
 PARSED_MODULES = (
-    "memory.config", "memory.embed", "memory.tokens", "memory.chunking",
-    "files_memory.config", "files_memory.entity_coalesce", "files_memory.dedup",
-    "files_memory.promotability", "files_memory.summarize",
-    "m3_core.runtime", "m3_core.gpu", "m3_core.context", "m3_core.governor",
-    "chatlog_config", "chatlog_redaction", "auto_route", "llm_failover",
-    "crypto_provider", "sqlite_pragmas",
+    "memory.config",
+    "memory.embed",
+    "memory.tokens",
+    "memory.chunking",
+    "files_memory.config",
+    "files_memory.entity_coalesce",
+    "files_memory.dedup",
+    "files_memory.promotability",
+    "files_memory.summarize",
+    "m3_core.runtime",
+    "m3_core.gpu",
+    "m3_core.context",
+    "m3_core.governor",
+    "chatlog_config",
+    "chatlog_redaction",
+    "auto_route",
+    "llm_failover",
+    "crypto_provider",
+    "sqlite_pragmas",
 )
 
 # The config files of CONFIG_DESIGN §11. Other JSON files in the config root are
@@ -75,10 +89,19 @@ PARSED_MODULES = (
 # would show as drift every few minutes; they are listed by NAME only, for the
 # 2A.3 classification, never compared.
 CONFIG_FILES = (
-    ".llm_config.json", ".cognitive_loop_config.json", ".governor_config.json",
-    ".log_config.json", ".spill_config.json", ".embed_config.json", ".chatlog_config.json",
-    ".migrate_config.json", ".tools_config.json", ".wiki_admission.json",
-    ".wiki_authority.json", ".wiki_pii.json", ".wiki_self_entities.json",
+    ".llm_config.json",
+    ".cognitive_loop_config.json",
+    ".governor_config.json",
+    ".log_config.json",
+    ".spill_config.json",
+    ".embed_config.json",
+    ".chatlog_config.json",
+    ".migrate_config.json",
+    ".tools_config.json",
+    ".wiki_admission.json",
+    ".wiki_authority.json",
+    ".wiki_pii.json",
+    ".wiki_self_entities.json",
 )
 
 _SECRET_NAME = re.compile(r"(KEY|TOKEN|SECRET|PASSW|SALT|DSN|CREDENTIAL|MASTER|_PG_URL|^PG_URL)", re.IGNORECASE)
@@ -92,11 +115,13 @@ class ParityError(Exception):
 # ── the per-machine HMAC key ──────────────────────────────────────────────────
 def _keyring():
     import keyring
+
     return keyring
 
 
 def _key_file() -> Path:
     from m3_core.paths import get_m3_config_root
+
     return Path(get_m3_config_root()) / "parity" / ".hmac_key"
 
 
@@ -112,8 +137,10 @@ def _keyring_get() -> tuple[bool, str | None]:
     except keyring.errors.NoKeyringError:
         return False, None
     except keyring.errors.KeyringError as e:
-        raise ParityError(f"the keyring exists but refused access ({type(e).__name__}: {e}); on macOS over "
-                          f"SSH the login keychain is locked, so run this in a logged-in session") from e
+        raise ParityError(
+            f"the keyring exists but refused access ({type(e).__name__}: {e}); on macOS over "
+            f"SSH the login keychain is locked, so run this in a logged-in session"
+        ) from e
 
 
 def _read_key_file(p: Path) -> str | None:
@@ -123,8 +150,9 @@ def _read_key_file(p: Path) -> str | None:
     if uid is not None:  # POSIX ownership; Windows protects the key with ACLs
         mode = p.stat().st_mode & 0o777
         if mode & 0o077 or p.stat().st_uid != uid:
-            raise ParityError(f"{p} is mode {oct(mode)} (or not yours); the key must be user-only. "
-                              f"Fix with: chmod 600 {p}")
+            raise ParityError(
+                f"{p} is mode {oct(mode)} (or not yours); the key must be user-only. Fix with: chmod 600 {p}"
+            )
     return p.read_text(encoding="utf-8").strip()
 
 
@@ -136,7 +164,8 @@ def get_key() -> bytes:
         where = f"the keyring ({KEYRING_SERVICE}/{KEYRING_USER})" if available else str(_key_file())
         raise ParityError(
             f"no parity HMAC key in {where}. Create it once on this machine with "
-            f"`config_parity.py init-key`; a snapshot taken with a different key cannot be compared.")
+            f"`config_parity.py init-key`; a snapshot taken with a different key cannot be compared."
+        )
     return bytes.fromhex(raw)
 
 
@@ -154,9 +183,11 @@ def init_key() -> str | None:
         except keyring.errors.KeyringError as e:
             # A locked macOS keychain over SSH READS fine (None for a missing
             # item) and refuses only the write: -25308 errSecInteractionNotAllowed.
-            raise ParityError(f"the keyring refused to store the key ({type(e).__name__}: {e}); on macOS "
-                              f"over SSH the login keychain is locked, so run init-key in a logged-in "
-                              f"session (a LaunchAgent)") from e
+            raise ParityError(
+                f"the keyring refused to store the key ({type(e).__name__}: {e}); on macOS "
+                f"over SSH the login keychain is locked, so run init-key in a logged-in "
+                f"session (a LaunchAgent)"
+            ) from e
         return "keyring"
     p = _key_file()
     if _read_key_file(p):
@@ -203,12 +234,12 @@ def record(name: str, value: object, key: bytes, markers: list[str]) -> dict:
         return {"set": False}
     if _is_secret(name, value):
         from crypto_provider import get_hmac_sha256  # the FIPS boundary: a keyed digest of a secret
+
         digest = get_hmac_sha256(key, json.dumps(_plain(value), sort_keys=True).encode("utf-8"))
         return {"set": True, "secret": True, "hmac": digest}
     plain = _plain(value)
     text = json.dumps(plain, sort_keys=True)
-    return {"set": True, "value": plain,
-            "machine_derived": any(m.lower() in text.lower() for m in markers)}
+    return {"set": True, "value": plain, "machine_derived": any(m.lower() in text.lower() for m in markers)}
 
 
 # ── capture ───────────────────────────────────────────────────────────────────
@@ -255,6 +286,7 @@ def _flatten(prefix: str, value: object, out: dict) -> None:
 def capture(context: str) -> dict:
     key = get_key()  # first: no key, no snapshot
     from crypto_provider import get_sha256  # the key fingerprint goes through the FIPS boundary
+
     # A module imported before this point computed its constants from the env
     # as it was THEN (before .env was loaded here); say which ones.
     imported_before = sorted(m for m in PARSED_MODULES if m in sys.modules)
@@ -263,6 +295,7 @@ def capture(context: str) -> dict:
 
     pre = {n: os.environ.get(n) for n in names}
     from m3_core.context import M3Context  # loads .env into os.environ
+
     M3Context.for_db(None)
     post = {n: os.environ.get(n) for n in names}
     env = {n: {"pre": record(n, pre[n], key, markers), "post": record(n, post[n], key, markers)} for n in names}
@@ -279,6 +312,7 @@ def capture(context: str) -> dict:
             parsed[f"{mod_name}.{const}"] = record(const, getattr(mod, const, None), key, markers)
 
     from m3_core.paths import get_m3_config_root
+
     files: dict[str, dict] = {}
     root = Path(get_m3_config_root())
     present = {p.name for p in list(root.glob("*.json")) + list(root.glob(".*.json"))}
@@ -293,6 +327,7 @@ def capture(context: str) -> dict:
         files[p.name] = {k: record(k, v, key, markers) for k, v in sorted(flat.items())}
 
     from memory.backends import active_backend
+
     return {
         "schema": SCHEMA,
         "context": context,
@@ -318,8 +353,10 @@ def capture(context: str) -> dict:
 # ── compare ───────────────────────────────────────────────────────────────────
 def diff(baseline: dict, current: dict, intended: set[str]) -> list[str]:
     if baseline.get("key_fingerprint") != current.get("key_fingerprint"):
-        raise ParityError("the baseline was taken with a different HMAC key (another machine, or the key "
-                          "was recreated); secrets cannot be compared. Recapture the baseline on this machine.")
+        raise ParityError(
+            "the baseline was taken with a different HMAC key (another machine, or the key "
+            "was recreated); secrets cannot be compared. Recapture the baseline on this machine."
+        )
     out = []
     for layer in ("env", "parsed", "files", "store"):
         b, c = baseline.get(layer, {}), current.get(layer, {})
@@ -334,6 +371,7 @@ def diff(baseline: dict, current: dict, intended: set[str]) -> list[str]:
 
 def _default_path(context: str) -> Path:
     from m3_core.paths import get_m3_config_root
+
     if not re.fullmatch(r"[A-Za-z0-9_.-]+", context):
         raise ParityError(f"context {context!r}: use letters, digits, '.', '_' or '-'")
     return Path(get_m3_config_root()) / "parity" / f"{context}.json"
@@ -358,6 +396,7 @@ def main(argv: list[str] | None = None) -> int:
         path = Path(args.path) if args.path else _default_path(args.context)
         if args.cmd == "capture":
             from m3_core.atomic_io import atomic_write
+
             path.parent.mkdir(parents=True, exist_ok=True)
             atomic_write(path, json.dumps(capture(args.context), indent=2, sort_keys=True) + "\n")
             print(f"captured {path}")

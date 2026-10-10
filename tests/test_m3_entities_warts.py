@@ -6,6 +6,7 @@
 
 Imports the module-level helpers directly; no DB / HTTP needed.
 """
+
 from __future__ import annotations
 
 import os
@@ -17,13 +18,9 @@ import m3_entities  # noqa: E402
 
 
 def test_strip_etype_prefix_file_path():
-    assert m3_entities._strip_etype_prefix(
-        "file_path", "file_path_bin_memory_core.py"
-    ) == "bin_memory_core.py"
+    assert m3_entities._strip_etype_prefix("file_path", "file_path_bin_memory_core.py") == "bin_memory_core.py"
     # Existing memory_id_ wart still handled by the same helper.
-    assert m3_entities._strip_etype_prefix(
-        "memory_id", "memory_id_abc12345"
-    ) == "abc12345"
+    assert m3_entities._strip_etype_prefix("memory_id", "memory_id_abc12345") == "abc12345"
     # No-op when no prefix present.
     assert m3_entities._strip_etype_prefix("module", "memory_core") == "memory_core"
 
@@ -38,9 +35,7 @@ def test_module_reclassification_from_file_path():
     # Dotted module (no slash, no file extension) → module.
     assert m3_entities._maybe_reclassify_module("file_path", "pkg.sub") == "module"
     # Real file path stays file_path.
-    assert m3_entities._maybe_reclassify_module(
-        "file_path", "bin/memory_core.py"
-    ) == "file_path"
+    assert m3_entities._maybe_reclassify_module("file_path", "bin/memory_core.py") == "file_path"
     # File with extension stays file_path.
     assert m3_entities._maybe_reclassify_module("file_path", "foo.py") == "file_path"
     # Non-file_path types are not touched.

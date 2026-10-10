@@ -15,6 +15,7 @@ Specifically asserts:
   - empty / oversize / bad-dim skips don't reach write_embedding
   - chatlog-shaped fetch (4-tuple, no metadata_json reliance) works
 """
+
 from __future__ import annotations
 
 import sys
@@ -30,17 +31,19 @@ sys.path.insert(0, str(REPO / "bin"))
 def lib():
     """Import embed_sweep_lib as fresh as possible — no global state."""
     import embed_sweep_lib
+
     return embed_sweep_lib
 
 
 # ── Basic flow ────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_loop_drives_fetch_and_write(lib):
     """Helper drives fetch -> embed -> write for every row."""
     rows = [
         ("id-1", "alpha", "", None),
-        ("id-2", "beta",  "", None),
+        ("id-2", "beta", "", None),
         ("id-3", "gamma", "", None),
     ]
     fetched_after = []
@@ -81,13 +84,14 @@ async def test_loop_drives_fetch_and_write(lib):
 
 # ── Cursor advance past skipped rows ──────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_cursor_advances_past_skipped(lib):
     """Skipped rows (oversize) shouldn't cause the loop to re-fetch them."""
     big_text = "x" * 50_000
     rows_first = [
-        ("id-1", big_text, "", None),    # oversize, will skip
-        ("id-2", "ok",     "", None),
+        ("id-1", big_text, "", None),  # oversize, will skip
+        ("id-2", "ok", "", None),
     ]
     fetched_after = []
 
@@ -124,6 +128,7 @@ async def test_cursor_advances_past_skipped(lib):
 
 # ── Limit cutoff ──────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_limit_stops_loop_without_deadline(lib):
     """limit=N stops at the next outer-cycle boundary past N, not at exactly N.
@@ -158,7 +163,7 @@ async def test_limit_stops_loop_without_deadline(lib):
         content_hash_fn=lambda t: f"h_{t}",
         batch_size=5,
         concurrency=1,
-        limit=3,           # stop after 3
+        limit=3,  # stop after 3
         deadline_s=None,
         max_row_bytes=32_000,
         expected_dim=4,
@@ -172,6 +177,7 @@ async def test_limit_stops_loop_without_deadline(lib):
 
 
 # ── Consecutive-fail abort ────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_consecutive_fails_abort(lib):
@@ -213,14 +219,15 @@ async def test_consecutive_fails_abort(lib):
 
 # ── Empty / oversize / bad-dim skips ──────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_skips_dont_call_write(lib):
     """Empty, oversize, and bad-dim rows must NOT call write_embedding."""
     big = "x" * 50_000
     rows = [
-        ("id-1", "",       "", None),  # empty
-        ("id-2", big,      "", None),  # oversize
-        ("id-3", "alpha",  "", None),  # ok
+        ("id-1", "", "", None),  # empty
+        ("id-2", big, "", None),  # oversize
+        ("id-3", "alpha", "", None),  # ok
     ]
     write_calls: list = []
 
@@ -260,13 +267,14 @@ async def test_skips_dont_call_write(lib):
 
 # ── Chatlog-shape contract ────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_chatlog_shape_no_anchors_no_dim_check(lib):
     """The chatlog sweeper passes transform=identity, expected_dim=None
     (heterogenous models). Helper must handle both cleanly."""
     rows = [
         ("id-1", "user said something", "", None),
-        ("id-2", "another turn",         "", None),
+        ("id-2", "another turn", "", None),
     ]
     written: list = []
     transform_calls: list = []
@@ -309,6 +317,7 @@ async def test_chatlog_shape_no_anchors_no_dim_check(lib):
 
 
 # ── Counters API ──────────────────────────────────────────────────────────
+
 
 def test_counters_record_error(lib):
     c = lib.Counters()

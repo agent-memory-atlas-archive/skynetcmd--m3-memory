@@ -9,6 +9,7 @@ after any catalog change, same as gen_mcp_inventory.py.
 
     python bin/gen_capability_matrix.py
 """
+
 import json
 import os
 
@@ -20,20 +21,19 @@ OUTPUT = os.path.join(BASE_DIR, "docs", "CAPABILITY_MATRIX.md")
 # Domains come from the catalog; keep this map in sync when a new domain appears
 # (an unmapped domain falls through to a title-cased heading with no blurb).
 DOMAIN_GROUPS = {
-    "memory":        ("🧠 Memory", "Write, retrieve, version, and reconcile long-term agent memory."),
-    "chatlog":       ("💬 Chat Log", "Capture verbatim conversation turns before compaction; audit and replay."),
-    "files":         ("📁 Files Memory", "Index, search, and recall project files as memory."),
-    "entity":        ("🕸️ Entity Graph", "Extract and query entities and their relationships across sessions."),
+    "memory": ("🧠 Memory", "Write, retrieve, version, and reconcile long-term agent memory."),
+    "chatlog": ("💬 Chat Log", "Capture verbatim conversation turns before compaction; audit and replay."),
+    "files": ("📁 Files Memory", "Index, search, and recall project files as memory."),
+    "entity": ("🕸️ Entity Graph", "Extract and query entities and their relationships across sessions."),
     "conversations": ("🗂️ Conversations", "Group and inspect turns by conversation / team session."),
-    "agent":         ("👥 Agents", "Register agents, hand off tasks, and route multi-agent work."),
-    "tasks":         ("✅ Tasks", "Track and coordinate agent tasks and their state."),
-    "diagnostics":   ("🩺 Diagnostics", "Health, cost, and integrity checks for the memory store."),
-    "admin":         ("⚙️ Admin & Sync", "Maintenance, cross-store sync, import/export, and lifecycle ops."),
+    "agent": ("👥 Agents", "Register agents, hand off tasks, and route multi-agent work."),
+    "tasks": ("✅ Tasks", "Track and coordinate agent tasks and their state."),
+    "diagnostics": ("🩺 Diagnostics", "Health, cost, and integrity checks for the memory store."),
+    "admin": ("⚙️ Admin & Sync", "Maintenance, cross-store sync, import/export, and lifecycle ops."),
 }
 
 # Preferred display order (most user-facing first).
-ORDER = ["memory", "chatlog", "files", "entity", "conversations",
-         "agent", "tasks", "diagnostics", "admin"]
+ORDER = ["memory", "chatlog", "files", "entity", "conversations", "agent", "tasks", "diagnostics", "admin"]
 
 
 def _escape(s: str) -> str:
@@ -138,8 +138,7 @@ def main() -> int:
         _shown = os.path.relpath(OUTPUT, BASE_DIR)
     except ValueError:
         _shown = OUTPUT
-    print(f"wrote {_shown} "
-          f"({len(tools)} tools, {len([d for d in domains if d in by_domain])} groups)")
+    print(f"wrote {_shown} ({len(tools)} tools, {len([d for d in domains if d in by_domain])} groups)")
     return 0
 
 

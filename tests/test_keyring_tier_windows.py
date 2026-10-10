@@ -10,6 +10,7 @@ And on every OS a keyring that RAISED came back as (None, None), identical to
 DSN resolver's "tiers reported" never named it (m3 2f4bad6c). These tests drive
 a real keyring backend, not a faked tier, so they cannot pass on a fake alone.
 """
+
 from __future__ import annotations
 
 import keyring

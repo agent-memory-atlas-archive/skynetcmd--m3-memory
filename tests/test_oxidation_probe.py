@@ -12,6 +12,7 @@ The probe reads `config` via `from memory import config` *inside* run(), so we
 patch attributes on that exact module object (imported the same way here) to
 guarantee the patch and the probe see the same `config`.
 """
+
 from __future__ import annotations
 
 import importlib
@@ -95,6 +96,7 @@ def test_reports_version_stale_when_functions_present_but_old(monkeypatch):
     is BEHIND the target — still flagged STALE (a current function set doesn't
     prove a current build)."""
     from m3_memory.rust_core_install import M3_CORE_RS_VERSION  # noqa: F401
+
     fake = SimpleNamespace(__version__="0.0.1")  # far below any real target
     for name, _why in oxidation_probe._EXPECTED:
         setattr(fake, name, lambda *a, **k: None)

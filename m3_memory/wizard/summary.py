@@ -4,6 +4,7 @@ Extracted verbatim from setup_wizard.py. Pure rendering — not monkeypatched
 by any test (confirmed via grep) and does not call any of the 7 patched
 functions, so it's safe to live in a submodule.
 """
+
 from __future__ import annotations
 
 from m3_memory._platform import is_macos, is_windows
@@ -11,8 +12,7 @@ from m3_memory._platform import is_macos, is_windows
 from .ui import _ok, _warn
 
 
-def _summary(plan, governor_result: dict | None = None,
-             verified: bool = True, brief: bool = False) -> None:
+def _summary(plan, governor_result: dict | None = None, verified: bool = True, brief: bool = False) -> None:
     """End-of-run summary so the user knows exactly what to do next.
 
     ``verified`` is the doctor's verdict from _step_doctor. It used to print
@@ -32,9 +32,11 @@ def _summary(plan, governor_result: dict | None = None,
         _ok("Setup complete — verified healthy.")
     else:
         _warn("Setup finished, but VERIFICATION FAILED.")
-        _warn("m3 is installed and may partly work; the doctor output above "
-              "names each issue and its fix. Do not assume capture or search "
-              "is running until `m3 doctor` is clean.")
+        _warn(
+            "m3 is installed and may partly work; the doctor output above "
+            "names each issue and its fix. Do not assume capture or search "
+            "is running until `m3 doctor` is clean."
+        )
     print()
     restart_lines = []
     if plan.targets.claude:
@@ -59,7 +61,9 @@ def _summary(plan, governor_result: dict | None = None,
     if plan.decouple_roots or plan.fips_mode:
         import os as _os
         import sys as _sys
+
         _is_win = _sys.platform == "win32"
+
         # Emit COPY-PASTE-USABLE commands for the actual shell: `setx` (persists
         # to the user environment) on Windows, `export` on POSIX. And show NATIVE
         # paths — normpath so Windows gets all-backslash (not the mixed
@@ -76,9 +80,9 @@ def _summary(plan, governor_result: dict | None = None,
                 print(f'    setx M3_CONFIG_ROOT "{_p(plan.config_root)}"')
                 print(f'    setx M3_ENGINE_ROOT "{_p(plan.engine_root)}"')
             if plan.fips_mode:
-                print('    setx M3_FIPS_MODE 1')
+                print("    setx M3_FIPS_MODE 1")
                 if plan.fips_strict:
-                    print('    setx M3_FIPS_STRICT 1   & REM requires the CMVP-validated wolfCrypt')
+                    print("    setx M3_FIPS_STRICT 1   & REM requires the CMVP-validated wolfCrypt")
                 print("    REM FIPS needs wolfSSL present (build: m3 fips install-wolfssl).")
                 print("    REM Verify + get the SHA-256 to pin: m3 doctor  (crypto section)")
         else:
@@ -88,9 +92,9 @@ def _summary(plan, governor_result: dict | None = None,
                 print(f'    export M3_CONFIG_ROOT="{_p(plan.config_root)}"')
                 print(f'    export M3_ENGINE_ROOT="{_p(plan.engine_root)}"')
             if plan.fips_mode:
-                print('    export M3_FIPS_MODE=1')
+                print("    export M3_FIPS_MODE=1")
                 if plan.fips_strict:
-                    print('    export M3_FIPS_STRICT=1   # requires the CMVP-validated wolfCrypt')
+                    print("    export M3_FIPS_STRICT=1   # requires the CMVP-validated wolfCrypt")
                 print("    # FIPS needs wolfSSL present (build: m3 fips install-wolfssl).")
                 print("    # Verify + get the SHA-256 to pin: m3 doctor  (crypto section)")
         print()
@@ -130,6 +134,7 @@ def _summary(plan, governor_result: dict | None = None,
     # ── embedder tier (Project Oxidation status) ────────────────────────────
     try:
         from m3_memory.rust_core_install import active_embedder_tier
+
         tier = active_embedder_tier()
         print("Embedder (Project Oxidation):")
         if tier.get("native"):
@@ -169,8 +174,10 @@ def _brief_summary(plan, governor_result: dict | None, verified: bool) -> None:
         _warn("Setup finished, but VERIFICATION FAILED — see the output above.")
     failed = (governor_result or {}).get("failed", [])
     if failed:
-        _warn(f"Could not remove {len(failed)} legacy scheduled task(s) — insufficient "
-              "privilege. Run `m3 setup` from an elevated shell to finish.")
+        _warn(
+            f"Could not remove {len(failed)} legacy scheduled task(s) — insufficient "
+            "privilege. Run `m3 setup` from an elevated shell to finish."
+        )
 
 
 def _os_name_for_summary() -> str:

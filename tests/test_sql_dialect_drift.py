@@ -19,6 +19,7 @@ naming the seam method to use instead.
 Adding a legitimate exception: extend `_ALLOWED` with a one-line reason. That
 is deliberately a visible, reviewable edit rather than a silent new copy.
 """
+
 from __future__ import annotations
 
 import pathlib
@@ -178,12 +179,11 @@ class TestSqlDialectDrift(unittest.TestCase):
                 for name, pattern, fix in _RULES:
                     if pattern.search(code):
                         violations.append(
-                            f"{rel}:{lineno} raw '{name}' idiom\n"
-                            f"      {stripped[:100]}\n"
-                            f"      -> use {fix}"
+                            f"{rel}:{lineno} raw '{name}' idiom\n      {stripped[:100]}\n      -> use {fix}"
                         )
         self.assertEqual(
-            violations, [],
+            violations,
+            [],
             "Backend-specific SQL found outside the seam (§10a). Route it "
             "through memory/backends/dialect.py, or add a reasoned entry to "
             "_ALLOWED in this test:\n  " + "\n  ".join(violations),
@@ -198,11 +198,10 @@ class TestSqlDialectDrift(unittest.TestCase):
         """Self-check: the patterns must fire on the known-bad forms, or this
         test is a no-op that passes forever."""
         cases = [
-            ("byte_length", "where.append(\"LENGTH(CAST(mi.content AS BLOB)) <= ?\")"),
+            ("byte_length", 'where.append("LENGTH(CAST(mi.content AS BLOB)) <= ?")'),
             # The real 2026-09-08 miss: this exact spelling shipped in a doctor
             # probe and the guard passed it.
-            ("bare_length_on_content",
-             "SELECT mi.id, LENGTH(COALESCE(mi.content,'')) FROM memory_items mi"),
+            ("bare_length_on_content", "SELECT mi.id, LENGTH(COALESCE(mi.content,'')) FROM memory_items mi"),
             ("has_content", "\"LENGTH(TRIM(COALESCE(mi.content, ''))) > 0\","),
             ("date_bound", 'if until: clauses.append(f"mi.created_at<={_p}")'),
             ("now_minus_days", "where.append(\"mi.created_at < datetime('now', ?)\")"),

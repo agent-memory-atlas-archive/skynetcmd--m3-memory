@@ -7,6 +7,7 @@ Writes docs/CONFIG_REFERENCE.md and docs/schema/m3_config.schema.json. Both are
 derived from ``m3_core.config.REGISTRY`` and never hand-edited;
 tests/test_generated_docs_fresh.py fails when the registry moves without them.
 """
+
 from __future__ import annotations
 
 import json
@@ -26,8 +27,14 @@ _ROOT = os.path.dirname(_BIN)
 OUTPUT = os.path.join(_ROOT, "docs", "CONFIG_REFERENCE.md")
 SCHEMA_OUTPUT = os.path.join(_ROOT, "docs", "schema", "m3_config.schema.json")
 
-_JSON_TYPE = {"boolean": "boolean", "integer": "integer", "number": "number",
-              "string": "string", "path": "string", "list of strings": "array"}
+_JSON_TYPE = {
+    "boolean": "boolean",
+    "integer": "integer",
+    "number": "number",
+    "string": "string",
+    "path": "string",
+    "list of strings": "array",
+}
 
 
 def _default(key: Key) -> str:
@@ -56,9 +63,7 @@ def render_markdown() -> str:
         "",
     ]
     for table, keys in sorted(REGISTRY.tables().items()):
-        lines += [f"## [{table}]", "",
-                  "| Key | Type | Default | Environment names | Notes |",
-                  "|---|---|---|---|---|"]
+        lines += [f"## [{table}]", "", "| Key | Type | Default | Environment names | Notes |", "|---|---|---|---|---|"]
         for key in sorted(keys, key=lambda k: k.leaf):
             notes = []
             if key.env_override:
@@ -71,8 +76,7 @@ def render_markdown() -> str:
                 notes.append(f"deprecated: {key.deprecated}")
             notes.append(_cell(key.doc))
             env = ", ".join(f"`{n}`" for n in key.env_names) or "(none)"
-            lines.append(f"| `{key.leaf}` | {type_name(key)} | {_default(key)} | {env} | "
-                         f"{'; '.join(notes)} |")
+            lines.append(f"| `{key.leaf}` | {type_name(key)} | {_default(key)} | {env} | {'; '.join(notes)} |")
         lines.append("")
     secrets = sorted((k for k in REGISTRY if k.klass is KeyClass.SECRET), key=lambda k: k.name)
     lines += [
@@ -108,8 +112,9 @@ def render_schema() -> dict:
         node: dict = tables
         parts = table.split(".")
         for part in parts[:-1]:
-            node = node.setdefault(part, {"type": "object", "additionalProperties": False,
-                                          "properties": {}})["properties"]
+            node = node.setdefault(part, {"type": "object", "additionalProperties": False, "properties": {}})[
+                "properties"
+            ]
         node[parts[-1]] = {"type": "object", "additionalProperties": False, "properties": props}
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",

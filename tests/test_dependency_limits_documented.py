@@ -11,6 +11,7 @@ documented when:
   * a comment on the requirement's own line,
   * the comment block directly above it (no blank or code line between).
 """
+
 from __future__ import annotations
 
 import re
@@ -78,21 +79,28 @@ def test_the_policy_is_written_down():
 def test_policy_ceiling_shape():
     assert _policy_ceiling("requests>=2.34.2,<3")
     assert _policy_ceiling("httpx[http2]>=0.28.1,<1")
-    assert not _policy_ceiling("cryptography>=50.0.1,<52")   # wider than the next major
-    assert not _policy_ceiling("mcp>=1.30.0,<1.31")         # narrower
-    assert not _policy_ceiling("ruff==0.16.10")             # exact pin
+    assert not _policy_ceiling("cryptography>=50.0.1,<52")  # wider than the next major
+    assert not _policy_ceiling("mcp>=1.30.0,<1.31")  # narrower
+    assert not _policy_ceiling("ruff==0.16.10")  # exact pin
 
 
 def test_every_limit_is_documented():
     lines = (_ROOT / "pyproject.toml").read_text(encoding="utf-8").split("\n")
     noted = _noted()
-    missing = [f"{where}: {spec}" for where, spec in _specs()
-               if _LIMIT.search(spec.split(";")[0]) and not _policy_ceiling(spec)
-               and _name(spec) not in noted and not _commented(lines, spec)]
+    missing = [
+        f"{where}: {spec}"
+        for where, spec in _specs()
+        if _LIMIT.search(spec.split(";")[0])
+        and not _policy_ceiling(spec)
+        and _name(spec) not in noted
+        and not _commented(lines, spec)
+    ]
     assert not missing, (
-        "observed: version limits with no stated reason:\n  " + "\n  ".join(missing)
+        "observed: version limits with no stated reason:\n  "
+        + "\n  ".join(missing)
         + "\ninspect: add a `### `name`` section to docs/DEPENDENCY_NOTES.md, or a comment "
-        "naming the package on or directly above the requirement")
+        "naming the package on or directly above the requirement"
+    )
 
 
 def test_noted_specs_match_the_declarations():
@@ -106,7 +114,11 @@ def test_noted_specs_match_the_declarations():
     for m in re.finditer(r"^### `([^`]+)` \(`([^`]+)`\)", notes, re.MULTILINE):
         name, quoted = _name(m.group(1)), m.group(2).replace(" ", "")
         if quoted not in declared.get(name, set()):
-            stale.append(f"{m.group(1)}: note says {m.group(2)}, pyproject has "
-                         f"{sorted(declared.get(name, set())) or 'nothing'}")
-    assert not stale, ("observed: dependency notes for limits that changed:\n  " + "\n  ".join(stale)
-                       + "\ninspect: update the note (and its reason) with the spec")
+            stale.append(
+                f"{m.group(1)}: note says {m.group(2)}, pyproject has {sorted(declared.get(name, set())) or 'nothing'}"
+            )
+    assert not stale, (
+        "observed: dependency notes for limits that changed:\n  "
+        + "\n  ".join(stale)
+        + "\ninspect: update the note (and its reason) with the spec"
+    )

@@ -64,6 +64,7 @@ def _close_context_pool(ctx: "M3Context") -> None:
         except Exception as e:
             logger.error(f"Error closing SQLite connection: {e}")
 
+
 _CIRCUITS: dict[str, Any] = {}
 _CB_THRESHOLD = 3
 _CB_COOLDOWN = 60
@@ -133,9 +134,10 @@ class M3Context:
             # wrong binding attributable after the fact rather than requiring a
             # live debugger. requested=None means "resolver default".
             logger.info(
-                "M3Context first bind: requested=%r -> resolved=%r "
-                "(cached stores=%d)",
-                db_path, resolved, len(_CONTEXTS) + 1,
+                "M3Context first bind: requested=%r -> resolved=%r (cached stores=%d)",
+                db_path,
+                resolved,
+                len(_CONTEXTS) + 1,
             )
             ctx = cls(resolved)
             _CONTEXTS[resolved] = ctx
@@ -197,7 +199,9 @@ class M3Context:
             _probe = pool.queue[0]
             _jm = _probe.execute("PRAGMA journal_mode").fetchone()[0]
             _sy = _probe.execute("PRAGMA synchronous").fetchone()[0]
-            logger.info(f"SQLite pool ready: db={self.db_path} journal_mode={_jm} synchronous={_sy} pool_size={pool_size}")
+            logger.info(
+                f"SQLite pool ready: db={self.db_path} journal_mode={_jm} synchronous={_sy} pool_size={pool_size}"
+            )
 
     def get_system_telemetry(self) -> dict:
         """Unify system hardware metrics (CPU, RAM, GPU, Thermal status)."""
@@ -205,6 +209,7 @@ class M3Context:
         if not M3_CORE_RS_DISABLE:
             try:
                 import m3_core_rs
+
                 if hasattr(m3_core_rs, "get_native_telemetry"):
                     telemetry = m3_core_rs.get_native_telemetry()
                     native_gpu = float(getattr(telemetry, "gpu_total", 0.0))
@@ -224,12 +229,7 @@ class M3Context:
         try:
             import psutil
         except ImportError:
-            return {
-                "cpu_total": 0.0,
-                "ram_total": 0.0,
-                "gpu_total": 0.0,
-                "thermal": "Nominal"
-            }
+            return {"cpu_total": 0.0, "ram_total": 0.0, "gpu_total": 0.0, "thermal": "Nominal"}
 
         # CPU Total Usage
         try:
@@ -246,7 +246,7 @@ class M3Context:
         try:
             ram = psutil.virtual_memory()
             ram_total = ram.percent
-            ram_available_gb = ram.available / (1024 ** 3)
+            ram_available_gb = ram.available / (1024**3)
         except Exception:
             ram_total = 0.0
             ram_available_gb = 0.0
@@ -258,6 +258,7 @@ class M3Context:
         # Thermal Load
         try:
             from thermal_utils import get_thermal_status
+
             thermal = get_thermal_status()
         except Exception:
             thermal = "Nominal"
@@ -267,7 +268,7 @@ class M3Context:
             "ram_total": ram_total,
             "ram_available_gb": ram_available_gb,
             "gpu_total": gpu_total,
-            "thermal": thermal
+            "thermal": thermal,
         }
 
     def _verify_cohesion(self):
@@ -275,12 +276,12 @@ class M3Context:
         with self.get_sqlite_conn() as conn:
             verify_salt_cohesion(conn, f"the SQLite store {self.db_path}")
 
-
     def _check_circuit(self, service: str) -> bool:
         """Checks if the circuit for a specific service is open."""
         if not M3_CORE_RS_DISABLE:
             try:
                 import m3_core_rs
+
                 if hasattr(m3_core_rs, "NativeCircuitBreaker"):
                     state = _CIRCUITS.get(service)
                     if not state or not hasattr(state, "check"):
@@ -304,6 +305,7 @@ class M3Context:
         if not M3_CORE_RS_DISABLE:
             try:
                 import m3_core_rs
+
                 if hasattr(m3_core_rs, "NativeCircuitBreaker"):
                     state = _CIRCUITS.get(service)
                     if state and hasattr(state, "record_success"):
@@ -318,6 +320,7 @@ class M3Context:
         if not M3_CORE_RS_DISABLE:
             try:
                 import m3_core_rs
+
                 if hasattr(m3_core_rs, "NativeCircuitBreaker"):
                     state = _CIRCUITS.get(service)
                     if not state or not hasattr(state, "check"):
@@ -353,6 +356,7 @@ class M3Context:
                 if _HTTP_CLIENT is None or _HTTP_CLIENT.is_closed or loop_id != _HTTP_CLIENT_LOOP_ID:
                     timeout = httpx.Timeout(connect=5.0, read=4800.0, write=10.0, pool=5.0)
                     from crypto_provider import provider as crypto
+
                     ssl_ctx = crypto.get_ssl_context()
 
                     try:
@@ -374,8 +378,9 @@ class M3Context:
     async def request_with_retry(self, method: str, url: str, retries: int = 3, **kwargs):
         """Resilient HTTP requests with exponential backoff and Circuit Breaker."""
         if retries < 1:
-            raise ValueError(f"request_with_retry: retries must be >= 1; observed: {retries}. "
-                             "inspect: the caller passing retries")
+            raise ValueError(
+                f"request_with_retry: retries must be >= 1; observed: {retries}. inspect: the caller passing retries"
+            )
         service = url.split("//")[-1].split("/")[0]
 
         if not self._check_circuit(service):
@@ -383,8 +388,9 @@ class M3Context:
             # so a handler reading e.response.status_code works as for any other
             # HTTP failure instead of raising AttributeError on None.
             req = httpx.Request(method, url)
-            raise httpx.HTTPStatusError(f"Circuit open for {service}", request=req,
-                                        response=httpx.Response(503, request=req))
+            raise httpx.HTTPStatusError(
+                f"Circuit open for {service}", request=req, response=httpx.Response(503, request=req)
+            )
 
         client = self.get_async_client()
         for attempt in range(retries):
@@ -398,7 +404,7 @@ class M3Context:
                     self._record_failure(service)
                     logger.error(f"HTTP Request failed after {retries} attempts: {exc}")
                     raise
-                wait = (2 ** attempt) + random.uniform(0, 1)  # nosec B311 - backoff jitter, not cryptographic
+                wait = (2**attempt) + random.uniform(0, 1)  # nosec B311 - backoff jitter, not cryptographic
                 logger.warning(f"Request to {url} failed ({exc}). Retrying in {wait:.1f}s...")
                 await asyncio.sleep(wait)
         raise AssertionError("unreachable: the last attempt returns or raises")
@@ -415,7 +421,8 @@ class M3Context:
             raise RuntimeError(
                 f"get_sqlite_conn: observed: M3_DB_BACKEND={_bk!r}, but this opens the "
                 f"SQLite file {self.db_path!r}, which is not the live store. inspect: "
-                "route the caller through the active backend (memory.backends)")
+                "route the caller through the active backend (memory.backends)"
+            )
         # Capture self._pool inside the with so put-back lands in the correct
         # pool even if another thread somehow swaps the attribute. (It won't
         # today, but cheap insurance for a multi-pool world.)
@@ -423,8 +430,10 @@ class M3Context:
             self._init_sqlite_pool()
         pool = self._pool
         if pool is None:
-            raise RuntimeError("SQLite pool unavailable; observed: _init_sqlite_pool() left "
-                               f"no pool for {self.db_path!r}. inspect: the DB path and its directory")
+            raise RuntimeError(
+                "SQLite pool unavailable; observed: _init_sqlite_pool() left "
+                f"no pool for {self.db_path!r}. inspect: the DB path and its directory"
+            )
         conn = pool.get(timeout=10)
         try:
             yield conn
@@ -487,6 +496,7 @@ class M3Context:
 
         try:
             from m3_core.paths import resolve_dispatch_db
+
             target = resolve_dispatch_db()
         except Exception:  # noqa: BLE001 -- a broken dispatch config must not
             # take the caller down; the main store is the safe fallback.
@@ -611,6 +621,7 @@ class M3Context:
         # Lazy import: auth_utils may route through M3Context for vault reads,
         # creating a cycle if imported at module top.
         from auth_utils import get_api_key
+
         return get_api_key(service)
 
     def get_logger(self, name: str = "m3") -> "StructuredLogger":
@@ -639,8 +650,7 @@ class M3Context:
             finally:
                 conn.execute("PRAGMA query_only = OFF")  # pooled: the next borrower may write
 
-    def log_event(self, category: str, detail_a: str,
-                  detail_b: str = "", detail_c: str | None = None) -> None:
+    def log_event(self, category: str, detail_a: str, detail_b: str = "", detail_c: str | None = None) -> None:
         """Route a structured event to the correct legacy table.
 
         Used by bridges that predate the unified memory_items model.
@@ -648,18 +658,20 @@ class M3Context:
         Unknown categories fall through to activity_logs for safety.
         """
         from audit_trail import log_event
-        log_event(self, category, detail_a, detail_b, detail_c)
 
+        log_event(self, category, detail_a, detail_b, detail_c)
 
     @contextmanager
     def pg_connection(self):
         """Returns a psycopg2 connection to the PostgreSQL data warehouse with circuit breaker."""
         import psycopg2
+
         if not self._check_circuit("postgresql"):
             raise RuntimeError("PostgreSQL circuit breaker is open. Failing fast.")
         # Warehouse role: M3_CDW_PG_URL > PG_URL(deprecated). The vault key stays
         # PG_URL for continuity. Does NOT read M3_PG_URL (that is the primary store).
         from m3_core.secret_store import PgRole, resolve_pg_dsn
+
         url = resolve_pg_dsn(PgRole.WAREHOUSE)
         if not url:
             raise RuntimeError(
@@ -684,6 +696,7 @@ class M3Context:
                     logger.warning(f"PostgreSQL connect attempt {attempt + 1} failed: {e}. Retrying in 3s...")
                     time.sleep(3)
         raise RuntimeError(f"PostgreSQL connection failed after 2 attempts: {last_exc}")
+
 
 _DISPATCH_PG_READY: set = set()
 
@@ -777,8 +790,7 @@ def _ensure_dispatch_schema(conn) -> None:
     # runs on both backends, which it does not.
     try:
         present = conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' "
-            "AND name='notification_dispatch'"
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='notification_dispatch'"
         ).fetchone()
         if present:
             return
@@ -831,8 +843,10 @@ def verify_salt_cohesion(conn, where: str) -> None:
         from memory.backends.dialect import dialect_for_connection
 
         p = dialect_for_connection(conn).param()
-        conn.execute("CREATE TABLE IF NOT EXISTS m3_system_cohesion ("
-                     "key TEXT PRIMARY KEY, value TEXT, verified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS m3_system_cohesion ("
+            "key TEXT PRIMARY KEY, value TEXT, verified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
+        )
         row = conn.execute(f"SELECT value FROM m3_system_cohesion WHERE key = {p}", ("salt_hash",)).fetchone()
         if row is None:
             conn.execute(f"INSERT INTO m3_system_cohesion (key, value) VALUES ({p}, {p})", ("salt_hash", salt_hash))
@@ -842,10 +856,15 @@ def verify_salt_cohesion(conn, where: str) -> None:
                 "its encrypted secrets will not decrypt. observed: stored hash %s..., active hash %s... "
                 "(salt file %s). inspect: M3_CONFIG_ROOT and M3_ENGINE_ROOT point at the same machine's "
                 "config and engine; restore the matching .agent_os_salt; m3 doctor",
-                where, str(row[0])[:12], salt_hash[:12], salt_path)
+                where,
+                str(row[0])[:12],
+                salt_hash[:12],
+                salt_path,
+            )
         conn.commit()
     except Exception as e:  # noqa: BLE001 — best-effort by contract; reported, never raised
         from m3_core.errors import log_swallowed
+
         log_swallowed(log, e, "salt cohesion check skipped for %s: %s", where, e)
 
 
@@ -860,6 +879,7 @@ class _PooledHandle:
 
     def execute(self, sql, params=()):
         from memory.backends.postgres_backend import _make_compat_cursor_factory
+
         cur = self._raw.cursor(cursor_factory=_make_compat_cursor_factory())
         cur.execute(sql, params)
         return cur
@@ -877,8 +897,8 @@ class _PooledHandle:
             import logging
 
             from m3_core.errors import log_swallowed
-            log_swallowed(logging.getLogger(__name__), e,
-                          "pooled handle: rollback before release failed: %s", e)
+
+            log_swallowed(logging.getLogger(__name__), e, "pooled handle: rollback before release failed: %s", e)
         self._pool.putconn(self._raw)
 
     def __getattr__(self, name):
@@ -905,15 +925,19 @@ def open_pointed_store(db_path: str | None, *, profile: str | None = None) -> An
 
     if not store_is_a_file():
         from memory.backends import active_backend
+
         return _PooledHandle(active_backend())
     if not db_path:
-        raise ValueError("observed: no SQLite path for the store this tool targets. "
-                         "inspect: the tool's database flag / resolve_cli_store()")
+        raise ValueError(
+            "observed: no SQLite path for the store this tool targets. "
+            "inspect: the tool's database flag / resolve_cli_store()"
+        )
     # sqlite3.connect CREATES a missing file, so a wrong path would become an
     # empty store that then fails on its first table, far from the cause.
     if not os.path.exists(db_path):
-        raise ValueError(f"observed: no SQLite DB at {db_path}. "
-                         f"inspect: the tool's database flag, M3_DATABASE, or M3_ENGINE_ROOT")
+        raise ValueError(
+            f"observed: no SQLite DB at {db_path}. inspect: the tool's database flag, M3_DATABASE, or M3_ENGINE_ROOT"
+        )
     conn = sqlite3.connect(str(db_path), timeout=30.0)
     apply_pragmas(conn, profile or profile_for_db(db_path))
     return conn
@@ -950,8 +974,10 @@ def pointed_store_connection(db_path: str | None) -> Iterator[Any]:
             yield conn
         return
     if not db_path:
-        raise ValueError("observed: no SQLite path for the store this tool targets. "
-                         "inspect: the tool's database flag / resolve_cli_store()")
+        raise ValueError(
+            "observed: no SQLite path for the store this tool targets. "
+            "inspect: the tool's database flag / resolve_cli_store()"
+        )
     with active_database(db_path), M3Context.for_db(db_path).get_sqlite_conn() as conn:
         try:
             yield conn
@@ -967,5 +993,6 @@ def _cleanup():
         _CONTEXTS.clear()
     for ctx in contexts:
         _close_context_pool(ctx)
+
 
 atexit.register(_cleanup)

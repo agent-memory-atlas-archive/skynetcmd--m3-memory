@@ -7,6 +7,7 @@ store — never creating or migrating one — so installs that don't use file
 ingestion pay nothing. Backend/OS-agnostic (SQLite here; PG probes the primary
 schema). Hermetic — a temp SQLite file, no server.
 """
+
 import argparse
 import asyncio
 import sqlite3
@@ -41,7 +42,10 @@ def test_detects_pending_leaf(tmp_path):
 
 def test_partial_db_without_leaves_table_is_no_work(tmp_path):
     db = tmp_path / "partial.db"
-    c = sqlite3.connect(db); c.execute("CREATE TABLE other(a)"); c.commit(); c.close()
+    c = sqlite3.connect(db)
+    c.execute("CREATE TABLE other(a)")
+    c.commit()
+    c.close()
     assert has_pending_extraction(str(db)) is False  # tolerant, no crash
 
 
@@ -49,8 +53,7 @@ def test_pass_exists_and_honors_skip(tmp_path, monkeypatch):
     assert hasattr(L, "run_files_extract_pass")
     # skip=True -> the pass must not even consult the gate (fully off).
     called = {"gate": False}
-    monkeypatch.setattr(L, "has_files_extract_work",
-                        lambda *_a, **_k: called.__setitem__("gate", True) or True)
+    monkeypatch.setattr(L, "has_files_extract_work", lambda *_a, **_k: called.__setitem__("gate", True) or True)
     args = argparse.Namespace(skip_files_extract=True, files_db=None, limit_per_pass=4)
     asyncio.run(L.run_files_extract_pass(args))
     assert called["gate"] is False  # short-circuited by skip
@@ -59,7 +62,6 @@ def test_pass_exists_and_honors_skip(tmp_path, monkeypatch):
 def test_pass_is_quiet_noop_when_no_store(tmp_path):
     # run_files_extract_pass must return quickly without touching an LLM when
     # there's no files store (gate short-circuits, on-by-default path).
-    args = argparse.Namespace(skip_files_extract=False, files_db=str(tmp_path / "absent.db"),
-                              limit_per_pass=4)
+    args = argparse.Namespace(skip_files_extract=False, files_db=str(tmp_path / "absent.db"), limit_per_pass=4)
     asyncio.run(L.run_files_extract_pass(args))  # no exception, no store created
     assert not (tmp_path / "absent.db").exists()

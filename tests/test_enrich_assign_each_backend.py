@@ -4,6 +4,7 @@ It refused on PostgreSQL (require_sqlite_backend), and PostgreSQL had no
 `send_to` column at all: migration 031 was never ported, so a routed
 `m3_enrich --send-to` run failed there too (pg_060 adds it).
 """
+
 from __future__ import annotations
 
 import sys
@@ -13,8 +14,17 @@ import pytest
 
 from conftest import skip_reason
 
-_COLS = ("source_variant", "target_variant", "group_key", "user_id", "db_path",
-         "turn_count", "source_content_hash", "status", "content_size_k")
+_COLS = (
+    "source_variant",
+    "target_variant",
+    "group_key",
+    "user_id",
+    "db_path",
+    "turn_count",
+    "source_content_hash",
+    "status",
+    "content_size_k",
+)
 
 
 @pytest.fixture
@@ -26,9 +36,10 @@ def groups(each_backend):
     p = dialect().param()
     with each_backend.connection() as conn:
         for i, size in enumerate((4, 10, 20)):
-            conn.execute(f"INSERT INTO enrichment_groups ({', '.join(_COLS)}) "
-                         f"VALUES ({', '.join([p] * len(_COLS))})",
-                         (src, tgt, f"g{i}", "", "x.db", 1, f"h{i}", "pending", size))
+            conn.execute(
+                f"INSERT INTO enrichment_groups ({', '.join(_COLS)}) VALUES ({', '.join([p] * len(_COLS))})",
+                (src, tgt, f"g{i}", "", "x.db", 1, f"h{i}", "pending", size),
+            )
         conn.commit()
     try:
         yield src, tgt
@@ -50,8 +61,12 @@ def _routes(each_backend, src: str) -> dict[str, str | None]:
 
     p = dialect().param()
     with each_backend.connection() as conn:
-        return {r[0]: r[1] for r in conn.execute(
-            f"SELECT group_key, send_to FROM enrichment_groups WHERE source_variant = {p}", (src,))}
+        return {
+            r[0]: r[1]
+            for r in conn.execute(
+                f"SELECT group_key, send_to FROM enrichment_groups WHERE source_variant = {p}", (src,)
+            )
+        }
 
 
 def test_routes_by_size_band(each_backend, groups, monkeypatch):
@@ -79,8 +94,10 @@ def test_a_routed_worker_claims_only_its_rows(each_backend, groups, monkeypatch)
     from enrichment_state import eligible_for_resume
 
     src, tgt = groups
-    assert _assign(monkeypatch, "--source-variant", src, "--target-variant", tgt,
-                   "--max-size-k", "7", "--send-to", "grok") == 0
+    assert (
+        _assign(monkeypatch, "--source-variant", src, "--target-variant", tgt, "--max-size-k", "7", "--send-to", "grok")
+        == 0
+    )
     with each_backend.connection() as conn:
         grok = eligible_for_resume(conn, source_variant=src, target_variant=tgt, send_to="grok")
         unrouted = eligible_for_resume(conn, source_variant=src, target_variant=tgt)
@@ -103,8 +120,22 @@ def test_explicit_db_wins_over_m3_database(each_backend, groups, monkeypatch, tm
     sqlite3.connect(decoy).close()
     monkeypatch.setenv("M3_DATABASE", str(decoy))
     src, tgt = groups
-    assert _assign(monkeypatch, "--db", target, "--source-variant", src, "--target-variant", tgt,
-                   "--max-size-k", "7", "--send-to", "grok") == 0
+    assert (
+        _assign(
+            monkeypatch,
+            "--db",
+            target,
+            "--source-variant",
+            src,
+            "--target-variant",
+            tgt,
+            "--max-size-k",
+            "7",
+            "--send-to",
+            "grok",
+        )
+        == 0
+    )
     monkeypatch.setenv("M3_DATABASE", target)
     assert _routes(each_backend, src)["g0"] == "grok", "observed: the update did not reach --db"
 

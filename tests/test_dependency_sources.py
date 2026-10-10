@@ -10,6 +10,7 @@ Each link is checked without uv (CI and the pip-only lanes have none):
 Before this, pyproject and a hand-kept requirements.txt drifted
 (types-setuptools <82 in one, >=84 in the other).
 """
+
 from __future__ import annotations
 
 import re
@@ -58,18 +59,19 @@ def test_lock_records_pyprojects_dependencies():
     dist = _ROOT_PKG["metadata"]["requires-dist"]
     base = [e for e in dist if "extra ==" not in e.get("marker", "")]
     assert _lock_entries(base) == _from_pyproject(_PYPROJECT["project"]["dependencies"]), (
-        "uv.lock is stale for [project].dependencies; run `uv lock`")
+        "uv.lock is stale for [project].dependencies; run `uv lock`"
+    )
     for extra, reqs in _PYPROJECT["project"]["optional-dependencies"].items():
         mine = [e for e in dist if f"extra == '{extra}'" in e.get("marker", "")]
-        assert _lock_entries(mine) == _from_pyproject(reqs), (
-            f"uv.lock is stale for the {extra!r} extra; run `uv lock`")
+        assert _lock_entries(mine) == _from_pyproject(reqs), f"uv.lock is stale for the {extra!r} extra; run `uv lock`"
 
 
 def test_lock_records_pyprojects_groups():
     dev = _ROOT_PKG["metadata"]["requires-dev"]
     for group in _PYPROJECT["dependency-groups"]:
         assert _lock_entries(dev.get(group, [])) == _from_pyproject(_flatten(group)), (
-            f"uv.lock is stale for the {group!r} group; run `uv lock`")
+            f"uv.lock is stale for the {group!r} group; run `uv lock`"
+        )
 
 
 def test_requirements_txt_is_resolved_from_these_declarations():
@@ -78,7 +80,8 @@ def test_requirements_txt_is_resolved_from_these_declarations():
     assert m, "requirements.txt has no declarations digest; run `python bin/gen_requirements.py`"
     assert m.group(1) == gen_requirements.declarations_digest(), (
         "pyproject's dependencies or lane groups changed since requirements.txt was "
-        "resolved; run `python bin/gen_requirements.py`")
+        "resolved; run `python bin/gen_requirements.py`"
+    )
     pinned: dict[str, str] = {}
     for line in text.splitlines():
         s = line.split("#", 1)[0].strip()
@@ -99,15 +102,17 @@ def test_requirements_txt_is_resolved_from_these_declarations():
         name = canonicalize_name(q.name)
         assert name in pinned, f"declared but not pinned: {r}"
         assert q.specifier.contains(pinned[name], prereleases=True), (
-            f"pin {name}=={pinned[name]} is outside the declared {r}")
+            f"pin {name}=={pinned[name]} is outside the declared {r}"
+        )
 
 
 def test_deprecated_dev_extra_equals_the_dev_group():
     extra = _from_pyproject(_PYPROJECT["project"]["optional-dependencies"]["dev"])
     # The group adds the test-only packages the suite exercises; the extra
     # must still cover every tool in lint and release.
-    tools = _from_pyproject(_flatten("lint") + _flatten("release")
-                            + [r for r in _flatten("test") if r.startswith("pytest")])
+    tools = _from_pyproject(
+        _flatten("lint") + _flatten("release") + [r for r in _flatten("test") if r.startswith("pytest")]
+    )
     assert extra == tools, "the deprecated dev extra drifted from the dev group"
 
 

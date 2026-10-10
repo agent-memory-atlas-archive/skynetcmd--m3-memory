@@ -8,6 +8,7 @@ hang). `_checkpoint_wal` issues an explicit TRUNCATE checkpoint at the cycle
 boundary to reset the WAL. It must (a) actually shrink a bloated WAL, and
 (b) never raise (fail-safe — a bad path / busy DB must not crash the loop).
 """
+
 import os
 import sqlite3
 import sys

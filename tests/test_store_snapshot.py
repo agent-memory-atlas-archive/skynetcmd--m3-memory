@@ -4,6 +4,7 @@ Hazard: a file copy omits commits still in ``<db>-wal``, and on PostgreSQL a
 copy of ``db_path`` is not the live store at all. Each test below includes a
 case a plain file copy would fail.
 """
+
 from __future__ import annotations
 
 import os
@@ -44,6 +45,7 @@ def _count(path, table="t"):
 
 # ── SQLite ──────────────────────────────────────────────────────────────────
 
+
 def test_rows_still_in_the_wal_are_in_the_snapshot(tmp_path):
     src = str(tmp_path / "a.db")
     holder = _wal_store(src)
@@ -51,6 +53,7 @@ def test_rows_still_in_the_wal_are_in_the_snapshot(tmp_path):
         assert os.path.getsize(src + "-wal") > 0, "precondition: rows live in the WAL"
         # What the old shutil.copy2 produced: the main file alone, without the rows.
         import shutil
+
         plain = tmp_path / "plain.db"
         shutil.copy2(src, plain)
         assert not _has_table(plain) or _count(str(plain)) == 0, "precondition: a file copy loses them"
@@ -149,6 +152,7 @@ def test_label_cannot_escape_the_backup_dir(tmp_path):
 
 # ── the caller helper ───────────────────────────────────────────────────────
 
+
 def test_snapshot_stores_copies_each_distinct_store_once(tmp_path, monkeypatch):
     monkeypatch.delenv("M3_DB_BACKEND", raising=False)
     from memory.backends import selector
@@ -186,6 +190,7 @@ def test_snapshot_stores_raises_rather_than_returning_an_unverified_copy(tmp_pat
 
 # ── migration callers ───────────────────────────────────────────────────────
 
+
 def test_homecoming_copy_failure_raises_instead_of_logging(tmp_path):
     import homecoming
 
@@ -212,8 +217,10 @@ def test_migrate_backup_has_no_torn_copy_fallback(tmp_path, monkeypatch):
 
 # ── PostgreSQL (live) ───────────────────────────────────────────────────────
 
+
 def _pg_tools_present():
     import shutil
+
     return bool(shutil.which("pg_dump") and shutil.which("pg_restore"))
 
 
@@ -242,8 +249,7 @@ def pg_schema_backend():
         cur.execute("CREATE TABLE items (id int, body text)")
         cur.execute("CREATE TABLE empty_one (id int)")
         cur.execute(
-            "INSERT INTO items SELECT g, 'line one' || chr(10) || 'line two ' || g "
-            "FROM generate_series(1, 300) g"
+            "INSERT INTO items SELECT g, 'line one' || chr(10) || 'line two ' || g FROM generate_series(1, 300) g"
         )
     try:
         yield b, schema, scoped

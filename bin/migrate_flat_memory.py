@@ -24,6 +24,7 @@ Usage:
     python bin/migrate_flat_memory.py --include-rules
     python bin/migrate_flat_memory.py --claude-project-slug C--Users-<user>-m3-memory
 """
+
 from __future__ import annotations
 
 import argparse
@@ -79,43 +80,75 @@ CLAUDE_TYPE_MAP = {
     "project": "plan",
     "reference": "reference",
     # passthrough for anything already m3-native
-    "note": "note", "fact": "fact", "decision": "decision",
-    "preference": "preference", "task": "task", "observation": "observation",
-    "plan": "plan", "summary": "summary", "code": "code", "config": "config",
-    "snippet": "snippet", "knowledge": "knowledge", "log": "log",
-    "home": "home", "user_fact": "user_fact", "scratchpad": "scratchpad",
+    "note": "note",
+    "fact": "fact",
+    "decision": "decision",
+    "preference": "preference",
+    "task": "task",
+    "observation": "observation",
+    "plan": "plan",
+    "summary": "summary",
+    "code": "code",
+    "config": "config",
+    "snippet": "snippet",
+    "knowledge": "knowledge",
+    "log": "log",
+    "home": "home",
+    "user_fact": "user_fact",
+    "scratchpad": "scratchpad",
 }
 
 VALID_M3_TYPES = {
-    "auto", "code", "config", "conversation", "decision", "fact", "home",
-    "knowledge", "log", "message", "note", "observation", "plan", "preference",
-    "reference", "scratchpad", "snippet", "summary", "task", "user_fact",
+    "auto",
+    "code",
+    "config",
+    "conversation",
+    "decision",
+    "fact",
+    "home",
+    "knowledge",
+    "log",
+    "message",
+    "note",
+    "observation",
+    "plan",
+    "preference",
+    "reference",
+    "scratchpad",
+    "snippet",
+    "summary",
+    "task",
+    "user_fact",
     "chat_log",
 }
 
 FRONTMATTER_RE = re.compile(r"\A---\s*\n(.*?)\n---\s*\n(.*)\Z", re.DOTALL)
 GEMINI_SECTION_HEADER = "## Gemini Added Memories"
 
+
 # ── Data model ─────────────────────────────────────────────────────────────────
 @dataclass(slots=True)
 class SourceItem:
     """One unit of memory extracted from a source, ready to write."""
-    source_agent: str                  # "claude" | "gemini" | "openclaw" | "rules"
-    source_path: str                   # absolute path on disk
-    source_locator: str                # e.g. filename, "line:42", "chunk:<id>"
-    source_key: str                    # stable dedup key (sha256 of source_agent+locator+content)
+
+    source_agent: str  # "claude" | "gemini" | "openclaw" | "rules"
+    source_path: str  # absolute path on disk
+    source_locator: str  # e.g. filename, "line:42", "chunk:<id>"
+    source_key: str  # stable dedup key (sha256 of source_agent+locator+content)
     m3_type: str
     title: str
     content: str
     extra_metadata: dict = field(default_factory=dict)
 
+
 @dataclass(slots=True)
 class WriteResult:
     item: SourceItem
-    status: str                        # "migrated" | "skipped" | "failed" | "dry-run"
+    status: str  # "migrated" | "skipped" | "failed" | "dry-run"
     memory_id: str | None = None
     error: str | None = None
     verified: bool = False
+
 
 # ── Safety: path containment ───────────────────────────────────────────────────
 def _inside_allowed_root(p: Path) -> bool:
@@ -131,9 +164,11 @@ def _inside_allowed_root(p: Path) -> bool:
             continue
     return False
 
+
 def _assert_safe_path(p: Path) -> None:
     if not _inside_allowed_root(p):
         raise PermissionError(f"Refusing to read path outside allowed roots: {p}")
+
 
 # ── Idempotency: stable source_key ─────────────────────────────────────────────
 def _source_key(source_agent: str, locator: str, content: str) -> str:
@@ -145,11 +180,13 @@ def _source_key(source_agent: str, locator: str, content: str) -> str:
     h.update(content.strip().encode("utf-8"))
     return f"{source_agent}:{h.hexdigest()[:32]}"
 
+
 # ── Dedup lookup: query m3 SQLite directly for an existing source_key ──────────
 def existing_memory_id_by_source_key(source_key: str) -> str | None:
     """Returns the id of a non-deleted memory whose metadata.source_key matches, else None."""
     from memory.backends import dialect
     from memory_core import _db  # lazy — pool inits on first use
+
     with _db() as db:
         # metadata_json is stored as a JSON string; substring match is safe because
         # source_key is a prefixed hex hash with no JSON-unsafe characters. We
@@ -169,6 +206,7 @@ def existing_memory_id_by_source_key(source_key: str) -> str | None:
             return row["id"]
     return None
 
+
 # ── Claude Code reader ─────────────────────────────────────────────────────────
 def _parse_frontmatter(text: str) -> tuple[dict, str]:
     m = FRONTMATTER_RE.match(text)
@@ -182,6 +220,7 @@ def _parse_frontmatter(text: str) -> tuple[dict, str]:
         k, _, v = line.partition(":")
         meta[k.strip()] = v.strip().strip('"').strip("'")
     return meta, body
+
 
 def iter_claude_items(project_slug: str | None) -> Iterable[SourceItem]:
     if not CLAUDE_PROJECTS_ROOT.exists():
@@ -230,6 +269,7 @@ def iter_claude_items(project_slug: str | None) -> Iterable[SourceItem]:
                     "claude_project": proj.name,
                 },
             )
+
 
 # ── Gemini CLI reader ──────────────────────────────────────────────────────────
 def iter_gemini_items() -> Iterable[SourceItem]:
@@ -299,6 +339,7 @@ def iter_gemini_items() -> Iterable[SourceItem]:
         if item:
             yield item
 
+
 # ── Openclaw reader (read-only SQLite) ─────────────────────────────────────────
 def iter_openclaw_items() -> Iterable[SourceItem]:
     if not OPENCLAW_DB.exists():
@@ -314,15 +355,12 @@ def iter_openclaw_items() -> Iterable[SourceItem]:
         return
     try:
         # Verify expected schema
-        tables = {r[0] for r in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()}
+        tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
         if "chunks" not in tables:
             log.warning("openclaw: 'chunks' table missing — schema changed?")
             return
         rows = conn.execute(
-            "SELECT id, path, source, start_line, end_line, text, updated_at "
-            "FROM chunks ORDER BY updated_at"
+            "SELECT id, path, source, start_line, end_line, text, updated_at FROM chunks ORDER BY updated_at"
         ).fetchall()
         for row in rows:
             text = (row["text"] or "").strip()
@@ -356,6 +394,7 @@ def iter_openclaw_items() -> Iterable[SourceItem]:
     finally:
         conn.close()
 
+
 # ── Rules reader (opt-in) ──────────────────────────────────────────────────────
 RULES_CANDIDATES = [
     (HOME / ".claude" / "CLAUDE.md", "claude_global"),
@@ -365,6 +404,7 @@ RULES_CANDIDATES = [
     (REPO_ROOT / "GEMINI.md", "gemini_project"),
     (REPO_ROOT / "CONVENTIONS.md", "aider_conventions"),
 ]
+
 
 def iter_rules_items() -> Iterable[SourceItem]:
     for path, kind in RULES_CANDIDATES:
@@ -401,6 +441,7 @@ def iter_rules_items() -> Iterable[SourceItem]:
             },
         )
 
+
 # ── Writer ─────────────────────────────────────────────────────────────────────
 async def write_item(item: SourceItem, dry_run: bool) -> WriteResult:
     existing = existing_memory_id_by_source_key(item.source_key)
@@ -411,14 +452,16 @@ async def write_item(item: SourceItem, dry_run: bool) -> WriteResult:
         return WriteResult(item=item, status="dry-run")
 
     metadata = dict(item.extra_metadata)
-    metadata.update({
-        "migrated_from": item.source_path,
-        "source_key": item.source_key,
-        "source_agent": item.source_agent,
-        "source_locator": item.source_locator,
-        "migrated_at": datetime.now(UTC).isoformat(),
-        "migrator": "migrate_flat_memory.py",
-    })
+    metadata.update(
+        {
+            "migrated_from": item.source_path,
+            "source_key": item.source_key,
+            "source_agent": item.source_agent,
+            "source_locator": item.source_locator,
+            "migrated_at": datetime.now(UTC).isoformat(),
+            "migrator": "migrate_flat_memory.py",
+        }
+    )
 
     try:
         res = await memory_core.memory_write_impl(
@@ -444,22 +487,23 @@ async def write_item(item: SourceItem, dry_run: bool) -> WriteResult:
         got = memory_core.memory_get_impl(mem_id)
         got_obj = json.loads(got) if isinstance(got, str) else {}
         if got_obj.get("id") != mem_id:
-            return WriteResult(item=item, status="failed", memory_id=mem_id,
-                               error=f"verify: id mismatch {got_obj.get('id')!r}")
+            return WriteResult(
+                item=item, status="failed", memory_id=mem_id, error=f"verify: id mismatch {got_obj.get('id')!r}"
+            )
         stored_content = got_obj.get("content") or ""
         if stored_content.strip() != item.content.strip():
-            return WriteResult(item=item, status="failed", memory_id=mem_id,
-                               error="verify: content round-trip mismatch")
+            return WriteResult(
+                item=item, status="failed", memory_id=mem_id, error="verify: content round-trip mismatch"
+            )
         # Hash integrity
         verify_out = memory_core.memory_verify_impl(mem_id)
         if "Integrity OK" not in verify_out:
-            return WriteResult(item=item, status="failed", memory_id=mem_id,
-                               error=f"verify: {verify_out}")
+            return WriteResult(item=item, status="failed", memory_id=mem_id, error=f"verify: {verify_out}")
     except Exception as e:
-        return WriteResult(item=item, status="failed", memory_id=mem_id,
-                           error=f"verify: {e!r}")
+        return WriteResult(item=item, status="failed", memory_id=mem_id, error=f"verify: {e!r}")
 
     return WriteResult(item=item, status="migrated", memory_id=mem_id, verified=True)
+
 
 # ── Orchestration ──────────────────────────────────────────────────────────────
 SOURCE_READERS: dict[str, callable] = {
@@ -468,6 +512,7 @@ SOURCE_READERS: dict[str, callable] = {
     "openclaw": lambda args: iter_openclaw_items(),
     "rules": lambda args: iter_rules_items(),
 }
+
 
 async def run(args) -> int:
     sources = [s.strip() for s in args.sources.split(",") if s.strip()]
@@ -541,7 +586,9 @@ async def run(args) -> int:
     total_skipped = sum(1 for r in results if r.status == "skipped")
     total_dry = sum(1 for r in results if r.status == "dry-run")
     print("-" * 60)
-    print(f"  total      migrated={total_migrated}  skipped={total_skipped}  failed={total_failed}  dry-run={total_dry}")
+    print(
+        f"  total      migrated={total_migrated}  skipped={total_skipped}  failed={total_failed}  dry-run={total_dry}"
+    )
 
     # ── Manual cleanup hints (only for fully-verified migrations) ─────────────
     if total_migrated and not args.dry_run:
@@ -557,16 +604,16 @@ async def run(args) -> int:
         for path, items in sorted(by_path.items()):
             src = items[0].item.source_agent
             match src:
-                case 'gemini':
+                case "gemini":
                     print(f"  {path}")
                     print("    (gemini: edit file manually — remove the following bullets:)")
                     for r in items:
                         print(f"      - {r.item.source_locator}: {r.item.title[:80]}")
-                case 'claude':
-                    print(f"  rm \"{path}\"")
-                case 'openclaw':
+                case "claude":
+                    print(f'  rm "{path}"')
+                case "openclaw":
                     print(f"  (openclaw chunk {r.item.source_locator} — managed by openclaw, leave in place)")
-                case 'rules':
+                case "rules":
                     print(f"  (rules file {path} — DO NOT delete; still loaded into agent system prompt)")
                 case _:
                     print(f"  {path}")
@@ -580,6 +627,7 @@ async def run(args) -> int:
         return 1
     return 0
 
+
 # ── CLI ────────────────────────────────────────────────────────────────────────
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
@@ -588,27 +636,30 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=__doc__,
     )
     p.add_argument(
-        "--sources", default="claude,gemini,openclaw",
-        help="Comma-separated list of sources. Valid: claude, gemini, openclaw, rules. "
-             "Default: claude,gemini,openclaw",
+        "--sources",
+        default="claude,gemini,openclaw",
+        help="Comma-separated list of sources. Valid: claude, gemini, openclaw, rules. Default: claude,gemini,openclaw",
     )
     p.add_argument(
-        "--include-rules", action="store_true",
+        "--include-rules",
+        action="store_true",
         help="Also import CLAUDE.md / GEMINI.md / AGENTS.md / CONVENTIONS.md as type=preference. "
-             "These are behavioral rules loaded by each agent's system prompt — importing them "
-             "makes them searchable in m3-memory but does NOT replace the source files.",
+        "These are behavioral rules loaded by each agent's system prompt — importing them "
+        "makes them searchable in m3-memory but does NOT replace the source files.",
     )
     p.add_argument(
-        "--claude-project-slug", default=None,
-        help="Restrict Claude source to a single project slug under ~/.claude/projects/. "
-             "Default: all projects.",
+        "--claude-project-slug",
+        default=None,
+        help="Restrict Claude source to a single project slug under ~/.claude/projects/. Default: all projects.",
     )
     p.add_argument("--dry-run", action="store_true", help="Discover + plan but don't write.")
     p.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompt.")
     p.add_argument("-v", "--verbose", action="store_true", help="DEBUG logging.")
     from m3_sdk import add_database_arg
+
     add_database_arg(p)
     return p
+
 
 def main() -> int:
     # UTF-8 console on Windows — the default cp1252 mangles em-dashes etc.
@@ -633,6 +684,7 @@ def main() -> int:
     except KeyboardInterrupt:
         print("\nInterrupted.", file=sys.stderr)
         return 130
+
 
 if __name__ == "__main__":
     sys.exit(main())

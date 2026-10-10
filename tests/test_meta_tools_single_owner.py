@@ -16,6 +16,7 @@ Hoisting it to module scope makes the seam real. These tests make it stay real:
 a future author who re-localizes the constant, or adds a meta-tool to one list
 only, gets a red test instead of a silent divergence.
 """
+
 from __future__ import annotations
 
 import os
@@ -90,8 +91,7 @@ def test_meta_tools_are_not_also_essentials():
 
     overlap = {n for n in memory_bridge._META_TOOLS if tool_domains.is_essential(n)}
     assert not overlap, (
-        f"{sorted(overlap)} is claimed by BOTH _META_TOOLS and is_essential(); "
-        "one of the two owners is wrong."
+        f"{sorted(overlap)} is claimed by BOTH _META_TOOLS and is_essential(); one of the two owners is wrong."
     )
 
 

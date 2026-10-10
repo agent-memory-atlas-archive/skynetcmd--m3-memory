@@ -37,6 +37,7 @@ are re-exported through the shim for identity preservation.
 `_TOKEN_PUNCT_RE` moved here from memory_core because `_token_jaccard`
 is its only caller and that function is entity-specific.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -119,8 +120,10 @@ def _load_entity_vectors(db, entity_ids: list[str]) -> dict[str, list[float]]:
             try:
                 out[eid] = _unpack(blob)
             except Exception as le:  # noqa: BLE001 — logged; the caller carries on
-                logger.warning(f"stored entity vector unreadable; observed: {eid} ({type(le).__name__}: {le}); it is re-embedded when next needed. "
-                               "inspect: entity_get on that id")
+                logger.warning(
+                    f"stored entity vector unreadable; observed: {eid} ({type(le).__name__}: {le}); it is re-embedded when next needed. "
+                    "inspect: entity_get on that id"
+                )
                 continue
     return out
 
@@ -183,9 +186,11 @@ def flush_entity_vectors(db, buffered: list[tuple[str, list[float], str | None]]
         db.commit()
         written = len(rows)
     except Exception as e:  # noqa: BLE001 — best-effort by contract; the loss is logged
-        logger.warning(f"entity vector flush failed; observed: {len(buffered)} rows not "
-                       f"written ({type(e).__name__}: {e}); each is re-embedded the next "
-                       "time that entity is a resolution candidate. inspect: m3 doctor")
+        logger.warning(
+            f"entity vector flush failed; observed: {len(buffered)} rows not "
+            f"written ({type(e).__name__}: {e}); each is re-embedded the next "
+            "time that entity is a resolution candidate. inspect: m3 doctor"
+        )
     return written
 
 
@@ -248,6 +253,7 @@ def _enable_entity_graph_gate() -> bool:
     # (2) monkeypatched attribute on the shim
     try:
         import memory_core as _mc
+
         if hasattr(_mc, "ENABLE_ENTITY_GRAPH"):
             return bool(_mc.ENABLE_ENTITY_GRAPH)
     except ImportError:
@@ -266,11 +272,13 @@ def _read_gate(name: str):
     """
     try:
         import memory_core
+
         if hasattr(memory_core, name):
             return getattr(memory_core, name)
     except ImportError:
         pass
     return getattr(_config, name, False)
+
 
 logger = logging.getLogger("memory.entity")
 
@@ -311,9 +319,11 @@ def _cosine(v1, v2):
     embedding_utils handles the no-numpy case.
     """
     from . import config
+
     if config.m3_core_rs is not None:
         return config.m3_core_rs.cosine(v1, v2)
     from embedding_utils import cosine
+
     return cosine(v1, v2)
 
 
@@ -328,6 +338,7 @@ from .config import ENTITY_EXTRACT_CONCURRENCY  # noqa: E402 — local to this b
 
 _ENTITY_EXTRACT_SEMS: dict[asyncio.AbstractEventLoop, asyncio.Semaphore] = {}
 _ENTITY_EXTRACT_SEM_FALLBACK = asyncio.Semaphore(ENTITY_EXTRACT_CONCURRENCY)
+
 
 def get_entity_extract_sem() -> asyncio.Semaphore:
     try:
@@ -346,12 +357,14 @@ def get_entity_extract_sem() -> asyncio.Semaphore:
         _ENTITY_EXTRACT_SEMS[loop] = asyncio.Semaphore(ENTITY_EXTRACT_CONCURRENCY)
     return _ENTITY_EXTRACT_SEMS[loop]
 
+
 class LoopScopedSemaphoreProxy:
     def __getattr__(self, name):
         return getattr(get_entity_extract_sem(), name)
 
     def __await__(self):
         return get_entity_extract_sem().acquire().__await__()
+
 
 _ENTITY_EXTRACT_SEM = LoopScopedSemaphoreProxy()
 _PENDING_ENTITY_TASKS: set[asyncio.Task] = set()
@@ -381,16 +394,20 @@ def load_entity_vocab(yaml_path: str | Path | None = None) -> tuple[frozenset[st
         # The shipped default may be absent; a file the caller or
         # M3_ENTITY_VOCAB_YAML named is a configuration the user expects applied.
         if explicit:
-            logger.warning(f"entity vocabulary not found; observed: {path} does not exist; "
-                           "using the built-in vocabulary. inspect: M3_ENTITY_VOCAB_YAML")
+            logger.warning(
+                f"entity vocabulary not found; observed: {path} does not exist; "
+                "using the built-in vocabulary. inspect: M3_ENTITY_VOCAB_YAML"
+            )
         return _DEFAULT_VALID_ENTITY_TYPES, _DEFAULT_VALID_ENTITY_PREDICATES
 
     try:
         with Path(path).open(encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
     except Exception as e:  # noqa: BLE001 — falls back, and says so
-        logger.warning(f"entity vocabulary unreadable; observed: {path}: {type(e).__name__}: {e}; "
-                       "using the built-in vocabulary. inspect: M3_ENTITY_VOCAB_YAML or that file")
+        logger.warning(
+            f"entity vocabulary unreadable; observed: {path}: {type(e).__name__}: {e}; "
+            "using the built-in vocabulary. inspect: M3_ENTITY_VOCAB_YAML or that file"
+        )
         return _DEFAULT_VALID_ENTITY_TYPES, _DEFAULT_VALID_ENTITY_PREDICATES
 
     types = data.get("entity_types") or []
@@ -409,8 +426,6 @@ def load_entity_vocab(yaml_path: str | Path | None = None) -> tuple[frozenset[st
 # memory_core re-exports through the shim. Externally imported, identity
 # must survive the shim re-export.
 VALID_ENTITY_TYPES, VALID_ENTITY_PREDICATES = load_entity_vocab(None)
-
-
 
 
 def _resolve_entity(canonical_name: str, entity_type: str, db) -> str | None:
@@ -472,8 +487,9 @@ class _ResolveInputs:
     its connection before awaiting: `_resolve_from_inputs` takes no database
     handle, so it cannot hold a connection (SQLite write lock, PostgreSQL
     idle-in-transaction) across an embedding round trip."""
+
     sync_id: str | None
-    candidates: tuple[tuple[str, str], ...]   # (entity_id, canonical_name)
+    candidates: tuple[tuple[str, str], ...]  # (entity_id, canonical_name)
     stored: dict
     use_store: bool
 
@@ -503,7 +519,8 @@ def _resolution_inputs(canonical_name: str, entity_type: str, db) -> _ResolveInp
 
 
 async def _resolve_from_inputs(
-    canonical_name: str, inputs: _ResolveInputs,
+    canonical_name: str,
+    inputs: _ResolveInputs,
 ) -> tuple[str | None, list[tuple[str, list[float], str | None]]]:
     """Tier-3 embedding cosine over pre-read inputs. Touches NO database.
 
@@ -543,6 +560,7 @@ async def _resolve_from_inputs(
                 best_score, best_id = s, valid_ids[i]
     else:
         from .util import _cosine
+
         for i, cvec in enumerate(cvecs):
             s = _cosine(qvec, cvec)
             if s > best_score:
@@ -574,9 +592,7 @@ def _create_entity(canonical_name: str, entity_type: str, attributes: dict, db) 
     """INSERT new row into entities; return new uuid id."""
     entity_id = str(uuid.uuid4())
     attrs_json = json.dumps(attributes or {})
-    content_hash = _sha256_hex(
-        f"{canonical_name}|{entity_type}|{attrs_json}".encode()
-    )
+    content_hash = _sha256_hex(f"{canonical_name}|{entity_type}|{attrs_json}".encode())
     from memory.backends import dialect
 
     _d = dialect()
@@ -605,9 +621,7 @@ def _link_memory_to_entity(
 
     _d = dialect()
     _ins = _d.insert_or_ignore()
-    _suffix = _d.on_conflict_ignore(
-        conflict_target="(memory_id, entity_id, mention_offset)"
-    )
+    _suffix = _d.on_conflict_ignore(conflict_target="(memory_id, entity_id, mention_offset)")
     db.execute(
         f"{_ins} memory_item_entities "
         "(memory_id, entity_id, mention_text, mention_offset, confidence) "
@@ -627,8 +641,7 @@ def _link_entity_relationship(
     """INSERT into entity_relationships. Raises ValueError for unknown predicates."""
     if predicate not in VALID_ENTITY_PREDICATES:
         raise ValueError(
-            f"Invalid predicate '{predicate}'. "
-            f"Valid predicates: {', '.join(sorted(VALID_ENTITY_PREDICATES))}"
+            f"Invalid predicate '{predicate}'. Valid predicates: {', '.join(sorted(VALID_ENTITY_PREDICATES))}"
         )
     from memory.backends import dialect
 
@@ -665,7 +678,7 @@ async def _run_entity_extractor(
     content: str,
     entity_extractor,
     *,
-    valid_types: frozenset | None = None,       # None = use VALID_ENTITY_TYPES
+    valid_types: frozenset | None = None,  # None = use VALID_ENTITY_TYPES
     valid_predicates: frozenset | None = None,  # None = use VALID_ENTITY_PREDICATES
 ) -> None:
     """Background task. Calls extractor, parses result, resolves+writes entities and
@@ -882,7 +895,7 @@ async def _try_extract_or_enqueue(
     variant: str | None = None,
     allowlist: set[str] | None = None,
     *,
-    valid_types: frozenset | None = None,       # None = use VALID_ENTITY_TYPES
+    valid_types: frozenset | None = None,  # None = use VALID_ENTITY_TYPES
     valid_predicates: frozenset | None = None,  # None = use VALID_ENTITY_PREDICATES
 ) -> None:
     """Non-blocking: try entity extraction under semaphore; on miss, enqueue.
@@ -917,7 +930,9 @@ async def _try_extract_or_enqueue(
     # Acquired semaphore — spawn task and track it
     task = asyncio.create_task(
         _run_entity_extractor(
-            memory_id, content, entity_extractor,
+            memory_id,
+            content,
+            entity_extractor,
             valid_types=valid_types,
             valid_predicates=valid_predicates,
         )
@@ -950,10 +965,7 @@ def _select_pending_entity_extraction(
     _d = dialect()
     p = _d.param()
     if allowed_variants:
-        variant_clause = (
-            f"AND (mi.variant IS NULL OR mi.variant IN "
-            f"({_d.placeholder(len(allowed_variants))}))"
-        )
+        variant_clause = f"AND (mi.variant IS NULL OR mi.variant IN ({_d.placeholder(len(allowed_variants))}))"
         variant_params = list(allowed_variants)
     else:
         variant_clause = "AND mi.variant IS NULL"
@@ -995,7 +1007,7 @@ async def extract_pending_impl(
     limit: int = 0,
     allowed_variants: list[str] | None = None,
     *,
-    valid_types: frozenset | None = None,       # None = use VALID_ENTITY_TYPES
+    valid_types: frozenset | None = None,  # None = use VALID_ENTITY_TYPES
     valid_predicates: frozenset | None = None,  # None = use VALID_ENTITY_PREDICATES
 ) -> dict:
     """Entity extraction queue drain. Mirrors enrich_pending_impl shape.
@@ -1052,6 +1064,7 @@ async def extract_pending_impl(
     errors = []
 
     from .extraction import get_configured_extractor
+
     ext = get_configured_extractor()
     extractor_func = ext.extract
 
@@ -1114,22 +1127,14 @@ def entity_extractor_health() -> dict:
             (ENTITY_EXTRACT_MAX_ATTEMPTS,),
         ).fetchone()[0]
 
-        last_row = db.execute(
-            "SELECT MAX(created_at) AS last_at FROM entities"
-        ).fetchone()
+        last_row = db.execute("SELECT MAX(created_at) AS last_at FROM entities").fetchone()
         last_extracted_at: str | None = last_row["last_at"] if last_row else None
 
-        entities_total = db.execute(
-            "SELECT COUNT(*) FROM entities"
-        ).fetchone()[0]
+        entities_total = db.execute("SELECT COUNT(*) FROM entities").fetchone()[0]
 
-        relationships_total = db.execute(
-            "SELECT COUNT(*) FROM entity_relationships"
-        ).fetchone()[0]
+        relationships_total = db.execute("SELECT COUNT(*) FROM entity_relationships").fetchone()[0]
 
-        mie_total = db.execute(
-            "SELECT COUNT(*) FROM memory_item_entities"
-        ).fetchone()[0]
+        mie_total = db.execute("SELECT COUNT(*) FROM memory_item_entities").fetchone()[0]
 
     return {
         "queue_depth": q_depth,
@@ -1194,17 +1199,17 @@ def entity_search_impl(
                 FROM entity_relationships
                 WHERE from_entity = {p} OR to_entity = {p}
                 """
-                neighbor_count = db.execute(
-                    neighbor_sql, (entity_id, entity_id)
-                ).fetchone()[0]
+                neighbor_count = db.execute(neighbor_sql, (entity_id, entity_id)).fetchone()[0]
 
-            result.append({
-                "entity_id": entity_id,
-                "canonical_name": canonical_name,
-                "entity_type": entity_type_val,
-                "attributes_json": attributes_json or "{}",
-                "neighbor_count": neighbor_count,
-            })
+            result.append(
+                {
+                    "entity_id": entity_id,
+                    "canonical_name": canonical_name,
+                    "entity_type": entity_type_val,
+                    "attributes_json": attributes_json or "{}",
+                    "neighbor_count": neighbor_count,
+                }
+            )
 
         return result
 
@@ -1326,11 +1331,11 @@ _BYPASS_SURFACE_CAP_MAX = 5000
 # strategy is a passed-in param; a per-strategy on/off + cap multiplier is applied
 # here from the policy below). When the router lands, it feeds this same param.
 _BYPASS_STRATEGY_POLICY: dict[str, dict] = {
-    "COMPUTE":   {"enabled": True,  "cap_frac": 1.0},   # aggressive: every instance
-    "FACT":      {"enabled": True,  "cap_frac": 0.25},  # conservative: avoid flooding
-    "ASSISTANT": {"enabled": False, "cap_frac": 0.0},   # ranking problem, not surfacing
-    "PROSE":     {"enabled": False, "cap_frac": 0.0},   # answer-style, not surfacing
-    "VERIFY":    {"enabled": True,  "cap_frac": 0.25},  # production; reserved
+    "COMPUTE": {"enabled": True, "cap_frac": 1.0},  # aggressive: every instance
+    "FACT": {"enabled": True, "cap_frac": 0.25},  # conservative: avoid flooding
+    "ASSISTANT": {"enabled": False, "cap_frac": 0.0},  # ranking problem, not surfacing
+    "PROSE": {"enabled": False, "cap_frac": 0.0},  # answer-style, not surfacing
+    "VERIFY": {"enabled": True, "cap_frac": 0.25},  # production; reserved
 }
 _BYPASS_DEFAULT_POLICY = {"enabled": True, "cap_frac": 1.0}
 
@@ -1355,8 +1360,8 @@ _BYPASS_WILDCARD_CATEGORY = "*"
 # may override via order_by=.
 _BYPASS_ORDER_BY: dict[str, str] = {
     "confidence": "ORDER BY MAX(mie.confidence) DESC, mi.id",
-    "recency":    "ORDER BY MAX(mi.created_at) DESC, mi.id",
-    "stable":     "ORDER BY mi.id",  # deterministic, signal-agnostic
+    "recency": "ORDER BY MAX(mi.created_at) DESC, mi.id",
+    "stable": "ORDER BY mi.id",  # deterministic, signal-agnostic
 }
 _BYPASS_ORDER_DEFAULT = "confidence"
 
@@ -1444,7 +1449,8 @@ def build_bypass_surface(
                 uid_clause = f" AND user_id = {p}"
                 params.append(user_id)
             cids = [
-                r[0] for r in db.execute(
+                r[0]
+                for r in db.execute(
                     f"SELECT DISTINCT conversation_id FROM memory_items "
                     f"WHERE conversation_id IS NOT NULL AND conversation_id != '' "
                     f"AND scope = {p}{uid_clause}",
@@ -1455,14 +1461,18 @@ def build_bypass_surface(
             cids = []
             for c in conversation_ids:
                 if not c:
-                    raise ValueError("build_bypass_surface: empty conversation_id "
-                                     "(would trigger a cross-scope scan) — ADR-0001 §7")
+                    raise ValueError(
+                        "build_bypass_surface: empty conversation_id (would trigger a cross-scope scan) — ADR-0001 §7"
+                    )
                 cids.append(c)
 
         for cid in cids:
             strategy = strat_map.get(cid, default_strategy)
-            policy = (_BYPASS_STRATEGY_POLICY.get(strategy, _BYPASS_DEFAULT_POLICY)
-                      if strategy is not None else _BYPASS_DEFAULT_POLICY)
+            policy = (
+                _BYPASS_STRATEGY_POLICY.get(strategy, _BYPASS_DEFAULT_POLICY)
+                if strategy is not None
+                else _BYPASS_DEFAULT_POLICY
+            )
 
             # Incremental: clear this scope's existing surface rows before re-inserting.
             db.execute(f"DELETE FROM bypass_surface WHERE conversation_id = {p}", (cid,))
@@ -1512,9 +1522,7 @@ def build_bypass_surface(
 
             if surfaced:
                 _ins = _d.insert_or_ignore()
-                _suffix = _d.on_conflict_ignore(
-                    conflict_target="(conversation_id, memory_id)"
-                )
+                _suffix = _d.on_conflict_ignore(conflict_target="(conversation_id, memory_id)")
                 db.executemany(
                     f"{_ins} bypass_surface "
                     "(conversation_id, memory_id, source, strategy, user_id, scope, cap) "

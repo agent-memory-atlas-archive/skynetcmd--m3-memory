@@ -8,6 +8,7 @@ the shared-embedder probe cross-checks that pin against what :8082 actually serv
 tier-2 fallback via /embedding; pinning the primary at :8082 would 404.) All
 hermetic — tmp config root, config/env only, never a live server/GPU/DB.
 """
+
 import json
 import sys
 from pathlib import Path
@@ -23,6 +24,7 @@ from doctor import shared_embedder_probe as P  # noqa: E402
 from m3_memory import embedder_admin as EA  # noqa: E402
 
 # ── seed_shared_config: the single source of truth all three surfaces call ──────
+
 
 def test_seed_records_embed_model_and_fallback(tmp_path):
     path, wrote = EA.seed_shared_config(str(tmp_path))
@@ -52,6 +54,7 @@ def test_seed_preserves_hand_tuned_values(tmp_path):
 
 # ── model-family normalization (bge-m3 aliases are the SAME weights) ────────────
 
+
 def test_norm_tag_collapses_bge_m3_aliases():
     assert P._norm_model_tag("bge-m3-GGUF-Q4_K_M.gguf") == "bge-m3"
     assert P._norm_model_tag("text-embedding-bge-m3") == "bge-m3"
@@ -60,31 +63,31 @@ def test_norm_tag_collapses_bge_m3_aliases():
 
 # ── doctor cross-check: pinned embed_model vs served (hermetic, no DB) ──────────
 
+
 def _classify(monkeypatch, *, pinned, served_model, served_dim=1024):
-    monkeypatch.delenv("M3_EMBED_MODEL", raising=False)   # env would override the pin
+    monkeypatch.delenv("M3_EMBED_MODEL", raising=False)  # env would override the pin
     cfg = {"embed_model": pinned} if pinned else {}
     return P._classify_embed_model(cfg, {"model": served_model, "dim": served_dim})
 
 
 def test_bge_m3_alias_is_not_a_mismatch(monkeypatch):
     # Pin is the API tag; server serves the GGUF tag — same bge-m3 weights.
-    token, _lines = _classify(monkeypatch, pinned="text-embedding-bge-m3",
-                              served_model="bge-m3-GGUF-Q4_K_M.gguf")
+    token, _lines = _classify(monkeypatch, pinned="text-embedding-bge-m3", served_model="bge-m3-GGUF-Q4_K_M.gguf")
     assert token is None
 
 
 def test_pinned_vs_foreign_served_is_warned(monkeypatch):
-    token, lines = _classify(monkeypatch, pinned="text-embedding-bge-m3",
-                             served_model="nomic-embed-text")
+    token, lines = _classify(monkeypatch, pinned="text-embedding-bge-m3", served_model="nomic-embed-text")
     assert token == "model-mismatch"
     assert any("INCOMPATIBLE" in ln for ln in lines)
 
 
 def test_env_pin_overrides_config(monkeypatch):
     monkeypatch.setenv("M3_EMBED_MODEL", "nomic-embed-text")
-    token, _ = P._classify_embed_model({"embed_model": "bge-m3-GGUF-Q4_K_M.gguf"},
-                                       {"model": "bge-m3-GGUF-Q4_K_M.gguf", "dim": 1024})
-    assert token == "model-mismatch"   # env pin (nomic) diverges from served bge-m3
+    token, _ = P._classify_embed_model(
+        {"embed_model": "bge-m3-GGUF-Q4_K_M.gguf"}, {"model": "bge-m3-GGUF-Q4_K_M.gguf", "dim": 1024}
+    )
+    assert token == "model-mismatch"  # env pin (nomic) diverges from served bge-m3
 
 
 def test_no_pin_stays_quiet(monkeypatch):

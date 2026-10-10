@@ -5,6 +5,7 @@ reasoning_effort="none" so a reasoning model's thinking is turned off; anywhere
 else a reasoning model returns only reasoning + empty content → 0 facts, and that
 must be a LOUD warning, never a silent "". Hermetic — httpx.Client is stubbed.
 """
+
 import logging
 import sys
 from pathlib import Path
@@ -19,6 +20,7 @@ from files_memory import extract as X  # noqa: E402
 
 class _FakeClient:
     """Stand-in for httpx.Client capturing the POSTed json + returning a canned reply."""
+
     captured: dict = {}
 
     def __init__(self, *a, **k):
@@ -32,8 +34,9 @@ class _FakeClient:
 
     def post(self, url, headers=None, json=None):
         _FakeClient.captured = {"url": url, "json": json}
-        return httpx.Response(200, json={"choices": [{"message": _FakeClient.reply}]},
-                              request=httpx.Request("POST", url))
+        return httpx.Response(
+            200, json={"choices": [{"message": _FakeClient.reply}]}, request=httpx.Request("POST", url)
+        )
 
 
 def _patch(monkeypatch, endpoint, reply):
@@ -58,8 +61,7 @@ def test_other_server_no_reasoning_effort(monkeypatch):
 
 
 def test_reasoning_only_reply_warns_loud(monkeypatch, caplog):
-    _patch(monkeypatch, "http://localhost:8000/v1",
-           {"content": "", "reasoning": "thinking at length..."})
+    _patch(monkeypatch, "http://localhost:8000/v1", {"content": "", "reasoning": "thinking at length..."})
     with caplog.at_level(logging.WARNING, logger="files_memory.extract"):
         out = X._llm_call("some document text to extract facts from")
     assert out == ""

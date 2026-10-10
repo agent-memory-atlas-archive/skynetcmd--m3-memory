@@ -13,6 +13,7 @@ Public API:
     write_leaf_embeddings(leaf_uuid, kind, vec, model, conn)
     write_file_embedding(file_node_uuid, vec, model, conn)
 """
+
 from __future__ import annotations
 
 import logging
@@ -58,6 +59,7 @@ def write_leaf_embedding(
     if vec is None:
         return False
     from memory.backends import dialect as _dialect
+
     _d = _dialect()
     try:
         # INSERT OR REPLACE → dialect upsert on the (leaf_uuid, kind) PK: overwrite
@@ -85,6 +87,7 @@ def write_file_embedding(
     if vec is None:
         return False
     from memory.backends import dialect as _dialect
+
     _d = _dialect()
     try:
         _cols = ["embedding", "embed_model", "dim"]
@@ -106,6 +109,7 @@ def mark_leaves_embedded(conn: sqlite3.Connection, leaf_uuids: list[str]) -> Non
         return
     # Chunk to stay under SQLITE_MAX_VARIABLE_NUMBER
     from memory.backends import dialect as _dialect
+
     _d = _dialect()
     CHUNK = 500
     for chunk in batched(leaf_uuids, CHUNK):

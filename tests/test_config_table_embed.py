@@ -5,6 +5,7 @@ constants, imported in a FRESH interpreter with every registry env name
 removed (the constants are bound at import, so an in-process import could hold
 an earlier test's values).
 """
+
 from __future__ import annotations
 
 import logging
@@ -58,11 +59,14 @@ def _build(tmp_path, environ):
     return build(Location(file=tmp_path / "m3_config.toml", root=tmp_path, tier="test"), environ=environ)
 
 
-@pytest.mark.parametrize("env,raw,today,now", [
-    ("M3_EMBED_INPROC", "true", False, True),        # today only "1" enabled it
-    ("M3_EMBED_GGUF_AUTODETECT", "false", True, False),  # today only "0" disabled it
-    ("M3_EMBED_REQUIRE_UNIT_NORM", "off", True, False),  # today "off" was not a false value
-])
+@pytest.mark.parametrize(
+    "env,raw,today,now",
+    [
+        ("M3_EMBED_INPROC", "true", False, True),  # today only "1" enabled it
+        ("M3_EMBED_GGUF_AUTODETECT", "false", True, False),  # today only "0" disabled it
+        ("M3_EMBED_REQUIRE_UNIT_NORM", "off", True, False),  # today "off" was not a false value
+    ],
+)
 def test_a_changed_reading_is_logged_once(tmp_path, caplog, env, raw, today, now):
     from m3_core.config import REGISTRY
     from m3_core.config import resolve as r

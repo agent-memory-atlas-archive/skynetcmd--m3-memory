@@ -1,8 +1,8 @@
 ---
 tool: bin/unified_ai.py
-sha1: 34c0157f2ffc
-mtime_utc: 2026-10-08T22:11:14.514203+00:00
-generated_utc: 2026-10-08T22:11:48.358006+00:00
+sha1: 66e82d925850
+mtime_utc: 2026-10-10T21:05:16.473830+00:00
+generated_utc: 2026-10-10T21:05:30.024360+00:00
 private: false
 ---
 
@@ -61,10 +61,10 @@ _(none detected)_
 
 **http**
 
-- `httpx.AsyncClient()` (line 52)
-- `httpx.AsyncClient()` (line 69)
-- `httpx.AsyncClient()` (line 70)
-- `httpx.Client()` (line 88)
+- `httpx.AsyncClient()` (line 54)
+- `httpx.AsyncClient()` (line 71)
+- `httpx.AsyncClient()` (line 72)
+- `httpx.Client()` (line 90)
 
 
 ---

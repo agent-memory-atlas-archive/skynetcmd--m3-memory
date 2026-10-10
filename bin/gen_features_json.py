@@ -13,6 +13,7 @@ FIPS_COMPLIANCE.md, the tool catalog). Re-run after any catalog change.
 IMPORTANT: every value here must be VERIFIABLE in the codebase or the source-of-truth
 docs. Do not add aspirational claims — this file is consumed as authoritative.
 """
+
 import collections
 import json
 import os
@@ -49,8 +50,12 @@ def main() -> int:
             "a replacement for Claude/Gemini",
         ],
         "works_with": [
-            "Claude Code", "Gemini CLI", "Aider", "Google Antigravity",
-            "OpenCode", "Hermes Agent",
+            "Claude Code",
+            "Gemini CLI",
+            "Aider",
+            "Google Antigravity",
+            "OpenCode",
+            "Hermes Agent",
             "LangChain / LangGraph (drop-in Mem0 replacement, backs LangMem)",
             "CrewAI (native StorageBackend, v1.x)",
             "PydanticAI (tools + auto-recall + a formal AbstractToolset)",
@@ -68,26 +73,26 @@ def main() -> int:
             "reranking": True,
         },
         "state_model": {
-            "bitemporal": True,          # valid_from/valid_to + created_at (transaction time)
+            "bitemporal": True,  # valid_from/valid_to + created_at (transaction time)
             "contradiction_management": True,  # supersede: soft-delete old + supersedes edge
-            "history_audit_trail": True,       # memory_history
-            "confidence_scoring": True,        # migration 035
-            "corroboration_ledger": True,      # migration 036
-            "pinned_memories": True,           # migration 037 — exempt from decay/expiry/retention
-            "procedural_memory": True,         # `procedure` type (skill/runbook/how_to/checklist), auto-distilled from task runs
+            "history_audit_trail": True,  # memory_history
+            "confidence_scoring": True,  # migration 035
+            "corroboration_ledger": True,  # migration 036
+            "pinned_memories": True,  # migration 037 — exempt from decay/expiry/retention
+            "procedural_memory": True,  # `procedure` type (skill/runbook/how_to/checklist), auto-distilled from task runs
         },
         "privacy_compliance": {
             "local_first": True,
             "fully_offline_capable": True,
             "cloud_optional": True,
             "zero_external_api_dependency_for_core": True,
-            "gdpr_primitives": True,               # gdpr_forget (Art. 17), gdpr_export (Art. 20)
+            "gdpr_primitives": True,  # gdpr_forget (Art. 17), gdpr_export (Art. 20)
             "gdpr_hard_deletion": True,
             # Deployment-ready, NOT a validated module — do NOT claim certified.
             "fips_140_3": "deployment-ready",
             "fips_note": "Deployment-ready via wolfCrypt; M3 is not itself a CMVP-validated module.",
             "compliance_alignment_notes": ["FISMA / NIST 800-53", "CMMC 2.0 / NIST 800-171"],
-            "eu_ai_act_module": False,             # explicitly not present
+            "eu_ai_act_module": False,  # explicitly not present
             "encryption_at_rest": True,
         },
         "storage": {
@@ -137,13 +142,13 @@ def main() -> int:
             "langchain": {
                 "supported": True,
                 "install_extra": "pip install m3-memory[langchain]",
-                "mem0_drop_in": True,          # Memory/M3Memory/MemoryClient, one-line import swap
-                "langgraph_basestore": True,   # M3Store — backs LangMem / any BaseStore consumer
+                "mem0_drop_in": True,  # Memory/M3Memory/MemoryClient, one-line import swap
+                "langgraph_basestore": True,  # M3Store — backs LangMem / any BaseStore consumer
                 "langgraph_checkpointer": True,  # M3Saver — BaseCheckpointSaver (pause/resume/time-travel)
                 "langmem_compatible": True,
                 "chat_message_history": True,  # M3ChatMessageHistory, with_m3_history
-                "rag_retriever": True,         # M3Retriever (LangChain BaseRetriever)
-                "lcel_runnables": True,        # MemoryWrite / MemoryRetrieve / with_m3_memory
+                "rag_retriever": True,  # M3Retriever (LangChain BaseRetriever)
+                "lcel_runnables": True,  # MemoryWrite / MemoryRetrieve / with_m3_memory
                 "docs": "docs/integrations/LANGCHAIN.md",
                 "examples": "examples/langchain-agent/",
                 "note": (
@@ -155,11 +160,13 @@ def main() -> int:
             },
             "crewai": {
                 "supported": True,
-                "install_extra": ('uv pip install "m3-memory[crewai]" --override overrides.txt '
-                                  '(overrides.txt: mcp>=1.30.0,<2; crewai pins mcp<1.29, so '
-                                  'plain pip cannot resolve)'),
+                "install_extra": (
+                    'uv pip install "m3-memory[crewai]" --override overrides.txt '
+                    "(overrides.txt: mcp>=1.30.0,<2; crewai pins mcp<1.29, so "
+                    "plain pip cannot resolve)"
+                ),
                 "crewai_version": ">=1.10,<2",
-                "storage_backend": True,       # implements CrewAI's StorageBackend protocol
+                "storage_backend": True,  # implements CrewAI's StorageBackend protocol
                 "cross_agent_searchable": True,  # a CrewAI memory stays searchable by every other m3 agent
                 "python": "3.12-3.13 default (CrewAI's <3.14 cap); 3.14 via a documented escape hatch",
                 "docs": "m3_memory/integrations/crewai/README.md",
@@ -173,9 +180,9 @@ def main() -> int:
                 "supported": True,
                 "install_extra": "pip install m3-memory[pydantic-ai]",
                 "pydantic_ai_version": ">=2.0,<3",
-                "tools": True,                 # register_m3_tools: remember/recall/forget
-                "history_processor": True,     # m3_recall_processor auto-injects recalled memories
-                "abstract_toolset": True,      # M3MemoryToolset is a formal PydanticAI AbstractToolset
+                "tools": True,  # register_m3_tools: remember/recall/forget
+                "history_processor": True,  # m3_recall_processor auto-injects recalled memories
+                "abstract_toolset": True,  # M3MemoryToolset is a formal PydanticAI AbstractToolset
                 "python": "3.14 supported (built on Pydantic v2, no cap)",
                 "docs": "m3_memory/integrations/pydantic_ai/README.md",
                 "note": (
@@ -196,8 +203,8 @@ def main() -> int:
                 "self-contained offline HTML viewer (--html)",
                 "Obsidian vault (--obsidian → [[wikilinks]] for graph view + backlinks)",
             ],
-            "wiki_prunes_stale_pages": True,   # GDPR/soft-deleted content does not linger
-            "wiki_in_dashboard": True,         # web dashboard "Memory Wiki" tab
+            "wiki_prunes_stale_pages": True,  # GDPR/soft-deleted content does not linger
+            "wiki_in_dashboard": True,  # web dashboard "Memory Wiki" tab
             "wiki_docs": "docs/WIKI.md",
         },
         "tools": {
@@ -228,8 +235,7 @@ def main() -> int:
         _shown = os.path.relpath(OUTPUT, BASE_DIR)
     except ValueError:
         _shown = OUTPUT
-    print(f"wrote {_shown} "
-          f"({len(tools)} tools, {len(by_domain)} domains)")
+    print(f"wrote {_shown} ({len(tools)} tools, {len(by_domain)} domains)")
     return 0
 
 

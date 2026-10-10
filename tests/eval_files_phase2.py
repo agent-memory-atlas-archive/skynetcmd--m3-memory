@@ -16,6 +16,7 @@ Run:
     python tests/eval_files_phase2.py --queue   # use queue + drain instead of inline
     python tests/eval_files_phase2.py --no-extract-llm  # extraction disabled
 """
+
 from __future__ import annotations
 
 import argparse
@@ -44,6 +45,7 @@ def _ingest(corpus_dir: Path, db_path: Path, mode: str) -> dict:
     """Ingest the corpus with the requested extract mode."""
     os.environ["M3_FILES_DB_PATH"] = str(db_path)
     from files_memory.ingest import ingest_path
+
     r = ingest_path(str(corpus_dir), extract_mode=mode)
     return {
         "files_created": r.files_created,
@@ -57,6 +59,7 @@ def _ingest(corpus_dir: Path, db_path: Path, mode: str) -> dict:
 def _drain(db_path: Path) -> dict:
     os.environ["M3_FILES_DB_PATH"] = str(db_path)
     from files_memory.extract import extract_for_pending_leaves
+
     return extract_for_pending_leaves(limit=200)
 
 
@@ -116,7 +119,8 @@ def _promotion_smoke(db_path: Path, memory_db_path: Path) -> dict:
     # Confirm memory.db has the row
     conn = sqlite3.connect(str(memory_db_path))
     row = conn.execute(
-        "SELECT id, content FROM memory_items WHERE id = ?", (r1["promoted_to"],),
+        "SELECT id, content FROM memory_items WHERE id = ?",
+        (r1["promoted_to"],),
     ).fetchone()
     conn.close()
     if not row:
@@ -128,6 +132,7 @@ def _promotion_smoke(db_path: Path, memory_db_path: Path) -> dict:
 def _staleness_smoke(corpus_dir: Path, db_path: Path) -> dict:
     """Modify a file and verify the staleness helper classifies it as 'stale'."""
     import time as _time
+
     os.environ["M3_FILES_DB_PATH"] = str(db_path)
     from files_memory.staleness import files_staleness_review
 
@@ -146,10 +151,8 @@ def _staleness_smoke(corpus_dir: Path, db_path: Path) -> dict:
 
 def main() -> int:
     p = argparse.ArgumentParser()
-    p.add_argument("--queue", action="store_true",
-                   help="use queue mode + drain instead of inline")
-    p.add_argument("--no-extract-llm", action="store_true",
-                   help="don't set M3_FILES_EXTRACT_URL; extraction will fail")
+    p.add_argument("--queue", action="store_true", help="use queue mode + drain instead of inline")
+    p.add_argument("--no-extract-llm", action="store_true", help="don't set M3_FILES_EXTRACT_URL; extraction will fail")
     p.add_argument("--extract-url", default="http://localhost:11434")
     p.add_argument("--extract-model", default="qwen2.5:1.5b-instruct")
     p.add_argument("--keep-db", action="store_true")

@@ -17,6 +17,7 @@ native-path coverage still matters — it ADDS the missing seam-level guarantee.
 Skips cleanly without a reachable cluster (requires_pg). DSN from
 M3_PRIMARY_PG_URL / M3_PG_URL (never PG_URL — the warehouse var).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -70,25 +71,34 @@ def test_seam_write_produces_schema_valid_row_on_pg(pg):
     from memory.write import memory_write_impl
 
     uid = f"seam-{uuid.uuid4().hex[:10]}"
-    raw = asyncio.run(memory_write_impl(
-        type="note", content="seam write path on postgres",
-        title="seam probe", importance=0.6, embed=False,
-        scope="agent", user_id=uid, source="test",
-    ))
+    raw = asyncio.run(
+        memory_write_impl(
+            type="note",
+            content="seam write path on postgres",
+            title="seam probe",
+            importance=0.6,
+            embed=False,
+            scope="agent",
+            user_id=uid,
+            source="test",
+        )
+    )
     assert raw  # returns the new id (possibly wrapped)
 
     # Read it back through the seam and confirm the round-trip.
     from memory.backends import dialect
     from memory.db import _db
+
     d = dialect()
     p = d.param()
     with _db() as conn:
         row = conn.execute(
             f"SELECT id, type, title, content, importance, scope, user_id, "
-            f"is_deleted FROM memory_items WHERE user_id = {p}", (uid,)
+            f"is_deleted FROM memory_items WHERE user_id = {p}",
+            (uid,),
         ).fetchone()
     assert row is not None, "seam write did not persist a row on PG"
-    assert row["type"] == "note"          # the column the drift bug omitted
+    assert row["type"] == "note"  # the column the drift bug omitted
     assert row["title"] == "seam probe"
     assert row["scope"] == "agent"
     assert row["user_id"] == uid
@@ -112,18 +122,11 @@ def test_seam_seed_helpers_insert_schema_valid_rows_on_pg(pg):
     mid = f"seed-{uuid.uuid4().hex[:10]}"
     vec = struct.pack("<4f", 1.0, 0.0, 0.0, 0.0)
     with _db() as conn:
-        seed_memory_row(conn, d, mid=mid, type="belief", title="seed",
-                        content="seeded row", importance=0.7)
-        seed_embedding_row(conn, d, mid=mid, embedding=vec, dim=4,
-                           embed_model="test-model")
+        seed_memory_row(conn, d, mid=mid, type="belief", title="seed", content="seeded row", importance=0.7)
+        seed_embedding_row(conn, d, mid=mid, embedding=vec, dim=4, embed_model="test-model")
         conn.commit()
         p = d.param()
-        mrow = conn.execute(
-            f"SELECT type, title FROM memory_items WHERE id = {p}", (mid,)
-        ).fetchone()
-        erow = conn.execute(
-            f"SELECT id, memory_id FROM memory_embeddings WHERE memory_id = {p}",
-            (mid,)
-        ).fetchone()
+        mrow = conn.execute(f"SELECT type, title FROM memory_items WHERE id = {p}", (mid,)).fetchone()
+        erow = conn.execute(f"SELECT id, memory_id FROM memory_embeddings WHERE memory_id = {p}", (mid,)).fetchone()
     assert mrow is not None and mrow["type"] == "belief"
     assert erow is not None and erow["id"] == f"emb-{mid}"

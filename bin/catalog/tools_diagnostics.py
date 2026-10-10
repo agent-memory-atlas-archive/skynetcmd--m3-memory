@@ -4,6 +4,7 @@ Split out of mcp_tool_catalog.py's flat TOOLS list. Entries copied verbatim
 (name, description, parameters, impl, validators, flags unchanged). Domain
 assignment per tool_domains.domain_of_tool().
 """
+
 from __future__ import annotations
 
 from m3_core.search_modes import PUBLIC_SEARCH_MODES
@@ -32,8 +33,12 @@ TOOLS: list[ToolSpec] = [
             "properties": {
                 "query": {"type": "string", "description": "The search query to profile."},
                 "k": {"type": "integer", "description": "Results to retrieve.", "default": 8},
-                "search_mode": {"type": "string", "enum": list(PUBLIC_SEARCH_MODES),
-                                "description": "Retrieval mode.", "default": "hybrid"},
+                "search_mode": {
+                    "type": "string",
+                    "enum": list(PUBLIC_SEARCH_MODES),
+                    "description": "Retrieval mode.",
+                    "default": "hybrid",
+                },
                 "user_id": {"type": "string", "description": "Tenant filter (optional).", "default": ""},
                 "scope": {"type": "string", "description": "Scope filter (optional).", "default": ""},
             },
@@ -82,7 +87,6 @@ TOOLS: list[ToolSpec] = [
         default_allowed=True,
         inject_agent_id=False,
     ),
-
     ToolSpec(
         name="memory_doctor_fix",
         description=(
@@ -101,10 +105,7 @@ TOOLS: list[ToolSpec] = [
             "properties": {
                 "dry_run": {
                     "type": "boolean",
-                    "description": (
-                        "If true, report what would be done without writing anything. "
-                        "Default: false."
-                    ),
+                    "description": ("If true, report what would be done without writing anything. Default: false."),
                     "default": False,
                 },
             },

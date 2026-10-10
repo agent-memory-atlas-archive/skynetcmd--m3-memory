@@ -1,8 +1,8 @@
 ---
 tool: bin/migrate_entity_vocab.py
-sha1: ffa9486b3635
-mtime_utc: 2026-10-10T15:07:57.462826+00:00
-generated_utc: 2026-10-10T15:13:47.419323+00:00
+sha1: e3920d793402
+mtime_utc: 2026-10-10T21:05:16.609410+00:00
+generated_utc: 2026-10-10T21:05:29.841699+00:00
 private: false
 ---
 
@@ -58,7 +58,7 @@ PostgreSQL the configured database is used and --database is refused.
 
 ## Entry points
 
-- `def main()` (line 173)
+- `def main()` (line 171)
 - `if __name__ == "__main__"` guard
 
 ---

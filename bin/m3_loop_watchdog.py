@@ -38,6 +38,7 @@ DESIGN (§2 modularity, §3 fail-safe, §5 effectiveness)
     roots from the documented env vars and keeps working. It is least useful
     exactly when it is most needed otherwise.
 """
+
 from __future__ import annotations
 
 import json
@@ -59,11 +60,13 @@ if str(_BIN) not in sys.path:
 try:
     from _task_runtime import no_window_kwargs
 except Exception:  # pragma: no cover - fallback if _task_runtime unavailable
+
     def no_window_kwargs() -> dict:
         # getattr, not subprocess.CREATE_NO_WINDOW: the attribute is Windows-only
         # and a direct reference fails mypy on the Linux CI runner.
         flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
         return {"creationflags": flags} if flags else {}
+
 
 # Same role string the loop registers under (m3_cognitive_loop._HALT_ROLE).
 _HALT_ROLE = "cognitive-loop"
@@ -77,8 +80,8 @@ _WINDOWS_TASK = "AgentOS_CognitiveLoop"
 # restart. Mirrors the tolerance the Windows task repetition already assumes
 # ("a stalled heartbeat is tolerable for ~30 min", install_schedules).
 _MISSED_CYCLES = 3
-_MIN_STALE_S = 900          # floor, for very short --interval values
-_MIN_RESTART_GAP_S = 600    # backoff, so a crash-on-startup is not a fork bomb
+_MIN_STALE_S = 900  # floor, for very short --interval values
+_MIN_RESTART_GAP_S = 600  # backoff, so a crash-on-startup is not a fork bomb
 
 
 def _os_name() -> str:
@@ -105,15 +108,20 @@ def _roots() -> tuple[Path, Path]:
     fall back to the documented precedence when the venv is unimportable."""
     try:
         from m3_sdk import get_m3_config_root, get_m3_engine_root
+
         return Path(get_m3_config_root()), Path(get_m3_engine_root())
     except Exception:
         master = os.environ.get("M3_MEMORY_ROOT")
-        cfg = (os.environ.get("M3_CONFIG_ROOT")
-               or (os.path.join(master, "config") if master else None)
-               or os.path.expanduser("~/.m3/config"))
-        eng = (os.environ.get("M3_ENGINE_ROOT")
-               or (os.path.join(master, "engine") if master else None)
-               or os.path.expanduser("~/.m3/engine"))
+        cfg = (
+            os.environ.get("M3_CONFIG_ROOT")
+            or (os.path.join(master, "config") if master else None)
+            or os.path.expanduser("~/.m3/config")
+        )
+        eng = (
+            os.environ.get("M3_ENGINE_ROOT")
+            or (os.path.join(master, "engine") if master else None)
+            or os.path.expanduser("~/.m3/engine")
+        )
         return Path(cfg), Path(eng)
 
 
@@ -154,6 +162,7 @@ def halt_active() -> bool:
     the next tick; a restart into a migration may not be)."""
     try:
         import m3_halt
+
         return bool(m3_halt.halt_is_active(engine_root=str(ENGINE_ROOT)))
     except Exception as e:
         log(f"cannot read halt state ({e}) — standing down this tick")
@@ -168,6 +177,7 @@ def loop_process_is_registered() -> bool | None:
     pid is dead or recycled."""
     try:
         import m3_halt
+
         procs = m3_halt.list_live_processes(engine_root=str(ENGINE_ROOT))
         return any(getattr(p, "role", None) == _HALT_ROLE for p in procs)
     except Exception:
@@ -182,8 +192,12 @@ def newest_loop_age() -> float | None:
     launched a moment ago and has not registered yet still counts."""
     try:
         import m3_halt
-        procs = [p for p in m3_halt.list_all_db_writers(engine_root=str(ENGINE_ROOT))
-                 if m3_halt.base_role(getattr(p, "role", "")) == _HALT_ROLE]
+
+        procs = [
+            p
+            for p in m3_halt.list_all_db_writers(engine_root=str(ENGINE_ROOT))
+            if m3_halt.base_role(getattr(p, "role", "")) == _HALT_ROLE
+        ]
         started = [t for t in (m3_halt.proc_create_time(p.pid) for p in procs) if t]
         return time.time() - max(started) if started else None
     except Exception:  # noqa: BLE001 — unknown, not evidence either way
@@ -232,20 +246,21 @@ def _restart_backend() -> tuple[list[list[str]], str]:
         # restarts it. The follow-up `kickstart` (no -k) is the belt-and-braces
         # for a plist that lost KeepAlive: it starts a job that is not running
         # and is a no-op for one that is.
-        return ([["launchctl", "kill", "SIGTERM", target],
-                 ["launchctl", "kickstart", target]],
-                f"launchd {_LAUNCHD_LABEL}")
+        return (
+            [["launchctl", "kill", "SIGTERM", target], ["launchctl", "kickstart", target]],
+            f"launchd {_LAUNCHD_LABEL}",
+        )
     if osn == "Linux":
         # systemctl restart stops with SIGTERM (KillSignal default) and waits
         # for the unit to exit before starting it again — already graceful.
-        return ([["systemctl", "--user", "restart", _SYSTEMD_UNIT]],
-                f"systemd {_SYSTEMD_UNIT}")
+        return ([["systemctl", "--user", "restart", _SYSTEMD_UNIT]], f"systemd {_SYSTEMD_UNIT}")
     # Windows has no graceful equivalent: schtasks /End terminates the task.
     # The loop installs a SIGTERM handler via signal.signal() there, but /End
     # does not deliver one, so this remains the least-graceful path of the three.
-    return ([["schtasks", "/End", "/TN", _WINDOWS_TASK],
-             ["schtasks", "/Run", "/TN", _WINDOWS_TASK]],
-            f"schtasks {_WINDOWS_TASK}")
+    return (
+        [["schtasks", "/End", "/TN", _WINDOWS_TASK], ["schtasks", "/Run", "/TN", _WINDOWS_TASK]],
+        f"schtasks {_WINDOWS_TASK}",
+    )
 
 
 def restart(reason: str) -> int:
@@ -257,8 +272,7 @@ def restart(reason: str) -> int:
     spawned = False
     for cmd in cmds:
         try:
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=60,
-                               **no_window_kwargs())
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=60, **no_window_kwargs())
             spawned = True
         except (OSError, subprocess.SubprocessError) as e:
             log(f"  {cmd[0]} failed to spawn: {e}")
@@ -269,15 +283,13 @@ def restart(reason: str) -> int:
             # brought back. Log at info so a genuine problem is still visible,
             # and let the next tick judge on the heartbeat rather than guessing
             # from exit codes that differ per platform and per state.
-            log(f"  note: {' '.join(cmd)} exit={r.returncode} "
-                f"{(r.stderr or '').strip()}")
+            log(f"  note: {' '.join(cmd)} exit={r.returncode} {(r.stderr or '').strip()}")
     if not spawned:
         log("  no restart command could be spawned")
         return 1
     try:
         STATE.parent.mkdir(parents=True, exist_ok=True)
-        STATE.write_text(json.dumps({"last_restart": time.time(),
-                                     "reason": reason}), encoding="utf-8")
+        STATE.write_text(json.dumps({"last_restart": time.time(), "reason": reason}), encoding="utf-8")
     except OSError:
         pass
     log("restart issued OK")
@@ -295,6 +307,7 @@ def _tick_embed_watchdog() -> None:
     """
     try:
         import m3_embed_watchdog
+
         m3_embed_watchdog.main()
     except Exception as e:  # noqa: BLE001 — never take the loop watchdog down
         log(f"embed-watchdog tick failed (non-fatal): {type(e).__name__}: {e}")
@@ -318,11 +331,12 @@ def main() -> int:
         # ever writing a heartbeat is still recovered.
         registered = loop_process_is_registered()
         if registered is False:
-            return restart("no heartbeat and no live cognitive-loop in the "
-                           "m3_halt PID registry")
-        log(f"OK (degraded): no heartbeat at {HEARTBEAT} "
+            return restart("no heartbeat and no live cognitive-loop in the m3_halt PID registry")
+        log(
+            f"OK (degraded): no heartbeat at {HEARTBEAT} "
             f"(registry says {'alive' if registered else 'unknown'}) — "
-            f"liveness only. Heartbeat patch missing or loop not yet cycled?")
+            f"liveness only. Heartbeat patch missing or loop not yet cycled?"
+        )
         return 0
 
     if age > stale_after:
@@ -332,12 +346,16 @@ def main() -> int:
         # throttle its relaunch by 60 s, mid-upgrade.
         started = newest_loop_age()
         if started is not None and started < stale_after:
-            log(f"heartbeat is {age:.0f}s old, but the loop started {started:.0f}s "
-                f"ago — giving it until {stale_after:.0f}s to cycle")
+            log(
+                f"heartbeat is {age:.0f}s old, but the loop started {started:.0f}s "
+                f"ago — giving it until {stale_after:.0f}s to cycle"
+            )
             return 0
-        return restart(f"heartbeat is {age:.0f}s old (> {stale_after:.0f}s = "
-                       f"{_MISSED_CYCLES} x {interval}s interval) — process may "
-                       f"be alive but is not completing cycles")
+        return restart(
+            f"heartbeat is {age:.0f}s old (> {stale_after:.0f}s = "
+            f"{_MISSED_CYCLES} x {interval}s interval) — process may "
+            f"be alive but is not completing cycles"
+        )
 
     log(f"OK: heartbeat {age:.0f}s old (threshold {stale_after:.0f}s)")
     return 0

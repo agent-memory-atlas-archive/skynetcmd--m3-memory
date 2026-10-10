@@ -21,6 +21,7 @@ USAGE
 Exit 0 = nothing prohibited found. Exit 1 = hits found, or the policy could not
 be evaluated. Exit 2 = called wrong.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -53,10 +54,7 @@ def load_patterns(path: str) -> list[tuple[int, re.Pattern[str]]]:
             broken.append((lineno, str(e)))
 
     if broken:
-        detail = "\n".join(
-            f"           {path}:{n} -> {err}  (pattern body withheld)"
-            for n, err in broken
-        )
+        detail = "\n".join(f"           {path}:{n} -> {err}  (pattern body withheld)" for n, err in broken)
         raise SystemExit(
             "[scan_diff] BLOCKED: prohibited-pattern file has pattern(s) that do "
             "not compile.\n"
@@ -69,7 +67,6 @@ def load_patterns(path: str) -> list[tuple[int, re.Pattern[str]]]:
             "           An empty policy must not read as a clean scan."
         )
     return compiled
-
 
 
 def _selftest(patterns_path: str | None) -> int:
@@ -128,15 +125,19 @@ def _selftest(patterns_path: str | None) -> int:
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--patterns", help="policy file, one regex per line")
-    ap.add_argument("--inline-pattern",
-                    help="a single regex, used when no policy file is available "
-                         "(the hook's built-in credential/PII fallback)")
+    ap.add_argument(
+        "--inline-pattern",
+        help="a single regex, used when no policy file is available (the hook's built-in credential/PII fallback)",
+    )
     ap.add_argument("--exclude-identities", default="")
     ap.add_argument("--max-report", type=int, default=20)
-    ap.add_argument("--selftest", action="store_true",
-                    help="prove the gate is alive on THIS platform: compile the "
-                         "live policy, and check a known-bad line is caught and a "
-                         "clean line is not. Reads no diff.")
+    ap.add_argument(
+        "--selftest",
+        action="store_true",
+        help="prove the gate is alive on THIS platform: compile the "
+        "live policy, and check a known-bad line is caught and a "
+        "clean line is not. Reads no diff.",
+    )
     args = ap.parse_args(argv)
 
     if args.selftest:
@@ -152,10 +153,7 @@ def main(argv: list[str]) -> int:
         try:
             patterns = [(0, re.compile(args.inline_pattern, re.IGNORECASE))]
         except re.error as e:
-            raise SystemExit(
-                f"[scan_diff] BLOCKED: the built-in fallback pattern does not "
-                f"compile: {e}"
-            ) from e
+            raise SystemExit(f"[scan_diff] BLOCKED: the built-in fallback pattern does not compile: {e}") from e
         source = "<built-in fallback>"
     else:
         raise SystemExit(
@@ -194,8 +192,7 @@ def main(argv: list[str]) -> int:
 
     if hits:
         print(
-            "[scan_diff] BLOCKED: prohibited content in the push diff "
-            f"({len(hits)} added line(s) matched):",
+            f"[scan_diff] BLOCKED: prohibited content in the push diff ({len(hits)} added line(s) matched):",
             file=sys.stderr,
         )
         for h in hits[: args.max_report]:

@@ -9,6 +9,7 @@ The rival instance is loaded from FILE, not copied: a copied `__dict__` keeps
 `__globals__` pointing at the original module, so the test could not fail.
 `sys.modules` is never touched (see .claude/rules/test-sandbox.md).
 """
+
 from __future__ import annotations
 
 import importlib

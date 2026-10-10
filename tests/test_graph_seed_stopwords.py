@@ -12,6 +12,7 @@ that §3/§11 gap. The test exercises the real _ENTITY_MENTION_RE + _QUERY_START
 STOPWORDS from memory.graph (no DB / embedder needed), replicating the exact Step-1
 seed-extraction loop so a regression in either the regex or the stoplist is caught.
 """
+
 from __future__ import annotations
 
 import os
@@ -43,6 +44,7 @@ def _extract_seeds(query: str) -> list[str]:
 
 # ── the stoplist itself ──────────────────────────────────────────────────────
 
+
 def test_stoplist_is_nonempty_frozenset():
     assert isinstance(_QUERY_STARTER_STOPWORDS, frozenset)
     assert len(_QUERY_STARTER_STOPWORDS) >= 40  # 43 at time of writing
@@ -55,18 +57,16 @@ def test_common_query_starters_are_in_stoplist(word):
 
 # ── observable filtering behavior on real queries ────────────────────────────
 
+
 @pytest.mark.parametrize(
     "query, must_keep, must_drop",
     [
         # The canonical regression case: "Can" must not survive to match "Canada".
-        ("Can you recommend a show like Stranger Things",
-         ["Stranger Things"], ["Can"]),
+        ("Can you recommend a show like Stranger Things", ["Stranger Things"], ["Can"]),
         # First-person + question starter dropped; real place kept.
-        ("What should I serve at my dinner party in Canada",
-         ["Canada"], ["What", "I"]),
+        ("What should I serve at my dinner party in Canada", ["Canada"], ["What", "I"]),
         # "How"/"I" dropped, product name kept.
-        ("How do I reset my Peloton",
-         ["Peloton"], ["How", "I"]),
+        ("How do I reset my Peloton", ["Peloton"], ["How", "I"]),
     ],
 )
 def test_starters_filtered_real_entities_survive(query, must_keep, must_drop):

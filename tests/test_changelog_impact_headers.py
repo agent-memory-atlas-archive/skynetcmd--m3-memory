@@ -71,7 +71,7 @@ def _bullets_by_section(text: str) -> list[tuple[str, str]]:
             current = None
             version = m.group(1)
             continue
-        if line.startswith("## "):          # a non-version H2 (e.g. policy notes)
+        if line.startswith("## "):  # a non-version H2 (e.g. policy notes)
             _flush()
             current = None
             version = None
@@ -162,7 +162,4 @@ def test_the_convention_doc_names_each_required_field(field):
     """
     assert CONVENTION_DOC.is_file(), f"{CONVENTION_DOC} is missing"
     text = CONVENTION_DOC.read_text(encoding="utf-8")
-    assert field in text, (
-        f"{field} is enforced by this test but not documented in "
-        f"{CONVENTION_DOC.name}"
-    )
+    assert field in text, f"{field} is enforced by this test but not documented in {CONVENTION_DOC.name}"

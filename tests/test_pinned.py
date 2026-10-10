@@ -13,6 +13,7 @@ Every pinned-aware query must tolerate the column being absent on an older
 DB (COALESCE(pinned,0)=0 wrapped in a try/except that falls back to the
 original, pre-pinned query on "no such column: pinned").
 """
+
 from __future__ import annotations
 
 import os
@@ -32,15 +33,39 @@ def _skip_migrations(monkeypatch):
 
 def _full_db(db_path):
     from conftest import create_full_main_schema
+
     create_full_main_schema(db_path)
 
 
-def _seed(conn, mid, *, importance=0.9, confidence=0.9, created_days_ago=30,
-          expires_at=None, pinned=None, agent_id="agent1"):
-    cols = ["id", "type", "title", "content", "source", "change_agent",
-            "created_at", "importance", "confidence", "is_deleted", "agent_id"]
-    vals = [mid, "fact", "t", "c", "agent", "claude",
-            f"datetime('now', '-{created_days_ago} days')", importance, confidence, 0, agent_id]
+def _seed(
+    conn, mid, *, importance=0.9, confidence=0.9, created_days_ago=30, expires_at=None, pinned=None, agent_id="agent1"
+):
+    cols = [
+        "id",
+        "type",
+        "title",
+        "content",
+        "source",
+        "change_agent",
+        "created_at",
+        "importance",
+        "confidence",
+        "is_deleted",
+        "agent_id",
+    ]
+    vals = [
+        mid,
+        "fact",
+        "t",
+        "c",
+        "agent",
+        "claude",
+        f"datetime('now', '-{created_days_ago} days')",
+        importance,
+        confidence,
+        0,
+        agent_id,
+    ]
     if expires_at is not None:
         cols.append("expires_at")
         vals.append(expires_at)
@@ -61,11 +86,13 @@ def _seed(conn, mid, *, importance=0.9, confidence=0.9, created_days_ago=30,
 
 # ── ensure_pinned_column ─────────────────────────────────────────────────────
 
+
 def test_ensure_pinned_column_idempotent(tmp_path):
     # The full schema now carries `pinned` from migration 037, so the runtime
     # helper is a FALLBACK for a DB that predates 037. Simulate that pre-037 DB
     # by dropping the column, then verify the helper re-adds it idempotently.
     from memory.db import ensure_pinned_column
+
     db = tmp_path / "t.db"
     _full_db(db)
     conn = sqlite3.connect(str(db))
@@ -91,12 +118,14 @@ def test_ensure_pinned_column_idempotent(tmp_path):
 def test_ensure_pinned_column_never_raises_on_bogus_conn():
     """Best-effort contract: a broken/closed connection must not raise out."""
     from memory.db import ensure_pinned_column
+
     conn = sqlite3.connect(":memory:")
     conn.close()
     ensure_pinned_column(conn)  # must not raise
 
 
 # ── decay exemption ──────────────────────────────────────────────────────────
+
 
 def test_pinned_row_survives_importance_decay_unpinned_decays(tmp_path):
     from memory.db import ensure_pinned_column
@@ -114,22 +143,17 @@ def test_pinned_row_survives_importance_decay_unpinned_decays(tmp_path):
 
     os.environ["M3_DATABASE"] = str(db)
     try:
-        memory_maintenance_impl(decay=True, purge_expired=False,
-                                 prune_orphan_embeddings=False, reinforce=False)
+        memory_maintenance_impl(decay=True, purge_expired=False, prune_orphan_embeddings=False, reinforce=False)
     finally:
         os.environ.pop("M3_DATABASE", None)
 
     conn = sqlite3.connect(str(db))
-    pinned_importance = conn.execute(
-        "SELECT importance FROM memory_items WHERE id='pinned-id'"
-    ).fetchone()[0]
-    unpinned_importance = conn.execute(
-        "SELECT importance FROM memory_items WHERE id='unpinned-id'"
-    ).fetchone()[0]
+    pinned_importance = conn.execute("SELECT importance FROM memory_items WHERE id='pinned-id'").fetchone()[0]
+    unpinned_importance = conn.execute("SELECT importance FROM memory_items WHERE id='unpinned-id'").fetchone()[0]
     conn.close()
 
-    assert pinned_importance == pytest.approx(0.9)          # untouched
-    assert unpinned_importance < 0.9                        # decayed
+    assert pinned_importance == pytest.approx(0.9)  # untouched
+    assert unpinned_importance < 0.9  # decayed
 
 
 def test_pinned_row_survives_confidence_decay(tmp_path):
@@ -152,11 +176,12 @@ def test_pinned_row_survives_confidence_decay(tmp_path):
     unpinned_conf = conn.execute("SELECT confidence FROM memory_items WHERE id='unpinned-id'").fetchone()[0]
     conn.close()
 
-    assert pinned_conf == pytest.approx(0.95)   # untouched
-    assert unpinned_conf < 0.95                 # decayed toward neutral
+    assert pinned_conf == pytest.approx(0.95)  # untouched
+    assert unpinned_conf < 0.95  # decayed toward neutral
 
 
 # ── expiry exemption ─────────────────────────────────────────────────────────
+
 
 def test_pinned_row_not_expiry_purged_unpinned_is(tmp_path):
     from memory.db import ensure_pinned_column
@@ -175,8 +200,7 @@ def test_pinned_row_not_expiry_purged_unpinned_is(tmp_path):
 
     os.environ["M3_DATABASE"] = str(db)
     try:
-        memory_maintenance_impl(decay=False, purge_expired=True,
-                                 prune_orphan_embeddings=False, reinforce=False)
+        memory_maintenance_impl(decay=False, purge_expired=True, prune_orphan_embeddings=False, reinforce=False)
     finally:
         os.environ.pop("M3_DATABASE", None)
 
@@ -184,11 +208,12 @@ def test_pinned_row_not_expiry_purged_unpinned_is(tmp_path):
     remaining_ids = {r[0] for r in conn.execute("SELECT id FROM memory_items")}
     conn.close()
 
-    assert "pinned-id" in remaining_ids       # survived expiry purge
+    assert "pinned-id" in remaining_ids  # survived expiry purge
     assert "unpinned-id" not in remaining_ids  # purged
 
 
 # ── old-DB tolerance (pinned column absent) ──────────────────────────────────
+
 
 def test_decay_and_expiry_tolerate_missing_pinned_column(tmp_path):
     """A pre-037 DB (no `pinned` column, ensure never run). The pinned-aware
@@ -214,8 +239,7 @@ def test_decay_and_expiry_tolerate_missing_pinned_column(tmp_path):
     os.environ["M3_DATABASE"] = str(db)
     try:
         # Must not raise even though `pinned` doesn't exist.
-        memory_maintenance_impl(decay=True, purge_expired=True,
-                                 prune_orphan_embeddings=False, reinforce=False)
+        memory_maintenance_impl(decay=True, purge_expired=True, prune_orphan_embeddings=False, reinforce=False)
     finally:
         os.environ.pop("M3_DATABASE", None)
 
@@ -235,8 +259,7 @@ def test_retention_ttl_tolerates_missing_pinned_column(tmp_path):
     conn.row_factory = sqlite3.Row
     _seed(conn, "old-schema-id", created_days_ago=999, agent_id="agentX")
     conn.execute(
-        "INSERT INTO agent_retention_policies (agent_id, max_memories, ttl_days, auto_archive) "
-        "VALUES (?, 1000, 1, 0)",
+        "INSERT INTO agent_retention_policies (agent_id, max_memories, ttl_days, auto_archive) VALUES (?, 1000, 1, 0)",
         ("agentX",),
     )
     conn.commit()
@@ -244,15 +267,14 @@ def test_retention_ttl_tolerates_missing_pinned_column(tmp_path):
     purged = _enforce_retention_policies(conn)  # must not raise
     conn.commit()
 
-    is_deleted = conn.execute(
-        "SELECT is_deleted FROM memory_items WHERE id='old-schema-id'"
-    ).fetchone()[0]
+    is_deleted = conn.execute("SELECT is_deleted FROM memory_items WHERE id='old-schema-id'").fetchone()[0]
     conn.close()
     assert purged == 1
     assert is_deleted == 1  # TTL enforcement soft-deletes
 
 
 # ── retention exemption ──────────────────────────────────────────────────────
+
 
 def test_pinned_row_survives_retention_ttl_unpinned_purged(tmp_path):
     from memory.db import ensure_pinned_column
@@ -266,8 +288,7 @@ def test_pinned_row_survives_retention_ttl_unpinned_purged(tmp_path):
     _seed(conn, "pinned-id", created_days_ago=999, pinned=1, agent_id="agentX")
     _seed(conn, "unpinned-id", created_days_ago=999, pinned=0, agent_id="agentX")
     conn.execute(
-        "INSERT INTO agent_retention_policies (agent_id, max_memories, ttl_days, auto_archive) "
-        "VALUES (?, 1000, 1, 0)",
+        "INSERT INTO agent_retention_policies (agent_id, max_memories, ttl_days, auto_archive) VALUES (?, 1000, 1, 0)",
         ("agentX",),
     )
     conn.commit()
@@ -275,15 +296,11 @@ def test_pinned_row_survives_retention_ttl_unpinned_purged(tmp_path):
     _enforce_retention_policies(conn)
     conn.commit()
 
-    pinned_deleted = conn.execute(
-        "SELECT is_deleted FROM memory_items WHERE id='pinned-id'"
-    ).fetchone()[0]
-    unpinned_deleted = conn.execute(
-        "SELECT is_deleted FROM memory_items WHERE id='unpinned-id'"
-    ).fetchone()[0]
+    pinned_deleted = conn.execute("SELECT is_deleted FROM memory_items WHERE id='pinned-id'").fetchone()[0]
+    unpinned_deleted = conn.execute("SELECT is_deleted FROM memory_items WHERE id='unpinned-id'").fetchone()[0]
     conn.close()
-    assert pinned_deleted == 0     # exempt — survives TTL enforcement
-    assert unpinned_deleted == 1   # soft-deleted by TTL enforcement
+    assert pinned_deleted == 0  # exempt — survives TTL enforcement
+    assert unpinned_deleted == 1  # soft-deleted by TTL enforcement
 
 
 def test_pinned_row_survives_retention_max_count_unpinned_purged(tmp_path):
@@ -300,8 +317,7 @@ def test_pinned_row_survives_retention_max_count_unpinned_purged(tmp_path):
     _seed(conn, "old-pinned", created_days_ago=10, pinned=1, agent_id="agentY")
     _seed(conn, "newest", created_days_ago=1, pinned=0, agent_id="agentY")
     conn.execute(
-        "INSERT INTO agent_retention_policies (agent_id, max_memories, ttl_days, auto_archive) "
-        "VALUES (?, 1, 0, 0)",
+        "INSERT INTO agent_retention_policies (agent_id, max_memories, ttl_days, auto_archive) VALUES (?, 1, 0, 0)",
         ("agentY",),
     )
     conn.commit()
@@ -309,18 +325,15 @@ def test_pinned_row_survives_retention_max_count_unpinned_purged(tmp_path):
     _enforce_retention_policies(conn)
     conn.commit()
 
-    old_pinned_deleted = conn.execute(
-        "SELECT is_deleted FROM memory_items WHERE id='old-pinned'"
-    ).fetchone()[0]
-    newest_deleted = conn.execute(
-        "SELECT is_deleted FROM memory_items WHERE id='newest'"
-    ).fetchone()[0]
+    old_pinned_deleted = conn.execute("SELECT is_deleted FROM memory_items WHERE id='old-pinned'").fetchone()[0]
+    newest_deleted = conn.execute("SELECT is_deleted FROM memory_items WHERE id='newest'").fetchone()[0]
     conn.close()
-    assert old_pinned_deleted == 0   # exempt despite being the excess row
+    assert old_pinned_deleted == 0  # exempt despite being the excess row
     assert newest_deleted == 0
 
 
 # ── memory_pin_impl / memory_unpin_impl ──────────────────────────────────────
+
 
 def test_memory_pin_and_unpin_impl(tmp_path, monkeypatch):
     db = tmp_path / "t.db"
@@ -378,6 +391,7 @@ def test_memory_pin_impl_not_found(tmp_path, monkeypatch):
 
 # ── pinned ≠ supersede-proof (the "pinned but contradicted" boundary) ─────────
 
+
 def test_pinned_row_can_still_be_superseded(tmp_path, monkeypatch):
     """Pin protects against lifecycle *aging* (decay/expiry/retention) but NOT
     against *correction*: a pinned memory can still be explicitly superseded when
@@ -396,6 +410,7 @@ def test_pinned_row_can_still_be_superseded(tmp_path, monkeypatch):
     conn = sqlite3.connect(str(db))
     conn.row_factory = sqlite3.Row
     from memory.db import ensure_pinned_column
+
     ensure_pinned_column(conn)
     old_id = str(uuid.uuid4())
     _seed(conn, old_id, importance=0.9, pinned=1)
@@ -405,22 +420,15 @@ def test_pinned_row_can_still_be_superseded(tmp_path, monkeypatch):
     monkeypatch.setenv("M3_DATABASE", str(db))
     import memory_core
 
-    result = asyncio.run(
-        memory_core.memory_supersede_impl(
-            old_id, content="corrected fact", embed=False
-        )
-    )
+    result = asyncio.run(memory_core.memory_supersede_impl(old_id, content="corrected fact", embed=False))
     assert result.startswith("Superseded"), result
 
     conn = sqlite3.connect(str(db))
     conn.row_factory = sqlite3.Row
-    old_row = conn.execute(
-        "SELECT pinned, is_deleted FROM memory_items WHERE id=?", (old_id,)
-    ).fetchone()
+    old_row = conn.execute("SELECT pinned, is_deleted FROM memory_items WHERE id=?", (old_id,)).fetchone()
     # A `supersedes` edge new -> old was written despite the old row being pinned.
     edge = conn.execute(
-        "SELECT COUNT(*) FROM memory_relationships "
-        "WHERE to_id=? AND relationship_type='supersedes'",
+        "SELECT COUNT(*) FROM memory_relationships WHERE to_id=? AND relationship_type='supersedes'",
         (old_id,),
     ).fetchone()[0]
     conn.close()

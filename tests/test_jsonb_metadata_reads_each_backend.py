@@ -9,6 +9,7 @@ PostgreSQL (2026-10-10), then by hunting the same call shape:
   - m3_entities_gliner's conversation allowlist crashed on metadata-only ids.
 Each now reads through Dialect.json_column_to_dict.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -43,8 +44,9 @@ def test_strip_framing_apply_keeps_existing_metadata(each_backend, monkeypatch):
     import json
 
     if each_backend.stores_databases_as_files:
-        pytest.skip(skip_reason("db", "the TEXT path is tests/test_chatlog_strip_framing_backfill.py; "
-                                      "the defect is JSONB-only"))
+        pytest.skip(
+            skip_reason("db", "the TEXT path is tests/test_chatlog_strip_framing_backfill.py; the defect is JSONB-only")
+        )
     import chatlog_strip_framing_backfill as bf
     from memory.backends import dialect
     from memory.backends.dialect import chatlog_table
@@ -57,15 +59,18 @@ def test_strip_framing_apply_keeps_existing_metadata(each_backend, monkeypatch):
 
     chat = M3Context.for_db(None).get_chatlog_conn  # the store the tool scans (its own file on SQLite)
     with chat() as conn:
-        conn.execute(f"INSERT INTO {items} (id, type, content, metadata_json, conversation_id, created_at) "
-                     f"VALUES ({p}, 'chat_log', {p}, {p}, {p}, {p})",
-                     (rid, body, json.dumps({"k": 1}), conv, "2026-07-01T00:00:00Z"))
+        conn.execute(
+            f"INSERT INTO {items} (id, type, content, metadata_json, conversation_id, created_at) "
+            f"VALUES ({p}, 'chat_log', {p}, {p}, {p}, {p})",
+            (rid, body, json.dumps({"k": 1}), conv, "2026-07-01T00:00:00Z"),
+        )
         conn.commit()
     try:
         result = bf.backfill(conversation_id=conv, apply=True)
         with chat() as conn:
-            content, meta = conn.execute(f"SELECT content, metadata_json FROM {items} WHERE id = {p}",
-                                         (rid,)).fetchone()
+            content, meta = conn.execute(
+                f"SELECT content, metadata_json FROM {items} WHERE id = {p}", (rid,)
+            ).fetchone()
     finally:
         with chat() as conn:
             conn.execute(f"DELETE FROM {items} WHERE id = {p}", (rid,))
@@ -85,8 +90,16 @@ def test_gliner_allowlist_reads_conversation_from_metadata(each_backend):
 
     tag = uuid.uuid4().hex[:8]
     variant, conv = f"jb-gl-{tag}", f"conv-jb-gl-{tag}"
-    asyncio.run(memory_write_impl("note", f"meta-only conversation {tag}", title="t", embed=False,
-                                  variant=variant, metadata=json.dumps({"conversation_id": conv})))
+    asyncio.run(
+        memory_write_impl(
+            "note",
+            f"meta-only conversation {tag}",
+            title="t",
+            embed=False,
+            variant=variant,
+            metadata=json.dumps({"conversation_id": conv}),
+        )
+    )
     db = resolve_db_path(None) if each_backend.stores_databases_as_files else None
     rows = g._select_rows(db, variant, None, False, {conv})
     assert len(rows) == 1, f"observed: {rows!r} on {each_backend.name}"

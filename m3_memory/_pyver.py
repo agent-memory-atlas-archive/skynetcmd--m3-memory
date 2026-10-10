@@ -24,6 +24,7 @@ them:
     isfile / isdir return False on every version, so m3 uses those
     (tests/test_python_version_seam.py ratchets the Path forms down).
 """
+
 from __future__ import annotations
 
 import sys

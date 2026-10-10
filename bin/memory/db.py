@@ -23,6 +23,7 @@ Subtle dependency notes:
   - `_backfill_change_agent` uses `infer_change_agent` from `m3_sdk` directly,
     again to avoid the circular.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -168,6 +169,7 @@ def _cohesion_once(conn, backend) -> None:
         return
     _COHESION_CHECKED.add(key)
     from m3_core.context import verify_salt_cohesion
+
     verify_salt_cohesion(conn, f"the {backend.name} store")
 
 
@@ -255,14 +257,14 @@ def tolerant_schema(conn, *, reraise_real=True):
     sp = f"m3_tol_{_savepoint_seq}"
     try:
         from memory.backends import dialect as _dialect
+
         _is_undef = _dialect().is_undefined_object_error
     except Exception:
         # No seam (raw sqlite fixture): fall back to a message match so the
         # tolerance still works in tests that pass a bare sqlite3 connection.
         def _is_undef(exc):
             m = str(exc).lower()
-            return ("no such column" in m or "no such table" in m
-                    or "no column named" in m)
+            return "no such column" in m or "no such table" in m or "no column named" in m
 
     conn.execute(f"SAVEPOINT {sp}")
     try:
@@ -312,6 +314,7 @@ def _ensure_sync_tables(db_path: str | None = None) -> None:
     # shelled out to a migration runner that could not help it.
     try:
         from memory.backends import resolve_backend_name
+
         if resolve_backend_name() != "sqlite":
             return
     except ImportError:  # no seam yet (bootstrap) => SQLite
@@ -326,6 +329,7 @@ def _ensure_sync_tables(db_path: str | None = None) -> None:
         try:
             sys.path.insert(0, str(Path(config.BASE_DIR) / "bin"))
             from migrate_memory import _classify_db
+
             if _classify_db(active) == "chatlog":
                 target_flag = ["--target", "chatlog"]
                 target_kind = "chatlog"
@@ -335,8 +339,9 @@ def _ensure_sync_tables(db_path: str | None = None) -> None:
         # Fast path: compare DB's applied version vs. the highest .up.sql file
         # number for the resolved target. If equal, no migrations to apply.
         try:
-            mig_dir = Path(config.BASE_DIR) / "memory" / (
-                "chatlog_migrations" if target_kind == "chatlog" else "migrations")
+            mig_dir = (
+                Path(config.BASE_DIR) / "memory" / ("chatlog_migrations" if target_kind == "chatlog" else "migrations")
+            )
             file_versions = []
             pattern = re.compile(r"^(\d+)_.*\.up\.sql$")
             for entry in mig_dir.iterdir():
@@ -373,7 +378,9 @@ def _ensure_sync_tables(db_path: str | None = None) -> None:
             if latest_on_disk >= 0 and db_latest >= latest_on_disk:
                 return
         except Exception as le:  # noqa: BLE001 — logged; the caller carries on
-            logger.warning(f"migration up-to-date check failed; observed: {type(le).__name__}: {le}; running the migrator anyway. inspect: python bin/migrate_memory.py status")
+            logger.warning(
+                f"migration up-to-date check failed; observed: {type(le).__name__}: {le}; running the migrator anyway. inspect: python bin/migrate_memory.py status"
+            )
 
         env = os.environ.copy()
         if target_flag:
@@ -394,6 +401,7 @@ def _ensure_sync_tables(db_path: str | None = None) -> None:
         # must never allocate a console.
         try:
             from _task_runtime import no_window_kwargs
+
             _nw = no_window_kwargs()
         except ImportError:
             _bin_dir = str(Path(config.BASE_DIR) / "bin")
@@ -401,6 +409,7 @@ def _ensure_sync_tables(db_path: str | None = None) -> None:
                 sys.path.insert(0, _bin_dir)
             try:
                 from _task_runtime import no_window_kwargs
+
                 _nw = no_window_kwargs()
             except ImportError:
                 logger.debug("_task_runtime unavailable; applying CREATE_NO_WINDOW directly")
@@ -447,16 +456,13 @@ def _ensure_sync_tables(db_path: str | None = None) -> None:
 
 def _backfill_change_agent() -> None:
     from memory.backends import dialect
+
     _p = dialect().param()
     try:
         with _db() as db:
-            rows = db.execute(
-                "SELECT id, agent_id, model_id FROM memory_items WHERE change_agent IS NULL"
-            ).fetchall()
+            rows = db.execute("SELECT id, agent_id, model_id FROM memory_items WHERE change_agent IS NULL").fetchall()
             for row in rows:
-                agent = _infer_change_agent_util(
-                    row["agent_id"] or "", row["model_id"] or "", default="legacy"
-                )
+                agent = _infer_change_agent_util(row["agent_id"] or "", row["model_id"] or "", default="legacy")
                 db.execute(f"UPDATE memory_items SET change_agent = {_p} WHERE id = {_p}", (agent, row["id"]))
     except Exception as e:
         logger.warning(f"Backfill failed: {e}")
@@ -480,6 +486,7 @@ def ensure_pinned_column(conn) -> None:
         # information_schema.columns on PG — which never poisons the txn.
         try:
             from memory.backends import dialect as _dialect
+
             _sql, _params = _dialect().columns_of("memory_items")
             cols = {r[0] for r in conn.execute(_sql, _params).fetchall()}
         except Exception:
@@ -520,6 +527,7 @@ def _lazy_init(db_path: str | None = None) -> None:
         # an EMPTY INBOX rather than an error.
         try:
             from migrate_memory import _classify_db as _classify
+
             if _classify(key) == "dispatch":
                 return
         except Exception:  # noqa: BLE001 — classifier unavailable during
@@ -542,6 +550,7 @@ def _lazy_init(db_path: str | None = None) -> None:
                 # ensure_schema(), so this path is the SQLite one. Gated so it
                 # does not open a stale file on PG.
                 from memory.backends import resolve_backend_name
+
                 if resolve_backend_name() == "sqlite":
                     conn = sqlite3.connect(str(key), timeout=10.0)
                     try:
@@ -618,23 +627,20 @@ def memory_history_impl(memory_id: str, limit: int = 20, as_records: bool = Fals
             (memory_id, limit),
         ).fetchall()
     if not rows:
-        return records.emit(f"No history found for {memory_id}",
-                            records.as_records_payload((), memory_id=memory_id),
-                            as_records)
+        return records.emit(
+            f"No history found for {memory_id}", records.as_records_payload((), memory_id=memory_id), as_records
+        )
     lines = [f"History for {memory_id} ({len(rows)} events):"]
     for r in rows:
         prev = (r["prev_value"] or "")[:80]
         new = (r["new_value"] or "")[:80]
         lines.append(
-            f"  [{r['created_at']}] {r['event']} ({r['field']}) by {r['actor_id'] or 'unknown'}: "
-            f"{prev!r} -> {new!r}"
+            f"  [{r['created_at']}] {r['event']} ({r['field']}) by {r['actor_id'] or 'unknown'}: {prev!r} -> {new!r}"
         )
     # Records carry prev_value/new_value IN FULL. The display truncates both to
     # 80 chars for width, so a caller diffing an audit trail from the string got
     # silently clipped values -- the exact fallback this param removes.
-    return records.emit("\n".join(lines),
-                        records.as_records_payload(rows, memory_id=memory_id),
-                        as_records)
+    return records.emit("\n".join(lines), records.as_records_payload(rows, memory_id=memory_id), as_records)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -655,8 +661,10 @@ def _gate_count_query(query: str) -> int:
     except Exception as e:  # noqa: BLE001 — the gate stays off; warned once per query
         if query not in _GATE_QUERY_WARNED:
             _GATE_QUERY_WARNED.add(query)
-            logger.warning(f"gate count failed, gate treated as off; observed: "
-                           f"{type(e).__name__}: {e}. query: {query[:120]}. inspect: m3 doctor")
+            logger.warning(
+                f"gate count failed, gate treated as off; observed: "
+                f"{type(e).__name__}: {e}. query: {query[:120]}. inspect: m3 doctor"
+            )
         return 0
 
 
@@ -684,6 +692,7 @@ def _gate_active(env_var: str, count_query: str, threshold: int = 1) -> bool:
     _count_fn = _gate_count_query
     try:
         import memory_core as _mc
+
         _ttl = getattr(_mc, "_GATE_CACHE_TTL", _ttl)
         _count_fn = getattr(_mc, "_gate_count_query", _count_fn)
     except ImportError:

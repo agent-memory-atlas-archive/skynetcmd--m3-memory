@@ -6,6 +6,7 @@ via asyncio.to_thread so the same timeout applies (a blocking sync tool can't ha
 forever). A timeout fails loud (§3) with a ToolTimeout naming the tool and budget
 — never a silent hang.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -61,8 +62,12 @@ def test_resolve_precedence_and_pop(monkeypatch):
 def test_per_tool_timeout_s_precedence(monkeypatch):
     monkeypatch.delenv("M3_TOOL_TIMEOUT", raising=False)
     slow_spec = ToolSpec(
-        name="slow_tool", description="", parameters={"properties": {}},
-        impl=_fast, is_async=True, timeout_s=120,
+        name="slow_tool",
+        description="",
+        parameters={"properties": {}},
+        impl=_fast,
+        is_async=True,
+        timeout_s=120,
     )
     # spec.timeout_s is used when no per-call arg and no env
     assert C._resolve_tool_timeout({}, slow_spec) == 120.0
@@ -73,8 +78,7 @@ def test_per_tool_timeout_s_precedence(monkeypatch):
     assert C._resolve_tool_timeout({}, slow_spec) == 45.0
     monkeypatch.delenv("M3_TOOL_TIMEOUT", raising=False)
     # a spec without timeout_s falls through to the global default
-    plain = ToolSpec(name="plain", description="", parameters={"properties": {}},
-                     impl=_fast, is_async=True)
+    plain = ToolSpec(name="plain", description="", parameters={"properties": {}}, impl=_fast, is_async=True)
     assert C._resolve_tool_timeout({}, plain) == C._DEFAULT_TOOL_TIMEOUT
 
 
@@ -100,6 +104,7 @@ def test_execute_tool_fast_under_budget():
 
 def _slow_sync(**_):
     import time
+
     time.sleep(5)
     return "done"
 

@@ -10,6 +10,7 @@ The "core set" is m3's three overlapping notions of a canonical memory:
     type in (belief, procedure, reference, synthesis)
                         — already-consolidated distillations / curated refs
 """
+
 from __future__ import annotations
 
 import os
@@ -30,11 +31,11 @@ EDGE_WEIGHTS: dict[str, float] = {
     "distills_from": 3.0,
     "supersedes": 2.5,
     "extends": 2.0,
-    "contradicts": 2.0,   # co-locate both sides
+    "contradicts": 2.0,  # co-locate both sides
     "supports": 1.5,
     "related": 1.0,
     "references": 1.0,
-    "co_mentions": 1.0,   # synthetic entity-co-mention edge (see below)
+    "co_mentions": 1.0,  # synthetic entity-co-mention edge (see below)
     "precedes": 0.5,
     "follows": 0.5,
 }
@@ -59,20 +60,40 @@ ENTITY_MAX_DEGREE = 8
 # links from discriminative entities like a person, benchmark, model, or device).
 # (Measured 2026-07-24: file_path/datetime/env_var/port/commit_or_branch were the
 # top mergers that fused 40 unrelated notes into one "debugging" cluster.)
-NON_DISCRIMINATIVE_ENTITY_TYPES = frozenset({
-    # Structural / temporal noise — appear everywhere.
-    "datetime", "file_path", "env_var", "port", "commit_or_branch",
-    "module", "class_or_table", "memory_type", "task_id", "task_category",
-    "bench_run_id", "migration", "mac_address", "memory_id",
-    # Infrastructure addressing — a host/container/IP/VLAN/endpoint is shared by
-    # every note that happens to touch that box, across unrelated topics.
-    "host", "container", "ip_address", "vlan", "endpoint_url", "service",
-    "protocol",
-    # Model/tool names are too generic: "Opus", "gpt-4o-mini", "bge-m3" co-occur
-    # across bench, infra, and feature notes alike. (Discriminative entities that
-    # SURVIVE and rightly co-locate: person, benchmark, organization, metric.)
-    "model", "variant", "device",
-})
+NON_DISCRIMINATIVE_ENTITY_TYPES = frozenset(
+    {
+        # Structural / temporal noise — appear everywhere.
+        "datetime",
+        "file_path",
+        "env_var",
+        "port",
+        "commit_or_branch",
+        "module",
+        "class_or_table",
+        "memory_type",
+        "task_id",
+        "task_category",
+        "bench_run_id",
+        "migration",
+        "mac_address",
+        "memory_id",
+        # Infrastructure addressing — a host/container/IP/VLAN/endpoint is shared by
+        # every note that happens to touch that box, across unrelated topics.
+        "host",
+        "container",
+        "ip_address",
+        "vlan",
+        "endpoint_url",
+        "service",
+        "protocol",
+        # Model/tool names are too generic: "Opus", "gpt-4o-mini", "bge-m3" co-occur
+        # across bench, infra, and feature notes alike. (Discriminative entities that
+        # SURVIVE and rightly co-locate: person, benchmark, organization, metric.)
+        "model",
+        "variant",
+        "device",
+    }
+)
 
 # Self-referential entity VALUES: the project's own name / repo / org identifiers.
 # Type alone can't catch these — "skynetcmd/m3-memory" is an `organization`, and
@@ -83,9 +104,16 @@ NON_DISCRIMINATIVE_ENTITY_TYPES = frozenset({
 # (Measured 2026-07-24: `skynetcmd/m3-memory` [org] + `m3-memory` [org] were the
 # last bridges fusing a release note into the debugging cluster.)
 _SELF_REF_CONFIG_BASENAME = ".wiki_self_entities.json"
-_DEFAULT_SELF_REF_NAMES = frozenset({
-    "m3-memory", "skynetcmd/m3-memory", "skynetcmd", "skynetCMD", "m3", "M3",
-})
+_DEFAULT_SELF_REF_NAMES = frozenset(
+    {
+        "m3-memory",
+        "skynetcmd/m3-memory",
+        "skynetcmd",
+        "skynetCMD",
+        "m3",
+        "M3",
+    }
+)
 
 
 def _self_ref_names() -> frozenset[str]:
@@ -98,6 +126,7 @@ def _self_ref_names() -> frozenset[str]:
     from pathlib import Path
 
     from m3_core.paths import get_m3_config_root  # the one owner
+
     root = get_m3_config_root()
     path = str(Path(root) / _SELF_REF_CONFIG_BASENAME)
     names = set(_DEFAULT_SELF_REF_NAMES)
@@ -120,6 +149,7 @@ _WIKILINK_STRIP = re.compile(r"\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]")
 @dataclass(slots=True)
 class Mem:
     """A core memory row, trimmed to what the wiki renders."""
+
     id: str
     type: str
     title: str
@@ -172,10 +202,11 @@ class Edge:
 @dataclass(slots=True)
 class Promo:
     """A promotion_marker: a files-DB item that became a memory row."""
+
     marker_uuid: str
-    promoted_to: str          # memory_items.id
-    source_memory: str        # files-DB fact/leaf/file_summary uuid
-    source_memory_type: str   # 'fact' | 'leaf' | 'file_summary'
+    promoted_to: str  # memory_items.id
+    source_memory: str  # files-DB fact/leaf/file_summary uuid
+    source_memory_type: str  # 'fact' | 'leaf' | 'file_summary'
     filename: str | None
     source_path: str | None
 
@@ -196,6 +227,7 @@ def _param() -> str:
     sqlite fixture in tests)."""
     try:
         from memory.backends import dialect
+
         return dialect().param()
     except Exception:
         return "?"
@@ -229,6 +261,7 @@ def _local_json_to_dict(value) -> dict:
         return value
     try:
         import json as _json
+
         if isinstance(value, (bytes, bytearray)):
             value = value.decode("utf-8")
         parsed = _json.loads(value)
@@ -267,16 +300,14 @@ def _has_column(conn, table: str, column: str) -> bool:
     `PRAGMA table_info` for a raw sqlite3 fixture with no backend seam (tests)."""
     try:
         from memory.backends import dialect
+
         sql, params = dialect().columns_of(table)
         return any(r[0] == column for r in conn.execute(sql, params).fetchall())
     except Exception:
         # No backend seam (standalone sqlite fixture): PRAGMA is safe on sqlite.
         try:
             rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
-            return any(
-                (r["name"] if isinstance(r, sqlite3.Row) else r[1]) == column
-                for r in rows
-            )
+            return any((r["name"] if isinstance(r, sqlite3.Row) else r[1]) == column for r in rows)
         except Exception:
             return False
 
@@ -308,6 +339,7 @@ def select_core_memories(
     vault. Applied in Python (not SQL) so the pattern is a full regex.
     """
     import re as _re
+
     _excl = _re.compile(exclude_regex, _re.IGNORECASE) if exclude_regex else None
     has_pinned = _has_column(conn, "memory_items", "pinned")
     has_conf = _has_column(conn, "memory_items", "confidence")
@@ -326,10 +358,7 @@ def select_core_memories(
     # to a bound value (not literal 1) so it's valid whether `pinned` is INTEGER
     # (SQLite) or BOOLEAN (PostgreSQL).
     pinned_pred = f"pinned = {p} OR " if has_pinned else ""
-    where_sql = (
-        f"is_deleted = 0 AND ({pinned_pred}importance >= {p} "
-        f"OR type IN ({type_placeholders}))"
-    )
+    where_sql = f"is_deleted = 0 AND ({pinned_pred}importance >= {p} OR type IN ({type_placeholders}))"
 
     sql = (
         f"SELECT id, type, title, content, importance, {conf_sel}, "
@@ -340,7 +369,7 @@ def select_core_memories(
     )
     params: list = []
     if has_pinned:
-        params.append(1)              # pinned = 1 (truthy on both int and bool cols)
+        params.append(1)  # pinned = 1 (truthy on both int and bool cols)
     params += [importance_threshold, *CORE_TYPES, limit]
 
     _set_dict_rows(conn)
@@ -379,9 +408,7 @@ def load_memory_edges(conn: sqlite3.Connection, ids: set[str]) -> list[Edge]:
     (they'd render as dangling links); the lint pass reports those separately.
     """
     _set_dict_rows(conn)
-    rows = conn.execute(
-        "SELECT from_id, to_id, relationship_type FROM memory_relationships"
-    ).fetchall()
+    rows = conn.execute("SELECT from_id, to_id, relationship_type FROM memory_relationships").fetchall()
     edges: list[Edge] = []
     for r in rows:
         fid, tid = r["from_id"], r["to_id"]
@@ -411,9 +438,7 @@ def load_entity_comention_edges(conn: sqlite3.Connection, ids: set[str]) -> list
     # connection for any later query. `_has_column` uses a safe metadata query.
     if not _has_column(conn, "memory_item_entities", "entity_id"):
         return []  # entity graph not present on this DB
-    rows = conn.execute(
-        "SELECT entity_id, memory_id FROM memory_item_entities"
-    ).fetchall()
+    rows = conn.execute("SELECT entity_id, memory_id FROM memory_item_entities").fetchall()
 
     # Non-discriminative entity types (dates, file paths, env vars, …) bridge
     # unrelated topics, so drop their entities from co-mention. Load the type map
@@ -471,13 +496,13 @@ def load_promotions(files_conn, memory_ids: set[str]) -> list[Promo]:
     """
     from files_memory.config import files_table
     from memory.backends import dialect as _dialect
+
     _d = _dialect()
     if isinstance(files_conn, sqlite3.Connection):
         files_conn.row_factory = sqlite3.Row
     try:
         rows = files_conn.execute(
-            f"SELECT uuid, promoted_to, source_memory, source_memory_type "
-            f"FROM {files_table('promotion_markers')}"
+            f"SELECT uuid, promoted_to, source_memory, source_memory_type FROM {files_table('promotion_markers')}"
         ).fetchall()
     except Exception as e:
         # files store may predate promotion_markers; degrade gracefully.
@@ -505,14 +530,13 @@ def load_promotions(files_conn, memory_ids: set[str]) -> list[Promo]:
     return out
 
 
-def _resolve_source_file(
-    conn, source_uuid: str, source_type: str
-) -> tuple[str | None, str | None]:
+def _resolve_source_file(conn, source_uuid: str, source_type: str) -> tuple[str | None, str | None]:
     """Best-effort filename + path for a promoted files-store item. Backend-agnostic
     (files_table()-qualified names + dialect placeholder); positional row access, so
     no row_factory needed."""
     from files_memory.config import files_table
     from memory.backends import dialect as _dialect
+
     _d = _dialect()
     _p = _d.param()
     _fn = files_table("file_nodes")

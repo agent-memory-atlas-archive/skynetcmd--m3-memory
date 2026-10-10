@@ -1,4 +1,5 @@
 """Tests for the embed-server port already-running check (embedder_admin)."""
+
 from __future__ import annotations
 
 import socket
@@ -107,6 +108,7 @@ def test_cmd_start_warns_then_delegates(monkeypatch, capsys, tmp_path):
 
 class _ns:
     """Minimal argparse.Namespace stand-in."""
+
     def __getattr__(self, name):
         return None
 

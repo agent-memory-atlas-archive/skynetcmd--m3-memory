@@ -15,7 +15,7 @@ logger = logging.getLogger("thermal_utils")
 # Cache the answer, and remember when the probe is simply not available here.
 import time as _time
 
-_TTL = 60.0                 # seconds; governor cycles are far faster than this
+_TTL = 60.0  # seconds; governor cycles are far faster than this
 # Two scalars rather than one dict: the value is a str and the timestamp a
 # float, and a heterogeneous dict literal makes mypy infer a single value type
 # (dict[str, float | None]) — so storing the status and returning it both fail
@@ -34,11 +34,13 @@ try:
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from _task_runtime import no_window_kwargs
 except Exception:  # pragma: no cover - fallback if _task_runtime unavailable
+
     def no_window_kwargs() -> dict:
         # getattr, not subprocess.CREATE_NO_WINDOW: the attribute only exists on
         # Windows, so a direct reference fails mypy on the Linux CI runner.
         flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if is_windows() else 0
         return {"creationflags": flags} if flags else {}
+
 
 def get_thermal_status() -> str:
     """Thermal/pressure status: Nominal, Fair, Serious, or Critical.
@@ -92,7 +94,10 @@ def _probe_thermal_status() -> str:
         try:
             res = subprocess.run(
                 ["sysctl", "-n", "kern.thermal_pressure"],
-                capture_output=True, text=True, timeout=5, **no_window_kwargs(),
+                capture_output=True,
+                text=True,
+                timeout=5,
+                **no_window_kwargs(),
             )
             if res.returncode == 0:
                 val = int(res.stdout.strip())
@@ -106,17 +111,27 @@ def _probe_thermal_status() -> str:
         # Primary: PowerShell Get-CimInstance (works on modern Windows 11 22H2+)
         try:
             res = subprocess.run(
-                ["powershell", "-NoProfile", "-Command",
-                 "(Get-CimInstance -Namespace root/WMI -ClassName MSAcpi_ThermalZoneTemperature -ErrorAction Stop).CurrentTemperature"],
-                capture_output=True, text=True, timeout=10, **no_window_kwargs(),
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-Command",
+                    "(Get-CimInstance -Namespace root/WMI -ClassName MSAcpi_ThermalZoneTemperature -ErrorAction Stop).CurrentTemperature",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                **no_window_kwargs(),
             )
             if res.returncode == 0 and res.stdout.strip():
                 raw_temp = int(res.stdout.strip().splitlines()[0])
                 _PROBE_OK["ok"] = True
                 temp_c = (raw_temp / 10.0) - 273.15
-                if temp_c > 90: return "Critical"
-                if temp_c > 80: return "Serious"
-                if temp_c > 70: return "Fair"
+                if temp_c > 90:
+                    return "Critical"
+                if temp_c > 80:
+                    return "Serious"
+                if temp_c > 70:
+                    return "Fair"
                 return "Nominal"
         except (subprocess.TimeoutExpired, ValueError, OSError) as e:
             logger.debug(f"PowerShell thermal check failed: {e}")
@@ -124,9 +139,18 @@ def _probe_thermal_status() -> str:
         # Fallback: legacy wmic (pre-22H2)
         try:
             res = subprocess.run(
-                ["wmic", "/namespace:\\\\root\\wmi", "path",
-                 "MSAcpi_ThermalZoneTemperature", "get", "CurrentTemperature"],
-                capture_output=True, text=True, timeout=5, **no_window_kwargs(),
+                [
+                    "wmic",
+                    "/namespace:\\\\root\\wmi",
+                    "path",
+                    "MSAcpi_ThermalZoneTemperature",
+                    "get",
+                    "CurrentTemperature",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                **no_window_kwargs(),
             )
             if res.returncode == 0 and "CurrentTemperature" in res.stdout:
                 lines = res.stdout.strip().split("\n")
@@ -135,9 +159,12 @@ def _probe_thermal_status() -> str:
                     _PROBE_OK["ok"] = True
                     # WMI returns deci-Kelvin (K * 10)
                     temp_c = (raw_temp / 10.0) - 273.15
-                    if temp_c > 90: return "Critical"
-                    if temp_c > 80: return "Serious"
-                    if temp_c > 70: return "Fair"
+                    if temp_c > 90:
+                        return "Critical"
+                    if temp_c > 80:
+                        return "Serious"
+                    if temp_c > 70:
+                        return "Fair"
                     return "Nominal"
         except (subprocess.TimeoutExpired, ValueError, OSError) as e:
             logger.debug(f"WMIC thermal check failed: {e}")
@@ -150,9 +177,12 @@ def _probe_thermal_status() -> str:
                 if os.path.exists(path):
                     with open(path) as f:
                         temp = int(f.read().strip()) / 1000.0
-                        if temp > 95: return "Critical"
-                        if temp > 85: return "Serious"
-                        if temp > 75: return "Fair"
+                        if temp > 95:
+                            return "Critical"
+                        if temp > 85:
+                            return "Serious"
+                        if temp > 75:
+                            return "Fair"
         except (ValueError, OSError) as e:
             logger.debug(f"Thermal check failed on Linux: {e}")
 

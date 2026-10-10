@@ -11,6 +11,7 @@ That hid the warehouse from the same-database guard, put the password into
 ``parse_dsn`` from psycopg2 (a core dependency) is libpq's own parser, the one
 ``connect()`` uses, so this module agrees with the driver on every shape.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -48,5 +49,4 @@ def parse_pg_dsn(dsn: str) -> DsnParts | None:
     dbname = (raw.get("dbname") or "").strip("/")
     if not host and not dbname:
         return None
-    return DsnParts(host=host, port=port, dbname=dbname,
-                    user=raw.get("user"), password=raw.get("password"))
+    return DsnParts(host=host, port=port, dbname=dbname, user=raw.get("user"), password=raw.get("password"))

@@ -64,14 +64,15 @@ from m3_memory.langchain import (  # noqa: E402
 
 def _flush():
     import time
+
     time.sleep(0.4)
 
 
 def test_history_roundtrip_order_and_roles():
     h = M3ChatMessageHistory(f"conv-1-{uuid.uuid4()}", user_id="alex")
-    h.add_messages([HumanMessage(content="I love hiking"),
-                    AIMessage(content="Where?"),
-                    HumanMessage(content="The Alps")])
+    h.add_messages(
+        [HumanMessage(content="I love hiking"), AIMessage(content="Where?"), HumanMessage(content="The Alps")]
+    )
     _flush()
     msgs = h.messages
     assert [m.content for m in msgs] == ["I love hiking", "Where?", "The Alps"]
@@ -119,8 +120,7 @@ def test_history_conversations_are_isolated():
 
 def test_system_message_roundtrips():
     h = M3ChatMessageHistory(f"conv-sys-{uuid.uuid4()}", user_id="alex")
-    h.add_messages([SystemMessage(content="you are helpful"),
-                    HumanMessage(content="hi")])
+    h.add_messages([SystemMessage(content="you are helpful"), HumanMessage(content="hi")])
     _flush()
     msgs = h.messages
     assert msgs[0].type == "system"
@@ -153,6 +153,7 @@ def test_retriever_returns_documents_with_temporal_metadata():
     # can miss on a fresh DB before the async embedding backfills (FTS
     # tokenization), which is a search-recall property, not a retriever bug.
     from m3_memory.langchain import Memory
+
     Memory(user_id="alex").add("Zanzibar is an island archipelago", user_id="alex")
     _flush()
     r = M3Retriever(user_id="alex", k=5)
@@ -160,7 +161,7 @@ def test_retriever_returns_documents_with_temporal_metadata():
     assert len(docs) >= 1
     md = docs[0].metadata
     assert "id" in md and "score" in md
-    assert "confidence" in md          # bitemporal/confidence surfaced (§2.3)
+    assert "confidence" in md  # bitemporal/confidence surfaced (§2.3)
 
 
 def test_retriever_requires_user_id():
@@ -171,4 +172,5 @@ def test_retriever_requires_user_id():
 
 if __name__ == "__main__":
     import sys
+
     sys.exit(pytest.main([__file__, "-v"]))

@@ -13,6 +13,7 @@ Public API:
     files_search(query, **opts) -> list[SearchHit]
     SearchHit — dataclass
 """
+
 from __future__ import annotations
 
 import logging
@@ -36,6 +37,7 @@ class SearchHit:
     None means the ingested file is its own original. UIs should prefer
     `original_path` for citations and fall back to `path` when None.
     """
+
     leaf_uuid: str
     file_node_uuid: str
     filename: str
@@ -67,6 +69,7 @@ def _corpus_filter_clause(
     """
     if _d is None:
         from memory.backends import dialect as _dialect
+
         _d = _dialect()
     if corpora:
         clean = [c for c in corpora if c]
@@ -79,10 +82,15 @@ def _corpus_filter_clause(
     return ("", [])
 
 
-def _fts_query(conn, query: str, limit: int,
-               current_only: bool, corpus_id: str | None,
-               filetype: str | None,
-               corpora: list[str] | None = None) -> list[tuple[str, float]]:
+def _fts_query(
+    conn,
+    query: str,
+    limit: int,
+    current_only: bool,
+    corpus_id: str | None,
+    filetype: str | None,
+    corpora: list[str] | None = None,
+) -> list[tuple[str, float]]:
     """Keyword full-text channel. Returns [(leaf_uuid, score)] in rank order,
     score HIGHER = better (the fusion convention) on both backends.
 
@@ -95,17 +103,15 @@ def _fts_query(conn, query: str, limit: int,
         better already). No FTS5, no pg_search — native tsvector/GIN (pg_004).
     """
     from memory.backends import dialect as _dialect
+
     _d = _dialect()
     is_pg = _d.backend != "sqlite"
     if is_pg:
-        return _fts_query_pg(conn, query, limit, current_only, corpus_id,
-                             filetype, corpora, _d)
-    return _fts_query_sqlite(conn, query, limit, current_only, corpus_id,
-                             filetype, corpora, _d)
+        return _fts_query_pg(conn, query, limit, current_only, corpus_id, filetype, corpora, _d)
+    return _fts_query_sqlite(conn, query, limit, current_only, corpus_id, filetype, corpora, _d)
 
 
-def _fts_query_sqlite(conn, query, limit, current_only, corpus_id, filetype,
-                      corpora, _d) -> list[tuple[str, float]]:
+def _fts_query_sqlite(conn, query, limit, current_only, corpus_id, filetype, corpora, _d) -> list[tuple[str, float]]:
     """SQLite FTS5 arm. bm25() is LOWER=better; negated so higher=better."""
     # Sanitize query for FTS5: treat the query as a permissive token match.
     safe = " ".join(t for t in query.split() if t.replace("-", "").replace("_", "").isalnum())
@@ -140,8 +146,7 @@ def _fts_query_sqlite(conn, query, limit, current_only, corpus_id, filetype,
     return [(r["uuid"], -r["rank"]) for r in rows]
 
 
-def _fts_query_pg(conn, query, limit, current_only, corpus_id, filetype,
-                  corpora, _d) -> list[tuple[str, float]]:
+def _fts_query_pg(conn, query, limit, current_only, corpus_id, filetype, corpora, _d) -> list[tuple[str, float]]:
     """PostgreSQL tsvector arm. Matches leaves.search_vector @@ to_tsquery and
     ranks with ts_rank (already higher=better). The dialect compiles the query,
     so terms normalize identically to the FTS5 path."""
@@ -182,10 +187,15 @@ def _fts_query_pg(conn, query, limit, current_only, corpus_id, filetype,
     return [(r["uuid"], float(r["rank"])) for r in rows]
 
 
-def _vec_query(conn: sqlite3.Connection, query: str, limit: int,
-               current_only: bool, corpus_id: str | None,
-               filetype: str | None,
-               corpora: list[str] | None = None) -> list[tuple[str, float]]:
+def _vec_query(
+    conn: sqlite3.Connection,
+    query: str,
+    limit: int,
+    current_only: bool,
+    corpus_id: str | None,
+    filetype: str | None,
+    corpora: list[str] | None = None,
+) -> list[tuple[str, float]]:
     """Vector cosine search. Returns [(leaf_uuid, cosine_score)].
 
     Embeds the query then scans the text-kind embeddings, computing
@@ -202,6 +212,7 @@ def _vec_query(conn: sqlite3.Connection, query: str, limit: int,
     from memory.backends import dialect as _dialect
 
     from .config import files_table
+
     _d = _dialect()
     _p = _d.param()
     _le = files_table("leaf_embeddings")
@@ -235,6 +246,7 @@ def _vec_query(conn: sqlite3.Connection, query: str, limit: int,
     if not pairs:
         return []
     from memory.util import _cosine_batch_packed
+
     uuids = [p[0] for p in pairs]
     # psycopg returns BYTEA as memoryview; normalize to bytes like the seam does.
     blobs = [bytes(b) if isinstance(b, memoryview) else b for _, b in pairs]
@@ -300,6 +312,7 @@ def files_search(
     from memory.backends import dialect as _dialect
 
     from .config import files_table
+
     _d = _dialect()
     with _db(db_path) as conn:
         # No forced conn.row_factory: the SQLite files connection already carries
@@ -334,26 +347,29 @@ def files_search(
         row_map = {r["leaf_uuid"]: r for r in rows}
 
         from .provenance import original_path_for_metadata
+
         hits: list[SearchHit] = []
         for uid, meta in top:
             row = row_map.get(uid)
             if row is None:
                 continue
-            hits.append(SearchHit(
-                leaf_uuid=row["leaf_uuid"],
-                file_node_uuid=row["file_node"],
-                filename=row["filename"],
-                path=row["path"],
-                division_type=row["division_type"],
-                division_id=row["division_id"],
-                division_label=row["division_label"],
-                text=row["text"],
-                score=meta["score"],
-                fts_rank=meta["fts_rank"],
-                vec_rank=meta["vec_rank"],
-                original_path=original_path_for_metadata(row["fn_metadata"]),
-                corpus_id=row["corpus_id"],
-            ))
+            hits.append(
+                SearchHit(
+                    leaf_uuid=row["leaf_uuid"],
+                    file_node_uuid=row["file_node"],
+                    filename=row["filename"],
+                    path=row["path"],
+                    division_type=row["division_type"],
+                    division_id=row["division_id"],
+                    division_label=row["division_label"],
+                    text=row["text"],
+                    score=meta["score"],
+                    fts_rank=meta["fts_rank"],
+                    vec_rank=meta["vec_rank"],
+                    original_path=original_path_for_metadata(row["fn_metadata"]),
+                    corpus_id=row["corpus_id"],
+                )
+            )
 
         # Promotion-suggestion bookkeeping: record a hit for every fact
         # whose leaf surfaced. Skipped in include_history mode (those
@@ -361,6 +377,7 @@ def files_search(
         if hits and not include_history:
             try:
                 from .promotability import record_leaf_hits
+
                 record_leaf_hits(conn, [h.leaf_uuid for h in hits])
             except Exception as e:
                 log_swallowed(logger, e, "record_leaf_hits failed (non-fatal): %s", e)

@@ -26,6 +26,7 @@ Verified on a real Debian 13 / systemd 257 guest (claude-dev), not only on
 mocks: 0 schtasks calls, 0 Windows names leaked, and a genuinely absent
 `m3-cognitive-loop.service` reported loudly rather than as "Started".
 """
+
 from __future__ import annotations
 
 import os
@@ -72,9 +73,7 @@ def spy(monkeypatch):
         ("linux", "systemctl", "m3-cognitive-loop.service"),
     ],
 )
-def test_uses_the_right_launcher_and_the_right_name(
-    platform, launcher, expected_unit, spy, monkeypatch
-):
+def test_uses_the_right_launcher_and_the_right_name(platform, launcher, expected_unit, spy, monkeypatch):
     monkeypatch.setattr(isch, "_platform_key", lambda: platform)
     isch._start_longlived_tasks([{"name": "AgentOS_CognitiveLoop"}])
 
@@ -96,9 +95,7 @@ def test_windows_task_name_never_reaches_a_unix_launcher(spy, monkeypatch):
         for task in isch._SELF_HEAL_TASKS:
             isch._start_longlived_tasks([{"name": task}])
         for cmd in spy:
-            assert not any("AgentOS_" in part for part in cmd), (
-                f"on {platform} a Windows task name leaked into {cmd}"
-            )
+            assert not any("AgentOS_" in part for part in cmd), f"on {platform} a Windows task name leaked into {cmd}"
 
 
 def test_a_platform_without_the_service_is_skipped_not_started(spy, monkeypatch):
@@ -129,9 +126,7 @@ def test_an_unmappable_task_is_reported_not_silently_skipped(monkeypatch):
 
     isch._start_longlived_tasks([{"name": "AgentOS_Unmapped"}])
 
-    assert any("_ROLE_TO_SERVICE" in m for m in said), (
-        f"an unmappable task was not reported loudly; output was {said}"
-    )
+    assert any("_ROLE_TO_SERVICE" in m for m in said), f"an unmappable task was not reported loudly; output was {said}"
 
 
 def test_service_exists_has_one_owner():
@@ -141,14 +136,12 @@ def test_service_exists_has_one_owner():
     import pathlib
 
     tree = ast.parse(pathlib.Path(isch.__file__).read_text(encoding="utf-8"))
-    defs = [n.lineno for n in ast.walk(tree)
-            if isinstance(n, ast.FunctionDef) and n.name == "_service_exists"]
+    defs = [n.lineno for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "_service_exists"]
     assert len(defs) == 1, f"_service_exists must have ONE definition; got {defs}"
 
     src = pathlib.Path(isch.__file__).read_text(encoding="utf-8")
     assert src.count('"LoadState"') <= 1, (
-        "the LoadState probe appears more than once -- it belongs only in "
-        "_service_exists"
+        "the LoadState probe appears more than once -- it belongs only in _service_exists"
     )
 
 
@@ -160,8 +153,7 @@ def test_darwin_embed_server_starts_one_resolved_label(spy, monkeypatch):
     assert ["launchctl", "start", "com.m3memory.embedserver"] in spy
 
 
-@pytest.mark.parametrize("platform,unit", [("darwin", "com.m3memory.dashboard"),
-                                           ("linux", "m3-dashboard.service")])
+@pytest.mark.parametrize("platform,unit", [("darwin", "com.m3memory.dashboard"), ("linux", "m3-dashboard.service")])
 def test_the_report_names_the_service_this_platform_started(spy, monkeypatch, platform, unit):
     """`[OK] Started AgentOS_Dashboard` on macOS/Linux named a Windows task that
     does not exist there; the line must name what was actually started."""

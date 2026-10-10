@@ -3,8 +3,9 @@ import os
 import requests
 
 # Constants
-ROUTER_URL = "http://127.0.0.1:1234/v1/chat/completions" # Default router/LM Studio port
+ROUTER_URL = "http://127.0.0.1:1234/v1/chat/completions"  # Default router/LM Studio port
 API_TOKEN = os.getenv("LM_API_TOKEN") or "no-token-found"
+
 
 def test_payload(model, description):
     print(f"\n--- Testing: {description} (Model: {model}) ---")
@@ -13,14 +14,11 @@ def test_payload(model, description):
         "model": model,
         "messages": [
             {"role": "system", "content": "You are a helpful OS assistant."},
-            {"role": "user", "content": "Hello! Confirm you received this OpenAI-style payload."}
-        ]
+            {"role": "user", "content": "Hello! Confirm you received this OpenAI-style payload."},
+        ],
     }
 
-    headers = {
-        "Authorization": f"Bearer {API_TOKEN}",
-        "Content-Type": "application/json"
-    }
+    headers = {"Authorization": f"Bearer {API_TOKEN}", "Content-Type": "application/json"}
 
     try:
         # Increased timeout to 60s for reasoning models
@@ -28,7 +26,7 @@ def test_payload(model, description):
         if response.status_code == 200:
             data = response.json()
             # Standard OpenAI response format
-            content = data['choices'][0]['message']['content']
+            content = data["choices"][0]["message"]["content"]
             print("✅ Success! Response received.")
             print(f"Response Preview: {content[:100]}...")
         else:
@@ -37,6 +35,7 @@ def test_payload(model, description):
     except Exception as e:
         print(f"❌ Connection Error: {e!s}")
         print("Note: Ensure your router or LM Studio is running on port 1234.")
+
 
 if __name__ == "__main__":
     # Test local routing (DeepSeek/LM Studio)

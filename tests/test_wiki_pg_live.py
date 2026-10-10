@@ -17,6 +17,7 @@ Skips cleanly without a reachable cluster (the `requires_pg` marker). To run:
 stand up a throwaway PG and export M3_PRIMARY_PG_URL — see the m3 RUNBOOK
 "stand up a throwaway local PostgreSQL to test m3 on the PG backend".
 """
+
 from __future__ import annotations
 
 import sys
@@ -77,8 +78,18 @@ def _seed(pg):
                 "INSERT INTO memory_items (id,type,title,content,importance,"
                 "confidence,pinned,is_deleted,valid_from,created_at,updated_at) "
                 "VALUES (%s,%s,%s,%s,%s,%s,%s,0,%s,%s,%s)",
-                (r[0], r[1], r[2], r[3], r[4], r[5], r[6],
-                 "2026-01-01T00:00:00Z", "2026-01-01T00:00:00Z", "2026-01-02T00:00:00Z"),
+                (
+                    r[0],
+                    r[1],
+                    r[2],
+                    r[3],
+                    r[4],
+                    r[5],
+                    r[6],
+                    "2026-01-01T00:00:00Z",
+                    "2026-01-01T00:00:00Z",
+                    "2026-01-02T00:00:00Z",
+                ),
             )
         cur.execute(
             "INSERT INTO memory_relationships (id,from_id,to_id,relationship_type,created_at) "
@@ -112,9 +123,11 @@ def _build_via_seam(admission_gate: bool = False):
 
     with _db() as mem_conn:
         return build_wiki(
-            mem_conn, None,
-            WikiOptions(importance_threshold=0.6, include_files=False,
-                        entity_comention=True, admission_gate=admission_gate),
+            mem_conn,
+            None,
+            WikiOptions(
+                importance_threshold=0.6, include_files=False, entity_comention=True, admission_gate=admission_gate
+            ),
         )
 
 
@@ -138,8 +151,7 @@ def test_entity_comention_clusters_on_postgres(pg):
     _seed(pg)
     vault = _build_via_seam()
 
-    topic_pages = [t for p, t in vault.items()
-                   if p.startswith("topics/") and p != "topics/orphans.md"]
+    topic_pages = [t for p, t in vault.items() if p.startswith("topics/") and p != "topics/orphans.md"]
     # m-ddd has NO explicit edge; only the shared entity binds it. If co-mention
     # worked on PG, ddd shares a topic page with the alpha cluster.
     shared = [t for t in topic_pages if "m-ddd" in t and "m-aaa" in t]
@@ -168,6 +180,7 @@ def _seed_files_schema(pg):
     chain — file_node → ingestion_run → leaf → fact — so both the file_node read
     and the _load_facts read are exercised on PG. Returns the seeded file uuid."""
     from files_memory import db as fdb
+
     fdb._initialized_dbs.clear()
     fdb.init_db()  # creates the `files` schema + applies pg_ files migrations
     fn = f"fn-{uuid.uuid4().hex[:8]}"
@@ -219,9 +232,9 @@ def test_files_corpus_visible_on_postgres(pg):
 
     with _mem_seam() as mem_conn, _files_seam() as files_conn:
         vault = build_wiki(
-            mem_conn, files_conn,
-            WikiOptions(importance_threshold=0.6, include_files=True,
-                        admission_gate=False),
+            mem_conn,
+            files_conn,
+            WikiOptions(importance_threshold=0.6, include_files=True, admission_gate=False),
         )
     blob = "\n".join(vault.values())
     # The file_node's summary became a sources/* page and the fact is evidence.

@@ -7,6 +7,7 @@ pointed at a nonexistent bin/bin/embed_backfill.py, so `m3 doctor --fix` reporte
 propagating PYTHONPATH so a macOS framework python finds m3's deps — is exercised
 live; here we lock the path resolution.)
 """
+
 from __future__ import annotations
 
 import os

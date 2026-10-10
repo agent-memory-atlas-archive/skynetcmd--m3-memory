@@ -8,6 +8,7 @@ cover the detect/cure pair added to mirror `_dedupe_mcp_registration` exactly:
   - _migrate_env_names(apply=...): dry-run/apply cure, .bak backup, idempotent,
     conflict rule (old dropped when new already set), per-file fault isolation.
 """
+
 from __future__ import annotations
 
 import json
@@ -26,11 +27,19 @@ def _mk(path: Path, servers: dict) -> None:
 # ── Detect ────────────────────────────────────────────────────────────────
 def test_detect_reports_old_names_in_env_block(tmp_path, monkeypatch):
     settings = tmp_path / "settings.json"
-    _mk(settings, {"memory": {"command": "py", "env": {
-        "CHROMA_BASE_URL": "http://x", "PG_URL": "postgres://y",
-    }}})
-    monkeypatch.setattr(I, "_client_config_sources",
-                        lambda: {"Claude Code": [settings]})
+    _mk(
+        settings,
+        {
+            "memory": {
+                "command": "py",
+                "env": {
+                    "CHROMA_BASE_URL": "http://x",
+                    "PG_URL": "postgres://y",
+                },
+            }
+        },
+    )
+    monkeypatch.setattr(I, "_client_config_sources", lambda: {"Claude Code": [settings]})
 
     found = I._deprecated_env_in_config()
     assert settings in found
@@ -43,8 +52,7 @@ def test_detect_reports_old_names_in_env_block(tmp_path, monkeypatch):
 def test_detect_clean_config_returns_empty(tmp_path, monkeypatch):
     settings = tmp_path / "settings.json"
     _mk(settings, {"memory": {"command": "py", "env": {"M3_CHROMA_BASE_URL": "http://x"}}})
-    monkeypatch.setattr(I, "_client_config_sources",
-                        lambda: {"Claude Code": [settings]})
+    monkeypatch.setattr(I, "_client_config_sources", lambda: {"Claude Code": [settings]})
     assert I._deprecated_env_in_config() == {}
 
 
@@ -53,8 +61,7 @@ def test_detect_malformed_json_skipped_not_raised(tmp_path, monkeypatch):
     bad = tmp_path / ".mcp.json"
     _mk(settings, {"memory": {"command": "py", "env": {"CHROMA_BASE_URL": "http://x"}}})
     bad.write_text("{ not valid json", encoding="utf-8")
-    monkeypatch.setattr(I, "_client_config_sources",
-                        lambda: {"Claude Code": [settings, bad]})
+    monkeypatch.setattr(I, "_client_config_sources", lambda: {"Claude Code": [settings, bad]})
     found = I._deprecated_env_in_config()
     assert settings in found
     assert bad not in found  # unreadable file skipped, no raise
@@ -64,8 +71,7 @@ def test_detect_malformed_json_skipped_not_raised(tmp_path, monkeypatch):
 def test_migrate_dry_run_lists_renames_without_writing(tmp_path, monkeypatch):
     settings = tmp_path / "settings.json"
     _mk(settings, {"memory": {"command": "py", "env": {"CHROMA_BASE_URL": "http://x"}}})
-    monkeypatch.setattr(I, "_client_config_sources",
-                        lambda: {"Claude Code": [settings]})
+    monkeypatch.setattr(I, "_client_config_sources", lambda: {"Claude Code": [settings]})
     before = settings.read_text()
 
     actions = I._migrate_env_names(apply=False)
@@ -78,8 +84,7 @@ def test_migrate_dry_run_lists_renames_without_writing(tmp_path, monkeypatch):
 def test_migrate_apply_rewrites_preserves_value_writes_backup(tmp_path, monkeypatch):
     settings = tmp_path / "settings.json"
     _mk(settings, {"memory": {"command": "py", "env": {"CHROMA_BASE_URL": "http://x:8000"}}})
-    monkeypatch.setattr(I, "_client_config_sources",
-                        lambda: {"Claude Code": [settings]})
+    monkeypatch.setattr(I, "_client_config_sources", lambda: {"Claude Code": [settings]})
     original = settings.read_text()
 
     actions = I._migrate_env_names(apply=True)
@@ -101,8 +106,7 @@ def test_migrate_apply_rewrites_preserves_value_writes_backup(tmp_path, monkeypa
 def test_migrate_apply_is_idempotent_second_run_empty(tmp_path, monkeypatch):
     settings = tmp_path / "settings.json"
     _mk(settings, {"memory": {"command": "py", "env": {"PG_URL": "postgres://z"}}})
-    monkeypatch.setattr(I, "_client_config_sources",
-                        lambda: {"Claude Code": [settings]})
+    monkeypatch.setattr(I, "_client_config_sources", lambda: {"Claude Code": [settings]})
     assert I._migrate_env_names(apply=True) != []
     assert I._migrate_env_names(apply=True) == []
 
@@ -110,12 +114,19 @@ def test_migrate_apply_is_idempotent_second_run_empty(tmp_path, monkeypatch):
 # ── Conflict rule ─────────────────────────────────────────────────────────
 def test_migrate_conflict_drops_old_keeps_new_value(tmp_path, monkeypatch):
     settings = tmp_path / "settings.json"
-    _mk(settings, {"memory": {"command": "py", "env": {
-        "CHROMA_BASE_URL": "http://old",
-        "M3_CHROMA_BASE_URL": "http://new",
-    }}})
-    monkeypatch.setattr(I, "_client_config_sources",
-                        lambda: {"Claude Code": [settings]})
+    _mk(
+        settings,
+        {
+            "memory": {
+                "command": "py",
+                "env": {
+                    "CHROMA_BASE_URL": "http://old",
+                    "M3_CHROMA_BASE_URL": "http://new",
+                },
+            }
+        },
+    )
+    monkeypatch.setattr(I, "_client_config_sources", lambda: {"Claude Code": [settings]})
 
     actions = I._migrate_env_names(apply=True)
     assert any("dropped superseded CHROMA_BASE_URL" in a for a in actions)
@@ -133,8 +144,7 @@ def test_migrate_one_bad_file_does_not_abort_others(tmp_path, monkeypatch):
     bad = tmp_path / ".mcp.json"
     _mk(good, {"memory": {"command": "py", "env": {"PG_URL": "postgres://z"}}})
     bad.write_text("{ not valid json", encoding="utf-8")
-    monkeypatch.setattr(I, "_client_config_sources",
-                        lambda: {"Claude Code": [good, bad]})
+    monkeypatch.setattr(I, "_client_config_sources", lambda: {"Claude Code": [good, bad]})
 
     # bad file is dropped by the detector itself (unparseable -> skipped),
     # so only the good file's rename should appear, no raise anywhere.
@@ -148,9 +158,7 @@ def test_migrate_one_bad_file_does_not_abort_others(tmp_path, monkeypatch):
 def test_dotenv_detect_and_migrate_preserves_values_and_comments(tmp_path, monkeypatch):
     dotenv = tmp_path / ".env"
     dotenv.write_text(
-        "# a comment\n"
-        "CHROMA_BASE_URL=http://x:8000\n"
-        "UNRELATED=keepme\n",
+        "# a comment\nCHROMA_BASE_URL=http://x:8000\nUNRELATED=keepme\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(I, "_client_config_sources", lambda: {})
@@ -181,8 +189,7 @@ def test_dotenv_conflict_drops_old_line_keeps_new(tmp_path, monkeypatch):
     # already present, the old PG_URL line is dropped as superseded.
     dotenv = tmp_path / ".env"
     dotenv.write_text(
-        "PG_URL=postgres://old\n"
-        "M3_CDW_PG_URL=postgres://new\n",
+        "PG_URL=postgres://old\nM3_CDW_PG_URL=postgres://new\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(I, "_client_config_sources", lambda: {})
@@ -205,6 +212,5 @@ def test_section_renders_without_error_when_clean(monkeypatch):
 
 def test_section_renders_without_error_when_dirty(tmp_path, monkeypatch):
     settings = tmp_path / "settings.json"
-    monkeypatch.setattr(I, "_deprecated_env_in_config",
-                        lambda: {settings: {"PG_URL": "M3_CDW_PG_URL"}})
+    monkeypatch.setattr(I, "_deprecated_env_in_config", lambda: {settings: {"PG_URL": "M3_CDW_PG_URL"}})
     I._deprecated_env_config_section()  # no exception = pass

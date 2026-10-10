@@ -19,6 +19,7 @@ are wrapped in catalog.lazy.LazyImpl. Resolving the REAL function is the whole
 difficulty -- the same LazyImpl opacity that made a getsource() sweep silently
 skip every tool and report a confident zero.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -86,6 +87,7 @@ def _real_impl(spec):
     attr_name = getattr(impl, "attr_name", None)
     if module_name and attr_name:
         import importlib
+
         return getattr(importlib.import_module(module_name), attr_name)
     return getattr(impl, "__wrapped__", impl)
 
@@ -103,8 +105,7 @@ def test_spec_advertises_as_records(name):
     )
     assert props["as_records"]["type"] == "boolean"
     assert props["as_records"]["default"] is False, (
-        "default must be False: every existing caller predates this param and "
-        "parses the display string"
+        "default must be False: every existing caller predates this param and parses the display string"
     )
 
 
@@ -196,8 +197,10 @@ def test_as_records_true_returns_parseable_json(name):
     try:
         out = _call(spec, **kwargs)
     except Exception as e:  # noqa: BLE001
-        pytest.fail(f"observed: {name} raised {type(e).__name__}: {e}. inspect: the tool, or give the "
-                    "test the requires_* marker its environment needs")
+        pytest.fail(
+            f"observed: {name} raised {type(e).__name__}: {e}. inspect: the tool, or give the "
+            "test the requires_* marker its environment needs"
+        )
     assert isinstance(out, str), "as_records changes the CONTENT, not the return type"
     data = json.loads(out)  # must not raise
     assert isinstance(data, dict)
@@ -223,11 +226,12 @@ def test_default_is_not_json(name):
     try:
         out = _call(spec, **kwargs)
     except Exception as e:  # noqa: BLE001
-        pytest.fail(f"observed: {name} raised {type(e).__name__}: {e}. inspect: the tool, or give the "
-                    "test the requires_* marker its environment needs")
+        pytest.fail(
+            f"observed: {name} raised {type(e).__name__}: {e}. inspect: the tool, or give the "
+            "test the requires_* marker its environment needs"
+        )
     assert not out.lstrip().startswith("{"), (
-        f"{name} returned JSON by default -- every existing caller parses the "
-        f"display string"
+        f"{name} returned JSON by default -- every existing caller parses the display string"
     )
 
 
@@ -235,10 +239,7 @@ def test_every_spec_uses_the_one_description():
     """Section 10a: one owner for the param text. Twelve hand-written
     descriptions drift, and an agent deciding whether to pass the flag reads
     the description, not the code."""
-    seen = {
-        _BY_NAME[n].parameters["properties"]["as_records"]["description"]
-        for n in AS_RECORDS_TOOLS
-    }
+    seen = {_BY_NAME[n].parameters["properties"]["as_records"]["description"] for n in AS_RECORDS_TOOLS}
     assert len(seen) == 1, f"as_records descriptions have drifted: {seen}"
     assert seen.pop() == records.PARAM_SPEC["description"], (
         "catalog description drifted from memory.records.PARAM_SPEC, the owner"
@@ -246,6 +247,7 @@ def test_every_spec_uses_the_one_description():
 
 
 # ── a NEW list-shaped tool must not ship prose-only ──────────────────────────
+
 
 def _list_shaped_tools():
     """Tools whose name says they return a collection.
@@ -257,12 +259,8 @@ def _list_shaped_tools():
     """
     import mcp_tool_catalog as _cat
 
-    suffixes = ("_list", "_search", "_report", "_poll", "_queue", "_tree",
-                "_inbox", "_history", "_capabilities")
-    return sorted(
-        t.name for t in _cat.TOOLS
-        if any(t.name.endswith(s) for s in suffixes)
-    )
+    suffixes = ("_list", "_search", "_report", "_poll", "_queue", "_tree", "_inbox", "_history", "_capabilities")
+    return sorted(t.name for t in _cat.TOOLS if any(t.name.endswith(s) for s in suffixes))
 
 
 # Tools that end in a collection-shaped suffix but genuinely return a SCALAR or
@@ -321,9 +319,7 @@ def test_every_exemption_still_names_a_real_tool():
 
     known = {t.name for t in _cat.TOOLS}
     stale = sorted(set(_NOT_A_COLLECTION) - known)
-    assert not stale, (
-        f"_NOT_A_COLLECTION names tool(s) that no longer exist: {stale}"
-    )
+    assert not stale, f"_NOT_A_COLLECTION names tool(s) that no longer exist: {stale}"
 
 
 def test_the_cli_defaults_records_on_without_changing_the_toolspec():
@@ -345,8 +341,7 @@ def test_the_cli_defaults_records_on_without_changing_the_toolspec():
 
     spec = {t.name: t for t in _cat.TOOLS}["task_list"]
     assert spec.parameters["properties"]["as_records"]["default"] is False, (
-        "the MCP default changed — every caller that parses the display string "
-        "would now receive JSON"
+        "the MCP default changed — every caller that parses the display string would now receive JSON"
     )
     src = inspect.getsource(_cli)
     assert 'tool_args["as_records"] = True' in src, (

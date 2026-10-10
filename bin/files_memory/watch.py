@@ -26,6 +26,7 @@ State persistence:
     `watch_state` under files.db (lazily created). Survives daemon
     restarts.
 """
+
 from __future__ import annotations
 
 import logging
@@ -51,30 +52,29 @@ def _ensure_watch_state_table(conn: sqlite3.Connection) -> None:
     files-memory-scoped and naturally co-located with the file_nodes
     these notifications reference.
     """
-    _ws = files_table('watch_state')
+    _ws = files_table("watch_state")
     # Inline-created (not a migration) — files-scoped ephemeral state. No column
     # DEFAULT on updated_at (SQLite's `datetime('now')` DEFAULT is not portable to
     # PG); every writer supplies updated_at explicitly via dialect().now() instead.
     conn.execute(
-        f"CREATE TABLE IF NOT EXISTS {_ws} ("
-        f"  key TEXT PRIMARY KEY, "
-        f"  value TEXT NOT NULL, "
-        f"  updated_at TEXT NOT NULL"
-        f")"
+        f"CREATE TABLE IF NOT EXISTS {_ws} (  key TEXT PRIMARY KEY,   value TEXT NOT NULL,   updated_at TEXT NOT NULL)"
     )
 
 
 def _watch_state_get(conn, key: str) -> str | None:
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     row = conn.execute(
-        f"SELECT value FROM {files_table('watch_state')} WHERE key = {_p}", (key,),
+        f"SELECT value FROM {files_table('watch_state')} WHERE key = {_p}",
+        (key,),
     ).fetchone()
     return row["value"] if row else None
 
 
 def _watch_state_set(conn, key: str, value: str) -> None:
     from memory.backends import dialect as _dialect
+
     _d = _dialect()
     _p = _d.param()
     conn.execute(
@@ -117,6 +117,7 @@ def _default_notify(agent_id: str, kind: str, payload: dict) -> str | None:
 @dataclass(slots=True)
 class CycleResult:
     """Counters surfaced after a single watch cycle."""
+
     started_at: float
     duration_ms: int = 0
     stale_count: int = 0
@@ -162,8 +163,12 @@ def watch_once(
     """
     if notify_kinds is None:
         notify_kinds = {
-            "stale", "new", "missing", "failed_extraction",
-            "drifted_promotion", "rename_candidate",
+            "stale",
+            "new",
+            "missing",
+            "failed_extraction",
+            "drifted_promotion",
+            "rename_candidate",
         }
     notify = notify_callable or _default_notify
     t0 = time.perf_counter()
@@ -224,56 +229,80 @@ def watch_once(
             # returns the missing_file_node_uuid only for rename
             # candidates; for `stale` we have to look it up by path.
             file_node = _file_node_for_path(conn, s.path)
-            _maybe_notify("stale", file_node, {
-                "path": s.path,
-                "version": s.last_ingested_version,
-                "last_ingest_date": s.last_ingest_date,
-                "fact_count": s.fact_count,
-                "promoted_count": s.promoted_count,
-                "_key": s.path,  # fallback when file_node lookup fails
-            })
+            _maybe_notify(
+                "stale",
+                file_node,
+                {
+                    "path": s.path,
+                    "version": s.last_ingested_version,
+                    "last_ingest_date": s.last_ingest_date,
+                    "fact_count": s.fact_count,
+                    "promoted_count": s.promoted_count,
+                    "_key": s.path,  # fallback when file_node lookup fails
+                },
+            )
 
         for n in rpt.new:
-            _maybe_notify("new", None, {
-                "path": n.path,
-                "filetype": n.filetype,
-                "size_bytes": n.size_bytes,
-                "mtime": n.mtime,
-                "_key": n.path,
-            })
+            _maybe_notify(
+                "new",
+                None,
+                {
+                    "path": n.path,
+                    "filetype": n.filetype,
+                    "size_bytes": n.size_bytes,
+                    "mtime": n.mtime,
+                    "_key": n.path,
+                },
+            )
 
         for m in rpt.missing:
-            _maybe_notify("missing", m.file_node_uuid, {
-                "path": m.path,
-                "fact_count": m.fact_count,
-                "promoted_count": m.promoted_count,
-                "last_ingest_date": m.last_ingest_date,
-            })
+            _maybe_notify(
+                "missing",
+                m.file_node_uuid,
+                {
+                    "path": m.path,
+                    "fact_count": m.fact_count,
+                    "promoted_count": m.promoted_count,
+                    "last_ingest_date": m.last_ingest_date,
+                },
+            )
 
         for f in rpt.failed_extraction:
-            _maybe_notify("failed_extraction", f.file_node_uuid, {
-                "path": f.path,
-                "failed_leaf_count": f.failed_leaf_count,
-                "total_leaf_count": f.total_leaf_count,
-                "last_error": f.last_error,
-            })
+            _maybe_notify(
+                "failed_extraction",
+                f.file_node_uuid,
+                {
+                    "path": f.path,
+                    "failed_leaf_count": f.failed_leaf_count,
+                    "total_leaf_count": f.total_leaf_count,
+                    "last_error": f.last_error,
+                },
+            )
 
         for r in rpt.rename_candidates:
-            _maybe_notify("rename_candidate", r.missing_file_node_uuid, {
-                "missing_path": r.missing_path,
-                "new_path": r.new_path,
-                "confidence": r.confidence,
-                "content_sha256": r.content_sha256,
-            })
+            _maybe_notify(
+                "rename_candidate",
+                r.missing_file_node_uuid,
+                {
+                    "missing_path": r.missing_path,
+                    "new_path": r.new_path,
+                    "confidence": r.confidence,
+                    "content_sha256": r.content_sha256,
+                },
+            )
 
         for d in rpt.drifted_promotions:
-            _maybe_notify("drifted_promotion", None, {
-                "marker_uuid": d.marker_uuid,
-                "promoted_to": d.promoted_to,
-                "source_path": d.source_path,
-                "source_superseded_at": d.source_superseded_at,
-                "_key": d.marker_uuid,
-            })
+            _maybe_notify(
+                "drifted_promotion",
+                None,
+                {
+                    "marker_uuid": d.marker_uuid,
+                    "promoted_to": d.promoted_to,
+                    "source_path": d.source_path,
+                    "source_superseded_at": d.source_superseded_at,
+                    "_key": d.marker_uuid,
+                },
+            )
 
     result.duration_ms = int((time.perf_counter() - t0) * 1000)
     return result
@@ -283,11 +312,10 @@ def _file_node_for_path(conn, path: str) -> str | None:
     """Look up the current file_node uuid for an absolute path. None if
     not found or the row is superseded."""
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     row = conn.execute(
-        f"SELECT uuid FROM {files_table('file_nodes')} "
-        f"WHERE path_absolute = {_p} AND superseded_by IS NULL "
-        f"LIMIT 1",
+        f"SELECT uuid FROM {files_table('file_nodes')} WHERE path_absolute = {_p} AND superseded_by IS NULL LIMIT 1",
         (path,),
     ).fetchone()
     return row["uuid"] if row else None
@@ -317,9 +345,12 @@ def watch_loop(
     """
     cycles_done = 0
     logger.info(
-        "files_memory.watch starting: directory=%s corpus=%s interval=%.1fs "
-        "cooldown=%.0fs agent=%s",
-        directory, corpus_id, interval_seconds, cooldown_seconds, agent_id,
+        "files_memory.watch starting: directory=%s corpus=%s interval=%.1fs cooldown=%.0fs agent=%s",
+        directory,
+        corpus_id,
+        interval_seconds,
+        cooldown_seconds,
+        agent_id,
     )
     try:
         while max_cycles is None or cycles_done < max_cycles:
@@ -335,9 +366,13 @@ def watch_loop(
             logger.info(
                 "cycle %d: %dms  stale=%d new=%d missing=%d failed=%d "
                 "rename=%d drifted=%d  notified=%d suppressed=%d  errors=%d",
-                cycles_done, result.duration_ms,
-                result.stale_count, result.new_count, result.missing_count,
-                result.failed_extraction_count, result.rename_candidate_count,
+                cycles_done,
+                result.duration_ms,
+                result.stale_count,
+                result.new_count,
+                result.missing_count,
+                result.failed_extraction_count,
+                result.rename_candidate_count,
                 result.drifted_promotion_count,
                 result.notifications_emitted,
                 result.notifications_suppressed_by_cooldown,

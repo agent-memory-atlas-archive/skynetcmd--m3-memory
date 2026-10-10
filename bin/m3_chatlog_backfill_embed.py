@@ -25,6 +25,7 @@ Defaults:
     --include-types)
   - chunked batches of --batch (default 32) per embed call
 """
+
 from __future__ import annotations
 
 import argparse
@@ -102,6 +103,7 @@ async def _embed_one_batch(
     # serializes anyway because of the embed semaphore (max 4 concurrent
     # per memory_core).
     sem = asyncio.Semaphore(4)
+
     async def one(mid: str, content: str) -> None:
         async with sem:
             try:
@@ -110,6 +112,7 @@ async def _embed_one_batch(
                     out.append((mid, vec, model or ""))
             except Exception:  # noqa: BLE001
                 pass
+
     await gather_or_cancel(*(one(mid, content) for mid, content in rows))
     return out
 
@@ -124,6 +127,7 @@ def _write_embeddings_batch(
     if not embeddings:
         return 0
     from embedding_utils import pack as _pack
+
     now = utc_iso()
     d = seam_dialect()
     with seam_backend().connection() as conn:
@@ -225,9 +229,12 @@ async def _backfill_db(
                 if counters["queried"] % (batch_size * 10) == 0:
                     elapsed = time.monotonic() - started
                     rate = counters["queried"] / max(elapsed, 1e-3)
-                    print(f"[embed-backfill] {db_path.name}: {counters['queried']} queried, "
-                          f"{counters['embedded']} embedded, {counters['failed']} failed, "
-                          f"rate={rate:.1f}/s", flush=True)
+                    print(
+                        f"[embed-backfill] {db_path.name}: {counters['queried']} queried, "
+                        f"{counters['embedded']} embedded, {counters['failed']} failed, "
+                        f"rate={rate:.1f}/s",
+                        flush=True,
+                    )
                 batch = []
 
     counters["wall_s"] = time.monotonic() - started
@@ -262,8 +269,7 @@ async def _main_async(args) -> int:
         type_filter = None  # no filter: cover every type
     else:
         # Sensible default: chat-shaped types + the synthesized layers.
-        type_filter = ["chat_log", "message", "conversation", "summary",
-                       "note", "observation", "fact_enriched", "fact"]
+        type_filter = ["chat_log", "message", "conversation", "summary", "note", "observation", "fact_enriched", "fact"]
 
     db_targets: list[tuple[str, Path]] = []
     if not args.chatlog_only:
@@ -276,10 +282,12 @@ async def _main_async(args) -> int:
             db_targets.append(("chatlog", chatlog_db))
 
     if not db_targets:
-        sys.exit("ERROR: no DBs found. "
-                 "observed: tried core_db='" + str(_resolve_db(args.core_db, "M3_DATABASE", "agent_memory.db")) + "', "
-                 "chatlog_db='" + str(_resolve_db(args.chatlog_db, "M3_CHATLOG_DATABASE", "agent_chatlog.db")) + "'. "
-                 "inspect: M3_DATABASE, M3_CHATLOG_DATABASE env vars or --core-db/--chatlog-db arguments.")
+        sys.exit(
+            "ERROR: no DBs found. "
+            "observed: tried core_db='" + str(_resolve_db(args.core_db, "M3_DATABASE", "agent_memory.db")) + "', "
+            "chatlog_db='" + str(_resolve_db(args.chatlog_db, "M3_CHATLOG_DATABASE", "agent_chatlog.db")) + "'. "
+            "inspect: M3_DATABASE, M3_CHATLOG_DATABASE env vars or --core-db/--chatlog-db arguments."
+        )
 
     plan = {"types": type_filter or "ALL types", "min_chars": args.min_chars, "dbs": {}}
     for label, db_path in db_targets:
@@ -313,15 +321,22 @@ async def _main_async(args) -> int:
             continue
         print(f"[embed-backfill] {db_path.name}: {n_total} rows to embed", flush=True)
         counters = await _backfill_db(
-            db_path, type_filter, args.min_chars, args.batch, args.limit,
+            db_path,
+            type_filter,
+            args.min_chars,
+            args.batch,
+            args.limit,
         )
         for k in grand_totals:
             grand_totals[k] += counters[k]
         rate = counters["queried"] / max(counters["wall_s"], 1e-3)
-        print(f"[embed-backfill] {db_path.name} done: "
-              f"{counters['embedded']} embedded, "
-              f"{counters['failed']} failed, "
-              f"{counters['wall_s']/60:.1f} min, {rate:.1f} rows/s", flush=True)
+        print(
+            f"[embed-backfill] {db_path.name} done: "
+            f"{counters['embedded']} embedded, "
+            f"{counters['failed']} failed, "
+            f"{counters['wall_s'] / 60:.1f} min, {rate:.1f} rows/s",
+            flush=True,
+        )
 
     print()
     print("══════════════════════════════════════════════════════════════")
@@ -345,23 +360,28 @@ Examples:
   python bin/m3_chatlog_backfill_embed.py --include-types chat_log,message
 """,
     )
-    ap.add_argument("--core", action="store_true", dest="core_only",
-                    help="Only backfill the core memory DB (skip chatlog).")
-    ap.add_argument("--chatlog", action="store_true", dest="chatlog_only",
-                    help="Only backfill the chatlog DB (skip core).")
+    ap.add_argument(
+        "--core", action="store_true", dest="core_only", help="Only backfill the core memory DB (skip chatlog)."
+    )
+    ap.add_argument(
+        "--chatlog", action="store_true", dest="chatlog_only", help="Only backfill the chatlog DB (skip core)."
+    )
     ap.add_argument("--core-db", default=None, help="Explicit path to core memory DB.")
     ap.add_argument("--chatlog-db", default=None, help="Explicit path to chatlog DB.")
-    ap.add_argument("--include-types", default=None,
-                    help="Comma-separated types to backfill. Default: chat_log,message,"
-                         "conversation,summary,note,observation,fact_enriched,fact.")
-    ap.add_argument("--all-types", action="store_true",
-                    help="Backfill every memory_items type (overrides --include-types).")
-    ap.add_argument("--min-chars", type=int, default=10,
-                    help="Skip rows whose content is shorter than this. Default 10.")
-    ap.add_argument("--batch", type=int, default=32,
-                    help="Embed-call batch size. Default 32.")
-    ap.add_argument("--limit", type=int, default=None,
-                    help="Cap rows backfilled per DB (smoke testing).")
+    ap.add_argument(
+        "--include-types",
+        default=None,
+        help="Comma-separated types to backfill. Default: chat_log,message,"
+        "conversation,summary,note,observation,fact_enriched,fact.",
+    )
+    ap.add_argument(
+        "--all-types", action="store_true", help="Backfill every memory_items type (overrides --include-types)."
+    )
+    ap.add_argument(
+        "--min-chars", type=int, default=10, help="Skip rows whose content is shorter than this. Default 10."
+    )
+    ap.add_argument("--batch", type=int, default=32, help="Embed-call batch size. Default 32.")
+    ap.add_argument("--limit", type=int, default=None, help="Cap rows backfilled per DB (smoke testing).")
     ap.add_argument("--dry-run", action="store_true", help="Preview only.")
     ap.add_argument("--skip-backup", action="store_true", help="Don't create a pre-run DB backup.")
     ap.add_argument("--yes", "-y", action="store_true", help="Skip the confirm prompt.")
@@ -369,6 +389,7 @@ Examples:
     if args.core_only and args.chatlog_only:
         sys.exit("ERROR: --core and --chatlog are mutually exclusive.")
     from m3_core.paths import resolve_backend_name
+
     if resolve_backend_name() != "sqlite":
         return _backfill_one_database(args)
     return asyncio.run(_main_async(args))

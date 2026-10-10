@@ -1,8 +1,8 @@
 ---
 tool: bin/sync_manifest_versions.py
-sha1: 5a523a6714c0
-mtime_utc: 2026-10-09T22:00:46.615649+00:00
-generated_utc: 2026-10-09T22:03:21.589085+00:00
+sha1: eba779a01564
+mtime_utc: 2026-10-10T21:05:16.576377+00:00
+generated_utc: 2026-10-10T21:05:29.974916+00:00
 private: false
 ---
 
@@ -39,7 +39,7 @@ Every ``"version"`` key is rewritten: the top-level one, and any nested
 
 ## Entry points
 
-- `def main()` (line 171)
+- `def main()` (line 170)
 - `if __name__ == "__main__"` guard
 
 ---

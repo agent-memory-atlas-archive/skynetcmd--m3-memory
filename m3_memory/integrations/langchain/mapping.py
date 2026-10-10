@@ -49,6 +49,7 @@ def resolve_user_id(explicit: str | None, default: str | None = None) -> str | N
     """
     return explicit or default or os.environ.get(_ENV_DEFAULT_USER_ID) or None
 
+
 # The temporal/confidence columns the adapter asks search to surface, and which
 # mapping lifts into result metadata. Kept here so the search caller and the
 # mapper agree on ONE list.
@@ -64,6 +65,7 @@ _NOT_FOUND_MARKERS = ("Error: not found", "Error: item")
 
 
 # ── metadata_json split / merge ───────────────────────────────────────────────
+
 
 def split_value(value: dict) -> tuple[str, dict]:
     """Split a LangChain/mem0 ``value`` dict into (content, extra-metadata).
@@ -116,6 +118,7 @@ def merge_value(item: dict) -> dict:
 
 # ── string-returning sync impls → native ──────────────────────────────────────
 
+
 def parse_get(raw: Any) -> dict | None:
     """Normalize ``memory_get`` output → native item dict, or None if not found.
 
@@ -163,7 +166,7 @@ def parse_written_id(raw: Any) -> str | None:
         return None
     marker = "Created: "
     idx = s.rfind(marker)
-    tail = s[idx + len(marker):] if idx != -1 else s
+    tail = s[idx + len(marker) :] if idx != -1 else s
     m = _UUID_RE.search(tail)
     if m:
         return m.group(0)
@@ -193,6 +196,7 @@ def parse_chatlog_search(raw: Any) -> list[dict]:
 
 
 # ── mem0 result shape ─────────────────────────────────────────────────────────
+
 
 def to_mem0_result(score: float, item: dict) -> dict:
     """One m3 ``(score, item)`` search tuple → one mem0-shaped result dict.

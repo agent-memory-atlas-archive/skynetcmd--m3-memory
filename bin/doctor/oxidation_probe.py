@@ -14,6 +14,7 @@ This probe makes that state visible instead of silent (DESIGN §3 fail-loud,
 §8 performance). It never fails the doctor run — a Python-only deployment is a
 legitimate, supported configuration — it only reports, returning 0 always.
 """
+
 from __future__ import annotations
 
 import logging
@@ -42,6 +43,7 @@ def run(brief: bool = False) -> int:
     """Report m3_core_rs presence and per-function availability. Always 0.
 
     brief=True emits a single line for `m3 doctor --brief`."""
+
     def _b(line: str) -> None:  # brief-only one-liner
         if brief:
             print(line)
@@ -71,8 +73,10 @@ def run(brief: bool = False) -> int:
             print(f"  could not import memory.config: {type(e).__name__}: {e}")
             if where:
                 print(f"  raised at : {where}")
-                print("  note     : importing `memory` pulls in its submodules, "
-                      "so the file above is the one to look at, not config.py")
+                print(
+                    "  note     : importing `memory` pulls in its submodules, "
+                    "so the file above is the one to look at, not config.py"
+                )
         return 0
 
     if getattr(config, "_OXIDATION_DISABLED", False):
@@ -115,15 +119,14 @@ def run(brief: bool = False) -> int:
             M3_CORE_RS_VERSION,
             _parse_version,
         )
+
         if version and version != "unknown":
             if _parse_version(version) < _parse_version(M3_CORE_RS_VERSION):
                 version_stale = True
                 if not brief:
-                    print(f"  version  : STALE — installed {version} < expected "
-                          f"{M3_CORE_RS_VERSION}")
+                    print(f"  version  : STALE — installed {version} < expected {M3_CORE_RS_VERSION}")
         elif not brief:
-            print("  version  : installed wheel does not report a version "
-                  "(cannot confirm currency)")
+            print("  version  : installed wheel does not report a version (cannot confirm currency)")
     except Exception as e:  # noqa: BLE001 — probe must never crash the doctor
         log_swallowed(logger, e, "version-staleness check skipped: %s", e)
 
@@ -144,9 +147,11 @@ def run(brief: bool = False) -> int:
         # extension behind (observed 2026-09-30: m3-memory 2026.9.21.0 against
         # m3_core_rs 3.9.7, expected 3.10.1) — so this line is on a common path,
         # not an edge case. One line, because brief mode must stay one line.
-        print(f"⚠️  oxidation: STALE ({len(present)}/{len(_EXPECTED)} paths"
-              f"{', version behind' if version_stale else ''})"
-              " — fix: `m3 embedder install-gpu`")
+        print(
+            f"⚠️  oxidation: STALE ({len(present)}/{len(_EXPECTED)} paths"
+            f"{', version behind' if version_stale else ''})"
+            " — fix: `m3 embedder install-gpu`"
+        )
         return 0
 
     # Present-but-stale: the wheel is old relative to the Python code's
@@ -158,8 +163,7 @@ def run(brief: bool = False) -> int:
         for name, why in missing:
             print(f"             - {name}: {why}")
     if version_stale:
-        print(f"             installed version {version} is behind the target "
-              f"{M3_CORE_RS_VERSION}")
+        print(f"             installed version {version} is behind the target {M3_CORE_RS_VERSION}")
     print("  impact   : stale paths silently use the slower Python fallback;")
     print("             a stale wheel can also carry bugs already fixed in source.")
     print("  fix      : `m3 embedder install-gpu` (reinstalls the current wheel)")

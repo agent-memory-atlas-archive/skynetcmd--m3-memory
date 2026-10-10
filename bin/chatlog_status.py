@@ -27,10 +27,12 @@ import chatlog_config
 # (Finding L), so the SQLite dialect is resolved here.
 try:  # pragma: no cover - import shim for standalone execution
     from memory.backends.sqlite_backend import SqliteDialect as _SqliteDialect
+
     _SQL = _SqliteDialect(backend="sqlite", param_style="qmark")
     _has_content = _SQL.has_content
     _now_minus_minutes = _SQL.now_minus_minutes
 except Exception:  # pragma: no cover
+
     def _has_content(column: str) -> str:
         return f"LENGTH(TRIM(COALESCE({column}, ''))) > 0"
 
@@ -39,13 +41,10 @@ except Exception:  # pragma: no cover
         # seam. A bare datetime() renders "2026-09-17 10:51:43" against stored
         # "...T10:51:43Z", and 'T' sorts after ' ', so the bound matches every
         # same-day row and the filter silently does nothing.
-        return (f"strftime('%Y-%m-%dT%H:%M:%SZ', 'now', "
-                f"'-' || {minutes_placeholder} || ' minutes')")
+        return f"strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-' || {minutes_placeholder} || ' minutes')"
 
 
 logger = logging.getLogger("chatlog_status")
-
-
 
 
 def _resolve_files_location() -> str:
@@ -59,18 +58,20 @@ def _resolve_files_location() -> str:
     """
     try:
         from files_memory.db import _files_store_is_a_schema as _files_is_pg
+
         if _files_is_pg():
             return "postgres://<primary>/files (schema)"
     except ImportError:  # no files layer: the sidecar file path below
         pass
     try:
         from memory.config import FILES_DB_PATH as CONFIG_FILES_DB_PATH
+
         return os.path.abspath(CONFIG_FILES_DB_PATH)
     except Exception:
         from m3_sdk import get_m3_root
+
         return os.path.abspath(
-            os.environ.get("M3_FILES_DB_PATH")
-            or os.path.join(get_m3_root(), "memory", "files_database.db")
+            os.environ.get("M3_FILES_DB_PATH") or os.path.join(get_m3_root(), "memory", "files_database.db")
         )
 
 
@@ -116,6 +117,7 @@ def _get_row_counts(config: chatlog_config.ChatlogConfig) -> dict[str, Any]:
     # would report a misleading count. Skip the SQLite read on PG and mark it —
     # the chatlog DB portion below is unaffected (chatlog is its own subsystem).
     from memory.backends import resolve_backend_name
+
     _primary_is_sqlite = resolve_backend_name() == "sqlite"
     try:
         if not _primary_is_sqlite:
@@ -125,9 +127,7 @@ def _get_row_counts(config: chatlog_config.ChatlogConfig) -> dict[str, Any]:
                 conn = sqlite3.connect(main_db, timeout=5)
                 conn.row_factory = sqlite3.Row
                 try:
-                    row = conn.execute(
-                        "SELECT COUNT(*) as cnt FROM memory_items WHERE type='chat_log'"
-                    ).fetchone()
+                    row = conn.execute("SELECT COUNT(*) as cnt FROM memory_items WHERE type='chat_log'").fetchone()
                     counts["main_chat_log_rows"] = row["cnt"] if row else 0
                 finally:
                     conn.close()
@@ -139,9 +139,7 @@ def _get_row_counts(config: chatlog_config.ChatlogConfig) -> dict[str, Any]:
                 conn = sqlite3.connect(chatlog_db, timeout=5)
                 conn.row_factory = sqlite3.Row
                 try:
-                    row = conn.execute(
-                        "SELECT COUNT(*) as cnt FROM memory_items"
-                    ).fetchone()
+                    row = conn.execute("SELECT COUNT(*) as cnt FROM memory_items").fetchone()
                     counts["chatlog_rows"] = row["cnt"] if row else 0
 
                     # Count only rows a sweeper could ACTUALLY embed. Without the
@@ -178,6 +176,7 @@ def _get_row_counts(config: chatlog_config.ChatlogConfig) -> dict[str, Any]:
         # on a real corpus.
         try:
             from files_memory.db import _files_store_is_a_schema as _files_is_pg
+
             _pg_files = _files_is_pg()
         except ImportError:  # no files layer: the sidecar file path below
             _pg_files = False
@@ -186,6 +185,7 @@ def _get_row_counts(config: chatlog_config.ChatlogConfig) -> dict[str, Any]:
             try:
                 from files_memory.config import files_table
                 from files_memory.db import _db as _files_seam
+
                 _leaves = files_table("leaves")
                 with _files_seam() as conn:
                     row = conn.execute(f"SELECT COUNT(*) FROM {_leaves}").fetchone()
@@ -197,10 +197,14 @@ def _get_row_counts(config: chatlog_config.ChatlogConfig) -> dict[str, Any]:
         else:
             try:
                 from memory.config import FILES_DB_PATH as CONFIG_FILES_DB_PATH
+
                 files_db = os.path.abspath(CONFIG_FILES_DB_PATH)
             except Exception:
                 from m3_sdk import get_m3_root
-                files_db = os.path.abspath(os.environ.get("M3_FILES_DB_PATH") or os.path.join(get_m3_root(), "memory", "files_database.db"))
+
+                files_db = os.path.abspath(
+                    os.environ.get("M3_FILES_DB_PATH") or os.path.join(get_m3_root(), "memory", "files_database.db")
+                )
 
             if os.path.exists(files_db):
                 try:
@@ -222,8 +226,7 @@ def _get_row_counts(config: chatlog_config.ChatlogConfig) -> dict[str, Any]:
     return counts
 
 
-def _recent_write_count(config: chatlog_config.ChatlogConfig,
-                        window_min: int = 15) -> int:
+def _recent_write_count(config: chatlog_config.ChatlogConfig, window_min: int = 15) -> int:
     """Count chat_log rows WRITTEN in the last `window_min` minutes.
 
     This is the TRUE capture-health signal: it reflects whether writes are
@@ -283,6 +286,7 @@ def _recent_write_count(config: chatlog_config.ChatlogConfig,
     # which already routes through the seam.
     try:
         from memory.backends import resolve_backend_name
+
         if resolve_backend_name() != "sqlite":
             # -1 is this function's established "unknown" sentinel (see the
             # return at the end of the loop, and
@@ -307,8 +311,7 @@ def _recent_write_count(config: chatlog_config.ChatlogConfig,
             # that binds a "-N minutes" MODIFIER STRING, which PostgreSQL
             # cannot parse. now_minus_minutes() binds a plain INTEGER instead.
             row = conn.execute(
-                "SELECT COUNT(*) FROM memory_items WHERE type='chat_log' "
-                f"AND created_at > {_now_minus_minutes('?')}",
+                f"SELECT COUNT(*) FROM memory_items WHERE type='chat_log' AND created_at > {_now_minus_minutes('?')}",
                 (int(window_min),),
             ).fetchone()
             queried_ok = True  # only reached if the query itself did not raise
@@ -419,8 +422,7 @@ def _compute_warnings(
     def _as_count(value: Any) -> int:
         return value if isinstance(value, int) else 0
 
-    total_rows = (_as_count(row_counts.get("main_chat_log_rows"))
-                  or _as_count(row_counts.get("chatlog_rows")))
+    total_rows = _as_count(row_counts.get("main_chat_log_rows")) or _as_count(row_counts.get("chatlog_rows"))
     if recent_writes == 0 and total_rows > 0:
         # Disambiguate session-start/between-turns lull from a real outage using
         # the age of the LAST write (see _LULL_GRACE_MIN). A recent last-write
@@ -621,8 +623,7 @@ def chatlog_status_impl() -> str:
             "regex_errors": state.get("redaction", {}).get("regex_errors", []),
         },
         "last_write_at": state.get("last_write_at"),
-        "warnings": _compute_warnings(state, config, row_counts,
-                                      recent_writes, recent_window_min),
+        "warnings": _compute_warnings(state, config, row_counts, recent_writes, recent_window_min),
     }
 
     return json.dumps(result, indent=2)
@@ -641,6 +642,7 @@ def _hook_wiring_verdict() -> dict:
         if here not in sys.path:
             sys.path.insert(0, here)
         from doctor import environment_probe
+
         res = environment_probe.check()
         return {
             "status": res.get("status", "unknown"),
@@ -648,8 +650,7 @@ def _hook_wiring_verdict() -> dict:
             "findings": res.get("findings", []),
         }
     except Exception as e:  # noqa: BLE001 — status output must not depend on the probe
-        return {"status": "unknown", "hooks_seen": 0, "findings": [],
-                "error": f"{type(e).__name__}: {e}"}
+        return {"status": "unknown", "hooks_seen": 0, "findings": [], "error": f"{type(e).__name__}: {e}"}
 
 
 def _get_file_size_mb(path: str) -> float:
@@ -673,6 +674,7 @@ def _get_last_turns(main_db: str) -> list[dict[str, str]]:
         from contextlib import ExitStack
 
         from m3_core.paths import seam_backend
+
         _stack = ExitStack()
         conn = _stack.enter_context(seam_backend().open_readonly(str(main_db)))
         try:
@@ -728,12 +730,14 @@ def _get_last_turns(main_db: str) -> list[dict[str, str]]:
 def _get_keypress(timeout: float) -> str | None:
     """Read a keypress within timeout (the OS seam owns the console dialects)."""
     from m3_core.seams import read_key
+
     return read_key(timeout)
 
 
 def _wait_for_any_key() -> None:
     """Wait for any keypress (the OS seam owns the console dialects)."""
     from m3_core.seams import wait_for_any_key
+
     wait_for_any_key()
 
 
@@ -741,6 +745,7 @@ def _run_subprocess_interactive(cmd: list[str]) -> None:
     """Pause live TUI, restore cursor, execute subprocess, wait for key, and resume."""
     import os
     import subprocess
+
     print("\033[?25h", end="")
     print("\033[H\033[J", end="")
     print(f"\n>>> Executing command:\n    {' '.join(cmd)}")
@@ -775,7 +780,7 @@ def _make_line(content: str) -> str:
         width -= 1
     # Trim to width if too long
     if len(content) > width:
-        content = content[:width - 3] + "..."
+        content = content[: width - 3] + "..."
     return f"│{content:<{width}}│"
 
 
@@ -826,6 +831,7 @@ def run_live_tui(interval: float = 5.0):
         if refresh_cascade or t1_state is None:
             try:
                 from memory import doctor as doc
+
                 t1_state = doc._probe_tier1()
                 t2_state = doc._probe_tier2()
             except Exception:
@@ -847,18 +853,30 @@ def run_live_tui(interval: float = 5.0):
 
         main_status = "active" if main_wal_sz > 0 else "idle"
         lines.append(_make_line(f"  Main DB:   {main_disp}"))
-        lines.append(_make_line(f"             Size: {main_sz:6.1f} MB  |  WAL size: {main_wal_sz:5.1f} MB  |  Status: {main_status}"))
+        lines.append(
+            _make_line(
+                f"             Size: {main_sz:6.1f} MB  |  WAL size: {main_wal_sz:5.1f} MB  |  Status: {main_status}"
+            )
+        )
 
         if not unified:
             chat_status = "active" if chat_wal_sz > 0 else "idle"
             lines.append(_make_line(f"  Chatlog:   {chat_disp}"))
-            lines.append(_make_line(f"             Size: {chat_sz:6.1f} MB  |  WAL size: {chat_wal_sz:5.1f} MB  |  Status: {chat_status}"))
+            lines.append(
+                _make_line(
+                    f"             Size: {chat_sz:6.1f} MB  |  WAL size: {chat_wal_sz:5.1f} MB  |  Status: {chat_status}"
+                )
+            )
         else:
             lines.append(_make_line("  Chatlog:   (unified with main database file)"))
 
         files_status = "active" if files_wal_sz > 0 else "idle"
         lines.append(_make_line(f"  Files DB:  {files_disp}"))
-        lines.append(_make_line(f"             Size: {files_sz:6.1f} MB  |  WAL size: {files_wal_sz:5.1f} MB  |  Status: {files_status}"))
+        lines.append(
+            _make_line(
+                f"             Size: {files_sz:6.1f} MB  |  WAL size: {files_wal_sz:5.1f} MB  |  Status: {files_status}"
+            )
+        )
 
         lines.append("├────────────────────────────────────────────────────────────────────────────┤")
         lines.append(_make_line(" EMBEDDING CASCADE DIAGNOSTICS"))
@@ -880,7 +898,11 @@ def run_live_tui(interval: float = 5.0):
 
         depth = state.get("queue", {}).get("depth", 0)
         max_depth = state.get("queue", {}).get("max", config.queue_max_depth)
-        spill_files = len([f for f in os.listdir(chatlog_config.SPILL_DIR) if f.endswith(".jsonl")]) if os.path.exists(chatlog_config.SPILL_DIR) else 0
+        spill_files = (
+            len([f for f in os.listdir(chatlog_config.SPILL_DIR) if f.endswith(".jsonl")])
+            if os.path.exists(chatlog_config.SPILL_DIR)
+            else 0
+        )
         spill_bytes = state.get("spill", {}).get("bytes", 0)
 
         files_leaves = row_counts.get("files_leaves", 0)
@@ -929,35 +951,54 @@ def run_live_tui(interval: float = 5.0):
             if key in ("q", "\x03"):
                 raise KeyboardInterrupt()
             match key:
-                case '+':
+                case "+":
                     current_interval = min(60.0, current_interval + 1.0)
-                case '-':
+                case "-":
                     current_interval = max(0.5, current_interval - 1.0)
-                case 'd':
-                    cmd = [sys.executable, os.path.join(os.path.dirname(__file__), "chatlog_decay.py"), "--db", chatlog_db]
+                case "d":
+                    cmd = [
+                        sys.executable,
+                        os.path.join(os.path.dirname(__file__), "chatlog_decay.py"),
+                        "--db",
+                        chatlog_db,
+                    ]
                     _run_subprocess_interactive(cmd)
-                case 'a':
-                    cmd = [sys.executable, os.path.join(os.path.dirname(__file__), "chatlog_decay.py"), "--db", chatlog_db, "--apply"]
+                case "a":
+                    cmd = [
+                        sys.executable,
+                        os.path.join(os.path.dirname(__file__), "chatlog_decay.py"),
+                        "--db",
+                        chatlog_db,
+                        "--apply",
+                    ]
                     _run_subprocess_interactive(cmd)
-                case 's':
-                    cmd = [sys.executable, os.path.join(os.path.dirname(__file__), "chatlog_embed_sweeper.py"), "--database", main_db, "--drain-spill"]
+                case "s":
+                    cmd = [
+                        sys.executable,
+                        os.path.join(os.path.dirname(__file__), "chatlog_embed_sweeper.py"),
+                        "--database",
+                        main_db,
+                        "--drain-spill",
+                    ]
                     _run_subprocess_interactive(cmd)
-                case 't':
+                case "t":
                     cmd = [sys.executable, os.path.join(os.path.dirname(__file__), "m3_chatlog_backfill_title.py")]
                     _run_subprocess_interactive(cmd)
-                case 'e':
+                case "e":
                     cmd = [sys.executable, os.path.join(os.path.dirname(__file__), "m3_chatlog_backfill_embed.py")]
                     _run_subprocess_interactive(cmd)
-                case 'h':
+                case "h":
                     cmd = [sys.executable, "-m", "files_memory.tools", "health", "--rebuild"]
                     _run_subprocess_interactive(cmd)
-                case 'f':
-                    print("\033[?25h", end="") # Show cursor
-                    print("\033[H\033[J", end="") # Clear screen
+                case "f":
+                    print("\033[?25h", end="")  # Show cursor
+                    print("\033[H\033[J", end="")  # Clear screen
                     print("\n=== Ingest / Sync Files Database ===")
                     print("This will walk a directory, chunk its documents, and embed them.")
                     try:
-                        path_input = input("\nEnter absolute directory path to ingest (or press Enter to cancel):\n> ").strip()
+                        path_input = input(
+                            "\nEnter absolute directory path to ingest (or press Enter to cancel):\n> "
+                        ).strip()
                     except (KeyboardInterrupt, EOFError):
                         path_input = ""
 
@@ -990,10 +1031,10 @@ def run_live_tui(interval: float = 5.0):
                                 "ingest",
                                 resolved_path,
                                 "--mode",
-                                extract_mode
+                                extract_mode,
                             ]
                             _run_subprocess_interactive(cmd)
-                    print("\033[?25l", end="") # Hide cursor
+                    print("\033[?25l", end="")  # Hide cursor
 
 
 def _format_table(data: dict[str, Any]) -> str:
@@ -1002,8 +1043,12 @@ def _format_table(data: dict[str, Any]) -> str:
     unified = data.get("unified", False)
     lines.append(f"Main DB:    {data['db_paths']['main']}")
     lines.append(f"Chatlog DB: {data['db_paths']['chatlog']}" + (" (unified with main)" if unified else ""))
-    lines.append(f"Rows (main/chatlog/unembedded): {data['row_counts']['main_chat_log_rows']}/{data['row_counts']['chatlog_rows']}/{data['row_counts']['chatlog_without_embed']}")
-    lines.append(f"Queue: {data['queue']['depth']}/{data['queue']['max']} (last flush {data['queue']['last_flush_ms_ago']}ms ago)")
+    lines.append(
+        f"Rows (main/chatlog/unembedded): {data['row_counts']['main_chat_log_rows']}/{data['row_counts']['chatlog_rows']}/{data['row_counts']['chatlog_without_embed']}"
+    )
+    lines.append(
+        f"Queue: {data['queue']['depth']}/{data['queue']['max']} (last flush {data['queue']['last_flush_ms_ago']}ms ago)"
+    )
     lines.append(f"Spill: {data['spill']['files']} files, {data['spill']['bytes']} bytes")
     lines.append(f"Last write: {data['last_write_at']}")
     if data["warnings"]:
@@ -1023,16 +1068,12 @@ def _format_table(data: dict[str, Any]) -> str:
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(
-        description="chatlog_status.py — summary of the chat log subsystem state."
-    )
+
+    parser = argparse.ArgumentParser(description="chatlog_status.py — summary of the chat log subsystem state.")
     parser.add_argument("--json", action="store_true", help="Output JSON format")
     parser.add_argument("--live", action="store_true", help="Run live status monitor")
     parser.add_argument(
-        "-i", "--interval",
-        type=float,
-        default=5.0,
-        help="Refresh interval for live monitor in seconds (default: 5.0)"
+        "-i", "--interval", type=float, default=5.0, help="Refresh interval for live monitor in seconds (default: 5.0)"
     )
 
     args = parser.parse_args()

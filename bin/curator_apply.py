@@ -37,6 +37,7 @@ treated as a no-op):
 Returns a structured dict per section + a summary. No exceptions cross
 the boundary; per-section errors surface in the result.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -53,6 +54,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
 # ── memory.db plan apply ─────────────────────────────────────────────────────
+
 
 def apply_memory_plan(plan: dict) -> dict:
     """Deterministically apply a memory.db curation plan.
@@ -130,6 +132,7 @@ def _summarize_memory(out: dict) -> dict:
 
 # ── chatlog.db plan apply ────────────────────────────────────────────────────
 
+
 def apply_chatlog_plan(plan: dict, db_path: str | None = None) -> dict:
     """Deterministically apply a chatlog.db curation plan.
 
@@ -172,6 +175,7 @@ def apply_chatlog_plan(plan: dict, db_path: str | None = None) -> dict:
     dedup_groups = plan.get("dedup") or []
     if dedup_groups:
         from m3_sdk import active_database
+
         dedup_results = []
         for group in dedup_groups:
             keep = group.get("keep_id")
@@ -224,9 +228,7 @@ def _run_promotes(promote_specs: list) -> list:
             ids = _coerce_id_list(spec.get("ids"))
             target_type = spec.get("target_type", "conversation")
             try:
-                raw = await chatlog_core.chatlog_promote_impl(
-                    ids=ids, target_type=target_type, copy=True
-                )
+                raw = await chatlog_core.chatlog_promote_impl(ids=ids, target_type=target_type, copy=True)
                 results.append({"spec": spec, "result": _maybe_parse_json(raw)})
             except Exception as e:  # noqa: BLE001
                 results.append({"spec": spec, "error": f"{type(e).__name__}: {e}"})
@@ -264,11 +266,13 @@ def _apply_prunes(db_path: str, prune_specs: list) -> dict:
                 f"WHERE type='chat_log' AND conversation_id={p} AND is_deleted=0",
                 (now_iso, conv_id),
             )
-            results.append({
-                "conversation_id": conv_id,
-                "reason": spec.get("reason", ""),
-                "rows_pruned": cur.rowcount,
-            })
+            results.append(
+                {
+                    "conversation_id": conv_id,
+                    "reason": spec.get("reason", ""),
+                    "rows_pruned": cur.rowcount,
+                }
+            )
         conn.commit()
 
     if backend.name == "sqlite":
@@ -314,6 +318,7 @@ def _summarize_chatlog(out: dict) -> dict:
 
 # ── shared helpers ───────────────────────────────────────────────────────────
 
+
 def _coerce_id_list(val: Any) -> list[str]:
     """Accept None, list, or comma-separated string. Return a deduped list."""
     if not val:
@@ -345,12 +350,12 @@ def _maybe_parse_json(raw: Any) -> Any:
 
 # ── CLI ─────────────────────────────────────────────────────────────────────
 
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         prog="curator_apply",
         description=(
-            "Deterministically apply a curator plan (memory or chatlog) "
-            "from a JSON file. No LLM in the loop."
+            "Deterministically apply a curator plan (memory or chatlog) from a JSON file. No LLM in the loop."
         ),
     )
     parser.add_argument(
@@ -359,15 +364,18 @@ def main() -> int:
         help="Which store the plan targets.",
     )
     parser.add_argument(
-        "--plan", required=True,
+        "--plan",
+        required=True,
         help="Path to a JSON file containing the plan, or '-' to read stdin.",
     )
     parser.add_argument(
-        "--db", default=None,
+        "--db",
+        default=None,
         help="Override DB path (chatlog only; memory uses M3_DATABASE).",
     )
     parser.add_argument(
-        "--pretty", action="store_true",
+        "--pretty",
+        action="store_true",
         help="Pretty-print the result JSON (default: compact one-line).",
     )
     args = parser.parse_args()

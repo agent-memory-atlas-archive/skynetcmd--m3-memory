@@ -5,6 +5,7 @@ compiler and stub persistence callables, so the idempotence merge-gate, the
 supersede-always rule, min-confidence, and prompt dedupe are all proven with no
 model and no DB — mirroring how test_wiki_determinism drives synth with _StubSynth.
 """
+
 import os
 import sys
 
@@ -22,9 +23,19 @@ from wiki.synth import _cluster_hash  # noqa: E402
 
 
 def _mem(id, conf=None, imp=0.5, title="M"):
-    return Mem(id=id, type="synthesis", title=title, content=f"body {id}",
-               importance=imp, confidence=conf, valid_from=None, valid_to=None,
-               pinned=0, created_at=None, updated_at=None)
+    return Mem(
+        id=id,
+        type="synthesis",
+        title=title,
+        content=f"body {id}",
+        importance=imp,
+        confidence=conf,
+        valid_from=None,
+        valid_to=None,
+        pinned=0,
+        created_at=None,
+        updated_at=None,
+    )
 
 
 def _cluster(*mems):
@@ -33,6 +44,7 @@ def _cluster(*mems):
 
 
 # ── min_member_confidence ────────────────────────────────────────────────────
+
 
 def test_min_confidence_is_the_weakest_source():
     c = _cluster(_mem("a", 0.9), _mem("b", 0.4), _mem("c", 0.7))
@@ -57,6 +69,7 @@ def test_min_confidence_never_promotes_to_one():
 
 
 # ── metadata shape ───────────────────────────────────────────────────────────
+
 
 class _StubCompiler:
     prompt_version = "1"
@@ -83,7 +96,7 @@ def test_metadata_carries_provenance_and_manifest():
     assert comp["prompt_version"] == "1"
     assert comp["model"] == "stub-model"
     assert comp["prompt_memory_id"] == "prompt-123"
-    assert comp["member_ids"] == ["a", "b"]      # the source manifest, exact
+    assert comp["member_ids"] == ["a", "b"]  # the source manifest, exact
     assert comp["member_count"] == 2
     assert comp["cluster_hash"] == _cluster_hash(c, "stub-model")
     assert meta["verdict"] is None
@@ -91,16 +104,37 @@ def test_metadata_carries_provenance_and_manifest():
 
 # ── cluster hash idempotence across cold/warm re-clustering ──────────────────
 
+
 def _src(id, title="M"):
-    return Mem(id=id, type="belief", title=title, content=f"body {id}",
-               importance=0.5, confidence=0.7, valid_from=None, valid_to=None,
-               pinned=0, created_at=None, updated_at=None)
+    return Mem(
+        id=id,
+        type="belief",
+        title=title,
+        content=f"body {id}",
+        importance=0.5,
+        confidence=0.7,
+        valid_from=None,
+        valid_to=None,
+        pinned=0,
+        created_at=None,
+        updated_at=None,
+    )
 
 
 def _syn(id, title="M"):
-    return Mem(id=id, type="synthesis", title=title, content=f"prose {id}",
-               importance=0.8, confidence=0.6, valid_from=None, valid_to=None,
-               pinned=0, created_at=None, updated_at=None)
+    return Mem(
+        id=id,
+        type="synthesis",
+        title=title,
+        content=f"prose {id}",
+        importance=0.8,
+        confidence=0.6,
+        valid_from=None,
+        valid_to=None,
+        pinned=0,
+        created_at=None,
+        updated_at=None,
+    )
 
 
 def test_cluster_hash_ignores_synthesis_members():
@@ -124,6 +158,7 @@ def test_cluster_hash_still_tracks_source_changes():
 
 # ── the idempotent write rule (the merge gate) ───────────────────────────────
 
+
 def _head_for(cluster, compiler, prose):
     return WC.ExistingSynthesis(
         id="head-1",
@@ -145,9 +180,7 @@ async def _run(cluster, compiler, head, **kw):
         return "Superseded: new-syn-id"
 
     stats = WC.CompileStats()
-    r = await WC.compile_cluster(
-        cluster, compiler, head, "prompt-1", stats,
-        _write=_write, _supersede=_supersede, **kw)
+    r = await WC.compile_cluster(cluster, compiler, head, "prompt-1", stats, _write=_write, _supersede=_supersede, **kw)
     return r, writes, supersedes, stats
 
 
@@ -177,17 +210,17 @@ async def test_prompt_is_deduped_by_exact_title_lookup():
         store[a["title"]] = new_id  # persist so the next lookup finds it
         return f"Created: {new_id}"
 
-    pid1 = await WC._ensure_prompt_row(_StubCompiler(), stats1,
-                                       scope="agent", user_id="",
-                                       _write=_write_and_record, _lookup=_lookup)
+    pid1 = await WC._ensure_prompt_row(
+        _StubCompiler(), stats1, scope="agent", user_id="", _write=_write_and_record, _lookup=_lookup
+    )
     assert stats1.prompts_written == 1 and stats1.prompts_reused == 0
     assert pid1 == "prompt-1"
 
     # Second call, same compiler (same prompt text) → lookup HITS, no new write.
     stats2 = WC.CompileStats()
-    pid2 = await WC._ensure_prompt_row(_StubCompiler(), stats2,
-                                       scope="agent", user_id="",
-                                       _write=_write_and_record, _lookup=_lookup)
+    pid2 = await WC._ensure_prompt_row(
+        _StubCompiler(), stats2, scope="agent", user_id="", _write=_write_and_record, _lookup=_lookup
+    )
     assert stats2.prompts_written == 0, "wrote a duplicate prompt on re-run"
     assert stats2.prompts_reused == 1
     assert pid2 == "prompt-1", "did not reuse the existing prompt id"
@@ -212,8 +245,7 @@ async def test_identical_prose_after_change_writes_nothing():
     c = _cluster(_mem("a", 0.8))
     comp = _StubCompiler(prose="SAME")
     # Head has a DIFFERENT recorded cluster_hash (inputs moved) but same prose hash.
-    head = WC.ExistingSynthesis(id="h", cluster_hash="stale-hash",
-                                prose_hash=WC.prose_hash("SAME"))
+    head = WC.ExistingSynthesis(id="h", cluster_hash="stale-hash", prose_hash=WC.prose_hash("SAME"))
     r, writes, sups, stats = await _run(c, comp, head)
     assert r.action == "skipped-identical"
     assert writes == [] and sups == []
@@ -231,9 +263,9 @@ async def test_first_ever_compile_creates():
     w = writes[0]
     assert w["type"] == "synthesis"
     assert w["content"] == "FRESH"
-    assert w["confidence"] == 0.4              # MIN of members
+    assert w["confidence"] == 0.4  # MIN of members
     assert w["embed"] is True
-    assert w["embed_text"].endswith("FRESH")   # title + prose in-vector (S4)
+    assert w["embed_text"].endswith("FRESH")  # title + prose in-vector (S4)
     assert stats.created == 1
 
 
@@ -242,12 +274,11 @@ async def test_changed_prose_supersedes_never_updates_in_place():
     """The rule that makes a wrong synthesis auditable: supersede, don't mutate."""
     c = _cluster(_mem("a", 0.8))
     comp = _StubCompiler(prose="REVISED")
-    head = WC.ExistingSynthesis(id="old-id", cluster_hash="stale",
-                                prose_hash=WC.prose_hash("ORIGINAL"))
+    head = WC.ExistingSynthesis(id="old-id", cluster_hash="stale", prose_hash=WC.prose_hash("ORIGINAL"))
     r, writes, sups, stats = await _run(c, comp, head)
     assert r.action == "superseded"
     assert writes == [] and len(sups) == 1
-    assert sups[0]["old_id"] == "old-id"       # targets the specific head
+    assert sups[0]["old_id"] == "old-id"  # targets the specific head
     assert sups[0]["content"] == "REVISED"
     assert r.superseded_id == "old-id"
     assert stats.superseded == 1
@@ -272,12 +303,10 @@ async def test_created_synthesis_writes_consolidates_edges_to_every_member():
         return "linked"
 
     stats = WC.CompileStats()
-    r = await WC.compile_cluster(c, comp, head=None, prompt_memory_id="p", stats=stats,
-                                 _write=_write, _link=_link)
+    r = await WC.compile_cluster(c, comp, head=None, prompt_memory_id="p", stats=stats, _write=_write, _link=_link)
     assert r.action == "created"
     # One consolidates edge from the new synthesis to each of the 3 members.
-    assert {(t, rel) for _f, t, rel in links} == {
-        ("a", "consolidates"), ("b", "consolidates"), ("c", "consolidates")}
+    assert {(t, rel) for _f, t, rel in links} == {("a", "consolidates"), ("b", "consolidates"), ("c", "consolidates")}
     assert all(f == "syn-1" for f, _t, _rel in links), "edges must originate at the synthesis"
 
 
@@ -294,17 +323,20 @@ async def test_synthesis_never_self_links():
         links.append((frm, to, rel))
 
     stats = WC.CompileStats()
-    await WC.compile_cluster(c, _StubCompiler(), head=None, prompt_memory_id="p",
-                             stats=stats, _write=_write, _link=_link)
+    await WC.compile_cluster(
+        c, _StubCompiler(), head=None, prompt_memory_id="p", stats=stats, _write=_write, _link=_link
+    )
     assert links == [], "must not self-link the synthesis to itself"
 
 
 @pytest.mark.asyncio
 async def test_compile_failure_is_fail_open():
     """A compiler returning None must not raise or write — the batch continues."""
+
     class _Broken(_StubCompiler):
         def compile(self, cluster):
             return None
+
     c = _cluster(_mem("a", 0.8))
     r, writes, sups, stats = await _run(c, _Broken(), head=None)
     assert r.action == "compile-failed"
@@ -314,6 +346,7 @@ async def test_compile_failure_is_fail_open():
 
 # ── idempotence across a FULL rebuild (the plan's headline metric) ───────────
 
+
 @pytest.mark.asyncio
 async def test_two_consecutive_compiles_of_an_unchanged_store_write_zero_rows():
     """Rebuild twice over an unchanged cluster set → exactly 0 new rows on run 2.
@@ -321,8 +354,7 @@ async def test_two_consecutive_compiles_of_an_unchanged_store_write_zero_rows():
     This is the merge gate: an unbounded supersede chain makes `contradicts`
     edges useless, so the second identical pass must be a pure no-op.
     """
-    clusters = [_cluster(_mem("a", 0.9), _mem("b", 0.5)),
-                _cluster(_mem("c", 0.7))]
+    clusters = [_cluster(_mem("a", 0.9), _mem("b", 0.5)), _cluster(_mem("c", 0.7))]
     comp = _StubCompiler(prose="P")
 
     # Run 1: no heads → all created. Build heads from what was written.
@@ -332,8 +364,8 @@ async def test_two_consecutive_compiles_of_an_unchanged_store_write_zero_rows():
         r, writes, sups, _stats = await _run(cl, comp, heads.get(cl.key))
         total_writes_run1 += len(writes) + len(sups)
         heads[cl.key] = WC.ExistingSynthesis(
-            id=r.synthesis_id, cluster_hash=_cluster_hash(cl, comp.model),
-            prose_hash=WC.prose_hash("P"))
+            id=r.synthesis_id, cluster_hash=_cluster_hash(cl, comp.model), prose_hash=WC.prose_hash("P")
+        )
     assert total_writes_run1 == len(clusters)
 
     # Run 2: heads present, nothing changed → ZERO writes, ZERO model calls.
@@ -349,11 +381,12 @@ async def test_two_consecutive_compiles_of_an_unchanged_store_write_zero_rows():
 
 # ── ledger integration (G1): compile_clusters records a run + frozen membership ─
 
+
 def _ledger_db():
     import sqlite3
+
     _root = os.path.normpath(os.path.join(_HERE, ".."))
-    mig = os.path.join(_root, "memory", "migrations",
-                       "041_wiki_cluster_run.up.sql")
+    mig = os.path.join(_root, "memory", "migrations", "041_wiki_cluster_run.up.sql")
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
     with open(mig, encoding="utf-8") as f:
@@ -363,11 +396,21 @@ def _ledger_db():
 
 class _LedgerDialect:
     """SQLite-flavoured dialect stub for direct ledger reads in assertions."""
-    def param(self): return "?"
-    def placeholder(self, n): return ",".join(["?"] * n)
-    def insert_or_ignore(self): return "INSERT OR IGNORE INTO"
-    def on_conflict_ignore(self, *, conflict_target="", index_predicate=""): return ""
-    def now(self): return "strftime('%Y-%m-%dT%H:%M:%SZ','now')"
+
+    def param(self):
+        return "?"
+
+    def placeholder(self, n):
+        return ",".join(["?"] * n)
+
+    def insert_or_ignore(self):
+        return "INSERT OR IGNORE INTO"
+
+    def on_conflict_ignore(self, *, conflict_target="", index_predicate=""):
+        return ""
+
+    def now(self):
+        return "strftime('%Y-%m-%dT%H:%M:%SZ','now')"
 
 
 @pytest.mark.asyncio
@@ -380,31 +423,40 @@ async def test_compile_clusters_records_ledger_run_and_membership():
     factory attribute, so replacing it poisons every other test in the process)."""
     import wiki.compile as _wc
     import wiki.ledger as _led
+
     db = _ledger_db()
 
-    clusters = [_cluster(_mem("a", 0.9), _mem("b", 0.5)),
-                _cluster(_mem("c", 0.7))]
+    clusters = [_cluster(_mem("a", 0.9), _mem("b", 0.5)), _cluster(_mem("c", 0.7))]
     comp = _StubCompiler(prose="P")
 
     writes = []
+
     async def _write(**a):
-        writes.append(a); return "Created: syn-new"
+        writes.append(a)
+        return "Created: syn-new"
+
     async def _ensure_prompt(compiler, stats, **kw):
         return "prompt-1"  # skip the memory-seam prompt write
 
     stats = await _wc.compile_clusters(
-        clusters, comp, heads={},
-        edges=None, gate=None,  # gating off (no edges) so both clusters compile
-        importance_threshold=0.55, entity_comention=True,
+        clusters,
+        comp,
+        heads={},
+        edges=None,
+        gate=None,  # gating off (no edges) so both clusters compile
+        importance_threshold=0.55,
+        entity_comention=True,
         # _link MUST be injected: the fallback is the real memory_link_impl,
         # which writes to the live ~/.m3/engine/agent_memory.db.
-        _write=_write, _ensure_prompt=_ensure_prompt, _ledger_db=db,
-        _link=lambda a, b, r: f"Linked {a} --[{r}]--> {b}")
+        _write=_write,
+        _ensure_prompt=_ensure_prompt,
+        _ledger_db=db,
+        _link=lambda a, b, r: f"Linked {a} --[{r}]--> {b}",
+    )
 
     assert stats.created == 2
     # A completed run exists with the right params.
-    run = db.execute("SELECT * FROM cluster_run WHERE completed_at IS NOT NULL"
-                     ).fetchone()
+    run = db.execute("SELECT * FROM cluster_run WHERE completed_at IS NOT NULL").fetchone()
     assert run is not None
     assert run["importance_threshold"] == 0.55
     assert run["entity_comention"] == 1
@@ -419,16 +471,27 @@ async def test_compile_clusters_records_ledger_run_and_membership():
 async def test_compile_clusters_ledger_off_writes_no_run(monkeypatch):
     """record_run=False → no ledger row, compile still works."""
     import wiki.compile as _wc
+
     db = _ledger_db()
     clusters = [_cluster(_mem("a", 0.9))]
     comp = _StubCompiler(prose="P")
 
-    async def _write(**a): return "Created: syn-new"
-    async def _ensure_prompt(compiler, stats, **kw): return "prompt-1"
+    async def _write(**a):
+        return "Created: syn-new"
+
+    async def _ensure_prompt(compiler, stats, **kw):
+        return "prompt-1"
 
     await _wc.compile_clusters(
-        clusters, comp, heads={}, edges=None, record_run=False,
-        _write=_write, _ensure_prompt=_ensure_prompt, _ledger_db=db,
-        _link=lambda a, b, r: f"Linked {a} --[{r}]--> {b}")
+        clusters,
+        comp,
+        heads={},
+        edges=None,
+        record_run=False,
+        _write=_write,
+        _ensure_prompt=_ensure_prompt,
+        _ledger_db=db,
+        _link=lambda a, b, r: f"Linked {a} --[{r}]--> {b}",
+    )
     n = db.execute("SELECT COUNT(*) AS c FROM cluster_run").fetchone()["c"]
     assert n == 0

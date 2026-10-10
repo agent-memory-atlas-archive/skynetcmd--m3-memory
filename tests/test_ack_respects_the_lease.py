@@ -16,6 +16,7 @@ both acks stamped the caller's, so one column carried two formats
 so once anything compares `read_at` that is the N-clock bug already rejected
 for `claimed_at` and `last_seen`.
 """
+
 from __future__ import annotations
 
 import os
@@ -77,8 +78,12 @@ def _claim(agent_id: str, claimant: str = "worker-1"):
     with dispatch_conn_for_tests() as db:
         p = D.param()
         return D.claim_message(
-            db, table=dispatch_table_for_tests(), where_sql=f"agent_id = {p}",
-            where_params=(agent_id,), claimant=claimant, lease_ttl=300,
+            db,
+            table=dispatch_table_for_tests(),
+            where_sql=f"agent_id = {p}",
+            where_params=(agent_id,),
+            claimant=claimant,
+            lease_ttl=300,
         )
 
 
@@ -100,17 +105,16 @@ def test_ack_all_does_not_steal_a_claimed_message(agent):
 
     notifications_ack_all_impl(agent)
 
-    assert _row(row_id)["read_at"] is None, (
-        "ack_all completed a message another worker holds a live lease on"
-    )
+    assert _row(row_id)["read_at"] is None, "ack_all completed a message another worker holds a live lease on"
 
     with dispatch_conn_for_tests() as db:
         still_mine = dialect().complete_message(
-            db, table=dispatch_table_for_tests(), row_id=row_id, lease_token=token,
+            db,
+            table=dispatch_table_for_tests(),
+            row_id=row_id,
+            lease_token=token,
         )
-    assert still_mine, (
-        "the leaseholder could no longer complete its own work -- ack stole it"
-    )
+    assert still_mine, "the leaseholder could no longer complete its own work -- ack stole it"
 
 
 def test_ack_by_id_does_not_steal_a_claimed_message(agent):
@@ -122,12 +126,13 @@ def test_ack_by_id_does_not_steal_a_claimed_message(agent):
 
     out = notifications_ack_impl(row_id)
 
-    assert _row(row_id)["read_at"] is None, (
-        f"ack by id completed a claimed message: {out!r}"
-    )
+    assert _row(row_id)["read_at"] is None, f"ack by id completed a claimed message: {out!r}"
     with dispatch_conn_for_tests() as db:
         assert dialect().complete_message(
-            db, table=dispatch_table_for_tests(), row_id=row_id, lease_token=token,
+            db,
+            table=dispatch_table_for_tests(),
+            row_id=row_id,
+            lease_token=token,
         ), "the leaseholder lost its work to a by-id ack"
 
 
@@ -139,21 +144,15 @@ def test_ack_still_works_on_an_unclaimed_message(agent):
 
     with dispatch_conn_for_tests() as db:
         p = dialect().param()
-        row = db.execute(
-            f"SELECT read_at FROM {_T} WHERE agent_id = {p}", (agent,)
-        ).fetchone()
-    assert row["read_at"] is not None, (
-        "an UNCLAIMED message could no longer be acked -- the queue is now stuck"
-    )
+        row = db.execute(f"SELECT read_at FROM {_T} WHERE agent_id = {p}", (agent,)).fetchone()
+    assert row["read_at"] is not None, "an UNCLAIMED message could no longer be acked -- the queue is now stuck"
 
 
 def test_ack_by_id_still_works_on_an_unclaimed_message(agent):
     notify_impl(agent, "ping", {"work": 1})
     with dispatch_conn_for_tests() as db:
         p = dialect().param()
-        rid = db.execute(
-            f"SELECT id FROM {_T} WHERE agent_id = {p}", (agent,)
-        ).fetchone()["id"]
+        rid = db.execute(f"SELECT id FROM {_T} WHERE agent_id = {p}", (agent,)).fetchone()["id"]
 
     out = notifications_ack_impl(rid)
     assert "Error" not in out, out
@@ -172,17 +171,13 @@ def test_read_at_is_written_by_the_database_clock(agent):
 
     with dispatch_conn_for_tests() as db:
         p = dialect().param()
-        stamped = db.execute(
-            f"SELECT read_at FROM {_T} WHERE agent_id = {p}", (agent,)
-        ).fetchone()["read_at"]
+        stamped = db.execute(f"SELECT read_at FROM {_T} WHERE agent_id = {p}", (agent,)).fetchone()["read_at"]
 
     assert stamped.endswith("Z"), (
-        f"read_at {stamped!r} is not in the DB's format -- a Python "
-        f"isoformat() leaks a +00:00 offset"
+        f"read_at {stamped!r} is not in the DB's format -- a Python isoformat() leaks a +00:00 offset"
     )
     assert "." not in stamped, (
-        f"read_at {stamped!r} carries microseconds, which the DB clock does "
-        f"not emit -- this was written by the caller"
+        f"read_at {stamped!r} carries microseconds, which the DB clock does not emit -- this was written by the caller"
     )
 
 
@@ -193,17 +188,15 @@ def test_both_ack_paths_agree_on_the_clock(agent):
     notify_impl(agent, "b", {})
     with dispatch_conn_for_tests() as db:
         p = dialect().param()
-        ids = [r["id"] for r in db.execute(
-            f"SELECT id FROM {_T} WHERE agent_id = {p} ORDER BY id",
-            (agent,)).fetchall()]
+        ids = [
+            r["id"] for r in db.execute(f"SELECT id FROM {_T} WHERE agent_id = {p} ORDER BY id", (agent,)).fetchall()
+        ]
 
     notifications_ack_impl(ids[0])
     notifications_ack_all_impl(agent)
 
     a, b = _row(ids[0])["read_at"], _row(ids[1])["read_at"]
-    assert a.endswith("Z") and b.endswith("Z"), (
-        f"the two ack paths wrote different formats: {a!r} vs {b!r}"
-    )
+    assert a.endswith("Z") and b.endswith("Z"), f"the two ack paths wrote different formats: {a!r} vs {b!r}"
 
 
 def test_a_dead_lettered_message_is_still_ackable(agent):
@@ -245,6 +238,4 @@ def test_ack_all_reports_what_it_left_behind(agent):
     _claim(agent)
 
     out = notifications_ack_all_impl(agent)
-    assert "claimed" in out, (
-        f"ack_all silently left claimed work behind: {out!r}"
-    )
+    assert "claimed" in out, f"ack_all silently left claimed work behind: {out!r}"

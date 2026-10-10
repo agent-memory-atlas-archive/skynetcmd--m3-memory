@@ -4,6 +4,7 @@ pathlib's is_file() raises PermissionError on Python 3.12/3.13 for such a path
 (POSIX); os.path.isfile returns False on every version (m3_memory/_pyver.py).
 Pinned on a converted site: _pg_tool must report its own "is not a file".
 """
+
 from __future__ import annotations
 
 import importlib

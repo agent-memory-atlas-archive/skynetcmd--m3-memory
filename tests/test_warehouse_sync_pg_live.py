@@ -10,6 +10,7 @@ Covers, against a real cluster:
   * pg_fdw_sync: bidirectional set-based upsert with last-writer-wins + stale-skip.
   * pg_sync warehouse search_path detection.
 """
+
 from __future__ import annotations
 
 import os
@@ -28,6 +29,7 @@ pytestmark = pytest.mark.requires_pg
 
 def _dsn():
     from conftest import pg_dsn
+
     return pg_dsn()
 
 
@@ -70,11 +72,11 @@ def _server_side_dsn(conn) -> str:
     if not port:
         return dsn
     parts = urllib.parse.urlsplit(dsn)
-    host_part = parts.netloc.rsplit("@", 1)[-1]          # host[:port]
+    host_part = parts.netloc.rsplit("@", 1)[-1]  # host[:port]
     credentials = parts.netloc[: len(parts.netloc) - len(host_part)]
-    return urllib.parse.urlunsplit((
-        parts.scheme, f"{credentials}127.0.0.1:{port}",
-        parts.path, parts.query, parts.fragment))
+    return urllib.parse.urlunsplit(
+        (parts.scheme, f"{credentials}127.0.0.1:{port}", parts.path, parts.query, parts.fragment)
+    )
 
 
 def _end_tx(conn) -> None:
@@ -133,49 +135,59 @@ class TestFdwUpsertLive:
 
     def test_upsert_delta_and_last_writer_wins(self, warehouse_env):
         import pg_fdw_sync as F
+
         conn, pub, wh = warehouse_env
         cur = conn.cursor()
         # minimal memory_items-shaped tables in both schemas
         for sch in (pub, wh):
-            cur.execute(f"CREATE TABLE {sch}.mi (id TEXT PRIMARY KEY, "
-                        f"content TEXT, updated_at TIMESTAMPTZ)")
-        cur.execute(f"INSERT INTO {pub}.mi VALUES "
-                    f"('a','v1','2026-07-01'),('b','v1','2026-07-15')")
+            cur.execute(f"CREATE TABLE {sch}.mi (id TEXT PRIMARY KEY, content TEXT, updated_at TIMESTAMPTZ)")
+        cur.execute(f"INSERT INTO {pub}.mi VALUES ('a','v1','2026-07-01'),('b','v1','2026-07-15')")
         # PUSH pub -> wh, delta since epoch
-        n = F._upsert(cur, f"{wh}.mi", f"{pub}.mi",
-                      ["id", "content", "updated_at"], "id", "updated_at",
-                      "1970-01-01T00:00:00+00:00")
+        n = F._upsert(
+            cur,
+            f"{wh}.mi",
+            f"{pub}.mi",
+            ["id", "content", "updated_at"],
+            "id",
+            "updated_at",
+            "1970-01-01T00:00:00+00:00",
+        )
         assert n == 2
         cur.execute(f"SELECT count(*) FROM {wh}.mi")
         assert cur.fetchone()[0] == 2
 
         # last-writer-wins: newer local update wins on re-push
-        cur.execute(f"UPDATE {pub}.mi SET content='v2', updated_at='2026-07-20' "
-                    f"WHERE id='a'")
-        F._upsert(cur, f"{wh}.mi", f"{pub}.mi",
-                  ["id", "content", "updated_at"], "id", "updated_at",
-                  "2026-07-16T00:00:00+00:00")
+        cur.execute(f"UPDATE {pub}.mi SET content='v2', updated_at='2026-07-20' WHERE id='a'")
+        F._upsert(
+            cur,
+            f"{wh}.mi",
+            f"{pub}.mi",
+            ["id", "content", "updated_at"],
+            "id",
+            "updated_at",
+            "2026-07-16T00:00:00+00:00",
+        )
         cur.execute(f"SELECT content FROM {wh}.mi WHERE id='a'")
         assert cur.fetchone()[0] == "v2"
 
     def test_upsert_stale_row_is_skipped(self, warehouse_env):
         import pg_fdw_sync as F
+
         conn, pub, wh = warehouse_env
         cur = conn.cursor()
         for sch in (pub, wh):
-            cur.execute(f"CREATE TABLE {sch}.mi (id TEXT PRIMARY KEY, "
-                        f"content TEXT, updated_at TIMESTAMPTZ)")
+            cur.execute(f"CREATE TABLE {sch}.mi (id TEXT PRIMARY KEY, content TEXT, updated_at TIMESTAMPTZ)")
         # warehouse already has a NEWER version
         cur.execute(f"INSERT INTO {wh}.mi VALUES ('a','fresh','2026-07-20')")
         # local has an OLDER version
         cur.execute(f"INSERT INTO {pub}.mi VALUES ('a','stale','2026-06-01')")
-        F._upsert(cur, f"{wh}.mi", f"{pub}.mi",
-                  ["id", "content", "updated_at"], "id", "updated_at", None)
+        F._upsert(cur, f"{wh}.mi", f"{pub}.mi", ["id", "content", "updated_at"], "id", "updated_at", None)
         cur.execute(f"SELECT content FROM {wh}.mi WHERE id='a'")
         assert cur.fetchone()[0] == "fresh"  # stale push rejected by the guard
 
     def test_upsert_no_timestamp_is_full_idempotent(self, warehouse_env):
         import pg_fdw_sync as F
+
         conn, pub, wh = warehouse_env
         cur = conn.cursor()
         for sch in (pub, wh):
@@ -197,6 +209,7 @@ class TestWarehouseMigrationLive:
     @pytest.fixture
     def mig_env(self, monkeypatch):
         import migrate_warehouse_to_schema as mw
+
         conn = _connect()
         cur = conn.cursor()
         wh = "t" + uuid.uuid4().hex[:8] + "_wh"
@@ -215,32 +228,28 @@ class TestWarehouseMigrationLive:
     def test_move_public_only_table(self, mig_env):
         _conn, cur, mw, wh, tasks, _secrets = mig_env
         cur.execute(f"CREATE TABLE public.{tasks} (id TEXT PRIMARY KEY, v TEXT)")
-        cur.execute(f"INSERT INTO public.{tasks} SELECT g::text,'x' "
-                    f"FROM generate_series(1,29) g")
+        cur.execute(f"INSERT INTO public.{tasks} SELECT g::text,'x' FROM generate_series(1,29) g")
         # classify: public-only -> move
         p = mw._plan_for(cur, tasks)
         assert p["action"] == "move" and p["public"] == 29 and p["warehouse"] is None
         # apply: pre-create the wh target (stands in for the DDL step), then _apply
         cur.execute(f"CREATE TABLE {wh}.{tasks} (id TEXT PRIMARY KEY, v TEXT)")
-        mw._apply(cur, mw._plan_for(cur, tasks), warehouse_ddl_path=None,
-                  drop_public=True)
+        mw._apply(cur, mw._plan_for(cur, tasks), warehouse_ddl_path=None, drop_public=True)
         cur.execute(f"SELECT count(*) FROM {wh}.{tasks}")
-        assert cur.fetchone()[0] == 29           # moved, no loss
+        assert cur.fetchone()[0] == 29  # moved, no loss
         cur.execute("SELECT to_regclass(%s)", (f"public.{tasks}",))
-        assert cur.fetchone()[0] is None          # public dropped
+        assert cur.fetchone()[0] is None  # public dropped
 
     def test_merge_dedup_both_present(self, mig_env):
         _conn, cur, mw, wh, _tasks, secrets = mig_env
         for sch in ("public", wh):
-            cur.execute(f"CREATE TABLE {sch}.{secrets} "
-                        f"(service_name TEXT PRIMARY KEY, val TEXT)")
-            cur.execute(f"INSERT INTO {sch}.{secrets} SELECT g::text,'s' "
-                        f"FROM generate_series(1,11) g")
+            cur.execute(f"CREATE TABLE {sch}.{secrets} (service_name TEXT PRIMARY KEY, val TEXT)")
+            cur.execute(f"INSERT INTO {sch}.{secrets} SELECT g::text,'s' FROM generate_series(1,11) g")
         p = mw._plan_for(cur, secrets)
         assert p["action"] == "merge"
         mw._apply(cur, p, warehouse_ddl_path=None, drop_public=True)
         cur.execute(f"SELECT count(*) FROM {wh}.{secrets}")
-        assert cur.fetchone()[0] == 11            # union dedup, not 22
+        assert cur.fetchone()[0] == 11  # union dedup, not 22
         cur.execute("SELECT to_regclass(%s)", (f"public.{secrets}",))
         assert cur.fetchone()[0] is None
 
@@ -249,21 +258,25 @@ class TestWarehouseMigrationLive:
         than public — the no-data-loss guard."""
         _conn, cur, mw, wh, tasks, _secrets = mig_env
         cur.execute(f"CREATE TABLE public.{tasks} (id TEXT PRIMARY KEY, v TEXT)")
-        cur.execute(f"INSERT INTO public.{tasks} SELECT g::text,'x' "
-                    f"FROM generate_series(1,5) g")
+        cur.execute(f"INSERT INTO public.{tasks} SELECT g::text,'x' FROM generate_series(1,5) g")
         cur.execute(f"CREATE TABLE {wh}.{tasks} (id TEXT PRIMARY KEY, v TEXT)")
         # Force a short count: make _row_count under-report the warehouse.
         real_rc = mw._row_count
+
         def fake_rc(c, schema, table):
             n = real_rc(c, schema, table)
             if schema == wh and n is not None:
                 return 0  # pretend nothing landed
             return n
+
         monkeypatch.setattr(mw, "_row_count", fake_rc)
         with pytest.raises(RuntimeError):
-            mw._apply(cur, {"table": tasks, "action": "move",
-                            "public": 5, "warehouse": None},
-                      warehouse_ddl_path=None, drop_public=True)
+            mw._apply(
+                cur,
+                {"table": tasks, "action": "move", "public": 5, "warehouse": None},
+                warehouse_ddl_path=None,
+                drop_public=True,
+            )
         # public must still exist (not dropped)
         cur.execute("SELECT to_regclass(%s)", (f"public.{tasks}",))
         assert cur.fetchone()[0] is not None
@@ -274,12 +287,12 @@ class TestSearchPathLive:
 
     def test_sets_search_path_when_warehouse_present(self):
         import pg_sync
+
         conn = _connect()
         conn.autocommit = True
         cur = conn.cursor()
         cur.execute("CREATE SCHEMA IF NOT EXISTS m3_warehouse")
-        cur.execute("CREATE TABLE IF NOT EXISTS m3_warehouse.memory_items "
-                    "(id TEXT PRIMARY KEY)")
+        cur.execute("CREATE TABLE IF NOT EXISTS m3_warehouse.memory_items (id TEXT PRIMARY KEY)")
         try:
             conn.autocommit = False
             schema = pg_sync._set_warehouse_search_path(conn)
@@ -296,6 +309,7 @@ class TestSearchPathLive:
 
     def test_stays_public_when_no_warehouse(self):
         import pg_sync
+
         conn = _connect()
         cur = conn.cursor()
         # ensure the warehouse memory_items is absent in this DB path
@@ -352,6 +366,7 @@ class TestFdwCrossDatabaseLive:
 
     def test_ensure_fdw_wired_and_read_foreign(self):
         import pg_fdw_sync as F
+
         # need postgres_fdw available on the primary; skip if not
         conn = _connect()
         cur = conn.cursor()
@@ -369,15 +384,14 @@ class TestFdwCrossDatabaseLive:
             ("memory_relationships", "id TEXT PRIMARY KEY"),
         ):
             cur.execute(f"CREATE TABLE IF NOT EXISTS m3_warehouse.{t} ({ddl})")
-        cur.execute("INSERT INTO m3_warehouse.memory_items VALUES "
-                    "('wh1','2026-07-19') ON CONFLICT DO NOTHING")
+        cur.execute("INSERT INTO m3_warehouse.memory_items VALUES ('wh1','2026-07-19') ON CONFLICT DO NOTHING")
         try:
             conn.autocommit = False
             with conn.cursor() as c:
                 # the SERVER dials this, not us — see _server_side_dsn
                 F._ensure_fdw_wired(c, _server_side_dsn(conn))
                 c.execute(f"SELECT count(*) FROM {F.FDW_SCHEMA}.memory_items")
-                assert c.fetchone()[0] >= 1   # read warehouse via FDW
+                assert c.fetchone()[0] >= 1  # read warehouse via FDW
             conn.rollback()
         except F.FdwUnavailable as e:
             pytest.skip(skip_reason("db", f"FDW self-wiring not supported here: {e}"))
@@ -399,7 +413,8 @@ def _shared_cols(cur, pub, wh, table):
         "JOIN information_schema.columns p ON p.table_schema=%s "
         "AND p.table_name=%s AND p.column_name=w.column_name "
         "WHERE w.table_schema=%s AND w.table_name=%s ORDER BY w.ordinal_position",
-        (pub, table, wh, table))
+        (pub, table, wh, table),
+    )
     return [r[0] for r in cur.fetchall()]
 
 
@@ -408,7 +423,8 @@ def _pk(cur, schema, table):
         "SELECT a.attname FROM pg_index i JOIN pg_attribute a "
         "ON a.attrelid=i.indrelid AND a.attnum=ANY(i.indkey) "
         "WHERE i.indrelid=%s::regclass AND i.indisprimary",
-        (f"{schema}.{table}",))
+        (f"{schema}.{table}",),
+    )
     return cur.fetchone()[0]
 
 

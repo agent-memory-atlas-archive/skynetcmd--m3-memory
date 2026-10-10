@@ -24,6 +24,7 @@ Design invariants:
   * Backend-agnostic: uses the caller's live seam connection + dialect, no direct
     sqlite3 / psycopg import.
 """
+
 from __future__ import annotations
 
 import json
@@ -46,8 +47,7 @@ def find_derived_syntheses(db, dialect, erased_member_ids: list[str]) -> list[st
     return [r["from_id"] for r in rows]
 
 
-def restrict_syntheses(db, dialect, synthesis_ids: list[str], *,
-                       erased_count: int, timestamp: str) -> int:
+def restrict_syntheses(db, dialect, synthesis_ids: list[str], *, erased_count: int, timestamp: str) -> int:
     """Set `restricted` on each synthesis's metadata, with an erasure record.
 
     Accumulates: a synthesis restricted by an earlier erasure keeps that history
@@ -60,9 +60,7 @@ def restrict_syntheses(db, dialect, synthesis_ids: list[str], *,
     p = dialect.param()
     touched = 0
     for sid in synthesis_ids:
-        row = db.execute(
-            f"SELECT metadata_json FROM memory_items WHERE id = {p}", (sid,)
-        ).fetchone()
+        row = db.execute(f"SELECT metadata_json FROM memory_items WHERE id = {p}", (sid,)).fetchone()
         if row is None:
             continue
         meta = dialect.json_column_to_dict(row["metadata_json"])
@@ -72,14 +70,12 @@ def restrict_syntheses(db, dialect, synthesis_ids: list[str], *,
         review = meta.get("review")
         if not isinstance(review, dict):
             review = {}
-        record = {"erased_members": erased_count, "erased_at": timestamp,
-                  "reason": "gdpr_forget (Art. 17)"}
+        record = {"erased_members": erased_count, "erased_at": timestamp, "reason": "gdpr_forget (Art. 17)"}
         history = review.get("erasure_records")
         if not isinstance(history, list):
             history = []
         # Idempotence: don't append an identical (count, timestamp) record twice.
-        if not any(r.get("erased_at") == timestamp
-                   and r.get("erased_members") == erased_count for r in history):
+        if not any(r.get("erased_at") == timestamp and r.get("erased_members") == erased_count for r in history):
             history.append(record)
         review["erasure_records"] = history
         review["restricted"] = True  # also under review, so either read path fires
@@ -92,8 +88,7 @@ def restrict_syntheses(db, dialect, synthesis_ids: list[str], *,
     return touched
 
 
-def restrict_derived_on_erasure(db, dialect, erased_member_ids: list[str], *,
-                                timestamp: str) -> dict:
+def restrict_derived_on_erasure(db, dialect, erased_member_ids: list[str], *, timestamp: str) -> dict:
     """The full hook: find syntheses derived from the erased members and restrict
     them. Call from gdpr_forget BEFORE the cascade delete. Returns a summary
     {'restricted': N, 'synthesis_ids': [...]} for the erasure's audit record.
@@ -104,6 +99,5 @@ def restrict_derived_on_erasure(db, dialect, erased_member_ids: list[str], *,
     corpus with syntheses derived from the erased id is the alarm condition.
     """
     ids = find_derived_syntheses(db, dialect, erased_member_ids)
-    n = restrict_syntheses(db, dialect, ids,
-                           erased_count=len(erased_member_ids), timestamp=timestamp)
+    n = restrict_syntheses(db, dialect, ids, erased_count=len(erased_member_ids), timestamp=timestamp)
     return {"restricted": n, "synthesis_ids": ids}

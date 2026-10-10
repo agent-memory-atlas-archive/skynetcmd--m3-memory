@@ -3,6 +3,7 @@
 An ignored filter widened search to every record and made a filter-only delete
 remove nothing without saying so. Hermetic: neither module imports crewai.
 """
+
 from __future__ import annotations
 
 import json

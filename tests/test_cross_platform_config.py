@@ -39,8 +39,7 @@ def _all_commands(settings):
 
 def _scripts_prefix() -> str:
     """The forward-slash `<repo>/.venv/Scripts/` prefix a Windows venv uses."""
-    return (os.path.join(g._m3_repo_root(), ".venv", "Scripts", "")
-            .replace("\\", "/"))
+    return os.path.join(g._m3_repo_root(), ".venv", "Scripts", "").replace("\\", "/")
 
 
 def _build_settings(monkeypatch, os_name):
@@ -97,6 +96,7 @@ def _build_settings(monkeypatch, os_name):
 
 
 # ── interpreter layout per OS ────────────────────────────────────────────────
+
 
 def test_windows_interpreter_uses_the_scripts_exe_form(monkeypatch):
     """Windows must use the venv's `Scripts/*.exe` interpreter.
@@ -184,10 +184,11 @@ def test_decoupled_roots_pinned_in_server_env_and_hooks(monkeypatch):
     import types
 
     import chatlog_config
+
     monkeypatch.setattr(
-        chatlog_config, "resolve_config",
-        lambda: types.SimpleNamespace(
-            host_agents={"claude-code": types.SimpleNamespace(stop_hook=True)}),
+        chatlog_config,
+        "resolve_config",
+        lambda: types.SimpleNamespace(host_agents={"claude-code": types.SimpleNamespace(stop_hook=True)}),
     )
 
     g.generate_configs()
@@ -227,10 +228,11 @@ def test_stop_hook_omitted_when_disabled(monkeypatch):
     import types
 
     import chatlog_config
+
     monkeypatch.setattr(
-        chatlog_config, "resolve_config",
-        lambda: types.SimpleNamespace(
-            host_agents={"claude-code": types.SimpleNamespace(stop_hook=False)}),
+        chatlog_config,
+        "resolve_config",
+        lambda: types.SimpleNamespace(host_agents={"claude-code": types.SimpleNamespace(stop_hook=False)}),
     )
     g.generate_configs()
     hooks = g.generate_configs._last_claude["hooks"]
@@ -268,8 +270,9 @@ def test_source_checkout_still_uses_repo_venv(monkeypatch):
     dev_venv = dev_root + "/.venv/bin/python"
     real_exists = os.path.exists
     monkeypatch.setattr(g.os, "name", "posix")
-    monkeypatch.setattr(g.os.path, "exists",
-                        lambda p: True if str(p).replace("\\", "/") == dev_venv else real_exists(p))
+    monkeypatch.setattr(
+        g.os.path, "exists", lambda p: True if str(p).replace("\\", "/") == dev_venv else real_exists(p)
+    )
 
     assert g._is_installed_layout(dev_root) is False
     assert g._resolve_python_cmd(dev_root) == dev_venv
@@ -288,9 +291,13 @@ def test_bin_scripts_root_at_payload_bindir_not_the_clone(monkeypatch):
     # No repo .venv → interpreter falls back to sys.executable (absolute).
     repo_venv = (g._m3_repo_root() + os.sep + ".venv").replace("\\", "/")
     real_exists = os.path.exists
-    monkeypatch.setattr(g.os.path, "exists",
-                        lambda p: False if str(p).replace("\\", "/").startswith(repo_venv)
-                        or str(p).endswith(".gguf") else real_exists(p))
+    monkeypatch.setattr(
+        g.os.path,
+        "exists",
+        lambda p: (
+            False if str(p).replace("\\", "/").startswith(repo_venv) or str(p).endswith(".gguf") else real_exists(p)
+        ),
+    )
     monkeypatch.delenv("M3_EMBED_GGUF", raising=False)
     monkeypatch.setattr(g, "_write_json", lambda path, data: None)
 
@@ -312,6 +319,7 @@ def test_bin_scripts_root_at_payload_bindir_not_the_clone(monkeypatch):
 
 
 # ── invariants that must hold on EVERY OS ────────────────────────────────────
+
 
 @pytest.mark.parametrize("os_name", ["nt", "posix"])
 def test_no_backslashes_in_any_command(monkeypatch, os_name):
@@ -357,6 +365,7 @@ def test_windows_has_no_posix_only_interpreter(monkeypatch):
 # in a unit test. These assert the SAME resolution rules it uses, guarding
 # against a regression to the windows-only .exe layout or the missing
 # requirements-windows.txt crash.
+
 
 @pytest.mark.parametrize(
     "is_win, expected_suffix",
@@ -419,6 +428,7 @@ def test_setup_migrations_skip_down_and_order_numerically():
 
 # ── os.name must not leak out of the helper ──────────────────────────────────
 
+
 def test_build_settings_restores_os_name(monkeypatch):
     """Regression: `_build_settings` forces `os.name` process-wide, and
     `pathlib.Path()` selects PosixPath vs WindowsPath from `os.name` at
@@ -440,13 +450,11 @@ def test_path_flavour_unchanged_after_both_variants(monkeypatch):
     native = type(pathlib.Path("."))
     for os_name in ("nt", "posix"):
         _build_settings(monkeypatch, os_name)
-        assert type(pathlib.Path(".")) is native, (
-            f"path flavour changed after _build_settings({os_name!r})")
-
-
+        assert type(pathlib.Path(".")) is native, f"path flavour changed after _build_settings({os_name!r})"
 
 
 # ── text encoding: the locale codec is not UTF-8 on Windows ──────────────────
+
 
 def test_reading_a_utf8_config_with_the_locale_codec_corrupts_it_silently():
     """Demonstrates why every reader must pin encoding="utf-8".
@@ -471,9 +479,7 @@ def test_reading_a_utf8_config_with_the_locale_codec_corrupts_it_silently():
 
         with open(target, encoding="cp1252") as fh:
             mangled = json.load(fh)
-        assert mangled != payload, (
-            "expected cp1252 to corrupt this fixture — the test no longer proves anything"
-        )
+        assert mangled != payload, "expected cp1252 to corrupt this fixture — the test no longer proves anything"
 
         with open(target, encoding="utf-8") as fh:
             assert json.load(fh) == payload
@@ -487,8 +493,7 @@ def test_config_writers_have_no_unencoded_text_opens():
     """
     import re
 
-    bin_dir = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bin")
+    bin_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bin")
     binary_mode = re.compile(r"""['"][rwxa]\+?b\+?['"]""")
     offenders = []
     for name in ("generate_configs.py", "install_schedules.py"):

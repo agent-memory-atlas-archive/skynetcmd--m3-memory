@@ -16,6 +16,7 @@ silent and CI never notices (no live engine DB there).
 This module is the guard: it fails if the fallback is ever reachable again,
 rather than waiting for someone to notice a hung suite or dirty store.
 """
+
 from __future__ import annotations
 
 import ast
@@ -38,9 +39,9 @@ def _helpers_calling(fn_name: str) -> list[tuple[Path, ast.AST]]:
             if not isinstance(node, (ast.AsyncFunctionDef, ast.FunctionDef)):
                 continue
             calls = [
-                c for c in ast.walk(node)
-                if isinstance(c, ast.Call)
-                and getattr(c.func, "attr", getattr(c.func, "id", None)) == fn_name
+                c
+                for c in ast.walk(node)
+                if isinstance(c, ast.Call) and getattr(c.func, "attr", getattr(c.func, "id", None)) == fn_name
             ]
             if calls:
                 found.append((path, node, calls))

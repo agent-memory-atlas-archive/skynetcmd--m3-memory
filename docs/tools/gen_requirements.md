@@ -1,8 +1,8 @@
 ---
 tool: bin/gen_requirements.py
-sha1: 7e6c90b6a70e
-mtime_utc: 2026-10-10T07:23:35.024501+00:00
-generated_utc: 2026-10-10T07:24:08.120935+00:00
+sha1: 012f50c047fc
+mtime_utc: 2026-10-10T21:05:16.782478+00:00
+generated_utc: 2026-10-10T21:05:29.535087+00:00
 private: false
 ---
 
@@ -32,7 +32,7 @@ Why each pin is what it is: docs/DEPENDENCY_NOTES.md.
 
 ## Entry points
 
-- `def main()` (line 91)
+- `def main()` (line 105)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -61,7 +61,7 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `cmd`` (line 82)
+- `subprocess.run()  → `cmd`` (line 95)
 
 
 ---

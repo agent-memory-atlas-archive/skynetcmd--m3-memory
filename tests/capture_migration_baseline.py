@@ -4,6 +4,7 @@ Writes three artifacts under .scratch/migration_baseline/ that subsequent
 phases use to detect drift. All read-only against agent_chatlog.db.
 Random seeds fixed for determinism.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -42,6 +43,7 @@ N_SEARCH_QUERIES = 50
 def vec_sha256(vec: list[float]) -> str:
     """Stable hash with 6-decimal rounding (absorbs driver-level FP noise)."""
     import struct
+
     rounded = [round(x, 6) for x in vec]
     blob = struct.pack(f"{len(rounded)}f", *rounded)
     return hashlib.sha256(blob).hexdigest()
@@ -81,6 +83,7 @@ def synth_queries(n: int) -> list[str]:
 
 async def capture_embed_smoke():
     import memory_core as mc
+
     rows = sample_rows(N_EMBED_ROWS)
     print(f"  embedding {len(rows)} rows...")
     out = []
@@ -92,14 +95,15 @@ async def capture_embed_smoke():
         else:
             out.append({"memory_id": mid, "vec_sha256": vec_sha256(vec), "model": model, "len": len(vec)})
         if (i + 1) % 20 == 0:
-            print(f"    {i+1}/{len(rows)}", flush=True)
+            print(f"    {i + 1}/{len(rows)}", flush=True)
     elapsed = time.perf_counter() - t0
-    print(f"  done: {len(rows)} embeds in {elapsed:.1f}s ({len(rows)/elapsed:.1f}/s)")
+    print(f"  done: {len(rows)} embeds in {elapsed:.1f}s ({len(rows) / elapsed:.1f}/s)")
     return {"seed": SEED, "n_rows": len(rows), "elapsed_s": round(elapsed, 2), "results": out}
 
 
 async def capture_search_smoke():
     import memory_core as mc
+
     queries = synth_queries(N_SEARCH_QUERIES)
     print(f"  running {len(queries)} searches...")
     out = []
@@ -108,26 +112,34 @@ async def capture_search_smoke():
         try:
             res = await mc.memory_search_impl(q, k=50)
             if isinstance(res, str):
-                out.append({
-                    "query": q[:80], "result_kind": "str", "result_len": len(res),
-                    "result_sha256": hashlib.sha256(res.encode("utf-8")).hexdigest(),
-                })
+                out.append(
+                    {
+                        "query": q[:80],
+                        "result_kind": "str",
+                        "result_len": len(res),
+                        "result_sha256": hashlib.sha256(res.encode("utf-8")).hexdigest(),
+                    }
+                )
             else:
-                out.append({
-                    "query": q[:80], "result_kind": "obj",
-                    "result_repr_sha256": hashlib.sha256(repr(res).encode("utf-8")).hexdigest(),
-                })
+                out.append(
+                    {
+                        "query": q[:80],
+                        "result_kind": "obj",
+                        "result_repr_sha256": hashlib.sha256(repr(res).encode("utf-8")).hexdigest(),
+                    }
+                )
         except Exception as e:
             out.append({"query": q[:80], "error": str(e)[:200]})
         if (i + 1) % 10 == 0:
-            print(f"    {i+1}/{len(queries)}", flush=True)
+            print(f"    {i + 1}/{len(queries)}", flush=True)
     elapsed = time.perf_counter() - t0
-    print(f"  done: {len(queries)} searches in {elapsed:.1f}s ({len(queries)/elapsed:.1f}/s)")
+    print(f"  done: {len(queries)} searches in {elapsed:.1f}s ({len(queries) / elapsed:.1f}/s)")
     return {"seed": SEED + 1, "n_queries": len(queries), "elapsed_s": round(elapsed, 2), "results": out}
 
 
 async def capture_embedder_status():
     import memory_core as mc
+
     return await mc.embedder_status_impl()
 
 

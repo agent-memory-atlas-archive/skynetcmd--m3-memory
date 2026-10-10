@@ -6,6 +6,7 @@ wait_for_quiesce's empty-registry invariant. Filesystem-isolated via tmp_path;
 never spawns real processes — a "dead" PID is a forged high number that isn't
 running.
 """
+
 from __future__ import annotations
 
 import json
@@ -65,9 +66,10 @@ def test_list_reaps_dead_pid_entry(root):
     m3_halt.register_process("cognitive-loop", engine_root=root)
     pdir = Path(root) / ".internal" / "PID"
     dead = pdir / f"embed-server.{_DEAD_PID}"
-    dead.write_text(json.dumps({
-        "pid": _DEAD_PID, "role": "embed-server", "started_at": "x",
-        "engine_root": root, "protocol": 1}), encoding="utf-8")
+    dead.write_text(
+        json.dumps({"pid": _DEAD_PID, "role": "embed-server", "started_at": "x", "engine_root": root, "protocol": 1}),
+        encoding="utf-8",
+    )
     live = m3_halt.list_live_processes(engine_root=root)
     assert [p.role for p in live] == ["cognitive-loop"]
     assert not dead.exists()  # reaped
@@ -100,9 +102,10 @@ def test_halt_active_while_owner_alive(root):
 def test_halt_self_voids_on_dead_owner(root):
     halt = Path(root) / ".internal" / "HALT_m3"
     halt.parent.mkdir(parents=True)
-    halt.write_text(json.dumps({
-        "owner_pid": _DEAD_PID, "owner": "x", "reason": "y",
-        "created_at": "z", "protocol": 1}), encoding="utf-8")
+    halt.write_text(
+        json.dumps({"owner_pid": _DEAD_PID, "owner": "x", "reason": "y", "created_at": "z", "protocol": 1}),
+        encoding="utf-8",
+    )
     assert m3_halt.halt_is_active(engine_root=root) is False
     assert not halt.exists()  # voided + reaped
 
@@ -152,9 +155,10 @@ def test_wait_for_quiesce_ignores_dead_holder(root):
     # A dead-pid registry entry must not count as a holder → quiesce succeeds.
     pdir = Path(root) / ".internal" / "PID"
     pdir.mkdir(parents=True)
-    (pdir / f"mcp.{_DEAD_PID}").write_text(json.dumps({
-        "pid": _DEAD_PID, "role": "mcp", "started_at": "x",
-        "engine_root": root, "protocol": 1}), encoding="utf-8")
+    (pdir / f"mcp.{_DEAD_PID}").write_text(
+        json.dumps({"pid": _DEAD_PID, "role": "mcp", "started_at": "x", "engine_root": root, "protocol": 1}),
+        encoding="utf-8",
+    )
     r = m3_halt.wait_for_quiesce(engine_root=root, timeout=0.2, poll=0.05)
     assert r.ok is True
 
@@ -175,9 +179,10 @@ def test_list_reaps_nonpositive_pid(root):
     pdir = Path(root) / ".internal" / "PID"
     pdir.mkdir(parents=True)
     bad = pdir / "cognitive-loop.0"
-    bad.write_text(json.dumps({
-        "pid": 0, "role": "cognitive-loop", "started_at": "x",
-        "engine_root": root, "protocol": 1}), encoding="utf-8")
+    bad.write_text(
+        json.dumps({"pid": 0, "role": "cognitive-loop", "started_at": "x", "engine_root": root, "protocol": 1}),
+        encoding="utf-8",
+    )
     assert m3_halt.list_live_processes(engine_root=root) == []
     assert not bad.exists()
 
@@ -187,6 +192,7 @@ def test_scan_finds_writer_by_cmdline_signature(root, monkeypatch):
     """scan_db_writer_processes finds a process whose cmdline carries a writer
     signature even though it never registered (simulates a pre-HALT old version).
     psutil is mocked so the test is hermetic — no real process spawned."""
+
     class _FakeProc:
         def __init__(self, pid, cmdline):
             self.info = {"pid": pid, "cmdline": cmdline, "create_time": 0}
@@ -199,6 +205,7 @@ def test_scan_finds_writer_by_cmdline_signature(root, monkeypatch):
 
     class _FakePsutil:
         NoSuchProcess = AccessDenied = ZombieProcess = type("E", (Exception,), {})
+
         @staticmethod
         def process_iter(_attrs):
             return iter(fake_procs)
@@ -212,6 +219,7 @@ def test_scan_finds_writer_by_cmdline_signature(root, monkeypatch):
 def test_scan_no_psutil_returns_empty(root, monkeypatch):
     """No psutil -> empty (fail-open; registry + file-lock probe remain)."""
     import builtins
+
     real_import = builtins.__import__
 
     def _no_psutil(name, *a, **k):
@@ -235,6 +243,7 @@ def test_list_all_db_writers_unions_registry_and_scan(root, monkeypatch):
 
     class _FakePsutil:
         NoSuchProcess = AccessDenied = ZombieProcess = type("E", (Exception,), {})
+
         @staticmethod
         def process_iter(_attrs):
             # a DIFFERENT pid, only discoverable by cmdline (unregistered)
@@ -254,28 +263,32 @@ def test_kill_stale_daemons_skips_self_and_parent(root, monkeypatch):
     """Never kill our own pid or our parent — an installer must not saw off the
     branch it sits on. Both are 'discovered' yet neither is targeted."""
     my, parent = os.getpid(), os.getppid()
-    monkeypatch.setattr(m3_halt, "list_all_db_writers", lambda engine_root=None: [
-        m3_halt.ProcInfo(pid=my, role="cognitive-loop", started_at="",
-                         engine_root=root, path=Path()),
-        m3_halt.ProcInfo(pid=parent, role="dashboard", started_at="",
-                         engine_root=root, path=Path()),
-    ])
+    monkeypatch.setattr(
+        m3_halt,
+        "list_all_db_writers",
+        lambda engine_root=None: [
+            m3_halt.ProcInfo(pid=my, role="cognitive-loop", started_at="", engine_root=root, path=Path()),
+            m3_halt.ProcInfo(pid=parent, role="dashboard", started_at="", engine_root=root, path=Path()),
+        ],
+    )
     # If either were targeted, _pid_is_alive/os.kill would run; assert none did.
-    monkeypatch.setattr(m3_halt, "_pid_is_alive",
-                        lambda pid: pytest.fail(f"must not touch protected pid {pid}"))
+    monkeypatch.setattr(m3_halt, "_pid_is_alive", lambda pid: pytest.fail(f"must not touch protected pid {pid}"))
     assert m3_halt.kill_stale_daemons(engine_root=root) == []
 
 
 def test_kill_stale_daemons_dead_pid_counts_killed(root, monkeypatch):
     """A discovered writer whose pid is already dead is the desired end state —
     reported killed=True without any kill attempt."""
-    monkeypatch.setattr(m3_halt, "list_all_db_writers", lambda engine_root=None: [
-        m3_halt.ProcInfo(pid=_DEAD_PID, role="cognitive-loop", started_at="",
-                         engine_root=root, path=Path())])
+    monkeypatch.setattr(
+        m3_halt,
+        "list_all_db_writers",
+        lambda engine_root=None: [
+            m3_halt.ProcInfo(pid=_DEAD_PID, role="cognitive-loop", started_at="", engine_root=root, path=Path())
+        ],
+    )
     monkeypatch.setattr(m3_halt, "_pid_is_alive", lambda pid: False)
     res = m3_halt.kill_stale_daemons(engine_root=root)
-    assert res == [{"pid": _DEAD_PID, "role": "cognitive-loop",
-                    "killed": True, "error": None}]
+    assert res == [{"pid": _DEAD_PID, "role": "cognitive-loop", "killed": True, "error": None}]
 
 
 def test_kill_stale_daemons_kills_live_writer_windows(root, monkeypatch):
@@ -289,9 +302,13 @@ def test_kill_stale_daemons_kills_live_writer_windows(root, monkeypatch):
     # lazily-built Path() would be a WindowsPath, which cannot be instantiated
     # on a POSIX host.
     _native_path = Path()
-    monkeypatch.setattr(m3_halt, "list_all_db_writers", lambda engine_root=None: [
-        m3_halt.ProcInfo(pid=victim, role="cognitive-loop", started_at="",
-                         engine_root=root, path=_native_path)])
+    monkeypatch.setattr(
+        m3_halt,
+        "list_all_db_writers",
+        lambda engine_root=None: [
+            m3_halt.ProcInfo(pid=victim, role="cognitive-loop", started_at="", engine_root=root, path=_native_path)
+        ],
+    )
     simulate_os(monkeypatch, "Windows")
     # alive on the first probe, dead after the kill runs
     state = {"alive": True}
@@ -307,12 +324,12 @@ def test_kill_stale_daemons_kills_live_writer_windows(root, monkeypatch):
         return _CP()
 
     import subprocess as _sp
+
     monkeypatch.setattr(_sp, "run", _fake_run)
     res = m3_halt.kill_stale_daemons(engine_root=root)
     assert calls["cmd"][:3] == ["taskkill", "/F", "/T"]
     assert str(victim) in calls["cmd"]
-    assert res == [{"pid": victim, "role": "cognitive-loop",
-                    "killed": True, "error": None}]
+    assert res == [{"pid": victim, "role": "cognitive-loop", "killed": True, "error": None}]
 
 
 def test_kill_stale_daemons_reports_stuck_writer(root, monkeypatch):
@@ -322,9 +339,13 @@ def test_kill_stale_daemons_reports_stuck_writer(root, monkeypatch):
     # Native-flavour Path built before the os.name patch — see the note in
     # test_kill_stale_daemons_kills_live_writer_windows.
     _native_path = Path()
-    monkeypatch.setattr(m3_halt, "list_all_db_writers", lambda engine_root=None: [
-        m3_halt.ProcInfo(pid=victim, role="dashboard", started_at="",
-                         engine_root=root, path=_native_path)])
+    monkeypatch.setattr(
+        m3_halt,
+        "list_all_db_writers",
+        lambda engine_root=None: [
+            m3_halt.ProcInfo(pid=victim, role="dashboard", started_at="", engine_root=root, path=_native_path)
+        ],
+    )
     simulate_os(monkeypatch, "Windows")
     monkeypatch.setattr(m3_halt, "_pid_is_alive", lambda pid: True)  # never dies
 
@@ -334,6 +355,7 @@ def test_kill_stale_daemons_reports_stuck_writer(root, monkeypatch):
         stdout = ""
 
     import subprocess as _sp
+
     monkeypatch.setattr(_sp, "run", lambda cmd, **kw: _CP())
     res = m3_halt.kill_stale_daemons(engine_root=root, timeout=0.1)
     assert len(res) == 1
@@ -372,18 +394,22 @@ def test_scan_name_fallback_finds_elevated_mcp(root, monkeypatch):
     """When cmdline is unreadable (elevated), a name-identifiable writer
     (mcp-memory) is still reported — flagged elevated? — so it isn't silently
     missed. A bare python with no cmdline is NOT reported (avoids false flood)."""
+
     class _FakeProc:
         def __init__(self, pid, name, cmdline):
             self.info = {"pid": pid, "name": name, "cmdline": cmdline}
 
     class _FakePsutil:
         NoSuchProcess = AccessDenied = ZombieProcess = type("E", (Exception,), {})
+
         @staticmethod
         def process_iter(_attrs):
-            return iter([
-                _FakeProc(500, "mcp-memory.exe", []),   # elevated: no cmdline, name known
-                _FakeProc(501, "pythonw.exe", []),       # elevated bare python: NOT reported
-            ])
+            return iter(
+                [
+                    _FakeProc(500, "mcp-memory.exe", []),  # elevated: no cmdline, name known
+                    _FakeProc(501, "pythonw.exe", []),  # elevated bare python: NOT reported
+                ]
+            )
 
     monkeypatch.setitem(sys.modules, "psutil", _FakePsutil)
     found = _REAL_SCAN(engine_root=root)
@@ -405,8 +431,7 @@ def _owner_file(root, role):
 
 
 def test_lock_acquire_returns_result_and_writes_owner(root):
-    res = m3_halt.acquire_single_instance("dashboard", engine_root=root,
-                                          extra={"host": "127.0.0.1", "port": 8088})
+    res = m3_halt.acquire_single_instance("dashboard", engine_root=root, extra={"host": "127.0.0.1", "port": 8088})
     assert res.status is m3_halt.LockStatus.ACQUIRED
     assert res.runnable and res.lock.acquired and res.lock.fd >= 0
     # Owner identity is written to the SEPARATE readable owner file.
@@ -421,8 +446,7 @@ def test_lock_acquire_returns_result_and_writes_owner(root):
 
 
 def test_lock_reentrant_returns_same_handle(root):
-    first = m3_halt.acquire_single_instance("dashboard", engine_root=root,
-                                            extra={"port": 9})
+    first = m3_halt.acquire_single_instance("dashboard", engine_root=root, extra={"port": 9})
     assert first.status is m3_halt.LockStatus.ACQUIRED
     # Same process re-acquiring must NOT lose (that would make it exit on itself);
     # it gets REENTRANT with the SAME handle.
@@ -446,6 +470,7 @@ def test_lock_degraded_config_error_when_dir_unwritable(root, monkeypatch):
     # it returns a CONFIG_ERROR result with a degraded handle so the service runs.
     def _boom(*a, **k):
         raise OSError("no dir for you")
+
     monkeypatch.setattr(m3_halt.Path, "mkdir", _boom)
     res = m3_halt.acquire_single_instance("dashboard", engine_root=root)
     assert res.status is m3_halt.LockStatus.CONFIG_ERROR
@@ -477,8 +502,7 @@ def test_exit_codes_are_distinct_and_high_fidelity():
 
 def test_lock_events_logged(root):
     # The append-only audit trail records ownership changes.
-    res = m3_halt.acquire_single_instance("dashboard", engine_root=root,
-                                          extra={"port": 8088})
+    res = m3_halt.acquire_single_instance("dashboard", engine_root=root, extra={"port": 8088})
     res.lock.release()
     evs = m3_halt.read_lock_events(engine_root=root, role="dashboard")
     kinds = [e["event"] for e in evs]
@@ -494,10 +518,18 @@ def test_list_reaps_reused_pid_entry(root):
     pdir = Path(root) / ".internal" / "PID"
     pdir.mkdir(parents=True)
     entry = pdir / f"embed-server.{os.getpid()}"
-    entry.write_text(_json.dumps({
-        "pid": os.getpid(), "role": "embed-server", "started_at": "x",
-        "create_time": 1.0,  # bogus
-        "engine_root": root, "protocol": 1}))
+    entry.write_text(
+        _json.dumps(
+            {
+                "pid": os.getpid(),
+                "role": "embed-server",
+                "started_at": "x",
+                "create_time": 1.0,  # bogus
+                "engine_root": root,
+                "protocol": 1,
+            }
+        )
+    )
     live = m3_halt.list_live_processes(engine_root=root)
     assert live == [], "a reused-pid entry must be reaped, not counted live"
     assert not entry.exists()
@@ -531,7 +563,9 @@ _HOLDER_SRC = _textwrap.dedent(
 def _spawn_holder(root, role, hold_s, bin_dir):
     p = _subprocess.Popen(
         [sys.executable, "-c", _HOLDER_SRC, str(root), role, str(hold_s), str(bin_dir)],
-        stdout=_subprocess.PIPE, stderr=_subprocess.PIPE, text=True,
+        stdout=_subprocess.PIPE,
+        stderr=_subprocess.PIPE,
+        text=True,
     )
     # Wait for the READY line so we know it holds the lock before we contend.
     line = p.stdout.readline()
@@ -593,8 +627,7 @@ def test_cross_process_lock_released_on_holder_death(tmp_path):
     holder, _holder_pid = _spawn_holder(root, "dashboard", 30.0, str(_BIN))
     try:
         # Confirm it's held.
-        assert m3_halt.acquire_single_instance("dashboard", engine_root=root).status \
-            is m3_halt.LockStatus.HELD_BY_PEER
+        assert m3_halt.acquire_single_instance("dashboard", engine_root=root).status is m3_halt.LockStatus.HELD_BY_PEER
         # HARD KILL (no atexit / SIGTERM cleanup runs) — the OS must still free it.
         holder.kill()
         holder.wait(timeout=10)
@@ -618,6 +651,7 @@ def test_lock_thread_safe_single_winner(tmp_path):
     serialization, fcntl.flock (per-process on Linux) would let multiple threads
     both satisfy the lock."""
     import threading as _t
+
     root = str(tmp_path / "engine")
     outcomes = []
     barrier = _t.Barrier(12)
@@ -680,14 +714,17 @@ def test_a_process_we_may_not_open_is_still_alive():
 def test_kill_stale_daemons_roles_limits_the_kill(root, monkeypatch):
     """roles= targets only those roles (suffix-normalised), so setup can stop m3's
     scheduled daemons without touching an agent session's MCP server."""
-    monkeypatch.setattr(m3_halt, "list_all_db_writers", lambda engine_root=None: [
-        m3_halt.ProcInfo(pid=_DEAD_PID, role="cognitive-loop", started_at="",
-                         engine_root=root, path=Path()),
-        m3_halt.ProcInfo(pid=_DEAD_PID + 1, role="mcp", started_at="",
-                         engine_root=root, path=Path()),
-        m3_halt.ProcInfo(pid=_DEAD_PID + 2, role="dashboard(elevated?)", started_at="",
-                         engine_root=root, path=Path()),
-    ])
+    monkeypatch.setattr(
+        m3_halt,
+        "list_all_db_writers",
+        lambda engine_root=None: [
+            m3_halt.ProcInfo(pid=_DEAD_PID, role="cognitive-loop", started_at="", engine_root=root, path=Path()),
+            m3_halt.ProcInfo(pid=_DEAD_PID + 1, role="mcp", started_at="", engine_root=root, path=Path()),
+            m3_halt.ProcInfo(
+                pid=_DEAD_PID + 2, role="dashboard(elevated?)", started_at="", engine_root=root, path=Path()
+            ),
+        ],
+    )
     monkeypatch.setattr(m3_halt, "_pid_is_alive", lambda pid: False)
     res = m3_halt.kill_stale_daemons(engine_root=root, roles=("cognitive-loop", "dashboard"))
     assert sorted(r["role"] for r in res) == ["cognitive-loop", "dashboard(elevated?)"]
@@ -697,9 +734,13 @@ def test_a_refused_kill_does_not_wait_out_the_timeout(root, monkeypatch):
     """Access denied (an administrator service) means nothing was delivered, so
     there is no death to wait for. Waiting cost every Windows `m3 stop` and
     setup reaper the full timeout."""
-    monkeypatch.setattr(m3_halt, "list_all_db_writers", lambda engine_root=None: [
-        m3_halt.ProcInfo(pid=4244, role="embed-server(elevated?)", started_at="",
-                         engine_root=root, path=Path())])
+    monkeypatch.setattr(
+        m3_halt,
+        "list_all_db_writers",
+        lambda engine_root=None: [
+            m3_halt.ProcInfo(pid=4244, role="embed-server(elevated?)", started_at="", engine_root=root, path=Path())
+        ],
+    )
     simulate_os(monkeypatch, "Windows")
     monkeypatch.setattr(m3_halt, "_pid_is_alive", lambda pid: True)
 
@@ -709,6 +750,7 @@ def test_a_refused_kill_does_not_wait_out_the_timeout(root, monkeypatch):
         stdout = ""
 
     import subprocess as _sp
+
     monkeypatch.setattr(_sp, "run", lambda cmd, **kw: _CP())
     monkeypatch.setattr(m3_halt.time, "sleep", lambda s: pytest.fail("waited after a refused kill"))
     res = m3_halt.kill_stale_daemons(engine_root=root, timeout=8.0)
@@ -720,6 +762,7 @@ def test_excluded_roles_are_not_killed(monkeypatch):
     from types import SimpleNamespace
 
     import m3_halt as H
+
     procs = [SimpleNamespace(pid=11, role="embed-server"), SimpleNamespace(pid=12, role="cognitive-loop")]
     monkeypatch.setattr(H, "list_all_db_writers", lambda engine_root=None: procs)
     monkeypatch.setattr(H, "_pid_is_alive", lambda pid: False)

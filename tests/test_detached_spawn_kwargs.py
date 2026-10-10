@@ -4,6 +4,7 @@ The dashboard daemon and doctor's embed-server fix each carried their own copy
 of this pair; the seam owns it now. Capability-driven, so both branches run on
 every OS.
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -26,7 +27,8 @@ def test_on_windows_it_hides_and_detaches():
 
     flags = detached_spawn_kwargs()["creationflags"]
     assert flags & subprocess.CREATE_NO_WINDOW and flags & subprocess.DETACHED_PROCESS, (
-        f"observed: creationflags={flags:#x}. inspect: m3_memory/_platform.py detached_spawn_kwargs")
+        f"observed: creationflags={flags:#x}. inspect: m3_memory/_platform.py detached_spawn_kwargs"
+    )
 
 
 def test_a_simulated_windows_on_posix_does_not_reach_missing_flags(monkeypatch):

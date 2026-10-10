@@ -2,6 +2,7 @@
 
 Pure Python; no DB, no embedder.
 """
+
 import os
 import sys
 import unittest
@@ -14,6 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 class SubdivideDenseChunkTests(unittest.TestCase):
     def setUp(self):
         import memory_core
+
         self.mc = memory_core
 
     def test_empty_or_zero_tokens_returns_input_unchanged(self):
@@ -30,8 +32,7 @@ class SubdivideDenseChunkTests(unittest.TestCase):
         max_sub = max(len(s) for s in subs)
         chars_per_token = 28000 / 16875
         expected_target = int(self.mc.DENSE_TARGET_TOKENS * chars_per_token * 0.90)
-        self.assertLessEqual(max_sub, expected_target,
-            f"sub-chunk exceeds target: {max_sub} > {expected_target}")
+        self.assertLessEqual(max_sub, expected_target, f"sub-chunk exceeds target: {max_sub} > {expected_target}")
         # Should produce at least 2 sub-chunks for an over-ceiling input
         self.assertGreaterEqual(len(subs), 2)
 
@@ -51,18 +52,16 @@ class SubdivideDenseChunkTests(unittest.TestCase):
         arithmetic produced N pieces".
         """
         from memory.tokens import TOKEN_BUDGET, estimate_tokens
+
         text = "y" * 28000
         subs = self.mc._subdivide_dense_chunk(text, observed_tokens=9735)
         self.assertGreaterEqual(len(subs), 2)
         for s in subs:
-            self.assertLessEqual(
-                estimate_tokens(s), TOKEN_BUDGET,
-                "a sub-chunk still exceeds the token budget")
+            self.assertLessEqual(estimate_tokens(s), TOKEN_BUDGET, "a sub-chunk still exceeds the token budget")
         # Coverage, not equality: consecutive sub-chunks OVERLAP by design, so
         # the concatenation is longer than the input. What must hold is that no
         # content is lost.
-        self.assertGreaterEqual("".join(subs).count("y"), 28000,
-                                "subdivision lost content")
+        self.assertGreaterEqual("".join(subs).count("y"), 28000, "subdivision lost content")
 
     def test_min_sub_chars_floor_prevents_infinite_subdivision(self):
         # Pathologically dense input: chars_per_token=0.1 (10x denser than
@@ -77,8 +76,11 @@ class SubdivideDenseChunkTests(unittest.TestCase):
         subs = self.mc._subdivide_dense_chunk(text, observed_tokens=100000)
         # All non-tail sub-chunks are exactly DENSE_MIN_SUB_CHARS (floor applied)
         for s in subs[:-1]:
-            self.assertEqual(len(s), self.mc.DENSE_MIN_SUB_CHARS,
-                f"floor not applied to non-tail sub-chunk: {len(s)} != {self.mc.DENSE_MIN_SUB_CHARS}")
+            self.assertEqual(
+                len(s),
+                self.mc.DENSE_MIN_SUB_CHARS,
+                f"floor not applied to non-tail sub-chunk: {len(s)} != {self.mc.DENSE_MIN_SUB_CHARS}",
+            )
         # Tail can be smaller (just the leftover after striding)
         self.assertGreater(len(subs), 1, "expected multiple sub-chunks with floor active")
 
@@ -90,9 +92,9 @@ class SubdivideDenseChunkTests(unittest.TestCase):
         subs = self.mc._subdivide_dense_chunk(text, observed_tokens=12000)
         # Every char of text must appear in at least one sub-chunk
         for i in range(0, len(text), 1000):
-            sample = text[i:i+50]
+            sample = text[i : i + 50]
             found = any(sample in s for s in subs)
-            self.assertTrue(found, f"char range {i}..{i+50} missing from sub-chunks")
+            self.assertTrue(found, f"char range {i}..{i + 50} missing from sub-chunks")
 
     def test_consecutive_sub_chunks_have_overlap(self):
         text = "p" * 30000
@@ -103,8 +105,7 @@ class SubdivideDenseChunkTests(unittest.TestCase):
         # can verify by checking total chars > len(text) (overlap implies
         # double-coverage of some chars).
         total = sum(len(s) for s in subs)
-        self.assertGreater(total, len(text),
-            "sub-chunks have no overlap (sum of lengths == text length)")
+        self.assertGreater(total, len(text), "sub-chunks have no overlap (sum of lengths == text length)")
 
     def test_light_density_returns_single_sub_chunk(self):
         # If observed_tokens is small enough that sub_chars >= len(text),
@@ -141,6 +142,7 @@ class MeanPoolTests(unittest.TestCase):
         import math
 
         import memory.embed as me
+
         self.me = me
         self.math = math
 
@@ -148,8 +150,7 @@ class MeanPoolTests(unittest.TestCase):
         return self.math.sqrt(sum(x * x for x in v))
 
     def _assert_unit(self, v):
-        self.assertAlmostEqual(self._norm(v), 1.0, places=5,
-                               msg=f"pooled vector not unit-length: norm={self._norm(v)}")
+        self.assertAlmostEqual(self._norm(v), 1.0, places=5, msg=f"pooled vector not unit-length: norm={self._norm(v)}")
 
     def test_pooled_vector_is_unit_length(self):
         # Mean of [1,1] and [3,3] points along [1,1]; normalized => [0.707, 0.707].
@@ -192,11 +193,13 @@ class HttpBulkSubdivideTests(unittest.IsolatedAsyncioTestCase):
 
     def setUp(self):
         import memory.embed as me
+
         self.me = me
 
     async def test_normal_rows_pass_through(self):
         async def post_one(texts):
             return [[1.0, 0.0] for _ in texts]
+
         out = await self.me._http_bulk_with_subdivide(post_one, ["a", "b"])
         self.assertEqual(len(out), 2)
         self.assertEqual(out, [[1.0, 0.0], [1.0, 0.0]])
@@ -224,8 +227,7 @@ class HttpBulkSubdivideTests(unittest.IsolatedAsyncioTestCase):
             calls["n"] += 1
             if len(texts) == 1 and len(texts[0]) > 30000:
                 raise RuntimeError(
-                    "CPU embedder HTTP 500: embed failed: backend error: "
-                    "input too long: 24064 tokens > n_ctx 8192"
+                    "CPU embedder HTTP 500: embed failed: backend error: input too long: 24064 tokens > n_ctx 8192"
                 )
             # sub-chunks (or normal rows) embed fine
             return [[1.0, 0.0] for _ in texts]
@@ -235,6 +237,7 @@ class HttpBulkSubdivideTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(out[0], "oversized row should be recovered via subdivide")
         # pooled + normalized -> unit length
         import math
+
         norm = math.sqrt(sum(x * x for x in out[0]))
         self.assertAlmostEqual(norm, 1.0, places=5)
         # subdivide actually happened (more than the single failing call)
@@ -245,6 +248,7 @@ class HttpBulkSubdivideTests(unittest.IsolatedAsyncioTestCase):
         # the row is left unembedded (None) to cascade to the next tier.
         async def post_one(texts):
             raise RuntimeError("connection refused")
+
         out = await self.me._http_bulk_with_subdivide(post_one, ["a"])
         self.assertEqual(out, [None])
 
@@ -265,13 +269,13 @@ class HttpBulkSubdivideTests(unittest.IsolatedAsyncioTestCase):
             return [[1.0, 0.0] for _ in texts]
 
         out = await self.me._http_bulk_with_subdivide(post_one, [big])
-        self.assertIsNotNone(
-            out[0], "an overflow with no reported count must still subdivide")
+        self.assertIsNotNone(out[0], "an overflow with no reported count must still subdivide")
 
     async def test_typed_context_error_recovers_without_string_matching(self):
         """The structured path: a current server raises the typed error, so
         recovery must fire with no prose parsing at all."""
         from memory.embed import ContextLengthExceeded
+
         big = "x" * 40000
 
         async def post_one(texts):
@@ -292,12 +296,14 @@ class RecoverOversizedSingleTests(unittest.IsolatedAsyncioTestCase):
 
     def setUp(self):
         import memory.embed as me
+
         self.me = me
 
     async def test_non_oversized_row_returns_none(self):
         # A row at/under one window is not this helper's job — caller drops it.
         async def post_batch(texts):
             return [[1.0, 0.0] for _ in texts]
+
         out = await self.me._recover_oversized_single(post_batch, "short text")
         self.assertIsNone(out)
 
@@ -313,6 +319,7 @@ class RecoverOversizedSingleTests(unittest.IsolatedAsyncioTestCase):
         out = await self.me._recover_oversized_single(post_batch, big)
         self.assertIsNotNone(out, "oversized row should be recovered")
         import math
+
         self.assertAlmostEqual(math.sqrt(sum(x * x for x in out)), 1.0, places=5)
         # It subdivided into >1 sub-chunk (single post of multiple texts).
         self.assertGreater(seen["max_texts"], 1)
@@ -322,6 +329,7 @@ class RecoverOversizedSingleTests(unittest.IsolatedAsyncioTestCase):
 
         async def post_batch(texts):
             return "TRANSIENT-SENTINEL"  # not a list -> failure
+
         out = await self.me._recover_oversized_single(post_batch, big)
         self.assertIsNone(out)
 

@@ -54,6 +54,7 @@ and is gitignored along with the rest of `.scratch/`.
 Exit code: 0 if results match baseline, 1 if any drift detected
 (printed in detail).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -78,8 +79,7 @@ sys.path.insert(0, str(BIN_DIR))
 if __name__ == "__main__":  # run as a script; importing must not touch the environment
     os.environ.setdefault("GGML_CUDA_DISABLE_GRAPHS", "1")
 if not os.environ.get("M3_EMBED_GGUF"):
-    print("ERROR: set M3_EMBED_GGUF to the bge-m3 GGUF path before running.",
-          file=sys.stderr)
+    print("ERROR: set M3_EMBED_GGUF to the bge-m3 GGUF path before running.", file=sys.stderr)
     sys.exit(2)
 if __name__ == "__main__":  # run as a script; importing must not touch the environment
     os.environ.setdefault("M3_EMBED_STREAMS", "1")
@@ -165,8 +165,12 @@ async def capture_one_query(mc, query: str) -> dict:
     # Variant 1: scored, vector_kind_strategy='default'
     try:
         rows = await mc.memory_search_scored_impl(
-            query, k=K, mmr=True, recency_bias=0.0,
-            explain=False, adaptive_k=False,
+            query,
+            k=K,
+            mmr=True,
+            recency_bias=0.0,
+            explain=False,
+            adaptive_k=False,
             vector_kind_strategy="default",
         )
         out["scored_default"] = fingerprint_result(rows)
@@ -175,8 +179,12 @@ async def capture_one_query(mc, query: str) -> dict:
     # Variant 2: scored, vector_kind_strategy='max' (dual-embed-aware)
     try:
         rows = await mc.memory_search_scored_impl(
-            query, k=K, mmr=True, recency_bias=0.0,
-            explain=False, adaptive_k=False,
+            query,
+            k=K,
+            mmr=True,
+            recency_bias=0.0,
+            explain=False,
+            adaptive_k=False,
             vector_kind_strategy="max",
         )
         out["scored_max"] = fingerprint_result(rows)
@@ -194,6 +202,7 @@ async def capture_one_query(mc, query: str) -> dict:
 async def capture() -> dict:
     """Run the full sweep. Returns the full baseline payload."""
     import memory_core as mc
+
     queries = sample_queries(N_QUERIES)
     print(f"running {len(queries)} queries × 3 variants...")
     out: list[dict] = []
@@ -202,8 +211,7 @@ async def capture() -> dict:
         out.append(await capture_one_query(mc, q))
         if (i + 1) % 10 == 0:
             elapsed = time.perf_counter() - t0
-            print(f"  {i+1}/{len(queries)} done in {elapsed:.1f}s "
-                  f"({(i+1)/elapsed:.1f} q/s)", flush=True)
+            print(f"  {i + 1}/{len(queries)} done in {elapsed:.1f}s ({(i + 1) / elapsed:.1f} q/s)", flush=True)
     elapsed = time.perf_counter() - t0
     print(f"  done: {len(queries)} queries × 3 variants in {elapsed:.1f}s")
     return {
@@ -227,15 +235,14 @@ def compare(current: dict, baseline: dict) -> tuple[bool, list[str]]:
         )
         return False, drift
     if current["n_queries"] != baseline["n_queries"]:
-        drift.append(
-            f"  N_QUERIES MISMATCH — current={current['n_queries']} "
-            f"baseline={baseline['n_queries']}"
-        )
+        drift.append(f"  N_QUERIES MISMATCH — current={current['n_queries']} baseline={baseline['n_queries']}")
 
     cur_results = current["results"]
     base_results = baseline["results"]
 
-    for i, (c, b) in enumerate(zip(cur_results, base_results, strict=False)):  # strict=False: a count mismatch is reported above; compare the common prefix
+    for i, (c, b) in enumerate(
+        zip(cur_results, base_results, strict=False)
+    ):  # strict=False: a count mismatch is reported above; compare the common prefix
         for variant in ("scored_default", "scored_max", "routed"):
             c_fp = c.get(variant, {})
             b_fp = b.get(variant, {})
@@ -272,8 +279,7 @@ async def main():
 
     print(f"Comparing against baseline: {BASELINE_PATH}")
     baseline = json.loads(BASELINE_PATH.read_text())
-    print(f"  baseline: seed={baseline['seed']} n_queries={baseline['n_queries']} "
-          f"k={baseline['k']}")
+    print(f"  baseline: seed={baseline['seed']} n_queries={baseline['n_queries']} k={baseline['k']}")
     current = await capture()
     matched, drift_lines = compare(current, baseline)
 

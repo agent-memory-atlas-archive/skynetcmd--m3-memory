@@ -25,6 +25,7 @@ RESERVED lock at once instead of at first write). Deliberately NOT abstract: a
 new backend that implements nothing still gets correct behaviour rather than a
 NotImplementedError partway through a maintenance pass.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -53,7 +54,6 @@ class _Recorder:
 
 
 class TestBeginImmediate(unittest.TestCase):
-
     def test_base_dialect_emits_portable_begin(self):
         """The default must be plain BEGIN — what every SQL backend accepts."""
         rec = _Recorder()
@@ -77,7 +77,8 @@ class TestBeginImmediate(unittest.TestCase):
         from memory.backends.sqlite_backend import SqliteDialect
 
         self.assertIsNot(
-            SqliteDialect.begin_immediate, Dialect.begin_immediate,
+            SqliteDialect.begin_immediate,
+            Dialect.begin_immediate,
             "SqliteDialect must override begin_immediate",
         )
 
@@ -105,18 +106,17 @@ class TestBeginImmediate(unittest.TestCase):
         offenders = []
         for p in (root / "bin").rglob("*.py"):
             rel = p.relative_to(root).as_posix()
-            if "/backends/" in rel:          # the seam defines it
+            if "/backends/" in rel:  # the seam defines it
                 continue
-            for i, line in enumerate(
-                p.read_text(encoding="utf-8", errors="replace").splitlines(), 1
-            ):
+            for i, line in enumerate(p.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
                 s = line.strip()
                 if s.startswith("#"):
                     continue
                 if "BEGIN IMMEDIATE" in s:
                     offenders.append(f"{rel}:{i}")
         self.assertEqual(
-            offenders, [],
+            offenders,
+            [],
             "inline BEGIN IMMEDIATE (SQLite-only; PostgreSQL raises "
             'ERROR: syntax error at or near "IMMEDIATE"). '
             f"Use dialect().begin_immediate(conn): {offenders}",

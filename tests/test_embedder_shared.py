@@ -5,6 +5,7 @@ its own in-process embedder and defers to one shared server (one CUDA context,
 ~9-10 GB reclaimed). `unshared` removes it. The config file is the headless-safe
 mechanism (a scheduled-task daemon doesn't inherit shell env — §3).
 """
+
 import json
 import sys
 import types
@@ -82,6 +83,7 @@ def _leave_no_stale_embed_module():
         return
     sys.modules["memory.embed"] = saved
     import memory
+
     memory.embed = saved  # keep the package attribute and sys.modules in agreement
 
 

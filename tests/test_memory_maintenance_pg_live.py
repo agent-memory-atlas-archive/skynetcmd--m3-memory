@@ -11,6 +11,7 @@ effect — before we trust the guard removal.
 
 Skips cleanly without a reachable cluster (requires_pg).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -56,6 +57,7 @@ def pg(monkeypatch, pg_url):
 
 def _write(uid, **kw):
     from memory.write import memory_write_impl
+
     raw = asyncio.run(memory_write_impl(embed=False, source="test", user_id=uid, **kw))
     return str(raw).replace("Created: ", "").strip().strip('"').split()[0]
 
@@ -64,6 +66,7 @@ def _set_created(mid, iso):
     """Backdate a row so age-based gates fire (bypasses the write path)."""
     from memory.backends import dialect
     from memory.db import _db
+
     p = dialect().param()
     with _db() as db:
         db.execute(f"UPDATE memory_items SET created_at = {p} WHERE id = {p}", (iso, mid))
@@ -77,6 +80,7 @@ def test_maintenance_runs_on_pg_not_skipped(pg):
     the PG txn. The word "skipped" may still appear for VACUUM (genuinely SQLite-
     only), so assert the pass COMPLETED rather than on the absence of "skipped"."""
     import memory_maintenance as MM
+
     out = MM.memory_maintenance_impl()
     assert "Maintenance skipped" not in out  # the OLD whole-pass skip is gone
     assert "Maintenance complete" in out
@@ -87,14 +91,17 @@ def test_maintenance_runs_on_pg_not_skipped(pg):
 def test_decay_and_purge_on_pg(pg):
     """Decay (age_days_gt) + expiry purge run and affect rows on PG."""
     import memory_maintenance as MM
+
     uid = f"mnt-{uuid.uuid4().hex[:8]}"
     old = _write(uid, type="note", content="old", importance=0.8)
     _set_created(old, "2020-01-01T00:00:00+00:00")  # older than the 7-day decay window
-    MM.memory_maintenance_impl(decay=True, purge_expired=False, reinforce=False,
-                               prune_orphan_embeddings=False, prune_orphan_queues=False)
+    MM.memory_maintenance_impl(
+        decay=True, purge_expired=False, reinforce=False, prune_orphan_embeddings=False, prune_orphan_queues=False
+    )
     # importance decayed below the seeded 0.8.
     from memory.backends import dialect
     from memory.db import _db
+
     p = dialect().param()
     with _db() as db:
         imp = db.execute(f"SELECT importance FROM memory_items WHERE id = {p}", (old,)).fetchone()[0]
@@ -104,24 +111,27 @@ def test_decay_and_purge_on_pg(pg):
 def test_retention_policy_max_count_on_pg(pg):
     """all_rows_after_offset (LIMIT ALL OFFSET on PG) soft-deletes oldest excess."""
     import memory_maintenance as MM
+
     uid = f"ret-{uuid.uuid4().hex[:8]}"
     aid = f"agent-{uuid.uuid4().hex[:6]}"
     ids = []
     for i in range(5):
         mid = _write(uid, type="note", content=f"m{i}", agent_id=aid)
-        _set_created(mid, f"2020-01-0{i+1}T00:00:00+00:00")
+        _set_created(mid, f"2020-01-0{i + 1}T00:00:00+00:00")
         ids.append(mid)
     # keep newest 2 → 3 oldest should be soft-deleted
     assert "set for" in MM.memory_set_retention_impl(aid, max_memories=2, ttl_days=0, auto_archive=0)
-    MM.memory_maintenance_impl(decay=False, purge_expired=False, reinforce=False,
-                               prune_orphan_embeddings=False, prune_orphan_queues=False)
+    MM.memory_maintenance_impl(
+        decay=False, purge_expired=False, reinforce=False, prune_orphan_embeddings=False, prune_orphan_queues=False
+    )
     from memory.backends import dialect
     from memory.db import _db
+
     p = dialect().param()
     with _db() as db:
         live = db.execute(
-            f"SELECT COUNT(*) AS c FROM memory_items WHERE agent_id = {p} AND is_deleted = 0",
-            (aid,)).fetchone()
+            f"SELECT COUNT(*) AS c FROM memory_items WHERE agent_id = {p} AND is_deleted = 0", (aid,)
+        ).fetchone()
     assert (live["c"] if hasattr(live, "keys") else live[0]) == 2
 
 
@@ -136,11 +146,19 @@ def test_export_import_round_trip_on_pg(pg):
     import json
 
     import memory_maintenance as MM
+
     uid = f"exp-{uuid.uuid4().hex[:8]}"
-    a = _write(uid, type="note", title="A", content="alpha", agent_id=uid,
-               metadata={"provider": "anthropic", "nested": {"k": 1}})
+    a = _write(
+        uid,
+        type="note",
+        title="A",
+        content="alpha",
+        agent_id=uid,
+        metadata={"provider": "anthropic", "nested": {"k": 1}},
+    )
     b = _write(uid, type="note", title="B", content="beta", agent_id=uid)
     from memory_core import memory_link_impl
+
     memory_link_impl(a, b, "related")
 
     dump = MM.memory_export_impl(agent_filter=uid)
@@ -155,6 +173,7 @@ def test_export_import_round_trip_on_pg(pg):
     # The metadata survived the round-trip intact (dict -> json string -> JSONB).
     from memory.backends import dialect
     from memory.db import _db
+
     p = dialect().param()
     with _db() as db:
         raw = db.execute(f"SELECT metadata_json FROM memory_items WHERE id = {p}", (a,)).fetchone()[0]
@@ -171,6 +190,7 @@ def test_reinforce_decay_on_pg(pg):
     un-accessed belief must decay toward neutral."""
     import memory_maintenance as MM
     from memory.db import _db
+
     uid = f"rf-{uuid.uuid4().hex[:8]}"
     mid = _write(uid, type="belief", content="c", confidence=0.95)
     _set_created(mid, "2020-01-01T00:00:00+00:00")
@@ -188,6 +208,7 @@ def test_archive_and_gdpr_erasure_on_pg(pg):
     import memory_maintenance as MM
     from memory.backends import dialect
     from memory.db import _db
+
     p = dialect().param()
     uid = f"arc-{uuid.uuid4().hex[:8]}"
     mid = _write(uid, type="note", content="pg archived body")

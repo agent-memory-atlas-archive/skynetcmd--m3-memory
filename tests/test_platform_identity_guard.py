@@ -27,6 +27,7 @@ ERRORs whose message described a machine state that did not exist, on a box that
 was perfectly healthy. Nothing pinned the contract, so nothing stopped the
 asymmetry from persisting.
 """
+
 from __future__ import annotations
 
 import os
@@ -40,6 +41,7 @@ import pytest
 def _conftest_constants() -> tuple[str, str]:
     """The session constants conftest captured at import."""
     import conftest
+
     return conftest._REAL_OS_NAME, conftest._REAL_SYS_PLATFORM
 
 
@@ -48,7 +50,7 @@ def _conftest_constants() -> tuple[str, str]:
 # control (guard removed) passed there because nothing had changed, so the test
 # silently proved nothing on one of the three supported OSes. Derive the
 # simulation from the host instead.
-_FAKE_PLATFORM = "m3-simulated-platform"   # never a real sys.platform value
+_FAKE_PLATFORM = "m3-simulated-platform"  # never a real sys.platform value
 
 
 def _fake_os_name() -> str:
@@ -59,6 +61,7 @@ def _fake_os_name() -> str:
 
 
 # ── the session constants must be the TRUE identity ──────────────────────────
+
 
 def test_session_constants_match_an_untouched_interpreter():
     """Captured at conftest import — verify that moment was actually clean.
@@ -71,7 +74,10 @@ def test_session_constants_match_an_untouched_interpreter():
     real_name, real_platform = _conftest_constants()
     out = subprocess.run(
         [sys.executable, "-c", "import os,sys;print(os.name);print(sys.platform)"],
-        capture_output=True, text=True, check=True, timeout=60,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=60,
     ).stdout.split()
     assert [real_name, real_platform] == out, (
         f"conftest captured {real_name!r}/{real_platform!r} but an untouched "
@@ -87,6 +93,7 @@ def test_live_identity_matches_the_session_constants():
 
 
 # ── a simulation must not reach another fixture's teardown ───────────────────
+
 
 @pytest.fixture()
 def identity_at_teardown(monkeypatch):
@@ -133,6 +140,7 @@ def test_both_simulated_at_once(identity_at_teardown):
 
 
 # ── the observable consequence, asserted directly ────────────────────────────
+
 
 def test_path_flavour_is_native_once_the_simulation_is_undone(identity_at_teardown):
     """`pathlib.Path()` picks PosixPath vs WindowsPath from `os.name` at

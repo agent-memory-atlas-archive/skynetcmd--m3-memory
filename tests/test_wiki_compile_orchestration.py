@@ -4,6 +4,7 @@ The per-cluster decision (compile_cluster) is tested in test_wiki_compile.py.
 Here: title-keyed head resolution, the full-pass loop, prompt-written-once,
 and WAL checkpoint cadence — all with stubs, no store, no model.
 """
+
 import os
 import sys
 
@@ -20,9 +21,20 @@ from wiki.select import Mem  # noqa: E402
 
 
 def _mem(id, title="T", conf=0.7, type="belief"):
-    return Mem(id=id, type=type, title=title, content=f"c-{id}", importance=0.5,
-               confidence=conf, valid_from=None, valid_to=None, pinned=0,
-               created_at=None, updated_at=None, metadata={})
+    return Mem(
+        id=id,
+        type=type,
+        title=title,
+        content=f"c-{id}",
+        importance=0.5,
+        confidence=conf,
+        valid_from=None,
+        valid_to=None,
+        pinned=0,
+        created_at=None,
+        updated_at=None,
+        metadata={},
+    )
 
 
 def _cluster(title, *mems):
@@ -50,12 +62,11 @@ class _Compiler:
 
 # ── load_heads ───────────────────────────────────────────────────────────────
 
+
 def test_load_heads_keys_by_title_and_hashes_content():
     rows = [
-        {"id": "s1", "title": "Alpha", "content": "alpha prose",
-         "metadata": {"compiler": {"cluster_hash": "h-alpha"}}},
-        {"id": "s2", "title": "Beta", "content": "beta prose",
-         "metadata": {"compiler": {"cluster_hash": "h-beta"}}},
+        {"id": "s1", "title": "Alpha", "content": "alpha prose", "metadata": {"compiler": {"cluster_hash": "h-alpha"}}},
+        {"id": "s2", "title": "Beta", "content": "beta prose", "metadata": {"compiler": {"cluster_hash": "h-beta"}}},
     ]
     heads = WC.load_heads(rows)
     assert set(heads) == {"Alpha", "Beta"}
@@ -80,6 +91,7 @@ def test_load_heads_dedupes_same_title_deterministically():
 
 
 # ── compile_clusters (full pass) ─────────────────────────────────────────────
+
 
 async def _run(clusters, compiler, heads, **kw):
     writes, sups, prompts, links = [], [], [], []
@@ -110,8 +122,15 @@ async def _run(clusters, compiler, heads, **kw):
         return f"Linked {from_id} --[{relationship_type}]--> {to_id}"
 
     stats = await WC.compile_clusters(
-        clusters, compiler, heads, _write=_write, _supersede=_supersede,
-        _ensure_prompt=_ensure_prompt, _link=_link, **kw)
+        clusters,
+        compiler,
+        heads,
+        _write=_write,
+        _supersede=_supersede,
+        _ensure_prompt=_ensure_prompt,
+        _link=_link,
+        **kw,
+    )
     return stats, writes, sups, prompts
 
 
@@ -128,11 +147,12 @@ async def test_first_pass_creates_each_cluster():
 async def test_second_pass_unchanged_writes_nothing():
     """Idempotence at the pass level: heads present + hashes match → 0 writes."""
     from wiki.synth import _cluster_hash
+
     comp = _Compiler(prose="P")
     c = _cluster("Alpha", _mem("a"))
-    heads = {"Alpha": WC.ExistingSynthesis(
-        id="h", cluster_hash=_cluster_hash(c, comp.model),
-        prose_hash=WC.prose_hash("P"))}
+    heads = {
+        "Alpha": WC.ExistingSynthesis(id="h", cluster_hash=_cluster_hash(c, comp.model), prose_hash=WC.prose_hash("P"))
+    }
     stats, writes, sups, _prompts = await _run([c], comp, heads)
     assert writes == [] and sups == []
     assert stats.skipped_hash == 1
@@ -143,8 +163,7 @@ async def test_second_pass_unchanged_writes_nothing():
 async def test_changed_prose_supersedes():
     comp = _Compiler(prose="NEW")
     c = _cluster("Alpha", _mem("a"))
-    heads = {"Alpha": WC.ExistingSynthesis(id="old", cluster_hash="stale",
-                                           prose_hash=WC.prose_hash("OLD"))}
+    heads = {"Alpha": WC.ExistingSynthesis(id="old", cluster_hash="stale", prose_hash=WC.prose_hash("OLD"))}
     stats, _writes, sups, _prompts = await _run([c], comp, heads)
     assert len(sups) == 1 and sups[0]["old_id"] == "old"
     assert stats.superseded == 1
@@ -152,13 +171,16 @@ async def test_changed_prose_supersedes():
 
 # ── WAL checkpoint cadence (§10, via the seam) ───────────────────────────────
 
+
 class _Backend:
     """Records maintenance_checkpoint calls without a real DB."""
+
     def __init__(self):
         self.checkpoints = []  # list of `final` flags
 
     def connection(self):
         import contextlib
+
         return contextlib.nullcontext(object())
 
     def maintenance_checkpoint(self, conn, *, final=False):
@@ -169,8 +191,7 @@ class _Backend:
 async def test_checkpoints_on_cadence_and_at_end():
     clusters = [_cluster(f"T{i}", _mem(f"m{i}")) for i in range(5)]
     be = _Backend()
-    _stats, _writes, _sups, _prompts = await _run(
-        clusters, _Compiler(), heads={}, backend=be, checkpoint_every=2)
+    _stats, _writes, _sups, _prompts = await _run(clusters, _Compiler(), heads={}, backend=be, checkpoint_every=2)
     # 5 creates: mid-batch checkpoints after #2 and #4 (final=False), then one
     # final=True at the end.
     assert be.checkpoints == [False, False, True]
@@ -179,6 +200,5 @@ async def test_checkpoints_on_cadence_and_at_end():
 @pytest.mark.asyncio
 async def test_no_backend_means_no_checkpoint_calls():
     clusters = [_cluster("Alpha", _mem("a"))]
-    stats, _writes, _sups, _prompts = await _run(clusters, _Compiler(), heads={},
-                                              backend=None)
+    stats, _writes, _sups, _prompts = await _run(clusters, _Compiler(), heads={}, backend=None)
     assert stats.created == 1  # runs fine, just no checkpointing

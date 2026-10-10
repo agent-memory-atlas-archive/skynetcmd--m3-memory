@@ -60,6 +60,7 @@ a no-op "integrated" layout, not a split). The delete step is gated on a
 post-copy count check and is skipped — leaving source intact — on any shortfall.
 Take a filesystem backup of both DBs before --commit; this script does not.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -88,8 +89,7 @@ def resolve_source(cli_arg: str | None) -> str:
 def resolve_target(cli_arg: str | None) -> str:
     if cli_arg:
         return os.path.abspath(cli_arg)
-    env = (getenv_compat("M3_CHATLOG_DB", "CHATLOG_DB")
-           or getenv_compat("M3_CHATLOG_DB_PATH", "CHATLOG_DB_PATH"))
+    env = getenv_compat("M3_CHATLOG_DB", "CHATLOG_DB") or getenv_compat("M3_CHATLOG_DB_PATH", "CHATLOG_DB_PATH")
     if env:
         return os.path.abspath(env)
     return os.path.abspath(resolve_engine_file("agent_chatlog.db"))
@@ -97,12 +97,14 @@ def resolve_target(cli_arg: str | None) -> str:
 
 def shared_cols(src: str, tgt: str, table: str) -> list[str]:
     """Columns present in BOTH tables, in the source's declared order."""
+
     def cols(p: str) -> list[str]:
         c = sqlite3.connect(p)
         try:
             return [row[1] for row in c.execute(f"PRAGMA table_info({table})")]
         finally:
             c.close()
+
     tgt_set = set(cols(tgt))
     return [c for c in cols(src) if c in tgt_set]
 
@@ -118,12 +120,12 @@ def _table_has_column(conn: sqlite3.Connection, table: str, column: str) -> bool
 
 def main() -> int:
     from m3_core.paths import require_sqlite_backend
+
     require_sqlite_backend("split_chatlog_from_core")  # opens SQLite files directly; refuse on PostgreSQL
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--source", help="CORE memory DB (default: $M3_DATABASE or engine agent_memory.db)")
     ap.add_argument("--target", help="CHATLOG DB (default: $CHATLOG_DB_PATH or engine agent_chatlog.db)")
-    ap.add_argument("--commit", action="store_true",
-                    help="actually copy + delete (default: dry-run)")
+    ap.add_argument("--commit", action="store_true", help="actually copy + delete (default: dry-run)")
     args = ap.parse_args()
 
     source = resolve_source(args.source)
@@ -139,8 +141,10 @@ def main() -> int:
         print("ERROR: target DB does not exist (bootstrap its chatlog schema first).", file=sys.stderr)
         return 2
     if os.path.realpath(source) == os.path.realpath(target):
-        print("ERROR: source and target are the same file — that is an integrated "
-              "layout, not a split. Nothing to do.", file=sys.stderr)
+        print(
+            "ERROR: source and target are the same file — that is an integrated layout, not a split. Nothing to do.",
+            file=sys.stderr,
+        )
         return 2
 
     item_cols = shared_cols(source, target, "memory_items")
@@ -150,11 +154,11 @@ def main() -> int:
 
     core = sqlite3.connect(source, timeout=30)
     try:
-        n_items = core.execute(
-            "SELECT COUNT(*) FROM memory_items WHERE type='chat_log'").fetchone()[0]
+        n_items = core.execute("SELECT COUNT(*) FROM memory_items WHERE type='chat_log'").fetchone()[0]
         n_emb = core.execute(
             "SELECT COUNT(*) FROM memory_embeddings WHERE memory_id IN "
-            "(SELECT id FROM memory_items WHERE type='chat_log')").fetchone()[0]
+            "(SELECT id FROM memory_items WHERE type='chat_log')"
+        ).fetchone()[0]
         print(f"chat_log rows to move: {n_items}")
         print(f"their embeddings to move: {n_emb}")
 
@@ -163,23 +167,22 @@ def main() -> int:
             return 0
 
         if not args.commit:
-            print("\nDRY-RUN. Re-run with --commit to execute. "
-                  "Take backups of both DBs first.")
+            print("\nDRY-RUN. Re-run with --commit to execute. Take backups of both DBs first.")
             return 0
 
         core.execute("ATTACH DATABASE ? AS tgt", (target,))
         ic, ec = ",".join(item_cols), ",".join(emb_cols)
         core.execute(
-            f"INSERT OR IGNORE INTO tgt.memory_items ({ic}) "
-            f"SELECT {ic} FROM main.memory_items WHERE type='chat_log'")
+            f"INSERT OR IGNORE INTO tgt.memory_items ({ic}) SELECT {ic} FROM main.memory_items WHERE type='chat_log'"
+        )
         core.execute(
             f"INSERT OR IGNORE INTO tgt.memory_embeddings ({ec}) "
             f"SELECT {ec} FROM main.memory_embeddings WHERE memory_id IN "
-            f"(SELECT id FROM main.memory_items WHERE type='chat_log')")
+            f"(SELECT id FROM main.memory_items WHERE type='chat_log')"
+        )
         core.commit()
 
-        moved = core.execute(
-            "SELECT COUNT(*) FROM tgt.memory_items WHERE type='chat_log'").fetchone()[0]
+        moved = core.execute("SELECT COUNT(*) FROM tgt.memory_items WHERE type='chat_log'").fetchone()[0]
         print(f"\nAfter copy — target chat_log rows: {moved}")
 
         try:
@@ -190,8 +193,7 @@ def main() -> int:
             print(f"FTS rebuild note (non-fatal): {e}")
 
         if moved < n_items:
-            print(f"\n*** ABORT: target has {moved}/{n_items} rows. "
-                  f"Source left INTACT. ***", file=sys.stderr)
+            print(f"\n*** ABORT: target has {moved}/{n_items} rows. Source left INTACT. ***", file=sys.stderr)
             return 1
 
         # Delete dependent metadata for the moved rows BEFORE the items
@@ -200,18 +202,17 @@ def main() -> int:
         # that a bare items+embeddings delete would orphan). Guarded by
         # table_exists: a leaner source schema may not have the entity stack.
         chatlog_ids_sql = "SELECT id FROM memory_items WHERE type='chat_log'"
-        for tbl, col in (("memory_item_entities", "memory_id"),
-                         ("entity_extraction_queue", "memory_id"),
-                         ("entity_relationships", "source_memory_id")):
+        for tbl, col in (
+            ("memory_item_entities", "memory_id"),
+            ("entity_extraction_queue", "memory_id"),
+            ("entity_relationships", "source_memory_id"),
+        ):
             if _table_has_column(core, tbl, col):
                 core.execute(f"DELETE FROM {tbl} WHERE {col} IN ({chatlog_ids_sql})")
-        core.execute(
-            "DELETE FROM memory_embeddings WHERE memory_id IN "
-            f"({chatlog_ids_sql})")
+        core.execute(f"DELETE FROM memory_embeddings WHERE memory_id IN ({chatlog_ids_sql})")
         core.execute("DELETE FROM memory_items WHERE type='chat_log'")
         core.commit()
-        remain = core.execute(
-            "SELECT COUNT(*) FROM memory_items WHERE type='chat_log'").fetchone()[0]
+        remain = core.execute("SELECT COUNT(*) FROM memory_items WHERE type='chat_log'").fetchone()[0]
         total = core.execute("SELECT COUNT(*) FROM memory_items").fetchone()[0]
         print(f"\nSource after delete — chat_log remaining: {remain}, total: {total}")
         print("DONE. Run VACUUM on the source separately to reclaim space.")

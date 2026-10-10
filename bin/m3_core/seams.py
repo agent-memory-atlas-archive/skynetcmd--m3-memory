@@ -10,6 +10,7 @@ This module makes m3_memory resolvable in the second layout, by APPENDING the
 checkout root to sys.path (an installed package still wins), then re-exports the
 seams' public names. bin/ code imports `from m3_core.seams import is_windows`.
 """
+
 from __future__ import annotations
 
 import importlib.util as _ilu
@@ -44,7 +45,22 @@ from m3_memory._platform import (  # noqa: E402
 from m3_memory._pyver import PY, event_loop_timer_slack, wheel_python_tag  # noqa: E402
 
 __all__ = [
-    "PLATFORM_OF", "PY", "current_uid", "detached_spawn_kwargs", "event_loop_timer_slack", "hidden_window_kwargs", "is_apple_silicon",
-    "is_linux", "is_macos", "is_windows", "new_process_group_kwargs", "os_name", "python_exe", "read_key", "user_env_get",
-    "user_env_snapshot", "wait_for_any_key", "wheel_python_tag",
+    "PLATFORM_OF",
+    "PY",
+    "current_uid",
+    "detached_spawn_kwargs",
+    "event_loop_timer_slack",
+    "hidden_window_kwargs",
+    "is_apple_silicon",
+    "is_linux",
+    "is_macos",
+    "is_windows",
+    "new_process_group_kwargs",
+    "os_name",
+    "python_exe",
+    "read_key",
+    "user_env_get",
+    "user_env_snapshot",
+    "wait_for_any_key",
+    "wheel_python_tag",
 ]

@@ -23,6 +23,7 @@ Public API:
     promotability_score(hit_count, confidence, last_hit_at) -> float
     files_promotable(limit, min_score) -> list[dict]
 """
+
 from __future__ import annotations
 
 import logging
@@ -57,6 +58,7 @@ def record_leaf_hits(
     now = datetime.now(UTC).isoformat()
 
     from memory.backends import dialect as _dialect
+
     _d = _dialect()
     _p = _d.param()
     # Find every fact whose leaf is in the hit set.
@@ -65,8 +67,10 @@ def record_leaf_hits(
     for chunk in batched(leaf_uuids, CHUNK):
         placeholders = _d.placeholder(len(chunk))
         fact_uuids = [
-            r[0] for r in conn.execute(
-                f"SELECT uuid FROM {files_table('facts')} WHERE leaf IN ({placeholders})", chunk,
+            r[0]
+            for r in conn.execute(
+                f"SELECT uuid FROM {files_table('facts')} WHERE leaf IN ({placeholders})",
+                chunk,
             ).fetchall()
         ]
         if not fact_uuids:
@@ -140,6 +144,7 @@ def files_promotable(
         db_path: target files.db.
     """
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     with _db(db_path) as conn:
         # seam yields name-addressable rows on both backends (no sqlite3.Row).
@@ -161,8 +166,9 @@ def files_promotable(
             sql_parts.append(f"AND fn.corpus_id = {_p}")
             params.append(corpus_id)
         if not include_already_promoted:
-            sql_parts.append(f"AND NOT EXISTS (SELECT 1 FROM {files_table('promotion_markers')} "
-                             f"WHERE source_memory = f.uuid)")
+            sql_parts.append(
+                f"AND NOT EXISTS (SELECT 1 FROM {files_table('promotion_markers')} WHERE source_memory = f.uuid)"
+            )
         sql_parts.append(f"ORDER BY fhs.hit_count * f.confidence DESC LIMIT {_p}")
         params.append(max(limit * 4, 50))  # over-fetch; we'll re-rank with full score
 
@@ -179,18 +185,20 @@ def files_promotable(
         )
         if s < min_score:
             continue
-        scored.append({
-            "fact_uuid": r["fact_uuid"],
-            "statement": r["statement"],
-            "confidence": r["confidence"],
-            "hit_count": r["hit_count"],
-            "last_hit_at": r["last_hit_at"],
-            "filename": r["filename"],
-            "path": r["path_absolute"],
-            "corpus_id": r["corpus_id"],
-            "promotability_score": round(s, 4),
-            "already_promoted": bool(r["already_promoted"]),
-        })
+        scored.append(
+            {
+                "fact_uuid": r["fact_uuid"],
+                "statement": r["statement"],
+                "confidence": r["confidence"],
+                "hit_count": r["hit_count"],
+                "last_hit_at": r["last_hit_at"],
+                "filename": r["filename"],
+                "path": r["path_absolute"],
+                "corpus_id": r["corpus_id"],
+                "promotability_score": round(s, 4),
+                "already_promoted": bool(r["already_promoted"]),
+            }
+        )
 
     scored.sort(key=lambda d: -d["promotability_score"])
     return scored[:limit]

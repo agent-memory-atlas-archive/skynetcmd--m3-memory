@@ -38,6 +38,7 @@ Usage examples:
 The default vocab is `config/lists/entity_graph_m3.yaml` (m3-tuned).
 Override via --entity-vocab-yaml or M3_ENTITY_VOCAB_YAML.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -93,10 +94,22 @@ BACKUP_DIR = Path(get_m3_backups_root()) / "entities"
 # the durable distillate (`observation`), NOT the raw chatter. Pass
 # `--types message,chat_log,...` to override for a deliberate one-off.
 DEFAULT_TYPES = (
-    "note", "decision", "knowledge", "reference", "fact", "plan",
-    "document", "observation",
-    "project", "config", "infrastructure", "network_config",
-    "local_device", "home_automation", "log", "preference",
+    "note",
+    "decision",
+    "knowledge",
+    "reference",
+    "fact",
+    "plan",
+    "document",
+    "observation",
+    "project",
+    "config",
+    "infrastructure",
+    "network_config",
+    "local_device",
+    "home_automation",
+    "log",
+    "preference",
 )
 ALWAYS_SKIP_TYPES = ("auto", "scratchpad", "summary")  # summary excluded; deleted leak shape
 
@@ -126,11 +139,14 @@ class ContextOverflowError(RuntimeError):
     instead of burning the retry budget. Detected via the 500 body containing
     'Context size has been exceeded' from LM Studio's /v1/messages."""
 
+
 # Names the model habitually emits with a misclassified type. Filtered
 # regardless of etype; one entry is the spec, expand only on recurrence.
-ANTI_EXTRACTION_NAMES: frozenset[str] = frozenset({
-    "Windows 11 Pro",  # OS, typed as 'host' by qwen3-8b smoke
-})
+ANTI_EXTRACTION_NAMES: frozenset[str] = frozenset(
+    {
+        "Windows 11 Pro",  # OS, typed as 'host' by qwen3-8b smoke
+    }
+)
 
 # Module-name shape: dotted or bare Python identifier, no slashes, no extension.
 _MODULE_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$")
@@ -143,7 +159,7 @@ def _strip_etype_prefix(etype: str, cname: str) -> str:
     Generic over all etypes."""
     prefix = f"{etype}_"
     if cname.startswith(prefix):
-        return cname[len(prefix):]
+        return cname[len(prefix) :]
     return cname
 
 
@@ -167,6 +183,7 @@ def _maybe_reclassify_module(etype: str, cname: str) -> str:
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
+
 def _today() -> str:
     return datetime.now(UTC).strftime("%Y%m%d")
 
@@ -180,9 +197,7 @@ def _load_vocab(path: Path | None) -> tuple[frozenset[str], frozenset[str]]:
     return mc.load_entity_vocab(str(path))
 
 
-async def _discover_loaded_model_async(
-    client: httpx.AsyncClient, url: str, token: str | None
-) -> str | None:
+async def _discover_loaded_model_async(client: httpx.AsyncClient, url: str, token: str | None) -> str | None:
     """Id of a model currently loaded at ``url``'s server, so a blank-model
     profile can follow the loaded model BY NAME.
 
@@ -202,6 +217,7 @@ async def _discover_loaded_model_async(
             break
     try:
         from llm_failover import discover_model_async
+
         return await discover_model_async(client, base, token, fresh=True)
     except Exception:  # noqa: BLE001 — discovery is advisory; keep the blank model
         return None
@@ -228,10 +244,10 @@ def _build_extractor(
     # (A pinned :1234 anthropic profile would hit a dead port on an Ollama-only box;
     # and /v1/chat/completions is the one path every OpenAI-compatible server
     # serves.) A remote/pinned profile is respected verbatim — explicit config wins.
-    eff_url, eff_backend = localize_endpoint(
-        profile.url, getattr(profile, "backend", "openai") or "openai")
+    eff_url, eff_backend = localize_endpoint(profile.url, getattr(profile, "backend", "openai") or "openai")
     try:
         from llm_failover import suppresses_thinking_via_effort
+
         eff_suppress_reasoning = suppresses_thinking_via_effort(eff_url)
     except Exception:  # noqa: BLE001
         eff_suppress_reasoning = False
@@ -303,18 +319,24 @@ def _build_extractor(
             if token:
                 headers["Authorization"] = f"Bearer {token}"
         else:  # anthropic (default — preserves prior behaviour)
-            payload = {"model": _model, "max_tokens": profile.max_tokens,
-                       "messages": [{"role": "user", "content": body}]}
+            payload = {
+                "model": _model,
+                "max_tokens": profile.max_tokens,
+                "messages": [{"role": "user", "content": body}],
+            }
             if profile.system:
                 if getattr(profile, "cache_system", False):
-                    payload["system"] = [{"type": "text", "text": profile.system,
-                                          "cache_control": {"type": "ephemeral"}}]
+                    payload["system"] = [
+                        {"type": "text", "text": profile.system, "cache_control": {"type": "ephemeral"}}
+                    ]
                 else:
                     payload["system"] = profile.system
             if profile.temperature is not None:
                 payload["temperature"] = profile.temperature
-            headers = {"Content-Type": "application/json",
-                       "anthropic-version": getattr(profile, "anthropic_version", "2023-06-01")}
+            headers = {
+                "Content-Type": "application/json",
+                "anthropic-version": getattr(profile, "anthropic_version", "2023-06-01"),
+            }
             if token:
                 headers["x-api-key"] = token
 
@@ -344,9 +366,11 @@ def _build_extractor(
             # answer is unreachable — either the auto-fix didn't take, or this is
             # an endpoint m3 can't suppress. Warn ONCE per pass with the actionable
             # fix so the 0-fact outcome is never silent.
-            if (not str(msg.get("content") or "").strip()
-                    and (msg.get("reasoning") or msg.get("reasoning_content"))
-                    and not _warned.get("reasoning")):
+            if (
+                not str(msg.get("content") or "").strip()
+                and (msg.get("reasoning") or msg.get("reasoning_content"))
+                and not _warned.get("reasoning")
+            ):
                 _warned["reasoning"] = True
                 if eff_suppress_reasoning:
                     logger.warning(
@@ -354,14 +378,19 @@ def _build_extractor(
                         "(empty content) despite reasoning_effort='none' — the model "
                         "did not honor suppression -> 0 facts. Disable thinking for "
                         "this model or use a non-reasoning instruct model.",
-                        _model, eff_url)
+                        _model,
+                        eff_url,
+                    )
                 else:
                     logger.warning(
                         "entity extraction: %r at %s returned only reasoning output "
                         "(empty content) -> 0 facts. It's a reasoning model and this "
                         "endpoint isn't one m3 can auto-suppress (only local LM "
                         "Studio/Ollama). Disable thinking or use a non-reasoning "
-                        "instruct model.", _model, eff_url)
+                        "instruct model.",
+                        _model,
+                        eff_url,
+                    )
             # some reasoning models (gpt-oss) leave the answer in `reasoning`
             text = msg.get("content") or msg.get("reasoning") or ""
             # strip a <think>...</think> reasoning block if present
@@ -423,12 +452,14 @@ def _build_extractor(
                 conf = 0.85
             if conf < 0.6:
                 continue
-            entities_clean.append({
-                "canonical_name": cname,
-                "entity_type": etype,
-                "mention_text": mention,
-                "confidence": max(0.0, min(1.0, conf)),
-            })
+            entities_clean.append(
+                {
+                    "canonical_name": cname,
+                    "entity_type": etype,
+                    "mention_text": mention,
+                    "confidence": max(0.0, min(1.0, conf)),
+                }
+            )
             emitted_canonicals.add(cname)
 
         relationships_clean: list[dict] = []
@@ -459,12 +490,14 @@ def _build_extractor(
                 conf = 0.85
             if conf < 0.6:
                 continue
-            relationships_clean.append({
-                "from_entity": f,
-                "to_entity": t,
-                "predicate": p,
-                "confidence": max(0.0, min(1.0, conf)),
-            })
+            relationships_clean.append(
+                {
+                    "from_entity": f,
+                    "to_entity": t,
+                    "predicate": p,
+                    "confidence": max(0.0, min(1.0, conf)),
+                }
+            )
 
         return {"entities": entities_clean, "relationships": relationships_clean}
 
@@ -472,6 +505,7 @@ def _build_extractor(
 
 
 # ── Eligibility ────────────────────────────────────────────────────────────
+
 
 def _build_type_allowlist(
     args: argparse.Namespace,
@@ -487,6 +521,7 @@ def _load_conv_list(path: Path) -> set[str]:
     raw = path.read_text(encoding="utf-8").strip()
     if raw.startswith("["):
         import json as _json
+
         return {str(x).strip() for x in _json.loads(raw) if str(x).strip()}
     out: set[str] = set()
     for line in raw.splitlines():
@@ -503,6 +538,7 @@ def _ensure_extraction_status_column(conn) -> None:
     migration-managed), and PRAGMA table_info is SQLite-only, so this is a no-op on
     PG. Best-effort — an already-migrated DB is a no-op on both backends."""
     from memory.backends import active_backend
+
     if active_backend().name != "sqlite":
         return  # PG: status column comes from pg_041, not runtime DDL
     try:
@@ -534,6 +570,7 @@ def _query_eligible_rows(
     missing (handles legacy rows + Observer output uniformly).
     """
     from memory.backends import active_backend
+
     _backend = active_backend()
     _d = _backend.dialect()
     _p = _d.param()
@@ -589,9 +626,7 @@ def _query_eligible_rows(
             # Failed rows still under the cap (attempts < N) stay eligible so
             # genuinely transient failures (LM Studio OOM-reload 500s) retry.
             # Tolerant of a DB lacking the status column.
-            extracted_clause = (
-                " AND id NOT IN (SELECT DISTINCT memory_id FROM memory_item_entities)"
-            )
+            extracted_clause = " AND id NOT IN (SELECT DISTINCT memory_id FROM memory_item_entities)"
             if _has_status:
                 extracted_clause += (
                     " AND id NOT IN (SELECT memory_id FROM entity_extraction_queue"
@@ -609,7 +644,7 @@ def _query_eligible_rows(
               AND type NOT IN ({excl_placeholders})
               {variant_clause}
               {extracted_clause}
-            ORDER BY {_d.byte_length('content')} DESC
+            ORDER BY {_d.byte_length("content")} DESC
         """
         params = list(type_allowlist) + list(ALWAYS_SKIP_TYPES) + variant_params
         rows = conn.execute(sql, params).fetchall()
@@ -621,6 +656,7 @@ def _query_eligible_rows(
 
 
 # ── Pre-flight ─────────────────────────────────────────────────────────────
+
 
 async def _smoke_profile(profile: Profile, token: str, valid_types, valid_predicates) -> None:
     """Quick smoke: send a tiny payload through the extractor and confirm
@@ -635,10 +671,12 @@ async def _smoke_profile(profile: Profile, token: str, valid_types, valid_predic
                 "It runs on primary-host at 192.0.2.10."
             )
         except Exception as e:
-            sys.exit(f"ERROR: profile smoke test failed. "
-                     f"observed: {type(e).__name__}: {str(e)[:150]}. "
-                     f"possible: profile misconfigured, model unreachable, or prompt invalid. "
-                     f"inspect: --profile argument, model in slm_profiles.yaml, API connectivity.")
+            sys.exit(
+                f"ERROR: profile smoke test failed. "
+                f"observed: {type(e).__name__}: {str(e)[:150]}. "
+                f"possible: profile misconfigured, model unreachable, or prompt invalid. "
+                f"inspect: --profile argument, model in slm_profiles.yaml, API connectivity."
+            )
     n_ents = len(out.get("entities", []))
     n_rels = len(out.get("relationships", []))
     print(f"[m3-entities] smoke OK: {n_ents} entities, {n_rels} relationships", flush=True)
@@ -647,6 +685,7 @@ async def _smoke_profile(profile: Profile, token: str, valid_types, valid_predic
 
 
 # ── Main loop ──────────────────────────────────────────────────────────────
+
 
 async def _run_db(
     db_path: Path,
@@ -681,6 +720,7 @@ async def _run_db(
         Best-effort: a queue-write failure must never mask the original error."""
         try:
             from memory.backends import dialect
+
             _d = dialect()
             _p = _d.param()
             with mc._db() as qc:
@@ -694,8 +734,12 @@ async def _run_db(
                            last_error      = excluded.last_error,
                            last_attempt_at = excluded.last_attempt_at,
                            status          = 'failed'""",
-                    (memory_id, (f"{type(err).__name__}: {err}" if err is not None
-                                 else "the extractor returned no result")[:500]),
+                    (
+                        memory_id,
+                        (f"{type(err).__name__}: {err}" if err is not None else "the extractor returned no result")[
+                            :500
+                        ],
+                    ),
                 )
                 qc.commit()
         except Exception:
@@ -714,6 +758,7 @@ async def _run_db(
         shape as _enqueue_failure."""
         try:
             from memory.backends import dialect
+
             _d = dialect()
             _p = _d.param()
             with mc._db() as qc:
@@ -763,6 +808,7 @@ async def _run_db(
             return
         try:
             from memory.backends import dialect
+
             _d = dialect()
             _p = _d.param()
             with mc._db() as qc:
@@ -783,7 +829,11 @@ async def _run_db(
             pass  # never let bookkeeping break the run
 
     rows = _query_eligible_rows(
-        db_path, type_allowlist, source_variant, limit, skip_already_extracted,
+        db_path,
+        type_allowlist,
+        source_variant,
+        limit,
+        skip_already_extracted,
         source_conv_list=source_conv_list,
     )
     counters["eligible"] = len(rows)
@@ -860,10 +910,13 @@ async def _run_db(
                         # re-enabled in bulk.
                         counters["ctx_error"] += 1
                         _enqueue_ctx_error(memory_id, e)
-                        print(f"[m3-entities] CTX-ERROR {memory_id[:8]}: context exceeded. "
-                              f"observed: content length exceeds model context window. "
-                              f"possible: input_max_chars insufficient for this memory_item. "
-                              f"marked for manual intervention; inspect: input_max_chars profile setting.", flush=True)
+                        print(
+                            f"[m3-entities] CTX-ERROR {memory_id[:8]}: context exceeded. "
+                            f"observed: content length exceeds model context window. "
+                            f"possible: input_max_chars insufficient for this memory_item. "
+                            f"marked for manual intervention; inspect: input_max_chars profile setting.",
+                            flush=True,
+                        )
                         return
                     except Exception as e:
                         last_err = e
@@ -875,8 +928,11 @@ async def _run_db(
                 if out is None:
                     counters["failed"] += 1
                     _enqueue_failure(memory_id, last_err)
-                    why = (f"{type(last_err).__name__}: {last_err}" if last_err is not None
-                           else "the extractor returned no result")
+                    why = (
+                        f"{type(last_err).__name__}: {last_err}"
+                        if last_err is not None
+                        else "the extractor returned no result"
+                    )
                     print(f"[m3-entities] FAIL {memory_id[:8]}: {why} (queued)", flush=True)
                     return
                 ents = out.get("entities", [])
@@ -896,10 +952,14 @@ async def _run_db(
                 # link insert, relationship UPSERT (delete-then-insert per
                 # source_memory_id).
                 try:
+
                     async def _passthrough(_text: str) -> dict:
                         return out
+
                     await mc._run_entity_extractor(
-                        memory_id, text, _passthrough,
+                        memory_id,
+                        text,
+                        _passthrough,
                         valid_types=valid_types,
                         valid_predicates=valid_predicates,
                     )
@@ -922,7 +982,7 @@ async def _run_db(
 
     elapsed = time.monotonic() - started
     print(
-        f"[m3-entities] {db_path.name} done in {elapsed/60:.1f}m: "
+        f"[m3-entities] {db_path.name} done in {elapsed / 60:.1f}m: "
         f"{counters['processed']} processed, "
         f"{counters['entities_emitted']} entities, "
         f"{counters['relationships_emitted']} relationships, "
@@ -937,11 +997,13 @@ async def _run_db(
 
 # ── CLI ────────────────────────────────────────────────────────────────────
 
+
 def _print_dry_run(plan: dict, *, dry_run: bool = True) -> None:
     print()
     print("==============================================================")
-    print("  m3-entities DRY RUN -- no writes will happen" if dry_run
-          else "  m3-entities RUN PLAN -- writes WILL happen")
+    print(
+        "  m3-entities DRY RUN -- no writes will happen" if dry_run else "  m3-entities RUN PLAN -- writes WILL happen"
+    )
     print("==============================================================")
     print()
     print(f"  Profile:             {plan['profile_name']}")
@@ -978,9 +1040,11 @@ async def _main_async(args: argparse.Namespace) -> int:
     # onto the seam and verified on PG, so the gate was removed.)
     profile = load_profile(args.profile)
     if profile is None:
-        sys.exit(f"ERROR: profile not found. "
-                 f"observed: load_profile({args.profile!r}) returned None. "
-                 f"inspect: --profile argument, slm_profiles.yaml.")
+        sys.exit(
+            f"ERROR: profile not found. "
+            f"observed: load_profile({args.profile!r}) returned None. "
+            f"inspect: --profile argument, slm_profiles.yaml."
+        )
 
     # CLI flag wins. Otherwise honor M3_ENTITY_VOCAB_YAML env var (matches
     # memory_core.load_entity_vocab's contract). Final fallback: m3 default.
@@ -991,9 +1055,11 @@ async def _main_async(args: argparse.Namespace) -> int:
     else:
         vocab_path = DEFAULT_VOCAB_YAML
     if not vocab_path.exists():
-        sys.exit(f"ERROR: vocab YAML not found. "
-                 f"observed: {vocab_path} does not exist. "
-                 f"inspect: --entity-vocab-yaml argument or M3_ENTITY_VOCAB_YAML env var.")
+        sys.exit(
+            f"ERROR: vocab YAML not found. "
+            f"observed: {vocab_path} does not exist. "
+            f"inspect: --entity-vocab-yaml argument or M3_ENTITY_VOCAB_YAML env var."
+        )
     valid_types, valid_predicates = _load_vocab(vocab_path)
     print(f"[m3-entities] vocab: {vocab_path}", flush=True)
     print(f"[m3-entities]   types: {len(valid_types)} ({sorted(valid_types)[:6]}...)", flush=True)
@@ -1008,29 +1074,30 @@ async def _main_async(args: argparse.Namespace) -> int:
     embed_model = getattr(args, "embed_model", None)
     if embed_url:
         mc.set_embed_override(embed_url, embed_model)
-        print(f"[m3-entities] embedder override: {embed_url} "
-              f"(model: {embed_model or 'default'})", flush=True)
+        print(f"[m3-entities] embedder override: {embed_url} (model: {embed_model or 'default'})", flush=True)
 
     type_allowlist = _build_type_allowlist(args)
 
     # DB targets
     db_targets: list[tuple[str, Path]] = []
     if not args.chatlog_only:
-        core_db = Path(args.core_db) if args.core_db else Path(
-            os.environ.get("M3_DATABASE") or (REPO_ROOT / "memory" / "agent_memory.db")
+        core_db = (
+            Path(args.core_db)
+            if args.core_db
+            else Path(os.environ.get("M3_DATABASE") or (REPO_ROOT / "memory" / "agent_memory.db"))
         )
         if core_db.exists():
             db_targets.append(("core", core_db))
     if not args.core_only:
-        chatlog_db = Path(args.chatlog_db) if args.chatlog_db else (
-            REPO_ROOT / "memory" / "agent_chatlog.db"
-        )
+        chatlog_db = Path(args.chatlog_db) if args.chatlog_db else (REPO_ROOT / "memory" / "agent_chatlog.db")
         if chatlog_db.exists():
             db_targets.append(("chatlog", chatlog_db))
     if not db_targets:
-        sys.exit("ERROR: no DBs found. "
-                 "observed: no core DB resolved and chatlog DB does not exist. "
-                 "inspect: --core-db argument, M3_DATABASE env var, or M3_CHATLOG_DATABASE.")
+        sys.exit(
+            "ERROR: no DBs found. "
+            "observed: no core DB resolved and chatlog DB does not exist. "
+            "inspect: --core-db argument, M3_DATABASE env var, or M3_CHATLOG_DATABASE."
+        )
 
     # Build dry-run plan
     plan = {
@@ -1049,15 +1116,21 @@ async def _main_async(args: argparse.Namespace) -> int:
     if getattr(args, "source_conv_list", None):
         conv_path = Path(args.source_conv_list)
         if not conv_path.exists():
-            sys.exit(f"ERROR: --source-conv-list path not found. "
-                     f"observed: {conv_path} does not exist. "
-                     f"inspect: --source-conv-list argument.")
+            sys.exit(
+                f"ERROR: --source-conv-list path not found. "
+                f"observed: {conv_path} does not exist. "
+                f"inspect: --source-conv-list argument."
+            )
         conv_set = _load_conv_list(conv_path)
         print(f"[m3-entities] --source-conv-list: {len(conv_set)} conv_ids loaded", flush=True)
 
     for label, db_path in db_targets:
         rows = _query_eligible_rows(
-            db_path, type_allowlist, args.source_variant, args.limit, not args.force,
+            db_path,
+            type_allowlist,
+            args.source_variant,
+            args.limit,
+            not args.force,
             source_conv_list=conv_set,
         )
         plan["dbs"][label] = {"path": str(db_path), "n_rows": len(rows)}
@@ -1080,9 +1153,11 @@ async def _main_async(args: argparse.Namespace) -> int:
     # Token + smoke
     token = get_api_key(profile.api_key_service) or ""
     if not token:
-        sys.exit(f"ERROR: API key not found. "
-                 f"observed: {profile.api_key_service!r} service returned no token. "
-                 f"inspect: vault (m3 admin store_secret), M3_VAULT_ADDR, or env var {profile.api_key_service}.")
+        sys.exit(
+            f"ERROR: API key not found. "
+            f"observed: {profile.api_key_service!r} service returned no token. "
+            f"inspect: vault (m3 admin store_secret), M3_VAULT_ADDR, or env var {profile.api_key_service}."
+        )
 
     if not args.skip_preflight:
         await _smoke_profile(profile, token, valid_types, valid_predicates)
@@ -1099,9 +1174,17 @@ async def _main_async(args: argparse.Namespace) -> int:
         # (#180 -- it removed the chatlog from the loop's embed targets).
         with scoped_db_env(db_path):
             await _run_db(
-                db_path, profile, token, valid_types, valid_predicates,
-                type_allowlist, args.source_variant, args.concurrency,
-                args.limit, not args.force, counters,
+                db_path,
+                profile,
+                token,
+                valid_types,
+                valid_predicates,
+                type_allowlist,
+                args.source_variant,
+                args.concurrency,
+                args.limit,
+                not args.force,
+                counters,
                 source_conv_list=conv_set,
             )
         for k, v in counters.items():
@@ -1120,70 +1203,80 @@ async def _main_async(args: argparse.Namespace) -> int:
     print(f"  write failures:        {counters_total.get('write_failed', 0)}")
     print()
     print("  inspect via:")
-    print("    SELECT canonical_name, entity_type, COUNT(*) FROM entities e "
-          "JOIN memory_item_entities mie ON mie.entity_id=e.id "
-          "GROUP BY e.id ORDER BY COUNT(*) DESC LIMIT 30;")
+    print(
+        "    SELECT canonical_name, entity_type, COUNT(*) FROM entities e "
+        "JOIN memory_item_entities mie ON mie.entity_id=e.id "
+        "GROUP BY e.id ORDER BY COUNT(*) DESC LIMIT 30;"
+    )
     return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(
-        description="m3_entities — build entity-graph rows from your core/chatlog DBs."
+    ap = argparse.ArgumentParser(description="m3_entities — build entity-graph rows from your core/chatlog DBs.")
+    ap.add_argument(
+        "--profile", default=DEFAULT_PROFILE, help=f"Profile name in config/slm/. Default: {DEFAULT_PROFILE}."
     )
-    ap.add_argument("--profile", default=DEFAULT_PROFILE,
-                    help=f"Profile name in config/slm/. Default: {DEFAULT_PROFILE}.")
-    ap.add_argument("--entity-vocab-yaml", default=None,
-                    help=f"Vocab YAML path. Default: {DEFAULT_VOCAB_YAML}.")
-    ap.add_argument("--embed-url",
-                    default=os.environ.get("M3_EMBED_URL"),
-                    help="Hard override for the embedder endpoint URL "
-                         "(e.g. http://127.0.0.1:8081/v1). Bypasses "
-                         "get_best_embed discovery — use when you need "
-                         "deterministic routing under concurrent load. "
-                         "Env: M3_EMBED_URL.")
-    ap.add_argument("--embed-model",
-                    default=os.environ.get("M3_EMBED_MODEL"),
-                    help="Model id to send to the override endpoint. "
-                         "llama.cpp default: 'bge-m3-GGUF-Q4_K_M.gguf'. "
-                         "LM Studio: 'text-embedding-bge-m3'. "
-                         "Required only when --embed-url is set and the "
-                         "default model id is wrong for that server. "
-                         "Env: M3_EMBED_MODEL.")
-    ap.add_argument("--core", action="store_true", dest="core_only",
-                    help="Only enrich the core memory DB (skip chatlog).")
-    ap.add_argument("--chatlog", action="store_true", dest="chatlog_only",
-                    help="Only enrich the chatlog DB (skip core).")
-    ap.add_argument("--core-db", default=None,
-                    help="Explicit path to the core memory DB.")
-    ap.add_argument("--chatlog-db", default=None,
-                    help="Explicit path to the chatlog DB.")
-    ap.add_argument("--source-variant", default=None,
-                    help="Filter source rows by variant. '__none__' = true core memory only "
-                         "(variant IS NULL). A name = single-variant scope. Default: no filter.")
-    ap.add_argument("--source-conv-list",
-                    default=os.environ.get("M3_ENTITIES_CONV_LIST"),
-                    help="Path to a file listing conversation_ids to scope extraction to. "
-                         "Format: newline-delimited text (with optional # comments) OR a "
-                         "JSON array. Filtering reads metadata_json.$.conversation_id, "
-                         "falling back to the memory_items.conversation_id column. "
-                         "Narrows the eligible set AFTER --source-variant + type filtering. "
-                         "Env: M3_ENTITIES_CONV_LIST.")
-    ap.add_argument("--types", default=None,
-                    help="Comma-separated type allowlist override. Default: chat + curated.")
-    ap.add_argument("--limit", type=int, default=None,
-                    help="Cap rows enriched per DB (smoke testing).")
-    ap.add_argument("--concurrency", type=int, default=2,
-                    help="Concurrent SLM calls. Default 2 (single-host LM Studio "
-                         "with two qwen3-8b instances was OOM-reloading at 4).")
-    ap.add_argument("--force", action="store_true",
-                    help="Re-extract rows that already have memory_item_entities. "
-                         "Default: skip already-extracted.")
-    ap.add_argument("--dry-run", action="store_true",
-                    help="Preview what would happen without writing.")
-    ap.add_argument("--skip-preflight", action="store_true",
-                    help="Skip endpoint smoke + DB backup. Power-user only.")
-    ap.add_argument("--yes", "-y", action="store_true",
-                    help="Skip the interactive confirm prompt.")
+    ap.add_argument("--entity-vocab-yaml", default=None, help=f"Vocab YAML path. Default: {DEFAULT_VOCAB_YAML}.")
+    ap.add_argument(
+        "--embed-url",
+        default=os.environ.get("M3_EMBED_URL"),
+        help="Hard override for the embedder endpoint URL "
+        "(e.g. http://127.0.0.1:8081/v1). Bypasses "
+        "get_best_embed discovery — use when you need "
+        "deterministic routing under concurrent load. "
+        "Env: M3_EMBED_URL.",
+    )
+    ap.add_argument(
+        "--embed-model",
+        default=os.environ.get("M3_EMBED_MODEL"),
+        help="Model id to send to the override endpoint. "
+        "llama.cpp default: 'bge-m3-GGUF-Q4_K_M.gguf'. "
+        "LM Studio: 'text-embedding-bge-m3'. "
+        "Required only when --embed-url is set and the "
+        "default model id is wrong for that server. "
+        "Env: M3_EMBED_MODEL.",
+    )
+    ap.add_argument(
+        "--core", action="store_true", dest="core_only", help="Only enrich the core memory DB (skip chatlog)."
+    )
+    ap.add_argument(
+        "--chatlog", action="store_true", dest="chatlog_only", help="Only enrich the chatlog DB (skip core)."
+    )
+    ap.add_argument("--core-db", default=None, help="Explicit path to the core memory DB.")
+    ap.add_argument("--chatlog-db", default=None, help="Explicit path to the chatlog DB.")
+    ap.add_argument(
+        "--source-variant",
+        default=None,
+        help="Filter source rows by variant. '__none__' = true core memory only "
+        "(variant IS NULL). A name = single-variant scope. Default: no filter.",
+    )
+    ap.add_argument(
+        "--source-conv-list",
+        default=os.environ.get("M3_ENTITIES_CONV_LIST"),
+        help="Path to a file listing conversation_ids to scope extraction to. "
+        "Format: newline-delimited text (with optional # comments) OR a "
+        "JSON array. Filtering reads metadata_json.$.conversation_id, "
+        "falling back to the memory_items.conversation_id column. "
+        "Narrows the eligible set AFTER --source-variant + type filtering. "
+        "Env: M3_ENTITIES_CONV_LIST.",
+    )
+    ap.add_argument("--types", default=None, help="Comma-separated type allowlist override. Default: chat + curated.")
+    ap.add_argument("--limit", type=int, default=None, help="Cap rows enriched per DB (smoke testing).")
+    ap.add_argument(
+        "--concurrency",
+        type=int,
+        default=2,
+        help="Concurrent SLM calls. Default 2 (single-host LM Studio "
+        "with two qwen3-8b instances was OOM-reloading at 4).",
+    )
+    ap.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-extract rows that already have memory_item_entities. Default: skip already-extracted.",
+    )
+    ap.add_argument("--dry-run", action="store_true", help="Preview what would happen without writing.")
+    ap.add_argument("--skip-preflight", action="store_true", help="Skip endpoint smoke + DB backup. Power-user only.")
+    ap.add_argument("--yes", "-y", action="store_true", help="Skip the interactive confirm prompt.")
     return ap
 
 

@@ -34,6 +34,7 @@ Conventions matched from bin/memory/:
   - ISO 8601 strings for timestamps (TEXT)
   - BLOB for embeddings (per memory_embeddings precedent)
 """
+
 from __future__ import annotations
 
 SCHEMA_V1 = r"""

@@ -1,8 +1,8 @@
 ---
 tool: bin/gen_tool_manifest.py
-sha1: 5a481feeb2ca
-mtime_utc: 2026-10-09T06:55:28.000708+00:00
-generated_utc: 2026-10-09T06:58:43.129098+00:00
+sha1: c8542fb32ef0
+mtime_utc: 2026-10-10T21:05:16.801986+00:00
+generated_utc: 2026-10-10T21:05:29.540248+00:00
 private: false
 ---
 
@@ -44,7 +44,7 @@ database, or runtime data is read or written.
 
 ## Entry points
 
-- `def main()` (line 122)
+- `def main()` (line 128)
 - `if __name__ == "__main__"` guard
 
 ---

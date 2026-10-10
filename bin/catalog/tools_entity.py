@@ -4,6 +4,7 @@ Split out of mcp_tool_catalog.py's flat TOOLS list. Entries copied verbatim
 (name, description, parameters, impl, validators, flags unchanged). Domain
 assignment per tool_domains.domain_of_tool().
 """
+
 from __future__ import annotations
 
 from .lazy import LazyModuleProxy
@@ -19,10 +20,18 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "query":         {"type": "string",  "default": "", "description": "Search term matched against canonical_name (LIKE %query%)."},
-                "entity_type":   {"type": "string",  "default": "", "description": "Filter by entity type (if provided)."},
-                "limit":         {"type": "integer", "default": 10,  "description": "Max results to return."},
-                "with_neighbors": {"type": "boolean", "default": False, "description": "If true, compute neighbor_count for each entity."},
+                "query": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Search term matched against canonical_name (LIKE %query%).",
+                },
+                "entity_type": {"type": "string", "default": "", "description": "Filter by entity type (if provided)."},
+                "limit": {"type": "integer", "default": 10, "description": "Max results to return."},
+                "with_neighbors": {
+                    "type": "boolean",
+                    "default": False,
+                    "description": "If true, compute neighbor_count for each entity.",
+                },
             },
             "required": [],
         },
@@ -39,7 +48,11 @@ TOOLS: list[ToolSpec] = [
             "type": "object",
             "properties": {
                 "entity_id": {"type": "string", "description": "The entity ID to fetch."},
-                "depth":     {"type": "integer", "default": 1, "description": "Graph depth for neighborhood walk (currently unused; reserved for future multi-hop)."},
+                "depth": {
+                    "type": "integer",
+                    "default": 1,
+                    "description": "Graph depth for neighborhood walk (currently unused; reserved for future multi-hop).",
+                },
             },
             "required": ["entity_id"],
         },
@@ -64,10 +77,26 @@ TOOLS: list[ToolSpec] = [
             "type": "object",
             "properties": {
                 "conversation_id": {"type": "string", "description": "Required."},
-                "entity_id":       {"type": "string", "default": "", "description": "Preferred lookup — the entities.id. If supplied, canonical_name and entity_type are ignored."},
-                "canonical_name":  {"type": "string", "default": "", "description": "Alternative lookup. Case-insensitive exact match. One of entity_id OR canonical_name is required."},
-                "entity_type":     {"type": "string", "default": "", "description": "Optional disambiguator when canonical_name is ambiguous across types."},
-                "limit":           {"type": "integer", "default": 0, "description": "Max memory_ids to return. 0 = default (1000). Hard cap = 10000."},
+                "entity_id": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Preferred lookup — the entities.id. If supplied, canonical_name and entity_type are ignored.",
+                },
+                "canonical_name": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Alternative lookup. Case-insensitive exact match. One of entity_id OR canonical_name is required.",
+                },
+                "entity_type": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Optional disambiguator when canonical_name is ambiguous across types.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "default": 0,
+                    "description": "Max memory_ids to return. 0 = default (1000). Hard cap = 10000.",
+                },
             },
             "required": ["conversation_id"],
         },

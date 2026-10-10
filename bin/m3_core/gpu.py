@@ -31,8 +31,7 @@ _GPU_PROBE_DISABLE = os.environ.get("M3_GPU_PROBE_DISABLE", "").lower() in ("1",
 _GPU_PROBE_TTL_DEFAULT = 60.0
 _GPU_PROBE_TTL = float(os.environ.get("M3_GPU_PROBE_TTL", str(_GPU_PROBE_TTL_DEFAULT)))
 _GPU_TTL_CFG_TTL = 5.0
-_gpu_ttl_cfg_cache: dict[str, Any] = {"ts": 0.0, "mtime": None, "ttl": None,
-                                      "disabled": None}
+_gpu_ttl_cfg_cache: dict[str, Any] = {"ts": 0.0, "mtime": None, "ttl": None, "disabled": None}
 
 
 def _gpu_probe_ttl(now: float | None = None) -> float:
@@ -84,7 +83,10 @@ def _gpu_probe_ttl(now: float | None = None) -> float:
                     # dead while appearing live.
                     logger.warning(
                         "Governor config %s is unreadable/malformed (%s) — GPU "
-                        "probe TTL falling back to env var + default.", path, e)
+                        "probe TTL falling back to env var + default.",
+                        path,
+                        e,
+                    )
             _gpu_ttl_cfg_cache["ttl"] = val
 
     val = _gpu_ttl_cfg_cache["ttl"]
@@ -163,6 +165,7 @@ def _no_window() -> dict:
     console window and steal focus on every poll. Shared _task_runtime helper is
     preferred; this local fallback avoids an import cycle in the hot path."""
     import subprocess as _sp
+
     # getattr, not _sp.CREATE_NO_WINDOW: the attribute only exists on Windows, so
     # a direct reference fails mypy on the Linux CI runner.
     flags = getattr(_sp, "CREATE_NO_WINDOW", 0) if is_windows() else 0
@@ -172,10 +175,14 @@ def _no_window() -> dict:
 def _gpu_util_nvidia() -> float | None:
     """CUDA GPUs (any OS) via nvidia-smi. None = backend unavailable."""
     import subprocess
+
     try:
         out = subprocess.run(
             ["nvidia-smi", "--query-gpu=utilization.gpu", "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, timeout=2.0, **_no_window(),
+            capture_output=True,
+            text=True,
+            timeout=2.0,
+            **_no_window(),
         )
     except (FileNotFoundError, OSError):
         return None
@@ -192,6 +199,7 @@ def _gpu_util_windows_counter() -> float | None:
     if not is_windows():
         return None
     import subprocess
+
     try:
         # PowerShell Get-Counter; pick the busiest 3D/compute engine sample.
         ps = (
@@ -201,7 +209,10 @@ def _gpu_util_windows_counter() -> float | None:
         )
         out = subprocess.run(
             ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
-            capture_output=True, text=True, timeout=4.0, **_no_window(),
+            capture_output=True,
+            text=True,
+            timeout=4.0,
+            **_no_window(),
         )
     except (FileNotFoundError, OSError):
         return None
@@ -221,10 +232,13 @@ def _gpu_util_macos_ioreg() -> float | None:
         return None
     import re as _re
     import subprocess
+
     try:
         out = subprocess.run(
             ["ioreg", "-r", "-d", "1", "-w", "0", "-c", "IOAccelerator"],
-            capture_output=True, text=True, timeout=3.0,
+            capture_output=True,
+            text=True,
+            timeout=3.0,
         )
     except (FileNotFoundError, OSError):
         return None
@@ -241,6 +255,7 @@ def _gpu_util_linux_sysfs() -> float | None:
     if not is_linux():
         return None
     import glob
+
     vals = []
     for path in glob.glob("/sys/class/drm/card*/device/gpu_busy_percent"):
         try:

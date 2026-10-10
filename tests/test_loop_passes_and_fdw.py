@@ -1,6 +1,7 @@
 """Unit tests for the governor-paced loop passes (_due gate) and the pg_fdw_sync
 column contract. Pure-Python; no live PG or GPU.
 """
+
 from __future__ import annotations
 
 import os
@@ -13,12 +14,15 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 class TestDueGate:
     def setup_method(self):
         import m3_cognitive_loop as L
+
         self.L = L
         # Redirect the run-timestamp store to a temp file so tests don't touch the
         # real ~/.m3/config/.loop_pass_runs.json.
         import tempfile
+
         self._tmp = tempfile.NamedTemporaryFile(  # noqa: SIM115 — closed and removed in tearDown
-            suffix=".json", delete=False, mode="w")
+            suffix=".json", delete=False, mode="w"
+        )
         self._tmp.write("{}")
         self._tmp.close()
         self._orig = L._loop_pass_runs_path
@@ -45,6 +49,7 @@ class TestDueGate:
     def test_corrupt_timestamp_fails_open(self):
         # A garbage stored timestamp must read as due (fail-open), never crash.
         import json
+
         with open(self._tmp.name, "w") as f:
             json.dump({"sync": "not-a-timestamp"}, f)
         assert self.L._due("sync", 3600) is True
@@ -94,11 +99,19 @@ class TestFdwContract:
             def execute(self, sql, params=None):
                 captured["sql"] = sql
                 captured["params"] = params
+
             rowcount = 3
 
         # ts_col present -> delta WHERE + last-writer-wins guard
-        F._upsert(_Cur(), "cdw_fdw.memory_items", "public.memory_items",
-                  ["id", "content", "updated_at"], "id", "updated_at", "2026-01-01")
+        F._upsert(
+            _Cur(),
+            "cdw_fdw.memory_items",
+            "public.memory_items",
+            ["id", "content", "updated_at"],
+            "id",
+            "updated_at",
+            "2026-01-01",
+        )
         sql = captured["sql"]
         assert "INSERT INTO cdw_fdw.memory_items" in sql
         assert "SELECT id, content, updated_at FROM public.memory_items" in sql
@@ -114,10 +127,12 @@ class TestFdwContract:
         class _Cur:
             def execute(self, sql, params=None):
                 captured["sql"] = sql
+
             rowcount = 0
 
-        F._upsert(_Cur(), "cdw_fdw.memory_embeddings", "public.memory_embeddings",
-                  ["id", "embedding"], "id", None, None)
+        F._upsert(
+            _Cur(), "cdw_fdw.memory_embeddings", "public.memory_embeddings", ["id", "embedding"], "id", None, None
+        )
         sql = captured["sql"]
         assert "WHERE" not in sql.split("ON CONFLICT")[0]  # no delta filter
         assert "DO UPDATE SET" in sql
@@ -127,4 +142,5 @@ class TestFdwContract:
 
 if __name__ == "__main__":
     import pytest
+
     raise SystemExit(pytest.main([__file__, "-q"]))

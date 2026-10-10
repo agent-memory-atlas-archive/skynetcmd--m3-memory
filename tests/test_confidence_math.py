@@ -4,6 +4,7 @@ These pin every branch of the transparent aggregation and the Beta posterior so
 later phases (write-path, ranking, reinforcement) build on a proven foundation.
 No DB, no I/O — pure math.
 """
+
 from __future__ import annotations
 
 import os
@@ -17,21 +18,39 @@ from memory import confidence as C  # noqa: E402
 
 # ── clamps ───────────────────────────────────────────────────────────────────
 
-@pytest.mark.parametrize("x,expected", [
-    (-1.0, 0.0), (-0.0001, 0.0), (0.0, 0.0), (0.5, 0.5), (1.0, 1.0), (1.5, 1.0),
-])
+
+@pytest.mark.parametrize(
+    "x,expected",
+    [
+        (-1.0, 0.0),
+        (-0.0001, 0.0),
+        (0.0, 0.0),
+        (0.5, 0.5),
+        (1.0, 1.0),
+        (1.5, 1.0),
+    ],
+)
 def test_clamp01(x, expected):
     assert C.clamp01(x) == expected
 
 
-@pytest.mark.parametrize("x,expected", [
-    (0.0, 0.5), (0.4, 0.5), (0.5, 0.5), (0.75, 0.75), (1.0, 1.0), (2.0, 1.0),
-])
+@pytest.mark.parametrize(
+    "x,expected",
+    [
+        (0.0, 0.5),
+        (0.4, 0.5),
+        (0.5, 0.5),
+        (0.75, 0.75),
+        (1.0, 1.0),
+        (2.0, 1.0),
+    ],
+)
 def test_clamp_trust(x, expected):
     assert C.clamp_trust(x) == expected
 
 
 # ── base_source_conf: every resolution branch ────────────────────────────────
+
 
 def test_observer_confidence_wins_and_is_clamped():
     # Observer value trusted as-is, regardless of source/change_agent...
@@ -56,8 +75,7 @@ def test_agent_prior_scaled_by_trust():
     # Neutral trust → exactly AGENT_PRIOR.
     assert C.base_source_conf(change_agent="claude") == C.AGENT_PRIOR
     # Lower trust scales the prior down.
-    assert C.base_source_conf(change_agent="gemini", agent_trust=0.5) == pytest.approx(
-        C.AGENT_PRIOR * 0.5)
+    assert C.base_source_conf(change_agent="gemini", agent_trust=0.5) == pytest.approx(C.AGENT_PRIOR * 0.5)
     # Trust is clamped before scaling (2.0 → 1.0).
     assert C.base_source_conf(change_agent="claude", agent_trust=2.0) == C.AGENT_PRIOR
 
@@ -68,6 +86,7 @@ def test_neutral_prior_for_unknown_or_system(ca):
 
 
 # ── corroboration / contradiction ────────────────────────────────────────────
+
 
 def test_corroboration_bonus_zero_and_negative():
     assert C.corroboration_bonus(0.0) == 0.0
@@ -89,6 +108,7 @@ def test_contradiction_penalty_zero_and_capped():
 
 
 # ── aggregate: the user-facing number ────────────────────────────────────────
+
 
 def test_aggregate_neutral_default_matches_importance_default():
     # No provenance, no signal → NEUTRAL_PRIOR (0.5), exactly today's importance
@@ -132,6 +152,7 @@ def test_corroboration_cannot_overwhelm_user_prior_with_agent_base():
 
 
 # ── Beta posterior ───────────────────────────────────────────────────────────
+
 
 def test_beta_seed_mean_matches_confidence():
     a, b = C.beta_seed(0.8, strength=10.0)

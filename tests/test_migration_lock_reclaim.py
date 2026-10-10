@@ -6,6 +6,7 @@ full 120s timeout and then hard-errored. `_reclaim_stale_lock` removes such a
 lock IFF its owner is provably gone — and must NEVER steal a lock held by a
 live process. These tests pin both the reclaim and the safety guarantee.
 """
+
 from __future__ import annotations
 
 import os
@@ -45,8 +46,7 @@ def test_never_reclaims_live_same_host_pid(tmp_path):
 def test_cross_host_recent_lock_is_not_reclaimed(tmp_path):
     """Different host (can't probe PID) + fresh file -> leave it alone."""
     lock = tmp_path / ".migration.lock"
-    _write_lock(lock, f"12345 some-other-host {int(time.time())}",
-                mtime=time.time())  # brand new
+    _write_lock(lock, f"12345 some-other-host {int(time.time())}", mtime=time.time())  # brand new
     assert m3_sdk._reclaim_stale_lock(str(lock)) is False
     assert lock.exists()
 

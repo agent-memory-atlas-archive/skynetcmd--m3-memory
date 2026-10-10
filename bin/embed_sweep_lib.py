@@ -23,6 +23,7 @@ hardening) lives in one place.
 History: extracted from bin/embed_backfill.py 2026-05-03 when the chatlog
 sweeper migrated to share this helper. See commit message for rationale.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -70,6 +71,7 @@ def _is_infrastructure_failure(exc: BaseException) -> bool:
     # memory.embed is not importable (tests pass a stub).
     try:
         from memory.embed import ContextLengthExceeded
+
         if isinstance(exc, ContextLengthExceeded):
             return False
     except Exception:  # noqa: BLE001
@@ -259,8 +261,7 @@ async def run_embed_loop(
                 # batch. Code/JSON/base64 fail it in the other direction
                 # (1.6-3.2 bytes/token). The byte cap is kept as a coarse outer
                 # bound; the token budget is the real guard.
-                if (_token_budget(embed_text) > _TOKEN_BUDGET
-                        or len(embed_text.encode("utf-8")) > max_row_bytes):
+                if _token_budget(embed_text) > _TOKEN_BUDGET or len(embed_text.encode("utf-8")) > max_row_bytes:
                     if oversize_mode != "subdivide":
                         counters.skipped_oversize += 1
                         continue
@@ -398,12 +399,8 @@ async def run_embed_loop(
         # id (i.e. caller ORDERs BY id ASC).
         after_id = rows[-1][0]
 
-        batches: list[list[tuple[str, str, str, str | None]]] = [
-            list(b) for b in batched(rows, batch_size)
-        ]
-        await gather_or_cancel(
-            *(_embed_one_batch(b) for b in batches)
-        )
+        batches: list[list[tuple[str, str, str, str | None]]] = [list(b) for b in batched(rows, batch_size)]
+        await gather_or_cancel(*(_embed_one_batch(b) for b in batches))
         cycles += 1
 
         if log is not None:

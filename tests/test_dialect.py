@@ -4,6 +4,7 @@ Each divergence in plan §6 has one helper; each helper is asserted for BOTH
 backends here so a mechanical port can trust a single API. These are the tests
 that let Tier-1/Tier-2 passes run without a live Postgres.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -58,10 +59,7 @@ class TestUpsert:
     def test_on_conflict_ignore(self):
         assert SQLITE.on_conflict_ignore() == ""  # OR IGNORE already handled it
         assert POSTGRES.on_conflict_ignore() == "ON CONFLICT DO NOTHING"
-        assert (
-            POSTGRES.on_conflict_ignore(conflict_target="(id)")
-            == "ON CONFLICT (id) DO NOTHING"
-        )
+        assert POSTGRES.on_conflict_ignore(conflict_target="(id)") == "ON CONFLICT (id) DO NOTHING"
 
     def test_on_conflict_ignore_partial_index_arbiter(self):
         # Postgres needs the partial index's WHERE predicate in the arbiter or
@@ -70,14 +68,9 @@ class TestUpsert:
             conflict_target="(memory_id, source_kind, source_ref)",
             index_predicate="delta > 0",
         )
-        assert got == (
-            "ON CONFLICT (memory_id, source_kind, source_ref) "
-            "WHERE delta > 0 DO NOTHING"
-        )
+        assert got == ("ON CONFLICT (memory_id, source_kind, source_ref) WHERE delta > 0 DO NOTHING")
         # SQLite ignores all of this (the OR IGNORE prefix handled it)
-        assert SQLITE.on_conflict_ignore(
-            conflict_target="(a, b)", index_predicate="x > 0"
-        ) == ""
+        assert SQLITE.on_conflict_ignore(conflict_target="(a, b)", index_predicate="x > 0") == ""
 
     def test_index_predicate_requires_target(self):
         with pytest.raises(ValueError):
@@ -86,10 +79,7 @@ class TestUpsert:
     def test_on_conflict_update_shared_excluded_syntax(self):
         # both backends use the `excluded` pseudo-table
         got = POSTGRES.on_conflict_update("(id)", ["content", "updated_at"])
-        assert got == (
-            "ON CONFLICT (id) DO UPDATE SET "
-            "content = excluded.content, updated_at = excluded.updated_at"
-        )
+        assert got == ("ON CONFLICT (id) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at")
         assert SQLITE.on_conflict_update("(id)", ["content"]) == (
             "ON CONFLICT (id) DO UPDATE SET content = excluded.content"
         )
@@ -108,14 +98,8 @@ class TestTime:
 
 class TestJson:
     def test_extract_text(self):
-        assert (
-            SQLITE.json_extract_text("metadata_json", "provider")
-            == "json_extract(metadata_json, '$.provider')"
-        )
-        assert (
-            POSTGRES.json_extract_text("metadata_json", "provider")
-            == "metadata_json ->> 'provider'"
-        )
+        assert SQLITE.json_extract_text("metadata_json", "provider") == "json_extract(metadata_json, '$.provider')"
+        assert POSTGRES.json_extract_text("metadata_json", "provider") == "metadata_json ->> 'provider'"
 
     @pytest.mark.parametrize("d", [SQLITE, POSTGRES])
     def test_extract_rejects_quote_injection(self, d: Dialect):
@@ -127,10 +111,7 @@ class TestJson:
             SQLITE.json_extract_int("metadata_json", "session_idx")
             == "CAST(json_extract(metadata_json, '$.session_idx') AS INTEGER)"
         )
-        assert (
-            POSTGRES.json_extract_int("metadata_json", "session_idx")
-            == "(metadata_json ->> 'session_idx')::int"
-        )
+        assert POSTGRES.json_extract_int("metadata_json", "session_idx") == "(metadata_json ->> 'session_idx')::int"
 
     @pytest.mark.parametrize("d", [SQLITE, POSTGRES])
     def test_extract_int_rejects_quote_injection(self, d: Dialect):
@@ -141,14 +122,8 @@ class TestJson:
 class TestCiEquals:
     def test_lower_form_on_both_backends(self):
         # SQLite: replaces `col = ? COLLATE NOCASE`; PG: valid ILIKE-free equality.
-        assert (
-            SQLITE.ci_equals("canonical_name", SQLITE.param())
-            == "LOWER(canonical_name) = LOWER(?)"
-        )
-        assert (
-            POSTGRES.ci_equals("canonical_name", POSTGRES.param())
-            == "LOWER(canonical_name) = LOWER(%s)"
-        )
+        assert SQLITE.ci_equals("canonical_name", SQLITE.param()) == "LOWER(canonical_name) = LOWER(?)"
+        assert POSTGRES.ci_equals("canonical_name", POSTGRES.param()) == "LOWER(canonical_name) = LOWER(%s)"
 
     def test_no_collate_nocase_leaks_to_postgres(self):
         # COLLATE NOCASE is a hard syntax error on PG — it must never appear.
@@ -182,9 +157,7 @@ class TestTemporalOpenClause:
 class TestCoalesceOpenTimestamp:
     def test_sqlite_keeps_nullif(self):
         # SQLite stores unset bounds as '' — must map '' -> NULL before COALESCE.
-        assert SQLITE.coalesce_open_timestamp("valid_to", "?") == (
-            "COALESCE(NULLIF(valid_to, ''), ?)"
-        )
+        assert SQLITE.coalesce_open_timestamp("valid_to", "?") == ("COALESCE(NULLIF(valid_to, ''), ?)")
 
     def test_postgres_drops_nullif(self):
         # PG TIMESTAMPTZ rejects '' — NULLIF(col,'') would raise; plain COALESCE.
@@ -196,9 +169,7 @@ class TestCoalesceOpenTimestamp:
 class TestTableExists:
     def test_sqlite_uses_sqlite_master(self):
         sql, params = SQLITE.table_exists("entity_embeddings")
-        assert sql == (
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?"
-        )
+        assert sql == ("SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?")
         assert params == ("entity_embeddings",)
 
     def test_postgres_uses_to_regclass_bound(self):
@@ -239,12 +210,14 @@ class TestChatlogTableFork:
 
     def test_sqlite_uses_core_names(self):
         from memory.backends.dialect import chatlog_table_for
+
         assert chatlog_table_for("items", "sqlite") == "memory_items"
         assert chatlog_table_for("embeddings", "sqlite") == "memory_embeddings"
         assert chatlog_table_for("extraction_queue", "sqlite") == "entity_extraction_queue"
 
     def test_postgres_uses_chat_log_names(self):
         from memory.backends.dialect import chatlog_table_for
+
         assert chatlog_table_for("items", "postgres") == "chat_log_items"
         assert chatlog_table_for("embeddings", "postgres") == "chat_log_embeddings"
         assert chatlog_table_for("item_entities", "postgres") == "chat_log_item_entities"
@@ -253,11 +226,13 @@ class TestChatlogTableFork:
 
     def test_unknown_role_fails_loud(self):
         from memory.backends.dialect import chatlog_table_for
+
         with pytest.raises(KeyError):
             chatlog_table_for("nonexistent_role", "postgres")
 
     def test_every_role_maps_on_both_backends(self):
         from memory.backends.dialect import _CHATLOG_TABLES, chatlog_table_for
+
         for role in _CHATLOG_TABLES:
             s = chatlog_table_for(role, "sqlite")
             p = chatlog_table_for(role, "postgres")
@@ -268,15 +243,18 @@ class TestChatlogTableFork:
     def test_no_fts_role(self):
         # memory_items_fts has no entry — FTS5 has no PG analogue.
         from memory.backends.dialect import _CHATLOG_TABLES
+
         assert "fts" not in _CHATLOG_TABLES
         assert not any("fts" in v[0] or "fts" in v[1] for v in _CHATLOG_TABLES.values())
 
     def test_active_backend_wrapper(self, monkeypatch):
         # chatlog_table() resolves the active backend.
         from memory.backends import selector as _sel
+
         monkeypatch.delenv("M3_DB_BACKEND", raising=False)
         _sel._reset_for_tests()
         from memory.backends.dialect import chatlog_table
+
         assert chatlog_table("items") == "memory_items"  # default sqlite
 
 
@@ -304,15 +282,19 @@ class TestGeneratedIds:
     def test_last_insert_id_sqlite_uses_lastrowid(self):
         class _Cur:
             lastrowid = 42
+
             def fetchone(self):
                 raise AssertionError("SQLite must NOT call fetchone for the id")
+
         assert SQLITE.last_insert_id(_Cur()) == 42
 
     def test_last_insert_id_postgres_uses_returning_row(self):
         class _Cur:
             lastrowid = None
+
             def fetchone(self):
                 return (99,)  # RETURNING id row
+
         assert POSTGRES.last_insert_id(_Cur()) == 99
 
 
@@ -330,9 +312,7 @@ class TestNowMinusDays:
         The assertion pinned the defect, which is why it survived. See
         tests/test_time_bound_format_parity.py for the behavioural proof.
         """
-        assert SQLITE.now_minus_days("?") == (
-            "strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-' || ? || ' days')"
-        )
+        assert SQLITE.now_minus_days("?") == ("strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-' || ? || ' days')")
 
     def test_postgres_multiplies_interval(self):
         assert POSTGRES.now_minus_days("%s") == "NOW() - (%s * INTERVAL '1 day')"
@@ -367,6 +347,7 @@ class TestColumnExists:
 
     def test_sqlite_executes_against_real_table(self):
         import sqlite3
+
         c = sqlite3.connect(":memory:")
         c.execute("CREATE TABLE q(memory_id TEXT, status TEXT)")
         assert bool(c.execute(*SQLITE.column_exists("q", "status")).fetchall()) is True

@@ -1,4 +1,5 @@
 """Tests for Tier 4 Cloud Enclave failover, PII redaction, and keyring lookup."""
+
 from __future__ import annotations
 
 import os
@@ -25,6 +26,7 @@ import memory.config as config
 
 def _live_embed_module():
     import importlib
+
     return importlib.import_module("memory.embed")
 
 
@@ -49,6 +51,7 @@ def clean_breakers(monkeypatch):
     # so e.g. M3_ALLOW_CLOUD_FALLBACK=True wouldn't be seen and tier 4 is skipped.
     global config
     import importlib
+
     config = importlib.import_module("memory.config")
     reset_embed_breakers()
     # Ultimate cache buster: force content hash to be unique every time to guarantee cache misses
@@ -57,6 +60,7 @@ def clean_breakers(monkeypatch):
     # Mock best LLM failover globally to avoid real network requests
     async def mock_get_best_embed(*args, **kwargs):
         return None
+
     monkeypatch.setattr("memory.embed.get_best_embed", mock_get_best_embed)
     monkeypatch.setattr("llm_failover.get_best_embed", mock_get_best_embed)
 
@@ -112,13 +116,14 @@ async def test_tier4_fallback_triggered_with_redaction(monkeypatch):
     # getter was never called.) Setting the globals to None forces every tier
     # open so the cascade flows through the mocked client to tier 4.
     import memory.embed as _me
-    for _bk in ("_EMBEDDED_BREAKER", "_CPU_FALLBACK_BREAKER",
-                "_PRIMARY_BREAKER", "_CLOUD_BREAKER"):
+
+    for _bk in ("_EMBEDDED_BREAKER", "_CPU_FALLBACK_BREAKER", "_PRIMARY_BREAKER", "_CLOUD_BREAKER"):
         monkeypatch.setattr(_me, _bk, None)
 
     # Mock best LLM failover to fail
     async def mock_get_best_embed(*args, **kwargs):
         return None
+
     monkeypatch.setattr("memory.embed.get_best_embed", mock_get_best_embed)
 
     # Mock keyring lookup to return a token
@@ -152,6 +157,7 @@ async def test_tier4_fallback_triggered_with_redaction(monkeypatch):
         raise RuntimeError("Local HTTP down")
 
     import httpx as _httpx_mod
+
     monkeypatch.setattr(_httpx_mod.AsyncClient, "post", _fake_async_post)
     # Also neutralize the process-wide cached client so a stale one isn't reused.
     monkeypatch.setattr(_me, "_EMBED_CLIENT", None, raising=False)

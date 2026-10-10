@@ -12,6 +12,7 @@ appending, so there was no working way to pass several values at all. Observed
 "pattern groups", none of which match anything — redaction was configured and
 silently inert.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -26,8 +27,7 @@ GROUPS = ["api_keys", "bearer_tokens", "jwt", "aws_keys", "github_tokens"]
 
 def _parse(argv: list[str]) -> list[str] | None:
     p = argparse.ArgumentParser()
-    p.add_argument("--patterns", dest="patterns", nargs="+",
-                   action=_CommaSplitAppend, default=None)
+    p.add_argument("--patterns", dest="patterns", nargs="+", action=_CommaSplitAppend, default=None)
     return p.parse_args(argv).patterns
 
 
@@ -37,8 +37,7 @@ def _parse(argv: list[str]) -> list[str] | None:
         (["--patterns", "api_keys,jwt"], ["api_keys", "jwt"]),
         (["--patterns", "api_keys", "jwt"], ["api_keys", "jwt"]),
         (["--patterns", "api_keys", "--patterns", "jwt"], ["api_keys", "jwt"]),
-        (["--patterns", "api_keys,jwt", "--patterns", "aws_keys"],
-         ["api_keys", "jwt", "aws_keys"]),
+        (["--patterns", "api_keys,jwt", "--patterns", "aws_keys"], ["api_keys", "jwt", "aws_keys"]),
         (["--patterns", ",".join(GROUPS)], GROUPS),
         (["--patterns", *GROUPS], GROUPS),
     ],
@@ -56,8 +55,7 @@ def test_never_character_splits():
 
 def test_repeats_accumulate_rather_than_overwrite():
     """Second half of the bug — last-flag-wins silently dropped earlier values."""
-    got = _parse(["--patterns", "api_keys", "--patterns", "jwt",
-                  "--patterns", "aws_keys"])
+    got = _parse(["--patterns", "api_keys", "--patterns", "jwt", "--patterns", "aws_keys"])
     assert got == ["api_keys", "jwt", "aws_keys"]
 
 
@@ -85,8 +83,8 @@ def test_array_tools_are_registered_with_the_split_action():
 
     spec = next((t for t in cat.TOOLS if t.name == "chatlog_set_redaction"), None)
     if spec is None:
-        pytest.fail("observed: chatlog_set_redaction is missing from the catalog. "
-                    "inspect: bin/catalog (it is a shipped tool)")
-    assert not _spec_is_complex(spec), \
-        "flat-flag tool became complex; array handling moved to --json"
+        pytest.fail(
+            "observed: chatlog_set_redaction is missing from the catalog. inspect: bin/catalog (it is a shipped tool)"
+        )
+    assert not _spec_is_complex(spec), "flat-flag tool became complex; array handling moved to --json"
     assert spec.parameters["properties"]["patterns"]["type"] == "array"

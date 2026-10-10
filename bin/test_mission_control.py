@@ -3,6 +3,7 @@
 test_mission_control.py — Single-pass smoke test for mission_control.py.
 Runs one iteration of the dashboard and validates all subsystems.
 """
+
 import pathlib
 import sys
 
@@ -40,20 +41,24 @@ PASS = 0
 FAIL = 0
 SKIP = 0
 
+
 def ok(label):
     global PASS
     PASS += 1
     print(f"  [PASS] {label}", flush=True)
+
 
 def fail(label, detail=""):
     global FAIL
     FAIL += 1
     print(f"  [FAIL] {label}{' -- ' + detail if detail else ''}", flush=True)
 
+
 def skip(label, reason=""):
     global SKIP
     SKIP += 1
     print(f"  [SKIP] {label}{' (' + reason + ')' if reason else ''}", flush=True)
+
 
 def check(cond, label, detail=""):
     if cond:
@@ -70,14 +75,13 @@ print("=" * 60, flush=True)
 # ── 1: Platform flags ─────────────────────────────────────────────────────────
 print("\n-- 1: Platform detection --", flush=True)
 flags = [IS_WIN, IS_MAC, IS_LINUX]
-check(sum(flags) == 1,  "exactly one platform flag is True", str(flags))
-check(os_name() == ("Windows" if IS_WIN else "Darwin" if IS_MAC else "Linux"),
-      "platform flag matches the OS seam")
+check(sum(flags) == 1, "exactly one platform flag is True", str(flags))
+check(os_name() == ("Windows" if IS_WIN else "Darwin" if IS_MAC else "Linux"), "platform flag matches the OS seam")
 
 # ── 2: Paths ──────────────────────────────────────────────────────────────────
 print("\n-- 2: Paths --", flush=True)
-check(BASE.exists(),           "BASE dir exists",    str(BASE))
-check(DB_PATH.parent.exists(), "memory dir exists",  str(DB_PATH.parent))
+check(BASE.exists(), "BASE dir exists", str(BASE))
+check(DB_PATH.parent.exists(), "memory dir exists", str(DB_PATH.parent))
 if DB_PATH.exists():
     ok("agent_memory.db found")
 else:
@@ -85,13 +89,13 @@ else:
 
 # ── 3: draw_bar ───────────────────────────────────────────────────────────────
 print("\n-- 3: draw_bar --", flush=True)
-bar0   = draw_bar(0)
-bar50  = draw_bar(50)
+bar0 = draw_bar(0)
+bar50 = draw_bar(50)
 bar100 = draw_bar(100)
-check("░" in bar0,   "0% bar has empty blocks")
-check("█" in bar50,  "50% bar has filled blocks")
-check("░" in bar50,  "50% bar has empty blocks")
-check("0.0%" in bar0,   "0% bar shows percentage")
+check("░" in bar0, "0% bar has empty blocks")
+check("█" in bar50, "50% bar has filled blocks")
+check("░" in bar50, "50% bar has empty blocks")
+check("0.0%" in bar0, "0% bar shows percentage")
 check("50.0%" in bar50, "50% bar shows percentage")
 
 # ── 4: Auth token ─────────────────────────────────────────────────────────────
@@ -107,12 +111,14 @@ else:
 print("\n-- 5: LM Studio KV stats --", flush=True)
 loaded, maximum, pct, status, model_name = get_kv_stats()
 check(isinstance(status, str), "get_kv_stats returns string status")
-check(status in ("OK", "IDLE", "OFFLINE", "TIMEOUT", "UNAUTHORIZED",
-                 "TOKEN_MISSING") or status.startswith("HTTP_"),
-      "status is a known value", status)
+check(
+    status in ("OK", "IDLE", "OFFLINE", "TIMEOUT", "UNAUTHORIZED", "TOKEN_MISSING") or status.startswith("HTTP_"),
+    "status is a known value",
+    status,
+)
 if status == "OK":
-    check(maximum > 0,      "max_ctx > 0 when OK")
-    check(0 <= pct <= 100,  "pct in [0, 100] when OK")
+    check(maximum > 0, "max_ctx > 0 when OK")
+    check(0 <= pct <= 100, "pct in [0, 100] when OK")
     ok(f"LM Studio online: {loaded:,}/{maximum:,} ctx ({pct:.1f}%)")
 elif status == "IDLE":
     ok("LM Studio running but no model loaded")
@@ -122,9 +128,9 @@ else:
 # ── 6: GPU usage ──────────────────────────────────────────────────────────────
 print("\n-- 6: GPU usage --", flush=True)
 gpu_pct = get_gpu_usage()
-label   = gpu_label()
-check(isinstance(gpu_pct, float),      "get_gpu_usage returns float")
-check(0.0 <= gpu_pct <= 100.0,         "GPU% in [0, 100]")
+label = gpu_label()
+check(isinstance(gpu_pct, float), "get_gpu_usage returns float")
+check(0.0 <= gpu_pct <= 100.0, "GPU% in [0, 100]")
 check(isinstance(label, str) and label, "gpu_label returns non-empty string")
 ok(f"GPU: {label} @ {gpu_pct:.1f}%")
 
@@ -136,8 +142,8 @@ if IS_MAC:
     ok("macOS: VRAM bar correctly suppressed")
 elif vram is not None:
     used_gb, total_gb, pct = vram
-    check(total_gb > 0,        "VRAM total_gb > 0")
-    check(0 <= pct <= 100,     "VRAM pct in [0, 100]")
+    check(total_gb > 0, "VRAM total_gb > 0")
+    check(0 <= pct <= 100, "VRAM pct in [0, 100]")
     check(used_gb <= total_gb, "VRAM used <= total")
     ok(f"VRAM: {used_gb:.1f}/{total_gb:.0f}GB ({pct:.1f}%)")
 else:
@@ -161,9 +167,9 @@ else:
 # ── 8: Hardware info + SQLite helpers ────────────────────────────────────────
 print("\n-- 8: Hardware info + SQLite helpers --", flush=True)
 chip, mem, gpu_info = get_hw_info()
-check(isinstance(chip, str) and len(chip) > 0,  "get_hw_info returns chip string")
-check(isinstance(mem, str) and "GB" in mem,      "get_hw_info returns mem string")
-check(isinstance(gpu_info, str),                 "get_hw_info returns gpu_info string")
+check(isinstance(chip, str) and len(chip) > 0, "get_hw_info returns chip string")
+check(isinstance(mem, str) and "GB" in mem, "get_hw_info returns mem string")
+check(isinstance(gpu_info, str), "get_hw_info returns gpu_info string")
 ok(f"Chip: {chip}")
 ok(f"RAM:  {mem}")
 ok(f"GPU:  {gpu_info or '(not detected)'}")

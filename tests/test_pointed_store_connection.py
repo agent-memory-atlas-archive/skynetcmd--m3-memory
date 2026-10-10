@@ -6,6 +6,7 @@ to the migration chain: a backfill pointed at a bench workspace or an export
 would silently migrate it. The bare SQLite pool returns a connection as-is, so
 a missed commit left an open transaction for its next user.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -70,12 +71,12 @@ def test_an_error_rolls_back(each_backend):
     key = f"PSC_{uuid.uuid4().hex[:8]}"
     with pytest.raises(RuntimeError, match="boom"):
         with pointed_store_connection(target) as conn:
-            conn.execute(f"INSERT INTO synchronized_secrets (service_name, encrypted_value) VALUES ({p}, {p})",
-                         (key, "x"))
+            conn.execute(
+                f"INSERT INTO synchronized_secrets (service_name, encrypted_value) VALUES ({p}, {p})", (key, "x")
+            )
             raise RuntimeError("boom")
     with each_backend.connection() as conn:
-        left = conn.execute(f"SELECT count(*) FROM synchronized_secrets WHERE service_name = {p}",
-                            (key,)).fetchone()[0]
+        left = conn.execute(f"SELECT count(*) FROM synchronized_secrets WHERE service_name = {p}", (key,)).fetchone()[0]
         conn.execute(f"DELETE FROM synchronized_secrets WHERE service_name = {p}", (key,))  # never leave a row
         conn.commit()
     assert left == 0, f"observed: the failed block's write survived on {each_backend.name}"

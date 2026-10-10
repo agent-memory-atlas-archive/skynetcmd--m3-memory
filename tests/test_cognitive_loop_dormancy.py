@@ -15,6 +15,7 @@ Three independent regressions this covers:
      EXCLUDES — so the entity pass re-fired every cycle doing nothing for them.
      The gate now derives its IN-list from DEFAULT_TYPES.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -25,6 +26,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
 
 # ── 3. entity-work gate == extractor's DEFAULT_TYPES ────────────────────────
+
 
 def test_entity_work_gate_matches_extractor_default_types():
     import m3_cognitive_loop as cl
@@ -42,6 +44,7 @@ def test_entity_work_gate_matches_extractor_default_types():
 
 
 # ── 2. doctor probe surfaces the dormant states ─────────────────────────────
+
 
 def test_probe_nags_when_loop_not_installed(monkeypatch, capsys):
     from doctor import cognitive_loop_probe as p
@@ -117,8 +120,10 @@ def test_probe_brief_always_prints_one_line(monkeypatch, capsys):
 
 # ── 1. `m3 setup` installs the loop by default ──────────────────────────────
 
+
 def _plan_for(args_list):
     from m3_memory.setup_wizard import AgentTargets, _gather_plan, add_arguments
+
     parser = argparse.ArgumentParser()
     add_arguments(parser)
     return _gather_plan(AgentTargets(), parser.parse_args(args_list))
@@ -151,6 +156,7 @@ def test_interactive_prompts_default_yes(monkeypatch):
     monkeypatch.setattr(sw, "_ask_choice", lambda *a, **k: k.get("default"))
     # Detected targets empty; no agents to probe.
     from m3_memory.setup_wizard import AgentTargets
+
     parser = argparse.ArgumentParser()
     sw.add_arguments(parser)
     args = parser.parse_args([])  # interactive

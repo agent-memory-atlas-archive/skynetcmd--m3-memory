@@ -20,6 +20,7 @@ Scope boundary (see project memory): this is backend PORTABILITY only. It change
 nothing about what is stored or how tenancy/identity work — it consumes the same
 user_id/scope the SQLite path does, in %s form.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -63,16 +64,24 @@ def fetch_candidates_pg(
     kw_by_id: dict[str, float] = {}
     if search_mode in ("hybrid", "fts5"):
         for hit in backend.keyword_search(
-            conn, query, limit=row_limit,
-            tenancy_sql=tenancy_sql, tenancy_params=tenancy_params,
+            conn,
+            query,
+            limit=row_limit,
+            tenancy_sql=tenancy_sql,
+            tenancy_params=tenancy_params,
         ):
             kw_by_id[hit.memory_id] = hit.score
 
     vec_ids: list[str] = []
     if search_mode in ("hybrid", "semantic"):
         for hit in backend.vector_search(
-            conn, q_vec, limit=row_limit, dim=dim, embed_models=embed_models,
-            tenancy_sql=tenancy_sql, tenancy_params=tenancy_params,
+            conn,
+            q_vec,
+            limit=row_limit,
+            dim=dim,
+            embed_models=embed_models,
+            tenancy_sql=tenancy_sql,
+            tenancy_params=tenancy_params,
         ):
             vec_ids.append(hit.memory_id)
 

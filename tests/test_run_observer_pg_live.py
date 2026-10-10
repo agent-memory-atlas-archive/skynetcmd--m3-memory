@@ -8,6 +8,7 @@ directly on PG, without the SLM. The heavy SLM path is unchanged and not exercis
 
 DSN from M3_PRIMARY_PG_URL/M3_PG_URL (never PG_URL).
 """
+
 from __future__ import annotations
 
 import sys
@@ -85,8 +86,7 @@ def test_observation_queue_and_source_group_paths_on_pg(pg):
             (mid, conv, '{"role":"user","turn_index":3}'),
         )
         cur.execute(
-            "INSERT INTO observation_queue (conversation_id,user_id,attempts) "
-            "VALUES (%s,%s,0) RETURNING id",
+            "INSERT INTO observation_queue (conversation_id,user_id,attempts) VALUES (%s,%s,0) RETURNING id",
             (conv, "u1"),
         )
         qid = cur.fetchone()[0]

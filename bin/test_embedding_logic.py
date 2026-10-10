@@ -15,4 +15,5 @@ async def main():
     vec, model = await _embed("hello world")
     print("Vector len:", len(vec) if vec else None, "Model:", model)
 
+
 asyncio.run(main())

@@ -52,6 +52,7 @@ def is_ollama_url(url: str) -> bool:
     callers send it only when this returns True."""
     try:
         from urllib.parse import urlparse
+
         return urlparse(url).port == 11434
     except Exception:  # noqa: BLE001
         return False
@@ -142,6 +143,7 @@ def is_lmstudio_url(url: str) -> bool:
     no caching from it. Callers use this to keep Anthropic only where it pays off."""
     try:
         from urllib.parse import urlparse
+
         return urlparse(url).port == 1234
     except Exception:  # noqa: BLE001
         return False
@@ -152,6 +154,7 @@ def _setting(name: str) -> str:
     # launchd/systemd daemon can see (it never reads the shell rc).
     try:
         from m3_core.llm_config import llm_setting
+
         return llm_setting(name) or ""
     except Exception:  # noqa: BLE001 — a bare payload still honours the env
         return os.environ.get(name, "").strip()
@@ -164,8 +167,9 @@ def _flag(name: str, default: bool) -> bool:
     return v in ("1", "true", "yes")
 
 
-_endpoints_csv = (getenv_compat("M3_LLM_ENDPOINTS_CSV", "LLM_ENDPOINTS_CSV", "").strip()
-                  or _setting("M3_LLM_ENDPOINTS_CSV"))
+_endpoints_csv = getenv_compat("M3_LLM_ENDPOINTS_CSV", "LLM_ENDPOINTS_CSV", "").strip() or _setting(
+    "M3_LLM_ENDPOINTS_CSV"
+)
 _custom_url = _setting("M3_LLM_URL")
 if _endpoints_csv:
     # Explicit ordered list — full control, overrides everything below.
@@ -197,7 +201,7 @@ try:
     CONNECT_TIMEOUT = float(os.environ.get("M3_LLM_CONNECT_TIMEOUT", "0.3"))
 except ValueError:
     CONNECT_TIMEOUT = 0.3
-READ_TIMEOUT = 10.0      # for model list fetches only
+READ_TIMEOUT = 10.0  # for model list fetches only
 
 # Process-global caches for discovery. Discovered once on first call; reused
 # for all subsequent calls in the same process. Reset by process exit or by
@@ -271,6 +275,7 @@ def _default_lm_token() -> "str | None":
     the exact failure mode that motivated m3_sdk.get_secret."""
     try:
         from auth_utils import get_api_key  # lazy: auth_utils vault reads route via M3Context
+
         return get_api_key("LM_API_TOKEN")
     except Exception:  # noqa: BLE001 — resolver failure -> env fallback
         return os.environ.get("LM_API_TOKEN")
@@ -454,8 +459,11 @@ def first_usable_endpoint_cached() -> str | None:
 
 
 async def probe_usability(
-    client: httpx.AsyncClient, endpoint: str, token: str | None = None,
-    *, fresh: bool = False,
+    client: httpx.AsyncClient,
+    endpoint: str,
+    token: str | None = None,
+    *,
+    fresh: bool = False,
 ) -> "tuple[bool, str]":
     """Ask ``endpoint`` whether it can answer: GET /models and require a
     generative model (the same filter as discovery, via _pick_best_model).
@@ -476,8 +484,9 @@ async def probe_usability(
             result = (False, f"GET /models -> HTTP {r.status_code}: {r.text[:200]}")
         else:
             best = _pick_best_model(r.json())
-            result = ((True, f"serves {best}") if best
-                      else (False, "reachable, but lists no generative model (none loaded)"))
+            result = (
+                (True, f"serves {best}") if best else (False, "reachable, but lists no generative model (none loaded)")
+            )
     except Exception as e:  # noqa: BLE001 — unreachable is an answer, not a crash
         result = (False, f"unreachable: {type(e).__name__}: {e}")
     _USABILITY_CACHE[endpoint] = (time.monotonic(), result[0], result[1])
@@ -485,7 +494,10 @@ async def probe_usability(
 
 
 async def require_usable_endpoint(
-    client: httpx.AsyncClient, token: str | None = None, *, fresh: bool = False,
+    client: httpx.AsyncClient,
+    token: str | None = None,
+    *,
+    fresh: bool = False,
 ) -> str:
     """The first LLM_ENDPOINTS entry that can answer, or raise LLMUnavailable
     naming what each endpoint reported."""
@@ -521,8 +533,7 @@ def report_unavailable(log: logging.Logger, component: str, err: BaseException) 
         log.warning(f"{component}: local LLM unavailable, pausing until it returns. {err}")
     elif now - state[1] >= OUTAGE_REPEAT_S:
         _OUTAGE_STATE[component] = (state[0], now)
-        log.warning(f"{component}: local LLM still unavailable "
-                    f"({(now - state[0]) / 60:.0f} min). {err}")
+        log.warning(f"{component}: local LLM still unavailable ({(now - state[0]) / 60:.0f} min). {err}")
     else:
         log.debug(f"{component}: local LLM unavailable (reported). {err}")
 
@@ -530,8 +541,7 @@ def report_unavailable(log: logging.Logger, component: str, err: BaseException) 
 def report_available(log: logging.Logger, component: str) -> None:
     state = _OUTAGE_STATE.pop(component, None)
     if state is not None:
-        log.info(f"{component}: local LLM available again after "
-                 f"{(time.monotonic() - state[0]) / 60:.0f} min.")
+        log.info(f"{component}: local LLM available again after {(time.monotonic() - state[0]) / 60:.0f} min.")
 
 
 _BEARER_RE = re.compile(r"Bearer\s+[A-Za-z0-9._~+/=-]{8,}")
@@ -552,7 +562,8 @@ def raise_for_status_with_body(resp: httpx.Response) -> None:
     body = _BEARER_RE.sub("Bearer [REDACTED]", body)
     raise httpx.HTTPStatusError(
         f"{resp.status_code} {resp.reason_phrase} from {resp.request.url}: {body}",
-        request=resp.request, response=resp,
+        request=resp.request,
+        response=resp,
     )
 
 
@@ -571,13 +582,13 @@ def parse_model_size(model_id: str) -> float:
     model_id_lower = model_id.lower()
 
     # MoE pattern first: NNNaNNb (e.g. 235a22b) — use total params (first number)
-    moe_match = re.search(r'(\d+)a\d+b', model_id_lower)
+    moe_match = re.search(r"(\d+)a\d+b", model_id_lower)
     if moe_match:
         return float(moe_match.group(1))
 
     # Standard pattern: digits.digits + (b|m) or digits + b|m
     # Examples: 70b, 1.5b, 500m
-    match = re.search(r'(\d+(?:\.\d+)?)\s*([bm])', model_id_lower)
+    match = re.search(r"(\d+(?:\.\d+)?)\s*([bm])", model_id_lower)
 
     if not match:
         return 0.0
@@ -586,7 +597,7 @@ def parse_model_size(model_id: str) -> float:
     unit = match.group(2)
 
     # Convert to billions
-    if unit == 'm':
+    if unit == "m":
         return size_val / 1000.0  # 500m → 0.5b
     else:  # unit == 'b'
         return size_val
@@ -841,5 +852,6 @@ async def get_best_embed(client: httpx.AsyncClient, token: str) -> tuple[str, st
     logger.warning(
         "[llm_failover] no embedding model found across endpoints — returning "
         "None so the caller uses its embed fallback (negative-cached %.0fs).",
-        _EMBED_NEG_TTL)
+        _EMBED_NEG_TTL,
+    )
     return None

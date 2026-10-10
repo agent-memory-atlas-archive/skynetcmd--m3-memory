@@ -23,6 +23,7 @@ These hooks are three independent hand-maintained copies with a "# Shared core
 exactly why fix #1 reached only the claude hook. The parity guard below makes
 divergence a test failure.
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -45,15 +46,24 @@ def _load(name):
 # log lines interleaved before it — the shape that broke the old parser.
 def _fake_ingest_stdout(written, skipped, failed=0, error=None, with_logs=True):
     import json
-    payload = {"written": written, "skipped": skipped, "spilled": 0,
-               "failed": failed, "errors": [], "session_id": "abc123"}
+
+    payload = {
+        "written": written,
+        "skipped": skipped,
+        "spilled": 0,
+        "failed": failed,
+        "errors": [],
+        "session_id": "abc123",
+    }
     if error is not None:
         payload["error"] = error
     body = json.dumps(payload, indent=2)
     if with_logs:
-        return ("2026-06-27 22:59:37 - M3_SDK - INFO - SQLite pool ready\n"
-                "2026-06-27 22:59:37 - chatlog_ingest - INFO - Ingested foo.jsonl: "
-                f"written={written}, skipped={skipped}\n" + body)
+        return (
+            "2026-06-27 22:59:37 - M3_SDK - INFO - SQLite pool ready\n"
+            "2026-06-27 22:59:37 - chatlog_ingest - INFO - Ingested foo.jsonl: "
+            f"written={written}, skipped={skipped}\n" + body
+        )
     return body
 
 
@@ -64,19 +74,18 @@ class _FakeCompleted:
 
 
 def _patch_subprocess(monkeypatch, mod, stdout, returncode=0):
-    monkeypatch.setattr(
-        mod.subprocess, "run",
-        lambda *a, **k: _FakeCompleted(stdout, returncode))
+    monkeypatch.setattr(mod.subprocess, "run", lambda *a, **k: _FakeCompleted(stdout, returncode))
 
 
 # ── Parser regression (bug #1): pretty-printed JSON must parse ────────────────
+
 
 def test_extract_last_json_object_present_in_all_hooks():
     for name in HOOKS:
         mod = _load(name)
         assert hasattr(mod, "_extract_last_json_object"), (
-            f"{name} is missing the robust parser — it will hit the pretty-JSON "
-            "bug that wrote ~1485 bogus spill files")
+            f"{name} is missing the robust parser — it will hit the pretty-JSON bug that wrote ~1485 bogus spill files"
+        )
 
 
 def test_pretty_json_parses_in_all_hooks():
@@ -100,6 +109,7 @@ def test_run_ingest_returns_five_tuple_in_all_hooks(monkeypatch):
 
 # ── Success-criterion regression (bug #2): written==0 + skipped>0 is SUCCESS ──
 
+
 def test_all_deduped_does_not_scream(monkeypatch, tmp_path, capsys):
     """written=0, skipped=N (live MCP capture beat the hook) -> NO fallback file,
     NO scream, exit 0. This is the 2026-06-27 false-alarm."""
@@ -113,11 +123,9 @@ def test_all_deduped_does_not_scream(monkeypatch, tmp_path, capsys):
 
         rc = mod.main()
         assert rc == 0, f"{name}: all-deduped run must exit 0, got {rc}"
-        assert not unsaved.exists() or not any(unsaved.iterdir()), (
-            f"{name}: all-deduped run wrote a bogus spill file")
+        assert not unsaved.exists() or not any(unsaved.iterdir()), f"{name}: all-deduped run wrote a bogus spill file"
         err = capsys.readouterr().err
-        assert "M3 CHATLOG NOT SAVED" not in err, (
-            f"{name}: all-deduped run screamed a false alarm")
+        assert "M3 CHATLOG NOT SAVED" not in err, f"{name}: all-deduped run screamed a false alarm"
 
 
 def test_genuine_failure_still_screams(monkeypatch, tmp_path, capsys):
@@ -138,11 +146,9 @@ def test_genuine_failure_still_screams(monkeypatch, tmp_path, capsys):
 
             rc = mod.main()
             assert rc != 0, f"{name}: genuine failure must exit non-zero"
-            assert unsaved.exists() and any(unsaved.iterdir()), (
-                f"{name}: genuine failure must write a spill file")
+            assert unsaved.exists() and any(unsaved.iterdir()), f"{name}: genuine failure must write a spill file"
             err = capsys.readouterr().err
-            assert "M3 CHATLOG NOT SAVED" in err, (
-                f"{name}: genuine failure must scream")
+            assert "M3 CHATLOG NOT SAVED" in err, f"{name}: genuine failure must scream"
 
 
 def test_normal_write_succeeds_quietly(monkeypatch, tmp_path, capsys):
@@ -162,31 +168,38 @@ def test_normal_write_succeeds_quietly(monkeypatch, tmp_path, capsys):
 
 # ── Parity guard: the three hooks must not silently diverge again ─────────────
 
+
 def test_parser_is_byte_identical_across_hooks():
     import inspect
+
     srcs = {name: inspect.getsource(_load(name)._extract_last_json_object) for name in HOOKS}
     ref = srcs[HOOKS[0]]
     for name in HOOKS[1:]:
         assert srcs[name] == ref, (
             f"{name}._extract_last_json_object diverged from {HOOKS[0]} — the "
-            "'shared core (parity)' promise is broken; re-sync the parser")
+            "'shared core (parity)' promise is broken; re-sync the parser"
+        )
 
 
 class _StdinStub:
     """A minimal stdin whose .read() returns a valid hook envelope for `name`."""
+
     def __init__(self, name):
         import json
+
         event = {
             "claude_code_precompact": "PreCompact",
             "gemini_cli_onexit": "SessionEnd",
             "opencode_session_end": "SessionEnd",
         }[name]
-        self._raw = json.dumps({
-            "session_id": "abc123",
-            "transcript_path": os.path.abspath(__file__),  # any existing file
-            "cwd": os.getcwd(),
-            "hook_event_name": event,
-        })
+        self._raw = json.dumps(
+            {
+                "session_id": "abc123",
+                "transcript_path": os.path.abspath(__file__),  # any existing file
+                "cwd": os.getcwd(),
+                "hook_event_name": event,
+            }
+        )
 
     def read(self):
         return self._raw

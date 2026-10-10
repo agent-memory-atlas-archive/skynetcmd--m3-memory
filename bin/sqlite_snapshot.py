@@ -24,6 +24,7 @@ Stdlib only, so bootstrap and migration tools (``migrate_memory``,
 ``homecoming``) can use it without importing the ``memory`` package. Callers
 inside the storage seam reach it through ``SqliteBackend.snapshot``.
 """
+
 from __future__ import annotations
 
 import os
@@ -104,8 +105,7 @@ def snapshot_sqlite(
 
     own_conn = src_conn is None
     try:
-        conn = src_conn if src_conn is not None else sqlite3.connect(
-            _ro_uri(src), uri=True, timeout=timeout)
+        conn = src_conn if src_conn is not None else sqlite3.connect(_ro_uri(src), uri=True, timeout=timeout)
     except sqlite3.Error as e:
         raise SqliteSnapshotError(f"cannot open {src} read-only: {e}") from e
 
@@ -147,8 +147,7 @@ def snapshot_sqlite(
         _remove_quietly(partial)
         diffs = sorted(t for t in set(expected) | set(got) if expected.get(t) != got.get(t))
         raise SqliteSnapshotError(
-            f"copy of {src} did not verify: quick_check={qc!r}; "
-            f"row-count mismatch in {diffs[:10] or 'none'}"
+            f"copy of {src} did not verify: quick_check={qc!r}; row-count mismatch in {diffs[:10] or 'none'}"
         )
     os.replace(partial, dst)
     return expected

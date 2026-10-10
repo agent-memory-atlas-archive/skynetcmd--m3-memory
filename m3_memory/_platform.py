@@ -88,7 +88,9 @@ def os_name() -> str:
             _UNSUPPORTED_WARNED = True
             logging.getLogger("m3_memory.platform").warning(
                 "unsupported OS; observed: sys.platform=%r, treated as Linux. m3 supports "
-                "Windows, macOS and Linux. inspect: m3_memory/_platform.py", sys.platform)
+                "Windows, macOS and Linux. inspect: m3_memory/_platform.py",
+                sys.platform,
+            )
     return "Linux"
 
 
@@ -283,8 +285,7 @@ def python_exe(windowless: bool = False) -> str:
             #
             # windowless=True flips the order for a genuinely BACKGROUND spawn,
             # where no one is reading stdout and a console flash is pure noise.
-            names = ("pythonw.exe", "python.exe") if windowless else (
-                "python.exe", "pythonw.exe")
+            names = ("pythonw.exe", "python.exe") if windowless else ("python.exe", "pythonw.exe")
         else:
             names = ("python3", "python")
         for name in names:

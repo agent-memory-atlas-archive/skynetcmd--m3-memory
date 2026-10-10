@@ -57,60 +57,72 @@ def _seed_cost_data(db_path):
 
     # 10 anthropic rows
     for i in range(10):
-        meta = json.dumps({
-            "provider": "anthropic",
-            "model_id": "claude-sonnet-4-5",
-            "tokens_in": 100_000,
-            "tokens_out": 50_000,
-            "cost_usd": 0.525,  # (100k/1M)*3 + (50k/1M)*15 = 0.3 + 0.75 = 1.05... adjusted
-        })
-        rows.append((
-            f"msg-anthropic-{i}",
-            "chat_log",
-            f"Content {i}",
-            meta,
-            "claude-sonnet-4-5",
-            "2024-01-01T00:00:00Z",
-            f"conv-{i % 3}",
-        ))
+        meta = json.dumps(
+            {
+                "provider": "anthropic",
+                "model_id": "claude-sonnet-4-5",
+                "tokens_in": 100_000,
+                "tokens_out": 50_000,
+                "cost_usd": 0.525,  # (100k/1M)*3 + (50k/1M)*15 = 0.3 + 0.75 = 1.05... adjusted
+            }
+        )
+        rows.append(
+            (
+                f"msg-anthropic-{i}",
+                "chat_log",
+                f"Content {i}",
+                meta,
+                "claude-sonnet-4-5",
+                "2024-01-01T00:00:00Z",
+                f"conv-{i % 3}",
+            )
+        )
 
     # 10 google rows
     for i in range(10):
-        meta = json.dumps({
-            "provider": "google",
-            "model_id": "gemini-2.5-flash",
-            "tokens_in": 100_000,
-            "tokens_out": 50_000,
-            "cost_usd": 0.155,  # (100k/1M)*0.30 + (50k/1M)*2.50 = 0.03 + 0.125
-        })
-        rows.append((
-            f"msg-google-{i}",
-            "chat_log",
-            f"Content {i}",
-            meta,
-            "gemini-2.5-flash",
-            "2024-01-02T00:00:00Z",
-            f"conv-{10 + i % 3}",
-        ))
+        meta = json.dumps(
+            {
+                "provider": "google",
+                "model_id": "gemini-2.5-flash",
+                "tokens_in": 100_000,
+                "tokens_out": 50_000,
+                "cost_usd": 0.155,  # (100k/1M)*0.30 + (50k/1M)*2.50 = 0.03 + 0.125
+            }
+        )
+        rows.append(
+            (
+                f"msg-google-{i}",
+                "chat_log",
+                f"Content {i}",
+                meta,
+                "gemini-2.5-flash",
+                "2024-01-02T00:00:00Z",
+                f"conv-{10 + i % 3}",
+            )
+        )
 
     # 10 openai rows
     for i in range(10):
-        meta = json.dumps({
-            "provider": "openai",
-            "model_id": "gpt-4o",
-            "tokens_in": 100_000,
-            "tokens_out": 50_000,
-            "cost_usd": 0.375,  # (100k/1M)*2.50 + (50k/1M)*10.0 = 0.25 + 0.5... adjusted
-        })
-        rows.append((
-            f"msg-openai-{i}",
-            "chat_log",
-            f"Content {i}",
-            meta,
-            "gpt-4o",
-            "2024-01-03T00:00:00Z",
-            f"conv-{20 + i % 3}",
-        ))
+        meta = json.dumps(
+            {
+                "provider": "openai",
+                "model_id": "gpt-4o",
+                "tokens_in": 100_000,
+                "tokens_out": 50_000,
+                "cost_usd": 0.375,  # (100k/1M)*2.50 + (50k/1M)*10.0 = 0.25 + 0.5... adjusted
+            }
+        )
+        rows.append(
+            (
+                f"msg-openai-{i}",
+                "chat_log",
+                f"Content {i}",
+                meta,
+                "gpt-4o",
+                "2024-01-03T00:00:00Z",
+                f"conv-{20 + i % 3}",
+            )
+        )
 
     cursor.executemany(
         "INSERT INTO memory_items (id, type, content, metadata_json, model_id, created_at, conversation_id) VALUES (?,?,?,?,?,?,?)",
@@ -178,18 +190,22 @@ def test_cost_report_null_cost_excluded(tmp_path):
     """)
 
     # Row with cost
-    meta_with_cost = json.dumps({
-        "provider": "anthropic",
-        "model_id": "claude-sonnet",
-        "cost_usd": 1.0,
-    })
+    meta_with_cost = json.dumps(
+        {
+            "provider": "anthropic",
+            "model_id": "claude-sonnet",
+            "cost_usd": 1.0,
+        }
+    )
 
     # Row without cost
-    meta_without_cost = json.dumps({
-        "provider": "anthropic",
-        "model_id": "unknown-model",
-        # No cost_usd
-    })
+    meta_without_cost = json.dumps(
+        {
+            "provider": "anthropic",
+            "model_id": "unknown-model",
+            # No cost_usd
+        }
+    )
 
     cursor.execute(
         "INSERT INTO memory_items (id, type, metadata_json, created_at) VALUES (?,?,?,?)",
@@ -235,10 +251,12 @@ def test_cost_report_token_counts_aggregated(tmp_path):
     """)
 
     for i in range(5):
-        meta = json.dumps({
-            "tokens_in": 1000,
-            "tokens_out": 500,
-        })
+        meta = json.dumps(
+            {
+                "tokens_in": 1000,
+                "tokens_out": 500,
+            }
+        )
         cursor.execute(
             "INSERT INTO memory_items (id, metadata_json) VALUES (?,?)",
             (f"msg-{i}", meta),

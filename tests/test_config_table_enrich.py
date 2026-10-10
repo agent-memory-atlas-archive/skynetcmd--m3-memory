@@ -1,4 +1,5 @@
 """Registry tables [enrich], [entity], [entity.coalesce], [gliner] (plan 2C.1)."""
+
 from __future__ import annotations
 
 _C = "memory.config"

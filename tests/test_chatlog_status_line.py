@@ -104,7 +104,7 @@ def test_status_line_severity_order(status_line_env):
         "spill": {
             "bytes": 1_000_000,
             "oldest_ms_ago": 3600000 + 60000,
-        }
+        },
     }
 
     with open(str(state_file), "w") as f:

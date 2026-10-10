@@ -8,6 +8,7 @@ monkeypatched by tests (only the top-level `_persist_env_var` /
 them back so `setup_wizard._pick_unix_shell_rc` etc. keep resolving (tests
 reference `_pick_unix_shell_rc` directly as a setup_wizard attribute).
 """
+
 from __future__ import annotations
 
 import json
@@ -28,6 +29,7 @@ from .ui import _ok, _warn
 
 def _wizard_mod():
     from m3_memory import setup_wizard as _sw
+
     return _sw
 
 
@@ -42,7 +44,7 @@ def _persist_embed_gguf_shell(gguf_path: str, *, non_interactive: bool) -> None:
             "  Persist M3_EMBED_GGUF to your Windows user environment (setx)?",
             default=True,
         ):
-            _warn(f"    skipped — set it later: setx M3_EMBED_GGUF \"{gguf_path}\"")
+            _warn(f'    skipped — set it later: setx M3_EMBED_GGUF "{gguf_path}"')
             return
         # The one owner of User-scope env writes (hidden window, idempotent,
         # WM_SETTINGCHANGE broadcast; never raises).
@@ -58,9 +60,7 @@ def _persist_embed_gguf_shell(gguf_path: str, *, non_interactive: bool) -> None:
     # Unix: append `export M3_EMBED_GGUF=...` to the appropriate shell rc.
     rc_path = _pick_unix_shell_rc()
 
-    if not non_interactive and not sw._ask_yes_no(
-        f"  Persist M3_EMBED_GGUF to {rc_path}?", default=True
-    ):
+    if not non_interactive and not sw._ask_yes_no(f"  Persist M3_EMBED_GGUF to {rc_path}?", default=True):
         _warn(f"    skipped — set it later: echo 'export M3_EMBED_GGUF={gguf_path}' >> {rc_path}")
         return
 
@@ -74,10 +74,7 @@ def _persist_embed_gguf_shell(gguf_path: str, *, non_interactive: bool) -> None:
         _ok(f"    M3_EMBED_GGUF already present in {rc_path}")
         return
 
-    block = (
-        "\n# Added by m3 setup — tier-1 in-process BGE-M3 embedder\n"
-        f'export M3_EMBED_GGUF="{gguf_path}"\n'
-    )
+    block = f'\n# Added by m3 setup — tier-1 in-process BGE-M3 embedder\nexport M3_EMBED_GGUF="{gguf_path}"\n'
     try:
         with rc_path.open("a", encoding="utf-8") as f:
             f.write(block)
@@ -102,9 +99,9 @@ def shell_rc_has(name: str, value: str) -> bool:
         line = line.strip()
         if not line.startswith(prefix):
             continue
-        rhs = line[len(prefix):]
+        rhs = line[len(prefix) :]
         if rhs[:1] in ('"', "'") and rhs.count(rhs[0]) >= 2:
-            rhs = rhs[1:rhs.index(rhs[0], 1)]
+            rhs = rhs[1 : rhs.index(rhs[0], 1)]
         else:
             rhs = rhs.split("#", 1)[0].strip()
         last = rhs
@@ -126,8 +123,7 @@ def _pick_unix_shell_rc() -> Path:
         return home / ".zshrc"
     if "bash" in shell:
         return home / ".bashrc"
-    for candidate in (home / ".zshrc", home / ".bashrc",
-                      home / ".bash_profile", home / ".profile"):
+    for candidate in (home / ".zshrc", home / ".bashrc", home / ".bash_profile", home / ".profile"):
         if candidate.exists():
             return candidate
     return home / ".zshrc"
@@ -146,7 +142,7 @@ def _persist_embed_gguf_mcp(gguf_path: str) -> None:
     """
     for label, settings_path in (
         ("Claude Code", Path.home() / ".claude" / "settings.json"),
-        ("Gemini CLI",  Path.home() / ".gemini" / "settings.json"),
+        ("Gemini CLI", Path.home() / ".gemini" / "settings.json"),
     ):
         if not settings_path.is_file():
             continue
@@ -168,9 +164,7 @@ def _persist_embed_gguf_mcp(gguf_path: str) -> None:
             continue
         env["M3_EMBED_GGUF"] = gguf_path
         try:
-            settings_path.write_text(
-                json.dumps(cfg, indent=2) + "\n", encoding="utf-8"
-            )
+            settings_path.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
             _ok(f"    set M3_EMBED_GGUF on {label} memory MCP entry ({settings_path})")
         except OSError as e:
             _warn(f"    failed to write {settings_path} ({e})")
@@ -187,7 +181,10 @@ def _persist_env_var_shell(name: str, value: str, *, non_interactive: bool) -> N
             return
         try:
             result = subprocess.run(
-                ["setx", name, value], capture_output=True, text=True, timeout=10,
+                ["setx", name, value],
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
         except (subprocess.TimeoutExpired, OSError) as e:
             _warn(f'    setx failed ({e}); set it later: setx {name} "{value}"')
@@ -202,9 +199,7 @@ def _persist_env_var_shell(name: str, value: str, *, non_interactive: bool) -> N
     if shell_rc_has(name, value):
         _ok(f"    {name}={value} already present in {rc_path}")
         return
-    if not non_interactive and not sw._ask_yes_no(
-        f"  Persist {name} to {rc_path}?", default=True
-    ):
+    if not non_interactive and not sw._ask_yes_no(f"  Persist {name} to {rc_path}?", default=True):
         _warn(f"    skipped — set it later: echo 'export {name}={value}' >> {rc_path}")
         return
     # An exact assignment already returned above (shell_rc_has); a stale value
@@ -224,7 +219,7 @@ def _persist_env_var_mcp(name: str, value: str) -> None:
     macOS/Windows) sees it. Mirrors _persist_embed_gguf_mcp."""
     for label, settings_path in (
         ("Claude Code", Path.home() / ".claude" / "settings.json"),
-        ("Gemini CLI",  Path.home() / ".gemini" / "settings.json"),
+        ("Gemini CLI", Path.home() / ".gemini" / "settings.json"),
     ):
         if not settings_path.is_file():
             continue

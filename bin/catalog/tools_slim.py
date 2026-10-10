@@ -45,6 +45,7 @@ silently disagree about the same parameter. `_slim_of()` pulls each kept
 property straight from the live spec, so drift is impossible by construction:
 the only thing this module states is WHICH keys to keep.
 """
+
 from __future__ import annotations
 
 from .spec import ToolSpec
@@ -127,9 +128,7 @@ def _slim_of(name: str) -> ToolSpec:
             f"longer exist."
         )
     required = [k for k in (src.parameters or {}).get("required", []) if k in keep]
-    dropped_required = [
-        k for k in (src.parameters or {}).get("required", []) if k not in keep
-    ]
+    dropped_required = [k for k in (src.parameters or {}).get("required", []) if k not in keep]
     if dropped_required:
         raise KeyError(
             f"tools_slim: {name} drops REQUIRED parameter(s) {dropped_required}. "

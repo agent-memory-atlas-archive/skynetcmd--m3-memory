@@ -4,6 +4,7 @@ Reports whether m3 is in shared mode (.embed_config.json) and, if so, health-
 checks the shared server. A shared config pointing at a DEAD endpoint is a
 silent-failure trap (§3) — doctor must warn loudly. Read-only; never raises.
 """
+
 import json
 import sys
 from pathlib import Path
@@ -26,8 +27,9 @@ def test_no_config_reports_per_process(monkeypatch, tmp_path, capsys):
 
 
 def test_shared_but_server_down_warns_loud(monkeypatch, tmp_path, capsys):
-    (tmp_path / ".embed_config.json").write_text(json.dumps(
-        {"disable_inproc_embedder": True, "fallback_url": "http://127.0.0.1:9"}))
+    (tmp_path / ".embed_config.json").write_text(
+        json.dumps({"disable_inproc_embedder": True, "fallback_url": "http://127.0.0.1:9"})
+    )
     out = _run(monkeypatch, tmp_path, capsys)
     assert "SHARED" in out
     # the trap must be surfaced, not silent
@@ -36,8 +38,7 @@ def test_shared_but_server_down_warns_loud(monkeypatch, tmp_path, capsys):
 
 
 def test_config_present_but_not_disabled_is_per_process(monkeypatch, tmp_path, capsys):
-    (tmp_path / ".embed_config.json").write_text(json.dumps(
-        {"disable_inproc_embedder": False}))
+    (tmp_path / ".embed_config.json").write_text(json.dumps({"disable_inproc_embedder": False}))
     out = _run(monkeypatch, tmp_path, capsys)
     assert "per-process" in out
 

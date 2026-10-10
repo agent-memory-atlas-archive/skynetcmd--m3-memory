@@ -5,6 +5,7 @@ the OLD location, so the chatlog falls back there even after the DB is migrated.
 homecoming._rewrite_chatlog_db_path must repoint it at the new engine root,
 preserve other config keys, and be idempotent.
 """
+
 from __future__ import annotations
 
 import json

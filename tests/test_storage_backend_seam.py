@@ -8,6 +8,7 @@ functionality (none exists yet). Specifically:
     so Phase 0 is a genuine zero-behavior-change refactor;
   - the placeholder helper matches the qmark idiom it replaces.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -182,8 +183,6 @@ def test_sqlite_connection_delegates_to_db(monkeypatch, tmp_path):
 
     # ...read via the plain `_db()` path — same store, so the row is there.
     with db_mod._db() as conn:
-        row = conn.execute(
-            "SELECT content FROM memory_items WHERE id = ?", ("seam-phase0",)
-        ).fetchone()
+        row = conn.execute("SELECT content FROM memory_items WHERE id = ?", ("seam-phase0",)).fetchone()
     assert row is not None
     assert row[0] == "written through the backend seam"

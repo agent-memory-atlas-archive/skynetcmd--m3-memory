@@ -4,6 +4,7 @@ On SQLite it opens `mode=ro`; on PostgreSQL it yielded a writable pooled
 connection, so a write through it failed on one backend and silently succeeded on
 the other. The pool must also get the connection back writable.
 """
+
 from __future__ import annotations
 
 import pytest

@@ -8,6 +8,7 @@ lost there: the promoted memory went to the default store's core while its
 files marker went to the selected store. m3_core.aio.run_blocking is the one
 bridge and copies the caller's context into the worker.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -34,8 +35,10 @@ def test_run_blocking_keeps_the_callers_context(inside_loop):
     token = _PROBE.set("caller")
     try:
         if inside_loop:
+
             async def outer():
                 return sync_caller()  # sync code called ON the loop thread
+
             got = asyncio.run(outer())
         else:
             got = sync_caller()
@@ -74,12 +77,20 @@ def test_no_hand_rolled_sync_to_async_bridge_outside_the_owner():
                 continue
             for node in ast.walk(tree):
                 # <executor>.submit(<lambda or func whose body calls asyncio.run>)
-                if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-                        and node.func.attr == "submit" and node.args
-                        and any(isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
-                                and n.func.attr == "run" and isinstance(n.func.value, ast.Name)
-                                and n.func.value.id == "asyncio"
-                                for n in ast.walk(node.args[0]))):
+                if (
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "submit"
+                    and node.args
+                    and any(
+                        isinstance(n, ast.Call)
+                        and isinstance(n.func, ast.Attribute)
+                        and n.func.attr == "run"
+                        and isinstance(n.func.value, ast.Name)
+                        and n.func.value.id == "asyncio"
+                        for n in ast.walk(node.args[0])
+                    )
+                ):
                     offenders.append(f"{f.relative_to(root)}:{node.lineno}")
     assert not offenders, "use m3_core.aio.run_blocking:\n" + "\n".join(offenders)
 
@@ -109,13 +120,19 @@ def test_every_bare_gather_is_the_owner_or_justified():
             except SyntaxError:
                 continue
             for node in ast.walk(tree):
-                if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-                        and node.func.attr == "gather" and isinstance(node.func.value, ast.Name)
-                        and node.func.value.id == "asyncio"
-                        and not any(k.arg == "return_exceptions" for k in node.keywords)):
+                if (
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "gather"
+                    and isinstance(node.func.value, ast.Name)
+                    and node.func.value.id == "asyncio"
+                    and not any(k.arg == "return_exceptions" for k in node.keywords)
+                ):
                     offenders.append(f"{rel}:{node.lineno}")
-    assert not offenders, ("all must succeed: m3_core.aio.gather_or_cancel; partial failure "
-                           "expected: return_exceptions=True:\n" + "\n".join(offenders))
+    assert not offenders, (
+        "all must succeed: m3_core.aio.gather_or_cancel; partial failure "
+        "expected: return_exceptions=True:\n" + "\n".join(offenders)
+    )
 
 
 def test_timeouts_use_asyncio_timeout():
@@ -131,10 +148,15 @@ def test_timeouts_use_asyncio_timeout():
                 tree = ast.parse(f.read_text(encoding="utf-8"))
             except SyntaxError:
                 continue
-            offenders += [f"{f.relative_to(root)}:{n.lineno}" for n in ast.walk(tree)
-                          if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
-                          and n.func.attr == "wait_for" and isinstance(n.func.value, ast.Name)
-                          and n.func.value.id == "asyncio"]
+            offenders += [
+                f"{f.relative_to(root)}:{n.lineno}"
+                for n in ast.walk(tree)
+                if isinstance(n, ast.Call)
+                and isinstance(n.func, ast.Attribute)
+                and n.func.attr == "wait_for"
+                and isinstance(n.func.value, ast.Name)
+                and n.func.value.id == "asyncio"
+            ]
     assert not offenders, "use `async with asyncio.timeout(...)`:\n" + "\n".join(offenders)
 
 
@@ -147,8 +169,8 @@ def test_files_promotion_inside_a_loop_writes_to_the_selected_store(monkeypatch,
     cfg = Path(os.environ["M3_CONFIG_ROOT"])
     cfg.mkdir(parents=True, exist_ok=True)
     (cfg / "m3_config.toml").write_text(
-        f'[stores.scratch]\nbackend = "sqlite"\npath = "{(tmp_path / "s.db").as_posix()}"\n',
-        encoding="utf-8")
+        f'[stores.scratch]\nbackend = "sqlite"\npath = "{(tmp_path / "s.db").as_posix()}"\n', encoding="utf-8"
+    )
     st._reset_for_tests()
     monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
 

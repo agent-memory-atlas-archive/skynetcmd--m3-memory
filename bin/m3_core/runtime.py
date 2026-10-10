@@ -11,6 +11,7 @@ from m3_core.paths import getenv_compat
 try:
     from dotenv import load_dotenv
 except ImportError:
+
     def load_dotenv(
         dotenv_path: Union[str, "PathLike[str]"] | None = None,
         stream: IO[str] | None = None,
@@ -21,6 +22,7 @@ except ImportError:
     ) -> bool:
         return False
 
+
 M3_CORE_RS_DISABLE = os.environ.get("M3_CORE_RS_DISABLE", "0") == "1"
 
 try:
@@ -28,6 +30,7 @@ try:
         raise ImportError
     from m3_core_rs import format_log
 except ImportError:
+
     def format_log(event: str, *args, **kwargs) -> str:
         parts = [event]
         for a in args:
@@ -40,6 +43,7 @@ except ImportError:
             parts.append(f"{k}={v}")
         return " | ".join(parts)
 
+
 logger = logging.getLogger("M3_SDK")
 
 
@@ -49,6 +53,7 @@ logger = logging.getLogger("M3_SDK")
 # these public, format-named functions replace them. A rename here is a normal
 # public-API change with real call sites — not a silent break of `_`-private
 # cross-module reach (the reason we don't expose `_`-prefixed helpers).
+
 
 def iso_local_timestamp() -> str:
     """Local wall-clock ISO-8601 to the second, no timezone suffix
@@ -111,8 +116,7 @@ def ensure_utf8() -> None:
         return
     os.environ["PYTHONUTF8"] = "1"
     os.environ["_M3_UTF8_REEXEC"] = "1"
-    orig = list(getattr(sys, "orig_argv", [sys.executable, *sys.argv])) or [
-        sys.executable, *sys.argv]
+    orig = list(getattr(sys, "orig_argv", [sys.executable, *sys.argv])) or [sys.executable, *sys.argv]
     try:
         os.execv(sys.executable, [orig[0], "-X", "utf8", *orig[1:]])
     except OSError:

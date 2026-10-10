@@ -29,6 +29,7 @@ Usage:
 Exit: 0 = report written (or selftest passed); 1 = selftest failed;
 2 = a scanned file could not be parsed.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -52,22 +53,52 @@ ALLOWED_MODULES: frozenset[str] = frozenset({"bin/m3_core/config/env.py"})
 # Names m3 reads that are NOT m3 settings: the OS's (measured readers, plan
 # review §4b), plus terminals' and other programs' own variables (U4 bucket A,
 # user decision 2026-10-08). Reads are allowed; a write is still a violation.
-OS_NAMES: frozenset[str] = frozenset({
-    "HOME", "APPDATA", "LOCALAPPDATA", "PROGRAMDATA", "COMPUTERNAME", "HOSTNAME",
-    "USER", "USERNAME", "LOGNAME", "USERDOMAIN", "SHELL", "PATH", "SystemRoot",
-    "TERM_PROGRAM", "XDG_CONFIG_HOME", "XDG_DATA_HOME",
-    # U4 bucket A
-    "ANSICON", "FORCE_COLOR", "WT_SESSION", "PATHEXT", "PROCESSOR_ARCHITECTURE",
-    "OLLAMA_MODELS", "OPENCLAW_STATE_DIR", "PYTHONUTF8",
-    # Other programs' own variables (user decision 2026-10-09, as bucket A):
-    # GitHub's tokens (release tooling only), Hermes Agent's and OpenCode's homes.
-    "GH_TOKEN", "GITHUB_TOKEN", "HERMES_HOME", "OPENCODE_DATA_DIR",
-    # The OS's and toolchains' own (user decision 2026-10-09). Reads only: a
-    # write (GGML_LOG_LEVEL, PYTHONUTF8 for children) stays a violation until
-    # child_env (2E.1) owns it.
-    "SSH_CONNECTION", "SSH_TTY", "CUDA_PATH", "VULKAN_SDK", "RUSTUP_HOME", "PYTHONPATH",
-    "NO_COLOR", "GGML_LOG_LEVEL",
-})
+OS_NAMES: frozenset[str] = frozenset(
+    {
+        "HOME",
+        "APPDATA",
+        "LOCALAPPDATA",
+        "PROGRAMDATA",
+        "COMPUTERNAME",
+        "HOSTNAME",
+        "USER",
+        "USERNAME",
+        "LOGNAME",
+        "USERDOMAIN",
+        "SHELL",
+        "PATH",
+        "SystemRoot",
+        "TERM_PROGRAM",
+        "XDG_CONFIG_HOME",
+        "XDG_DATA_HOME",
+        # U4 bucket A
+        "ANSICON",
+        "FORCE_COLOR",
+        "WT_SESSION",
+        "PATHEXT",
+        "PROCESSOR_ARCHITECTURE",
+        "OLLAMA_MODELS",
+        "OPENCLAW_STATE_DIR",
+        "PYTHONUTF8",
+        # Other programs' own variables (user decision 2026-10-09, as bucket A):
+        # GitHub's tokens (release tooling only), Hermes Agent's and OpenCode's homes.
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "HERMES_HOME",
+        "OPENCODE_DATA_DIR",
+        # The OS's and toolchains' own (user decision 2026-10-09). Reads only: a
+        # write (GGML_LOG_LEVEL, PYTHONUTF8 for children) stays a violation until
+        # child_env (2E.1) owns it.
+        "SSH_CONNECTION",
+        "SSH_TTY",
+        "CUDA_PATH",
+        "VULKAN_SDK",
+        "RUSTUP_HOME",
+        "PYTHONPATH",
+        "NO_COLOR",
+        "GGML_LOG_LEVEL",
+    }
+)
 
 # Functions that read the environment on the caller's behalf: (name, index of the
 # env-name argument). A call to one is a read of that name.
@@ -86,23 +117,27 @@ COPY_METHODS = frozenset({"copy", "items", "keys", "values"})
 class Finding:
     path: str
     line: int
-    kind: str      # read | write | copy | dotenv | alias | handout
-    form: str      # the syntactic shape, e.g. "os.environ.get"
-    name: str      # the variable name, "<dynamic>", or "*" for the whole environment
-    verdict: str   # violation | allowed-os-name | allowed-module
+    kind: str  # read | write | copy | dotenv | alias | handout
+    form: str  # the syntactic shape, e.g. "os.environ.get"
+    name: str  # the variable name, "<dynamic>", or "*" for the whole environment
+    verdict: str  # violation | allowed-os-name | allowed-module
 
 
 class _Scanner(ast.NodeVisitor):
-    def __init__(self, rel: str, wrappers: dict[str, tuple[int, ...]] | None = None,
-                 bare: dict[str, tuple[int, ...]] | None = None) -> None:
+    def __init__(
+        self,
+        rel: str,
+        wrappers: dict[str, tuple[int, ...]] | None = None,
+        bare: dict[str, tuple[int, ...]] | None = None,
+    ) -> None:
         self.rel = rel
         self.wrappers = wrappers if wrappers is not None else dict(READ_WRAPPERS)  # qualified calls
-        self.bare = bare if bare is not None else dict(READ_WRAPPERS)              # bare-name calls
+        self.bare = bare if bare is not None else dict(READ_WRAPPERS)  # bare-name calls
         self.found: list[Finding] = []
-        self.os_names: set[str] = {"os"}            # names bound to the os module
-        self.environ_names: set[str] = set()        # names bound to os.environ
-        self.getenv_names: set[str] = set()         # names bound to os.getenv
-        self.putenv_names: set[str] = set()         # os.putenv / os.unsetenv aliases
+        self.os_names: set[str] = {"os"}  # names bound to the os module
+        self.environ_names: set[str] = set()  # names bound to os.environ
+        self.getenv_names: set[str] = set()  # names bound to os.getenv
+        self.putenv_names: set[str] = set()  # os.putenv / os.unsetenv aliases
 
     # ── binding discovery ──────────────────────────────────────────────────
     @override
@@ -199,8 +234,12 @@ class _Scanner(ast.NodeVisitor):
                 elif f.attr in ("putenv", "unsetenv"):
                     self._add(node, "write", f"os.{f.attr}", self._arg_name(node, 0))
             # module.wrapper("M3_X"): a discovered read wrapper called qualified
-            if (f.attr in self.wrappers and f.attr not in _GENERIC_ATTRS
-                    and not self._is_os(f.value) and not self._is_environ(f.value)):
+            if (
+                f.attr in self.wrappers
+                and f.attr not in _GENERIC_ATTRS
+                and not self._is_os(f.value)
+                and not self._is_environ(f.value)
+            ):
                 for i in self.wrappers[f.attr]:
                     if i < len(node.args):
                         self._add(node, "read", f"{f.attr} (qualified)", self._arg_name(node, i))
@@ -292,14 +331,24 @@ def _embedded_programs(tree: ast.AST):
     template is parsed with each ``{...}`` placeholder replaced by a name. One
     that still does not parse is yielded with source None, so the caller reports
     it rather than skipping it silently. Yields (source | None, first line)."""
-    docstrings = {id(b[0].value) for b in (getattr(x, "body", None) for x in ast.walk(tree))
-                  if isinstance(b, list) and b and isinstance(b[0], ast.Expr)
-                  and isinstance(b[0].value, ast.Constant) and isinstance(b[0].value.value, str)}
+    docstrings = {
+        id(b[0].value)
+        for b in (getattr(x, "body", None) for x in ast.walk(tree))
+        if isinstance(b, list)
+        and b
+        and isinstance(b[0], ast.Expr)
+        and isinstance(b[0].value, ast.Constant)
+        and isinstance(b[0].value.value, str)
+    }
     for n in ast.walk(tree):
-        if (isinstance(n, ast.Constant) and isinstance(n.value, str) and "\n" in n.value
-                and id(n) not in docstrings
-                and ("environ" in n.value or "getenv" in n.value)
-                and any(_CODE_LINE.match(line) for line in n.value.splitlines())):
+        if (
+            isinstance(n, ast.Constant)
+            and isinstance(n.value, str)
+            and "\n" in n.value
+            and id(n) not in docstrings
+            and ("environ" in n.value or "getenv" in n.value)
+            and any(_CODE_LINE.match(line) for line in n.value.splitlines())
+        ):
             for candidate in (n.value, _PLACEHOLDER.sub("_", n.value)):
                 try:
                     ast.parse(candidate)
@@ -350,8 +399,11 @@ def _wrappers_in(tree: ast.AST, known: dict[str, tuple[int, ...]]) -> dict[str, 
             args: list[ast.expr] = []
             if isinstance(node, ast.Call):
                 args = _env_read_arg(node, known)
-            elif (isinstance(node, ast.Subscript) and isinstance(node.value, ast.Attribute)
-                  and node.value.attr == "environ"):
+            elif (
+                isinstance(node, ast.Subscript)
+                and isinstance(node.value, ast.Attribute)
+                and node.value.attr == "environ"
+            ):
                 args = [node.slice]
             hits |= {params.index(a.id) for a in args if isinstance(a, ast.Name) and a.id in params}
         if hits:
@@ -401,8 +453,10 @@ def scan_source(src: str, rel: str, wrappers: dict[str, tuple[int, ...]] | None 
             continue
         inner = _Scanner(rel, s.wrappers, s.bare)
         inner.visit(ast.parse(code))
-        found += [Finding(f.path, first_line + f.line - 1, f.kind, f"{f.form} (embedded program)", f.name, f.verdict)
-                  for f in inner.found]
+        found += [
+            Finding(f.path, first_line + f.line - 1, f.kind, f"{f.form} (embedded program)", f.name, f.verdict)
+            for f in inner.found
+        ]
     return sorted(set(found), key=lambda f: (f.path, f.line, f.form, f.name))
 
 
@@ -464,21 +518,22 @@ PLANTED: list[tuple[str, str, str]] = [
     ("from m3_core.paths import getenv_compat\ngetenv_compat('M3_X', 'X')", "read", "getenv_compat"),
     ("import os\nE = os.environ\nE.get('M3_X')", "read", "os.environ.get"),
     ("CHILD = '''\nimport os\nos.environ['M3_X'] = '1'\n'''", "write", "os.environ[...] = (embedded program)"),
-    ("T = '''\nimport os\nos.environ['M3_X'] = '1'\nfor q in {queries!r}:\n    pass\n'''",
-     "write", "os.environ[...] = (embedded program)"),
+    (
+        "T = '''\nimport os\nos.environ['M3_X'] = '1'\nfor q in {queries!r}:\n    pass\n'''",
+        "write",
+        "os.environ[...] = (embedded program)",
+    ),
     ("T = '''\nimport os\nos.environ['M3_X'] = (\n'''", "unparsed", "embedded program (unparsable)"),
     # The whole environment handed out, readable by code the gate never sees
     # (found 2026-10-08: `return os.environ` produced no finding at all).
     ("import os\ndef f():\n    return os.environ", "handout", "return os.environ"),
     ("import os\ng(os.environ)", "handout", "f(os.environ)"),
     ("import os\ng(mapping=os.environ)", "handout", "mapping=os.environ"),
-    ("import os\nclass C:\n    def __init__(self):\n        self.env = os.environ", "handout",
-     "<target> = os.environ"),
+    ("import os\nclass C:\n    def __init__(self):\n        self.env = os.environ", "handout", "<target> = os.environ"),
     # A read through a wrapper the gate DISCOVERS (found 2026-10-09: names passed
     # to llm_failover._flag / _setting were invisible), directly and transitively.
     ("import os\ndef _flag(name):\n    return os.environ.get(name)\n_flag('M3_X')", "read", "_flag"),
-    ("import os\ndef _s(n):\n    return os.environ.get(n)\ndef _f(n):\n    return _s(n)\n_f('M3_X')",
-     "read", "_f"),
+    ("import os\ndef _s(n):\n    return os.environ.get(n)\ndef _f(n):\n    return _s(n)\n_f('M3_X')", "read", "_f"),
 ]
 
 # Must NOT be reported: a same-named local helper that does not read env.
@@ -527,16 +582,22 @@ def main(argv: list[str] | None = None) -> int:
     by_kind = Counter(f.kind for f in violations)
     copies = Counter(f.form for f in violations if f.kind == "copy")
     if args.json:
-        print(json.dumps({"findings": [asdict(f) for f in findings], "unparsed": unparsed,
-                          "violations_by_kind": dict(by_kind)}, indent=2))
+        print(
+            json.dumps(
+                {"findings": [asdict(f) for f in findings], "unparsed": unparsed, "violations_by_kind": dict(by_kind)},
+                indent=2,
+            )
+        )
     else:
         if not args.summary:
             for f in findings:
                 print(f"{f.path}:{f.line}: {f.verdict:15} {f.kind:6} {f.form:28} {f.name}")
         files = len({f.path for f in violations})
-        print(f"\nREPORT MODE (exit 0): {len(violations)} violations in {files} files; "
-              f"by kind {dict(sorted(by_kind.items()))}; whole-env copies by form {dict(sorted(copies.items()))}; "
-              f"allowed OS-name reads {sum(f.verdict == 'allowed-os-name' for f in findings)}")
+        print(
+            f"\nREPORT MODE (exit 0): {len(violations)} violations in {files} files; "
+            f"by kind {dict(sorted(by_kind.items()))}; whole-env copies by form {dict(sorted(copies.items()))}; "
+            f"allowed OS-name reads {sum(f.verdict == 'allowed-os-name' for f in findings)}"
+        )
     for u in unparsed:
         print(f"UNPARSED (not scanned, not clean): {u}", file=sys.stderr)
     return 2 if unparsed else 0

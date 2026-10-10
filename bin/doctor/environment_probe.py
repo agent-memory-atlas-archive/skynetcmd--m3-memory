@@ -41,6 +41,7 @@ Bumps the doctor exit code on a broken hook: capture being silently dead is a
 real degraded state, not a preference. Cross-platform, network-free, never
 raises.
 """
+
 from __future__ import annotations
 
 import json
@@ -86,8 +87,7 @@ def _capture_support_gap(agent: str) -> str | None:
 
     reasons = []
     if agent not in getattr(chatlog_ingest, "PARSERS", {}):
-        reasons.append(f"m3 has no transcript parser for it "
-                       f"(`--format {agent}` is not a valid ingest format)")
+        reasons.append(f"m3 has no transcript parser for it (`--format {agent}` is not a valid ingest format)")
     try:
         sh_path, _ps1, desc = chatlog_init.get_hook_path_for_agent(agent)
         if "unknown" in desc or not os.path.exists(sh_path):
@@ -95,6 +95,7 @@ def _capture_support_gap(agent: str) -> str | None:
     except Exception:  # noqa: BLE001
         pass
     return " and ".join(reasons) if reasons else None
+
 
 # Roots that must be pinned inline in the hook command (CLAUDE.md split-brain).
 REQUIRED_ROOT_PINS = ("M3_ENGINE_ROOT", "M3_CONFIG_ROOT")
@@ -159,9 +160,7 @@ def _is_installed_layout(payload_root: str) -> bool:
     by design — so the comparison must be skipped rather than reported as a
     mismatch on every dev machine.
     """
-    return "/site-packages/" in os.path.normcase(
-        os.path.abspath(payload_root)
-    ).replace("\\", "/")
+    return "/site-packages/" in os.path.normcase(os.path.abspath(payload_root)).replace("\\", "/")
 
 
 def _same_install(path: str, payload_root: str) -> bool:
@@ -171,6 +170,7 @@ def _same_install(path: str, payload_root: str) -> bool:
     written with forward slashes on Windows while os.path yields backslashes,
     so a naive comparison reports a false mismatch on every Windows box.
     """
+
     def norm(p: str) -> str:
         return os.path.normcase(os.path.abspath(p)).replace("\\", "/").rstrip("/")
 
@@ -217,28 +217,40 @@ def check() -> dict:
     for event, command in entries:
         paths = _extract_paths(command)
         if not paths:
-            findings.append({
-                "kind": "unparsable", "event": event,
-                "detail": "no filesystem path found in the hook command; "
-                          "cannot verify it points at a real script",
-            })
+            findings.append(
+                {
+                    "kind": "unparsable",
+                    "event": event,
+                    "detail": "no filesystem path found in the hook command; cannot verify it points at a real script",
+                }
+            )
             continue
 
         for path in paths:
             if not os.path.exists(path):
-                findings.append({
-                    "kind": "dead_path", "event": event, "path": path,
-                    "detail": "hook target does not exist — this hook fails "
-                              "silently on every fire, so capture is DEAD",
-                })
-            elif (path.lower().endswith(".exe")
-                    and _is_installed_layout(payload_root)
-                    and not _same_install(path, payload_root)):
-                findings.append({
-                    "kind": "foreign_interpreter", "event": event, "path": path,
-                    "detail": "hook runs an interpreter outside the running "
-                              "payload's install — it executes different m3 code",
-                })
+                findings.append(
+                    {
+                        "kind": "dead_path",
+                        "event": event,
+                        "path": path,
+                        "detail": "hook target does not exist — this hook fails "
+                        "silently on every fire, so capture is DEAD",
+                    }
+                )
+            elif (
+                path.lower().endswith(".exe")
+                and _is_installed_layout(payload_root)
+                and not _same_install(path, payload_root)
+            ):
+                findings.append(
+                    {
+                        "kind": "foreign_interpreter",
+                        "event": event,
+                        "path": path,
+                        "detail": "hook runs an interpreter outside the running "
+                        "payload's install — it executes different m3 code",
+                    }
+                )
 
         # The inline `VAR=val cmd` pins are POSIX shell syntax. Claude Code runs
         # hooks through cmd.exe on Windows, where that form is not just useless
@@ -253,13 +265,17 @@ def check() -> dict:
         if event in CAPTURE_EVENTS and not is_windows():
             missing = [v for v in REQUIRED_ROOT_PINS if v not in command]
             if missing:
-                findings.append({
-                    "kind": "unpinned_roots", "event": event,
-                    "detail": "missing inline " + ", ".join(missing) +
-                              " — hooks reload live but server env re-resolves "
-                              "only on restart, so turns can be written to a "
-                              "different engine root than the server reads",
-                })
+                findings.append(
+                    {
+                        "kind": "unpinned_roots",
+                        "event": event,
+                        "detail": "missing inline "
+                        + ", ".join(missing)
+                        + " — hooks reload live but server env re-resolves "
+                        "only on restart, so turns can be written to a "
+                        "different engine root than the server reads",
+                    }
+                )
         elif event in CAPTURE_EVENTS and is_windows():
             # Windows: the FATAL shape is the opposite — a POSIX prefix present.
             # A command whose first token carries an `=` is one cmd.exe cannot
@@ -267,28 +283,35 @@ def check() -> dict:
             # caught the 2026-08-09..11 outage on the day it started.
             first = command.split(" ", 1)[0] if command else ""
             if "=" in first:
-                findings.append({
-                    "kind": "posix_prefix_on_windows", "event": event,
-                    "detail": f"command starts with {first!r} — a POSIX "
-                              "`VAR=val cmd` prefix that cmd.exe cannot parse. "
-                              "The hook fails instantly on every fire "
-                              "('is not recognized as an internal or external "
-                              "command'), so capture is DEAD",
-                })
+                findings.append(
+                    {
+                        "kind": "posix_prefix_on_windows",
+                        "event": event,
+                        "detail": f"command starts with {first!r} — a POSIX "
+                        "`VAR=val cmd` prefix that cmd.exe cannot parse. "
+                        "The hook fails instantly on every fire "
+                        "('is not recognized as an internal or external "
+                        "command'), so capture is DEAD",
+                    }
+                )
 
     # Corroborate the config's own claim against the file. `wired` in
     # chatlog_status is spec.enabled echoed back, not evidence.
     try:
         import chatlog_config
+
         cfg = chatlog_config.resolve_config()
         claimed = {n for n, s in cfg.host_agents.items() if s.enabled}
         if "claude-code" in claimed and not entries:
-            findings.append({
-                "kind": "claimed_not_wired", "event": "claude-code",
-                "detail": "config reports the claude-code hook enabled, but "
-                          "settings.json contains no m3 hook entry — capture "
-                          "is not actually running",
-            })
+            findings.append(
+                {
+                    "kind": "claimed_not_wired",
+                    "event": "claude-code",
+                    "detail": "config reports the claude-code hook enabled, but "
+                    "settings.json contains no m3 hook entry — capture "
+                    "is not actually running",
+                }
+            )
 
         # ⚠ EVERY OTHER AGENT WAS INVISIBLE HERE. This probe reads only
         # ~/.claude/settings.json, so for a user on OpenClaw (or Gemini, or
@@ -306,11 +329,14 @@ def check() -> dict:
         for agent in sorted(claimed - {"claude-code"}):
             gap = _capture_support_gap(agent)
             if gap:
-                findings.append({
-                    "kind": "claimed_not_supported", "event": agent,
-                    "detail": f"config reports the {agent} hook enabled, but "
-                              f"{gap} — capture cannot run for this agent",
-                })
+                findings.append(
+                    {
+                        "kind": "claimed_not_supported",
+                        "event": agent,
+                        "detail": f"config reports the {agent} hook enabled, but "
+                        f"{gap} — capture cannot run for this agent",
+                    }
+                )
     except Exception:  # noqa: BLE001 — config is optional context, not the check
         pass
 
@@ -338,16 +364,18 @@ def repair(dry_run: bool = True) -> dict:
     result: dict = {"dry_run": dry_run, "backup": None, "actions": []}
     findings = check()["findings"]
     if not findings:
-        result["actions"].append({"action": "rewire", "status": "skipped",
-                                  "detail": "no hook issues to repair"})
+        result["actions"].append({"action": "rewire", "status": "skipped", "detail": "no hook issues to repair"})
         return result
 
     if dry_run:
-        result["actions"].append({
-            "action": "rewire", "status": "skipped",
-            "detail": f"dry_run=True; would back up settings.json and re-wire "
-                      f"{len(findings)} issue(s) via chatlog_init",
-        })
+        result["actions"].append(
+            {
+                "action": "rewire",
+                "status": "skipped",
+                "detail": f"dry_run=True; would back up settings.json and re-wire "
+                f"{len(findings)} issue(s) via chatlog_init",
+            }
+        )
         return result
 
     settings_path = _claude_settings_path()
@@ -357,15 +385,18 @@ def repair(dry_run: bool = True) -> dict:
         shutil.copy2(settings_path, backup)
         result["backup"] = backup
     except Exception as e:  # noqa: BLE001 — no backup, no write
-        result["actions"].append({
-            "action": "backup", "status": "error",
-            "detail": f"could not back up settings.json ({e}); refusing to "
-                      "modify it without a backup",
-        })
+        result["actions"].append(
+            {
+                "action": "backup",
+                "status": "error",
+                "detail": f"could not back up settings.json ({e}); refusing to modify it without a backup",
+            }
+        )
         return result
 
     try:
         import generate_configs
+
         # THE canonical Claude settings writer: it replaces the m3-owned
         # hooks / statusLine / mcpServers entries with pinned .py hooks and the
         # correct decoupled roots in ONE idempotent pass, so the doctor's hook
@@ -374,17 +405,22 @@ def repair(dry_run: bool = True) -> dict:
         # the server env root blocks. install_claude_settings strips m3-owned
         # entries itself, so no separate drop step is needed.
         res = generate_configs.install_claude_settings(assume_yes=True)
-        result["actions"].append({
-            "action": "rewire", "status": "ok",
-            "detail": f"re-wired {len(findings)} issue(s) via install_claude_settings "
-                      f"(changed={res.get('changed')}); backup at {result['backup']}",
-        })
+        result["actions"].append(
+            {
+                "action": "rewire",
+                "status": "ok",
+                "detail": f"re-wired {len(findings)} issue(s) via install_claude_settings "
+                f"(changed={res.get('changed')}); backup at {result['backup']}",
+            }
+        )
     except Exception as e:  # noqa: BLE001
-        result["actions"].append({
-            "action": "rewire", "status": "error",
-            "detail": f"{type(e).__name__}: {e}; settings.json unchanged at "
-                      f"{result['backup']}",
-        })
+        result["actions"].append(
+            {
+                "action": "rewire",
+                "status": "error",
+                "detail": f"{type(e).__name__}: {e}; settings.json unchanged at {result['backup']}",
+            }
+        )
     return result
 
 
@@ -400,8 +436,7 @@ def run(brief: bool = False, fix: bool = False) -> int:
     if res["status"] == "unknown":
         # Not "healthy" — nothing was verified. Saying OK here would be the
         # same lie this probe exists to catch.
-        print("⚠️  chatlog hooks: SKIPPED — ~/.claude/settings.json absent or "
-              "unreadable; hook wiring was NOT verified")
+        print("⚠️  chatlog hooks: SKIPPED — ~/.claude/settings.json absent or unreadable; hook wiring was NOT verified")
         return 0
 
     if res["status"] == "ok":
@@ -421,7 +456,6 @@ def run(brief: bool = False, fix: bool = False) -> int:
             print(f"      [{act['status']}] {act['action']}: {act['detail']}")
     else:
         print("      fix: m3 doctor --fix --fix-hooks")
-        print("           (backs up settings.json first; only m3-owned entries "
-              "are touched)")
+        print("           (backs up settings.json first; only m3-owned entries are touched)")
 
     return 1

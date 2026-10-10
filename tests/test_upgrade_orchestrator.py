@@ -10,6 +10,7 @@ A real machine produced a false ``pip`` verdict for a ``pipx`` install, because
 pipx shim and one of them imported ``m3_memory`` from a DEV CHECKOUT on the
 ambient path. Both halves of that trap are pinned below.
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -33,8 +34,7 @@ def _step3_runs_nothing(monkeypatch):
     monkeypatch.setattr(m3u, "run_captured", lambda cmd, **k: "")
     # Steps 2 and 5 capture their output; route them through whatever `run` a
     # test fakes, so its exit codes (and recorded calls) still apply.
-    monkeypatch.setattr(m3u, "run_captured_rc",
-                        lambda cmd, **k: (m3u.run(cmd, dry=False, **k), ""))
+    monkeypatch.setattr(m3u, "run_captured_rc", lambda cmd, **k: (m3u.run(cmd, dry=False, **k), ""))
     # Never ask the real PyPI from a test; tests that need it set their own.
     monkeypatch.setattr(m3u, "pypi_latest", lambda: None)
 
@@ -125,9 +125,9 @@ def test_detection_does_not_import_m3_memory():
     On Windows that is a file-locking failure, not a theoretical one.
     """
     src = (_BIN / "m3_upgrade.py").read_text(encoding="utf-8")
-    assert "import m3_memory" not in src.replace(
-        '"import m3_memory,pathlib;"', ""
-    ), "m3_upgrade.py must not import m3_memory at module scope"
+    assert "import m3_memory" not in src.replace('"import m3_memory,pathlib;"', ""), (
+        "m3_upgrade.py must not import m3_memory at module scope"
+    )
 
 
 def test_sibling_interpreter_probe_is_isolated():
@@ -243,18 +243,15 @@ def test_the_step_count_in_the_plan_matches_the_steps_run():
     not be surprised by a fifth."""
     src = (_BIN / "m3_upgrade.py").read_text(encoding="utf-8")
     import re
+
     labels = set(re.findall(r"\[(\d)/(\d)\]", src))
     totals = {t for _, t in labels}
     assert totals == {"5"}, f"inconsistent step totals in progress labels: {totals}"
-    assert len({n for n, _ in labels}) == 5, (
-        f"expected 5 distinct step numbers, found {sorted(n for n, _ in labels)}"
-    )
+    assert len({n for n, _ in labels}) == 5, f"expected 5 distinct step numbers, found {sorted(n for n, _ in labels)}"
     # `print(f"  2. {' '.join(up)}")` is an f-string, so the prefix is optional —
     # omitting `f?` made this find only 1,3,4,5 and fail on the code being right.
     plan_lines = re.findall(r'print\(f?"  (\d)\. ', src)
-    assert plan_lines == ["1", "2", "3", "4", "5"], (
-        f"the printed plan does not list 5 steps in order: {plan_lines}"
-    )
+    assert plan_lines == ["1", "2", "3", "4", "5"], f"the printed plan does not list 5 steps in order: {plan_lines}"
 
 
 def test_package_dir_is_resolved_before_comparison():
@@ -264,30 +261,35 @@ def test_package_dir_is_resolved_before_comparison():
     assert "pathlib.Path(user_site).resolve()" in src
 
 
-@pytest.mark.parametrize("spec, pypi", [
-    ("m3-memory", True),
-    ("/home/alice/src/m3-memory", False),
-    ("m3-memory==2026.10.1.1", False),
-    ("git+https://github.com/skynetcmd/m3-memory", False),
-])
+@pytest.mark.parametrize(
+    "spec, pypi",
+    [
+        ("m3-memory", True),
+        ("/home/alice/src/m3-memory", False),
+        ("m3-memory==2026.10.1.1", False),
+        ("git+https://github.com/skynetcmd/m3-memory", False),
+    ],
+)
 def test_pipx_source_is_read_and_classified(tmp_path, spec, pypi):
     """`pipx upgrade` rebuilds from the recorded spec, which may not be PyPI."""
     import json
 
     venv = _mk(tmp_path, "pipx/venvs/m3-memory")
-    (venv / "pipx_metadata.json").write_text(
-        json.dumps({"main_package": {"package_or_url": spec}}), encoding="utf-8")
+    (venv / "pipx_metadata.json").write_text(json.dumps({"main_package": {"package_or_url": spec}}), encoding="utf-8")
     pkg = _mk(venv, "Lib/site-packages/m3_memory")
     assert m3u.pipx_source(pkg) == spec
     assert m3u.source_is_pypi(spec) is pypi
 
 
-@pytest.mark.parametrize("spec, missing", [
-    ("m3-memory", False),
-    ("git+https://github.com/skynetcmd/m3-memory", False),
-    ("/tmp/definitely-gone/m3_memory-1-py3-none-any.whl", True),
-    ("m3_memory-2026.10.4.2rc3-py3-none-any.whl", True),
-])
+@pytest.mark.parametrize(
+    "spec, missing",
+    [
+        ("m3-memory", False),
+        ("git+https://github.com/skynetcmd/m3-memory", False),
+        ("/tmp/definitely-gone/m3_memory-1-py3-none-any.whl", True),
+        ("m3_memory-2026.10.4.2rc3-py3-none-any.whl", True),
+    ],
+)
 def test_missing_local_source_is_detected(spec, missing):
     assert m3u.source_is_missing_path(spec) is missing
 
@@ -298,8 +300,9 @@ def test_upgrade_stops_before_touching_services_when_the_source_is_gone(tmp_path
     import json
 
     venv = _mk(tmp_path, "pipx/venvs/m3-memory")
-    (venv / "pipx_metadata.json").write_text(json.dumps(
-        {"main_package": {"package_or_url": str(tmp_path / "gone.whl")}}), encoding="utf-8")
+    (venv / "pipx_metadata.json").write_text(
+        json.dumps({"main_package": {"package_or_url": str(tmp_path / "gone.whl")}}), encoding="utf-8"
+    )
     pkg = _mk(venv, "Lib/site-packages/m3_memory")
     monkeypatch.setattr(m3u.shutil, "which", lambda n: "/bin/" + n)
     monkeypatch.setattr(m3u, "find_m3_package", lambda exe: pkg)
@@ -318,8 +321,8 @@ def _pip_install(tmp_path, version="2026.10.4.2"):
     pkg = _mk(site, "m3_memory")
     dist = _mk(site, f"m3_memory-{version}.dist-info")
     (dist / "entry_points.txt").write_text(
-        "[console_scripts]\nm3 = m3_memory.cli:main\nmcp-memory = m3_memory.cli:main\n",
-        encoding="utf-8")
+        "[console_scripts]\nm3 = m3_memory.cli:main\nmcp-memory = m3_memory.cli:main\n", encoding="utf-8"
+    )
     return scripts, pkg
 
 
@@ -336,20 +339,18 @@ def test_a_held_launcher_stops_the_upgrade_before_anything_runs(tmp_path, monkey
     monkeypatch.setattr(m3u.shutil, "which", lambda n: str(scripts / "m3.exe"))
     monkeypatch.setattr(m3u, "find_m3_package", lambda exe: pkg)
     monkeypatch.setattr(m3u, "locked_launchers", lambda d, n: [scripts / "m3.exe"])
-    monkeypatch.setattr(m3u, "describe_holders",
-                        lambda locked: ["    pid 1  m3.exe  (this command's own launcher)"])
+    monkeypatch.setattr(m3u, "describe_holders", lambda locked: ["    pid 1  m3.exe  (this command's own launcher)"])
     monkeypatch.setattr(m3u, "run", lambda *a, **k: pytest.fail("nothing may run"))
     monkeypatch.setattr(m3u, "cognitive_loop_installed", lambda exe: True)
     assert m3u.main(["--yes"]) == 2
     out = capsys.readouterr().out
     assert "Nothing was changed" in out
-    assert "m3_upgrade.py" in out and "python.exe" in out    # the remedy for a self-hold
+    assert "m3_upgrade.py" in out and "python.exe" in out  # the remedy for a self-hold
 
 
 def test_other_holders_get_the_close_them_remedy(tmp_path, monkeypatch, capsys):
     scripts, _pkg = _pip_install(tmp_path)
-    monkeypatch.setattr(m3u, "describe_holders",
-                        lambda locked: ["    pid 7  mcp-memory.exe  (started by claude.exe)"])
+    monkeypatch.setattr(m3u, "describe_holders", lambda locked: ["    pid 7  mcp-memory.exe  (started by claude.exe)"])
     m3u.explain_locked([scripts / "mcp-memory.exe"], str(scripts / "python.exe"))
     out = capsys.readouterr().out
     assert "close the agent sessions" in out
@@ -365,15 +366,19 @@ def test_an_open_launcher_is_reported_locked_and_left_intact(tmp_path):
     assert sorted(p.name for p in scripts.iterdir()) == ["m3.exe", "mcp-memory.exe", "python.exe"]
 
 
-@pytest.mark.parametrize("probe_rc, probe_err, expect", [
-    (0, "", "m3 2026.10.4.2 is still installed"),
-    (1, "ModuleNotFoundError: No module named 'm3_memory'", "m3 is NOT installed now"),
-    # The probe itself died before running a line (seen on Windows): unknown,
-    # not "not installed" -- that told a user with a working m3 it was gone.
-    (3221225794, "", "could not be checked"),
-])
-def test_a_failed_upgrade_reports_what_is_actually_installed(tmp_path, monkeypatch, capsys,
-                                                             probe_rc, probe_err, expect):
+@pytest.mark.parametrize(
+    "probe_rc, probe_err, expect",
+    [
+        (0, "", "m3 2026.10.4.2 is still installed"),
+        (1, "ModuleNotFoundError: No module named 'm3_memory'", "m3 is NOT installed now"),
+        # The probe itself died before running a line (seen on Windows): unknown,
+        # not "not installed" -- that told a user with a working m3 it was gone.
+        (3221225794, "", "could not be checked"),
+    ],
+)
+def test_a_failed_upgrade_reports_what_is_actually_installed(
+    tmp_path, monkeypatch, capsys, probe_rc, probe_err, expect
+):
     scripts, pkg = _pip_install(tmp_path)
     monkeypatch.setattr(m3u.shutil, "which", lambda n: str(scripts / "m3.exe"))
     monkeypatch.setattr(m3u, "find_m3_package", lambda exe: pkg)
@@ -386,9 +391,9 @@ def test_a_failed_upgrade_reports_what_is_actually_installed(tmp_path, monkeypat
         return 1 if "install" in cmd else 0
 
     monkeypatch.setattr(m3u, "run", _run)
-    monkeypatch.setattr(m3u.subprocess, "run",
-                        lambda *a, **k: type("R", (), {"returncode": probe_rc,
-                                                       "stderr": probe_err})())
+    monkeypatch.setattr(
+        m3u.subprocess, "run", lambda *a, **k: type("R", (), {"returncode": probe_rc, "stderr": probe_err})()
+    )
     assert m3u.main(["--yes"]) == 1
     out = capsys.readouterr().out
     assert expect in out
@@ -404,8 +409,9 @@ def test_from_pypi_reinstalls_pipx_from_the_index():
     already resolve against the index and keep their upgrade command."""
     cmd = m3u.upgrade_command(m3u.PIPX, python="/fake/python", from_pypi=True)
     assert cmd[1:] == ["install", "--force", "m3-memory"]
-    assert m3u.upgrade_command(m3u.PIP, python="/fake/python", from_pypi=True) == \
-        m3u.upgrade_command(m3u.PIP, python="/fake/python")
+    assert m3u.upgrade_command(m3u.PIP, python="/fake/python", from_pypi=True) == m3u.upgrade_command(
+        m3u.PIP, python="/fake/python"
+    )
 
 
 def test_from_pypi_proceeds_when_the_recorded_source_is_gone(tmp_path, monkeypatch, capsys):
@@ -413,8 +419,9 @@ def test_from_pypi_proceeds_when_the_recorded_source_is_gone(tmp_path, monkeypat
     import json
 
     venv = _mk(tmp_path, "pipx/venvs/m3-memory")
-    (venv / "pipx_metadata.json").write_text(json.dumps(
-        {"main_package": {"package_or_url": str(tmp_path / "gone.whl")}}), encoding="utf-8")
+    (venv / "pipx_metadata.json").write_text(
+        json.dumps({"main_package": {"package_or_url": str(tmp_path / "gone.whl")}}), encoding="utf-8"
+    )
     pkg = _mk(venv, "Lib/site-packages/m3_memory")
     monkeypatch.setattr(m3u.shutil, "which", lambda n: "/bin/" + n)
     monkeypatch.setattr(m3u, "find_m3_package", lambda exe: pkg)
@@ -478,8 +485,7 @@ def test_own_launcher_only_hands_off_to_a_new_window(tmp_path, monkeypatch, caps
     is the only holder, continue from Python in a new window instead of refusing."""
     _held_pip_install(tmp_path, monkeypatch, own=[4242], others=[])
     handed = []
-    monkeypatch.setattr(m3u, "hand_off_to_new_window",
-                        lambda py, argv, pids: handed.append((argv, pids)))
+    monkeypatch.setattr(m3u, "hand_off_to_new_window", lambda py, argv, pids: handed.append((argv, pids)))
     monkeypatch.setattr(m3u, "run", lambda *a, **k: pytest.fail("nothing may run here"))
     assert m3u.main(["--yes"]) == 0
     assert handed == [(["--yes"], [4242])]
@@ -488,8 +494,7 @@ def test_own_launcher_only_hands_off_to_a_new_window(tmp_path, monkeypatch, caps
 
 def test_a_dry_run_held_only_by_its_own_launcher_shows_the_plan(tmp_path, monkeypatch, capsys):
     _held_pip_install(tmp_path, monkeypatch, own=[4242], others=[])
-    monkeypatch.setattr(m3u, "hand_off_to_new_window",
-                        lambda *a: pytest.fail("a dry run must not hand off"))
+    monkeypatch.setattr(m3u, "hand_off_to_new_window", lambda *a: pytest.fail("a dry run must not hand off"))
     assert m3u.main(["--dry-run"]) == 0
     out = capsys.readouterr().out
     assert "Dry run complete" in out
@@ -515,7 +520,7 @@ def test_an_unattended_run_is_refused_not_handed_off(tmp_path, monkeypatch, caps
     assert m3u.main(["--yes"]) == 2
     out = capsys.readouterr().out
     assert "Cannot upgrade now" in out
-    assert "m3_upgrade.py\" --yes" in out
+    assert 'm3_upgrade.py" --yes' in out
 
 
 def test_agent_sessions_are_listed_and_stopped_after_the_proceed_prompt(tmp_path, monkeypatch, capsys):
@@ -525,9 +530,11 @@ def test_agent_sessions_are_listed_and_stopped_after_the_proceed_prompt(tmp_path
     monkeypatch.setattr(m3u, "describe_holders", lambda locked: ["    pid   5555  m3.exe  (started by claude.exe)"])
     monkeypatch.setattr("builtins.input", lambda prompt="": "y")
     stopped = []
+
     def _stop(pids):  # stopping the holders releases the launcher, as on Windows
         stopped.append(list(pids))
         monkeypatch.setattr(m3u, "locked_launchers", lambda d, n: [])
+
     monkeypatch.setattr(m3u, "stop_holders", _stop)
     monkeypatch.setattr(m3u, "run", lambda cmd, **k: 0)
     assert m3u.main([]) == 0
@@ -549,9 +556,11 @@ def test_stop_agents_is_the_unattended_consent(tmp_path, monkeypatch):
     _held_pip_install(tmp_path, monkeypatch, own=[], others=[5555])
     monkeypatch.setattr(m3u, "interactive_console", lambda: False)
     stopped = []
+
     def _stop(pids):  # stopping the holders releases the launcher, as on Windows
         stopped.append(list(pids))
         monkeypatch.setattr(m3u, "locked_launchers", lambda d, n: [])
+
     monkeypatch.setattr(m3u, "stop_holders", _stop)
     monkeypatch.setattr(m3u, "run", lambda cmd, **k: 0)
     assert m3u.main(["--yes", "--stop-agents"]) == 0
@@ -562,8 +571,7 @@ def test_the_hand_off_passes_the_agent_pids_it_was_allowed_to_stop(tmp_path, mon
     _held_pip_install(tmp_path, monkeypatch, own=[4242], others=[5555])
     monkeypatch.setattr("builtins.input", lambda prompt="": "y")
     handed = []
-    monkeypatch.setattr(m3u, "hand_off_to_new_window",
-                        lambda py, argv, pids: handed.append((argv, pids)) or "log")
+    monkeypatch.setattr(m3u, "hand_off_to_new_window", lambda py, argv, pids: handed.append((argv, pids)) or "log")
     monkeypatch.setattr(m3u, "stop_holders", lambda pids: pytest.fail("the new window stops them"))
     assert m3u.main([]) == 0
     assert handed == [(["--stop-pids", "5555"], [4242])]
@@ -597,6 +605,7 @@ def test_the_summary_names_the_agents_to_reconnect(tmp_path, monkeypatch, capsys
 
     def _stop(pids):
         monkeypatch.setattr(m3u, "locked_launchers", lambda d, n: [])
+
     monkeypatch.setattr(m3u, "stop_holders", _stop)
     monkeypatch.setattr(m3u, "run", lambda cmd, **k: 0)
     assert m3u.main(["--yes", "--stop-agents"]) == 0
@@ -640,19 +649,17 @@ def test_the_caller_variable_matches_setups():
     it), so the name is declared twice; keep the two in step, and keep the
     script to its one constant."""
     from m3_memory.wizard import ui
+
     assert m3u.UPGRADE_CALLER_ENV == ui.UPGRADE_CALLER_ENV
     src = (_BIN / "m3_upgrade.py").read_text(encoding="utf-8")
     assert src.count('"M3_SETUP_CALLER"') == 1
 
 
 def test_a_changed_version_tells_the_user_to_restart_agents():
-    lines = m3u.summary_lines(old="1", new="2", unchanged=False, agents_stopped=0,
-                              failed_step="", rc=0, log="")
+    lines = m3u.summary_lines(old="1", new="2", unchanged=False, agents_stopped=0, failed_step="", rc=0, log="")
     assert any("restart your agents" in ln for ln in lines)
-    lines = m3u.summary_lines(old="1", new="1", unchanged=True, agents_stopped=0,
-                              failed_step="", rc=0, log="")
+    lines = m3u.summary_lines(old="1", new="1", unchanged=True, agents_stopped=0, failed_step="", rc=0, log="")
     assert not any("agents" in ln for ln in lines)
-
 
 
 @pytest.mark.parametrize("survivor", ["", "  stopped cognitive-loop (pid 9)\n"])
@@ -711,11 +718,14 @@ def test_a_healthy_doctor_collapses_to_its_health_line():
     assert m3u.doctor_is_all_healthy(_HEALTHY_DOCTOR) is True
 
 
-@pytest.mark.parametrize("extra", [
-    "⚠️  plugin: 2026.10.5.0 installed, older than m3 2026.10.6.0",                    # a warning
-    "Repair Summary: OK (run_migrations ok)",                                           # a repair ran
-    "some line a future probe prints",                                                  # unknown
-])
+@pytest.mark.parametrize(
+    "extra",
+    [
+        "⚠️  plugin: 2026.10.5.0 installed, older than m3 2026.10.6.0",  # a warning
+        "Repair Summary: OK (run_migrations ok)",  # a repair ran
+        "some line a future probe prints",  # unknown
+    ],
+)
 def test_anything_but_healthy_lines_shows_the_full_output(extra):
     assert m3u.doctor_is_all_healthy(_HEALTHY_DOCTOR + extra + "\n") is False
 
@@ -733,13 +743,17 @@ def test_a_plugin_update_is_one_line_and_the_summary_says_restart(tmp_path, monk
     monkeypatch.setattr(m3u, "locked_launchers", lambda d, n: [])
     monkeypatch.setattr(m3u, "cognitive_loop_installed", lambda exe: True)
     monkeypatch.setattr(m3u, "run", lambda cmd, **k: 0)
-    update = ('  [ok] plugin plugin: ✔ Plugin "m3" updated from 2026.10.6.0 to '
-              '2026.10.7.0 for scope user. Restart to apply changes.\n'
-              "  [ok] plugin restart: restart Claude Code to load the new version\n")
+    update = (
+        '  [ok] plugin plugin: ✔ Plugin "m3" updated from 2026.10.6.0 to '
+        "2026.10.7.0 for scope user. Restart to apply changes.\n"
+        "  [ok] plugin restart: restart Claude Code to load the new version\n"
+    )
     doctor = _HEALTHY_DOCTOR.replace(
-        '  [ok] plugin plugin: ✔ m3 is already at the latest version (2026.10.5.0).\n', update)
-    monkeypatch.setattr(m3u, "run_captured_rc", lambda cmd, **k: (
-        0, doctor if "doctor" in cmd else "upgrading m3-memory...\n"))
+        "  [ok] plugin plugin: ✔ m3 is already at the latest version (2026.10.5.0).\n", update
+    )
+    monkeypatch.setattr(
+        m3u, "run_captured_rc", lambda cmd, **k: (0, doctor if "doctor" in cmd else "upgrading m3-memory...\n")
+    )
     m3u.main(["--yes"])
     out = capsys.readouterr().out
     assert "[OK] Claude Code plugin updated: 2026.10.6.0 -> 2026.10.7.0" in out
@@ -754,12 +768,13 @@ def test_step_five_prints_one_line_when_doctor_is_healthy(tmp_path, monkeypatch,
     monkeypatch.setattr(m3u, "locked_launchers", lambda d, n: [])
     monkeypatch.setattr(m3u, "cognitive_loop_installed", lambda exe: True)
     monkeypatch.setattr(m3u, "run", lambda cmd, **k: 0)
-    monkeypatch.setattr(m3u, "run_captured_rc", lambda cmd, **k: (
-        0, _HEALTHY_DOCTOR if "doctor" in cmd else "upgrading m3-memory...\n"))
+    monkeypatch.setattr(
+        m3u, "run_captured_rc", lambda cmd, **k: (0, _HEALTHY_DOCTOR if "doctor" in cmd else "upgrading m3-memory...\n")
+    )
     m3u.main(["--yes"])
     out = capsys.readouterr().out
     assert "[OK] m3 HEALTHY" in out
     assert "Repair Summary" not in out
-    assert "upgrading m3-memory..." not in out          # pipx lines only on failure
-    assert out.startswith("[detect] pip install")       # one detect line
+    assert "upgrading m3-memory..." not in out  # pipx lines only on failure
+    assert out.startswith("[detect] pip install")  # one detect line
     assert "evidence" not in out

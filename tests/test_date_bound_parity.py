@@ -10,6 +10,7 @@ The live-PG leg follows `test_schema_parity_pg_live.py`: it SKIPS when no PG URL
 is configured rather than failing, so the suite stays green on a SQLite-only
 box while still proving portability wherever PG is reachable.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -42,23 +43,18 @@ class TestNormalizeDateBound(unittest.TestCase):
     """Pure-function contract — no database required."""
 
     def test_bare_date_expands_half_open(self):
-        self.assertEqual(
-            Dialect.normalize_date_bound("2026-09-06", "since"), "2026-09-06T00:00:00Z")
-        self.assertEqual(
-            Dialect.normalize_date_bound("2026-09-06", "until"), "2026-09-07T00:00:00Z")
+        self.assertEqual(Dialect.normalize_date_bound("2026-09-06", "since"), "2026-09-06T00:00:00Z")
+        self.assertEqual(Dialect.normalize_date_bound("2026-09-06", "until"), "2026-09-07T00:00:00Z")
 
     def test_operators_pair_with_normalization(self):
         self.assertEqual(Dialect.date_bound_op("since"), ">=")
         self.assertEqual(Dialect.date_bound_op("until"), "<")
 
     def test_month_and_year_rollover(self):
-        self.assertEqual(
-            Dialect.normalize_date_bound("2026-01-31", "until"), "2026-02-01T00:00:00Z")
-        self.assertEqual(
-            Dialect.normalize_date_bound("2026-12-31", "until"), "2027-01-01T00:00:00Z")
+        self.assertEqual(Dialect.normalize_date_bound("2026-01-31", "until"), "2026-02-01T00:00:00Z")
+        self.assertEqual(Dialect.normalize_date_bound("2026-12-31", "until"), "2027-01-01T00:00:00Z")
         # leap day: 2028 is a leap year
-        self.assertEqual(
-            Dialect.normalize_date_bound("2028-02-28", "until"), "2028-02-29T00:00:00Z")
+        self.assertEqual(Dialect.normalize_date_bound("2028-02-28", "until"), "2028-02-29T00:00:00Z")
 
     def test_full_timestamp_passes_through(self):
         """A caller-supplied precise instant keeps exact semantics."""
@@ -88,8 +84,7 @@ class TestDateBoundSqlite(unittest.TestCase):
     def _count(self, side, value):
         d = Dialect(backend="sqlite", param_style="qmark")
         sql = f"SELECT COUNT(*) FROM t WHERE {d.date_bound('created_at', side)}"
-        return self.conn.execute(
-            sql, (d.normalize_date_bound(value, side),)).fetchone()[0]
+        return self.conn.execute(sql, (d.normalize_date_bound(value, side),)).fetchone()[0]
 
     def test_until_includes_whole_day(self):
         self.assertEqual(self._count("until", "2026-09-06"), _EXPECT_UNTIL_0906)
@@ -99,8 +94,7 @@ class TestDateBoundSqlite(unittest.TestCase):
 
     def test_legacy_bare_date_was_broken(self):
         """Pin the old behaviour so the regression can't silently return."""
-        n = self.conn.execute(
-            "SELECT COUNT(*) FROM t WHERE created_at <= ?", ("2026-09-06",)).fetchone()[0]
+        n = self.conn.execute("SELECT COUNT(*) FROM t WHERE created_at <= ?", ("2026-09-06",)).fetchone()[0]
         self.assertEqual(n, 0, "legacy lexicographic compare should drop the whole day")
 
     def test_index_is_still_usable(self):
@@ -108,8 +102,9 @@ class TestDateBoundSqlite(unittest.TestCase):
         self.conn.execute("CREATE INDEX idx_t_created ON t(created_at)")
         d = Dialect(backend="sqlite", param_style="qmark")
         plan = self.conn.execute(
-            f"EXPLAIN QUERY PLAN SELECT id FROM t WHERE {d.date_bound('created_at','until')}",
-            (d.normalize_date_bound("2026-09-06", "until"),)).fetchall()
+            f"EXPLAIN QUERY PLAN SELECT id FROM t WHERE {d.date_bound('created_at', 'until')}",
+            (d.normalize_date_bound("2026-09-06", "until"),),
+        ).fetchall()
         self.assertIn("idx_t_created", " ".join(str(r[-1]) for r in plan))
 
 
@@ -149,12 +144,14 @@ class TestDateBoundPostgresLive(unittest.TestCase):
         except ImportError:  # pragma: no cover
             raise unittest.SkipTest(skip_reason("dep", "psycopg not installed")) from None
         from conftest import pg_dsn
+
         cls.url = pg_dsn()
         if not cls.url:  # requires_pg should already have skipped us
             raise unittest.SkipTest(skip_reason("db", "no throwaway PostgreSQL DSN configured"))
 
     def setUp(self):
         import psycopg
+
         self.conn = psycopg.connect(self.url, connect_timeout=10)
         cur = self.conn.cursor()
         cur.execute("DROP TABLE IF EXISTS _m3_date_bound_parity")
@@ -170,8 +167,7 @@ class TestDateBoundPostgresLive(unittest.TestCase):
 
     def _count(self, side, value):
         d = Dialect(backend="postgres", param_style="format")
-        sql = (f"SELECT COUNT(*) FROM _m3_date_bound_parity "
-               f"WHERE {d.date_bound('created_at', side)}")
+        sql = f"SELECT COUNT(*) FROM _m3_date_bound_parity WHERE {d.date_bound('created_at', side)}"
         cur = self.conn.cursor()
         cur.execute(sql, (d.normalize_date_bound(value, side),))
         return cur.fetchone()[0]
@@ -200,30 +196,29 @@ class TestDateBoundPostgresLive(unittest.TestCase):
         does" -- so derive the expectation from the same cast the query uses.
         """
         cur = self.conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM _m3_date_bound_parity "
-                    "WHERE created_at <= '2026-09-06'::timestamptz")
+        cur.execute("SELECT COUNT(*) FROM _m3_date_bound_parity WHERE created_at <= '2026-09-06'::timestamptz")
         expected = cur.fetchone()[0]
 
-        cur.execute("SELECT COUNT(*) FROM _m3_date_bound_parity WHERE created_at <= %s",
-                    ("2026-09-06",))
+        cur.execute("SELECT COUNT(*) FROM _m3_date_bound_parity WHERE created_at <= %s", ("2026-09-06",))
         actual = cur.fetchone()[0]
 
         self.assertEqual(actual, expected)
         # The point of the test: PG keeps SOME rows (unlike SQLite, which drops
         # all), but fewer than the whole day -- which is why the bare date is
         # broken and `date_bound()` exists.
-        self.assertGreater(actual, 0,
-                           "PG's bare-date cast dropped every row -- that is "
-                           "SQLite's failure mode, not PG's")
-        self.assertLess(actual, _EXPECT_UNTIL_0906,
-                        "the bare date kept the whole day; then it would not "
-                        "be broken and date_bound() would be unnecessary")
+        self.assertGreater(
+            actual, 0, "PG's bare-date cast dropped every row -- that is SQLite's failure mode, not PG's"
+        )
+        self.assertLess(
+            actual,
+            _EXPECT_UNTIL_0906,
+            "the bare date kept the whole day; then it would not be broken and date_bound() would be unnecessary",
+        )
 
     def test_inclusive_millisecond_bound_would_lose_a_row(self):
         """Why half-open, not '...23:59:59.999Z' — pins the design decision."""
         cur = self.conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM _m3_date_bound_parity WHERE created_at <= %s",
-                    ("2026-09-06T23:59:59.999Z",))
+        cur.execute("SELECT COUNT(*) FROM _m3_date_bound_parity WHERE created_at <= %s", ("2026-09-06T23:59:59.999Z",))
         self.assertEqual(cur.fetchone()[0], 2, "sub-millisecond row silently dropped")
 
 

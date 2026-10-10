@@ -10,6 +10,7 @@ itself a duplication risk, so this file exists to pin them together: for every
 combination of the three columns, the row the SQL selects must be the row the
 Python labels.
 """
+
 from __future__ import annotations
 
 import itertools
@@ -40,15 +41,11 @@ def conn():
     path = os.path.join(tempfile.mkdtemp(), "state.db")
     db = sqlite3.connect(path)
     db.row_factory = sqlite3.Row
-    db.execute(
-        "CREATE TABLE notifications (id INTEGER PRIMARY KEY, failed_at TEXT, "
-        "read_at TEXT, claimed_by TEXT)"
-    )
+    db.execute("CREATE TABLE notifications (id INTEGER PRIMARY KEY, failed_at TEXT, read_at TEXT, claimed_by TEXT)")
     # Every combination of the three columns being set or not.
     rows = list(itertools.product([None, _TS], [None, _TS], [None, "agent@s1"]))
     db.executemany(
-        "INSERT INTO notifications (id, failed_at, read_at, claimed_by) "
-        "VALUES (?, ?, ?, ?)",
+        "INSERT INTO notifications (id, failed_at, read_at, claimed_by) VALUES (?, ?, ?, ?)",
         [(i, *combo) for i, combo in enumerate(rows, start=1)],
     )
     db.commit()
@@ -62,15 +59,14 @@ def test_every_row_has_exactly_one_state(conn):
     and vanish from a third."""
     for row in conn.execute("SELECT id FROM notifications").fetchall():
         matched = [
-            state for state in MESSAGE_STATES
+            state
+            for state in MESSAGE_STATES
             if conn.execute(
-                f"SELECT 1 FROM notifications WHERE id = ? "
-                f"AND ({message_state_sql(state)})", (row["id"],)
+                f"SELECT 1 FROM notifications WHERE id = ? AND ({message_state_sql(state)})", (row["id"],)
             ).fetchone()
         ]
         assert len(matched) == 1, (
-            f"row {row['id']} matched {matched} -- the state predicates must "
-            f"partition the table, not overlap"
+            f"row {row['id']} matched {matched} -- the state predicates must partition the table, not overlap"
         )
 
 
@@ -81,25 +77,23 @@ def test_sql_and_python_agree_on_every_combination(conn):
     for row in conn.execute("SELECT * FROM notifications").fetchall():
         python_says = message_state_of(row)
         sql_says = [
-            state for state in MESSAGE_STATES
+            state
+            for state in MESSAGE_STATES
             if conn.execute(
-                f"SELECT 1 FROM notifications WHERE id = ? "
-                f"AND ({message_state_sql(state)})", (row["id"],)
+                f"SELECT 1 FROM notifications WHERE id = ? AND ({message_state_sql(state)})", (row["id"],)
             ).fetchone()
         ]
         assert sql_says == [python_says], (
-            f"row {dict(row)}: SQL says {sql_says}, Python says "
-            f"{python_says!r} -- the two derivations have drifted"
+            f"row {dict(row)}: SQL says {sql_says}, Python says {python_says!r} -- the two derivations have drifted"
         )
 
 
 def test_all_four_states_are_reachable(conn):
     """A predicate that can never match is dead code pretending to be coverage."""
     seen = {
-        state for state in MESSAGE_STATES
-        if conn.execute(
-            f"SELECT 1 FROM notifications WHERE {message_state_sql(state)}"
-        ).fetchone()
+        state
+        for state in MESSAGE_STATES
+        if conn.execute(f"SELECT 1 FROM notifications WHERE {message_state_sql(state)}").fetchone()
     }
     assert seen == set(MESSAGE_STATES), f"unreachable states: {set(MESSAGE_STATES) - seen}"
 
@@ -108,8 +102,7 @@ def test_a_completed_row_stays_completed_even_though_it_is_still_claimed(conn):
     """Order matters: a finished row keeps its claimed_by, so a naive
     claimed_by-first check would report it as still in flight forever."""
     conn.execute(
-        "INSERT INTO notifications (id, failed_at, read_at, claimed_by) "
-        "VALUES (99, NULL, ?, 'agent@s1')", (_TS,)
+        "INSERT INTO notifications (id, failed_at, read_at, claimed_by) VALUES (99, NULL, ?, 'agent@s1')", (_TS,)
     )
     row = conn.execute("SELECT * FROM notifications WHERE id = 99").fetchone()
     assert message_state_of(row) == "COMPLETED"
@@ -117,8 +110,7 @@ def test_a_completed_row_stays_completed_even_though_it_is_still_claimed(conn):
 
 def test_a_failed_row_outranks_everything(conn):
     conn.execute(
-        "INSERT INTO notifications (id, failed_at, read_at, claimed_by) "
-        "VALUES (98, ?, ?, 'agent@s1')", (_TS, _TS)
+        "INSERT INTO notifications (id, failed_at, read_at, claimed_by) VALUES (98, ?, ?, 'agent@s1')", (_TS, _TS)
     )
     row = conn.execute("SELECT * FROM notifications WHERE id = 98").fetchone()
     assert message_state_of(row) == "FAILED"
@@ -138,6 +130,7 @@ def test_an_unknown_state_is_refused_not_silently_empty(conn):
 # carries two comments warning against unifying them. These give the warning a
 # test behind it.
 # ---------------------------------------------------------------------------
+
 
 def test_inbox_membership_is_not_pending():
     """PENDING hides dead-lettered rows; inbox membership must not.
@@ -174,18 +167,17 @@ def test_claimed_and_unclaimed_forms_are_exact_complements():
 def test_the_two_forms_partition_the_inbox(conn):
     """Every in-inbox row is in exactly one of claimed / unclaimed."""
     conn.executemany(
-        "INSERT INTO notifications (id, read_at, claimed_by, failed_at) "
-        "VALUES (?,?,?,?)",
-        [(901, None, None, None),           # unclaimed, live
-         (902, None, "w", None),            # claimed
-         (903, None, None, _TS),            # dead-lettered, STILL in the inbox
-         (904, _TS, None, None)],           # acked -- out of the inbox
+        "INSERT INTO notifications (id, read_at, claimed_by, failed_at) VALUES (?,?,?,?)",
+        [
+            (901, None, None, None),  # unclaimed, live
+            (902, None, "w", None),  # claimed
+            (903, None, None, _TS),  # dead-lettered, STILL in the inbox
+            (904, _TS, None, None),
+        ],  # acked -- out of the inbox
     )
 
     def n(where):
-        return conn.execute(
-            f"SELECT COUNT(*) FROM notifications WHERE id >= 901 AND {where}"
-        ).fetchone()[0]
+        return conn.execute(f"SELECT COUNT(*) FROM notifications WHERE id >= 901 AND {where}").fetchone()[0]
 
     in_inbox = n(inbox_membership_sql())
     unclaimed = n(inbox_membership_sql(claimed=False))

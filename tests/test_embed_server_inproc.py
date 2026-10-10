@@ -11,6 +11,7 @@ assert the HTTP CONTRACT the client cascade depends on:
   - binary fast-path (Accept: octet-stream) -> f32 body with an 8-byte header.
   - oversized batch -> 413 (fail-loud, never silent truncation, §3).
 """
+
 import struct
 import sys
 from pathlib import Path
@@ -61,8 +62,7 @@ def test_embedding_batch_has_index_permutation():
 
 def test_embedding_binary_fastpath():
     c = _client()
-    r = c.post("/embedding", json={"input": ["a", "b"]},
-               headers={"Accept": "application/octet-stream"})
+    r = c.post("/embedding", json={"input": ["a", "b"]}, headers={"Accept": "application/octet-stream"})
     assert r.status_code == 200
     assert r.headers["content-type"] == "application/octet-stream"
     n, dim = struct.unpack("<II", r.content[:8])
@@ -117,10 +117,13 @@ def _fake_urlopen(monkeypatch, *, status=200, body=None, raises=None):
     class _Resp:
         def __init__(self):
             self.status = status
+
         def read(self):
             return _json.dumps(body if body is not None else {}).encode()
+
         def __enter__(self):
             return self
+
         def __exit__(self, *a):
             return False
 
@@ -134,8 +137,7 @@ def _fake_urlopen(monkeypatch, *, status=200, body=None, raises=None):
 
 
 def test_already_serving_true_when_health_ok(monkeypatch):
-    with _fake_urlopen(monkeypatch, status=200,
-                       body={"status": "ok", "model": "bge", "dim": 1024}):
+    with _fake_urlopen(monkeypatch, status=200, body={"status": "ok", "model": "bge", "dim": 1024}):
         assert S._already_serving("127.0.0.1", 8082) is True
 
 
@@ -172,9 +174,15 @@ def test_already_serving_probes_loopback_for_wildcard_bind(monkeypatch):
 
     class _Resp:
         status = 200
-        def read(self): return b'{"status":"ok"}'
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
+
+        def read(self):
+            return b'{"status":"ok"}'
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
 
     def fake(url, timeout=None):
         seen["url"] = url
@@ -198,6 +206,7 @@ import pytest
 
 def test_is_interactive_by_size_and_header():
     """Small batch => interactive; large => bulk; header overrides both."""
+
     class _Req:
         def __init__(self, pri=None):
             self.headers = {"x-m3-embed-priority": pri} if pri else {}
@@ -236,7 +245,7 @@ async def test_gate_interactive_never_waits_behind_bulk():
     keeps an interactive request running immediately — it never queues behind a
     bulk batch."""
     gate = S._AdmissionGate(total=8, reserved=1)
-    for _ in range(7):                       # fill every bulk slot
+    for _ in range(7):  # fill every bulk slot
         await gate.acquire(interactive=False)
 
     got = asyncio.Event()
@@ -278,7 +287,7 @@ async def test_gate_interactive_scales_up_when_bulk_idle():
     `total` concurrent slots (answers 'can interactive use the bulk slots when
     unused?' — yes)."""
     gate = S._AdmissionGate(total=4, reserved=1)
-    for _ in range(4):                       # 4 interactive, bulk idle
+    for _ in range(4):  # 4 interactive, bulk idle
         await asyncio.wait_for(gate.acquire(interactive=True), timeout=0.5)
     # 5th exceeds total and blocks.
     with pytest.raises(asyncio.TimeoutError):
@@ -291,10 +300,13 @@ async def test_gate_interactive_scales_up_when_bulk_idle():
 async def test_gate_total_defaults_to_backend_streams(monkeypatch):
     """_resolve_admission uses the backend stream pool as `total` by default
     (M3_EMBED_SERVER_CONCURRENCY unset => 0 sentinel => full pool)."""
+
     class _Emb8:
-        def streams(self): return 8
+        def streams(self):
+            return 8
+
     monkeypatch.setattr(S, "_embedder", _Emb8())
-    monkeypatch.setattr(S, "_ADMISSION_TOTAL_DEFAULT", 0)   # auto
+    monkeypatch.setattr(S, "_ADMISSION_TOTAL_DEFAULT", 0)  # auto
     monkeypatch.setattr(S, "_INTERACTIVE_RESERVED", 1)
     gate = S._resolve_admission()
     assert gate.total == 8, "auto total should equal backend streams (8)"
@@ -305,8 +317,11 @@ async def test_gate_total_defaults_to_backend_streams(monkeypatch):
 async def test_gate_total_clamped_to_backend_streams(monkeypatch):
     """A configured total is clamped DOWN to the backend pool so the server never
     over-subscribes the Rust dispatcher."""
+
     class _Emb2:
-        def streams(self): return 2   # backend only offers 2 streams
+        def streams(self):
+            return 2  # backend only offers 2 streams
+
     monkeypatch.setattr(S, "_embedder", _Emb2())
     monkeypatch.setattr(S, "_ADMISSION_TOTAL_DEFAULT", 8)  # ask for 8
     monkeypatch.setattr(S, "_INTERACTIVE_RESERVED", 1)
@@ -319,6 +334,7 @@ async def test_gate_total_clamped_to_backend_streams(monkeypatch):
 # The AgentOS_EmbedServer scheduled task launches via pythonw.exe (no console).
 # Under that launcher the default uvicorn.run() exited right after binding, so
 # the shared embedder never stayed up. Guard the two robustness measures.
+
 
 def test_ensure_std_streams_replaces_none(monkeypatch):
     """pythonw gives sys.stdout/stderr == None; _ensure_std_streams must bind
@@ -343,6 +359,7 @@ def test_ensure_std_streams_replaces_none(monkeypatch):
 def test_ensure_std_streams_preserves_existing(monkeypatch):
     """When streams already exist (normal python.exe) it's a no-op."""
     import io
+
     out, err = io.StringIO(), io.StringIO()
     monkeypatch.setattr(sys, "stdout", out)
     monkeypatch.setattr(sys, "stderr", err)

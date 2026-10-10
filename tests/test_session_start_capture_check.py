@@ -7,16 +7,14 @@ diverges from the server's M3_ENGINE_ROOT on Homecoming-migrated installs — th
 "split-brain" that produced a false "chatlog NOT writing" alarm against a stale
 pre-migration copy (documented in CLAUDE.md).
 """
+
 from __future__ import annotations
 
 import importlib.util
 import os
 from pathlib import Path
 
-_HOOK = (
-    Path(__file__).resolve().parents[1]
-    / "bin" / "hooks" / "chatlog" / "session_start_capture_check.py"
-)
+_HOOK = Path(__file__).resolve().parents[1] / "bin" / "hooks" / "chatlog" / "session_start_capture_check.py"
 
 
 def _load_hook():
@@ -39,9 +37,7 @@ def test_resolve_db_uses_canonical_engine_root(monkeypatch, tmp_path):
     mod = _load_hook()
     db = mod._resolve_db()
 
-    assert os.path.normcase(db) == os.path.normcase(
-        str(engine / "agent_memory.db")
-    ), db
+    assert os.path.normcase(db) == os.path.normcase(str(engine / "agent_memory.db")), db
     # Must NOT fall back to the repo-relative stale copy.
     assert "hooks" not in db
 

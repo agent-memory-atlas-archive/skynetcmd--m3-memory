@@ -5,6 +5,7 @@ threshold) and delegates to consolidate_beliefs._run, which carries the
 governor/activity yield. Here we test the work-detection gate and that the pass
 short-circuits when there's nothing to do.
 """
+
 from __future__ import annotations
 
 import os
@@ -27,6 +28,7 @@ def _skip_migrations(monkeypatch):
 
 def _db_with_observations(tmp_path, n, *, typ="observation", created="2026-01-01T00:00:00Z"):
     from conftest import create_full_main_schema
+
     db = tmp_path / "t.db"
     create_full_main_schema(db)
     with sqlite3.connect(str(db)) as conn:
@@ -81,8 +83,7 @@ async def test_run_consolidate_pass_skips_when_no_work(tmp_path, monkeypatch):
 
     monkeypatch.setattr(consolidate_beliefs, "_run", _fake_run)
 
-    args = _Args(database=db, consolidate_source_type="observation",
-                 consolidate_threshold=50, consolidate_stale_days=0)
+    args = _Args(database=db, consolidate_source_type="observation", consolidate_threshold=50, consolidate_stale_days=0)
     await cl.run_consolidate_pass(args)
     assert called["run"] is False
 
@@ -101,8 +102,7 @@ async def test_run_consolidate_pass_invokes_job_when_work(tmp_path, monkeypatch)
 
     monkeypatch.setattr(consolidate_beliefs, "_run", _fake_run)
 
-    args = _Args(database=db, consolidate_source_type="observation",
-                 consolidate_threshold=2, consolidate_stale_days=0)
+    args = _Args(database=db, consolidate_source_type="observation", consolidate_threshold=2, consolidate_stale_days=0)
     await cl.run_consolidate_pass(args)
     assert called["run"] is True
     # The loop always passes apply=True; the job enforces the env/idle gate.
@@ -151,8 +151,12 @@ def test_pass_order_rotation_is_stable_over_large_cycle():
 
 def test_pass_order_preserves_relative_sequence():
     # Rotation is a rotation, not a reshuffle: order after the leader is preserved.
-    assert _names(cl._select_pass_order(_PASSES, cycle=1, active=False)) == \
-        ["enrich", "consolidate", "prune", "entities"]
+    assert _names(cl._select_pass_order(_PASSES, cycle=1, active=False)) == [
+        "enrich",
+        "consolidate",
+        "prune",
+        "entities",
+    ]
 
 
 def test_pass_order_empty_is_safe():
@@ -162,10 +166,15 @@ def test_pass_order_empty_is_safe():
 
 # ── Queue-aware selection (has_work filter) ───────────────────────────────────
 
+
 def test_pass_order_none_work_map_is_backcompat():
     # has_work=None (or omitted) must behave exactly like before — rotate all.
-    assert _names(cl._select_pass_order(_PASSES, cycle=0, active=False, has_work=None)) == \
-        ["entities", "enrich", "consolidate", "prune"]
+    assert _names(cl._select_pass_order(_PASSES, cycle=0, active=False, has_work=None)) == [
+        "entities",
+        "enrich",
+        "consolidate",
+        "prune",
+    ]
 
 
 def test_pass_order_throttled_skips_empty_leader_for_backlogged_pass():

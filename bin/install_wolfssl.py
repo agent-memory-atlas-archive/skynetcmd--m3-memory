@@ -34,6 +34,7 @@ Prerequisites: git, plus a C toolchain —
                  dependency: an operator who wants the bar adds ninja to the
                  same build environment that already provides cmake + a compiler.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -58,12 +59,16 @@ DEFAULT_REF = "v5.9.2-stable"
 # Cargo-cult-proof feature set: exactly what crypto_provider.py uses.
 #   AES-GCM (vault), SHA-256 (hashing/audit), PBKDF2 (key derivation).
 _AUTOTOOLS_FLAGS = [
-    "--enable-aesgcm", "--enable-sha256", "--enable-pwdbased",
-    "--disable-examples", "--disable-crypttests",
+    "--enable-aesgcm",
+    "--enable-sha256",
+    "--enable-pwdbased",
+    "--disable-examples",
+    "--disable-crypttests",
 ]
 _CMAKE_FLAGS = [
     "-DBUILD_SHARED_LIBS=ON",
-    "-DWOLFSSL_AESGCM=yes", "-DWOLFSSL_PWDBASED=yes",
+    "-DWOLFSSL_AESGCM=yes",
+    "-DWOLFSSL_PWDBASED=yes",
     "-DWOLFSSL_EXAMPLES=no",
     # Quiet the per-target "Building Custom Rule …" chatter from the generated
     # build files. The real noise is MSVC's analysis warnings (C4820 padding,
@@ -96,7 +101,7 @@ def _log_path() -> str:
 _NINJA_STEP = re.compile(r"^\[(\d+)/(\d+)\]\s+(.*)$")
 _SRC_FILE = re.compile(r"([^/\\]+\.(?:c|cc|cpp))\b")
 
-_BAR_W = 20          # width of the drawn bar (user asked for ~20 chars)
+_BAR_W = 20  # width of the drawn bar (user asked for ~20 chars)
 _HEARTBEAT_S = 15.0  # non-TTY: seconds between plain progress lines
 
 
@@ -123,8 +128,7 @@ def _render_status(frac: float | None, spin: str, tail: str, width: int) -> str:
     return line if len(line) <= width else line[: width - 1] + "…"
 
 
-def _run_quiet(cmd: list[str], cwd: str | None, log: str, note: str,
-               progress: bool = False) -> None:
+def _run_quiet(cmd: list[str], cwd: str | None, log: str, note: str, progress: bool = False) -> None:
     """Run a long, noisy build command without flooding the terminal. Full
     output is streamed to `log` line-by-line (no polling/seek race, nothing
     lost). On a TTY we redraw a single in-place status line — a real bar+percent
@@ -158,8 +162,14 @@ def _run_quiet(cmd: list[str], cwd: str | None, log: str, note: str,
         fh.write(f"\n$ {' '.join(cmd)}\n")
         fh.flush()
         proc = subprocess.Popen(
-            cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, encoding="utf-8", errors="replace", bufsize=1,
+            cmd,
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            bufsize=1,
         )
         stream = proc.stdout
         if stream is None:  # never expected; degrade rather than assert (-O strips asserts)
@@ -182,10 +192,7 @@ def _run_quiet(cmd: list[str], cwd: str | None, log: str, note: str,
                 now = time.monotonic()
                 try:
                     if is_tty:
-                        sys.stdout.write(
-                            "\r\033[K"
-                            + _render_status(frac, next(spinner), tail, width)
-                        )
+                        sys.stdout.write("\r\033[K" + _render_status(frac, next(spinner), tail, width))
                         sys.stdout.flush()
                         drew_status = True
                     elif now - last_beat >= _HEARTBEAT_S:
@@ -224,7 +231,10 @@ def _run_quiet(cmd: list[str], cwd: str | None, log: str, note: str,
 # cmake/clang are installed but not on PATH — probe these too so we don't falsely
 # report a missing prerequisite.
 _EXTRA_TOOL_DIRS = (
-    "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin",
+    "/opt/homebrew/bin",
+    "/usr/local/bin",
+    "/usr/bin",
+    "/bin",
     "/Applications/CMake.app/Contents/bin",
 )
 
@@ -257,8 +267,7 @@ def _m3_lib_dir() -> str:
         base = os.path.dirname(os.path.abspath(os.path.expanduser(cfg)))
     else:
         mem = os.environ.get("M3_MEMORY_ROOT")
-        base = (os.path.abspath(os.path.expanduser(mem)) if mem
-                else os.path.join(os.path.expanduser("~"), ".m3"))
+        base = os.path.abspath(os.path.expanduser(mem)) if mem else os.path.join(os.path.expanduser("~"), ".m3")
     return os.path.join(base, "lib")
 
 
@@ -311,8 +320,10 @@ def _print_macos_prereq_help() -> None:
     else:
         _say("    1) [ok] clang + make present (Xcode Command Line Tools).")
     if have_cmake or have_autotools:
-        _say("    2) [ok] a build system is present — re-run; PATH may just need "
-             "/opt/homebrew/bin (already auto-probed).")
+        _say(
+            "    2) [ok] a build system is present — re-run; PATH may just need "
+            "/opt/homebrew/bin (already auto-probed)."
+        )
         return
     # Need a build system. cmake is one binary (smallest add); autotools = 3.
     if have_brew:
@@ -322,8 +333,10 @@ def _print_macos_prereq_help() -> None:
     else:
         _say("    2) No Homebrew detected. Two light options (pick one):")
         _say("       a) Install Homebrew (one command), then `brew install cmake`:")
-        _say('            /bin/bash -c "$(curl -fsSL '
-             'https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"')
+        _say(
+            '            /bin/bash -c "$(curl -fsSL '
+            'https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+        )
         _say("       b) Or download a standalone CMake .dmg (no Homebrew) from")
         _say("          https://cmake.org/download/ and drag CMake.app to /Applications.")
         _say("          (M3 auto-finds /Applications/CMake.app/Contents/bin.)")
@@ -403,7 +416,10 @@ def _build_cmake(src: str) -> str:
     _run_quiet([cmake, *gen_args, *_CMAKE_FLAGS, src], build, log, "configuring")
     _run_quiet(
         [cmake, "--build", build, "--config", "Release", *build_args],
-        build, log, "compiling (this takes ~1-2 min)", progress=use_ninja,
+        build,
+        log,
+        "compiling (this takes ~1-2 min)",
+        progress=use_ninja,
     )
     found = _find_real_lib(build)
     if found:
@@ -433,8 +449,7 @@ def main(argv: list[str] | None = None) -> int:
 
     dest_dir = args.dest or _m3_lib_dir()
     os.makedirs(dest_dir, exist_ok=True)
-    lib_filename = "wolfssl.dll" if is_windows() else (
-        "libwolfssl.dylib" if is_macos() else "libwolfssl.so")
+    lib_filename = "wolfssl.dll" if is_windows() else ("libwolfssl.dylib" if is_macos() else "libwolfssl.so")
     dest_path = os.path.join(dest_dir, lib_filename)
 
     work = tempfile.mkdtemp(prefix="m3-wolfssl-")
@@ -443,8 +458,7 @@ def main(argv: list[str] | None = None) -> int:
         _say(f"cloning official wolfSSL {args.ref} (shallow) …")
         _run(["git", "clone", "--depth", "1", "--branch", args.ref, WOLFSSL_REPO, src])
 
-        _say(f"building (system={build_system}) with M3's feature set "
-             "(AES-GCM, SHA-256, PBKDF2) …")
+        _say(f"building (system={build_system}) with M3's feature set (AES-GCM, SHA-256, PBKDF2) …")
         built = _build_autotools(src) if build_system == "autotools" else _build_cmake(src)
 
         shutil.copy2(built, dest_path)
@@ -454,7 +468,7 @@ def main(argv: list[str] | None = None) -> int:
         _say("This is the OPEN-SOURCE (non-FIPS) build — works with M3_FIPS_MODE=1.")
         _say("To self-pin your trusted build (recommended):")
         if is_windows():
-            _say(f'  setx M3_WOLFSSL_SHA256 {digest}')
+            _say(f"  setx M3_WOLFSSL_SHA256 {digest}")
         else:
             _say(f"  export M3_WOLFSSL_SHA256={digest}")
         _say("Verify anytime with:  m3 doctor   (crypto section)")

@@ -7,6 +7,7 @@ moving them would have silently ended semantic search over handoffs. The layers
 stay separate and the CODE converges instead -- shared predicate owners, and a
 notification that carries the memory_id rather than a copy of the payload.
 """
+
 from __future__ import annotations
 
 import json
@@ -31,6 +32,7 @@ from memory.orchestration import _db  # noqa: E402
 @pytest.fixture
 def clean(monkeypatch, tmp_path):
     from conftest import create_full_main_schema
+
     db_path = tmp_path / "handoff.db"
     create_full_main_schema(db_path)
     monkeypatch.setenv("M3_DATABASE", str(db_path))
@@ -41,6 +43,7 @@ def clean(monkeypatch, tmp_path):
 
 def _handoff_to(target: str, task: str) -> str:
     from datetime import datetime
+
     new_id = str(uuid.uuid4())
     now = datetime.now(UTC).isoformat()
     with _db() as db:
@@ -49,8 +52,7 @@ def _handoff_to(target: str, task: str) -> str:
             f"INSERT INTO memory_items (id, type, title, content, agent_id, "
             f"scope, metadata_json, created_at, updated_at, is_deleted) "
             f"VALUES ({p}, 'handoff', {p}, {p}, {p}, 'agent', {p}, {p}, {p}, 0)",
-            (new_id, f"Handoff to {target}", task, target,
-             json.dumps({"from_agent": "pytest"}), now, now),
+            (new_id, f"Handoff to {target}", task, target, json.dumps({"from_agent": "pytest"}), now, now),
         )
     return new_id
 
@@ -58,9 +60,7 @@ def _handoff_to(target: str, task: str) -> str:
 def _read_at(mid: str):
     with _db() as db:
         p = dialect().param()
-        row = db.execute(
-            f"SELECT read_at FROM memory_items WHERE id = {p}", (mid,)
-        ).fetchone()
+        row = db.execute(f"SELECT read_at FROM memory_items WHERE id = {p}", (mid,)).fetchone()
     return row["read_at"] if row else None
 
 
@@ -107,10 +107,9 @@ def test_the_notification_carries_the_id_not_a_copy_of_the_payload():
     """Payload decoupling. The queue row must reference the memory, so the text
     keeps ONE owner -- the row that also has the FTS and embedding entries."""
     import inspect
+
     src = inspect.getsource(memory_core.memory_handoff_impl)
-    assert '"memory_id": new_id' in src, (
-        "the handoff notification must carry the memory_id"
-    )
+    assert '"memory_id": new_id' in src, "the handoff notification must carry the memory_id"
     assert '"content": ' not in src.split("notify_impl")[1][:400], (
         "the notification is duplicating the payload instead of referencing it"
     )
@@ -119,6 +118,7 @@ def test_the_notification_carries_the_id_not_a_copy_of_the_payload():
 def test_a_failed_dispatch_is_reported_to_the_caller(monkeypatch, clean):
     """The memory row is committed before the notify, so a swallowed failure
     leaves a handoff nobody was told about while the sender reads 'created'."""
+
     def _boom(*a, **k):
         raise RuntimeError("queue down")
 
@@ -127,8 +127,8 @@ def test_a_failed_dispatch_is_reported_to_the_caller(monkeypatch, clean):
     memory_core.agent_register_impl(f"{clean}@to", "test")
 
     out = memory_core.memory_handoff_impl(
-        from_agent=f"{clean}@from", to_agent=f"{clean}@to", task="t",
+        from_agent=f"{clean}@from",
+        to_agent=f"{clean}@to",
+        task="t",
     )
-    assert "NOT notified" in out, (
-        f"a failed dispatch was reported as a clean success: {out!r}"
-    )
+    assert "NOT notified" in out, f"a failed dispatch was reported as a clean success: {out!r}"

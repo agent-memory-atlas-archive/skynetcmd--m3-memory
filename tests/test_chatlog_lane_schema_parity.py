@@ -22,6 +22,7 @@ These tests read the migration SQL rather than a live database: the guard has to
 work in CI, where no chatlog store exists, and it has to fail on a BAD MIGRATION
 before anyone runs it.
 """
+
 from __future__ import annotations
 
 import pathlib
@@ -140,13 +141,7 @@ def test_chatlog_lane_numbering_has_no_gaps_or_duplicates():
     """A duplicate or skipped number means two migrations race for one slot, or
     the runner's version bookkeeping silently disagrees with the files on disk.
     """
-    nums = sorted(
-        int(m.group(1))
-        for p in _CHAT.glob("*.up.sql")
-        if (m := re.match(r"(\d+)_", p.name))
-    )
+    nums = sorted(int(m.group(1)) for p in _CHAT.glob("*.up.sql") if (m := re.match(r"(\d+)_", p.name)))
     assert nums, "no numbered migrations found in the chatlog lane"
     assert len(nums) == len(set(nums)), f"duplicate migration numbers: {nums}"
-    assert nums == list(range(1, len(nums) + 1)), (
-        f"chatlog migration numbering has a gap: {nums}"
-    )
+    assert nums == list(range(1, len(nums) + 1)), f"chatlog migration numbering has a gap: {nums}"

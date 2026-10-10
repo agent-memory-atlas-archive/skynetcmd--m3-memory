@@ -6,6 +6,7 @@ relies on a handful of structural invariants that no single tool definition is
 forced to honor on its own. This file pins them so a malformed ToolSpec (or a
 new complex-arg tool the CLI codegen hasn't special-cased) fails CI loudly.
 """
+
 from __future__ import annotations
 
 import os
@@ -51,9 +52,7 @@ def test_every_spec_maps_to_a_known_domain():
     """No tool should silently fall through to the 'admin' catch-all without an
     explicit prefix rule in tool_domains._DOMAIN_PREFIXES. Same logic as
     tests/test_lazy_tool_loading.py::test_every_catalog_tool_maps_to_a_known_domain."""
-    intentional_admin_prefixes = {
-        p for p, d in tool_domains._DOMAIN_PREFIXES if d == "admin"
-    }
+    intentional_admin_prefixes = {p for p, d in tool_domains._DOMAIN_PREFIXES if d == "admin"}
     orphans = []
     for spec in mcp_tool_catalog.TOOLS:
         # Meta-tools (tools_*) intentionally land in admin via the prefix fallback.
@@ -61,8 +60,7 @@ def test_every_spec_maps_to_a_known_domain():
             continue
         if tool_domains.domain_of_tool(spec.name) != "admin":
             continue
-        if not any(spec.name == p or spec.name.startswith(p)
-                   for p in intentional_admin_prefixes):
+        if not any(spec.name == p or spec.name.startswith(p) for p in intentional_admin_prefixes):
             orphans.append(spec.name)
     assert not orphans, (
         f"Tool(s) fell through to the 'admin' catch-all without an explicit "
@@ -99,12 +97,19 @@ def test_complex_arg_tool_set_is_pinned():
     """
     dispatcher_excluded = {"m3_call", "m3_index"}
     found = {
-        spec.name for spec in mcp_tool_catalog.TOOLS
+        spec.name
+        for spec in mcp_tool_catalog.TOOLS
         if spec.name not in dispatcher_excluded and _is_complex_arg_spec(spec)
     }
     expected = {
-        "notify", "agent_register", "curate_chatlog_apply", "memory_update_bulk",
-        "curate_memory_apply", "memory_link_bulk", "task_create", "task_update",
+        "notify",
+        "agent_register",
+        "curate_chatlog_apply",
+        "memory_update_bulk",
+        "curate_memory_apply",
+        "memory_link_bulk",
+        "task_create",
+        "task_update",
         # gdpr_forget takes an optional `compliance` object (Art. 17 erasure
         # context for the audit trail). Codegen already handles it: `m3 admin
         # gdpr_forget --help` renders the `--json OBJ` structured-argument

@@ -4,6 +4,7 @@ setup_memory.py — Bootstrap the m3-memory memory system on any OS.
 Usage: python bin/setup_memory.py
 All progress logged to stderr; final config JSON printed to stdout.
 """
+
 import json
 import os
 import pathlib
@@ -11,7 +12,7 @@ import sqlite3
 import subprocess
 import sys
 
-BASE   = pathlib.Path(__file__).parent.parent.resolve()
+BASE = pathlib.Path(__file__).parent.parent.resolve()
 IS_WIN = sys.platform == "win32"
 
 
@@ -39,15 +40,18 @@ from generate_configs import _is_installed_layout  # noqa: E402
 # wrong BASE. On an installed layout the interpreter already running this code
 # IS the payload's interpreter, so use it and create nothing.
 _INSTALLED = _is_installed_layout(str(BASE))  # delegate takes a str, not a Path
-VENV   = None if _INSTALLED else BASE / ".venv"
+VENV = None if _INSTALLED else BASE / ".venv"
 # (PIP was defined here and never used; dropped rather than set to None, which
 # would hand a later caller a NoneType error instead of a NameError naming it.)
-PY = (pathlib.Path(sys.executable) if VENV is None  # VENV is None exactly when installed
-      else VENV / ("Scripts/python.exe" if IS_WIN else "bin/python"))
+PY = (
+    pathlib.Path(sys.executable)
+    if VENV is None  # VENV is None exactly when installed
+    else VENV / ("Scripts/python.exe" if IS_WIN else "bin/python")
+)
 # Prefer a Windows-specific requirements file if one exists, else fall back to the
 # common requirements.txt (the windows variant is optional and may be absent).
 _req_win = BASE / "requirements-windows.txt"
-REQS   = _req_win if (IS_WIN and _req_win.exists()) else BASE / "requirements.txt"
+REQS = _req_win if (IS_WIN and _req_win.exists()) else BASE / "requirements.txt"
 # Bootstrap honors --database (positional for simplicity) and M3_DATABASE env.
 # Called before m3_sdk is importable in a fresh checkout, so resolution is
 # kept self-contained rather than delegated to resolve_db_path.
@@ -58,13 +62,17 @@ elif "--database" in sys.argv:
     i = sys.argv.index("--database")
     if i + 1 < len(sys.argv):
         _override = sys.argv[i + 1]
-DB     = pathlib.Path(_override or os.environ.get("M3_DATABASE") or (BASE / "memory" / "agent_memory.db"))
-MIGS   = BASE / "memory" / "migrations"
+DB = pathlib.Path(_override or os.environ.get("M3_DATABASE") or (BASE / "memory" / "agent_memory.db"))
+MIGS = BASE / "memory" / "migrations"
 
-def log(msg): print(f"[setup] {msg}", file=sys.stderr)
+
+def log(msg):
+    print(f"[setup] {msg}", file=sys.stderr)
+
 
 def run(*args, **kw):
     subprocess.run(args, check=True, **kw)
+
 
 def _nested_venv_path() -> "pathlib.Path | None":
     """The doomed venv a pre-#142 installer built INSIDE the installed payload.
@@ -74,6 +82,7 @@ def _nested_venv_path() -> "pathlib.Path | None":
     """
     try:
         import m3_memory
+
         pkg = pathlib.Path(m3_memory.__file__).resolve().parent
     except Exception:  # noqa: BLE001
         return None
@@ -111,6 +120,7 @@ def remove_stale_nested_venv(dry_run: bool = False) -> "str | None":
         return f"would remove stale nested venv: {nested}"
     try:
         import shutil as _shutil
+
         _shutil.rmtree(nested)
     except Exception as exc:  # noqa: BLE001
         return (
@@ -119,6 +129,7 @@ def remove_stale_nested_venv(dry_run: bool = False) -> "str | None":
             f"interpreter patch bump"
         )
     return f"removed stale nested venv: {nested}"
+
 
 # 1. Create venv — only for a source checkout; an installed payload reuses the
 #    interpreter that launched us (see the resolution note above).
@@ -167,10 +178,7 @@ def _mig_key(p):
 
 conn = sqlite3.connect(str(DB))
 if MIGS.exists():
-    forward = [
-        p for p in MIGS.glob("*.sql")
-        if not p.name.endswith(".down.sql")
-    ]
+    forward = [p for p in MIGS.glob("*.sql") if not p.name.endswith(".down.sql")]
     for sql_file in sorted(forward, key=_mig_key):
         log(f"  Applying {sql_file.name} ...")
         conn.executescript(sql_file.read_text(encoding="utf-8"))
@@ -179,7 +187,7 @@ conn.close()
 log("Migrations complete.")
 
 # 5. Print MCP config
-py_path   = str(PY).replace("\\", "\\\\")
+py_path = str(PY).replace("\\", "\\\\")
 base_path = str(BASE).replace("\\", "\\\\")
 
 config = {

@@ -17,6 +17,7 @@ check confirmed the plist was REGISTERED, never that the process ran.
 The artifact is present on the Windows box too (verified 2026-09-12), dormant
 only because its tasks were repointed by hand.
 """
+
 from __future__ import annotations
 
 import ast
@@ -57,10 +58,9 @@ def test_the_cleanup_exists_and_is_wired_into_the_installed_path():
     src = _SRC.read_text(encoding="utf-8")
     assert "def remove_stale_nested_venv" in src
     idx = src.index("if _INSTALLED:")
-    window = src[idx:idx + 500]
+    window = src[idx : idx + 500]
     assert "remove_stale_nested_venv()" in window, (
-        "cleanup is not called on the installed-layout branch, so the artifact "
-        "survives every upgrade"
+        "cleanup is not called on the installed-layout branch, so the artifact survives every upgrade"
     )
 
 
@@ -73,9 +73,7 @@ def test_a_source_checkout_venv_is_never_swept():
     matter: resolution alone could still point at a real venv.
     """
     src = _SRC.read_text(encoding="utf-8")
-    assert "import m3_memory" in src, (
-        "resolution must go through the package, not a hardcoded path"
-    )
+    assert "import m3_memory" in src, "resolution must go through the package, not a hardcoded path"
     # The call site must be gated on _INSTALLED, not unconditional.
     idx = src.index("remove_stale_nested_venv()")
     assert "_INSTALLED" in src[:idx], "the sweep is not gated on an installed layout"
@@ -90,11 +88,9 @@ def test_failure_to_remove_is_reported_not_raised():
     # OSError. The file on disk is the thing under test anyway.
     full = _SRC.read_text(encoding="utf-8")
     start = full.index("def remove_stale_nested_venv")
-    src = full[start:start + 2200]
+    src = full[start : start + 2200]
     assert "except Exception" in src, "a delete failure must not propagate"
-    assert "could NOT remove" in src, (
-        "a swallowed delete failure leaves the hazard in place silently"
-    )
+    assert "could NOT remove" in src, "a swallowed delete failure leaves the hazard in place silently"
     assert "by hand" in src, "the operator is not told what to do about it"
 
 
@@ -104,9 +100,7 @@ def test_returns_none_when_there_is_nothing_to_remove():
     when nothing is wrong as a violation in its own right."""
     ns = _load_helpers()
     # In this dev checkout there is no nested venv under the imported package.
-    assert ns["remove_stale_nested_venv"](dry_run=True) is None, (
-        "reported an action on a system with no nested venv"
-    )
+    assert ns["remove_stale_nested_venv"](dry_run=True) is None, "reported an action on a system with no nested venv"
 
 
 def test_dry_run_does_not_delete(tmp_path, monkeypatch):

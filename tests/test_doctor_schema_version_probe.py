@@ -3,6 +3,7 @@
 It counted only the legacy `schema_migrations`, which a current store does not
 have, so the field was always None and a bare except hid why.
 """
+
 from __future__ import annotations
 
 import contextlib

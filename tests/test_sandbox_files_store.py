@@ -6,6 +6,7 @@ in-process files_stats call in a test returned the developer's live
 files_database.db (measured 2026-10-08: 20 files, 218 leaves). Files tools that
 write could have modified that store.
 """
+
 from __future__ import annotations
 
 import importlib
@@ -14,8 +15,7 @@ from pathlib import Path
 
 
 def _inside(path: str, root: Path) -> bool:
-    return os.path.normcase(os.path.abspath(path)).startswith(
-        os.path.normcase(str(root.resolve())))
+    return os.path.normcase(os.path.abspath(path)).startswith(os.path.normcase(str(root.resolve())))
 
 
 def test_files_store_resolves_inside_the_test_sandbox(tmp_path):

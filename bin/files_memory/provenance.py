@@ -35,6 +35,7 @@ No schema change: the data lives in file_nodes.metadata JSON under the
 "provenance" key. Readers (files_search, files_get, files_index) check
 for it and surface original_path when present.
 """
+
 from __future__ import annotations
 
 import json

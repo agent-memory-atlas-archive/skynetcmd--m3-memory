@@ -32,6 +32,7 @@ def _run(agent, prompt, **kw):
     which the suite treats as an error, and the stdlib raises there from 3.14.
     These tests are about m3's toolset inside an Agent, not that sync wrapper."""
     import asyncio
+
     return asyncio.run(agent.run(prompt, **kw))
 
 

@@ -55,6 +55,7 @@ def _db(*args, **kwargs):
     override = None
     try:
         import memory_core as _mc
+
         override = getattr(_mc, "_db", None)
     except ImportError:
         pass
@@ -68,6 +69,8 @@ def _db(*args, **kwargs):
     # wrapper's ONLY remaining job is honoring the memory_core._db test override
     # above; delegate everything else to the canonical helper.
     return _canonical_db(*args, **kwargs)
+
+
 from m3_core.errors import log_swallowed
 
 from .embed import (
@@ -104,16 +107,22 @@ _BULK_CONCURRENCY_DEFAULT = 2
 _BULK_CONCURRENCY_WARNED: set[str] = set()
 
 
-def _warn_ignored_bulk_concurrency(fact_enricher_concurrency: int,
-                                   entity_extractor_concurrency: int) -> None:
-    for name, value in (("fact_enricher_concurrency", fact_enricher_concurrency),
-                        ("entity_extractor_concurrency", entity_extractor_concurrency)):
+def _warn_ignored_bulk_concurrency(fact_enricher_concurrency: int, entity_extractor_concurrency: int) -> None:
+    for name, value in (
+        ("fact_enricher_concurrency", fact_enricher_concurrency),
+        ("entity_extractor_concurrency", entity_extractor_concurrency),
+    ):
         if value != _BULK_CONCURRENCY_DEFAULT and name not in _BULK_CONCURRENCY_WARNED:
             _BULK_CONCURRENCY_WARNED.add(name)
             logger.warning(
                 "memory_write_bulk_impl ignores %s; observed: %s=%r. Concurrency is "
                 "process-wide so the shared model servers stay protected. inspect: the "
-                "%r setting", name, name, value, _BULK_CONCURRENCY_SETTINGS[name])
+                "%r setting",
+                name,
+                name,
+                value,
+                _BULK_CONCURRENCY_SETTINGS[name],
+            )
 
 
 # ── Internal callback registry ──────────────────────────────────────────────
@@ -133,17 +142,20 @@ _MC_CALLBACK_NAMES = (
 _track_cost: Callable[..., object] = None  # type: ignore[assignment]  # None until _resolve_mc_callbacks() binds it
 _record_history: Callable[..., object] = None  # type: ignore[assignment]  # None until _resolve_mc_callbacks() binds it
 
+
 def _resolve_mc_callbacks() -> None:
     global _MC_CALLBACKS_BOUND
     if _MC_CALLBACKS_BOUND:
         return
     try:
         import memory_core
+
         for name in _MC_CALLBACK_NAMES:
             globals()[name] = getattr(memory_core, name)
         _MC_CALLBACKS_BOUND = True
     except (ImportError, AttributeError) as e:
         logger.warning(f"Failed to bind memory_core callbacks for write path: {e}")
+
 
 def _ctx() -> M3Context:
     return M3Context.for_db(resolve_db_path(None))
@@ -167,6 +179,7 @@ def _derive_confidence(*, source, change_agent, metadata, explicit=-1.0) -> floa
     (>= 0) overrides derivation; otherwise aggregate from provenance + any
     Observer-SLM confidence in metadata. Pure — no DB."""
     from . import confidence as _conf
+
     if explicit is not None and explicit >= 0.0:
         return _conf.clamp01(float(explicit))
     return _conf.aggregate(
@@ -205,9 +218,7 @@ def memory_link_impl(from_id: str, to_id: str, relationship_type: str = "related
 
     _d = dialect()
     _ins = _d.insert_or_ignore()
-    _suffix = _d.on_conflict_ignore(
-        conflict_target="(from_id, to_id, relationship_type)"
-    )
+    _suffix = _d.on_conflict_ignore(conflict_target="(from_id, to_id, relationship_type)")
     # Supply the `id` PK. On SQLite a TEXT PRIMARY KEY tolerates NULL (SQLite quirk),
     # so the old id-less insert worked there — but on PostgreSQL a PRIMARY KEY is
     # strictly NOT NULL and the insert raised NotNullViolation. A fresh uuid each
@@ -223,9 +234,12 @@ def memory_link_impl(from_id: str, to_id: str, relationship_type: str = "related
     # Internal callers may also write the internal types (distills_from); the
     # memory_link tool's schema enum offers an agent only the public set.
     from catalog.spec import INTERNAL_RELATIONSHIP_TYPES, VALID_RELATIONSHIP_TYPES
+
     if relationship_type not in VALID_RELATIONSHIP_TYPES | INTERNAL_RELATIONSHIP_TYPES:
-        return (f"Error: invalid relationship_type. observed: {relationship_type!r}. "
-                f"inspect: one of {sorted(VALID_RELATIONSHIP_TYPES)} (catalog.spec)")
+        return (
+            f"Error: invalid relationship_type. observed: {relationship_type!r}. "
+            f"inspect: one of {sorted(VALID_RELATIONSHIP_TYPES)} (catalog.spec)"
+        )
     _p = _d.param()
     rid = str(_uuid.uuid4())
     # A caller-supplied connection is used AS IS: the caller's own context owns
@@ -233,24 +247,53 @@ def memory_link_impl(from_id: str, to_id: str, relationship_type: str = "related
     # that accept an `existing` argument; the canonical `_db()` takes none, so
     # every production `db=` caller (distillation, consolidation) raised
     # TypeError after its memory write had already landed.
-    with (nullcontext(db) if db is not None else _db()) as db_conn:
+    with nullcontext(db) if db is not None else _db() as db_conn:
         for mid in (from_id, to_id):
             if not db_conn.execute(f"SELECT 1 FROM memory_items WHERE id = {_p}", (mid,)).fetchone():
                 return f"Error: memory not found. observed: {mid}. inspect: memory_get {mid}"
         cur = db_conn.execute(
             f"{_ins} memory_relationships (id, from_id, to_id, relationship_type) "
             f"VALUES ({_d.placeholder(4)}) {_suffix}".rstrip(),
-            (rid, from_id, to_id, relationship_type)
+            (rid, from_id, to_id, relationship_type),
         )
         if cur.rowcount == 0:  # the (from, to, type) arbiter: already linked
             row = db_conn.execute(
                 f"SELECT id FROM memory_relationships WHERE from_id = {_p} AND to_id = {_p} "
-                f"AND relationship_type = {_p}", (from_id, to_id, relationship_type)).fetchone()
+                f"AND relationship_type = {_p}",
+                (from_id, to_id, relationship_type),
+            ).fetchone()
             return f"Link already exists: {row[0] if row else '?'}"
     return f"Linked: {from_id} --[{relationship_type}]--> {to_id} (id: {rid})"
 
+
 async def memory_write_impl(
-type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="", importance=0.5, source="agent", embed=True, user_id="", scope="agent", valid_from="", valid_to="", auto_classify=False, conversation_id="", refresh_on="", refresh_reason="", variant=None, embed_text=None, confidence: float = -1.0, fact_enricher: Callable[[str], Awaitable[list[dict]]] | None = None, fact_enricher_variant_allowlist: set[str] | None = None, entity_extractor: Callable[[str], Awaitable[dict]] | None = None, entity_extractor_variant_allowlist: set[str] | None = None, check_contradictions: bool = True):
+    type,
+    content,
+    title="",
+    metadata="{}",
+    agent_id="",
+    model_id="",
+    change_agent="",
+    importance=0.5,
+    source="agent",
+    embed=True,
+    user_id="",
+    scope="agent",
+    valid_from="",
+    valid_to="",
+    auto_classify=False,
+    conversation_id="",
+    refresh_on="",
+    refresh_reason="",
+    variant=None,
+    embed_text=None,
+    confidence: float = -1.0,
+    fact_enricher: Callable[[str], Awaitable[list[dict]]] | None = None,
+    fact_enricher_variant_allowlist: set[str] | None = None,
+    entity_extractor: Callable[[str], Awaitable[dict]] | None = None,
+    entity_extractor_variant_allowlist: set[str] | None = None,
+    check_contradictions: bool = True,
+):
     _resolve_mc_callbacks()
     """Internal implementation for memory_write.
 
@@ -289,6 +332,7 @@ type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="
         write_through = os.environ.get("M3_EXTRACTION_WRITE_THROUGH", "0").lower() in ("1", "true", "yes")
         if write_through or os.environ.get("M3_EXTRACTION_TYPE"):
             from .extraction import get_configured_extractor
+
             ext = get_configured_extractor()
             entity_extractor = ext.extract
 
@@ -312,12 +356,7 @@ type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="
     # See bulk-write impl for the same gate + history (task #189, memory
     # 372f49b0). Mirrored here for the singleton path so misconfigured
     # bench callers who write items individually don't slip through.
-    if (
-        type == "summary"
-        and isinstance(title, str)
-        and title.startswith("window:")
-        and not variant
-    ):
+    if type == "summary" and isinstance(title, str) and title.startswith("window:") and not variant:
         return (
             "Error: window:* summary rows require an explicit variant "
             "(rejected to prevent core-memory leak; see task #189)."
@@ -353,6 +392,7 @@ type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="
     expires_at = None
     if scope == "session":
         from datetime import timedelta
+
         expires_at = (datetime.now(UTC) + timedelta(hours=24)).isoformat()
 
     # Opt-in ingest-time enrichment (env-gated, fail-open).
@@ -394,9 +434,33 @@ type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="
         _rreason = refresh_reason or None
         _variant = variant  # "" already normalised to None at entry
         db.execute(
-            ("INSERT INTO memory_items (id, type, title, content, metadata_json, agent_id, model_id, change_agent, importance, source, origin_device, user_id, scope, expires_at, created_at, valid_from, valid_to, conversation_id, refresh_on, refresh_reason, variant) "
-            f"VALUES ({_d1.placeholder(21)})").rstrip(),
-            (item_id, type, title, content, metadata, agent_id, model_id, agent, importance, source, ORIGIN_DEVICE, user_id, scope, expires_at, now, _vf, _vt, _cid, _ron, _rreason, _variant)
+            (
+                "INSERT INTO memory_items (id, type, title, content, metadata_json, agent_id, model_id, change_agent, importance, source, origin_device, user_id, scope, expires_at, created_at, valid_from, valid_to, conversation_id, refresh_on, refresh_reason, variant) "
+                f"VALUES ({_d1.placeholder(21)})"
+            ).rstrip(),
+            (
+                item_id,
+                type,
+                title,
+                content,
+                metadata,
+                agent_id,
+                model_id,
+                agent,
+                importance,
+                source,
+                ORIGIN_DEVICE,
+                user_id,
+                scope,
+                expires_at,
+                now,
+                _vf,
+                _vt,
+                _cid,
+                _ron,
+                _rreason,
+                _variant,
+            ),
         )
         # Stamp content_hash and (knowledge-maintenance P1) first-class confidence
         # in ONE post-INSERT UPDATE on the common path (§4 efficiency: no extra
@@ -407,9 +471,7 @@ type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="
         # NULL confidence reads as "fall back to importance" everywhere, so
         # flag-off behavior is unchanged.
         _chash = _sha256_hex((content or "").encode("utf-8"))
-        _conf = _derive_confidence(
-            source=source, change_agent=agent, metadata=metadata, explicit=confidence
-        )
+        _conf = _derive_confidence(source=source, change_agent=agent, metadata=metadata, explicit=confidence)
         _p1 = _d1.param()
         try:
             db.execute(
@@ -419,8 +481,7 @@ type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="
         except Exception as e:  # noqa: BLE001 — pre-035 DB lacks `confidence`
             if not _is_missing_confidence_column(e):
                 raise
-            db.execute(f"UPDATE memory_items SET content_hash = {_p1} WHERE id = {_p1}",
-                       (_chash, item_id))
+            db.execute(f"UPDATE memory_items SET content_hash = {_p1} WHERE id = {_p1}", (_chash, item_id))
 
     vec = None
     # Zero-lag guard (§3/§8): only embed INLINE when a fast tier is available
@@ -445,12 +506,11 @@ type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="
         _embed_deferred = True
         logger.info(
             "memory_write_impl: no fast embedder available; deferring embedding "
-            "for %s to embed_backfill (row persisted, FTS-searchable now)", item_id
+            "for %s to embed_backfill (row persisted, FTS-searchable now)",
+            item_id,
         )
     if embed:
-        _et = _augment_embed_text_with_anchors(
-            embed_text or content or title, metadata
-        )
+        _et = _augment_embed_text_with_anchors(embed_text or content or title, metadata)
         # Sliding window: short inputs return a single (text, 0) and produce
         # one vector_kind='default' row (back-compat). Long inputs return N
         # windows and produce N vector_kind='window_<idx>' rows. Retrieval
@@ -464,7 +524,8 @@ type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="
         _direct_embedder = _get_embedded_embedder()
 
         async def _embed_chunk_with_dense_recovery(
-            txt: str, base_kind: str,
+            txt: str,
+            base_kind: str,
         ) -> list[tuple[str, str, list[float], str]]:
             """Embed one chunk, recovering from dense-overflow if needed.
 
@@ -484,9 +545,7 @@ type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="
             # In-process path: catch input-too-long, recurse with smaller
             # sub-chunks sized by the observed chars/token ratio.
             try:
-                cvec = await asyncio.to_thread(
-                    lambda: _direct_embedder.embed([txt])[0]
-                )
+                cvec = await asyncio.to_thread(lambda: _direct_embedder.embed([txt])[0])
                 if cvec:
                     _record_embed_backend(_embedded_label(), 1)
                     return [(txt, "", cvec, _EMBED_GGUF_MODEL_TAG)]
@@ -507,7 +566,9 @@ type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="
                         "cause: %s. effect: this text is FTS-searchable but NOT "
                         "semantically searchable. try: `m3 embedder backfill` "
                         "once the cause is resolved.",
-                        item_id, base_kind, err,
+                        item_id,
+                        base_kind,
+                        err,
                     )
                     return []
                 observed_tokens = int(rmatch.group(1))
@@ -515,14 +576,16 @@ type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="
                 logger.info(
                     f"memory_write_impl: dense overflow on {item_id} chunk base_kind={base_kind} "
                     f"({observed_tokens} tokens for {len(txt)} chars => "
-                    f"{len(txt)/observed_tokens:.2f} c/t); subdividing into {len(subs)} sub-chunks"
+                    f"{len(txt) / observed_tokens:.2f} c/t); subdividing into {len(subs)} sub-chunks"
                 )
                 results: list[tuple[str, str, list[float], str]] = []
                 dropped: list[int] = []
                 for j, sub in enumerate(subs):
                     try:
+
                         def _embed_one(s: str = sub) -> list[float]:
                             return _direct_embedder.embed([s])[0]
+
                         sv = await asyncio.to_thread(_embed_one)
                         if sv:
                             results.append((sub, f"_dense_{j}", sv, _EMBED_GGUF_MODEL_TAG))
@@ -535,8 +598,7 @@ type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="
                     except Exception as se:
                         dropped.append(j)
                         logger.warning(
-                            f"memory_write_impl: dense sub-chunk {j} of {len(subs)} still "
-                            f"failed for {item_id}: {se}"
+                            f"memory_write_impl: dense sub-chunk {j} of {len(subs)} still failed for {item_id}: {se}"
                         )
                 if dropped:
                     # PARTIAL COVERAGE IS THE FAILURE MODE HERE. Sub-chunks are
@@ -554,7 +616,11 @@ type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="
                         "the memory row and FTS index are intact. "
                         "review: M3_EMBED_TOKEN_BUDGET; re-run `m3 embedder backfill` "
                         "after fixing to regenerate.",
-                        item_id, base_kind, len(dropped), len(subs), dropped,
+                        item_id,
+                        base_kind,
+                        len(dropped),
+                        len(subs),
+                        dropped,
                     )
                 return results
 
@@ -580,16 +646,16 @@ type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="
             base_kind = "default" if chunk_idx == 0 else f"window_{chunk_idx}"
             sub_results = await _embed_chunk_with_dense_recovery(chunk_text, base_kind)
             if not sub_results:
-                logger.warning(
-                    f"memory_write_impl: embed failed for {item_id} chunk {chunk_idx}; skipping that window"
-                )
+                logger.warning(f"memory_write_impl: embed failed for {item_id} chunk {chunk_idx}; skipping that window")
                 continue
             for sub_text, kind_suffix, cvec, m in sub_results:
                 kind = base_kind + kind_suffix
                 with _db() as db:
                     db.execute(
-                        ("INSERT INTO memory_embeddings (id, memory_id, embedding, embed_model, dim, created_at, content_hash, vector_kind) "
-                        f"VALUES ({_d1.placeholder(8)})").rstrip(),
+                        (
+                            "INSERT INTO memory_embeddings (id, memory_id, embedding, embed_model, dim, created_at, content_hash, vector_kind) "
+                            f"VALUES ({_d1.placeholder(8)})"
+                        ).rstrip(),
                         (str(uuid.uuid4()), item_id, _pack(cvec), m, len(cvec), now, _content_hash(sub_text), kind),
                     )
                 any_inserted = True
@@ -603,8 +669,7 @@ type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="
             vec = first_vec
         else:
             logger.warning(
-                f"memory_write_impl: all embed calls failed for {item_id}; "
-                f"skipping memory_embeddings insert"
+                f"memory_write_impl: all embed calls failed for {item_id}; skipping memory_embeddings insert"
             )
 
     _record_history(item_id, "create", None, content, "content", agent_id or agent)
@@ -613,7 +678,9 @@ type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="
     # Always succeeds — verbatim row is already persisted before enrichment.
     try:
         with _db() as db:
-            await _try_enrich_or_enqueue(item_id, content or "", fact_enricher, db, variant=variant, allowlist=fact_enricher_variant_allowlist)
+            await _try_enrich_or_enqueue(
+                item_id, content or "", fact_enricher, db, variant=variant, allowlist=fact_enricher_variant_allowlist
+            )
     except Exception as e:
         log_swallowed(logger, e, f"fact enrichment dispatch failed: {e}")
 
@@ -623,8 +690,12 @@ type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="
         try:
             with _db() as db:
                 await _try_extract_or_enqueue(
-                    item_id, content or "", entity_extractor, db,
-                    variant=variant, allowlist=entity_extractor_variant_allowlist,
+                    item_id,
+                    content or "",
+                    entity_extractor,
+                    db,
+                    variant=variant,
+                    allowlist=entity_extractor_variant_allowlist,
                 )
         except Exception as e:
             log_swallowed(logger, e, f"entity extraction dispatch failed: {e}")
@@ -639,7 +710,13 @@ type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="
     # exclusion isn't silently ignored on the singleton hot path (§5).
     if check_contradictions and vec and type not in CONTRADICTION_TYPE_EXCLUSIONS:
         superseded_ids, related_candidates = await _check_contradictions(
-            item_id, content, title, vec, type, agent_id, variant=variant,
+            item_id,
+            content,
+            title,
+            vec,
+            type,
+            agent_id,
+            variant=variant,
             user_id=user_id,
         )
         # Auto-link top related (non-contradictory) memory. Gated by
@@ -652,7 +729,9 @@ type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="
                 memory_link_impl(item_id, best_id, "related")
                 logger.debug(f"Auto-linked {item_id} -> {best_id} (score={best_score:.3f})")
             except Exception as le:  # noqa: BLE001 — logged; the caller carries on
-                logger.warning(f"auto-link failed; observed: {item_id} -> {best_id} not linked ({type(le).__name__}: {le}). inspect: memory_link on those ids")
+                logger.warning(
+                    f"auto-link failed; observed: {item_id} -> {best_id} not linked ({type(le).__name__}: {le}). inspect: memory_link on those ids"
+                )
 
     # Opt-in ingestion emitters. Each one is gated off by default and fails
     # open — errors are logged but never propagate to the caller. They only
@@ -661,9 +740,7 @@ type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="
     if type == "message" and _cid:
         try:
             if INGEST_EVENT_ROWS:
-                await _maybe_emit_event_rows(
-                    content or "", metadata, _cid, user_id, item_id
-                )
+                await _maybe_emit_event_rows(content or "", metadata, _cid, user_id, item_id)
             if INGEST_WINDOW_CHUNKS:
                 await _maybe_emit_window_chunk(_cid, user_id)
             if INGEST_GIST_ROWS:
@@ -737,9 +814,7 @@ def _mark_superseded(
         )
     else:
         cur = db.execute(
-            f"UPDATE memory_items SET is_deleted = 1, "
-            f"valid_to = {_vt}, updated_at = {p} "
-            f"WHERE id = {p}",
+            f"UPDATE memory_items SET is_deleted = 1, valid_to = {_vt}, updated_at = {p} WHERE id = {p}",
             (close_at, now_iso, old_id),
         )
     if require_active and cur.rowcount != 1:
@@ -750,9 +825,7 @@ def _mark_superseded(
     # safe. ON CONFLICT DO NOTHING via the dialect is belt-and-suspenders and
     # keeps a retry idempotent on both backends.
     _ins = _d.insert_or_ignore()
-    _suffix = _d.on_conflict_ignore(
-        conflict_target="(from_id, to_id, relationship_type)"
-    )
+    _suffix = _d.on_conflict_ignore(conflict_target="(from_id, to_id, relationship_type)")
     db.execute(
         f"{_ins} memory_relationships "
         f"(id, from_id, to_id, relationship_type, created_at) "
@@ -825,16 +898,14 @@ async def memory_supersede_impl(
     _psup = _dsup.param()
     with _db() as db:
         row = db.execute(
-            "SELECT type, title, importance, scope, is_deleted "
-            f"FROM memory_items WHERE id = {_psup}",
+            f"SELECT type, title, importance, scope, is_deleted FROM memory_items WHERE id = {_psup}",
             (old_id,),
         ).fetchone()
     if row is None:
         return f"Error: memory {old_id} not found — nothing to supersede"
     if row["is_deleted"]:
         return (
-            f"Error: memory {old_id} is already deleted/superseded "
-            "(supersede an active memory, or write a fresh one)"
+            f"Error: memory {old_id} is already deleted/superseded (supersede an active memory, or write a fresh one)"
         )
 
     # 2. Inherit unspecified fields from the old memory — the caller passes
@@ -878,10 +949,7 @@ async def memory_supersede_impl(
     try:
         uuid.UUID(new_id)
     except (ValueError, AttributeError):
-        return (
-            f"Error: could not parse new memory id from memory_write result "
-            f"({write_result!r}); supersede aborted"
-        )
+        return f"Error: could not parse new memory id from memory_write result ({write_result!r}); supersede aborted"
 
     # 4. Close the old memory's validity interval via the shared helper. With
     #    require_active=True its UPDATE is gated on is_deleted=0 and the return
@@ -890,8 +958,12 @@ async def memory_supersede_impl(
     close_at = valid_from or datetime.now(UTC).isoformat()
     with _db() as db:
         won_race = _mark_superseded(
-            old_id, new_id, close_at=close_at, db=db,
-            actor_id=agent_id, require_active=True,
+            old_id,
+            new_id,
+            close_at=close_at,
+            db=db,
+            actor_id=agent_id,
+            require_active=True,
         )
 
     if not won_race:
@@ -900,8 +972,7 @@ async def memory_supersede_impl(
         try:
             with _db() as db:
                 db.execute(
-                    f"UPDATE memory_items SET is_deleted = 1, updated_at = {_psup} "
-                    f"WHERE id = {_psup}",
+                    f"UPDATE memory_items SET is_deleted = 1, updated_at = {_psup} WHERE id = {_psup}",
                     (datetime.now(UTC).isoformat(), new_id),
                 )
         except Exception as e:  # pragma: no cover - best-effort cleanup
@@ -914,10 +985,11 @@ async def memory_supersede_impl(
     logger.info(f"Memory {new_id} explicitly supersedes {old_id} (valid_to={close_at})")
     try:
         from audit_trail import write_audit_entry
+
         write_audit_entry(
             action="memory_supersede",
             target_id=old_id,
-            metadata={"new_id": new_id, "valid_to": close_at, "agent_id": agent_id}
+            metadata={"new_id": new_id, "valid_to": close_at, "agent_id": agent_id},
         )
     except Exception as e:
         logger.warning(f"Failed to write audit trail entry for supersede: {e}")
@@ -925,7 +997,6 @@ async def memory_supersede_impl(
 
 
 async def memory_write_bulk_impl(
-
     items: list[dict],
     *,
     enrich: bool | None = None,
@@ -982,6 +1053,7 @@ async def memory_write_bulk_impl(
         write_through = os.environ.get("M3_EXTRACTION_WRITE_THROUGH", "0").lower() in ("1", "true", "yes")
         if write_through or os.environ.get("M3_EXTRACTION_TYPE"):
             from .extraction import get_configured_extractor
+
             ext = get_configured_extractor()
             entity_extractor = ext.extract
     if not items:
@@ -999,11 +1071,8 @@ async def memory_write_bulk_impl(
             scope = "agent"
         content = it.get("content") or ""
         title = it.get("title") or ""
-        agent = (
-            (it.get("change_agent") or "").strip().lower()
-            or _infer_change_agent_util(
-                it.get("agent_id", ""), it.get("model_id", ""), default=DEFAULT_CHANGE_AGENT
-            )
+        agent = (it.get("change_agent") or "").strip().lower() or _infer_change_agent_util(
+            it.get("agent_id", ""), it.get("model_id", ""), default=DEFAULT_CHANGE_AGENT
         )
         try:
             importance = float(it.get("importance", 0.5))
@@ -1012,9 +1081,8 @@ async def memory_write_bulk_impl(
         expires_at = None
         if scope == "session":
             from datetime import timedelta
-            expires_at = (
-                datetime.now(UTC) + timedelta(hours=24)
-            ).isoformat()
+
+            expires_at = (datetime.now(UTC) + timedelta(hours=24)).isoformat()
 
         # Resolve auto_classify before adding to prepared. Zero-lag: defer to the
         # classification sweep (persist as 'auto'), same as the singleton path —
@@ -1038,12 +1106,7 @@ async def memory_write_bulk_impl(
         # bulk writes that didn't pass --variant. 644 such rows had to be
         # cleaned manually on 2026-04-28 (memory 372f49b0).
         # See task #189, decision b5abb7cc.
-        if (
-            item_type == "summary"
-            and isinstance(title, str)
-            and title.startswith("window:")
-            and eff_variant is None
-        ):
+        if item_type == "summary" and isinstance(title, str) and title.startswith("window:") and eff_variant is None:
             logger.warning(
                 f"memory_write_bulk_impl: rejecting window:* summary leak "
                 f"(title={title[:60]!r}) — provide an explicit variant if intentional."
@@ -1102,9 +1165,7 @@ async def memory_write_bulk_impl(
         p["title"] = _augment_title_with_role(p["title"], p["metadata"])
 
         # Set embed_text with anchors after enrichment
-        p["embed_text"] = _augment_embed_text_with_anchors(
-            p["content"] or p["title"], p["metadata"]
-        )
+        p["embed_text"] = _augment_embed_text_with_anchors(p["content"] or p["title"], p["metadata"])
 
     # Optional hook: rewrite embed_text via caller-supplied async enricher.
     # The enricher receives (content, metadata_dict) and returns a string
@@ -1169,23 +1230,45 @@ async def memory_write_bulk_impl(
             if _blank_json_bulk and not (p["metadata"] and p["metadata"].strip()):
                 p["metadata"] = _blank_json_bulk  # '{}' on JSON/JSONB backends; no-op on SQLite
             db.execute(
-                ("INSERT INTO memory_items (id, type, title, content, metadata_json, agent_id, model_id, "
-                "change_agent, importance, source, origin_device, user_id, scope, expires_at, created_at, "
-                "valid_from, valid_to, conversation_id, refresh_on, refresh_reason, content_hash, variant) "
-                f"VALUES ({_db_bulk.placeholder(22)})").rstrip(),
                 (
-                    p["id"], p["type"], p["title"], p["content"], p["metadata"],
-                    p["agent_id"], p["model_id"], p["change_agent"], p["importance"],
-                    p["source"], ORIGIN_DEVICE, p["user_id"], p["scope"], p["expires_at"],
-                    now, p["valid_from"], p["valid_to"], p["conversation_id"],
-                    p["refresh_on"], p["refresh_reason"],
+                    "INSERT INTO memory_items (id, type, title, content, metadata_json, agent_id, model_id, "
+                    "change_agent, importance, source, origin_device, user_id, scope, expires_at, created_at, "
+                    "valid_from, valid_to, conversation_id, refresh_on, refresh_reason, content_hash, variant) "
+                    f"VALUES ({_db_bulk.placeholder(22)})"
+                ).rstrip(),
+                (
+                    p["id"],
+                    p["type"],
+                    p["title"],
+                    p["content"],
+                    p["metadata"],
+                    p["agent_id"],
+                    p["model_id"],
+                    p["change_agent"],
+                    p["importance"],
+                    p["source"],
+                    ORIGIN_DEVICE,
+                    p["user_id"],
+                    p["scope"],
+                    p["expires_at"],
+                    now,
+                    p["valid_from"],
+                    p["valid_to"],
+                    p["conversation_id"],
+                    p["refresh_on"],
+                    p["refresh_reason"],
                     _sha256_hex((p["content"] or "").encode("utf-8")),
                     p["variant"],
                 ),
             )
             _record_history(
-                p["id"], "create", None, p["content"], "content",
-                p["agent_id"] or p["change_agent"], db=db,
+                p["id"],
+                "create",
+                None,
+                p["content"],
+                "content",
+                p["agent_id"] or p["change_agent"],
+                db=db,
             )
 
     # Phase 2: batched embeddings for items that requested them.
@@ -1227,6 +1310,7 @@ async def memory_write_bulk_impl(
         _emb = None
         try:
             import memory_core as _mc
+
             _emb = getattr(_mc, "_embed_many", None)
         except ImportError:
             pass
@@ -1244,24 +1328,30 @@ async def memory_write_bulk_impl(
                         default_fail.add(p["id"])
                     continue
                 text_for_hash = (
-                    p["_dual_default_embed_text"] if kind == "default" and p.get("_dual_default_embed_text")
+                    p["_dual_default_embed_text"]
+                    if kind == "default" and p.get("_dual_default_embed_text")
                     else p["embed_text"]
                 )
                 db.execute(
-                    ("INSERT INTO memory_embeddings (id, memory_id, embedding, embed_model, dim, created_at, content_hash, vector_kind) "
-                    f"VALUES ({_db_bulk.placeholder(8)})").rstrip(),
                     (
-                        str(uuid.uuid4()), p["id"], _pack(vec), m, len(vec), now,
-                        _content_hash(text_for_hash), kind,
+                        "INSERT INTO memory_embeddings (id, memory_id, embedding, embed_model, dim, created_at, content_hash, vector_kind) "
+                        f"VALUES ({_db_bulk.placeholder(8)})"
+                    ).rstrip(),
+                    (
+                        str(uuid.uuid4()),
+                        p["id"],
+                        _pack(vec),
+                        m,
+                        len(vec),
+                        now,
+                        _content_hash(text_for_hash),
+                        kind,
                     ),
                 )
                 if kind == "default":
                     default_ok.add(p["id"])
         for mid in default_fail - default_ok:
-            logger.warning(
-                f"memory_write_bulk_impl: embed failed for {mid}; "
-                f"skipping memory_embeddings insert"
-            )
+            logger.warning(f"memory_write_bulk_impl: embed failed for {mid}; skipping memory_embeddings insert")
 
     # Phase 2.5: Fact enrichment (Phase 4 on-write hook).
     # Non-blocking per-row dispatch: tries semaphore, enqueues on miss.
@@ -1270,7 +1360,9 @@ async def memory_write_bulk_impl(
         for p in prepared:
             # Skip variant rows unless explicitly allowed
             item_variant = p.get("variant")
-            if item_variant is not None and (fact_enricher_variant_allowlist is None or item_variant not in fact_enricher_variant_allowlist):
+            if item_variant is not None and (
+                fact_enricher_variant_allowlist is None or item_variant not in fact_enricher_variant_allowlist
+            ):
                 continue
 
             # Get a DB connection for the non-blocking dispatch
@@ -1282,7 +1374,7 @@ async def memory_write_bulk_impl(
                         fact_enricher,
                         db,
                         variant=item_variant,
-                        allowlist=fact_enricher_variant_allowlist
+                        allowlist=fact_enricher_variant_allowlist,
                     )
                 except Exception as e:
                     log_swallowed(logger, e, f"fact enrichment dispatch failed for {p['id']}: {e}")
@@ -1322,7 +1414,7 @@ async def memory_write_bulk_impl(
                 with _db() as db:
                     r = db.execute(
                         f"SELECT embedding FROM memory_embeddings WHERE memory_id = {_db_bulk.param()} LIMIT 1",
-                        (p["id"],)
+                        (p["id"],),
                     ).fetchone()
                     if r:
                         vec_row = r
@@ -1332,7 +1424,12 @@ async def memory_write_bulk_impl(
 
                 vec = _unpack(vec_row["embedding"])
                 superseded_ids, _ = await _check_contradictions(
-                    p["id"], p["content"], p["title"], vec, p["type"], p["agent_id"],
+                    p["id"],
+                    p["content"],
+                    p["title"],
+                    vec,
+                    p["type"],
+                    p["agent_id"],
                     new_valid_from=p.get("valid_from"),
                     variant=p.get("variant"),
                     user_id=p.get("user_id", ""),
@@ -1366,9 +1463,7 @@ async def memory_write_bulk_impl(
                 user_id = p.get("user_id", "")
                 try:
                     if INGEST_EVENT_ROWS:
-                        await _maybe_emit_event_rows(
-                            p["content"] or "", p["metadata"], cid, user_id, p["id"]
-                        )
+                        await _maybe_emit_event_rows(p["content"] or "", p["metadata"], cid, user_id, p["id"])
                 except Exception as e:
                     log_swallowed(logger, e, f"event_extraction emit failed in bulk: {e}")
 
@@ -1388,6 +1483,7 @@ async def memory_write_bulk_impl(
 
     try:
         from sqlite_pragmas import checkpoint_passive
+
         with _db() as db:
             checkpoint_passive(db)
     except Exception as e:
@@ -1397,7 +1493,6 @@ async def memory_write_bulk_impl(
 
 
 async def _check_contradictions(
-
     item_id: str,
     content: str,
     title: str,
@@ -1439,6 +1534,7 @@ async def _check_contradictions(
             # supersede path must too. Empty user_id passes through unchanged
             # (single-tenant / legacy shared-agent rows).
             from memory.backends import dialect
+
             p = dialect().param()
             where = f"mi.is_deleted = 0 AND mi.type = {p} AND mi.id != {p}"
             params = [type_, item_id]
@@ -1454,6 +1550,7 @@ async def _check_contradictions(
             _scope_on = AUTO_RELATED_LINK_SCOPE_BY_VARIANT
             try:
                 import memory_core as _mc
+
                 if hasattr(_mc, "AUTO_RELATED_LINK_SCOPE_BY_VARIANT"):
                     _scope_on = _mc.AUTO_RELATED_LINK_SCOPE_BY_VARIANT
             except ImportError:
@@ -1464,7 +1561,7 @@ async def _check_contradictions(
             rows = db.execute(
                 f"SELECT mi.id, mi.title, mi.content, mi.agent_id, me.embedding FROM memory_items mi "
                 f"JOIN memory_embeddings me ON mi.id = me.memory_id WHERE {where} LIMIT 200",
-                params
+                params,
             ).fetchall()
 
         if not rows:
@@ -1483,9 +1580,9 @@ async def _check_contradictions(
                 #   'off'    = bypass content check too (research mode)
                 old_title = (row["title"] or "").strip().lower()
                 new_title = (title or "").strip().lower()
-                titles_match = old_title == new_title or (old_title and new_title and (
-                    old_title in new_title or new_title in old_title
-                ))
+                titles_match = old_title == new_title or (
+                    old_title and new_title and (old_title in new_title or new_title in old_title)
+                )
                 content_differs = (row["content"] or "").strip() != (content or "").strip()
 
                 # Corroboration (Phase 2, flag-gated): a near-identical re-write
@@ -1493,8 +1590,7 @@ async def _check_contradictions(
                 # instead of standing as an orphan duplicate. Handled here — in the
                 # same scan — so we don't re-run cosine (§4). Recorded against the
                 # OLD row; the caller skips creating extra links for it.
-                if (not content_differs and _wcfg.CORROBORATION
-                        and score >= _wcfg.CORROBORATION_THRESHOLD):
+                if not content_differs and _wcfg.CORROBORATION and score >= _wcfg.CORROBORATION_THRESHOLD:
                     corroborated.append(row["id"])
                     continue
 
@@ -1535,8 +1631,12 @@ async def _check_contradictions(
                         # gets rowcount 0); the losers skip ALL side-effects, so PG
                         # matches SQLite's exactly-once supersession.
                         won = _mark_superseded(
-                            row["id"], item_id, close_at=_close_at, db=db,
-                            prev_value=row["content"], require_active=True,
+                            row["id"],
+                            item_id,
+                            close_at=_close_at,
+                            db=db,
+                            prev_value=row["content"],
+                            require_active=True,
                         )
                         if not won:
                             # Another writer superseded this row first; its
@@ -1548,16 +1648,22 @@ async def _check_contradictions(
                         if _wcfg.CORROBORATION:
                             try:
                                 from . import trust as _trust
+
                                 t = _trust.get_agent_trust(db, agent_id)
                                 _trust.record_corroboration(
-                                    db, row["id"], source_kind="contradiction",
+                                    db,
+                                    row["id"],
+                                    source_kind="contradiction",
                                     source_ref=(agent_id or item_id),
-                                    trust_at_write=t, delta=-t,
+                                    trust_at_write=t,
+                                    delta=-t,
                                 )
                             except Exception as ce:  # noqa: BLE001
                                 log_swallowed(logger, ce, f"contradiction ledger skipped: {ce}")
                     superseded.append(row["id"])
-                    logger.info(f"Memory {item_id} supersedes {row['id']} (contradiction detected, valid_to={_close_at})")
+                    logger.info(
+                        f"Memory {item_id} supersedes {row['id']} (contradiction detected, valid_to={_close_at})"
+                    )
             elif score > 0.7:
                 related.append((row["id"], score))
 
@@ -1570,15 +1676,19 @@ async def _check_contradictions(
         # corroboration strengthens the existing memory it duplicates.
         if corroborated:
             from . import trust as _trust
+
             src_kind = "agent" if agent_id else "unknown"
             with _db() as db:
                 for old_id in corroborated:
                     try:
                         t = _trust.get_agent_trust(db, agent_id)
                         if _trust.record_corroboration(
-                            db, old_id, source_kind=src_kind,
+                            db,
+                            old_id,
+                            source_kind=src_kind,
                             source_ref=(agent_id or "unknown"),
-                            trust_at_write=t, delta=t,
+                            trust_at_write=t,
+                            delta=t,
                         ):
                             _trust.reaggregate_confidence(db, old_id)
                             logger.info(
@@ -1729,7 +1839,9 @@ async def memory_write_batch_impl(items: list[dict]):
     write_tasks = []
     for item in items:
         mid = str(uuid.uuid4())
-        agent = item.get("change_agent", "").strip().lower() or _infer_change_agent_util(item.get("agent_id", ""), item.get("model_id", ""), default=DEFAULT_CHANGE_AGENT)
+        agent = item.get("change_agent", "").strip().lower() or _infer_change_agent_util(
+            item.get("agent_id", ""), item.get("model_id", ""), default=DEFAULT_CHANGE_AGENT
+        )
 
         _item_metadata = item.get("metadata", "{}")
         _blank_json_batch = _d_batch.empty_json_default()
@@ -1738,11 +1850,24 @@ async def memory_write_batch_impl(items: list[dict]):
 
         with _db() as db:
             db.execute(
-                ("INSERT INTO memory_items (id, type, title, content, metadata_json, agent_id, model_id, change_agent, importance, source, origin_device, created_at) "
-                f"VALUES ({_d_batch.placeholder(12)})").rstrip(),
-                (mid, item["type"], item.get("title", ""), item["content"], _item_metadata,
-                 item.get("agent_id", ""), item.get("model_id", ""), agent, item.get("importance", 0.5),
-                 item.get("source", "agent"), ORIGIN_DEVICE, now)
+                (
+                    "INSERT INTO memory_items (id, type, title, content, metadata_json, agent_id, model_id, change_agent, importance, source, origin_device, created_at) "
+                    f"VALUES ({_d_batch.placeholder(12)})"
+                ).rstrip(),
+                (
+                    mid,
+                    item["type"],
+                    item.get("title", ""),
+                    item["content"],
+                    _item_metadata,
+                    item.get("agent_id", ""),
+                    item.get("model_id", ""),
+                    agent,
+                    item.get("importance", 0.5),
+                    item.get("source", "agent"),
+                    ORIGIN_DEVICE,
+                    now,
+                ),
             )
 
         if item.get("embed", True):
@@ -1779,14 +1904,13 @@ async def memory_write_batch_impl(items: list[dict]):
                 vec, m = result
                 if vec:
                     db.execute(
-                        ("INSERT INTO memory_embeddings (id, memory_id, embedding, embed_model, dim, created_at, content_hash) "
-                        f"VALUES ({_d_batch.placeholder(7)})").rstrip(),
-                        (str(uuid.uuid4()), mid, _pack(vec), m, len(vec), now, _content_hash(text))
+                        (
+                            "INSERT INTO memory_embeddings (id, memory_id, embedding, embed_model, dim, created_at, content_hash) "
+                            f"VALUES ({_d_batch.placeholder(7)})"
+                        ).rstrip(),
+                        (str(uuid.uuid4()), mid, _pack(vec), m, len(vec), now, _content_hash(text)),
                     )
                 else:
                     logger.warning(f"Batch embed empty vec for {mid}; skipping memory_embeddings insert")
 
     return f"Batch created: {len(results)} items"
-
-
-

@@ -13,6 +13,7 @@ def test_get_master_key_env():
     with patch.dict(os.environ, {"AGENT_OS_MASTER_KEY": "test-env-key"}):
         assert auth_utils.get_master_key() == "test-env-key"
 
+
 def test_fernet_encryption_decryption():
     """Test that _get_fernet produces a valid encryption object."""
     master_key = "test-secret-key-123"
@@ -24,6 +25,7 @@ def test_fernet_encryption_decryption():
 
     assert decrypted == original_text
     assert encrypted != original_text.encode()
+
 
 def test_device_salt_persistence(tmp_path):
     """Test that device salt is persistent across calls.
@@ -51,10 +53,12 @@ def _empty_config(tmp_path):
 def test_salt_mints_on_fresh_install(tmp_path):
     """No salt file + empty/absent vault => mint a new salt (fresh install)."""
     cfg = _empty_config(tmp_path)
-    with patch("m3_core.paths.get_m3_config_root", return_value=str(cfg)), \
-         patch("m3_core.paths.get_m3_root", return_value=str(tmp_path)), \
-         patch.object(auth_utils, "_vault_has_secrets", return_value=False), \
-         patch.dict(os.environ, {}, clear=False):
+    with (
+        patch("m3_core.paths.get_m3_config_root", return_value=str(cfg)),
+        patch("m3_core.paths.get_m3_root", return_value=str(tmp_path)),
+        patch.object(auth_utils, "_vault_has_secrets", return_value=False),
+        patch.dict(os.environ, {}, clear=False),
+    ):
         os.environ.pop("M3_AGENT_OS_SALT_HEX", None)
         salt = auth_utils._get_device_salt()
     assert len(salt) == 16
@@ -64,9 +68,11 @@ def test_salt_missing_with_secrets_raises(tmp_path):
     """No salt file BUT the vault already has secrets => fail loud, do NOT
     silently regenerate (regressions the 2026-07-03 vault-orphaning footgun)."""
     cfg = _empty_config(tmp_path)
-    with patch("m3_core.paths.get_m3_config_root", return_value=str(cfg)), \
-         patch("m3_core.paths.get_m3_root", return_value=str(tmp_path)), \
-         patch.object(auth_utils, "_vault_has_secrets", return_value=True):
+    with (
+        patch("m3_core.paths.get_m3_config_root", return_value=str(cfg)),
+        patch("m3_core.paths.get_m3_root", return_value=str(tmp_path)),
+        patch.object(auth_utils, "_vault_has_secrets", return_value=True),
+    ):
         os.environ.pop("M3_AGENT_OS_SALT_HEX", None)
         try:
             auth_utils._get_device_salt()
@@ -80,10 +86,12 @@ def test_salt_env_override_wins(tmp_path):
     the recovery escape hatch for a lost salt."""
     cfg = _empty_config(tmp_path)
     hexval = "00112233445566778899aabbccddeeff"
-    with patch("m3_core.paths.get_m3_config_root", return_value=str(cfg)), \
-         patch("m3_core.paths.get_m3_root", return_value=str(tmp_path)), \
-         patch.object(auth_utils, "_vault_has_secrets", return_value=True), \
-         patch.dict(os.environ, {"M3_AGENT_OS_SALT_HEX": hexval}):
+    with (
+        patch("m3_core.paths.get_m3_config_root", return_value=str(cfg)),
+        patch("m3_core.paths.get_m3_root", return_value=str(tmp_path)),
+        patch.object(auth_utils, "_vault_has_secrets", return_value=True),
+        patch.dict(os.environ, {"M3_AGENT_OS_SALT_HEX": hexval}),
+    ):
         salt = auth_utils._get_device_salt()
     assert salt == bytes.fromhex(hexval)
     assert len(salt) == 16

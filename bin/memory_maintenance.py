@@ -35,6 +35,7 @@ from memory_core import (
 
 logger = logging.getLogger("memory_maintenance")
 
+
 def _row_get(row, key, default=None):
     """Read a column from a seam row whether it exposes mapping access (both
     backends do via the seam) or only positional — tolerating a column the row's
@@ -45,6 +46,7 @@ def _row_get(row, key, default=None):
         return row[key]
     except Exception:
         return default
+
 
 def _transfer_to_archive(item_id, reason, db):
     """Copy a memory into the archive tombstone table BEFORE the live row is
@@ -60,6 +62,7 @@ def _transfer_to_archive(item_id, reason, db):
     the historical best-effort contract."""
     from memory.backends import dialect as _dialect
     from memory.db import savepoint as _savepoint
+
     _d = _dialect()
     _p = _d.param()
     now = datetime.now(UTC).isoformat()
@@ -68,15 +71,19 @@ def _transfer_to_archive(item_id, reason, db):
         return False
     cols = ["id", "type", "title", "content", "agent_id", "user_id", "archive_reason", "archived_at"]
     vals = (
-        _row_get(row, "id"), _row_get(row, "type"), _row_get(row, "title"),
-        _row_get(row, "content"), _row_get(row, "agent_id"), _row_get(row, "user_id"),
-        reason, now,
+        _row_get(row, "id"),
+        _row_get(row, "type"),
+        _row_get(row, "title"),
+        _row_get(row, "content"),
+        _row_get(row, "agent_id"),
+        _row_get(row, "user_id"),
+        reason,
+        now,
     )
     # Upsert on the id PK: re-archiving the same memory overwrites its tombstone
     # rather than raising, so the pass is safe to re-run.
     upsert = _d.on_conflict_update("(id)", [c for c in cols if c != "id"])
-    sql = (f"INSERT INTO memory_archive ({', '.join(cols)}) "
-           f"VALUES ({_d.placeholder(len(cols))}) {upsert}")
+    sql = f"INSERT INTO memory_archive ({', '.join(cols)}) VALUES ({_d.placeholder(len(cols))}) {upsert}"
     try:
         with _savepoint(db):
             db.execute(sql, vals)
@@ -84,6 +91,7 @@ def _transfer_to_archive(item_id, reason, db):
     except Exception as e:  # noqa: BLE001 — best-effort tombstone; never block the purge
         log_swallowed(logger, e, f"archive write skipped for {item_id}: {e}")
         return False
+
 
 def memory_dedup_impl(threshold=None, dry_run=True, limit=0):
     """Find near-duplicate memory items by cosine similarity over embeddings.
@@ -119,6 +127,7 @@ def memory_dedup_impl(threshold=None, dry_run=True, limit=0):
     import time
 
     from m3_sdk import _LAST_USER_INTERACTION
+
     if time.time() - _LAST_USER_INTERACTION < 15.0:
         logger.info("Active query session detected. Suspending curation pass to yield resources.")
         time.sleep(5.0)
@@ -151,8 +160,10 @@ def memory_dedup_impl(threshold=None, dry_run=True, limit=0):
     duplicates: list[tuple] = []  # (id_a, id_b, title_a, title_b, score)
     seen: set[str] = set()
 
-    use_rust = m3_core_rs is not None and n > 1 and all(
-        isinstance(b, (bytes, bytearray)) and len(b) == bytes_per_row for b in raw_blobs
+    use_rust = (
+        m3_core_rs is not None
+        and n > 1
+        and all(isinstance(b, (bytes, bytearray)) and len(b) == bytes_per_row for b in raw_blobs)
     )
 
     if use_rust:
@@ -180,14 +191,11 @@ def memory_dedup_impl(threshold=None, dry_run=True, limit=0):
                     if ids[i] == ids[j]:
                         continue
                     if score >= threshold:
-                        duplicates.append(
-                            (ids[i], ids[j], titles[i], titles[j], float(score))
-                        )
+                        duplicates.append((ids[i], ids[j], titles[i], titles[j], float(score)))
                         seen.add(ids[j])
         except Exception as e:  # noqa: BLE001 — fall back rather than fail the survey
             logger.warning(
-                f"dedup Rust path failed mid-scan ({type(e).__name__}: {e}); "
-                f"falling back to pure-Python loop"
+                f"dedup Rust path failed mid-scan ({type(e).__name__}: {e}); falling back to pure-Python loop"
             )
             duplicates = []
             seen = set()
@@ -215,6 +223,7 @@ def memory_dedup_impl(threshold=None, dry_run=True, limit=0):
     applied = False
     if not dry_run and duplicates:
         from memory.backends import dialect as _dialect
+
         _p = _dialect().param()
         with _db() as db:
             for _, mid_b, _, _, _ in duplicates:
@@ -225,13 +234,13 @@ def memory_dedup_impl(threshold=None, dry_run=True, limit=0):
     return {
         "count": len(duplicates),
         "groups": [
-            {"a": a, "b": b, "title_a": ta, "title_b": tb, "score": round(sc, 4)}
-            for a, b, ta, tb, sc in groups
+            {"a": a, "b": b, "title_a": ta, "title_b": tb, "score": round(sc, 4)} for a, b, ta, tb, sc in groups
         ],
         "threshold": float(threshold),
         "scanned": n,
         "applied": applied,
     }
+
 
 # The three verdicts the ToolSpec advertises. `wrong` is accepted as a legacy
 # ALIAS for `misleading` (it was the only negative branch the impl ever honoured,
@@ -503,6 +512,7 @@ def _feedback_window_minutes(now: float | None = None) -> int:
         _fb_window_cache["ts"] = now
         try:
             from m3_sdk import get_m3_config_root
+
             path = os.path.join(get_m3_config_root(), ".governor_config.json")
         except Exception:  # noqa: BLE001 — config root unresolvable
             path = None
@@ -518,6 +528,7 @@ def _feedback_window_minutes(now: float | None = None) -> int:
             if mtime is not None and path:
                 try:
                     import json as _json
+
                     with open(path, encoding="utf-8") as f:
                         val = (_json.load(f) or {}).get("feedback_window_minutes")
                 except Exception as e:  # noqa: BLE001
@@ -527,7 +538,9 @@ def _feedback_window_minutes(now: float | None = None) -> int:
                     logger.warning(
                         "Governor config %s is unreadable/malformed (%s) — "
                         "feedback window falling back to env var + default.",
-                        path, e)
+                        path,
+                        e,
+                    )
             _fb_window_cache["minutes"] = val
 
     val = _fb_window_cache["minutes"]
@@ -587,8 +600,7 @@ def memory_restore_impl(memory_id=None, reason=None, dry_run=True, limit=1000):
             "restored": 0,
             "error": "reason_not_autonomous",
             "observed": f"reason={bad!r}",
-            "note": ("only memories removed by an autonomous pass are restorable; "
-                     "a deliberate deletion stays deleted"),
+            "note": ("only memories removed by an autonomous pass are restorable; a deliberate deletion stays deleted"),
             "accepted": list(_AUTONOMOUS_ARCHIVE_REASONS),
         }
 
@@ -612,8 +624,11 @@ def memory_restore_impl(memory_id=None, reason=None, dry_run=True, limit=1000):
         ids = [r["id"] if hasattr(r, "keys") else r[0] for r in rows]
         if dry_run:
             return {
-                "ok": True, "applied": False, "dry_run": True,
-                "would_restore": len(ids), "reasons": list(reasons),
+                "ok": True,
+                "applied": False,
+                "dry_run": True,
+                "would_restore": len(ids),
+                "reasons": list(reasons),
                 "note": "re-run with dry_run=False to restore",
             }
 
@@ -632,10 +647,11 @@ def memory_restore_impl(memory_id=None, reason=None, dry_run=True, limit=1000):
             restored += res.rowcount or 0
 
     return {
-        "ok": True, "applied": True, "restored": restored,
+        "ok": True,
+        "applied": True,
+        "restored": restored,
         "reasons": list(reasons),
-        "note": ("restored at the archive-candidate threshold — present and "
-                 "searchable, still ranked low"),
+        "note": ("restored at the archive-candidate threshold — present and searchable, still ranked low"),
     }
 
 
@@ -678,8 +694,7 @@ def memory_grade_impl(grades=None, window_minutes=None):
     from memory.backends import dialect as _dialect
 
     if not grades:
-        return {"ok": True, "applied": False, "graded": 0,
-                "note": "no grades supplied"}
+        return {"ok": True, "applied": False, "graded": 0, "note": "no grades supplied"}
 
     _d = _dialect()
     _p = _d.param()
@@ -688,9 +703,13 @@ def memory_grade_impl(grades=None, window_minutes=None):
         try:
             requested = int(window_minutes)
         except (TypeError, ValueError):
-            return {"ok": False, "applied": False, "graded": 0,
-                    "error": "bad_window_minutes",
-                    "observed": f"window_minutes={window_minutes!r} is not an integer"}
+            return {
+                "ok": False,
+                "applied": False,
+                "graded": 0,
+                "error": "bad_window_minutes",
+                "observed": f"window_minutes={window_minutes!r} is not an integer",
+            }
         minutes = _clamp_feedback_window(requested)
     else:
         minutes = _feedback_window_minutes()
@@ -701,22 +720,18 @@ def memory_grade_impl(grades=None, window_minutes=None):
         # and still live. Set-based rather than a per-id round trip (§4).
         ids = [str(g.get("memory_id") or "") for g in grades if g.get("memory_id")]
         if not ids:
-            return {"ok": False, "applied": False, "graded": 0,
-                    "error": "no_memory_ids"}
+            return {"ok": False, "applied": False, "graded": 0, "error": "no_memory_ids"}
         ph = ", ".join([_p] * len(ids))
         fresh = {
-            r[0] for r in db.execute(
+            r[0]
+            for r in db.execute(
                 f"SELECT id FROM memory_items WHERE id IN ({ph}) "
                 f"AND is_deleted = 0 AND last_accessed_at IS NOT NULL "
                 f"AND {_d.age_minutes_lt('last_accessed_at', _p)}",
                 (*ids, minutes),
             ).fetchall()
         }
-        known = {
-            r[0] for r in db.execute(
-                f"SELECT id FROM memory_items WHERE id IN ({ph})", tuple(ids)
-            ).fetchall()
-        }
+        known = {r[0] for r in db.execute(f"SELECT id FROM memory_items WHERE id IN ({ph})", tuple(ids)).fetchall()}
 
         bump_helpful, bump_unhelpful = [], []
         for g in grades:
@@ -737,13 +752,11 @@ def memory_grade_impl(grades=None, window_minutes=None):
             else:
                 unknown.append(mid)
 
-        for col, batch in (("helpful_count", bump_helpful),
-                           ("unhelpful_count", bump_unhelpful)):
+        for col, batch in (("helpful_count", bump_helpful), ("unhelpful_count", bump_unhelpful)):
             for chunk in batched(batch, 500):
                 cph = ", ".join([_p] * len(chunk))
                 db.execute(
-                    f"UPDATE memory_items SET {col} = COALESCE({col}, 0) + 1 "
-                    f"WHERE id IN ({cph})",
+                    f"UPDATE memory_items SET {col} = COALESCE({col}, 0) + 1 WHERE id IN ({cph})",
                     tuple(chunk),
                 )
 
@@ -772,10 +785,7 @@ def memory_grade_impl(grades=None, window_minutes=None):
             f"{len(rejected)} memory/ies were not retrieved within the last "
             f"{minutes} min; grade immediately after using them"
         )
-        out["inspect"] = (
-            "raise `feedback_window_minutes` in .governor_config.json if long "
-            "turns are being rejected"
-        )
+        out["inspect"] = "raise `feedback_window_minutes` in .governor_config.json if long turns are being rejected"
     if unknown:
         out["unknown"] = len(unknown)
     return out
@@ -802,8 +812,10 @@ def memory_feedback_stats_impl():
         "rejected_stale": r,
         "rejection_rate": round(r / total, 4) if total else 0.0,
         "window_minutes": _feedback_window_minutes(),
-        "note": ("a high rejection rate means the window is too tight for this "
-                 "deployment's agents, not that the feedback was wrong"),
+        "note": (
+            "a high rejection rate means the window is too tight for this "
+            "deployment's agents, not that the feedback was wrong"
+        ),
     }
 
 
@@ -839,7 +851,7 @@ def memory_feedback_impl(memory_id, feedback="useful"):
     memory_delete for that.
     """
     fb = (feedback or "").strip().lower()
-    if fb == "wrong":          # legacy alias; see docstring
+    if fb == "wrong":  # legacy alias; see docstring
         fb = "misleading"
     if fb not in _FEEDBACK_VERDICTS:
         # Structured, not an exception: the caller passed something the schema
@@ -854,6 +866,7 @@ def memory_feedback_impl(memory_id, feedback="useful"):
         }
 
     from memory.backends import dialect as _dialect
+
     _d = _dialect()
     _p = _d.param()
 
@@ -888,9 +901,11 @@ def memory_feedback_impl(memory_id, feedback="useful"):
         "memory_id": memory_id,
         "verdict": fb,
         "importance_delta": delta,
-        "note": ("recorded; importance unchanged (a retrieval miss is not a "
-                 "memory defect)") if fb == "not_useful" else "",
+        "note": ("recorded; importance unchanged (a retrieval miss is not a memory defect)")
+        if fb == "not_useful"
+        else "",
     }
+
 
 def _reinforce_confidence(db):
     """Reinforcement pass (knowledge-maintenance Phase 3): make confidence a
@@ -921,14 +936,13 @@ def _reinforce_confidence(db):
     # defined, or that path raises UnboundLocalError (observed in the cognitive
     # loop's maintenance pass).
     from memory.db import savepoint as _savepoint
+
     active_ids: set = set()
     try:
         # (1) Re-aggregate the memories with ledger activity. savepoint keeps the
         # txn usable on PG if memory_corroborations is absent (pre-036 DB).
         with _savepoint(db):
-            active = db.execute(
-                "SELECT DISTINCT memory_id FROM memory_corroborations"
-            ).fetchall()
+            active = db.execute("SELECT DISTINCT memory_id FROM memory_corroborations").fetchall()
             active_ids = {r[0] for r in active}
             for mid in active_ids:
                 if _trust.reaggregate_confidence(db, mid) is not None:
@@ -942,6 +956,7 @@ def _reinforce_confidence(db):
         # new = c + (NEUTRAL - c) * DECAY_RATE, clamped, skipping rows touched by
         # the ledger (already re-aggregated) and rows accessed in the last 7 days.
         from memory.backends import dialect as _dialect
+
         _d = _dialect()
         _p = _d.param()
         # Exclude the ledger-active ids via NOT IN. When the set is EMPTY, OMIT the
@@ -957,7 +972,7 @@ def _reinforce_confidence(db):
                 res = db.execute(
                     f"""
                     UPDATE memory_items
-                       SET confidence = {_d.greatest('0.0', _d.least('1.0', f'confidence + ({_p} - confidence) * {_p}'))}
+                       SET confidence = {_d.greatest("0.0", _d.least("1.0", f"confidence + ({_p} - confidence) * {_p}"))}
                      WHERE is_deleted = 0
                        AND confidence IS NOT NULL{_not_in}
                        AND (last_accessed_at IS NULL OR {_age7})
@@ -971,7 +986,7 @@ def _reinforce_confidence(db):
             res = db.execute(
                 f"""
                 UPDATE memory_items
-                   SET confidence = {_d.greatest('0.0', _d.least('1.0', f'confidence + ({_p} - confidence) * {_p}'))}
+                   SET confidence = {_d.greatest("0.0", _d.least("1.0", f"confidence + ({_p} - confidence) * {_p}"))}
                  WHERE is_deleted = 0
                    AND confidence IS NOT NULL{_not_in}
                    AND (last_accessed_at IS NULL OR {_age7})
@@ -996,12 +1011,12 @@ def _is_missing_schema(exc) -> bool:
     tolerance fires correctly on either backend (not just SQLite's message text)."""
     try:
         from memory.backends import dialect
+
         return dialect().is_undefined_object_error(exc)
     except Exception:
         # Seam unavailable (raw sqlite fixture) → fall back to the SQLite text match.
         msg = str(exc).lower()
-        return ("no such column" in msg or "no such table" in msg
-                or "no column named" in msg)
+        return "no such column" in msg or "no such table" in msg or "no column named" in msg
 
 
 def memory_lifecycle_summary_impl(window_days: int = 7, top_n: int = 5) -> dict:
@@ -1025,6 +1040,7 @@ def memory_lifecycle_summary_impl(window_days: int = 7, top_n: int = 5) -> dict:
     window_days = max(1, int(window_days))
     top_n = max(0, int(top_n))
     from memory.backends import dialect as _dialect
+
     _d = _dialect()
     _p = _d.param()
     # window cutoff is now bound as an INT number of days via now_minus_days
@@ -1038,6 +1054,7 @@ def memory_lifecycle_summary_impl(window_days: int = 7, top_n: int = 5) -> dict:
         "most_revised": [],
     }
     from memory.db import tolerant_schema as _tolerant
+
     with _db() as db:
         # NOTE: no `db.row_factory = sqlite3.Row` here — that is SQLite-only and the
         # PG compat connection already yields name-addressable rows. The seam gives
@@ -1053,8 +1070,7 @@ def memory_lifecycle_summary_impl(window_days: int = 7, top_n: int = 5) -> dict:
         # Lifecycle events by type in the window.
         with _tolerant(db):
             for row in db.execute(
-                f"SELECT event, COUNT(*) AS n FROM memory_history "
-                f"WHERE created_at >= {_since} GROUP BY event",
+                f"SELECT event, COUNT(*) AS n FROM memory_history WHERE created_at >= {_since} GROUP BY event",
                 (window_days,),
             ):
                 if row["event"] in out["events"]:
@@ -1109,6 +1125,7 @@ def _enforce_retention_policies(db):
     """Enforce per-agent memory limits and TTLs from agent_retention_policies table."""
     from memory.backends import dialect as _dialect
     from memory.db import savepoint as _savepoint
+
     _d = _dialect()
     _p = _d.param()
     try:
@@ -1130,7 +1147,7 @@ def _enforce_retention_policies(db):
                         f"UPDATE memory_items SET is_deleted = 1 WHERE agent_id = {_p} AND is_deleted = 0 "
                         f"AND {_d.age_days_gt('created_at', _p)} "
                         f"AND COALESCE(pinned, 0) = 0",
-                        (agent_id, p["ttl_days"])
+                        (agent_id, p["ttl_days"]),
                     )
             except Exception as e:  # noqa: BLE001 — pre-pinned-column DB
                 if not _is_missing_schema(e):
@@ -1138,7 +1155,7 @@ def _enforce_retention_policies(db):
                 res = db.execute(
                     f"UPDATE memory_items SET is_deleted = 1 WHERE agent_id = {_p} AND is_deleted = 0 "
                     f"AND {_d.age_days_gt('created_at', _p)}",
-                    (agent_id, p["ttl_days"])
+                    (agent_id, p["ttl_days"]),
                 )
             purged += res.rowcount
         # Max count enforcement (keep newest, soft-delete oldest excess)
@@ -1149,7 +1166,7 @@ def _enforce_retention_policies(db):
                         f"SELECT id FROM memory_items WHERE agent_id = {_p} AND is_deleted = 0 "
                         f"AND COALESCE(pinned, 0) = 0 "
                         f"ORDER BY created_at DESC {_d.all_rows_after_offset(_p)}",
-                        (agent_id, p["max_memories"])
+                        (agent_id, p["max_memories"]),
                     ).fetchall()
             except Exception as e:  # noqa: BLE001 — pre-pinned-column DB
                 if not _is_missing_schema(e):
@@ -1157,7 +1174,7 @@ def _enforce_retention_policies(db):
                 excess = db.execute(
                     f"SELECT id FROM memory_items WHERE agent_id = {_p} AND is_deleted = 0 "
                     f"ORDER BY created_at DESC {_d.all_rows_after_offset(_p)}",
-                    (agent_id, p["max_memories"])
+                    (agent_id, p["max_memories"]),
                 ).fetchall()
             for row in excess:
                 if p["auto_archive"]:
@@ -1166,11 +1183,14 @@ def _enforce_retention_policies(db):
                 purged += 1
     return purged
 
-def memory_maintenance_impl(decay=True, purge_expired=True, prune_orphan_embeddings=True,
-                            reinforce=True, prune_orphan_queues=True):
+
+def memory_maintenance_impl(
+    decay=True, purge_expired=True, prune_orphan_embeddings=True, reinforce=True, prune_orphan_queues=True
+):
     import time
 
     from m3_sdk import _LAST_USER_INTERACTION
+
     if time.time() - _LAST_USER_INTERACTION < 15.0:
         logger.info("Active query session detected. Suspending curation pass to yield resources.")
         time.sleep(5.0)
@@ -1187,10 +1207,12 @@ def memory_maintenance_impl(decay=True, purge_expired=True, prune_orphan_embeddi
     # skipped on PG — that is genuinely SQLite-only, unlike decay/purge/retention.
     now = datetime.now(UTC).isoformat()
     from memory.backends import dialect as _dialect
+
     _d = _dialect()
     _p = _d.param()
-    _age7 = _d.age_days_gt("created_at", "7")   # literal-day form (no bind)
+    _age7 = _d.age_days_gt("created_at", "7")  # literal-day form (no bind)
     from memory.db import savepoint as _savepoint
+
     report = []
     with _db() as db:
         if decay:
@@ -1240,9 +1262,7 @@ def memory_maintenance_impl(decay=True, purge_expired=True, prune_orphan_embeddi
             # 036 DBs. Distinct from importance decay above (toward 0).
             r_count, d_count = _reinforce_confidence(db)
             if r_count or d_count:
-                report.append(
-                    f"Confidence: reaggregated {r_count}, decayed {d_count} toward neutral"
-                )
+                report.append(f"Confidence: reaggregated {r_count}, decayed {d_count} toward neutral")
         if purge_expired:
             try:
                 with _savepoint(db):
@@ -1254,7 +1274,8 @@ def memory_maintenance_impl(decay=True, purge_expired=True, prune_orphan_embeddi
                 if not _is_missing_schema(e):
                     raise
                 expired = db.execute(f"SELECT id FROM memory_items WHERE expires_at < {_p}", (now,)).fetchall()
-            for row in expired: _transfer_to_archive(row[0], "expired", db)
+            for row in expired:
+                _transfer_to_archive(row[0], "expired", db)
             try:
                 with _savepoint(db):
                     res = db.execute(
@@ -1344,10 +1365,12 @@ def memory_maintenance_impl(decay=True, purge_expired=True, prune_orphan_embeddi
                 refresh_due = db.execute(
                     f"SELECT COUNT(*) FROM memory_items "
                     f"WHERE is_deleted = 0 AND refresh_on IS NOT NULL AND refresh_on <= {_p}",
-                    (now,)
+                    (now,),
                 ).fetchone()[0]
                 if refresh_due:
-                    report.append(f"Refresh queue: {refresh_due} memor{'y' if refresh_due == 1 else 'ies'} due for review")
+                    report.append(
+                        f"Refresh queue: {refresh_due} memor{'y' if refresh_due == 1 else 'ies'} due for review"
+                    )
 
                     # Fan-out notifications by agent_id. NULL/empty agent_ids are
                     # skipped — notifications require a real agent_id.
@@ -1357,7 +1380,7 @@ def memory_maintenance_impl(decay=True, purge_expired=True, prune_orphan_embeddi
                         f"WHERE is_deleted = 0 AND refresh_on IS NOT NULL AND refresh_on <= {_p} "
                         f"  AND agent_id IS NOT NULL AND agent_id != '' "
                         f"GROUP BY agent_id",
-                        (now,)
+                        (now,),
                     ).fetchall()
 
                     notified = 0
@@ -1367,7 +1390,7 @@ def memory_maintenance_impl(decay=True, purge_expired=True, prune_orphan_embeddi
                         existing = db.execute(
                             f"SELECT 1 FROM notifications "
                             f"WHERE agent_id = {_p} AND kind = 'refresh_due' AND read_at IS NULL LIMIT 1",
-                            (aid,)
+                            (aid,),
                         ).fetchone()
                         if existing:
                             continue
@@ -1376,7 +1399,7 @@ def memory_maintenance_impl(decay=True, purge_expired=True, prune_orphan_embeddi
                         db.execute(
                             f"INSERT INTO notifications (agent_id, kind, payload_json, created_at) "
                             f"VALUES ({_p}, 'refresh_due', {_p}, {_p})",
-                            (aid, payload, now)
+                            (aid, payload, now),
                         )
                         notified += 1
                     if notified:
@@ -1405,6 +1428,7 @@ def memory_maintenance_impl(decay=True, purge_expired=True, prune_orphan_embeddi
 
     return "Maintenance complete:\n" + "\n".join(report)
 
+
 def gdpr_export_impl(user_id: str) -> str:
     """Export all memories for a data subject (GDPR Article 20 - Right to data portability).
 
@@ -1413,32 +1437,38 @@ def gdpr_export_impl(user_id: str) -> str:
     the ``?`` placeholders + ``strftime('now')`` were SQLite-only, so GDPR export
     silently failed on PG."""
     import json
+
     if not user_id or not user_id.strip():
         return "Error: user_id is required"
     from memory.backends import dialect
+
     _d = dialect()
     _p = _d.param()
     with _db() as db:
         rows = db.execute(
             "SELECT id, type, title, content, metadata_json, agent_id, importance, created_at, updated_at "
             f"FROM memory_items WHERE user_id = {_p} AND is_deleted = 0",
-            (user_id,)
+            (user_id,),
         ).fetchall()
         items = [dict(r) for r in rows]
 
         # Log the export request
         import uuid
+
         req_id = str(uuid.uuid4())
         try:
             db.execute(
                 "INSERT INTO gdpr_requests (id, subject_id, request_type, status, items_affected, completed_at) "
                 f"VALUES ({_p}, {_p}, 'export', 'completed', {_p}, {_d.now()})",
-                (req_id, user_id, len(items))
+                (req_id, user_id, len(items)),
             )
         except Exception:
             pass  # gdpr_requests table may not exist yet
 
-    return json.dumps({"user_id": user_id, "request_id": req_id, "items_count": len(items), "items": items}, indent=2, default=str)
+    return json.dumps(
+        {"user_id": user_id, "request_id": req_id, "items_count": len(items), "items": items}, indent=2, default=str
+    )
+
 
 def gdpr_forget_impl(user_id: str, compliance: "dict | str | None" = None) -> str:
     """Right to be forgotten (GDPR Article 17). Hard-deletes all data for a user_id.
@@ -1463,6 +1493,7 @@ def gdpr_forget_impl(user_id: str, compliance: "dict | str | None" = None) -> st
     they are never surfaced elsewhere (wiki, export)."""
     import json as _json
     import uuid
+
     if not user_id or not user_id.strip():
         return "Error: user_id is required"
     # Normalize compliance to a dict; tolerate a JSON string (CLI/HTTP callers).
@@ -1470,10 +1501,11 @@ def gdpr_forget_impl(user_id: str, compliance: "dict | str | None" = None) -> st
         try:
             compliance = _json.loads(compliance) if compliance.strip() else None
         except ValueError:
-            compliance = {"note": compliance}   # keep raw text rather than lose it
+            compliance = {"note": compliance}  # keep raw text rather than lose it
     if compliance is not None and not isinstance(compliance, dict):
         compliance = None
     from memory.backends import dialect
+
     _d = dialect()
     _p = _d.param()
 
@@ -1482,15 +1514,13 @@ def gdpr_forget_impl(user_id: str, compliance: "dict | str | None" = None) -> st
 
     with _db() as db:
         # Count items before deletion
-        count_row = db.execute(
-            f"SELECT COUNT(*) as cnt FROM memory_items WHERE user_id = {_p}", (user_id,)
-        ).fetchone()
+        count_row = db.execute(f"SELECT COUNT(*) as cnt FROM memory_items WHERE user_id = {_p}", (user_id,)).fetchone()
         total_deleted = count_row["cnt"] if count_row else 0
 
         # Get all memory IDs for cascade deletion
-        item_ids = [r["id"] for r in db.execute(
-            f"SELECT id FROM memory_items WHERE user_id = {_p}", (user_id,)
-        ).fetchall()]
+        item_ids = [
+            r["id"] for r in db.execute(f"SELECT id FROM memory_items WHERE user_id = {_p}", (user_id,)).fetchall()
+        ]
 
         # WIKI erasure hook (Art. 17 derived-content): before the cascade removes
         # the `consolidates` edges, mark every synthesis derived from an erased
@@ -1506,18 +1536,22 @@ def gdpr_forget_impl(user_id: str, compliance: "dict | str | None" = None) -> st
             try:
                 import os as _os
                 import sys as _sys
+
                 _bin = _os.path.dirname(_os.path.abspath(__file__))
                 if _bin not in _sys.path:
                     _sys.path.insert(0, _bin)
                 from wiki.erasure import restrict_derived_on_erasure
+
                 _erased_at = datetime.now(UTC).isoformat()
-                wiki_erasure_summary = restrict_derived_on_erasure(
-                    db, _d, item_ids, timestamp=_erased_at)
+                wiki_erasure_summary = restrict_derived_on_erasure(db, _d, item_ids, timestamp=_erased_at)
             except Exception as _e:  # pragma: no cover - defensive
                 import logging
+
                 logging.getLogger("m3.gdpr").warning(
-                    "wiki erasure hook failed for user %s: %r — derived syntheses "
-                    "may still render; review manually", user_id, _e)
+                    "wiki erasure hook failed for user %s: %r — derived syntheses may still render; review manually",
+                    user_id,
+                    _e,
+                )
                 wiki_erasure_summary = {"error": repr(_e)}
 
         # WIKI LEDGER erasure scan (Art. 17, plan G2): the compile ledger's
@@ -1533,15 +1567,18 @@ def gdpr_forget_impl(user_id: str, compliance: "dict | str | None" = None) -> st
         if item_ids:
             try:
                 from wiki.ledger import scan_and_flush_on_erasure
+
                 _led_at = datetime.now(UTC).isoformat()
-                wiki_ledger_summary = scan_and_flush_on_erasure(
-                    db, _d, item_ids, timestamp=_led_at)
+                wiki_ledger_summary = scan_and_flush_on_erasure(db, _d, item_ids, timestamp=_led_at)
             except Exception as _e:  # pragma: no cover - defensive
                 import logging
+
                 logging.getLogger("m3.gdpr").warning(
                     "wiki ledger erasure scan failed for user %s: %r — a cluster "
                     "membership cache may still hold the erased id; review manually",
-                    user_id, _e)
+                    user_id,
+                    _e,
+                )
                 wiki_ledger_summary = {"error": repr(_e)}
 
         if item_ids:
@@ -1549,7 +1586,10 @@ def gdpr_forget_impl(user_id: str, compliance: "dict | str | None" = None) -> st
             # Delete embeddings
             db.execute(f"DELETE FROM memory_embeddings WHERE memory_id IN ({placeholders})", item_ids)
             # Delete relationships
-            db.execute(f"DELETE FROM memory_relationships WHERE from_id IN ({placeholders}) OR to_id IN ({placeholders})", item_ids + item_ids)
+            db.execute(
+                f"DELETE FROM memory_relationships WHERE from_id IN ({placeholders}) OR to_id IN ({placeholders})",
+                item_ids + item_ids,
+            )
             # Delete history
             db.execute(f"DELETE FROM memory_history WHERE memory_id IN ({placeholders})", item_ids)
             # Delete materialized bypass-surface rows (ADR-0001 §7/§9). The surface FK
@@ -1557,6 +1597,7 @@ def gdpr_forget_impl(user_id: str, compliance: "dict | str | None" = None) -> st
             # on cascade firing — so delete here too. Guarded: table may not exist on a
             # DB migrated below v033. By memory_id (the surfaced pointer) AND user_id.
             from memory.db import savepoint as _savepoint
+
             try:
                 with _savepoint(db):
                     db.execute(f"DELETE FROM bypass_surface WHERE memory_id IN ({placeholders})", item_ids)
@@ -1584,13 +1625,14 @@ def gdpr_forget_impl(user_id: str, compliance: "dict | str | None" = None) -> st
             db.execute(
                 "INSERT INTO gdpr_requests (id, subject_id, request_type, status, items_affected, completed_at) "
                 f"VALUES ({_p}, {_p}, 'forget', 'completed', {_p}, {_d.now()})",
-                (req_id, user_id, total_deleted)
+                (req_id, user_id, total_deleted),
             )
         except Exception:
             pass  # gdpr_requests table may not exist yet
 
     try:
         from audit_trail import write_audit_entry
+
         audit_meta = {"request_id": req_id, "items_affected": total_deleted}
         if compliance:
             # Operator-supplied program-layer record (legal_basis, reason,
@@ -1614,12 +1656,14 @@ def gdpr_forget_impl(user_id: str, compliance: "dict | str | None" = None) -> st
 
     return f"GDPR forget completed: {total_deleted} items hard-deleted for user_id={user_id} (request: {req_id})"
 
+
 def memory_set_retention_impl(agent_id: str, max_memories: int = 1000, ttl_days: int = 0, auto_archive: int = 1) -> str:
     """Set or update agent retention policy."""
     if not agent_id or not agent_id.strip():
         return "Error: agent_id is required"
     try:
         from memory.backends import dialect as _dialect
+
         _d = _dialect()
         _p = _d.param()
         with _db() as db:
@@ -1628,15 +1672,19 @@ def memory_set_retention_impl(agent_id: str, max_memories: int = 1000, ttl_days:
                 f"VALUES ({_p}, {_p}, {_p}, {_p}, {_d.now()}) "
                 f"ON CONFLICT(agent_id) DO UPDATE SET max_memories=excluded.max_memories, ttl_days=excluded.ttl_days, "
                 f"auto_archive=excluded.auto_archive, updated_at=excluded.updated_at",
-                (agent_id, max_memories, ttl_days, auto_archive)
+                (agent_id, max_memories, ttl_days, auto_archive),
             )
         return f"Retention policy set for agent '{agent_id}': max={max_memories}, ttl={ttl_days}d, auto_archive={bool(auto_archive)}"
     except Exception as e:
         return f"Error setting retention policy: {e}"
 
-def memory_export_impl(agent_filter="", type_filter="", since="", output_format="json"):  # output_format: reserved, JSON only today (m3 3e8f0b21; bin/check_unreferenced.py RESERVED)
+
+def memory_export_impl(
+    agent_filter="", type_filter="", since="", output_format="json"
+):  # output_format: reserved, JSON only today (m3 3e8f0b21; bin/check_unreferenced.py RESERVED)
     """Export memories as portable JSON. Filter by agent, type, or date."""
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     where = ["mi.is_deleted = 0"]
     params = []
@@ -1659,7 +1707,10 @@ def memory_export_impl(agent_filter="", type_filter="", since="", output_format=
             item = dict(row)
             mid = item["id"]
             # Fetch embeddings
-            embs = db.execute(f"SELECT embedding, embed_model, dim, created_at, content_hash FROM memory_embeddings WHERE memory_id = {_p}", (mid,)).fetchall()
+            embs = db.execute(
+                f"SELECT embedding, embed_model, dim, created_at, content_hash FROM memory_embeddings WHERE memory_id = {_p}",
+                (mid,),
+            ).fetchall()
             item["embeddings"] = []
             for e in embs:
                 edata = dict(e)
@@ -1668,15 +1719,16 @@ def memory_export_impl(agent_filter="", type_filter="", since="", output_format=
                 item["embeddings"].append(edata)
 
             # Fetch relationships
-            rels = db.execute(f"SELECT to_id, relationship_type, created_at FROM memory_relationships WHERE from_id = {_p}", (mid,)).fetchall()
+            rels = db.execute(
+                f"SELECT to_id, relationship_type, created_at FROM memory_relationships WHERE from_id = {_p}", (mid,)
+            ).fetchall()
             item["relationships"] = [dict(r) for r in rels]
             items.append(item)
 
-    return json.dumps({
-        "exported_at": datetime.now(UTC).isoformat(),
-        "item_count": len(items),
-        "items": items
-    }, indent=2, default=str)
+    return json.dumps(
+        {"exported_at": datetime.now(UTC).isoformat(), "item_count": len(items), "items": items}, indent=2, default=str
+    )
+
 
 def memory_import_impl(data: str):
     """Import memories from a JSON export. UPSERT semantics — safe to re-run."""
@@ -1687,13 +1739,35 @@ def memory_import_impl(data: str):
         return f"Error parsing import data: {e}"
 
     from memory.backends import dialect as _dialect
+
     _d = _dialect()
     _p = _d.param()
     i_count, e_count, r_count = 0, 0, 0
     with _db() as db:
         for item in items:
             # 1. UPSERT memory_items
-            fields = ["id", "type", "title", "content", "metadata_json", "agent_id", "model_id", "change_agent", "importance", "source", "origin_device", "user_id", "scope", "expires_at", "created_at", "updated_at", "valid_from", "valid_to", "content_hash", "is_deleted"]
+            fields = [
+                "id",
+                "type",
+                "title",
+                "content",
+                "metadata_json",
+                "agent_id",
+                "model_id",
+                "change_agent",
+                "importance",
+                "source",
+                "origin_device",
+                "user_id",
+                "scope",
+                "expires_at",
+                "created_at",
+                "updated_at",
+                "valid_from",
+                "valid_to",
+                "content_hash",
+                "is_deleted",
+            ]
             # Filter item to only include known fields
             clean_item = {k: item.get(k) for k in fields if k in item}
             # metadata_json rides back as a dict on a PG export (JSONB whole-column
@@ -1719,23 +1793,37 @@ def memory_import_impl(data: str):
                 db.execute(
                     f"{_d.insert_or_ignore()} memory_embeddings (id, memory_id, embedding, embed_model, dim, created_at, content_hash) "
                     f"VALUES ({_d.placeholder(7)}) {_emb_upsert}",
-                    (str(uuid.uuid4()), mid, eblob, edata.get("embed_model"), edata.get("dim"), edata.get("created_at"), edata.get("content_hash"))
+                    (
+                        str(uuid.uuid4()),
+                        mid,
+                        eblob,
+                        edata.get("embed_model"),
+                        edata.get("dim"),
+                        edata.get("created_at"),
+                        edata.get("content_hash"),
+                    ),
                 )
                 e_count += 1
 
             # 3. Re-insert relationships. Idempotent on the (from,to,type) unique
             #    edge (migration 039) — re-import is a no-op, not a dup.
-            _rel_suffix = _d.on_conflict_ignore(
-                conflict_target="(from_id, to_id, relationship_type)")
+            _rel_suffix = _d.on_conflict_ignore(conflict_target="(from_id, to_id, relationship_type)")
             for rdata in item.get("relationships", []):
                 db.execute(
                     f"{_d.insert_or_ignore()} memory_relationships (id, from_id, to_id, relationship_type, created_at) "
                     f"VALUES ({_d.placeholder(5)}) {_rel_suffix}",
-                    (str(uuid.uuid4()), mid, rdata.get("to_id"), rdata.get("relationship_type"), rdata.get("created_at"))
+                    (
+                        str(uuid.uuid4()),
+                        mid,
+                        rdata.get("to_id"),
+                        rdata.get("relationship_type"),
+                        rdata.get("created_at"),
+                    ),
                 )
                 r_count += 1
 
     return f"Imported {i_count} items, {e_count} embeddings, {r_count} relationships"
+
 
 async def memory_consolidate_impl(
     type_filter="",
@@ -1763,6 +1851,7 @@ async def memory_consolidate_impl(
     stale_cutoff = (now_dt - timedelta(days=stale_days)).isoformat() if stale_days > 0 else None
 
     from memory.backends import dialect as _dialect
+
     _d = _dialect()
     _p = _d.param()
     # 1. Query groups exceeding threshold
@@ -1789,7 +1878,10 @@ async def memory_consolidate_impl(
         return "No memory groups exceed consolidation threshold."
 
     if dry_run:
-        preview = [f"{g['type']}/{g['agent_id']} (user={g['user_id']}): {g['cnt'] - threshold} items would consolidate" for g in groups]
+        preview = [
+            f"{g['type']}/{g['agent_id']} (user={g['user_id']}): {g['cnt'] - threshold} items would consolidate"
+            for g in groups
+        ]
         return "DRY RUN — no changes. Candidates:\n" + "\n".join(preview)
 
     token = ctx.get_secret("LM_API_TOKEN") or "lm-studio"
@@ -1820,7 +1912,8 @@ async def memory_consolidate_impl(
         with _db() as db:
             rows = db.execute(fetch_sql, fetch_params).fetchall()
 
-        if not rows: continue
+        if not rows:
+            continue
 
         # 3. Concatenate content
         items_text = "\n".join(f"- {r['title'] or '(untitled)'}: {r['content']}" for r in rows)
@@ -1833,13 +1926,11 @@ async def memory_consolidate_impl(
                 chat_url,
                 # Reasoning models leave `content` empty; without this the
                 # consolidation silently returns nothing.
-                json=apply_thinking_suppression({
-                    "model": model,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.3
-                }, chat_url),
+                json=apply_thinking_suppression(
+                    {"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": 0.3}, chat_url
+                ),
                 headers={"Authorization": f"Bearer {token}"},
-                timeout=memory_core.LLM_TIMEOUT
+                timeout=memory_core.LLM_TIMEOUT,
             )
             resp.raise_for_status()
             data = resp.json()
@@ -1859,14 +1950,16 @@ async def memory_consolidate_impl(
         s_vec, s_model = await _embed(summary_text)
 
         _label = "belief" if target_type == "belief" else "summary"
-        _title = (f"Belief from {len(rows)} {g_type} memories ({g_agent})"
-                  if target_type == "belief"
-                  else f"Consolidated {g_type} memories for {g_agent}")
+        _title = (
+            f"Belief from {len(rows)} {g_type} memories ({g_agent})"
+            if target_type == "belief"
+            else f"Consolidated {g_type} memories for {g_agent}"
+        )
         with _db() as db:
             db.execute(
                 f"INSERT INTO memory_items (id, type, title, content, agent_id, user_id, created_at, content_hash) "
                 f"VALUES ({_d.placeholder(8)})",
-                (summary_id, target_type, _title, summary_text, g_agent, g_user, now, _content_hash(summary_text))
+                (summary_id, target_type, _title, summary_text, g_agent, g_user, now, _content_hash(summary_text)),
             )
             # A belief is a high-order, multi-source abstraction — give it a high
             # first-class confidence (knowledge-maintenance Phase 4). Guarded so a
@@ -1875,6 +1968,7 @@ async def memory_consolidate_impl(
             # whole consolidation write (embedding + links + soft-deletes below).
             if target_type == "belief":
                 from memory.db import savepoint as _savepoint
+
                 try:
                     with _savepoint(db):
                         db.execute(f"UPDATE memory_items SET confidence = {_p} WHERE id = {_p}", (0.85, summary_id))
@@ -1885,7 +1979,15 @@ async def memory_consolidate_impl(
             if s_vec:
                 db.execute(
                     f"INSERT INTO memory_embeddings (id, memory_id, embedding, embed_model, dim, created_at, content_hash) VALUES ({_d.placeholder(7)})",
-                    (str(uuid.uuid4()), summary_id, _pack(s_vec), s_model, len(s_vec), now, _content_hash(summary_text))
+                    (
+                        str(uuid.uuid4()),
+                        summary_id,
+                        _pack(s_vec),
+                        s_model,
+                        len(s_vec),
+                        now,
+                        _content_hash(summary_text),
+                    ),
                 )
 
             # 6. Link to sources and 7. Soft-delete
@@ -1930,8 +2032,7 @@ def undistilled_task_clause(d) -> str:
     2026-10-04)."""
     jx = d.json_extract_text("p.metadata_json", "distilled_from_task")
     return (
-        "NOT EXISTS (SELECT 1 FROM memory_items p "
-        f"WHERE p.type = 'procedure' AND p.is_deleted = 0 AND {jx} = tasks.id)"
+        f"NOT EXISTS (SELECT 1 FROM memory_items p WHERE p.type = 'procedure' AND p.is_deleted = 0 AND {jx} = tasks.id)"
     )
 
 
@@ -1964,16 +2065,16 @@ async def _distill_call_model(prompt: str) -> "str | None":
         if not result:
             raise LLMUnavailable(
                 "observed: get_best_llm found no endpoint listing a usable model. "
-                "inspect: load a model in the local server, or M3_LLM_ENDPOINTS_CSV.")
+                "inspect: load a model in the local server, or M3_LLM_ENDPOINTS_CSV."
+            )
         base_url, model = result
         try:
             chat_url = f"{base_url}/chat/completions"
             resp = await client.post(
                 chat_url,
                 json=apply_thinking_suppression(
-                    {"model": model,
-                     "messages": [{"role": "user", "content": prompt}],
-                     "temperature": 0.2}, chat_url),
+                    {"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": 0.2}, chat_url
+                ),
                 headers={"Authorization": f"Bearer {token}"},
                 timeout=memory_core.LLM_TIMEOUT,
             )
@@ -2085,8 +2186,7 @@ async def memory_distill_procedures_impl(
 
     # 1. Select completed, non-deleted tasks with a result, aged past stale_days.
     #    Built through the dialect so the same SQL runs on SQLite / PG / MariaDB.
-    where = ["state = 'completed'", "deleted_at IS NULL", "result_memory_id IS NOT NULL",
-             undistilled_task_clause(_d)]
+    where = ["state = 'completed'", "deleted_at IS NULL", "result_memory_id IS NOT NULL", undistilled_task_clause(_d)]
     params: list = []
     if stale_days > 0:
         where.append(f"completed_at IS NOT NULL AND completed_at < {_d.now_minus_days(p)}")
@@ -2096,24 +2196,20 @@ async def memory_distill_procedures_impl(
     # RESULT memory below, and use owner_agent/created_by for attribution.
     sql = (
         "SELECT id, title, description, result_memory_id, owner_agent, "
-        "created_by FROM tasks WHERE "
-        + " AND ".join(where)
-        + " ORDER BY completed_at ASC"
+        "created_by FROM tasks WHERE " + " AND ".join(where) + " ORDER BY completed_at ASC"
     )
 
     with _db() as db:
         tasks = db.execute(sql, params).fetchall()
 
     if len(tasks) < max(threshold, 1):
-        return (f"No procedural distillation: {len(tasks)} completed task(s) "
-                f"with results (threshold {threshold}).")
+        return f"No procedural distillation: {len(tasks)} completed task(s) with results (threshold {threshold})."
 
     tasks = tasks[:max_procedures]
 
     if dry_run:
         preview = [f"- task {t['id']}: {t['title'] or '(untitled)'}" for t in tasks]
-        return (f"DRY RUN — {len(tasks)} task(s) would distill into procedures:\n"
-                + "\n".join(preview))
+        return f"DRY RUN — {len(tasks)} task(s) would distill into procedures:\n" + "\n".join(preview)
 
     results: list[str] = []
     for t in tasks:
@@ -2162,8 +2258,7 @@ async def memory_distill_procedures_impl(
         except LLMUnavailable as e:
             report_unavailable(logger, "distillation", e)
             remaining = len(tasks) - tasks.index(t)
-            results.append(f"Stopped: local LLM unavailable; {remaining} task(s) left "
-                           f"for the next pass. {e}")
+            results.append(f"Stopped: local LLM unavailable; {remaining} task(s) left for the next pass. {e}")
             break
         report_available(logger, "distillation")
         if not reply:
@@ -2177,13 +2272,15 @@ async def memory_distill_procedures_impl(
         # 4. Write the procedure via the backend-agnostic impl (embeds + inserts
         #    through the seam). procedure_kind + steps ride metadata_json.
         body = _render_procedure_markdown(proc)
-        meta = json.dumps({
-            "procedure_kind": proc["procedure_kind"],
-            "steps": proc.get("steps") or [],
-            "preconditions": proc.get("preconditions") or [],
-            "gotchas": proc.get("gotchas") or [],
-            "distilled_from_task": t["id"],
-        })
+        meta = json.dumps(
+            {
+                "procedure_kind": proc["procedure_kind"],
+                "steps": proc.get("steps") or [],
+                "preconditions": proc.get("preconditions") or [],
+                "gotchas": proc.get("gotchas") or [],
+                "distilled_from_task": t["id"],
+            }
+        )
         proc_id = await memory_write_impl(
             type="procedure",
             content=body,
@@ -2209,8 +2306,7 @@ async def memory_distill_procedures_impl(
                 memory_link_impl(new_id, sid, "distills_from", db=db)
 
         results.append(
-            f"Distilled task {t['id']} → procedure {new_id} "
-            f"(kind={proc['procedure_kind']}, {len(src_ids)} source(s))"
+            f"Distilled task {t['id']} → procedure {new_id} (kind={proc['procedure_kind']}, {len(src_ids)} source(s))"
         )
 
     return "\n".join(results) if results else "No procedures distilled."
@@ -2229,9 +2325,7 @@ if __name__ == "__main__":
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from _task_runtime import add_log_file_arg, setup_task_runtime
 
-    parser = argparse.ArgumentParser(
-        description="Daily memory maintenance (decay, prune orphans, retention)."
-    )
+    parser = argparse.ArgumentParser(description="Daily memory maintenance (decay, prune orphans, retention).")
     add_log_file_arg(parser)
     args = parser.parse_args()
 
@@ -2242,6 +2336,7 @@ if __name__ == "__main__":
     )
 
     import time as _time
+
     _MAX_RETRIES = 3
     _RETRY_DELAY = 30  # seconds — wait for any concurrent MCP write transaction to finish
     for _attempt in range(1, _MAX_RETRIES + 1):

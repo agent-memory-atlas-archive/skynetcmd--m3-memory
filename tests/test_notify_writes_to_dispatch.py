@@ -14,6 +14,7 @@ Three properties are pinned:
 Each test builds its own engine root, so they are order-independent and leave
 no state behind.
 """
+
 from __future__ import annotations
 
 import os
@@ -48,8 +49,7 @@ class _Store(unittest.TestCase):
     INTEGRATED = False
 
     def setUp(self):
-        self._saved = {k: os.environ.get(k) for k in
-                       ("M3_ENGINE_ROOT", "M3_DATABASE", "M3_DISPATCH_MODE")}
+        self._saved = {k: os.environ.get(k) for k in ("M3_ENGINE_ROOT", "M3_DATABASE", "M3_DISPATCH_MODE")}
         root = tempfile.mkdtemp(prefix="m3-notify-test-")
         engine = os.path.join(root, "engine")
         os.makedirs(engine, exist_ok=True)
@@ -63,11 +63,10 @@ class _Store(unittest.TestCase):
         self.main = P.resolve_engine_file("agent_memory.db")
         conn = sqlite3.connect(self.main)
         conn.executescript(_MAIN_DDL)
-        boot = (pathlib.Path(P.dispatch_migrations_dir())
-                / "001_bootstrap.up.sql").read_text(encoding="utf-8")
+        boot = (pathlib.Path(P.dispatch_migrations_dir()) / "001_bootstrap.up.sql").read_text(encoding="utf-8")
         self.dispatch = P.resolve_dispatch_db()
         if self.INTEGRATED:
-            conn.executescript(boot)     # same file, second table
+            conn.executescript(boot)  # same file, second table
             conn.commit()
             conn.close()
         else:
@@ -99,10 +98,12 @@ class TestSeparateStore(_Store):
 
     def test_a_new_notification_lands_in_the_dispatch_store(self):
         from memory.orchestration import notify_impl
+
         notify_impl("probe@1", "handoff", {"task": "x"})
 
         self.assertEqual(
-            self._count(self.dispatch, "notification_dispatch"), 1,
+            self._count(self.dispatch, "notification_dispatch"),
+            1,
             "the notification did not reach the dispatch store.\n"
             "observed: 0 rows in notification_dispatch\n"
             "possible: the write went to the main store, or get_dispatch_conn "
@@ -110,7 +111,8 @@ class TestSeparateStore(_Store):
             "inspect: _dispatch_write_table and M3Context.get_dispatch_conn",
         )
         self.assertEqual(
-            self._count(self.main, "notifications"), 0,
+            self._count(self.main, "notifications"),
+            0,
             "the notification also reached the LEGACY table.\n"
             "observed: rows in notifications on a separate-store install\n"
             "possible: the write path still targets the old table\n"
@@ -121,6 +123,7 @@ class TestSeparateStore(_Store):
         """Ids must stay globally distinguishable: ack takes a bare integer."""
         from memory.orchestration import notifications_unread_ids_impl as unread
         from memory.orchestration import notify_impl
+
         notify_impl("probe@1", "handoff", {})
         ids = unread("probe@1")
         self.assertTrue(
@@ -138,25 +141,25 @@ class TestSeparateStore(_Store):
         reported -- an inbox that is quietly wrong.
         """
         conn = sqlite3.connect(self.main)
-        conn.execute("INSERT INTO notifications (agent_id, kind) "
-                     "VALUES ('probe@1','legacy-unread')")
+        conn.execute("INSERT INTO notifications (agent_id, kind) VALUES ('probe@1','legacy-unread')")
         conn.commit()
         conn.close()
 
         from memory.orchestration import notifications_unread_ids_impl as unread
         from memory.orchestration import notify_impl
+
         notify_impl("probe@1", "new-handoff", {})
         ids = unread("probe@1")
 
         self.assertIn(
-            1, ids,
+            1,
+            ids,
             "a legacy unread row was not delivered after the switch.\n"
             f"observed: unread={ids}\n"
             "possible: the read path no longer visits the notifications table\n"
             "inspect: _notification_sources in bin/memory/orchestration.py",
         )
-        self.assertTrue(any(i >= _ID_FLOOR for i in ids),
-                        f"observed: unread={ids} -- no dispatch row present")
+        self.assertTrue(any(i >= _ID_FLOOR for i in ids), f"observed: unread={ids} -- no dispatch row present")
         self.assertEqual(len(ids), 2, f"observed: unread={ids}")
 
 
@@ -166,12 +169,12 @@ class TestIntegratedStore(_Store):
     def test_integrated_mode_uses_the_dispatch_table_in_the_main_file(self):
         from memory.orchestration import notifications_unread_ids_impl as unread
         from memory.orchestration import notify_impl
+
         notify_impl("probe@1", "handoff", {})
 
         self.assertEqual(self._count(self.main, "notification_dispatch"), 1)
         self.assertEqual(self._count(self.main, "notifications"), 0)
-        self.assertTrue(unread("probe@1"),
-                        "integrated mode wrote a row the read path cannot see")
+        self.assertTrue(unread("probe@1"), "integrated mode wrote a row the read path cannot see")
 
 
 class TestWriteAndReadAgree(unittest.TestCase):
@@ -183,8 +186,7 @@ class TestWriteAndReadAgree(unittest.TestCase):
     """
 
     def setUp(self):
-        self._saved = {k: os.environ.get(k)
-                       for k in ("M3_DISPATCH_MODE", "M3_DISPATCH_PG_SCHEMA")}
+        self._saved = {k: os.environ.get(k) for k in ("M3_DISPATCH_MODE", "M3_DISPATCH_PG_SCHEMA")}
 
     def tearDown(self):
         for k, v in self._saved.items():
@@ -195,6 +197,7 @@ class TestWriteAndReadAgree(unittest.TestCase):
 
     def test_the_write_table_is_always_a_read_source(self):
         from memory.orchestration import _dispatch_write_table, _notification_sources
+
         for mode in ("separate", "integrated"):
             with self.subTest(mode=mode):
                 if mode == "integrated":
@@ -204,7 +207,8 @@ class TestWriteAndReadAgree(unittest.TestCase):
                 write = _dispatch_write_table()
                 reads = [t for _, t in _notification_sources()]
                 self.assertIn(
-                    write, reads,
+                    write,
+                    reads,
                     "the write table is not among the read sources.\n"
                     f"observed: write={write!r} reads={reads!r}\n"
                     "cause: the two resolvers disagree about where mail lives\n"

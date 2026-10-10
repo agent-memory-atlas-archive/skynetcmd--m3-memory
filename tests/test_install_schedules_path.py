@@ -9,6 +9,7 @@ cognitive loop NEVER registered on a real install while `[OK]` still printed.
 The fix routes through the canonical bin_dir() resolver and makes the register
 step return a bool so the `[OK]` is only printed when it actually registered.
 """
+
 from __future__ import annotations
 
 import os
@@ -53,7 +54,8 @@ def test_register_cognitive_loop_returns_true_only_on_success(monkeypatch, tmp_p
     monkeypatch.setattr(installer, "_python_exe", lambda: "python3")
 
     class _P:
-        def __init__(self, rc): self.returncode = rc
+        def __init__(self, rc):
+            self.returncode = rc
 
     monkeypatch.setattr(installer.subprocess, "run", lambda *a, **k: _P(0))
     assert installer._register_cognitive_loop_task() is True
@@ -91,6 +93,7 @@ def test_prompt_returns_false_headless_without_flag(monkeypatch):
 
 # ── install_m3 exit semantics: --cognitive-loop on an existing payload ───────
 
+
 def _stub_install_m3_env(monkeypatch, tmp_path):
     """Existing-payload sandbox: repo_path present, config helpers redirected."""
     repo_path = tmp_path / "repo"
@@ -114,7 +117,7 @@ def test_install_m3_cognitive_loop_flag_is_success_on_existing_payload(monkeypat
     monkeypatch.setattr(installer, "find_bridge", lambda: fake_bridge)
 
     out = installer.install_m3(repo_path=repo_path, tag="v1.2.3", cognitive_loop=True)
-    assert out == fake_bridge                      # exit-0 success, bridge returned
+    assert out == fake_bridge  # exit-0 success, bridge returned
     assert "left in place" in capsys.readouterr().out
 
 
@@ -122,6 +125,7 @@ def test_install_m3_bare_still_refuses_without_force(monkeypatch, tmp_path):
     """The base case is unchanged: no sub-action + existing payload + no force
     still raises the actionable 'already installed' refusal."""
     import pytest
+
     repo_path = _stub_install_m3_env(monkeypatch, tmp_path)
     with pytest.raises(RuntimeError, match="already installed"):
         installer.install_m3(repo_path=repo_path, tag="v1.2.3")  # no cognitive_loop

@@ -5,6 +5,7 @@ The judge PROMPT, the labelled FIXTURE, and the recall THRESHOLD are DEFERRED
 fail-open, report-only — proven with a stub judge, plus the inertness guarantee:
 the default (no-judge) build is byte-identical to one without this module.
 """
+
 import os
 import sqlite3
 import sys
@@ -21,15 +22,37 @@ from wiki.select import Edge, Mem  # noqa: E402
 
 
 def _syn(id, content="claim"):
-    return Mem(id=id, type="synthesis", title=id, content=content, importance=0.5,
-               confidence=0.5, valid_from=None, valid_to=None, pinned=0,
-               created_at=None, updated_at=None, metadata={})
+    return Mem(
+        id=id,
+        type="synthesis",
+        title=id,
+        content=content,
+        importance=0.5,
+        confidence=0.5,
+        valid_from=None,
+        valid_to=None,
+        pinned=0,
+        created_at=None,
+        updated_at=None,
+        metadata={},
+    )
 
 
 def _src(id, content="source"):
-    return Mem(id=id, type="belief", title=id, content=content, importance=0.5,
-               confidence=0.5, valid_from=None, valid_to=None, pinned=0,
-               created_at=None, updated_at=None, metadata={})
+    return Mem(
+        id=id,
+        type="belief",
+        title=id,
+        content=content,
+        importance=0.5,
+        confidence=0.5,
+        valid_from=None,
+        valid_to=None,
+        pinned=0,
+        created_at=None,
+        updated_at=None,
+        metadata={},
+    )
 
 
 class _StubJudge:
@@ -45,11 +68,11 @@ class _StubJudge:
         self.calls.append((synthesis_content, tuple(source_contents)))
         if self._raises:
             raise RuntimeError("judge boom")
-        return CD.DriftVerdict(synthesis_id="?", drifted=self._drifted,
-                               reason="stub")
+        return CD.DriftVerdict(synthesis_id="?", drifted=self._drifted, reason="stub")
 
 
 # ── inertness: the whole point of a skeleton ─────────────────────────────────
+
 
 def test_no_judge_returns_none():
     clusters = [Cluster(key="a", members=[_syn("a")])]
@@ -73,17 +96,16 @@ def test_default_build_omits_the_section_entirely():
 def test_default_build_is_byte_identical_with_and_without_the_param():
     """Passing drift_judge=None must produce the exact same bytes as omitting it
     — the skeleton is provably inert until a judge is injected."""
+
     def build(pass_param):
         conn = _db()
         try:
             if pass_param:
-                return build_wiki(conn, None,
-                                  WikiOptions(importance_threshold=0.6),
-                                  drift_judge=None)
-            return build_wiki(conn, None,
-                              WikiOptions(importance_threshold=0.6))
+                return build_wiki(conn, None, WikiOptions(importance_threshold=0.6), drift_judge=None)
+            return build_wiki(conn, None, WikiOptions(importance_threshold=0.6))
         finally:
             conn.close()
+
     a, b = build(True), build(False)
     assert a == b
 
@@ -95,8 +117,7 @@ def test_injected_judge_emits_the_section_end_to_end():
     with a `consolidates` edge to source `x`, so the judge fires."""
     conn = _db()
     try:
-        pages = build_wiki(conn, None, WikiOptions(importance_threshold=0.6),
-                           drift_judge=_StubJudge(drifted=True))
+        pages = build_wiki(conn, None, WikiOptions(importance_threshold=0.6), drift_judge=_StubJudge(drifted=True))
     finally:
         conn.close()
     assert "Citation drift" in pages["lint.md"]
@@ -104,14 +125,15 @@ def test_injected_judge_emits_the_section_end_to_end():
 
 # ── CLI wiring: --check-drift is opt-in and mutually exclusive with --check ───
 
+
 def test_cli_check_drift_is_mutually_exclusive_with_check():
     """`m3 wiki generate --check --check-drift` must refuse (exit 2): a model-backed
     judge is non-deterministic, so it can't run on the byte-checked vault."""
     import argparse
 
     import gen_wiki
-    args = argparse.Namespace(out=None, check=True, check_drift=True,
-                              synthesize=False, no_files=True)
+
+    args = argparse.Namespace(out=None, check=True, check_drift=True, synthesize=False, no_files=True)
     assert gen_wiki._cmd_generate(args) == 2
 
 
@@ -123,10 +145,10 @@ def test_cli_check_drift_builds_a_judge_that_threads_into_build_wiki(monkeypatch
     import contextlib
 
     import gen_wiki
+
     captured = {}
 
-    def _fake_build_wiki(mem_conn, files_conn, opts, synthesizer=None,
-                         drift_judge=None, derivability_judge=None):
+    def _fake_build_wiki(mem_conn, files_conn, opts, synthesizer=None, drift_judge=None, derivability_judge=None):
         captured["drift_judge"] = drift_judge
         return {"lint.md": ""}
 
@@ -138,13 +160,21 @@ def test_cli_check_drift_builds_a_judge_that_threads_into_build_wiki(monkeypatch
     monkeypatch.setattr("memory.db._db", _fake_seam)
 
     def _run(check_drift):
-        args = argparse.Namespace(out=None, check=False, check_drift=check_drift,
-                                  synthesize=False, no_files=True,
-                                  importance_threshold=None, exclude=None,
-                                  obsidian=False, html=False)
+        args = argparse.Namespace(
+            out=None,
+            check=False,
+            check_drift=check_drift,
+            synthesize=False,
+            no_files=True,
+            importance_threshold=None,
+            exclude=None,
+            obsidian=False,
+            html=False,
+        )
         gen_wiki._build_vault(args, ".")
 
     from wiki.citation_drift import ModelDriftJudge
+
     _run(check_drift=True)
     assert isinstance(captured["drift_judge"], ModelDriftJudge)
     _run(check_drift=False)
@@ -152,6 +182,7 @@ def test_cli_check_drift_builds_a_judge_that_threads_into_build_wiki(monkeypatch
 
 
 # ── plumbing (with a stub judge) ─────────────────────────────────────────────
+
 
 def test_pairs_synthesis_with_its_provenance_sources():
     syn, src1, src2 = _syn("s", "the claim"), _src("x", "src one"), _src("y", "src two")
@@ -161,7 +192,7 @@ def test_pairs_synthesis_with_its_provenance_sources():
     report = CD.check_drift(clusters, edges, judge)
     assert report.checked == 1
     # The judge saw the synthesis content and BOTH source contents.
-    (seen_syn, seen_srcs), = judge.calls
+    ((seen_syn, seen_srcs),) = judge.calls
     assert seen_syn == "the claim"
     assert set(seen_srcs) == {"src one", "src two"}
     assert len(report.drifted) == 1
@@ -212,6 +243,7 @@ def test_report_only_never_mutates_a_row():
 
 
 # ── render section (with a report) ───────────────────────────────────────────
+
 
 def test_section_reports_coverage_even_at_zero_findings():
     report = CD.DriftReport(checked=3, skipped_no_sources=1, abstained=0)

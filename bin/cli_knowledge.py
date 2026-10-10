@@ -17,6 +17,7 @@ def ensure_venv():
         # venv_python is an absolute path within the project root, so this is safe.
         os.execl(venv_python, venv_python, *sys.argv)  # nosec B606
 
+
 ensure_venv()
 
 from memory.knowledge_helpers import (
@@ -49,15 +50,28 @@ def main():
 
     # Modifiers
     parser.add_argument("-c", "--content", type=str, default="", help="Updated content for the item (with -u)")
-    parser.add_argument("-t", "--type", type=str, default="", help="Filter or set item type (use 'all' or '?' to list types in DB)")
+    parser.add_argument(
+        "-t", "--type", type=str, default="", help="Filter or set item type (use 'all' or '?' to list types in DB)"
+    )
     parser.add_argument("-k", "--limit", type=int, default=5, help="Number of results for search/list (default: 5)")
     parser.add_argument("--title", type=str, default="", help="Title for added/updated item")
     parser.add_argument("--source", type=str, default="", help="Optional source for added item")
     parser.add_argument("--tags", type=str, default="", help="Comma-separated tags for added item")
-    parser.add_argument("--metadata", type=str, default="", help="Raw JSON metadata string (overrides source/tags on add, appends/replaces on update)")
+    parser.add_argument(
+        "--metadata",
+        type=str,
+        default="",
+        help="Raw JSON metadata string (overrides source/tags on add, appends/replaces on update)",
+    )
     parser.add_argument("--importance", type=float, default=-1.0, help="Importance score for update (0.0 to 1.0)")
     parser.add_argument("--reembed", action="store_true", help="Force vector re-embedding during update")
-    parser.add_argument("--hard", type=str, metavar="WIPE", default=None, help="Permanently delete from database (requires exact string 'WIPE')")
+    parser.add_argument(
+        "--hard",
+        type=str,
+        metavar="WIPE",
+        default=None,
+        help="Permanently delete from database (requires exact string 'WIPE')",
+    )
     add_database_arg(parser)
 
     args = parser.parse_args()
@@ -75,7 +89,9 @@ def main():
 
     # Auto-append wildcard for search and list operations (unless quoted exactly)
     if args.type and args.add is None and args.delete is None:
-        is_exact = (args.type.startswith('"') and args.type.endswith('"')) or (args.type.startswith("'") and args.type.endswith("'"))
+        is_exact = (args.type.startswith('"') and args.type.endswith('"')) or (
+            args.type.startswith("'") and args.type.endswith("'")
+        )
         if not is_exact:
             args.type = args.type.replace("*", "%")
             if not args.type.endswith("%"):
@@ -84,7 +100,9 @@ def main():
     if args.add is not None:
         tags = [t.strip() for t in args.tags.split(",")] if args.tags else []
         add_type = args.type or "knowledge"
-        result = add_knowledge(args.add, title=args.title, source=args.source, tags=tags, item_type=add_type, metadata=args.metadata)
+        result = add_knowledge(
+            args.add, title=args.title, source=args.source, tags=tags, item_type=add_type, metadata=args.metadata
+        )
         print(result)
 
     elif args.update is not None:
@@ -99,7 +117,7 @@ def main():
             title=args.title,
             metadata=args.metadata,
             importance=args.importance,
-            reembed=args.reembed
+            reembed=args.reembed,
         )
         print(result)
 
@@ -119,9 +137,9 @@ def main():
         if not items:
             print("No knowledge items found.")
         for item in items:
-            item_type = item.get('type') or 'unknown'
-            tags = item.get('tags') or []
-            source = item.get('source') or ''
+            item_type = item.get("type") or "unknown"
+            tags = item.get("tags") or []
+            source = item.get("source") or ""
             print(f"[{item['id']}]  type: {item_type}  |  {item['title'] or '(No Title)'}")
             print(f"  Created:    {item['created_at']}")
             if tags:
@@ -149,8 +167,8 @@ def main():
             if not items:
                 print(f"No knowledge items found for type '{args.type}'.")
             for item in items:
-                item_type = item.get('type') or 'unknown'
-                tags = item.get('tags') or []
+                item_type = item.get("type") or "unknown"
+                tags = item.get("tags") or []
                 print(f"[{item['id']}]  type: {item_type}  |  {item['title'] or '(No Title)'}")
                 print(f"  Created:    {item['created_at']}")
                 if tags:
@@ -159,6 +177,7 @@ def main():
                 print("-" * 40)
         else:
             parser.print_help()
+
 
 if __name__ == "__main__":
     main()

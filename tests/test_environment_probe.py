@@ -22,35 +22,29 @@ if BIN not in sys.path:
 @pytest.fixture
 def probe():
     from doctor import environment_probe
+
     return environment_probe
 
 
 def _settings(commands):
     """commands: {event: command_string}"""
-    return {
-        "hooks": {
-            evt: [{"hooks": [{"type": "command", "command": cmd}]}]
-            for evt, cmd in commands.items()
-        }
-    }
+    return {"hooks": {evt: [{"hooks": [{"type": "command", "command": cmd}]}] for evt, cmd in commands.items()}}
 
 
 def _pin(path, script):
-    return (
-        'set "M3_ENGINE_ROOT=C:/roots/engine" && '
-        'set "M3_CONFIG_ROOT=C:/roots/config" && '
-        f"{path} {script}"
-    )
+    return f'set "M3_ENGINE_ROOT=C:/roots/engine" && set "M3_CONFIG_ROOT=C:/roots/config" && {path} {script}'
 
 
 @pytest.fixture
 def wire(probe, monkeypatch, tmp_path):
     """Install a fake settings.json + a payload root under tmp_path."""
+
     def _apply(commands, payload=None):
         monkeypatch.setattr(probe, "_load_settings", lambda: _settings(commands))
-        monkeypatch.setattr(probe, "_payload_root",
-                            lambda: payload or str(tmp_path / "venv" / "Lib"
-                                                   / "site-packages" / "m3_memory"))
+        monkeypatch.setattr(
+            probe, "_payload_root", lambda: payload or str(tmp_path / "venv" / "Lib" / "site-packages" / "m3_memory")
+        )
+
     return _apply
 
 
@@ -174,8 +168,10 @@ def test_repair_delegates_to_install_claude_settings(probe, tmp_path, monkeypatc
 
     called = {"install": 0}
     import generate_configs
+
     monkeypatch.setattr(
-        generate_configs, "install_claude_settings",
+        generate_configs,
+        "install_claude_settings",
         lambda **k: called.__setitem__("install", called["install"] + 1) or {"changed": True},
     )
     import chatlog_init
@@ -204,6 +200,7 @@ def test_repair_is_dry_run_by_default(probe, wire, tmp_path):
 def test_probe_never_raises(probe, monkeypatch):
     def boom():
         raise RuntimeError("settings exploded")
+
     monkeypatch.setattr(probe, "_load_settings", boom)
     assert probe.run(brief=True) == 0
 
@@ -217,11 +214,9 @@ def test_repo_checkout_does_not_flag_installed_hooks(probe, wire, tmp_path):
     hook on every dev machine (caught on the real box, not in fixtures).
     """
     py = _make(tmp_path, "pipx/venvs/m3-memory/Scripts/python.exe")
-    sc = _make(tmp_path, "pipx/venvs/m3-memory/Lib/site-packages/m3_memory/"
-                         "bin/hooks/chatlog/cc.py")
+    sc = _make(tmp_path, "pipx/venvs/m3-memory/Lib/site-packages/m3_memory/bin/hooks/chatlog/cc.py")
     # payload root = a REPO CHECKOUT, not an installed layout
-    wire({"PreCompact": _pin(py, sc), "Stop": _pin(py, sc)},
-         payload=str(tmp_path / "src" / "m3-memory"))
+    wire({"PreCompact": _pin(py, sc), "Stop": _pin(py, sc)}, payload=str(tmp_path / "src" / "m3-memory"))
 
     res = probe.check()
     assert res["status"] == "ok", res["findings"]
@@ -230,10 +225,8 @@ def test_repo_checkout_does_not_flag_installed_hooks(probe, wire, tmp_path):
 def test_installed_layout_still_catches_a_foreign_venv(probe, wire, tmp_path):
     """The skip above must not disable the check for real installs."""
     other = _make(tmp_path, "pipx/venvs/OTHER/Scripts/python.exe")
-    sc = _make(tmp_path, "pipx/venvs/m3-memory/Lib/site-packages/m3_memory/"
-                         "bin/hooks/chatlog/cc.py")
-    wire({"PreCompact": _pin(other, sc)},
-         payload=str(tmp_path / "pipx/venvs/m3-memory/Lib/site-packages/m3_memory"))
+    sc = _make(tmp_path, "pipx/venvs/m3-memory/Lib/site-packages/m3_memory/bin/hooks/chatlog/cc.py")
+    wire({"PreCompact": _pin(other, sc)}, payload=str(tmp_path / "pipx/venvs/m3-memory/Lib/site-packages/m3_memory"))
 
     res = probe.check()
     assert any(f["kind"] == "foreign_interpreter" for f in res["findings"]), res["findings"]

@@ -4,6 +4,7 @@ Hazard: with every ref a deletion there is no range to scan, and the manual-run
 fallback would scan the checked-out branch -- blocking the deletion on content
 it is not pushing.
 """
+
 from __future__ import annotations
 
 import os
@@ -47,15 +48,17 @@ def _run_hook(stdin: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         # Relative to cwd: a Windows path handed to bash loses its backslashes.
         [_BASH, ".githooks/pre-push", "private", "git@example.invalid:x/y.git"],
-        input=stdin, capture_output=True, text=True, cwd=_ROOT, timeout=120,
+        input=stdin,
+        capture_output=True,
+        text=True,
+        cwd=_ROOT,
+        timeout=120,
     )
 
 
 def test_deletion_only_push_passes_without_scanning():
-    head = subprocess.run(["git", "-C", str(_ROOT), "rev-parse", "HEAD"],
-                          capture_output=True, text=True).stdout.strip()
-    stdin = (f"(delete) {_ZERO} refs/heads/old-a {head}\n"
-             f"(delete) {_ZERO} refs/heads/old-b {head}\n")
+    head = subprocess.run(["git", "-C", str(_ROOT), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    stdin = f"(delete) {_ZERO} refs/heads/old-a {head}\n(delete) {_ZERO} refs/heads/old-b {head}\n"
     r = _run_hook(stdin)
     assert r.returncode == 0, r.stdout + r.stderr
     assert "deletion-only push" in r.stdout

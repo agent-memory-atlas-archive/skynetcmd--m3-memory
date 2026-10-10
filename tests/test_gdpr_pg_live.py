@@ -9,6 +9,7 @@ audit-log INSERT into gdpr_requests.
 Skips cleanly without a reachable cluster. DSN from M3_PRIMARY_PG_URL/M3_PG_URL
 (never PG_URL — that's the warehouse var).
 """
+
 from __future__ import annotations
 
 import json
@@ -63,8 +64,7 @@ def _seed(pg, user_id, n):
         cur = c.cursor()
         for i in range(n):
             cur.execute(
-                "INSERT INTO memory_items (id,type,content,scope,user_id) "
-                "VALUES (%s,'note',%s,'user',%s)",
+                "INSERT INTO memory_items (id,type,content,scope,user_id) VALUES (%s,'note',%s,'user',%s)",
                 (str(uuid.uuid4()), f"secret {i} for {user_id}", user_id),
             )
 
@@ -85,8 +85,7 @@ def test_gdpr_export_on_pg(pg):
         with pg.connection() as c:
             cur = c.cursor()
             cur.execute(
-                "SELECT request_type, status, items_affected FROM gdpr_requests "
-                "WHERE subject_id=%s",
+                "SELECT request_type, status, items_affected FROM gdpr_requests WHERE subject_id=%s",
                 (uid,),
             )
             row = cur.fetchone()

@@ -6,6 +6,7 @@ The reminder must:
     and stress that sync is not a backup;
   - NEVER leak the PG_URL password (host only).
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -49,9 +50,9 @@ def test_pg_url_host_shown_password_never_leaked(monkeypatch):
         monkeypatch.delenv(k, raising=False)
     monkeypatch.setenv("PG_URL", "postgresql://app:TOPSECRET@warehouse.example:5432/m3")
     out = _reminder_output()
-    assert "warehouse.example" in out          # host shown
-    assert "TOPSECRET" not in out              # password NEVER shown
-    assert "app:" not in out                   # nor the userinfo
+    assert "warehouse.example" in out  # host shown
+    assert "TOPSECRET" not in out  # password NEVER shown
+    assert "app:" not in out  # nor the userinfo
 
 
 def test_detect_returns_none_with_no_config(monkeypatch):
@@ -59,6 +60,7 @@ def test_detect_returns_none_with_no_config(monkeypatch):
         monkeypatch.delenv(k, raising=False)
     # Make the vault lookup a no-op so the test doesn't depend on a real vault.
     import m3_sdk
+
     monkeypatch.setattr(m3_sdk.M3Context, "get_secret", lambda self, k: None, raising=False)
     assert installer._detect_cdw_target() is None
 

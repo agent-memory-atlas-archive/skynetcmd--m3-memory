@@ -11,6 +11,7 @@ existing importers. The SQLite path routes through m3_core_rs when the native
 core provides it; tests/test_fts_parity.py holds the pure-Python bodies to the
 Rust port byte for byte.
 """
+
 from __future__ import annotations
 
 import logging
@@ -136,9 +137,7 @@ def _compile_fts_query_py(query: str, mode: str) -> tuple[str, bool]:
     """The pure-Python body of :func:`_compile_fts_query`: the reference the Rust
     port is held to (tests/test_fts_parity.py calls THIS, never a copy). Uses the
     pure-Python sanitizer, so the whole reference path is Python."""
-    is_exact_query = (query.startswith('"') and query.endswith('"')) or (
-        query.startswith("'") and query.endswith("'")
-    )
+    is_exact_query = (query.startswith('"') and query.endswith('"')) or (query.startswith("'") and query.endswith("'"))
     if is_exact_query:
         # Escape interior double-quotes by doubling them — FTS5's own escape
         # rule. Without this, an input like `"alpha"beta"` re-wraps to the
@@ -180,9 +179,7 @@ def _compile_tsquery(query: str, mode: str) -> tuple[str, bool]:
     interpolate — but the caller should still bind via a parameter and let
     ``to_tsquery`` parse it. Ordering/scoring is NOT comparable to bm25 (§8.2).
     """
-    is_exact_query = (query.startswith('"') and query.endswith('"')) or (
-        query.startswith("'") and query.endswith("'")
-    )
+    is_exact_query = (query.startswith('"') and query.endswith('"')) or (query.startswith("'") and query.endswith("'"))
     if is_exact_query:
         inner = _sanitize_for_searchable(_sanitize_fts(query[1:-1]))
         toks = [t for t in inner.split() if t]

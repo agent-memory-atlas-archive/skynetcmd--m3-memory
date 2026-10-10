@@ -4,8 +4,9 @@ import sys
 import psycopg2
 from m3_core.seams import is_windows
 
-logging.basicConfig(level=logging.INFO, format='%(name)s: [%(levelname)s] %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(name)s: [%(levelname)s] %(message)s")
 logger = logging.getLogger("pg_setup")
+
 
 def _get_pg_url() -> str:
     """Resolve the data-warehouse PostgreSQL URL from environment or vault.
@@ -20,8 +21,11 @@ def _get_pg_url() -> str:
     if url:
         return url
     python_cmd = "python" if is_windows() else "python3"
-    logger.error(f"Data-warehouse DSN not found. Set M3_CDW_PG_URL env var or store it via: {python_cmd} -c \"from auth_utils import set_api_key; set_api_key('PG_URL', 'postgresql://USERNAME:REPLACE_WITH_YOUR_PASSWORD@host:5432/db')\"")
+    logger.error(
+        f"Data-warehouse DSN not found. Set M3_CDW_PG_URL env var or store it via: {python_cmd} -c \"from auth_utils import set_api_key; set_api_key('PG_URL', 'postgresql://USERNAME:REPLACE_WITH_YOUR_PASSWORD@host:5432/db')\""
+    )
     sys.exit(1)
+
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS activity_logs (
@@ -99,6 +103,7 @@ CREATE INDEX IF NOT EXISTS idx_mr_from       ON memory_relationships(from_id);
 CREATE INDEX IF NOT EXISTS idx_mr_to         ON memory_relationships(to_id);
 """
 
+
 def main():
     try:
         pg_url = _get_pg_url()
@@ -112,6 +117,7 @@ def main():
     except Exception as e:
         logger.error(f"Failed to setup PostgreSQL: {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

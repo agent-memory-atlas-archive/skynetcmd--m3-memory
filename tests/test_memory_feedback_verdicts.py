@@ -22,6 +22,7 @@ query is the RANKER's failure; lowering its importance degrades good content to
 punish a targeting error. test_not_useful_does_not_touch_importance is the
 enforcement site for that.
 """
+
 from __future__ import annotations
 
 import os
@@ -45,8 +46,7 @@ def memory_row():
     mid = str(uuid.uuid4())
     with mc._db() as db:
         db.execute(
-            "INSERT INTO memory_items (id, content, title, type, importance, source) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO memory_items (id, content, title, type, importance, source) VALUES (?, ?, ?, ?, ?, ?)",
             (mid, "feedback verdict probe", "probe", "belief", 0.5, "agent"),
         )
     yield mid
@@ -56,12 +56,11 @@ def memory_row():
 
 def _importance(mid: str) -> float:
     with mc._db() as db:
-        return db.execute(
-            "SELECT importance FROM memory_items WHERE id = ?", (mid,)
-        ).fetchone()[0]
+        return db.execute("SELECT importance FROM memory_items WHERE id = ?", (mid,)).fetchone()[0]
 
 
 # ── each verdict must be observable ──────────────────────────────────────────
+
 
 def test_useful_raises_importance(memory_row):
     """Unchanged from the original behaviour — existing workflows must not move."""
@@ -78,8 +77,7 @@ def test_misleading_lowers_importance(memory_row):
     assert res["applied"] is True
     after = _importance(memory_row)
     assert after < before, (
-        "`misleading` did not lower importance — this is the exact silent no-op "
-        "the fix exists to remove."
+        "`misleading` did not lower importance — this is the exact silent no-op the fix exists to remove."
     )
 
 
@@ -95,8 +93,7 @@ def test_not_useful_does_not_touch_importance(memory_row):
         res = mm.memory_feedback_impl(memory_row, "not_useful")
         assert res["applied"] is True
     assert _importance(memory_row) == pytest.approx(before), (
-        "`not_useful` changed importance — a correct memory is being punished "
-        "for a retrieval miss."
+        "`not_useful` changed importance — a correct memory is being punished for a retrieval miss."
     )
 
 
@@ -137,6 +134,7 @@ def test_verdicts_are_distinguishable(memory_row):
 
 # ── failure modes ────────────────────────────────────────────────────────────
 
+
 def test_unknown_verdict_is_reported_not_silently_ignored(memory_row):
     """A rejected verdict must say so and name what IS accepted (§3)."""
     before = _importance(memory_row)
@@ -161,9 +159,7 @@ def test_legacy_wrong_penalises_and_no_longer_deletes(memory_row):
     assert res["applied"] is True
     assert res["verdict"] == "misleading"
     with mc._db() as db:
-        deleted = db.execute(
-            "SELECT is_deleted FROM memory_items WHERE id = ?", (memory_row,)
-        ).fetchone()[0]
+        deleted = db.execute("SELECT is_deleted FROM memory_items WHERE id = ?", (memory_row,)).fetchone()[0]
     assert not deleted, "`wrong` still soft-deletes — the destructive path is back."
 
 

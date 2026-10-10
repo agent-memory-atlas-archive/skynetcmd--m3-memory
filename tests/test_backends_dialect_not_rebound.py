@@ -9,6 +9,7 @@ away, with nothing naming the cause -- 96 of that TypeError across 89 tests on
 The package therefore refuses that rebind and logs where it came from. These
 tests pin both halves: the refusal, and the diagnostic that makes it findable.
 """
+
 from __future__ import annotations
 
 import logging
@@ -34,7 +35,7 @@ def test_rebinding_dialect_to_a_module_is_refused(caplog):
 
     fake = ModuleType("memory.backends.dialect")
     with caplog.at_level(logging.WARNING, logger="memory.backends"):
-        B.dialect = fake          # exactly what the import machinery does
+        B.dialect = fake  # exactly what the import machinery does
 
     assert B.dialect is original, "the guard let the submodule shadow the accessor"
     assert callable(B.dialect)
@@ -50,7 +51,7 @@ def test_a_non_module_value_is_still_assignable():
 
     original = B.dialect
     try:
-        B.dialect = original      # reassigning the function must work
+        B.dialect = original  # reassigning the function must work
         assert B.dialect is original
     finally:
         B.dialect = original

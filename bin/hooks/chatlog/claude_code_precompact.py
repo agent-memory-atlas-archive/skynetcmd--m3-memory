@@ -11,6 +11,7 @@ Envelope (stdin JSON):
   { "session_id": "...", "transcript_path": "...",
     "cwd": "...", "hook_event_name": "PreCompact" | "Stop" }
 """
+
 import json
 import os
 import subprocess
@@ -23,6 +24,7 @@ FORMAT = "claude-code"
 
 
 # ── Shared core (parity across all m3 agent hooks) ───────────────────────────
+
 
 def find_repo_root() -> Path:
     m3_home = os.environ.get("M3_HOME")
@@ -47,12 +49,15 @@ def usable_interpreter(candidate: Path) -> bool:
     last_write_at. Probe the import instead of trusting the path.
     """
     try:
-        return subprocess.run(
-            [str(candidate), "-c", "import httpx"],
-            capture_output=True, timeout=10,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
-            if os.name == "nt" else 0,
-        ).returncode == 0
+        return (
+            subprocess.run(
+                [str(candidate), "-c", "import httpx"],
+                capture_output=True,
+                timeout=10,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0,
+            ).returncode
+            == 0
+        )
     except Exception:
         return False
 
@@ -69,8 +74,7 @@ def find_python(repo: Path) -> str:
     return sys.executable
 
 
-def write_fallback(transcript: str, session_id: str, agent: str,
-                   event: str, variant: str, reason: str) -> Path:
+def write_fallback(transcript: str, session_id: str, agent: str, event: str, variant: str, reason: str) -> Path:
     ts = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     sid = (session_id or "unknown")[:8]
     save_dir = Path.home() / ".m3" / "unsaved_chats"
@@ -174,7 +178,7 @@ def _extract_last_json_object(output: str):
             depth -= 1
             if depth == 0:
                 try:
-                    return json.loads(output[i:end + 1])
+                    return json.loads(output[i : end + 1])
                 except json.JSONDecodeError:
                     return None
     return None
@@ -188,8 +192,8 @@ def run_ingest(py: str, ingest: Path, extra_args: list) -> tuple:
         # attribute reference valid on non-Windows (0 = default, no-op).
         _flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
         result = subprocess.run(
-            [py, str(ingest), *extra_args],
-            capture_output=True, text=True, timeout=60, creationflags=_flags)
+            [py, str(ingest), *extra_args], capture_output=True, text=True, timeout=60, creationflags=_flags
+        )
         output = result.stdout.strip()
         # ingest emits PRETTY-PRINTED (multi-line) JSON after its log lines, e.g.
         #   {\n  "written": 9,\n  ...\n}
@@ -213,6 +217,7 @@ def run_ingest(py: str, ingest: Path, extra_args: list) -> tuple:
 
 
 # ── Agent-specific main ───────────────────────────────────────────────────────
+
 
 def main() -> int:
     raw = sys.stdin.read().strip()
@@ -261,7 +266,7 @@ def main() -> int:
     # live capture beat the hook (observed 2026-06-27). A run is a real failure
     # only when ingest could not reach the DB / genuinely failed: error set,
     # failed>0, or it parsed/processed nothing at all (written==skipped==0).
-    captured_nothing = (written == 0 and skipped == 0)
+    captured_nothing = written == 0 and skipped == 0
     if error or failed > 0 or captured_nothing:
         if error:
             reason = error

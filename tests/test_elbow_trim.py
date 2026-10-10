@@ -38,10 +38,14 @@ def trim_legacy(monkeypatch):
     # under test is pure scoring and needs none of it, so a skip is honest and a
     # setup ERROR is not.
     memory_core = pytest.importorskip(
-        "memory_core", reason=skip_reason("dep", "memory_core not importable at fixture time"))
+        "memory_core", reason=skip_reason("dep", "memory_core not importable at fixture time")
+    )
     search = pytest.importorskip(
-        "memory.search", reason=skip_reason("dep", "memory.search not importable at fixture time "
-                                "(a transitive ML dep such as torch is absent)"))
+        "memory.search",
+        reason=skip_reason(
+            "dep", "memory.search not importable at fixture time (a transitive ML dep such as torch is absent)"
+        ),
+    )
 
     # Directly patch memory.search's config module reference for maximum resilience
     monkeypatch.setattr(search.config, "ELBOW_MIN_INPUT", 3)

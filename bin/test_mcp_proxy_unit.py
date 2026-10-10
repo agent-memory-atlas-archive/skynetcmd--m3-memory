@@ -12,6 +12,7 @@ provider keys), this suite imports mcp_proxy as a module and verifies:
   - _execute_tool refuses unknown tools and gives a helpful error for disabled destructive tools
   - inject_agent_id is honored on memory_write
 """
+
 import asyncio
 import os
 import sys
@@ -32,6 +33,7 @@ class TestMcpProxyImportAndCatalog(unittest.TestCase):
         if "mcp_proxy" in sys.modules:
             del sys.modules["mcp_proxy"]
         import mcp_proxy
+
         cls.mcp_proxy = mcp_proxy
 
     def test_imports_clean(self):
@@ -42,15 +44,13 @@ class TestMcpProxyImportAndCatalog(unittest.TestCase):
     def test_protocol_tool_count(self):
         self.assertEqual(len(self.mcp_proxy.PROTOCOL_TOOLS), 5)
         names = {t["function"]["name"] for t in self.mcp_proxy.PROTOCOL_TOOLS}
-        expected = {"log_activity", "query_decisions", "update_focus",
-                    "retire_focus", "check_thermal_load"}
+        expected = {"log_activity", "query_decisions", "update_focus", "retire_focus", "check_thermal_load"}
         self.assertEqual(names, expected)
 
     def test_debug_tool_count(self):
         self.assertEqual(len(self.mcp_proxy.DEBUG_TOOLS), 6)
         names = {t["function"]["name"] for t in self.mcp_proxy.DEBUG_TOOLS}
-        expected = {"debug_analyze", "debug_bisect", "debug_trace",
-                    "debug_correlate", "debug_history", "debug_report"}
+        expected = {"debug_analyze", "debug_bisect", "debug_trace", "debug_correlate", "debug_history", "debug_report"}
         self.assertEqual(names, expected)
 
     def test_catalog_default_filters_destructive(self):
@@ -58,63 +58,56 @@ class TestMcpProxyImportAndCatalog(unittest.TestCase):
         catalog_schemas, _specs = self.mcp_proxy._build_catalog_tools()
         catalog_names = {t["function"]["name"] for t in catalog_schemas}
         destructive = {
-            "memory_delete", "memory_maintenance",
-            "memory_set_retention", "memory_export", "memory_import",
-            "gdpr_export", "gdpr_forget", "agent_offline",
+            "memory_delete",
+            "memory_maintenance",
+            "memory_set_retention",
+            "memory_export",
+            "memory_import",
+            "gdpr_export",
+            "gdpr_forget",
+            "agent_offline",
         }
         leaked = catalog_names & destructive
-        self.assertEqual(leaked, set(),
-                         f"Destructive tools leaked into default mode: {leaked}")
+        self.assertEqual(leaked, set(), f"Destructive tools leaked into default mode: {leaked}")
 
     def test_total_tool_count_default(self):
         catalog_schemas, _ = self.mcp_proxy._build_catalog_tools()
-        total = (len(self.mcp_proxy.PROTOCOL_TOOLS)
-                 + len(self.mcp_proxy.DEBUG_TOOLS)
-                 + len(catalog_schemas))
+        total = len(self.mcp_proxy.PROTOCOL_TOOLS) + len(self.mcp_proxy.DEBUG_TOOLS) + len(catalog_schemas)
         self.assertEqual(total, len(self.mcp_proxy.get_mcp_tools()))
         self.assertGreaterEqual(total, 40)
 
     def test_execute_unknown_tool(self):
-        result = asyncio.run(
-            self.mcp_proxy._execute_tool("nope_not_real", {}, "tester")
-        )
+        result = asyncio.run(self.mcp_proxy._execute_tool("nope_not_real", {}, "tester"))
         self.assertIn("Unknown MCP tool", result)
 
     def test_execute_destructive_tool_default_denied(self):
-        result = asyncio.run(
-            self.mcp_proxy._execute_tool("memory_delete", {"id": "x"}, "tester")
-        )
+        result = asyncio.run(self.mcp_proxy._execute_tool("memory_delete", {"id": "x"}, "tester"))
         self.assertIn("destructive and disabled by default", result)
 
     def test_execute_catalog_tool_agent_list(self):
         # agent_list is non-destructive and should always work
-        result = asyncio.run(
-            self.mcp_proxy._execute_tool("agent_list", {}, "test-smoke")
-        )
+        result = asyncio.run(self.mcp_proxy._execute_tool("agent_list", {}, "test-smoke"))
         self.assertIsInstance(result, str)
         # Either "Agents (" or "No agents" depending on DB state
         self.assertTrue(
-            result.startswith("Agents (") or "agents" in result.lower(),
-            f"Unexpected agent_list output: {result[:200]}"
+            result.startswith("Agents (") or "agents" in result.lower(), f"Unexpected agent_list output: {result[:200]}"
         )
 
     def test_inject_agent_id_on_memory_write(self):
         import mcp_tool_catalog as cat
+
         spec = cat.get_tool("memory_write")
         self.assertIsNotNone(spec)
-        self.assertTrue(spec.inject_agent_id,
-                        "memory_write must have inject_agent_id=True")
+        self.assertTrue(spec.inject_agent_id, "memory_write must have inject_agent_id=True")
 
     def test_legacy_dispatch_table_complete(self):
         # Every name in PROTOCOL_TOOLS + DEBUG_TOOLS must have a dispatch entry
-        legacy_names = (
-            {t["function"]["name"] for t in self.mcp_proxy.PROTOCOL_TOOLS}
-            | {t["function"]["name"] for t in self.mcp_proxy.DEBUG_TOOLS}
-        )
+        legacy_names = {t["function"]["name"] for t in self.mcp_proxy.PROTOCOL_TOOLS} | {
+            t["function"]["name"] for t in self.mcp_proxy.DEBUG_TOOLS
+        }
         dispatch_keys = set(self.mcp_proxy._LEGACY_DISPATCH.keys())
         missing = legacy_names - dispatch_keys
-        self.assertEqual(missing, set(),
-                         f"Legacy tools missing from _LEGACY_DISPATCH: {missing}")
+        self.assertEqual(missing, set(), f"Legacy tools missing from _LEGACY_DISPATCH: {missing}")
 
 
 class TestMcpProxyAllowDestructive(unittest.TestCase):
@@ -127,6 +120,7 @@ class TestMcpProxyAllowDestructive(unittest.TestCase):
         if "mcp_proxy" in sys.modules:
             del sys.modules["mcp_proxy"]
         import mcp_proxy
+
         cls.mcp_proxy = mcp_proxy
 
     @classmethod
@@ -141,13 +135,17 @@ class TestMcpProxyAllowDestructive(unittest.TestCase):
         catalog_schemas, _ = self.mcp_proxy._build_catalog_tools()
         catalog_names = {t["function"]["name"] for t in catalog_schemas}
         destructive = {
-            "memory_delete", "memory_maintenance",
-            "memory_set_retention", "memory_export", "memory_import",
-            "gdpr_export", "gdpr_forget", "agent_offline",
+            "memory_delete",
+            "memory_maintenance",
+            "memory_set_retention",
+            "memory_export",
+            "memory_import",
+            "gdpr_export",
+            "gdpr_forget",
+            "agent_offline",
         }
         present = catalog_names & destructive
-        self.assertEqual(present, destructive,
-                         f"Missing destructive tools when enabled: {destructive - present}")
+        self.assertEqual(present, destructive, f"Missing destructive tools when enabled: {destructive - present}")
 
     def test_full_catalog_count(self):
         """With destructive enabled the proxy exposes the WHOLE catalog.
@@ -161,8 +159,8 @@ class TestMcpProxyAllowDestructive(unittest.TestCase):
         """
         catalog_schemas, _ = self.mcp_proxy._build_catalog_tools()
         from mcp_tool_catalog import TOOLS
-        self.assertEqual(len(catalog_schemas), len(TOOLS),
-                         "ALLOW_DESTRUCTIVE=1 must expose every catalog tool")
+
+        self.assertEqual(len(catalog_schemas), len(TOOLS), "ALLOW_DESTRUCTIVE=1 must expose every catalog tool")
         # And it must be strictly more than the safe-mode surface.
         self.assertGreater(len(catalog_schemas), 0)
 

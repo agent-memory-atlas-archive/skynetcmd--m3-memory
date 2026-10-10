@@ -142,22 +142,28 @@ class M3Store(BaseStore):
                         # idempotent-by-key: supersede the prior row (bi-temporal,
                         # not a silent overwrite — §0b contradiction handling).
                         from memory_core import memory_supersede_impl
+
                         await memory_supersede_impl(
-                            old_id=existing, content=content, title=op.key,
-                            user_id=uid, scope="user",
+                            old_id=existing,
+                            content=content,
+                            title=op.key,
+                            user_id=uid,
+                            scope="user",
                             metadata=mapping.dumps_metadata({**md, "_ns_key": op.key}),
                         )
                     else:
-                        write_items.append({
-                            "type": "fact",
-                            "content": content,
-                            "title": op.key,       # LangGraph key -> title
-                            "user_id": uid,
-                            "scope": "user",
-                            "metadata": {**md, "_ns_key": op.key},
-                            "auto_classify": True,
-                            "source": "langgraph",
-                        })
+                        write_items.append(
+                            {
+                                "type": "fact",
+                                "content": content,
+                                "title": op.key,  # LangGraph key -> title
+                                "user_id": uid,
+                                "scope": "user",
+                                "metadata": {**md, "_ns_key": op.key},
+                                "auto_classify": True,
+                                "source": "langgraph",
+                            }
+                        )
                     results[i] = None  # PutOp returns None
             elif isinstance(op, GetOp):
                 results[i] = await self._do_get(op)
@@ -171,11 +177,13 @@ class M3Store(BaseStore):
         # Coalesced NEW writes → ONE bulk impl call (§4/§11).
         if write_items:
             from memory_core import memory_write_bulk_impl
+
             await memory_write_bulk_impl(write_items, check_contradictions=True)
 
         # Coalesced deletes → ONE bulk delete.
         if delete_ids:
             from memory_core import memory_delete_bulk_impl
+
             memory_delete_bulk_impl(delete_ids)  # sync impl
 
         return results
@@ -221,19 +229,21 @@ class M3Store(BaseStore):
             tf = op.filter.get("type")
             if isinstance(tf, str):
                 type_filter = tf
-        rows = await memory_search_scored_impl(
-            query=op.query or "",
-            user_id=uid,
-            scope="user",
-            k=op.limit,
-            type_filter=type_filter,
-            extra_columns=mapping.EXTRA_COLUMNS,
-        ) or []
+        rows = (
+            await memory_search_scored_impl(
+                query=op.query or "",
+                user_id=uid,
+                scope="user",
+                k=op.limit,
+                type_filter=type_filter,
+                extra_columns=mapping.EXTRA_COLUMNS,
+            )
+            or []
+        )
         # offset is applied client-side (m3 search has no offset arg).
         if op.offset:
-            rows = rows[op.offset:]
-        return [self._to_search_item(op.namespace_prefix, score, it)
-                for score, it in rows]
+            rows = rows[op.offset :]
+        return [self._to_search_item(op.namespace_prefix, score, it) for score, it in rows]
 
     async def _do_list_namespaces(self, op: ListNamespacesOp) -> list[tuple[str, ...]]:
         """Distinct (user_id, scope) tuples — IDs only, never content (§6)."""
@@ -256,11 +266,12 @@ class M3Store(BaseStore):
                     ns = ns[: op.max_depth]
                 out.append(ns)
         if op.offset:
-            out = out[op.offset:]
+            out = out[op.offset :]
         return out
 
     def _client_ensure_bin(self) -> None:
         from .m3client import _ensure_bin_on_path
+
         _ensure_bin_on_path()
 
     # ── row → LangGraph objects ───────────────────────────────────────────────
@@ -273,9 +284,7 @@ class M3Store(BaseStore):
             updated_at=_parse_dt(item.get("updated_at") or item.get("created_at")),
         )
 
-    def _to_search_item(
-        self, namespace: tuple[str, ...], score: float, item: dict
-    ) -> SearchItem:
+    def _to_search_item(self, namespace: tuple[str, ...], score: float, item: dict) -> SearchItem:
         # The stored LangGraph key was carried in metadata_json as _ns_key; fall
         # back to the m3 id if a row wasn't written through this store.
         md = mapping._loads_metadata(item.get("metadata_json"))

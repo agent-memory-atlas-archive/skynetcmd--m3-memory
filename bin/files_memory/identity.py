@@ -20,6 +20,7 @@ Public API:
     resolve_identity_key(path, text=None) -> str
     filetype_for(path) -> str
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -148,6 +149,7 @@ def file_content_sha256_batch(paths: list[str]) -> dict[str, str | None]:
     if os.environ.get("M3_CORE_RS_DISABLE", "0") != "1":
         try:
             import m3_core_rs
+
             if hasattr(m3_core_rs, "hash_files"):
                 out: dict[str, str | None] = {}
                 for rec in m3_core_rs.hash_files(paths):

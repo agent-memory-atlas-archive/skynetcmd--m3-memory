@@ -16,6 +16,7 @@ Usage:
 When M3_AUTO_ENRICH is ON, this replaces the need for separate cron jobs
 for m3_enrich and m3_entities.
 """
+
 import argparse
 import asyncio
 import atexit
@@ -58,8 +59,7 @@ def _rotate_task_log(log_file: str) -> None:
         # to the real stderr; swallowing this would hide the fact that the only
         # bound on this daemon's log has stopped working.
         print(
-            f"[m3] WARNING: log rotation failed for {log_file} "
-            f"({type(e).__name__}: {e}); the log is now unbounded.",
+            f"[m3] WARNING: log rotation failed for {log_file} ({type(e).__name__}: {e}); the log is now unbounded.",
             file=sys.__stderr__ or sys.stderr,
         )
 
@@ -120,6 +120,7 @@ _HALT_ROLE = "cognitive-loop"
 # Holds the acquired single-instance lock for the loop's lifetime (released on
 # exit via the lock's own atexit + SIGTERM cleanup). Module-level so it isn't GC'd.
 _INSTANCE_LOCK = None
+
 
 def daemonize_windows(args):
     """Restart this process using pythonw.exe to detach from console."""
@@ -195,9 +196,9 @@ def daemonize_windows(args):
             # the real worker. Only stdin/stdout/stderr below cross the boundary.
             # CREATE_NEW_PROCESS_GROUP fully untethers the child's process group.
             close_fds=True,
-            creationflags=(subprocess.CREATE_NO_WINDOW
-                           | subprocess.DETACHED_PROCESS
-                           | subprocess.CREATE_NEW_PROCESS_GROUP),
+            creationflags=(
+                subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+            ),
             stdin=subprocess.DEVNULL,
             stdout=child_out,
             stderr=subprocess.STDOUT,
@@ -223,12 +224,13 @@ def daemonize_windows(args):
         pass
     os._exit(0)
 
+
 def daemonize_unix():
     """Double-fork to detach from the terminal."""
     try:
         pid = os.fork()
         if pid > 0:
-            sys.exit(0) # Exit first parent
+            sys.exit(0)  # Exit first parent
     except OSError as e:
         sys.exit(f"fork #1 failed: {e}")
 
@@ -239,7 +241,7 @@ def daemonize_unix():
         pid = os.fork()
         if pid > 0:
             print(f"Cognitive Loop started in background (PID {pid}).")
-            sys.exit(0) # Exit second parent
+            sys.exit(0)  # Exit second parent
     except OSError as e:
         sys.exit(f"fork #2 failed: {e}")
 
@@ -251,6 +253,7 @@ def daemonize_unix():
     with open(os.devnull, "a") as f:
         os.dup2(f.fileno(), sys.stdout.fileno())
         os.dup2(f.fileno(), sys.stderr.fileno())
+
 
 def acquire_lock():
     """Ensure only one loop runs, via the shared system-wide single-instance lock.
@@ -267,19 +270,21 @@ def acquire_lock():
     _INSTANCE_LOCK = acquire_or_exit(
         _HALT_ROLE,
         on_already_running=lambda o: print(
-            f"Cognitive Loop already running (PID {o.pid if o else '?'}). Exiting.",
-            flush=True),
+            f"Cognitive Loop already running (PID {o.pid if o else '?'}). Exiting.", flush=True
+        ),
     )
     if not _INSTANCE_LOCK.acquired:
-        logger.warning("cognitive-loop: single-instance lock DEGRADED "
-                       "(%s) — running without single-instance enforcement",
-                       _INSTANCE_LOCK.status.value)
+        logger.warning(
+            "cognitive-loop: single-instance lock DEGRADED (%s) — running without single-instance enforcement",
+            _INSTANCE_LOCK.status.value,
+        )
+
 
 # Configure logging for structured and greppable output
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)]
+    handlers=[logging.StreamHandler(sys.stdout)],
 )
 logger = logging.getLogger("m3_cognitive_loop")
 
@@ -303,6 +308,7 @@ def _is_local_llm_url(url: str | None) -> bool:
         return True
     try:
         from urllib.parse import urlparse
+
         host = (urlparse(url).hostname or "").lower()
     except Exception:
         return True
@@ -322,8 +328,7 @@ def _pace_for_pass(pacing_cpu_ram: dict, pacing_full: dict, uses_local_gpu: bool
     return pacing_cpu_ram
 
 
-def _select_pass_order(passes: list, cycle: int, active: bool,
-                       has_work: "dict[str, bool] | None" = None) -> list:
+def _select_pass_order(passes: list, cycle: int, active: bool, has_work: "dict[str, bool] | None" = None) -> list:
     """Round-robin + idle-aware + queue-aware pass selection for one cycle. Pure
     function so the fairness policy is unit-testable in isolation from the async
     loop.
@@ -380,6 +385,7 @@ def _profile_is_local(profile_name: str | None) -> bool:
     is_local = True
     try:
         from slm_intent import load_profile
+
         prof = load_profile(profile_name) if profile_name else None
         if prof is not None:
             is_local = _is_local_llm_url(getattr(prof, "url", None))
@@ -392,9 +398,11 @@ def _profile_is_local(profile_name: str | None) -> bool:
 # Global stop signal for graceful shutdown
 _STOP_EVENT = asyncio.Event()
 
+
 def _signal_handler():
     logger.info("Shutdown signal received. Gracefully stopping...")
     _STOP_EVENT.set()
+
 
 def _probe_core(db_path: str | None, sql: str, params: tuple = ()) -> list:
     """Run a lightweight read-probe against the CORE store, backend-appropriately.
@@ -406,6 +414,7 @@ def _probe_core(db_path: str | None, sql: str, params: tuple = ()) -> list:
     db_path is meaningless, so route through the backend-aware mc._db(). Returns
     the fetched rows (len()>0 == "there is work")."""
     from memory.backends import active_backend
+
     if active_backend().name == "sqlite":
         # for_db (NOT the raw M3Context ctor): the raw ctor builds a fresh
         # M3_DB_POOL_SIZE-connection pool that is never cached or closed, so these
@@ -414,6 +423,7 @@ def _probe_core(db_path: str | None, sql: str, params: tuple = ()) -> list:
         # closed on eviction/atexit, and still skips lazy-init/migrations.
         return M3Context.for_db(db_path).query_memory(sql, params)
     import memory_core as mc
+
     with mc._db() as db:
         return db.execute(sql, params).fetchall()
 
@@ -426,11 +436,13 @@ def _conn_for_pass(db_path: str | None):
     write-capable); PG routes through mc._db() (pooled, db_path meaningless). Use
     with a `with ... as conn:` block; conn.execute/commit work on both."""
     from memory.backends import active_backend
+
     if active_backend().name == "sqlite":
         # for_db, not the raw ctor — see _probe_core: the raw ctor leaks an
         # uncached 5-connection pool per call.
         return M3Context.for_db(db_path).get_sqlite_conn()
     import memory_core as mc
+
     return mc._db()
 
 
@@ -447,8 +459,9 @@ def _conn_for_pass(db_path: str | None):
 _ENTITY_WORK_TYPES_SQL = ", ".join(f"'{t}'" for t in m3_entities.DEFAULT_TYPES)
 
 
-def _entity_work_sql(items_tbl: str, link_tbl: str, queue_tbl: str = "entity_extraction_queue",
-                     *, exclude_queue: bool = True) -> str:
+def _entity_work_sql(
+    items_tbl: str, link_tbl: str, queue_tbl: str = "entity_extraction_queue", *, exclude_queue: bool = True
+) -> str:
     """The un-entitized-rows probe over a given items + item-entities table pair.
     Same SQL shape for core (memory_items/memory_item_entities) and chatlog
     (chat_log_items/chat_log_item_entities on PG). The `type IN (...)` list is
@@ -469,12 +482,16 @@ def _entity_work_sql(items_tbl: str, link_tbl: str, queue_tbl: str = "entity_ext
     ``_probe_entity_work``. Backend-portable SQL (SQLite + PostgreSQL); the queue
     table name is passed backend-qualified by the caller."""
     max_att = int(getattr(m3_entities, "MAX_ENTITY_ATTEMPTS", 3))
-    queue_clause = "" if not exclude_queue else f"""
+    queue_clause = (
+        ""
+        if not exclude_queue
+        else f"""
           AND mi.id NOT IN (
               SELECT memory_id FROM {queue_tbl}
               WHERE status IN ('done', 'ctx_error')
                  OR (status = 'failed' AND attempts >= {max_att})
           )"""
+    )
     return f"""
         SELECT 1 FROM {items_tbl} mi
         LEFT JOIN {link_tbl} mie ON mi.id = mie.memory_id
@@ -500,6 +517,7 @@ def _probe_entity_work(run_sql, items_tbl: str, link_tbl: str, queue_tbl: str):
     been recorded terminal yet, so every un-linked row is genuinely work. Verified
     on BOTH SQLite and PostgreSQL."""
     from memory.backends import active_backend
+
     has_status = bool(run_sql(*active_backend().dialect().column_exists(queue_tbl, "status")))
     return run_sql(_entity_work_sql(items_tbl, link_tbl, queue_tbl, exclude_queue=has_status))
 
@@ -542,12 +560,18 @@ def _write_heartbeat(cycle: int, interval: int) -> None:
         path = _loop_heartbeat_path()
         os.makedirs(os.path.dirname(path), exist_ok=True)
         from m3_core.atomic_io import atomic_write
-        atomic_write(path, json.dumps({
-            "ts": datetime.now(UTC).isoformat(),
-            "pid": os.getpid(),
-            "cycle": cycle,
-            "interval_s": interval,
-        }))
+
+        atomic_write(
+            path,
+            json.dumps(
+                {
+                    "ts": datetime.now(UTC).isoformat(),
+                    "pid": os.getpid(),
+                    "cycle": cycle,
+                    "interval_s": interval,
+                }
+            ),
+        )
     except OSError as e:
         logger.debug("Could not write heartbeat: %s", e)
 
@@ -573,6 +597,7 @@ def _record_pass_run(pass_name: str) -> None:
         path = _loop_pass_runs_path()
         os.makedirs(os.path.dirname(path), exist_ok=True)
         from m3_core.atomic_io import atomic_write
+
         atomic_write(path, json.dumps(runs))
     except OSError as e:
         logger.debug("Could not record pass-run for %s: %s", pass_name, e)
@@ -599,6 +624,7 @@ def has_entity_work(core_db: str | None, chatlog_db: str | None) -> bool:
     they may be separate files."""
     try:
         from memory.backends import active_backend, chatlog_table
+
         _backend = active_backend()
 
         # Each run_sql opens a FRESH transaction per call (via _probe_core /
@@ -607,9 +633,17 @@ def has_entity_work(core_db: str | None, chatlog_db: str | None) -> bool:
         # (separate SQLite chatlog FILE vs PG chat_log_* tables in the one DB) is
         # structural, not a dialect leak.
         # 1. Core store.
-        if len(_probe_entity_work(lambda sql, params=(): _probe_core(core_db, sql, params),
-                                  "memory_items", "memory_item_entities",
-                                  "entity_extraction_queue")) > 0:
+        if (
+            len(
+                _probe_entity_work(
+                    lambda sql, params=(): _probe_core(core_db, sql, params),
+                    "memory_items",
+                    "memory_item_entities",
+                    "entity_extraction_queue",
+                )
+            )
+            > 0
+        ):
             return True
 
         # 2. Chatlog store.
@@ -621,18 +655,34 @@ def has_entity_work(core_db: str | None, chatlog_db: str | None) -> bool:
                 with mc._db() as db:
                     return db.execute(sql, params).fetchall()
 
-            if len(_probe_entity_work(_cl_run,
-                                      chatlog_table("items"), chatlog_table("item_entities"),
-                                      chatlog_table("extraction_queue"))) > 0:
+            if (
+                len(
+                    _probe_entity_work(
+                        _cl_run,
+                        chatlog_table("items"),
+                        chatlog_table("item_entities"),
+                        chatlog_table("extraction_queue"),
+                    )
+                )
+                > 0
+            ):
                 return True
         elif chatlog_db and os.path.abspath(chatlog_db) != os.path.abspath(M3Context.for_db(core_db).db_path):
             # SQLite: a SEPARATE chatlog file with the same table names.
             # for_db (cached), not the raw ctor — the raw ctor leaked a 5-connection
             # pool here every probe (both just to read .db_path and for ctx_chat).
             ctx_chat = M3Context.for_db(chatlog_db)
-            if len(_probe_entity_work(lambda sql, params=(): ctx_chat.query_memory(sql, params),
-                                      "memory_items", "memory_item_entities",
-                                      "entity_extraction_queue")) > 0:
+            if (
+                len(
+                    _probe_entity_work(
+                        lambda sql, params=(): ctx_chat.query_memory(sql, params),
+                        "memory_items",
+                        "memory_item_entities",
+                        "entity_extraction_queue",
+                    )
+                )
+                > 0
+            ):
                 return True
 
         return False
@@ -654,9 +704,11 @@ def has_entity_work(core_db: str | None, chatlog_db: str | None) -> bool:
             "`m3 doctor`; if migrations are pending, wait or run them manually. "
             "Assuming NO entity work this cycle; a real backlog will be seen once "
             "the store answers.",
-            type(e).__name__, e,
+            type(e).__name__,
+            e,
         )
         return False  # conservative: no work unless we can confirm some
+
 
 def has_enrich_work(core_db: str | None) -> bool:
     """SQL check: Is the observation_queue or reflector_queue non-empty?
@@ -679,7 +731,8 @@ def has_enrich_work(core_db: str | None) -> bool:
             "in progress. inspect: verify store reachability with `m3 doctor`; "
             "check observation_queue and reflector_queue table existence and "
             "permissions. Assuming NO enrich work this cycle.",
-            type(e).__name__, e,
+            type(e).__name__,
+            e,
         )
         return False  # conservative: no LLM work unless we can confirm some
 
@@ -693,19 +746,20 @@ def has_files_extract_work(files_db: str | None = None) -> bool:
     absent, store missing) reads as "no work" so the pass simply no-ops."""
     try:
         from files_memory.extract import has_pending_extraction
+
         return has_pending_extraction(files_db)
     except Exception as e:  # noqa: BLE001 — no files store / import issue → no work
         log_swallowed(logger, e, f"Files-extract work check failed (non-fatal): {e}")
         return False
 
 
-def has_consolidate_work(core_db: str | None, source_type: str,
-                         threshold: int, stale_days: int) -> bool:
+def has_consolidate_work(core_db: str | None, source_type: str, threshold: int, stale_days: int) -> bool:
     """SQL check: is there an aged 'source_type' group large enough to consolidate
     into a belief? Mirrors memory_consolidate_impl's group query so the loop only
     spends an LLM call when there's real work (event-driven, not time-driven)."""
     try:
         from memory.backends import dialect
+
         _d = dialect()
         _p = _d.param()
         clause = ""
@@ -724,6 +778,7 @@ def has_consolidate_work(core_db: str | None, source_type: str,
     except Exception as e:
         log_swallowed(logger, e, f"Consolidate work check failed (non-fatal): {e}")
         return False  # conservative: no LLM work unless we can confirm there is some
+
 
 async def run_entity_pass(args):
     """Run incremental entity extraction on core and chatlog DBs."""
@@ -759,6 +814,7 @@ async def run_entity_pass(args):
     except Exception as e:
         logger.error(f"Entity pass error: {type(e).__name__}: {e}")
 
+
 async def run_files_extract_pass(args):
     """Drain queued file-extraction leaves (extraction_status='pending') through the
     LLM fact extractor — governor-paced, on by default.
@@ -778,16 +834,20 @@ async def run_files_extract_pass(args):
     logger.info("Starting file-extraction drain pass...")
     try:
         from files_memory.extract import extract_for_pending_leaves
-        res = await asyncio.to_thread(
-            extract_for_pending_leaves, limit=args.limit_per_pass, db_path=files_db)
+
+        res = await asyncio.to_thread(extract_for_pending_leaves, limit=args.limit_per_pass, db_path=files_db)
         if res.get("error"):
             # e.g. "no LLM endpoint configured" — quiet (the doctor flags LLM
             # reachability loudly; don't spam the loop log every cycle).
             logger.debug("File-extraction pass: %s", res["error"])
         else:
-            logger.info("File-extraction pass: ok=%s failed=%s skipped=%s model=%s",
-                        res.get("ok"), res.get("failed"), res.get("skipped"),
-                        res.get("model_id"))
+            logger.info(
+                "File-extraction pass: ok=%s failed=%s skipped=%s model=%s",
+                res.get("ok"),
+                res.get("failed"),
+                res.get("skipped"),
+                res.get("model_id"),
+            )
     except Exception as e:  # noqa: BLE001
         logger.error("File-extraction pass error: %s: %s", type(e).__name__, e)
 
@@ -838,7 +898,7 @@ async def run_enrich_pass(args):
             reflector_threshold=args.reflector_threshold,
             dry_run=False,
             skip_preflight=True,
-            yes=True
+            yes=True,
         )
         await m3_enrich._main_async(enrich_args)
     except Exception as e:
@@ -870,6 +930,7 @@ def _embed_target_dbs(core_db: str | None) -> list[str]:
     paths: list[str] = []
     try:
         import chatlog_config
+
         paths = list(chatlog_config.chat_store_paths())
     except Exception as e:  # noqa: BLE001 — chatlog is optional; never break the loop
         log_swallowed(logger, e, f"Chatlog DB resolution failed (non-fatal): {e}")
@@ -887,9 +948,7 @@ def _embed_target_dbs(core_db: str | None) -> list[str]:
     if main:
         default_main = paths[0] if paths else None
         rest = list(paths[1:]) if default_main else list(paths)
-        paths = [os.path.abspath(str(main))] + [
-            p for p in rest if os.path.abspath(p) != os.path.abspath(str(main))
-        ]
+        paths = [os.path.abspath(str(main))] + [p for p in rest if os.path.abspath(p) != os.path.abspath(str(main))]
 
     seen: set[str] = set()
     out: list[str] = []
@@ -909,6 +968,7 @@ def _embed_targets(core_db: str | None) -> list[tuple[str | None, str]]:
     stores in one database, so both stores are targets and `db` is unused.
     """
     from memory.backends import active_backend
+
     if active_backend().name == "sqlite":
         return [(p, "core") for p in _embed_target_dbs(core_db)]
     return [(None, "core"), (None, "chatlog")]
@@ -937,6 +997,7 @@ def has_spill_work() -> bool:
     """
     try:
         import chatlog_config
+
         spill_dir = chatlog_config.SPILL_DIR
         if not spill_dir or not os.path.isdir(spill_dir):
             return False
@@ -968,6 +1029,7 @@ def has_embed_work(core_db: str | None) -> bool:
         return True
     try:
         import embed_backfill
+
         for db_path, store in _embed_targets(core_db):
             args = embed_backfill._parse_args(_backfill_argv(db_path, store, 1))
             if embed_backfill._count_pending(args.db, args) > 0:
@@ -979,7 +1041,10 @@ def has_embed_work(core_db: str | None) -> bool:
         logger.warning(
             "observed: embed work-gate probe failed (%s: %s). possible: store "
             "is locked, offline, or its tables are missing. inspect: `m3 doctor`. "
-            "Assuming NO embed work this cycle.", type(e).__name__, e)
+            "Assuming NO embed work this cycle.",
+            type(e).__name__,
+            e,
+        )
         return False
 
 
@@ -1003,6 +1068,7 @@ def _checkpoint_wal(db_path: str | None) -> None:
     """
     try:
         from memory.backends import active_backend
+
         if active_backend().name != "sqlite":
             return  # PG self-manages WAL; nothing to checkpoint from here
     except Exception:  # noqa: BLE001 — never let a backend probe break the loop
@@ -1011,6 +1077,7 @@ def _checkpoint_wal(db_path: str | None) -> None:
         import sqlite3
 
         from sqlite_pragmas import apply_pragmas, profile_for_db
+
         path = db_path or os.environ.get("M3_DATABASE")
         if not path:
             return
@@ -1025,7 +1092,9 @@ def _checkpoint_wal(db_path: str | None) -> None:
                 logger.warning(
                     "WAL checkpoint(TRUNCATE) was BUSY (a reader held the lock); "
                     "WAL not fully reset this cycle (log=%s ckpt=%s). Will retry next cycle.",
-                    row[1] if len(row) > 1 else "?", row[2] if len(row) > 2 else "?")
+                    row[1] if len(row) > 1 else "?",
+                    row[2] if len(row) > 2 else "?",
+                )
         finally:
             conn.close()
     except Exception as e:  # noqa: BLE001 — checkpoint is best-effort; never wedge the loop
@@ -1051,6 +1120,7 @@ async def _drain_chatlog_spill() -> int:
     """
     try:
         import chatlog_config
+
         spill_dir = chatlog_config.SPILL_DIR
         if not spill_dir or not os.path.isdir(spill_dir):
             return 0
@@ -1063,7 +1133,7 @@ async def _drain_chatlog_spill() -> int:
         def _drain_sync() -> int:
             coro = chatlog_embed_sweeper.drain_spill()
             try:
-                coro.send(None)          # no awaits inside => completes now
+                coro.send(None)  # no awaits inside => completes now
             except StopIteration as done:
                 return int(done.value or 0)
             # Defensive: a future edit adding a real await would land here
@@ -1081,7 +1151,8 @@ async def _drain_chatlog_spill() -> int:
     except Exception as e:
         logger.warning(
             "Spill drain failed (non-fatal, embed sweep continues): %s: %s",
-            type(e).__name__, e,
+            type(e).__name__,
+            e,
         )
         return 0
 
@@ -1123,6 +1194,7 @@ async def run_embed_pass(args):
     # network cost beyond one /health GET) when the server is still down.
     try:
         from memory.embed import recover_if_fallback_healthy
+
         if recover_if_fallback_healthy():
             logger.info("Embed-backfill: tier-2 server healthy — breakers reset before sweep.")
     except Exception as e:
@@ -1141,16 +1213,11 @@ async def run_embed_pass(args):
     # locked chatlog, say) still lets the other drain.
     for db_path, store in _embed_targets(args.database):
         try:
-            bf_args = embed_backfill._parse_args(
-                _backfill_argv(db_path, store, args.limit_per_pass)
-            )
+            bf_args = embed_backfill._parse_args(_backfill_argv(db_path, store, args.limit_per_pass))
             counters = embed_backfill.Counters()
             await embed_backfill._run_sweep(bf_args, counters)
             if counters.embedded:
-                logger.info(
-                    f"Embed-backfill: {counters.embedded} rows embedded in "
-                    f"{_target_label(db_path, store)}"
-                )
+                logger.info(f"Embed-backfill: {counters.embedded} rows embedded in {_target_label(db_path, store)}")
             elif counters.scanned:
                 # SILENT ZERO (§3). Logging only successes made a 30-hour
                 # tier-2 outage indistinguishable from an idle sweep: this
@@ -1200,7 +1267,8 @@ def has_classify_work(core_db: str | None) -> bool:
             "exist yet. inspect: verify store reachability with `m3 doctor`; ensure "
             "memory_items table exists and migrations are current. Assuming NO "
             "classify work this cycle.",
-            type(e).__name__, e,
+            type(e).__name__,
+            e,
         )
         return False
 
@@ -1245,16 +1313,17 @@ async def run_classify_pass(args):
                 new_type = await _auto_classify(content or "", title or "")
         except (TimeoutError, Exception) as e:  # noqa: BLE001 — fail-open
             logger.warning(
-                "Classify deferred: row %s left as 'auto' (LLM unavailable/slow: %s). "
-                "Will retry next sweep.", item_id, type(e).__name__)
+                "Classify deferred: row %s left as 'auto' (LLM unavailable/slow: %s). Will retry next sweep.",
+                item_id,
+                type(e).__name__,
+            )
             continue
         # _auto_classify returns 'note' as its own fail-open default; only UPDATE
         # when we got a REAL classification (not the sentinel and not still 'auto').
         if new_type and new_type != "auto":
             with _conn_for_pass(args.database) as uconn:
                 uconn.execute(
-                    f"UPDATE memory_items SET type={_p}, updated_at={_p} "
-                    f"WHERE id={_p} AND type='auto'",
+                    f"UPDATE memory_items SET type={_p}, updated_at={_p} WHERE id={_p} AND type='auto'",
                     (new_type, datetime.now(UTC).isoformat(), item_id),
                 )
                 uconn.commit()
@@ -1270,13 +1339,13 @@ async def run_consolidate_pass(args):
     Delegates to consolidate_beliefs._run so the loop and the standalone cron/CLI
     share ONE implementation."""
     src = args.consolidate_source_type
-    if not has_consolidate_work(args.database, src,
-                                args.consolidate_threshold, args.consolidate_stale_days):
+    if not has_consolidate_work(args.database, src, args.consolidate_threshold, args.consolidate_stale_days):
         logger.debug("No consolidation work (no aged group over threshold). Skipping.")
         return
     logger.info("Starting Belief Consolidation pass...")
     try:
         import consolidate_beliefs
+
         out = await consolidate_beliefs._run(
             apply=True,  # the job gates real writes on M3_CONSOLIDATION_AUTO + idle
             threshold=args.consolidate_threshold,
@@ -1296,6 +1365,7 @@ def has_distill_work(core_db: str | None, threshold: int, stale_days: int) -> bo
     try:
         from memory.backends import dialect
         from memory_maintenance import undistilled_task_clause
+
         _d = dialect()
         _p = _d.param()
         clause = " AND " + undistilled_task_clause(_d)
@@ -1327,6 +1397,7 @@ async def run_distill_pass(args):
     logger.info("Starting Procedural Distillation pass...")
     try:
         import distill_procedures
+
         out = await distill_procedures._run(
             apply=True,  # the job gates real writes on M3_DISTILL_AUTO + idle
             threshold=args.distill_threshold,
@@ -1355,6 +1426,7 @@ async def run_distill_pass(args):
         # an exception handler and mask the error it is describing.
         try:
             from memory_core import ctx as _ctx
+
             impl_db = str(getattr(_ctx, "db_path", None) or "(unresolved)")
         except Exception:  # noqa: BLE001 — diagnostics are best-effort
             impl_db = "(unreadable)"
@@ -1367,7 +1439,7 @@ async def run_distill_pass(args):
         # and it sent the reader to `m3 doctor --fix` for a migration that was
         # already applied. §3: never assert an unconfirmed cause, and do not
         # keep offering one the evidence has eliminated.
-        same_store = (impl_db == guard_db)
+        same_store = impl_db == guard_db
         missing = "no such table" in str(e).lower()
         if same_store and missing:
             # Both paths agree and the table is absent to THIS connection.
@@ -1404,13 +1476,13 @@ async def run_distill_pass(args):
         )
 
 
-def has_chatlog_prune_work(chatlog_db: str | None, prune_days: float,
-                           min_rows: int) -> bool:
+def has_chatlog_prune_work(chatlog_db: str | None, prune_days: float, min_rows: int) -> bool:
     """SQL check: are there enough aged chat_log turns to bother pruning?
     Event-driven gate (mirrors has_consolidate_work) so the loop only does a
     sweep when a real backlog of prune-eligible noise has accumulated."""
     try:
         from memory.backends import active_backend, chatlog_table, dialect
+
         _d = dialect()
         _p = _d.param()
         _is_sqlite = active_backend().name == "sqlite"
@@ -1469,8 +1541,7 @@ async def run_chatlog_prune_pass(args):
     M3_CHATLOG_PRUNE_AUTO=1 (else dry-run) — same opt-in contract as belief
     consolidation. Delegates to chatlog_prune.run so the loop and the standalone
     CLI share ONE implementation."""
-    if not has_chatlog_prune_work(args.chatlog_db, args.chatlog_prune_days,
-                                  args.chatlog_prune_threshold):
+    if not has_chatlog_prune_work(args.chatlog_db, args.chatlog_prune_days, args.chatlog_prune_threshold):
         logger.debug("No chatlog-prune work (no aged backlog over threshold). Skipping.")
         return
     # Throttle: prune is a CPU-heavy maintenance SWEEP (re-classifies every aged
@@ -1484,27 +1555,38 @@ async def run_chatlog_prune_pass(args):
     # Config file > env > default (see consolidate_beliefs): a bare env gate is
     # dead under launchd/systemd, which don't inherit shell env (DESIGN §3).
     from m3_core.autonomy import autonomy_flag
+
     apply = autonomy_flag("chatlog_prune_auto", "M3_CHATLOG_PRUNE_AUTO")
     logger.info("Starting chatlog noise-prune pass (apply=%s)...", apply)
     try:
         from types import SimpleNamespace
 
         import chatlog_prune
+
         opts = SimpleNamespace(
             fresh_days=args.chatlog_prune_fresh_days,
             prune_days=args.chatlog_prune_days,
-            status_min_cluster=5, generic_imp_max=0.3, keep_imp_floor=0.4,
-            generic_protect_len=300, generic_delete_maxlen=300,
+            status_min_cluster=5,
+            generic_imp_max=0.3,
+            keep_imp_floor=0.4,
+            generic_protect_len=300,
+            generic_delete_maxlen=300,
             # Bound writes per cycle (§8): the loop fires every --interval, so a
             # large backlog drains over many cycles instead of one monster pass
             # that blocks the heartbeat. Oldest noise is handled first.
             max_actions=args.chatlog_prune_max_actions,
-            no_generic=False, apply=apply)
+            no_generic=False,
+            apply=apply,
+        )
         summary = chatlog_prune.run(args.chatlog_db, opts)
         _record_pass_run("chatlog_prune")  # stamp for the min-interval throttle
-        logger.info("Chatlog-prune pass: suppress=%s soft-delete=%s capped=%s (apply=%s)",
-                    summary.get("writes_decay"), summary.get("writes_prune"),
-                    summary.get("capped"), apply)
+        logger.info(
+            "Chatlog-prune pass: suppress=%s soft-delete=%s capped=%s (apply=%s)",
+            summary.get("writes_decay"),
+            summary.get("writes_prune"),
+            summary.get("capped"),
+            apply,
+        )
     except Exception as e:
         logger.error(f"Chatlog-prune pass error: {type(e).__name__}: {e}")
 
@@ -1527,9 +1609,12 @@ async def run_sync_pass(args):
     # via the same active_backend() seam the other passes use.
     try:
         from memory.backends import active_backend
+
         if active_backend().name != "sqlite":
-            logger.debug("Sync pass: primary backend is %s (not sqlite) — no local "
-                         "store to sync to CDW. Skipping.", active_backend().name)
+            logger.debug(
+                "Sync pass: primary backend is %s (not sqlite) — no local store to sync to CDW. Skipping.",
+                active_backend().name,
+            )
             return
     except Exception as e:
         log_swallowed(logger, e, "Sync pass: backend probe failed (%s); assuming sqlite.", e)
@@ -1538,6 +1623,7 @@ async def run_sync_pass(args):
         return
     try:
         import sync_all
+
         # Cheap pre-flight: if the warehouse isn't reachable, skip fast (don't
         # stamp — so we retry next cycle rather than waiting a full interval).
         target = sync_all.warehouse_target()
@@ -1546,8 +1632,7 @@ async def run_sync_pass(args):
             return
         host, port, _source = target
         if not sync_all.is_reachable(host, port):
-            logger.info("Sync pass: warehouse %s:%s unreachable — skipping (retry next cycle).",
-                        host, port)
+            logger.info("Sync pass: warehouse %s:%s unreachable — skipping (retry next cycle).", host, port)
             return
         logger.info("Starting warehouse-sync pass...")
         ok = await asyncio.to_thread(sync_all.run_pg_sync, False)
@@ -1566,11 +1651,11 @@ async def run_maintenance_pass(args):
     is a no-op when nothing is decay/prune-eligible, so the _due gate is a coarse
     cadence limiter (avoid rewriting decay every tick), not the work-probe."""
     if not _due("maintenance", args.maintenance_min_interval_s):
-        logger.debug("Maintenance not due (ran < %ss ago). Skipping.",
-                     args.maintenance_min_interval_s)
+        logger.debug("Maintenance not due (ran < %ss ago). Skipping.", args.maintenance_min_interval_s)
         return
     try:
         import memory_maintenance
+
         logger.info("Starting memory-maintenance pass...")
         summary = await asyncio.to_thread(memory_maintenance.memory_maintenance_impl)
         _record_pass_run("maintenance")
@@ -1589,6 +1674,7 @@ async def run_audit_pass(args):
         return
     try:
         import weekly_auditor
+
         logger.info("Starting weekly-audit pass...")
         result = await asyncio.to_thread(weekly_auditor.run_audit)
         _record_pass_run("audit")
@@ -1669,8 +1755,7 @@ async def main_loop(args):
         # Backend-blind: halt/registry are file+PID ops; _checkpoint_wal self-no-ops
         # on PostgreSQL (PG manages its own WAL), so this runs on both backends.
         if m3_halt.halt_is_active(role=_HALT_ROLE):
-            logger.info("HALT_m3 active — checkpointing and pausing cognitive loop "
-                        "for a DB-exclusive operation.")
+            logger.info("HALT_m3 active — checkpointing and pausing cognitive loop for a DB-exclusive operation.")
             _checkpoint_wal(args.database)
             m3_halt.deregister(_HALT_ROLE)
             try:
@@ -1707,9 +1792,11 @@ async def main_loop(args):
             # If CPU/RAM alone halts, NOTHING should run — even cloud/SQL contend
             # for local CPU. Short-circuit the whole cycle.
             if pacing_cpu_ram["background"] == "HALTED":
-                logger.info("CPU/RAM load critical (cpu=%.0f ram=%.0f). All background "
-                            "work HALTED. Sleeping 5s...",
-                            telemetry.get("cpu_total", 0.0), telemetry.get("ram_total", 0.0))
+                logger.info(
+                    "CPU/RAM load critical (cpu=%.0f ram=%.0f). All background work HALTED. Sleeping 5s...",
+                    telemetry.get("cpu_total", 0.0),
+                    telemetry.get("ram_total", 0.0),
+                )
                 await asyncio.sleep(5.0)
                 continue
         except Exception as e:
@@ -1746,24 +1833,72 @@ async def main_loop(args):
         # local GPU (so GPU load gates them); chatlog-prune is pure SQL. `sets_limit`
         # marks the LLM passes whose batch size we shrink under throttle.
         passes = [
-            {"name": "entities",   "skip": args.skip_entities,      "gpu": entity_local,      "sets_limit": True,  "run": run_entity_pass},
-            {"name": "enrich",     "skip": args.skip_enrich,        "gpu": enrich_local,      "sets_limit": True,  "run": run_enrich_pass},
+            {
+                "name": "entities",
+                "skip": args.skip_entities,
+                "gpu": entity_local,
+                "sets_limit": True,
+                "run": run_entity_pass,
+            },
+            {
+                "name": "enrich",
+                "skip": args.skip_enrich,
+                "gpu": enrich_local,
+                "sets_limit": True,
+                "run": run_enrich_pass,
+            },
             # File fact-extraction drain (extract_mode='queue'). LLM pass on the
             # shared local endpoint → GPU-gated + batch-shrunk under throttle, like
             # entities/enrich. No-op (silent, cheap) when there's no files store.
-            {"name": "files_extract", "skip": args.skip_files_extract, "gpu": True,           "sets_limit": True,  "run": run_files_extract_pass},
-            {"name": "embed",      "skip": args.skip_embed,         "gpu": True,              "sets_limit": True,  "run": run_embed_pass},
-            {"name": "classify",   "skip": args.skip_classify,      "gpu": enrich_local,      "sets_limit": True,  "run": run_classify_pass},
-            {"name": "consolidate","skip": args.skip_consolidate,   "gpu": consolidate_local, "sets_limit": False, "run": run_consolidate_pass},
-            {"name": "distill",    "skip": args.skip_distill,       "gpu": distill_local,     "sets_limit": False, "run": run_distill_pass},
-            {"name": "prune",      "skip": args.skip_chatlog_prune, "gpu": None,              "sets_limit": False, "run": run_chatlog_prune_pass},
+            {
+                "name": "files_extract",
+                "skip": args.skip_files_extract,
+                "gpu": True,
+                "sets_limit": True,
+                "run": run_files_extract_pass,
+            },
+            {"name": "embed", "skip": args.skip_embed, "gpu": True, "sets_limit": True, "run": run_embed_pass},
+            {
+                "name": "classify",
+                "skip": args.skip_classify,
+                "gpu": enrich_local,
+                "sets_limit": True,
+                "run": run_classify_pass,
+            },
+            {
+                "name": "consolidate",
+                "skip": args.skip_consolidate,
+                "gpu": consolidate_local,
+                "sets_limit": False,
+                "run": run_consolidate_pass,
+            },
+            {
+                "name": "distill",
+                "skip": args.skip_distill,
+                "gpu": distill_local,
+                "sets_limit": False,
+                "run": run_distill_pass,
+            },
+            {
+                "name": "prune",
+                "skip": args.skip_chatlog_prune,
+                "gpu": None,
+                "sets_limit": False,
+                "run": run_chatlog_prune_pass,
+            },
             # Time-driven, non-GPU passes (CPU/RAM-gated like prune). Each is
             # cheap when not due (interval gate + delta-sync / no-op impl), so
             # they ride the round-robin without adding steady load. Sync also has
             # a kept OS-task floor (see run_sync_pass) for when the governor HALTs.
-            {"name": "sync",       "skip": args.skip_sync,          "gpu": None,              "sets_limit": False, "run": run_sync_pass},
-            {"name": "maintenance","skip": args.skip_maintenance,   "gpu": None,              "sets_limit": False, "run": run_maintenance_pass},
-            {"name": "audit",      "skip": args.skip_audit,         "gpu": None,              "sets_limit": False, "run": run_audit_pass},
+            {"name": "sync", "skip": args.skip_sync, "gpu": None, "sets_limit": False, "run": run_sync_pass},
+            {
+                "name": "maintenance",
+                "skip": args.skip_maintenance,
+                "gpu": None,
+                "sets_limit": False,
+                "run": run_maintenance_pass,
+            },
+            {"name": "audit", "skip": args.skip_audit, "gpu": None, "sets_limit": False, "run": run_audit_pass},
         ]
         # Round-robin order + idle-aware intensity + queue-awareness (see
         # _select_pass_order). When the governor is THROTTLED we treat the host as
@@ -1783,18 +1918,20 @@ async def main_loop(args):
         work_map: dict[str, bool] | None = None
         if active:
             work_map = {
-                "entities":    not args.skip_entities and has_entity_work(args.database, args.chatlog_db),
-                "files_extract": not args.skip_files_extract and has_files_extract_work(getattr(args, "files_db", None)),
-                "enrich":      not args.skip_enrich and has_enrich_work(args.database),
-                "embed":       not args.skip_embed and has_embed_work(args.database),
-                "classify":    not args.skip_classify and has_classify_work(args.database),
-                "consolidate": not args.skip_consolidate and has_consolidate_work(
-                    args.database, args.consolidate_source_type,
-                    args.consolidate_threshold, args.consolidate_stale_days),
-                "distill":     not args.skip_distill and has_distill_work(
-                    args.database, args.distill_threshold, args.distill_stale_days),
-                "prune":       not args.skip_chatlog_prune and has_chatlog_prune_work(
-                    args.chatlog_db, args.chatlog_prune_days, args.chatlog_prune_threshold),
+                "entities": not args.skip_entities and has_entity_work(args.database, args.chatlog_db),
+                "files_extract": not args.skip_files_extract
+                and has_files_extract_work(getattr(args, "files_db", None)),
+                "enrich": not args.skip_enrich and has_enrich_work(args.database),
+                "embed": not args.skip_embed and has_embed_work(args.database),
+                "classify": not args.skip_classify and has_classify_work(args.database),
+                "consolidate": not args.skip_consolidate
+                and has_consolidate_work(
+                    args.database, args.consolidate_source_type, args.consolidate_threshold, args.consolidate_stale_days
+                ),
+                "distill": not args.skip_distill
+                and has_distill_work(args.database, args.distill_threshold, args.distill_stale_days),
+                "prune": not args.skip_chatlog_prune
+                and has_chatlog_prune_work(args.chatlog_db, args.chatlog_prune_days, args.chatlog_prune_threshold),
             }
         order = _select_pass_order(passes, _cycle, active, work_map)
         _cycle += 1
@@ -1805,8 +1942,7 @@ async def main_loop(args):
                 continue
             # prune is pure SQL → gated only by CPU/RAM; everything else uses the
             # per-pass verdict (GPU folded in only for local-GPU passes).
-            pace = pacing_cpu_ram if p["gpu"] is None else _pace_for_pass(
-                pacing_cpu_ram, pacing_full, p["gpu"])
+            pace = pacing_cpu_ram if p["gpu"] is None else _pace_for_pass(pacing_cpu_ram, pacing_full, p["gpu"])
             if _run_gate(pace):
                 if p["sets_limit"]:
                     args.limit_per_pass = _effective_limit(pace)
@@ -1839,8 +1975,7 @@ async def main_loop(args):
         # interval (that would crawl the backlog) — but DO insert the throttle
         # delay so the shrunk batches don't busy-loop and re-saturate the host.
         if any_throttled:
-            delay = float(pacing_full.get("background_delay",
-                          pacing_cpu_ram.get("background_delay", 10.0)))
+            delay = float(pacing_full.get("background_delay", pacing_cpu_ram.get("background_delay", 10.0)))
             wait_time = min(wait_time, delay)
         else:
             # IDLE BACKLOG DRAIN (§5/§8): each heavy-LLM pass processes at most
@@ -1870,7 +2005,9 @@ async def main_loop(args):
                     "backing off to the full %ss interval. If this repeats, a "
                     "work-gate is reporting rows the passes cannot process "
                     "(check embed-backfill skipped_oversize / skipped_bad_dim).",
-                    _MAX_DRAIN_TICKS, args.interval)
+                    _MAX_DRAIN_TICKS,
+                    args.interval,
+                )
                 _drain_ticks = 0
             else:
                 _drain_ticks = 0
@@ -1901,6 +2038,7 @@ async def _sleep_or_halt(wait_time: float, poll_s: float = 2.0) -> None:
         except TimeoutError:
             pass
 
+
 def _raise_fd_limit(target: int = 4096) -> None:
     """Best-effort raise this process's open-file limit — a cross-OS backstop
     behind the connection-pool reuse (the real leak fix). ONE mechanism for all
@@ -1913,6 +2051,7 @@ def _raise_fd_limit(target: int = 4096) -> None:
     except ImportError:
         try:  # Windows: raise the CRT stdio cap (default 512, hard max 8192)
             import ctypes
+
             ctypes.cdll.msvcrt._setmaxstdio(min(target, 8192))
         except Exception:
             pass
@@ -1932,28 +2071,33 @@ def _raise_fd_limit(target: int = 4096) -> None:
 
 def main():
     parser = argparse.ArgumentParser(description="m3-memory Cognitive Loop")
-    parser.add_argument("--interval", type=int, default=300,
-                        help="Seconds between passes (default: 300)")
+    parser.add_argument("--interval", type=int, default=300, help="Seconds between passes (default: 300)")
     parser.add_argument("--background", action="store_true", help="Run in background (fire and forget)")
-    parser.add_argument("--log-file", default=None, metavar="PATH",
-                        help="Append logging to this file (scheduled-task / service mode). "
-                             "Survives the Windows pythonw re-exec.")
+    parser.add_argument(
+        "--log-file",
+        default=None,
+        metavar="PATH",
+        help="Append logging to this file (scheduled-task / service mode). Survives the Windows pythonw re-exec.",
+    )
     parser.add_argument("--concurrency", type=int, default=2, help="SLM concurrency (default: 2)")
-    parser.add_argument("--limit-per-pass", type=int,
-                        default=max(1, int(os.environ.get("M3_LIMIT_PER_PASS", "4"))),
-                        help="Max groups/rows per heavy-LLM pass (entity extraction, "
-                             "enrichment, observation drain). Default 4 (override with the "
-                             "M3_LIMIT_PER_PASS env var — e.g. set it higher to drain a large "
-                             "catch-up backlog faster on an idle box, WITHOUT editing the flag "
-                             "in a scheduled task). Small enough that one pass is a few-second "
-                             "GPU burst (the governor is only re-checked BETWEEN passes, not "
-                             "within a batch — a 50-item pass once pinned the GPU for ~17 min, "
-                             "so 4 stays ~10x under that). Under THROTTLED load this is shrunk to "
-                             "M3_GOVERNOR_THROTTLED_LIMIT (default 1); when idle the loop "
-                             "also re-ticks immediately if a backlog remains (see the "
-                             "backlog-aware wait below) rather than sleeping the full "
-                             "--interval. Embedding is a separate scheduled task "
-                             "(ChatlogEmbedSweep) and is unaffected.")
+    parser.add_argument(
+        "--limit-per-pass",
+        type=int,
+        default=max(1, int(os.environ.get("M3_LIMIT_PER_PASS", "4"))),
+        help="Max groups/rows per heavy-LLM pass (entity extraction, "
+        "enrichment, observation drain). Default 4 (override with the "
+        "M3_LIMIT_PER_PASS env var — e.g. set it higher to drain a large "
+        "catch-up backlog faster on an idle box, WITHOUT editing the flag "
+        "in a scheduled task). Small enough that one pass is a few-second "
+        "GPU burst (the governor is only re-checked BETWEEN passes, not "
+        "within a batch — a 50-item pass once pinned the GPU for ~17 min, "
+        "so 4 stays ~10x under that). Under THROTTLED load this is shrunk to "
+        "M3_GOVERNOR_THROTTLED_LIMIT (default 1); when idle the loop "
+        "also re-ticks immediately if a backlog remains (see the "
+        "backlog-aware wait below) rather than sleeping the full "
+        "--interval. Embedding is a separate scheduled task "
+        "(ChatlogEmbedSweep) and is unaffected.",
+    )
 
     # Database knobs
     parser.add_argument("--database", default=None, help="Core Memory DB path (Env: M3_DATABASE)")
@@ -1961,73 +2105,118 @@ def main():
 
     parser.add_argument("--profile-entities", default="entities_local_qwen", help="Profile for entities")
     parser.add_argument("--profile-enrich", default="enrich_local_qwen", help="Profile for enrichment")
-    parser.add_argument("--reflector-threshold", type=int, default=5, help="Min observations before Reflector (default: 5)")
+    parser.add_argument(
+        "--reflector-threshold", type=int, default=5, help="Min observations before Reflector (default: 5)"
+    )
     parser.add_argument("--skip-entities", action="store_true", help="Skip entity extraction")
-    parser.add_argument("--skip-files-extract", action="store_true",
-                        help="Skip draining queued file-extraction leaves (extract_mode='queue')")
-    parser.add_argument("--files-db", default=None,
-                        help="Files DB path override (default: M3_FILES_DB_PATH env / config)")
+    parser.add_argument(
+        "--skip-files-extract",
+        action="store_true",
+        help="Skip draining queued file-extraction leaves (extract_mode='queue')",
+    )
+    parser.add_argument(
+        "--files-db", default=None, help="Files DB path override (default: M3_FILES_DB_PATH env / config)"
+    )
     parser.add_argument("--skip-enrich", action="store_true", help="Skip enrichment pass")
-    parser.add_argument("--skip-embed", action="store_true",
-                        help="Skip embed-backfill pass (draining deferred zero-lag-write vectors)")
-    parser.add_argument("--skip-classify", action="store_true",
-                        help="Skip classification pass (resolving type='auto' rows deferred by zero-lag writes)")
+    parser.add_argument(
+        "--skip-embed", action="store_true", help="Skip embed-backfill pass (draining deferred zero-lag-write vectors)"
+    )
+    parser.add_argument(
+        "--skip-classify",
+        action="store_true",
+        help="Skip classification pass (resolving type='auto' rows deferred by zero-lag writes)",
+    )
     parser.add_argument("--no-reflect", action="store_true", help="Skip reflection pass")
     # Belief consolidation pass (knowledge-maintenance Phase 4). Event-driven +
     # governor-gated inside the loop; the job still requires M3_CONSOLIDATION_AUTO=1
     # to actually write (else dry-run). Replaces the standalone weekly cron.
-    parser.add_argument("--skip-consolidate", action="store_true",
-                        help="Skip the belief-consolidation pass")
-    parser.add_argument("--consolidate-threshold", type=int, default=50,
-                        help="Min same-type group size before consolidating (default: 50)")
-    parser.add_argument("--consolidate-stale-days", type=int, default=7,
-                        help="Only consolidate items older than N days (default: 7)")
-    parser.add_argument("--consolidate-source-type", default="observation",
-                        help="Episodic source memory type to roll up (default: observation)")
+    parser.add_argument("--skip-consolidate", action="store_true", help="Skip the belief-consolidation pass")
+    parser.add_argument(
+        "--consolidate-threshold",
+        type=int,
+        default=50,
+        help="Min same-type group size before consolidating (default: 50)",
+    )
+    parser.add_argument(
+        "--consolidate-stale-days", type=int, default=7, help="Only consolidate items older than N days (default: 7)"
+    )
+    parser.add_argument(
+        "--consolidate-source-type",
+        default="observation",
+        help="Episodic source memory type to roll up (default: observation)",
+    )
 
     # Procedural distillation pass. Event-driven + governor-gated inside the
     # loop; the job still requires M3_DISTILL_AUTO=1 to actually write (else
     # dry-run). Rolls up completed task runs → reusable 'procedure' memories.
-    parser.add_argument("--skip-distill", action="store_true",
-                        help="Skip the procedural-distillation pass")
-    parser.add_argument("--distill-threshold", type=int, default=1,
-                        help="Min completed tasks before distilling (default: 1)")
-    parser.add_argument("--distill-stale-days", type=int, default=3,
-                        help="Only distill tasks completed > N days ago (default: 3)")
-    parser.add_argument("--distill-max-procedures", type=int, default=20,
-                        help="Max procedures written per distillation run (default: 20)")
+    parser.add_argument("--skip-distill", action="store_true", help="Skip the procedural-distillation pass")
+    parser.add_argument(
+        "--distill-threshold", type=int, default=1, help="Min completed tasks before distilling (default: 1)"
+    )
+    parser.add_argument(
+        "--distill-stale-days", type=int, default=3, help="Only distill tasks completed > N days ago (default: 3)"
+    )
+    parser.add_argument(
+        "--distill-max-procedures",
+        type=int,
+        default=20,
+        help="Max procedures written per distillation run (default: 20)",
+    )
 
     # Chatlog aged noise-prune pass. Governor-gated + event-driven; real
     # writes require M3_CHATLOG_PRUNE_AUTO=1 (else dry-run). Replaces a fixed cron.
-    parser.add_argument("--skip-chatlog-prune", action="store_true",
-                        help="Skip the chatlog noise-prune pass")
-    parser.add_argument("--chatlog-prune-threshold", type=int, default=2000,
-                        help="Min aged prune-eligible chat_log rows before a sweep (default: 2000)")
-    parser.add_argument("--chatlog-prune-fresh-days", type=float, default=14.0,
-                        help="Keep noise newer than N days untouched (default: 14)")
-    parser.add_argument("--chatlog-prune-days", type=float, default=45.0,
-                        help="Soft-delete aged noise older than N days (default: 45)")
-    parser.add_argument("--chatlog-prune-max-actions", type=int, default=5000,
-                        help="Max decay+prune writes per cycle (default: 5000; 0 = "
-                             "no cap). Caps one pass so a backlog drains across "
-                             "cycles instead of blocking the heartbeat.")
+    parser.add_argument("--skip-chatlog-prune", action="store_true", help="Skip the chatlog noise-prune pass")
+    parser.add_argument(
+        "--chatlog-prune-threshold",
+        type=int,
+        default=2000,
+        help="Min aged prune-eligible chat_log rows before a sweep (default: 2000)",
+    )
+    parser.add_argument(
+        "--chatlog-prune-fresh-days",
+        type=float,
+        default=14.0,
+        help="Keep noise newer than N days untouched (default: 14)",
+    )
+    parser.add_argument(
+        "--chatlog-prune-days", type=float, default=45.0, help="Soft-delete aged noise older than N days (default: 45)"
+    )
+    parser.add_argument(
+        "--chatlog-prune-max-actions",
+        type=int,
+        default=5000,
+        help="Max decay+prune writes per cycle (default: 5000; 0 = "
+        "no cap). Caps one pass so a backlog drains across "
+        "cycles instead of blocking the heartbeat.",
+    )
 
     # Time-driven passes (governor-paced, interval-gated). These replace the
     # standalone AgentOS_HourlySync / _Maintenance / _WeeklyAuditor scheduled
     # tasks by running them in the round-robin under governor pacing. The OS
     # HourlySync task is kept as a load-independent floor (see run_sync_pass).
-    parser.add_argument("--skip-sync", action="store_true",
-                        help="Skip the warehouse-sync pass")
-    parser.add_argument("--sync-min-interval-s", type=float, default=3600.0,
-                        help="Min seconds between warehouse syncs in-loop (default: 3600)")
-    parser.add_argument("--skip-maintenance", action="store_true",
-                        help="Skip the memory-maintenance (decay/prune) pass")
-    parser.add_argument("--maintenance-min-interval-s", type=float, default=3600.0,
-                        help="Min seconds between maintenance passes (default: 3600)")
-    parser.add_argument("--skip-audit", action="store_true",
-                        help="Skip the weekly-audit pass")
-    parser.add_argument("--audit-min-interval-s", type=float, default=7 * 86400.0,
-                        help="Min seconds between audit passes (default: 604800 = 7d)")
+    parser.add_argument("--skip-sync", action="store_true", help="Skip the warehouse-sync pass")
+    parser.add_argument(
+        "--sync-min-interval-s",
+        type=float,
+        default=3600.0,
+        help="Min seconds between warehouse syncs in-loop (default: 3600)",
+    )
+    parser.add_argument(
+        "--skip-maintenance", action="store_true", help="Skip the memory-maintenance (decay/prune) pass"
+    )
+    parser.add_argument(
+        "--maintenance-min-interval-s",
+        type=float,
+        default=3600.0,
+        help="Min seconds between maintenance passes (default: 3600)",
+    )
+    parser.add_argument("--skip-audit", action="store_true", help="Skip the weekly-audit pass")
+    parser.add_argument(
+        "--audit-min-interval-s",
+        type=float,
+        default=7 * 86400.0,
+        help="Min seconds between audit passes (default: 604800 = 7d)",
+    )
 
     args = parser.parse_args()
 
@@ -2075,16 +2264,19 @@ def main():
     # Same for the autonomous-write toggles: the daemon can't read shell env, so
     # seed the config file it CAN read, discoverable for the operator to flip on.
     from m3_core.autonomy import ensure_autonomy_config
+
     ensure_autonomy_config()
     # And the log-rotation cap (.log_config.json): headless launchers do not
     # inherit M3_LOG_MAX_BYTES, so the file is the knob that reaches them.
     from _task_runtime import ensure_log_config
+
     ensure_log_config()
 
     try:
         asyncio.run(main_loop(args))
     except KeyboardInterrupt:
         pass
+
 
 if __name__ == "__main__":
     main()

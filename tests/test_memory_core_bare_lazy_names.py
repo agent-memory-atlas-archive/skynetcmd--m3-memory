@@ -10,6 +10,7 @@ raised NameError (found by bin/test_memory_bridge.py, 2026-10-10).
 Static: every bare-name read of a lazy export inside a memory_core function
 must be one of the eagerly bound symbols.
 """
+
 from __future__ import annotations
 
 import ast
@@ -49,10 +50,16 @@ def test_bare_lazy_reads_are_eagerly_bound():
             elif isinstance(x, ast.Name) and isinstance(x.ctx, ast.Store):
                 local.add(x.id)
         for x in ast.walk(fn):
-            if (isinstance(x, ast.Name) and isinstance(x.ctx, ast.Load) and x.id in lazy
-                    and x.id not in local | module_bound | eager):
+            if (
+                isinstance(x, ast.Name)
+                and isinstance(x.ctx, ast.Load)
+                and x.id in lazy
+                and x.id not in local | module_bound | eager
+            ):
                 bad.append(f"{fn.name}:{x.lineno} {x.id}")
-    assert not bad, ("observed: bare reads of lazy exports that nothing binds (NameError at call time): "
-                     + ", ".join(sorted(set(bad)))
-                     + ". inspect: a setting is read from memory.config at call time; a symbol "
-                       "goes in memory_core's _eager block")
+    assert not bad, (
+        "observed: bare reads of lazy exports that nothing binds (NameError at call time): "
+        + ", ".join(sorted(set(bad)))
+        + ". inspect: a setting is read from memory.config at call time; a symbol "
+        "goes in memory_core's _eager block"
+    )

@@ -14,6 +14,7 @@ time.sleep(10)
     script_path.write_text(script)
 
     import bin.m3_notification_waiter as waiter
+
     original_popen = subprocess.Popen
 
     class Args:
@@ -21,11 +22,14 @@ time.sleep(10)
         ack = False
         interval = 0.2
         timeout = 2.0
+
     args = Args()
 
     with patch("subprocess.Popen") as mock_popen:
+
         def popen_override(cmd, *a, **kw):
             return original_popen([sys.executable, str(script_path)], *a, **kw)
+
         mock_popen.side_effect = popen_override
         start = time.time()
         rc = waiter._supervise_postgres(args)
@@ -34,14 +38,15 @@ time.sleep(10)
         assert duration < 8.0
 
 
-
 def test_child_eof_self_terminates():
     import bin.m3_notification_waiter as waiter
+
     class Args:
         agent_ids = ["test"]
         ack = False
         interval = 1.0
         timeout = 5.0
+
     args = Args()
 
     with patch("sys.stdin.read", return_value=""):
@@ -52,13 +57,16 @@ def test_child_eof_self_terminates():
                     assert rc == 0
                     mock_print.assert_any_call('{"t": "bye"}', flush=True)
 
+
 def test_child_inband_stop():
     import bin.m3_notification_waiter as waiter
+
     class Args:
         agent_ids = ["test"]
         ack = False
         interval = 1.0
         timeout = 5.0
+
     args = Args()
 
     def mock_stdin_iter():
@@ -71,4 +79,3 @@ def test_child_inband_stop():
                     rc = waiter.pg_child_loop(args)
                     assert rc == 0
                     mock_print.assert_any_call('{"t": "bye"}', flush=True)
-

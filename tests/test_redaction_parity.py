@@ -2,6 +2,7 @@
 
 If Rust and Python diverge on ANY input, that's a finding to document, not hide.
 """
+
 import importlib
 import os
 import sys

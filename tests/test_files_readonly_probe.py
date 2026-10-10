@@ -6,6 +6,7 @@ and extraction silently never ran; and its SQLite connection was writable. The
 store is built by the files layer itself (init_db runs that backend's
 migrations) and named through files_table(), so the test speaks no dialect.
 """
+
 from __future__ import annotations
 
 import logging
@@ -42,4 +43,5 @@ def test_a_defect_is_a_warning_and_a_write_is_refused(tmp_path, caplog, each_bac
     warns = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
     assert len(warns) == 2 and all("observed:" in w for w in warns), (each_backend.name, warns)
     assert readonly_probe(f"SELECT 1 FROM {files_table('ro_probe_x')}", db_path=path) == [], (
-        f"observed: the probe created a table on {each_backend.name}")
+        f"observed: the probe created a table on {each_backend.name}"
+    )

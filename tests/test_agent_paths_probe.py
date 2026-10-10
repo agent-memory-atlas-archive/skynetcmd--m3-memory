@@ -5,6 +5,7 @@ silently. This probe scans ALL wired hosts — including OpenCode's own schema a
 Hermes's .pth, which the installer's mcpServers-only scan misses — and flags dead
 paths (bumping the exit code). Report-only: healing lives in `m3 setup`.
 """
+
 import json
 import sys
 from pathlib import Path
@@ -39,7 +40,7 @@ def test_path_dead_distinguishes_kinds(tmp_path):
     (tmp_path / "here.py").write_text("x")
     assert P._path_dead(dead) is True
     assert P._path_dead(live) is False
-    assert P._path_dead("m3") is False        # bare console script — no separator
+    assert P._path_dead("m3") is False  # bare console script — no separator
     assert P._path_dead("python") is False
     assert P._path_dead(None) is False
 
@@ -82,8 +83,7 @@ def test_hermes_scan_flags_dead_pth(tmp_path, monkeypatch):
 
 
 def test_all_healthy_returns_zero(monkeypatch, capsys):
-    monkeypatch.setattr(P, "_scan_mcpservers_hosts",
-                        lambda: [("Gemini CLI", "/g.json", False)])
+    monkeypatch.setattr(P, "_scan_mcpservers_hosts", lambda: [("Gemini CLI", "/g.json", False)])
     monkeypatch.setattr(P, "_scan_opencode", lambda: [("OpenCode", "/o.json", False)])
     monkeypatch.setattr(P, "_scan_hermes", lambda: [])
     assert P.run(brief=False) == 0
@@ -91,8 +91,7 @@ def test_all_healthy_returns_zero(monkeypatch, capsys):
 
 
 def test_dead_path_bumps_exit_code_and_names_hosts(monkeypatch, capsys):
-    monkeypatch.setattr(P, "_scan_mcpservers_hosts",
-                        lambda: [("Gemini CLI", "/g.json", True)])
+    monkeypatch.setattr(P, "_scan_mcpservers_hosts", lambda: [("Gemini CLI", "/g.json", True)])
     monkeypatch.setattr(P, "_scan_opencode", lambda: [("OpenCode", "/o.json", True)])
     monkeypatch.setattr(P, "_scan_hermes", lambda: [])
     assert P.run(brief=False) == 1
@@ -125,8 +124,12 @@ def test_one_row_per_config_file_dead_if_either_scan_says_so():
     """An opencode.json carrying both `mcp` and `mcpServers` entries is reported
     by two scanners; it was listed twice."""
     from doctor import agent_paths_probe as ap
-    rows = ap._merge_rows([("OpenCode", "/c/opencode.json", False),
-                           ("OpenCode", "/c/opencode.json", True),
-                           ("Gemini CLI", "/g/settings.json", False)])
-    assert rows == [("OpenCode", "/c/opencode.json", True),
-                    ("Gemini CLI", "/g/settings.json", False)]
+
+    rows = ap._merge_rows(
+        [
+            ("OpenCode", "/c/opencode.json", False),
+            ("OpenCode", "/c/opencode.json", True),
+            ("Gemini CLI", "/g/settings.json", False),
+        ]
+    )
+    assert rows == [("OpenCode", "/c/opencode.json", True), ("Gemini CLI", "/g/settings.json", False)]

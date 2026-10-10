@@ -15,6 +15,7 @@ leaked row), with the query embedder stubbed for determinism. This exercises
 the actual SQL-layer enforcement rather than reimplementing the WHERE clause
 in the test.
 """
+
 from __future__ import annotations
 
 import os
@@ -36,6 +37,7 @@ def _skip_migrations(monkeypatch):
 
 def _full_db(db_path):
     from conftest import create_full_main_schema
+
     create_full_main_schema(db_path)
 
 
@@ -51,12 +53,24 @@ def _vec(primary: float, dim: int):
 
 def _seed(conn, mid, content, vec, *, scope, agent_id, importance=0.5):
     from memory.config import EMBED_MODEL
+
     conn.execute(
         "INSERT INTO memory_items (id, type, title, content, source, change_agent, "
         "created_at, importance, confidence, is_deleted, scope, agent_id) "
         "VALUES (?,?,?,?,?,?,?,?,?,0,?,?)",
-        (mid, "fact", content[:20], content, "agent", "claude",
-         "2026-01-01T00:00:00Z", importance, 0.9, scope, agent_id),
+        (
+            mid,
+            "fact",
+            content[:20],
+            content,
+            "agent",
+            "claude",
+            "2026-01-01T00:00:00Z",
+            importance,
+            0.9,
+            scope,
+            agent_id,
+        ),
     )
     conn.execute(
         "INSERT INTO memory_embeddings (memory_id, embedding, embed_model, dim) VALUES (?,?,?,?)",
@@ -89,9 +103,7 @@ def _patch(monkeypatch, db_path, qvec):
 
 
 async def _ranked_ids(mc, **kw):
-    res = await mc.memory_search_scored_impl(
-        query="anything", k=20, mmr=False, search_mode="semantic", **kw
-    )
+    res = await mc.memory_search_scored_impl(query="anything", k=20, mmr=False, search_mode="semantic", **kw)
     out = []
     for r in res:
         if isinstance(r, tuple):
@@ -103,14 +115,10 @@ async def _ranked_ids(mc, **kw):
 
 def _seed_two_agents(conn, qv):
     """Seed rows for two agents ('planner', 'implementer') across scopes."""
-    _seed(conn, "planner-private", "planner scratch note", qv,
-          scope="agent", agent_id="planner")
-    _seed(conn, "implementer-private", "implementer scratch note", qv,
-          scope="agent", agent_id="implementer")
-    _seed(conn, "shared-org", "shared org requirement", qv,
-          scope="org", agent_id="planner")
-    _seed(conn, "shared-user", "shared user preference", qv,
-          scope="user", agent_id="implementer")
+    _seed(conn, "planner-private", "planner scratch note", qv, scope="agent", agent_id="planner")
+    _seed(conn, "implementer-private", "implementer scratch note", qv, scope="agent", agent_id="implementer")
+    _seed(conn, "shared-org", "shared org requirement", qv, scope="org", agent_id="planner")
+    _seed(conn, "shared-user", "shared user preference", qv, scope="user", agent_id="implementer")
 
 
 @pytest.mark.asyncio
@@ -118,6 +126,7 @@ async def test_requesting_agent_excludes_other_agents_private_rows(monkeypatch, 
     """requesting_agent='implementer' must not see planner's private scope='agent'
     row, but must see its own private row plus every shared-scope row."""
     from memory.config import EMBED_DIM
+
     db = tmp_path / "t.db"
     _full_db(db)
     qv = _vec(1.0, EMBED_DIM)
@@ -140,6 +149,7 @@ async def test_no_requesting_agent_sees_everything(monkeypatch, tmp_path):
     """Back-compat: omitting requesting_agent entirely must not change existing
     behavior — every row is visible regardless of scope/agent."""
     from memory.config import EMBED_DIM
+
     db = tmp_path / "t.db"
     _full_db(db)
     qv = _vec(1.0, EMBED_DIM)
@@ -152,8 +162,7 @@ async def test_no_requesting_agent_sees_everything(monkeypatch, tmp_path):
     ids = set(await _ranked_ids(mc))
 
     assert ids == {"planner-private", "implementer-private", "shared-org", "shared-user"}, (
-        f"default (no requesting_agent) must be byte-identical to pre-isolation "
-        f"behavior — full visibility; got {ids}"
+        f"default (no requesting_agent) must be byte-identical to pre-isolation behavior — full visibility; got {ids}"
     )
 
 
@@ -163,6 +172,7 @@ async def test_explicit_scope_narrows_and_is_not_widened_by_requesting_agent(mon
     still only return org-scoped rows — enforcement narrows, it never widens
     an explicit scope filter to let other scopes back in."""
     from memory.config import EMBED_DIM
+
     db = tmp_path / "t.db"
     _full_db(db)
     qv = _vec(1.0, EMBED_DIM)
@@ -174,9 +184,7 @@ async def test_explicit_scope_narrows_and_is_not_widened_by_requesting_agent(mon
 
     ids = set(await _ranked_ids(mc, requesting_agent="implementer", scope="org"))
 
-    assert ids == {"shared-org"}, (
-        f"explicit scope='org' + requesting_agent must return only org rows; got {ids}"
-    )
+    assert ids == {"shared-org"}, f"explicit scope='org' + requesting_agent must return only org rows; got {ids}"
 
 
 @pytest.mark.asyncio
@@ -184,6 +192,7 @@ async def test_requesting_agent_symmetric_for_other_agent(monkeypatch, tmp_path)
     """Symmetric check from the other agent's perspective: requesting_agent='planner'
     excludes the implementer's private row but keeps planner's own + shared rows."""
     from memory.config import EMBED_DIM
+
     db = tmp_path / "t.db"
     _full_db(db)
     qv = _vec(1.0, EMBED_DIM)

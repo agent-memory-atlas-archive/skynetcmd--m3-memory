@@ -3,6 +3,7 @@ checked against) and `SELECTABLE_BACKENDS` (the runtime tuple, kept in m3_core s
 tools that must not import `memory` can share it). They must list the same names,
 in the same order, or a backend becomes selectable without being typed (or the
 reverse)."""
+
 from __future__ import annotations
 
 import importlib

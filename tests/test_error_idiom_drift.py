@@ -46,6 +46,7 @@ it instead. If it genuinely is a contract violation that this heuristic
 mis-flags, add the file to ``_EXEMPT`` with a one-line reason — a visible,
 reviewable edit rather than a silent new copy.
 """
+
 from __future__ import annotations
 
 import pathlib
@@ -62,8 +63,8 @@ _ROOT = pathlib.Path(__file__).resolve().parents[1]
 _BUDGET = 12
 
 _SKIP_DIRS = {
-    "build",            # packaging copy of the tree
-    "tests",            # fixtures raise deliberately malformed errors
+    "build",  # packaging copy of the tree
+    "tests",  # fixtures raise deliberately malformed errors
     "to_be_deleted",
     ".git",
     "__pycache__",
@@ -83,8 +84,8 @@ _EXEMPT: dict[str, str] = {
 # i.e. something the operator would have to go and look at.
 _DIAGNOSTIC = re.compile(
     r'(raise\s+(?:ValueError|RuntimeError|OSError)\(|sys\.exit\()f?"[^"]*'
-    r'(M3_[A-Z_]+|http://|https://|unreachable|failed to|could not'
-    r'|timeout|refused|not found)',
+    r"(M3_[A-Z_]+|http://|https://|unreachable|failed to|could not"
+    r"|timeout|refused|not found)",
     re.IGNORECASE,
 )
 
@@ -105,7 +106,7 @@ def _unlabelled_sites() -> list[str]:
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
         for match in _DIAGNOSTIC.finditer(text):
-            if not _LABEL.search(text[match.start(): match.start() + _WINDOW]):
+            if not _LABEL.search(text[match.start() : match.start() + _WINDOW]):
                 line = text[: match.start()].count("\n") + 1
                 found.append(f"{rel}:{line}")
     return sorted(found)
@@ -146,8 +147,7 @@ class ErrorIdiomDriftTest(unittest.TestCase):
         thing it guards rots.
         """
         diagnostic = (
-            'raise RuntimeError(f"embed failed. '
-            'observed: {n} failed batch(es). inspect: M3_EMBED_FALLBACK_URL")'
+            'raise RuntimeError(f"embed failed. observed: {n} failed batch(es). inspect: M3_EMBED_FALLBACK_URL")'
         )
         self.assertTrue(_DIAGNOSTIC.search(diagnostic), "pattern misses a diagnostic")
         self.assertTrue(_LABEL.search(diagnostic), "label pattern misses observed:")

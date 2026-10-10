@@ -13,6 +13,7 @@ singleton, mirroring db.py's pattern (avoids the circular import).
 the telemetry counter (`_COST_COUNTERS`) is owned by memory_core and
 will move only when telemetry gets its own module.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -280,6 +281,7 @@ def recover_if_fallback_healthy(timeout: float = 1.5) -> bool:
     reset_embed_breakers()
     try:
         import llm_failover
+
         llm_failover.clear_embed_cache()  # drop endpoint neg-cache so discovery re-probes now
     except Exception:  # noqa: BLE001 — optional cache reset in a recovery path
         pass
@@ -300,6 +302,7 @@ def _track_cost_lazy(operation: str, tokens_est: int = 0) -> None:
     """
     try:
         import memory_core as _mc
+
         _mc._COST_COUNTERS[operation] = _mc._COST_COUNTERS.get(operation, 0) + 1
         if tokens_est:
             _mc._COST_COUNTERS["embed_tokens_est"] += tokens_est
@@ -330,16 +333,18 @@ def _read_embed_config() -> tuple[dict, bool]:
         from pathlib import Path
 
         from m3_core.paths import get_m3_config_root
+
         path = Path(get_m3_config_root()) / ".embed_config.json"
         if not os.path.exists(path):
             return {}, False
         import json as _json
+
         with path.open(encoding="utf-8") as f:
             return (_json.load(f) or {}), True
     except Exception as e:  # noqa: BLE001 — never let a bad config break embedding
         logger.warning(
-            ".embed_config.json is unreadable/malformed (%s) — ignoring it and "
-            "using env vars + defaults.", e)
+            ".embed_config.json is unreadable/malformed (%s) — ignoring it and using env vars + defaults.", e
+        )
         return {}, False
 
 
@@ -364,10 +369,7 @@ _EMBED_GGUF_PATH: str | None = (os.environ.get("M3_EMBED_GGUF") or "").strip() o
 # drops those rows out of `_compatible_model_names()` and therefore out of
 # search entirely; add the old tag to M3_EMBED_COMPATIBLE_MODELS first.
 # `m3 doctor`'s embed-space probe reports UNREACHABLE if that happens.
-_EMBED_GGUF_MODEL_TAG: str = (
-    (os.environ.get("M3_EMBED_GGUF_MODEL_TAG") or "").strip()
-    or config.EMBED_SPACE_TAG
-)
+_EMBED_GGUF_MODEL_TAG: str = (os.environ.get("M3_EMBED_GGUF_MODEL_TAG") or "").strip() or config.EMBED_SPACE_TAG
 # Explicit opt-IN to a per-process in-process embedder (a second CUDA context).
 # Shared mode is the safe default; this is the escape hatch for someone who
 # genuinely wants tier-1 in THIS process and accepts the extra CUDA context.
@@ -394,16 +396,14 @@ else:
             "config root — defaulting to the SHARED embedder (inproc OFF) to avoid "
             "a per-process GPU context (CUDA/Metal/Vulkan) or a heavy CPU load. Set "
             "M3_EMBED_INPROC=1 to force inproc, or seed .embed_config.json "
-            "(run `m3 doctor --fix`).")
+            "(run `m3 doctor --fix`)."
+        )
 
 # When M3_EMBED_GGUF is unset, search the canonical model dirs for a bge-m3 GGUF
 # so tier-1 (the ~10-85x faster in-process embedder) activates automatically —
 # but ONLY when inproc is allowed (safe-default above). The walk is depth- and
 # time-bounded so a pathological models directory can never stall cold start.
-_EMBED_GGUF_AUTODETECT: bool = (
-    os.environ.get("M3_EMBED_GGUF_AUTODETECT", "1") != "0"
-    and _INPROC_ALLOWED
-)
+_EMBED_GGUF_AUTODETECT: bool = os.environ.get("M3_EMBED_GGUF_AUTODETECT", "1") != "0" and _INPROC_ALLOWED
 # When inproc is not allowed, force-clear any explicit GGUF path so a process
 # pointed at a shared server never opens its OWN CUDA context (the whole point —
 # one context total, not one per process).
@@ -423,6 +423,7 @@ _embedded_embed_checked = False
 # These resolve config LIVE (so set_embed_override / env changes are honoured) and
 # are model-agnostic. _validate_identity is the single gate every tier calls.
 
+
 def _proper_embed_dim() -> int:
     return int(config.EMBED_DIM)
 
@@ -440,9 +441,11 @@ def _proper_embed_dim() -> int:
 # Read-compatibility only — nothing WRITES these any more. Append here when a
 # tag is retired; never remove an entry, because that strands whatever rows
 # still carry it on someone's older store.
-_LEGACY_SPACE_TAGS: frozenset[str] = frozenset({
-    "bge-m3-GGUF-Q4_K_M.gguf",
-})
+_LEGACY_SPACE_TAGS: frozenset[str] = frozenset(
+    {
+        "bge-m3-GGUF-Q4_K_M.gguf",
+    }
+)
 
 
 def _compatible_model_names() -> frozenset[str]:
@@ -503,8 +506,11 @@ def _identity_warn(source_label: str, reason: str) -> None:
     key = f"{source_label}:{reason.split(' ')[0]}"
     if key not in _IDENTITY_WARNED:
         _IDENTITY_WARNED.add(key)
-        logger.warning("Embed identity rejected from %s: %s — cascading/deferring "
-                       "rather than storing a non-proper vector.", source_label, reason)
+        logger.warning(
+            "Embed identity rejected from %s: %s — cascading/deferring rather than storing a non-proper vector.",
+            source_label,
+            reason,
+        )
 
 
 def _accept_bulk(out, miss_indices, vecs, model: str, label: str) -> list[int]:
@@ -589,7 +595,7 @@ def discover_bge_m3_gguf(budget_s: float = _EMBED_GGUF_WALK_BUDGET_S) -> str | N
         _m3_models_dir(),
         home / ".lmstudio" / "models",
         home / "Library" / "Application Support" / "LM Studio" / "models",
-        home / ".cache" / "lm-studio" / "models",   # Linux LM Studio default (XDG)
+        home / ".cache" / "lm-studio" / "models",  # Linux LM Studio default (XDG)
         home / ".cache" / "m3" / "models",
         home / ".m3-memory" / "_assets" / "embedder",
         home / "models",
@@ -739,7 +745,9 @@ def _get_embedded_embedder():
                     "in-process embedder init exceeded %.0fs (GGUF=%s) — "
                     "abandoning it and using HTTP tier-2. Set "
                     "M3_EMBED_INIT_TIMEOUT_S to change the deadline.",
-                    _EMBED_INIT_TIMEOUT_S, _EMBED_GGUF_PATH)
+                    _EMBED_INIT_TIMEOUT_S,
+                    _EMBED_GGUF_PATH,
+                )
                 return None
             if "error" in _box:
                 raise _box["error"]
@@ -749,13 +757,15 @@ def _get_embedded_embedder():
             dim = emb.embedding_dim()
         if dim != config.EMBED_DIM:
             logger.error(
-                "M3_EMBED_GGUF dimension %d != EMBED_DIM %d — embedded "
-                "embedder disabled, using HTTP", dim, config.EMBED_DIM
+                "M3_EMBED_GGUF dimension %d != EMBED_DIM %d — embedded embedder disabled, using HTTP",
+                dim,
+                config.EMBED_DIM,
             )
             return None
         logger.info(
             "embedded llama.cpp embedder active (%s, dim=%d)",
-            _EMBED_GGUF_PATH, dim,
+            _EMBED_GGUF_PATH,
+            dim,
         )
         _embedded_embedder = emb
         return emb
@@ -776,8 +786,8 @@ def _get_embedded_embedder():
 
 # Per-call embed-failure sentinels (returned by _post_once, NOT shared state).
 # Distinct objects so a chunk's outcome can't leak into a concurrent chunk's.
-_EMBED_TRANSIENT = object()   # retryable: timeout / 5xx / 413 / 429
-_EMBED_PERMANENT = object()   # non-retryable: don't retry or bisect
+_EMBED_TRANSIENT = object()  # retryable: timeout / 5xx / 413 / 429
+_EMBED_PERMANENT = object()  # non-retryable: don't retry or bisect
 
 
 def _classify_bulk_post_error(e: BaseException):
@@ -810,8 +820,7 @@ class ContextLengthExceeded(EmbedError):
     cannot inform the split ratio.
     """
 
-    def __init__(self, message: str, observed_tokens: int | None = None,
-                 max_tokens: int | None = None):
+    def __init__(self, message: str, observed_tokens: int | None = None, max_tokens: int | None = None):
         super().__init__(message)
         self.observed_tokens = observed_tokens
         self.max_tokens = max_tokens
@@ -929,7 +938,12 @@ def _log_contract_violation(texts: list[str], over: list[tuple[int, int]]) -> No
         "review: M3_EMBED_TOKEN_BUDGET (chunk target), M3_EMBED_CTX (model "
         "ceiling; do NOT raise -- bge-m3 is trained to 8192 positions). "
         "sample: %r",
-        len(over), len(texts), worst_n, TOKEN_CEILING, worst_i, sample,
+        len(over),
+        len(texts),
+        worst_n,
+        TOKEN_CEILING,
+        worst_i,
+        sample,
     )
 
 
@@ -954,13 +968,12 @@ def _enforce_length_contract(texts: list[str]) -> list[tuple[int, int]]:
     return over
 
 
-async def _embedded_bulk_with_subdivide(
-    embedded, texts: list[str]
-) -> list[list[float] | None]:
+async def _embedded_bulk_with_subdivide(embedded, texts: list[str]) -> list[list[float] | None]:
     """Embed each text via the in-process (tier-1) embedder, subdividing any row
     that overflows n_ctx and mean-pooling its sub-chunk vectors. Returns one
     vector per input (None for a row tier 1 still can't embed). Keeps an
     oversized row IN-PROCESS instead of cascading the whole batch to HTTP."""
+
     def _embed_list(items: list[str]) -> list[list[float]]:
         return embedded.embed(items)
 
@@ -1034,9 +1047,7 @@ async def _recover_oversized_single(post_batch, text: str) -> list[float] | None
     return _mean_pool([v for v in sub_res if v is not None])
 
 
-async def _http_bulk_with_subdivide(
-    post_one, texts: list[str]
-) -> list[list[float] | None]:
+async def _http_bulk_with_subdivide(post_one, texts: list[str]) -> list[list[float] | None]:
     """Tier-2 (HTTP) analogue of ``_embedded_bulk_with_subdivide``. Embeds each
     text via ``post_one`` (an async callable ``list[str] -> list[list[float]]``
     that hits the CPU HTTP embedder), subdividing any row that overflows the
@@ -1066,9 +1077,11 @@ async def _http_bulk_with_subdivide(
                 # different llama.cpp build or a proxy may emit. Requiring the
                 # count would drop the row for want of a digit.
                 _low = str(e).lower()
-                if (not m
-                        and not isinstance(e, ContextLengthExceeded)
-                        and not any(h in _low for h in _CTX_OVERFLOW_HINTS)):
+                if (
+                    not m
+                    and not isinstance(e, ContextLengthExceeded)
+                    and not any(h in _low for h in _CTX_OVERFLOW_HINTS)
+                ):
                     results.append(None)
                     continue
                 observed = int(m.group(1)) if m else 0
@@ -1104,9 +1117,7 @@ _EMBED_HTTP_MAX_KEEPALIVE = int(os.environ.get("M3_EMBED_HTTP_MAX_KEEPALIVE", "1
 # expiry discards a connection before the server can silently drop it, so pooling
 # still helps within a burst but stale-socket reuse can't happen across the idle
 # gaps between the loop's cycles. Override via M3_EMBED_HTTP_KEEPALIVE_EXPIRY.
-_EMBED_HTTP_KEEPALIVE_EXPIRY = float(
-    os.environ.get("M3_EMBED_HTTP_KEEPALIVE_EXPIRY", "5.0")
-)
+_EMBED_HTTP_KEEPALIVE_EXPIRY = float(os.environ.get("M3_EMBED_HTTP_KEEPALIVE_EXPIRY", "5.0"))
 
 _EMBED_CLIENT: _httpx.AsyncClient | None = None
 _EMBED_CLIENT_LOOP_ID: int | None = None
@@ -1121,17 +1132,9 @@ def _get_embed_client() -> _httpx.AsyncClient:
         loop_id = id(asyncio.get_running_loop())
     except RuntimeError:
         loop_id = None
-    if (
-        _EMBED_CLIENT is None
-        or _EMBED_CLIENT.is_closed
-        or loop_id != _EMBED_CLIENT_LOOP_ID
-    ):
+    if _EMBED_CLIENT is None or _EMBED_CLIENT.is_closed or loop_id != _EMBED_CLIENT_LOOP_ID:
         with _EMBED_CLIENT_LOCK:
-            if (
-                _EMBED_CLIENT is None
-                or _EMBED_CLIENT.is_closed
-                or loop_id != _EMBED_CLIENT_LOOP_ID
-            ):
+            if _EMBED_CLIENT is None or _EMBED_CLIENT.is_closed or loop_id != _EMBED_CLIENT_LOOP_ID:
                 limits = _httpx.Limits(
                     max_connections=_EMBED_HTTP_MAX_CONNS,
                     max_keepalive_connections=_EMBED_HTTP_MAX_KEEPALIVE,
@@ -1144,7 +1147,9 @@ def _get_embed_client() -> _httpx.AsyncClient:
                     pool=5.0,
                 )
                 _EMBED_CLIENT = _httpx.AsyncClient(
-                    limits=limits, timeout=timeout, http2=False,
+                    limits=limits,
+                    timeout=timeout,
+                    http2=False,
                 )
                 _EMBED_CLIENT_LOOP_ID = loop_id
                 _shared_embed_client = _EMBED_CLIENT
@@ -1158,9 +1163,9 @@ def _get_embed_client() -> _httpx.AsyncClient:
 
 
 _EMBED_FALLBACK_URL: str = (
-    os.environ.get("M3_EMBED_FALLBACK_URL")            # env override wins
-    or _EMBED_CFG.get("fallback_url")                  # config-file (headless-safe)
-    or "http://127.0.0.1:8082"                         # default (the tier-2 port)
+    os.environ.get("M3_EMBED_FALLBACK_URL")  # env override wins
+    or _EMBED_CFG.get("fallback_url")  # config-file (headless-safe)
+    or "http://127.0.0.1:8082"  # default (the tier-2 port)
 ).rstrip("/")
 
 
@@ -1228,6 +1233,7 @@ def _embedded_label() -> str:
     """Return the in-process backend-label string for stats."""
     try:
         import m3_core_rs as _m3
+
         bk = getattr(_m3, "embed_backend_label", lambda: "cpu")()
     except Exception:
         bk = "cpu"
@@ -1242,6 +1248,7 @@ def set_embed_override(url: str | None, model: str | None = None) -> None:
     config._EMBED_MODEL_OVERRIDE = new_model
     try:
         from llm_failover import clear_embed_cache as _cec
+
         _cec()
     except Exception:  # noqa: BLE001 — optional cache reset
         pass
@@ -1273,12 +1280,9 @@ async def _embed(text: str) -> tuple[list[float] | None, str]:
     # very long query it is also the sane reading (the query's overall topic),
     # and it is strictly better than the previous behaviour of failing.
     if text and _enforce_length_contract([text]):
-        pooled = await _recover_oversized_single(
-            lambda batch: _embed_batch_for_recovery(batch), text
-        )
+        pooled = await _recover_oversized_single(lambda batch: _embed_batch_for_recovery(batch), text)
         if pooled is not None:
-            model = _EMBED_GGUF_MODEL_TAG if _get_embedded_embedder() is not None \
-                else config.EMBED_MODEL
+            model = _EMBED_GGUF_MODEL_TAG if _get_embedded_embedder() is not None else config.EMBED_MODEL
             return pooled, model
         # Could not subdivide (single window, or every sub-embed failed) --
         # fall through and let the normal cascade try; it may still succeed on
@@ -1291,6 +1295,7 @@ async def _embed(text: str) -> tuple[list[float] | None, str]:
     try:
         with _db() as db:
             from .backends import dialect as _dialect
+
             _p = _dialect().param()
             cached = db.execute(
                 "SELECT embedding, embed_model FROM memory_embeddings "
@@ -1304,9 +1309,7 @@ async def _embed(text: str) -> tuple[list[float] | None, str]:
 
     # Tier 1: in-process Rust embedder. Gated by _EMBEDDED_BREAKER so a
     # storm of CUDA/OOM failures doesn't cost ~ms each call indefinitely.
-    if embedded is not None and (
-        _EMBEDDED_BREAKER is None or _EMBEDDED_BREAKER.allow_request()
-    ):
+    if embedded is not None and (_EMBEDDED_BREAKER is None or _EMBEDDED_BREAKER.allow_request()):
         try:
             _track_cost_lazy("embed_calls", len(text.split()) * 2)
             vec = await asyncio.to_thread(lambda: embedded.embed([text])[0])
@@ -1325,9 +1328,7 @@ async def _embed(text: str) -> tuple[list[float] | None, str]:
             wrapped.__cause__ = e
             if _EMBEDDED_BREAKER is not None:
                 _EMBEDDED_BREAKER.record_failure()
-            logger.warning(
-                f"{type(wrapped).__name__}: {wrapped} — falling back to CPU HTTP"
-            )
+            logger.warning(f"{type(wrapped).__name__}: {wrapped} — falling back to CPU HTTP")
 
     # Tier 2: local CPU HTTP fallback — the m3-embed-server service at
     # _EMBED_FALLBACK_URL (default http://127.0.0.1:8082). This service is
@@ -1339,7 +1340,7 @@ async def _embed(text: str) -> tuple[list[float] | None, str]:
     #
     # Storm risk: a dead server eats the full read timeout per call. Breaker
     # bounds that to `threshold` strikes before short-circuiting to primary.
-    if (_CPU_FALLBACK_BREAKER is None or _CPU_FALLBACK_BREAKER.allow_request()):
+    if _CPU_FALLBACK_BREAKER is None or _CPU_FALLBACK_BREAKER.allow_request():
         try:
             client = _get_embed_client()
             resp = await client.post(
@@ -1369,9 +1370,7 @@ async def _embed(text: str) -> tuple[list[float] | None, str]:
             wrapped.__cause__ = e
             if _CPU_FALLBACK_BREAKER is not None:
                 _CPU_FALLBACK_BREAKER.record_failure()
-            logger.warning(
-                f"{type(wrapped).__name__}: {wrapped} — using primary HTTP"
-            )
+            logger.warning(f"{type(wrapped).__name__}: {wrapped} — using primary HTTP")
 
     # Tier 3: primary HTTP via llm_failover. Three-attempt internal retry
     # with exponential backoff (2s, 4s). The breaker gates the WHOLE tier,
@@ -1379,9 +1378,7 @@ async def _embed(text: str) -> tuple[list[float] | None, str]:
     # to the final "return None" without attempting any of the 3 retries
     # (saving up to ~6s wall-clock per call during a primary outage).
     if _PRIMARY_BREAKER is not None and not _PRIMARY_BREAKER.allow_request():
-        logger.warning(
-            "EmbedPrimaryError: primary breaker open — short-circuiting (state=open)"
-        )
+        logger.warning("EmbedPrimaryError: primary breaker open — short-circuiting (state=open)")
         return None, config.EMBED_MODEL
 
     try:
@@ -1390,9 +1387,7 @@ async def _embed(text: str) -> tuple[list[float] | None, str]:
     except TimeoutError as e:
         wrapped = EmbedSemaphoreTimeout("30s")
         wrapped.__cause__ = e
-        logger.error(
-            f"{type(wrapped).__name__}: {wrapped} — process saturated by in-flight embed calls"
-        )
+        logger.error(f"{type(wrapped).__name__}: {wrapped} — process saturated by in-flight embed calls")
         return None, config.EMBED_MODEL
 
     model = config.EMBED_MODEL
@@ -1423,8 +1418,7 @@ async def _embed(text: str) -> tuple[list[float] | None, str]:
                     emb = resp.json()["data"][0]["embedding"]
 
                     if not _validate_identity(emb, model, "tier3-primary"):
-                        raise RuntimeError(
-                            f"primary embed output failed identity (model={model!r})")
+                        raise RuntimeError(f"primary embed output failed identity (model={model!r})")
 
                     if _PRIMARY_BREAKER is not None:
                         _PRIMARY_BREAKER.record_success()
@@ -1441,10 +1435,8 @@ async def _embed(text: str) -> tuple[list[float] | None, str]:
                     if isinstance(e, (_httpx.ConnectError, _httpx.ConnectTimeout)):
                         break
                     if attempt < 2:
-                        wait = 2 * (2 ** attempt)
-                        logger.warning(
-                            f"Embedding attempt {attempt + 1} failed: {e}. Retrying in {wait}s..."
-                        )
+                        wait = 2 * (2**attempt)
+                        logger.warning(f"Embedding attempt {attempt + 1} failed: {e}. Retrying in {wait}s...")
                         await asyncio.sleep(wait)
 
             # All 3 attempts exhausted — tick the breaker once for the whole
@@ -1453,20 +1445,18 @@ async def _embed(text: str) -> tuple[list[float] | None, str]:
                 _PRIMARY_BREAKER.record_failure()
             wrapped = EmbedPrimaryError(f"{base_url}: {last_exc}")
             wrapped.__cause__ = last_exc
-            logger.error(
-                f"{type(wrapped).__name__}: {wrapped} after 3 attempts"
-            )
+            logger.error(f"{type(wrapped).__name__}: {wrapped} after 3 attempts")
             from llm_failover import clear_embed_cache
+
             clear_embed_cache()
         except Exception as e:
             if _PRIMARY_BREAKER is not None:
                 _PRIMARY_BREAKER.record_failure()
             wrapped = EmbedPrimaryError(str(e))
             wrapped.__cause__ = e
-            logger.warning(
-                f"Primary HTTP fallback exception: {wrapped} — attempting Tier 4 fallback if allowed"
-            )
+            logger.warning(f"Primary HTTP fallback exception: {wrapped} — attempting Tier 4 fallback if allowed")
             from llm_failover import clear_embed_cache
+
             clear_embed_cache()
 
         # Fall through to Tier 4 Cloud Enclave if enabled
@@ -1475,6 +1465,7 @@ async def _embed(text: str) -> tuple[list[float] | None, str]:
                 try:
                     # 1. PII Redaction Gate
                     from chatlog_redaction import scrub
+
                     redact_cfg = {
                         "enabled": True,
                         "patterns": ["api_keys", "bearer_tokens", "jwt", "aws_keys", "github_tokens", "pii"],
@@ -1498,6 +1489,7 @@ async def _embed(text: str) -> tuple[list[float] | None, str]:
                                 service = "m3_memory"
                                 username = config.M3_CLOUD_AUTH_TOKEN_KEYRING
                             from auth_utils import safe_keyring_get_password
+
                             cloud_token = safe_keyring_get_password(service, username)
                         except Exception as keyring_err:
                             logger.warning(f"Keyring lookup for cloud token failed: {keyring_err}")
@@ -1540,9 +1532,7 @@ async def _embed(text: str) -> tuple[list[float] | None, str]:
         _EMBED_SEM.release()
 
 
-async def embed_for_search(
-    text: str, *, embed_fn=None, gate: bool = True
-) -> tuple[list[float] | None, str]:
+async def embed_for_search(text: str, *, embed_fn=None, gate: bool = True) -> tuple[list[float] | None, str]:
     """Bounded, degrade-safe query embed for the INTERACTIVE search path.
 
     The single source of truth for the search-path embed guards (memory_search
@@ -1620,6 +1610,7 @@ async def _embed_many_cloud_fallback(
     try:
         # 1. PII Redaction Gate
         from chatlog_redaction import scrub
+
         redact_cfg = {
             "enabled": True,
             "patterns": ["api_keys", "bearer_tokens", "jwt", "aws_keys", "github_tokens", "pii"],
@@ -1642,6 +1633,7 @@ async def _embed_many_cloud_fallback(
                     service = "m3_memory"
                     username = config.M3_CLOUD_AUTH_TOKEN_KEYRING
                 from auth_utils import safe_keyring_get_password
+
                 token = safe_keyring_get_password(service, username)
             except Exception as keyring_err:
                 logger.warning(f"Keyring lookup for cloud token failed: {keyring_err}")
@@ -1669,8 +1661,7 @@ async def _embed_many_cloud_fallback(
         vecs = _order_embeddings(data, len(cloud_texts))
 
         real = [v for v in vecs if v is not None] if vecs is not None else []
-        if vecs is not None and (not real or _validate_identity(
-                real, config.EMBED_MODEL, "tier4-cloud-bulk")):
+        if vecs is not None and (not real or _validate_identity(real, config.EMBED_MODEL, "tier4-cloud-bulk")):
             _cloud_served = 0
             for idx, vec in zip(cloud_indices, vecs, strict=True):
                 if vec is not None:
@@ -1682,9 +1673,10 @@ async def _embed_many_cloud_fallback(
                     _CLOUD_BREAKER.record_success()
                 _record_embed_backend("cloud-enclave", _cloud_served)
         else:
-            logger.error("Cloud enclave response for %d inputs could not be "
-                         "aligned (bad/missing index or count) — not stored.",
-                         len(cloud_texts))
+            logger.error(
+                "Cloud enclave response for %d inputs could not be aligned (bad/missing index or count) — not stored.",
+                len(cloud_texts),
+            )
             if _CLOUD_BREAKER is not None:
                 _CLOUD_BREAKER.record_failure()
     except Exception as e:
@@ -1693,8 +1685,7 @@ async def _embed_many_cloud_fallback(
         logger.error(f"Tier 4 Cloud Enclave bulk failed: {e}. Routing payloads back to local fallback.")
 
 
-def _filled(out: list[tuple[list[float] | None, str] | None],
-            model: str) -> list[tuple[list[float] | None, str]]:
+def _filled(out: list[tuple[list[float] | None, str] | None], model: str) -> list[tuple[list[float] | None, str]]:
     """_embed_many's result: every slot a (vector-or-None, model) pair, never a
     bare None, the same rule as its oversized-input branch."""
     return [r if r is not None else (None, model) for r in out]
@@ -1723,14 +1714,9 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
         if _rest:
             for _pos, _row in zip(_rest_pos, await _embed_many(_rest), strict=True):
                 _out[_pos] = _row
-        _fallback_model = (
-            _EMBED_GGUF_MODEL_TAG if _get_embedded_embedder() is not None
-            else config.EMBED_MODEL
-        )
+        _fallback_model = _EMBED_GGUF_MODEL_TAG if _get_embedded_embedder() is not None else config.EMBED_MODEL
         for _i in sorted(_over_idx):
-            _pooled = await _recover_oversized_single(
-                _embed_batch_for_recovery, texts[_i]
-            )
+            _pooled = await _recover_oversized_single(_embed_batch_for_recovery, texts[_i])
             _out[_i] = (_pooled, _fallback_model)
         return [r if r is not None else (None, _fallback_model) for r in _out]
 
@@ -1769,8 +1755,10 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
     except Exception as e:
         # WARNING, not debug: a failing lookup silently re-embeds everything (it
         # hid a hardcoded '?' that PostgreSQL rejects, so the PG cache never hit).
-        logger.warning(f"Bulk embed cache lookup failed; embedding all {len(uniq_hashes)} "
-                       f"text(s) uncached: {type(e).__name__}: {e}")
+        logger.warning(
+            f"Bulk embed cache lookup failed; embedding all {len(uniq_hashes)} "
+            f"text(s) uncached: {type(e).__name__}: {e}"
+        )
 
     miss_indices: list[int] = []
     miss_texts: list[str] = []
@@ -1791,8 +1779,7 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
             vecs = await asyncio.to_thread(lambda: embedded.embed(miss_texts))
             # Identity gate (previously this bulk path had NO dim/model check): a
             # row whose vector isn't proper stays in the miss set and cascades.
-            kept_local = _accept_bulk(out, miss_indices, vecs,
-                                      _EMBED_GGUF_MODEL_TAG, "tier1-embedded-bulk")
+            kept_local = _accept_bulk(out, miss_indices, vecs, _EMBED_GGUF_MODEL_TAG, "tier1-embedded-bulk")
             if not kept_local:
                 _record_embed_backend(_embedded_label(), len(miss_texts))
                 return _filled(out, cache_model)
@@ -1825,7 +1812,9 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
                 logger.warning(
                     "Embedded bulk: %d oversized row(s) embedded via subdivide; "
                     "%d still unresolved — falling back to CPU HTTP for those.",
-                    len(resolved) - len(still_missing_local), len(still_missing_local))
+                    len(resolved) - len(still_missing_local),
+                    len(still_missing_local),
+                )
             else:
                 logger.warning(f"Embedded bulk embed failed ({e}) — falling back to CPU HTTP")
 
@@ -1857,15 +1846,12 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
             # diagnostic away entirely once a proxy (nginx/FastAPI) wraps the
             # upstream message in its own envelope -- the very information the
             # oversize recovery needs.
-            raise RuntimeError(
-                f"CPU embedder HTTP {resp_.status_code}: {body[:2000]}"
-            )
+            raise RuntimeError(f"CPU embedder HTTP {resp_.status_code}: {body[:2000]}")
         data_ = resp_.json()["data"]
         v_ = _order_embeddings(data_, len(chunk_texts))
         if v_ is None:
             raise RuntimeError(
-                f"CPU fallback response for {len(chunk_texts)} inputs could not be "
-                f"aligned (bad/missing index or count)"
+                f"CPU fallback response for {len(chunk_texts)} inputs could not be aligned (bad/missing index or count)"
             )
         return v_
 
@@ -1874,8 +1860,7 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
         vecs = await _fallback_post(miss_texts)
         # Retag to the proper-identity fallback tag (not the tier-1 GGUF name)
         # and gate: rows failing identity stay in the miss set and cascade.
-        kept_local = _accept_bulk(out, miss_indices, vecs,
-                                  config.EMBED_FALLBACK_MODEL_TAG, "tier2-cpu-http-bulk")
+        kept_local = _accept_bulk(out, miss_indices, vecs, config.EMBED_FALLBACK_MODEL_TAG, "tier2-cpu-http-bulk")
         if not kept_local:
             _record_embed_backend("cpu-http-fallback", len(miss_texts))
             return _filled(out, cache_model)
@@ -1892,8 +1877,11 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
             # LOCAL indices still missing (None or failed identity). Feed the
             # whole resolved batch through it so the identity gate runs once.
             still_local = _accept_bulk(
-                out, miss_indices, resolved,
-                config.EMBED_FALLBACK_MODEL_TAG, "tier2-cpu-http-subdivide",
+                out,
+                miss_indices,
+                resolved,
+                config.EMBED_FALLBACK_MODEL_TAG,
+                "tier2-cpu-http-subdivide",
             )
             still_missing_local = list(still_local)
             if not still_missing_local:
@@ -1904,11 +1892,11 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
             logger.warning(
                 "CPU HTTP fallback: %d oversized row(s) embedded via subdivide; "
                 "%d still unresolved — using primary HTTP for those.",
-                len(resolved) - len(still_missing_local), len(still_missing_local))
-        else:
-            logger.warning(
-                f"CPU HTTP fallback ({_EMBED_FALLBACK_URL}) bulk failed ({e}) — using primary HTTP"
+                len(resolved) - len(still_missing_local),
+                len(still_missing_local),
             )
+        else:
+            logger.warning(f"CPU HTTP fallback ({_EMBED_FALLBACK_URL}) bulk failed ({e}) — using primary HTTP")
 
     _track_cost_lazy("embed_calls", sum(len(t.split()) * 2 for t in miss_texts))
     token = _ctx().get_secret("LM_API_TOKEN") or "lm-studio"
@@ -1964,11 +1952,13 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
                 # once the underlying cause (e.g. wrong embed endpoint) is fixed.
                 if isinstance(result, tuple) and result[0] is _EMBED_PERMANENT:
                     logger.warning(
-                        "Bulk embed: permanent failure (%s) — dropping %d input(s) "
-                        "without retry/bisect.", result[1], len(chunk_texts))
+                        "Bulk embed: permanent failure (%s) — dropping %d input(s) without retry/bisect.",
+                        result[1],
+                        len(chunk_texts),
+                    )
                     return [None] * len(chunk_texts)
                 if attempt < 2:
-                    await asyncio.sleep(2 * (2 ** attempt))
+                    await asyncio.sleep(2 * (2**attempt))
 
         if len(chunk_texts) == 1:
             # Last resort before dropping a lone row: bisecting batches can't
@@ -1978,21 +1968,14 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
             lone = chunk_texts[0]
             pooled = await _recover_oversized_single(_post_once, lone)
             if pooled is not None:
-                logger.info(
-                    "Bulk embed: recovered oversized single row (len=%d) via "
-                    "subdivide + mean-pool.", len(lone))
+                logger.info("Bulk embed: recovered oversized single row (len=%d) via subdivide + mean-pool.", len(lone))
                 return [pooled]
-            logger.warning(
-                "Bulk embed: dropping single input of len=%d after 3 transient "
-                "attempts.", len(lone))
+            logger.warning("Bulk embed: dropping single input of len=%d after 3 transient attempts.", len(lone))
             return [None]
         # Only transient/size failures reach here — bisecting can help (smaller
         # batch, or isolate one oversized item). Permanent failures returned above.
         mid = len(chunk_texts) // 2
-        logger.info(
-            f"Bulk embed: bisecting failed chunk of {len(chunk_texts)} into "
-            f"{mid} + {len(chunk_texts) - mid}"
-        )
+        logger.info(f"Bulk embed: bisecting failed chunk of {len(chunk_texts)} into {mid} + {len(chunk_texts) - mid}")
         left, right = await gather_or_cancel(
             _post_chunk(chunk_texts[:mid]),
             _post_chunk(chunk_texts[mid:]),
@@ -2027,7 +2010,9 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
 # Entity-name embedding cache (used by entity resolution)
 # ──────────────────────────────────────────────────────────────────────────────
 _ENTITY_NAME_EMBED_CACHE: dict[str, list[float]] = {}
-ENTITY_NAME_EMBED_CACHE_MAX = int(getenv_compat("M3_ENTITY_NAME_EMBED_CACHE_MAX", "ENTITY_NAME_EMBED_CACHE_MAX", "50000"))
+ENTITY_NAME_EMBED_CACHE_MAX = int(
+    getenv_compat("M3_ENTITY_NAME_EMBED_CACHE_MAX", "ENTITY_NAME_EMBED_CACHE_MAX", "50000")
+)
 
 
 async def _embed_canonical_cached(canonical_name: str) -> list[float] | None:

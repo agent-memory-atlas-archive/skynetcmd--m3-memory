@@ -5,6 +5,7 @@ is measured from rows PRODUCED per window on the output tables (memory_embedding
 / memory_items). These tests build a tiny in-memory-shaped SQLite DB and assert
 the counts, rates, and drain-ETA math.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -59,9 +60,14 @@ def _seed(db, table, cols, rows):
 def test_enrichment_filters_by_type(tmp_path):
     db = _make_db(tmp_path)
     conn = sqlite3.connect(db)
-    conn.execute("INSERT INTO memory_items (id,type,created_at) VALUES ('a','fact_enriched',strftime('%Y-%m-%dT%H:%M:%SZ','now'))")
-    conn.execute("INSERT INTO memory_items (id,type,created_at) VALUES ('b','note',strftime('%Y-%m-%dT%H:%M:%SZ','now'))")
-    conn.commit(); conn.close()
+    conn.execute(
+        "INSERT INTO memory_items (id,type,created_at) VALUES ('a','fact_enriched',strftime('%Y-%m-%dT%H:%M:%SZ','now'))"
+    )
+    conn.execute(
+        "INSERT INTO memory_items (id,type,created_at) VALUES ('b','note',strftime('%Y-%m-%dT%H:%M:%SZ','now'))"
+    )
+    conn.commit()
+    conn.close()
     stats = qs.collect_pipeline_stats(db)
     enrich = next(p for p in stats["pipelines"] if p["key"] == "enrich")
     # only the fact_enriched row counts toward enrichment throughput
@@ -122,11 +128,11 @@ def test_entity_backlog_excludes_variant_tagged_rows(tmp_path):
     conn.executemany(
         "INSERT INTO memory_items (id,type,variant,is_deleted) VALUES (?,?,?,0)",
         [
-            ("prod1", "note", None),          # eligible: production, no entity, not done
-            ("prod2", "observation", None),   # eligible
+            ("prod1", "note", None),  # eligible: production, no entity, not done
+            ("prod2", "observation", None),  # eligible
             ("tagged1", "message", "some_variant"),  # NOT eligible: variant-tagged
             ("tagged2", "message", "some_variant"),  # NOT eligible
-            ("deleted", "note", None),        # NOT eligible: soft-deleted
+            ("deleted", "note", None),  # NOT eligible: soft-deleted
         ],
     )
     conn.execute("UPDATE memory_items SET is_deleted=1 WHERE id='deleted'")

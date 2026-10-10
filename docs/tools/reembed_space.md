@@ -1,8 +1,8 @@
 ---
 tool: bin/reembed_space.py
-sha1: d62537225820
-mtime_utc: 2026-10-10T13:31:00.808824+00:00
-generated_utc: 2026-10-10T13:31:16.478458+00:00
+sha1: ecefd6429dc4
+mtime_utc: 2026-10-10T21:05:16.465796+00:00
+generated_utc: 2026-10-10T21:05:29.915563+00:00
 private: false
 ---
 
@@ -41,7 +41,7 @@ relationships are untouched; only the vector is dropped and regenerated.
 
 ## Entry points
 
-- `def main()` (line 240)
+- `def main()` (line 246)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -77,11 +77,11 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.call()  → `cmd`` (line 389)
+- `subprocess.call()  → `cmd`` (line 400)
 
 **sqlite**
 
-- `sqlite3.connect()  → `db_path`` (line 179)
+- `sqlite3.connect()  → `db_path`` (line 183)
 
 
 ---

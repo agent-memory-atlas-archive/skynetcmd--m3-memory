@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_chatlog_enrich_backfill.py
-sha1: 6d7989a503ca
-mtime_utc: 2026-10-10T15:07:57.463339+00:00
-generated_utc: 2026-10-10T15:13:47.216080+00:00
+sha1: bf0879c2c88e
+mtime_utc: 2026-10-10T21:05:17.112057+00:00
+generated_utc: 2026-10-10T21:05:29.637366+00:00
 private: false
 ---
 
@@ -31,7 +31,7 @@ configured database and the path flags are refused.
 
 ## Entry points
 
-- `def main()` (line 123)
+- `def main()` (line 122)
 - `if __name__ == "__main__"` guard
 
 ---

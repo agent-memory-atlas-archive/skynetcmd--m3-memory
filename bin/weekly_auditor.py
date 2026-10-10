@@ -10,6 +10,7 @@ Generates a PDF covering:
 Optionally writes a consolidated summary into memory_items.
 Use --no-memory to skip the memory write step.
 """
+
 import argparse
 import asyncio
 import os
@@ -41,11 +42,16 @@ class AI_Report(FPDF):
     @override
     def header(self):
         self.set_font("helvetica", "B", 16)
-        self.cell(0, 10, "M3 MAX - WEEKLY AI ACTIVITY REPORT",
-                  new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
+        self.cell(0, 10, "M3 MAX - WEEKLY AI ACTIVITY REPORT", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
         self.set_font("helvetica", "I", 10)
-        self.cell(0, 10, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
-                  new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
+        self.cell(
+            0,
+            10,
+            f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            new_x=XPos.LMARGIN,
+            new_y=YPos.NEXT,
+            align="C",
+        )
         self.ln(10)
 
     def mc(self, h, text):
@@ -77,6 +83,7 @@ def _db():
     # memory_embeddings, project_decisions, activity_logs), so mc._db() is the
     # correct route for all of them — none query the chatlog or files store.
     import memory_core as mc
+
     return mc._db()
 
 
@@ -89,21 +96,17 @@ def _week_label():
 # -- Section 1: Memory System Health -----------------------------------------
 def section_memory_health(pdf, summary):
     pdf.set_font("helvetica", "B", 14)
-    pdf.cell(0, 10, "1. Memory System Health",
-             new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(0, 10, "1. Memory System Health", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.set_font("helvetica", "", 10)
 
     from memory.backends import dialect
+
     _d = dialect()
     _p = _d.param()
     with _db() as conn:
-        total = conn.execute(
-            "SELECT COUNT(*) FROM memory_items WHERE is_deleted = 0"
-        ).fetchone()[0]
+        total = conn.execute("SELECT COUNT(*) FROM memory_items WHERE is_deleted = 0").fetchone()[0]
 
-        week_ago = (datetime.now(UTC) - timedelta(days=7)).strftime(
-            "%Y-%m-%dT%H:%M:%SZ"
-        )
+        week_ago = (datetime.now(UTC) - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
         added = conn.execute(
             f"SELECT COUNT(*) FROM memory_items WHERE is_deleted = 0 AND created_at > {_p}",
             (week_ago,),
@@ -114,8 +117,7 @@ def section_memory_health(pdf, summary):
         ).fetchone()[0]
 
         imp = conn.execute(
-            "SELECT AVG(importance), MIN(importance), MAX(importance) "
-            "FROM memory_items WHERE is_deleted = 0"
+            "SELECT AVG(importance), MIN(importance), MAX(importance) FROM memory_items WHERE is_deleted = 0"
         ).fetchone()
         avg_imp = imp[0] or 0.0
         min_imp = imp[1] or 0.0
@@ -148,11 +150,11 @@ def section_memory_health(pdf, summary):
 # -- Section 2: Project Decisions ---------------------------------------------
 def section_decisions(pdf, summary):
     pdf.set_font("helvetica", "B", 14)
-    pdf.cell(0, 10, "2. Project Decisions (Last 7 Days)",
-             new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(0, 10, "2. Project Decisions (Last 7 Days)", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.set_font("helvetica", "", 10)
 
     from memory.backends import dialect
+
     _d = dialect()
     with _db() as conn:
         # project_decisions is a legacy/optional table (001_initial_schema, but a
@@ -173,9 +175,7 @@ def section_decisions(pdf, summary):
                 (7,),
             ).fetchall()
 
-    pdf.mc(6, sanitize(
-        f"Total decisions (all time): {total_all}  |  This week: {len(rows)}", 500
-    ))
+    pdf.mc(6, sanitize(f"Total decisions (all time): {total_all}  |  This week: {len(rows)}", 500))
     pdf.ln(2)
 
     if not rows:
@@ -192,20 +192,18 @@ def section_decisions(pdf, summary):
 
     decision_lines = [f"Total: {total_all}, this week: {len(rows)}"]
     for row in rows[:10]:
-        decision_lines.append(
-            f"  - [{row['timestamp']}] {row['project']}: {row['decision']}"
-        )
+        decision_lines.append(f"  - [{row['timestamp']}] {row['project']}: {row['decision']}")
     summary["decisions"] = "\n".join(decision_lines)
 
 
 # -- Section 3: Activity Timeline (legacy) ------------------------------------
 def section_activity(pdf, summary):
     pdf.set_font("helvetica", "B", 14)
-    pdf.cell(0, 10, "3. Activity Timeline (Legacy Logs)",
-             new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(0, 10, "3. Activity Timeline (Legacy Logs)", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.set_font("helvetica", "", 10)
 
     from memory.backends import dialect
+
     _d = dialect()
     with _db() as conn:
         # activity_logs is legacy/optional (same guard as project_decisions
@@ -239,18 +237,19 @@ def section_activity(pdf, summary):
 # -- Section 4: Git Activity --------------------------------------------------
 def section_git(pdf, summary):
     pdf.set_font("helvetica", "B", 14)
-    pdf.cell(0, 10, "4. Git Activity (m3-memory)",
-             new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(0, 10, "4. Git Activity (m3-memory)", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.set_font("helvetica", "", 9)
 
     try:
         cmd = [
-            "git", "-C", REPO_PATH, "log", "--since=1 week ago",
+            "git",
+            "-C",
+            REPO_PATH,
+            "log",
+            "--since=1 week ago",
             "--pretty=format:%h - %s (%an)",
         ]
-        output = subprocess.check_output(
-            cmd, stderr=subprocess.DEVNULL, **no_window_kwargs()
-        ).decode("utf-8")
+        output = subprocess.check_output(cmd, stderr=subprocess.DEVNULL, **no_window_kwargs()).decode("utf-8")
     except subprocess.CalledProcessError:
         output = "No recent git activity."
 
@@ -271,8 +270,7 @@ def section_tool_inventory(pdf, summary):
     then diff after.
     """
     pdf.set_font("helvetica", "B", 14)
-    pdf.cell(0, 10, "5. Tool Inventory",
-             new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(0, 10, "5. Tool Inventory", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.set_font("helvetica", "", 9)
 
     inv_dir = os.path.join(BASE_DIR, "docs", "tools")
@@ -300,8 +298,10 @@ def section_tool_inventory(pdf, summary):
     try:
         subprocess.check_call(
             [sys.executable, gen_script],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            timeout=120, **no_window_kwargs(),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=120,
+            **no_window_kwargs(),
         )
         ran = True
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as e:
@@ -317,8 +317,10 @@ def section_tool_inventory(pdf, summary):
         try:
             subprocess.check_call(
                 [sys.executable, graph_script],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                timeout=30, **no_window_kwargs(),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=30,
+                **no_window_kwargs(),
             )
             graph_ok = True
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as e:
@@ -335,14 +337,14 @@ def section_tool_inventory(pdf, summary):
     else:
         parts = [f"{len(after)} tool entries."]
         if new:
-            parts.append(f"NEW: {', '.join(n.replace('.md','') for n in new[:10])}")
+            parts.append(f"NEW: {', '.join(n.replace('.md', '') for n in new[:10])}")
         if drifted:
             parts.append(
                 f"DRIFTED (source changed, re-enrichment recommended): "
-                f"{', '.join(d.replace('.md','') for d in drifted[:15])}"
+                f"{', '.join(d.replace('.md', '') for d in drifted[:15])}"
             )
         if removed:
-            parts.append(f"REMOVED: {', '.join(r.replace('.md','') for r in removed[:10])}")
+            parts.append(f"REMOVED: {', '.join(r.replace('.md', '') for r in removed[:10])}")
         line = " | ".join(parts)
 
     if graph_ok:
@@ -364,19 +366,21 @@ def write_summary_to_memory(summary_text, week_label):
 
     from memory_bridge import memory_write
 
-    result = asyncio.run(memory_write(
-        # 'document' is NOT a valid memory type (the write rejected it, so the
-        # audit summary was silently never stored). 'summary' is the correct
-        # type for an audit report — matches the title and the valid-types set.
-        type="summary",
-        title=f"Weekly Audit Summary -- {week_label}",
-        content=summary_text,
-        metadata=f'{{"source_type": "weekly_audit", "week": "{week_label}"}}',
-        importance=0.7,
-        agent_id="weekly_auditor",
-        source="system",
-        embed=True,
-    ))
+    result = asyncio.run(
+        memory_write(
+            # 'document' is NOT a valid memory type (the write rejected it, so the
+            # audit summary was silently never stored). 'summary' is the correct
+            # type for an audit report — matches the title and the valid-types set.
+            type="summary",
+            title=f"Weekly Audit Summary -- {week_label}",
+            content=summary_text,
+            metadata=f'{{"source_type": "weekly_audit", "week": "{week_label}"}}',
+            importance=0.7,
+            agent_id="weekly_auditor",
+            source="system",
+            embed=True,
+        )
+    )
     print(f"Memory write: {result}")
 
 
@@ -400,9 +404,7 @@ def run_audit(write_memory: bool = True) -> dict:
     section_git(pdf, summary)
     section_tool_inventory(pdf, summary)
 
-    output_path = os.path.join(
-        REPORTS_DIR, f"Audit_{datetime.now().strftime('%Y_W%V')}.pdf"
-    )
+    output_path = os.path.join(REPORTS_DIR, f"Audit_{datetime.now().strftime('%Y_W%V')}.pdf")
     os.makedirs(REPORTS_DIR, exist_ok=True)
     pdf.output(output_path)
     print(f"Weekly Audit saved to: {output_path}")
@@ -426,10 +428,12 @@ def run_audit(write_memory: bool = True) -> dict:
 def main():
     parser = argparse.ArgumentParser(description="M3 Max Weekly Audit Report")
     parser.add_argument(
-        "--no-memory", action="store_true",
+        "--no-memory",
+        action="store_true",
         help="Skip writing summary to memory system",
     )
     from _task_runtime import add_log_file_arg, setup_task_runtime
+
     add_log_file_arg(parser)
     add_database_arg(parser)
     args = parser.parse_args()

@@ -14,6 +14,7 @@ That is the whole point of a lease, so a lease nobody reads is not a lease.
 — an operator asking "what is in this queue" must see work in flight, or a
 stuck claim becomes invisible at exactly the moment someone is looking for it.
 """
+
 from __future__ import annotations
 
 import json
@@ -69,8 +70,12 @@ def _claim(agent_id: str, claimant: str = "worker-1", ttl: int = 300):
     with dispatch_conn_for_tests() as db:
         p = D.param()
         return D.claim_message(
-            db, table=dispatch_table_for_tests(), where_sql=f"agent_id = {p}",
-            where_params=(agent_id,), claimant=claimant, lease_ttl=ttl,
+            db,
+            table=dispatch_table_for_tests(),
+            where_sql=f"agent_id = {p}",
+            where_params=(agent_id,),
+            claimant=claimant,
+            lease_ttl=ttl,
         )
 
 
@@ -85,8 +90,7 @@ def test_a_claimed_message_is_not_offered_to_a_second_poller(agent):
 
     out = notifications_poll_impl(agent, unread_only=True)
     assert "(empty)" in out, (
-        f"a CLAIMED message was handed to a second poller: {out!r} -- both "
-        f"agents would now do the same work"
+        f"a CLAIMED message was handed to a second poller: {out!r} -- both agents would now do the same work"
     )
 
 
@@ -98,18 +102,14 @@ def test_the_audit_view_still_shows_claimed_work(agent):
     _claim(agent)
 
     out = notifications_poll_impl(agent, unread_only=False)
-    assert "(empty)" not in out, (
-        "the audit view hid claimed work -- a stuck lease is now invisible"
-    )
+    assert "(empty)" not in out, "the audit view hid claimed work -- a stuck lease is now invisible"
 
 
 def test_an_unclaimed_message_is_still_offered(agent):
     """A guard that hid everything would pass the first test trivially."""
     notify_impl(agent, "ping", {"work": 1})
     out = notifications_poll_impl(agent, unread_only=True)
-    assert "(empty)" not in out, (
-        f"an UNCLAIMED message was withheld -- the queue is now dead: {out!r}"
-    )
+    assert "(empty)" not in out, f"an UNCLAIMED message was withheld -- the queue is now dead: {out!r}"
 
 
 def test_a_lapsed_claim_is_offered_again(agent):
@@ -129,29 +129,22 @@ def test_a_lapsed_claim_is_offered_again(agent):
     # immortal claim no sweeper reclaims). Time passing is what happens in
     # production anyway. The value is computed in Python and bound as a
     # parameter, so this needs no backend-specific date arithmetic.
-    past = (datetime.now(UTC) - timedelta(seconds=60)).strftime(
-        "%Y-%m-%dT%H:%M:%SZ"
-    )
+    past = (datetime.now(UTC) - timedelta(seconds=60)).strftime("%Y-%m-%dT%H:%M:%SZ")
     with dispatch_conn_for_tests() as db:
         p_ = dialect().param()
         db.execute(
-            f"UPDATE {_T} SET claim_expires_at = {p_} "
-            f"WHERE id = {p_}",
+            f"UPDATE {_T} SET claim_expires_at = {p_} WHERE id = {p_}",
             (past, row_id),
         )
 
     D = dialect()
     with dispatch_conn_for_tests() as db:
         reclaimed, dead = D.sweep_expired_leases(db, table=dispatch_table_for_tests())
-    assert reclaimed >= 1, (
-        f"the sweeper did not reclaim an expired lease (reclaimed={reclaimed}, "
-        f"dead_lettered={dead})"
-    )
+    assert reclaimed >= 1, f"the sweeper did not reclaim an expired lease (reclaimed={reclaimed}, dead_lettered={dead})"
 
     out = notifications_poll_impl(agent, unread_only=True)
     assert "(empty)" not in out, (
-        "a message whose lease lapsed was never offered again -- one dead "
-        "worker strands it permanently"
+        "a message whose lease lapsed was never offered again -- one dead worker strands it permanently"
     )
 
 
@@ -160,11 +153,8 @@ def test_structured_output_agrees_with_the_prose(agent):
     notify_impl(agent, "ping", {"work": 1})
     _claim(agent)
 
-    payload = json.loads(notifications_poll_impl(agent, unread_only=True,
-                                                 as_records=True))
-    assert payload.get("items") == [], (
-        f"as_records exposed a claimed message the prose view hides: {payload!r}"
-    )
+    payload = json.loads(notifications_poll_impl(agent, unread_only=True, as_records=True))
+    assert payload.get("items") == [], f"as_records exposed a claimed message the prose view hides: {payload!r}"
 
 
 def test_a_dead_lettered_message_is_never_offered_again(agent):
@@ -223,16 +213,12 @@ def test_the_poll_predicate_has_exactly_one_owner():
     tree = ast.parse(src)
     doc = ast.get_docstring(tree.body[0]) if tree.body else None
     code_strings = [
-        n.value for n in ast.walk(tree)
-        if isinstance(n, ast.Constant)
-        and isinstance(n.value, str)
-        and n.value != doc
+        n.value for n in ast.walk(tree) if isinstance(n, ast.Constant) and isinstance(n.value, str) and n.value != doc
     ]
     joined = " ".join(code_strings)
 
     assert "message_state_sql" in src, (
-        "notifications_poll must express PENDING through message_state_sql, "
-        "not a hand-written column list"
+        "notifications_poll must express PENDING through message_state_sql, not a hand-written column list"
     )
     assert "claimed_by" not in joined, (
         f"notifications_poll hand-writes the PENDING predicate in a SQL "
@@ -260,9 +246,7 @@ def test_polling_alone_reclaims_a_lapsed_lease(agent):
     assert got is not None
     row_id = got[0]
 
-    past = (datetime.now(UTC) - timedelta(seconds=60)).strftime(
-        "%Y-%m-%dT%H:%M:%SZ"
-    )
+    past = (datetime.now(UTC) - timedelta(seconds=60)).strftime("%Y-%m-%dT%H:%M:%SZ")
     with dispatch_conn_for_tests() as db:
         p_ = dialect().param()
         db.execute(

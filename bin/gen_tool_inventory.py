@@ -16,6 +16,7 @@ __main__). Extracts, per tool:
 Writes one markdown file per tool plus an index. Re-run after code changes;
 a diff in the 'sha1' field tells you which entries need re-validation.
 """
+
 from __future__ import annotations
 
 import ast
@@ -50,7 +51,10 @@ OUT_DIR = BASE_DIR / "docs" / "tools"
 
 SKIP = {"gen_tool_inventory.py", "__init__.py"}
 PRIVATE = {
-    "discord_bot.py", "status_api.py", "embed_server_gpu.py", "_task_runtime.py",
+    "discord_bot.py",
+    "status_api.py",
+    "embed_server_gpu.py",
+    "_task_runtime.py",
     # macOS-oriented — runs on Win/Linux too but primary UX is a macOS pulse
     # dashboard. Inventoried so imports show up in the call graph but flagged
     # in INDEX.md's "Private" column to dampen general visibility.
@@ -86,15 +90,29 @@ PRIVATE_PATH_PREFIXES = (
 # Core library modules worth auditing even though they lack a CLI surface —
 # central enough that other tools import them, so they belong in the graph.
 CORE_LIBRARIES = {
-    "memory_core.py", "memory_bridge.py", "mcp_tool_catalog.py", "mcp_proxy.py",
-    "m3_sdk.py", "auth_utils.py", "temporal_utils.py", "agent_protocol.py",
-    "embedding_utils.py", "mcp_compat.py", "_task_runtime.py",
+    "memory_core.py",
+    "memory_bridge.py",
+    "mcp_tool_catalog.py",
+    "mcp_proxy.py",
+    "m3_sdk.py",
+    "auth_utils.py",
+    "temporal_utils.py",
+    "agent_protocol.py",
+    "embedding_utils.py",
+    "mcp_compat.py",
+    "_task_runtime.py",
     # Post-2026-04-21 refactor additions: chatlog + maintenance + LLM
     # failover are load-bearing even without a CLI surface.
-    "chatlog_config.py", "chatlog_core.py", "chatlog_redaction.py",
-    "chatlog_status.py", "memory_maintenance.py",
-    "llm_failover.py", "m3_cognitive_loop.py",
-    "enrichment_state.py", "thermal_utils.py", "embed_sweep_lib.py",
+    "chatlog_config.py",
+    "chatlog_core.py",
+    "chatlog_redaction.py",
+    "chatlog_status.py",
+    "memory_maintenance.py",
+    "llm_failover.py",
+    "m3_cognitive_loop.py",
+    "enrichment_state.py",
+    "thermal_utils.py",
+    "embed_sweep_lib.py",
     "batch_runner.py",
     # auto_route is a pure-helper module (signal extractors + branch decider)
     # imported by memory_core.memory_search_routed_impl when auto_route=True.
@@ -109,7 +127,9 @@ CORE_LIBRARIES = {
 }
 
 # Detects both os.environ.get("VAR") and os.environ["VAR"] = ...
-_ENV_RE = re.compile(r"""(?:os\.(?:environ\.get|getenv)\(\s*['"]([A-Z0-9_]+)['"]|os\.environ\[\s*['"]([A-Z0-9_]+)['"]\])""")
+_ENV_RE = re.compile(
+    r"""(?:os\.(?:environ\.get|getenv)\(\s*['"]([A-Z0-9_]+)['"]|os\.environ\[\s*['"]([A-Z0-9_]+)['"]\])"""
+)
 
 # External-call surface we care about. Maps attribute-call pattern → bucket.
 _EXTERNAL_BUCKETS: dict[tuple[str, ...], str] = {
@@ -152,13 +172,18 @@ def _tracked_files() -> set[Path]:
     try:
         result = subprocess.run(
             ["git", "-C", str(BASE_DIR), "ls-files"],
-            capture_output=True, text=True, check=True, timeout=10,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
         )
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as e:
-        print(f"warn: git ls-files failed ({type(e).__name__}); "
-              f"generator will NOT filter untracked files. "
-              f"Check for leaks in output if this host is shared.",
-              flush=True)
+        print(
+            f"warn: git ls-files failed ({type(e).__name__}); "
+            f"generator will NOT filter untracked files. "
+            f"Check for leaks in output if this host is shared.",
+            flush=True,
+        )
         return set()
     return {(BASE_DIR / line).resolve() for line in result.stdout.splitlines() if line.strip()}
 
@@ -237,19 +262,21 @@ def extract_argparse(tree: ast.Module) -> list[dict]:
         kw = {k.arg: k.value for k in node.keywords if k.arg}
         help_node = kw.get("help")
         hidden = isinstance(help_node, ast.Attribute) and help_node.attr == "SUPPRESS"
-        args.append({
-            "names": arg_names,
-            # A flag hidden from --help (an internal hand-off, a deprecated alias)
-            # is still listed for maintainers, labelled rather than shown as the
-            # literal "argparse.SUPPRESS".
-            "help": "(hidden from --help)" if hidden else _literal(help_node) or "",
-            "default": _literal(kw.get("default")),
-            "default_passed": "default" in kw,
-            "type": _literal(kw.get("type")),
-            "action": _literal(kw.get("action")),
-            "required": _literal(kw.get("required")),
-            "choices": _literal(kw.get("choices")),
-        })
+        args.append(
+            {
+                "names": arg_names,
+                # A flag hidden from --help (an internal hand-off, a deprecated alias)
+                # is still listed for maintainers, labelled rather than shown as the
+                # literal "argparse.SUPPRESS".
+                "help": "(hidden from --help)" if hidden else _literal(help_node) or "",
+                "default": _literal(kw.get("default")),
+                "default_passed": "default" in kw,
+                "type": _literal(kw.get("type")),
+                "action": _literal(kw.get("action")),
+                "required": _literal(kw.get("required")),
+                "choices": _literal(kw.get("choices")),
+            }
+        )
     if uses_database_helper:
         # Synthesize the helper's rows so the inventory reflects the actual CLI
         # surface. Read from add_database_arg itself, not re-typed here, so a
@@ -267,16 +294,19 @@ def _database_helper_rows() -> list[dict]:
 
     parser = argparse.ArgumentParser(add_help=False)
     add_database_arg(parser)
-    return [{
-        "names": list(action.option_strings),
-        "help": action.help or "",
-        "default": action.default,
-        "default_passed": True,
-        "type": None,
-        "action": None,
-        "required": None,
-        "choices": None,
-    } for action in parser._actions]
+    return [
+        {
+            "names": list(action.option_strings),
+            "help": action.help or "",
+            "default": action.default,
+            "default_passed": True,
+            "type": None,
+            "action": None,
+            "required": None,
+            "choices": None,
+        }
+        for action in parser._actions
+    ]
 
 
 def extract_docstring_sh(source: str) -> str:
@@ -317,16 +347,18 @@ def extract_argparse_sh(source: str) -> list[dict]:
             default = default_match.group(1).strip()
             help_str = help_str.replace(default_match.group(0), "").strip()
 
-        args.append({
-            "names": names,
-            "help": help_str,
-            "default": default,
-            "default_passed": default is not None,
-            "type": None,
-            "action": None,
-            "required": None,
-            "choices": None,
-        })
+        args.append(
+            {
+                "names": names,
+                "help": help_str,
+                "default": default,
+                "default_passed": default is not None,
+                "type": None,
+                "action": None,
+                "required": None,
+                "choices": None,
+            }
+        )
     return args
 
 
@@ -373,8 +405,9 @@ def _repo_module_set() -> set[str]:
         if pkg_dir.is_dir() and (pkg_dir / "__init__.py").exists():
             mods.add(pkg_dir.name)
     # Known project-internal packages (kept small and explicit).
-    mods.update({"m3_sdk", "memory_core", "auth_utils", "embedding_utils",
-                 "temporal_utils", "memory_bridge", "mcp_proxy"})
+    mods.update(
+        {"m3_sdk", "memory_core", "auth_utils", "embedding_utils", "temporal_utils", "memory_bridge", "mcp_proxy"}
+    )
     return mods
 
 
@@ -387,12 +420,11 @@ def extract_entry_points(tree: ast.Module, source: str) -> list[str]:
                 kind = "async def" if isinstance(node, ast.AsyncFunctionDef) else "def"
                 eps.append(f"`{kind} {node.name}()` (line {node.lineno})")
     if re.search(r"""if\s+__name__\s*==\s*['"]__main__['"]""", source):
-        eps.append("`if __name__ == \"__main__\"` guard")
+        eps.append('`if __name__ == "__main__"` guard')
     return eps
 
 
-def extract_imports(tree: ast.Module, repo_mods: set[str], self_name: str
-                    ) -> tuple[list[str], list[str]]:
+def extract_imports(tree: ast.Module, repo_mods: set[str], self_name: str) -> tuple[list[str], list[str]]:
     """Return (intra_repo_imports, external_imports_of_interest)."""
     intra: set[str] = set()
     external: set[str] = set()
@@ -459,11 +491,29 @@ def extract_file_deps(source: str) -> list[str]:
       - Strings matching known config/template file names.
     """
     known_files = {
-        "AGENT_INSTRUCTIONS.md", "CLAUDE.md", "GEMINI.md", ".mcp.json",
-        "MEMORY.md", "pyproject.toml", "requirements.txt",
+        "AGENT_INSTRUCTIONS.md",
+        "CLAUDE.md",
+        "GEMINI.md",
+        ".mcp.json",
+        "MEMORY.md",
+        "pyproject.toml",
+        "requirements.txt",
     }
-    exts = (".sql", ".md", ".json", ".yaml", ".yml", ".toml", ".db",
-            ".txt", ".sh", ".template", ".entitlements", ".ini", ".conf")
+    exts = (
+        ".sql",
+        ".md",
+        ".json",
+        ".yaml",
+        ".yml",
+        ".toml",
+        ".db",
+        ".txt",
+        ".sh",
+        ".template",
+        ".entitlements",
+        ".ini",
+        ".conf",
+    )
     found: set[str] = set()
     # Match Python string literals (single or double quoted, no escape handling).
     for m in re.finditer(r"""['"]([^'"\n]{2,200})['"]""", source):
@@ -502,8 +552,7 @@ def _read_front_field(path: Path, field_re: re.Pattern[str]) -> str | None:
     return m.group(1) if m else None
 
 
-def _body_without_volatile_fields(path: Path, mtime_placeholder: str,
-                                  gen_placeholder: str) -> str | None:
+def _body_without_volatile_fields(path: Path, mtime_placeholder: str, gen_placeholder: str) -> str | None:
     """Load prior file with generated_utc AND mtime_utc replaced by
     placeholders. Lets us detect whether the *content* changed while ignoring
     non-content metadata that might shift between runs (e.g. filesystem
@@ -554,7 +603,7 @@ def parse_existing_flag_overrides(path: Path) -> dict[tuple[str, int], tuple[str
     out: dict[tuple[str, int], tuple[str, str, str]] = {}
     seen_count: dict[str, int] = {}
     start = text.find("\n", m.end()) + 1  # skip to line after the `|---|...|` separator
-    start = text.find("\n", start) + 1    # now past the separator
+    start = text.find("\n", start) + 1  # now past the separator
     for line in text[start:].splitlines():
         if not line.startswith("|"):
             break
@@ -584,35 +633,46 @@ def parse_existing_flag_overrides(path: Path) -> dict[tuple[str, int], tuple[str
     return out
 
 
-def render_entry(relpath: str, sha1: str, mtime: str, doc: str,
-                 args: list[dict], env_vars: list[str],
-                 entry_points: list[str], intra_imports: list[str],
-                 external_imports: list[str], external_calls: dict[str, list[str]],
-                 file_deps: list[str], private: bool,
-                 flag_overrides: dict[tuple[str, int], tuple[str, str, str]] | None = None,
-                 generated_utc: str | None = None) -> str:
+def render_entry(
+    relpath: str,
+    sha1: str,
+    mtime: str,
+    doc: str,
+    args: list[dict],
+    env_vars: list[str],
+    entry_points: list[str],
+    intra_imports: list[str],
+    external_imports: list[str],
+    external_calls: dict[str, list[str]],
+    file_deps: list[str],
+    private: bool,
+    flag_overrides: dict[tuple[str, int], tuple[str, str, str]] | None = None,
+    generated_utc: str | None = None,
+) -> str:
     flag_overrides = flag_overrides or {}
     if generated_utc is None:
         generated_utc = datetime.now(UTC).isoformat()
     L: list[str] = []
-    L += ["---",
-          f"tool: {relpath}",
-          f"sha1: {sha1}",
-          f"mtime_utc: {mtime}",
-          f"generated_utc: {generated_utc}",
-          f"private: {'true' if private else 'false'}",
-          "---",
-          "",
-          f"# {relpath}",
-          "",
-          "## Purpose",
-          "",
-          doc or "_(no module docstring — update the source file.)_",
-          "",
-          "---",
-          "",
-          "## Entry points",
-          ""]
+    L += [
+        "---",
+        f"tool: {relpath}",
+        f"sha1: {sha1}",
+        f"mtime_utc: {mtime}",
+        f"generated_utc: {generated_utc}",
+        f"private: {'true' if private else 'false'}",
+        "---",
+        "",
+        f"# {relpath}",
+        "",
+        "## Purpose",
+        "",
+        doc or "_(no module docstring — update the source file.)_",
+        "",
+        "---",
+        "",
+        "## Entry points",
+        "",
+    ]
     if entry_points:
         for ep in entry_points:
             L.append(f"- {ep}")
@@ -647,8 +707,7 @@ def render_entry(relpath: str, sha1: str, mtime: str, doc: str,
             first_flag = a["names"][0] if a["names"] else ""
             ordinal = ordinal_counter.get(first_flag, 0)
             ordinal_counter[first_flag] = ordinal + 1
-            prior_help, default_behavior, impact = flag_overrides.get(
-                (first_flag, ordinal), ("", "", ""))
+            prior_help, default_behavior, impact = flag_overrides.get((first_flag, ordinal), ("", "", ""))
             # Help column: source wins when present; fall back to prior
             # hand-curated help when source has none.
             if not help_ and prior_help:
@@ -678,17 +737,56 @@ def render_entry(relpath: str, sha1: str, mtime: str, doc: str,
         L.append("_(no subprocess / http / sqlite calls detected)_")
     L += ["", "---", "", "## Notable external imports", ""]
     if external_imports:
-        interesting = [i for i in external_imports
-                       if i.split(" ", 1)[0].split(".", 1)[0] not in {
-                           "os", "sys", "re", "json", "time", "datetime",
-                           "pathlib", "typing", "argparse", "collections",
-                           "contextlib", "functools", "itertools", "asyncio",
-                           "logging", "io", "hashlib", "uuid", "random",
-                           "shutil", "tempfile", "enum", "dataclasses", "math",
-                           "traceback", "warnings", "subprocess", "urllib",
-                           "textwrap", "threading", "signal", "queue", "socket",
-                           "struct", "string", "copy", "ast", "inspect", "glob",
-                           "zipfile", "tarfile", "sqlite3", "__future__"}]
+        interesting = [
+            i
+            for i in external_imports
+            if i.split(" ", 1)[0].split(".", 1)[0]
+            not in {
+                "os",
+                "sys",
+                "re",
+                "json",
+                "time",
+                "datetime",
+                "pathlib",
+                "typing",
+                "argparse",
+                "collections",
+                "contextlib",
+                "functools",
+                "itertools",
+                "asyncio",
+                "logging",
+                "io",
+                "hashlib",
+                "uuid",
+                "random",
+                "shutil",
+                "tempfile",
+                "enum",
+                "dataclasses",
+                "math",
+                "traceback",
+                "warnings",
+                "subprocess",
+                "urllib",
+                "textwrap",
+                "threading",
+                "signal",
+                "queue",
+                "socket",
+                "struct",
+                "string",
+                "copy",
+                "ast",
+                "inspect",
+                "glob",
+                "zipfile",
+                "tarfile",
+                "sqlite3",
+                "__future__",
+            }
+        ]
         if interesting:
             for i in interesting[:30]:
                 L.append(f"- `{i}`")
@@ -702,11 +800,17 @@ def render_entry(relpath: str, sha1: str, mtime: str, doc: str,
             L.append(f"- `{f}`")
     else:
         L.append("_(none detected)_")
-    L += ["", "---", "", "## Re-validation", "",
-          "If the `sha1` above differs from the current file's sha1, the inventory "
-          "is stale — re-read the tool, confirm flags/env vars/entry-points/calls "
-          "still match, and regenerate via `python bin/gen_tool_inventory.py`.",
-          ""]
+    L += [
+        "",
+        "---",
+        "",
+        "## Re-validation",
+        "",
+        "If the `sha1` above differs from the current file's sha1, the inventory "
+        "is stale — re-read the tool, confirm flags/env vars/entry-points/calls "
+        "still match, and regenerate via `python bin/gen_tool_inventory.py`.",
+        "",
+    ]
     return "\n".join(L)
 
 
@@ -716,15 +820,23 @@ def main() -> None:
     # bench worktree without copying). --extra-root-file adds files to scan
     # at the repo root (use repeatedly). Defaults preserve existing behavior.
     import argparse as _argparse
+
     ap = _argparse.ArgumentParser(description="Generate per-tool inventory under docs/tools/.")
-    ap.add_argument("--root", default=None,
-                    help="Repo root override. Defaults to the parent of the script's bin/ "
-                         "dir. Use this from a separate worktree (e.g. m3-memory-bench) "
-                         "without copying the script — pass --root <worktree-path>.")
-    ap.add_argument("--extra-root-file", action="append", default=[],
-                    help="Extra root-level python file to inventory (relative to --root). "
-                         "Repeat for multiple files. Use for worktree-specific helpers "
-                         "(e.g. bench_db.py) that live at the repo root.")
+    ap.add_argument(
+        "--root",
+        default=None,
+        help="Repo root override. Defaults to the parent of the script's bin/ "
+        "dir. Use this from a separate worktree (e.g. m3-memory-bench) "
+        "without copying the script — pass --root <worktree-path>.",
+    )
+    ap.add_argument(
+        "--extra-root-file",
+        action="append",
+        default=[],
+        help="Extra root-level python file to inventory (relative to --root). "
+        "Repeat for multiple files. Use for worktree-specific helpers "
+        "(e.g. bench_db.py) that live at the repo root.",
+    )
     args = ap.parse_args()
 
     if args.root:
@@ -804,13 +916,15 @@ def main() -> None:
             argparse_args = extract_argparse_sh(source)
             env_vars = extract_env_vars(source, is_sh=True)
             entry_points = ["Bash execution"]
-            intra: list[str] = [] # shell script imports are hard to track accurately
+            intra: list[str] = []  # shell script imports are hard to track accurately
             external: list[str] = []
             external_calls = {}
         else:
             if tree is None:  # parsed above for every non-shell file
-                raise RuntimeError(f"no AST for {src.name}; observed: a .py file was not parsed. "
-                           "inspect: the parse step that fills the AST map above")
+                raise RuntimeError(
+                    f"no AST for {src.name}; observed: a .py file was not parsed. "
+                    "inspect: the parse step that fills the AST map above"
+                )
             doc = extract_docstring(tree)
             argparse_args = extract_argparse(tree)
             env_vars = extract_env_vars(source)
@@ -827,10 +941,7 @@ def main() -> None:
             rel = src.relative_to(BASE_DIR).as_posix()
         except ValueError:
             rel = f"{src.parent.name}/{src.name}"
-        private = (
-            src.name in PRIVATE
-            or any(rel.startswith(p) for p in PRIVATE_PATH_PREFIXES)
-        )
+        private = src.name in PRIVATE or any(rel.startswith(p) for p in PRIVATE_PATH_PREFIXES)
         # Doc filename from the stem. A .py and a non-.py source that share a
         # stem (e.g. pg_sync.py + pg_sync.sh) would BOTH map to <stem>.md — they
         # then clobber each other every run and the survivor's generated_utc
@@ -876,12 +987,23 @@ def main() -> None:
 
         gen_placeholder = "__GEN_UTC_PLACEHOLDER__"
         mtime_placeholder = "__MTIME_PLACEHOLDER__"
-        candidate = render_entry(rel, sha1, mtime_placeholder, doc, argparse_args, env_vars,
-                                 entry_points, intra, external, external_calls,
-                                 file_deps, private, flag_overrides,
-                                 generated_utc=gen_placeholder)
-        prior_body = _body_without_volatile_fields(
-            out_path, mtime_placeholder, gen_placeholder)
+        candidate = render_entry(
+            rel,
+            sha1,
+            mtime_placeholder,
+            doc,
+            argparse_args,
+            env_vars,
+            entry_points,
+            intra,
+            external,
+            external_calls,
+            file_deps,
+            private,
+            flag_overrides,
+            generated_utc=gen_placeholder,
+        )
+        prior_body = _body_without_volatile_fields(out_path, mtime_placeholder, gen_placeholder)
         now_iso = datetime.now(UTC).isoformat()
 
         if prior_sha1 == sha1 and prior_body == candidate:
@@ -911,9 +1033,7 @@ def main() -> None:
             index_entries.append((rel, doc.split("\n", 1)[0] or "(no docstring)", private))
             continue
 
-        rendered = (candidate
-                    .replace(gen_placeholder, generated_utc, 1)
-                    .replace(mtime_placeholder, mtime_to_write, 1))
+        rendered = candidate.replace(gen_placeholder, generated_utc, 1).replace(mtime_placeholder, mtime_to_write, 1)
         out_path.write_text(rendered, encoding="utf-8")
         index_entries.append((rel, doc.split("\n", 1)[0] or "(no docstring)", private))
         print(f"wrote {out_path.relative_to(BASE_DIR)}")
@@ -962,8 +1082,7 @@ def main() -> None:
     print(f"wrote {idx_path.relative_to(BASE_DIR)}")
 
     if untracked_skipped:
-        print(f"skipped {len(untracked_skipped)} untracked file(s) "
-              f"(not in git ls-files — intentional if gitignored):")
+        print(f"skipped {len(untracked_skipped)} untracked file(s) (not in git ls-files — intentional if gitignored):")
         for path in untracked_skipped:
             print(f"  - {path}")
 

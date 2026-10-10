@@ -16,6 +16,7 @@ NOT part of the drift-tested surface. The cache is what makes a re-run stable in
 practice; `--check` should be run WITHOUT `--synthesize` (the deterministic vault
 is the drift-gated artifact).
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -39,12 +40,12 @@ _SYSTEM = (
 @dataclass
 class SynthConfig:
     url: str = "http://127.0.0.1:1234/v1/chat/completions"
-    model: str = ""            # empty → let the server pick its loaded model
+    model: str = ""  # empty → let the server pick its loaded model
     api_key_service: str = "LM_API_TOKEN"
     timeout_s: float = 30.0
     temperature: float = 0.2
     max_tokens: int = 220
-    cache_dir: str | None = None   # where ledes are cached (None → no cache)
+    cache_dir: str | None = None  # where ledes are cached (None → no cache)
 
     @classmethod
     def from_env(cls, cache_dir: str | None) -> SynthConfig:
@@ -150,6 +151,7 @@ def _call_model(cfg: SynthConfig, user_prompt: str) -> str | None:
     # files_memory.extract), gated to the local runtimes that honor it.
     try:
         from llm_failover import suppresses_thinking_via_effort
+
         if suppresses_thinking_via_effort(cfg.url):
             payload["reasoning_effort"] = "none"
     except Exception:  # noqa: BLE001
@@ -170,8 +172,10 @@ def _resolve_key(service: str) -> str | None:
         return None
     try:
         import sys
+
         sys.path.insert(0, str(Path(__file__).absolute().parents[1]))
         from auth_utils import get_api_key
+
         return get_api_key(service)
     except Exception:
         return None
@@ -209,5 +213,4 @@ class Synthesizer:
         return prose
 
     def summary(self) -> str:
-        return (f"synthesis: {self.calls} generated, {self.cache_hits} cached, "
-                f"{self.failures} failed")
+        return f"synthesis: {self.calls} generated, {self.cache_hits} cached, {self.failures} failed"

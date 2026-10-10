@@ -5,6 +5,7 @@ repo-relative memory/*.db files, the chatlog read named the SQLite table, and
 the commit was a raw COMMIT. On PostgreSQL the chatlog is chat_log_* tables in
 the one database, so the path flags are refused there.
 """
+
 from __future__ import annotations
 
 import sys
@@ -26,9 +27,11 @@ def chat(each_backend):
     convs = {f"conv-bf-{tag}-new": "2026-10-09T10:00:00Z", f"conv-bf-{tag}-old": "2026-01-02T10:00:00Z"}
     with each_backend.connection() as conn:
         for i, (cid, ts) in enumerate(convs.items()):
-            conn.execute(f"INSERT INTO {items} (id, type, content, conversation_id, user_id, created_at) "
-                         f"VALUES ({p}, 'chat_log', {p}, {p}, {p}, {p})",
-                         (f"bf-{tag}-{i}", "turn", cid, "u-bf", ts))
+            conn.execute(
+                f"INSERT INTO {items} (id, type, content, conversation_id, user_id, created_at) "
+                f"VALUES ({p}, 'chat_log', {p}, {p}, {p}, {p})",
+                (f"bf-{tag}-{i}", "turn", cid, "u-bf", ts),
+            )
         conn.commit()
     try:
         yield sorted(convs)
@@ -67,9 +70,12 @@ def test_enqueues_once_and_honours_since(each_backend, chat, monkeypatch, capsys
 
     assert _run(monkeypatch, *_flags(each_backend), "--since", "2026-10-01", "--yes") == 0
     with each_backend.connection() as conn:
-        queued = {r[0] for r in conn.execute(
-            f"SELECT conversation_id FROM observation_queue WHERE conversation_id IN ({p}, {p})",
-            (new, old)).fetchall()}
+        queued = {
+            r[0]
+            for r in conn.execute(
+                f"SELECT conversation_id FROM observation_queue WHERE conversation_id IN ({p}, {p})", (new, old)
+            ).fetchall()
+        }
     assert queued == {new}, f"observed: {queued!r} {where}"
 
     capsys.readouterr()

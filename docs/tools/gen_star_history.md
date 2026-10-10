@@ -1,8 +1,8 @@
 ---
 tool: bin/gen_star_history.py
-sha1: a9e074f436f7
-mtime_utc: 2026-10-09T23:55:12.138145+00:00
-generated_utc: 2026-10-10T00:12:43.435464+00:00
+sha1: 0108cc124f84
+mtime_utc: 2026-10-10T21:05:16.787482+00:00
+generated_utc: 2026-10-10T21:05:29.538335+00:00
 private: false
 ---
 
@@ -31,7 +31,7 @@ Standard library only.
 
 ## Entry points
 
-- `def main()` (line 144)
+- `def main()` (line 145)
 - `if __name__ == "__main__"` guard
 
 ---

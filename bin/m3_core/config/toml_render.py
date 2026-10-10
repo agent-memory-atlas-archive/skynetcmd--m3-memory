@@ -7,6 +7,7 @@ escapes, so ``json.dumps`` renders a correct TOML string for any value; ints,
 floats and bools render as TOML literals. Nothing else is accepted: a value
 that cannot be rendered exactly is refused, never stringified.
 """
+
 from __future__ import annotations
 
 import json

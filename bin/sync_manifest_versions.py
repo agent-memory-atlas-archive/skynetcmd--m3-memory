@@ -23,6 +23,7 @@ loudly instead of shipping a stale manifest).
 Every ``"version"`` key is rewritten: the top-level one, and any nested
 ``packages[].version`` (server.json) — matching what the drift test asserts.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -116,9 +117,7 @@ def _sync_security_supported(target: str, *, check: bool) -> str | None:
         return None
     if check:
         return f"{rel}: {m.group(1)} (latest) != {want}"
-    _SECURITY_MD.write_text(
-        text[: m.start(1)] + want + text[m.end(1):], encoding="utf-8"
-    )
+    _SECURITY_MD.write_text(text[: m.start(1)] + want + text[m.end(1) :], encoding="utf-8")
     return None
 
 
@@ -139,7 +138,7 @@ def _sync_roadmap_current(target: str, *, check: bool) -> str | None:
         return None
     if check:
         return f"{rel}: current version v{m.group(1)} != v{target}"
-    _ROADMAP_MD.write_text(text[: m.start(1)] + target + text[m.end(1):], encoding="utf-8")
+    _ROADMAP_MD.write_text(text[: m.start(1)] + target + text[m.end(1) :], encoding="utf-8")
     return None
 
 
@@ -170,8 +169,7 @@ def _rewrite_versions(text: str, target: str) -> tuple[str, int]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--check", action="store_true",
-                    help="Exit non-zero if any manifest is out of sync; write nothing.")
+    ap.add_argument("--check", action="store_true", help="Exit non-zero if any manifest is out of sync; write nothing.")
     args = ap.parse_args()
 
     target = _pyproject_version()
@@ -204,20 +202,22 @@ def main() -> int:
     # series. Same contract as the manifests -- report under --check, rewrite
     # otherwise -- so a release can never ship a stale badge or a security
     # document naming the wrong supported line.
-    for label, fn in (("pypi badge", _sync_pypi_badge),
-                      ("SECURITY.md supported versions", _sync_security_supported),
-                      ("ROADMAP.md current version", _sync_roadmap_current)):
+    for label, fn in (
+        ("pypi badge", _sync_pypi_badge),
+        ("SECURITY.md supported versions", _sync_security_supported),
+        ("ROADMAP.md current version", _sync_roadmap_current),
+    ):
         # Ask in check-mode FIRST so we know whether a write is actually needed.
         # Reporting "wrote X" for a file that was already current is a small lie,
         # and a sync tool that overstates its work is one you stop reading.
         problem = fn(target, check=True)
         if not problem:
-            continue                      # already in sync — say nothing
+            continue  # already in sync — say nothing
         if args.check:
             drifted.append(problem)
             continue
         if problem.endswith(": missing") or " found" in problem:
-            drifted.append(problem)       # cannot fix by rewriting
+            drifted.append(problem)  # cannot fix by rewriting
             continue
         fn(target, check=False)
         wrote.append(f"{label} -> {target}")

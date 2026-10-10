@@ -85,11 +85,15 @@ def test_file_overrides_defaults(tmp_path, monkeypatch):
     import chatlog_config
 
     config_path = tmp_path / ".chatlog_config.json"
-    config_path.write_text(json.dumps({
-        "db_path": "/file/path.db",
-        "queue_flush_rows": 500,
-        "queue_max_depth": 50000,
-    }))
+    config_path.write_text(
+        json.dumps(
+            {
+                "db_path": "/file/path.db",
+                "queue_flush_rows": 500,
+                "queue_max_depth": 50000,
+            }
+        )
+    )
 
     monkeypatch.delenv("CHATLOG_DB_PATH", raising=False)
     monkeypatch.delenv("M3_DATABASE", raising=False)
@@ -128,10 +132,14 @@ def test_legacy_mode_field_ignored(tmp_path, monkeypatch):
     import chatlog_config
 
     config_path = tmp_path / ".chatlog_config.json"
-    config_path.write_text(json.dumps({
-        "mode": "hybrid",      # ignored
-        "db_path": "/real.db",
-    }))
+    config_path.write_text(
+        json.dumps(
+            {
+                "mode": "hybrid",  # ignored
+                "db_path": "/real.db",
+            }
+        )
+    )
     monkeypatch.setattr(chatlog_config, "CONFIG_PATH", str(config_path))
     monkeypatch.delenv("CHATLOG_DB_PATH", raising=False)
     monkeypatch.delenv("M3_DATABASE", raising=False)
@@ -165,15 +173,19 @@ def test_redaction_spec_config(tmp_path, monkeypatch):
     import chatlog_config
 
     config_path = tmp_path / ".chatlog_config.json"
-    config_path.write_text(json.dumps({
-        "redaction": {
-            "enabled": True,
-            "patterns": ["api_keys", "jwt"],
-            "custom_regex": ["^secret:", "^token:"],
-            "redact_pii": True,
-            "store_original_hash": True,
-        }
-    }))
+    config_path.write_text(
+        json.dumps(
+            {
+                "redaction": {
+                    "enabled": True,
+                    "patterns": ["api_keys", "jwt"],
+                    "custom_regex": ["^secret:", "^token:"],
+                    "redact_pii": True,
+                    "store_original_hash": True,
+                }
+            }
+        )
+    )
     monkeypatch.setattr(chatlog_config, "CONFIG_PATH", str(config_path))
     monkeypatch.delenv("CHATLOG_DB_PATH", raising=False)
     monkeypatch.delenv("M3_DATABASE", raising=False)
@@ -243,14 +255,13 @@ def _pin_env(monkeypatch, tmp_path, file_data=None):
 def test_setup_pins_the_split_path_when_nothing_pins_one(tmp_path, monkeypatch):
     cc, path = _pin_env(monkeypatch, tmp_path, {"capture_mode": "both"})
     assert cc.pin_split_path() == "/engine/agent_chatlog.db"
-    assert json.loads(path.read_text()) == {"capture_mode": "both",
-                                            "db_path": "/engine/agent_chatlog.db"}
-    assert cc.pin_split_path() is None          # idempotent
+    assert json.loads(path.read_text()) == {"capture_mode": "both", "db_path": "/engine/agent_chatlog.db"}
+    assert cc.pin_split_path() is None  # idempotent
 
 
 def test_pin_leaves_a_unified_or_explicit_choice_alone(tmp_path, monkeypatch):
     cc, path = _pin_env(monkeypatch, tmp_path)
-    monkeypatch.setenv("M3_DATABASE", "/unified/main.db")   # documented unify
+    monkeypatch.setenv("M3_DATABASE", "/unified/main.db")  # documented unify
     assert cc.pin_split_path() is None and not path.exists()
     monkeypatch.delenv("M3_DATABASE")
     monkeypatch.setenv("M3_CHATLOG_DB_PATH", "/explicit/chat.db")

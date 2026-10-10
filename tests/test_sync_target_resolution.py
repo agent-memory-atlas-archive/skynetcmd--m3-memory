@@ -17,6 +17,7 @@ be inferred from a passing sync.
 
 Hermetic: the backend is stubbed, so neither branch needs a live store.
 """
+
 from __future__ import annotations
 
 import pathlib
@@ -56,8 +57,7 @@ class TestPostgresShape:
 
         assert [t.name for t in targets] == ["main", "chatlog"]
         assert targets[0].uri == targets[1].uri, (
-            "on PostgreSQL both families live in ONE store; separate URIs would "
-            "mean the port still thinks in files"
+            "on PostgreSQL both families live in ONE store; separate URIs would mean the port still thinks in files"
         )
 
     def test_core_family_uses_core_names(self, as_backend):
@@ -107,7 +107,8 @@ class TestSqliteShape:
         import migrate_memory
 
         monkeypatch.setattr(
-            migrate_memory, "targets",
+            migrate_memory,
+            "targets",
             lambda _sel="all": [_T("main", "/m/main.db"), _T("chatlog", "/m/chat.db")],
         )
         targets = pg_sync.resolve_sync_targets()
@@ -130,14 +131,14 @@ class TestSqliteShape:
         import migrate_memory
 
         monkeypatch.setattr(
-            migrate_memory, "targets",
+            migrate_memory,
+            "targets",
             lambda _sel="all": [_T("main", "/m/main.db"), _T("chatlog", "/m/chat.db")],
         )
         for t in pg_sync.resolve_sync_targets():
             for role in _ROLES:
                 assert not t.table(role).startswith("chat_log_"), (
-                    f"{t.name}.{role} resolved to {t.table(role)!r}; SQLite uses "
-                    "core names in a separate file"
+                    f"{t.name}.{role} resolved to {t.table(role)!r}; SQLite uses core names in a separate file"
                 )
 
     def test_unresolvable_chatlog_still_syncs_main(self, as_backend, monkeypatch):
@@ -193,10 +194,7 @@ def test_table_names_come_from_the_dialect_not_a_local_literal():
     import textwrap
 
     tree = ast.parse(textwrap.dedent(inspect.getsource(pg_sync.resolve_sync_targets)))
-    literals = {
-        n.value for n in ast.walk(tree)
-        if isinstance(n, ast.Constant) and isinstance(n.value, str)
-    }
+    literals = {n.value for n in ast.walk(tree) if isinstance(n, ast.Constant) and isinstance(n.value, str)}
     names = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
 
     assert "chatlog_table_for" in names, "the resolver must ask the dialect"
@@ -224,12 +222,8 @@ class TestTheResolverIsActuallyWired:
         import textwrap
 
         tree = ast.parse(textwrap.dedent(inspect.getsource(pg_sync.main)))
-        called = {
-            n.func.id for n in ast.walk(tree)
-            if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
-        } | {
-            n.func.attr for n in ast.walk(tree)
-            if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+        called = {n.func.id for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)} | {
+            n.func.attr for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
         }
         assert "resolve_sync_targets" in called
         assert "targets" not in called, (
@@ -248,10 +242,13 @@ class TestTheResolverIsActuallyWired:
 
         src = (_BIN / "pg_sync.py").read_text(encoding="utf-8")
         connects = [
-            n for n in ast.walk(ast.parse(src))
-            if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+            n
+            for n in ast.walk(ast.parse(src))
+            if isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Attribute)
             and n.func.attr == "connect"
-            and isinstance(n.func.value, ast.Name) and n.func.value.id == "sqlite3"
+            and isinstance(n.func.value, ast.Name)
+            and n.func.value.id == "sqlite3"
         ]
         assert not connects, f"{len(connects)} raw sqlite3.connect call(s) remain"
 
@@ -262,9 +259,7 @@ class TestTheResolverIsActuallyWired:
         a file with no raw connect, so leaving it would break the suite; removing
         it early would have left the gate red while the port was in flight.
         """
-        src = (
-            _BIN.parent / "tests" / "test_raw_connection_drift.py"
-        ).read_text(encoding="utf-8")
+        src = (_BIN.parent / "tests" / "test_raw_connection_drift.py").read_text(encoding="utf-8")
         assert '"bin/pg_sync.py"' not in src
 
 

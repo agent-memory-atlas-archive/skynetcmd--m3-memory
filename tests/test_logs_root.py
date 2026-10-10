@@ -4,6 +4,7 @@ Every log path used to be derived from the install root, so on a pipx install
 the logs lived inside site-packages/m3_memory/logs — invisible, and deleted by
 the next reinstall.
 """
+
 from __future__ import annotations
 
 import os
@@ -40,8 +41,7 @@ def test_schedule_specs_log_outside_the_install_root(monkeypatch, tmp_path):
     monkeypatch.setenv("M3_LOGS_ROOT", str(logs))
     specs = install_schedules.get_schedule_specs(str(payload))
 
-    log_args = [s["args"][s["args"].index("--log-file") + 1]
-                for s in specs if "--log-file" in s["args"]]
+    log_args = [s["args"][s["args"].index("--log-file") + 1] for s in specs if "--log-file" in s["args"]]
     assert log_args, "precondition: some spec passes --log-file"
     for p in log_args:
         assert _norm(Path(p).parent) == _norm(logs), p
@@ -49,11 +49,11 @@ def test_schedule_specs_log_outside_the_install_root(monkeypatch, tmp_path):
 
 
 def test_service_templates_use_the_logs_placeholder():
-    templates = [p for p in _BIN.iterdir()
-                 if p.suffix in (".plist", ".service", ".timer") or p.name == "crontab.template"]
+    templates = [
+        p for p in _BIN.iterdir() if p.suffix in (".plist", ".service", ".timer") or p.name == "crontab.template"
+    ]
     assert templates, "precondition: templates found"
-    offenders = [p.name for p in templates
-                 if "[M3_MEMORY_ROOT]/logs" in p.read_text(encoding="utf-8")]
+    offenders = [p.name for p in templates if "[M3_MEMORY_ROOT]/logs" in p.read_text(encoding="utf-8")]
     assert not offenders, f"templates still log under the payload: {offenders}"
 
 

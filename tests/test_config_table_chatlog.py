@@ -1,5 +1,6 @@
 """Registry tables [chatlog], [ingest], [observer], [reflector], [slm], [loop],
 [autonomy], [governor], [wiki.*] (plan 2C.1)."""
+
 from __future__ import annotations
 
 import os
@@ -37,8 +38,9 @@ def test_statusline_zero_now_reads_as_off(tmp_path, caplog):
 
     r._LEGACY_NOTED.discard(("M3_CHATLOG_STATUSLINE", "0"))
     with caplog.at_level(logging.WARNING):
-        s = build(Location(file=tmp_path / "m3_config.toml", root=tmp_path, tier="t"),
-                  environ={"M3_CHATLOG_STATUSLINE": "0"})
+        s = build(
+            Location(file=tmp_path / "m3_config.toml", root=tmp_path, tier="t"), environ={"M3_CHATLOG_STATUSLINE": "0"}
+        )
     assert s[REGISTRY.get("chatlog.statusline")] is False and "now reads as False" in caplog.text
 
 
@@ -47,8 +49,7 @@ def test_slm_profile_dirs_split_on_the_os_separator(tmp_path):
     from m3_core.config.settings import build
 
     raw = os.pathsep.join(["/a", " ", "/b "])
-    s = build(Location(file=tmp_path / "m3_config.toml", root=tmp_path, tier="t"),
-              environ={"M3_SLM_PROFILES_DIR": raw})
+    s = build(Location(file=tmp_path / "m3_config.toml", root=tmp_path, tier="t"), environ={"M3_SLM_PROFILES_DIR": raw})
     assert s[REGISTRY.get("slm.profile_dirs")] == ["/a", "/b"]
 
 

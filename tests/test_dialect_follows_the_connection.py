@@ -15,6 +15,7 @@ statements executed on the SQLite cursor::
 to hand those functions a `sqlite3` cursor, because the local sync-lock and
 watermark store IS SQLite whatever the env says.
 """
+
 from __future__ import annotations
 
 import os
@@ -51,9 +52,7 @@ def test_a_sqlite_cursor_gets_the_sqlite_param(sqlite_conn):
 
 
 @pytest.mark.parametrize("backend", ["postgres", "sqlite", "not-a-backend"])
-def test_the_global_env_var_cannot_override_a_real_connection(
-    backend, sqlite_conn, monkeypatch
-):
+def test_the_global_env_var_cannot_override_a_real_connection(backend, sqlite_conn, monkeypatch):
     """THE regression. A SQLite cursor gets `?` no matter what M3_DB_BACKEND
     says -- including a bogus value, which must not make it guess."""
     monkeypatch.setenv("M3_DB_BACKEND", backend)

@@ -8,6 +8,7 @@ match, so PID 12 matched a running 1234). Each now imports from here, as does
 
 Stdlib only at import time; ``psutil`` is imported lazily.
 """
+
 from __future__ import annotations
 
 import os

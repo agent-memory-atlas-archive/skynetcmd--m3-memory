@@ -20,6 +20,7 @@ The sweep must resolve past `catalog.lazy.LazyImpl`, whose signature is
 `(*args, **kwargs)`. Taking that at face value is what lets drift hide: it makes
 every tool look compatible with everything.
 """
+
 from __future__ import annotations
 
 import importlib
@@ -88,12 +89,13 @@ def test_impl_requires_nothing_the_spec_calls_optional(name, spec):
     optional. An agent that honors the contract gets a TypeError."""
     fn = _resolve(spec.impl)
     if fn is None:
-        pytest.fail(f"observed: {name}: ToolSpec.impl does not resolve. "
-                    "inspect: the impl path in the tool's ToolSpec")
+        pytest.fail(f"observed: {name}: ToolSpec.impl does not resolve. inspect: the impl path in the tool's ToolSpec")
     impl_req = _impl_required(fn)
     if impl_req is None:
-        pytest.fail(f"observed: {name}: impl takes **kwargs, so parity cannot be checked. "
-                    "inspect: point ToolSpec.impl at the real function (dispatch offloads sync impls)")
+        pytest.fail(
+            f"observed: {name}: impl takes **kwargs, so parity cannot be checked. "
+            "inspect: point ToolSpec.impl at the real function (dispatch offloads sync impls)"
+        )
     spec_req = set((spec.parameters or {}).get("required", []))
     extra = impl_req - spec_req - _INJECTED
     assert not extra, (
@@ -110,18 +112,20 @@ def test_spec_advertises_nothing_the_impl_cannot_accept(name, spec):
     An agent that passes it gets a TypeError from a tool that advertised it."""
     fn = _resolve(spec.impl)
     if fn is None:
-        pytest.fail(f"observed: {name}: ToolSpec.impl does not resolve. "
-                    "inspect: the impl path in the tool's ToolSpec")
+        pytest.fail(f"observed: {name}: ToolSpec.impl does not resolve. inspect: the impl path in the tool's ToolSpec")
     try:
         sig = inspect.signature(fn)
     except (TypeError, ValueError):
-        pytest.fail(f"observed: {name}: impl signature is not introspectable. "
-                    "inspect: point ToolSpec.impl at a plain Python function")
+        pytest.fail(
+            f"observed: {name}: impl signature is not introspectable. "
+            "inspect: point ToolSpec.impl at a plain Python function"
+        )
     if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()):
-        pytest.fail(f"observed: {name}: impl takes **kwargs, so parity cannot be checked. "
-                    "inspect: point ToolSpec.impl at the real function (dispatch offloads sync impls)")
-    declared = (set((spec.parameters or {}).get("properties", {}))
-                - _INJECTED - _VALIDATOR_CONSUMED)
+        pytest.fail(
+            f"observed: {name}: impl takes **kwargs, so parity cannot be checked. "
+            "inspect: point ToolSpec.impl at the real function (dispatch offloads sync impls)"
+        )
+    declared = set((spec.parameters or {}).get("properties", {})) - _INJECTED - _VALIDATOR_CONSUMED
     accepted = set(sig.parameters)
     unaccepted = declared - accepted
     assert not unaccepted, (
@@ -138,9 +142,7 @@ def test_required_parameters_exist_in_properties(name, spec):
     params = spec.parameters or {}
     props = set(params.get("properties", {}))
     missing = [r for r in params.get("required", []) if r not in props]
-    assert not missing, (
-        f"{name}: required={missing} but those are not in properties"
-    )
+    assert not missing, f"{name}: required={missing} but those are not in properties"
 
 
 def test_the_three_known_drifts_stay_fixed():
@@ -152,8 +154,7 @@ def test_the_three_known_drifts_stay_fixed():
 
     for fn, kwargs in (
         (agent_register_impl, {"agent_id": "x"}),
-        (mc.memory_handoff_impl,
-         {"from_agent": "a", "to_agent": "b", "task": "t"}),
+        (mc.memory_handoff_impl, {"from_agent": "a", "to_agent": "b", "task": "t"}),
         (memory_search_scored_impl, {}),
     ):
         sig = inspect.signature(fn)
@@ -168,12 +169,12 @@ def test_validator_consumed_params_really_are_consumed():
     actually be popped by a validator -- otherwise the entry is not an
     exemption, it is a hole that hides real drift."""
     from catalog import validators
+
     for name in _VALIDATOR_CONSUMED:
         args = {name: True, "query": "x", "k": 5}
         out = validators._variant_gate(dict(args))
         assert name not in out, (
-            f"_VALIDATOR_CONSUMED lists {name!r} but no validator pops it. "
-            f"Remove the exemption or fix the validator."
+            f"_VALIDATOR_CONSUMED lists {name!r} but no validator pops it. Remove the exemption or fix the validator."
         )
 
 
@@ -181,6 +182,7 @@ def test_bench_gate_translates_rather_than_drops():
     """The exemption is only safe because the parameter is TRANSLATED, not
     discarded: include_bench_data=True must actually widen the variant filter."""
     from catalog import validators
+
     on = validators._variant_gate({"include_bench_data": True})
     off = validators._variant_gate({"include_bench_data": False})
     assert on["variant"] == "", "include_bench_data=True must drop the variant filter"

@@ -29,6 +29,7 @@ Public API:
     list_dedup_candidates(reviewed=False, limit=100) -> list[dict]
     review_dedup_candidate(uuid, action, note='') -> dict
 """
+
 from __future__ import annotations
 
 import json
@@ -69,6 +70,7 @@ def _cosine_packed(a_bytes: bytes, b_bytes: bytes, dim: int) -> float:
     """
     try:
         from memory import config as _mcfg
+
         _rs = _mcfg.m3_core_rs
         if _rs is not None:
             return float(_rs.cosine(_rs.blob_as_f32(a_bytes), _rs.blob_as_f32(b_bytes)))
@@ -76,6 +78,7 @@ def _cosine_packed(a_bytes: bytes, b_bytes: bytes, dim: int) -> float:
         pass
     try:
         import numpy as _np
+
         a = _np.frombuffer(a_bytes, dtype=_np.float32, count=dim)
         b = _np.frombuffer(b_bytes, dtype=_np.float32, count=dim)
         na = float(_np.linalg.norm(a))
@@ -86,6 +89,7 @@ def _cosine_packed(a_bytes: bytes, b_bytes: bytes, dim: int) -> float:
     except ImportError:
         # Pure-Python fallback (slow but works without numpy): the one owner.
         from embedding_utils import cosine, unpack
+
         va = unpack(a_bytes)
         vb = unpack(b_bytes)
         if not va or not vb:
@@ -130,6 +134,7 @@ def files_dedup(
     }
 
     from memory.backends import dialect as _dialect
+
     _d = _dialect()
     _p = _d.param()
     with _db(db_path) as conn:
@@ -170,8 +175,7 @@ def files_dedup(
         existing_pairs: set[tuple[str, str]] = set()
         if not include_already_detected:
             for r in conn.execute(
-                f"SELECT leaf_a, leaf_b FROM {files_table('semantic_dedup_candidates')} "
-                f"WHERE reviewed_at IS NULL",
+                f"SELECT leaf_a, leaf_b FROM {files_table('semantic_dedup_candidates')} WHERE reviewed_at IS NULL",
             ).fetchall():
                 a, b = r[0], r[1]
                 existing_pairs.add((a, b))
@@ -244,6 +248,7 @@ def list_dedup_candidates(
     for context.
     """
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     sql_parts = [
         f"SELECT c.uuid, c.leaf_a, c.leaf_b, c.cosine, c.reviewed_at, "
@@ -321,6 +326,7 @@ def review_dedup_candidate(
 
     now = utc_iso()
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     with _db(db_path) as conn:
         # The metadata note is merged in PYTHON (read → set → write back) rather

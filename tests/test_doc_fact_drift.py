@@ -112,16 +112,11 @@ def test_documented_default_matches_config(name: str, docs: tuple[str, ...]) -> 
         # after it ("cosine >= 0.92, `M3_CONTRADICTION_THRESHOLD`"), and a
         # forward-only window produced a false failure on exactly that phrasing.
         windows = [
-            text[max(0, m.start() - 200) : m.end() + 200]
-            for m in re.finditer(rf"\b(?:M3_)?{re.escape(name)}\b", text)
+            text[max(0, m.start() - 200) : m.end() + 200] for m in re.finditer(rf"\b(?:M3_)?{re.escape(name)}\b", text)
         ]
         # Table rows name the var in one cell and the default in the next, so
         # also allow a row that starts with the var name.
-        windows += [
-            line
-            for line in text.splitlines()
-            if line.lstrip().startswith("|") and name in line
-        ]
+        windows += [line for line in text.splitlines() if line.lstrip().startswith("|") and name in line]
         assert windows, f"{rel} no longer mentions {name}"
         # Match the value as a NUMBER, not a substring. A bare `"3" in window`
         # is satisfied by the 3 inside "M3_FACT_ENRICH_MAX_ATTEMPTS" itself, so
@@ -149,8 +144,7 @@ def test_contradiction_title_gate_is_not_documented_as_strict() -> None:
     )
     for rel in ("docs/ARCHITECTURE.md", "docs/AGENT_INSTRUCTIONS.md"):
         assert "same-type, same-title memory exists" not in _read(rel), (
-            f"{rel} reintroduced the 'same-title' claim, which is false under "
-            "the default loose title gate"
+            f"{rel} reintroduced the 'same-title' claim, which is false under the default loose title gate"
         )
 
 
@@ -182,9 +176,12 @@ def _collected_test_count() -> int:
     m = re.search(r"(\d+) tests? collected", proc.stdout)
     if not m:  # pragma: no cover - collection itself is broken; other tests say so
         pytest.skip(
-            skip_reason("na", "could not parse pytest collection output "
-            f"(child exit {proc.returncode}); stderr tail: "
-            f"{proc.stderr.strip()[-300:]!r}")
+            skip_reason(
+                "na",
+                "could not parse pytest collection output "
+                f"(child exit {proc.returncode}); stderr tail: "
+                f"{proc.stderr.strip()[-300:]!r}",
+            )
         )
     if proc.returncode != 0:
         # Visible and attributed, but NOT via `warnings.warn`: this project sets
@@ -230,8 +227,7 @@ def test_test_count_claims_are_in_band() -> None:
         re.findall(
             r"^\s*(?:async )?def test_",
             "\n".join(
-                p.read_text(encoding="utf-8", errors="ignore")
-                for p in sorted((REPO / "tests").glob("test_*.py"))
+                p.read_text(encoding="utf-8", errors="ignore") for p in sorted((REPO / "tests").glob("test_*.py"))
             ),
             re.MULTILINE,
         )
@@ -315,10 +311,7 @@ def test_docs_do_not_call_pypi_the_official_wheel_channel() -> None:
         for phrase in banned:
             if phrase in text:
                 problems.append(f"{path.name}: {phrase!r}")
-    assert not problems, (
-        "doc(s) present PyPI as the primary wheel channel:\n  "
-        + "\n  ".join(problems)
-    )
+    assert not problems, "doc(s) present PyPI as the primary wheel channel:\n  " + "\n  ".join(problems)
 
 
 # ------------------------------------------------------------ embedder topology
@@ -354,9 +347,8 @@ def test_docs_do_not_invert_the_embedder_default() -> None:
         for phrase in banned:
             if phrase in text:
                 problems.append(f"{path.name}: {phrase!r}")
-    assert not problems, (
-        "doc(s) present in-process embedding as the default/automatic path:\n  "
-        + "\n  ".join(problems)
+    assert not problems, "doc(s) present in-process embedding as the default/automatic path:\n  " + "\n  ".join(
+        problems
     )
 
 
@@ -376,8 +368,11 @@ def test_inproc_opt_in_default_is_off() -> None:
 
 _PUBLIC_DOCS = sorted(
     [REPO / "README.md"]
-    + [p for p in (REPO / "docs").rglob("*.md")
-       if not {"tools", "plans", "decisions"} & set(p.relative_to(REPO / "docs").parts[:-1])]
+    + [
+        p
+        for p in (REPO / "docs").rglob("*.md")
+        if not {"tools", "plans", "decisions"} & set(p.relative_to(REPO / "docs").parts[:-1])
+    ]
 )
 
 
@@ -412,12 +407,11 @@ def test_memory_link_schemas_offer_exactly_the_valid_types() -> None:
     bulk = by_name["memory_link_bulk"].parameters["properties"]
     assert set(link) == set(VALID_RELATIONSHIP_TYPES)
     assert set(bulk["relationship_type"]["enum"]) == set(VALID_RELATIONSHIP_TYPES)
-    assert set(bulk["links"]["items"]["properties"]["relationship_type"]["enum"]) == set(
-        VALID_RELATIONSHIP_TYPES)
+    assert set(bulk["links"]["items"]["properties"]["relationship_type"]["enum"]) == set(VALID_RELATIONSHIP_TYPES)
 
 
 def test_entity_vocabulary_counts_in_the_docs_match_the_profiles() -> None:
-    """"(N types, M predicates)" next to a shipped profile, and the default's
+    """ "(N types, M predicates)" next to a shipped profile, and the default's
     "N entity types and M predicates", must equal what load_entity_vocab loads.
     Docs had said 7 and 33 for a default of 42."""
     from memory.entity import load_entity_vocab
@@ -432,7 +426,9 @@ def test_entity_vocabulary_counts_in_the_docs_match_the_profiles() -> None:
         for m in re.finditer(r"(entity_graph_\w+)\.yaml`?\s*\((\d+) types, (\d+) predicates\)", text):
             if (int(m.group(2)), int(m.group(3))) != counts(m.group(1)):
                 bad.append(f"{p.relative_to(REPO)}: {m.group(0)} vs {counts(m.group(1))}")
-        for m in re.finditer(r"default vocabulary[^.]{0,80}?(\d+)\s+entity types and (\d+) predicates", text, re.DOTALL):
+        for m in re.finditer(
+            r"default vocabulary[^.]{0,80}?(\d+)\s+entity types and (\d+) predicates", text, re.DOTALL
+        ):
             if (int(m.group(1)), int(m.group(2))) != counts("entity_graph_default"):
                 bad.append(f"{p.relative_to(REPO)}: default says {m.group(1)}/{m.group(2)}")
     assert not bad, "; ".join(bad)

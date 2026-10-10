@@ -26,6 +26,7 @@ Checkpoint helpers::
     checkpoint_passive(conn)   # periodic, yields to readers
     checkpoint_truncate(conn)  # at job end — flushes WAL to zero
 """
+
 from __future__ import annotations
 
 import os
@@ -60,18 +61,18 @@ PROFILES: dict[str, dict[str, int]] = {
     # no steady-state regression.
     "production": {
         "wal_autocheckpoint": 2000,
-        "journal_size_limit": 67108864,    # 64 MiB
-        "cache_size": -65536,              # 64 MiB (kept at m3_sdk default)
-        "mmap_size": 536870912,            # 512 MiB (kept at m3_sdk default)
+        "journal_size_limit": 67108864,  # 64 MiB
+        "cache_size": -65536,  # 64 MiB (kept at m3_sdk default)
+        "mmap_size": 536870912,  # 512 MiB (kept at m3_sdk default)
     },
     # chatlog — agent_chatlog.db.
     # Values are bit-for-bit identical to the chatlog_config.py pragma block
     # that shipped before this module existed; behaviour is unchanged.
     "chatlog": {
         "wal_autocheckpoint": 2000,
-        "journal_size_limit": 67108864,    # 64 MiB
-        "cache_size": -131072,             # 128 MiB  (matches chatlog_config.py)
-        "mmap_size": 1073741824,           # 1 GiB    (matches chatlog_config.py)
+        "journal_size_limit": 67108864,  # 64 MiB
+        "cache_size": -131072,  # 128 MiB  (matches chatlog_config.py)
+        "mmap_size": 1073741824,  # 1 GiB    (matches chatlog_config.py)
     },
     # bench — large write-heavy DBs (lme_m.db, agent_test_bench.db, *_bench.db).
     # Higher wal_autocheckpoint (10000 pages ≈ 40 MiB) amortises checkpoint
@@ -80,9 +81,9 @@ PROFILES: dict[str, dict[str, int]] = {
     # heavy lifting on sequential scans.
     "bench": {
         "wal_autocheckpoint": 10000,
-        "journal_size_limit": 268435456,   # 256 MiB
-        "cache_size": -65536,              # 64 MiB  (small; OS cache dominates)
-        "mmap_size": 8589934592,           # 8 GiB
+        "journal_size_limit": 268435456,  # 256 MiB
+        "cache_size": -65536,  # 64 MiB  (small; OS cache dominates)
+        "mmap_size": 8589934592,  # 8 GiB
     },
 }
 
@@ -164,6 +165,7 @@ def apply_pragmas(
     # Try to load sqlite-vec dynamically if available
     try:
         import sqlite_vec
+
         conn.enable_load_extension(True)
         sqlite_vec.load(conn)
         conn.enable_load_extension(False)

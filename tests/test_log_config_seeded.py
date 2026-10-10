@@ -5,6 +5,7 @@ not inherit M3_LOG_MAX_BYTES, so the file is the knob that reaches them) but
 had no caller. It is now called beside ensure_governor_config at cognitive-loop
 start and by install_schedules --add (plan 2A.3, user decision 2026-10-08).
 """
+
 from __future__ import annotations
 
 import ast
@@ -29,8 +30,9 @@ def test_seeds_once_and_never_clobbers(monkeypatch, tmp_path):
 
 def _calls(fn_name: str, module: str) -> bool:
     tree = ast.parse((_BIN / module).read_text(encoding="utf-8"))
-    return any(isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == fn_name
-               for n in ast.walk(tree))
+    return any(
+        isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == fn_name for n in ast.walk(tree)
+    )
 
 
 def test_wired_where_the_governor_seed_is():

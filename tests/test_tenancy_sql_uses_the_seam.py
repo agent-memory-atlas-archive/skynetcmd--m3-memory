@@ -21,6 +21,7 @@ This is a STATIC scan rather than a behavioural test on purpose: the failure it
 guards is invisible on SQLite (where `?` is valid), so only reading the source
 catches it before a PG deployment does.
 """
+
 from __future__ import annotations
 
 import re
@@ -50,9 +51,7 @@ def test_no_raw_qmark_in_a_tenancy_predicate(path):
     """`user_id`/`scope` filters must use dialect().param()."""
     src = path.read_text(encoding="utf-8", errors="ignore")
     hits = [
-        f"{path.name}:{i}: {line.strip()}"
-        for i, line in enumerate(src.splitlines(), 1)
-        if _RAW_TENANCY.search(line)
+        f"{path.name}:{i}: {line.strip()}" for i, line in enumerate(src.splitlines(), 1) if _RAW_TENANCY.search(line)
     ]
     assert not hits, (
         "tenancy filter built with a hardcoded '?' — a syntax error on "
@@ -64,8 +63,8 @@ def test_no_raw_qmark_in_a_tenancy_predicate(path):
 def test_the_two_known_sites_are_fixed():
     """Pin the specific regression rather than trusting the scan alone."""
     src = (_BIN / "memory" / "search.py").read_text(encoding="utf-8")
-    assert ' AND user_id = ?' not in src, "search.py still hardcodes a tenancy '?'"
-    assert ' AND scope = ?' not in src, "search.py still hardcodes a tenancy '?'"
+    assert " AND user_id = ?" not in src, "search.py still hardcodes a tenancy '?'"
+    assert " AND scope = ?" not in src, "search.py still hardcodes a tenancy '?'"
     # And the seam form IS present.
     assert "param()" in src
 
@@ -78,11 +77,8 @@ def test_expansion_in_lists_use_the_seam():
     """
     src = (_BIN / "memory" / "search.py").read_text(encoding="utf-8")
     offenders = [
-        f"search.py:{i}: {line.strip()}"
-        for i, line in enumerate(src.splitlines(), 1)
-        if _RAW_IN_LIST.search(line)
+        f"search.py:{i}: {line.strip()}" for i, line in enumerate(src.splitlines(), 1) if _RAW_IN_LIST.search(line)
     ]
-    assert not offenders, (
-        "IN-list built with hardcoded '?' instead of dialect().placeholder(n):\n  "
-        + "\n  ".join(offenders)
+    assert not offenders, "IN-list built with hardcoded '?' instead of dialect().placeholder(n):\n  " + "\n  ".join(
+        offenders
     )

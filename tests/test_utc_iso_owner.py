@@ -11,6 +11,7 @@ Two defects motivated it (plan item R7 and a sibling):
 These stamps are compared as strings, so every one must be fixed-width at its
 precision.
 """
+
 from __future__ import annotations
 
 import ast
@@ -35,11 +36,14 @@ def _freeze(monkeypatch, when: datetime) -> None:
 
 
 @pytest.mark.parametrize("micro", [0, 1, 123456])
-@pytest.mark.parametrize("timespec,pattern", [
-    ("seconds", r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ"),
-    ("milliseconds", r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z"),
-    ("microseconds", r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{6}Z"),
-])
+@pytest.mark.parametrize(
+    "timespec,pattern",
+    [
+        ("seconds", r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ"),
+        ("milliseconds", r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z"),
+        ("microseconds", r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{6}Z"),
+    ],
+)
 def test_fixed_width_and_parseable(monkeypatch, micro, timespec, pattern):
     from m3_core import runtime
 
@@ -77,8 +81,14 @@ def test_no_python_strftime_uses_sqlite_style_percent_f():
             continue
         tree = ast.parse(p.read_text(encoding="utf-8"))
         for n in ast.walk(tree):
-            if (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "strftime"
-                    and n.args and isinstance(n.args[0], ast.Constant) and isinstance(n.args[0].value, str)
-                    and "%M:%f" in n.args[0].value):
+            if (
+                isinstance(n, ast.Call)
+                and isinstance(n.func, ast.Attribute)
+                and n.func.attr == "strftime"
+                and n.args
+                and isinstance(n.args[0], ast.Constant)
+                and isinstance(n.args[0].value, str)
+                and "%M:%f" in n.args[0].value
+            ):
                 hits.append(f"{p.relative_to(_BIN.parent)}:{n.lineno}")
     assert not hits, f"Python strftime with SQLite-style %M:%f: {hits}"

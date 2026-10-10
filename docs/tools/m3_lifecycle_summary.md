@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_lifecycle_summary.py
-sha1: 7fc82463e270
-mtime_utc: 2026-07-19T03:04:59.600517+00:00
-generated_utc: 2026-10-09T07:40:59.611613+00:00
+sha1: 5f1262176ad8
+mtime_utc: 2026-10-10T21:05:16.900525+00:00
+generated_utc: 2026-10-10T21:05:29.731249+00:00
 private: false
 ---
 
@@ -24,7 +24,7 @@ and the operator see identical numbers. Read-only.
 
 ## Entry points
 
-- `def main()` (line 50)
+- `def main()` (line 51)
 - `if __name__ == "__main__"` guard
 
 ---

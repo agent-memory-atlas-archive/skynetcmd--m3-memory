@@ -14,6 +14,7 @@ Usage:
     mcp-memory uninstall           Remove the cloned payload and config
     mcp-memory doctor              Print diagnostic info
 """
+
 import argparse
 import os
 import sys
@@ -77,6 +78,7 @@ def _ensure_utf8() -> None:
     # a real subprocess and propagate its exit code explicitly.
     if is_windows():
         import subprocess
+
         try:
             completed = subprocess.run(new_argv)
         except OSError:
@@ -130,9 +132,9 @@ def _auto_install(interactive: bool) -> "Path | None":
     dest = installer.default_repo_path()
     if interactive:
         print(
-            f"m3-memory system payload not found locally.\n"
-            f"Fetch it from GitHub into {dest} now? [Y/n] ",
-            end="", flush=True,
+            f"m3-memory system payload not found locally.\nFetch it from GitHub into {dest} now? [Y/n] ",
+            end="",
+            flush=True,
         )
         try:
             reply = input().strip().lower()
@@ -145,7 +147,8 @@ def _auto_install(interactive: bool) -> "Path | None":
         print(
             "[m3-memory] system payload not found; auto-fetching from GitHub "
             f"into {dest} (set M3_AUTO_INSTALL=0 to disable).",
-            file=sys.stderr, flush=True,
+            file=sys.stderr,
+            flush=True,
         )
 
     try:
@@ -204,6 +207,7 @@ def _run_bridge() -> None:
 
 def _cmd_install_m3(args: argparse.Namespace) -> int:
     from m3_memory.installer import install_m3
+
     try:
         install_m3(
             force=args.force,
@@ -223,6 +227,7 @@ def _cmd_install_m3(args: argparse.Namespace) -> int:
 def _cmd_reinstall(args: argparse.Namespace) -> int:
     """Wipe and reinstall the system payload (alias for install-m3 --force)."""
     from m3_memory.installer import install_m3
+
     try:
         install_m3(force=True, interactive=sys.stdin.isatty())
     except RuntimeError as e:
@@ -290,7 +295,10 @@ def _warn_if_pypi_newer() -> None:
 
 
 def _offer_rust_core_upgrade(
-    *, interactive: bool, assume_yes: bool = False, skip: bool = False,
+    *,
+    interactive: bool,
+    assume_yes: bool = False,
+    skip: bool = False,
 ) -> None:
     """Offer to upgrade the native m3-core-rs wheel when it is behind the pin.
 
@@ -351,30 +359,24 @@ def _offer_rust_core_upgrade(
         )
 
         if assume_yes:
-            print(f"     Installing m3-core-rs {M3_CORE_RS_VERSION} (--yes-core).",
-                  file=sys.stderr)
+            print(f"     Installing m3-core-rs {M3_CORE_RS_VERSION} (--yes-core).", file=sys.stderr)
         elif not interactive:
             # Non-TTY (CI, piped, hook): report and leave. Blocking a scripted
             # `m3 update` on a prompt is a worse failure than a stale core.
             print(
-                "     Install it with:  m3 embedder install-gpu"
-                "   (or `m3 update --yes-core`)",
+                "     Install it with:  m3 embedder install-gpu   (or `m3 update --yes-core`)",
                 file=sys.stderr,
             )
             return
         else:
             try:
-                ans = input(
-                    f"  Install m3-core-rs {M3_CORE_RS_VERSION} now? [Y/n] "
-                ).strip().lower()
+                ans = input(f"  Install m3-core-rs {M3_CORE_RS_VERSION} now? [Y/n] ").strip().lower()
             except (EOFError, KeyboardInterrupt):
                 print()
-                print("     Skipped. Install later with:  m3 embedder install-gpu",
-                      file=sys.stderr)
+                print("     Skipped. Install later with:  m3 embedder install-gpu", file=sys.stderr)
                 return
             if ans in ("n", "no"):
-                print("     Skipped. Install later with:  m3 embedder install-gpu",
-                      file=sys.stderr)
+                print("     Skipped. Install later with:  m3 embedder install-gpu", file=sys.stderr)
                 return
 
         from m3_memory.rust_core_install import install_rust_core
@@ -411,8 +413,7 @@ def _cmd_stop(args: argparse.Namespace) -> int:
     """
     script = _resolve_bin_script("m3_halt.py")
     if script is None:
-        print("Error: m3_halt.py not found (payload not installed?). "
-              "Run `mcp-memory install-m3`.", file=sys.stderr)
+        print("Error: m3_halt.py not found (payload not installed?). Run `mcp-memory install-m3`.", file=sys.stderr)
         return 1
     bin_dir = str(script.parent)
     if bin_dir not in sys.path:
@@ -426,14 +427,18 @@ def _cmd_stop(args: argparse.Namespace) -> int:
     if not is_windows():
         try:
             import install_schedules  # type: ignore[unused-ignore]
+
             # The Rust embed server stays up (see keeps_rust_embed_server).
             if install_schedules.keeps_rust_embed_server():
                 keep_roles = ["embed-server"]
             services = install_schedules.stop_unix_services()
         except Exception as e:  # noqa: BLE001 — the PID reap below still runs
-            print(f"  [!] could not stop m3's services ({type(e).__name__}: {e}); "
-                  f"supervised daemons may restart.", file=sys.stderr)
+            print(
+                f"  [!] could not stop m3's services ({type(e).__name__}: {e}); supervised daemons may restart.",
+                file=sys.stderr,
+            )
         from m3_memory.wizard.ui import called_by_upgrade
+
         if services and called_by_upgrade():
             # The upgrade's setup step restarts them two steps later.
             print(f"  stopped {len(services)} m3 service(s); setup restarts them")
@@ -443,15 +448,18 @@ def _cmd_stop(args: argparse.Namespace) -> int:
             if services:
                 print("[m3] services stay stopped until `m3 setup` starts them.")
 
-    results = halt.kill_stale_daemons(timeout=getattr(args, "timeout", 8.0),
-                                      exclude_roles=keep_roles)
+    results = halt.kill_stale_daemons(timeout=getattr(args, "timeout", 8.0), exclude_roles=keep_roles)
     if not results:
         from m3_memory.wizard.ui import called_by_upgrade
+
         # --quiet: silent when nothing ran. Under the upgrade, the services
         # line above already says what happened.
         if not getattr(args, "quiet", False) and not (services and called_by_upgrade()):
-            print("[m3] no other m3 DB-writers running." if services else
-                  "[m3] nothing to stop — no m3 DB-writers running.")
+            print(
+                "[m3] no other m3 DB-writers running."
+                if services
+                else "[m3] nothing to stop — no m3 DB-writers running."
+            )
         return 0
 
     killed = [r for r in results if r.get("killed")]
@@ -461,15 +469,18 @@ def _cmd_stop(args: argparse.Namespace) -> int:
     left = [r for r in survived if not halt.holds_store(r.get("role", ""))]
     failed = [r for r in survived if r not in left]
     from m3_memory.wizard.ui import called_by_upgrade
-    in_upgrade = called_by_upgrade()   # the tally below names them instead
-    for r in ([] if in_upgrade else killed):
+
+    in_upgrade = called_by_upgrade()  # the tally below names them instead
+    for r in [] if in_upgrade else killed:
         print(f"  stopped {r.get('role', '?')} (pid {r.get('pid')})")
     quiet = getattr(args, "quiet", False)
-    for r in ([] if quiet else left):
+    for r in [] if quiet else left:
         print("  " + halt.describe_left_running(r.get("role", "?"), r.get("pid"), r.get("error")))
     for r in failed:
-        print(f"  [!] could NOT stop {r.get('role', '?')} (pid {r.get('pid')}): "
-              f"{r.get('error') or 'unknown'}", file=sys.stderr)
+        print(
+            f"  [!] could NOT stop {r.get('role', '?')} (pid {r.get('pid')}): {r.get('error') or 'unknown'}",
+            file=sys.stderr,
+        )
 
     note = f"; {len(left)} left running (no database)" if left else ""
     names = (" (" + ", ".join(r.get("role", "?") for r in killed) + ")") if in_upgrade and killed else ""
@@ -479,8 +490,10 @@ def _cmd_stop(args: argparse.Namespace) -> int:
         # Almost always an elevated writer an unprivileged shell cannot touch.
         # Say so and exit non-zero — a partial stop must not read as success
         # (§3), because the caller's next step is an upgrade that will fail.
-        print("[m3] some writers survived — an upgrade may still hit a file "
-              "lock. Re-run from an elevated shell.", file=sys.stderr)
+        print(
+            "[m3] some writers survived — an upgrade may still hit a file lock. Re-run from an elevated shell.",
+            file=sys.stderr,
+        )
         return 1
     return 0
 
@@ -572,6 +585,7 @@ def _interpreter() -> str:
 
 def _cmd_update(args: argparse.Namespace) -> int:
     from m3_memory.installer import install_m3
+
     try:
         install_m3(force=True, tag=args.tag)
     except RuntimeError as e:
@@ -590,6 +604,7 @@ def _cmd_update(args: argparse.Namespace) -> int:
 
 def _cmd_uninstall(args: argparse.Namespace) -> int:
     from m3_memory.installer import uninstall_m3
+
     uninstall_m3(yes=args.yes)
     return 0
 
@@ -597,11 +612,13 @@ def _cmd_uninstall(args: argparse.Namespace) -> int:
 def _cmd_status(args: argparse.Namespace) -> int:
     """`m3 status` — a one-line health verdict (run `m3 doctor` for detail)."""
     from m3_memory.installer import status
+
     return status()
 
 
 def _cmd_doctor(args: argparse.Namespace) -> int:
     from m3_memory.installer import doctor
+
     # Brief is the DEFAULT; --verbose opts into the full detail.
     verbose = getattr(args, "verbose", False)
     brief = not verbose
@@ -672,15 +689,15 @@ def _cmd_schedules(args: argparse.Namespace) -> int:
     sub = getattr(args, "schedules_cmd", None) or "verify"
     name = getattr(args, "name", None)
     match sub:
-        case 'verify':
+        case "verify":
             argv = ["--verify", name] if name else ["--verify"]
-        case 'repair':
+        case "repair":
             argv = ["--repair"]
-        case 'list':
+        case "list":
             argv = ["--list"]
-        case 'add':
+        case "add":
             argv = ["--add", name or "all"]
-        case 'remove':
+        case "remove":
             argv = ["--remove", name or "all"]
         case _:
             argv = ["--verify"]
@@ -716,11 +733,12 @@ def _elevate_schedules_windows(script: str, argv: list, sub: str) -> bool:
         return False
 
     if sub == "repair":
-        print("  `--repair` DELETES and recreates each task. Unelevated, the "
-              "delete succeeds\n  and the recreate fails — taking a running "
-              "service down. It needs admin.")
-    if not _ask_yes_no("  Run it elevated now? (opens a Windows admin prompt)",
-                       default=True):
+        print(
+            "  `--repair` DELETES and recreates each task. Unelevated, the "
+            "delete succeeds\n  and the recreate fails — taking a running "
+            "service down. It needs admin."
+        )
+    if not _ask_yes_no("  Run it elevated now? (opens a Windows admin prompt)", default=True):
         return False
 
     from .elevate import ElevationBatch
@@ -801,6 +819,7 @@ def _cmd_fips(args: argparse.Namespace) -> int:
     # Default / `m3 fips status`: show the doctor crypto section.
     try:
         from m3_memory.installer import _crypto_section
+
         _crypto_section()
         return 0
     except Exception as e:  # noqa: BLE001
@@ -1004,7 +1023,7 @@ def _cmd_dashboard(args: argparse.Namespace) -> int:
                 "m3 dashboard needs the web dependencies "
                 f"({', '.join(missing)} not installed).\n"
                 "Install them with:\n"
-                "    pip install \"m3-memory[dashboard]\"",
+                '    pip install "m3-memory[dashboard]"',
                 file=sys.stderr,
             )
             return 1
@@ -1035,6 +1054,7 @@ def _resolve_bin_script(name: str) -> "Path | None":
     install-m3 hasn't run and we're not in a dev checkout either).
     """
     from m3_memory.installer import find_bridge
+
     bridge = find_bridge()
     if bridge is None:
         return None
@@ -1054,8 +1074,7 @@ def _run_bin_script(script_name: str, argv: list) -> int:
     script = _resolve_bin_script(script_name)
     if script is None:
         print(
-            f"Error: {script_name} not found.\n"
-            "Run `mcp-memory install-m3` first.",
+            f"Error: {script_name} not found.\nRun `mcp-memory install-m3` first.",
             file=sys.stderr,
         )
         return 1
@@ -1106,11 +1125,13 @@ def _cmd_enrich_pending(args: argparse.Namespace) -> int:
 
     try:
         # First call: dry-run to get count and ETA
-        result = asyncio.run(memory_core.enrich_pending_impl(
-            dry_run=True,
-            limit=limit,
-            allowed_variants=allowed_variants,
-        ))
+        result = asyncio.run(
+            memory_core.enrich_pending_impl(
+                dry_run=True,
+                limit=limit,
+                allowed_variants=allowed_variants,
+            )
+        )
 
         if isinstance(result, dict):
             count = result.get("count", 0)
@@ -1142,11 +1163,13 @@ def _cmd_enrich_pending(args: argparse.Namespace) -> int:
 
             # Execute enrichment
             print(f"Enriching {count} items...")
-            result = asyncio.run(memory_core.enrich_pending_impl(
-                dry_run=False,
-                limit=limit,
-                allowed_variants=allowed_variants,
-            ))
+            result = asyncio.run(
+                memory_core.enrich_pending_impl(
+                    dry_run=False,
+                    limit=limit,
+                    allowed_variants=allowed_variants,
+                )
+            )
 
             if isinstance(result, dict):
                 processed = result.get("processed", 0)
@@ -1187,11 +1210,13 @@ def _cmd_extract_pending(args: argparse.Namespace) -> int:
 
     try:
         # First call: dry-run to get count and ETA
-        result = asyncio.run(memory_core.extract_pending_impl(
-            dry_run=True,
-            limit=limit,
-            allowed_variants=allowed_variants,
-        ))
+        result = asyncio.run(
+            memory_core.extract_pending_impl(
+                dry_run=True,
+                limit=limit,
+                allowed_variants=allowed_variants,
+            )
+        )
 
         if isinstance(result, dict):
             count = result.get("count", 0)
@@ -1209,7 +1234,9 @@ def _cmd_extract_pending(args: argparse.Namespace) -> int:
 
             # If --yes is set and not --no-confirm, ask for confirmation
             if args.yes and not args.no_confirm:
-                prompt = f"About to extract entities from {count} items. Estimated wall-clock: {eta_str}. Proceed? [y/N] "
+                prompt = (
+                    f"About to extract entities from {count} items. Estimated wall-clock: {eta_str}. Proceed? [y/N] "
+                )
                 try:
                     reply = input(prompt).strip().lower()
                     if reply not in ("y", "yes"):
@@ -1223,11 +1250,13 @@ def _cmd_extract_pending(args: argparse.Namespace) -> int:
 
             # Execute extraction
             print(f"Extracting entities from {count} items...")
-            result = asyncio.run(memory_core.extract_pending_impl(
-                dry_run=False,
-                limit=limit,
-                allowed_variants=allowed_variants,
-            ))
+            result = asyncio.run(
+                memory_core.extract_pending_impl(
+                    dry_run=False,
+                    limit=limit,
+                    allowed_variants=allowed_variants,
+                )
+            )
 
             if isinstance(result, dict):
                 processed = result.get("processed", 0)
@@ -1265,6 +1294,7 @@ def _cmd_chatlog(args: argparse.Namespace) -> int:
         # Used by the Claude Code plugin's hooks/hooks.json so plugin hooks
         # don't need to hardcode an install location.
         from m3_memory.installer import find_bridge
+
         bridge = find_bridge()
         if bridge is None:
             print(file=sys.stdout)  # empty — caller should treat as no-op
@@ -1287,6 +1317,7 @@ def _cmd_chatlog(args: argparse.Namespace) -> int:
             return 1
         import json as _json
         import runpy
+
         bin_dir = str(status_script.parent)
         if bin_dir not in sys.path:
             sys.path.insert(0, bin_dir)
@@ -1309,10 +1340,12 @@ def _cmd_embedder(args: argparse.Namespace) -> int:
     """Manage the sovereign m3 CPU embedder (BGE-M3 on port 8082)."""
     sub = args.embedder_cmd
     if sub is None:
-        print("Error: `m3 embedder` requires a subcommand (install, start, stop, status, "
-              "uninstall, install-gpu, shared, unshared, backfill, reembed). "
-              "Run `m3 embedder --help`.",
-              file=sys.stderr)
+        print(
+            "Error: `m3 embedder` requires a subcommand (install, start, stop, status, "
+            "uninstall, install-gpu, shared, unshared, backfill, reembed). "
+            "Run `m3 embedder --help`.",
+            file=sys.stderr,
+        )
         return 2
     # Each subcommand registered its own func= via embedder_admin.add_arguments.
     return cast("int", args.func(args))
@@ -1333,9 +1366,7 @@ _DOMAIN_CMD = {"chatlog": "chat"}
 
 # Tools the human CLI must not surface (meta/dispatcher — no human use, and
 # m3_call's object/array args don't map to flat flags).
-_CLI_TOOL_EXCLUDE = frozenset(
-    {"m3_call", "m3_index", "tools_list_domains", "tools_load_domain"}
-)
+_CLI_TOOL_EXCLUDE = frozenset({"m3_call", "m3_index", "tools_list_domains", "tools_load_domain"})
 
 
 def _bin_on_path() -> bool:
@@ -1478,9 +1509,11 @@ def _add_tool_domain_subcommands(subparsers) -> None:
                         phelp = (phelp + "  [required]").strip()
                     if ptype == "boolean":
                         tp.add_argument(
-                            f"--{pname}", dest=pname,
+                            f"--{pname}",
+                            dest=pname,
                             action=_ap.BooleanOptionalAction,
-                            default=None, help=phelp,
+                            default=None,
+                            help=phelp,
                         )
                     elif ptype == "array":
                         # Array-of-SCALAR (array-of-object went to --json above).
@@ -1493,16 +1526,22 @@ def _add_tool_domain_subcommands(subparsers) -> None:
                         #   --patterns api_keys jwt          (space-separated)
                         #   --patterns api_keys,jwt          (comma-separated)
                         tp.add_argument(
-                            f"--{pname}", dest=pname, nargs="+",
+                            f"--{pname}",
+                            dest=pname,
+                            nargs="+",
                             action=_CommaSplitAppend,
-                            required=req, default=None,
+                            required=req,
+                            default=None,
                             help=(phelp + "  (space- or comma-separated)").strip(),
                         )
                     else:
                         tp.add_argument(
-                            f"--{pname}", dest=pname,
+                            f"--{pname}",
+                            dest=pname,
                             type=_json_type_to_argparse(ptype),
-                            required=req, default=None, help=phelp,
+                            required=req,
+                            default=None,
+                            help=phelp,
                         )
 
             # Universal extras on every tool subcommand.
@@ -1516,34 +1555,58 @@ def _add_tool_domain_subcommands(subparsers) -> None:
             # `json_file` or `stdin`, so there is no collision to resolve.
             mx = tp.add_mutually_exclusive_group()
             mx.add_argument(
-                "--json", dest="_json_args", metavar="OBJ",
+                "--json",
+                dest="_json_args",
+                metavar="OBJ",
                 help="Tool arguments as a single JSON object. Merges with any "
-                     "flags you also pass; an explicit flag wins on conflict. "
-                     "Large payloads must use --json-file instead: cmd.exe caps "
-                     "a command line at 8,191 chars and rejects the call before "
-                     "this program runs (Windows CreateProcess itself allows "
-                     "~32 KB, so the ceiling depends on the shell).",
+                "flags you also pass; an explicit flag wins on conflict. "
+                "Large payloads must use --json-file instead: cmd.exe caps "
+                "a command line at 8,191 chars and rejects the call before "
+                "this program runs (Windows CreateProcess itself allows "
+                "~32 KB, so the ceiling depends on the shell).",
             )
             mx.add_argument(
-                "--json-file", dest="_json_file", metavar="PATH",
+                "--json-file",
+                dest="_json_file",
+                metavar="PATH",
                 help="Read tool arguments from a JSON file, or '-' for stdin "
-                     "(`echo '{...}' | m3 <domain> <tool> --json-file -`). Use "
-                     "this for any payload over a few KB -- --json passes the "
-                     "object through the command line, which the invoking shell "
-                     "may refuse outright.",
+                "(`echo '{...}' | m3 <domain> <tool> --json-file -`). Use "
+                "this for any payload over a few KB -- --json passes the "
+                "object through the command line, which the invoking shell "
+                "may refuse outright.",
             )
-            tp.add_argument("--database", dest="database", default=None,
-                            help="SQLite DB path. Env: M3_DATABASE. Default: agent_memory.db. "
-                                 "SQLite backend only, not files tools (refused there).")
-            tp.add_argument("--store", dest="store", default=None,
-                            help="Named store for this call: 'main' or a [stores.<name>] "
-                                 "table in m3_config.toml (core and files). Not with --database.")
-            tp.add_argument("--dry-run", dest="_dry_run", action="store_true",
-                            help="Validate args + check the destructive gate without executing.")
-            tp.add_argument("--yes", dest="_yes", action="store_true",
-                            help="Confirm a destructive (mutating) tool. Required for such tools.")
-            tp.set_defaults(func=_cmd_tool_dispatch, _tool_name=spec.name,
-                            _tool_complex=complex_, _tool_destructive=not spec.default_allowed)
+            tp.add_argument(
+                "--database",
+                dest="database",
+                default=None,
+                help="SQLite DB path. Env: M3_DATABASE. Default: agent_memory.db. "
+                "SQLite backend only, not files tools (refused there).",
+            )
+            tp.add_argument(
+                "--store",
+                dest="store",
+                default=None,
+                help="Named store for this call: 'main' or a [stores.<name>] "
+                "table in m3_config.toml (core and files). Not with --database.",
+            )
+            tp.add_argument(
+                "--dry-run",
+                dest="_dry_run",
+                action="store_true",
+                help="Validate args + check the destructive gate without executing.",
+            )
+            tp.add_argument(
+                "--yes",
+                dest="_yes",
+                action="store_true",
+                help="Confirm a destructive (mutating) tool. Required for such tools.",
+            )
+            tp.set_defaults(
+                func=_cmd_tool_dispatch,
+                _tool_name=spec.name,
+                _tool_complex=complex_,
+                _tool_destructive=not spec.default_allowed,
+            )
 
 
 def _cmd_tool_dispatch(args: argparse.Namespace) -> int:
@@ -1556,13 +1619,11 @@ def _cmd_tool_dispatch(args: argparse.Namespace) -> int:
     if tool is None:
         # `m3 <domain>` with no tool — list the domain's tools.
         cmd = getattr(args, "_domain_cmd", "<domain>")
-        print(f"Error: `m3 {cmd}` requires a tool. Run `m3 {cmd} --help`.",
-              file=sys.stderr)
+        print(f"Error: `m3 {cmd}` requires a tool. Run `m3 {cmd} --help`.", file=sys.stderr)
         return 2
 
     if not _bin_on_path():
-        print("Error: tool catalog unavailable. Run `m3 install-m3` first.",
-              file=sys.stderr)
+        print("Error: tool catalog unavailable. Run `m3 install-m3` first.", file=sys.stderr)
         return 1
     import mcp_tool_catalog as _cat
 
@@ -1575,8 +1636,10 @@ def _cmd_tool_dispatch(args: argparse.Namespace) -> int:
     destructive = getattr(args, "_tool_destructive", False)
     dry_run = getattr(args, "_dry_run", False)
     if destructive and not dry_run and not getattr(args, "_yes", False):
-        print(f"Error: {tool} mutates/deletes data — pass --yes to confirm "
-              f"(or --dry-run to validate without executing).", file=sys.stderr)
+        print(
+            f"Error: {tool} mutates/deletes data — pass --yes to confirm (or --dry-run to validate without executing).",
+            file=sys.stderr,
+        )
         return 2
 
     # Assemble the tool args.
@@ -1636,8 +1699,7 @@ def _cmd_tool_dispatch(args: argparse.Namespace) -> int:
         if _unknown:
             import difflib as _difflib
 
-            lines = [f"Error: --json has unknown key(s) for {tool}: "
-                     + ", ".join(repr(k) for k in _unknown)]
+            lines = [f"Error: --json has unknown key(s) for {tool}: " + ", ".join(repr(k) for k in _unknown)]
             for key in _unknown:
                 near = _difflib.get_close_matches(key, sorted(_declared), n=1, cutoff=0.6)
                 if near:
@@ -1660,8 +1722,7 @@ def _cmd_tool_dispatch(args: argparse.Namespace) -> int:
     # impl and surface as a TypeError from inside the tool instead of a clear
     # CLI error here. Flags cannot produce this (flag_args drops None), so it is
     # reachable only through the JSON route the merge added.
-    _missing = [p for p in (spec.parameters.get("required") or [])
-                if tool_args.get(p) is None and p != "database"]
+    _missing = [p for p in (spec.parameters.get("required") or []) if tool_args.get(p) is None and p != "database"]
     if _missing:
         # A complex tool registers no per-argument flags (they take --json
         # only), so naming `--created_by` there sent the user to a flag that
@@ -1712,8 +1773,8 @@ def _cmd_tool_dispatch(args: argparse.Namespace) -> int:
         # m3_call dispatcher deliberately does NOT opt in — see the anti-spoofing
         # note in execute_tool_structured.
         return await _cat.execute_tool_structured(
-            spec, tool_args, agent_id="", dry_run=dry_run,
-            allow_caller_agent_id=True)
+            spec, tool_args, agent_id="", dry_run=dry_run, allow_caller_agent_id=True
+        )
 
     async def _run_and_drain():
         out = await _run()
@@ -1725,6 +1786,7 @@ def _cmd_tool_dispatch(args: argparse.Namespace) -> int:
         # stamp must never fail the command that produced the answer.
         try:
             from memory.db import flush_access_stamps_now
+
             flush_access_stamps_now()
         except Exception:  # noqa: BLE001
             pass
@@ -1733,8 +1795,10 @@ def _cmd_tool_dispatch(args: argparse.Namespace) -> int:
     try:
         result = asyncio.run(_run_and_drain())
     except Exception as e:  # validation (ValueError) or impl failure
-        print(_json.dumps({"ok": False, "error": "call_failed", "tool": tool,
-                           "detail": f"{type(e).__name__}: {e}"}), file=sys.stderr)
+        print(
+            _json.dumps({"ok": False, "error": "call_failed", "tool": tool, "detail": f"{type(e).__name__}: {e}"}),
+            file=sys.stderr,
+        )
         return 1
     # ⚠ DO NOT DOUBLE-ENCODE A RESULT THAT IS ALREADY JSON.
     #
@@ -1840,33 +1904,43 @@ Examples:
         help="Fetch the m3-memory system payload from GitHub into the M3 root (default: ~/.m3-memory/repo)",
     )
     p_install.add_argument(
-        "--force", action="store_true",
+        "--force",
+        action="store_true",
         help="Wipe an existing repo before re-fetching.",
     )
     p_install.add_argument(
-        "--tag", default=None,
+        "--tag",
+        default=None,
         help=f"Override the GitHub tag to fetch (default: v{__version__}).",
     )
     p_install.add_argument(
-        "--non-interactive", action="store_true",
+        "--non-interactive",
+        action="store_true",
         help="Skip endpoint + capture-mode prompts; use defaults (probe both endpoints; both hooks).",
     )
     p_install.add_argument(
-        "--endpoint", default=None, metavar="URL",
+        "--endpoint",
+        default=None,
+        metavar="URL",
         help="Pin LLM_ENDPOINTS_CSV to this URL (skips the endpoint prompt).",
     )
     p_install.add_argument(
-        "--capture-mode", default=None, choices=("both", "stop", "precompact", "none"),
+        "--capture-mode",
+        default=None,
+        choices=("both", "stop", "precompact", "none"),
         help="Chatlog capture hooks to enable (skips the capture-mode prompt).",
     )
     p_install.add_argument(
-        "--cognitive-loop", action="store_true",
+        "--cognitive-loop",
+        action="store_true",
         help="Enable the background cognitive loop worker.",
     )
     p_install.add_argument(
-        "--db-backend", default=None, choices=("sqlite", "postgres"),
+        "--db-backend",
+        default=None,
+        choices=("sqlite", "postgres"),
         help="Primary database backend (default: sqlite). 'postgres' reads the "
-             "DSN from M3_PRIMARY_PG_URL/M3_PG_URL and skips the backend prompt.",
+        "DSN from M3_PRIMARY_PG_URL/M3_PG_URL and skips the backend prompt.",
     )
     p_install.set_defaults(func=_cmd_install_m3)
 
@@ -1878,6 +1952,7 @@ Examples:
         help="Interactive one-command setup. Run after `pip install m3-memory`.",
     )
     from m3_memory import setup_wizard as _setup_wizard
+
     _setup_wizard.add_arguments(p_setup)
 
     p_reinstall = subparsers.add_parser(
@@ -1889,73 +1964,89 @@ Examples:
     p_stop = subparsers.add_parser(
         "stop",
         help="Stop every running m3 DB-writer (cognitive loop, dashboard, MCP). "
-             "On macOS/Linux the Rust embed server holds no data and keeps "
-             "running (stop it with `m3 embedder stop`). `m3 upgrade` does this "
-             "for you; run it by hand only for a manual package upgrade on Windows.",
+        "On macOS/Linux the Rust embed server holds no data and keeps "
+        "running (stop it with `m3 embedder stop`). `m3 upgrade` does this "
+        "for you; run it by hand only for a manual package upgrade on Windows.",
     )
     p_stop.add_argument(
-        "--timeout", type=float, default=8.0, metavar="SECONDS",
-        help="Seconds to wait for a writer to exit before reporting it stuck "
-             "(default: 8).",
+        "--timeout",
+        type=float,
+        default=8.0,
+        metavar="SECONDS",
+        help="Seconds to wait for a writer to exit before reporting it stuck (default: 8).",
     )
     p_stop.add_argument(
-        "--quiet", action="store_true",
+        "--quiet",
+        action="store_true",
         help="Report only writers actually stopped or that failed to stop; omit "
-             "writers left running that hold no database (used by `m3 upgrade` "
-             "after its first stop).",
+        "writers left running that hold no database (used by `m3 upgrade` "
+        "after its first stop).",
     )
     p_stop.set_defaults(func=_cmd_stop)
 
     p_upgrade = subparsers.add_parser(
         "upgrade",
         help="Upgrade the m3 PACKAGE end to end, using the right command for "
-             "how it was installed (pipx / pip / pip --user), then re-wire and "
-             "verify. Works the same on Windows, macOS and Linux.",
+        "how it was installed (pipx / pip / pip --user), then re-wire and "
+        "verify. Works the same on Windows, macOS and Linux.",
     )
     p_upgrade.add_argument(
-        "--dry-run", dest="dry_run", action="store_true",
-        help="Print the detected install method and the exact plan, change "
-             "nothing.",
+        "--dry-run",
+        dest="dry_run",
+        action="store_true",
+        help="Print the detected install method and the exact plan, change nothing.",
     )
     p_upgrade.add_argument(
-        "-y", "--yes", action="store_true",
+        "-y",
+        "--yes",
+        action="store_true",
         help="Do not prompt; for scripted/unattended upgrades.",
     )
     p_upgrade.add_argument(
-        "--skip-stop", dest="skip_stop", action="store_true",
+        "--skip-stop",
+        dest="skip_stop",
+        action="store_true",
         help="Do not stop DB writers first. Only when you have already stopped "
-             "them; on Windows an upgrade with writers running can delete the "
-             "package and then fail, leaving NO m3 installed.",
+        "them; on Windows an upgrade with writers running can delete the "
+        "package and then fail, leaving NO m3 installed.",
     )
     p_upgrade.add_argument(
-        "--from-pypi", dest="from_pypi", action="store_true",
+        "--from-pypi",
+        dest="from_pypi",
+        action="store_true",
         help="pipx installs: reinstall from PyPI, moving an install that tracks "
-             "a local wheel or path onto the PyPI release.",
+        "a local wheel or path onto the PyPI release.",
     )
     p_upgrade.add_argument(
-        "--stop-agents", dest="stop_agents", action="store_true",
+        "--stop-agents",
+        dest="stop_agents",
+        action="store_true",
         help="Windows: stop m3 in agent sessions that hold its launcher, so the "
-             "upgrade can replace it (they reconnect afterwards). At a console "
-             "the upgrade asks instead; use this for unattended runs.",
+        "upgrade can replace it (they reconnect afterwards). At a console "
+        "the upgrade asks instead; use this for unattended runs.",
     )
     p_upgrade.set_defaults(func=_cmd_upgrade)
 
     p_update = subparsers.add_parser(
         "update",
-        help="Re-sync the payload for the INSTALLED version (NOT a package "
-             "upgrade — use `m3 upgrade` for that).",
+        help="Re-sync the payload for the INSTALLED version (NOT a package upgrade — use `m3 upgrade` for that).",
     )
     p_update.add_argument(
-        "--tag", default=None,
+        "--tag",
+        default=None,
         help=f"Override the GitHub tag to fetch (default: v{__version__}).",
     )
     p_update.add_argument(
-        "--yes-core", dest="yes_core", action="store_true",
+        "--yes-core",
+        dest="yes_core",
+        action="store_true",
         help="Install the native m3-core-rs wheel without prompting when it is "
-             "behind this release (for scripted/non-interactive updates).",
+        "behind this release (for scripted/non-interactive updates).",
     )
     p_update.add_argument(
-        "--no-core", dest="no_core", action="store_true",
+        "--no-core",
+        dest="no_core",
+        action="store_true",
         help="Never offer the native m3-core-rs upgrade, even if it is stale.",
     )
     p_update.set_defaults(func=_cmd_update)
@@ -1965,7 +2056,9 @@ Examples:
         help="Remove the cloned payload and the config file.",
     )
     p_uninstall.add_argument(
-        "-y", "--yes", action="store_true",
+        "-y",
+        "--yes",
+        action="store_true",
         help="Skip confirmation prompt.",
     )
     p_uninstall.set_defaults(func=_cmd_uninstall)
@@ -1981,21 +2074,24 @@ Examples:
         help="Full diagnostics: paths, resolved bridge, embedder, chatlog, crypto.",
     )
     p_doctor.add_argument(
-        "--fix", action="store_true",
+        "--fix",
+        action="store_true",
         help="Repair what self-repairs: repoint dead agent MCP configs, restart "
-             "the shared embedder, heal the DB, etc. (runs the payload doctor's "
-             "repair pass too).",
+        "the shared embedder, heal the DB, etc. (runs the payload doctor's "
+        "repair pass too).",
     )
     p_doctor.add_argument(
-        "--fix-hooks", action="store_true",
+        "--fix-hooks",
+        action="store_true",
         help="With --fix: also rewrite m3's Claude settings.json entries (hooks, "
-             "statusline, aux bridges) to the current payload. settings.json is "
-             "backed up first. Opt-in because settings.json is user-owned.",
+        "statusline, aux bridges) to the current payload. settings.json is "
+        "backed up first. Opt-in because settings.json is user-owned.",
     )
     p_doctor.add_argument(
-        "--verbose", action="store_true",
+        "--verbose",
+        action="store_true",
         help="Show full detail (DB-repair steps, each probe's expanded report, "
-             "model-load logs). Default is a compact high-yield summary.",
+        "model-load logs). Default is a compact high-yield summary.",
     )
     p_doctor.set_defaults(func=_cmd_doctor)
 
@@ -2006,8 +2102,7 @@ Examples:
     gov_sub = p_governor.add_subparsers(dest="governor_cmd", metavar="<status|migrate>")
     gov_sub.add_parser("status", help="Report governor-eligible scheduled tasks still installed.")
     p_gov_mig = gov_sub.add_parser("migrate", help="Remove governor-eligible scheduled tasks.")
-    p_gov_mig.add_argument("--yes", "-y", action="store_true",
-                           help="Skip the confirmation prompt (headless use).")
+    p_gov_mig.add_argument("--yes", "-y", action="store_true", help="Skip the confirmation prompt (headless use).")
     p_governor.set_defaults(func=_cmd_governor)
 
     p_config = subparsers.add_parser(
@@ -2023,26 +2118,24 @@ Examples:
 
     p_schedules = subparsers.add_parser(
         "schedules",
-        help="Verify / repair the background scheduled tasks (dashboard, embed server, "
-             "cognitive loop, maintenance).",
+        help="Verify / repair the background scheduled tasks (dashboard, embed server, cognitive loop, maintenance).",
     )
-    sched_sub = p_schedules.add_subparsers(
-        dest="schedules_cmd", metavar="<verify|repair|list|add|remove>")
+    sched_sub = p_schedules.add_subparsers(dest="schedules_cmd", metavar="<verify|repair|list|add|remove>")
     p_sched_ver = sched_sub.add_parser(
-        "verify", help="Check every registered task matches spec. Exits nonzero on drift.")
-    p_sched_ver.add_argument("name", nargs="?", default=None,
-                             help="Verify one task by name or alias (default: all).")
+        "verify", help="Check every registered task matches spec. Exits nonzero on drift."
+    )
+    p_sched_ver.add_argument("name", nargs="?", default=None, help="Verify one task by name or alias (default: all).")
     sched_sub.add_parser(
         "repair",
         help="Re-register every task. REPLACES existing definitions (delete + recreate) "
-             "and restarts the long-lived services. Windows: needs an ADMIN shell.")
+        "and restarts the long-lived services. Windows: needs an ADMIN shell.",
+    )
     sched_sub.add_parser("list", help="List the configured schedules and exit.")
     p_sched_add = sched_sub.add_parser("add", help="Install one schedule by name, or 'all'.")
     p_sched_add.add_argument("name", nargs="?", default="all")
     p_sched_rm = sched_sub.add_parser("remove", help="Remove one schedule by name, or 'all'.")
     p_sched_rm.add_argument("name", nargs="?", default="all")
-    p_schedules.add_argument("--port", type=int, default=None,
-                             help="Dashboard port (default 8088).")
+    p_schedules.add_argument("--port", type=int, default=None, help="Dashboard port (default 8088).")
     p_schedules.set_defaults(func=_cmd_schedules)
 
     p_wiki = subparsers.add_parser(
@@ -2052,44 +2145,54 @@ Examples:
     wiki_sub = p_wiki.add_subparsers(dest="wiki_cmd", metavar="<generate|compile|status>")
     p_wiki_gen = wiki_sub.add_parser("generate", help="Compile the wiki vault (default <engine_root>/wiki).")
     p_wiki_gen.add_argument("--out", default=None, help="Output vault dir.")
-    p_wiki_gen.add_argument("--check", action="store_true",
-                            help="Exit non-zero if the on-disk vault is stale.")
-    p_wiki_gen.add_argument("--no-files", action="store_true",
-                            help="Memory-only vault (skip the files corpus).")
-    p_wiki_gen.add_argument("--check-drift", action="store_true",
-                            help="Report-only: ask an LLM judge whether each compiled "
-                                 "synthesis still matches its sources. Mutually "
-                                 "exclusive with --check.")
-    p_wiki_gen.add_argument("--no-networkx", action="store_true",
-                            help="Force the pure-Python clustering fallback.")
-    p_wiki_gen.add_argument("--synthesize", action="store_true",
-                            help="Add an LLM prose lede per topic via a local chat "
-                                 "endpoint (opt-in, cached). Not compatible with --check.")
-    p_wiki_gen.add_argument("--importance-threshold", type=float, default=None,
-                            help="Min importance to count as 'core' (default 0.55).")
-    p_wiki_gen.add_argument("--exclude", default=None, metavar="REGEX",
-                            help="Drop memories whose title/content matches this "
-                                 "regex (e.g. to exclude private/bench notes).")
-    p_wiki_gen.add_argument("--html", action="store_true",
-                            help="Also write a self-contained wiki.html viewer to "
-                                 "click through the vault in a browser (offline).")
-    p_wiki_gen.add_argument("--obsidian", action="store_true",
-                            help="Emit [[wikilinks]] so Obsidian's graph view and "
-                                 "backlinks work (opt-in; literal text elsewhere).")
+    p_wiki_gen.add_argument("--check", action="store_true", help="Exit non-zero if the on-disk vault is stale.")
+    p_wiki_gen.add_argument("--no-files", action="store_true", help="Memory-only vault (skip the files corpus).")
+    p_wiki_gen.add_argument(
+        "--check-drift",
+        action="store_true",
+        help="Report-only: ask an LLM judge whether each compiled "
+        "synthesis still matches its sources. Mutually "
+        "exclusive with --check.",
+    )
+    p_wiki_gen.add_argument("--no-networkx", action="store_true", help="Force the pure-Python clustering fallback.")
+    p_wiki_gen.add_argument(
+        "--synthesize",
+        action="store_true",
+        help="Add an LLM prose lede per topic via a local chat endpoint (opt-in, cached). Not compatible with --check.",
+    )
+    p_wiki_gen.add_argument(
+        "--importance-threshold", type=float, default=None, help="Min importance to count as 'core' (default 0.55)."
+    )
+    p_wiki_gen.add_argument(
+        "--exclude",
+        default=None,
+        metavar="REGEX",
+        help="Drop memories whose title/content matches this regex (e.g. to exclude private/bench notes).",
+    )
+    p_wiki_gen.add_argument(
+        "--html",
+        action="store_true",
+        help="Also write a self-contained wiki.html viewer to click through the vault in a browser (offline).",
+    )
+    p_wiki_gen.add_argument(
+        "--obsidian",
+        action="store_true",
+        help="Emit [[wikilinks]] so Obsidian's graph view and backlinks work (opt-in; literal text elsewhere).",
+    )
     p_wiki_compile = wiki_sub.add_parser(
         "compile",
         help="WRITE compiled synthesis memories for topic clusters (mutates the "
-             "store; idempotent — safe to re-run). Use --dry-run to preview.")
-    p_wiki_compile.add_argument("--importance-threshold", type=float, default=None,
-                                help="Min importance to count as 'core' (default 0.55).")
-    p_wiki_compile.add_argument("--no-networkx", action="store_true",
-                                help="Force the pure-Python clustering fallback.")
-    p_wiki_compile.add_argument("--scope", default="agent",
-                                help="Tenancy scope for written syntheses (default agent).")
-    p_wiki_compile.add_argument("--user-id", default="",
-                                help="Owner user_id for written syntheses.")
-    p_wiki_compile.add_argument("--dry-run", action="store_true",
-                                help="Report what would be compiled; no model call, no write.")
+        "store; idempotent — safe to re-run). Use --dry-run to preview.",
+    )
+    p_wiki_compile.add_argument(
+        "--importance-threshold", type=float, default=None, help="Min importance to count as 'core' (default 0.55)."
+    )
+    p_wiki_compile.add_argument("--no-networkx", action="store_true", help="Force the pure-Python clustering fallback.")
+    p_wiki_compile.add_argument("--scope", default="agent", help="Tenancy scope for written syntheses (default agent).")
+    p_wiki_compile.add_argument("--user-id", default="", help="Owner user_id for written syntheses.")
+    p_wiki_compile.add_argument(
+        "--dry-run", action="store_true", help="Report what would be compiled; no model call, no write."
+    )
     p_wiki_status = wiki_sub.add_parser("status", help="Report vault location, page count, last build.")
     p_wiki_status.add_argument("--out", default=None, help="Vault dir to inspect.")
     p_wiki.set_defaults(func=_cmd_wiki)
@@ -2102,12 +2205,13 @@ Examples:
     p_fips_inst = fips_sub.add_parser(
         "install-wolfssl",
         help="Build the OPEN-SOURCE wolfSSL from official source and install to "
-             "~/.m3/lib (license-clean; not the CMVP-validated FIPS module).",
+        "~/.m3/lib (license-clean; not the CMVP-validated FIPS module).",
     )
     p_fips_inst.add_argument("--ref", default=None, help="wolfSSL git tag/branch.")
     p_fips_inst.add_argument("--dest", default=None, help="Install dir (default ~/.m3/lib).")
-    p_fips_inst.add_argument("--print-sha", action="store_true",
-                             help="Print the installed library's SHA-256 to self-pin.")
+    p_fips_inst.add_argument(
+        "--print-sha", action="store_true", help="Print the installed library's SHA-256 to self-pin."
+    )
     fips_sub.add_parser("status", help="Show the active crypto backend / FIPS tier / lib path.")
     p_fips.set_defaults(func=_cmd_fips)
 
@@ -2115,24 +2219,38 @@ Examples:
         "serve",
         help="Run the bridge as a streamable-HTTP MCP server (for claude.ai connectors).",
     )
-    p_serve.add_argument("--host", default="127.0.0.1",
-                         help="Bind address (default: 127.0.0.1 — use 0.0.0.0 only behind a reverse proxy).")
-    p_serve.add_argument("--port", type=int, default=8080,
-                         help="TCP port (default: 8080).")
-    p_serve.add_argument("--path", default="/mcp",
-                         help="HTTP mount path for the streamable-http endpoint (default: /mcp).")
-    p_serve.add_argument("--public-host", action="append", metavar="HOST",
-                         help="Public hostname a tunnel/proxy presents in the Host header "
-                              "(e.g. m3.example.com). Repeatable. Without it the transport "
-                              "rejects tunnelled requests with 421 before auth runs.")
-    p_serve.add_argument("--generate-token", action="store_true",
-                         help="Mint a bearer token, store it in the m3 vault, print it once "
-                              "and exit. The HTTP transport refuses to start without one.")
-    p_serve.add_argument("--show-token", action="store_true",
-                         help="Report whether a serve token is configured (never prints it).")
-    p_serve.add_argument("--force", action="store_true",
-                         help="With --generate-token: replace an existing token. Rotating "
-                              "invalidates every connector using the old value.")
+    p_serve.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Bind address (default: 127.0.0.1 — use 0.0.0.0 only behind a reverse proxy).",
+    )
+    p_serve.add_argument("--port", type=int, default=8080, help="TCP port (default: 8080).")
+    p_serve.add_argument(
+        "--path", default="/mcp", help="HTTP mount path for the streamable-http endpoint (default: /mcp)."
+    )
+    p_serve.add_argument(
+        "--public-host",
+        action="append",
+        metavar="HOST",
+        help="Public hostname a tunnel/proxy presents in the Host header "
+        "(e.g. m3.example.com). Repeatable. Without it the transport "
+        "rejects tunnelled requests with 421 before auth runs.",
+    )
+    p_serve.add_argument(
+        "--generate-token",
+        action="store_true",
+        help="Mint a bearer token, store it in the m3 vault, print it once "
+        "and exit. The HTTP transport refuses to start without one.",
+    )
+    p_serve.add_argument(
+        "--show-token", action="store_true", help="Report whether a serve token is configured (never prints it)."
+    )
+    p_serve.add_argument(
+        "--force",
+        action="store_true",
+        help="With --generate-token: replace an existing token. Rotating "
+        "invalidates every connector using the old value.",
+    )
     p_serve.set_defaults(func=_cmd_serve)
 
     p_dashboard = subparsers.add_parser(
@@ -2140,23 +2258,29 @@ Examples:
         help="Start the local web dashboard as a detached background service (localhost only).",
     )
     p_dashboard.add_argument(
-        "--host", default=None,
+        "--host",
+        default=None,
         help="Bind address (default: 127.0.0.1 — localhost only; do not expose without auth).",
     )
     p_dashboard.add_argument(
-        "--port", type=int, default=None,
+        "--port",
+        type=int,
+        default=None,
         help="TCP port (default: 8088, or $M3_DASHBOARD_PORT).",
     )
     p_dashboard.add_argument(
-        "--stop", action="store_true",
+        "--stop",
+        action="store_true",
         help="Stop the running dashboard (kills the detached server, frees the port).",
     )
     p_dashboard.add_argument(
-        "--status", action="store_true",
+        "--status",
+        action="store_true",
         help="Report whether the dashboard is running and its URL.",
     )
     p_dashboard.add_argument(
-        "--foreground", action="store_true",
+        "--foreground",
+        action="store_true",
         help="Run the server in THIS process (blocks; for debugging). Default detaches.",
     )
     p_dashboard.set_defaults(func=_cmd_dashboard)
@@ -2166,19 +2290,25 @@ Examples:
         help="Enrich pending memory items with SLM-distilled facts.",
     )
     p_enrich.add_argument(
-        "--yes", action="store_true",
+        "--yes",
+        action="store_true",
         help="Execute enrichment (default is dry-run).",
     )
     p_enrich.add_argument(
-        "--no-confirm", action="store_true",
+        "--no-confirm",
+        action="store_true",
         help="Skip confirmation prompt (for cron/headless use).",
     )
     p_enrich.add_argument(
-        "--limit", type=int, default=0,
+        "--limit",
+        type=int,
+        default=0,
         help="Max items to enrich (0 = no limit, default: 0).",
     )
     p_enrich.add_argument(
-        "--allowed-variant", action="append", default=[],
+        "--allowed-variant",
+        action="append",
+        default=[],
         help="Variant name to include (can be used multiple times).",
     )
     p_enrich.set_defaults(func=_cmd_enrich_pending)
@@ -2188,19 +2318,25 @@ Examples:
         help="Extract pending entities from memory items.",
     )
     p_extract.add_argument(
-        "--yes", action="store_true",
+        "--yes",
+        action="store_true",
         help="Execute extraction (default is dry-run).",
     )
     p_extract.add_argument(
-        "--no-confirm", action="store_true",
+        "--no-confirm",
+        action="store_true",
         help="Skip confirmation prompt (for cron/headless use).",
     )
     p_extract.add_argument(
-        "--limit", type=int, default=0,
+        "--limit",
+        type=int,
+        default=0,
         help="Max items to extract (0 = no limit, default: 0).",
     )
     p_extract.add_argument(
-        "--allowed-variant", action="append", default=[],
+        "--allowed-variant",
+        action="append",
+        default=[],
         help="Variant name to include (can be used multiple times).",
     )
     p_extract.set_defaults(func=_cmd_extract_pending)
@@ -2213,10 +2349,16 @@ Examples:
     # Declare the subcommands so help lists them, but accept no flags here —
     # we use parse_known_args below to collect everything after `chatlog <sub>`
     # and forward it verbatim to the underlying bin/ script.
-    chatlog_sub.add_parser("init",      help="Interactive setup — wire hooks, choose DB path, configure redaction.", add_help=False)
-    chatlog_sub.add_parser("status",    help="Print a summary of chatlog state (row counts, queue, hooks).",         add_help=False)
-    chatlog_sub.add_parser("doctor",    help="Same as status, but exits nonzero on warnings.",                       add_help=False)
-    chatlog_sub.add_parser("hook-path", help="Print absolute path to the chatlog hook script for plugin hooks.",      add_help=False)
+    chatlog_sub.add_parser(
+        "init", help="Interactive setup — wire hooks, choose DB path, configure redaction.", add_help=False
+    )
+    chatlog_sub.add_parser(
+        "status", help="Print a summary of chatlog state (row counts, queue, hooks).", add_help=False
+    )
+    chatlog_sub.add_parser("doctor", help="Same as status, but exits nonzero on warnings.", add_help=False)
+    chatlog_sub.add_parser(
+        "hook-path", help="Print absolute path to the chatlog hook script for plugin hooks.", add_help=False
+    )
     p_chatlog.set_defaults(func=_cmd_chatlog)
 
     p_embedder_mgmt = subparsers.add_parser(
@@ -2224,6 +2366,7 @@ Examples:
         help="Manage the sovereign m3 CPU embedder (install|start|stop|status|uninstall|install-gpu).",
     )
     from m3_memory import embedder_admin as _embedder_admin
+
     _embedder_admin.add_arguments(p_embedder_mgmt)
     p_embedder_mgmt.set_defaults(func=_cmd_embedder)
 

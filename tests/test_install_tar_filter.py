@@ -7,6 +7,7 @@ tarfile.data_filter (3.12) adds that half: it clears setuid/setgid/sticky and
 group/other write, and resets ownership. The composed filter applies both, in
 that order, so data_filter only ever sees entries m3 already accepted.
 """
+
 from __future__ import annotations
 
 import tarfile
@@ -36,7 +37,7 @@ def test_setuid_and_group_world_write_are_cleared(filt):
     out = f(_member("m3-memory-x/bin/tool", mode=0o6777), root)
     assert out is not None
     assert out.mode & 0o7000 == 0, oct(out.mode)  # no setuid/setgid/sticky
-    assert out.mode & 0o022 == 0, oct(out.mode)   # no group/other write
+    assert out.mode & 0o022 == 0, oct(out.mode)  # no group/other write
     assert out.uid is None and out.uname is None  # ownership not carried over
 
 
@@ -66,12 +67,15 @@ def test_real_extractall_round_trip(tmp_path):
     assert not (tmp_path / "escape.txt").exists()
 
 
-@pytest.mark.parametrize("member", [
-    _member("../escape.txt"),
-    _member("/etc/passwd"),
-    _member("dev", kind=tarfile.CHRTYPE),
-    _member("link", kind=tarfile.SYMTYPE, linkname="/etc/passwd"),
-])
+@pytest.mark.parametrize(
+    "member",
+    [
+        _member("../escape.txt"),
+        _member("/etc/passwd"),
+        _member("dev", kind=tarfile.CHRTYPE),
+        _member("link", kind=tarfile.SYMTYPE, linkname="/etc/passwd"),
+    ],
+)
 def test_unsafe_entries_are_dropped_not_raised(filt, member):
     f, root = filt
     assert f(member, root) is None

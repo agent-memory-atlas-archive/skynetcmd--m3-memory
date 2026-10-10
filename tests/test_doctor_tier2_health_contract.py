@@ -10,6 +10,7 @@ turning the whole cascade `broken` even though the server embeds fine. These
 tests pin the two accepted contracts + the genuinely-unhealthy case so the
 stale-contract bug cannot silently return.
 """
+
 from __future__ import annotations
 
 import os
@@ -58,12 +59,13 @@ def _patch_conn(monkeypatch, responses: dict[str, _FakeResp]) -> None:
 def test_tier2_accepts_shared_json_health(monkeypatch):
     """Shared in-process embedder: JSON body with status 'ok' -> online.
     This is the exact response that used to be misclassified unhealthy-200."""
-    _patch_conn(monkeypatch, {
-        "/health": _FakeResp(
-            200, '{"status":"ok","model":"bge-m3-GGUF-Q4_K_M.gguf","dim":1024}'
-        ),
-        # shared server has no /metrics — 404 is expected, must not fault
-    })
+    _patch_conn(
+        monkeypatch,
+        {
+            "/health": _FakeResp(200, '{"status":"ok","model":"bge-m3-GGUF-Q4_K_M.gguf","dim":1024}'),
+            # shared server has no /metrics — 404 is expected, must not fault
+        },
+    )
     res = _doctor._probe_tier2()
     assert res["status"] == "online", res
     # model is surfaced from the /health JSON body (no /metrics on shared server)
@@ -73,9 +75,12 @@ def test_tier2_accepts_shared_json_health(monkeypatch):
 def test_tier2_accepts_shared_json_loading(monkeypatch):
     """status 'loading' (model still warming) is also healthy, matching
     shared_embedder_probe.py's contract."""
-    _patch_conn(monkeypatch, {
-        "/health": _FakeResp(200, '{"status":"loading"}'),
-    })
+    _patch_conn(
+        monkeypatch,
+        {
+            "/health": _FakeResp(200, '{"status":"loading"}'),
+        },
+    )
     res = _doctor._probe_tier2()
     assert res["status"] == "online", res
 
@@ -83,10 +88,13 @@ def test_tier2_accepts_shared_json_loading(monkeypatch):
 def test_tier2_accepts_legacy_plaintext_ok(monkeypatch):
     """Backward compat: the legacy Rust m3-embed-server replies plaintext
     'OK' and still exposes /metrics — must remain online with model set."""
-    _patch_conn(monkeypatch, {
-        "/health": _FakeResp(200, "OK"),
-        "/metrics": _FakeResp(200, '{"model":"legacy-rust-bge"}'),
-    })
+    _patch_conn(
+        monkeypatch,
+        {
+            "/health": _FakeResp(200, "OK"),
+            "/metrics": _FakeResp(200, '{"model":"legacy-rust-bge"}'),
+        },
+    )
     res = _doctor._probe_tier2()
     assert res["status"] == "online", res
     assert res["model"] == "legacy-rust-bge", res
@@ -95,17 +103,23 @@ def test_tier2_accepts_legacy_plaintext_ok(monkeypatch):
 def test_tier2_rejects_non_healthy_json(monkeypatch):
     """A 200 whose JSON says the server is NOT ready must still be
     unhealthy — the fix widened the contract, it must not blanket-accept 200."""
-    _patch_conn(monkeypatch, {
-        "/health": _FakeResp(200, '{"status":"error"}'),
-    })
+    _patch_conn(
+        monkeypatch,
+        {
+            "/health": _FakeResp(200, '{"status":"error"}'),
+        },
+    )
     res = _doctor._probe_tier2()
     assert res["status"] == "unhealthy-200", res
 
 
 def test_tier2_rejects_unparseable_200_body(monkeypatch):
     """A 200 with a non-JSON, non-'OK' body is unhealthy, not online."""
-    _patch_conn(monkeypatch, {
-        "/health": _FakeResp(200, "<html>gateway</html>"),
-    })
+    _patch_conn(
+        monkeypatch,
+        {
+            "/health": _FakeResp(200, "<html>gateway</html>"),
+        },
+    )
     res = _doctor._probe_tier2()
     assert res["status"] == "unhealthy-200", res

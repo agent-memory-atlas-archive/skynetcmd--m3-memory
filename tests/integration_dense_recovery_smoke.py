@@ -8,6 +8,7 @@ successfully.
 
 No DB writes; this exercises the recovery LOGIC, not the SQL inserts.
 """
+
 from __future__ import annotations
 
 import os
@@ -74,7 +75,7 @@ def main():
     t0 = time.perf_counter()
     embedder = m3_core_rs.EmbeddedEmbedder(os.environ["M3_EMBED_GGUF"])
     dim = embedder.embedding_dim()
-    print(f"  loaded in {time.perf_counter()-t0:.1f}s, dim={dim}, backend={m3_core_rs.embed_backend_label()}\n")
+    print(f"  loaded in {time.perf_counter() - t0:.1f}s, dim={dim}, backend={m3_core_rs.embed_backend_label()}\n")
 
     overall_pass = True
 
@@ -102,11 +103,11 @@ def main():
                     all_subs_succeed = False
                     continue
                 observed_tokens = int(m.group(1))
-                print(f"  chunk[{idx}]: dense overflow at {observed_tokens} tokens "
-                      f"({len(ct)/observed_tokens:.2f} c/t)")
+                print(
+                    f"  chunk[{idx}]: dense overflow at {observed_tokens} tokens ({len(ct) / observed_tokens:.2f} c/t)"
+                )
                 subs = mc._subdivide_dense_chunk(ct, observed_tokens)
-                print(f"    subdivided into {len(subs)} sub-chunks: "
-                      f"{[len(s) for s in subs]}")
+                print(f"    subdivided into {len(subs)} sub-chunks: {[len(s) for s in subs]}")
                 # Try each sub-chunk
                 for j, sub in enumerate(subs):
                     try:

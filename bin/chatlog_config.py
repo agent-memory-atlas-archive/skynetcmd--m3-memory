@@ -33,6 +33,7 @@ Deprecated env var:
     is now achieved by setting CHATLOG_DB_PATH equal to the main DB (or by
     leaving both unset when a shared M3_DATABASE covers everything).
 """
+
 from __future__ import annotations
 
 import json
@@ -79,20 +80,36 @@ CHATLOG_MIGRATIONS_DIR = os.path.join(BASE_DIR, "memory", "chatlog_migrations")
 # to make capture work — it also needs a hook or watcher under bin/hooks/chatlog
 # and a wiring path, which tests/test_host_agent_capture_parity.py enforces.
 # ("openclaw" is distinct from "opencode": different products, both supported.)
-VALID_HOST_AGENTS: frozenset[str] = frozenset((
-    "claude-code", "gemini-cli", "antigravity-cli", "opencode", "openclaw",
-    "aider", "langchain",
-))
+VALID_HOST_AGENTS: frozenset[str] = frozenset(
+    (
+        "claude-code",
+        "gemini-cli",
+        "antigravity-cli",
+        "opencode",
+        "openclaw",
+        "aider",
+        "langchain",
+    )
+)
 # Host agents that are LIBRARIES, not CLIs with a session lifecycle: the
 # embedding application submits turns through m3's API, so there is no hook to
 # wire and no transcript to parse. The single owner of that distinction: hook
 # paths, ingest, the setup prompts and doctor all read it, instead of each
 # treating such an agent as a missing hook (which handed users unknown.sh).
 LIBRARY_HOST_AGENTS: frozenset[str] = frozenset(("langchain",))
-VALID_PROVIDERS: frozenset[str] = frozenset((
-    "anthropic", "google", "openai", "local", "xai",
-    "deepseek", "mistral", "meta", "other",
-))
+VALID_PROVIDERS: frozenset[str] = frozenset(
+    (
+        "anthropic",
+        "google",
+        "openai",
+        "local",
+        "xai",
+        "deepseek",
+        "mistral",
+        "meta",
+        "other",
+    )
+)
 
 
 # ── Dataclasses ───────────────────────────────────────────────────────────────
@@ -116,9 +133,15 @@ class EmbedSweeperSpec:
 @dataclass(slots=True)
 class RedactionSpec:
     enabled: bool = False  # OFF by default — local-first, opt-in
-    patterns: list[str] = field(default_factory=lambda: [
-        "api_keys", "bearer_tokens", "jwt", "aws_keys", "github_tokens",
-    ])
+    patterns: list[str] = field(
+        default_factory=lambda: [
+            "api_keys",
+            "bearer_tokens",
+            "jwt",
+            "aws_keys",
+            "github_tokens",
+        ]
+    )
     custom_regex: list[str] = field(default_factory=list)
     redact_pii: bool = False
     store_original_hash: bool = True
@@ -136,9 +159,7 @@ class ChatlogConfig:
     # drifted from the allowlist means an agent is either registered-but-invalid
     # or valid-but-unregistered, and both fail as missing capture rather than as
     # an error (§10a — one owner).
-    host_agents: dict[str, HookSpec] = field(
-        default_factory=lambda: {a: HookSpec() for a in sorted(VALID_HOST_AGENTS)}
-    )
+    host_agents: dict[str, HookSpec] = field(default_factory=lambda: {a: HookSpec() for a in sorted(VALID_HOST_AGENTS)})
     embed_default: bool = False
     embed_sweeper: EmbedSweeperSpec = field(default_factory=EmbedSweeperSpec)
     queue_flush_rows: int = 200
@@ -186,6 +207,7 @@ def save_config(cfg: ChatlogConfig) -> None:
     """Persist cfg to CONFIG_PATH as pretty JSON (atomic rename)."""
     os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
     from m3_core.atomic_io import atomic_write
+
     atomic_write(CONFIG_PATH, json.dumps(cfg.to_dict(), indent=2))
     invalidate_cache()
 
@@ -233,6 +255,7 @@ def pin_split_path() -> str | None:
     data["db_path"] = DEFAULT_DB_PATH
     os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
     from m3_core.atomic_io import atomic_write
+
     atomic_write(CONFIG_PATH, json.dumps(data, indent=2))
     invalidate_cache()
     return DEFAULT_DB_PATH
@@ -299,8 +322,8 @@ def _build_from_dict(d: dict) -> ChatlogConfig:
         )
 
     base.queue_flush_rows = int(d.get("queue_flush_rows", base.queue_flush_rows))
-    base.queue_flush_ms   = int(d.get("queue_flush_ms", base.queue_flush_ms))
-    base.queue_max_depth  = int(d.get("queue_max_depth", base.queue_max_depth))
+    base.queue_flush_ms = int(d.get("queue_flush_ms", base.queue_flush_ms))
+    base.queue_max_depth = int(d.get("queue_max_depth", base.queue_max_depth))
 
     bp = d.get("backpressure", base.backpressure)
     if bp in ("spill_to_disk", "block", "drop"):
@@ -372,6 +395,7 @@ def chatlog_db_path() -> str:
     # M3_DATABASE + default when no override is active.
     try:
         from m3_sdk import _active_db  # lazy: avoid import cycle at module load
+
         ctx_val = _active_db.get()
         if ctx_val:
             return ctx_val
@@ -421,6 +445,7 @@ def chat_store_paths() -> list[str]:
     # unified deployment.
     try:
         from m3_sdk import resolve_db_path  # lazy: avoid an import cycle
+
         _add(resolve_db_path(None))
     except Exception:  # noqa: BLE001 — fall through to the chatlog half
         _add(_main_path_from_env())
@@ -515,6 +540,7 @@ def _selftest() -> None:
     os.environ.pop("M3_DATABASE")
 
     import tempfile
+
     tmp_db = os.path.join(tempfile.gettempdir(), "alt_chatlog.db")
     os.environ["CHATLOG_DB_PATH"] = tmp_db
     invalidate_cache()

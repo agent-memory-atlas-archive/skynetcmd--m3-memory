@@ -4,6 +4,7 @@ Hazard: an unscoped seam connection follows the process-active store, so a
 chatlog pass would rewrite the main store while its pre-write snapshot covers
 the chatlog store.
 """
+
 from __future__ import annotations
 
 import os
@@ -17,10 +18,14 @@ if BIN not in sys.path:
 
 def _store(path):
     c = sqlite3.connect(path)
-    c.execute("CREATE TABLE memory_items (id TEXT PRIMARY KEY, content TEXT, title TEXT, "
-              "is_deleted INTEGER DEFAULT 0, created_at TEXT)")
-    c.execute("INSERT INTO memory_items VALUES ('a', ?, NULL, 0, '2026-01-01')",
-              ("A first line long enough to become a title\nmore",))
+    c.execute(
+        "CREATE TABLE memory_items (id TEXT PRIMARY KEY, content TEXT, title TEXT, "
+        "is_deleted INTEGER DEFAULT 0, created_at TEXT)"
+    )
+    c.execute(
+        "INSERT INTO memory_items VALUES ('a', ?, NULL, 0, '2026-01-01')",
+        ("A first line long enough to become a title\nmore",),
+    )
     c.commit()
     c.close()
 

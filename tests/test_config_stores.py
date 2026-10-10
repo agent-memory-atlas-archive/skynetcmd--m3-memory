@@ -4,6 +4,7 @@ A store is (backend, locator) in m3_config.toml. Selecting one moves every
 caller that resolves the backend or the SQLite path (D3: the store outranks the
 legacy M3_DATABASE path), and never the chatlog (D1: process-wide).
 """
+
 from __future__ import annotations
 
 import os
@@ -50,21 +51,30 @@ def _parse(text: str):
 
 
 def test_valid_stores_parse(tmp_path):
-    out, problems = _parse(f'[stores.scratch]\nbackend = "sqlite"\npath = "{(tmp_path / "s.db").as_posix()}"\n'
-                           '[stores.bench]\nbackend = "postgres"\ndsn_secret = "M3_STORE_BENCH_PG_URL"\n')
+    out, problems = _parse(
+        f'[stores.scratch]\nbackend = "sqlite"\npath = "{(tmp_path / "s.db").as_posix()}"\n'
+        '[stores.bench]\nbackend = "postgres"\ndsn_secret = "M3_STORE_BENCH_PG_URL"\n'
+    )
     assert problems == []
     assert out["scratch"].path == str((tmp_path / "s.db").absolute())
     assert (out["bench"].backend, out["bench"].dsn_secret) == ("postgres", "M3_STORE_BENCH_PG_URL")
 
 
-@pytest.mark.parametrize("text,key,fragment", [
-    ('[stores.main]\nbackend = "sqlite"\npath = "x"\n', "stores.main", "derived from db.backend"),
-    ('[stores.Bad]\nbackend = "sqlite"\npath = "x"\n', "stores.Bad", "lowercase"),
-    ('[stores.a]\nbackend = "mysql"\n', "stores.a.backend", "not one of"),
-    ('[stores.a]\nbackend = "postgres"\n', "stores.a.dsn_secret", "needs dsn_secret"),
-    ('[stores.a]\nbackend = "sqlite"\npath = "x"\ndsn_secret = "Y"\n', "stores.a.dsn_secret", "not a sqlite store key"),
-    ('[stores.a]\nbackend = "postgres"\ndsn_secret = 3\n', "stores.a.dsn_secret", "must be a string"),
-])
+@pytest.mark.parametrize(
+    "text,key,fragment",
+    [
+        ('[stores.main]\nbackend = "sqlite"\npath = "x"\n', "stores.main", "derived from db.backend"),
+        ('[stores.Bad]\nbackend = "sqlite"\npath = "x"\n', "stores.Bad", "lowercase"),
+        ('[stores.a]\nbackend = "mysql"\n', "stores.a.backend", "not one of"),
+        ('[stores.a]\nbackend = "postgres"\n', "stores.a.dsn_secret", "needs dsn_secret"),
+        (
+            '[stores.a]\nbackend = "sqlite"\npath = "x"\ndsn_secret = "Y"\n',
+            "stores.a.dsn_secret",
+            "not a sqlite store key",
+        ),
+        ('[stores.a]\nbackend = "postgres"\ndsn_secret = 3\n', "stores.a.dsn_secret", "must be a string"),
+    ],
+)
 def test_invalid_stores_are_reported(text, key, fragment):
     _, problems = _parse(text)
     assert any(k == key and fragment in m for k, m in problems), problems
@@ -204,8 +214,10 @@ def test_two_stores_on_one_database_share_an_instance(monkeypatch, stores_file):
     monkeypatch.setenv("M3_STORE_A_PG_URL", dsn)
     monkeypatch.setenv("M3_STORE_B_PG_URL", dsn)
     monkeypatch.delenv("M3_CDW_PG_URL", raising=False)
-    stores_file('[stores.a]\nbackend = "postgres"\ndsn_secret = "M3_STORE_A_PG_URL"\n'
-                '[stores.b]\nbackend = "postgres"\ndsn_secret = "M3_STORE_B_PG_URL"\n')
+    stores_file(
+        '[stores.a]\nbackend = "postgres"\ndsn_secret = "M3_STORE_A_PG_URL"\n'
+        '[stores.b]\nbackend = "postgres"\ndsn_secret = "M3_STORE_B_PG_URL"\n'
+    )
     prepared = _record_prepare(monkeypatch)
     mb._reset_for_tests()
     with active_store("a"):
@@ -222,8 +234,7 @@ def _record_prepare(monkeypatch) -> list:
 
     pg = importlib.import_module("memory.backends.postgres_backend")
     prepared: list = []
-    monkeypatch.setattr(pg.PostgresBackend, "prepare_store",
-                        lambda self: prepared.append(self.store_identity()))
+    monkeypatch.setattr(pg.PostgresBackend, "prepare_store", lambda self: prepared.append(self.store_identity()))
     return prepared
 
 
@@ -263,8 +274,9 @@ def _path_probe(ran: list):
         return resolve_db_path(None)
 
     props = {"database": {"type": "string"}, "store": {"type": "string"}}
-    return cat, cat.ToolSpec(name="memory_probe", description="probe",
-                             parameters={"type": "object", "properties": props}, impl=_impl)
+    return cat, cat.ToolSpec(
+        name="memory_probe", description="probe", parameters={"type": "object", "properties": props}, impl=_impl
+    )
 
 
 def _scratch(stores_file, tmp_path, monkeypatch) -> str:
@@ -320,11 +332,14 @@ def test_every_bridge_wrapper_runs_inside_the_store(stores_file, tmp_path, monke
     assert out == path
 
 
-@pytest.mark.parametrize("args,fragment", [
-    ({"store": "scrach"}, "did you mean 'scratch'"),
-    ({"store": "scratch", "database": "x.db"}, "both select the store"),
-    ({"store": 3}, "is a store name"),
-])
+@pytest.mark.parametrize(
+    "args,fragment",
+    [
+        ({"store": "scrach"}, "did you mean 'scratch'"),
+        ({"store": "scratch", "database": "x.db"}, "both select the store"),
+        ({"store": 3}, "is a store name"),
+    ],
+)
 def test_a_bad_store_argument_is_refused_before_the_impl(stores_file, tmp_path, monkeypatch, args, fragment):
     import asyncio
 
@@ -344,7 +359,8 @@ def test_a_sqlite_store_derives_its_own_files_database(tmp_path):
 
     core = tmp_path / "engine" / "scratch.db"
     assert files_db_path(StoreRef(name="s", backend="sqlite", path=str(core))) == str(
-        core.with_name("scratch.files.db"))
+        core.with_name("scratch.files.db")
+    )
     with pytest.raises(StoreError, match="only a SQLite store"):
         files_db_path(StoreRef(name="b", backend="postgres", dsn_secret="X"))
 
@@ -377,8 +393,7 @@ def test_a_files_tool_follows_store(stores_file, tmp_path, monkeypatch):
     legacy = tmp_path / "legacy.files.db"
     monkeypatch.setenv("M3_FILES_DB_PATH", str(legacy))
     _scratch(stores_file, tmp_path, monkeypatch)
-    out = asyncio.run(cat.execute_tool_structured(cat._BY_NAME["files_stats"], {"store": "scratch"},
-                                                  agent_id=""))
+    out = asyncio.run(cat.execute_tool_structured(cat._BY_NAME["files_stats"], {"store": "scratch"}, agent_id=""))
     assert isinstance(out, dict)
     assert (tmp_path / "s.files.db").exists() and not legacy.exists()
 
@@ -446,8 +461,9 @@ def test_a_postgres_store_on_a_second_database_gets_its_own_core_and_files(monke
             with fdb._db() as conn:  # the files schema exists in the second database
                 conn.execute(f"SELECT COUNT(*) FROM {files_table('file_nodes')}").fetchall()
         with psycopg2.connect(store_dsn) as raw, raw.cursor() as cur:
-            cur.execute("SELECT to_regclass('files.file_nodes') IS NOT NULL, "
-                        "to_regclass('public.memory_items') IS NOT NULL")
+            cur.execute(
+                "SELECT to_regclass('files.file_nodes') IS NOT NULL, to_regclass('public.memory_items') IS NOT NULL"
+            )
             assert cur.fetchone() == (True, True)
         assert parse_dsn(store_dsn)["dbname"] == db
     finally:
@@ -467,9 +483,12 @@ def test_the_cli_passes_store_to_the_dispatcher(stores_file, tmp_path, monkeypat
 
     _scratch(stores_file, tmp_path, monkeypatch)
     repo = Path(__file__).resolve().parent.parent
-    run = subprocess.run([sys.executable, "-m", "m3_memory.cli", "memory", "memory_search",
-                          "--query", "x", "--store", "scrach"],
-                         capture_output=True, text=True, cwd=str(repo))
+    run = subprocess.run(
+        [sys.executable, "-m", "m3_memory.cli", "memory", "memory_search", "--query", "x", "--store", "scrach"],
+        capture_output=True,
+        text=True,
+        cwd=str(repo),
+    )
     assert "did you mean 'scratch'" in run.stdout + run.stderr, run.stdout + run.stderr
 
 
@@ -512,10 +531,13 @@ def test_a_per_call_store_and_the_chatlog_override_the_process_store(stores_file
     assert chatlog_config.chatlog_db_path() == before  # D1: process-wide, store or not
 
 
-@pytest.mark.parametrize("argv,fragment", [
-    (["--store", "scrach"], "did you mean 'scratch'"),
-    (["--store", "scratch", "--database", "x.db"], "not allowed with argument"),
-])
+@pytest.mark.parametrize(
+    "argv,fragment",
+    [
+        (["--store", "scrach"], "did you mean 'scratch'"),
+        (["--store", "scratch", "--database", "x.db"], "not allowed with argument"),
+    ],
+)
 def test_a_bad_cli_store_is_a_usage_error(stores_file, tmp_path, monkeypatch, capsys, argv, fragment):
     _scratch(stores_file, tmp_path, monkeypatch)
     with pytest.raises(SystemExit) as exc:
@@ -530,8 +552,12 @@ def test_a_script_given_store_writes_into_it(stores_file, tmp_path, monkeypatch)
 
     _scratch(stores_file, tmp_path, monkeypatch)
     repo = Path(__file__).resolve().parent.parent
-    run = subprocess.run([sys.executable, str(repo / "bin" / "setup_test_db.py"), "--store", "scratch"],
-                         capture_output=True, text=True, cwd=str(tmp_path))
+    run = subprocess.run(
+        [sys.executable, str(repo / "bin" / "setup_test_db.py"), "--store", "scratch"],
+        capture_output=True,
+        text=True,
+        cwd=str(tmp_path),
+    )
     assert run.returncode == 0, run.stdout + run.stderr
     with sqlite3.connect(tmp_path / "s.db") as raw:
         assert raw.execute("SELECT 1 FROM sqlite_master WHERE name='memory_items'").fetchone()

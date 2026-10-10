@@ -11,6 +11,7 @@ These guard the data-safety guarantee verified 2026-06-27:
 
 Network/clone is mocked; nothing leaves the machine.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -49,6 +50,7 @@ def isolated_roots(tmp_path, monkeypatch):
     monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path / "config"))
     monkeypatch.setenv("M3_ENGINE_ROOT", str(tmp_path / "engine"))
     import m3_sdk
+
     importlib.reload(m3_sdk)
     # Re-import rather than reload when a sibling test (e.g. test_doctor's
     # module-purge fixture) has dropped these from sys.modules — importlib.reload
@@ -58,6 +60,7 @@ def isolated_roots(tmp_path, monkeypatch):
     # set above.
     if "m3_memory.installer" in sys.modules:
         from m3_memory import installer
+
         importlib.reload(installer)
     else:
         installer = importlib.import_module("m3_memory.installer")
@@ -76,9 +79,7 @@ def isolated_roots(tmp_path, monkeypatch):
     # is _OS_INSTALL_TIMEOUT_S = 15 min, far longer than any test timeout, so
     # "it has a timeout" does not make it safe to call here. Stubbing it keeps
     # the fixture's stated contract -- "never hit the network" -- actually true.
-    monkeypatch.setattr(
-        installer, "_run_os_install", lambda *a, **k: "OS setup skipped (test)."
-    )
+    monkeypatch.setattr(installer, "_run_os_install", lambda *a, **k: "OS setup skipped (test).")
     return m3_sdk, installer
 
 
@@ -135,8 +136,9 @@ def test_fresh_install_no_op_on_populated_db(isolated_roots, monkeypatch):
     def fake_clone_full(tag, dest):
         dest.mkdir(parents=True, exist_ok=True)
         shutil.copytree(os.path.join(REPO_ROOT, "bin"), str(dest / "bin"), dirs_exist_ok=True)
-        shutil.copytree(os.path.join(REPO_ROOT, "memory", "migrations"),
-                        str(dest / "memory" / "migrations"), dirs_exist_ok=True)
+        shutil.copytree(
+            os.path.join(REPO_ROOT, "memory", "migrations"), str(dest / "memory" / "migrations"), dirs_exist_ok=True
+        )
         return True
 
     monkeypatch.setattr(installer, "_git_clone", fake_clone_full)
@@ -159,6 +161,7 @@ def test_engine_root_never_under_repo(isolated_roots):
     """The structural guarantee: rmtree(repo) can't reach the engine DBs because
     engine is never a descendant of repo. Checked for the decoupled layout."""
     from pathlib import Path
+
     m3_sdk, installer = isolated_roots
     repo = installer.default_repo_path().resolve()
     eng = Path(m3_sdk.get_m3_engine_root()).resolve()

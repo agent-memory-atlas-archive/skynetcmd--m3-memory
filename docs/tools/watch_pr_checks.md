@@ -1,8 +1,8 @@
 ---
 tool: bin/watch_pr_checks.py
-sha1: 327760b0ac35
-mtime_utc: 2026-10-08T22:10:44.256958+00:00
-generated_utc: 2026-10-08T22:11:48.360691+00:00
+sha1: 1e147bf16d3f
+mtime_utc: 2026-10-10T21:05:16.482830+00:00
+generated_utc: 2026-10-10T21:05:30.027169+00:00
 private: false
 ---
 
@@ -43,7 +43,7 @@ Usage:
 
 ## Entry points
 
-- `def main()` (line 87)
+- `def main()` (line 88)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -76,7 +76,7 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `cmd`` (line 47)
+- `subprocess.run()  → `cmd`` (line 48)
 
 
 ---

@@ -2,6 +2,7 @@
 
 Network mocked via httpx.MockTransport.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -82,17 +83,20 @@ def bench_db(tmp_path, monkeypatch):
 
 def test_parse_reflector_output_drops_noop_supersedes():
     import run_reflector
-    text = json.dumps({
-        "observations": [
-            {"text": "User lives in Seattle.", "observation_date": "2023-01-15"},
-        ],
-        "supersedes": [
-            {"new_text": "Same text.", "old_text": "Same text."},  # no-op merge
-            {"new_text": "User moved to Austin.", "old_text": "User lives in Seattle."},
-            {"new_text": "", "old_text": "x"},  # empty new
-            {"new_text": "x", "old_text": ""},  # empty old
-        ]
-    })
+
+    text = json.dumps(
+        {
+            "observations": [
+                {"text": "User lives in Seattle.", "observation_date": "2023-01-15"},
+            ],
+            "supersedes": [
+                {"new_text": "Same text.", "old_text": "Same text."},  # no-op merge
+                {"new_text": "User moved to Austin.", "old_text": "User lives in Seattle."},
+                {"new_text": "", "old_text": "x"},  # empty new
+                {"new_text": "x", "old_text": ""},  # empty old
+            ],
+        }
+    )
     _obs, sup = run_reflector.parse_reflector_output(text)
     # No-op + empties dropped; one real supersede pair remains.
     assert len(sup) == 1
@@ -102,6 +106,7 @@ def test_parse_reflector_output_drops_noop_supersedes():
 
 def test_parse_reflector_output_handles_missing_keys():
     import run_reflector
+
     obs, sup = run_reflector.parse_reflector_output('{"observations": []}')
     assert obs == []
     assert sup == []
@@ -109,6 +114,7 @@ def test_parse_reflector_output_handles_missing_keys():
 
 def test_parse_reflector_output_strips_code_fences():
     import run_reflector
+
     text = '```json\n{"observations": [], "supersedes": []}\n```'
     obs, sup = run_reflector.parse_reflector_output(text)
     assert obs == []
@@ -117,6 +123,7 @@ def test_parse_reflector_output_strips_code_fences():
 
 def test_parse_reflector_output_malformed_returns_empty():
     import run_reflector
+
     obs, sup = run_reflector.parse_reflector_output("not json")
     assert obs == []
     assert sup == []
@@ -129,19 +136,25 @@ def test_call_reflector_anthropic_shape():
 
     def handler(request: httpx.Request) -> httpx.Response:
         captured["json"] = json.loads(request.content)
-        return httpx.Response(200, json={
-            "content": [{
-                "type": "text",
-                "text": json.dumps({
-                    "observations": [{"text": "x", "observation_date": "2023-01-01"}],
-                    "supersedes": [
-                        {"new_text": "User moved to Austin.",
-                         "old_text": "User lives in Seattle."}
-                    ],
-                })
-            }],
-            "usage": {"input_tokens": 100, "output_tokens": 50},
-        })
+        return httpx.Response(
+            200,
+            json={
+                "content": [
+                    {
+                        "type": "text",
+                        "text": json.dumps(
+                            {
+                                "observations": [{"text": "x", "observation_date": "2023-01-01"}],
+                                "supersedes": [
+                                    {"new_text": "User moved to Austin.", "old_text": "User lives in Seattle."}
+                                ],
+                            }
+                        ),
+                    }
+                ],
+                "usage": {"input_tokens": 100, "output_tokens": 50},
+            },
+        )
 
     transport = httpx.MockTransport(handler)
 
@@ -180,6 +193,7 @@ def test_call_reflector_anthropic_shape():
 
 def test_find_observation_id_by_text_exact():
     import run_reflector
+
     rows = [
         ("id-1", {"text": "User lives in Seattle."}),
         ("id-2", {"text": "User moved to Austin."}),
@@ -191,6 +205,7 @@ def test_find_observation_id_by_text_exact():
 def test_find_observation_id_by_text_prefix_fallback():
     """When the Reflector slightly rephrases, prefix match should work."""
     import run_reflector
+
     rows = [
         ("id-1", {"text": "User has been living in Seattle for 5 years."}),
     ]
@@ -201,6 +216,7 @@ def test_find_observation_id_by_text_prefix_fallback():
 
 def test_find_observation_id_by_text_no_match():
     import run_reflector
+
     rows = [("id-1", {"text": "Completely unrelated."})]
     assert run_reflector._find_observation_id_by_text(rows, "User moved to Austin.") is None
 
@@ -217,13 +233,17 @@ def test_load_observations_for_conv_groups_correctly(bench_db):
         ("o-1", "alice", "conv-1", "fact A", "2023-01-01"),
         ("o-2", "alice", "conv-1", "fact B", "2023-01-02"),
         ("o-3", "alice", "conv-2", "fact C", "2023-01-01"),
-        ("o-4", "bob",   "conv-1", "fact D", "2023-01-01"),
+        ("o-4", "bob", "conv-1", "fact D", "2023-01-01"),
     ]
     for oid, uid, cid, text, vf in seeds:
-        meta = json.dumps({
-            "observation_date": vf, "referenced_date": vf,
-            "conversation_id": cid, "confidence": 0.95,
-        })
+        meta = json.dumps(
+            {
+                "observation_date": vf,
+                "referenced_date": vf,
+                "conversation_id": cid,
+                "confidence": 0.95,
+            }
+        )
         conn.execute(
             "INSERT INTO memory_items (id, type, content, user_id, valid_from, "
             "created_at, metadata_json) VALUES (?, 'observation', ?, ?, ?, ?, ?)",
@@ -232,9 +252,7 @@ def test_load_observations_for_conv_groups_correctly(bench_db):
     conn.commit()
     conn.close()
 
-    rows = run_reflector._load_observations_for_conv(
-        user_id="alice", conversation_id="conv-1"
-    )
+    rows = run_reflector._load_observations_for_conv(user_id="alice", conversation_id="conv-1")
     assert len(rows) == 2  # alice/conv-1 only
     texts = sorted(r[1]["text"] for r in rows)
     assert texts == ["fact A", "fact B"]

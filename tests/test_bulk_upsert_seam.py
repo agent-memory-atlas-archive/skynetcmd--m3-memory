@@ -10,6 +10,7 @@ The SQLite half runs everywhere. The PostgreSQL half is a `requires_pg` sibling
 in test_bulk_upsert_seam_pg_live.py, so the same contract is asserted against a
 real cluster rather than a mock that agrees with whatever we wrote.
 """
+
 from __future__ import annotations
 
 import pathlib
@@ -41,8 +42,12 @@ def _rows(c):
 
 def test_inserts_new_rows(conn):
     n = SqliteBackend().bulk_upsert(
-        conn, "t", _COLS, [("a", "v1", "2026-01-01"), ("b", "v1", "2026-01-01")],
-        conflict_target="(id)", update_columns=["val", "updated_at"],
+        conn,
+        "t",
+        _COLS,
+        [("a", "v1", "2026-01-01"), ("b", "v1", "2026-01-01")],
+        conflict_target="(id)",
+        update_columns=["val", "updated_at"],
     )
     assert n == 2
     assert _rows(conn) == {"a": "v1", "b": "v1"}
@@ -50,10 +55,12 @@ def test_inserts_new_rows(conn):
 
 def test_updates_on_conflict(conn):
     b = SqliteBackend()
-    b.bulk_upsert(conn, "t", _COLS, [("a", "v1", "2026-01-01")],
-                  conflict_target="(id)", update_columns=["val", "updated_at"])
-    b.bulk_upsert(conn, "t", _COLS, [("a", "v2", "2026-02-02")],
-                  conflict_target="(id)", update_columns=["val", "updated_at"])
+    b.bulk_upsert(
+        conn, "t", _COLS, [("a", "v1", "2026-01-01")], conflict_target="(id)", update_columns=["val", "updated_at"]
+    )
+    b.bulk_upsert(
+        conn, "t", _COLS, [("a", "v2", "2026-02-02")], conflict_target="(id)", update_columns=["val", "updated_at"]
+    )
     assert _rows(conn) == {"a": "v2"}
 
 
@@ -65,13 +72,23 @@ def test_guard_rejects_older_and_accepts_newer(conn):
     asserts BOTH directions in one call rather than only the happy one.
     """
     b = SqliteBackend()
-    b.bulk_upsert(conn, "t", _COLS,
-                  [("a", "keep", "2026-01-01"), ("b", "keep", "2026-01-01")],
-                  conflict_target="(id)", update_columns=["val", "updated_at"])
-    b.bulk_upsert(conn, "t", _COLS,
-                  [("a", "OLDER", "2025-01-01"), ("b", "NEWER", "2026-06-06")],
-                  conflict_target="(id)", update_columns=["val", "updated_at"],
-                  guard_sql=_LWW_GUARD)
+    b.bulk_upsert(
+        conn,
+        "t",
+        _COLS,
+        [("a", "keep", "2026-01-01"), ("b", "keep", "2026-01-01")],
+        conflict_target="(id)",
+        update_columns=["val", "updated_at"],
+    )
+    b.bulk_upsert(
+        conn,
+        "t",
+        _COLS,
+        [("a", "OLDER", "2025-01-01"), ("b", "NEWER", "2026-06-06")],
+        conflict_target="(id)",
+        update_columns=["val", "updated_at"],
+        guard_sql=_LWW_GUARD,
+    )
     assert _rows(conn) == {"a": "keep", "b": "NEWER"}
 
 
@@ -86,23 +103,32 @@ def test_version_precedence_guard_also_works(conn):
     c.execute("CREATE TABLE s (name TEXT PRIMARY KEY, secret TEXT, version INTEGER)")
     b = SqliteBackend()
     cols = ["name", "secret", "version"]
-    b.bulk_upsert(c, "s", cols, [("k", "v1", 5)],
-                  conflict_target="(name)", update_columns=["secret", "version"])
-    b.bulk_upsert(c, "s", cols, [("k", "stale", 3)],
-                  conflict_target="(name)", update_columns=["secret", "version"],
-                  guard_sql="WHERE excluded.version > s.version")
+    b.bulk_upsert(c, "s", cols, [("k", "v1", 5)], conflict_target="(name)", update_columns=["secret", "version"])
+    b.bulk_upsert(
+        c,
+        "s",
+        cols,
+        [("k", "stale", 3)],
+        conflict_target="(name)",
+        update_columns=["secret", "version"],
+        guard_sql="WHERE excluded.version > s.version",
+    )
     assert c.execute("SELECT secret FROM s").fetchone()[0] == "v1"
-    b.bulk_upsert(c, "s", cols, [("k", "fresh", 9)],
-                  conflict_target="(name)", update_columns=["secret", "version"],
-                  guard_sql="WHERE excluded.version > s.version")
+    b.bulk_upsert(
+        c,
+        "s",
+        cols,
+        [("k", "fresh", 9)],
+        conflict_target="(name)",
+        update_columns=["secret", "version"],
+        guard_sql="WHERE excluded.version > s.version",
+    )
     assert c.execute("SELECT secret FROM s").fetchone()[0] == "fresh"
 
 
 def test_empty_rows_is_a_noop(conn):
     """No rows must not become `VALUES ()` — a syntax error on both engines."""
-    assert SqliteBackend().bulk_upsert(
-        conn, "t", _COLS, [], conflict_target="(id)", update_columns=["val"]
-    ) == 0
+    assert SqliteBackend().bulk_upsert(conn, "t", _COLS, [], conflict_target="(id)", update_columns=["val"]) == 0
 
 
 def test_table_is_not_schema_qualified():
@@ -115,11 +141,9 @@ def test_table_is_not_schema_qualified():
     import inspect
 
     for mod in ("sqlite_backend", "postgres_backend"):
-        src = inspect.getsource(
-            __import__(f"memory.backends.{mod}", fromlist=[mod])
-        )
+        src = inspect.getsource(__import__(f"memory.backends.{mod}", fromlist=[mod]))
         start = src.index("def bulk_upsert")
-        body = src[start:src.index("def maintenance_checkpoint", start)]
+        body = src[start : src.index("def maintenance_checkpoint", start)]
         assert "INSERT INTO {table}" in body, f"{mod} must use the table name as given"
 
 
@@ -149,9 +173,7 @@ def test_postgres_does_not_use_executemany():
         for node in ast.walk(ast.parse(src))
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
     }
-    named = {
-        node.id for node in ast.walk(ast.parse(src)) if isinstance(node, ast.Name)
-    }
+    named = {node.id for node in ast.walk(ast.parse(src)) if isinstance(node, ast.Name)}
     assert "execute_values" in named, "the PG path must batch via execute_values"
     assert "executemany" not in called, "executemany is one round trip per row"
 
@@ -240,17 +262,12 @@ class TestBulkInsertIgnore:
 
     def test_conflicting_row_is_left_alone(self, conn):
         b = SqliteBackend()
-        b.bulk_insert_ignore(conn, "t", ["id", "val"], [("a", "first")],
-                             conflict_target="(id)")
-        b.bulk_insert_ignore(conn, "t", ["id", "val"],
-                             [("a", "SECOND"), ("b", "new")],
-                             conflict_target="(id)")
+        b.bulk_insert_ignore(conn, "t", ["id", "val"], [("a", "first")], conflict_target="(id)")
+        b.bulk_insert_ignore(conn, "t", ["id", "val"], [("a", "SECOND"), ("b", "new")], conflict_target="(id)")
         assert _rows(conn) == {"a": "first", "b": "new"}
 
     def test_empty_rows_is_a_noop(self, conn):
-        assert SqliteBackend().bulk_insert_ignore(
-            conn, "t", ["id", "val"], [], conflict_target="(id)"
-        ) == 0
+        assert SqliteBackend().bulk_insert_ignore(conn, "t", ["id", "val"], [], conflict_target="(id)") == 0
 
     def test_is_on_the_protocol(self):
         """A future backend that omits it fails conformance automatically.
@@ -279,11 +296,10 @@ class TestBulkInsertIgnore:
 
         from memory.backends import postgres_backend
 
-        src = textwrap.dedent(
-            inspect.getsource(postgres_backend.PostgresBackend.bulk_insert_ignore)
-        )
+        src = textwrap.dedent(inspect.getsource(postgres_backend.PostgresBackend.bulk_insert_ignore))
         called = {
-            n.func.attr for n in ast.walk(ast.parse(src))
+            n.func.attr
+            for n in ast.walk(ast.parse(src))
             if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
         }
         assert "executemany" not in called

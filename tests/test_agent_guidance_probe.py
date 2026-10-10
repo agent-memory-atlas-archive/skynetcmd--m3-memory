@@ -11,6 +11,7 @@ Two failure modes matter equally here:
   - FALSE-POSITIVING on a user's own prose would make the probe itself a
     wolf-crier. So the needles are specific, and a test pins that.
 """
+
 from __future__ import annotations
 
 import pathlib
@@ -22,9 +23,9 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "bin"))
 from doctor import agent_guidance_probe as P  # noqa: E402
 
 _STALE_DISCONNECT = (
-    'WARNING: The m3 memory MCP server is not reachable. '
-    'Chatlog is NOT being captured. Design decisions made this session '
-    'will NOT be preserved across sessions.'
+    "WARNING: The m3 memory MCP server is not reachable. "
+    "Chatlog is NOT being captured. Design decisions made this session "
+    "will NOT be preserved across sessions."
 )
 _STALE_FLAG = "If `hook.enabled = false` OR `last_write` is null → warn"
 
@@ -55,6 +56,7 @@ class _Fixture:
 class TestStaleGuidanceDetection(unittest.TestCase):
     def setUp(self):
         import tempfile
+
         self._tmp = tempfile.TemporaryDirectory()
         self.tmp = pathlib.Path(self._tmp.name)
 
@@ -107,6 +109,7 @@ class TestProbeContract(unittest.TestCase):
         the user's own notes -- not a broken install. Failing the doctor's exit
         code would break CI over something m3 cannot fix itself."""
         import tempfile
+
         with tempfile.TemporaryDirectory() as d:
             with _Fixture(pathlib.Path(d), _STALE_DISCONNECT):
                 self.assertEqual(P.run(brief=True), 0)
@@ -133,6 +136,7 @@ class TestProbeContract(unittest.TestCase):
     def test_probe_never_writes(self):
         """Detection only. The whole design rests on m3 not touching these."""
         import inspect
+
         src = inspect.getsource(P)
         for forbidden in ("write_text(", "open(", "unlink(", "rmtree("):
             self.assertNotIn(forbidden, src, f"probe must not {forbidden}")

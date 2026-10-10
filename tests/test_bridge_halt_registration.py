@@ -30,6 +30,7 @@ if BIN not in sys.path:
 @pytest.fixture
 def halt(tmp_path, monkeypatch):
     import m3_halt
+
     monkeypatch.setenv("M3_ENGINE_ROOT", str(tmp_path))
     return m3_halt
 
@@ -57,6 +58,7 @@ def test_transport_is_recorded_for_the_operator(halt):
     """The prompt in HALT_PROTOCOL.md step 5 names the stuck holder; recording
     the transport tells the human WHICH server they are being asked about."""
     import json
+
     entry = halt.register_process("mcp", extra={"transport": "streamable-http"})
     try:
         payload = json.loads(entry.read_text(encoding="utf-8"))
@@ -84,8 +86,7 @@ def test_bridge_registration_is_never_fatal():
     with open(os.path.join(BIN, "memory_bridge.py"), encoding="utf-8") as fh:
         src = fh.read()
     idx = src.find('register_process("mcp"')
-    window = src[max(0, idx - 400):idx + 400]
+    window = src[max(0, idx - 400) : idx + 400]
     assert "try:" in window and "except" in window, (
-        "HALT registration must be wrapped so a failure degrades coordination "
-        "rather than breaking the MCP server"
+        "HALT registration must be wrapped so a failure degrades coordination rather than breaking the MCP server"
     )

@@ -26,6 +26,7 @@ standing in for a precise state (SUBSTRING_HIT_IS_NOT_A_LIVE_ROW):
 All hermetic: no service manager, no socket, no sleep (§3 — a test that passes
 only because a live local service is reachable fails in CI).
 """
+
 from __future__ import annotations
 
 import sys
@@ -58,26 +59,30 @@ def pair(tmp_path):
 
 # ── the status vocabulary: negatives must beat positives ─────────────────────
 
-@pytest.mark.parametrize("blob,expected", [
-    ("running", True),
-    ("RUNNING", True),
-    ("active (running)", True),          # systemd's phrasing
-    ("started", True),
-    ("stopped", False),
-    ("not running", False),              # the substring trap
-    ("is not running", False),
-    ("isn't running", False),
-    ("inactive", False),                 # contains "active"
-    ("activating", False),               # still coming up, not up
-    ("START_PENDING", False),            # SCM transitional
-    ("start-pending", False),            # ...as m3-embed-server prints it
-    ("stopped\nthe unit failed; see `journalctl`", False),  # status + stderr
-    ("not installed", False),
-    ("failed", False),
-    ("dead", False),
-    ("", False),                         # no evidence is not health
-    ("wat", False),
-])
+
+@pytest.mark.parametrize(
+    "blob,expected",
+    [
+        ("running", True),
+        ("RUNNING", True),
+        ("active (running)", True),  # systemd's phrasing
+        ("started", True),
+        ("stopped", False),
+        ("not running", False),  # the substring trap
+        ("is not running", False),
+        ("isn't running", False),
+        ("inactive", False),  # contains "active"
+        ("activating", False),  # still coming up, not up
+        ("START_PENDING", False),  # SCM transitional
+        ("start-pending", False),  # ...as m3-embed-server prints it
+        ("stopped\nthe unit failed; see `journalctl`", False),  # status + stderr
+        ("not installed", False),
+        ("failed", False),
+        ("dead", False),
+        ("", False),  # no evidence is not health
+        ("wat", False),
+    ],
+)
 def test_status_says_running_is_negation_aware(blob, expected):
     """A coarse `"running" in blob` reports a DEAD service as healthy.
 
@@ -88,28 +93,29 @@ def test_status_says_running_is_negation_aware(blob, expected):
     assert ea._status_says_running(blob) is expected, blob
 
 
-@pytest.mark.parametrize("blob,expected", [
-    ("running", True),
-    ("stopped", True),
-    ("START_PENDING", True),     # registered, merely transitional
-    ("start-pending", True),     # the word m3-embed-server prints on Windows
-    ("stop-pending", True),
-    ("activating", True),
-    ("not installed", False),
-    ("", False),
-])
-def test_service_reports_installed_accepts_transitional_states(
-        pair, monkeypatch, blob, expected):
+@pytest.mark.parametrize(
+    "blob,expected",
+    [
+        ("running", True),
+        ("stopped", True),
+        ("START_PENDING", True),  # registered, merely transitional
+        ("start-pending", True),  # the word m3-embed-server prints on Windows
+        ("stop-pending", True),
+        ("activating", True),
+        ("not installed", False),
+        ("", False),
+    ],
+)
+def test_service_reports_installed_accepts_transitional_states(pair, monkeypatch, blob, expected):
     """Matching only running/stopped read START_PENDING as "never registered",
     which would re-install over a service that was still coming up."""
     binary, gguf = pair
-    monkeypatch.setattr(ea.subprocess, "run",
-                        lambda *a, **k: SimpleNamespace(
-                            stdout=blob, stderr="", returncode=0))
+    monkeypatch.setattr(ea.subprocess, "run", lambda *a, **k: SimpleNamespace(stdout=blob, stderr="", returncode=0))
     assert ea._service_reports_installed(binary, gguf) is expected
 
 
 # ── the headline defect: no success line without evidence ────────────────────
+
 
 def test_dead_service_is_never_reported_as_running(pair, monkeypatch, capsys):
     """THE 2026-09-27 REGRESSION. Port held, service stopped -> must NOT claim
@@ -124,9 +130,9 @@ def test_dead_service_is_never_reported_as_running(pair, monkeypatch, capsys):
     assert rc == ea.EXIT_REGISTERED_NOT_RUNNING
     assert "[OK]" not in cap.out, f"claimed success about a dead service: {cap.out!r}"
     assert "REGISTERED but NOT running" in cap.err
-    assert "8082" in cap.err                      # names the contended port
-    assert "embed_server_inproc.py" in cap.err    # names the usual culprit
-    assert "m3 embedder start" in cap.err          # gives the way out
+    assert "8082" in cap.err  # names the contended port
+    assert "embed_server_inproc.py" in cap.err  # names the usual culprit
+    assert "m3 embedder start" in cap.err  # gives the way out
 
 
 def test_live_service_is_reported_ok(pair, monkeypatch, capsys):
@@ -194,13 +200,14 @@ def test_confirm_started_gives_up_and_says_so(pair, monkeypatch):
 
 # ── the command surfaces ─────────────────────────────────────────────────────
 
+
 def test_cmd_start_exits_nonzero_when_the_service_dies(pair, monkeypatch, capsys):
     """`start` returning 0 means the REQUEST was accepted. cmd_start used to
     return that rc verbatim, so a daemon that died on a port conflict exited 0."""
     binary, gguf = pair
     monkeypatch.setattr(ea, "_binary_and_gguf_or_fail", lambda: (binary, gguf))
     monkeypatch.setattr(ea, "_service_reports_installed", lambda *a, **k: True)
-    monkeypatch.setattr(ea, "_service_cmd", lambda *a, **k: 0)   # "signal sent"
+    monkeypatch.setattr(ea, "_service_cmd", lambda *a, **k: 0)  # "signal sent"
     monkeypatch.setattr(ea, "_service_reports_running", lambda *a, **k: False)
     monkeypatch.setattr(ea, "_port_in_use", lambda *a, **k: True)
 
@@ -210,8 +217,7 @@ def test_cmd_start_exits_nonzero_when_the_service_dies(pair, monkeypatch, capsys
     assert "[OK]" not in capsys.readouterr().out
 
 
-def test_cmd_install_does_not_claim_success_when_the_service_stays_down(
-        pair, monkeypatch, capsys):
+def test_cmd_install_does_not_claim_success_when_the_service_stays_down(pair, monkeypatch, capsys):
     """End-to-end shape of the reported defect: every subprocess step "succeeds"
     and the service is still not running."""
     binary, gguf = pair
@@ -259,7 +265,7 @@ def test_already_registered_and_running_is_not_restarted(pair, monkeypatch, caps
 
     def _svc(_b, _g, sub, *extra):
         seen.append(sub)
-        return 1 if sub == "install" else 0       # install: "already exists"
+        return 1 if sub == "install" else 0  # install: "already exists"
 
     monkeypatch.setattr(ea, "_service_cmd", _svc)
 
@@ -283,14 +289,13 @@ def test_registered_but_stopped_is_started_not_assumed(pair, monkeypatch):
     # the port answers (a stray process), but OUR service is down
     monkeypatch.setattr(ea, "_port_in_use", lambda *a, **k: True)
     running = {"v": False}
-    monkeypatch.setattr(ea, "_service_reports_running",
-                        lambda *a, **k: running["v"])
+    monkeypatch.setattr(ea, "_service_reports_running", lambda *a, **k: running["v"])
     seen: list[str] = []
 
     def _svc(_b, _g, sub, *extra):
         seen.append(sub)
         if sub == "start":
-            running["v"] = True      # the start actually works this time
+            running["v"] = True  # the start actually works this time
         return 1 if sub == "install" else 0
 
     monkeypatch.setattr(ea, "_service_cmd", _svc)
@@ -303,11 +308,15 @@ def test_registered_but_stopped_is_started_not_assumed(pair, monkeypatch):
 
 # ── operator advice must match the platform ──────────────────────────────────
 
-@pytest.mark.parametrize("platform,expected,forbidden", [
-    ("win32", "netstat", ("lsof", "ss -lptn")),
-    ("darwin", "lsof", ("netstat", "ss -lptn")),
-    ("linux", "ss -lptn", ("netstat -ano",)),
-])
+
+@pytest.mark.parametrize(
+    "platform,expected,forbidden",
+    [
+        ("win32", "netstat", ("lsof", "ss -lptn")),
+        ("darwin", "lsof", ("netstat", "ss -lptn")),
+        ("linux", "ss -lptn", ("netstat -ano",)),
+    ],
+)
 def test_port_holder_hint_is_os_correct(platform, expected, forbidden):
     """m3 supports 3 OSes and wrong advice is worse than none — the same rule
     the install/start hints already follow. `lsof` is absent on Windows and
@@ -332,6 +341,7 @@ def test_port_busy_notice_does_not_promise_it_is_fine(capsys, monkeypatch):
 
 # ── RUNNING is not SERVING: the model loads after the process starts ─────────
 
+
 def test_running_but_not_answering_is_not_reported_ok(pair, monkeypatch, capsys):
     """A service that is up but has not loaded its model yet must not get the
     success line; setup's doctor would read tier-2 offline right after it."""
@@ -342,7 +352,7 @@ def test_running_but_not_answering_is_not_reported_ok(pair, monkeypatch, capsys)
     rc = ea._verify_started_or_explain(binary, gguf, start_rc=0)
 
     cap = capsys.readouterr()
-    assert rc == 0                      # the service exists; doctor judges health
+    assert rc == 0  # the service exists; doctor judges health
     assert "[OK]" not in cap.out
     assert "has not answered" in cap.err
 
@@ -352,8 +362,12 @@ def test_wait_serving_polls_until_health_answers(monkeypatch):
 
     class _Resp:
         status = 200
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
 
     def _urlopen(url, timeout):
         calls.append(url)
@@ -370,6 +384,7 @@ def test_wait_serving_polls_until_health_answers(monkeypatch):
 def test_wait_serving_gives_up_at_the_deadline(monkeypatch):
     def _refuse(*a, **k):
         raise ConnectionRefusedError
+
     clock = iter(range(0, 1000, 10))
     monkeypatch.setattr(ea.time, "monotonic", lambda: next(clock))
     monkeypatch.setattr("urllib.request.urlopen", _refuse)

@@ -1,4 +1,5 @@
 """m3_core.secret_store: the user-only secrets file tier (plan 2B.1, CONFIG_DESIGN §10)."""
+
 from __future__ import annotations
 
 import os

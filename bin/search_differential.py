@@ -77,7 +77,7 @@ QUERIES = [
 ]
 
 # Runs in a subprocess against one build. Prints one JSON line.
-_PROBE = r'''
+_PROBE = r"""
 import sys, os, json, asyncio, contextlib, io
 
 # FIRST, before any m3 import: conftest's autouse sandbox exports its own
@@ -106,7 +106,7 @@ except Exception as exc:  # surfaced by the caller, never swallowed
     print(json.dumps({{"__error__": "%s: %s" % (type(exc).__name__, exc)}}))
 else:
     print(json.dumps(res))
-'''
+"""
 
 
 def _run_probe(python: str, bin_dir: str, engine: str, config: str, k: int = 8) -> dict:
@@ -124,15 +124,16 @@ def _run_probe(python: str, bin_dir: str, engine: str, config: str, k: int = 8) 
     env.pop("M3_MEMORY_ROOT", None)  # never let a caller's root redirect a probe
     proc = subprocess.run(
         [python, "-c", code, engine, config],
-        capture_output=True, text=True, timeout=900, env=env,
+        capture_output=True,
+        text=True,
+        timeout=900,
+        env=env,
         # A neutral cwd: running from the repo root lets the dev tree's own
         # m3_memory/ shadow an installed one, so the "reference" build would
         # silently be the tree under test.
         cwd=tempfile.gettempdir(),
     )
-    line = next(
-        (ln for ln in reversed(proc.stdout.splitlines()) if ln.startswith("{")), ""
-    )
+    line = next((ln for ln in reversed(proc.stdout.splitlines()) if ln.startswith("{")), "")
     if not line:
         tail = (proc.stderr or proc.stdout or "").strip().splitlines()[-4:]
         return {"__error__": "no output: " + " / ".join(t[:120] for t in tail)}
@@ -152,7 +153,10 @@ def _reference_build() -> tuple[str, str, str] | None:
         if not wt.exists():
             rc = subprocess.run(
                 ["git", "worktree", "add", "-q", "--detach", str(wt), rev],
-                cwd=REPO, capture_output=True, text=True, timeout=600,
+                cwd=REPO,
+                capture_output=True,
+                text=True,
+                timeout=600,
             )
             if rc.returncode != 0:
                 return None
@@ -181,8 +185,7 @@ def _reference_build() -> tuple[str, str, str] | None:
     return None
 
 
-
-_SEED = r'''
+_SEED = r"""
 import sys, os, json, asyncio, contextlib, io
 os.environ["M3_ENGINE_ROOT"] = sys.argv[1]
 os.environ["M3_CONFIG_ROOT"] = sys.argv[2]
@@ -196,7 +199,7 @@ with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
     for i in range(0, len(items), 100):
         asyncio.run(mc.memory_write_bulk_impl(items[i:i + 100]))
 print("seeded", len(items))
-'''
+"""
 
 
 def _seed_store(tmp: Path) -> tuple[str, str]:
@@ -230,12 +233,14 @@ def _seed_store(tmp: Path) -> tuple[str, str]:
     env = dict(os.environ, PYTHONPATH=str(REPO / "bin"))
     proc = subprocess.run(
         [sys.executable, "-c", _SEED, str(engine), str(config), str(items_path)],
-        capture_output=True, text=True, timeout=1800,
-        cwd=tempfile.gettempdir(), env=env,
+        capture_output=True,
+        text=True,
+        timeout=1800,
+        cwd=tempfile.gettempdir(),
+        env=env,
     )
     if "seeded" not in (proc.stdout or ""):
-        raise SystemExit("could not seed a store: "
-                         + (proc.stderr or proc.stdout or "")[-300:])
+        raise SystemExit("could not seed a store: " + (proc.stderr or proc.stdout or "")[-300:])
 
     # Soft-delete a third of the rows. A store with NOTHING filtered cannot
     # exercise a filter-vs-LIMIT bug -- and that is not hypothetical: with the
@@ -248,13 +253,9 @@ def _seed_store(tmp: Path) -> tuple[str, str]:
 
     conn = sqlite3.connect(str(engine / "agent_memory.db"))
     try:
-        conn.execute(
-            "UPDATE memory_items SET is_deleted = 1 "
-            "WHERE rowid % 3 = 0"
-        )
+        conn.execute("UPDATE memory_items SET is_deleted = 1 WHERE rowid % 3 = 0")
         conn.commit()
-        n_del = conn.execute(
-            "SELECT count(*) FROM memory_items WHERE is_deleted = 1").fetchone()[0]
+        n_del = conn.execute("SELECT count(*) FROM memory_items WHERE is_deleted = 1").fetchone()[0]
         n_all = conn.execute("SELECT count(*) FROM memory_items").fetchone()[0]
     finally:
         conn.close()
@@ -263,22 +264,24 @@ def _seed_store(tmp: Path) -> tuple[str, str]:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     from m3_core.paths import deprecated_alias
 
-    ap.add_argument("--store", dest="engine_root", action=deprecated_alias("--engine-root"),
-                    help=argparse.SUPPRESS)
-    ap.add_argument("--engine-root", default=os.environ.get("M3_DIFF_STORE", ""),
-                    help="existing engine root to query READ-ONLY "
-                         "(default: seed a throwaway one from docs/)")
+    ap.add_argument("--store", dest="engine_root", action=deprecated_alias("--engine-root"), help=argparse.SUPPRESS)
+    ap.add_argument(
+        "--engine-root",
+        default=os.environ.get("M3_DIFF_STORE", ""),
+        help="existing engine root to query READ-ONLY (default: seed a throwaway one from docs/)",
+    )
     ap.add_argument("--k", type=int, default=8)
     args = ap.parse_args()
 
     ref = _reference_build()
     if ref is None:
-        print("no reference m3 found. Install one with pipx, or set "
-              "M3_DIFF_REF_REV=<git-rev>, or M3_DIFF_REF_PYTHON + M3_DIFF_REF_BIN.")
+        print(
+            "no reference m3 found. Install one with pipx, or set "
+            "M3_DIFF_REF_REV=<git-rev>, or M3_DIFF_REF_PYTHON + M3_DIFF_REF_BIN."
+        )
         return 2
     label_ref, ref_python, ref_bin = ref
 
@@ -305,8 +308,10 @@ def main() -> int:
         if not any(reference.get(q) for q in QUERIES):
             # A reference that answers nothing proves nothing -- most likely it
             # could not open the store. Reporting "identical" here would be a lie.
-            print(f"reference ({label_ref}) returned no results for any query; "
-                  "cannot compare. Try M3_DIFF_REF_REV=<git-rev> instead.")
+            print(
+                f"reference ({label_ref}) returned no results for any query; "
+                "cannot compare. Try M3_DIFF_REF_REV=<git-rev> instead."
+            )
             return 2
 
         # Live row count: the absolute check below needs to know whether the
@@ -316,8 +321,7 @@ def main() -> int:
 
         try:
             _c = _sq.connect(f"file:{Path(engine) / 'agent_memory.db'}?mode=ro", uri=True)
-            live_rows = _c.execute(
-                "SELECT count(*) FROM memory_items WHERE is_deleted = 0").fetchone()[0]
+            live_rows = _c.execute("SELECT count(*) FROM memory_items WHERE is_deleted = 0").fetchone()[0]
             _c.close()
         except Exception:
             live_rows = 0  # unknown -> the fill check below simply does not fire
@@ -335,7 +339,7 @@ def main() -> int:
             elif set(ci) == set(oi):
                 by_id = {r[1]: r[0] for r in old}
                 if len({round(by_id[i], 5) for i in ci}) == 1:
-                    status = "OK "          # reordered within a score tie
+                    status = "OK "  # reordered within a score tie
                 else:
                     status = "DIFF"
                     problems.append(f"{q!r}: reordered at distinct scores")
@@ -355,8 +359,8 @@ def main() -> int:
                 _lost = len(set(oi) - set(ci))
                 problems.append(
                     f"{q!r}: {_lost} lost / {len(set(ci) - set(oi))} gained "
-                    f"(n {len(oi)} -> {len(ci)})"
-                    + ("  <- ROWS LOST" if _lost else ""))
+                    f"(n {len(oi)} -> {len(ci)})" + ("  <- ROWS LOST" if _lost else "")
+                )
             print(f"{status:<4}{q:<26}{len(ci):>6}{len(oi):>6}")
 
         if problems:
@@ -365,8 +369,10 @@ def main() -> int:
             for p in problems:
                 print("  " + p)
             print()
-            print("This is retrieval drift, not a perf regression. Diff the "
-                  "candidate SQL and the ranking path before shipping.")
+            print(
+                "This is retrieval drift, not a perf regression. Diff the "
+                "candidate SQL and the ranking path before shipping."
+            )
             return 1
         # ABSOLUTE check, not a comparison. Everything above is relative: it
         # asks "does this tree answer like the reference?", so a truncation bug
@@ -382,42 +388,42 @@ def main() -> int:
         # tree carries a fill/limit fix the reference predates -- failing on that
         # would make every such improvement look like a regression.
         short = [
-            f"{q!r}: {len(current.get(q, []))} of k={args.k} "
-            f"({live_rows} live rows available)"
+            f"{q!r}: {len(current.get(q, []))} of k={args.k} ({live_rows} live rows available)"
             for q in QUERIES
             if live_rows >= args.k and len(current.get(q, [])) < args.k
         ]
-        ref_short = sum(
-            1 for q in QUERIES
-            if live_rows >= args.k and len(reference.get(q, [])) < args.k
-        )
+        ref_short = sum(1 for q in QUERIES if live_rows >= args.k and len(reference.get(q, [])) < args.k)
         if short:
             print()
             print("SHORT of k -- this tree caps results below what was asked:")
             for line in short:
                 print("  " + line)
             print()
-            print("A store with enough rows must fill k. This is the shape of the "
-                  "2026-09-10 bug: a LIMIT consumed by rows filtered out later.")
+            print(
+                "A store with enough rows must fill k. This is the shape of the "
+                "2026-09-10 bug: a LIMIT consumed by rows filtered out later."
+            )
             return 1
         if ref_short:
             print()
-            print(f"note: the reference build is short of k on {ref_short} "
-                  f"quer{'y' if ref_short == 1 else 'ies'}; this tree fills all "
-                  f"{len(QUERIES)}.")
+            print(
+                f"note: the reference build is short of k on {ref_short} "
+                f"quer{'y' if ref_short == 1 else 'ies'}; this tree fills all "
+                f"{len(QUERIES)}."
+            )
 
         print()
         if gained:
-            print("MATCHES the reference build, with MORE rows for the same k "
-                  "(the reference was short):")
+            print("MATCHES the reference build, with MORE rows for the same k (the reference was short):")
             for g in gained:
                 print("  " + g)
             print()
-            print("No reference row was lost or displaced. This is what a "
-                  "fill-to-k change looks like; a regression would show losses.")
+            print(
+                "No reference row was lost or displaced. This is what a "
+                "fill-to-k change looks like; a regression would show losses."
+            )
         else:
-            print(f"IDENTICAL - search results match the reference build, "
-                  f"and both fill k={args.k}.")
+            print(f"IDENTICAL - search results match the reference build, and both fill k={args.k}.")
         return 0
     finally:
         if tmp is not None:

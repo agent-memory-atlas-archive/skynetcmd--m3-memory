@@ -25,8 +25,7 @@ def main() -> int:
     if not (hooks_dir / "pre-push").exists():
         print("error: .githooks/pre-push not found", file=sys.stderr)
         return 1
-    rc = subprocess.run(["git", "config", "core.hooksPath", ".githooks"],
-                        cwd=_ROOT).returncode
+    rc = subprocess.run(["git", "config", "core.hooksPath", ".githooks"], cwd=_ROOT).returncode
     if rc != 0:
         return rc
     # Best-effort chmod on POSIX (no-op semantics on Windows). pre-commit is
@@ -39,8 +38,7 @@ def main() -> int:
     enabled = ["pre-push drift + leakage gate"]
     if (hooks_dir / "pre-commit").exists():
         enabled.append("pre-commit control-char scan")
-    print("Enabled shared git hooks (core.hooksPath -> .githooks). "
-          "Active for this clone: " + "; ".join(enabled) + ".")
+    print("Enabled shared git hooks (core.hooksPath -> .githooks). Active for this clone: " + "; ".join(enabled) + ".")
     return 0
 
 

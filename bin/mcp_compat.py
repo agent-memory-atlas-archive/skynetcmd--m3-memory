@@ -46,6 +46,7 @@ missing dependency produced a server that started and registered ZERO tools
 rather than failing. That is the §3 violation -- a fault that presents as a
 working system. A missing mcp now raises at import, where it is legible.
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any

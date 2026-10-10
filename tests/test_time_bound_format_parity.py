@@ -21,6 +21,7 @@ broken in isolation. PostgreSQL is immune because NOW() - interval yields a real
 timestamptz compared against a real timestamptz; this is a SQLite-only trap,
 which is exactly why it needs a test rather than a reviewer.
 """
+
 from __future__ import annotations
 
 import pathlib
@@ -47,26 +48,29 @@ class TestTimeBoundsMatchTheStoredFormat(unittest.TestCase):
         self.conn.close()
 
     def _insert(self, rid: int, minutes_ago: int) -> None:
-        ts = (datetime.now(UTC)
-              - timedelta(minutes=minutes_ago)).strftime(_STORED_FORMAT)
+        ts = (datetime.now(UTC) - timedelta(minutes=minutes_ago)).strftime(_STORED_FORMAT)
         self.conn.execute("INSERT INTO t (id, ts) VALUES (?,?)", (rid, ts))
         self.conn.commit()
 
     def test_now_renders_the_stored_format(self):
         """The anchor: every other bound must match what now() writes."""
         rendered = self.conn.execute(f"SELECT {self.d.now()}").fetchone()[0]
-        datetime.strptime(rendered, _STORED_FORMAT)   # raises if it drifted
+        datetime.strptime(rendered, _STORED_FORMAT)  # raises if it drifted
 
     def test_minute_bound_excludes_a_stale_row(self):
         """The regression itself. A 120-minute-old row must fail a 10-minute
         window; before the fix it passed, because 'T' > ' '."""
         self._insert(1, minutes_ago=2)
         self._insert(2, minutes_ago=120)
-        got = [r["id"] for r in self.conn.execute(
-            f"SELECT id FROM t WHERE ts >= {self.d.now_minus_minutes('?')} "
-            f"ORDER BY id", (10,)).fetchall()]
+        got = [
+            r["id"]
+            for r in self.conn.execute(
+                f"SELECT id FROM t WHERE ts >= {self.d.now_minus_minutes('?')} ORDER BY id", (10,)
+            ).fetchall()
+        ]
         self.assertEqual(
-            got, [1],
+            got,
+            [1],
             "the minute bound matched a stale row.\n"
             f"observed: rows within 10 minutes = {got}, expected [1]\n"
             "cause: the bound renders a different timestamp format than the "
@@ -79,13 +83,16 @@ class TestTimeBoundsMatchTheStoredFormat(unittest.TestCase):
     def test_day_bound_excludes_a_stale_row(self):
         self._insert(1, minutes_ago=60)
         self._insert(2, minutes_ago=60 * 24 * 9)
-        got = [r["id"] for r in self.conn.execute(
-            f"SELECT id FROM t WHERE ts >= {self.d.now_minus_days('?')} "
-            f"ORDER BY id", (7,)).fetchall()]
+        got = [
+            r["id"]
+            for r in self.conn.execute(
+                f"SELECT id FROM t WHERE ts >= {self.d.now_minus_days('?')} ORDER BY id", (7,)
+            ).fetchall()
+        ]
         self.assertEqual(
-            got, [1],
-            f"observed: rows within 7 days = {got}, expected [1]\n"
-            "inspect: SqliteDialect.now_minus_days",
+            got,
+            [1],
+            f"observed: rows within 7 days = {got}, expected [1]\ninspect: SqliteDialect.now_minus_days",
         )
 
     def test_every_bound_renders_the_same_shape(self):
@@ -99,7 +106,8 @@ class TestTimeBoundsMatchTheStoredFormat(unittest.TestCase):
         ):
             with self.subTest(helper=name):
                 self.assertIn(
-                    "%Y-%m-%dT%H:%M:%SZ", sql,
+                    "%Y-%m-%dT%H:%M:%SZ",
+                    sql,
                     f"{name} does not render the stored timestamp format.\n"
                     f"observed: {sql}\n"
                     "cause: a bare datetime() renders a space-separated, "

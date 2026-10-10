@@ -11,6 +11,7 @@ Asserts:
   - id_prefix sharding picks the right rows
   - Already-populated rows are not re-hashed
 """
+
 from __future__ import annotations
 
 import argparse
@@ -26,6 +27,7 @@ sys.path.insert(0, str(REPO / "bin"))
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
+
 
 def _make_min_schema(db_path: Path) -> None:
     """Minimal memory_items + memory_embeddings shape that the backfill needs."""
@@ -122,6 +124,7 @@ def _make_args(db_path: Path, **overrides) -> argparse.Namespace:
 def _verify(db_path: Path) -> None:
     import backfill_content_hash as bf
     from m3_core.context import pointed_store_connection
+
     with pointed_store_connection(str(db_path)) as conn:
         bf._verify_schema(conn, _make_args(db_path))
 
@@ -129,6 +132,7 @@ def _verify(db_path: Path) -> None:
 def _count(db_path: Path, args: argparse.Namespace) -> int:
     import backfill_content_hash as bf
     from m3_core.context import pointed_store_connection
+
     with pointed_store_connection(str(db_path)) as conn:
         return bf._count_pending(conn, args)
 
@@ -136,6 +140,7 @@ def _count(db_path: Path, args: argparse.Namespace) -> int:
 def _run(args: argparse.Namespace) -> dict:
     import backfill_content_hash as bf
     from m3_core.context import pointed_store_connection
+
     with pointed_store_connection(str(args.db)) as conn:
         return bf._run_backfill(conn, args)
 
@@ -149,8 +154,10 @@ def db(tmp_path):
 
 # ── Schema sanity ────────────────────────────────────────────────────────
 
+
 def test_schema_missing_db(tmp_path, capsys):
     import backfill_content_hash as bf
+
     assert bf.main(["--db", str(tmp_path / "nope.db")]) == 2
     assert "observed: no SQLite DB at" in capsys.readouterr().err
 
@@ -183,53 +190,70 @@ def test_schema_minimal_ok(db):
 
 # ── Candidate query ──────────────────────────────────────────────────────
 
+
 def test_count_filters_null_only(db):
     """Already-populated rows should NOT show up as pending."""
-    _seed(db, [
-        {"id": "row-A", "content": "alpha", "type": "message"},
-        {"id": "row-B", "content": "beta",  "type": "message"},
-    ], [
-        {"id": "e-A", "memory_id": "row-A", "content_hash": None},          # NULL — pending
-        {"id": "e-B", "memory_id": "row-B", "content_hash": "preexisting"}, # already set
-    ])
+    _seed(
+        db,
+        [
+            {"id": "row-A", "content": "alpha", "type": "message"},
+            {"id": "row-B", "content": "beta", "type": "message"},
+        ],
+        [
+            {"id": "e-A", "memory_id": "row-A", "content_hash": None},  # NULL — pending
+            {"id": "e-B", "memory_id": "row-B", "content_hash": "preexisting"},  # already set
+        ],
+    )
     args = _make_args(db)
     assert _count(db, args) == 1
 
 
 def test_count_filters_soft_deleted(db):
-    _seed(db, [
-        {"id": "row-A", "content": "a", "type": "message", "is_deleted": 0},
-        {"id": "row-B", "content": "b", "type": "message", "is_deleted": 1},
-    ], [
-        {"id": "e-A", "memory_id": "row-A", "content_hash": None},
-        {"id": "e-B", "memory_id": "row-B", "content_hash": None},
-    ])
+    _seed(
+        db,
+        [
+            {"id": "row-A", "content": "a", "type": "message", "is_deleted": 0},
+            {"id": "row-B", "content": "b", "type": "message", "is_deleted": 1},
+        ],
+        [
+            {"id": "e-A", "memory_id": "row-A", "content_hash": None},
+            {"id": "e-B", "memory_id": "row-B", "content_hash": None},
+        ],
+    )
     args = _make_args(db)
     assert _count(db, args) == 1
 
 
 def test_count_filters_empty_content(db):
-    _seed(db, [
-        {"id": "row-A", "content": "alpha",  "type": "message"},
-        {"id": "row-B", "content": "",       "type": "message"},
-        {"id": "row-C", "content": "   ",    "type": "message"},
-    ], [
-        {"id": "e-A", "memory_id": "row-A", "content_hash": None},
-        {"id": "e-B", "memory_id": "row-B", "content_hash": None},
-        {"id": "e-C", "memory_id": "row-C", "content_hash": None},
-    ])
+    _seed(
+        db,
+        [
+            {"id": "row-A", "content": "alpha", "type": "message"},
+            {"id": "row-B", "content": "", "type": "message"},
+            {"id": "row-C", "content": "   ", "type": "message"},
+        ],
+        [
+            {"id": "e-A", "memory_id": "row-A", "content_hash": None},
+            {"id": "e-B", "memory_id": "row-B", "content_hash": None},
+            {"id": "e-C", "memory_id": "row-C", "content_hash": None},
+        ],
+    )
     args = _make_args(db)
     assert _count(db, args) == 1
 
 
 def test_count_type_filter(db):
-    _seed(db, [
-        {"id": "row-A", "content": "a", "type": "message"},
-        {"id": "row-B", "content": "b", "type": "summary"},
-    ], [
-        {"id": "e-A", "memory_id": "row-A", "content_hash": None},
-        {"id": "e-B", "memory_id": "row-B", "content_hash": None},
-    ])
+    _seed(
+        db,
+        [
+            {"id": "row-A", "content": "a", "type": "message"},
+            {"id": "row-B", "content": "b", "type": "summary"},
+        ],
+        [
+            {"id": "e-A", "memory_id": "row-A", "content_hash": None},
+            {"id": "e-B", "memory_id": "row-B", "content_hash": None},
+        ],
+    )
     args = _make_args(db, type=["message"])
     assert _count(db, args) == 1
     args = _make_args(db, type=["summary"])
@@ -239,18 +263,23 @@ def test_count_type_filter(db):
 
 
 def test_count_id_prefix(db):
-    _seed(db, [
-        {"id": "mi-A", "content": "a", "type": "message"},
-        {"id": "mi-B", "content": "b", "type": "message"},
-    ], [
-        {"id": "abc-1", "memory_id": "mi-A", "content_hash": None},
-        {"id": "xyz-2", "memory_id": "mi-B", "content_hash": None},
-    ])
+    _seed(
+        db,
+        [
+            {"id": "mi-A", "content": "a", "type": "message"},
+            {"id": "mi-B", "content": "b", "type": "message"},
+        ],
+        [
+            {"id": "abc-1", "memory_id": "mi-A", "content_hash": None},
+            {"id": "xyz-2", "memory_id": "mi-B", "content_hash": None},
+        ],
+    )
     args = _make_args(db, id_prefix="abc")
     assert _count(db, args) == 1
 
 
 # ── Hash correctness — bit-for-bit match with memory_core ─────────────────
+
 
 def test_hash_matches_memory_core(db):
     """The hash we write must match what memory_core._content_hash would compute."""
@@ -258,55 +287,64 @@ def test_hash_matches_memory_core(db):
     sys.path.insert(0, str(REPO / "bin"))
     import memory_core as mc
 
-    _seed(db, [
-        {"id": "row-A", "content": "User said hello", "type": "message"},
-    ], [
-        {"id": "e-A", "memory_id": "row-A", "content_hash": None},
-    ])
+    _seed(
+        db,
+        [
+            {"id": "row-A", "content": "User said hello", "type": "message"},
+        ],
+        [
+            {"id": "e-A", "memory_id": "row-A", "content_hash": None},
+        ],
+    )
     args = _make_args(db)
     _run(args)
 
     expected_hash = mc._content_hash("User said hello")
     conn = sqlite3.connect(str(db))
-    actual = conn.execute(
-        "SELECT content_hash FROM memory_embeddings WHERE id=?", ("e-A",)
-    ).fetchone()[0]
+    actual = conn.execute("SELECT content_hash FROM memory_embeddings WHERE id=?", ("e-A",)).fetchone()[0]
     conn.close()
     assert actual == expected_hash
 
 
 # ── Real run — UPDATEs land ──────────────────────────────────────────────
 
+
 def test_run_updates_pending_rows(db):
-    _seed(db, [
-        {"id": "row-A", "content": "alpha", "type": "message"},
-        {"id": "row-B", "content": "beta",  "type": "message"},
-    ], [
-        {"id": "e-A", "memory_id": "row-A", "content_hash": None},
-        {"id": "e-B", "memory_id": "row-B", "content_hash": None},
-    ])
+    _seed(
+        db,
+        [
+            {"id": "row-A", "content": "alpha", "type": "message"},
+            {"id": "row-B", "content": "beta", "type": "message"},
+        ],
+        [
+            {"id": "e-A", "memory_id": "row-A", "content_hash": None},
+            {"id": "e-B", "memory_id": "row-B", "content_hash": None},
+        ],
+    )
     args = _make_args(db)
     counters = _run(args)
     assert counters["updated"] == 2
     assert counters["scanned"] == 2
 
     conn = sqlite3.connect(str(db))
-    rows = conn.execute(
-        "SELECT id, content_hash FROM memory_embeddings ORDER BY id"
-    ).fetchall()
+    rows = conn.execute("SELECT id, content_hash FROM memory_embeddings ORDER BY id").fetchall()
     conn.close()
     assert all(r[1] is not None for r in rows)
 
 
 def test_run_skips_already_populated(db):
     """Pre-existing content_hash values must not be overwritten."""
-    _seed(db, [
-        {"id": "row-A", "content": "alpha", "type": "message"},
-        {"id": "row-B", "content": "beta",  "type": "message"},
-    ], [
-        {"id": "e-A", "memory_id": "row-A", "content_hash": "ALREADY_SET"},
-        {"id": "e-B", "memory_id": "row-B", "content_hash": None},
-    ])
+    _seed(
+        db,
+        [
+            {"id": "row-A", "content": "alpha", "type": "message"},
+            {"id": "row-B", "content": "beta", "type": "message"},
+        ],
+        [
+            {"id": "e-A", "memory_id": "row-A", "content_hash": "ALREADY_SET"},
+            {"id": "e-B", "memory_id": "row-B", "content_hash": None},
+        ],
+    )
     args = _make_args(db)
     counters = _run(args)
     assert counters["updated"] == 1
@@ -316,19 +354,23 @@ def test_run_skips_already_populated(db):
     b_hash = conn.execute("SELECT content_hash FROM memory_embeddings WHERE id='e-B'").fetchone()[0]
     conn.close()
     assert a_hash == "ALREADY_SET"  # untouched
-    assert b_hash is not None        # backfilled
+    assert b_hash is not None  # backfilled
     assert b_hash != "ALREADY_SET"
 
 
 def test_run_skips_empty_content(db):
     """Empty/whitespace content rows are filtered out at SELECT time."""
-    _seed(db, [
-        {"id": "row-A", "content": "alpha", "type": "message"},
-        {"id": "row-B", "content": "",       "type": "message"},
-    ], [
-        {"id": "e-A", "memory_id": "row-A", "content_hash": None},
-        {"id": "e-B", "memory_id": "row-B", "content_hash": None},
-    ])
+    _seed(
+        db,
+        [
+            {"id": "row-A", "content": "alpha", "type": "message"},
+            {"id": "row-B", "content": "", "type": "message"},
+        ],
+        [
+            {"id": "e-A", "memory_id": "row-A", "content_hash": None},
+            {"id": "e-B", "memory_id": "row-B", "content_hash": None},
+        ],
+    )
     args = _make_args(db)
     counters = _run(args)
     # Empty-content row never reached _run_backfill (filtered at SELECT)
@@ -339,12 +381,17 @@ def test_run_skips_empty_content(db):
 
 # ── Dry-run ──────────────────────────────────────────────────────────────
 
+
 def test_dry_run_counts_without_writing(db):
-    _seed(db, [
-        {"id": "row-A", "content": "alpha", "type": "message"},
-    ], [
-        {"id": "e-A", "memory_id": "row-A", "content_hash": None},
-    ])
+    _seed(
+        db,
+        [
+            {"id": "row-A", "content": "alpha", "type": "message"},
+        ],
+        [
+            {"id": "e-A", "memory_id": "row-A", "content_hash": None},
+        ],
+    )
     args = _make_args(db, dry_run=True)
     counters = _run(args)
     assert counters["updated"] == 1  # would have updated 1
@@ -357,12 +404,17 @@ def test_dry_run_counts_without_writing(db):
 
 # ── Idempotency — second run is a no-op ──────────────────────────────────
 
+
 def test_idempotent_rerun(db):
-    _seed(db, [
-        {"id": "row-A", "content": "alpha", "type": "message"},
-    ], [
-        {"id": "e-A", "memory_id": "row-A", "content_hash": None},
-    ])
+    _seed(
+        db,
+        [
+            {"id": "row-A", "content": "alpha", "type": "message"},
+        ],
+        [
+            {"id": "e-A", "memory_id": "row-A", "content_hash": None},
+        ],
+    )
     args = _make_args(db)
     c1 = _run(args)
     assert c1["updated"] == 1
@@ -376,8 +428,10 @@ def test_idempotent_rerun(db):
 
 # ── argparse defaults ────────────────────────────────────────────────────
 
+
 def test_parse_args_default_types(monkeypatch):
     import backfill_content_hash as bf
+
     monkeypatch.delenv("M3_DATABASE", raising=False)
     args = bf._parse_args([])
     assert args.type == ["chat_log", "message"]
@@ -387,34 +441,41 @@ def test_parse_args_default_types(monkeypatch):
 
 def test_parse_args_explicit_types_override_default():
     import backfill_content_hash as bf
+
     args = bf._parse_args(["--type", "summary", "--type", "note"])
     assert args.type == ["summary", "note"]
 
 
 def test_parse_args_all_types_clears_filter():
     import backfill_content_hash as bf
+
     args = bf._parse_args(["--all-types"])
     assert args.type == []  # empty list = no type filter at SQL level
 
 
 def test_parse_args_all_types_conflicts_with_type():
     import backfill_content_hash as bf
+
     with pytest.raises(SystemExit):
         bf._parse_args(["--all-types", "--type", "note"])
 
 
 def test_count_all_types_returns_every_pending_row(db):
     """With --all-types, the type filter is skipped — all rows match."""
-    _seed(db, [
-        {"id": "row-A", "content": "a", "type": "message"},
-        {"id": "row-B", "content": "b", "type": "summary"},
-        {"id": "row-C", "content": "c", "type": "note"},
-        {"id": "row-D", "content": "d", "type": "decision"},
-    ], [
-        {"id": "e-A", "memory_id": "row-A", "content_hash": None},
-        {"id": "e-B", "memory_id": "row-B", "content_hash": None},
-        {"id": "e-C", "memory_id": "row-C", "content_hash": None},
-        {"id": "e-D", "memory_id": "row-D", "content_hash": None},
-    ])
+    _seed(
+        db,
+        [
+            {"id": "row-A", "content": "a", "type": "message"},
+            {"id": "row-B", "content": "b", "type": "summary"},
+            {"id": "row-C", "content": "c", "type": "note"},
+            {"id": "row-D", "content": "d", "type": "decision"},
+        ],
+        [
+            {"id": "e-A", "memory_id": "row-A", "content_hash": None},
+            {"id": "e-B", "memory_id": "row-B", "content_hash": None},
+            {"id": "e-C", "memory_id": "row-C", "content_hash": None},
+            {"id": "e-D", "memory_id": "row-D", "content_hash": None},
+        ],
+    )
     args = _make_args(db, type=[])  # mimics --all-types
     assert _count(db, args) == 4

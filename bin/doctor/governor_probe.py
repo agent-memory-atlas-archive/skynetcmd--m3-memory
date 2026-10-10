@@ -12,6 +12,7 @@ one-command fix, plus the privileged OS-specific commands if removal needs
 elevation. It never fails the doctor run — leaving the cron entries in place is a
 supported (if suboptimal) choice — it only reports, returning 0 always.
 """
+
 from __future__ import annotations
 
 import logging
@@ -72,11 +73,12 @@ def run(brief: bool = False) -> int:
             # hang. `--yes` is the honest recommendation for a command we are
             # ALREADY telling them to run elevated and unattended.
             if is_windows():
-                print(f"⚠️  governor: NAG ({len(eligible)} legacy task(s); run "
-                      "`m3 governor migrate --yes` from an ELEVATED shell)")
+                print(
+                    f"⚠️  governor: NAG ({len(eligible)} legacy task(s); run "
+                    "`m3 governor migrate --yes` from an ELEVATED shell)"
+                )
             else:
-                print(f"⚠️  governor: NAG ({len(eligible)} legacy task(s); run "
-                      "`m3 governor migrate`)")
+                print(f"⚠️  governor: NAG ({len(eligible)} legacy task(s); run `m3 governor migrate`)")
         else:
             print("✅ governor: OK (no legacy scheduled tasks)")
         return 0

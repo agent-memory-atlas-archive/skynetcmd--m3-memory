@@ -18,6 +18,7 @@ and the waiter polls by query instead.
 The cheap 1s polling happens HERE, in a subprocess that costs no context. That
 is the whole point: on-change delivery to the agent, without a turn per tick.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -60,10 +61,12 @@ def refresh_agent_ids(current: list[str]) -> list[str]:
         ids = _re.findall(r"\[([A-Za-z0-9_.~@+-]+)\]", agent_list_impl("", "") or "")
         return ids or current
     except Exception as exc:  # noqa: BLE001 -- degraded beats dead
-        _warn(f"could not refresh the agent list, keeping the current one. "
-              f"observed: {type(exc).__name__}: {exc}. "
-              f"possible: the registry is unreadable from this interpreter. "
-              f"inspect: memory.orchestration.agent_list_impl")
+        _warn(
+            f"could not refresh the agent list, keeping the current one. "
+            f"observed: {type(exc).__name__}: {exc}. "
+            f"possible: the registry is unreadable from this interpreter. "
+            f"inspect: memory.orchestration.agent_list_impl"
+        )
         return current
 
 
@@ -90,12 +93,15 @@ def notification_stores(engine_root: str) -> list[str]:
     try:
         sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__))))
         from m3_core.paths import notification_store_paths
+
         stores = notification_store_paths()
     except Exception as exc:  # noqa: BLE001 -- degraded beats dead
-        _warn(f"could not enumerate notification stores, watching the main store "
-              f"only. observed: {type(exc).__name__}: {exc}. "
-              f"possible: m3_core is not importable from this interpreter. "
-              f"inspect: m3_core.paths.notification_store_paths")
+        _warn(
+            f"could not enumerate notification stores, watching the main store "
+            f"only. observed: {type(exc).__name__}: {exc}. "
+            f"possible: m3_core is not importable from this interpreter. "
+            f"inspect: m3_core.paths.notification_store_paths"
+        )
         stores = [os.path.join(engine_root, "agent_memory.db")]
     return [str(s) for s in stores]
 
@@ -212,9 +218,10 @@ def _m3_admin(tool: str, agent_id: str) -> bool:
     """
     try:
         r = subprocess.run(  # nosec B603 - argv list, no shell
-            [sys.executable, "-m", "m3_memory.cli", "admin", tool,
-             "--agent_id", agent_id, "--yes"],
-            capture_output=True, text=True, timeout=90,
+            [sys.executable, "-m", "m3_memory.cli", "admin", tool, "--agent_id", agent_id, "--yes"],
+            capture_output=True,
+            text=True,
+            timeout=90,
             **_no_window(),
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
@@ -233,14 +240,17 @@ def unread_ids(agent_id: str) -> set:
     """Ask m3 what is actually unread. Uses structured impl to avoid Phantom-ID bug."""
     try:
         from memory.orchestration import notifications_unread_ids_impl
+
         return {str(x) for x in notifications_unread_ids_impl(agent_id)}
     except Exception as exc:
         import sys
-        _warn(f"notifications_unread_ids_impl for {agent_id!r} exited "
-              f"using {sys.executable!r} -- detection is BLIND for this agent. "
-              f"stderr: {exc!r}")
-        return set()
 
+        _warn(
+            f"notifications_unread_ids_impl for {agent_id!r} exited "
+            f"using {sys.executable!r} -- detection is BLIND for this agent. "
+            f"stderr: {exc!r}"
+        )
+        return set()
 
 
 def pg_child_loop(args) -> int:
@@ -259,7 +269,7 @@ def pg_child_loop(args) -> int:
                     break
         except Exception:
             pass
-        shutdown_flag.set() # EOF seen
+        shutdown_flag.set()  # EOF seen
 
     t = threading.Thread(target=stdin_watcher, daemon=True)
     t.start()
@@ -298,10 +308,10 @@ def pg_child_loop(args) -> int:
 
     while time.time() < deadline:
         if shutdown_flag.is_set():
-            print(json.dumps({"t":"bye"}), flush=True)
+            print(json.dumps({"t": "bye"}), flush=True)
             return 0
 
-        print(json.dumps({"t":"hb","n":0}), flush=True)
+        print(json.dumps({"t": "hb", "n": 0}), flush=True)
 
         try:
             hits = {}
@@ -343,8 +353,7 @@ def pg_child_loop(args) -> int:
                     for a in hits:
                         notifications_ack_all_impl(a)
                         acked[a] = hits[a]
-                print(json.dumps({"t": "hit", "new_notifications": hits,
-                                  "received": hits, "acked": acked}), flush=True)
+                print(json.dumps({"t": "hit", "new_notifications": hits, "received": hits, "acked": acked}), flush=True)
                 return 0
         except Exception as e:
             _warn(f"PG poll error: {e}")
@@ -352,7 +361,7 @@ def pg_child_loop(args) -> int:
 
         time.sleep(args.interval)
 
-    print(json.dumps({"t":"timeout"}), flush=True)
+    print(json.dumps({"t": "timeout"}), flush=True)
     return 2
 
 
@@ -381,6 +390,7 @@ def _supervise_postgres(args) -> int:
         child_start_time = time.time()
 
         q: queue.Queue[str | None] = queue.Queue()  # None == EOF sentinel
+
         # The thread gets ITS child's stream and queue as arguments. Read from
         # the enclosing scope at run time, a reader still alive after a restart
         # put its EOF sentinel into the NEW child's queue, and the supervisor
@@ -407,23 +417,24 @@ def _supervise_postgres(args) -> int:
                     break
 
                 line = line.strip()
-                if not line: continue
+                if not line:
+                    continue
 
                 try:
                     msg = json.loads(line)
                 except Exception:
                     continue
 
-                match msg.get('t'):
-                    case 'hb':
+                match msg.get("t"):
+                    case "hb":
                         last_hb = time.time()
-                    case 'hit':
+                    case "hit":
                         p.wait(timeout=2.0)
                         return 0
-                    case 'timeout':
+                    case "timeout":
                         p.wait(timeout=2.0)
                         return 2
-                    case 'bye':
+                    case "bye":
                         break
             except queue.Empty:
                 if time.time() - last_hb > (args.interval * 3):
@@ -431,7 +442,7 @@ def _supervise_postgres(args) -> int:
                     # killed while the child still holds the WAL watch, and a
                     # buffered warning dies with it -- so the fail-loud path
                     # reports nothing for its most common failure.
-                    _warn(f"PG child wedged (no hb for {args.interval*3}s). Restarting.")
+                    _warn(f"PG child wedged (no hb for {args.interval * 3}s). Restarting.")
                     sys.stderr.flush()
                     child_failed = True
                     break
@@ -467,6 +478,7 @@ def _supervise_postgres(args) -> int:
 
     return 2
 
+
 def _has_change_signal(probe_store: str) -> bool:
     """Does the SEAM give this backend a connection-free change signal?
 
@@ -499,48 +511,63 @@ def _has_change_signal(probe_store: str) -> bool:
     """
     try:
         from memory.backends import dialect  # deferred: see docstring
+
         return dialect().store_change_token(probe_store) is not None
     except Exception as exc:
         try:
             from m3_core.paths import resolve_backend_name  # the selector's single owner
+
             env = resolve_backend_name()
         except ImportError:  # stripped payload: no m3_core either
-            env = (os.environ.get("M3_DB_BACKEND")
-                   or os.environ.get("DB_BACKEND") or "sqlite").strip().lower()
+            env = (os.environ.get("M3_DB_BACKEND") or os.environ.get("DB_BACKEND") or "sqlite").strip().lower()
         except ValueError as sel_exc:  # an unrecognised name; the selector says which
             env = f"unrecognised ({sel_exc})"
-        _warn(f"could not ask the backend seam for a change signal "
-              f"(observed: {exc!r}); falling back to backend={env!r}. "
-              f"inspect: memory.backends.dialect().store_change_token")
+        _warn(
+            f"could not ask the backend seam for a change signal "
+            f"(observed: {exc!r}); falling back to backend={env!r}. "
+            f"inspect: memory.backends.dialect().store_change_token"
+        )
         return env == "sqlite"
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--agent-id", required=True,
-                    help="Inbox to watch. Repeatable: pass once per agent to serve several "
-                         "inboxes from ONE process. The WAL trigger is shared -- a single file "
-                         "change covers every inbox -- so N agents cost N cheap confirm-polls "
-                         "after a change, not N watchers.",
-                    action="append", dest="agent_ids")
-    ap.add_argument("--engine-root", default=os.environ.get("M3_ENGINE_ROOT") or
-                    str(pathlib.Path.home() / ".m3" / "engine"))
+    ap.add_argument(
+        "--agent-id",
+        required=True,
+        help="Inbox to watch. Repeatable: pass once per agent to serve several "
+        "inboxes from ONE process. The WAL trigger is shared -- a single file "
+        "change covers every inbox -- so N agents cost N cheap confirm-polls "
+        "after a change, not N watchers.",
+        action="append",
+        dest="agent_ids",
+    )
+    ap.add_argument(
+        "--engine-root", default=os.environ.get("M3_ENGINE_ROOT") or str(pathlib.Path.home() / ".m3" / "engine")
+    )
     ap.add_argument("--interval", type=float, default=1.0)
-    ap.add_argument("--timeout", type=float, default=3600.0,
-                    help="Give up after N seconds so a forgotten waiter cannot leak.")
-    ap.add_argument("--supervise", action="store_true",
-                    help="Never exit: after each detection, re-arm and keep waiting. For an "
-                         "ONSTART scheduled task, which needs a long-lived process. Without it "
-                         "the waiter is single-shot, which is what a runtime wants when the "
-                         "process EXIT is the wake signal.")
-    ap.add_argument("--ack", action="store_true",
-                    help="Ack on detection. OFF BY DEFAULT, deliberately: the notifications table "
-                         "has only `read_at` -- no separate 'received' column -- so acking here "
-                         "destroys the only record that a message was unread. Measured on this "
-                         "machine: 29 of 30 recent notifications carried NO task_id, so 'the task "
-                         "state machine tracks it' is false for ~97 percent of real traffic. Enable this "
-                         "only where every watched kind is backed by a task whose own state "
-                         "survives the ack.")
+    ap.add_argument(
+        "--timeout", type=float, default=3600.0, help="Give up after N seconds so a forgotten waiter cannot leak."
+    )
+    ap.add_argument(
+        "--supervise",
+        action="store_true",
+        help="Never exit: after each detection, re-arm and keep waiting. For an "
+        "ONSTART scheduled task, which needs a long-lived process. Without it "
+        "the waiter is single-shot, which is what a runtime wants when the "
+        "process EXIT is the wake signal.",
+    )
+    ap.add_argument(
+        "--ack",
+        action="store_true",
+        help="Ack on detection. OFF BY DEFAULT, deliberately: the notifications table "
+        "has only `read_at` -- no separate 'received' column -- so acking here "
+        "destroys the only record that a message was unread. Measured on this "
+        "machine: 29 of 30 recent notifications carried NO task_id, so 'the task "
+        "state machine tracks it' is false for ~97 percent of real traffic. Enable this "
+        "only where every watched kind is backed by a task whose own state "
+        "survives the ack.",
+    )
     ap.add_argument("--child", action="store_true")
     args = ap.parse_args()
 
@@ -566,8 +593,8 @@ def main() -> int:
             # refresh_agent_ids for the incident this prevents.
             args.agent_ids = refresh_agent_ids(args.agent_ids)
             rc = _wait_once(args)
-            if rc not in (0, 2):          # 0 = delivered, 2 = idle timeout
-                return rc                 # a real failure must surface, not spin
+            if rc not in (0, 2):  # 0 = delivered, 2 = idle timeout
+                return rc  # a real failure must surface, not spin
     return _wait_once(args)
 
 
@@ -596,9 +623,11 @@ def _wait_once(args) -> int:
     try:
         fp = change_token(stores)
     except Exception as exc:  # noqa: BLE001 -- reported, then a real failure rc
-        _warn(f"cannot read the change token for {stores!r}; detection would be "
-              f"blind, so stopping. observed: {type(exc).__name__}: {exc}. "
-              f"inspect: memory.backends.dialect().store_change_token")
+        _warn(
+            f"cannot read the change token for {stores!r}; detection would be "
+            f"blind, so stopping. observed: {type(exc).__name__}: {exc}. "
+            f"inspect: memory.backends.dialect().store_change_token"
+        )
         return 1
     deadline = time.time() + args.timeout
 
@@ -606,7 +635,7 @@ def _wait_once(args) -> int:
         time.sleep(args.interval)
         cur_fp = change_token(stores)
         if cur_fp == fp:
-            continue                      # nothing written at all
+            continue  # nothing written at all
         fp = cur_fp
         hits = {}
         for a in args.agent_ids:
@@ -647,9 +676,8 @@ def _wait_once(args) -> int:
             acked = {}
             if args.ack:
                 acked = {a: _m3_admin("notifications_ack_all", a) for a in hits}
-            print(json.dumps({"new_notifications": hits,
-                              "received": received, "acked": acked}))
-            return 0                      # exit == your runtime's wake signal
+            print(json.dumps({"new_notifications": hits, "received": received, "acked": acked}))
+            return 0  # exit == your runtime's wake signal
 
     print(json.dumps({"timeout": True, "agent_ids": args.agent_ids}), file=sys.stderr)
     return 2
@@ -657,4 +685,3 @@ def _wait_once(args) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

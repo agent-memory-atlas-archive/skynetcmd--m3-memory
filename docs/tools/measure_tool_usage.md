@@ -1,8 +1,8 @@
 ---
 tool: bin/measure_tool_usage.py
-sha1: 66a56f2f2a4a
-mtime_utc: 2026-10-09T23:19:58.838991+00:00
-generated_utc: 2026-10-09T23:24:14.147041+00:00
+sha1: 91d165f66fb8
+mtime_utc: 2026-10-10T21:05:16.961038+00:00
+generated_utc: 2026-10-10T21:05:29.777993+00:00
 private: false
 ---
 
@@ -56,7 +56,7 @@ Usage:
 
 ## Entry points
 
-- `def main()` (line 254)
+- `def main()` (line 279)
 - `if __name__ == "__main__"` guard
 
 ---

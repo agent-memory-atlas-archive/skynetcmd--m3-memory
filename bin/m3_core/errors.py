@@ -14,6 +14,7 @@ a driver error the active backend calls a wrong query
     except Exception as e:
         log_swallowed(logger, e, "window chunk query failed: %s", e)
 """
+
 from __future__ import annotations
 
 import logging
@@ -49,5 +50,9 @@ def log_swallowed(logger: logging.Logger, exc: BaseException, msg: str, *args: o
         text = msg % args if args else msg
     except (TypeError, ValueError):
         text = f"{msg} {args!r}"
-    logger.warning("%s -- a defect, not an expected miss; observed: %s: %s. inspect: the "
-                   "query or the code at this call site", text, type(exc).__name__, exc)
+    logger.warning(
+        "%s -- a defect, not an expected miss; observed: %s: %s. inspect: the query or the code at this call site",
+        text,
+        type(exc).__name__,
+        exc,
+    )

@@ -12,6 +12,7 @@ stats dict. Expected outcomes (one and only one key after one call):
 The CPU fallback at 127.0.0.1:8082 may not be running on this box; if so
 the path silently moves on. That's intentional behavior under test.
 """
+
 import asyncio
 import os
 import sys

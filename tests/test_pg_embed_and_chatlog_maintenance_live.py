@@ -7,6 +7,7 @@ chatlog.
 Live-PG: skips without a reachable cluster. Rows are inserted with fresh ids and
 only those rows are asserted on, because the test database is shared.
 """
+
 from __future__ import annotations
 
 import sys
@@ -71,10 +72,13 @@ def test_embed_targets_cover_both_pg_stores(pg):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("store, items, embeddings", [
-    ("core", "memory_items", "memory_embeddings"),
-    ("chatlog", "chat_log_items", "chat_log_embeddings"),
-])
+@pytest.mark.parametrize(
+    "store, items, embeddings",
+    [
+        ("core", "memory_items", "memory_embeddings"),
+        ("chatlog", "chat_log_items", "chat_log_embeddings"),
+    ],
+)
 async def test_backfill_embeds_a_pg_row(pg, monkeypatch, store, items, embeddings):
     import embed_backfill as eb
     import memory_core as mc
@@ -86,8 +90,7 @@ async def test_backfill_embeds_a_pg_row(pg, monkeypatch, store, items, embedding
     mid = str(uuid.uuid4())
     _insert(pg, items, [(mid, "note", "t", "embed me on postgres", 0.5, 0)])
 
-    args = eb._parse_args(["--target", store, "--id-prefix", mid[:8],
-                           "--no-augment-anchors"])
+    args = eb._parse_args(["--target", store, "--id-prefix", mid[:8], "--no-augment-anchors"])
     eb._verify_schema(args.db, store)
     assert eb._count_pending(args.db, args) >= 1
     await eb._run_sweep(args, eb.Counters())
@@ -100,8 +103,7 @@ def test_chatlog_decay_and_prune_scan_the_pg_chatlog(pg, tmp_path):
     import chatlog_prune
 
     ids = [str(uuid.uuid4()) for _ in range(3)]
-    _insert(pg, "chat_log_items",
-            [(i, "chat_log", "assistant@host: ok", "ok", 0.1, 40) for i in ids])
+    _insert(pg, "chat_log_items", [(i, "chat_log", "assistant@host: ok", "ok", 0.1, 40) for i in ids])
     no_file = str(tmp_path / "agent_chatlog.db")
 
     decay = chatlog_decay.run_sweep(no_file, apply=False)
@@ -109,9 +111,17 @@ def test_chatlog_decay_and_prune_scan_the_pg_chatlog(pg, tmp_path):
     assert decay["scanned"] >= 3
 
     opts = types.SimpleNamespace(
-        fresh_days=7, prune_days=30, status_min_cluster=5, generic_imp_max=0.3,
-        keep_imp_floor=0.4, generic_protect_len=300, generic_delete_maxlen=300,
-        max_actions=10_000, no_generic=False, apply=False)
+        fresh_days=7,
+        prune_days=30,
+        status_min_cluster=5,
+        generic_imp_max=0.3,
+        keep_imp_floor=0.4,
+        generic_protect_len=300,
+        generic_delete_maxlen=300,
+        max_actions=10_000,
+        no_generic=False,
+        apply=False,
+    )
     prune = chatlog_prune.run(no_file, opts)
     assert "error" not in prune and prune["errors"] == []
     assert prune["scanned"] >= 3

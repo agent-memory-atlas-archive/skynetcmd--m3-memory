@@ -6,6 +6,7 @@ store), and the chatlog section resolved a SQLite FILE path, found none, and
 printed "db not yet created (no captures written)" on a working install -- a
 false alarm. Both now name their tables through the seam.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -23,7 +24,8 @@ def test_backend_panel_lists_the_stores(each_backend, capsys):
         assert "stores (SQLite):" in out, f"observed: {out!r} {where}"
     else:
         assert "stores (PostgreSQL tables):" in out and "reachable:                yes" in out, (
-            f"observed: {out!r} {where}")
+            f"observed: {out!r} {where}"
+        )
         for label, table in (("core", "memory_items"), ("chat", "chat_log_items"), ("files", "files.leaves")):
             assert f"{label:<6} {table}" in out, f"observed: no {label} store line {where}"
 
@@ -40,8 +42,10 @@ def test_chatlog_section_reads_the_server_tables(each_backend, capsys):
     items, p = chatlog_table("items"), dialect().param()
     rid = f"doc-{uuid.uuid4().hex[:8]}"
     with each_backend.connection() as conn:
-        conn.execute(f"INSERT INTO {items} (id, type, content, created_at) VALUES ({p}, 'chat_log', 'x', {p})",
-                     (rid, "2026-10-10T00:00:00Z"))
+        conn.execute(
+            f"INSERT INTO {items} (id, type, content, created_at) VALUES ({p}, 'chat_log', 'x', {p})",
+            (rid, "2026-10-10T00:00:00Z"),
+        )
         conn.commit()
     try:
         sections._chatlog_section({})

@@ -10,6 +10,7 @@ Usage:
     python bin/cli_kb_browse.py -s proxmox   # search title/content
     python bin/cli_kb_browse.py --no-pager   # dump all, no paging
 """
+
 from __future__ import annotations
 
 import argparse
@@ -24,8 +25,8 @@ from m3_core.seams import is_windows
 
 # ── Locate DB ────────────────────────────────────────────────────────────────
 SCRIPT_DIR = Path(__file__).resolve().parent
-REPO_ROOT   = SCRIPT_DIR.parent
-DB_PATH     = REPO_ROOT / "memory" / "agent_memory.db"
+REPO_ROOT = SCRIPT_DIR.parent
+DB_PATH = REPO_ROOT / "memory" / "agent_memory.db"
 
 sys.path.insert(0, str(REPO_ROOT / "bin"))
 from m3_sdk import add_database_arg, resolve_db_path, resolve_venv_python
@@ -37,6 +38,7 @@ def ensure_venv():
         # venv_python is an absolute path within the project root, so this is safe.
         os.execl(venv_python, venv_python, *sys.argv)  # nosec B606
 
+
 ensure_venv()
 
 # ── Terminal width ────────────────────────────────────────────────────────────
@@ -44,8 +46,9 @@ try:
     COLS = os.get_terminal_size().columns
 except OSError:
     COLS = 100
-SEP  = "─" * COLS
+SEP = "─" * COLS
 SEP2 = "═" * COLS
+
 
 # ── ANSI colours (disabled on Windows unless ANSICON/WT) ─────────────────────
 def _ansi(code: str) -> str:
@@ -55,31 +58,34 @@ def _ansi(code: str) -> str:
         return ""
     return f"\033[{code}m"
 
-RESET  = _ansi("0")
-BOLD   = _ansi("1")
-DIM    = _ansi("2")
-CYAN   = _ansi("36")
+
+RESET = _ansi("0")
+BOLD = _ansi("1")
+DIM = _ansi("2")
+CYAN = _ansi("36")
 YELLOW = _ansi("33")
-GREEN  = _ansi("32")
-BLUE   = _ansi("34")
-RED    = _ansi("31")
+GREEN = _ansi("32")
+BLUE = _ansi("34")
+RED = _ansi("31")
 MAGENTA = _ansi("35")
 
 TYPE_COLOURS = {
-    "fact":             GREEN,
-    "decision":         YELLOW,
-    "knowledge":        CYAN,
-    "project":          BLUE,
-    "note":             DIM,
-    "local_device":     MAGENTA,
-    "reference":        DIM,
-    "network_config":   CYAN,
-    "infrastructure":   BLUE,
-    "home_automation":  YELLOW,
+    "fact": GREEN,
+    "decision": YELLOW,
+    "knowledge": CYAN,
+    "project": BLUE,
+    "note": DIM,
+    "local_device": MAGENTA,
+    "reference": DIM,
+    "network_config": CYAN,
+    "infrastructure": BLUE,
+    "home_automation": YELLOW,
 }
+
 
 def type_colour(t: str) -> str:
     return TYPE_COLOURS.get(t.lower(), "") if t else ""
+
 
 # ── Importance bar ────────────────────────────────────────────────────────────
 def importance_bar(score: float, width: int = 10) -> str:
@@ -87,6 +93,7 @@ def importance_bar(score: float, width: int = 10) -> str:
     bar = "█" * filled + "░" * (width - filled)
     colour = GREEN if score >= 0.9 else YELLOW if score >= 0.7 else RED
     return f"{colour}{bar}{RESET} {score:.2f}"
+
 
 # ── Fetch entries ─────────────────────────────────────────────────────────────
 def fetch(db_path: Path, type_filter: str | None, search: str | None, limit: int | None):
@@ -113,7 +120,9 @@ def fetch(db_path: Path, type_filter: str | None, search: str | None, limit: int
     params: list = []
 
     if type_filter:
-        is_exact = (type_filter.startswith('"') and type_filter.endswith('"')) or (type_filter.startswith("'") and type_filter.endswith("'"))
+        is_exact = (type_filter.startswith('"') and type_filter.endswith('"')) or (
+            type_filter.startswith("'") and type_filter.endswith("'")
+        )
         actual_type = type_filter[1:-1] if is_exact else type_filter
         if is_exact:
             query += f" AND type = {_p}"
@@ -126,7 +135,9 @@ def fetch(db_path: Path, type_filter: str | None, search: str | None, limit: int
             params.append(actual_type)
 
     if search:
-        is_exact = (search.startswith('"') and search.endswith('"')) or (search.startswith("'") and search.endswith("'"))
+        is_exact = (search.startswith('"') and search.endswith('"')) or (
+            search.startswith("'") and search.endswith("'")
+        )
         actual_search = search[1:-1] if is_exact else search
         if is_exact:
             # Case-sensitive: the dialect renders GLOB (SQLite) or LIKE (PostgreSQL)
@@ -149,6 +160,7 @@ def fetch(db_path: Path, type_filter: str | None, search: str | None, limit: int
     _stack.close()
     return rows
 
+
 # ── Render one entry ──────────────────────────────────────────────────────────
 def parse_metadata(metadata_json: str) -> tuple[list, dict]:
     """Returns (tags, extras) from metadata_json. extras excludes 'tags'."""
@@ -162,9 +174,10 @@ def parse_metadata(metadata_json: str) -> tuple[list, dict]:
     extras = {k: v for k, v in meta.items() if k != "tags" and v}
     return tags, extras
 
+
 def render(idx: int, row, total: int) -> str:
-    tc    = type_colour(row["type"])
-    row_type = (row["type"] or "unknown")
+    tc = type_colour(row["type"])
+    row_type = row["type"] or "unknown"
     lines = []
     lines.append(SEP)
     lines.append(
@@ -174,7 +187,9 @@ def render(idx: int, row, total: int) -> str:
         f"{DIM}{row['origin_device'] or '?'} / {row['change_agent'] or '?'}{RESET}"
     )
     lines.append(f"{BOLD}{CYAN}{row['title']}{RESET}")
-    lines.append(f"{DIM}id: {row['id']}  created: {(row['created_at'] or '')[:19]}  updated: {(row['updated_at'] or '')[:19]}{RESET}")
+    lines.append(
+        f"{DIM}id: {row['id']}  created: {(row['created_at'] or '')[:19]}  updated: {(row['updated_at'] or '')[:19]}{RESET}"
+    )
 
     tags, extras = parse_metadata(row["metadata_json"])
     meta_parts = []
@@ -190,6 +205,7 @@ def render(idx: int, row, total: int) -> str:
     for para in content.split("\n"):
         lines.append(textwrap.fill(para, width=COLS - 2, subsequent_indent="  ") if para.strip() else "")
     return "\n".join(lines)
+
 
 # ── Pager ─────────────────────────────────────────────────────────────────────
 def page(lines: list[str], page_size: int = 40):
@@ -209,14 +225,17 @@ def page(lines: list[str], page_size: int = 40):
     if buf:
         print("\n".join(buf))
 
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
     ap = argparse.ArgumentParser(description="Browse knowledge base in rank order")
-    ap.add_argument("-n", "--limit",     type=int,  default=None,  help="Max entries to show")
-    ap.add_argument("-t", "--type",      type=str,  default=None,  help="Filter by type (fact, decision, knowledge, project…)")
-    ap.add_argument("-s", "--search",    type=str,  default=None,  help="Search title/content (case-insensitive)")
-    ap.add_argument("--no-pager",        action="store_true",       help="Print all without paging")
-    ap.add_argument("--db",              type=str,  default=None,  help="Deprecated alias for --database. Kept for backward compatibility.")
+    ap.add_argument("-n", "--limit", type=int, default=None, help="Max entries to show")
+    ap.add_argument("-t", "--type", type=str, default=None, help="Filter by type (fact, decision, knowledge, project…)")
+    ap.add_argument("-s", "--search", type=str, default=None, help="Search title/content (case-insensitive)")
+    ap.add_argument("--no-pager", action="store_true", help="Print all without paging")
+    ap.add_argument(
+        "--db", type=str, default=None, help="Deprecated alias for --database. Kept for backward compatibility."
+    )
     add_database_arg(ap)
     args = ap.parse_args()
 
@@ -248,9 +267,11 @@ def main():
     else:
         page(all_lines, page_size=50)
 
+
 if __name__ == "__main__":
     # Ensure UTF-8 output on all platforms (esp. Windows cmd/PowerShell)
     if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
         import io
+
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
     main()

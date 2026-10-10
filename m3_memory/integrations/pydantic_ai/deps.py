@@ -64,15 +64,12 @@ class M3Deps:
         if self._client is None:
             from ..langchain.m3client import M3Client
 
-            self._client = M3Client(
-                agent_id=_AGENT_ID, call_timeout=self.call_timeout
-            )
+            self._client = M3Client(agent_id=_AGENT_ID, call_timeout=self.call_timeout)
         return self._client
 
     # ── the three memory operations the tools + toolset call ──────────────────
 
-    def remember(self, content: str, *, type: str = "auto", importance: float = 0.5,
-                 metadata: str = "{}") -> str:
+    def remember(self, content: str, *, type: str = "auto", importance: float = 0.5, metadata: str = "{}") -> str:
         """Write a memory for this tenant. Returns the new memory id (or a status
         string on the rare parse-miss). ``type='auto'`` lets m3 classify it."""
         content = str(content or "").strip()

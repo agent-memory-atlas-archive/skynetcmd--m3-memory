@@ -9,6 +9,7 @@ Run:
     python tests/eval_files_phase3.py --extract-url http://localhost:11434 \
                                      --extract-model qwen2.5:1.5b-instruct
 """
+
 from __future__ import annotations
 
 import argparse
@@ -110,8 +111,7 @@ def gate_carry_forward(tmp: Path, use_llm: bool) -> tuple[bool, str]:
     if n_evolved < 1:
         return False, "no evolved_from edges in current leaves"
 
-    detail = (f"carried={r2.leaves_carried} evolved={r2.leaves_evolved} "
-              f"embeds_avoided={r2.embeds_avoided}")
+    detail = f"carried={r2.leaves_carried} evolved={r2.leaves_evolved} embeds_avoided={r2.embeds_avoided}"
     if use_llm:
         detail += f" facts_carried={r2.facts_carried}"
     return True, detail
@@ -130,8 +130,12 @@ def gate_promotability(tmp: Path) -> tuple[bool, str]:
     ingest_path(str(eval_corpus), db_path=str(db), extract_mode="inline")
 
     # Hit several facts to bump hit_count.
-    for q in ["how much do small widgets weigh", "widget weight kilograms",
-              "small widgets red blue green", "express shipping business days"]:
+    for q in [
+        "how much do small widgets weigh",
+        "widget weight kilograms",
+        "small widgets red blue green",
+        "express shipping business days",
+    ]:
         for _ in range(2):
             files_search(q, limit=5, db_path=str(db))
 
@@ -214,22 +218,28 @@ def gate_rename(tmp: Path) -> tuple[bool, str]:
 
     rpt = files_staleness_review(directory=str(corpus), db_path=str(db))
     if len(rpt.rename_candidates) != 1:
-        return False, (f"expected 1 rename candidate, got {len(rpt.rename_candidates)} "
-                       f"(missing={len(rpt.missing)} new={len(rpt.new)})")
+        return False, (
+            f"expected 1 rename candidate, got {len(rpt.rename_candidates)} "
+            f"(missing={len(rpt.missing)} new={len(rpt.new)})"
+        )
 
     cand = rpt.rename_candidates[0]
     result = link_rename(
-        cand.missing_file_node_uuid, cand.new_path,
-        expect_sha256=cand.content_sha256, db_path=str(db),
+        cand.missing_file_node_uuid,
+        cand.new_path,
+        expect_sha256=cand.content_sha256,
+        db_path=str(db),
     )
     if result.get("action") != "linked":
         return False, f"link_rename didn't link: {result}"
 
     rpt2 = files_staleness_review(directory=str(corpus), db_path=str(db))
     if rpt2.missing or rpt2.new or rpt2.rename_candidates:
-        return False, (f"post-link review not clean: "
-                       f"missing={len(rpt2.missing)} new={len(rpt2.new)} "
-                       f"rename={len(rpt2.rename_candidates)}")
+        return False, (
+            f"post-link review not clean: "
+            f"missing={len(rpt2.missing)} new={len(rpt2.new)} "
+            f"rename={len(rpt2.rename_candidates)}"
+        )
 
     # Content-change guard: rewrite renamed, link_rename must refuse.
     renamed.write_text("# Project Notes\n\nDifferent content now.\n", encoding="utf-8")
@@ -247,8 +257,9 @@ def gate_rename(tmp: Path) -> tuple[bool, str]:
 # ──────────────────────────────────────────────────────────────────────────────
 def main() -> int:
     p = argparse.ArgumentParser()
-    p.add_argument("--skip-llm", action="store_true",
-                   help="skip gates that need an LLM (carry-forward facts, promotability)")
+    p.add_argument(
+        "--skip-llm", action="store_true", help="skip gates that need an LLM (carry-forward facts, promotability)"
+    )
     p.add_argument("--extract-url", default="http://localhost:11434")
     p.add_argument("--extract-model", default="qwen2.5:1.5b-instruct")
     p.add_argument("--keep-tmp", action="store_true")
@@ -264,11 +275,11 @@ def main() -> int:
     try:
         # Each gate gets its own subdir of `tmp`.
         for name, fn, needs_llm in [
-            ("P3.0 provenance",     gate_provenance,    False),
-            ("P3.1 carry-forward",  lambda t: gate_carry_forward(t, use_llm=not args.skip_llm), False),
-            ("P3.3 dedup",          gate_dedup,         False),
-            ("P3.4 rename",         gate_rename,        False),
-            ("P3.2 promotability",  gate_promotability, True),
+            ("P3.0 provenance", gate_provenance, False),
+            ("P3.1 carry-forward", lambda t: gate_carry_forward(t, use_llm=not args.skip_llm), False),
+            ("P3.3 dedup", gate_dedup, False),
+            ("P3.4 rename", gate_rename, False),
+            ("P3.2 promotability", gate_promotability, True),
         ]:
             if needs_llm and args.skip_llm:
                 print(f"  [SKIP] {name}  (--skip-llm)")

@@ -5,6 +5,7 @@ Stage 1 (--select): high-precision candidate selection (~1-2k) from chatlog.
 Stage 2 (--smoke N / --run): batched judge via LM Studio; distill PROMOTE
          items to crisp facts. Writes accepted to --out jsonl.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -25,27 +26,41 @@ from m3_sdk import get_secret, getenv_compat
 _cp_path = os.path.join(os.path.dirname(__file__), "chatlog_prune.py")
 _cp_spec = importlib.util.spec_from_file_location("cp", _cp_path)
 if _cp_spec is None or _cp_spec.loader is None:
-    raise ImportError(f"cannot load chatlog_prune; observed: no import spec for {_cp_path}. "
-                      "inspect: that bin/chatlog_prune.py exists beside this script")
+    raise ImportError(
+        f"cannot load chatlog_prune; observed: no import spec for {_cp_path}. "
+        "inspect: that bin/chatlog_prune.py exists beside this script"
+    )
 cp = importlib.util.module_from_spec(_cp_spec)
 _cp_spec.loader.exec_module(cp)
 
 # ── Tightened signals (strict; precision over recall) ─────────────────────────
-T_DECISION = re.compile(r"\b(we (decided|chose|went with|will use)|decision:|"
-                        r"settled on|going with\b|the plan is to|chosen approach|"
-                        r"production footgun|the rule is|canonical (form|way) is)\b", re.IGNORECASE)
-T_DIRECTIVE = re.compile(r"\b(from now on|going forward|always (use|do|prefer)|"
-                         r"never (use|do)|by default (use|we)|prefer \w+ (over|to)|"
-                         r"make sure to always|remember that .* (is|are|should))\b", re.IGNORECASE)
-T_SPEC = re.compile(r"\b(hostname is|runs on port \d|listening on \d|"
-                    r"\b\d{1,3}(\.\d{1,3}){3}:\d+|configured (to|with) |"
-                    r"the (endpoint|url|path|model|db|database) (is|=|:) |"
-                    r"installed (at|in) |API key |lives (at|in) /|stored (at|in) )", re.IGNORECASE)
+T_DECISION = re.compile(
+    r"\b(we (decided|chose|went with|will use)|decision:|"
+    r"settled on|going with\b|the plan is to|chosen approach|"
+    r"production footgun|the rule is|canonical (form|way) is)\b",
+    re.IGNORECASE,
+)
+T_DIRECTIVE = re.compile(
+    r"\b(from now on|going forward|always (use|do|prefer)|"
+    r"never (use|do)|by default (use|we)|prefer \w+ (over|to)|"
+    r"make sure to always|remember that .* (is|are|should))\b",
+    re.IGNORECASE,
+)
+T_SPEC = re.compile(
+    r"\b(hostname is|runs on port \d|listening on \d|"
+    r"\b\d{1,3}(\.\d{1,3}){3}:\d+|configured (to|with) |"
+    r"the (endpoint|url|path|model|db|database) (is|=|:) |"
+    r"installed (at|in) |API key |lives (at|in) /|stored (at|in) )",
+    re.IGNORECASE,
+)
 # status / progress vocabulary that DISQUALIFIES even if otherwise matching
-DISQUALIFY = re.compile(r"\b(ETA|r/s|tok/s|windows? done|poll(ing)?|workers? alive|"
-                        r"in[_\s]?progress|\d+\s*/\s*\d+\s+(done|sessions|windows)|"
-                        r"completion[:\s]+\d|so far|still (running|going)|"
-                        r"\bstatus\b|\bhealthy\b|no action|stable\.)\b", re.IGNORECASE)
+DISQUALIFY = re.compile(
+    r"\b(ETA|r/s|tok/s|windows? done|poll(ing)?|workers? alive|"
+    r"in[_\s]?progress|\d+\s*/\s*\d+\s+(done|sessions|windows)|"
+    r"completion[:\s]+\d|so far|still (running|going)|"
+    r"\bstatus\b|\bhealthy\b|no action|stable\.)\b",
+    re.IGNORECASE,
+)
 
 LM_URL = getenv_compat("M3_LM_URL", "LM_URL", "http://localhost:1234/v1/chat/completions")
 LM_MODEL = getenv_compat("M3_LM_MODEL", "LM_MODEL", "google/gemma-4-26b-a4b")
@@ -57,6 +72,7 @@ LM_TOKEN = get_secret("LM_API_TOKEN") or ""
 def select(db: str, min_age=14.0, lo=120, hi=4000):
     now = time.time()
     from m3_core.paths import seam_backend
+
     with seam_backend().open_readonly(str(db)) as c:
         try:
             c.row_factory = sqlite3.Row
@@ -68,16 +84,28 @@ def select(db: str, min_age=14.0, lo=120, hi=4000):
 
 def _select(c, now, min_age, lo, hi):
     from memory.backends import chatlog_table, dialect
+
     role_sql, role_params = cp.role_from_title_sql(dialect())
-    rows = c.execute(f"""SELECT id, {role_sql} role, content, importance, created_at
+    rows = c.execute(
+        f"""SELECT id, {role_sql} role, content, importance, created_at
         FROM {chatlog_table("items")} WHERE type='chat_log' AND is_deleted=0""",
-        role_params).fetchall()
+        role_params,
+    ).fetchall()
     cluster, norms = defaultdict(int), {}
     for r in rows:
-        n = cp._norm_key(r["content"] or ""); norms[r["id"]] = n
-        if n: cluster[n] += 1
-    seen = set(); out = []
-    class A: keep_imp_floor=0.4; status_min_cluster=5; generic_imp_max=0.3; no_generic=True
+        n = cp._norm_key(r["content"] or "")
+        norms[r["id"]] = n
+        if n:
+            cluster[n] += 1
+    seen = set()
+    out = []
+
+    class A:
+        keep_imp_floor = 0.4
+        status_min_cluster = 5
+        generic_imp_max = 0.3
+        no_generic = True
+
     for r in rows:
         content = (r["content"] or "").strip()
         if not (lo <= len(content) <= hi):
@@ -89,17 +117,22 @@ def _select(c, now, min_age, lo, hi):
         imp = float(r["importance"]) if r["importance"] is not None else 0.3
         if cp.classify(r["role"], content, imp, norms[r["id"]], cluster[norms[r["id"]]], A())[0] is not None:
             continue
-        sig = ("decision" if T_DECISION.search(content) else
-               "directive" if T_DIRECTIVE.search(content) else
-               "spec" if T_SPEC.search(content) else None)
+        sig = (
+            "decision"
+            if T_DECISION.search(content)
+            else "directive"
+            if T_DIRECTIVE.search(content)
+            else "spec"
+            if T_SPEC.search(content)
+            else None
+        )
         if not sig:
             continue
         k = norms[r["id"]]
         if k in seen:
             continue
         seen.add(k)
-        out.append({"id": r["id"], "role": r["role"], "signal": sig,
-                    "created_at": r["created_at"], "content": content})
+        out.append({"id": r["id"], "role": r["role"], "signal": sig, "created_at": r["created_at"], "content": content})
     return out
 
 
@@ -125,13 +158,18 @@ def judge(items):
     # blindly (Bandit B310 / CWE-22); reject anything but http/https up front.
     if urllib.parse.urlparse(LM_URL).scheme not in ("http", "https"):
         raise ValueError(f"LM_URL must be http(s); refusing scheme in {LM_URL!r}")
-    payload = "\n".join(f'[{i}] ({it["signal"]}/{it["role"]}) {it["content"][:1200]}'
-                        for i, it in enumerate(items))
-    body = json.dumps({"model": LM_MODEL, "temperature": 0, "max_tokens": 2200,
-                       "messages": [{"role": "system", "content": RUBRIC},
-                                    {"role": "user", "content": payload}]}).encode()
-    req = urllib.request.Request(LM_URL, data=body,
-        headers={"Content-Type": "application/json", "Authorization": f"Bearer {LM_TOKEN}"})
+    payload = "\n".join(f"[{i}] ({it['signal']}/{it['role']}) {it['content'][:1200]}" for i, it in enumerate(items))
+    body = json.dumps(
+        {
+            "model": LM_MODEL,
+            "temperature": 0,
+            "max_tokens": 2200,
+            "messages": [{"role": "system", "content": RUBRIC}, {"role": "user", "content": payload}],
+        }
+    ).encode()
+    req = urllib.request.Request(
+        LM_URL, data=body, headers={"Content-Type": "application/json", "Authorization": f"Bearer {LM_TOKEN}"}
+    )
     with urllib.request.urlopen(req, timeout=300) as resp:  # nosec B310 - scheme guarded above
         data = json.load(resp)
     txt = data["choices"][0]["message"]["content"]
@@ -148,21 +186,22 @@ def main():
     ap.add_argument("--batch", type=int, default=8)
     # Platform-appropriate temp dir (Bandit B108): /tmp does not exist on
     # Windows, where this project commonly runs. Override with --out as needed.
-    ap.add_argument("--out",
-                    default=os.path.join(tempfile.gettempdir(), "promote_accepted.jsonl"))
+    ap.add_argument("--out", default=os.path.join(tempfile.gettempdir(), "promote_accepted.jsonl"))
     ap.add_argument("--samples", type=int, default=8)
     args = ap.parse_args()
 
     cands = select(args.db)
     bysig = defaultdict(int)
-    for c in cands: bysig[c["signal"]] += 1
+    for c in cands:
+        bysig[c["signal"]] += 1
     print(f"tightened candidates: {len(cands)}  by_signal={dict(bysig)}")
     if args.select:
-        for c in cands[:args.samples]:
+        for c in cands[: args.samples]:
             print(f"  [{c['signal']}/{c['role']}] {' '.join(c['content'].split())[:160]}")
         return
-    todo = cands[:args.smoke] if args.smoke else cands
-    accepted = []; t0 = time.time()
+    todo = cands[: args.smoke] if args.smoke else cands
+    accepted = []
+    t0 = time.time()
     # UTF-8 + LF: chatlog facts carry em-dashes/quotes/emoji that the Windows
     # locale codepage can't encode — default text mode would UnicodeEncodeError
     # mid-run and lose minutes of LLM work. newline="" avoids CRLF in JSONL.
@@ -174,18 +213,25 @@ def main():
                 if len(verdicts) != len(batch):
                     raise ValueError(f"judge returned {len(verdicts)} verdicts for {len(batch)} items")
             except Exception as e:
-                print(f"  batch {b}: ERROR {e}"); continue
+                print(f"  batch {b}: ERROR {e}")
+                continue
             for it, v in zip(batch, verdicts, strict=True):
                 if isinstance(v, dict) and v.get("verdict") == "PROMOTE" and v.get("fact"):
-                    rec = {"source_id": it["id"], "signal": it["signal"],
-                           "type": v.get("type", "fact"), "title": v.get("title", ""),
-                           "fact": v["fact"]}
-                    accepted.append(rec); f.write(json.dumps(rec) + "\n"); f.flush()
+                    rec = {
+                        "source_id": it["id"],
+                        "signal": it["signal"],
+                        "type": v.get("type", "fact"),
+                        "title": v.get("title", ""),
+                        "fact": v["fact"],
+                    }
+                    accepted.append(rec)
+                    f.write(json.dumps(rec) + "\n")
+                    f.flush()
             done = min(b + args.batch, len(todo))
-            print(f"  judged {done}/{len(todo)}  accepted={len(accepted)}  ({time.time()-t0:.0f}s)")
+            print(f"  judged {done}/{len(todo)}  accepted={len(accepted)}  ({time.time() - t0:.0f}s)")
     print(f"DONE accepted={len(accepted)} -> {args.out}")
     # show a few accepted
-    for r in accepted[:args.samples]:
+    for r in accepted[: args.samples]:
         print(f"  +{r['type']}: {r['title']} :: {r['fact'][:140]}")
 
 

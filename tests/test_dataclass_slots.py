@@ -4,6 +4,7 @@ slots=True (3.10+) gives smaller instances, faster attribute access, and turns a
 misspelled attribute assignment into an AttributeError instead of a silently
 added attribute. ruff has no rule for it, so this static scan is the gate.
 """
+
 from __future__ import annotations
 
 import ast
@@ -13,12 +14,18 @@ _ROOT = Path(__file__).resolve().parents[1]
 
 # (file, class) -> why it cannot be slotted.
 _UNSLOTTED = {
-    ("bin/wiki/citation_drift.py", "DriftConfig"):
-        "from_env reads field defaults off the class (cls.url); with slots that is a member descriptor",
-    ("bin/wiki/prose_compiler.py", "ProseCompilerConfig"):
-        "from_env reads field defaults off the class (cls.url); with slots that is a member descriptor",
-    ("bin/wiki/synth.py", "SynthConfig"):
-        "from_env reads field defaults off the class (cls.url); with slots that is a member descriptor",
+    (
+        "bin/wiki/citation_drift.py",
+        "DriftConfig",
+    ): "from_env reads field defaults off the class (cls.url); with slots that is a member descriptor",
+    (
+        "bin/wiki/prose_compiler.py",
+        "ProseCompilerConfig",
+    ): "from_env reads field defaults off the class (cls.url); with slots that is a member descriptor",
+    (
+        "bin/wiki/synth.py",
+        "SynthConfig",
+    ): "from_env reads field defaults off the class (cls.url); with slots that is a member descriptor",
 }
 
 
@@ -41,8 +48,8 @@ def _unslotted(roots=("bin", "m3_memory"), base: Path = _ROOT) -> set[tuple[str,
                 if d is None:
                     continue
                 slotted = isinstance(d, ast.Call) and any(
-                    k.arg == "slots" and isinstance(k.value, ast.Constant) and k.value.value
-                    for k in d.keywords)
+                    k.arg == "slots" and isinstance(k.value, ast.Constant) and k.value.value for k in d.keywords
+                )
                 if not slotted:
                     found.add((p.relative_to(base).as_posix(), c.name))
     return found
@@ -52,7 +59,8 @@ def test_dataclasses_are_slotted():
     extra = _unslotted() - set(_UNSLOTTED)
     assert not extra, (
         "dataclass without slots=True (add it, or list it in _UNSLOTTED with the reason):\n  "
-        + "\n  ".join(f"{f}: {c}" for f, c in sorted(extra)))
+        + "\n  ".join(f"{f}: {c}" for f, c in sorted(extra))
+    )
 
 
 def test_the_allowlist_is_not_stale():

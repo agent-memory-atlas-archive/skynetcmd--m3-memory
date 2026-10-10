@@ -1,8 +1,8 @@
 ---
 tool: bin/gen_features_json.py
-sha1: c4814b4e63e1
-mtime_utc: 2026-10-08T22:17:10.040730+00:00
-generated_utc: 2026-10-08T22:17:29.354258+00:00
+sha1: 8a0b799e2408
+mtime_utc: 2026-10-10T21:05:16.770478+00:00
+generated_utc: 2026-10-10T21:05:29.529045+00:00
 private: false
 ---
 
@@ -28,7 +28,7 @@ docs. Do not add aspirational claims — this file is consumed as authoritative.
 
 ## Entry points
 
-- `def main()` (line 25)
+- `def main()` (line 26)
 - `if __name__ == "__main__"` guard
 
 ---

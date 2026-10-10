@@ -112,10 +112,12 @@ def isolated_db(monkeypatch, tmp_path):
     memory_core._initialized_dbs.discard(str(db_path))
 
 
-def _seed_memory(db_path, *, type="note", title="original title",
-                 content="original content", importance=0.5, scope="agent"):
+def _seed_memory(
+    db_path, *, type="note", title="original title", content="original content", importance=0.5, scope="agent"
+):
     """Insert one active memory directly and return its id."""
     import uuid
+
     mem_id = str(uuid.uuid4())
     conn = _connect(db_path)
     try:
@@ -135,9 +137,7 @@ def _seed_memory(db_path, *, type="note", title="original title",
 def _row(db_path, mem_id):
     conn = _connect(db_path)
     try:
-        return conn.execute(
-            "SELECT * FROM memory_items WHERE id = ?", (mem_id,)
-        ).fetchone()
+        return conn.execute("SELECT * FROM memory_items WHERE id = ?", (mem_id,)).fetchone()
     finally:
         conn.close()
 
@@ -179,8 +179,7 @@ def test_happy_path_creates_new_closes_old_and_links(isolated_db):
     conn = _connect(isolated_db)
     try:
         edge = conn.execute(
-            "SELECT from_id, to_id FROM memory_relationships "
-            "WHERE relationship_type = 'supersedes'"
+            "SELECT from_id, to_id FROM memory_relationships WHERE relationship_type = 'supersedes'"
         ).fetchone()
     finally:
         conn.close()
@@ -192,8 +191,7 @@ def test_happy_path_creates_new_closes_old_and_links(isolated_db):
     conn = _connect(isolated_db)
     try:
         hist = conn.execute(
-            "SELECT event, new_value FROM memory_history "
-            "WHERE memory_id = ? AND event = 'supersede'",
+            "SELECT event, new_value FROM memory_history WHERE memory_id = ? AND event = 'supersede'",
             (old_id,),
         ).fetchone()
     finally:
@@ -206,13 +204,14 @@ def test_omitted_fields_inherit_from_old_memory(isolated_db):
     from memory_core import memory_supersede_impl
 
     old_id = _seed_memory(
-        isolated_db, type="reference", title="inherited title",
-        importance=0.9, scope="user",
+        isolated_db,
+        type="reference",
+        title="inherited title",
+        importance=0.9,
+        scope="user",
     )
 
-    result = asyncio.run(
-        memory_supersede_impl(old_id=old_id, content="new body", embed=False)
-    )
+    result = asyncio.run(memory_supersede_impl(old_id=old_id, content="new body", embed=False))
     new = _row(isolated_db, _new_id_from_result(result))
     # type / title / importance / scope all carried over from the old row.
     assert new["type"] == "reference"
@@ -225,7 +224,10 @@ def test_explicit_fields_override_inheritance(isolated_db):
     from memory_core import memory_supersede_impl
 
     old_id = _seed_memory(
-        isolated_db, type="note", title="old", importance=0.3,
+        isolated_db,
+        type="note",
+        title="old",
+        importance=0.3,
     )
 
     result = asyncio.run(
@@ -269,16 +271,12 @@ def test_already_superseded_old_id_errors(isolated_db):
 
     old_id = _seed_memory(isolated_db)
     # First supersede succeeds and closes old_id.
-    first = asyncio.run(
-        memory_supersede_impl(old_id=old_id, content="v2", embed=False)
-    )
+    first = asyncio.run(memory_supersede_impl(old_id=old_id, content="v2", embed=False))
     assert first.startswith("Superseded ")
 
     # Second supersede of the now-deleted old_id is rejected — idempotency
     # guard: re-running is a clear error, not a silent double-supersede.
-    second = asyncio.run(
-        memory_supersede_impl(old_id=old_id, content="v3", embed=False)
-    )
+    second = asyncio.run(memory_supersede_impl(old_id=old_id, content="v3", embed=False))
     assert second.startswith("Error:")
     assert "already deleted" in second or "already" in second
 
@@ -289,9 +287,7 @@ def test_oversized_content_errors_and_leaves_old_untouched(isolated_db):
     old_id = _seed_memory(isolated_db, content="original content")
     huge = "x" * 50_001  # over the 50000-char memory_write cap
 
-    result = asyncio.run(
-        memory_supersede_impl(old_id=old_id, content=huge, embed=False)
-    )
+    result = asyncio.run(memory_supersede_impl(old_id=old_id, content=huge, embed=False))
     assert result.startswith("Error:")
 
     # Old memory must be completely untouched — still active, original content.
@@ -319,22 +315,19 @@ def test_concurrent_close_loses_race_and_rolls_back_orphan(isolated_db, monkeypa
         # Simulate a concurrent supersede/delete closing old_id mid-call.
         conn = _connect(isolated_db)
         try:
-            conn.execute(
-                "UPDATE memory_items SET is_deleted = 1 WHERE id = ?", (old_id,)
-            )
+            conn.execute("UPDATE memory_items SET is_deleted = 1 WHERE id = ?", (old_id,))
             conn.commit()
         finally:
             conn.close()
         return await real_write(**kwargs)
 
     import sys
+
     for name, module in list(sys.modules.items()):
         if name.endswith("memory.write") and hasattr(module, "memory_write_impl"):
             monkeypatch.setattr(module, "memory_write_impl", racing_write)
 
-    result = asyncio.run(
-        memory_supersede_impl(old_id=old_id, content="v2", embed=False)
-    )
+    result = asyncio.run(memory_supersede_impl(old_id=old_id, content="v2", embed=False))
     assert result.startswith("Error:")
     assert "concurrent" in result
 
@@ -342,14 +335,11 @@ def test_concurrent_close_loses_race_and_rolls_back_orphan(isolated_db, monkeypa
     conn = _connect(isolated_db)
     try:
         edges = conn.execute(
-            "SELECT COUNT(*) FROM memory_relationships "
-            "WHERE relationship_type = 'supersedes'"
+            "SELECT COUNT(*) FROM memory_relationships WHERE relationship_type = 'supersedes'"
         ).fetchone()[0]
         # Exactly one non-deleted memory remains: neither the orphaned
         # replacement nor old_id is active.
-        active = conn.execute(
-            "SELECT COUNT(*) FROM memory_items WHERE is_deleted = 0"
-        ).fetchone()[0]
+        active = conn.execute("SELECT COUNT(*) FROM memory_items WHERE is_deleted = 0").fetchone()[0]
     finally:
         conn.close()
     assert edges == 0, "a lost race must not write a supersedes edge"

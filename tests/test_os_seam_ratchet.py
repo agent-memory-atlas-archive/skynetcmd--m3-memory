@@ -8,6 +8,7 @@ so this is a ratchet like the error-idiom budget: the count may only go down, an
 must be lowered when it does. `platform.system/machine/release` are banned
 outright outside the seam: on Windows + Python 3.14 they can hang on a WMI query.
 """
+
 from __future__ import annotations
 
 import ast
@@ -57,29 +58,37 @@ def _sites(roots=("bin", "m3_memory"), base: Path = _ROOT) -> tuple[list[str], l
                 pair = (n.value.id, n.attr)
                 if pair in (("os", "name"), ("sys", "platform")):
                     checks.append(f"{rel}:{n.lineno}")
-                elif n.value.id == "platform" and n.attr in ("system", "machine", "release", "uname",
-                                                             "win32_ver", "mac_ver"):
+                elif n.value.id == "platform" and n.attr in (
+                    "system",
+                    "machine",
+                    "release",
+                    "uname",
+                    "win32_ver",
+                    "mac_ver",
+                ):
                     banned.append(f"{rel}:{n.lineno} platform.{n.attr}")
     return checks, banned
 
 
 def test_no_wmi_prone_platform_calls_outside_the_seam():
     _, banned = _sites()
-    assert not banned, ("platform.* outside m3_memory/_platform.py (WMI hang on Windows + 3.14); "
-                        "use os_name()/is_windows()/is_apple_silicon():\n  " + "\n  ".join(banned))
+    assert not banned, (
+        "platform.* outside m3_memory/_platform.py (WMI hang on Windows + 3.14); "
+        "use os_name()/is_windows()/is_apple_silicon():\n  " + "\n  ".join(banned)
+    )
 
 
 def test_os_checks_outside_the_seam_do_not_grow():
     checks, _ = _sites()
     assert len(checks) <= _BUDGET, (
         f"OS checks outside the seam rose from {_BUDGET} to {len(checks)}. Ask the OS seam "
-        "(m3_memory/_platform.py) instead, adding the fact there if it is missing.")
+        "(m3_memory/_platform.py) instead, adding the fact there if it is missing."
+    )
 
 
 def test_the_budget_is_not_stale():
     checks, _ = _sites()
-    assert len(checks) == _BUDGET, (
-        f"OS checks outside the seam are down to {len(checks)}; lower _BUDGET to lock it in")
+    assert len(checks) == _BUDGET, f"OS checks outside the seam are down to {len(checks)}; lower _BUDGET to lock it in"
 
 
 # Tests follow the seam too: an OS-specific test carries an OS marker
@@ -94,17 +103,19 @@ def test_os_checks_in_tests_do_not_grow():
     assert not banned, f"platform.* in tests (WMI hang): {banned}"
     assert len(checks) <= _TESTS_BUDGET, (
         f"OS checks in tests rose from {_TESTS_BUDGET} to {len(checks)}; use an OS marker "
-        "(@pytest.mark.requires_windows, ...) or the OS seam instead")
+        "(@pytest.mark.requires_windows, ...) or the OS seam instead"
+    )
     assert len(checks) == _TESTS_BUDGET, (
-        f"OS checks in tests are down to {len(checks)}; lower _TESTS_BUDGET to lock it in")
+        f"OS checks in tests are down to {len(checks)}; lower _TESTS_BUDGET to lock it in"
+    )
 
 
 def test_the_gate_sees_each_form(tmp_path):
     (tmp_path / "bin").mkdir()
     (tmp_path / "bin" / "m.py").write_text(
-        "import os, sys, platform\n"
-        "a = os.name == 'nt'\nb = sys.platform == 'darwin'\nc = platform.system()\n",
-        encoding="utf-8")
+        "import os, sys, platform\na = os.name == 'nt'\nb = sys.platform == 'darwin'\nc = platform.system()\n",
+        encoding="utf-8",
+    )
     checks, banned = _sites(("bin",), tmp_path)
     assert checks == ["bin/m.py:2", "bin/m.py:3"] and banned == ["bin/m.py:4 platform.system"]
 
@@ -119,9 +130,14 @@ def test_every_exemption_still_needs_its_own_check():
             stale.append(f"{rel} (missing)")
             continue
         tree = ast.parse(p.read_text(encoding="utf-8"))
-        if not any(isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name)
-                   and (n.value.id, n.attr) in (("os", "name"), ("sys", "platform"))
-                   for n in ast.walk(tree)):
+        if not any(
+            isinstance(n, ast.Attribute)
+            and isinstance(n.value, ast.Name)
+            and (n.value.id, n.attr) in (("os", "name"), ("sys", "platform"))
+            for n in ast.walk(tree)
+        ):
             stale.append(rel)
-    assert not stale, (f"observed: EXEMPT entries with no OS check of their own: {stale}. "
-                       "inspect: remove them from EXEMPT in tests/test_os_seam_ratchet.py")
+    assert not stale, (
+        f"observed: EXEMPT entries with no OS check of their own: {stale}. "
+        "inspect: remove them from EXEMPT in tests/test_os_seam_ratchet.py"
+    )

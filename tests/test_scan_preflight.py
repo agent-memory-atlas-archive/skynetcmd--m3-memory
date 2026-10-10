@@ -13,6 +13,7 @@ green trains people to trust the dashboard).
 
 Measured on this host 2026-09-14: 15 of 19 scanners absent.
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -33,6 +34,7 @@ def test_the_scanner_ships():
 
 def _load():
     import importlib.util
+
     spec = importlib.util.spec_from_file_location("scan_repo_v7", _SCRIPT)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -100,8 +102,9 @@ def test_bash_wrapped_scanners_resolve_to_the_real_binary():
 def test_check_only_exits_nonzero_on_a_deficient_host():
     """End-to-end through the CLI, so the exit code a script would see is the
     one under test -- main() returning a code is useless if __main__ drops it."""
-    r = subprocess.run([sys.executable, str(_SCRIPT), str(_ROOT), "--check-only"],
-                       capture_output=True, text=True, timeout=120)
+    r = subprocess.run(
+        [sys.executable, str(_SCRIPT), str(_ROOT), "--check-only"], capture_output=True, text=True, timeout=120
+    )
     assert r.returncode in (0, 3), f"unexpected exit {r.returncode}: {r.stderr[:200]}"
     if r.returncode == 3:
         assert "missing" in r.stderr.lower()
@@ -126,7 +129,7 @@ def test_preflight_runs_before_any_scanning(monkeypatch):
     """Order matters: refusing AFTER the scan wastes 20 minutes and, worse,
     leaves report files on disk that a later run could upload."""
     src = _SCRIPT.read_text(encoding="utf-8")
-    body = src[src.index("def main("):]
+    body = src[src.index("def main(") :]
     pre = body.index("_preflight(")
     scan = body.index("run_scanner(")
     assert pre < scan, "_preflight must run before the first run_scanner call"
@@ -137,8 +140,7 @@ def test_plain_run_on_a_deficient_host_refuses_end_to_end():
     mod = _load()
     if not mod.missing_scanners():
         pytest.skip(skip_reason("env", "this host has every scanner; nothing to refuse"))
-    r = subprocess.run([sys.executable, str(_SCRIPT), str(_ROOT)],
-                       capture_output=True, text=True, timeout=180)
+    r = subprocess.run([sys.executable, str(_SCRIPT), str(_ROOT)], capture_output=True, text=True, timeout=180)
     assert r.returncode == 3, f"expected refusal (3), got {r.returncode}"
     assert "Refusing to upload a partial run" in r.stderr
     assert "== scanning" not in r.stdout, "it started scanning despite refusing"
@@ -148,6 +150,7 @@ def test_import_leaves_path_unchanged():
     """Importing the module must not change the caller's PATH: the suite imports
     it in-process, and a replaced PATH hides every later test's tools."""
     import os
+
     before = os.environ.get("PATH")
     _load()
     assert os.environ.get("PATH") == before
@@ -156,6 +159,7 @@ def test_import_leaves_path_unchanged():
 @pytest.mark.requires_posix  # scanner dirs are POSIX paths
 def test_scanner_path_is_appended_not_substituted(monkeypatch):
     import os
+
     monkeypatch.setenv("PATH", "/opt/homebrew/bin:/usr/bin")
     _load()._ensure_scanner_path()
     parts = os.environ["PATH"].split(os.pathsep)

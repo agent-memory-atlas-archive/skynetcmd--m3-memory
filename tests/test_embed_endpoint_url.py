@@ -14,6 +14,7 @@ The tier boundary matters and is asserted below: the m3-native SINGULAR
 speaks OpenAI (`model` field, Bearer token, `data[0].embedding`). A bare host
 must therefore resolve to `/v1/embeddings`, never to tier 2's route.
 """
+
 from __future__ import annotations
 
 import sys
@@ -27,21 +28,24 @@ sys.path.insert(0, str(REPO / "bin"))
 from memory.embed import _embeddings_post_url  # noqa: E402
 
 
-@pytest.mark.parametrize("base,expected", [
-    # The bug: a bare host must get the OpenAI version segment, not "/embeddings".
-    ("http://127.0.0.1:8082", "http://127.0.0.1:8082/v1/embeddings"),
-    ("http://127.0.0.1:8082/", "http://127.0.0.1:8082/v1/embeddings"),
-    ("http://localhost:8082", "http://localhost:8082/v1/embeddings"),
-    # Already an OpenAI base (LM Studio, vLLM, OpenAI itself): append only.
-    ("http://host:1234/v1", "http://host:1234/v1/embeddings"),
-    ("http://host:1234/v1/", "http://host:1234/v1/embeddings"),
-    ("https://api.openai.com/v1", "https://api.openai.com/v1/embeddings"),
-    ("http://host/v2", "http://host/v2/embeddings"),
-    # Explicit full endpoints are honored verbatim — the caller was specific.
-    ("http://host/v1/embeddings", "http://host/v1/embeddings"),
-    ("http://host:8082/embedding", "http://host:8082/embedding"),
-    ("http://host:8082/embedding/", "http://host:8082/embedding"),
-])
+@pytest.mark.parametrize(
+    "base,expected",
+    [
+        # The bug: a bare host must get the OpenAI version segment, not "/embeddings".
+        ("http://127.0.0.1:8082", "http://127.0.0.1:8082/v1/embeddings"),
+        ("http://127.0.0.1:8082/", "http://127.0.0.1:8082/v1/embeddings"),
+        ("http://localhost:8082", "http://localhost:8082/v1/embeddings"),
+        # Already an OpenAI base (LM Studio, vLLM, OpenAI itself): append only.
+        ("http://host:1234/v1", "http://host:1234/v1/embeddings"),
+        ("http://host:1234/v1/", "http://host:1234/v1/embeddings"),
+        ("https://api.openai.com/v1", "https://api.openai.com/v1/embeddings"),
+        ("http://host/v2", "http://host/v2/embeddings"),
+        # Explicit full endpoints are honored verbatim — the caller was specific.
+        ("http://host/v1/embeddings", "http://host/v1/embeddings"),
+        ("http://host:8082/embedding", "http://host:8082/embedding"),
+        ("http://host:8082/embedding/", "http://host:8082/embedding"),
+    ],
+)
 def test_endpoint_resolution(base, expected):
     assert _embeddings_post_url(base) == expected
 

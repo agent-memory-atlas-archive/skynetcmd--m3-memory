@@ -6,6 +6,7 @@ scratchpad rows always came back. The exclusion is one Dialect primitive
 same row filter, so it is tested once at the seam, once per backend end to end,
 and the call sites are held to the shared filter statically.
 """
+
 from __future__ import annotations
 
 import ast
@@ -27,8 +28,7 @@ def test_exclude_types_drops_those_types_and_keeps_null():
     sql, params = dl.dialect_for("sqlite").scope_predicates(exclude_types=("scratchpad",))
     db = sqlite3.connect(":memory:")
     db.execute("CREATE TABLE memory_items (id TEXT, type TEXT)")
-    db.executemany("INSERT INTO memory_items VALUES (?, ?)",
-                   [("a", "note"), ("b", "scratchpad"), ("c", None)])
+    db.executemany("INSERT INTO memory_items VALUES (?, ?)", [("a", "note"), ("b", "scratchpad"), ("c", None)])
     rows = db.execute(f"SELECT id FROM memory_items mi WHERE 1=1{sql} ORDER BY id", params).fetchall()
     assert [r[0] for r in rows] == ["a", "c"]
 
@@ -43,13 +43,17 @@ def test_exclude_types_renders_the_backends_placeholder():
 # ── every candidate-fetch path passes the one row filter ──────────────────────
 def test_search_call_sites_pass_the_shared_row_filter():
     tree = ast.parse(_SEARCH.read_text(encoding="utf-8"))
-    calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call)
-             and isinstance(n.func, ast.Attribute) and n.func.attr == "scope_predicates"]
+    calls = [
+        n
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "scope_predicates"
+    ]
     assert len(calls) >= 4, "the search paths moved; re-check this gate"
     for c in calls:
         assert not c.args and len(c.keywords) == 1 and c.keywords[0].arg is None, (
             f"search.py:{c.lineno} spells out scope_predicates arguments; pass the shared row "
-            "filter (**_row_filter) so a new field cannot be missed on one path")
+            "filter (**_row_filter) so a new field cannot be missed on one path"
+        )
 
 
 # ── end to end, on each backend ───────────────────────────────────────────────
@@ -59,8 +63,9 @@ def note_and_scratchpad():
     word = f"zq{uuid.uuid4().hex[:12]}"
     ids = []
     for typ in ("note", "scratchpad"):
-        out = asyncio.run(mc.memory_write_impl(type=typ, content=f"{typ} about {word}",
-                                               title=f"{typ} {word}", embed=False))
+        out = asyncio.run(
+            mc.memory_write_impl(type=typ, content=f"{typ} about {word}", title=f"{typ} {word}", embed=False)
+        )
         ids.append(re.search(r"[0-9a-f-]{36}", str(out)).group(0))
     yield word, ids[0], ids[1]
     for mid in ids:

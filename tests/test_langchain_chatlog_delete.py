@@ -7,6 +7,7 @@ main pool, so the statement failed on '?', and even with portable placeholders
 it would have updated the MAIN store's `memory_items` instead. The method does
 not touch `self`, so it is called unbound; LangChain itself is not needed.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -28,8 +29,13 @@ def test_delete_marks_the_chatlog_row_deleted(monkeypatch, tmp_path, each_backen
 
     async def _go():
         rid = await chatlog_core.chatlog_write_impl(
-            content="langchain delete probe", role="user", conversation_id=f"c-{uuid.uuid4()}",
-            host_agent="langchain", provider="other", model_id="test")
+            content="langchain delete probe",
+            role="user",
+            conversation_id=f"c-{uuid.uuid4()}",
+            host_agent="langchain",
+            provider="other",
+            model_id="test",
+        )
         await chatlog_core._flush_once()
         n = await M3Client._delete_chatlog_rows_async(None, [rid])
         return rid, n
@@ -38,7 +44,5 @@ def test_delete_marks_the_chatlog_row_deleted(monkeypatch, tmp_path, each_backen
     assert n == 1, f"delete affected {n} rows"
     d = dialect()
     with M3Context.for_db(None).get_chatlog_conn() as conn:
-        row = conn.execute(
-            f"SELECT is_deleted FROM {chatlog_table('items')} WHERE id = {d.param()}", (rid,)
-        ).fetchone()
+        row = conn.execute(f"SELECT is_deleted FROM {chatlog_table('items')} WHERE id = {d.param()}", (rid,)).fetchone()
     assert row is not None and row[0] == 1, f"chatlog row {rid} not soft-deleted: {row}"

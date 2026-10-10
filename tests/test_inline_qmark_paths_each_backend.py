@@ -7,6 +7,7 @@ chunk never fired, the change_agent backfill logged and moved on. Each test
 drives one converted path under each_backend and asserts that it ran, not that
 it was swallowed. The static ban is tests/test_no_hand_built_placeholders.py.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -39,12 +40,14 @@ def test_single_text_embed_cache_hits(monkeypatch, each_backend):
 
     class _MustNotEmbed:
         def embed(self, texts):
-            raise AssertionError("cache missed; observed: the embedder was called. "
-                                 "inspect: memory/embed.py _embed cache lookup")
+            raise AssertionError(
+                "cache missed; observed: the embedder was called. inspect: memory/embed.py _embed cache lookup"
+            )
 
     def _no_http():
-        raise AssertionError("cache missed; observed: the HTTP embedder was reached. "
-                             "inspect: memory/embed.py _embed cache lookup")
+        raise AssertionError(
+            "cache missed; observed: the HTTP embedder was reached. inspect: memory/embed.py _embed cache lookup"
+        )
 
     monkeypatch.setattr(me, "_get_embedded_embedder", lambda: _MustNotEmbed())
     monkeypatch.setattr(me, "_get_embed_client", _no_http)
@@ -53,10 +56,13 @@ def test_single_text_embed_cache_hits(monkeypatch, each_backend):
     mid = _note("cache parent")
     d = dialect()
     with me._db() as db:
-        eid = seed_embedding_row(db, d, mid=mid, embedding=_pack(vec), dim=len(vec),
-                                 embed_model=me._EMBED_GGUF_MODEL_TAG)
-        db.execute(f"UPDATE memory_embeddings SET content_hash = {d.param()} WHERE id = {d.param()}",
-                   (_content_hash(text), eid))
+        eid = seed_embedding_row(
+            db, d, mid=mid, embedding=_pack(vec), dim=len(vec), embed_model=me._EMBED_GGUF_MODEL_TAG
+        )
+        db.execute(
+            f"UPDATE memory_embeddings SET content_hash = {d.param()} WHERE id = {d.param()}",
+            (_content_hash(text), eid),
+        )
         db.commit()
 
     got, model = asyncio.run(me._embed(text))

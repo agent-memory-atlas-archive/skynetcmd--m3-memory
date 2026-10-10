@@ -10,6 +10,7 @@ and raises LLMUnavailable only when no endpoint can answer; the server's error
 body reaches the exception; the healthy path makes no extra request; and the
 outage is reported once, not per call. Hermetic: httpx.MockTransport only.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -45,10 +46,12 @@ def _models(*ids):
 
 # ── probe + cache ────────────────────────────────────────────────────────────
 
+
 def test_empty_model_list_is_unusable():
     async def run():
         async with _client(lambda r: _models()) as c:
             return await llm_failover.probe_usability(c, EP)
+
     usable, detail = asyncio.run(run())
     assert usable is False and "no generative model" in detail
 
@@ -57,6 +60,7 @@ def test_an_embedder_alone_is_unusable():
     async def run():
         async with _client(lambda r: _models("text-embedding-bge-m3")) as c:
             return await llm_failover.probe_usability(c, EP)
+
     assert asyncio.run(run())[0] is False
 
 
@@ -64,6 +68,7 @@ def test_a_listed_model_is_usable():
     async def run():
         async with _client(lambda r: _models("qwen/qwen3-8b")) as c:
             return await llm_failover.probe_usability(c, EP)
+
     usable, detail = asyncio.run(run())
     assert usable is True and "qwen3-8b" in detail
 
@@ -75,6 +80,7 @@ def test_unreachable_is_unusable_not_a_crash():
     async def run():
         async with _client(handler) as c:
             return await llm_failover.probe_usability(c, EP)
+
     usable, detail = asyncio.run(run())
     assert usable is False and "ConnectError" in detail
 
@@ -93,6 +99,7 @@ def test_probe_is_cached_and_fresh_bypasses_it():
             assert len(calls) == 1, "second probe should be served from the cache"
             await llm_failover.probe_usability(c, EP, fresh=True)
             assert len(calls) == 2, "fresh=True must re-ask the server"
+
     asyncio.run(run())
 
 
@@ -110,6 +117,7 @@ def test_require_usable_endpoint_names_what_each_endpoint_said():
     async def run():
         async with _client(lambda r: _models()) as c:
             await llm_failover.require_usable_endpoint(c)
+
     with pytest.raises(llm_failover.LLMUnavailable) as ei:
         asyncio.run(run())
     msg = str(ei.value)
@@ -118,6 +126,7 @@ def test_require_usable_endpoint_names_what_each_endpoint_said():
 
 
 # ── error body ───────────────────────────────────────────────────────────────
+
 
 def test_raise_for_status_with_body_carries_the_server_message():
     req = httpx.Request("POST", f"{EP}/chat/completions")
@@ -134,13 +143,25 @@ def test_raise_for_status_with_body_is_silent_on_success():
 
 # ── _call_model: reactive, and free on the healthy path ─────────────────────
 
+
 def _profile(tmp_path, monkeypatch):
     import slm_intent
     import yaml
-    (tmp_path / "p.yaml").write_text(yaml.safe_dump({
-        "url": f"{EP}/chat/completions", "model": "m", "system": "s",
-        "labels": ["a"], "fallback": "a", "temperature": 0, "timeout_s": 1.0,
-    }), encoding="utf-8")
+
+    (tmp_path / "p.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "url": f"{EP}/chat/completions",
+                "model": "m",
+                "system": "s",
+                "labels": ["a"],
+                "fallback": "a",
+                "temperature": 0,
+                "timeout_s": 1.0,
+            }
+        ),
+        encoding="utf-8",
+    )
     monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
     slm_intent.invalidate_cache()
     return slm_intent, slm_intent.load_profile("p")
@@ -157,6 +178,7 @@ def test_no_model_loaded_becomes_llm_unavailable(tmp_path, monkeypatch):
     async def run():
         async with _client(handler) as c:
             await slm_intent._call_model(prof, "hi", c)
+
     with pytest.raises(llm_failover.LLMUnavailable) as ei:
         asyncio.run(run())
     assert "no generative model" in str(ei.value)
@@ -176,6 +198,7 @@ def test_a_request_failure_on_a_usable_server_stays_a_request_failure(tmp_path, 
     async def run():
         async with _client(handler) as c:
             await slm_intent._call_model(prof, "hi", c)
+
     with pytest.raises(httpx.HTTPStatusError) as ei:
         asyncio.run(run())
     assert not isinstance(ei.value, llm_failover.LLMUnavailable)
@@ -193,6 +216,7 @@ def test_healthy_path_makes_no_extra_request(tmp_path, monkeypatch):
     async def run():
         async with _client(handler) as c:
             return await slm_intent._call_model(prof, "hi", c)
+
     assert asyncio.run(run()) == "ok"
     assert paths == ["/v1/chat/completions"], f"healthy call must not probe /models: {paths}"
 
@@ -209,12 +233,14 @@ def test_a_known_outage_skips_the_post(tmp_path, monkeypatch):
     async def run():
         async with _client(handler) as c:
             await slm_intent._call_model(prof, "hi", c)
+
     with pytest.raises(llm_failover.LLMUnavailable):
         asyncio.run(run())
     assert paths == [], "a cached outage must not POST again"
 
 
 # ── reporting: once, not per call; quiet when healthy ───────────────────────
+
 
 def test_outage_is_reported_once_then_recovery(caplog):
     log = logging.getLogger("test-outage")

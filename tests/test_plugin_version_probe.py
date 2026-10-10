@@ -6,6 +6,7 @@ vanish from /mcp). Report-only — it prints the client-side fix commands but
 never mutates ~/.claude and never bumps the exit code. Mocks the three data
 sources so no real Claude Code config is touched.
 """
+
 import sys
 from pathlib import Path
 
@@ -16,8 +17,7 @@ if _BIN not in sys.path:
 from doctor import plugin_version_probe as P  # noqa: E402
 
 
-def _patch(monkeypatch, *, installed, enabled, latest, pkg="2026.7.4.0",
-           age_days=1.0):
+def _patch(monkeypatch, *, installed, enabled, latest, pkg="2026.7.4.0", age_days=1.0):
     monkeypatch.setattr(P, "_installed_version", lambda: installed)
     monkeypatch.setattr(P, "_enabled", lambda: enabled)
     monkeypatch.setattr(P, "_latest_cached_version", lambda: latest)
@@ -38,7 +38,7 @@ def test_disabled_is_flagged_with_enable_fix(monkeypatch, capsys):
     P.run(brief=False)
     out = capsys.readouterr().out
     assert "DISABLED" in out
-    assert 'enabledPlugins' in out and '"m3@skynetcmd": true' in out
+    assert "enabledPlugins" in out and '"m3@skynetcmd": true' in out
     assert "/reload-plugins" in out
 
 
@@ -91,10 +91,10 @@ def test_brief_glyphs(monkeypatch, capsys):
 # 2026.7.13.0, clone 4 days cold, doctor said OK). These pin the honest wording —
 # and, just as importantly, that an air-gapped box is never told it is broken.
 
+
 def test_cold_clone_does_not_claim_currency(monkeypatch, capsys):
     """An unrefreshed clone means the version check is blind, not healthy."""
-    _patch(monkeypatch, installed="2026.7.4.0", enabled=True,
-           latest="2026.7.4.0", age_days=45.0)
+    _patch(monkeypatch, installed="2026.7.4.0", enabled=True, latest="2026.7.4.0", age_days=45.0)
     assert P.run(brief=False) == 0
     out = capsys.readouterr().out
     assert "45d ago" in out
@@ -105,8 +105,7 @@ def test_cold_clone_does_not_claim_currency(monkeypatch, capsys):
 
 def test_cold_clone_reads_as_fine_when_offline(monkeypatch, capsys):
     """Air-gapped installs never refresh — that is expected, not a fault."""
-    _patch(monkeypatch, installed="2026.7.4.0", enabled=True,
-           latest="2026.7.4.0", age_days=400.0)
+    _patch(monkeypatch, installed="2026.7.4.0", enabled=True, latest="2026.7.4.0", age_days=400.0)
     assert P.run(brief=False) == 0
     out = capsys.readouterr().out
     assert out.lstrip().startswith("=== Claude Code plugin")
@@ -119,8 +118,7 @@ def test_cold_clone_reads_as_fine_when_offline(monkeypatch, capsys):
 
 def test_cold_clone_brief_is_not_a_warning(monkeypatch, capsys):
     """Brief mode stays a ✅ FYI — no ⚠️ for an offline machine."""
-    _patch(monkeypatch, installed="2026.7.4.0", enabled=True,
-           latest="2026.7.4.0", age_days=45.0)
+    _patch(monkeypatch, installed="2026.7.4.0", enabled=True, latest="2026.7.4.0", age_days=45.0)
     P.run(brief=True)
     out = capsys.readouterr().out
     assert "✅" in out and "⚠️" not in out
@@ -130,8 +128,7 @@ def test_cold_clone_brief_is_not_a_warning(monkeypatch, capsys):
 def test_unknown_clone_age_is_silent(monkeypatch, capsys):
     """No refresh timestamp at all (never fetched / foreign layout) must not
     invent a warning — absence of a signal is not evidence of staleness."""
-    _patch(monkeypatch, installed="2026.7.4.0", enabled=True,
-           latest="2026.7.4.0", age_days=None)
+    _patch(monkeypatch, installed="2026.7.4.0", enabled=True, latest="2026.7.4.0", age_days=None)
     assert P.run(brief=False) == 0
     out = capsys.readouterr().out
     assert "installed, enabled, and current." in out
@@ -141,8 +138,7 @@ def test_unknown_clone_age_is_silent(monkeypatch, capsys):
 def test_real_stale_version_still_nags(monkeypatch, capsys):
     """A genuinely newer cached version keeps its NAG even on a cold clone —
     the freshness FYI must not swallow a real, actionable update."""
-    _patch(monkeypatch, installed="2026.7.4.0", enabled=True,
-           latest="2026.7.22.0", age_days=45.0)
+    _patch(monkeypatch, installed="2026.7.4.0", enabled=True, latest="2026.7.22.0", age_days=45.0)
     assert P.run(brief=False) == 0
     out = capsys.readouterr().out
     assert "[NAG]" in out
@@ -152,17 +148,15 @@ def test_real_stale_version_still_nags(monkeypatch, capsys):
 def test_a_plugin_older_than_the_package_is_flagged_even_with_a_cold_clone(monkeypatch, capsys):
     """The marketplace clone can be as old as the plugin, so "newest in cache"
     hides the gap; the installed package is the reference that cannot."""
-    _patch(monkeypatch, installed="2026.9.20.1", enabled=True, latest="2026.9.20.1",
-           pkg="2026.10.6.0", age_days=15.0)
-    assert P.run(brief=True) == 0                      # report-only: no exit bump
+    _patch(monkeypatch, installed="2026.9.20.1", enabled=True, latest="2026.9.20.1", pkg="2026.10.6.0", age_days=15.0)
+    assert P.run(brief=True) == 0  # report-only: no exit bump
     out = capsys.readouterr().out
     assert "⚠️" in out and "older than m3 2026.10.6.0" in out
     assert "m3 doctor --fix --fix-hooks" in out
 
 
 def test_a_prerelease_package_does_not_flag_the_matching_plugin(monkeypatch, capsys):
-    _patch(monkeypatch, installed="2026.10.6.0", enabled=True, latest="2026.10.6.0",
-           pkg="2026.10.6.0rc13")
+    _patch(monkeypatch, installed="2026.10.6.0", enabled=True, latest="2026.10.6.0", pkg="2026.10.6.0rc13")
     assert P.run(brief=True) == 0
     assert "⚠️" not in capsys.readouterr().out
 
@@ -173,8 +167,12 @@ def test_repair_does_nothing_without_an_installed_plugin(monkeypatch):
     failure that is not one."""
     monkeypatch.setattr(P, "_installed_version", lambda: None)
     import subprocess
-    monkeypatch.setattr(subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(
-        AssertionError("no CLI call without an installed plugin")))
+
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("no CLI call without an installed plugin")),
+    )
     assert P.repair() == {"actions": []}
 
 
@@ -201,8 +199,8 @@ def _fake_cli(monkeypatch, versions):
     monkeypatch.setattr(P, "_package_version", lambda: "2026.10.6.0")
     import subprocess
     from types import SimpleNamespace
-    monkeypatch.setattr(subprocess, "run",
-                        lambda *a, **k: SimpleNamespace(returncode=0, stdout="ok", stderr=""))
+
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: SimpleNamespace(returncode=0, stdout="ok", stderr=""))
 
 
 def test_repair_asks_for_a_restart_only_when_the_plugin_changed(monkeypatch):
@@ -223,7 +221,7 @@ def test_doctor_fix_uses_the_brief_default():
     """`m3 doctor --fix` printed every healthy section in full (the report-only
     doctor is brief unless --verbose); the --fix branch must follow the same flag."""
     src = (Path(_BIN) / "memory_doctor.py").read_text(encoding="utf-8")
-    fix_branch = src[src.index("    if args.fix:\n"):src.index('if res["summary"] == "failed"')]
+    fix_branch = src[src.index("    if args.fix:\n") : src.index('if res["summary"] == "failed"')]
     assert "brief=False" not in fix_branch
     assert "brief = not args.verbose" in fix_branch
 
@@ -233,6 +231,8 @@ def test_repair_skips_the_marketplace_when_the_plugin_matches_the_package(monkey
     monkeypatch.setattr(P, "_installed_version", lambda: "2026.10.6.0")
     monkeypatch.setattr(P, "_package_version", lambda: "2026.10.6.0")
     import subprocess
-    monkeypatch.setattr(subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(
-        AssertionError("no CLI call for a current plugin")))
+
+    monkeypatch.setattr(
+        subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no CLI call for a current plugin"))
+    )
     assert P.repair() == {"actions": []}

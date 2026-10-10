@@ -12,6 +12,7 @@ The shell refuses before Python starts, so no in-process error handling can
 catch it. The only place a caller can learn this is the help text, before they
 size a payload -- which is what these tests pin.
 """
+
 from __future__ import annotations
 
 import json
@@ -28,7 +29,9 @@ _ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
 def _cli(*args):
     return subprocess.run(
         [sys.executable, "-m", "m3_memory.cli", *args],
-        capture_output=True, text=True, cwd=_ROOT,
+        capture_output=True,
+        text=True,
+        cwd=_ROOT,
     )
 
 
@@ -37,19 +40,16 @@ def test_json_help_points_at_json_file_for_large_payloads():
     a working alternative is one flag away."""
     out = _cli("admin", "notify", "--help").stdout
     assert "--json-file" in out
-    body = out[out.index("--json "):]
-    assert "json-\n" in body or "json-file" in body, (
-        "--json help must name --json-file as the large-payload path"
-    )
+    body = out[out.index("--json ") :]
+    assert "json-\n" in body or "json-file" in body, "--json help must name --json-file as the large-payload path"
     assert "command line" in body.lower(), (
-        "--json help must say WHY large payloads fail -- the OS argv cap, not "
-        "anything this program controls"
+        "--json help must say WHY large payloads fail -- the OS argv cap, not anything this program controls"
     )
 
 
 def test_json_file_accepts_a_payload_too_large_for_argv():
     """The capability itself: bigger than the measured argv ceiling."""
-    blob = "x" * 20000          # ~2.5x the measured ~8.1 KB argv ceiling
+    blob = "x" * 20000  # ~2.5x the measured ~8.1 KB argv ceiling
     payload = {
         "agent_id": "pytest-large@s1",
         "kind": "probe",
@@ -82,12 +82,14 @@ def test_the_ceiling_is_the_shell_not_the_platform():
     # this test skip. The ceiling measured is the OS command-line limit, so the
     # executable only has to be a real CreateProcess target with this argv.
     repo_root = _ROOT
-    payload = json.dumps({
-        "agent_id": "pytest-large@s1", "kind": "probe",
-        "payload": {"blob": "x" * 20000},
-    })
-    argv = [sys.executable, "-m", "m3_memory.cli",
-            "admin", "notify", "--yes", "--dry-run", "--json", payload]
+    payload = json.dumps(
+        {
+            "agent_id": "pytest-large@s1",
+            "kind": "probe",
+            "payload": {"blob": "x" * 20000},
+        }
+    )
+    argv = [sys.executable, "-m", "m3_memory.cli", "admin", "notify", "--yes", "--dry-run", "--json", payload]
 
     direct = subprocess.run(argv, capture_output=True, text=True, shell=False, cwd=repo_root)
     viashell = subprocess.run(argv, capture_output=True, text=True, shell=True, cwd=repo_root)

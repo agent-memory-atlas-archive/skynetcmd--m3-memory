@@ -60,8 +60,7 @@ if _BIN_DIR not in sys.path:
 # it a child fails on an interpreter that lacks m3_memory, or silently imports a
 # different installed version than the one under test.
 _REPO_ROOT = _os.path.dirname(_BIN_DIR)
-_os.environ["PYTHONPATH"] = _os.pathsep.join(
-    p for p in (_REPO_ROOT, _os.environ.get("PYTHONPATH", "")) if p)
+_os.environ["PYTHONPATH"] = _os.pathsep.join(p for p in (_REPO_ROOT, _os.environ.get("PYTHONPATH", "")) if p)
 
 
 def simulate_os(monkeypatch, name: str) -> None:
@@ -107,15 +106,18 @@ def _llm_chat_reachable() -> bool:
     token, so we do the same authenticated round-trip the judge does (token via
     auth_utils) and require a non-empty reply. Fast-fails on any error so the suite
     stays hermetic when no model is loaded."""
-    url = (_os.environ.get("M3_WIKI_DRIFT_URL")
-           or _os.environ.get("M3_WIKI_SYNTH_URL")
-           or "http://127.0.0.1:1234/v1/chat/completions")
+    url = (
+        _os.environ.get("M3_WIKI_DRIFT_URL")
+        or _os.environ.get("M3_WIKI_SYNTH_URL")
+        or "http://127.0.0.1:1234/v1/chat/completions"
+    )
     try:
         import httpx
 
         sys.path.insert(0, _BIN_DIR)
         try:
             from auth_utils import get_api_key  # type: ignore
+
             token = get_api_key("LM_API_TOKEN")
         except Exception:
             token = None
@@ -124,9 +126,14 @@ def _llm_chat_reachable() -> bool:
             headers["Authorization"] = f"Bearer {token}"
         r = httpx.post(
             url,
-            json={"messages": [{"role": "user", "content": "reply with: ok"}],
-                  "max_tokens": 5, "temperature": 0, "stream": False},
-            headers=headers, timeout=5.0,
+            json={
+                "messages": [{"role": "user", "content": "reply with: ok"}],
+                "max_tokens": 5,
+                "temperature": 0,
+                "stream": False,
+            },
+            headers=headers,
+            timeout=5.0,
         )
         r.raise_for_status()
         return bool(r.json()["choices"][0]["message"]["content"])
@@ -154,8 +161,7 @@ def pg_dsn() -> "str | None":
     former copies can't drift (one had already diverged to name M3_PG_URL in its
     skip reason).
     """
-    return (_os.environ.get("M3_PRIMARY_PG_URL")
-            or _os.environ.get("M3_PG_URL") or "").strip() or None
+    return (_os.environ.get("M3_PRIMARY_PG_URL") or _os.environ.get("M3_PG_URL") or "").strip() or None
 
 
 def _pg_reachable() -> bool:
@@ -175,6 +181,7 @@ def _pg_reachable() -> bool:
     if not dsn:
         return False
     import time as _time
+
     try:
         import psycopg2
     except Exception:  # noqa: BLE001 — driver absent = not reachable
@@ -194,6 +201,7 @@ def _native_wheel_present() -> bool:
     pure-Python fallback). Unifies the three former idioms (importorskip /
     in-body skip / _has_native_governor)."""
     import importlib.util
+
     return importlib.util.find_spec("m3_core_rs") is not None
 
 
@@ -268,30 +276,37 @@ SKIP_DIMENSIONS = ("os", "python", "db", "dep", "env", "na")
 def skip_reason(dimension: str, text: str) -> str:
     """The reason string for a skip: ``pytest.skip(skip_reason("dep", "no numpy"))``."""
     if dimension not in SKIP_DIMENSIONS:
-        raise ValueError(f"unknown skip dimension; observed: {dimension!r}. "
-                         f"inspect: use one of {SKIP_DIMENSIONS} (tests/conftest.py)")
+        raise ValueError(
+            f"unknown skip dimension; observed: {dimension!r}. "
+            f"inspect: use one of {SKIP_DIMENSIONS} (tests/conftest.py)"
+        )
     return f"[{dimension}] {text}"
 
 
 # Marker -> (probe, dimension, reason). A marked test is skipped when its probe
 # returns False. One place; adding a capability is one row.
 _CAPABILITY_PROBES = {
-    "requires_pg": (_pg_reachable, "db",
-                    "no reachable PostgreSQL (set M3_PRIMARY_PG_URL to a throwaway cluster)"),
-    "requires_embedder": (embed_backend_reachable, "env",
-                          "no reachable embedder (M3_EMBED_FALLBACK_URL, default :8082)"),
-    "requires_native": (_native_wheel_present, "dep",
-                        "m3_core_rs native wheel not installed"),
-    "requires_gguf": (lambda: gguf_path() is not None, "dep",
-                      "no GGUF model (set M3_TEST_GGUF)"),
-    "requires_files_db": (_files_db_present, "dep",
-                          "shipped files_database.db absent"),
-    "requires_llm": (_llm_chat_reachable, "env",
-                     "no reachable local chat model (set M3_WIKI_DRIFT_URL / load a model in LM Studio)"),
-    "requires_memory_core": (_memory_core_importable, "dep",
-                             "memory_core / memory.search are not importable here (a "
-                             "transitive ML dep such as torch is absent or broken in this "
-                             "environment — see _memory_core_importable)"),
+    "requires_pg": (_pg_reachable, "db", "no reachable PostgreSQL (set M3_PRIMARY_PG_URL to a throwaway cluster)"),
+    "requires_embedder": (
+        embed_backend_reachable,
+        "env",
+        "no reachable embedder (M3_EMBED_FALLBACK_URL, default :8082)",
+    ),
+    "requires_native": (_native_wheel_present, "dep", "m3_core_rs native wheel not installed"),
+    "requires_gguf": (lambda: gguf_path() is not None, "dep", "no GGUF model (set M3_TEST_GGUF)"),
+    "requires_files_db": (_files_db_present, "dep", "shipped files_database.db absent"),
+    "requires_llm": (
+        _llm_chat_reachable,
+        "env",
+        "no reachable local chat model (set M3_WIKI_DRIFT_URL / load a model in LM Studio)",
+    ),
+    "requires_memory_core": (
+        _memory_core_importable,
+        "dep",
+        "memory_core / memory.search are not importable here (a "
+        "transitive ML dep such as torch is absent or broken in this "
+        "environment — see _memory_core_importable)",
+    ),
 }
 
 
@@ -323,8 +338,7 @@ def _python_skip(item) -> str | None:
     need = tuple(m.args)
     if PY >= need:
         return None
-    return skip_reason("python", f"needs Python {'.'.join(map(str, need))}+, "
-                                 f"running {PY[0]}.{PY[1]}")
+    return skip_reason("python", f"needs Python {'.'.join(map(str, need))}+, running {PY[0]}.{PY[1]}")
 
 
 def pytest_collection_modifyitems(config, items):
@@ -364,7 +378,7 @@ _SKIPS: list[tuple[str, str]] = []  # (nodeid, reason)
 
 def _skip_dimension(reason: str) -> str | None:
     if reason.startswith("[") and "]" in reason:
-        dim = reason[1:reason.index("]")]
+        dim = reason[1 : reason.index("]")]
         if dim in SKIP_DIMENSIONS:
             return dim
     return None
@@ -396,9 +410,12 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     for nodeid, reason in na[:25]:
         tr.write_line(f"    na: {nodeid}: {reason[:120]}")
     if unclassified:
-        tr.write_line(f"  UNCLASSIFIED; observed: {len(unclassified)} skips name no dimension, so "
-                      "nothing says they were skipped for a real reason. inspect: use "
-                      "conftest.skip_reason(dimension, text) or a requires_* marker", yellow=True)
+        tr.write_line(
+            f"  UNCLASSIFIED; observed: {len(unclassified)} skips name no dimension, so "
+            "nothing says they were skipped for a real reason. inspect: use "
+            "conftest.skip_reason(dimension, text) or a requires_* marker",
+            yellow=True,
+        )
         for nodeid, reason in unclassified[:25]:
             tr.write_line(f"    {nodeid}: {reason[:120]}")
         if len(unclassified) > 25:
@@ -407,8 +424,11 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
 
 def pytest_sessionfinish(session, exitstatus):
     """M3_STRICT_SKIPS=1 fails a run that has an unclassified skip."""
-    if _os.environ.get("M3_STRICT_SKIPS") == "1" and exitstatus == 0 and any(
-            _skip_dimension(r) is None for _n, r in _SKIPS):
+    if (
+        _os.environ.get("M3_STRICT_SKIPS") == "1"
+        and exitstatus == 0
+        and any(_skip_dimension(r) is None for _n, r in _SKIPS)
+    ):
         session.exitstatus = 1
 
 
@@ -564,8 +584,9 @@ def _backend_diagnosis(item, call) -> "str | None":
     on_sqlite = isinstance(exc, _sqlite3.Error) or type(exc).__module__ == "sqlite3"
 
     # Never import — ask only a selector that is already loaded.
-    env_backend = (_os.environ.get("M3_DB_BACKEND")
-                   or _os.environ.get("DB_BACKEND") or "").strip() or "(unset -> default sqlite)"
+    env_backend = (
+        _os.environ.get("M3_DB_BACKEND") or _os.environ.get("DB_BACKEND") or ""
+    ).strip() or "(unset -> default sqlite)"
     _sel = sys.modules.get("memory.backends.selector")
     try:
         resolved = _sel.resolve_backend_name() if _sel is not None else None
@@ -575,8 +596,7 @@ def _backend_diagnosis(item, call) -> "str | None":
     dsn_shown = "present" if dsn else "ABSENT"
 
     lines = [
-        "observed: a test marked `requires_pg` failed"
-        + (" while executing against SQLite" if on_sqlite else ""),
+        "observed: a test marked `requires_pg` failed" + (" while executing against SQLite" if on_sqlite else ""),
         f"           exception          : {type(exc).__module__}.{type(exc).__name__}",
         f"           M3_DB_BACKEND      : {env_backend}",
         f"           selector resolved  : {resolved!r}"
@@ -614,8 +634,7 @@ def _annotate_backend_mismatch(item, call, outcome) -> None:
 
 
 # Entries a test run is ALLOWED to create in the repo root.
-_ROOT_WRITE_ALLOWED = {".pytest_cache", "__pycache__", ".coverage", ".ruff_cache",
-                       ".mypy_cache", ".hypothesis"}
+_ROOT_WRITE_ALLOWED = {".pytest_cache", "__pycache__", ".coverage", ".ruff_cache", ".mypy_cache", ".hypothesis"}
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -696,8 +715,7 @@ def _no_warehouse_secret(monkeypatch):
     import m3_sdk
 
     real = m3_sdk.get_secret
-    monkeypatch.setattr(m3_sdk, "get_secret",
-                        lambda service: None if service in _WAREHOUSE_SECRETS else real(service))
+    monkeypatch.setattr(m3_sdk, "get_secret", lambda service: None if service in _WAREHOUSE_SECRETS else real(service))
     # The same block at the TIER level: m3_core.secret_store.resolve_pg_dsn reads
     # the keyring and vault tiers directly, past m3_sdk.get_secret, and on a dev
     # box those hold the real warehouse (and possibly primary) DSN. Measured
@@ -718,8 +736,9 @@ def _no_warehouse_secret(monkeypatch):
     # And no test WRITES the developer's keyring, under any name: the store
     # falls through to the (sandboxed) secrets file instead. A test of the
     # writer patches _keyring_store or the keyring module itself.
-    monkeypatch.setattr(auth_utils, "_keyring_store",
-                        lambda service, value: "keyring: writes blocked by the test sandbox")
+    monkeypatch.setattr(
+        auth_utils, "_keyring_store", lambda service, value: "keyring: writes blocked by the test sandbox"
+    )
     yield
 
 
@@ -824,9 +843,12 @@ def _real_user_env_untouched():
                 winreg.SetValueEx(key, name, 0, before[name][1], before[name][0])
             else:
                 winreg.DeleteValue(key, name)
-    pytest.fail(f"observed: this test changed the real Windows user environment: {changed} "
-                "(restored). inspect: stub the writer (installer._write_user_registry_env) in the "
-                "test, or simulate the OS with conftest.simulate_os", pytrace=False)
+    pytest.fail(
+        f"observed: this test changed the real Windows user environment: {changed} "
+        "(restored). inspect: stub the writer (installer._write_user_registry_env) in the "
+        "test, or simulate the OS with conftest.simulate_os",
+        pytrace=False,
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -862,8 +884,7 @@ def _real_service_units_untouched():
 # recorded and NOT run, so no test can stop, start or (re)load a real service.
 _SVC_READ_ONLY = {
     "launchctl": "list print print-disabled getenv version help blame",
-    "systemctl": "is-active is-enabled is-failed status show cat list-units "
-                 "list-unit-files list-timers --version",
+    "systemctl": "is-active is-enabled is-failed status show cat list-units list-unit-files list-timers --version",
 }
 _SVC_LOG_ENV = "M3_TEST_SERVICE_CALLS"
 
@@ -878,9 +899,7 @@ def _write_service_shims(shim_dir: Path, log: Path) -> None:
             'sub=""\n'
             'for a in "$@"; do case "$a" in --*) [ "$a" = "--version" ] && sub="$a" ;; '
             '*) sub="$a"; break ;; esac; done\n'
-            f'case " {readonly} " in *" $sub "*) '
-            + (f'exec "{real}" "$@" ;; ' if real else "exit 0 ;; ")
-            + "esac\n"
+            f'case " {readonly} " in *" $sub "*) ' + (f'exec "{real}" "$@" ;; ' if real else "exit 0 ;; ") + "esac\n"
             f'echo "${{PYTEST_CURRENT_TEST:-?}} | {tool} $*" >> "{log}"\n'
             "exit 0\n",
             encoding="utf-8",
@@ -903,8 +922,7 @@ def _install_schtasks_guard(log: Path) -> "object":
             parts = [args] if isinstance(args, (str, bytes)) else list(args or [])
             text = " ".join(str(p) for p in parts)
             first = Path(str(parts[0]).split()[0]).name.lower() if parts else ""
-            if first in ("schtasks", "schtasks.exe") and any(
-                    f in text.lower().split() for f in _SCHTASKS_MUTATING):
+            if first in ("schtasks", "schtasks.exe") and any(f in text.lower().split() for f in _SCHTASKS_MUTATING):
                 with open(log, "a", encoding="utf-8") as fh:
                     fh.write(f"{_os.environ.get('PYTEST_CURRENT_TEST', '?')} | {text}\n")
                 args = ["cmd", "/c", "exit", "0"]
@@ -943,7 +961,8 @@ def _service_manager_shim(tmp_path_factory):
 
 
 _REAL_SERVICE_TARGET = re.compile(
-    re.escape(str(_REAL_HOME)) + r"|(?<![/\w.-])(com\.(m3memory|skynetcmd)\.[\w.-]+|m3-[\w.-]+\.(service|timer))\b")
+    re.escape(str(_REAL_HOME)) + r"|(?<![/\w.-])(com\.(m3memory|skynetcmd)\.[\w.-]+|m3-[\w.-]+\.(service|timer))\b"
+)
 
 
 @pytest.fixture(autouse=True)
@@ -962,15 +981,20 @@ def _no_real_service_manager_calls(_service_manager_shim):
         new = [ln.split(" | ", 1)[-1].strip() for ln in fh if ln.strip()]
     tmp_root = str(Path(tempfile.gettempdir()).resolve())
     if sys.platform == "win32":
-        real = new   # the Task Scheduler is machine-global: any change is real
+        real = new  # the Task Scheduler is machine-global: any change is real
     else:
-        real = [c for c in new if _REAL_SERVICE_TARGET.search(c.replace(tmp_root, "<tmp>"))
-                and "<tmp>" not in c.replace(tmp_root, "<tmp>")]
+        real = [
+            c
+            for c in new
+            if _REAL_SERVICE_TARGET.search(c.replace(tmp_root, "<tmp>")) and "<tmp>" not in c.replace(tmp_root, "<tmp>")
+        ]
     if real:
-        pytest.fail("this test tried to change REAL m3 services (refused by the "
-                    "test shim): " + "; ".join(real) + ". Stub the service "
-                    "manager call (e.g. setup_wizard._stop_supervised_services).",
-                    pytrace=False)
+        pytest.fail(
+            "this test tried to change REAL m3 services (refused by the "
+            "test shim): " + "; ".join(real) + ". Stub the service "
+            "manager call (e.g. setup_wizard._stop_supervised_services).",
+            pytrace=False,
+        )
 
 
 @pytest.fixture(autouse=True)
@@ -1087,10 +1111,7 @@ def _report_namespace_breakage(entered_coherent: bool, package: str = "memory") 
         return
     _purge_memory_namespace(package)
     if entered_coherent:
-        raise RuntimeError(
-            "this test " + problem
-            + " The namespace has been purged so later tests are unaffected."
-        )
+        raise RuntimeError("this test " + problem + " The namespace has been purged so later tests are unaffected.")
 
 
 @pytest.fixture(autouse=True)
@@ -1112,9 +1133,11 @@ def _restore_memory_modules():
     reimport still see their fresh module DURING the test; the next test starts
     from the original, fully-initialized objects.
     """
+
     def _snapshot():
         return {
-            name: mod for name, mod in sys.modules.items()
+            name: mod
+            for name, mod in sys.modules.items()
             if name == "memory_core" or name == "memory" or name.startswith("memory.")
         }
 
@@ -1125,7 +1148,8 @@ def _restore_memory_modules():
     _entered_coherent = _memory_namespace_problem() is None
     yield
     after = {
-        name: sys.modules[name] for name in list(sys.modules)
+        name: sys.modules[name]
+        for name in list(sys.modules)
         if name == "memory_core" or name == "memory" or name.startswith("memory.")
     }
     # Detect whether the test REPLACED any memory.* module object (not just
@@ -1152,10 +1176,7 @@ def _restore_memory_modules():
     # dialect() factory (defaults to SqliteDialect with no active backend) against
     # an in-memory DB instead. See m3 memory
     # "test-hazard-monkeypatch-memory.backends-dialect-poisons-suite".
-    replaced = any(
-        name in before and before[name] is not mod
-        for name, mod in after.items()
-    )
+    replaced = any(name in before and before[name] is not mod for name, mod in after.items())
     if replaced:
         for name in list(sys.modules):
             if name == "memory_core" or name == "memory" or name.startswith("memory."):
@@ -1199,10 +1220,7 @@ def _guard_thread_leaks():
     current = threading.current_thread()
 
     def _new_live():
-        return [
-            t for t in threading.enumerate()
-            if t.ident not in before and t is not current and t.is_alive()
-        ]
+        return [t for t in threading.enumerate() if t.ident not in before and t is not current and t.is_alive()]
 
     # A leaked thread may be a few ms from exiting; give it a short window.
     for t in _new_live():
@@ -1220,8 +1238,7 @@ def _guard_thread_leaks():
         )
     # Non-worker stragglers: surface but don't fail (may be a legit helper).
     warnings.warn(
-        "test left non-main thread(s) alive: "
-        + ", ".join(sorted(t.name for t in leaked)),
+        "test left non-main thread(s) alive: " + ", ".join(sorted(t.name for t in leaked)),
         stacklevel=2,
     )
 
@@ -1246,6 +1263,7 @@ def _close_db_pools():
     yield
     try:
         import m3_sdk
+
         m3_sdk._cleanup()
     except Exception:  # noqa: BLE001 — teardown hygiene must never fail a test
         pass
@@ -1267,6 +1285,7 @@ def _reset_storage_backend_cache():
     environment isolation in one place. Best-effort: the selector must import,
     but a funny state must never break an unrelated test.
     """
+
     def _clear():
         # IMPORTANT: only clear if the selector is ALREADY imported — do NOT
         # trigger the import here. Importing memory.backends eagerly pulls the
@@ -1389,6 +1408,7 @@ def _capture_pristine_embed_globals():
     switches, so the restore below always has genuinely-pristine values."""
     try:
         import memory.embed as _m
+
         _snapshot_embed_globals(_m)
     except Exception:  # noqa: BLE001 — best effort; module may not be importable
         pass
@@ -1476,17 +1496,22 @@ def _reset_embed_global_cache():
 _SANDBOX_CLEAR_ENV = (
     # Backend selector — a leaked M3_DB_BACKEND=postgres makes sqlite-default
     # tests resolve the wrong backend.
-    "M3_DB_BACKEND", "DB_BACKEND",
+    "M3_DB_BACKEND",
+    "DB_BACKEND",
     # Primary-store DSNs — an ambient dev DSN to a throwaway cluster leaks into
     # tests that read PG_URL (higher-precedence M3_PG_URL overrides an injected
     # PG_URL otherwise).
-    "M3_PG_URL", "PG_URL",
+    "M3_PG_URL",
+    "PG_URL",
     # CDW / warehouse-sync target — a real M3_SYNC_TARGET_IP=10.x / M3_CDW_PG_URL
     # overrides a test's injected target via getenv_compat precedence (that made
     # test_backup_reminder assert on 192.0.2.50 but read the real host).
-    "M3_SYNC_TARGET_IP", "SYNC_TARGET_IP",
-    "M3_CDW_PG_URL", "M3_CDW_URL",
-    "M3_POSTGRES_SERVER", "POSTGRES_SERVER",
+    "M3_SYNC_TARGET_IP",
+    "SYNC_TARGET_IP",
+    "M3_CDW_PG_URL",
+    "M3_CDW_URL",
+    "M3_POSTGRES_SERVER",
+    "POSTGRES_SERVER",
 )
 
 
@@ -1586,8 +1611,7 @@ def m3_sandbox(monkeypatch, tmp_path):
         if hasattr(_mm, "_M3_ENGINE_ROOT"):
             monkeypatch.setattr(_mm, "_M3_ENGINE_ROOT", str(tmp_path / "engine"))
         if hasattr(_mm, "CONFIG_PATH"):
-            monkeypatch.setattr(
-                _mm, "CONFIG_PATH", str(tmp_path / "config" / ".migrate_config.json"))
+            monkeypatch.setattr(_mm, "CONFIG_PATH", str(tmp_path / "config" / ".migrate_config.json"))
     # chatlog_config.CONFIG_PATH is the same hazard as migrate_memory's above, and
     # it bites harder: the constant is resolved AT IMPORT (chatlog_config.py:65),
     # so once the module is imported before this fixture runs, `save_config()`
@@ -1601,8 +1625,7 @@ def m3_sandbox(monkeypatch, tmp_path):
     # sandbox exists to close.
     _cc = sys.modules.get("chatlog_config")
     if _cc is not None and hasattr(_cc, "CONFIG_PATH"):
-        monkeypatch.setattr(
-            _cc, "CONFIG_PATH", str(tmp_path / "config" / ".chatlog_config.json"))
+        monkeypatch.setattr(_cc, "CONFIG_PATH", str(tmp_path / "config" / ".chatlog_config.json"))
 
     # 2. Leaky env → cleared.
     for _var in _SANDBOX_CLEAR_ENV:
@@ -1757,9 +1780,7 @@ def _build_template_db() -> Path:
         timeout=60,
     )
     if result.returncode != 0:
-        raise RuntimeError(
-            f"failed to build test template DB:\nstdout={result.stdout}\nstderr={result.stderr}"
-        )
+        raise RuntimeError(f"failed to build test template DB:\nstdout={result.stdout}\nstderr={result.stderr}")
     if not template_db.is_file():
         raise RuntimeError(f"template DB not created at {template_db}")
     return template_db
@@ -1836,9 +1857,21 @@ def main_db_template() -> Path:
 # (`memory_write_impl`) instead — that path supplies every column itself and is
 # what production uses.
 
-def seed_memory_row(conn, dialect, *, mid, type="note", title="", content="",
-                    importance=0.5, confidence=None, pinned=0, user_id="",
-                    scope="agent"):
+
+def seed_memory_row(
+    conn,
+    dialect,
+    *,
+    mid,
+    type="note",
+    title="",
+    content="",
+    importance=0.5,
+    confidence=None,
+    pinned=0,
+    user_id="",
+    scope="agent",
+):
     """Insert ONE schema-valid memory_items row via raw SQL, supplying every
     NOT NULL column the real schema requires. `dialect` is the active seam
     dialect (for the placeholder + now()). Returns `mid`."""
@@ -1849,14 +1882,12 @@ def seed_memory_row(conn, dialect, *, mid, type="note", title="", content="",
         f" user_id, scope, valid_from, created_at, updated_at) "
         f"VALUES ({p},{p},{p},{p},{p},{p},{p},0,{p},{p},{dialect.now()},"
         f"{dialect.now()},{dialect.now()})",
-        (mid, type, title, content, importance, confidence, pinned,
-         user_id, scope),
+        (mid, type, title, content, importance, confidence, pinned, user_id, scope),
     )
     return mid
 
 
-def seed_embedding_row(conn, dialect, *, mid, embedding, dim, embed_model,
-                       emb_id=None, vector_kind=None):
+def seed_embedding_row(conn, dialect, *, mid, embedding, dim, embed_model, emb_id=None, vector_kind=None):
     """Insert ONE schema-valid memory_embeddings row (supplies the NOT NULL `id`
     PK, which hand-written fixtures routinely omit). Returns the embedding id.
     ``vector_kind`` defaults to the schema's own default ('default') when None."""
@@ -1867,8 +1898,7 @@ def seed_embedding_row(conn, dialect, *, mid, embedding, dim, embed_model,
         cols.append("vector_kind")
         vals.append(vector_kind)
     conn.execute(
-        f"INSERT INTO memory_embeddings ({', '.join(cols)}) "
-        f"VALUES ({', '.join([p] * len(vals))})",
+        f"INSERT INTO memory_embeddings ({', '.join(cols)}) VALUES ({', '.join([p] * len(vals))})",
         tuple(vals),
     )
     return eid
@@ -1883,6 +1913,7 @@ def seed_embedding_row(conn, dialect, *, mid, embedding, dim, embed_model,
 #
 # These resolve the store the SAME WAY production does, so a test exercises the
 # real routing rather than a copy of it that can drift.
+
 
 def dispatch_table_for_tests() -> str:
     """The table `notify_impl` writes to, resolved by production's own code."""
@@ -1959,6 +1990,7 @@ def _warn_if_dispatch_backends_disagree(table=None) -> None:
         conn_side: str
         try:
             from memory.backends import active_backend
+
             conn_side = active_backend().name
         except Exception as exc:  # noqa: BLE001 -- report, never raise from a probe
             conn_side = f"unavailable ({type(exc).__name__})"

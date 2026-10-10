@@ -20,6 +20,7 @@ This file is that place:
 Resolution order lives in ``auth_utils.get_api_key``: env -> keyring -> this
 file -> vault (the vault never for a bootstrap secret, CONFIG_DESIGN §10).
 """
+
 from __future__ import annotations
 
 import logging
@@ -54,8 +55,8 @@ def secrets_file_path() -> Path:
         settings = current()
     except (ConfigFileError, ConfigEnvErrors) as e:
         raise SecretsFileError(
-            "m3_config.toml is invalid, so the secrets file cannot be located:\n"
-            + format_config_error(e)) from e
+            "m3_config.toml is invalid, so the secrets file cannot be located:\n" + format_config_error(e)
+        ) from e
     configured = settings[SECRETS_FILE]
     if configured is None:
         return settings.location.root / SECRETS_FILE_NAME
@@ -75,13 +76,13 @@ def _check_private_windows(p: Path, *, what: str, fix: str) -> None:
         raise SecretsFileError(f"cannot verify who can read {what} ({e}); refusing to use it") from e
     if foreign:
         raise SecretsFileError(
-            f"{what} can be opened by {', '.join(foreign)} besides you; a secrets file must be "
-            f"user-only. Fix: {fix}")
+            f"{what} can be opened by {', '.join(foreign)} besides you; a secrets file must be user-only. Fix: {fix}"
+        )
 
 
 def _check_private(p: Path) -> None:
     if is_windows():
-        _check_private_windows(p, what=str(p), fix=f"icacls \"{p}\" /inheritance:r /grant:r \"%USERNAME%:F\"")
+        _check_private_windows(p, what=str(p), fix=f'icacls "{p}" /inheritance:r /grant:r "%USERNAME%:F"')
         return
     st = p.stat()
     mode = st.st_mode & 0o777
@@ -112,9 +113,7 @@ def read_secrets() -> dict[str, str]:
     bad = sorted(k for k, v in table.items() if not isinstance(v, str))
     if bad:
         # Names only: a value may be the secret itself.
-        raise SecretsFileError(
-            f"{p}: [secrets] entries must be NAME = \"string\"; not a string: {', '.join(bad)}"
-        )
+        raise SecretsFileError(f'{p}: [secrets] entries must be NAME = "string"; not a string: {", ".join(bad)}')
     _check_names(p, table)
     return dict(table)
 
@@ -148,7 +147,8 @@ def _check_names(p: Path, table: dict) -> None:
     note = f"; SLM profiles that could not be read: {'; '.join(unreadable)}" if unreadable else ""
     raise SecretsFileError(
         f"{p}: unknown secret name(s): {', '.join(unknown)}. A name must be an m3 secret or the "
-        f"api_key_service of an installed SLM profile{note}. Fix the name, or remove the line.")
+        f"api_key_service of an installed SLM profile{note}. Fix the name, or remove the line."
+    )
 
 
 def get_secret(name: str) -> str | None:
@@ -158,13 +158,12 @@ def get_secret(name: str) -> str | None:
 def _render(table: dict[str, str]) -> str:
     from m3_core.config.toml_render import render_table
 
-    return render_table("secrets", table,
-                        header="m3 secrets: user-only (0600). Managed by m3; values are plaintext.")
+    return render_table("secrets", table, header="m3 secrets: user-only (0600). Managed by m3; values are plaintext.")
 
 
 # ── PostgreSQL DSNs: the one owner (plan 2B.1, review S5) ─────────────────────
 class PgRole(StrEnum):
-    PRIMARY = "primary"      # the live store (M3_DB_BACKEND=postgres)
+    PRIMARY = "primary"  # the live store (M3_DB_BACKEND=postgres)
     WAREHOUSE = "warehouse"  # the pg_sync fan-in mirror (CDW)
 
 
@@ -178,21 +177,21 @@ _STORE_KEYS: dict[PgRole, tuple[str, ...]] = {
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class DsnResolution:
-    dsn: str                 # "" when nothing resolved
-    source: str | None       # e.g. "env:M3_PRIMARY_PG_URL", "keyring:M3_PRIMARY_PG_URL"
+    dsn: str  # "" when nothing resolved
+    source: str | None  # e.g. "env:M3_PRIMARY_PG_URL", "keyring:M3_PRIMARY_PG_URL"
     errors: tuple[str, ...]  # what each tier HIT on the way, for an honest "not found"
 
 
 class VaultPolicy(StrEnum):
     ALLOWED = "allowed"
     DEPRECATED = "deprecated"  # still read, warns every time (D1)
-    NEVER = "never"            # a bootstrap secret (CONFIG_DESIGN §10)
+    NEVER = "never"  # a bootstrap secret (CONFIG_DESIGN §10)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class SecretResolution:
-    value: str               # "" when nothing resolved
-    source: str | None       # "env:NAME", "keyring:NAME", "secrets-file:NAME", "vault:NAME"
+    value: str  # "" when nothing resolved
+    source: str | None  # "env:NAME", "keyring:NAME", "secrets-file:NAME", "vault:NAME"
     errors: tuple[str, ...]  # what each tier HIT on the way, for an honest "not found"
 
 
@@ -211,8 +210,9 @@ def vault_policy(name: str) -> VaultPolicy:
     return VaultPolicy.NEVER if key is not None and key.bootstrap else VaultPolicy.ALLOWED
 
 
-def explain_secret(store_keys: tuple[str, ...], *, env_hit: tuple[str, str] | None,
-                   vault: VaultPolicy) -> SecretResolution:
+def explain_secret(
+    store_keys: tuple[str, ...], *, env_hit: tuple[str, str] | None, vault: VaultPolicy
+) -> SecretResolution:
     """THE secret chain: env -> OS keyring -> user-only secrets file -> vault.
 
     ``env_hit`` is (name, value) from the caller's env reader, which owns that
@@ -251,7 +251,11 @@ def explain_secret(store_keys: tuple[str, ...], *, env_hit: tuple[str, str] | No
                     "a bootstrap secret, and the vault lives in the store it unlocks. It still "
                     "works; the vault fallback is removed at N+3. fix: `python -m keyring set "
                     "system %s` (prompts for the value, so it stays out of shell history), or set "
-                    "%s in the environment of every m3 process.", key, key, key)
+                    "%s in the environment of every m3 process.",
+                    key,
+                    key,
+                    key,
+                )
             return SecretResolution(value=value.strip(), source=f"vault:{key}", errors=tuple(errors))
     return SecretResolution(value="", source=None, errors=tuple(errors))
 
@@ -300,8 +304,7 @@ def explain_pg_dsn(role: PgRole) -> DsnResolution:
     if env:
         names = ("M3_PRIMARY_PG_URL", "M3_PG_URL") if role is PgRole.PRIMARY else ("M3_CDW_PG_URL", "PG_URL")
         env_hit = (next((n for n in names if (os.environ.get(n) or "").strip() == env), names[0]), env)
-    r = explain_secret(_STORE_KEYS[role], env_hit=env_hit,
-                       vault=vault_policy(_STORE_KEYS[role][0]))
+    r = explain_secret(_STORE_KEYS[role], env_hit=env_hit, vault=vault_policy(_STORE_KEYS[role][0]))
     return DsnResolution(dsn=r.value, source=r.source, errors=r.errors)
 
 
@@ -312,7 +315,7 @@ def resolve_pg_dsn(role: PgRole) -> str:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class DsnStored:
-    location: str            # "keyring:<key>" or "secrets-file:<path>"
+    location: str  # "keyring:<key>" or "secrets-file:<path>"
     skipped: tuple[str, ...]  # why an earlier store was not used
 
 
@@ -348,7 +351,8 @@ def store_pg_dsn(role: PgRole, dsn: str) -> DsnStored:
             if back == dsn:
                 return DsnStored(location=f"keyring:{key}", skipped=())
             err = f"keyring: wrote {key} but the read-back " + (
-                f"failed ({read_err})" if read_err else "returned a different value")
+                f"failed ({read_err})" if read_err else "returned a different value"
+            )
         skipped.append(err)
     else:
         skipped.append(f"keyring: not used on {sys.platform} (cron and SSH jobs cannot read it)")
@@ -359,7 +363,8 @@ def store_pg_dsn(role: PgRole, dsn: str) -> DsnStored:
     except (OSError, SecretsFileError) as e:
         raise SecretsFileError(
             f"could not store the {role.value} PostgreSQL DSN ({key}) anywhere: "
-            + " | ".join([*skipped, f"secrets file: {type(e).__name__}: {e}"])) from e
+            + " | ".join([*skipped, f"secrets file: {type(e).__name__}: {e}"])
+        ) from e
     return DsnStored(location=f"secrets-file:{p}", skipped=tuple(skipped))
 
 
@@ -389,6 +394,10 @@ def _check_new_file_would_be_private(directory: Path) -> None:
 
     with probe_new_file(directory) as probe:
         _check_private_windows(
-            Path(probe), what=f"a new file in {directory} (the secrets file was NOT written)",
-            fix=(f"icacls \"{directory}\" /inheritance:r /grant:r \"%USERNAME%:(OI)(CI)F\" "
-                 "/grant:r \"SYSTEM:(OI)(CI)F\", or point M3_CONFIG_ROOT at a user-only directory"))
+            Path(probe),
+            what=f"a new file in {directory} (the secrets file was NOT written)",
+            fix=(
+                f'icacls "{directory}" /inheritance:r /grant:r "%USERNAME%:(OI)(CI)F" '
+                '/grant:r "SYSTEM:(OI)(CI)F", or point M3_CONFIG_ROOT at a user-only directory'
+            ),
+        )

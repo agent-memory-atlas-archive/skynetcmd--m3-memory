@@ -18,6 +18,7 @@ proves nothing about portability."
 These tests are STRUCTURAL -- they run without a cluster and assert that the
 coverage exists, not that it passes. The PG lane asserts that it passes.
 """
+
 from __future__ import annotations
 
 import re
@@ -31,17 +32,16 @@ _PG_MIGRATIONS = _ROOT / "memory" / "migrations" / "postgres"
 def _dialect_classes():
     """(SqliteDialect, PostgresDialect) — the two that must stay in step."""
     import sys
+
     sys.path.insert(0, str(_ROOT / "bin"))
     from memory.backends.postgres_backend import PostgresDialect
     from memory.backends.sqlite_backend import SqliteDialect
+
     return (SqliteDialect, PostgresDialect)
 
 
 def _pg_live_sources() -> str:
-    return "\n".join(
-        p.read_text(encoding="utf-8", errors="replace")
-        for p in _TESTS.glob("*_pg_live.py")
-    )
+    return "\n".join(p.read_text(encoding="utf-8", errors="replace") for p in _TESTS.glob("*_pg_live.py"))
 
 
 def test_a_pg_migration_that_adds_columns_also_touches_the_chatlog_clone():
@@ -61,6 +61,7 @@ def test_a_pg_migration_that_adds_columns_also_touches_the_chatlog_clone():
     # Core tables that have a chat_log_* clone on PG. Mirrors
     # dialect._CHATLOG_TABLES -- imported rather than retyped where possible.
     import sys
+
     sys.path.insert(0, str(_ROOT / "bin"))
     from memory.backends.dialect import _CHATLOG_TABLES
 
@@ -70,8 +71,8 @@ def test_a_pg_migration_that_adds_columns_also_touches_the_chatlog_clone():
     # would be a false alarm about already-fixed history, and §3 counts a false
     # alarm as a violation in its own right. What matters is the END STATE: by
     # the last migration, every column on a cloned core table is on its clone.
-    pairs = dict(_CHATLOG_TABLES.values())          # core -> chat_log_*
-    added: dict[str, set] = {}                      # table -> columns added
+    pairs = dict(_CHATLOG_TABLES.values())  # core -> chat_log_*
+    added: dict[str, set] = {}  # table -> columns added
 
     col_re = re.compile(
         r"ALTER TABLE\s+([A-Za-z_][\w]*)\s+ADD COLUMN(?:\s+IF NOT EXISTS)?\s+([A-Za-z_][\w]*)",
@@ -79,9 +80,7 @@ def test_a_pg_migration_that_adds_columns_also_touches_the_chatlog_clone():
     )
     for path in sorted(_PG_MIGRATIONS.glob("pg_*.up.sql")):
         sql = path.read_text(encoding="utf-8", errors="replace")
-        body = "\n".join(
-            ln for ln in sql.splitlines() if not ln.lstrip().startswith("--")
-        )
+        body = "\n".join(ln for ln in sql.splitlines() if not ln.lstrip().startswith("--"))
         for table, col in col_re.findall(body):
             added.setdefault(table.lower(), set()).add(col.lower())
 
@@ -99,7 +98,7 @@ def test_a_pg_migration_that_adds_columns_also_touches_the_chatlog_clone():
         "reaches both — which is why this is easy to miss.\n  "
         + "\n  ".join(offenders)
         + "\n(pg_058 is the most recent instance; pg_049 and pg_050 are the "
-          "earlier repairs.)"
+        "earlier repairs.)"
     )
 
 
@@ -112,13 +111,15 @@ def test_the_memory_dynamics_feature_has_pg_coverage():
     """
     src = _pg_live_sources()
     missing = [
-        name for name, probe in (
+        name
+        for name, probe in (
             ("the decay floor", "_ORDINARY_FLOOR"),
             ("the graded floor", "_GRADED_FLOOR"),
             ("reinforcement", "access_count"),
             ("the grading window (age_minutes_lt)", "memory_grade_impl"),
             ("the forensic projection", "importance_raw"),
-        ) if probe not in src
+        )
+        if probe not in src
     ]
     assert not missing, (
         f"no *_pg_live.py suite exercises: {missing}. Each of these renders "
@@ -150,7 +151,4 @@ def test_the_two_backends_render_the_window_differently():
     happened to be testing on.
     """
     sq, pg = (c().age_minutes_lt("ts", "5") for c in _dialect_classes())
-    assert sq != pg, (
-        "both backends render the feedback window identically — one of them is "
-        "running the other's SQL"
-    )
+    assert sq != pg, "both backends render the feedback window identically — one of them is running the other's SQL"

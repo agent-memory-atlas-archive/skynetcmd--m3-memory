@@ -12,6 +12,7 @@ traceback belongs to. Two gaps made that impossible before 2026-09-16:
   warehouse on another host — and during the autumn DST fold an hour of lines
   repeats with no way to order it.
 """
+
 from __future__ import annotations
 
 import logging
@@ -88,18 +89,14 @@ def test_stamps_are_utc_not_local(tmp_path):
     after = datetime.datetime.now(datetime.UTC)
 
     stamped = lines[0].split(" ", 1)[0].rstrip("Z")
-    parsed = datetime.datetime.fromisoformat(stamped).replace(
-        tzinfo=datetime.UTC
-    )
+    parsed = datetime.datetime.fromisoformat(stamped).replace(tzinfo=datetime.UTC)
     # A local-time stamp on a machine off UTC lands outside this window.
-    assert before <= parsed <= after, (
-        f"stamp {parsed} outside the UTC window {before}..{after} — "
-        "looks like local time"
-    )
+    assert before <= parsed <= after, f"stamp {parsed} outside the UTC window {before}..{after} — looks like local time"
 
 
 def test_print_and_logging_share_one_format(tmp_path):
     """Mixed lines must sort and parse identically, or the log is unsortable."""
+
     def emit():
         print("print line")
         logging.getLogger("probe").info("logging line")

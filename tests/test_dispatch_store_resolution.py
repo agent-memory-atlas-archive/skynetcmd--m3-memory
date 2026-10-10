@@ -12,6 +12,7 @@ These pin the resolution rules, the two wrong ones that have actually been made
 in this codebase, and the fact that the store carries the lease columns the
 shared primitives need.
 """
+
 from __future__ import annotations
 
 import os
@@ -31,8 +32,13 @@ _DISPATCH_ENV = ("M3_DISPATCH_DB", "M3_DISPATCH_MODE", "M3_DISPATCH_PG_SCHEMA")
 # shared primitives and needs no new code -- that inheritance is the whole
 # architectural claim, so it is pinned rather than assumed.
 _LEASE_COLUMNS = {
-    "claimed_by", "claimed_at", "claim_expires_at",
-    "lease_token", "attempt_count", "failed_at", "received_at",
+    "claimed_by",
+    "claimed_at",
+    "claim_expires_at",
+    "lease_token",
+    "attempt_count",
+    "failed_at",
+    "received_at",
 }
 
 
@@ -160,22 +166,23 @@ class TestBootstrapSchema(unittest.TestCase):
     def test_down_returns_the_store_to_empty(self):
         down = pathlib.Path(P.dispatch_migrations_dir()) / "001_bootstrap.down.sql"
         self.conn.executescript(down.read_text(encoding="utf-8"))
-        left = sorted(r[0] for r in self.conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' "
-            "AND name NOT LIKE 'sqlite_%'"))
+        left = sorted(
+            r[0]
+            for r in self.conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+        )
         self.assertEqual(left, [], f"observed: tables left behind={left}")
 
     def test_it_carries_its_own_schema_versions(self):
         """A separate store tracks its own migrations, like the chatlog's."""
-        self.assertTrue(self.conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' "
-            "AND name='schema_versions'").fetchone())
+        self.assertTrue(
+            self.conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema_versions'").fetchone()
+        )
 
     def test_the_lease_columns_are_present(self):
-        cols = {r["name"] for r in self.conn.execute(
-            "PRAGMA table_info(notification_dispatch)")}
+        cols = {r["name"] for r in self.conn.execute("PRAGMA table_info(notification_dispatch)")}
         self.assertEqual(
-            cols & _LEASE_COLUMNS, _LEASE_COLUMNS,
+            cols & _LEASE_COLUMNS,
+            _LEASE_COLUMNS,
             "the dispatch store is missing lease columns.\n"
             f"observed: missing={sorted(_LEASE_COLUMNS - cols)}\n"
             "possible impact: claim/complete/fail/renew/sweep cannot run against "
@@ -187,23 +194,22 @@ class TestBootstrapSchema(unittest.TestCase):
     def test_the_lease_primitives_work_with_no_new_code(self):
         d = SqliteDialect()
         T = "notification_dispatch"
-        self.conn.execute(
-            f"INSERT INTO {T} (agent_id, kind) VALUES ('a@1','ping')")
+        self.conn.execute(f"INSERT INTO {T} (agent_id, kind) VALUES ('a@1','ping')")
         self.conn.commit()
 
-        got = d.claim_message(self.conn, table=T, where_sql="agent_id = ?",
-                              where_params=("a@1",), claimant="w1", lease_ttl=300)
+        got = d.claim_message(
+            self.conn, table=T, where_sql="agent_id = ?", where_params=("a@1",), claimant="w1", lease_ttl=300
+        )
         self.assertIsNotNone(got, "claim_message could not claim a dispatch row")
         rid, tok = got
         self.assertTrue(d.renew_lease(self.conn, table=T, row_id=rid, lease_token=tok))
-        self.assertFalse(d.renew_lease(self.conn, table=T, row_id=rid,
-                                       lease_token="wrong"),
-                         "the fence accepted a foreign token")
-        self.assertTrue(d.complete_message(self.conn, table=T, row_id=rid,
-                                           lease_token=tok))
-        self.assertFalse(d.complete_message(self.conn, table=T, row_id=rid,
-                                            lease_token=tok),
-                         "a completed row was completed twice")
+        self.assertFalse(
+            d.renew_lease(self.conn, table=T, row_id=rid, lease_token="wrong"), "the fence accepted a foreign token"
+        )
+        self.assertTrue(d.complete_message(self.conn, table=T, row_id=rid, lease_token=tok))
+        self.assertFalse(
+            d.complete_message(self.conn, table=T, row_id=rid, lease_token=tok), "a completed row was completed twice"
+        )
 
     def test_the_hot_path_queries_use_an_index(self):
         """§8: the waiter runs one of these per agent every few seconds.
@@ -226,19 +232,19 @@ class TestBootstrapSchema(unittest.TestCase):
         """
         # completed work: excluded by the index's `read_at IS NULL` term
         self.conn.executemany(
-            "INSERT INTO notification_dispatch "
-            "(agent_id, kind, claim_expires_at, read_at) VALUES (?,?,?,?)",
-            [(f"a@{i % 5}", "ping", "2020-01-01T00:00:00Z", "2020-01-02T00:00:00Z")
-             for i in range(2000)])
+            "INSERT INTO notification_dispatch (agent_id, kind, claim_expires_at, read_at) VALUES (?,?,?,?)",
+            [(f"a@{i % 5}", "ping", "2020-01-01T00:00:00Z", "2020-01-02T00:00:00Z") for i in range(2000)],
+        )
         # never leased: excluded by `claim_expires_at IS NOT NULL`
         self.conn.executemany(
             "INSERT INTO notification_dispatch (agent_id, kind) VALUES (?,?)",
-            [(f"a@{i % 5}", "ping") for i in range(400)])
+            [(f"a@{i % 5}", "ping") for i in range(400)],
+        )
         # the actual sweep candidates — a small minority, as in production
         self.conn.executemany(
-            "INSERT INTO notification_dispatch (agent_id, kind, claim_expires_at) "
-            "VALUES (?,?,?)",
-            [(f"a@{i % 5}", "ping", "2020-01-01T00:00:00Z") for i in range(20)])
+            "INSERT INTO notification_dispatch (agent_id, kind, claim_expires_at) VALUES (?,?,?)",
+            [(f"a@{i % 5}", "ping", "2020-01-01T00:00:00Z") for i in range(20)],
+        )
         self.conn.commit()
         self.conn.execute("ANALYZE")
 
@@ -248,25 +254,26 @@ class TestBootstrapSchema(unittest.TestCase):
         covered, total = self.conn.execute(
             "SELECT (SELECT count(*) FROM notification_dispatch "
             "        WHERE claim_expires_at IS NOT NULL AND read_at IS NULL), "
-            "       count(*) FROM notification_dispatch").fetchone()
+            "       count(*) FROM notification_dispatch"
+        ).fetchone()
         self.assertLess(
-            covered * 10, total,
+            covered * 10,
+            total,
             f"fixture no longer models a selective index: {covered}/{total} rows "
             "are sweep candidates, so a full scan is the CORRECT plan and the "
-            "index assertions below would be meaningless")
+            "index assertions below would be meaningless",
+        )
 
         d = SqliteDialect()
         for label, sql in (
-            ("sweeper", "SELECT id FROM notification_dispatch WHERE "
-                        + d.lease_expired_predicate()),
-            ("waiter", "SELECT id FROM notification_dispatch "
-                       "WHERE agent_id = 'a@1' AND read_at IS NULL"),
+            ("sweeper", "SELECT id FROM notification_dispatch WHERE " + d.lease_expired_predicate()),
+            ("waiter", "SELECT id FROM notification_dispatch WHERE agent_id = 'a@1' AND read_at IS NULL"),
         ):
             with self.subTest(query=label):
-                plan = " ".join(str(r[-1]) for r in self.conn.execute(
-                    "EXPLAIN QUERY PLAN " + sql).fetchall())
+                plan = " ".join(str(r[-1]) for r in self.conn.execute("EXPLAIN QUERY PLAN " + sql).fetchall())
                 self.assertIn(
-                    "idx_dispatch", plan,
+                    "idx_dispatch",
+                    plan,
                     f"the {label} query no longer uses an index.\n"
                     f"observed: plan={plan}\n"
                     "possible: an index was dropped, or its partial WHERE was "

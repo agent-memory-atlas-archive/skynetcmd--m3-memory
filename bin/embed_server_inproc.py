@@ -37,6 +37,7 @@ Usage:
     python bin/embed_server_inproc.py --port 8082 --host 127.0.0.1
 Model: M3_EMBED_GGUF env, else auto-detected (discover_bge_m3_gguf).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -200,9 +201,11 @@ def _resolve_admission() -> _AdmissionGate:
     logger.info(
         "admission gate: total=%d (backend streams=%d, configured=%s), "
         "bulk_max=%d, interactive_reserved=%d (strict, no borrow)",
-        gate.total, streams,
+        gate.total,
+        streams,
         _ADMISSION_TOTAL_DEFAULT if _ADMISSION_TOTAL_DEFAULT > 0 else "auto",
-        gate.bulk_max, gate.reserved,
+        gate.bulk_max,
+        gate.reserved,
     )
     return gate
 
@@ -319,7 +322,9 @@ def _load_embedder() -> None:
                 "different model than expected). inspect: verify M3_EMBED_GGUF and "
                 "ensure it points to a bge-m3 model with dim=%d — a "
                 "dimension mismatch would poison the vector store. Exiting.",
-                dim, config.EMBED_DIM, config.EMBED_DIM
+                dim,
+                config.EMBED_DIM,
+                config.EMBED_DIM,
             )
             sys.exit(3)
         _embedder = emb
@@ -327,7 +332,9 @@ def _load_embedder() -> None:
         _model_tag = _EMBED_GGUF_MODEL_TAG or config.EMBED_MODEL
         logger.info(
             "shared GPU embedder loaded (%s, dim=%d) in %.1fs — serving.",
-            gguf, dim, time.perf_counter() - t0,
+            gguf,
+            dim,
+            time.perf_counter() - t0,
         )
         # Build the admission gate now that the backend stream pool is known.
         global _GATE
@@ -341,7 +348,8 @@ def _load_embedder() -> None:
             "or a dependency version conflict. inspect: check the full exception "
             "trace above for specifics; run `m3 doctor --embed` to probe the "
             "environment. Fatal — exiting without serving.",
-            type(e).__name__, e
+            type(e).__name__,
+            e,
         )
         sys.exit(1)
 
@@ -449,7 +457,8 @@ def _context_overflow_response(exc: Exception) -> JSONResponse | None:
         "action: returning 413 so the client can subdivide and mean-pool. "
         "review: the CLIENT's chunk budget (M3_EMBED_TOKEN_BUDGET); raising "
         "M3_EMBED_CTX is NOT the fix -- bge-m3 is trained to 8192 positions.",
-        err.get("observed_tokens", "?"), err["max_tokens"],
+        err.get("observed_tokens", "?"),
+        err["max_tokens"],
     )
     return JSONResponse(status_code=413, content={"error": err})
 
@@ -474,6 +483,7 @@ async def embedding(req: EmbeddingRequest, request: Request):
 
     if "application/octet-stream" in (request.headers.get("accept") or ""):
         import numpy as np
+
         arr = np.asarray(vecs, dtype="<f4")
         header = struct.pack("<II", arr.shape[0], arr.shape[1] if arr.ndim == 2 else _dim)
         return Response(content=header + arr.tobytes(), media_type="application/octet-stream")
@@ -525,9 +535,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Shared in-process GPU embedder server")
     parser.add_argument("--port", type=int, default=int(os.environ.get("M3_EMBED_SERVER_PORT", "8082")))
     parser.add_argument(
-        "--host", default=os.environ.get("M3_EMBED_SERVER_HOST", "127.0.0.1"),
+        "--host",
+        default=os.environ.get("M3_EMBED_SERVER_HOST", "127.0.0.1"),
         help="Bind host. Default 127.0.0.1 (loopback only — the embedder is not a "
-             "LAN service). Set 0.0.0.0 ONLY deliberately.",
+        "LAN service). Set 0.0.0.0 ONLY deliberately.",
     )
     parser.add_argument("--log-file", default=None)
     args = parser.parse_args()
@@ -565,22 +576,28 @@ def main() -> int:
     # treat 4 as a clean no-op). A config/lock error → degraded handle, run anyway
     # (fail-safe §8: better a possibly-second embedder than no embedder at all).
     from m3_sdk import acquire_or_exit
+
     _lock = acquire_or_exit(
         "embed-server",
         extra={"host": args.host, "port": args.port},
         on_already_running=lambda o: logger.info(
             "an embed server is already running (pid %s) on %s:%d — exiting "
             "without loading a second GPU embedder (§8: one CUDA context, not two).",
-            o.pid if o else "?", args.host, args.port),
+            o.pid if o else "?",
+            args.host,
+            args.port,
+        ),
     )
     main._instance_lock = _lock  # type: ignore[attr-defined]  # hold for lifetime
     if not _lock.acquired:
-        logger.warning("embed-server: single-instance lock DEGRADED (%s) — "
-                       "running without enforcement", _lock.status.value)
+        logger.warning(
+            "embed-server: single-instance lock DEGRADED (%s) — running without enforcement", _lock.status.value
+        )
 
     _load_embedder()  # fail-loud: exits non-zero if the embedder can't load
-    logger.info("listening on http://%s:%d (loopback=%s)",
-                args.host, args.port, args.host in ("127.0.0.1", "localhost", "::1"))
+    logger.info(
+        "listening on http://%s:%d (loopback=%s)", args.host, args.port, args.host in ("127.0.0.1", "localhost", "::1")
+    )
     _run_server(args.host, args.port)
     return 0
 
@@ -603,7 +620,11 @@ def _run_server(host: str, port: int) -> None:
     or signal state that pythonw doesn't provide.
     """
     config = uvicorn.Config(
-        app, host=host, port=port, log_level="warning", use_colors=False,
+        app,
+        host=host,
+        port=port,
+        log_level="warning",
+        use_colors=False,
     )
 
     class _NoSignalServer(uvicorn.Server):
@@ -628,6 +649,7 @@ def _ensure_std_streams() -> None:
     such writes are harmless. Idempotent; safe under normal python.exe (no-op).
     """
     import io
+
     for name in ("stdout", "stderr"):
         if getattr(sys, name, None) is None:
             try:

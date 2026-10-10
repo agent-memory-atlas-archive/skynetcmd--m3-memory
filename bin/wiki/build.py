@@ -5,6 +5,7 @@ returns {relpath: markdown_text}. No path resolution, no file I/O, no embedder, 
 timestamps — so the determinism test can drive it from fixture DBs and assert
 byte-identical output across runs. The I/O shell lives in bin/gen_wiki.py.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -106,10 +107,16 @@ def build_wiki(
             if prose:
                 ledes[c.key] = prose
 
-    return _render.render_pages(clusters, edges, files, promotions, ledes=ledes,
-                                drift_judge=drift_judge,
-                                derivability_judge=derivability_judge,
-                                obsidian=opts.obsidian)
+    return _render.render_pages(
+        clusters,
+        edges,
+        files,
+        promotions,
+        ledes=ledes,
+        drift_judge=drift_judge,
+        derivability_judge=derivability_judge,
+        obsidian=opts.obsidian,
+    )
 
 
 def _apply_admission_gate(clusters: list, cluster_edges: list) -> None:

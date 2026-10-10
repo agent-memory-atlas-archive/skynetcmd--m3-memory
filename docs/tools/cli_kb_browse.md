@@ -1,8 +1,8 @@
 ---
 tool: bin/cli_kb_browse.py
-sha1: 3dbc6bc4c33e
-mtime_utc: 2026-10-10T08:57:55.339192+00:00
-generated_utc: 2026-10-10T08:59:55.962386+00:00
+sha1: 0ae0651fdf4a
+mtime_utc: 2026-10-10T21:05:16.943038+00:00
+generated_utc: 2026-10-10T21:05:29.411557+00:00
 private: false
 ---
 
@@ -24,7 +24,7 @@ Usage:
 
 ## Entry points
 
-- `def main()` (line 213)
+- `def main()` (line 230)
 - `if __name__ == "__main__"` guard
 
 ---

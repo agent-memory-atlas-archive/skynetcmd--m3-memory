@@ -9,6 +9,7 @@ the agent NAME reaches whichever sister polls first; the others never see it.
 `_from` is a disambiguator so a reply can be routed — NOT a credential.
 Identity in m3 is self-asserted by design (see bin/mcp_proxy.py's docstring).
 """
+
 from __future__ import annotations
 
 import json
@@ -67,13 +68,12 @@ def _payload_of(monkeypatch, **kw) -> dict:
     # path actually uses, or this harness captures nothing and the test fails
     # for a reason that has nothing to do with the return address.
     import m3_core.context as _ctx
+
     monkeypatch.setattr(orchestration, "_db", lambda: _RegistryCtx())
-    monkeypatch.setattr(_ctx.M3Context, "get_dispatch_conn",
-                        lambda self: _Ctx(), raising=False)
+    monkeypatch.setattr(_ctx.M3Context, "get_dispatch_conn", lambda self: _Ctx(), raising=False)
     d = orchestration.dialect()
     monkeypatch.setattr(orchestration, "dialect", lambda: d)
-    monkeypatch.setattr(d.__class__, "last_insert_id", lambda self, cur: 1,
-                        raising=False)
+    monkeypatch.setattr(d.__class__, "last_insert_id", lambda self, cur: 1, raising=False)
 
     orchestration.notify_impl("claude-code", "handoff", **kw)
     # payload_json is the 3rd bind param: (agent_id, kind, payload_json, now)
@@ -81,8 +81,7 @@ def _payload_of(monkeypatch, **kw) -> dict:
 
 
 def test_return_address_is_stamped(monkeypatch):
-    p = _payload_of(monkeypatch, payload={"task": "review"},
-                    from_agent="agy", from_session="sess-a3f9")
+    p = _payload_of(monkeypatch, payload={"task": "review"}, from_agent="agy", from_session="sess-a3f9")
     assert p["_from"] == {"agent": "agy", "session": "sess-a3f9"}
     assert p["task"] == "review", "caller payload must survive intact"
 
@@ -103,8 +102,7 @@ def test_partial_return_address(monkeypatch):
 
 def test_from_cannot_clobber_caller_keys(monkeypatch):
     """`_from` is namespaced so it cannot collide with a caller's own keys."""
-    p = _payload_of(monkeypatch, payload={"agent": "MINE", "session": "MINE"},
-                    from_agent="agy", from_session="s1")
+    p = _payload_of(monkeypatch, payload={"agent": "MINE", "session": "MINE"}, from_agent="agy", from_session="s1")
     assert p["agent"] == "MINE" and p["session"] == "MINE"
     assert p["_from"]["agent"] == "agy"
 

@@ -19,6 +19,7 @@ Usage:
 Every backend: SQLite takes --database (default: the active store); PostgreSQL
 uses the configured database and refuses a path.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -56,7 +57,9 @@ def copy_items_and_embeddings(db, source: str, target: str) -> dict[str, str]:
     p = d.param()
     existing = db.execute(f"SELECT COUNT(*) FROM memory_items WHERE variant = {p}", (target,)).fetchone()[0]
     if existing:
-        raise SystemExit(f"target variant {target!r} already has {existing} items — aborting. Use --wipe-target to clear.")
+        raise SystemExit(
+            f"target variant {target!r} already has {existing} items — aborting. Use --wipe-target to clear."
+        )
 
     rows = db.execute(
         "SELECT id, type, title, content, metadata_json, agent_id, model_id, "
@@ -74,11 +77,38 @@ def copy_items_and_embeddings(db, source: str, target: str) -> dict[str, str]:
     for r in rows:
         new_id = str(uuid.uuid4())
         id_map[r[0]] = new_id
-        batch.append((
-            new_id, r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9], r[10],
-            r[11], r[12], r[13], r[14], now, r[16], r[17], r[18], r[19], r[20],
-            r[21], r[22], r[23], r[24], r[25], r[26], target,
-        ))
+        batch.append(
+            (
+                new_id,
+                r[1],
+                r[2],
+                r[3],
+                r[4],
+                r[5],
+                r[6],
+                r[7],
+                r[8],
+                r[9],
+                r[10],
+                r[11],
+                r[12],
+                r[13],
+                r[14],
+                now,
+                r[16],
+                r[17],
+                r[18],
+                r[19],
+                r[20],
+                r[21],
+                r[22],
+                r[23],
+                r[24],
+                r[25],
+                r[26],
+                target,
+            )
+        )
     db.executemany(
         "INSERT INTO memory_items (id, type, title, content, metadata_json, agent_id, "
         "model_id, change_agent, importance, source, origin_device, is_deleted, "
@@ -95,8 +125,7 @@ def copy_items_and_embeddings(db, source: str, target: str) -> dict[str, str]:
     emb_batch = []
     for old_id, new_id in id_map.items():
         er = db.execute(
-            "SELECT embedding, embed_model, dim, content_hash FROM memory_embeddings "
-            f"WHERE memory_id = {p} LIMIT 1",
+            f"SELECT embedding, embed_model, dim, content_hash FROM memory_embeddings WHERE memory_id = {p} LIMIT 1",
             (old_id,),
         ).fetchone()
         if er is None:
@@ -176,7 +205,7 @@ def build_kg_edges(db, variant: str, top_n: int, sim_threshold: float) -> int:
             rate = end / elapsed if elapsed else 0
             log(f"  processed {end}/{len(vecs_norm)} ({rate:.0f}/s), edges so far: {total_edges}")
 
-    log(f"  done: {total_edges} edges inserted in {time.perf_counter()-t0:.1f}s")
+    log(f"  done: {total_edges} edges inserted in {time.perf_counter() - t0:.1f}s")
     return total_edges
 
 
@@ -186,8 +215,11 @@ def main():
     p.add_argument("--target-variant", required=True)
     p.add_argument("--top-n", type=int, required=True)
     p.add_argument("--sim-threshold", type=float, required=True)
-    p.add_argument("--wipe-target", action="store_true",
-                   help="Delete any existing items/edges under target variant before building")
+    p.add_argument(
+        "--wipe-target",
+        action="store_true",
+        help="Delete any existing items/edges under target variant before building",
+    )
     add_database_arg(p)
     args = p.parse_args()
 
@@ -214,9 +246,10 @@ def _build(db, args) -> None:
             f"(SELECT id FROM memory_items WHERE variant = {p})",
             (args.target_variant, args.target_variant),
         )
-        db.execute("DELETE FROM memory_embeddings WHERE memory_id IN "
-                   f"(SELECT id FROM memory_items WHERE variant = {p})",
-                   (args.target_variant,))
+        db.execute(
+            f"DELETE FROM memory_embeddings WHERE memory_id IN (SELECT id FROM memory_items WHERE variant = {p})",
+            (args.target_variant,),
+        )
         db.execute(f"DELETE FROM memory_items WHERE variant = {p}", (args.target_variant,))
         db.commit()
 
@@ -224,9 +257,7 @@ def _build(db, args) -> None:
     n_edges = build_kg_edges(db, args.target_variant, args.top_n, args.sim_threshold)
 
     # Summary
-    n_items = db.execute(
-        f"SELECT COUNT(*) FROM memory_items WHERE variant = {p}", (args.target_variant,)
-    ).fetchone()[0]
+    n_items = db.execute(f"SELECT COUNT(*) FROM memory_items WHERE variant = {p}", (args.target_variant,)).fetchone()[0]
     log(f"SUMMARY: variant={args.target_variant} items={n_items} edges={n_edges}")
 
 

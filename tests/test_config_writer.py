@@ -3,6 +3,7 @@
 The user's comments and layout survive; each refusal leaves the file byte for
 byte unchanged; what it writes, the loader reads back.
 """
+
 from __future__ import annotations
 
 import os
@@ -45,13 +46,15 @@ def test_the_users_comments_and_layout_survive(tmp_path):
     from m3_core.config.writer import set_values
 
     loc = _loc(tmp_path)
-    original = ("schema_version = 1\n"
-                "# my note about the backend\n"
-                "[db]\n"
-                "backend = \"sqlite\"   # trailing comment\n"
-                "\n"
-                "[search]\n"
-                "row_cap = 4000\n")
+    original = (
+        "schema_version = 1\n"
+        "# my note about the backend\n"
+        "[db]\n"
+        'backend = "sqlite"   # trailing comment\n'
+        "\n"
+        "[search]\n"
+        "row_cap = 4000\n"
+    )
     loc.file.write_text(original, encoding="utf-8", newline="\n")
     set_values(loc, {_key("search.row_cap"): 6000})
     text = loc.file.read_text(encoding="utf-8")
@@ -72,17 +75,21 @@ def test_paths_and_lists_are_written_toml_native(tmp_path):
     from m3_core.config.writer import set_values
 
     loc = _loc(tmp_path)
-    set_values(loc, {_key("paths.engine_root"): Path(r"C:\m3 'eng"),
-                     _key("db.postgres.forbidden_hosts"): ["wh.example", "b"]})
+    set_values(
+        loc, {_key("paths.engine_root"): Path(r"C:\m3 'eng"), _key("db.postgres.forbidden_hosts"): ["wh.example", "b"]}
+    )
     got = _load(loc)
     assert got["paths.engine_root"] == Path(r"C:\m3 'eng").expanduser()
     assert got["db.postgres.forbidden_hosts"] == ["wh.example", "b"]
 
 
-@pytest.mark.parametrize("name,value,match", [
-    ("M3_SERVE_TOKEN", "s3cret", "never written to m3_config.toml; store it with"),
-    ("db.backend", "postgre", "not one of"),
-])
+@pytest.mark.parametrize(
+    "name,value,match",
+    [
+        ("M3_SERVE_TOKEN", "s3cret", "never written to m3_config.toml; store it with"),
+        ("db.backend", "postgre", "not one of"),
+    ],
+)
 def test_refusals_leave_the_file_untouched(tmp_path, name, value, match):
     from m3_core.config import ConfigValueError
     from m3_core.config.writer import ConfigWriteError, set_values

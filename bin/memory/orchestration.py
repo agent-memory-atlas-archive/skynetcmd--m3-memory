@@ -20,6 +20,7 @@ Two names referenced here are intentionally NOT imported at module scope:
 
 See `docs/MEMORY_CORE_MODULARIZATION.md` for the migration plan.
 """
+
 from __future__ import annotations
 
 import functools
@@ -40,16 +41,17 @@ logger = logging.getLogger("memory_core")
 # ── Task Orchestration: State Machine + Helper Functions ─────────────────────────
 
 TASK_STATE_TRANSITIONS = {
-    "pending":     {"in_progress", "blocked", "cancelled"},
+    "pending": {"in_progress", "blocked", "cancelled"},
     "in_progress": {"blocked", "completed", "failed", "cancelled"},
-    "blocked":     {"in_progress", "cancelled"},
-    "completed":   set(),
-    "failed":      set(),
-    "cancelled":   set(),
+    "blocked": {"in_progress", "cancelled"},
+    "completed": set(),
+    "failed": set(),
+    "cancelled": set(),
 }
 VALID_TASK_STATES = frozenset(TASK_STATE_TRANSITIONS.keys())
 TERMINAL_TASK_STATES = frozenset({"completed", "failed", "cancelled"})
 VALID_AGENT_STATUSES = frozenset({"active", "idle", "offline"})
+
 
 def _validate_task_transition(prev: str, new: str):
     """Validates task state transitions. Returns None if valid, error string if invalid."""
@@ -59,9 +61,12 @@ def _validate_task_transition(prev: str, new: str):
         return None
     allowed = TASK_STATE_TRANSITIONS.get(prev, set())
     if new not in allowed:
-        return (f"Error: cannot transition task from '{prev}' to '{new}'. "
-                f"Allowed from '{prev}': {sorted(allowed) or '(terminal)'}")
+        return (
+            f"Error: cannot transition task from '{prev}' to '{new}'. "
+            f"Allowed from '{prev}': {sorted(allowed) or '(terminal)'}"
+        )
     return None
+
 
 # ── Agent activity ("touch") and team membership ─────────────────────────────────
 
@@ -137,9 +142,11 @@ def _membership(row, here: str) -> tuple[str, str]:
 def _membership_columns() -> tuple[str, tuple]:
     """SELECT fragment + params adding ``recent`` (touched inside the window, DB clock)."""
     _d = dialect()
-    return (f"node_id, hostname, pid, pid_create_time, "
-            f"CASE WHEN last_seen >= {_d.now_minus_minutes(_d.param())} THEN 1 ELSE 0 END AS recent",
-            (TEAM_MEMBERSHIP_WINDOW_HOURS * 60,))
+    return (
+        f"node_id, hostname, pid, pid_create_time, "
+        f"CASE WHEN last_seen >= {_d.now_minus_minutes(_d.param())} THEN 1 ELSE 0 END AS recent",
+        (TEAM_MEMBERSHIP_WINDOW_HOURS * 60,),
+    )
 
 
 def _agent_exists(agent_id: str) -> bool:
@@ -149,10 +156,13 @@ def _agent_exists(agent_id: str) -> bool:
         row = db.execute(f"SELECT 1 FROM agents WHERE agent_id = {p}", (agent_id,)).fetchone()
         return row is not None
 
+
 # ── Agent Registry (5 functions) ──────────────────────────────────────────────────
 
-def agent_register_impl(agent_id: str, role: str = "", capabilities: list | None = None,
-                        metadata: dict | None = None) -> str:
+
+def agent_register_impl(
+    agent_id: str, role: str = "", capabilities: list | None = None, metadata: dict | None = None
+) -> str:
     """Registers or updates an agent in the registry.
 
     Every parameter but `agent_id` defaults, because the ToolSpec has always
@@ -181,12 +191,14 @@ def agent_register_impl(agent_id: str, role: str = "", capabilities: list | None
                  metadata_json=excluded.metadata_json,
                  status='active',
                  last_seen=excluded.last_seen""",
-            (agent_id, role, caps_json, meta_json, now, now)
+            (agent_id, role, caps_json, meta_json, now, now),
         )
         _touch(db, agent_id)
 
     from memory_core import _refresh_hint
+
     return f"Registered: {agent_id} (role={role}, status=active)" + _refresh_hint(agent_id)
+
 
 def agent_heartbeat_impl(agent_id: str) -> str:
     """Updates agent's last_seen timestamp and status to active.
@@ -198,10 +210,10 @@ def agent_heartbeat_impl(agent_id: str) -> str:
         if _touch(db, agent_id) == 0:
             return f"Error: agent '{agent_id}' not registered"
         p = dialect().param()
-        row = db.execute(f"SELECT last_seen FROM agents WHERE agent_id = {p}",
-                         (agent_id,)).fetchone()
+        row = db.execute(f"SELECT last_seen FROM agents WHERE agent_id = {p}", (agent_id,)).fetchone()
 
     return f"Heartbeat: {agent_id} (last_seen={row['last_seen']})"
+
 
 def agent_list_impl(status: str = "", role: str = "", as_records: bool = False) -> str:
     """Lists agents, optionally filtered by status and/or role."""
@@ -221,9 +233,8 @@ def agent_list_impl(status: str = "", role: str = "", as_records: bool = False) 
 
     with _db() as db:
         rows = db.execute(
-            f"SELECT agent_id, role, status, last_seen, {member_cols} "
-            f"FROM agents {where} ORDER BY last_seen DESC",
-            (*member_params, *params)
+            f"SELECT agent_id, role, status, last_seen, {member_cols} FROM agents {where} ORDER BY last_seen DESC",
+            (*member_params, *params),
         ).fetchall()
 
     if not rows:
@@ -239,26 +250,35 @@ def agent_list_impl(status: str = "", role: str = "", as_records: bool = False) 
     out = []
     for row in rows:
         state, basis = _membership(row, here)
-        out.append({"agent_id": row["agent_id"], "role": row["role"], "status": row["status"],
-                    "last_seen": row["last_seen"], "node_id": row["node_id"],
-                    "hostname": row["hostname"], "pid": row["pid"],
-                    "membership": state, "membership_basis": basis})
+        out.append(
+            {
+                "agent_id": row["agent_id"],
+                "role": row["role"],
+                "status": row["status"],
+                "last_seen": row["last_seen"],
+                "node_id": row["node_id"],
+                "hostname": row["hostname"],
+                "pid": row["pid"],
+                "membership": state,
+                "membership_basis": basis,
+            }
+        )
 
     lines = [f"Agents ({len(out)}):"]
-    lines += [f"  [{r['agent_id']}] role={r['role']} membership={r['membership']} "
-              f"({r['membership_basis']}) last_seen={r['last_seen']}" for r in out]
+    lines += [
+        f"  [{r['agent_id']}] role={r['role']} membership={r['membership']} "
+        f"({r['membership_basis']}) last_seen={r['last_seen']}"
+        for r in out
+    ]
 
-    return records.emit("\n".join(lines),
-                        records.as_records_payload(out), as_records)
+    return records.emit("\n".join(lines), records.as_records_payload(out), as_records)
+
 
 def agent_get_impl(agent_id: str) -> str:
     """Retrieves detailed information about a single agent."""
     with _db() as db:
         p = dialect().param()
-        row = db.execute(
-            f"SELECT * FROM agents WHERE agent_id = {p}",
-            (agent_id,)
-        ).fetchone()
+        row = db.execute(f"SELECT * FROM agents WHERE agent_id = {p}", (agent_id,)).fetchone()
 
     if not row:
         return f"Error: agent '{agent_id}' not found"
@@ -291,6 +311,7 @@ def agent_set_trust_impl(agent_id: str, trust_score: float) -> str:
     doesn't exist yet. Requires migration 036 (agents.trust_score).
     """
     from memory.trust import set_agent_trust
+
     if not agent_id:
         return "Error: agent_id is required"
     try:
@@ -307,17 +328,16 @@ def agent_offline_impl(agent_id: str) -> str:
     """Marks an agent as offline."""
     with _db() as db:
         p = dialect().param()
-        cur = db.execute(
-            f"UPDATE agents SET status = 'offline' WHERE agent_id = {p}",
-            (agent_id,)
-        )
+        cur = db.execute(f"UPDATE agents SET status = 'offline' WHERE agent_id = {p}", (agent_id,))
         rowcount = cur.rowcount
 
     if rowcount == 0:
         return f"Error: agent '{agent_id}' not found"
 
     from memory_core import _refresh_hint
+
     return f"Agent {agent_id} marked offline" + _refresh_hint(agent_id)
+
 
 # ── Notifications (4 functions) ───────────────────────────────────────────────────
 
@@ -422,10 +442,9 @@ def _addressing_predicate(agent_id: str, param: str) -> tuple[str, tuple]:
     _t, instance = split_agent_id(agent_id)
     if instance is not None:
         return f"agent_id = {param}", (agent_id,)
-    frag, bound = dialect().literal_prefix_match(
-        "agent_id", param, agent_id + _AGENT_SEP
-    )
+    frag, bound = dialect().literal_prefix_match("agent_id", param, agent_id + _AGENT_SEP)
     return f"(agent_id = {param} OR {frag})", (agent_id, bound)
+
 
 # ── Message state: ONE owner for the predicate ───────────────────────────────
 # The four states are DERIVED, never stored. A `status` column would give "is
@@ -478,8 +497,7 @@ def inbox_membership_sql(*, claimed: bool | None = None) -> str:
     base = "read_at IS NULL"
     if claimed is None:
         return base
-    return base + (" AND claimed_by IS NOT NULL" if claimed
-                   else " AND claimed_by IS NULL")
+    return base + (" AND claimed_by IS NOT NULL" if claimed else " AND claimed_by IS NULL")
 
 
 def message_state_sql(state: str) -> str:
@@ -494,17 +512,13 @@ def message_state_sql(state: str) -> str:
     preds = {
         "FAILED": "failed_at IS NOT NULL",
         "COMPLETED": "failed_at IS NULL AND read_at IS NOT NULL",
-        "CLAIMED": ("failed_at IS NULL AND read_at IS NULL "
-                    "AND claimed_by IS NOT NULL"),
-        "PENDING": ("failed_at IS NULL AND read_at IS NULL "
-                    "AND claimed_by IS NULL"),
+        "CLAIMED": ("failed_at IS NULL AND read_at IS NULL AND claimed_by IS NOT NULL"),
+        "PENDING": ("failed_at IS NULL AND read_at IS NULL AND claimed_by IS NULL"),
     }
     try:
         return preds[state]
     except KeyError:
-        raise ValueError(
-            f"unknown message state {state!r}; expected one of {MESSAGE_STATES}"
-        ) from None
+        raise ValueError(f"unknown message state {state!r}; expected one of {MESSAGE_STATES}") from None
 
 
 def message_state_of(row) -> str:
@@ -514,6 +528,7 @@ def message_state_of(row) -> str:
     disagree, a row is filtered as one state and displayed as another. The test
     suite asserts they agree for every column combination.
     """
+
     def _set(name):
         try:
             return row[name] is not None
@@ -558,6 +573,7 @@ def _store_for_id(notification_id: int | str):
     if numeric >= DISPATCH_ID_FLOOR:
         from m3_core.context import M3Context
         from m3_core.paths import resolve_db_path
+
         with M3Context.for_db(resolve_db_path(None)).get_dispatch_conn() as conn:
             yield conn, _dispatch_write_table()
         return
@@ -591,8 +607,7 @@ def _dispatch_write_table() -> str:
         return "notifications"
 
 
-def notify_impl(agent_id: str, kind: str, payload: dict = None,
-                from_agent: str = "", from_session: str = "") -> str:
+def notify_impl(agent_id: str, kind: str, payload: dict = None, from_agent: str = "", from_session: str = "") -> str:
     """Sends a notification to an agent.
 
     ``from_agent`` / ``from_session`` are the RETURN ADDRESS. They are stamped
@@ -615,8 +630,7 @@ def notify_impl(agent_id: str, kind: str, payload: dict = None,
     """
     now = datetime.now(UTC).isoformat()
     if from_agent or from_session:
-        _addr = {k: v for k, v in (("agent", from_agent),
-                                   ("session", from_session)) if v}
+        _addr = {k: v for k, v in (("agent", from_agent), ("session", from_session)) if v}
         if isinstance(payload, dict):
             # Copy, never mutate: stamping into the caller's own dict would leak
             # `_from` back into their object. Namespaced so it cannot collide
@@ -638,8 +652,7 @@ def notify_impl(agent_id: str, kind: str, payload: dict = None,
     # Backend-neutral generated-id read: RETURNING id on backends that support
     # it (PG/MariaDB), cur.lastrowid on SQLite — via the dialect, not a name check.
     _table = _dispatch_write_table()
-    _sql = (f"INSERT INTO {_table} (agent_id, kind, payload_json, created_at) "
-            f"VALUES ({ph}){_d.returning_id_clause()}")
+    _sql = f"INSERT INTO {_table} (agent_id, kind, payload_json, created_at) VALUES ({ph}){_d.returning_id_clause()}"
     _args = (agent_id, kind, payload_json, now)
 
     # Delivery records go to the DISPATCH store, which is a separate file on
@@ -652,6 +665,7 @@ def notify_impl(agent_id: str, kind: str, payload: dict = None,
     # would land in the MAIN store with no error.
     from m3_core.context import M3Context
     from m3_core.paths import resolve_db_path
+
     with M3Context.for_db(resolve_db_path(None)).get_dispatch_conn() as db:
         cur = db.execute(_sql, _args)
         new_id = _d.last_insert_id(cur)
@@ -724,18 +738,21 @@ def detect_fleet_topology() -> tuple[str, str]:
     if not named and not unnamed:
         return ("unknown", "no agent has heartbeated inside the active window")
     if not named:
-        return ("unknown",
-                f"{unnamed} active agent(s), none carrying a node_id yet -- "
-                f"they predate the column or have not re-registered")
+        return (
+            "unknown",
+            f"{unnamed} active agent(s), none carrying a node_id yet -- "
+            f"they predate the column or have not re-registered",
+        )
     if len(named) > 1:
-        return ("multi-node",
-                f"{len(named)} distinct nodes active: {sorted(named)}")
+        return ("multi-node", f"{len(named)} distinct nodes active: {sorted(named)}")
     if unnamed:
         # One known node plus agents of unknown provenance. Those could be on
         # this node or another; assuming the former is the dangerous direction.
-        return ("unknown",
-                f"1 known node {sorted(named)} but {unnamed} active agent(s) "
-                f"carry no node_id, so a second node cannot be ruled out")
+        return (
+            "unknown",
+            f"1 known node {sorted(named)} but {unnamed} active agent(s) "
+            f"carry no node_id, so a second node cannot be ruled out",
+        )
     return ("single-node", f"all {sum(named.values())} active agent(s) on {sorted(named)[0]}")
 
 
@@ -819,6 +836,7 @@ def read_across_notification_stores(sql_template: str, params: tuple) -> list:
                     got = db.execute(sql_template.format(table=table), params).fetchall()
             else:
                 from .backends import active_backend
+
                 with active_backend().open_readonly(store) as conn:
                     got = conn.execute(sql_template.format(table=table), params).fetchall()
         except Exception as exc:  # noqa: BLE001 -- see the warning above
@@ -844,11 +862,11 @@ def notifications_unread_ids_impl(agent_id: str) -> list[int]:
     p = dialect().param()
     pred, params = _addressing_predicate(agent_id, p)
     rows = read_across_notification_stores(
-        f"SELECT id FROM {{table}} WHERE {pred} "
-        f"AND {inbox_membership_sql()} ORDER BY id ASC",
+        f"SELECT id FROM {{table}} WHERE {pred} AND {inbox_membership_sql()} ORDER BY id ASC",
         params,
     )
     return [row[0] for row in rows]
+
 
 def _decode_payload_json(rows) -> list[dict]:
     """Rows with `payload_json` re-parsed into a real nested object.
@@ -952,6 +970,7 @@ def sweep_leases_opportunistically(table: str | None = None) -> tuple[int, int]:
             else:
                 from m3_core.context import M3Context
                 from m3_core.paths import resolve_db_path
+
                 with M3Context.for_db(resolve_db_path(None)).get_dispatch_conn() as db:
                     r, d = dialect().sweep_expired_leases(db, table=tbl)
             reclaimed += r
@@ -971,8 +990,7 @@ def sweep_leases_opportunistically(table: str | None = None) -> tuple[int, int]:
         return (0, 0)
 
 
-def notifications_poll_impl(agent_id: str, unread_only: bool = True, limit: int = 20,
-                            as_records: bool = False) -> str:
+def notifications_poll_impl(agent_id: str, unread_only: bool = True, limit: int = 20, as_records: bool = False) -> str:
     """Retrieves notifications for an agent.
 
     An empty `agent_id` is REFUSED, not queried. It reaches here when the
@@ -1061,19 +1079,24 @@ def notifications_poll_impl(agent_id: str, unread_only: bool = True, limit: int 
     # mail is genuinely returned -- but it must not be SILENT. An agent that
     # believes it is heartbeating while invisible to every liveness check is a
     # §3 false negative on the one signal a reclaim decision depends on.
-    _unreg = "" if heartbeat_seen else (
-        f"\n  NOTE: {agent_id} is not registered, so this poll recorded no "
-        f"heartbeat and the agent is invisible to liveness checks. "
-        f"Call agent_register to fix."
+    _unreg = (
+        ""
+        if heartbeat_seen
+        else (
+            f"\n  NOTE: {agent_id} is not registered, so this poll recorded no "
+            f"heartbeat and the agent is invisible to liveness checks. "
+            f"Call agent_register to fix."
+        )
     )
 
     if not rows:
-        return records.emit(f"Notifications for {agent_id}: (empty){_unreg}",
-                            records.as_records_payload(
-                                (), agent_id=agent_id,
-                                unread_only=unread_only,
-                                heartbeat_recorded=heartbeat_seen),
-                            as_records)
+        return records.emit(
+            f"Notifications for {agent_id}: (empty){_unreg}",
+            records.as_records_payload(
+                (), agent_id=agent_id, unread_only=unread_only, heartbeat_recorded=heartbeat_seen
+            ),
+            as_records,
+        )
 
     read_type = "unread" if unread_only else "total"
     lines = [f"Notifications for {agent_id} ({len(rows)} {read_type}):"]
@@ -1087,14 +1110,18 @@ def notifications_poll_impl(agent_id: str, unread_only: bool = True, limit: int 
         # which is a different statement from a measurement (§12c), and padding
         # every line of the common case with a null would bury the signal.
         _recv = f" received={row['received_at']}" if row["received_at"] else ""
-        lines.append(f"  [{row['id']}] kind={row['kind']} payload={row['payload_json']} created={row['created_at']}{_recv}")
+        lines.append(
+            f"  [{row['id']}] kind={row['kind']} payload={row['payload_json']} created={row['created_at']}{_recv}"
+        )
 
-    return records.emit("\n".join(lines) + _unreg,
-                        records.as_records_payload(
-                            _decode_payload_json(rows), agent_id=agent_id,
-                            unread_only=unread_only,
-                            heartbeat_recorded=heartbeat_seen),
-                        as_records)
+    return records.emit(
+        "\n".join(lines) + _unreg,
+        records.as_records_payload(
+            _decode_payload_json(rows), agent_id=agent_id, unread_only=unread_only, heartbeat_recorded=heartbeat_seen
+        ),
+        as_records,
+    )
+
 
 def notifications_mark_received_impl(agent_id: str) -> str:
     """Stamps transport receipt on an agent's undelivered notifications.
@@ -1132,17 +1159,16 @@ def notifications_mark_received_impl(agent_id: str) -> str:
             if _store is None:
                 with _db() as db:
                     rowcount += db.execute(
-                        f"UPDATE {_tbl} SET received_at = {p} "
-                        f"WHERE {pred} AND received_at IS NULL",
-                        (now, *addr)).rowcount
+                        f"UPDATE {_tbl} SET received_at = {p} WHERE {pred} AND received_at IS NULL", (now, *addr)
+                    ).rowcount
             else:
                 from m3_core.context import M3Context
                 from m3_core.paths import resolve_db_path
+
                 with M3Context.for_db(resolve_db_path(None)).get_dispatch_conn() as db:
                     rowcount += db.execute(
-                        f"UPDATE {_tbl} SET received_at = {p} "
-                        f"WHERE {pred} AND received_at IS NULL",
-                        (now, *addr)).rowcount
+                        f"UPDATE {_tbl} SET received_at = {p} WHERE {pred} AND received_at IS NULL", (now, *addr)
+                    ).rowcount
         except Exception as exc:  # noqa: BLE001 -- one unreachable store must
             # not lose the receipts the others recorded.
             logger.warning(
@@ -1153,6 +1179,7 @@ def notifications_mark_received_impl(agent_id: str) -> str:
             )
 
     return f"Marked {rowcount} notifications received for {agent_id}"
+
 
 def notifications_ack_impl(notification_id: int) -> str:
     """Marks a notification as read. Refuses a row someone holds a lease on.
@@ -1184,9 +1211,8 @@ def notifications_ack_impl(notification_id: int) -> str:
     row = None
     with _store_for_id(notification_id) as (db, _table):
         cur = db.execute(
-            f"UPDATE {_table} SET read_at = {_d.now()} "
-            f"WHERE id = {p} AND {inbox_membership_sql(claimed=False)}",
-            (notification_id,)
+            f"UPDATE {_table} SET read_at = {_d.now()} WHERE id = {p} AND {inbox_membership_sql(claimed=False)}",
+            (notification_id,),
         )
         rowcount = cur.rowcount
 
@@ -1194,10 +1220,7 @@ def notifications_ack_impl(notification_id: int) -> str:
             # Distinguish the three ways this lands on nothing. "Not found" for
             # a row that is merely claimed would send the caller hunting for a
             # missing message instead of waiting for a lease to clear (§3).
-            row = db.execute(
-                f"SELECT read_at, claimed_by FROM {_table} WHERE id = {p}",
-                (notification_id,)
-            ).fetchone()
+            row = db.execute(f"SELECT read_at, claimed_by FROM {_table} WHERE id = {p}", (notification_id,)).fetchone()
         db.commit()
 
     if rowcount == 0:
@@ -1213,6 +1236,7 @@ def notifications_ack_impl(notification_id: int) -> str:
         return f"Error: notification {notification_id} not found or already acked"
 
     return f"Acked notification {notification_id}"
+
 
 def notifications_ack_all_impl(agent_id: str) -> str:
     """Marks all unread notifications for an agent as read.
@@ -1253,18 +1277,16 @@ def notifications_ack_all_impl(agent_id: str) -> str:
         # are not work to hand out), ack still CLEARS them (an operator must be
         # able to empty the queue). Do not "unify" these two predicates.
         cur = db.execute(
-            f"UPDATE notifications SET read_at = {_d.now()} "
-            f"WHERE {pred} AND {inbox_membership_sql(claimed=False)}",
-            tuple(addr)
+            f"UPDATE notifications SET read_at = {_d.now()} WHERE {pred} AND {inbox_membership_sql(claimed=False)}",
+            tuple(addr),
         )
         rowcount = cur.rowcount
 
         # Say so when work was left behind. Reporting "Acked 0" while rows sit
         # claimed reads as an empty queue, which is the state it is NOT (§3).
         skipped = db.execute(
-            f"SELECT COUNT(*) AS c FROM notifications "
-            f"WHERE {pred} AND {inbox_membership_sql(claimed=True)}",
-            tuple(addr)
+            f"SELECT COUNT(*) AS c FROM notifications WHERE {pred} AND {inbox_membership_sql(claimed=True)}",
+            tuple(addr),
         ).fetchone()["c"]
 
     # Ack the DISPATCH store too. "Ack all" means the whole inbox, and the
@@ -1277,32 +1299,35 @@ def notifications_ack_all_impl(agent_id: str) -> str:
     # serialise every other writer behind this bulk update.
     for _store, _tbl in _notification_sources():
         if _store is None and _tbl == "notifications":
-            continue                      # already done above
+            continue  # already done above
         try:
             if _store is None:
                 with _db() as db2:
                     c2 = db2.execute(
                         f"UPDATE {_tbl} SET read_at = {_d.now()} "
                         f"WHERE {pred} AND {inbox_membership_sql(claimed=False)}",
-                        tuple(addr))
+                        tuple(addr),
+                    )
                     rowcount += c2.rowcount
                     skipped += db2.execute(
-                        f"SELECT COUNT(*) AS c FROM {_tbl} "
-                        f"WHERE {pred} AND {inbox_membership_sql(claimed=True)}",
-                        tuple(addr)).fetchone()["c"]
+                        f"SELECT COUNT(*) AS c FROM {_tbl} WHERE {pred} AND {inbox_membership_sql(claimed=True)}",
+                        tuple(addr),
+                    ).fetchone()["c"]
             else:
                 from m3_core.context import M3Context
                 from m3_core.paths import resolve_db_path
+
                 with M3Context.for_db(resolve_db_path(None)).get_dispatch_conn() as db2:
                     c2 = db2.execute(
                         f"UPDATE {_tbl} SET read_at = {_d.now()} "
                         f"WHERE {pred} AND {inbox_membership_sql(claimed=False)}",
-                        tuple(addr))
+                        tuple(addr),
+                    )
                     rowcount += c2.rowcount
                     skipped += db2.execute(
-                        f"SELECT COUNT(*) AS c FROM {_tbl} "
-                        f"WHERE {pred} AND {inbox_membership_sql(claimed=True)}",
-                        tuple(addr)).fetchone()["c"]
+                        f"SELECT COUNT(*) AS c FROM {_tbl} WHERE {pred} AND {inbox_membership_sql(claimed=True)}",
+                        tuple(addr),
+                    ).fetchone()["c"]
                     db2.commit()
         except Exception as exc:  # noqa: BLE001 -- one unreachable store must
             # not abort an ack that cleared the others; the count reported below
@@ -1316,14 +1341,21 @@ def notifications_ack_all_impl(agent_id: str) -> str:
 
     note = ""
     if skipped:
-        note = (
-            f" ({skipped} claimed and left for their leaseholders to complete)"
-        )
+        note = f" ({skipped} claimed and left for their leaseholders to complete)"
     return f"Acked {rowcount} notifications for {agent_id}{note}"
+
 
 # ── Tasks (7 functions) ───────────────────────────────────────────────────────────
 
-def task_create_impl(title: str, created_by: str, description: str = "", owner_agent: str = "", parent_task_id: str = "", metadata: dict = None) -> str:
+
+def task_create_impl(
+    title: str,
+    created_by: str,
+    description: str = "",
+    owner_agent: str = "",
+    parent_task_id: str = "",
+    metadata: dict = None,
+) -> str:
     """Creates a new task."""
     if not title:
         return "Error: title cannot be empty"
@@ -1338,18 +1370,28 @@ def task_create_impl(title: str, created_by: str, description: str = "", owner_a
         db.execute(
             f"""INSERT INTO tasks (id, title, description, state, created_by, owner_agent, parent_task_id, metadata_json, created_at, updated_at)
                VALUES ({p}, {p}, {p}, 'pending', {p}, {p}, {p}, {p}, {p}, {p})""",
-            (task_id, title, description, created_by, owner_agent or None, parent_task_id or None, json.dumps(metadata or {}), now, now)
+            (
+                task_id,
+                title,
+                description,
+                created_by,
+                owner_agent or None,
+                parent_task_id or None,
+                json.dumps(metadata or {}),
+                now,
+                now,
+            ),
         )
 
     return f"Task created: {task_id}"
+
 
 def task_assign_impl(task_id: str, owner_agent: str) -> str:
     """Assigns a task to an agent and transitions state to in_progress."""
     with _db() as db:
         p = dialect().param()
         row = db.execute(
-            f"SELECT state, created_by FROM tasks WHERE id = {p} AND deleted_at IS NULL",
-            (task_id,)
+            f"SELECT state, created_by FROM tasks WHERE id = {p} AND deleted_at IS NULL", (task_id,)
         ).fetchone()
 
     if not row:
@@ -1366,7 +1408,7 @@ def task_assign_impl(task_id: str, owner_agent: str) -> str:
         p = dialect().param()
         db.execute(
             f"UPDATE tasks SET owner_agent = {p}, state = 'in_progress', updated_at = {p} WHERE id = {p}",
-            (owner_agent, now, task_id)
+            (owner_agent, now, task_id),
         )
 
     _record_history(task_id, "task_state", prev_state, "in_progress", "state", owner_agent)
@@ -1379,14 +1421,17 @@ def task_assign_impl(task_id: str, owner_agent: str) -> str:
 
     return f"Task {task_id} assigned to {owner_agent} (state=in_progress)"
 
-def task_update_impl(task_id: str, state: str = "", description: str = "", metadata: dict = None, actor: str = "") -> str:
+
+def task_update_impl(
+    task_id: str, state: str = "", description: str = "", metadata: dict = None, actor: str = ""
+) -> str:
     """Updates a task's state, description, and/or metadata."""
     p = dialect().param()
     with _db() as db:
         row = db.execute(
             f"SELECT state, description, metadata_json, created_by, result_memory_id "
             f"FROM tasks WHERE id = {p} AND deleted_at IS NULL",
-            (task_id,)
+            (task_id,),
         ).fetchone()
 
     if not row:
@@ -1423,10 +1468,7 @@ def task_update_impl(task_id: str, state: str = "", description: str = "", metad
     params.append(task_id)
 
     with _db() as db:
-        db.execute(
-            f"UPDATE tasks SET {', '.join(updates)} WHERE id = {p}",
-            params
-        )
+        db.execute(f"UPDATE tasks SET {', '.join(updates)} WHERE id = {p}", params)
 
     if state and prev_state != new_state:
         _record_history(task_id, "task_state", prev_state, new_state, "state", actor or "system")
@@ -1450,12 +1492,15 @@ def task_update_impl(task_id: str, state: str = "", description: str = "", metad
         # blocking would break callers and reject honest "nothing was needed"
         # completions. Say it out loud instead, in the string the caller reads.
         if new_state == "completed" and not (row["result_memory_id"] or ""):
-            return (f"Task {task_id} updated: state=completed "
-                    f"(WARNING: no result_memory_id — nothing links this task to "
-                    f"its findings. Call task_set_result to attach one.)")
+            return (
+                f"Task {task_id} updated: state=completed "
+                f"(WARNING: no result_memory_id — nothing links this task to "
+                f"its findings. Call task_set_result to attach one.)"
+            )
         return f"Task {task_id} updated: state={new_state}"
     else:
         return f"Task {task_id} updated"
+
 
 def task_set_result_impl(task_id: str, result_memory_id: str) -> str:
     """Sets the result memory for a task (without changing state)."""
@@ -1465,7 +1510,7 @@ def task_set_result_impl(task_id: str, result_memory_id: str) -> str:
         p = dialect().param()
         cur = db.execute(
             f"UPDATE tasks SET result_memory_id = {p}, updated_at = {p} WHERE id = {p} AND deleted_at IS NULL",
-            (result_memory_id, now, task_id)
+            (result_memory_id, now, task_id),
         )
         rowcount = cur.rowcount
 
@@ -1473,6 +1518,7 @@ def task_set_result_impl(task_id: str, result_memory_id: str) -> str:
         return f"Error: task '{task_id}' not found"
 
     return f"Task {task_id} result={result_memory_id}"
+
 
 def task_get_impl(task_id: str, include_deleted: bool = False) -> str:
     """Retrieves detailed information about a task."""
@@ -1506,6 +1552,7 @@ def task_get_impl(task_id: str, include_deleted: bool = False) -> str:
 
     return "\n".join(lines)
 
+
 def task_delete_impl(task_id: str, hard: bool = False, actor: str = "") -> str:
     """Delete a task.
 
@@ -1521,10 +1568,7 @@ def task_delete_impl(task_id: str, hard: bool = False, actor: str = "") -> str:
     now = datetime.now(UTC).isoformat()
     with _db() as db:
         p = dialect().param()
-        row = db.execute(
-            f"SELECT state, deleted_at FROM tasks WHERE id = {p}",
-            (task_id,)
-        ).fetchone()
+        row = db.execute(f"SELECT state, deleted_at FROM tasks WHERE id = {p}", (task_id,)).fetchone()
 
         if not row:
             return f"Error: task '{task_id}' not found"
@@ -1542,15 +1586,20 @@ def task_delete_impl(task_id: str, hard: bool = False, actor: str = "") -> str:
         if row["deleted_at"] is not None:
             return f"Task {task_id} already soft-deleted at {row['deleted_at']}"
 
-        db.execute(
-            f"UPDATE tasks SET deleted_at = {p}, updated_at = {p} WHERE id = {p}",
-            (now, now, task_id)
-        )
+        db.execute(f"UPDATE tasks SET deleted_at = {p}, updated_at = {p} WHERE id = {p}", (now, now, task_id))
 
     _record_history(task_id, "task_deleted", row["state"], "soft_deleted", "deleted_at", actor or "system")
     return f"Task {task_id} soft-deleted (tombstone will sync on next pg_sync run)"
 
-def task_list_impl(owner_agent: str = "", state: str = "", parent_task_id: str = "", limit: int = 20, include_deleted: bool = False, as_records: bool = False) -> str:
+
+def task_list_impl(
+    owner_agent: str = "",
+    state: str = "",
+    parent_task_id: str = "",
+    limit: int = 20,
+    include_deleted: bool = False,
+    as_records: bool = False,
+) -> str:
     """Lists tasks, optionally filtered by owner, state, and/or parent."""
     where_clauses = []
     params = []
@@ -1573,7 +1622,7 @@ def task_list_impl(owner_agent: str = "", state: str = "", parent_task_id: str =
     with _db() as db:
         rows = db.execute(
             f"SELECT id, title, state, owner_agent FROM tasks {where} ORDER BY updated_at DESC LIMIT {p}",
-            [*params, limit]
+            [*params, limit],
         ).fetchall()
 
     if not rows:
@@ -1588,6 +1637,7 @@ def task_list_impl(owner_agent: str = "", state: str = "", parent_task_id: str =
     # to disambiguate -- the fallback this param exists to remove.
     return records.emit("\n".join(lines), records.as_records_payload(rows), as_records)
 
+
 def task_tree_impl(root_task_id: str, max_depth: int = 10, as_records: bool = False) -> str:
     """Displays a task and its subtasks in a tree structure. Tombstoned tasks are hidden."""
     max_depth = max(1, min(max_depth, 20))
@@ -1595,15 +1645,15 @@ def task_tree_impl(root_task_id: str, max_depth: int = 10, as_records: bool = Fa
     with _db() as db:
         p = dialect().param()
         row = db.execute(
-            f"SELECT id, title, state, owner_agent FROM tasks WHERE id = {p} AND deleted_at IS NULL",
-            (root_task_id,)
+            f"SELECT id, title, state, owner_agent FROM tasks WHERE id = {p} AND deleted_at IS NULL", (root_task_id,)
         ).fetchone()
 
         if not row:
             return records.emit(
                 f"Error: task '{root_task_id}' not found",
                 records.error_payload("not_found", task_id=root_task_id),
-                as_records)
+                as_records,
+            )
 
         rows = db.execute(
             f"""WITH RECURSIVE subtree(id, title, state, owner_agent, parent_task_id, depth) AS (
@@ -1615,14 +1665,15 @@ def task_tree_impl(root_task_id: str, max_depth: int = 10, as_records: bool = Fa
                  WHERE s.depth + 1 <= {p} AND t.deleted_at IS NULL
             )
             SELECT * FROM subtree ORDER BY depth, id""",
-            (root_task_id, max_depth)
+            (root_task_id, max_depth),
         ).fetchall()
 
     if not rows:
         return records.emit(
             f"Error: task '{root_task_id}' not found",
             records.error_payload("not_found", task_id=root_task_id),
-            as_records)
+            as_records,
+        )
 
     lines = [f"Task tree from {root_task_id[:8]} (max_depth={max_depth}):"]
     for row in rows:

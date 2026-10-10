@@ -13,6 +13,7 @@ after an upgrade. Two independent defects had to line up:
 test_cognitiveloop_plist_keepalive_is_unconditional pins (1);
 test_verify_warns_on_crashed_only_keepalive pins (2).
 """
+
 from __future__ import annotations
 
 import json
@@ -42,6 +43,7 @@ def _render(path: Path) -> dict:
 
 
 # ── (1) the plist contract ────────────────────────────────────────────────
+
 
 def test_cognitiveloop_plist_keepalive_is_unconditional():
     """KeepAlive must be exactly True, not {Crashed: True}.
@@ -77,18 +79,22 @@ def test_watchdog_script_ships_next_to_its_plist():
 
 # ── cross-OS parity (§2): all three platforms get the watchdog ────────────
 
+
 def test_watchdog_ships_units_for_all_three_platforms():
     """macOS was the only platform broken for the CLEAN-EXIT case, but the
     WEDGED-BUT-ALIVE case is invisible to launchd, systemd (Restart=always) and
     the Windows task repetition alike. All three must ship a watchdog trigger."""
-    for f in ("com.m3memory.loopwatchdog.plist",      # macOS
-              "m3-loop-watchdog.service",              # Linux oneshot
-              "m3-loop-watchdog.timer"):               # Linux trigger
+    for f in (
+        "com.m3memory.loopwatchdog.plist",  # macOS
+        "m3-loop-watchdog.service",  # Linux oneshot
+        "m3-loop-watchdog.timer",
+    ):  # Linux trigger
         assert (REPO / "bin" / f).is_file(), f"missing {f}"
 
 
 def test_windows_task_spec_registers_the_watchdog():
     import install_schedules as isch
+
     specs = isch.get_schedule_specs(str(REPO))
     names = {s["name"] for s in specs}
     assert "AgentOS_LoopWatchdog" in names
@@ -102,6 +108,7 @@ def test_watchdog_is_declared_not_migratable():
     supervisor defers it exactly when the host is loaded and the loop is most
     likely wedged."""
     import governor_migration as gm
+
     assert "AgentOS_LoopWatchdog" in {n for n, _ in gm.NOT_MIGRATABLE}
     assert "AgentOS_LoopWatchdog" not in gm.GOVERNOR_ELIGIBLE
 
@@ -139,8 +146,7 @@ def test_watchdog_restart_backend_per_os(monkeypatch):
     # Darwin-branch assertion is evaluable on a Windows runner too (§1: the suite
     # must go green on all three OSes, and CI's matrix includes windows-latest).
     _uid = os.getuid() if hasattr(os, "getuid") else 0
-    assert cmds[0] == ["launchctl", "kill", "SIGTERM",
-                       f"gui/{_uid}/com.m3memory.cognitiveloop"]
+    assert cmds[0] == ["launchctl", "kill", "SIGTERM", f"gui/{_uid}/com.m3memory.cognitiveloop"]
     assert "-k" not in cmds[1]
     assert cmds[1][:2] == ["launchctl", "kickstart"]
     assert "cognitiveloop" in what
@@ -161,6 +167,7 @@ def test_watchdog_honors_homecoming_root_overrides(monkeypatch, tmp_path):
     import importlib
 
     import m3_loop_watchdog as wd
+
     monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path / "cfg"))
     monkeypatch.setenv("M3_ENGINE_ROOT", str(tmp_path / "eng"))
     # Force the fallback path (SDK unimportable) to prove the env precedence.
@@ -173,13 +180,16 @@ def test_watchdog_honors_homecoming_root_overrides(monkeypatch, tmp_path):
 
 # ── (2) the health check that missed it ───────────────────────────────────
 
-@pytest.mark.parametrize("keepalive_xml,should_warn", [
-    ("<true/>", False),                                          # healthy
-    ("<dict><key>Crashed</key><true/></dict>", True),            # the outage
-    ("<false/>", True),
-])
-def test_verify_warns_on_crashed_only_keepalive(tmp_path, capsys,
-                                                keepalive_xml, should_warn):
+
+@pytest.mark.parametrize(
+    "keepalive_xml,should_warn",
+    [
+        ("<true/>", False),  # healthy
+        ("<dict><key>Crashed</key><true/></dict>", True),  # the outage
+        ("<false/>", True),
+    ],
+)
+def test_verify_warns_on_crashed_only_keepalive(tmp_path, capsys, keepalive_xml, should_warn):
     """The check must assert the VALUE. Key-presence alone passes {Crashed:true}."""
     import install_schedules as isch
 
@@ -189,9 +199,11 @@ def test_verify_warns_on_crashed_only_keepalive(tmp_path, capsys,
         '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" '
         '"http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n'
         '<plist version="1.0"><dict>'
-        '<key>Label</key><string>com.m3memory.cognitiveloop</string>'
-        f'<key>KeepAlive</key>{keepalive_xml}'
-        '</dict></plist>\n', encoding="utf-8")
+        "<key>Label</key><string>com.m3memory.cognitiveloop</string>"
+        f"<key>KeepAlive</key>{keepalive_xml}"
+        "</dict></plist>\n",
+        encoding="utf-8",
+    )
 
     # Reproduce the check verbatim rather than importing the whole Darwin-gated
     # verify path (which shells out to launchctl and needs a loaded agent).
@@ -200,10 +212,10 @@ def test_verify_warns_on_crashed_only_keepalive(tmp_path, capsys,
     # (§1 — CI's matrix includes ubuntu and windows runners).
     import shutil
     import subprocess
+
     if shutil.which("plutil") is None:
         pytest.skip(skip_reason("os", "plutil is macOS-only; the KeepAlive-value check is Darwin-gated"))
-    r = subprocess.run(["plutil", "-extract", "KeepAlive", "raw", "-o", "-",
-                        str(dest)], capture_output=True, text=True)
+    r = subprocess.run(["plutil", "-extract", "KeepAlive", "raw", "-o", "-", str(dest)], capture_output=True, text=True)
     warned = r.returncode != 0 or (r.stdout or "").strip() != "true"
     assert warned is should_warn
     assert isch is not None  # module imports cleanly (guards the json/subprocess deps)
@@ -211,11 +223,13 @@ def test_verify_warns_on_crashed_only_keepalive(tmp_path, capsys,
 
 # ── (3) watchdog decision logic ───────────────────────────────────────────
 
+
 def test_watchdog_treats_missing_heartbeat_as_unknown_not_dead(tmp_path, monkeypatch):
     """A MISSING heartbeat must not read as 'wedged'. If an upgrade reverts the
     heartbeat patch, a watchdog that inferred death would kickstart the loop
     every 5 minutes forever."""
     import m3_loop_watchdog as wd
+
     monkeypatch.setattr(wd, "HEARTBEAT", tmp_path / "absent.json")
     age, interval = wd.heartbeat_age()
     assert age is None
@@ -230,10 +244,17 @@ def test_watchdog_reads_interval_from_heartbeat(tmp_path, monkeypatch):
     import m3_loop_watchdog as wd
 
     hb = tmp_path / "hb.json"
-    hb.write_text(json.dumps({
-        "ts": datetime.now(UTC).isoformat(),
-        "pid": 1, "cycle": 7, "interval_s": 600,
-    }), encoding="utf-8")
+    hb.write_text(
+        json.dumps(
+            {
+                "ts": datetime.now(UTC).isoformat(),
+                "pid": 1,
+                "cycle": 7,
+                "interval_s": 600,
+            }
+        ),
+        encoding="utf-8",
+    )
     monkeypatch.setattr(wd, "HEARTBEAT", hb)
 
     age, interval = wd.heartbeat_age()
@@ -249,8 +270,7 @@ def test_watchdog_stands_down_while_halt_is_held(tmp_path, monkeypatch):
     import m3_loop_watchdog as wd
 
     monkeypatch.setattr(wd, "ENGINE_ROOT", tmp_path)
-    m3_halt.set_halt(owner="test-exclusive-op", reason="migration",
-                     engine_root=str(tmp_path))
+    m3_halt.set_halt(owner="test-exclusive-op", reason="migration", engine_root=str(tmp_path))
     try:
         assert wd.halt_active() is True
     finally:
@@ -262,14 +282,14 @@ def test_watchdog_proceeds_once_halt_is_cleared(tmp_path, monkeypatch):
     import m3_loop_watchdog as wd
 
     monkeypatch.setattr(wd, "ENGINE_ROOT", tmp_path)
-    m3_halt.set_halt(owner="test-exclusive-op", reason="migration",
-                     engine_root=str(tmp_path))
+    m3_halt.set_halt(owner="test-exclusive-op", reason="migration", engine_root=str(tmp_path))
     m3_halt.clear_halt(engine_root=str(tmp_path))
     assert wd.halt_active() is False
 
 
 def test_watchdog_no_halt_file_is_not_active(tmp_path, monkeypatch):
     import m3_loop_watchdog as wd
+
     monkeypatch.setattr(wd, "ENGINE_ROOT", tmp_path)
     assert wd.halt_active() is False
 
@@ -292,6 +312,7 @@ def test_a_stale_heartbeat_does_not_kill_a_loop_that_just_started(monkeypatch, l
     since (by setup or an upgrade) has not cycled yet; terminating it made
     launchd throttle the relaunch by 60 s in the middle of an upgrade."""
     import m3_loop_watchdog as wd
+
     monkeypatch.setattr(wd, "halt_active", lambda: False)
     monkeypatch.setattr(wd, "_tick_embed_watchdog", lambda: None)
     monkeypatch.setattr(wd, "heartbeat_age", lambda: (2505.0, 300))

@@ -4,6 +4,7 @@ It had never run: it imported auth_utils.get_salt_path, which did not exist,
 and returned at the ImportError. It is SQLite-pool-only no longer, and a
 mismatch is a WARNING with observed/inspect (user decision, 2026-10-10).
 """
+
 from __future__ import annotations
 
 import logging
@@ -19,8 +20,10 @@ def salt(tmp_path, monkeypatch, each_backend):
     path.write_bytes(b"A" * 16)
     monkeypatch.setattr(auth_utils, "device_salt_path", lambda: str(path))
     with each_backend.connection() as conn:  # the PG test store persists: start clean
-        conn.execute("CREATE TABLE IF NOT EXISTS m3_system_cohesion ("
-                     "key TEXT PRIMARY KEY, value TEXT, verified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS m3_system_cohesion ("
+            "key TEXT PRIMARY KEY, value TEXT, verified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
+        )
         conn.execute("DELETE FROM m3_system_cohesion")
         conn.commit()
     try:
@@ -48,4 +51,5 @@ def test_records_then_warns_on_a_different_salt(each_backend, salt, caplog):
         verify_salt_cohesion(conn, "probe store")  # must not raise
     msgs = [r.getMessage() for r in caplog.records]
     assert any("salt cohesion" in m and "observed:" in m and "inspect:" in m for m in msgs), (
-        f"observed: {msgs!r} on {each_backend.name}")
+        f"observed: {msgs!r} on {each_backend.name}"
+    )

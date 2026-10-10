@@ -43,6 +43,7 @@ Usage:
 On SQLite --database selects the file (default: the active store); on
 PostgreSQL the configured database is used and --database is refused.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -135,9 +136,7 @@ def migrate(db_path: str | None, dry_run: bool = False) -> int:
         _print_counts("BEFORE", before)
         print()
 
-        total_to_migrate = sum(before["entities"].values()) + sum(
-            before["predicates"].values()
-        )
+        total_to_migrate = sum(before["entities"].values()) + sum(before["predicates"].values())
         if total_to_migrate == 0:
             print("Already migrated (or no v1 rows). Nothing to do.")
             return 0
@@ -151,8 +150,7 @@ def migrate(db_path: str | None, dry_run: bool = False) -> int:
         d.begin_immediate(con)
         for old, new in ENTITY_TYPE_RENAMES.items():
             con.execute(
-                f"UPDATE entities SET entity_type = {p}, updated_at = {d.now()} "
-                f"WHERE entity_type = {p}",
+                f"UPDATE entities SET entity_type = {p}, updated_at = {d.now()} WHERE entity_type = {p}",
                 (new, old),
             )
         for old, new in PREDICATE_RENAMES.items():

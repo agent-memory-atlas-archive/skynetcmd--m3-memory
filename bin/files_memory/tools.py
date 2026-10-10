@@ -13,6 +13,7 @@ FastMCP stdio server exposing just these tools. The same module is
 imported by the main MCP bridge in phase 2 to merge into the unified
 tool catalog.
 """
+
 from __future__ import annotations
 
 import logging
@@ -51,8 +52,10 @@ def _serialize_ingest_result(r: IngestResult) -> dict:
             "skipped_size": r.walk_stats.skipped_size if r.walk_stats is not None else 0,
             "skipped_gitignore": r.walk_stats.skipped_gitignore if r.walk_stats is not None else 0,
             "skipped_glob": r.walk_stats.skipped_glob if r.walk_stats is not None else 0,
-        } if r.walk_stats else {},
-        "failures": r.failures[:50],   # cap the response payload
+        }
+        if r.walk_stats
+        else {},
+        "failures": r.failures[:50],  # cap the response payload
     }
 
 
@@ -94,9 +97,14 @@ def files_ingest_impl(
     """
     result = ingest_path(
         path,
-        include=include, exclude=exclude, max_depth=max_depth,
-        corpus_id=corpus, dry_run=dry_run, force_size=force_size,
-        record_noops=record_noops, follow_symlinks=follow_symlinks,
+        include=include,
+        exclude=exclude,
+        max_depth=max_depth,
+        corpus_id=corpus,
+        dry_run=dry_run,
+        force_size=force_size,
+        record_noops=record_noops,
+        follow_symlinks=follow_symlinks,
         extract_mode=extract_mode,
         cli_original_path=original_path,
     )
@@ -111,6 +119,7 @@ def files_extract_pending_impl(limit: int = 100) -> dict:
     Returns counts: {ok, failed, skipped, model_id}.
     """
     from .extract import extract_for_pending_leaves
+
     return extract_for_pending_leaves(limit=limit)
 
 
@@ -128,9 +137,13 @@ def files_promote_impl(
     the existing promotion record without re-writing.
     """
     from .promote import files_promote as _impl
+
     return _impl(
-        source_uuid, reason=reason, mapped_type=mapped_type,
-        scope=scope, importance=importance,
+        source_uuid,
+        reason=reason,
+        mapped_type=mapped_type,
+        scope=scope,
+        importance=importance,
     )
 
 
@@ -141,6 +154,7 @@ def files_promotion_list_impl(
 ) -> list[dict]:
     """List existing promotions. Filter to a file_node or to drifted-source items."""
     from .promote import files_promotion_list as _impl
+
     return _impl(
         source_file_node=source_file_node,
         source_superseded=source_superseded,
@@ -161,8 +175,11 @@ def files_promotable_impl(
     this is suggestion-only.
     """
     from .promotability import files_promotable
+
     return files_promotable(
-        limit=limit, min_score=min_score, corpus_id=corpus,
+        limit=limit,
+        min_score=min_score,
+        corpus_id=corpus,
         include_already_promoted=include_already_promoted,
     )
 
@@ -181,9 +198,13 @@ def files_dedup_impl(
     files_dedup_review to record decisions.
     """
     from .dedup import files_dedup as _impl
+
     return _impl(
-        threshold=threshold, max_pairs=max_pairs, leaf_limit=leaf_limit,
-        corpus_id=corpus, include_already_detected=include_already_detected,
+        threshold=threshold,
+        max_pairs=max_pairs,
+        leaf_limit=leaf_limit,
+        corpus_id=corpus,
+        include_already_detected=include_already_detected,
     )
 
 
@@ -194,8 +215,11 @@ def files_dedup_list_impl(
 ) -> list[dict]:
     """List near-duplicate candidate pairs detected by files_dedup."""
     from .dedup import list_dedup_candidates
+
     return list_dedup_candidates(
-        reviewed=reviewed, limit=limit, min_cosine=min_cosine,
+        reviewed=reviewed,
+        limit=limit,
+        min_cosine=min_cosine,
     )
 
 
@@ -210,6 +234,7 @@ def files_dedup_review_impl(
     in phase 3; actual leaf merging is a future-phase operation.
     """
     from .dedup import review_dedup_candidate
+
     return review_dedup_candidate(candidate_uuid, action, note=note)
 
 
@@ -228,6 +253,7 @@ def files_entity_coalesce_impl(
     estimate without writing or embedding.
     """
     from .entity_coalesce import coalesce_detect
+
     return coalesce_detect(max_pairs=max_pairs, dry_run=dry_run, corpus=corpus)
 
 
@@ -238,6 +264,7 @@ def files_entity_coalesce_list_impl(
 ) -> list[dict]:
     """List entity-coalescing candidate pairs detected by files_entity_coalesce."""
     from .entity_coalesce import list_coalesce_candidates
+
     return list_coalesce_candidates(reviewed=reviewed, limit=limit, min_cosine=min_cosine)
 
 
@@ -250,6 +277,7 @@ def files_entity_coalesce_review_impl(
     intent only; applying the reversible same_as/cluster overlay is a future
     phase."""
     from .entity_coalesce import review_coalesce_candidates
+
     return review_coalesce_candidates(reviews, note=note)
 
 
@@ -272,6 +300,7 @@ def files_entity_coalesce_apply_impl(
     WRITES to the core entity graph: a real (non-dry-run) apply MUST pass
     confirm=True. dry_run=True previews without writing (no confirm needed)."""
     from .entity_coalesce import apply_coalescence
+
     return apply_coalescence(
         candidate_uuids=candidate_uuids,
         include_auto_merge=include_auto_merge,
@@ -289,6 +318,7 @@ def files_entity_coalesce_unapply_impl(cluster_id: str) -> dict:
     files_entity_coalesce_apply(candidate_uuids=[...]). Inherently safe — no
     confirm needed (removes overlay only, never touches member data)."""
     from .entity_coalesce import unapply_cluster
+
     return unapply_cluster(cluster_id)
 
 
@@ -308,8 +338,10 @@ def files_staleness_review_impl(
     (interactive tool, batch script, etc.) decides what to do.
     """
     from .staleness import files_staleness_review
+
     rpt = files_staleness_review(
-        directory=directory, corpus_id=corpus,
+        directory=directory,
+        corpus_id=corpus,
         include_failed_extraction=include_failed_extraction,
         include_drifted_promotions=include_drifted_promotions,
         include_rename_candidates=include_rename_candidates,
@@ -332,39 +364,46 @@ def files_staleness_review_impl(
         },
         "stale": [
             {
-                "path": s.path, "version": s.last_ingested_version,
+                "path": s.path,
+                "version": s.last_ingested_version,
                 "last_ingest_date": s.last_ingest_date,
-                "last_sha": s.last_sha256[:12], "current_sha": s.current_sha256[:12],
-                "fact_count": s.fact_count, "promoted_count": s.promoted_count,
+                "last_sha": s.last_sha256[:12],
+                "current_sha": s.current_sha256[:12],
+                "fact_count": s.fact_count,
+                "promoted_count": s.promoted_count,
                 "action": s.suggested_action,
-            } for s in rpt.stale[:limit]
+            }
+            for s in rpt.stale[:limit]
         ],
-        "touched_only": [
-            {"path": s.path, "mtime": s.mtime} for s in rpt.touched_only[:limit]
-        ],
+        "touched_only": [{"path": s.path, "mtime": s.mtime} for s in rpt.touched_only[:limit]],
         "missing": [
             {
-                "path": m.path, "fact_count": m.fact_count,
-                "promoted_count": m.promoted_count, "action": m.suggested_action,
-            } for m in rpt.missing[:limit]
+                "path": m.path,
+                "fact_count": m.fact_count,
+                "promoted_count": m.promoted_count,
+                "action": m.suggested_action,
+            }
+            for m in rpt.missing[:limit]
         ],
-        "new": [
-            {"path": n.path, "filetype": n.filetype, "size_bytes": n.size_bytes}
-            for n in rpt.new[:limit]
-        ],
+        "new": [{"path": n.path, "filetype": n.filetype, "size_bytes": n.size_bytes} for n in rpt.new[:limit]],
         "failed_extraction": [
             {
-                "path": f.path, "failed": f.failed_leaf_count,
-                "total": f.total_leaf_count, "last_error": f.last_error,
-            } for f in rpt.failed_extraction[:limit]
+                "path": f.path,
+                "failed": f.failed_leaf_count,
+                "total": f.total_leaf_count,
+                "last_error": f.last_error,
+            }
+            for f in rpt.failed_extraction[:limit]
         ],
         "drifted_promotions": [
             {
-                "marker_uuid": d.marker_uuid, "promoted_to": d.promoted_to,
+                "marker_uuid": d.marker_uuid,
+                "promoted_to": d.promoted_to,
                 "source_path": d.source_path,
                 "source_superseded_at": d.source_superseded_at,
                 "reason": d.reason,
-            } for d in rpt.drifted_promotions[:limit]
+            }
+            for d in rpt.drifted_promotions[:limit]
         ],
         "rename_candidates": [
             {
@@ -374,7 +413,8 @@ def files_staleness_review_impl(
                 "content_sha256": r.content_sha256[:16] + "...",
                 "confidence": r.confidence,
                 "action": r.suggested_action,
-            } for r in rpt.rename_candidates[:limit]
+            }
+            for r in rpt.rename_candidates[:limit]
         ],
     }
 
@@ -392,6 +432,7 @@ def files_link_rename_impl(
     file_node.
     """
     from .staleness import link_rename
+
     return link_rename(
         missing_file_node_uuid=missing_file_node_uuid,
         new_path=new_path,
@@ -422,9 +463,13 @@ def files_corpus_create_impl(
 ) -> dict:
     """Register a new corpus."""
     from .corpora import corpus_create
+
     info = corpus_create(
-        corpus_id=corpus_id, description=description,
-        extract_mode=extract_mode, scope=scope, default=default,
+        corpus_id=corpus_id,
+        description=description,
+        extract_mode=extract_mode,
+        scope=scope,
+        default=default,
     )
     return _corpus_info_to_dict(info)
 
@@ -432,12 +477,14 @@ def files_corpus_create_impl(
 def files_corpus_list_impl() -> list[dict]:
     """Enumerate corpora with row counts."""
     from .corpora import corpus_list
+
     return [_corpus_info_to_dict(i) for i in corpus_list()]
 
 
 def files_corpus_get_impl(corpus_id: str) -> dict | None:
     """Fetch a single corpus's settings + counts. None if unknown."""
     from .corpora import corpus_get
+
     info = corpus_get(corpus_id)
     return _corpus_info_to_dict(info) if info else None
 
@@ -452,9 +499,13 @@ def files_corpus_set_impl(
 ) -> dict:
     """Update settings on an existing corpus (creates settings row if absent)."""
     from .corpora import corpus_set
+
     info = corpus_set(
-        corpus_id=corpus_id, description=description,
-        extract_mode=extract_mode, scope=scope, default=default,
+        corpus_id=corpus_id,
+        description=description,
+        extract_mode=extract_mode,
+        scope=scope,
+        default=default,
         retention_days=retention_days,
     )
     return _corpus_info_to_dict(info)
@@ -463,6 +514,7 @@ def files_corpus_set_impl(
 def files_corpus_delete_impl(corpus_id: str, cascade: bool = False) -> dict:
     """Delete a corpus (and its contents when cascade=True)."""
     from .corpora import corpus_delete
+
     return corpus_delete(corpus_id=corpus_id, cascade=cascade)
 
 
@@ -477,9 +529,12 @@ def files_watch_once_impl(
 ) -> dict:
     """Single staleness-review + notify pass; returns counters."""
     from .watch import watch_once
+
     result = watch_once(
-        directory=directory, corpus_id=corpus,
-        agent_id=agent_id, cooldown_seconds=cooldown_seconds,
+        directory=directory,
+        corpus_id=corpus,
+        agent_id=agent_id,
+        cooldown_seconds=cooldown_seconds,
     )
     return {
         "duration_ms": result.duration_ms,
@@ -506,10 +561,14 @@ def files_watch_loop_impl(
     """Blocking polling loop. Long-running; suitable for `python -m … watch`.
     Returns the cycle count after KeyboardInterrupt or max_cycles."""
     from .watch import watch_loop
+
     cycles = watch_loop(
-        directory=directory, corpus_id=corpus,
-        interval_seconds=interval_seconds, agent_id=agent_id,
-        cooldown_seconds=cooldown_seconds, max_cycles=max_cycles,
+        directory=directory,
+        corpus_id=corpus,
+        interval_seconds=interval_seconds,
+        agent_id=agent_id,
+        cooldown_seconds=cooldown_seconds,
+        max_cycles=max_cycles,
     )
     return {"cycles_completed": cycles}
 
@@ -539,8 +598,12 @@ def files_index_impl(
       limit: max entries.
     """
     entries = files_index(
-        corpus_id=corpus, corpora=corpora, filetype=filetype, directory=directory,
-        filename_glob=filename_glob, include_history=include_history,
+        corpus_id=corpus,
+        corpora=corpora,
+        filetype=filetype,
+        directory=directory,
+        filename_glob=filename_glob,
+        include_history=include_history,
         limit=limit,
     )
     return [
@@ -580,8 +643,12 @@ def files_search_impl(
     division), and per-channel rank info for debugging.
     """
     hits = _files_search(
-        query, limit=limit, corpus_id=corpus, corpora=corpora,
-        filetype=filetype, include_history=include_history,
+        query,
+        limit=limit,
+        corpus_id=corpus,
+        corpora=corpora,
+        filetype=filetype,
+        include_history=include_history,
     )
     return [
         {
@@ -636,6 +703,7 @@ def register(mcp) -> None:
     Used by both the standalone server below and the main MCP bridge
     when it imports us in phase 2.
     """
+
     @mcp.tool()
     def files_ingest(
         path: str,
@@ -656,8 +724,13 @@ def register(mcp) -> None:
         <path>.m3meta.json sidecar) to point search results at a
         source-of-truth file when the ingested file is a conversion."""
         return files_ingest_impl(
-            path=path, include=include, exclude=exclude, max_depth=max_depth,
-            corpus=corpus, dry_run=dry_run, force_size=force_size,
+            path=path,
+            include=include,
+            exclude=exclude,
+            max_depth=max_depth,
+            corpus=corpus,
+            dry_run=dry_run,
+            force_size=force_size,
             record_noops=record_noops,
             extract_mode=extract_mode,
             original_path=original_path,
@@ -675,8 +748,11 @@ def register(mcp) -> None:
         """Return file-level summaries for triage.
         Cheap-first retrieval — no leaf content. Use BEFORE files_search."""
         return files_index_impl(
-            corpus=corpus, filetype=filetype, directory=directory,
-            filename_glob=filename_glob, include_history=include_history,
+            corpus=corpus,
+            filetype=filetype,
+            directory=directory,
+            filename_glob=filename_glob,
+            include_history=include_history,
             limit=limit,
         )
 
@@ -691,8 +767,11 @@ def register(mcp) -> None:
         """Hybrid FTS5 + vector search over leaves.
         Default: current versions only. Set include_history=True for time-travel."""
         return files_search_impl(
-            query=query, limit=limit, corpus=corpus,
-            filetype=filetype, include_history=include_history,
+            query=query,
+            limit=limit,
+            corpus=corpus,
+            filetype=filetype,
+            include_history=include_history,
         )
 
     @mcp.tool()
@@ -728,8 +807,11 @@ def register(mcp) -> None:
         memory.db. Source stays untouched; copy lands in memory.db with a
         metadata back-pointer. Idempotent."""
         return files_promote_impl(
-            source_uuid=source_uuid, reason=reason, mapped_type=mapped_type,
-            scope=scope, importance=importance,
+            source_uuid=source_uuid,
+            reason=reason,
+            mapped_type=mapped_type,
+            scope=scope,
+            importance=importance,
         )
 
     @mcp.tool()
@@ -757,7 +839,9 @@ def register(mcp) -> None:
         """List top promotion candidates by usage-weighted heuristic score.
         Suggestion-only; use files_promote to actually ascend any."""
         return files_promotable_impl(
-            limit=limit, min_score=min_score, corpus=corpus,
+            limit=limit,
+            min_score=min_score,
+            corpus=corpus,
             include_already_promoted=include_already_promoted,
         )
 
@@ -772,8 +856,11 @@ def register(mcp) -> None:
         """Scan leaf embeddings for near-duplicates. Detection only —
         pairs land in semantic_dedup_candidates for human review."""
         return files_dedup_impl(
-            threshold=threshold, max_pairs=max_pairs, leaf_limit=leaf_limit,
-            corpus=corpus, include_already_detected=include_already_detected,
+            threshold=threshold,
+            max_pairs=max_pairs,
+            leaf_limit=leaf_limit,
+            corpus=corpus,
+            include_already_detected=include_already_detected,
         )
 
     @mcp.tool()
@@ -784,7 +871,9 @@ def register(mcp) -> None:
     ) -> list[dict]:
         """List near-duplicate candidate pairs with text snippets and paths."""
         return files_dedup_list_impl(
-            reviewed=reviewed, limit=limit, min_cosine=min_cosine,
+            reviewed=reviewed,
+            limit=limit,
+            min_cosine=min_cosine,
         )
 
     @mcp.tool()
@@ -795,7 +884,9 @@ def register(mcp) -> None:
     ) -> dict:
         """Record a review decision: 'kept' | 'merged' | 'ignored'."""
         return files_dedup_review_impl(
-            candidate_uuid=candidate_uuid, action=action, note=note,
+            candidate_uuid=candidate_uuid,
+            action=action,
+            note=note,
         )
 
     @mcp.tool()
@@ -809,7 +900,9 @@ def register(mcp) -> None:
         auto-applies; candidates land in entity_coalesce_candidates for review.
         dry_run=True estimates without writing or embedding."""
         return files_entity_coalesce_impl(
-            max_pairs=max_pairs, dry_run=dry_run, corpus=corpus,
+            max_pairs=max_pairs,
+            dry_run=dry_run,
+            corpus=corpus,
         )
 
     @mcp.tool()
@@ -820,7 +913,9 @@ def register(mcp) -> None:
     ) -> list[dict]:
         """List entity-coalescing candidate pairs (name + score + band)."""
         return files_entity_coalesce_list_impl(
-            reviewed=reviewed, limit=limit, min_cosine=min_cosine,
+            reviewed=reviewed,
+            limit=limit,
+            min_cosine=min_cosine,
         )
 
     @mcp.tool()
@@ -875,7 +970,10 @@ def register(mcp) -> None:
         candidates (missing files whose content reappeared elsewhere on disk).
         Report-only: does not modify anything."""
         return files_staleness_review_impl(
-            directory=directory, corpus=corpus, rehash=rehash, limit=limit,
+            directory=directory,
+            corpus=corpus,
+            rehash=rehash,
+            limit=limit,
         )
 
     @mcp.tool()
@@ -906,8 +1004,11 @@ def register(mcp) -> None:
         `default=True` marks this corpus as the installation's default
         (clears the flag on any prior default in the same transaction)."""
         return files_corpus_create_impl(
-            corpus_id=corpus_id, description=description,
-            extract_mode=extract_mode, scope=scope, default=default,
+            corpus_id=corpus_id,
+            description=description,
+            extract_mode=extract_mode,
+            scope=scope,
+            default=default,
         )
 
     @mcp.tool()
@@ -932,8 +1033,11 @@ def register(mcp) -> None:
         """Update settings for an existing corpus. None args are no-ops.
         Creates the corpus_settings row if absent."""
         return files_corpus_set_impl(
-            corpus_id=corpus_id, description=description,
-            extract_mode=extract_mode, scope=scope, default=default,
+            corpus_id=corpus_id,
+            description=description,
+            extract_mode=extract_mode,
+            scope=scope,
+            default=default,
             retention_days=retention_days,
         )
 
@@ -956,8 +1060,10 @@ def register(mcp) -> None:
         for cron / scheduled runners. Notifications are emitted via the
         memory.db notifications inbox; cooldown suppresses duplicates."""
         return files_watch_once_impl(
-            directory=directory, corpus=corpus,
-            agent_id=agent_id, cooldown_seconds=cooldown_seconds,
+            directory=directory,
+            corpus=corpus,
+            agent_id=agent_id,
+            cooldown_seconds=cooldown_seconds,
         )
 
 
@@ -990,12 +1096,16 @@ def main() -> int:
     p_ing.add_argument("--force-size", action="store_true")
     p_ing.add_argument("--record-noops", action="store_true")
     p_ing.add_argument(
-        "--mode", choices=["none", "inline", "queue"], default=None,
+        "--mode",
+        choices=["none", "inline", "queue"],
+        default=None,
         dest="extract_mode",
         help="extract mode: none=no facts, inline=sync, queue=defer (drain with `extract`)",
     )
     p_ing.add_argument(
-        "--original-path", dest="original_path", default=None,
+        "--original-path",
+        dest="original_path",
+        default=None,
         help=(
             "pointer to the user-facing source artifact when the ingested "
             "file is a conversion (e.g. .pdf for an ingested .pdf.txt). "
@@ -1010,15 +1120,20 @@ def main() -> int:
     p_pro = sub.add_parser("promote", help="promote a fact/leaf/file_summary to memory.db")
     p_pro.add_argument("source_uuid")
     p_pro.add_argument("--reason", default="")
-    p_pro.add_argument("--type", dest="mapped_type", default=None,
-                       help="override memory.db type (fact|knowledge|reference|note|...)")
+    p_pro.add_argument(
+        "--type", dest="mapped_type", default=None, help="override memory.db type (fact|knowledge|reference|note|...)"
+    )
     p_pro.add_argument("--scope", default=None)
     p_pro.add_argument("--importance", type=float, default=0.6)
 
     p_pl = sub.add_parser("promotion-list", help="list existing promotions")
     p_pl.add_argument("--file-node", dest="source_file_node", default=None)
-    p_pl.add_argument("--drifted", dest="source_superseded", action="store_true",
-                      help="only promotions whose source has been superseded")
+    p_pl.add_argument(
+        "--drifted",
+        dest="source_superseded",
+        action="store_true",
+        help="only promotions whose source has been superseded",
+    )
     p_pl.add_argument("--limit", type=int, default=100)
 
     p_dd = sub.add_parser("dedup", help="scan for near-duplicate leaves")
@@ -1030,8 +1145,7 @@ def main() -> int:
 
     p_dl = sub.add_parser("dedup-list", help="list near-duplicate candidates")
     p_dl.add_argument("--reviewed", action="store_true")
-    p_dl.add_argument("--all", dest="reviewed_all", action="store_true",
-                      help="include both reviewed and unreviewed")
+    p_dl.add_argument("--all", dest="reviewed_all", action="store_true", help="include both reviewed and unreviewed")
     p_dl.add_argument("--limit", type=int, default=100)
     p_dl.add_argument("--min-cosine", type=float, default=None)
 
@@ -1040,52 +1154,51 @@ def main() -> int:
     p_dr.add_argument("--action", required=True, choices=["kept", "merged", "ignored"])
     p_dr.add_argument("--note", default="")
 
-    p_ec = sub.add_parser("entity-coalesce",
-                          help="detect provisional-entity coalescing candidates (detect+quarantine only)")
+    p_ec = sub.add_parser(
+        "entity-coalesce", help="detect provisional-entity coalescing candidates (detect+quarantine only)"
+    )
     p_ec.add_argument("--max-pairs", type=int, default=1000)
     p_ec.add_argument("--dry-run", action="store_true", help="estimate; no writes, no embedding")
     p_ec.add_argument("--corpus", default=None)
 
     p_ecl = sub.add_parser("entity-coalesce-list", help="list entity-coalescing candidates")
     p_ecl.add_argument("--reviewed", action="store_true")
-    p_ecl.add_argument("--all", dest="reviewed_all", action="store_true",
-                       help="include both reviewed and unreviewed")
+    p_ecl.add_argument("--all", dest="reviewed_all", action="store_true", help="include both reviewed and unreviewed")
     p_ecl.add_argument("--limit", type=int, default=100)
     p_ecl.add_argument("--min-cosine", type=float, default=None)
 
-    p_ecr = sub.add_parser("entity-coalesce-review",
-                           help="record review decisions (bulk JSON list of {uuid,action})")
-    p_ecr.add_argument("--reviews", required=True,
-                       help='JSON list, e.g. \'[{"uuid":"...","action":"merge"}]\'')
+    p_ecr = sub.add_parser("entity-coalesce-review", help="record review decisions (bulk JSON list of {uuid,action})")
+    p_ecr.add_argument("--reviews", required=True, help='JSON list, e.g. \'[{"uuid":"...","action":"merge"}]\'')
     p_ecr.add_argument("--note", default="")
 
-    p_eca = sub.add_parser("entity-coalesce-apply",
-                           help="apply the reversible same_as/cluster overlay (WRITES core graph)")
-    p_eca.add_argument("--uuids", default=None,
-                       help="comma-separated candidate UUIDs to apply (reviewed 'merge' or 'unapplied')")
-    p_eca.add_argument("--auto-merge", action="store_true",
-                       help="apply the latest run's 'merge' band")
+    p_eca = sub.add_parser(
+        "entity-coalesce-apply", help="apply the reversible same_as/cluster overlay (WRITES core graph)"
+    )
+    p_eca.add_argument(
+        "--uuids", default=None, help="comma-separated candidate UUIDs to apply (reviewed 'merge' or 'unapplied')"
+    )
+    p_eca.add_argument("--auto-merge", action="store_true", help="apply the latest run's 'merge' band")
     p_eca.add_argument("--run", default=None, help="restrict --auto-merge to this resolution_run")
     p_eca.add_argument("--dry-run", action="store_true", help="preview; no writes (no --confirm needed)")
-    p_eca.add_argument("--confirm", action="store_true",
-                       help="required for a real apply — acknowledges writing to the core graph")
+    p_eca.add_argument(
+        "--confirm", action="store_true", help="required for a real apply — acknowledges writing to the core graph"
+    )
 
-    p_ecu = sub.add_parser("entity-coalesce-unapply",
-                           help="reverse one coalescence cluster (drop edges, strip aliases, tombstone)")
+    p_ecu = sub.add_parser(
+        "entity-coalesce-unapply", help="reverse one coalescence cluster (drop edges, strip aliases, tombstone)"
+    )
     p_ecu.add_argument("cluster_id")
 
     p_pr = sub.add_parser("promotable", help="list top promotion candidates by usage")
     p_pr.add_argument("--limit", type=int, default=20)
     p_pr.add_argument("--min-score", type=float, default=0.30)
     p_pr.add_argument("--corpus", default=None)
-    p_pr.add_argument("--include-promoted", action="store_true",
-                      help="include facts that have already been promoted")
+    p_pr.add_argument("--include-promoted", action="store_true", help="include facts that have already been promoted")
 
     p_sr = sub.add_parser("staleness", help="report stale / missing / new / failed files")
     p_sr.add_argument("--directory", default=None)
     p_sr.add_argument("--corpus", default=None)
-    p_sr.add_argument("--no-rehash", action="store_true",
-                      help="mtime-only classification (cheaper but less accurate)")
+    p_sr.add_argument("--no-rehash", action="store_true", help="mtime-only classification (cheaper but less accurate)")
     p_sr.add_argument("--limit", type=int, default=200)
 
     p_lr = sub.add_parser("link-rename", help="re-point a file_node at a new path")
@@ -1096,19 +1209,18 @@ def main() -> int:
     p_sea = sub.add_parser("search", help="hybrid search over leaves")
     p_sea.add_argument("query")
     p_sea.add_argument("--limit", type=int, default=10)
-    p_sea.add_argument("--corpus", default=None,
-                       help="single-corpus filter (default: all current)")
-    p_sea.add_argument("--corpora", default=None,
-                       help="comma-separated corpus IDs for fan-out search "
-                            "(overrides --corpus)")
+    p_sea.add_argument("--corpus", default=None, help="single-corpus filter (default: all current)")
+    p_sea.add_argument(
+        "--corpora", default=None, help="comma-separated corpus IDs for fan-out search (overrides --corpus)"
+    )
     p_sea.add_argument("--filetype", default=None)
     p_sea.add_argument("--include-history", action="store_true")
 
     p_idx = sub.add_parser("index", help="file-level summary triage")
     p_idx.add_argument("--corpus", default=None)
-    p_idx.add_argument("--corpora", default=None,
-                       help="comma-separated corpus IDs for fan-out index "
-                            "(overrides --corpus)")
+    p_idx.add_argument(
+        "--corpora", default=None, help="comma-separated corpus IDs for fan-out index (overrides --corpus)"
+    )
     p_idx.add_argument("--filetype", default=None)
     p_idx.add_argument("--directory", default=None)
     p_idx.add_argument("--glob", dest="filename_glob", default=None)
@@ -1119,7 +1231,8 @@ def main() -> int:
     p_get.add_argument("uuid")
 
     sub.add_parser("stats", help="corpus counters").add_argument(
-        "--corpus", default=None,
+        "--corpus",
+        default=None,
     )
 
     p_h = sub.add_parser("health", help="integrity + FTS5 check")
@@ -1131,11 +1244,9 @@ def main() -> int:
     p_cc = sub.add_parser("corpus-create", help="register a new corpus")
     p_cc.add_argument("corpus_id")
     p_cc.add_argument("--description", default=None)
-    p_cc.add_argument("--extract-mode", choices=["none", "inline", "queue"], default=None,
-                      dest="extract_mode")
+    p_cc.add_argument("--extract-mode", choices=["none", "inline", "queue"], default=None, dest="extract_mode")
     p_cc.add_argument("--scope", default=None)
-    p_cc.add_argument("--default", action="store_true",
-                      help="mark this corpus as the installation default")
+    p_cc.add_argument("--default", action="store_true", help="mark this corpus as the installation default")
 
     sub.add_parser("corpus-list", help="enumerate corpora with row counts")
 
@@ -1145,36 +1256,29 @@ def main() -> int:
     p_cs = sub.add_parser("corpus-set", help="update a corpus's settings")
     p_cs.add_argument("corpus_id")
     p_cs.add_argument("--description", default=None)
-    p_cs.add_argument("--extract-mode", choices=["none", "inline", "queue"], default=None,
-                      dest="extract_mode")
+    p_cs.add_argument("--extract-mode", choices=["none", "inline", "queue"], default=None, dest="extract_mode")
     p_cs.add_argument("--scope", default=None)
-    p_cs.add_argument("--default", dest="set_default", action="store_true",
-                      help="set as installation default")
-    p_cs.add_argument("--no-default", dest="unset_default", action="store_true",
-                      help="clear the default flag")
+    p_cs.add_argument("--default", dest="set_default", action="store_true", help="set as installation default")
+    p_cs.add_argument("--no-default", dest="unset_default", action="store_true", help="clear the default flag")
     p_cs.add_argument("--retention-days", type=int, default=None)
 
     p_cd = sub.add_parser("corpus-delete", help="remove a corpus")
     p_cd.add_argument("corpus_id")
-    p_cd.add_argument("--cascade", action="store_true",
-                      help="also delete every file_node in the corpus (DESTRUCTIVE)")
+    p_cd.add_argument("--cascade", action="store_true", help="also delete every file_node in the corpus (DESTRUCTIVE)")
 
     # ── Watch-mode subcommands (phase 4) ─────────────────────────────────
     p_wo = sub.add_parser("watch-once", help="single staleness + notify pass")
     p_wo.add_argument("--directory", default=None)
     p_wo.add_argument("--corpus", default=None)
     p_wo.add_argument("--agent-id", default="files_memory.watch", dest="agent_id")
-    p_wo.add_argument("--cooldown-seconds", type=float, default=3600.0,
-                      dest="cooldown_seconds")
+    p_wo.add_argument("--cooldown-seconds", type=float, default=3600.0, dest="cooldown_seconds")
 
     p_wl = sub.add_parser("watch", help="long-running staleness poller")
     p_wl.add_argument("--directory", default=None)
     p_wl.add_argument("--corpus", default=None)
-    p_wl.add_argument("--interval-seconds", type=float, default=300.0,
-                      dest="interval_seconds")
+    p_wl.add_argument("--interval-seconds", type=float, default=300.0, dest="interval_seconds")
     p_wl.add_argument("--agent-id", default="files_memory.watch", dest="agent_id")
-    p_wl.add_argument("--cooldown-seconds", type=float, default=3600.0,
-                      dest="cooldown_seconds")
+    p_wl.add_argument("--cooldown-seconds", type=float, default=3600.0, dest="cooldown_seconds")
     p_wl.add_argument("--max-cycles", type=int, default=None, dest="max_cycles")
 
     args = p.parse_args()
@@ -1183,133 +1287,163 @@ def main() -> int:
     # some return a dict, others a list of dicts. Declare the union up front.
     r: dict | list | None
     match args.cmd:
-        case 'ingest':
+        case "ingest":
             r = files_ingest_impl(
-                path=args.path, include=args.include, exclude=args.exclude,
-                max_depth=args.max_depth, corpus=args.corpus,
-                dry_run=args.dry_run, force_size=args.force_size,
+                path=args.path,
+                include=args.include,
+                exclude=args.exclude,
+                max_depth=args.max_depth,
+                corpus=args.corpus,
+                dry_run=args.dry_run,
+                force_size=args.force_size,
                 record_noops=args.record_noops,
                 extract_mode=args.extract_mode,
                 original_path=args.original_path,
             )
-        case 'extract':
+        case "extract":
             r = files_extract_pending_impl(limit=args.limit)
-        case 'promote':
+        case "promote":
             r = files_promote_impl(
-                source_uuid=args.source_uuid, reason=args.reason,
-                mapped_type=args.mapped_type, scope=args.scope,
+                source_uuid=args.source_uuid,
+                reason=args.reason,
+                mapped_type=args.mapped_type,
+                scope=args.scope,
                 importance=args.importance,
             )
-        case 'promotion-list':
+        case "promotion-list":
             r = files_promotion_list_impl(
                 source_file_node=args.source_file_node,
                 source_superseded=(True if args.source_superseded else None),
                 limit=args.limit,
             )
-        case 'dedup':
+        case "dedup":
             r = files_dedup_impl(
-                threshold=args.threshold, max_pairs=args.max_pairs,
-                leaf_limit=args.leaf_limit, corpus=args.corpus,
+                threshold=args.threshold,
+                max_pairs=args.max_pairs,
+                leaf_limit=args.leaf_limit,
+                corpus=args.corpus,
                 include_already_detected=args.include_already_detected,
             )
-        case 'dedup-list':
+        case "dedup-list":
             reviewed_arg: bool | None = False
             if args.reviewed_all:
                 reviewed_arg = None
             elif args.reviewed:
                 reviewed_arg = True
             r = files_dedup_list_impl(
-                reviewed=reviewed_arg, limit=args.limit, min_cosine=args.min_cosine,
+                reviewed=reviewed_arg,
+                limit=args.limit,
+                min_cosine=args.min_cosine,
             )
-        case 'dedup-review':
+        case "dedup-review":
             r = files_dedup_review_impl(
-                candidate_uuid=args.candidate_uuid, action=args.action, note=args.note,
+                candidate_uuid=args.candidate_uuid,
+                action=args.action,
+                note=args.note,
             )
-        case 'entity-coalesce':
+        case "entity-coalesce":
             r = files_entity_coalesce_impl(
-                max_pairs=args.max_pairs, dry_run=args.dry_run, corpus=args.corpus,
+                max_pairs=args.max_pairs,
+                dry_run=args.dry_run,
+                corpus=args.corpus,
             )
-        case 'entity-coalesce-list':
+        case "entity-coalesce-list":
             ec_reviewed: bool | None = False
             if args.reviewed_all:
                 ec_reviewed = None
             elif args.reviewed:
                 ec_reviewed = True
             r = files_entity_coalesce_list_impl(
-                reviewed=ec_reviewed, limit=args.limit, min_cosine=args.min_cosine,
+                reviewed=ec_reviewed,
+                limit=args.limit,
+                min_cosine=args.min_cosine,
             )
-        case 'entity-coalesce-review':
+        case "entity-coalesce-review":
             import json as _json
+
             r = files_entity_coalesce_review_impl(
-                reviews=_json.loads(args.reviews), note=args.note,
+                reviews=_json.loads(args.reviews),
+                note=args.note,
             )
-        case 'entity-coalesce-apply':
-            uuids = ([u.strip() for u in args.uuids.split(",") if u.strip()]
-                     if args.uuids else None)
+        case "entity-coalesce-apply":
+            uuids = [u.strip() for u in args.uuids.split(",") if u.strip()] if args.uuids else None
             r = files_entity_coalesce_apply_impl(
-                candidate_uuids=uuids, include_auto_merge=args.auto_merge,
-                resolution_run=args.run, dry_run=args.dry_run, confirm=args.confirm,
+                candidate_uuids=uuids,
+                include_auto_merge=args.auto_merge,
+                resolution_run=args.run,
+                dry_run=args.dry_run,
+                confirm=args.confirm,
             )
-        case 'entity-coalesce-unapply':
+        case "entity-coalesce-unapply":
             r = files_entity_coalesce_unapply_impl(cluster_id=args.cluster_id)
-        case 'promotable':
+        case "promotable":
             r = files_promotable_impl(
-                limit=args.limit, min_score=args.min_score, corpus=args.corpus,
+                limit=args.limit,
+                min_score=args.min_score,
+                corpus=args.corpus,
                 include_already_promoted=args.include_promoted,
             )
-        case 'staleness':
+        case "staleness":
             r = files_staleness_review_impl(
-                directory=args.directory, corpus=args.corpus,
-                rehash=(not args.no_rehash), limit=args.limit,
+                directory=args.directory,
+                corpus=args.corpus,
+                rehash=(not args.no_rehash),
+                limit=args.limit,
             )
-        case 'link-rename':
+        case "link-rename":
             r = files_link_rename_impl(
                 missing_file_node_uuid=args.file_node_uuid,
                 new_path=args.new_path,
                 expect_sha256=args.expect_sha256,
             )
-        case 'search':
+        case "search":
             corpora_list = (
-                [c.strip() for c in args.corpora.split(",") if c.strip()]
-                if getattr(args, "corpora", None) else None
+                [c.strip() for c in args.corpora.split(",") if c.strip()] if getattr(args, "corpora", None) else None
             )
             r = files_search_impl(
-                query=args.query, limit=args.limit, corpus=args.corpus,
+                query=args.query,
+                limit=args.limit,
+                corpus=args.corpus,
                 corpora=corpora_list,
-                filetype=args.filetype, include_history=args.include_history,
+                filetype=args.filetype,
+                include_history=args.include_history,
             )
-        case 'index':
+        case "index":
             corpora_list = (
-                [c.strip() for c in args.corpora.split(",") if c.strip()]
-                if getattr(args, "corpora", None) else None
+                [c.strip() for c in args.corpora.split(",") if c.strip()] if getattr(args, "corpora", None) else None
             )
             r = files_index_impl(
-                corpus=args.corpus, corpora=corpora_list,
+                corpus=args.corpus,
+                corpora=corpora_list,
                 filetype=args.filetype,
-                directory=args.directory, filename_glob=args.filename_glob,
-                include_history=args.include_history, limit=args.limit,
+                directory=args.directory,
+                filename_glob=args.filename_glob,
+                include_history=args.include_history,
+                limit=args.limit,
             )
-        case 'get':
+        case "get":
             r = files_get_impl(uuid=args.uuid)
-        case 'stats':
+        case "stats":
             r = files_stats_impl(corpus=args.corpus)
-        case 'health':
+        case "health":
             r = files_health_impl(rebuild=args.rebuild)
-        case 'serve':
+        case "serve":
             mcp = _build_standalone_server()
             mcp.run()
             return 0
-        case 'corpus-create':
+        case "corpus-create":
             r = files_corpus_create_impl(
-                corpus_id=args.corpus_id, description=args.description,
-                extract_mode=args.extract_mode, scope=args.scope,
+                corpus_id=args.corpus_id,
+                description=args.description,
+                extract_mode=args.extract_mode,
+                scope=args.scope,
                 default=args.default,
             )
-        case 'corpus-list':
+        case "corpus-list":
             r = files_corpus_list_impl()
-        case 'corpus-get':
+        case "corpus-get":
             r = files_corpus_get_impl(corpus_id=args.corpus_id)
-        case 'corpus-set':
+        case "corpus-set":
             default_arg: bool | None = None
             if args.set_default and args.unset_default:
                 raise SystemExit("--default and --no-default are mutually exclusive")
@@ -1318,22 +1452,29 @@ def main() -> int:
             elif args.unset_default:
                 default_arg = False
             r = files_corpus_set_impl(
-                corpus_id=args.corpus_id, description=args.description,
-                extract_mode=args.extract_mode, scope=args.scope,
-                default=default_arg, retention_days=args.retention_days,
+                corpus_id=args.corpus_id,
+                description=args.description,
+                extract_mode=args.extract_mode,
+                scope=args.scope,
+                default=default_arg,
+                retention_days=args.retention_days,
             )
-        case 'corpus-delete':
+        case "corpus-delete":
             r = files_corpus_delete_impl(corpus_id=args.corpus_id, cascade=args.cascade)
-        case 'watch-once':
+        case "watch-once":
             r = files_watch_once_impl(
-                directory=args.directory, corpus=args.corpus,
-                agent_id=args.agent_id, cooldown_seconds=args.cooldown_seconds,
+                directory=args.directory,
+                corpus=args.corpus,
+                agent_id=args.agent_id,
+                cooldown_seconds=args.cooldown_seconds,
             )
-        case 'watch':
+        case "watch":
             r = files_watch_loop_impl(
-                directory=args.directory, corpus=args.corpus,
+                directory=args.directory,
+                corpus=args.corpus,
                 interval_seconds=args.interval_seconds,
-                agent_id=args.agent_id, cooldown_seconds=args.cooldown_seconds,
+                agent_id=args.agent_id,
+                cooldown_seconds=args.cooldown_seconds,
                 max_cycles=args.max_cycles,
             )
         case _:
@@ -1346,4 +1487,5 @@ def main() -> int:
 
 if __name__ == "__main__":
     import sys as _sys
+
     _sys.exit(main())

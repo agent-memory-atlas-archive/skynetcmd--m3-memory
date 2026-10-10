@@ -17,6 +17,7 @@ Skips cleanly when M3_EMBED_FALLBACK_URL is unreachable. Does NOT depend on
 httpx internal attribute names (those have shifted across 0.x); uses the
 behavioral assertion "warm calls are faster than the connect-handshake call".
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -97,10 +98,7 @@ async def _main() -> int:
     # rest_median strictly less than first (with a small floor to avoid flakes
     # on absurdly fast embeddings).
     if first <= rest_median + 0.5:
-        print(
-            "[FAIL] first call is not slower than the warm median — connection "
-            "reuse not observed."
-        )
+        print("[FAIL] first call is not slower than the warm median — connection reuse not observed.")
         return 1
     saved_pct = (1.0 - rest_median / first) * 100.0
     print(f"[pass] connection reuse observed — warm calls {saved_pct:.0f}% faster than cold")

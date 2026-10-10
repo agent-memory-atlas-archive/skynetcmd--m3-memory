@@ -2,6 +2,7 @@
 """
 gen_mcp_inventory.py — Generates docs/MCP_TOOLS.md from mcp_tool_catalog and mcp_proxy.
 """
+
 import ast
 import os
 import sys
@@ -37,6 +38,7 @@ def extract_proxy_tools():
 
     return protocol_tools, debug_tools
 
+
 def get_category_map():
     # Hardcoded mapping based on docs/API_REFERENCE.md
     mapping = {
@@ -59,7 +61,6 @@ def get_category_map():
         "memory_feedback_stats": "Memory Operations",
         "memory_pin": "Memory Operations",
         "memory_unpin": "Memory Operations",
-
         # Knowledge Graph
         "memory_link": "Knowledge Graph",
         "memory_graph": "Knowledge Graph",
@@ -68,13 +69,11 @@ def get_category_map():
         "entity_get": "Knowledge Graph",
         "extract_pending": "Knowledge Graph",
         "enrich_pending": "Knowledge Graph",
-
         # Conversations
         "conversation_start": "Conversations",
         "conversation_append": "Conversations",
         "conversation_search": "Conversations",
         "conversation_summarize": "Conversations",
-
         # Task Management
         "task_create": "Task Management",
         "task_assign": "Task Management",
@@ -84,7 +83,6 @@ def get_category_map():
         "task_get": "Task Management",
         "task_list": "Task Management",
         "task_tree": "Task Management",
-
         # Agent Registry & Notifications
         "agent_register": "Agent Registry & Notifications",
         "agent_heartbeat": "Agent Registry & Notifications",
@@ -97,13 +95,11 @@ def get_category_map():
         "notifications_ack": "Agent Registry & Notifications",
         "notifications_ack_all": "Agent Registry & Notifications",
         "notifications_mark_received": "Agent Registry & Notifications",
-
         # Multi-Agent Coordination
         "memory_handoff": "Multi-Agent Coordination",
         "memory_inbox": "Multi-Agent Coordination",
         "memory_inbox_ack": "Multi-Agent Coordination",
         "memory_refresh_queue": "Multi-Agent Coordination",
-
         # Chat Log System
         "chatlog_write": "Chat Log System",
         "chatlog_write_bulk": "Chat Log System",
@@ -114,31 +110,26 @@ def get_category_map():
         "chatlog_set_redaction": "Chat Log System",
         "chatlog_status": "Chat Log System",
         "chatlog_rescrub": "Chat Log System",
-
         # Lifecycle & Maintenance
         "memory_maintenance": "Lifecycle & Maintenance",
         "memory_dedup": "Lifecycle & Maintenance",
         "memory_consolidate": "Lifecycle & Maintenance",
         "memory_set_retention": "Lifecycle & Maintenance",
-
         # Data Governance
         "gdpr_export": "Data Governance",
         "gdpr_forget": "Data Governance",
         "memory_export": "Data Governance",
         "memory_import": "Data Governance",
-
         # Infrastructure Operations
         "memory_cost_report": "Infrastructure Operations",
         "embedder_status": "Infrastructure Operations",
         "search_profile": "Infrastructure Operations",
-
         # Proxy tools
         "log_activity": "Operational Protocol",
         "query_decisions": "Operational Protocol",
         "update_focus": "Operational Protocol",
         "retire_focus": "Operational Protocol",
         "check_thermal_load": "Operational Protocol",
-
         "debug_analyze": "Debug Agent",
         "debug_bisect": "Debug Agent",
         "debug_trace": "Debug Agent",
@@ -148,6 +139,7 @@ def get_category_map():
     }
     return mapping
 
+
 # Domain -> section heading, for tools the hardcoded map above does not name.
 # The hardcoded map has to be hand-extended per tool, so it silently fell 43
 # tools behind the catalog (every files_* tool among them) and they all rendered
@@ -155,15 +147,15 @@ def get_category_map():
 # routing table, so it is complete for every tool by construction -- using it as
 # the fallback means a new tool lands in a real section without an edit here.
 _DOMAIN_HEADINGS = {
-    "memory":        "Memory Operations",
-    "chatlog":       "Chat Log System",
-    "files":         "Files Memory",
-    "entity":        "Knowledge Graph",
+    "memory": "Memory Operations",
+    "chatlog": "Chat Log System",
+    "files": "Files Memory",
+    "entity": "Knowledge Graph",
     "conversations": "Conversations",
-    "agent":         "Agent Registry & Notifications",
-    "tasks":         "Task Management",
-    "diagnostics":   "Diagnostics",
-    "admin":         "Lifecycle & Maintenance",
+    "agent": "Agent Registry & Notifications",
+    "tasks": "Task Management",
+    "diagnostics": "Diagnostics",
+    "admin": "Lifecycle & Maintenance",
 }
 
 
@@ -188,7 +180,7 @@ def generate_markdown(all_tools, counts=None):
     # Sort tools by category then name
     categorized = {}
     for tool in all_tools:
-        name = tool['name']
+        name = tool["name"]
         cat = _category_for(name, cat_map)
         if cat not in categorized:
             categorized[cat] = []
@@ -196,11 +188,20 @@ def generate_markdown(all_tools, counts=None):
 
     # Sort categories to match API_REFERENCE order roughly
     cat_order = [
-        "Memory Operations", "Knowledge Graph", "Conversations", "Task Management",
-        "Agent Registry & Notifications", "Multi-Agent Coordination", "Chat Log System",
-        "Files Memory", "Diagnostics",
-        "Operational Protocol", "Debug Agent", "Lifecycle & Maintenance",
-        "Data Governance", "Infrastructure Operations"
+        "Memory Operations",
+        "Knowledge Graph",
+        "Conversations",
+        "Task Management",
+        "Agent Registry & Notifications",
+        "Multi-Agent Coordination",
+        "Chat Log System",
+        "Files Memory",
+        "Diagnostics",
+        "Operational Protocol",
+        "Debug Agent",
+        "Lifecycle & Maintenance",
+        "Data Governance",
+        "Infrastructure Operations",
     ]
 
     md = "# MCP Tool Inventory\n\n"
@@ -219,11 +220,11 @@ def generate_markdown(all_tools, counts=None):
     if counts:
         md += (
             f"> **How this reconciles with other docs.** The **{counts['catalog']}** "
-            "in-catalog tools (the number the README/COMPARISON quote as \"100+\", and "
+            'in-catalog tools (the number the README/COMPARISON quote as "100+", and '
             f"the `count` in `docs/tools/MCP_CATALOG.json`, which excludes the two "
             f"`tools_*` meta-tools → **{counts['catalog'] - 2}** there) plus "
             f"**{counts['proxy']}** MCP-proxy protocol/debug tools (`mcp_proxy.py`) = "
-            f"**{len(all_tools)}** total listed here. The prose \"100+ tools\" refers to "
+            f'**{len(all_tools)}** total listed here. The prose "100+ tools" refers to '
             "the in-catalog surface; this inventory additionally documents the proxy "
             "transport tools.\n\n"
         )
@@ -233,12 +234,20 @@ def generate_markdown(all_tools, counts=None):
     md += "| Name | Category | Description |\n"
     md += "| --- | --- | --- |\n"
 
-    all_sorted = sorted(all_tools, key=lambda x: (cat_order.index(_category_for(x['name'], cat_map)) if _category_for(x['name'], cat_map) in cat_order else 99, x['name']))
+    all_sorted = sorted(
+        all_tools,
+        key=lambda x: (
+            cat_order.index(_category_for(x["name"], cat_map))
+            if _category_for(x["name"], cat_map) in cat_order
+            else 99,
+            x["name"],
+        ),
+    )
 
     for tool in all_sorted:
-        name = tool['name']
+        name = tool["name"]
         cat = _category_for(name, cat_map)
-        desc = tool['description'].split('\n')[0] # First line
+        desc = tool["description"].split("\n")[0]  # First line
         md += f"| `{name}` | {cat} | {desc} |\n"
 
     md += "\n---\n\n"
@@ -248,12 +257,12 @@ def generate_markdown(all_tools, counts=None):
         if cat not in categorized:
             continue
         md += f"## {cat}\n\n"
-        for tool in sorted(categorized[cat], key=lambda x: x['name']):
-            name = tool['name']
-            desc = tool['description']
-            params = tool['parameters'].get('properties', {})
-            required = tool['parameters'].get('required', [])
-            source = tool.get('source', 'mcp_tool_catalog.py')
+        for tool in sorted(categorized[cat], key=lambda x: x["name"]):
+            name = tool["name"]
+            desc = tool["description"]
+            params = tool["parameters"].get("properties", {})
+            required = tool["parameters"].get("required", [])
+            source = tool.get("source", "mcp_tool_catalog.py")
 
             md += f"### `{name}`\n\n"
             md += f"{desc}\n\n"
@@ -264,11 +273,12 @@ def generate_markdown(all_tools, counts=None):
                 md += "| Parameter | Type | Required | Description | Default |\n"
                 md += "| --- | --- | --- | --- | --- |\n"
                 for p_name, p_info in params.items():
-                    p_type = p_info.get('type', 'any')
+                    p_type = p_info.get("type", "any")
                     p_req = "Yes" if p_name in required else "No"
-                    p_desc = p_info.get('description', '').replace('|', '\\|')
-                    p_def = p_info.get('default', '-')
-                    if p_def is None: p_def = "null"
+                    p_desc = p_info.get("description", "").replace("|", "\\|")
+                    p_def = p_info.get("default", "-")
+                    if p_def is None:
+                        p_def = "null"
                     md += f"| `{p_name}` | `{p_type}` | {p_req} | {p_desc} | `{p_def}` |\n"
                 md += "\n"
             else:
@@ -277,16 +287,14 @@ def generate_markdown(all_tools, counts=None):
 
     return md
 
+
 def main():
     # 1. Catalog tools
     catalog_tools = []
     for t in mcp_tool_catalog.TOOLS:
-        catalog_tools.append({
-            "name": t.name,
-            "description": t.description,
-            "parameters": t.parameters,
-            "source": "mcp_tool_catalog.py"
-        })
+        catalog_tools.append(
+            {"name": t.name, "description": t.description, "parameters": t.parameters, "source": "mcp_tool_catalog.py"}
+        )
 
     # 2. Proxy tools
     protocol_tools, debug_tools = extract_proxy_tools()
@@ -296,21 +304,25 @@ def main():
     # corrupt the len(catalog_tools) used for the reconciliation counts.
     all_tools = list(catalog_tools)
     for t in protocol_tools:
-        f = t['function']
-        all_tools.append({
-            "name": f['name'],
-            "description": f['description'],
-            "parameters": f['parameters'],
-            "source": "mcp_proxy.py (PROTOCOL_TOOLS)"
-        })
+        f = t["function"]
+        all_tools.append(
+            {
+                "name": f["name"],
+                "description": f["description"],
+                "parameters": f["parameters"],
+                "source": "mcp_proxy.py (PROTOCOL_TOOLS)",
+            }
+        )
     for t in debug_tools:
-        f = t['function']
-        all_tools.append({
-            "name": f['name'],
-            "description": f['description'],
-            "parameters": f['parameters'],
-            "source": "mcp_proxy.py (DEBUG_TOOLS)"
-        })
+        f = t["function"]
+        all_tools.append(
+            {
+                "name": f["name"],
+                "description": f["description"],
+                "parameters": f["parameters"],
+                "source": "mcp_proxy.py (DEBUG_TOOLS)",
+            }
+        )
 
     # Sanity check — alerts if a tool was added/removed without updating the
     # category map (would land in "Uncategorized" otherwise). Update this
@@ -323,7 +335,11 @@ def main():
     EXPECTED_TOOL_COUNT = 119  # + search_profile (2026-10-09)
     if len(all_tools) != EXPECTED_TOOL_COUNT:
         import sys
-        print(f"Error: Expected {EXPECTED_TOOL_COUNT} tools, found {len(all_tools)} — update EXPECTED_TOOL_COUNT in gen_mcp_inventory.py if a tool was added/removed.", file=sys.stderr)
+
+        print(
+            f"Error: Expected {EXPECTED_TOOL_COUNT} tools, found {len(all_tools)} — update EXPECTED_TOOL_COUNT in gen_mcp_inventory.py if a tool was added/removed.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     # A count check alone did NOT catch the real failure: the count stayed right
@@ -333,9 +349,7 @@ def main():
     # fatal: a doc that files a third of the tool surface under "Uncategorized"
     # is worse than a failed build.
     _cm = get_category_map()
-    orphans = sorted(
-        t["name"] for t in all_tools if _category_for(t["name"], _cm) == "Uncategorized"
-    )
+    orphans = sorted(t["name"] for t in all_tools if _category_for(t["name"], _cm) == "Uncategorized")
     if orphans:
         print(
             "ERROR: no category for "
@@ -362,6 +376,7 @@ def main():
 
     print(f"Successfully created {output_path} with {len(all_tools)} entries.")
     return 0
+
 
 if __name__ == "__main__":
     # main() returns 1 when a tool has no category; propagate it, or the

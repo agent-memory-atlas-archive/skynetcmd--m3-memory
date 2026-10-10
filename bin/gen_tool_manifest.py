@@ -28,6 +28,7 @@ asserts the hardcoded "N tools" claims in the docs still agree with it.
 This manifest is derived only from the public TOOLS catalog — no benchmark,
 database, or runtime data is read or written.
 """
+
 from __future__ import annotations
 
 import json
@@ -74,11 +75,13 @@ def _tool_args(parameters: dict, skip: tuple[str, ...]) -> list[dict]:
     for name, spec in props.items():
         if name in skip:
             continue
-        out.append({
-            "name": name,
-            "type": (spec or {}).get("type", "string"),
-            "required": name in required,
-        })
+        out.append(
+            {
+                "name": name,
+                "type": (spec or {}).get("type", "string"),
+                "required": name in required,
+            }
+        )
     return out
 
 
@@ -89,6 +92,7 @@ def build_manifest() -> dict:
     bin/ isn't yet on sys.path at import time (the function adds it).
     """
     import sys
+
     if str(BIN_DIR) not in sys.path:
         sys.path.insert(0, str(BIN_DIR))
     import mcp_tool_catalog
@@ -96,13 +100,15 @@ def build_manifest() -> dict:
 
     tools: list[dict] = []
     for spec in mcp_tool_catalog.TOOLS:
-        tools.append({
-            "name": spec.name,
-            "domain": tool_domains.domain_of_tool(spec.name),
-            "summary": _first_sentence(spec.description),
-            "destructive": not spec.default_allowed,
-            "args": _tool_args(spec.parameters, mcp_tool_catalog.ROUTING_ARGS),
-        })
+        tools.append(
+            {
+                "name": spec.name,
+                "domain": tool_domains.domain_of_tool(spec.name),
+                "summary": _first_sentence(spec.description),
+                "destructive": not spec.default_allowed,
+                "args": _tool_args(spec.parameters, mcp_tool_catalog.ROUTING_ARGS),
+            }
+        )
     tools.sort(key=lambda t: (t["domain"], t["name"]))
 
     count = len([t for t in tools if not t["name"].startswith(_META_PREFIX)])
@@ -126,9 +132,11 @@ def main() -> None:
         json.dumps(manifest, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-    print(f"wrote {OUT_PATH.relative_to(BASE_DIR).as_posix()} "
-          f"({manifest['count']} non-meta tools, "
-          f"{len(manifest['tools'])} total)")
+    print(
+        f"wrote {OUT_PATH.relative_to(BASE_DIR).as_posix()} "
+        f"({manifest['count']} non-meta tools, "
+        f"{len(manifest['tools'])} total)"
+    )
 
 
 if __name__ == "__main__":

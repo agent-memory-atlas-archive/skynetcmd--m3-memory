@@ -13,6 +13,7 @@ real modules to test this is the very hazard the detector is about: m3 memory
 and an earlier version of this file did exactly that and crashed the Windows
 interpreter at exit (`0xC0000005`) after a clean summary line.
 """
+
 from __future__ import annotations
 
 import sys
@@ -77,7 +78,7 @@ def test_a_test_that_INHERITED_the_breakage_is_not_blamed():
     into 2819 teardown errors on the SQLite lane.
     """
     _install(with_backends=False, dialect_callable=True)
-    _report(entered_coherent=False, package=PKG)      # inherited: must NOT raise
+    _report(entered_coherent=False, package=PKG)  # inherited: must NOT raise
     assert PKG not in sys.modules, "it must still repair the namespace"
 
 

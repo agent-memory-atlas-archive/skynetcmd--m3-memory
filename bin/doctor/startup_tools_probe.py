@@ -15,6 +15,7 @@ tool name, an empty set, or a set missing the escape hatch. Those are not
 degraded states to report and move past: m3 would start with a surface the user
 did not ask for, which is the one outcome tools_config exists to prevent.
 """
+
 from __future__ import annotations
 
 import logging
@@ -24,6 +25,7 @@ logger = logging.getLogger("memory.doctor.startup_tools_probe")
 
 def run(brief: bool = False) -> int:
     """Report the resolved startup tool set and its source. 0 ok, 1 unusable."""
+
     def _b(line: str) -> None:
         if brief:
             print(line)
@@ -47,8 +49,7 @@ def run(brief: bool = False) -> int:
         _b("[startup-tools] all tools (lazy loading disabled)")
         if not brief:
             print(f"[startup-tools] ALL tools registered at startup  (source: {source})")
-            print("   Every schema loads eagerly. This is the pre-slim behavior and "
-                  "costs the full catalog in tokens.")
+            print("   Every schema loads eagerly. This is the pre-slim behavior and costs the full catalog in tokens.")
         return 0
 
     # Validate against the real catalog here rather than in tools_config: that
@@ -56,6 +57,7 @@ def run(brief: bool = False) -> int:
     # so an import back would invert the dependency).
     try:
         import mcp_tool_catalog
+
         catalog_names = {t.name for t in mcp_tool_catalog.TOOLS}
     except Exception as e:  # noqa: BLE001 — report, don't mask
         print(f"[startup-tools] could not load the catalog to validate names: {e}")
@@ -74,16 +76,16 @@ def run(brief: bool = False) -> int:
     if brief:
         return 0
 
-    print(f"[startup-tools] {len(names)} tools registered at startup "
-          f"(source: {source})")
+    print(f"[startup-tools] {len(names)} tools registered at startup (source: {source})")
     for name in names:
         marker = "  (escape hatch)" if name in tools_config.ESCAPE_HATCH else ""
         print(f"   - {name}{marker}")
 
     if catalog_names:
-        print(f"   catalog holds {len(catalog_names)} tools; the rest are reachable "
-              f"via m3_call or tools_load_domain.")
+        print(f"   catalog holds {len(catalog_names)} tools; the rest are reachable via m3_call or tools_load_domain.")
     if source == "shipped default":
-        print("   No .tools_config.json — tracking this version's default. "
-              "`m3 tools config --init` pins it (and stops tracking upgrades).")
+        print(
+            "   No .tools_config.json — tracking this version's default. "
+            "`m3 tools config --init` pins it (and stops tracking upgrades)."
+        )
     return 0

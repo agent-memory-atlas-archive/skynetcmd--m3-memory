@@ -33,8 +33,7 @@ def test_no_probe_gates_its_healthy_line_behind_not_brief():
         with open(path, encoding="utf-8") as fh:
             src = fh.read()
         # A `if not brief:` whose body's only print looks like a status line.
-        for m in re.finditer(r"if not brief:\s*\n((?:\s+.*\n)+?)(?=\s*(?:return|if |for |\Z))",
-                             src):
+        for m in re.finditer(r"if not brief:\s*\n((?:\s+.*\n)+?)(?=\s*(?:return|if |for |\Z))", src):
             block = m.group(1)
             if "print(" in block and re.search(r"OK|healthy|verified", block):
                 offenders.append(f"{name}: {block.strip().splitlines()[0][:70]}")
@@ -53,13 +52,11 @@ def test_every_probe_run_prints_something_on_the_success_path():
             src = fh.read()
         if "def run(" not in src:
             continue
-        run_src = src[src.index("def run("):]
+        run_src = src[src.index("def run(") :]
         # Strip `if not brief:` blocks, then look for a remaining print.
-        stripped = re.sub(r"if not brief:\s*\n(?:\s+.*\n)+?(?=\s*(?:return|if |\Z))",
-                          "", run_src)
+        stripped = re.sub(r"if not brief:\s*\n(?:\s+.*\n)+?(?=\s*(?:return|if |\Z))", "", run_src)
         if "print(" not in stripped:
             missing.append(name)
     assert not missing, (
-        "probe(s) print nothing outside a `not brief` guard, so they are "
-        f"invisible in default `m3 doctor`: {missing}"
+        f"probe(s) print nothing outside a `not brief` guard, so they are invisible in default `m3 doctor`: {missing}"
     )

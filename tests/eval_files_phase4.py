@@ -14,6 +14,7 @@ Run:
     python tests/eval_files_phase4.py
     python tests/eval_files_phase4.py --keep-tmp
 """
+
 from __future__ import annotations
 
 import argparse
@@ -50,8 +51,7 @@ def gate_watch_detects_and_cooldown(tmp: Path) -> tuple[bool, str]:
 
     # Modify so the file becomes stale.
     time.sleep(1.0)
-    f.write_text("# v2\n\nSecond version with substantially different content.\n",
-                 encoding="utf-8")
+    f.write_text("# v2\n\nSecond version with substantially different content.\n", encoding="utf-8")
 
     notifications: list[dict] = []
 
@@ -61,8 +61,10 @@ def gate_watch_detects_and_cooldown(tmp: Path) -> tuple[bool, str]:
 
     # First pass: should emit exactly one stale notification.
     r1 = watch_once(
-        directory=str(corpus_dir), db_path=str(db),
-        cooldown_seconds=3600.0, notify_callable=capture,
+        directory=str(corpus_dir),
+        db_path=str(db),
+        cooldown_seconds=3600.0,
+        notify_callable=capture,
     )
     if r1.stale_count != 1:
         return False, f"expected stale_count=1, got {r1.stale_count}"
@@ -73,17 +75,21 @@ def gate_watch_detects_and_cooldown(tmp: Path) -> tuple[bool, str]:
 
     # Second pass within cooldown: zero emissions, one suppression.
     r2 = watch_once(
-        directory=str(corpus_dir), db_path=str(db),
-        cooldown_seconds=3600.0, notify_callable=capture,
+        directory=str(corpus_dir),
+        db_path=str(db),
+        cooldown_seconds=3600.0,
+        notify_callable=capture,
     )
     if r2.notifications_emitted != 0:
         return False, f"expected 0 emit on second pass, got {r2.notifications_emitted}"
     if r2.notifications_suppressed_by_cooldown < 1:
         return False, f"expected suppression on second pass, got {r2.notifications_suppressed_by_cooldown}"
 
-    return True, (f"first: emit={r1.notifications_emitted}; second: "
-                  f"emit={r2.notifications_emitted}, suppressed="
-                  f"{r2.notifications_suppressed_by_cooldown}")
+    return True, (
+        f"first: emit={r1.notifications_emitted}; second: "
+        f"emit={r2.notifications_emitted}, suppressed="
+        f"{r2.notifications_suppressed_by_cooldown}"
+    )
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -98,6 +104,7 @@ def gate_corpus_crud(tmp: Path) -> tuple[bool, str]:
         corpus_set,
         resolve_default_corpus,
     )
+
     db = tmp / "p43.db"
 
     # Create two corpora; only second marked default.
@@ -168,16 +175,14 @@ def gate_cross_corpus_search(tmp: Path) -> tuple[bool, str]:
     if not hits_a:
         return False, "alpha-only search returned 0 hits"
     if any(h.corpus_id != "alpha" for h in hits_a):
-        return False, (f"alpha-only filter leaked other corpora: "
-                       f"{[h.corpus_id for h in hits_a]}")
+        return False, (f"alpha-only filter leaked other corpora: {[h.corpus_id for h in hits_a]}")
 
     # Single-corpus filter: beta only.
     hits_b = files_search("widget kilograms", corpus_id="beta", db_path=str(db))
     if not hits_b:
         return False, "beta-only search returned 0 hits"
     if any(h.corpus_id != "beta" for h in hits_b):
-        return False, (f"beta-only filter leaked other corpora: "
-                       f"{[h.corpus_id for h in hits_b]}")
+        return False, (f"beta-only filter leaked other corpora: {[h.corpus_id for h in hits_b]}")
 
     # corpora list: fan out across both. Should see hits from both.
     hits_both = files_search("widget kilograms", corpora=["alpha", "beta"], db_path=str(db))
@@ -187,15 +192,18 @@ def gate_cross_corpus_search(tmp: Path) -> tuple[bool, str]:
 
     # corpora overrides single corpus_id when both are passed.
     hits_override = files_search(
-        "widget kilograms", corpus_id="alpha", corpora=["beta"],
+        "widget kilograms",
+        corpus_id="alpha",
+        corpora=["beta"],
         db_path=str(db),
     )
     if any(h.corpus_id != "beta" for h in hits_override):
-        return False, (f"corpora should override corpus_id; "
-                       f"got {[h.corpus_id for h in hits_override]}")
+        return False, (f"corpora should override corpus_id; got {[h.corpus_id for h in hits_override]}")
 
-    return True, (f"single={len(hits_a)}/{len(hits_b)}, fan-out={len(hits_both)} "
-                  f"(corpora={sorted(corpora_seen)}); override correct")
+    return True, (
+        f"single={len(hits_a)}/{len(hits_b)}, fan-out={len(hits_both)} "
+        f"(corpora={sorted(corpora_seen)}); override correct"
+    )
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -216,8 +224,8 @@ def main() -> int:
     try:
         for name, fn in [
             ("P4.1+P4.2 watch_once + cooldown", gate_watch_detects_and_cooldown),
-            ("P4.3 corpus CRUD",                gate_corpus_crud),
-            ("P4.4 cross-corpus search",        gate_cross_corpus_search),
+            ("P4.3 corpus CRUD", gate_corpus_crud),
+            ("P4.4 cross-corpus search", gate_cross_corpus_search),
         ]:
             sub = tmp / name.replace(" ", "_").replace("+", "_").replace(".", "_")
             sub.mkdir()

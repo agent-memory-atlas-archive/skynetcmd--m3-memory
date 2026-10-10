@@ -5,6 +5,7 @@ entry (dead bridge/root paths from a moved install) survived re-registration,
 plus the new ``doctor --fix`` self-heal and the canonical-config single source
 of truth.
 """
+
 import json
 
 import pytest
@@ -45,11 +46,18 @@ def _write(path, obj):
 def test_stale_memory_entry_is_repointed(canonical, tmp_path):
     """The core bug: a dead bridge path must be repointed, not skipped."""
     cfg = tmp_path / "host" / "settings.json"
-    _write(cfg, {"mcpServers": {"memory": {
-        "command": "/old/python",
-        "args": ["/nonexistent/old-install/bin/memory_bridge.py"],
-        "env": {"M3_BRIDGE_PATH": "/nonexistent/old-install/bin/memory_bridge.py"},
-    }}})
+    _write(
+        cfg,
+        {
+            "mcpServers": {
+                "memory": {
+                    "command": "/old/python",
+                    "args": ["/nonexistent/old-install/bin/memory_bridge.py"],
+                    "env": {"M3_BRIDGE_PATH": "/nonexistent/old-install/bin/memory_bridge.py"},
+                }
+            }
+        },
+    )
 
     msg = I._heal_agent_settings(cfg)
     assert msg and "repointed" in msg
@@ -70,13 +78,16 @@ def test_healthy_entry_is_left_untouched(canonical, tmp_path):
 
 def test_foreign_servers_and_keys_preserved(canonical, tmp_path):
     cfg = tmp_path / "host" / "settings.json"
-    _write(cfg, {
-        "mcpServers": {
-            "memory": {"command": "x", "args": ["/dead/path.py"]},
-            "other": {"command": "keep"},
+    _write(
+        cfg,
+        {
+            "mcpServers": {
+                "memory": {"command": "x", "args": ["/dead/path.py"]},
+                "other": {"command": "keep"},
+            },
+            "topLevel": {"untouched": True},
         },
-        "topLevel": {"untouched": True},
-    })
+    )
     I._heal_agent_settings(cfg)
     d = json.loads(cfg.read_text())
     assert d["mcpServers"]["other"] == {"command": "keep"}
@@ -137,7 +148,7 @@ def test_absent_file_created_when_requested(canonical, tmp_path):
 def test_create_if_absent_still_no_op_when_healthy(canonical, tmp_path):
     """create_if_absent must not force a rewrite of an already-healthy file."""
     cfg = tmp_path / "host" / "settings.json"
-    I._heal_agent_settings(cfg, create_if_absent=True)   # creates it
+    I._heal_agent_settings(cfg, create_if_absent=True)  # creates it
     assert I._heal_agent_settings(cfg, create_if_absent=True) is None  # 2nd = no-op
 
 
@@ -159,9 +170,7 @@ def test_path_is_stale_ignores_bare_console_scripts():
 def test_scan_reports_dead_paths(canonical, tmp_path, monkeypatch):
     gemini = tmp_path / ".gemini" / "settings.json"
     _write(gemini, {"mcpServers": {"memory": {"args": ["/dead/bridge.py"]}}})
-    monkeypatch.setattr(
-        I, "_known_agent_settings", lambda: [("Gemini CLI", gemini)]
-    )
+    monkeypatch.setattr(I, "_known_agent_settings", lambda: [("Gemini CLI", gemini)])
     scanned = I._scan_agent_configs()
     assert scanned == [("Gemini CLI", gemini, True)]
 
@@ -172,7 +181,8 @@ def test_heal_all_agents_counts_changes(canonical, tmp_path, monkeypatch):
     h = tmp_path / ".healthy" / "settings.json"
     _write(h, {"mcpServers": {"memory": I._canonical_memory_server()}})
     monkeypatch.setattr(
-        I, "_known_agent_settings",
+        I,
+        "_known_agent_settings",
         lambda: [("Gemini CLI", g), ("Healthy", h)],
     )
     assert I._heal_all_agents() == 1  # only the broken one changes
@@ -217,15 +227,14 @@ def test_wire_opencode_repoints_a_dead_entry(tmp_path, monkeypatch):
     cfg = tmp_path / ".config" / "opencode" / "opencode.json"
     cfg.parent.mkdir(parents=True)
     dead = str(tmp_path / "old-repo" / ".venv" / "python.exe")
-    _write(cfg, {"mcp": {"memory": {"type": "local",
-                                    "command": [dead, "bin/memory_bridge.py"]}}})
+    _write(cfg, {"mcp": {"memory": {"type": "local", "command": [dead, "bin/memory_bridge.py"]}}})
     monkeypatch.setattr(W, "_opencode_config_paths", lambda: [cfg])
     monkeypatch.setattr(W, "_say", lambda m: None)
     monkeypatch.setattr(W, "_warn", lambda m: None)
 
     assert W._wire_opencode() is True
     after = json.loads(cfg.read_text())["mcp"]["memory"]
-    assert after["command"] == ["m3"]              # repointed to the relocation-proof CLI
+    assert after["command"] == ["m3"]  # repointed to the relocation-proof CLI
     assert cfg.with_suffix(".json.m3bak").is_file()  # backed up first
 
 
@@ -292,9 +301,7 @@ def test_non_claude_hosts_still_get_their_mcpservers_entry(canonical, tmp_path, 
 
     msg = I._heal_agent_settings(other, create_if_absent=True)
     after = json.loads(other.read_text(encoding="utf-8"))
-    assert "memory" in after.get("mcpServers", {}), (
-        "a non-Claude host lost its mcpServers registration"
-    )
+    assert "memory" in after.get("mcpServers", {}), "a non-Claude host lost its mcpServers registration"
     assert msg and msg.lstrip().startswith("[+]")
 
 
@@ -306,12 +313,17 @@ def test_opencode_is_not_treated_as_an_mcpservers_host():
 
 def test_wiring_opencode_prunes_the_unused_mcpservers_entry(tmp_path, monkeypatch):
     cfg = tmp_path / "opencode.json"
-    cfg.write_text(json.dumps({
-        "mcp": {"memory": {"type": "local", "command": ["m3"], "enabled": True}},
-        "mcpServers": {"memory": {"command": "python"}, "other": {"command": "x"}},
-    }), encoding="utf-8")
+    cfg.write_text(
+        json.dumps(
+            {
+                "mcp": {"memory": {"type": "local", "command": ["m3"], "enabled": True}},
+                "mcpServers": {"memory": {"command": "python"}, "other": {"command": "x"}},
+            }
+        ),
+        encoding="utf-8",
+    )
     monkeypatch.setattr(W, "_opencode_config_paths", lambda: [cfg])
     W._wire_opencode()
     data = json.loads(cfg.read_text(encoding="utf-8"))
-    assert data["mcpServers"] == {"other": {"command": "x"}}      # only m3's entry goes
+    assert data["mcpServers"] == {"other": {"command": "x"}}  # only m3's entry goes
     assert data["mcp"]["memory"]["command"] == ["m3"]

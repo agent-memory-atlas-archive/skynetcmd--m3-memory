@@ -10,6 +10,7 @@ this package interprets a setting's raw string: a legacy reader that parsed a
 value differently keeps doing so through ``legacy_parse`` until 2D moves it,
 and every such difference is on the intended-change list (§8).
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -21,15 +22,15 @@ type ConfigValue = str | int | float | bool | Path | list[str]
 
 
 class KeyClass(StrEnum):
-    CONFIG = "config"   # user setting; lives in m3_config.toml
-    SECRET = "secret"   # never in m3_config.toml (§10); env > keyring > secrets file > vault
-    STATE = "state"     # machine-written; never folded into TOML (§11)
+    CONFIG = "config"  # user setting; lives in m3_config.toml
+    SECRET = "secret"  # never in m3_config.toml (§10); env > keyring > secrets file > vault
+    STATE = "state"  # machine-written; never folded into TOML (§11)
 
 
 class Scope(StrEnum):
-    GLOBAL = "global"     # one value per machine
-    PROCESS = "process"   # per process / call (the active store, §14)
-    LOCATOR = "locator"   # decides WHICH file is read (§9)
+    GLOBAL = "global"  # one value per machine
+    PROCESS = "process"  # per process / call (the active store, §14)
+    LOCATOR = "locator"  # decides WHICH file is read (§9)
 
 
 class ConfigValueError(ValueError):
@@ -83,6 +84,7 @@ def one_of(*allowed: str) -> Callable[[str], None]:
     def check(value: str) -> None:
         if value not in allowed:
             raise ConfigValueError(f"{value!r} is not one of {', '.join(allowed)}")
+
     check.choices = allowed  # type: ignore[attr-defined]  # read by the schema generator
     return check
 
@@ -100,8 +102,10 @@ def type_name(key: Key) -> str:
 def in_range(lo: float | None = None, hi: float | None = None) -> Callable[[float], None]:
     def check(value: float) -> None:
         if (lo is not None and value < lo) or (hi is not None and value > hi):
-            raise ConfigValueError(f"{value} is outside [{lo if lo is not None else '-inf'}, "
-                                   f"{hi if hi is not None else 'inf'}]")
+            raise ConfigValueError(
+                f"{value} is outside [{lo if lo is not None else '-inf'}, {hi if hi is not None else 'inf'}]"
+            )
+
     return check
 
 
@@ -117,8 +121,12 @@ _TOML_TYPE: dict[Callable[[str], object], tuple[type, ...]] = {
 
 
 _TYPE_NAMES: dict[Callable[[str], object], str] = {
-    parse_bool: "boolean", parse_int: "integer", parse_float: "number",
-    parse_str: "string", parse_path: "path", parse_list: "list of strings",
+    parse_bool: "boolean",
+    parse_int: "integer",
+    parse_float: "number",
+    parse_str: "string",
+    parse_path: "path",
+    parse_list: "list of strings",
 }
 
 
@@ -135,10 +143,10 @@ class Key[T: ConfigValue]:
     default: T | None
     doc: str
     klass: KeyClass = KeyClass.CONFIG
-    bootstrap: bool = False            # secret resolved without the vault (§10)
+    bootstrap: bool = False  # secret resolved without the vault (§10)
     scope: Scope = Scope.GLOBAL
-    env_names: tuple[str, ...] = ()    # canonical first, then legacy aliases
-    env_override: bool = False         # U9: only M3_DB_BACKEND
+    env_names: tuple[str, ...] = ()  # canonical first, then legacy aliases
+    env_override: bool = False  # U9: only M3_DB_BACKEND
     reloadable: bool = True
     validate: Callable[[T], None] | None = None
     legacy_parse: Callable[[str], T] | None = None  # today's reading, where it differs
@@ -165,10 +173,10 @@ class Key[T: ConfigValue]:
     def coerce_file_value(self, raw: object) -> T:
         """A value read from TOML, checked against the key's TOML-native type."""
         expected = _TOML_TYPE.get(self.parse)
-        if expected is not None and (not isinstance(raw, expected) or
-                                     (isinstance(raw, bool) and bool not in expected)):
-            raise ConfigValueError(f"expected {' or '.join(t.__name__ for t in expected)}, "
-                                   f"found {type(raw).__name__} {raw!r}")
+        if expected is not None and (not isinstance(raw, expected) or (isinstance(raw, bool) and bool not in expected)):
+            raise ConfigValueError(
+                f"expected {' or '.join(t.__name__ for t in expected)}, found {type(raw).__name__} {raw!r}"
+            )
         converted: object = raw
         if self.parse is parse_path and isinstance(raw, str):
             converted = parse_path(raw)
@@ -208,8 +216,9 @@ class Registry:
                 self._by_env[env] = key
         overrides = sorted(k.name for k in keys if k.env_override)
         if overrides != sorted(_ENV_OVERRIDE_KEYS):
-            raise ValueError(f"env_override keys {overrides} differ from the approved list "
-                             f"{sorted(_ENV_OVERRIDE_KEYS)} (U9)")
+            raise ValueError(
+                f"env_override keys {overrides} differ from the approved list {sorted(_ENV_OVERRIDE_KEYS)} (U9)"
+            )
 
     def __iter__(self):
         return iter(self._by_name.values())

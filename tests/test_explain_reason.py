@@ -5,6 +5,7 @@ the numeric _explanation components search already computes under explain=True.
 It's the trust/debuggability surface: a false-positive is explainable, a recall
 is trustable. Pure function — no DB/embedder needed.
 """
+
 from __future__ import annotations
 
 import sys
@@ -23,8 +24,7 @@ def test_strong_semantic_and_keyword_and_title():
 
 
 def test_moderate_semantic_and_importance_and_intent():
-    r = _explain_reason({"vector": 0.4, "bm25": 0.2, "importance": 0.8,
-                         "intent_hint": "temporal-reasoning"})
+    r = _explain_reason({"vector": 0.4, "bm25": 0.2, "importance": 0.8, "intent_hint": "temporal-reasoning"})
     assert "moderate semantic match" in r
     assert "high importance" in r
     assert "routed as temporal-reasoning" in r

@@ -12,6 +12,7 @@ with it, and the command exited 1 with no traceback — while
 `python -m m3_memory.cli setup`, which has neither extra generation, exited 0.
 Same code, different launcher (2026-07-27).
 """
+
 from __future__ import annotations
 
 import os
@@ -26,6 +27,7 @@ import m3_halt  # noqa: E402
 
 def _chain(monkeypatch, links: dict):
     """Fake a psutil whose Process(pid).ppid() follows `links`."""
+
     class _P:
         def __init__(self, pid):
             if pid not in links:
@@ -41,8 +43,7 @@ def _chain(monkeypatch, links: dict):
 def test_walks_the_full_ancestor_chain(monkeypatch):
     """The real shape: setup is 5 deep. Every generation must be protected."""
     # child <- install_schedules <- setup <- re-exec <- m3.exe <- shell
-    _chain(monkeypatch, {114436: 82560, 82560: 117444, 117444: 49524,
-                         49524: 108448, 108448: 4, 4: 0})
+    _chain(monkeypatch, {114436: 82560, 82560: 117444, 117444: 49524, 49524: 108448, 108448: 4, 4: 0})
     got = m3_halt._ancestor_pids(114436)
     assert {82560, 117444, 49524, 108448}.issubset(got), got
     assert 114436 not in got, "self must not appear in the ancestor set"
@@ -69,6 +70,7 @@ def test_missing_psutil_degrades_to_the_parent(monkeypatch):
     """No psutil -> still protect the direct parent (best-effort, never worse
     than the old behaviour)."""
     import builtins
+
     real = builtins.__import__
 
     def _no_psutil(name, *a, **k):
@@ -93,10 +95,13 @@ def test_an_ancestor_is_never_targeted(monkeypatch):
     _chain(monkeypatch, {1000: 900, 900: 800, 800: 0})
     monkeypatch.setattr(os, "getpid", lambda: 1000)
     monkeypatch.setattr(
-        m3_halt, "list_all_db_writers",
-        lambda root=None: [SimpleNamespace(pid=900, role="setup"),
-                           SimpleNamespace(pid=800, role="m3.exe"),
-                           SimpleNamespace(pid=555, role="dashboard")],
+        m3_halt,
+        "list_all_db_writers",
+        lambda root=None: [
+            SimpleNamespace(pid=900, role="setup"),
+            SimpleNamespace(pid=800, role="m3.exe"),
+            SimpleNamespace(pid=555, role="dashboard"),
+        ],
     )
     monkeypatch.setattr(m3_halt, "_pid_is_alive", lambda pid: False)
     results = m3_halt.kill_stale_daemons()

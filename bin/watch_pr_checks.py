@@ -28,6 +28,7 @@ Usage:
     python bin/watch_pr_checks.py <pr> [<pr> ...] [--repo owner/name]
                                   [--interval SECS] [--timeout SECS] [--once]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -90,8 +91,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--repo", default=None, help="owner/name (else current repo)")
     ap.add_argument("--interval", type=float, default=45.0)
     ap.add_argument("--timeout", type=float, default=1800.0)
-    ap.add_argument("--once", action="store_true",
-                    help="Poll once and exit (for tests / a quick check).")
+    ap.add_argument("--once", action="store_true", help="Poll once and exit (for tests / a quick check).")
     args = ap.parse_args(argv)
 
     start = time.monotonic()
@@ -101,8 +101,7 @@ def main(argv: list[str] | None = None) -> int:
         for pr in args.prs:
             checks = _query_pr(pr, args.repo)
             states[pr] = (_summarize(checks), _counts(checks))
-        line = stamp + "  " + "  ".join(
-            f"PR#{pr}[{st} {cn}]" for pr, (st, cn) in states.items())
+        line = stamp + "  " + "  ".join(f"PR#{pr}[{st} {cn}]" for pr, (st, cn) in states.items())
         print(line, flush=True)
 
         vals = [st for st, _ in states.values()]
@@ -118,8 +117,7 @@ def main(argv: list[str] | None = None) -> int:
             print("RESULT: NOT-TERMINAL (--once)", flush=True)
             return 2
         if time.monotonic() - start >= args.timeout:
-            print(f"RESULT: TIMEOUT after {args.timeout:.0f}s "
-                  "(never reached a terminal state)", flush=True)
+            print(f"RESULT: TIMEOUT after {args.timeout:.0f}s (never reached a terminal state)", flush=True)
             return 2
         time.sleep(args.interval)
 

@@ -7,6 +7,7 @@ chars — the markers they look for (``` , "decided", IMPORTANT, TODO, status vo
 appear early in a real turn. These pin the bound and that a signal within the cap
 is still honored. Hermetic — pure functions, no DB.
 """
+
 import argparse
 import sys
 from pathlib import Path
@@ -19,8 +20,13 @@ import chatlog_prune as P  # noqa: E402
 
 
 def _args(**kw):
-    base = {"keep_imp_floor": 0.8, "status_min_cluster": 3, "no_generic": False,
-               "generic_imp_max": 0.35, "fresh_days": 2}
+    base = {
+        "keep_imp_floor": 0.8,
+        "status_min_cluster": 3,
+        "no_generic": False,
+        "generic_imp_max": 0.35,
+        "fresh_days": 2,
+    }
     base.update(kw)
     return argparse.Namespace(**base)
 

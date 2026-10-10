@@ -20,6 +20,7 @@ client-spawned server -- it writes to stdout identically and completes a full
 MCP handshake. #153 is fixed on that basis; see
 tests/test_windowless_client_spawns.py.
 """
+
 from __future__ import annotations
 
 import os
@@ -57,9 +58,7 @@ def test_default_prefers_the_console_interpreter(fake_shim):
 
 
 def test_windowless_prefers_the_gui_interpreter(fake_shim):
-    assert os.path.basename(
-        _platform.python_exe(windowless=True)
-    ).lower() == "pythonw.exe"
+    assert os.path.basename(_platform.python_exe(windowless=True)).lower() == "pythonw.exe"
 
 
 def test_windowless_is_opt_in(fake_shim):
@@ -141,7 +140,9 @@ def test_a_registered_mcp_interpreter_can_serve_stdio():
             continue
         r = subprocess.run(
             [exe, "-c", "import sys; sys.stdout.write('OK'); sys.stdout.flush()"],
-            capture_output=True, text=True, timeout=60,
+            capture_output=True,
+            text=True,
+            timeout=60,
         )
         assert r.returncode == 0 and r.stdout == "OK", (
             f"{exe} cannot write to a captured pipe (rc={r.returncode}, "

@@ -1,5 +1,6 @@
 """A named entity-vocabulary file that is missing or malformed falls back to the
 built-in vocabulary AND says so; the shipped default being absent stays quiet."""
+
 from __future__ import annotations
 
 import importlib

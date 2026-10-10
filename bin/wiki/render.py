@@ -6,6 +6,7 @@ vault is browsable in ANY renderer — GitHub, a browser, Obsidian), an Evidence
 section (memory -> source file via promotions), and Backlinks. Output is fully
 sorted/stable so re-running with no DB change yields byte-identical files.
 """
+
 from __future__ import annotations
 
 import posixpath
@@ -25,6 +26,7 @@ BANNER = (
     "do not edit by hand; re-run `m3 wiki generate` to refresh."
 )
 
+
 def _logo_src() -> str:
     """The m3 logo as an inline base64 data-URI so a rendered vault carries its
     branding with NO network — it works offline, over file://, and when embedded.
@@ -32,10 +34,11 @@ def _logo_src() -> str:
     """
     import base64
     from pathlib import Path
+
     here = Path(__file__).absolute().parent
     candidates = [
         here.parents[1] / "docs" / "m3_logo_icon.png",  # dev tree (bin/wiki -> ../../docs)
-        here.parent / "docs" / "m3_logo_icon.png",      # installed (m3_memory/docs vs bin/wiki)
+        here.parent / "docs" / "m3_logo_icon.png",  # installed (m3_memory/docs vs bin/wiki)
     ]
     for path in candidates:
         try:
@@ -44,15 +47,11 @@ def _logo_src() -> str:
             return f"data:image/png;base64,{b64}"
         except OSError:
             continue
-    return ("https://raw.githubusercontent.com/skynetcmd/m3-memory/main/"
-            "docs/m3_logo_icon.png")
+    return "https://raw.githubusercontent.com/skynetcmd/m3-memory/main/docs/m3_logo_icon.png"
 
 
 # The m3 logo <img>, emitted on the vault's landing pages. Resolved once at import.
-_LOGO = (
-    f'<img src="{_logo_src()}" height="60" '
-    'style="vertical-align: baseline; margin-bottom: -15px;"> '
-)
+_LOGO = f'<img src="{_logo_src()}" height="60" style="vertical-align: baseline; margin-bottom: -15px;"> '
 
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
 
@@ -80,7 +79,7 @@ class SlugBook:
     """Assigns collision-free, deterministic slugs within a namespace."""
 
     def __init__(self) -> None:
-        self._taken: dict[str, str] = {}   # slug -> owner id
+        self._taken: dict[str, str] = {}  # slug -> owner id
         self._by_owner: dict[str, str] = {}  # owner id -> slug
 
     def assign(self, owner_id: str, seed: str) -> str:
@@ -107,8 +106,7 @@ class SlugBook:
         source is, before rendering)."""
         slug = self._by_owner.get(owner_id)
         if slug is None:
-            raise KeyError(f"no slug assigned; observed: owner {owner_id!r}. "
-                           "inspect: SlugBook.assign for this owner")
+            raise KeyError(f"no slug assigned; observed: owner {owner_id!r}. inspect: SlugBook.assign for this owner")
         return slug
 
 
@@ -141,8 +139,7 @@ class LinkResolver:
     def has(self, ref: str) -> bool:
         return ref in self._reg
 
-    def link(self, ref: str, src_path_from_root: str,
-             text: str | None = None, anchor: str | None = None) -> str:
+    def link(self, ref: str, src_path_from_root: str, text: str | None = None, anchor: str | None = None) -> str:
         """Link to `ref` from the page at `src_path_from_root`.
 
         `anchor` (a heading text or pre-slugged id) jumps to a section within the
@@ -288,9 +285,16 @@ def render_pages(
     for c in topic_clusters:
         slug = topic_slugs.require(c.key)
         pages[f"topics/{slug}.md"] = _render_topic(
-            c, edges, mem_to_topic, promo_by_mem, backlinks, files, links,
+            c,
+            edges,
+            mem_to_topic,
+            promo_by_mem,
+            backlinks,
+            files,
+            links,
             ledes.get(c.key),
-            slug_by_ref=slug_by_ref, dangling=dangling_wikilinks,
+            slug_by_ref=slug_by_ref,
+            dangling=dangling_wikilinks,
         )
 
     if orphan_members:
@@ -300,13 +304,25 @@ def render_pages(
         slug = source_slugs.require(fn.uuid)
         pages[f"sources/{slug}.md"] = _render_source(fn, promotions, mem_to_topic, links)
 
-    pages["index.md"] = _render_index(topic_clusters, topic_slugs, files, source_slugs, links,
-                                      bool(orphan_members),
-                                      dangling_count=len(set(dangling_wikilinks)))
+    pages["index.md"] = _render_index(
+        topic_clusters,
+        topic_slugs,
+        files,
+        source_slugs,
+        links,
+        bool(orphan_members),
+        dangling_count=len(set(dangling_wikilinks)),
+    )
     pages["overview.md"] = _render_overview(clusters, files, links)
-    pages["lint.md"] = _render_lint(clusters, edges, mem_to_topic, topic_slugs,
-                                    links, drift_judge=drift_judge,
-                                    derivability_judge=derivability_judge)
+    pages["lint.md"] = _render_lint(
+        clusters,
+        edges,
+        mem_to_topic,
+        topic_slugs,
+        links,
+        drift_judge=drift_judge,
+        derivability_judge=derivability_judge,
+    )
     pages["about.md"] = _render_about(links)
 
     return pages
@@ -393,9 +409,11 @@ def _render_topic(
                 lines.append("")
 
     if contradictions:
-        lines.append("> ⚠️ **Contradiction on this page** — members below disagree; "
-                     "the higher-confidence claim should be treated as current. "
-                     f"See {links.link('lint', self_path, 'the lint report', anchor='Contradictions')}.")
+        lines.append(
+            "> ⚠️ **Contradiction on this page** — members below disagree; "
+            "the higher-confidence claim should be treated as current. "
+            f"See {links.link('lint', self_path, 'the lint report', anchor='Contradictions')}."
+        )
         lines.append("")
 
     # Body: ranked member list.
@@ -403,8 +421,7 @@ def _render_topic(
     lines.append("")
     for m in c.members:
         pin = " 📌" if m.pinned else ""
-        lines.append(f"- **{m.display_title}**{pin} · `{m.type}` · conf {_conf(m)} "
-                     f"· `id:{m.id[:8]}`")
+        lines.append(f"- **{m.display_title}**{pin} · `{m.type}` · conf {_conf(m)} · `id:{m.id[:8]}`")
         # Authority gate (S6): a synthesis renders its content as body prose ONLY
         # when its authority is in the configured body set AND it is not GDPR-
         # restricted. Otherwise show a marker and withhold the content — a
@@ -430,7 +447,10 @@ def _render_topic(
             # replaces, so the 200-char budget deliberately measures PROSE.
             if slug_by_ref is not None:
                 snippet = _resolve_wikilinks(
-                    snippet, links, self_path, slug_by_ref,
+                    snippet,
+                    links,
+                    self_path,
+                    slug_by_ref,
                     dangling if dangling is not None else [],
                 )
             lines.append(f"  {snippet}")
@@ -477,9 +497,11 @@ def _yaml(s: str) -> str:
 
 def _nav(links: LinkResolver, self_path: str) -> str:
     """A small breadcrumb of hyperlinks back to the vault's key pages."""
-    parts = [links.link("index", self_path, "Index"),
-             links.link("overview", self_path, "Overview"),
-             links.link("about", self_path, "About")]
+    parts = [
+        links.link("index", self_path, "Index"),
+        links.link("overview", self_path, "Overview"),
+        links.link("about", self_path, "About"),
+    ]
     return "↑ " + " · ".join(parts)
 
 
@@ -623,7 +645,6 @@ def _is_runbook_titled(m) -> bool:
     return bool(_RUNBOOK_TITLE_RE.search(getattr(m, "display_title", "") or ""))
 
 
-
 # ──────────────────────────────────────────────────────────────────────────────
 # [[wikilinks]] written INSIDE memory content.
 #
@@ -661,8 +682,7 @@ def _truncate_outside_wikilinks(text: str, budget: int) -> str:
     return text[:cut].rstrip() + "…"
 
 
-def _resolve_wikilinks(text: str, links: LinkResolver, src_path: str,
-                       slug_by_ref: dict, dangling: list) -> str:
+def _resolve_wikilinks(text: str, links: LinkResolver, src_path: str, slug_by_ref: dict, dangling: list) -> str:
     """Rewrite [[target]] / [[target|label]] in `text` into real links.
 
     IDEMPOTENT IN OBSIDIAN MODE. With obsidian=True the resolver's own output is
@@ -670,6 +690,7 @@ def _resolve_wikilinks(text: str, links: LinkResolver, src_path: str,
     the target RESOLVES; an already-correct wikilink resolves to itself and the
     replacement is a no-op.
     """
+
     def _sub(m):
         raw = (m.group(1) or "").strip()
         label = (m.group(2) or "").strip() or None
@@ -747,16 +768,16 @@ def _index_footer(dangling_count: int = 0) -> list[str]:
     return out
 
 
-def _render_index(topic_clusters, topic_slugs, files, source_slugs, links, has_orphans: bool,
-                  dangling_count: int = 0) -> str:
+def _render_index(
+    topic_clusters, topic_slugs, files, source_slugs, links, has_orphans: bool, dangling_count: int = 0
+) -> str:
     SELF = "index.md"
     total_mem = sum(len(c.members) for c in topic_clusters)
 
     def topic_line(c: Cluster) -> str:
         slug = topic_slugs.require(c.key)
         pin = " 📌" if _pin_count(c) else ""
-        return f"- {links.link(slug, SELF, c.members[0].display_title)}{pin} " \
-               f"({len(c.members)} memories)"
+        return f"- {links.link(slug, SELF, c.members[0].display_title)}{pin} ({len(c.members)} memories)"
 
     lines = [
         _fm(["title: Index", "type: index"]),
@@ -801,9 +822,7 @@ def _render_index(topic_clusters, topic_slugs, files, source_slugs, links, has_o
         lines.append("")
 
     if other:
-        other_clusters = sorted(
-            (c for k in other for c in by_kind[k]), key=prominence
-        )
+        other_clusters = sorted((c for k in other for c in by_kind[k]), key=prominence)
         lines.append("## 📄 Other topics")
         lines.append("")
         lines.extend(topic_line(c) for c in other_clusters)
@@ -940,15 +959,14 @@ Full guide: the `docs/WIKI.md` file in the m3-memory repository."""
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _render_lint(clusters, edges, mem_to_topic, topic_slugs, links: LinkResolver,
-                 drift_judge=None, derivability_judge=None) -> str:
+def _render_lint(
+    clusters, edges, mem_to_topic, topic_slugs, links: LinkResolver, drift_judge=None, derivability_judge=None
+) -> str:
     SELF = "lint.md"
     orphans = [m for c in clusters if c.is_orphan for m in c.members]
     # Dangling: edges pointing at a memory not in the core set were already
     # dropped upstream, so here we report contradictions and orphan counts.
-    contradictions = sorted(
-        {tuple(sorted((e.from_id, e.to_id))) for e in edges if e.rel == "contradicts"}
-    )
+    contradictions = sorted({tuple(sorted((e.from_id, e.to_id))) for e in edges if e.rel == "contradicts"})
     lines = [
         _fm(["title: Lint", "type: index"]),
         "# Lint",
@@ -990,8 +1008,7 @@ def _render_lint(clusters, edges, mem_to_topic, topic_slugs, links: LinkResolver
     # is breached. Deterministic floor (surviving-source count + age), no model;
     # the optional `derivability_judge` refines it when injected. Always emitted
     # (count 0 when clean) so its absence never reads as "not reviewed".
-    review_report = _derivability.build_queue(clusters, edges,
-                                              judge=derivability_judge)
+    review_report = _derivability.build_queue(clusters, edges, judge=derivability_judge)
     lines.extend(_derivability.render_section(review_report))
 
     wrong = sorted(_blast.wrong_ids(clusters))
@@ -999,12 +1016,12 @@ def _render_lint(clusters, edges, mem_to_topic, topic_slugs, links: LinkResolver
     lines.append(f"## Blast radius ({len(tainted)})")
     lines.append("")
     if wrong:
-        lines.append(f"_{len(wrong)} synthesis(es) judged wrong; "
-                     f"{len(tainted)} downstream synthesis(es) may carry the error._")
+        lines.append(
+            f"_{len(wrong)} synthesis(es) judged wrong; {len(tainted)} downstream synthesis(es) may carry the error._"
+        )
         lines.append("")
         for mid in tainted:
-            lines.append(f"- `{mid[:8]}` ({topic_ref(mid)}) — compiled from a "
-                         f"wrong source; re-check")
+            lines.append(f"- `{mid[:8]}` ({topic_ref(mid)}) — compiled from a wrong source; re-check")
     else:
         lines.append("_No synthesis is marked wrong; nothing downstream to flag._")
     lines.append("")
@@ -1028,28 +1045,34 @@ def _render_anchor_report(clusters, edges) -> list:
     adrift (KAS), whether the wiki is representative (coverage), current
     (staleness), and non-redundant. All deterministic graph math."""
     from .select import EDGE_WEIGHTS
+
     h = _anchor.build_health(clusters, edges, EDGE_WEIGHTS)
     L = ["## Knowledge Anchor Report", ""]
-    L.append(f"_Coverage {h.coverage:.0%}: {h.covered} high-value memories in real "
-             f"topics, {h.orphaned_high_value} stranded as orphans._")
+    L.append(
+        f"_Coverage {h.coverage:.0%}: {h.covered} high-value memories in real "
+        f"topics, {h.orphaned_high_value} stranded as orphans._"
+    )
     L.append("")
     # Low-anchor / adrift topics (the headline signal).
     L.append(f"### Low anchor ({len(h.low_anchor)})")
     L.append("")
     if h.low_anchor:
-        L.append("_Topics held together weakly or only by co-mention — candidates "
-                 "for a tighter entity filter or a manual split._")
+        L.append(
+            "_Topics held together weakly or only by co-mention — candidates "
+            "for a tighter entity filter or a manual split._"
+        )
         L.append("")
         by_key = {a.key: a for a in h.anchors}
         for key in h.low_anchor:
             a = by_key.get(key)
             if not a:
                 continue
-            drift = (f" · bridged by: {', '.join(a.drift_entities)}"
-                     if a.drift_entities else "")
+            drift = f" · bridged by: {', '.join(a.drift_entities)}" if a.drift_entities else ""
             tag = "adrift" if a.adrift else f"KAS {a.kas}"
-            L.append(f"- {a.title} · `{tag}` · {a.members} members "
-                     f"({a.load_bearing_edges} real / {a.comention_edges} co-mention){drift}")
+            L.append(
+                f"- {a.title} · `{tag}` · {a.members} members "
+                f"({a.load_bearing_edges} real / {a.comention_edges} co-mention){drift}"
+            )
     else:
         L.append("_Every topic is anchored by real connections._")
     L.append("")
@@ -1057,8 +1080,7 @@ def _render_anchor_report(clusters, edges) -> list:
     if h.stale:
         L.append(f"### Stale sources ({len(h.stale)})")
         L.append("")
-        L.append("_Topics whose source memories are mostly superseded/aged — the "
-                 "page may present outdated knowledge._")
+        L.append("_Topics whose source memories are mostly superseded/aged — the page may present outdated knowledge._")
         L.append("")
         slug = {c.key: c for c in clusters}
         for key, frac in h.stale:
@@ -1069,8 +1091,7 @@ def _render_anchor_report(clusters, edges) -> list:
     if h.redundant_pairs:
         L.append(f"### Redundant topics ({len(h.redundant_pairs)})")
         L.append("")
-        L.append("_Topic pairs with high member overlap — likely one topic split "
-                 "in two._")
+        L.append("_Topic pairs with high member overlap — likely one topic split in two._")
         L.append("")
         for a_key, b_key, ov in h.redundant_pairs:
             L.append(f"- `{a_key[:8]}` ⇄ `{b_key[:8]}` · {ov:.0%} overlap")

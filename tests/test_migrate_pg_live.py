@@ -8,6 +8,7 @@ revert. Also asserts the DSN guard refuses a forbidden (warehouse) host.
 DSN is resolved from M3_PRIMARY_PG_URL / M3_PG_URL (never PG_URL, which points at
 production); a forbidden-host guard refuses named infra hosts.
 """
+
 from __future__ import annotations
 
 import sys
@@ -60,8 +61,10 @@ def pg_conn():
         "applied_at TIMESTAMPTZ DEFAULT NOW())"
     )
     cur.execute("DELETE FROM schema_versions WHERE version >= 900")
-    cur.execute("INSERT INTO schema_versions (version, filename) VALUES (39,'pg_primary_v1.sql') "
-                "ON CONFLICT (version) DO NOTHING")
+    cur.execute(
+        "INSERT INTO schema_versions (version, filename) VALUES (39,'pg_primary_v1.sql') "
+        "ON CONFLICT (version) DO NOTHING"
+    )
     cur.execute("DROP TABLE IF EXISTS mig_pg_probe")
     conn.commit()
     yield conn
@@ -82,7 +85,9 @@ def test_run_pending_applies_and_stamps(pg_conn, tmp_path):
     import migrate_pg
 
     _write_migration(
-        tmp_path, 900, "probe",
+        tmp_path,
+        900,
+        "probe",
         "CREATE TABLE IF NOT EXISTS mig_pg_probe (id TEXT PRIMARY KEY, note TEXT);",
         "DROP TABLE IF EXISTS mig_pg_probe;",
     )
@@ -99,7 +104,9 @@ def test_run_pending_is_idempotent(pg_conn, tmp_path):
     import migrate_pg
 
     _write_migration(
-        tmp_path, 900, "probe",
+        tmp_path,
+        900,
+        "probe",
         "CREATE TABLE IF NOT EXISTS mig_pg_probe (id TEXT PRIMARY KEY);",
     )
     first = migrate_pg.run_pending_pg_migrations(pg_conn, migrations_dir=str(tmp_path))
@@ -111,15 +118,14 @@ def test_run_pending_is_idempotent(pg_conn, tmp_path):
 def test_multiple_migrations_apply_in_order(pg_conn, tmp_path):
     import migrate_pg
 
-    _write_migration(tmp_path, 900, "a",
-                     "CREATE TABLE IF NOT EXISTS mig_pg_probe (id TEXT PRIMARY KEY);")
-    _write_migration(tmp_path, 901, "b",
-                     "ALTER TABLE mig_pg_probe ADD COLUMN IF NOT EXISTS extra TEXT;")
+    _write_migration(tmp_path, 900, "a", "CREATE TABLE IF NOT EXISTS mig_pg_probe (id TEXT PRIMARY KEY);")
+    _write_migration(tmp_path, 901, "b", "ALTER TABLE mig_pg_probe ADD COLUMN IF NOT EXISTS extra TEXT;")
     applied = migrate_pg.run_pending_pg_migrations(pg_conn, migrations_dir=str(tmp_path))
     assert applied == [900, 901]
     cur = pg_conn.cursor()
-    cur.execute("SELECT column_name FROM information_schema.columns "
-                "WHERE table_name='mig_pg_probe' AND column_name='extra'")
+    cur.execute(
+        "SELECT column_name FROM information_schema.columns WHERE table_name='mig_pg_probe' AND column_name='extra'"
+    )
     assert cur.fetchone() is not None
     # cleanup the extra table beyond the fixture's DROP
     cur.execute("DELETE FROM schema_versions WHERE version=901")
@@ -130,7 +136,9 @@ def test_down_reverts_and_unstamps(pg_conn, tmp_path):
     import migrate_pg
 
     _write_migration(
-        tmp_path, 900, "probe",
+        tmp_path,
+        900,
+        "probe",
         "CREATE TABLE IF NOT EXISTS mig_pg_probe (id TEXT PRIMARY KEY);",
         "DROP TABLE IF EXISTS mig_pg_probe;",
     )
@@ -147,8 +155,9 @@ def test_down_reverts_and_unstamps(pg_conn, tmp_path):
 def test_failed_migration_rolls_back_and_does_not_stamp(pg_conn, tmp_path):
     import migrate_pg
 
-    _write_migration(tmp_path, 900, "bad",
-                     "CREATE TABLE mig_pg_probe (id TEXT); INSERT INTO nonexistent_tbl VALUES (1);")
+    _write_migration(
+        tmp_path, 900, "bad", "CREATE TABLE mig_pg_probe (id TEXT); INSERT INTO nonexistent_tbl VALUES (1);"
+    )
     with pytest.raises(Exception):
         migrate_pg.run_pending_pg_migrations(pg_conn, migrations_dir=str(tmp_path))
     # neither the table nor the version should persist (whole file rolled back)

@@ -47,6 +47,7 @@ Profiles are cached by name once loaded; call ``invalidate_cache()``
 after editing a YAML for the change to take effect in a long-running
 process.
 """
+
 from __future__ import annotations
 
 import json
@@ -65,8 +66,7 @@ try:
     import yaml
 except ImportError as e:  # pragma: no cover
     raise ImportError(
-        "slm_intent requires PyYAML. Install via `pip install PyYAML` "
-        "or reinstall m3-memory with its declared deps."
+        "slm_intent requires PyYAML. Install via `pip install PyYAML` or reinstall m3-memory with its declared deps."
     ) from e
 
 logger = logging.getLogger("slm_intent")
@@ -208,6 +208,7 @@ def _parse_profile(name: str, path: Path) -> Profile:
     post = raw.get("post") or {}
     if not isinstance(post, dict):
         raise ValueError(f"{path}: 'post' must be a mapping")
+
     def _str_tuple(key: str) -> tuple[str, ...]:
         val = post.get(key) or []
         if not isinstance(val, list):
@@ -215,6 +216,7 @@ def _parse_profile(name: str, path: Path) -> Profile:
         out = tuple(str(x) for x in val)
         # Validate regexes at parse time so bad patterns fail loudly, not silently
         import re as _re
+
         for pat in out:
             try:
                 _re.compile(pat)
@@ -253,7 +255,9 @@ def _parse_profile(name: str, path: Path) -> Profile:
         max_tokens=int(raw.get("max_tokens", 512)),
         input_max_chars=int(raw["input_max_chars"]) if raw.get("input_max_chars") is not None else None,
         input_cost_per_mtok=float(raw["input_cost_per_mtok"]) if raw.get("input_cost_per_mtok") is not None else None,
-        output_cost_per_mtok=float(raw["output_cost_per_mtok"]) if raw.get("output_cost_per_mtok") is not None else None,
+        output_cost_per_mtok=float(raw["output_cost_per_mtok"])
+        if raw.get("output_cost_per_mtok") is not None
+        else None,
         post_strip_prefixes=post_strip_prefixes,
         post_skip_if_matches=post_skip_if_matches,
         post_format=post_format,
@@ -317,6 +321,7 @@ def localize_endpoint(url: str, backend: str, *, prefer_native: bool = False) ->
         return url, backend
     try:
         from llm_failover import LLM_ENDPOINTS, first_usable_endpoint_cached, is_lmstudio_url
+
         # Skip an endpoint already KNOWN unable to answer (cache only — this is
         # sync and must not block); fall back to configured order when all are.
         base = first_usable_endpoint_cached() or (LLM_ENDPOINTS[0] if LLM_ENDPOINTS else None)
@@ -337,6 +342,7 @@ def _resolve_api_key(service: str | None) -> str | None:
     # Lazy import to avoid the auth_utils → m3_sdk cycle at module load.
     try:
         from auth_utils import get_api_key
+
         return get_api_key(service)
     except Exception as e:
         log_swallowed(logger, e, f"api_key lookup for {service!r} failed: {e}")
@@ -371,10 +377,12 @@ async def _call_model(
         # Every local endpoint was found unable to answer within USABILITY_TTL:
         # do not POST again (cache only — a healthy system pays nothing here).
         from llm_failover import LLM_ENDPOINTS, LLMUnavailable, first_usable_endpoint_cached
+
         if LLM_ENDPOINTS and first_usable_endpoint_cached() is None:
             raise LLMUnavailable(
                 "observed: every local LLM endpoint was recently found unable to "
-                "answer (cached). inspect: load a model in the local server.")
+                "answer (cached). inspect: load a model in the local server."
+            )
     # A loopback profile follows the shared LLM seam so it hits the local server
     # that is actually running (not a pinned port that may be dead). prefer_native
     # keeps LM Studio's Anthropic wire format for its prompt caching, but routes
@@ -390,11 +398,13 @@ async def _call_model(
         # System prompt: either a plain string or a list-of-blocks wrapping
         # the text in a cache_control ephemeral block.
         if prof.cache_system and prof.system:
-            system_field: list[dict[str, Any]] | str = [{
-                "type": "text",
-                "text": prof.system,
-                "cache_control": {"type": "ephemeral"},
-            }]
+            system_field: list[dict[str, Any]] | str = [
+                {
+                    "type": "text",
+                    "text": prof.system,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ]
         else:
             system_field = prof.system
 
@@ -436,6 +446,7 @@ async def _call_model(
     # "none" 400s on real OpenAI cloud and is unverified on other servers.
     try:
         from llm_failover import suppresses_thinking_via_effort
+
         if suppresses_thinking_via_effort(url):
             payload["reasoning_effort"] = "none"
     except Exception:  # noqa: BLE001
@@ -451,7 +462,10 @@ async def _call_model(
 
 
 async def _raise_if_unavailable(
-    client: httpx.AsyncClient, token: str | None, local: bool, err: Exception,
+    client: httpx.AsyncClient,
+    token: str | None,
+    local: bool,
+    err: Exception,
 ) -> None:
     """After a failed local call, a FRESH usability probe tells "no local server
     can answer" (raise LLMUnavailable, a system state, so batch callers stop
@@ -461,6 +475,7 @@ async def _raise_if_unavailable(
     if not local:
         return
     from llm_failover import LLMUnavailable, require_usable_endpoint
+
     try:
         await require_usable_endpoint(client, token, fresh=True)
     except LLMUnavailable as down:
@@ -480,6 +495,7 @@ def _apply_post(raw: str, profile: Profile) -> str:
     An empty/None raw input returns "" regardless of rules.
     """
     import re as _re
+
     if not raw:
         return ""
     text = raw.strip()
@@ -495,7 +511,7 @@ def _apply_post(raw: str, profile: Profile) -> str:
         for pat in profile.post_strip_prefixes:
             m = _re.match(pat, text, _re.IGNORECASE)
             if m:
-                text = text[m.end():].lstrip()
+                text = text[m.end() :].lstrip()
                 changed = True
                 break
     # 3. format wrap

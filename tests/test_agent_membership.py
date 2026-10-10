@@ -7,6 +7,7 @@ some last seen in April. Membership is derived, so a session that ended without
 saying so still reads as gone. Runs against a real SQLite store; no patching of
 the code under test (probes are injected).
 """
+
 from __future__ import annotations
 
 import json
@@ -41,6 +42,7 @@ _ANCIENT = "2020-01-01T00:00:00Z"
 @pytest.fixture
 def agent(monkeypatch, tmp_path):
     from conftest import create_full_main_schema
+
     db_path = tmp_path / "membership.db"
     create_full_main_schema(db_path)
     monkeypatch.setenv("M3_DATABASE", str(db_path))
@@ -63,8 +65,7 @@ def _set(aid, **cols):
 
 
 def _membership(aid):
-    rec = next(r for r in json.loads(agent_list_impl(as_records=True))["items"]
-               if r["agent_id"] == aid)
+    rec = next(r for r in json.loads(agent_list_impl(as_records=True))["items"] if r["agent_id"] == aid)
     return rec["membership"], rec["membership_basis"]
 
 
@@ -79,7 +80,8 @@ def test_register_stamps_node_hostname_and_utc_db_clock(agent):
     assert row["node_id"] == node_id()
     assert row["hostname"]
     assert row["last_seen"].endswith("Z") and "T" in row["last_seen"], (
-        f"last_seen must be ISO 8601 UTC from the DB clock, got {row['last_seen']!r}")
+        f"last_seen must be ISO 8601 UTC from the DB clock, got {row['last_seen']!r}"
+    )
 
 
 def test_fresh_touch_is_a_member(agent):
@@ -88,8 +90,7 @@ def test_fresh_touch_is_a_member(agent):
 
 def test_stale_with_live_client_on_this_node_is_idle(agent):
     me = os.getpid()
-    _set(agent, last_seen=_ANCIENT, node_id=node_id(), pid=me,
-         pid_create_time=proc_create_time(me))
+    _set(agent, last_seen=_ANCIENT, node_id=node_id(), pid=me, pid_create_time=proc_create_time(me))
     state, basis = _membership(agent)
     assert state == "idle" and str(me) in basis
 
@@ -114,8 +115,14 @@ def test_stale_with_reused_pid_has_left(agent):
 def test_stale_on_another_node_is_judged_by_time_alone(agent):
     """Its pid cannot be checked from here — even a pid that IS alive locally."""
     me = os.getpid()
-    _set(agent, last_seen=_ANCIENT, node_id="SOME-OTHER-NODE", hostname="other-box",
-         pid=me, pid_create_time=proc_create_time(me))
+    _set(
+        agent,
+        last_seen=_ANCIENT,
+        node_id="SOME-OTHER-NODE",
+        hostname="other-box",
+        pid=me,
+        pid_create_time=proc_create_time(me),
+    )
     state, basis = _membership(agent)
     assert state == "left" and "other-box" in basis
 

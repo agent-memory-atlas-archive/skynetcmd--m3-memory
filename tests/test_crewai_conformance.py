@@ -35,9 +35,7 @@ crewai = pytest.importorskip("crewai", reason=skip_reason("dep", "requires `pip 
 # so the warning is attributed to the TEST line that constructs the record, and a
 # module-scoped filter on "crewai" cannot match it. Scoped to this file so m3's
 # own utcnow() calls still fail everywhere else.
-pytestmark = pytest.mark.filterwarnings(
-    r"ignore:datetime.datetime.utcnow\(\) is deprecated:DeprecationWarning")
-
+pytestmark = pytest.mark.filterwarnings(r"ignore:datetime.datetime.utcnow\(\) is deprecated:DeprecationWarning")
 
 
 def _backend_cls():
@@ -64,10 +62,21 @@ def test_every_called_method_is_present_and_callable():
     # The methods CrewAI 1.15.3 actually invokes (see research memory). count +
     # the async trio are optional/unused but should still be present.
     required = [
-        "save", "search", "delete", "update", "get_record", "list_records",
-        "get_scope_info", "list_scopes", "list_categories", "reset",
+        "save",
+        "search",
+        "delete",
+        "update",
+        "get_record",
+        "list_records",
+        "get_scope_info",
+        "list_scopes",
+        "list_categories",
+        "reset",
         "touch_records",  # non-protocol, called via getattr after every recall
-        "count", "asave", "asearch", "adelete",
+        "count",
+        "asave",
+        "asearch",
+        "adelete",
     ]
     backend = _backend_cls()(user_id="conformance-tenant")
     for name in required:
@@ -94,17 +103,25 @@ def test_memoryrecord_fields_the_adapter_relies_on_exist():
     from crewai.memory.types import MemoryRecord
 
     rec = MemoryRecord(content="x")
-    for field in ("id", "content", "scope", "categories", "metadata",
-                  "importance", "created_at", "last_accessed", "embedding",
-                  "source", "private"):
+    for field in (
+        "id",
+        "content",
+        "scope",
+        "categories",
+        "metadata",
+        "importance",
+        "created_at",
+        "last_accessed",
+        "embedding",
+        "source",
+        "private",
+    ):
         assert hasattr(rec, field), f"MemoryRecord lost field the adapter uses: {field}"
 
 
 def test_scopeinfo_fields_exist():
     from crewai.memory.types import ScopeInfo
 
-    si = ScopeInfo(path="/x", record_count=0, categories=[],
-                   oldest_record=None, newest_record=None, child_scopes=[])
-    for field in ("path", "record_count", "categories", "oldest_record",
-                  "newest_record", "child_scopes"):
+    si = ScopeInfo(path="/x", record_count=0, categories=[], oldest_record=None, newest_record=None, child_scopes=[])
+    for field in ("path", "record_count", "categories", "oldest_record", "newest_record", "child_scopes"):
         assert hasattr(si, field), f"ScopeInfo lost field: {field}"

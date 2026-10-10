@@ -30,6 +30,7 @@ is itself supervisable next time.
 
 Report-and-fix, never crashes the doctor.
 """
+
 from __future__ import annotations
 
 import os
@@ -55,6 +56,7 @@ def _load_m3_halt():
     if bin_dir not in sys.path:
         sys.path.insert(0, bin_dir)
     import m3_halt  # noqa: E402
+
     return m3_halt
 
 
@@ -83,10 +85,13 @@ def _kill(pid: int) -> bool:
         if is_windows():
             subprocess.run(  # noqa: S603 — fixed argv
                 ["taskkill", "/F", "/PID", str(pid)],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
             )
         else:
             import signal
+
             os.kill(pid, signal.SIGTERM)
         return True
     except Exception as e:  # noqa: BLE001
@@ -106,7 +111,11 @@ def _restart(host: str, port: int) -> bool:
     m3_cmd = os.path.join(os.path.dirname(sys.executable), "m3")
     argv = [
         m3_cmd if os.path.exists(m3_cmd) else "m3",
-        "dashboard", "--host", host, "--port", str(port),
+        "dashboard",
+        "--host",
+        host,
+        "--port",
+        str(port),
     ]
     try:
         # `m3 dashboard` detaches the server itself and returns promptly; run it
@@ -114,8 +123,11 @@ def _restart(host: str, port: int) -> bool:
         # windowless child). Bounded so a hung CLI can't wedge doctor.
         subprocess.run(  # noqa: S603 — fixed argv, our own CLI
             argv,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            stdin=subprocess.DEVNULL, timeout=30, check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            timeout=30,
+            check=False,
         )
     except Exception as e:  # noqa: BLE001
         print(f"  [fix] could not relaunch dashboard: {e}")
@@ -127,8 +139,7 @@ def _restart(host: str, port: int) -> bool:
             print(f"  [fix] dashboard restarted → http://{host}:{port}")
             return True
         time.sleep(0.5)
-    print(f"  [fix] relaunched dashboard on {host}:{port} but it is not yet "
-          "answering — check the dashboard log.")
+    print(f"  [fix] relaunched dashboard on {host}:{port} but it is not yet answering — check the dashboard log.")
     return False
 
 
@@ -180,14 +191,12 @@ def run(brief: bool = False, fix: bool = False) -> int:
 
         # Alive per the registry but NOT serving the port → wedged/half-dead.
         if not fix:
-            print(f"[!] dashboard (pid {p.pid}) registered on {host}:{port} "
-                  "but not responding.")
+            print(f"[!] dashboard (pid {p.pid}) registered on {host}:{port} but not responding.")
             print("      → run `m3 doctor --fix` to restart it.")
             continue
 
         # --fix: kill the wedged process, reap its registry file, restart.
-        print(f"[fix] dashboard (pid {p.pid}) wedged on {host}:{port} — "
-              "killing and restarting...")
+        print(f"[fix] dashboard (pid {p.pid}) wedged on {host}:{port} — killing and restarting...")
         _kill(p.pid)
         try:
             p.path.unlink(missing_ok=True)  # reap the stale registry entry

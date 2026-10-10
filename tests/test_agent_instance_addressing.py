@@ -17,6 +17,7 @@ See #170 for the separator analysis. The short version: "-" was disqualified
 because it is already inside 14 of 26 live ids, and ":" because on NTFS it
 creates an alternate data stream instead of a file.
 """
+
 from __future__ import annotations
 
 import os
@@ -51,8 +52,7 @@ def clean_inboxes():
         with _db() as db:
             p = dialect().param()
             db.execute(
-                f"DELETE FROM notifications WHERE agent_id = {p} "
-                f"OR agent_id LIKE {p}",
+                f"DELETE FROM notifications WHERE agent_id = {p} OR agent_id LIKE {p}",
                 (_PREFIX, _PREFIX + "@%"),
             )
 
@@ -62,6 +62,7 @@ def clean_inboxes():
 
 
 # ── parsing ──────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.parametrize(
     "raw,expected",
@@ -88,7 +89,7 @@ def test_a_bare_type_is_unchanged():
 
 
 def test_hyphen_is_not_the_separator():
-    """"-" is inside 14 of 26 live ids. Splitting on it would parse
+    """ "-" is inside 14 of 26 live ids. Splitting on it would parse
     `claude-code` as type "claude", instance "code" -- silently rerouting every
     notification for the most-used agent in the system."""
     assert agent_type_of("claude-code") == "claude-code", (
@@ -98,6 +99,7 @@ def test_hyphen_is_not_the_separator():
 
 
 # ── addressing semantics ─────────────────────────────────────────────────────
+
 
 def test_qualified_id_reads_only_that_instance(clean_inboxes):
     notify_impl(f"{_PREFIX}@s1", "ping", "for s1")
@@ -119,8 +121,7 @@ def test_bare_type_fans_out_to_the_type_and_its_instances(clean_inboxes):
 
     everything = notifications_unread_ids_impl(_PREFIX)
     assert len(everything) == 3, (
-        f"fan-out saw {len(everything)} of 3 -- a bare type must match the "
-        f"type's own inbox AND every instance"
+        f"fan-out saw {len(everything)} of 3 -- a bare type must match the type's own inbox AND every instance"
     )
 
 
@@ -137,12 +138,8 @@ def test_one_instance_ack_does_not_empty_another(clean_inboxes):
     notifications_ack_all_impl(f"{_PREFIX}@s1")
     after = notifications_unread_ids_impl(f"{_PREFIX}@s2")
 
-    assert after == before, (
-        "one instance's ack consumed another instance's unread rows"
-    )
-    assert notifications_unread_ids_impl(f"{_PREFIX}@s1") == [], (
-        "the acking instance's own rows were not acked"
-    )
+    assert after == before, "one instance's ack consumed another instance's unread rows"
+    assert notifications_unread_ids_impl(f"{_PREFIX}@s1") == [], "the acking instance's own rows were not acked"
 
 
 def test_ack_by_bare_type_still_clears_everything(clean_inboxes):
@@ -156,6 +153,7 @@ def test_ack_by_bare_type_still_clears_everything(clean_inboxes):
 
 
 # ── injection safety ─────────────────────────────────────────────────────────
+
 
 def test_sql_wildcards_in_an_agent_id_stay_literal():
     """The fan-out uses LIKE. An id containing % or _ must not become a
@@ -195,8 +193,7 @@ def clean_handoffs():
         with _mdb() as db:
             p = dialect().param()
             db.execute(
-                f"DELETE FROM memory_items WHERE type = 'handoff' AND "
-                f"(agent_id = {p} OR agent_id LIKE {p})",
+                f"DELETE FROM memory_items WHERE type = 'handoff' AND (agent_id = {p} OR agent_id LIKE {p})",
                 (_PREFIX, _PREFIX + "@%"),
             )
 
@@ -225,8 +222,7 @@ def _handoff_to(target: str, task: str) -> None:
             f"INSERT INTO memory_items (id, type, title, content, agent_id, "
             f"scope, metadata_json, created_at, updated_at, is_deleted) "
             f"VALUES ({p}, 'handoff', {p}, {p}, {p}, 'agent', {p}, {p}, {p}, 0)",
-            (str(_uuid.uuid4()), f"Handoff to {target}", task, target,
-             _json.dumps({"from_agent": "pytest"}), now, now),
+            (str(_uuid.uuid4()), f"Handoff to {target}", task, target, _json.dumps({"from_agent": "pytest"}), now, now),
         )
 
 
@@ -251,12 +247,8 @@ def test_handoff_inbox_qualified_id_sees_its_own_mail(clean_handoffs):
     _handoff_to(f"{_PREFIX}@s2", "work for s2")
 
     out = memory_inbox_impl(f"{_PREFIX}@s1", unread_only=True)
-    assert "work for s1" in out, (
-        f"a qualified id must see handoffs addressed to it, got: {out!r}"
-    )
-    assert "work for s2" not in out, (
-        f"DIRECT read leaked a sister's handoff, got: {out!r}"
-    )
+    assert "work for s1" in out, f"a qualified id must see handoffs addressed to it, got: {out!r}"
+    assert "work for s2" not in out, f"DIRECT read leaked a sister's handoff, got: {out!r}"
 
 
 def test_handoff_inbox_bare_broadcast_is_invisible_to_a_qualified_read(
@@ -277,9 +269,7 @@ def test_handoff_inbox_bare_broadcast_is_invisible_to_a_qualified_read(
     assert "broadcast work" not in direct
 
     fanout = memory_inbox_impl(_PREFIX, unread_only=True)
-    assert "broadcast work" in fanout, (
-        "the bare-type poll is the ONLY way a sister sees a broadcast"
-    )
+    assert "broadcast work" in fanout, "the bare-type poll is the ONLY way a sister sees a broadcast"
 
 
 def test_handoff_inbox_qualified_id_is_not_fed_a_sisters_mail(clean_handoffs):
@@ -292,9 +282,7 @@ def test_handoff_inbox_qualified_id_is_not_fed_a_sisters_mail(clean_handoffs):
 
     out = memory_inbox_impl(f"{_PREFIX}@s1", unread_only=True)
     assert "work for s1" in out
-    assert "work for s2" not in out, (
-        "instances are seeing each other's handoffs -- DIRECT read leaked"
-    )
+    assert "work for s2" not in out, "instances are seeing each other's handoffs -- DIRECT read leaked"
 
 
 def test_handoff_inbox_bare_type_fans_out(clean_handoffs):
@@ -320,6 +308,4 @@ def test_handoff_inbox_wildcards_in_an_agent_id_stay_literal(clean_handoffs):
     _handoff_to(f"{_PREFIX}@s1", "work for s1")
 
     out = memory_inbox_impl(f"{_PREFIX}@%", unread_only=True)
-    assert "work for s1" not in out, (
-        "a literal % matched another inbox -- the prefix match is not escaping"
-    )
+    assert "work for s1" not in out, "a literal % matched another inbox -- the prefix match is not escaping"

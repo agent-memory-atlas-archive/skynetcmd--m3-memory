@@ -6,6 +6,7 @@ took the password for part of the database name, and judged two spellings of one
 database different. Each case below failed before (found while testing a named
 store on a second PostgreSQL database, plan 2C.3c).
 """
+
 from __future__ import annotations
 
 import pytest
@@ -14,14 +15,17 @@ from m3_core.dsn import DsnParts, parse_pg_dsn
 _SECRET = "s3cr3t-pw"
 
 
-@pytest.mark.parametrize("dsn,host,port,db", [
-    (f"postgresql://u:{_SECRET}@H:5433/db/", "H", 5433, "db"),
-    ("postgresql:///db", "", 5432, "db"),                       # socket, no host or user
-    (f"user=u password={_SECRET} dbname=db host=h port=5432", "h", 5432, "db"),
-    ("dbname=db", "", 5432, "db"),
-    ("postgresql://u@%2Fvar%2Frun%2Fpostgresql/db", "/var/run/postgresql", 5432, "db"),
-    ("host=a,b dbname=x", "a,b", 5432, "x"),                     # libpq multi-host
-])
+@pytest.mark.parametrize(
+    "dsn,host,port,db",
+    [
+        (f"postgresql://u:{_SECRET}@H:5433/db/", "H", 5433, "db"),
+        ("postgresql:///db", "", 5432, "db"),  # socket, no host or user
+        (f"user=u password={_SECRET} dbname=db host=h port=5432", "h", 5432, "db"),
+        ("dbname=db", "", 5432, "db"),
+        ("postgresql://u@%2Fvar%2Frun%2Fpostgresql/db", "/var/run/postgresql", 5432, "db"),
+        ("host=a,b dbname=x", "a,b", 5432, "x"),  # libpq multi-host
+    ],
+)
 def test_every_libpq_shape_parses(dsn, host, port, db):
     parts = parse_pg_dsn(dsn)
     assert parts is not None and (parts.host, parts.port, parts.dbname) == (host, port, db)
@@ -61,11 +65,14 @@ def test_the_warehouse_guard_sees_through_the_keyword_form(monkeypatch):
     _reject_same_as_warehouse("host=wh.example dbname=primary user=me")  # another database: fine
 
 
-@pytest.mark.parametrize("dsn", [
-    "host=wh.example dbname=m3 user=u",
-    "host=ok.example,wh.example dbname=m3",       # libpq would try the forbidden host too
-    "postgresql://u@WH.example/m3",
-])
+@pytest.mark.parametrize(
+    "dsn",
+    [
+        "host=wh.example dbname=m3 user=u",
+        "host=ok.example,wh.example dbname=m3",  # libpq would try the forbidden host too
+        "postgresql://u@WH.example/m3",
+    ],
+)
 def test_a_forbidden_host_is_refused_in_any_form(monkeypatch, dsn):
     from memory.backends.postgres_backend import _reject_forbidden_host
 

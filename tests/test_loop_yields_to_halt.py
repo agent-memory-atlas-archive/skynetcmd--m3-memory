@@ -3,6 +3,7 @@
 Hazard: a loop that sleeps a whole --interval (300s on Unix) on the stop event
 alone stays registered as a DB writer, so a quiesce times out and kills it.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -20,8 +21,7 @@ import m3_cognitive_loop as loop  # noqa: E402
 def test_sleep_returns_when_halt_is_raised(monkeypatch):
     monkeypatch.setattr(loop, "_STOP_EVENT", asyncio.Event())
     raised_at = time.monotonic() + 0.3
-    monkeypatch.setattr(loop.m3_halt, "halt_is_active",
-                        lambda role=None: time.monotonic() >= raised_at)
+    monkeypatch.setattr(loop.m3_halt, "halt_is_active", lambda role=None: time.monotonic() >= raised_at)
     t0 = time.monotonic()
     asyncio.run(loop._sleep_or_halt(60.0, poll_s=0.1))
     assert time.monotonic() - t0 < 5.0

@@ -1,5 +1,6 @@
 """Rate-limit detection and cascade — _estimate_cost_wall, _classify_observer_error,
 _is_rate_limit_failure, _RateLimitCascade."""
+
 from __future__ import annotations
 
 import time
@@ -11,12 +12,12 @@ def _estimate_cost_wall(profile: Profile, n_groups: int) -> tuple[str | None, st
     """Rough cost + wall estimate based on the profile's known rate card."""
     # Per-call assumption: ~700 input + 400 output tokens.
     rates = {
-        "claude-haiku-4-5":   (1.0,  5.0,  1.5),    # ($/M_in, $/M_out, sec/call)
-        "claude-sonnet-4-6":  (3.0, 15.0,  2.0),
-        "gpt-4o-mini":        (0.15, 0.60, 1.5),
-        "gpt-4o":             (2.5, 10.0,  2.0),
-        "gemini-2.5-flash":   (0.075, 0.30, 2.0),
-        "gemini-2.5-pro":     (1.25, 5.0,  3.0),
+        "claude-haiku-4-5": (1.0, 5.0, 1.5),  # ($/M_in, $/M_out, sec/call)
+        "claude-sonnet-4-6": (3.0, 15.0, 2.0),
+        "gpt-4o-mini": (0.15, 0.60, 1.5),
+        "gpt-4o": (2.5, 10.0, 2.0),
+        "gemini-2.5-flash": (0.075, 0.30, 2.0),
+        "gemini-2.5-pro": (1.25, 5.0, 3.0),
     }
     rate = rates.get(profile.model)
     if rate is None:
@@ -63,14 +64,17 @@ def _is_rate_limit_failure(error_class: str, last_error: str) -> bool:
     if error_class != "http_status":
         return False
     low = (last_error or "").lower()
-    return any(m in low for m in (
-        "429",
-        "too many requests",
-        "resource_exhausted",
-        "exceeded your current quota",
-        "rate limit",
-        "ratelimitexceeded",
-    ))
+    return any(
+        m in low
+        for m in (
+            "429",
+            "too many requests",
+            "resource_exhausted",
+            "exceeded your current quota",
+            "rate limit",
+            "ratelimitexceeded",
+        )
+    )
 
 
 class _RateLimitCascade:

@@ -56,9 +56,7 @@ def _resolve_python_cmd(m3_repo_root: str) -> str:
         return _windowless(venv_py).replace("\\", "/")
     if sys.executable and _is_abs_any(sys.executable) and os.path.exists(sys.executable):
         return _windowless(sys.executable).replace("\\", "/")
-    return "python" if os.name == "nt" else (
-        "python3" if shutil.which("python3") else "python"
-    )
+    return "python" if os.name == "nt" else ("python3" if shutil.which("python3") else "python")
 
 
 def _is_windows() -> bool:
@@ -146,8 +144,8 @@ def generate_configs(write: bool = True):
     write templates or seed config, or print as if it had).
     """
     # m3_repo_root  = the repo directory (where bin/ lives)
-    m3_repo_root  = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    config_dir    = os.path.join(m3_repo_root, "config")
+    m3_repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    config_dir = os.path.join(m3_repo_root, "config")
 
     python_cmd = _resolve_python_cmd(m3_repo_root)
 
@@ -170,9 +168,7 @@ def generate_configs(write: bool = True):
 
         for candidate in (
             os.path.join(get_m3_models_root(), "bge-m3-Q4_K_M.gguf"),
-            os.path.expanduser(
-                "~/.lmstudio/models/deepsweet/bge-m3-GGUF-Q4_K_M/bge-m3-GGUF-Q4_K_M.gguf"
-            ),
+            os.path.expanduser("~/.lmstudio/models/deepsweet/bge-m3-GGUF-Q4_K_M/bge-m3-GGUF-Q4_K_M.gguf"),
         ):
             if os.path.exists(candidate):
                 embed_gguf = candidate
@@ -180,6 +176,7 @@ def generate_configs(write: bool = True):
     if write:
         try:
             from m3_memory.embedder_admin import seed_shared_config
+
             _cfg_path, _wrote = seed_shared_config(gguf_path=embed_gguf or None)
             if _wrote:
                 print(f"[generate_configs] seeded shared embedder config: {_cfg_path}")
@@ -196,6 +193,7 @@ def generate_configs(write: bool = True):
     payload_bin = None
     try:
         from m3_memory.installer import bin_dir as _resolve_bin_dir
+
         _bd = _resolve_bin_dir()
         if _bd is not None:
             payload_bin = str(_bd)
@@ -219,6 +217,7 @@ def generate_configs(write: bool = True):
     # site-packages/engine and silently orphan the real DB on the next restart).
     try:
         from m3_sdk import get_m3_config_root, get_m3_engine_root, get_m3_root
+
         memory_root = get_m3_root()
         engine_root = get_m3_engine_root()
         config_root = get_m3_config_root()
@@ -272,15 +271,19 @@ def generate_configs(write: bool = True):
     hook_cmd = f"{_root_pins}{python_cmd} {repo('bin/hooks/chatlog/claude_code_precompact.py')}"
     hook_entry = [{"hooks": [{"type": "command", "command": hook_cmd}]}]
 
-    session_start_cmd = (
-        f"{_root_pins}{python_cmd} {repo('bin/hooks/chatlog/session_start_capture_check.py')}"
-    )
-    session_start_entry = [{"hooks": [{
-        "type": "command",
-        "command": session_start_cmd,
-        "timeout": 15,
-        "statusMessage": "Checking m3 chatlog capture...",
-    }]}]
+    session_start_cmd = f"{_root_pins}{python_cmd} {repo('bin/hooks/chatlog/session_start_capture_check.py')}"
+    session_start_entry = [
+        {
+            "hooks": [
+                {
+                    "type": "command",
+                    "command": session_start_cmd,
+                    "timeout": 15,
+                    "statusMessage": "Checking m3 chatlog capture...",
+                }
+            ]
+        }
+    ]
 
     # No M3_EMBED_GGUF here — it lives in the shared config (seeded above) so the
     # memory server defers to the single :8082 embedder instead of loading its own.
@@ -322,13 +325,14 @@ def generate_configs(write: bool = True):
     stop_enabled = True
     try:
         import chatlog_config
+
         _cc = chatlog_config.resolve_config().host_agents.get("claude-code")
         stop_enabled = bool(_cc.stop_hook) if _cc is not None else True
     except Exception:  # noqa: BLE001 — config unreadable: keep the recommended default
         stop_enabled = True
     claude_hooks = {
         "SessionStart": session_start_entry,
-        "PreCompact":   hook_entry,
+        "PreCompact": hook_entry,
     }
     if stop_enabled:
         claude_hooks["Stop"] = hook_entry
@@ -338,13 +342,11 @@ def generate_configs(write: bool = True):
         "model": "opus",
         "hooks": claude_hooks,
         "statusLine": {
-            "type":    "command",
+            "type": "command",
             "command": f"{python_cmd} {repo('bin/statusline-command.sh')}",
         },
         "enabledPlugins": {"m3@skynetcmd": True},
-        "extraKnownMarketplaces": {
-            "skynetcmd": {"source": {"source": "github", "repo": "skynetcmd/m3-memory"}}
-        },
+        "extraKnownMarketplaces": {"skynetcmd": {"source": {"source": "github", "repo": "skynetcmd/m3-memory"}}},
         "skipDangerousModePermissionPrompt": True,
         "mcpServers": mcp_servers,
     }
@@ -353,8 +355,7 @@ def generate_configs(write: bool = True):
     if not write:
         return
     _write_json(os.path.join(config_dir, "claude-settings.json"), claude)
-    print(f"Generated claude-settings.json ({python_cmd}, engine root {engine_root}, "
-          f"config root {config_root})")
+    print(f"Generated claude-settings.json ({python_cmd}, engine root {engine_root}, config root {config_root})")
 
     # ── gemini-settings.json ──────────────────────────────────────────────────
     gemini_path = os.path.join(config_dir, "gemini-settings.json")
@@ -386,9 +387,7 @@ def generate_configs(write: bool = True):
         **mcp_servers,
     }
     if "general" not in gemini:
-        gemini["general"] = {
-            "sessionRetention": {"enabled": True, "maxAge": "30d", "warningAcknowledged": True}
-        }
+        gemini["general"] = {"sessionRetention": {"enabled": True, "maxAge": "30d", "warningAcknowledged": True}}
     if "security" not in gemini:
         gemini["security"] = {"auth": {"selectedType": "gemini-api-key"}}
 
@@ -438,6 +437,7 @@ def _write_json(path, data):
     # as a subprocess and under `python bin/generate_configs.py`, neither of
     # which inherits that re-exec. See tests/test_cross_platform_config.py.
     from m3_core.atomic_io import atomic_write
+
     try:
         atomic_write(path, json.dumps(data, indent=2) + "\n")
     except Exception as e:  # atomic_write already removed its temp file
@@ -454,8 +454,13 @@ def _is_m3_command(cmd, repo_root_fwd):
     root path or the known m3 script markers — never on a hardcoded user path."""
     if not isinstance(cmd, str):
         return False
-    markers = (repo_root_fwd, "bin/hooks/chatlog/", "bin/statusline-command",
-               "session_start_capture_check", "claude_code_precompact")
+    markers = (
+        repo_root_fwd,
+        "bin/hooks/chatlog/",
+        "bin/statusline-command",
+        "session_start_capture_check",
+        "claude_code_precompact",
+    )
     return any(m and m in cmd for m in markers)
 
 
@@ -466,8 +471,7 @@ def _strip_m3_hook_entries(hook_list, repo_root_fwd):
     kept = []
     for entry in hook_list or []:
         inner = entry.get("hooks", []) if isinstance(entry, dict) else []
-        if any(_is_m3_command(h.get("command", ""), repo_root_fwd)
-               for h in inner if isinstance(h, dict)):
+        if any(_is_m3_command(h.get("command", ""), repo_root_fwd) for h in inner if isinstance(h, dict)):
             continue  # drop stale/previous m3 entry
         kept.append(entry)
     return kept
@@ -478,13 +482,10 @@ def _strip_m3_hook_entries(hook_list, repo_root_fwd):
 # to every user by accident. They are retired, but must stay listed so existing
 # installs get them cleaned out rather than carrying them forever. A user's own
 # servers are never in this set and are never touched.
-_LEGACY_M3_SERVER_NAMES = frozenset(
-    {"custom_pc_tool", "grok_intel", "web_research", "debug_agent"}
-)
+_LEGACY_M3_SERVER_NAMES = frozenset({"custom_pc_tool", "grok_intel", "web_research", "debug_agent"})
 
 
-def install_claude_settings(settings_path=None, assume_yes=False, dry_run=False,
-                            keep_status_line=False):
+def install_claude_settings(settings_path=None, assume_yes=False, dry_run=False, keep_status_line=False):
     """Idempotently merge m3's hooks + statusLine into the user's live Claude Code
     settings.json (and PRUNE any dead m3-owned mcpServers a prior version wrote —
     Claude Code does not read server definitions from settings.json; the memory
@@ -518,9 +519,7 @@ def install_claude_settings(settings_path=None, assume_yes=False, dry_run=False,
         raise RuntimeError("generate_configs did not produce claude settings")
 
     if settings_path is None:
-        settings_path = os.path.join(
-            os.path.expanduser("~"), ".claude", "settings.json"
-        )
+        settings_path = os.path.join(os.path.expanduser("~"), ".claude", "settings.json")
 
     # Load existing live settings (preserve everything we don't own).
     if os.path.exists(settings_path):
@@ -551,25 +550,26 @@ def install_claude_settings(settings_path=None, assume_yes=False, dry_run=False,
     m3_cmd = m3_status.get("command", "")
 
     if not cur_status:
-        live["statusLine"] = m3_status            # none set — just adopt ours
+        live["statusLine"] = m3_status  # none set — just adopt ours
     elif cur_cmd == m3_cmd:
-        pass                                       # already exactly ours — no-op
+        pass  # already exactly ours — no-op
     else:
         # Differs from ours. Decide whether to adopt — default YES, but ask unless
         # told otherwise; never replace when the user opted to keep theirs.
         if keep_status_line:
             adopt = False
         elif assume_yes or dry_run:
-            adopt = True                           # default yes for headless/dry-run
+            adopt = True  # default yes for headless/dry-run
         else:
             try:
-                resp = input(
-                    "\nReplace your current status line with m3's "
-                    "(statusline-command.sh)? [Y/n] "
-                ).strip().lower()
+                resp = (
+                    input("\nReplace your current status line with m3's (statusline-command.sh)? [Y/n] ")
+                    .strip()
+                    .lower()
+                )
             except EOFError:
                 resp = ""
-            adopt = resp in ("", "y", "yes")       # default yes on empty
+            adopt = resp in ("", "y", "yes")  # default yes on empty
         if adopt:
             # Preserve the prior statusLine to a timestamped sidecar before swap.
             if not dry_run:
@@ -583,8 +583,7 @@ def install_claude_settings(settings_path=None, assume_yes=False, dry_run=False,
                     "Your previous `statusLine` was replaced by m3's "
                     "`statusline-command.sh`. To restore it, copy the JSON below "
                     "back into the `statusLine` key of your settings.json.\n\n"
-                    "```json\n"
-                    + json.dumps(cur_status, indent=2) + "\n```\n"
+                    "```json\n" + json.dumps(cur_status, indent=2) + "\n```\n"
                 )
                 with open(sidecar, "w", encoding="utf-8") as f:
                     f.write(body)
@@ -635,10 +634,14 @@ def install_claude_settings(settings_path=None, assume_yes=False, dry_run=False,
     live["disabledMcpServers"] = disabled
 
     after = json.dumps(live, indent=2, sort_keys=True)
-    diff = "".join(difflib.unified_diff(
-        before.splitlines(keepends=True), after.splitlines(keepends=True),
-        fromfile="settings.json (current)", tofile="settings.json (after install)",
-    ))
+    diff = "".join(
+        difflib.unified_diff(
+            before.splitlines(keepends=True),
+            after.splitlines(keepends=True),
+            fromfile="settings.json (current)",
+            tofile="settings.json (after install)",
+        )
+    )
     changed = before != after
 
     if dry_run or not changed:
@@ -673,21 +676,22 @@ if __name__ == "__main__":
     import argparse
 
     ap = argparse.ArgumentParser(description="Generate m3 configs / install Claude hooks")
-    ap.add_argument("--install-claude", action="store_true",
-                    help="Merge hooks+statusLine into ~/.claude/settings.json")
-    ap.add_argument("--settings-path", default=None,
-                    help="Override target settings.json path")
+    ap.add_argument("--install-claude", action="store_true", help="Merge hooks+statusLine into ~/.claude/settings.json")
+    ap.add_argument("--settings-path", default=None, help="Override target settings.json path")
     ap.add_argument("--yes", action="store_true", help="Apply without prompting")
-    ap.add_argument("--dry-run", action="store_true",
-                    help="Show the diff but write nothing")
-    ap.add_argument("--keep-status-line", action="store_true",
-                    help="Don't replace an existing custom status line (default is "
-                         "to adopt m3's statusline-command.sh, preserving the prior "
-                         "one to a timestamped sidecar file)")
+    ap.add_argument("--dry-run", action="store_true", help="Show the diff but write nothing")
+    ap.add_argument(
+        "--keep-status-line",
+        action="store_true",
+        help="Don't replace an existing custom status line (default is "
+        "to adopt m3's statusline-command.sh, preserving the prior "
+        "one to a timestamped sidecar file)",
+    )
     a = ap.parse_args()
 
     if a.install_claude:
-        install_claude_settings(a.settings_path, assume_yes=a.yes, dry_run=a.dry_run,
-                                keep_status_line=a.keep_status_line)
+        install_claude_settings(
+            a.settings_path, assume_yes=a.yes, dry_run=a.dry_run, keep_status_line=a.keep_status_line
+        )
     else:
         generate_configs()

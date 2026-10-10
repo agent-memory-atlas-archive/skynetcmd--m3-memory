@@ -23,6 +23,7 @@ exactly, which is fragile to seed and would make these tests flaky rather than
 informative. The decision under test — WHICH COLUMN feeds the ranker — is
 verifiable directly, and that is what is pinned here.
 """
+
 from __future__ import annotations
 
 import inspect
@@ -44,6 +45,7 @@ def _src() -> str:
 
 
 # ── the parameter exists at the convergence point ────────────────────────────
+
 
 def test_apply_decay_defaults_to_on():
     """Decay-aware ranking is the default; forensic reads opt out."""
@@ -72,12 +74,12 @@ def test_the_flag_lives_on_the_single_scoring_owner():
             continue
         body = inspect.getsource(fn)
         assert "importance_raw" not in body, (
-            f"{name} reads importance_raw directly — the decision has been "
-            "duplicated away from the convergence point."
+            f"{name} reads importance_raw directly — the decision has been duplicated away from the convergence point."
         )
 
 
 # ── the default path must not pay for the feature ────────────────────────────
+
 
 def test_importance_raw_is_only_selected_when_decay_is_off():
     """§4: project only the columns you need.
@@ -95,8 +97,7 @@ def test_importance_raw_is_only_selected_when_decay_is_off():
     and the behaviour was wrong -- so assert the behaviour.
     """
     assert "importance_raw" in S._resolve_extra_columns([], apply_decay=False), (
-        "a forensic read does not project importance_raw, so it would rank on "
-        "the decayed importance"
+        "a forensic read does not project importance_raw, so it would rank on the decayed importance"
     )
     assert "importance_raw" not in S._resolve_extra_columns([], apply_decay=True), (
         "the default search fetches a column it does not use"
@@ -124,9 +125,7 @@ def test_every_path_resolves_columns_through_one_owner():
         f"_resolve_extra_columns instead of writing a second copy"
     )
     # And the filter itself: every path must call the resolver, not re-derive it.
-    assert "if c in _allowed_extra" not in src, (
-        "a path is filtering extra columns with its own local allowlist again"
-    )
+    assert "if c in _allowed_extra" not in src, "a path is filtering extra columns with its own local allowlist again"
 
 
 def test_importance_raw_is_allowlisted():
@@ -187,9 +186,7 @@ def test_a_row_without_the_column_at_all_falls_back(_row_types=None):
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
     legacy = conn.execute("SELECT 0.42 AS importance").fetchone()
-    assert _pick(legacy, False) == pytest.approx(0.42), (
-        "a pre-049 row (no importance_raw column) did not fall back"
-    )
+    assert _pick(legacy, False) == pytest.approx(0.42), "a pre-049 row (no importance_raw column) did not fall back"
 
     assert _pick({"importance": 0.42}, False) == pytest.approx(0.42)
 

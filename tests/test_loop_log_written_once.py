@@ -4,6 +4,7 @@ Hazard: when stdout already is the log file (Windows --background re-exec,
 launchd StandardOutPath), adding a FileHandler for the same path writes every
 record twice through two independent handles, duplicating and splitting lines.
 """
+
 from __future__ import annotations
 
 import logging
@@ -52,6 +53,7 @@ def test_file_handler_added_when_stdout_is_elsewhere(tmp_path, monkeypatch):
 
 def test_undeterminable_stdout_keeps_the_file_handler(tmp_path, monkeypatch):
     """No fileno (pytest capture, a closed stream): never lose the file log."""
+
     class _NoFd:
         def fileno(self):
             raise OSError("no fd")

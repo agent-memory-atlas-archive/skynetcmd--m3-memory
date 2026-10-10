@@ -61,6 +61,7 @@ byte-level BPE tokenizer CAN emit more than one token per character, so a model
 swap must revisit this bound. `tests/test_token_budget.py` asserts the
 assumption so the swap fails loudly instead of silently under-estimating.
 """
+
 from __future__ import annotations
 
 import os

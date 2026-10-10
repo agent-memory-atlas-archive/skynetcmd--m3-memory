@@ -7,6 +7,7 @@ SILENT. The extractor now logs one WARNING per pass naming the model + endpoint 
 the fix, so the 0-fact outcome is never swallowed. Hermetic — MockTransport
 returns a reasoning-only reply, no server.
 """
+
 import logging
 import sys
 from pathlib import Path
@@ -23,8 +24,10 @@ import m3_entities as E  # noqa: E402
 
 def _profile(monkeypatch, model="m"):
     import dataclasses
+
     monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(Path(_BIN).parent / "config" / "slm"))
     from slm_intent import load_profile
+
     base = load_profile("entities_local_qwen")
     # pin a concrete model so no discovery GET is needed; keep it anthropic-on-
     # loopback so localize() (entity path) rewrites it to the shared OpenAI endpoint.

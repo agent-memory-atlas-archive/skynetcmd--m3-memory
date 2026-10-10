@@ -4,6 +4,7 @@ The Wiki tab shows the generated self-contained vault when present, and OS-speci
 "how to generate it" instructions when not. Drives the real FastAPI app with a
 TestClient. Requires the [dashboard] extra (fastapi); skipped cleanly if absent.
 """
+
 from __future__ import annotations
 
 import sys
@@ -31,9 +32,11 @@ def client(tmp_path, monkeypatch):
     # Point the DB at a throwaway sqlite so app startup doesn't touch real data.
     db = tmp_path / "agent_memory.db"
     import sqlite3
+
     sqlite3.connect(str(db)).close()
     monkeypatch.setenv("M3_DATABASE", str(db))
     import dashboard_server
+
     return TestClient(dashboard_server.app), tmp_path
 
 

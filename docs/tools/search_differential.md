@@ -1,8 +1,8 @@
 ---
 tool: bin/search_differential.py
-sha1: 5bdb32703b79
-mtime_utc: 2026-10-09T07:38:22.316397+00:00
-generated_utc: 2026-10-09T07:41:29.229849+00:00
+sha1: 1395ed6b4dc3
+mtime_utc: 2026-10-10T21:05:16.510866+00:00
+generated_utc: 2026-10-10T21:05:29.940959+00:00
 private: false
 ---
 
@@ -65,7 +65,7 @@ that is how the 2026-09-10 bug was found, against a 5,203-memory store.
 
 ## Entry points
 
-- `def main()` (line 265)
+- `def main()` (line 266)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -103,13 +103,13 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `['git', 'worktree', 'add', '-q', '--detach', str(wt), rev]`` (line 153)
+- `subprocess.run()  → `['git', 'worktree', 'add', '-q', '--detach', str(wt), rev]`` (line 154)
 - `subprocess.run()  → `[python, '-c', code, engine, config]`` (line 125)
-- `subprocess.run()  → `[sys.executable, '-c', _SEED, str(engine), str(config), str(items_path)]`` (line 231)
+- `subprocess.run()  → `[sys.executable, '-c', _SEED, str(engine), str(config), str(items_path)]`` (line 234)
 
 **sqlite**
 
-- `sqlite3.connect()  → `str(engine / 'agent_memory.db')`` (line 249)
+- `sqlite3.connect()  → `str(engine / 'agent_memory.db')`` (line 254)
 
 
 ---

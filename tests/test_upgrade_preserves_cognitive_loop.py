@@ -20,6 +20,7 @@ so the operator's choice survives and the loop returns on the new code. These
 tests pin the three branches, because the failure is invisible: the upgrade
 reports success either way.
 """
+
 from __future__ import annotations
 
 import pathlib
@@ -40,6 +41,7 @@ def _src() -> str:
 
 # ── the three branches are wired ─────────────────────────────────────────────
 
+
 def test_an_installed_loop_is_carried_across_the_upgrade():
     s = _src()
     assert 'setup_cmd.append("--cognitive-loop")' in s, (
@@ -51,8 +53,7 @@ def test_an_installed_loop_is_carried_across_the_upgrade():
 def test_a_declined_loop_stays_declined():
     s = _src()
     assert 'setup_cmd.append("--no-cognitive-loop")' in s, (
-        "a host that had deliberately declined the loop must not have one "
-        "installed by an upgrade"
+        "a host that had deliberately declined the loop must not have one installed by an upgrade"
     )
 
 
@@ -62,7 +63,7 @@ def test_an_undeterminable_state_passes_neither_flag_and_says_so():
     i = s.index("could not determine whether the cognitive loop")
     assert i > 0, "the unknown branch no longer explains itself"
     # and it must not fall through into a flag
-    tail = s[i:i + 600]
+    tail = s[i : i + 600]
     assert "--cognitive-loop" not in tail, "the unknown branch guesses a flag"
 
 
@@ -80,6 +81,7 @@ def test_detection_happens_BEFORE_the_package_is_replaced():
 
 
 # ── the detector itself ──────────────────────────────────────────────────────
+
 
 def test_detector_returns_None_when_the_package_cannot_be_located(monkeypatch):
     """Undeterminable, not False — False would mean "declined" and could
@@ -133,6 +135,5 @@ def test_detector_never_imports_the_payload_into_this_process():
     deleted — the reason it shells out for everything."""
     s = _src()
     assert "import governor_migration" not in s.split("def cognitive_loop_installed")[0], (
-        "m3_upgrade.py imports the payload at module scope; the upgrade deletes "
-        "that package mid-run"
+        "m3_upgrade.py imports the payload at module scope; the upgrade deletes that package mid-run"
     )

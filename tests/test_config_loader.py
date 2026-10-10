@@ -5,6 +5,7 @@ Planted bad files, each of which must fail LOUD with the file and the key named
 m3_config.toml, an env name used as a key, invalid TOML. Several at once must
 all be reported.
 """
+
 from __future__ import annotations
 
 import re
@@ -42,8 +43,9 @@ def test_only_the_approved_keys_are_env_override():
     from m3_core.config import REGISTRY, Key, Registry, parse_bool
 
     assert [k.name for k in REGISTRY if k.env_override] == ["db.backend"]
-    rogue = Key[bool](name="log.debug", parse=parse_bool, default=False, doc="x",
-                      env_names=("M3_X",), env_override=True)
+    rogue = Key[bool](
+        name="log.debug", parse=parse_bool, default=False, doc="x", env_names=("M3_X",), env_override=True
+    )
     with pytest.raises(ValueError, match="U9"):
         Registry([*REGISTRY, rogue])
 
@@ -54,8 +56,7 @@ def test_bootstrap_secrets_are_the_design_set():
 
     boot = {k.name for k in REGISTRY if k.bootstrap}
     assert boot == {"M3_PRIMARY_PG_URL", "AGENT_OS_MASTER_KEY", "M3_AGENT_OS_SALT_HEX"}
-    assert all(k.klass is KeyClass.SECRET and k.default is None
-               for k in REGISTRY if k.klass is KeyClass.SECRET)
+    assert all(k.klass is KeyClass.SECRET and k.default is None for k in REGISTRY if k.klass is KeyClass.SECRET)
 
 
 def test_db_backend_set_is_the_selectors():
@@ -111,8 +112,7 @@ def test_absent_file_is_not_an_error(tmp_path):
 
 
 def test_a_valid_file_loads_typed_values(tmp_path):
-    got = _load(_write(tmp_path, 'schema_version = 1\n[db]\nbackend = "postgres"\n'
-                                 '[secrets]\nfile = "~/s.toml"\n'))
+    got = _load(_write(tmp_path, 'schema_version = 1\n[db]\nbackend = "postgres"\n[secrets]\nfile = "~/s.toml"\n'))
     assert got.values["db.backend"] == "postgres"
     assert got.values["secrets.file"] == Path("~/s.toml").expanduser()
     assert got.identity is not None and len(got.identity.sha256) == 64
@@ -121,16 +121,21 @@ def test_a_valid_file_loads_typed_values(tmp_path):
 def test_every_problem_is_reported_at_once_with_file_key_and_line(tmp_path):
     from m3_core.config import ConfigFileError, format_config_error
 
-    p = _write(tmp_path, "\n".join([
-        "schema_version = 1",
-        "[db]",
-        'backend = "postgre"',          # line 3: invalid value
-        'bakend = "sqlite"',            # line 4: unknown, did-you-mean
-        "[secrets]",
-        "file = 7",                     # line 6: wrong type
-        'M3_PRIMARY_PG_URL = "postgresql://u:hunter2@h/db"',  # line 7: a secret in the file
-        "",
-    ]))
+    p = _write(
+        tmp_path,
+        "\n".join(
+            [
+                "schema_version = 1",
+                "[db]",
+                'backend = "postgre"',  # line 3: invalid value
+                'bakend = "sqlite"',  # line 4: unknown, did-you-mean
+                "[secrets]",
+                "file = 7",  # line 6: wrong type
+                'M3_PRIMARY_PG_URL = "postgresql://u:hunter2@h/db"',  # line 7: a secret in the file
+                "",
+            ]
+        ),
+    )
     with pytest.raises(ConfigFileError) as exc:
         _load(p)
     text = format_config_error(exc.value)

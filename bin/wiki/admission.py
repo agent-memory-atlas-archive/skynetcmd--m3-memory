@@ -36,6 +36,7 @@ clusters) and bring the 0.55 default to 0-low-anchor parity with 0.6. The rule
 generalizes across all three thresholds — evidence it is a real structural signal,
 not an overfit to one page.
 """
+
 from __future__ import annotations
 
 import json
@@ -70,6 +71,7 @@ class AdmissionGate:
     Set `enabled=False` to render every multi-member cluster (the pre-gate
     behaviour) — useful for auditing what the gate would drop.
     """
+
     min_provenance: float = 0.5
     min_backbone_ratio: float = 0.6
     min_kas: float = 0.5
@@ -102,9 +104,9 @@ class AdmissionGate:
         if not self.enabled or len(cluster.members) < 2:
             return True
         s = structural_signals(cluster, edges)
-        return (s.kas >= self.min_kas
-                or s.backbone_ratio >= self.min_backbone_ratio
-                or s.provenance >= self.min_provenance)
+        return (
+            s.kas >= self.min_kas or s.backbone_ratio >= self.min_backbone_ratio or s.provenance >= self.min_provenance
+        )
 
 
 _DEFAULT_GATE = AdmissionGate()
@@ -115,9 +117,10 @@ class StructuralSignals:
     """The gate's state-independent view of a cluster. Every field derives ONLY
     from user-authored member↔member edges — no compile-produced `consolidates`,
     no synthesis members — so it is identical across compiles."""
-    provenance: float       # share of real member-member edges that are authored lineage
-    backbone_ratio: float   # real vs (real + co-mention) member-member edges
-    kas: float              # structural KAS: weighted sum of the above + backbone
+
+    provenance: float  # share of real member-member edges that are authored lineage
+    backbone_ratio: float  # real vs (real + co-mention) member-member edges
+    kas: float  # structural KAS: weighted sum of the above + backbone
     load_bearing: int
     comention: int
 
@@ -137,6 +140,7 @@ def structural_signals(cluster, edges, weights=None) -> StructuralSignals:
     so the gate and the report speak the same units."""
     from . import anchor as _anchor
     from .select import EDGE_WEIGHTS
+
     ew = weights or EDGE_WEIGHTS
     kw = _anchor.KASWeights()
 
@@ -172,8 +176,12 @@ def structural_signals(cluster, edges, weights=None) -> StructuralSignals:
     }
     kas = _anchor.weighted_score(factors, kw.as_weights())
     return StructuralSignals(
-        provenance=factors["provenance"], backbone_ratio=factors["backbone_ratio"],
-        kas=round(kas, 4), load_bearing=load_bearing, comention=comention)
+        provenance=factors["provenance"],
+        backbone_ratio=factors["backbone_ratio"],
+        kas=round(kas, 4),
+        load_bearing=load_bearing,
+        comention=comention,
+    )
 
 
 _CONFIG_BASENAME = ".wiki_admission.json"
@@ -236,13 +244,11 @@ def _warn_once(path: str, why: str) -> None:
         return
     _WARNED.add(path)
     import logging
-    logging.getLogger("m3.wiki").warning(
-        "wiki admission config %s: %s — using default %r", path, why, _DEFAULT_GATE
-    )
+
+    logging.getLogger("m3.wiki").warning("wiki admission config %s: %s — using default %r", path, why, _DEFAULT_GATE)
 
 
-def partition(clusters, edges, gate: AdmissionGate | None = None
-              ) -> tuple[list, list]:
+def partition(clusters, edges, gate: AdmissionGate | None = None) -> tuple[list, list]:
     """Split clusters into (admitted, demoted) by the gate. Singletons and
     structurally-anchored clusters land in `admitted`; weakly-anchored multi-member
     clusters in `demoted` (they render as an orphan list, not a synthesis)."""

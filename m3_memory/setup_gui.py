@@ -20,6 +20,7 @@ Design constraints (DESIGN_PHILOSOPHIES):
   - subprocess isolation: a GUI crash cannot corrupt a half-run install; the child
     `m3 setup --non-interactive` owns the actual work and writes its own output.
 """
+
 from __future__ import annotations
 
 import queue
@@ -52,14 +53,15 @@ def gui_available() -> tuple[bool, str]:
 @dataclass(slots=True)
 class _Field:
     """One form control bound to a setup flag."""
-    key: str          # internal id
-    label: str        # shown to the user
-    kind: str         # 'check' | 'entry' | 'choice'
-    default: object   # default value
-    flag: str         # the `m3 setup` flag this maps to
-    flag_kind: str    # 'bool' (presence) | 'value' (flag + value) | 'choice'
+
+    key: str  # internal id
+    label: str  # shown to the user
+    kind: str  # 'check' | 'entry' | 'choice'
+    default: object  # default value
+    flag: str  # the `m3 setup` flag this maps to
+    flag_kind: str  # 'bool' (presence) | 'value' (flag + value) | 'choice'
     choices: tuple = ()  # for kind == 'choice'
-    help: str = ""    # tooltip / inline help
+    help: str = ""  # tooltip / inline help
 
 
 def _m3_command() -> list[str]:
@@ -88,9 +90,11 @@ def _build_flags(values: dict) -> list[str]:
     flags: list[str] = ["--non-interactive", "--gui-child"]
 
     # Agents: comma-separated; omit to let the child wire all detected agents.
-    agents = [a for a in ("claude", "gemini", "antigravity", "opencode",
-                          "cursor", "cline", "openclaw")
-              if values.get(f"agent_{a}")]
+    agents = [
+        a
+        for a in ("claude", "gemini", "antigravity", "opencode", "cursor", "cline", "openclaw")
+        if values.get(f"agent_{a}")
+    ]
     if agents:
         flags += ["--agents", ",".join(agents)]
 
@@ -162,40 +166,40 @@ _WOLF_FAIL = "wolfSSL build failed"
 # Keyed by the state id. Module-level so the copy is easy to review + testable.
 _TOOLTIPS = {
     "capture_mode": "How much Claude-Code chat is captured to memory. 'both' "
-                    "(Stop + PreCompact) is the most complete and recommended; "
-                    "'none' disables chat capture.",
+    "(Stop + PreCompact) is the most complete and recommended; "
+    "'none' disables chat capture.",
     "no_native_wheel": "Skip the fast in-process Rust embedder and use the "
-                       "pure-Python path. m3 still works but embeds are slower. "
-                       "Leave unchecked unless the native wheel won't install.",
+    "pure-Python path. m3 still works but embeds are slower. "
+    "Leave unchecked unless the native wheel won't install.",
     "allow_native_source_build": "If no prebuilt native wheel matches this "
-                                 "platform/Python, compile it from source. Needs "
-                                 "Rust + a C++ toolchain and takes several minutes.",
+    "platform/Python, compile it from source. Needs "
+    "Rust + a C++ toolchain and takes several minutes.",
     "cognitive_loop": "Run a background worker that periodically consolidates and "
-                      "enriches memory. Useful, but uses some CPU/LLM time when idle.",
+    "enriches memory. Useful, but uses some CPU/LLM time when idle.",
     "install_dashboard": "Install the local web dashboard (fastapi + uvicorn) and "
-                         "start it on boot as a windowless background service on "
-                         "http://127.0.0.1:8088 — browse memory, explore the knowledge "
-                         "graph, watch system health. Loopback-only (not authenticated).",
+    "start it on boot as a windowless background service on "
+    "http://127.0.0.1:8088 — browse memory, explore the knowledge "
+    "graph, watch system health. Loopback-only (not authenticated).",
     "decouple_roots": "Store config and databases in separate roots "
-                      "(~/.m3/config, ~/.m3/engine) instead of one combined dir. "
-                      "Recommended: lets you secure/back-up the engine independently.",
+    "(~/.m3/config, ~/.m3/engine) instead of one combined dir. "
+    "Recommended: lets you secure/back-up the engine independently.",
     "fips_mode": "Route crypto through hardened wolfCrypt (fail-closed, KAT-checked). "
-                 "Requires the wolfSSL library present — tick 'build wolfSSL' below, "
-                 "or FIPS is left disabled to avoid a fail-closed crash.",
+    "Requires the wolfSSL library present — tick 'build wolfSSL' below, "
+    "or FIPS is left disabled to avoid a fail-closed crash.",
     "fips_strict": "Additionally require the CMVP-validated wolfCrypt FIPS module "
-                   "(commercial wolfSSL). Implies FIPS mode. Only enable if you "
-                   "have the validated module.",
+    "(commercial wolfSSL). Implies FIPS mode. Only enable if you "
+    "have the validated module.",
     "install_wolfssl": "Build + install the open-source wolfSSL from official "
-                       "source during setup (license-clean, no binary shipped). "
-                       "Auto-selected when FIPS is enabled, since FIPS needs it.",
+    "source during setup (license-clean, no binary shipped). "
+    "Auto-selected when FIPS is enabled, since FIPS needs it.",
     "force_kill_mcp": "Terminate a running mcp-memory.exe before installing. Needed "
-                      "on Windows to overwrite a locked binary during an upgrade — "
-                      "it will stop a live m3 MCP server when setup runs.",
+    "on Windows to overwrite a locked binary during an upgrade — "
+    "it will stop a live m3 MCP server when setup runs.",
     "no_governor_migration": "Keep legacy scheduled tasks as-is instead of letting "
-                             "the Adaptive Background Workload Governor take them "
-                             "over. Leave unchecked to use the governor (recommended).",
+    "the Adaptive Background Workload Governor take them "
+    "over. Leave unchecked to use the governor (recommended).",
     "clean_cache": "Delete __pycache__ directories before installing. Harmless "
-                   "housekeeping that avoids stale-bytecode surprises after upgrade.",
+    "housekeeping that avoids stale-bytecode surprises after upgrade.",
 }
 
 
@@ -208,17 +212,21 @@ def _apply_platform_tooltips() -> None:
     Runs at import; a no-op on platforms without a specific note."""
     if is_macos():
         apple_silicon = is_apple_silicon()
-        accel = ("Metal on Apple Silicon (~10–50× faster embeds than the "
-                 "pure-Python path)" if apple_silicon
-                 else "CPU only — Intel Macs have no Metal wheel")
+        accel = (
+            "Metal on Apple Silicon (~10–50× faster embeds than the pure-Python path)"
+            if apple_silicon
+            else "CPU only — Intel Macs have no Metal wheel"
+        )
         _TOOLTIPS["no_native_wheel"] = (
             "Skip the fast in-process Rust embedder and use the pure-Python "
             f"path. On this Mac the native wheel runs on {accel}. Leave "
-            "unchecked unless the native wheel won't install.")
+            "unchecked unless the native wheel won't install."
+        )
         _TOOLTIPS["allow_native_source_build"] = (
             "If no prebuilt native wheel matches this macOS + Python, compile "
             "it from source. Needs the Xcode Command Line Tools "
-            "(xcode-select --install) plus cmake; takes several minutes.")
+            "(xcode-select --install) plus cmake; takes several minutes."
+        )
 
 
 _apply_platform_tooltips()
@@ -227,9 +235,16 @@ _apply_platform_tooltips()
 # emoji forms come from --brief; the bracket forms from installer.doctor / the
 # full output. Checked longest-first so "❌" isn't shadowed, etc.
 _DOCTOR_STATUS_TOKENS = (
-    ("✅", "ok"), ("[OK]", "ok"),
-    ("⚠️", "warn"), ("⚠", "warn"), ("[WARN]", "warn"), ("NAG", "warn"),
-    ("❌", "fail"), ("[FAIL]", "fail"), ("[ERROR]", "fail"), ("[X]", "fail"),
+    ("✅", "ok"),
+    ("[OK]", "ok"),
+    ("⚠️", "warn"),
+    ("⚠", "warn"),
+    ("[WARN]", "warn"),
+    ("NAG", "warn"),
+    ("❌", "fail"),
+    ("[FAIL]", "fail"),
+    ("[ERROR]", "fail"),
+    ("[X]", "fail"),
 )
 
 
@@ -242,7 +257,7 @@ def _doctor_line_status(line: str) -> tuple[str, str] | None:
     indent = line[: len(line) - len(stripped)]
     for token, tag in _DOCTOR_STATUS_TOKENS:
         if stripped.startswith(token):
-            rest = stripped[len(token):].lstrip()
+            rest = stripped[len(token) :].lstrip()
             return tag, indent + rest
     return None
 
@@ -281,9 +296,17 @@ def run_gui() -> int:
             tw = tk.Toplevel(widget)
             tw.wm_overrideredirect(True)  # no border/title
             tw.wm_geometry(f"+{widget.winfo_rootx() + 16}+{widget.winfo_rooty() + 20}")
-            tk.Label(tw, text=text, justify="left", wraplength=360,
-                     background="#ffffe0", relief="solid", borderwidth=1,
-                     padx=6, pady=4).pack()
+            tk.Label(
+                tw,
+                text=text,
+                justify="left",
+                wraplength=360,
+                background="#ffffe0",
+                relief="solid",
+                borderwidth=1,
+                padx=6,
+                pady=4,
+            ).pack()
             tip["win"] = tw
 
         def _hide(_e=None) -> None:
@@ -299,8 +322,7 @@ def run_gui() -> int:
         text = _TOOLTIPS.get(key)
         if not text:
             return
-        lbl = ttk.Label(parent, text=" ⓘ", foreground="#1a6fb5",
-                        cursor="question_arrow")
+        lbl = ttk.Label(parent, text=" ⓘ", foreground="#1a6fb5", cursor="question_arrow")
         lbl.pack(side="left")
         _attach_tip(lbl, text)
 
@@ -315,6 +337,7 @@ def run_gui() -> int:
     # terminal wizard pre-ticks detected agents.
     try:
         from m3_memory.setup_wizard import _detect_agents
+
         detected = _detect_agents()
     except Exception:
         detected = None
@@ -340,6 +363,7 @@ def run_gui() -> int:
         if running["v"]:
             return  # no-op during the run
         root.destroy()
+
     root.protocol("WM_DELETE_WINDOW", _root_close)
 
     main = ttk.Frame(root, padding=12)
@@ -348,10 +372,11 @@ def run_gui() -> int:
     ttk.Label(
         main,
         text="Configure m3-memory — the same questions the terminal wizard asks, "
-             "with recommended defaults already selected. Adjust anything you like, "
-             "then click “Accept and run setup” to apply (runs "
-             "`m3 setup --non-interactive`).",
-        wraplength=860, justify="left",
+        "with recommended defaults already selected. Adjust anything you like, "
+        "then click “Accept and run setup” to apply (runs "
+        "`m3 setup --non-interactive`).",
+        wraplength=860,
+        justify="left",
     ).pack(anchor="w", pady=(0, 8))
 
     # ── Action bar, pinned to the bottom of the CONFIG window ──────────────────
@@ -379,10 +404,15 @@ def run_gui() -> int:
     # ── Agents (left) ─────────────────────────────────────────────────────────
     agents_box = ttk.LabelFrame(left, text="Agents to wire (detected are pre-checked)", padding=8)
     agents_box.pack(fill="x", pady=4)
-    for name, label in (("claude", "Claude Code"), ("gemini", "Gemini CLI"),
-                        ("antigravity", "Antigravity"), ("opencode", "OpenCode"),
-                        ("cursor", "Cursor"), ("cline", "Cline"),
-                        ("openclaw", "OpenClaw")):
+    for name, label in (
+        ("claude", "Claude Code"),
+        ("gemini", "Gemini CLI"),
+        ("antigravity", "Antigravity"),
+        ("opencode", "OpenCode"),
+        ("cursor", "Cursor"),
+        ("cline", "Cline"),
+        ("openclaw", "OpenClaw"),
+    ):
         var = tk.BooleanVar(value=_det(name))
         state[f"agent_{name}"] = var
         ttk.Checkbutton(agents_box, text=label, variable=var).pack(anchor="w")
@@ -392,65 +422,85 @@ def run_gui() -> int:
     cap_box.pack(fill="x", pady=4)
     cap_var = tk.StringVar(value="both")  # default: recommended, pre-selected
     state["capture_mode"] = cap_var
-    for val, desc in (("both", "both (Stop + PreCompact) — recommended"),
-                      ("stop", "stop only"), ("precompact", "precompact only"),
-                      ("none", "none")):
+    for val, desc in (
+        ("both", "both (Stop + PreCompact) — recommended"),
+        ("stop", "stop only"),
+        ("precompact", "precompact only"),
+        ("none", "none"),
+    ):
         ttk.Radiobutton(cap_box, text=desc, value=val, variable=cap_var).pack(anchor="w")
 
     # ── Embedder (left) ───────────────────────────────────────────────────────
-    emb_title = ("Embedder (native Metal wheel ON by default)"
-                 if is_apple_silicon()
-                 else "Embedder (native wheel ON by default)")
+    emb_title = (
+        "Embedder (native Metal wheel ON by default)" if is_apple_silicon() else "Embedder (native wheel ON by default)"
+    )
     emb_box = ttk.LabelFrame(left, text=emb_title, padding=8)
     emb_box.pack(fill="x", pady=4)
     state["no_native_wheel"] = tk.BooleanVar(value=False)  # default: keep native wheel
-    _check_with_info(emb_box, "Skip native wheel (pure-Python embed path; slower)",
-                     "no_native_wheel", state["no_native_wheel"])
+    _check_with_info(
+        emb_box, "Skip native wheel (pure-Python embed path; slower)", "no_native_wheel", state["no_native_wheel"]
+    )
     state["allow_native_source_build"] = tk.BooleanVar(value=False)
-    _check_with_info(emb_box, "Allow native source build if no prebuilt wheel matches",
-                     "allow_native_source_build", state["allow_native_source_build"])
+    _check_with_info(
+        emb_box,
+        "Allow native source build if no prebuilt wheel matches",
+        "allow_native_source_build",
+        state["allow_native_source_build"],
+    )
 
     # ── Misc (left) ── recommended defaults pre-selected ───────────────────────
     misc_box = ttk.LabelFrame(left, text="Other (recommended defaults pre-selected)", padding=8)
     misc_box.pack(fill="x", pady=4)
-    ep_row = ttk.Frame(misc_box); ep_row.pack(fill="x", pady=2)
+    ep_row = ttk.Frame(misc_box)
+    ep_row.pack(fill="x", pady=2)
     ttk.Label(ep_row, text="LLM endpoint:", width=12).pack(side="left")
     state["endpoint"] = tk.StringVar(value="")
     ttk.Entry(ep_row, textvariable=state["endpoint"]).pack(side="left", fill="x", expand=True)
     state["cognitive_loop"] = tk.BooleanVar(value=True)  # default ON
-    _check_with_info(misc_box, "Enable background cognitive loop",
-                     "cognitive_loop", state["cognitive_loop"])
+    _check_with_info(misc_box, "Enable background cognitive loop", "cognitive_loop", state["cognitive_loop"])
     state["install_dashboard"] = tk.BooleanVar(value=True)  # default ON
-    _check_with_info(misc_box, "Install the web dashboard (auto-start on boot)",
-                     "install_dashboard", state["install_dashboard"])
-    dash_row = ttk.Frame(misc_box); dash_row.pack(fill="x", pady=2)
+    _check_with_info(
+        misc_box, "Install the web dashboard (auto-start on boot)", "install_dashboard", state["install_dashboard"]
+    )
+    dash_row = ttk.Frame(misc_box)
+    dash_row.pack(fill="x", pady=2)
     ttk.Label(dash_row, text="Dashboard port:", width=16).pack(side="left")
     state["dashboard_port"] = tk.StringVar(value="8088")
     ttk.Entry(dash_row, textvariable=state["dashboard_port"], width=8).pack(side="left")
     state["no_governor_migration"] = tk.BooleanVar(value=False)  # default: DO migrate
-    _check_with_info(misc_box, "Do NOT migrate legacy scheduled tasks to the governor",
-                     "no_governor_migration", state["no_governor_migration"])
+    _check_with_info(
+        misc_box,
+        "Do NOT migrate legacy scheduled tasks to the governor",
+        "no_governor_migration",
+        state["no_governor_migration"],
+    )
     if is_windows():
         state["force_kill_mcp"] = tk.BooleanVar(value=True)  # default ON
-        _check_with_info(misc_box, "Force-kill a running mcp-memory.exe before install",
-                         "force_kill_mcp", state["force_kill_mcp"])
+        _check_with_info(
+            misc_box, "Force-kill a running mcp-memory.exe before install", "force_kill_mcp", state["force_kill_mcp"]
+        )
     state["clean_cache"] = tk.BooleanVar(value=True)  # default ON
-    _check_with_info(misc_box, "Wipe __pycache__ before install",
-                     "clean_cache", state["clean_cache"])
+    _check_with_info(misc_box, "Wipe __pycache__ before install", "clean_cache", state["clean_cache"])
 
     # ── Decoupled roots (right) — default ON ──────────────────────────────────
     roots_box = ttk.LabelFrame(right, text="Decoupled roots (recommended)", padding=8)
     roots_box.pack(fill="x", pady=4)
     state["decouple_roots"] = tk.BooleanVar(value=True)  # default ON
-    _check_with_info(roots_box, "Use decoupled config + engine roots (~/.m3/config, ~/.m3/engine)",
-                     "decouple_roots", state["decouple_roots"])
+    _check_with_info(
+        roots_box,
+        "Use decoupled config + engine roots (~/.m3/config, ~/.m3/engine)",
+        "decouple_roots",
+        state["decouple_roots"],
+    )
     # Pre-fill the default roots so the user sees where things land (and can edit).
     _home = os.path.expanduser("~")
-    cr_row = ttk.Frame(roots_box); cr_row.pack(fill="x", pady=2)
+    cr_row = ttk.Frame(roots_box)
+    cr_row.pack(fill="x", pady=2)
     ttk.Label(cr_row, text="config root:", width=12).pack(side="left")
     state["config_root"] = tk.StringVar(value=os.path.join(_home, ".m3", "config"))
     ttk.Entry(cr_row, textvariable=state["config_root"]).pack(side="left", fill="x", expand=True)
-    er_row = ttk.Frame(roots_box); er_row.pack(fill="x", pady=2)
+    er_row = ttk.Frame(roots_box)
+    er_row.pack(fill="x", pady=2)
     ttk.Label(er_row, text="engine root:", width=12).pack(side="left")
     state["engine_root"] = tk.StringVar(value=os.path.join(_home, ".m3", "engine"))
     ttk.Entry(er_row, textvariable=state["engine_root"]).pack(side="left", fill="x", expand=True)
@@ -459,14 +509,18 @@ def run_gui() -> int:
     fips_box = ttk.LabelFrame(right, text="FIPS / crypto (off by default)", padding=8)
     fips_box.pack(fill="x", pady=4)
     state["fips_mode"] = tk.BooleanVar(value=False)
-    _check_with_info(fips_box, "Enable FIPS mode (hardened wolfCrypt, fail-closed)",
-                     "fips_mode", state["fips_mode"])
+    _check_with_info(fips_box, "Enable FIPS mode (hardened wolfCrypt, fail-closed)", "fips_mode", state["fips_mode"])
     state["fips_strict"] = tk.BooleanVar(value=False)
-    _check_with_info(fips_box, "Strict FIPS (requires CMVP-validated commercial wolfSSL)",
-                     "fips_strict", state["fips_strict"])
+    _check_with_info(
+        fips_box, "Strict FIPS (requires CMVP-validated commercial wolfSSL)", "fips_strict", state["fips_strict"]
+    )
     state["install_wolfssl"] = tk.BooleanVar(value=False)
-    _check_with_info(fips_box, "Build + install open-source wolfSSL during setup "
-                     "(needed for FIPS)", "install_wolfssl", state["install_wolfssl"])
+    _check_with_info(
+        fips_box,
+        "Build + install open-source wolfSSL during setup (needed for FIPS)",
+        "install_wolfssl",
+        state["install_wolfssl"],
+    )
 
     # FIPS can't work without wolfSSL present, so auto-tick the build whenever
     # FIPS (mode or strict) is enabled. The user can still untick it deliberately;
@@ -474,6 +528,7 @@ def run_gui() -> int:
     def _auto_select_wolfssl(*_a) -> None:
         if state["fips_mode"].get() or state["fips_strict"].get():
             state["install_wolfssl"].set(True)
+
     state["fips_mode"].trace_add("write", _auto_select_wolfssl)
     state["fips_strict"].trace_add("write", _auto_select_wolfssl)
 
@@ -520,23 +575,35 @@ def run_gui() -> int:
         w = tk.Toplevel(root)
         w.title("m3-memory — building wolfSSL")
         w.geometry("820x480")
-        ttk.Label(w, text="Building the open-source wolfSSL crypto library from "
-                  "source. This shows the install's progress; it closes itself "
-                  "when the build ends. (Full compiler output, incl. warnings, "
-                  "is saved to ~/.m3/logs/wolfssl-build.log.)",
-                  wraplength=780, justify="left", padding=8).pack(anchor="w")
+        ttk.Label(
+            w,
+            text="Building the open-source wolfSSL crypto library from "
+            "source. This shows the install's progress; it closes itself "
+            "when the build ends. (Full compiler output, incl. warnings, "
+            "is saved to ~/.m3/logs/wolfssl-build.log.)",
+            wraplength=780,
+            justify="left",
+            padding=8,
+        ).pack(anchor="w")
         txt = scrolledtext.ScrolledText(w, height=20, wrap="word", state="disabled")
         txt.pack(fill="both", expand=True, padx=8, pady=(0, 4))
         # Persistent status line BELOW the scroll area — it never scrolls away,
         # so the "output appears in 10–15s" hint stays visible until real build
         # output arrives (then _wolf_append clears it). This was the fix for the
         # hint getting buried at the top of the scroll buffer.
-        wait_lbl = ttk.Label(w, textvariable=wolf_wait_var, foreground="#1a6fb5",
-                             font=("TkDefaultFont", 12, "bold"), padding=(10, 2, 10, 10))
+        wait_lbl = ttk.Label(
+            w,
+            textvariable=wolf_wait_var,
+            foreground="#1a6fb5",
+            font=("TkDefaultFont", 12, "bold"),
+            padding=(10, 2, 10, 10),
+        )
         wait_lbl.pack(anchor="w")
-        wolf_wait_var.set("⏳ Building wolfSSL — first output appears in ~10–15s, "
-                          "full compile takes 1–2 min. This window closes itself "
-                          "when done.")
+        wolf_wait_var.set(
+            "⏳ Building wolfSSL — first output appears in ~10–15s, "
+            "full compile takes 1–2 min. This window closes itself "
+            "when done."
+        )
         # Can't be closed during the build (it auto-closes via _close_wolf_window
         # when the build ends); prevents abandoning a build mid-flight.
         w.protocol("WM_DELETE_WINDOW", lambda: None)
@@ -578,8 +645,13 @@ def run_gui() -> int:
     def _worker(cmd: list[str]) -> None:
         try:
             proc = subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                text=True, encoding="utf-8", errors="replace", bufsize=1,
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                bufsize=1,
             )
             stream = proc.stdout
             if stream is not None:
@@ -603,11 +675,19 @@ def run_gui() -> int:
         status_var.set(msg)
 
     def _build_summary(rc: int, values: dict) -> str:
-        agents = [lbl for key, lbl in (
-            ("agent_claude", "Claude Code"), ("agent_gemini", "Gemini CLI"),
-            ("agent_antigravity", "Antigravity"), ("agent_opencode", "OpenCode"),
-            ("agent_cursor", "Cursor"), ("agent_cline", "Cline"),
-            ("agent_openclaw", "OpenClaw")) if values.get(key)]
+        agents = [
+            lbl
+            for key, lbl in (
+                ("agent_claude", "Claude Code"),
+                ("agent_gemini", "Gemini CLI"),
+                ("agent_antigravity", "Antigravity"),
+                ("agent_opencode", "OpenCode"),
+                ("agent_cursor", "Cursor"),
+                ("agent_cline", "Cline"),
+                ("agent_openclaw", "OpenClaw"),
+            )
+            if values.get(key)
+        ]
         lines = ["", "──────── Setup summary ────────"]
         # Agents can be a long list; print one per continuation line with a
         # hanging indent aligned under the value column so it doesn't wrap raggedly.
@@ -660,6 +740,7 @@ def run_gui() -> int:
 
         def _work(full: bool) -> None:
             import tempfile
+
             try:
                 # Brief is `m3 doctor`'s default now; --verbose gets full detail.
                 argv = [*m3, "doctor"] + (["--verbose"] if full else [])
@@ -674,14 +755,23 @@ def run_gui() -> int:
                 #                 (the user opens the file to see the detail).
                 # No stderr content is ever dumped into the pretty window.
                 proc = subprocess.run(
-                    argv, capture_output=True,
-                    text=True, encoding="utf-8", errors="replace", timeout=180,
+                    argv,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=180,
                 )
                 out = proc.stdout or "(no output)"
                 stderr = proc.stderr or ""
                 tf = tempfile.NamedTemporaryFile(  # noqa: SIM115 — closed below; kept on failure for the user to open
-                    prefix="m3-doctor-stderr-", suffix=".log", delete=False,
-                    mode="w", encoding="utf-8", errors="replace")
+                    prefix="m3-doctor-stderr-",
+                    suffix=".log",
+                    delete=False,
+                    mode="w",
+                    encoding="utf-8",
+                    errors="replace",
+                )
                 tf.write(stderr)
                 tf.close()
                 if proc.returncode == 0:
@@ -690,9 +780,11 @@ def run_gui() -> int:
                     except OSError:
                         pass
                 else:
-                    out += (f"\n\n❌ m3 doctor exited {proc.returncode}. "
-                            f"Full diagnostic output (incl. model-load logs) "
-                            f"saved to:\n{tf.name}")
+                    out += (
+                        f"\n\n❌ m3 doctor exited {proc.returncode}. "
+                        f"Full diagnostic output (incl. model-load logs) "
+                        f"saved to:\n{tf.name}"
+                    )
                 dq.put(out)
             except Exception as e:
                 dq.put(f"[gui] could not run m3 doctor: {type(e).__name__}: {e}")
@@ -707,17 +799,16 @@ def run_gui() -> int:
             dw = tk.Toplevel(root)
             dw.title("m3 doctor — system health")
             dw.geometry("720x480")
-            ttk.Label(dw, padding=10, text="m3 doctor — key results "
-                      "(toggle below for full detail):").pack(anchor="w")
+            ttk.Label(dw, padding=10, text="m3 doctor — key results (toggle below for full detail):").pack(anchor="w")
             t = scrolledtext.ScrolledText(dw, wrap="word", state="normal")
             t.pack(fill="both", expand=True, padx=10, pady=(0, 8))
             # Colored-dot tags. Tk renders EMOJI (✅⚠️❌) as flat black in a text
             # widget, so we don't rely on them for color — instead we prepend a
             # plain "●" and color JUST that char via a foreground tag, which Tk
             # honors regardless of the OS emoji font.
-            t.tag_configure("ok", foreground="#1a9e46")     # green
-            t.tag_configure("warn", foreground="#d98a00")   # amber
-            t.tag_configure("fail", foreground="#cc2b2b")   # red
+            t.tag_configure("ok", foreground="#1a9e46")  # green
+            t.tag_configure("warn", foreground="#d98a00")  # amber
+            t.tag_configure("fail", foreground="#cc2b2b")  # red
             _render_doctor(t, out)
             t.configure(state="disabled")
 
@@ -726,23 +817,30 @@ def run_gui() -> int:
             def _toggle() -> None:
                 showing_full["v"] = not showing_full["v"]
                 toggle_btn.configure(state="disabled", text="Running…")
-                t.configure(state="normal"); t.delete("1.0", "end")
-                t.insert("end", "Running m3 doctor…"); t.configure(state="disabled")
+                t.configure(state="normal")
+                t.delete("1.0", "end")
+                t.insert("end", "Running m3 doctor…")
+                t.configure(state="disabled")
 
                 def _re_poll() -> None:
                     try:
                         newout = dq.get_nowait()
                     except queue.Empty:
-                        root.after(150, _re_poll); return
-                    t.configure(state="normal"); t.delete("1.0", "end")
-                    _render_doctor(t, newout); t.configure(state="disabled")
+                        root.after(150, _re_poll)
+                        return
+                    t.configure(state="normal")
+                    t.delete("1.0", "end")
+                    _render_doctor(t, newout)
+                    t.configure(state="disabled")
                     toggle_btn.configure(
-                        state="normal",
-                        text="Show key results" if showing_full["v"] else "Show full output")
+                        state="normal", text="Show key results" if showing_full["v"] else "Show full output"
+                    )
+
                 threading.Thread(target=_work, args=(showing_full["v"],), daemon=True).start()
                 root.after(150, _re_poll)
 
-            bar2 = ttk.Frame(dw, padding=(10, 0, 10, 10)); bar2.pack(fill="x")
+            bar2 = ttk.Frame(dw, padding=(10, 0, 10, 10))
+            bar2.pack(fill="x")
             ttk.Button(bar2, text="Close", command=dw.destroy).pack(side="right")
             toggle_btn = ttk.Button(bar2, text="Show full output", command=_toggle)
             toggle_btn.pack(side="left")
@@ -767,11 +865,11 @@ def run_gui() -> int:
         win = tk.Toplevel(root)
         win.title("m3-memory — setup complete")
         win.geometry("560x360")
-        ok = (rc == 0)
+        ok = rc == 0
         ttk.Label(
-            win, padding=12,
-            text=("✅ Setup completed successfully." if ok
-                  else f"❌ Setup finished with errors (exit {rc})."),
+            win,
+            padding=12,
+            text=("✅ Setup completed successfully." if ok else f"❌ Setup finished with errors (exit {rc})."),
         ).pack(anchor="w")
         # wrap="none" so the aligned summary columns don't re-wrap raggedly.
         body = scrolledtext.ScrolledText(win, height=12, wrap="none", state="normal")
@@ -852,10 +950,14 @@ def run_gui() -> int:
         w = tk.Toplevel(root)
         w.title("m3-memory — running setup")
         w.geometry("820x520")
-        ttk.Label(w, padding=(10, 10, 10, 4),
-                  text="Installing… please wait. This window can't be closed until "
-                       "setup finishes; the wolfSSL build (if any) opens its own window.",
-                  wraplength=780, justify="left").pack(anchor="w")
+        ttk.Label(
+            w,
+            padding=(10, 10, 10, 4),
+            text="Installing… please wait. This window can't be closed until "
+            "setup finishes; the wolfSSL build (if any) opens its own window.",
+            wraplength=780,
+            justify="left",
+        ).pack(anchor="w")
         ttk.Label(w, textvariable=status_var, padding=(10, 0)).pack(anchor="w")
         txt = scrolledtext.ScrolledText(w, height=22, wrap="word", state="disabled")
         txt.pack(fill="both", expand=True, padx=10, pady=10)

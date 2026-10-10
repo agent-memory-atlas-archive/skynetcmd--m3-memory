@@ -8,6 +8,7 @@ Verifies:
   * 'max' strategy lets all kinds through, then dedupes by memory_id taking
     the row with the highest vector cosine.
 """
+
 from __future__ import annotations
 
 import inspect
@@ -34,12 +35,11 @@ async def test_invalid_strategy_raises(monkeypatch):
 
     async def fake_embed(_q):
         return ([0.1, 0.2, 0.3], "stub")
+
     monkeypatch.setattr(memory_core, "_embed", fake_embed)
 
     with pytest.raises(ValueError):
-        await memory_core.memory_search_scored_impl(
-            "hello", vector_kind_strategy="bogus"
-        )
+        await memory_core.memory_search_scored_impl("hello", vector_kind_strategy="bogus")
 
 
 @pytest.mark.asyncio
@@ -49,27 +49,35 @@ async def test_default_strategy_adds_vector_kind_filter(monkeypatch):
 
     async def fake_embed(_q):
         return ([1.0, 0.0, 0.0], "stub")
+
     monkeypatch.setattr(memory_core, "_embed", fake_embed)
 
     captured: list[str] = []
 
     class _FakeCur:
-        def fetchall(self): return []
-        def fetchone(self): return None
+        def fetchall(self):
+            return []
+
+        def fetchone(self):
+            return None
 
     class _FakeDB:
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
         def execute(self, sql, params=None):
             captured.append(sql)
             return _FakeCur()
-        def commit(self): pass
+
+        def commit(self):
+            pass
 
     monkeypatch.setattr(memory_core, "_db", lambda: _FakeDB())
 
-    await memory_core.memory_search_scored_impl(
-        "anything", search_mode="semantic", vector_kind_strategy="default"
-    )
+    await memory_core.memory_search_scored_impl("anything", search_mode="semantic", vector_kind_strategy="default")
     assert any("me.vector_kind = 'default'" in s for s in captured), captured
 
 
@@ -81,27 +89,35 @@ async def test_max_strategy_omits_vector_kind_filter(monkeypatch):
 
     async def fake_embed(_q):
         return ([1.0, 0.0, 0.0], "stub")
+
     monkeypatch.setattr(memory_core, "_embed", fake_embed)
 
     captured: list[str] = []
 
     class _FakeCur:
-        def fetchall(self): return []
-        def fetchone(self): return None
+        def fetchall(self):
+            return []
+
+        def fetchone(self):
+            return None
 
     class _FakeDB:
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
         def execute(self, sql, params=None):
             captured.append(sql)
             return _FakeCur()
-        def commit(self): pass
+
+        def commit(self):
+            pass
 
     monkeypatch.setattr(memory_core, "_db", lambda: _FakeDB())
 
-    await memory_core.memory_search_scored_impl(
-        "anything", search_mode="semantic", vector_kind_strategy="max"
-    )
+    await memory_core.memory_search_scored_impl("anything", search_mode="semantic", vector_kind_strategy="max")
     assert captured, "expected at least one query"
     assert not any("vector_kind" in s for s in captured), captured
 
@@ -123,6 +139,7 @@ async def test_max_strategy_dedupes_by_memory_id_taking_best_vector(monkeypatch)
 
     async def fake_embed(_q):
         return (q_vec, "stub")
+
     monkeypatch.setattr(memory_core, "_embed", fake_embed)
 
     # Orthogonal → cosine ≈ 0 ; aligned → cosine = 1
@@ -134,32 +151,59 @@ async def test_max_strategy_dedupes_by_memory_id_taking_best_vector(monkeypatch)
             return list(super().keys())
 
     rows = [
-        _Row({
-            "id": "mem1", "content": "hello world", "title": "t", "type": "message",
-            "importance": 0.0, "embedding": default_vec, "bm25_score": 0.0,
-        }),
-        _Row({
-            "id": "mem1", "content": "hello world", "title": "t", "type": "message",
-            "importance": 0.0, "embedding": enriched_vec, "bm25_score": 0.0,
-        }),
+        _Row(
+            {
+                "id": "mem1",
+                "content": "hello world",
+                "title": "t",
+                "type": "message",
+                "importance": 0.0,
+                "embedding": default_vec,
+                "bm25_score": 0.0,
+            }
+        ),
+        _Row(
+            {
+                "id": "mem1",
+                "content": "hello world",
+                "title": "t",
+                "type": "message",
+                "importance": 0.0,
+                "embedding": enriched_vec,
+                "bm25_score": 0.0,
+            }
+        ),
     ]
 
     class _FakeCur:
-        def __init__(self, rows): self._rows = rows
-        def fetchall(self): return self._rows
-        def fetchone(self): return self._rows[0] if self._rows else None
+        def __init__(self, rows):
+            self._rows = rows
+
+        def fetchall(self):
+            return self._rows
+
+        def fetchone(self):
+            return self._rows[0] if self._rows else None
 
     class _FakeDB:
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
         def execute(self, sql, params=None):
             return _FakeCur(rows)
-        def commit(self): pass
+
+        def commit(self):
+            pass
 
     monkeypatch.setattr(memory_core, "_db", lambda: _FakeDB())
 
     scored = await memory_core.memory_search_scored_impl(
-        "hello", search_mode="semantic", vector_kind_strategy="max",
+        "hello",
+        search_mode="semantic",
+        vector_kind_strategy="max",
         explain=True,
     )
     # Exactly one entry for mem1, and it should carry the aligned vector's score.

@@ -29,6 +29,7 @@ v39 baseline; this runner takes it from 40 onward. They compose: run the backend
 ``ensure_schema`` once to get the baseline, then ``migrate_pg up`` for increments —
 or call :func:`run_pending_pg_migrations` programmatically (what the backend does).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -87,8 +88,7 @@ def _connect(dsn: str):
         import psycopg2
     except ImportError as e:  # fail loud, actionable
         raise SystemExit(
-            "psycopg2 is required for the PG migration runner. "
-            "Install it: pip install 'psycopg2-binary'."
+            "psycopg2 is required for the PG migration runner. Install it: pip install 'psycopg2-binary'."
         ) from e
     return psycopg2.connect(dsn)
 
@@ -110,8 +110,7 @@ def discover_migrations(migrations_dir: str = _PG_MIGRATIONS_DIR):
         version = int(m.group(1))
         if version <= _BASELINE_VERSION:
             logger.warning(
-                f"Ignoring {fname}: version {version} <= baseline "
-                f"{_BASELINE_VERSION} (owned by pg_primary_v1.sql)."
+                f"Ignoring {fname}: version {version} <= baseline {_BASELINE_VERSION} (owned by pg_primary_v1.sql)."
             )
             continue
         name = m.group(2)
@@ -184,8 +183,7 @@ def apply_migration(conn, version: int, up_path: str) -> None:
         cur = conn.cursor()
         cur.execute(sql)
         cur.execute(
-            "INSERT INTO schema_versions (version, filename) VALUES (%s, %s) "
-            "ON CONFLICT (version) DO NOTHING",
+            "INSERT INTO schema_versions (version, filename) VALUES (%s, %s) ON CONFLICT (version) DO NOTHING",
             (version, os.path.basename(up_path)),
         )
         conn.commit()

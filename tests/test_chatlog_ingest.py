@@ -1,5 +1,3 @@
-
-
 def test_ingest_cursor_lives_under_the_engine_root_and_reads_the_old_copy(tmp_path, monkeypatch):
     """The cursor moved out of the payload (a reinstall wipes the payload). The
     first load after the move still reads the old copy so progress is kept."""

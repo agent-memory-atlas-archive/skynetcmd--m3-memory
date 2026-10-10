@@ -57,21 +57,23 @@ async def test_chatlog_perf_10k_enqueue(perf_test_env):
     import chatlog_core
 
     def _make_items():
-        return [{
-            "content": f"Message {i} with some content",
-            "role": "user" if i % 2 == 0 else "assistant",
-            "conversation_id": f"conv-{i % 100}",
-            "host_agent": "claude-code",
-            "provider": "anthropic",
-            "model_id": "claude-3-sonnet",
-            "turn_index": i,
-            "variant": "test",
-        } for i in range(10000)]
+        return [
+            {
+                "content": f"Message {i} with some content",
+                "role": "user" if i % 2 == 0 else "assistant",
+                "conversation_id": f"conv-{i % 100}",
+                "host_agent": "claude-code",
+                "provider": "anthropic",
+                "model_id": "claude-3-sonnet",
+                "turn_index": i,
+                "variant": "test",
+            }
+            for i in range(10000)
+        ]
 
     # Best-of-3: the fastest run reflects enqueue compute cost, not CI scheduling
     # noise. A real regression slows even the best run past the budget.
-    enqueue_time_ms, result = await _best_of(
-        lambda: chatlog_core.chatlog_write_bulk_impl(_make_items()))
+    enqueue_time_ms, result = await _best_of(lambda: chatlog_core.chatlog_write_bulk_impl(_make_items()))
 
     assert result["failed"] == 0
     assert len(result["written_ids"]) == 10000

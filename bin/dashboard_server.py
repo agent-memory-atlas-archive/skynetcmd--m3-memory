@@ -94,9 +94,9 @@ def _early_crash_log() -> str | None:
         try:
             import traceback
             from datetime import datetime
+
             with open(path, "a", encoding="utf-8", errors="replace") as fh:
-                fh.write(f"\n=== dashboard STARTUP FAILURE "
-                         f"{datetime.now(UTC).isoformat()} ===\n")
+                fh.write(f"\n=== dashboard STARTUP FAILURE {datetime.now(UTC).isoformat()} ===\n")
                 fh.write(f"argv: {argv}\n")
                 fh.write(f"executable: {sys.executable}\n")
                 traceback.print_exception(exc_type, exc, tb, file=fh)
@@ -117,6 +117,7 @@ def _h(s: object) -> str:
     f-string HTML template. quote=True so it is safe in an attribute context too
     (the local panel esc() omitted quotes). None -> '' so 'None' never renders."""
     return html.escape("" if s is None else str(s), quote=True)
+
 
 import uvicorn
 from fastapi import FastAPI, Form, HTTPException, Request
@@ -160,6 +161,7 @@ HOST = "127.0.0.1"
 # already express "no such data" backend-blind.
 def _active_backend():
     from memory.backends import active_backend
+
     return active_backend()
 
 
@@ -239,8 +241,10 @@ def parse_query_grammar(raw: str) -> dict:
                 includes.append(word.lstrip("+"))
     positive_text = " ".join(includes + phrases).strip()
     return {
-        "includes": includes, "excludes": excludes,
-        "phrases": phrases, "exclude_phrases": exclude_phrases,
+        "includes": includes,
+        "excludes": excludes,
+        "phrases": phrases,
+        "exclude_phrases": exclude_phrases,
         "positive_text": positive_text,
     }
 
@@ -289,10 +293,11 @@ def _logo_data_uri() -> str:
     the packaged PNG can't be found — the header still works, just needs the net.
     """
     import base64
+
     here = os.path.dirname(os.path.abspath(__file__))
     candidates = [
-        os.path.join(here, "..", "docs", "m3_logo_icon.png"),   # dev tree (bin/ -> ../docs)
-        os.path.join(here, "docs", "m3_logo_icon.png"),          # installed (m3_memory/docs)
+        os.path.join(here, "..", "docs", "m3_logo_icon.png"),  # dev tree (bin/ -> ../docs)
+        os.path.join(here, "docs", "m3_logo_icon.png"),  # installed (m3_memory/docs)
     ]
     for path in candidates:
         try:
@@ -301,8 +306,7 @@ def _logo_data_uri() -> str:
             return f"data:image/png;base64,{b64}"
         except OSError:
             continue
-    return ("https://raw.githubusercontent.com/skynetcmd/m3-memory/main/"
-            "docs/m3_logo_icon.png")
+    return "https://raw.githubusercontent.com/skynetcmd/m3-memory/main/docs/m3_logo_icon.png"
 
 
 # Bake the logo src into the header once at import (base64 has no {}/braces, so it
@@ -592,11 +596,8 @@ async def lifespan(app: FastAPI):
     print(f"Server available at http://{HOST}:{PORT}", flush=True)
     yield
 
-app = FastAPI(
-    title="M3 Cognitive Portal",
-    description="Observability and Browser Portal.",
-    lifespan=lifespan
-)
+
+app = FastAPI(title="M3 Cognitive Portal", description="Observability and Browser Portal.", lifespan=lifespan)
 
 
 # ── Authentication ────────────────────────────────────────────────────────────
@@ -774,23 +775,23 @@ app.add_middleware(DashboardAuthMiddleware)
 # --- Helpers & DB Selectors ---
 _DB_PATHS = None
 
+
 def get_db_paths() -> dict[str, str]:
     global _DB_PATHS
     if _DB_PATHS is None:
         from chatlog_config import DEFAULT_DB_PATH
         from m3_sdk import resolve_db_path
         from memory.config import FILES_DB_PATH
-        _DB_PATHS = {
-            "main": resolve_db_path(None),
-            "chatlog": DEFAULT_DB_PATH,
-            "files": FILES_DB_PATH
-        }
+
+        _DB_PATHS = {"main": resolve_db_path(None), "chatlog": DEFAULT_DB_PATH, "files": FILES_DB_PATH}
     return _DB_PATHS
+
 
 def get_active_db_path(request: Request) -> str:
     cookie_val = request.cookies.get("selected_db", "main")
     paths = get_db_paths()
     return paths.get(cookie_val, paths["main"])
+
 
 def selected_db_store(selected_db: str) -> str:
     """The memory store a `selected_db` cookie value names.
@@ -825,6 +826,7 @@ def set_active_db_env(selected_db: str) -> None:
     """
     return
 
+
 def build_db_selector_html(selected_db: str) -> str:
     paths = get_db_paths()
     sizes = {}
@@ -835,11 +837,7 @@ def build_db_selector_html(selected_db: str) -> str:
         else:
             sizes[k] = "0.0 MB"
 
-    display_names = {
-        "main": "Main DB",
-        "chatlog": "Chatlog DB",
-        "files": "Files DB"
-    }
+    display_names = {"main": "Main DB", "chatlog": "Chatlog DB", "files": "Files DB"}
 
     active_display = display_names.get(selected_db, "Main DB")
 
@@ -860,7 +858,7 @@ def build_db_selector_html(selected_db: str) -> str:
             <div class="db-menu-item {main_active}" onclick="selectDatabase('main')">
                 <div class="db-item-title-row">
                     <span class="db-item-title">Main DB</span>
-                    <span class="db-item-size">{sizes['main']}</span>
+                    <span class="db-item-size">{sizes["main"]}</span>
                 </div>
                 <div class="db-item-meta">agent_memory.db</div>
                 <div class="db-item-desc">Knowledge graph, core facts & decision records.</div>
@@ -869,7 +867,7 @@ def build_db_selector_html(selected_db: str) -> str:
             <div class="db-menu-item {chatlog_active}" onclick="selectDatabase('chatlog')">
                 <div class="db-item-title-row">
                     <span class="db-item-title">Chatlog DB</span>
-                    <span class="db-item-size">{sizes['chatlog']}</span>
+                    <span class="db-item-size">{sizes["chatlog"]}</span>
                 </div>
                 <div class="db-item-meta">agent_chatlog.db</div>
                 <div class="db-item-desc">Historical chat turns, session history, promoting cues.</div>
@@ -878,7 +876,7 @@ def build_db_selector_html(selected_db: str) -> str:
             <div class="db-menu-item {files_active}" onclick="selectDatabase('files')">
                 <div class="db-item-title-row">
                     <span class="db-item-title">Files DB</span>
-                    <span class="db-item-size">{sizes['files']}</span>
+                    <span class="db-item-size">{sizes["files"]}</span>
                 </div>
                 <div class="db-item-meta">files_database.db</div>
                 <div class="db-item-desc">Ingested files, leaf chunks, fact extractions.</div>
@@ -886,6 +884,7 @@ def build_db_selector_html(selected_db: str) -> str:
         </div>
     </div>
     """
+
 
 def parse_metadata(metadata_json) -> tuple[list, dict]:
     """Helper to extract tags and extras from a metadata_json column value.
@@ -901,6 +900,7 @@ def parse_metadata(metadata_json) -> tuple[list, dict]:
     extras = {k: v for k, v in meta.items() if k != "tags" and v}
     return tags, extras
 
+
 # --- Routes ---
 @app.get("/", response_class=HTMLResponse)
 async def get_index(request: Request):
@@ -909,9 +909,22 @@ async def get_index(request: Request):
     set_active_db_env(selected_db)
 
     db_selector_html = build_db_selector_html(selected_db)
-    header = HEADER_HTML.format(explorer_active="active", browse_active="", audit_active="", health_active="", wiki_active="", db_selector_html=db_selector_html)
-    content = INDEX_HTML.replace("{{ STYLE_CSS }}", STYLE_CSS).replace("{{ HEADER }}", header).replace("{{ db_path }}", selected_db_path)
-    return HTMLResponse(content=content, status_code=200, headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"})
+    header = HEADER_HTML.format(
+        explorer_active="active",
+        browse_active="",
+        audit_active="",
+        health_active="",
+        wiki_active="",
+        db_selector_html=db_selector_html,
+    )
+    content = (
+        INDEX_HTML.replace("{{ STYLE_CSS }}", STYLE_CSS)
+        .replace("{{ HEADER }}", header)
+        .replace("{{ db_path }}", selected_db_path)
+    )
+    return HTMLResponse(
+        content=content, status_code=200, headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"}
+    )
 
 
 @app.get("/browse", response_class=HTMLResponse)
@@ -921,9 +934,22 @@ async def get_browse(request: Request):
     set_active_db_env(selected_db)
 
     db_selector_html = build_db_selector_html(selected_db)
-    header = HEADER_HTML.format(explorer_active="", browse_active="active", audit_active="", health_active="", wiki_active="", db_selector_html=db_selector_html)
-    content = BROWSE_HTML.replace("{{ STYLE_CSS }}", STYLE_CSS).replace("{{ HEADER }}", header).replace("{{ db_path }}", selected_db_path)
-    return HTMLResponse(content=content, status_code=200, headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"})
+    header = HEADER_HTML.format(
+        explorer_active="",
+        browse_active="active",
+        audit_active="",
+        health_active="",
+        wiki_active="",
+        db_selector_html=db_selector_html,
+    )
+    content = (
+        BROWSE_HTML.replace("{{ STYLE_CSS }}", STYLE_CSS)
+        .replace("{{ HEADER }}", header)
+        .replace("{{ db_path }}", selected_db_path)
+    )
+    return HTMLResponse(
+        content=content, status_code=200, headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"}
+    )
 
 
 @app.get("/audit", response_class=HTMLResponse)
@@ -933,9 +959,22 @@ async def get_audit(request: Request):
     set_active_db_env(selected_db)
 
     db_selector_html = build_db_selector_html(selected_db)
-    header = HEADER_HTML.format(explorer_active="", browse_active="", audit_active="active", health_active="", wiki_active="", db_selector_html=db_selector_html)
-    content = AUDIT_HTML.replace("{{ STYLE_CSS }}", STYLE_CSS).replace("{{ HEADER }}", header).replace("{{ db_path }}", selected_db_path)
-    return HTMLResponse(content=content, status_code=200, headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"})
+    header = HEADER_HTML.format(
+        explorer_active="",
+        browse_active="",
+        audit_active="active",
+        health_active="",
+        wiki_active="",
+        db_selector_html=db_selector_html,
+    )
+    content = (
+        AUDIT_HTML.replace("{{ STYLE_CSS }}", STYLE_CSS)
+        .replace("{{ HEADER }}", header)
+        .replace("{{ db_path }}", selected_db_path)
+    )
+    return HTMLResponse(
+        content=content, status_code=200, headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"}
+    )
 
 
 def _wiki_html_path() -> str:
@@ -945,6 +984,7 @@ def _wiki_html_path() -> str:
     """
     try:
         from m3_core.paths import get_m3_engine_root
+
         engine_root = get_m3_engine_root()
     except Exception:
         engine_root = os.path.join(os.path.expanduser("~"), ".m3", "engine")
@@ -962,35 +1002,44 @@ async def get_wiki(request: Request):
     selected_db = request.cookies.get("selected_db", "main")
     set_active_db_env(selected_db)
     db_selector_html = build_db_selector_html(selected_db)
-    header = HEADER_HTML.format(explorer_active="", browse_active="", audit_active="",
-                                health_active="", wiki_active="active",
-                                db_selector_html=db_selector_html)
+    header = HEADER_HTML.format(
+        explorer_active="",
+        browse_active="",
+        audit_active="",
+        health_active="",
+        wiki_active="active",
+        db_selector_html=db_selector_html,
+    )
 
     if os.path.isfile(_wiki_html_path()):
         body = (
             '<div style="flex:1; display:flex; flex-direction:column; min-height:0;">'
             '<div style="padding:0.4rem 1rem; display:flex; gap:1rem; align-items:center;">'
             '<span style="color:hsl(210,15%,60%); font-size:0.85rem;">'
-            'Generated from your core memories · refresh with '
-            '<code>m3 wiki generate --html</code></span>'
+            "Generated from your core memories · refresh with "
+            "<code>m3 wiki generate --html</code></span>"
             '<a href="/wiki/obsidian" class="nav-link" style="margin-left:auto;">'
-            '📖 Using in Obsidian</a>'
+            "📖 Using in Obsidian</a>"
             '<a href="/wiki/raw" target="_blank" class="nav-link">'
-            'Open full screen ↗</a></div>'
+            "Open full screen ↗</a></div>"
             '<iframe src="/wiki/raw" title="m3 wiki" '
             'style="flex:1; width:100%; border:0; background:transparent;"></iframe>'
-            '</div>'
+            "</div>"
         )
     else:
-        body = ('<div style="padding:0.4rem 1rem; text-align:right;">'
-                '<a href="/wiki/obsidian" class="nav-link">📖 Using in Obsidian</a></div>'
-                + _wiki_install_html())
+        body = (
+            '<div style="padding:0.4rem 1rem; text-align:right;">'
+            '<a href="/wiki/obsidian" class="nav-link">📖 Using in Obsidian</a></div>' + _wiki_install_html()
+        )
 
-    content = _WIKI_PAGE_HTML.replace("{{ STYLE_CSS }}", STYLE_CSS) \
-                             .replace("{{ HEADER }}", header) \
-                             .replace("{{ BODY }}", body)
-    return HTMLResponse(content=content, status_code=200,
-                        headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"})
+    content = (
+        _WIKI_PAGE_HTML.replace("{{ STYLE_CSS }}", STYLE_CSS)
+        .replace("{{ HEADER }}", header)
+        .replace("{{ BODY }}", body)
+    )
+    return HTMLResponse(
+        content=content, status_code=200, headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"}
+    )
 
 
 @app.get("/wiki/raw", response_class=HTMLResponse)
@@ -998,10 +1047,8 @@ async def get_wiki_raw(request: Request):
     """Serve the raw self-contained wiki.html (for the iframe / full-screen)."""
     path = _wiki_html_path()
     if not os.path.isfile(path):
-        return HTMLResponse(content="wiki not generated — run `m3 wiki generate --html`",
-                            status_code=404)
-    return FileResponse(path, media_type="text/html",
-                        headers={"Cache-Control": "no-store"})
+        return HTMLResponse(content="wiki not generated — run `m3 wiki generate --html`", status_code=404)
+    return FileResponse(path, media_type="text/html", headers={"Cache-Control": "no-store"})
 
 
 @app.get("/wiki/obsidian", response_class=HTMLResponse)
@@ -1011,14 +1058,22 @@ async def get_wiki_obsidian(request: Request):
     selected_db = request.cookies.get("selected_db", "main")
     set_active_db_env(selected_db)
     db_selector_html = build_db_selector_html(selected_db)
-    header = HEADER_HTML.format(explorer_active="", browse_active="", audit_active="",
-                                health_active="", wiki_active="active",
-                                db_selector_html=db_selector_html)
-    content = _WIKI_PAGE_HTML.replace("{{ STYLE_CSS }}", STYLE_CSS) \
-                             .replace("{{ HEADER }}", header) \
-                             .replace("{{ BODY }}", _wiki_obsidian_help_html())
-    return HTMLResponse(content=content, status_code=200,
-                        headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"})
+    header = HEADER_HTML.format(
+        explorer_active="",
+        browse_active="",
+        audit_active="",
+        health_active="",
+        wiki_active="active",
+        db_selector_html=db_selector_html,
+    )
+    content = (
+        _WIKI_PAGE_HTML.replace("{{ STYLE_CSS }}", STYLE_CSS)
+        .replace("{{ HEADER }}", header)
+        .replace("{{ BODY }}", _wiki_obsidian_help_html())
+    )
+    return HTMLResponse(
+        content=content, status_code=200, headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"}
+    )
 
 
 def _wiki_obsidian_help_html() -> str:
@@ -1136,8 +1191,11 @@ async def get_graph_window(request: Request):
     """
     selected_db = request.cookies.get("selected_db", "main")
     set_active_db_env(selected_db)
-    return HTMLResponse(content=_GRAPH_WINDOW_HTML, status_code=200,
-                        headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"})
+    return HTMLResponse(
+        content=_GRAPH_WINDOW_HTML,
+        status_code=200,
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+    )
 
 
 @app.get("/api/graph/node/{node_id}", response_class=JSONResponse)
@@ -1155,6 +1213,7 @@ async def get_graph_node(node_id: str, request: Request):
     try:
         ph = _active_backend().dialect().placeholder
         from m3_sdk import active_database
+
         with active_database(selected_db_path):
             with _db() as db:
                 if table_exists(db, "entities"):
@@ -1183,18 +1242,25 @@ async def get_graph_node(node_id: str, request: Request):
                     for r in rels:
                         if r["from_entity"] == node_id:
                             out["neighbors"].append(
-                                {"dir": "→", "predicate": r["predicate"], "name": r["to_name"] or r["to_entity"]})
+                                {"dir": "→", "predicate": r["predicate"], "name": r["to_name"] or r["to_entity"]}
+                            )
                         else:
                             out["neighbors"].append(
-                                {"dir": "←", "predicate": r["predicate"], "name": r["from_name"] or r["from_entity"]})
+                                {"dir": "←", "predicate": r["predicate"], "name": r["from_name"] or r["from_entity"]}
+                            )
     except Exception as e:  # noqa: BLE001
         out["error"] = str(e)
     # Same no-store rationale as /api/graph: the payload varies by selected_db but
     # the URL is fixed, so without this the browser could serve a stale node detail
     # after a DB switch.
-    return JSONResponse(content=out, headers={
-        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-        "Pragma": "no-cache", "Expires": "0"})
+    return JSONResponse(
+        content=out,
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
 
 
 @app.get("/health", response_class=HTMLResponse)
@@ -1208,7 +1274,14 @@ async def get_health(request: Request):
     selected_db = request.cookies.get("selected_db", "main")
     set_active_db_env(selected_db)
     db_selector_html = build_db_selector_html(selected_db)
-    header = HEADER_HTML.format(explorer_active="", browse_active="", audit_active="", health_active="active", wiki_active="", db_selector_html=db_selector_html)
+    header = HEADER_HTML.format(
+        explorer_active="",
+        browse_active="",
+        audit_active="",
+        health_active="active",
+        wiki_active="",
+        db_selector_html=db_selector_html,
+    )
     # Render the page shell INSTANTLY with a skeleton, then fetch the real panel
     # from /api/health on load. collect_health() pings the inference endpoint
     # (~2-3s) + pipeline stats (~0.7s), so building the panel inline blocked the
@@ -1239,13 +1312,15 @@ async def get_health(request: Request):
         "  try{var r=await fetch('/api/health',{cache:'no-store'});"
         "   if(r.ok)document.getElementById('healthPanel').innerHTML=await r.text();}catch(e){}"
         " }"
-        " fetchPanel();"                   # initial fill — regardless of visibility
+        " fetchPanel();"  # initial fill — regardless of visibility
         " setInterval(function(){ if(!document.hidden) fetchPanel(); },5000);"
         "})();"
         "</script>"
         "</body></html>"
     )
-    return HTMLResponse(content=content, status_code=200, headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"})
+    return HTMLResponse(
+        content=content, status_code=200, headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"}
+    )
 
 
 def _health_skeleton_html() -> str:
@@ -1255,6 +1330,7 @@ def _health_skeleton_html() -> str:
     labels each slow section 'gathering data…' with a shimmer, so the user sees a
     live, loading page instead of a blank ~4s wait.
     """
+
     def card(title: str, note: str) -> str:
         return (
             '<div class="m3-card" style="margin-bottom:1.5rem;">'
@@ -1265,31 +1341,32 @@ def _health_skeleton_html() -> str:
             '<div class="skel-line"></div>'
             '<div class="skel-line" style="width:82%;"></div>'
             '<div class="skel-line" style="width:64%;"></div>'
-            '</div>'
+            "</div>"
             f'<div style="color:hsl(210,12%,52%);font-size:.8rem;margin-top:.4rem;">{note}</div>'
-            '</div>'
+            "</div>"
         )
+
     return (
-        '<style>'
-        '.gathering{float:right;font-size:.8rem;font-weight:500;color:var(--m3-neon-cyan);'
+        "<style>"
+        ".gathering{float:right;font-size:.8rem;font-weight:500;color:var(--m3-neon-cyan);"
         'font-family:"Fira Code",monospace;opacity:.9;}'
         '.gathering-dots::after{content:"";animation:gather-dots 1.4s steps(4,end) infinite;}'
         '@keyframes gather-dots{0%{content:"";}25%{content:".";}50%{content:"..";}75%{content:"...";}}'
-        '.skeleton-lines{display:flex;flex-direction:column;gap:.6rem;margin:.4rem 0;}'
-        '.skel-line{height:12px;border-radius:6px;'
-        'background:linear-gradient(90deg,hsla(210,20%,30%,.25) 25%,hsla(180,100%,50%,.15) 50%,hsla(210,20%,30%,.25) 75%);'
-        'background-size:200% 100%;animation:skel-shimmer 1.6s ease-in-out infinite;}'
-        '@keyframes skel-shimmer{0%{background-position:200% 0;}100%{background-position:-200% 0;}}'
-        '@media (prefers-reduced-motion: reduce){'
+        ".skeleton-lines{display:flex;flex-direction:column;gap:.6rem;margin:.4rem 0;}"
+        ".skel-line{height:12px;border-radius:6px;"
+        "background:linear-gradient(90deg,hsla(210,20%,30%,.25) 25%,hsla(180,100%,50%,.15) 50%,hsla(210,20%,30%,.25) 75%);"
+        "background-size:200% 100%;animation:skel-shimmer 1.6s ease-in-out infinite;}"
+        "@keyframes skel-shimmer{0%{background-position:200% 0;}100%{background-position:-200% 0;}}"
+        "@media (prefers-reduced-motion: reduce){"
         '.skel-line{animation:none;}.gathering-dots::after{animation:none;content:"…";}}'
-        '</style>'
+        "</style>"
         '<div class="m3-card" style="margin-bottom:1.5rem;border-left:3px solid var(--m3-neon-cyan);">'
         '<div style="font-size:1.1rem;font-weight:600;color:var(--m3-neon-cyan);">'
-        '● Gathering system health'
+        "● Gathering system health"
         '<span class="gathering-dots"></span></div>'
         '<div style="color:hsl(210,15%,70%);margin-top:.35rem;">'
-        'Probing the inference endpoint, stores, and pipeline — this takes a few '
-        'seconds. Sections fill in below as data arrives.</div></div>'
+        "Probing the inference endpoint, stores, and pipeline — this takes a few "
+        "seconds. Sections fill in below as data arrives.</div></div>"
         + card("System load (Governor)", "CPU / RAM / GPU pacing")
         + card("Storage backend", "core · chatlog · files stores")
         + card("Inference backend (LLM/SLM)", "endpoint + model probe (slowest)")
@@ -1300,8 +1377,11 @@ def _health_skeleton_html() -> str:
 @app.get("/api/health", response_class=HTMLResponse)
 async def get_health_partial(request: Request):
     """HTMX partial: just the health panel (for in-place refresh)."""
-    return HTMLResponse(content=_render_health_panel(), status_code=200,
-                        headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"})
+    return HTMLResponse(
+        content=_render_health_panel(),
+        status_code=200,
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+    )
 
 
 def _render_health_panel() -> str:
@@ -1313,13 +1393,16 @@ def _render_health_panel() -> str:
     """
     try:
         from dashboard.health import collect_health
+
         h = collect_health()
     except Exception as e:  # noqa: BLE001 — the panel must render even if a probe dies
-        return (f'<div class="memory-card"><h3 style="color: var(--m3-neon-amber);">'
-                f'Health data unavailable</h3><p>{e}</p></div>')
+        return (
+            f'<div class="memory-card"><h3 style="color: var(--m3-neon-amber);">'
+            f"Health data unavailable</h3><p>{e}</p></div>"
+        )
 
     def esc(s: object) -> str:
-        return (str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+        return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
     def ts(s: object) -> str:
         """Escape a dual-time string and render the trailing '(…Z)' Zulu portion
@@ -1328,7 +1411,7 @@ def _render_health_panel() -> str:
         raw = esc(s)
         i = raw.rfind(" (")
         if i != -1 and raw.endswith(")"):
-            local, zulu = raw[:i], raw[i + 1:]
+            local, zulu = raw[:i], raw[i + 1 :]
             return f'{local} <span style="color:hsl(210,12%,55%);">{zulu}</span>'
         return raw
 
@@ -1340,8 +1423,9 @@ def _render_health_panel() -> str:
     v = h.get("verdict", {})
     label = v.get("label", (v.get("verdict", "unknown") or "unknown").upper())
     tone = v.get("tone", "warn")
-    color = {"ok": "var(--m3-neon-emerald)", "warn": "var(--m3-neon-amber)",
-             "bad": "#ff5c6c"}.get(tone, "hsl(210,15%,55%)")
+    color = {"ok": "var(--m3-neon-emerald)", "warn": "var(--m3-neon-amber)", "bad": "#ff5c6c"}.get(
+        tone, "hsl(210,15%,55%)"
+    )
     icon = {"ok": "●", "warn": "▲", "bad": "✕"}.get(tone, "?")
     reasons = v.get("reasons") or []
     reasons_html = ""
@@ -1350,18 +1434,20 @@ def _render_health_panel() -> str:
         reasons_html = (
             f'<div style="margin-top:0.6rem;color:hsl(210,15%,75%);font-size:0.85rem;">'
             f'<strong style="color:{color};">Why:</strong>'
-            f'<ul style="margin:0.3rem 0 0 1.1rem;padding:0;">{items}</ul></div>')
+            f'<ul style="margin:0.3rem 0 0 1.1rem;padding:0;">{items}</ul></div>'
+        )
     elif tone == "ok":
-        reasons_html = ('<div style="margin-top:0.4rem;color:var(--m3-neon-emerald);'
-                        'font-size:0.85rem;">All subsystems nominal.</div>')
+        reasons_html = (
+            '<div style="margin-top:0.4rem;color:var(--m3-neon-emerald);'
+            'font-size:0.85rem;">All subsystems nominal.</div>'
+        )
 
     parts = [
-        f'<div style="color:hsl(210,15%,55%);font-size:0.75rem;margin-bottom:0.9rem;">'
-        f'report time: {generated}</div>',
+        f'<div style="color:hsl(210,15%,55%);font-size:0.75rem;margin-bottom:0.9rem;">report time: {generated}</div>',
         f'<div class="memory-card" style="border-left:4px solid {color};">'
         f'<span style="color:{color};font-weight:700;font-size:1.1rem;">{icon} {esc(label)}</span>'
-        f'<span style="margin-left:0.75rem;color:hsl(210,15%,70%);">{esc(v.get("headline",""))}</span>'
-        f'{reasons_html}</div>',
+        f'<span style="margin-left:0.75rem;color:hsl(210,15%,70%);">{esc(v.get("headline", ""))}</span>'
+        f"{reasons_html}</div>",
     ]
 
     # System load (Governor) — placed RIGHT AFTER the verdict, before the backend
@@ -1374,8 +1460,7 @@ def _render_health_panel() -> str:
         mode = str(gov.get("mode", "?")).upper()
         # Pacing-mode label keeps the governor-state color (grey non-blocking /
         # amber throttling / red halting) so the overall status is still obvious.
-        mode_color = {"THROTTLED": "var(--m3-neon-amber)",
-                      "HALTED": "#ff5c6c"}.get(mode, "hsl(210,15%,60%)")
+        mode_color = {"THROTTLED": "var(--m3-neon-amber)", "HALTED": "#ff5c6c"}.get(mode, "hsl(210,15%,60%)")
 
         def _meter(label, val):
             """Each meter is colored INDEPENDENTLY by its OWN value vs the
@@ -1387,54 +1472,65 @@ def _render_health_panel() -> str:
             except (TypeError, ValueError):
                 v = 0.0
             if v >= limit:
-                c = "#ff5c6c"                 # halting
+                c = "#ff5c6c"  # halting
             elif v >= init:
-                c = "var(--m3-neon-amber)"    # throttling
+                c = "var(--m3-neon-amber)"  # throttling
             else:
                 c = "var(--m3-neon-emerald)"  # free
             return (
-                f'<div style="margin:0.3rem 0;font-family:\'Fira Code\',monospace;font-size:0.8rem;">'
+                f"<div style=\"margin:0.3rem 0;font-family:'Fira Code',monospace;font-size:0.8rem;\">"
                 f'<div style="display:flex;justify-content:space-between;">'
                 f'<span style="color:hsl(210,15%,70%);">{label}</span>'
                 f'<span style="color:{c};">{v:.0f}%</span></div>'
                 f'<div style="height:5px;background:hsla(222,22%,12%,0.9);border-radius:3px;overflow:hidden;margin-top:2px;">'
-                f'<div style="height:100%;width:{min(v,100):.0f}%;background:{c};"></div></div></div>')
+                f'<div style="height:100%;width:{min(v, 100):.0f}%;background:{c};"></div></div></div>'
+            )
 
         parts.append(
             '<div class="memory-card"><h3 style="color:var(--m3-neon-cyan);margin-bottom:0.5rem;">'
-            'System load (Governor)</h3>'
+            "System load (Governor)</h3>"
             f'<div style="margin-bottom:0.4rem;font-size:0.82rem;">pacing mode: '
             f'<strong style="color:{mode_color};">{esc(mode)}</strong> '
             f'<span style="color:hsl(210,15%,50%);">(throttle ≥ {init}%, halt ≥ {limit}%)</span> · '
-            f'thermal: {esc(gov.get("thermal","?"))}</div>'
-            + _meter("CPU", gov.get("cpu")) + _meter("RAM", gov.get("ram")) + _meter("GPU", gov.get("gpu"))
+            f"thermal: {esc(gov.get('thermal', '?'))}</div>"
+            + _meter("CPU", gov.get("cpu"))
+            + _meter("RAM", gov.get("ram"))
+            + _meter("GPU", gov.get("gpu"))
             + '<div style="color:hsl(210,15%,50%);font-size:0.72rem;margin-top:0.4rem;">'
-            'The governor paces background work by host load so it never competes with you.</div></div>')
+            "The governor paces background work by host load so it never competes with you.</div></div>"
+        )
 
     # Backend + stores. Tall-man / correct casing for the engine name.
     b = h.get("backend", {})
     try:
         from dashboard.health import _backend_display
+
         backend_name = _backend_display(b.get("backend", "?"))
     except Exception:  # noqa: BLE001
         backend_name = str(b.get("backend", "?"))
-    parts.append(f'<div class="memory-card"><h3 style="color:var(--m3-neon-cyan);margin-bottom:0.5rem;">'
-                 f'Database backend: {esc(backend_name)}</h3>')
+    parts.append(
+        f'<div class="memory-card"><h3 style="color:var(--m3-neon-cyan);margin-bottom:0.5rem;">'
+        f"Database backend: {esc(backend_name)}</h3>"
+    )
     if b.get("note"):
         parts.append(f'<p style="color:var(--m3-neon-amber);">{esc(b["note"])}</p>')
     for st in b.get("stores", []):
         present = st.get("present")
-        pill = ('<span style="color:var(--m3-neon-emerald);">present</span>' if present
-                else '<span style="color:hsl(210,15%,55%);">absent</span>')
+        pill = (
+            '<span style="color:var(--m3-neon-emerald);">present</span>'
+            if present
+            else '<span style="color:hsl(210,15%,55%);">absent</span>'
+        )
         rows = st.get("rows")
         rows_txt = f"{rows:,} rows" if isinstance(rows, int) else "—"
         shared = " (shared with core)" if st.get("shared") else ""
         parts.append(
-            f'<div style="margin:0.4rem 0;font-family:\'Fira Code\',monospace;font-size:0.82rem;">'
+            f"<div style=\"margin:0.4rem 0;font-family:'Fira Code',monospace;font-size:0.82rem;\">"
             f'<strong style="color:#fff;">{esc(st.get("label"))}</strong> · {pill}{shared}<br>'
             f'<span style="color:hsl(210,15%,60%);">{esc(st.get("path"))}</span><br>'
             f'<span style="color:var(--m3-neon-cyan);">{rows_txt}</span> · '
-            f'last updated: {ts(st.get("last_updated","—"))}</div>')
+            f"last updated: {ts(st.get('last_updated', '—'))}</div>"
+        )
     parts.append("</div>")
 
     # Inference backend (LLM/SLM) — the cognitive loop / entity extraction /
@@ -1447,54 +1543,59 @@ def _render_health_panel() -> str:
     inf = h.get("inference") or {}
     inf_status = inf.get("status", "none_configured")
     inf_map = {
-        "ok":              ("var(--m3-neon-emerald)", "●", "SERVING INFERENCE"),
-        "failover_active": ("var(--m3-neon-amber)",   "▲", "FAILOVER ACTIVE"),
-        "no_model":        ("#ff5c6c",                "✕", "NO MODEL LOADED"),
-        "auth_failed":     ("#ff5c6c",                "✕", "AUTH REJECTED"),
-        "down":            ("#ff5c6c",                "✕", "DOWN"),
-        "unknown":         ("var(--m3-neon-amber)",   "▲", "REACHABLE (UNVERIFIED)"),
-        "none_configured": ("var(--m3-neon-amber)",   "▲", "NOT CONFIGURED"),
+        "ok": ("var(--m3-neon-emerald)", "●", "SERVING INFERENCE"),
+        "failover_active": ("var(--m3-neon-amber)", "▲", "FAILOVER ACTIVE"),
+        "no_model": ("#ff5c6c", "✕", "NO MODEL LOADED"),
+        "auth_failed": ("#ff5c6c", "✕", "AUTH REJECTED"),
+        "down": ("#ff5c6c", "✕", "DOWN"),
+        "unknown": ("var(--m3-neon-amber)", "▲", "REACHABLE (UNVERIFIED)"),
+        "none_configured": ("var(--m3-neon-amber)", "▲", "NOT CONFIGURED"),
     }
     inf_color, inf_icon, inf_label = inf_map.get(inf_status, ("hsl(210,15%,55%)", "?", inf_status.upper()))
     # Cloud landed-endpoint reads "REACHABLE" (a ping), not "SERVING INFERENCE".
     _landed_cloud = any(hp.get("cloud") and hp.get("ok") for hp in (inf.get("chain") or []))
     if inf_status == "ok" and _landed_cloud:
         inf_label = "REACHABLE"
-    cached_note = (' <span style="color:hsl(210,15%,45%);font-size:0.72rem;">(cached)</span>'
-                   if inf.get("cached") else "")
+    cached_note = (
+        ' <span style="color:hsl(210,15%,45%);font-size:0.72rem;">(cached)</span>' if inf.get("cached") else ""
+    )
     parts.append(
         '<div class="memory-card"><h3 style="color:var(--m3-neon-cyan);margin-bottom:0.5rem;">'
-        'Inference backend (LLM/SLM)</h3>'
+        "Inference backend (LLM/SLM)</h3>"
         f'<div style="font-size:0.9rem;margin-bottom:0.35rem;">'
         f'<span style="color:{inf_color};font-weight:700;">{inf_icon} {esc(inf_label)}</span>'
-        + (f' <span style="color:hsl(210,15%,70%);">· {esc(inf.get("backend"))}</span>'
-           if inf.get("backend") else "")
+        + (f' <span style="color:hsl(210,15%,70%);">· {esc(inf.get("backend"))}</span>' if inf.get("backend") else "")
         + cached_note
-        + '</div>')
+        + "</div>"
+    )
     if inf.get("expected_url"):
         model_txt = ""
         if inf.get("model_id"):
-            model_txt = (f' · model: <span style="color:var(--m3-neon-cyan);">'
-                         f'{esc(inf["model_id"])}</span>')
+            model_txt = f' · model: <span style="color:var(--m3-neon-cyan);">{esc(inf["model_id"])}</span>'
         verb = "serving at" if inf_status in ("ok", "failover_active") else "expected at"
         parts.append(
-            f'<div style="font-family:\'Fira Code\',monospace;font-size:0.8rem;color:hsl(210,15%,60%);">'
-            f'{verb} <span style="color:#fff;">{esc(inf.get("expected_url"))}</span>{model_txt}</div>')
+            f"<div style=\"font-family:'Fira Code',monospace;font-size:0.8rem;color:hsl(210,15%,60%);\">"
+            f'{verb} <span style="color:#fff;">{esc(inf.get("expected_url"))}</span>{model_txt}</div>'
+        )
     # Failover chain — every hop in order, with serve/fail + the real reason. Shown
     # whenever there's more than one endpoint OR failover is active, so the operator
     # sees exactly which preferred backend failed and why.
     chain = inf.get("chain") or []
     if len(chain) > 1 or inf_status == "failover_active":
-        parts.append('<div style="margin-top:0.4rem;font-size:0.73rem;color:hsl(210,15%,50%);">'
-                     'failover chain (tried in order):</div>')
+        parts.append(
+            '<div style="margin-top:0.4rem;font-size:0.73rem;color:hsl(210,15%,50%);">'
+            "failover chain (tried in order):</div>"
+        )
         for idx, hop in enumerate(chain):
             is_cloud = hop.get("cloud")
             if hop.get("ok"):
                 # Cloud is verified by a ping (reachable + key accepted), not a
                 # local 'serving inference' state — word it honestly per kind.
                 ok_txt = "✓ reachable (ping OK)" if is_cloud else "✓ serving inference"
-                hc, htxt = "var(--m3-neon-emerald)", ok_txt + (
-                    f" ({esc(hop.get('model_id'))})" if hop.get("model_id") else "")
+                hc, htxt = (
+                    "var(--m3-neon-emerald)",
+                    ok_txt + (f" ({esc(hop.get('model_id'))})" if hop.get("model_id") else ""),
+                )
             else:
                 hstat = hop.get("status", "down")
                 hc = "#ff5c6c" if hstat in ("down", "no_model", "auth_failed") else "var(--m3-neon-amber)"
@@ -1502,39 +1603,48 @@ def _render_health_panel() -> str:
                 htxt = f"✕ {esc(hstat)}" + (f" — {esc(hop.get('detail'))}" if hop.get("detail") else "")
             arrow = "" if idx == 0 else '<span style="color:hsl(210,15%,40%);">↳ </span>'
             parts.append(
-                f'<div style="font-family:\'Fira Code\',monospace;font-size:0.76rem;margin:0.15rem 0 0.15rem {0 if idx==0 else 0.8}rem;">'
+                f"<div style=\"font-family:'Fira Code',monospace;font-size:0.76rem;margin:0.15rem 0 0.15rem {0 if idx == 0 else 0.8}rem;\">"
                 f'{arrow}<span style="color:hsl(210,15%,65%);">{esc(hop.get("backend"))} {esc(hop.get("url"))}</span> · '
-                f'<span style="color:{hc};">{htxt}</span></div>')
+                f'<span style="color:{hc};">{htxt}</span></div>'
+            )
     if inf.get("remedy") and inf_status != "ok":
         parts.append(
-            f'<div style="margin-top:0.45rem;color:hsl(35,90%,72%);font-size:0.8rem;">'
-            f'{esc(inf.get("remedy"))}</div>')
+            f'<div style="margin-top:0.45rem;color:hsl(35,90%,72%);font-size:0.8rem;">{esc(inf.get("remedy"))}</div>'
+        )
     parts.append("</div>")
 
     # CDW sync — TABLE format (direction | last sync), easier to scan.
     cdw = h.get("cdw")
     if cdw:
-        parts.append('<div class="memory-card"><h3 style="color:var(--m3-neon-cyan);margin-bottom:0.5rem;">'
-                     'Data warehouse (CDW) sync</h3>'
-                     f'<div style="font-family:\'Fira Code\',monospace;font-size:0.78rem;color:hsl(210,15%,60%);margin-bottom:0.25rem;">'
-                     f'{esc(cdw.get("dsn"))}</div>'
-                     f'<div style="font-size:0.72rem;color:hsl(210,15%,50%);margin-bottom:0.5rem;">'
-                     f'as of report time: {generated}</div>')
+        parts.append(
+            '<div class="memory-card"><h3 style="color:var(--m3-neon-cyan);margin-bottom:0.5rem;">'
+            "Data warehouse (CDW) sync</h3>"
+            f"<div style=\"font-family:'Fira Code',monospace;font-size:0.78rem;color:hsl(210,15%,60%);margin-bottom:0.25rem;\">"
+            f"{esc(cdw.get('dsn'))}</div>"
+            f'<div style="font-size:0.72rem;color:hsl(210,15%,50%);margin-bottom:0.5rem;">'
+            f"as of report time: {generated}</div>"
+        )
         wm = cdw.get("watermarks") or []
         if wm:
-            th = ('padding:0.3rem 0.6rem;text-align:left;border-bottom:1px solid '
-                  'var(--m3-border-glass);color:hsl(210,15%,60%);font-weight:600;')
-            td = ("padding:0.28rem 0.6rem;border-bottom:1px solid rgba(120,140,160,0.12);"
-                  "font-family:'Fira Code',monospace;font-size:0.8rem;")
+            th = (
+                "padding:0.3rem 0.6rem;text-align:left;border-bottom:1px solid "
+                "var(--m3-border-glass);color:hsl(210,15%,60%);font-weight:600;"
+            )
+            td = (
+                "padding:0.28rem 0.6rem;border-bottom:1px solid rgba(120,140,160,0.12);"
+                "font-family:'Fira Code',monospace;font-size:0.8rem;"
+            )
             body = "".join(
                 f'<tr><td style="{td}color:#fff;">{esc(w.get("direction"))}</td>'
                 f'<td style="{td}color:var(--m3-neon-cyan);">{ts(w.get("last_sync"))}</td></tr>'
-                for w in wm)
+                for w in wm
+            )
             parts.append(
                 '<table style="width:100%;border-collapse:collapse;font-size:0.8rem;">'
                 f'<thead><tr><th style="{th}">Direction</th>'
                 f'<th style="{th}">Last sync (local <span style="color:hsl(210,12%,55%);">/ UTC</span>)</th></tr></thead>'
-                f'<tbody>{body}</tbody></table>')
+                f"<tbody>{body}</tbody></table>"
+            )
         else:
             parts.append('<div style="color:hsl(210,15%,55%);">no sync recorded yet</div>')
         parts.append("</div>")
@@ -1544,11 +1654,13 @@ def _render_health_panel() -> str:
     # Processing pipeline — queue depth + plain-language status (is 'pending' ok?).
     pipes = pl.get("pipelines") or []
     if pipes:
-        parts.append('<div class="memory-card"><h3 style="color:var(--m3-neon-cyan);margin-bottom:0.5rem;">'
-                     'Processing pipeline</h3>'
-                     '<div style="color:hsl(210,15%,55%);font-size:0.75rem;margin-bottom:0.5rem;">'
-                     'A queue at 0 is <em>drained</em> (normal). Items queued while the worker is '
-                     'producing is normal under load; a backlog with an idle worker wants attention.</div>')
+        parts.append(
+            '<div class="memory-card"><h3 style="color:var(--m3-neon-cyan);margin-bottom:0.5rem;">'
+            "Processing pipeline</h3>"
+            '<div style="color:hsl(210,15%,55%);font-size:0.75rem;margin-bottom:0.5rem;">'
+            "A queue at 0 is <em>drained</em> (normal). Items queued while the worker is "
+            "producing is normal under load; a backlog with an idle worker wants attention.</div>"
+        )
         tone_color = {"ok": "var(--m3-neon-emerald)", "warn": "var(--m3-neon-amber)"}
         for p in pipes:
             label = esc(p.get("label", "queue"))
@@ -1556,18 +1668,21 @@ def _render_health_panel() -> str:
             status = esc(p.get("status", ""))
             c = tone_color.get(p.get("tone"), "hsl(210,15%,70%)")
             eta = esc(p.get("eta_human", ""))
-            eta_txt = f' · drain ETA: {eta}' if eta and qlen else ""
+            eta_txt = f" · drain ETA: {eta}" if eta and qlen else ""
             parts.append(
-                f'<div style="font-family:\'Fira Code\',monospace;font-size:0.82rem;margin:0.25rem 0;">'
+                f"<div style=\"font-family:'Fira Code',monospace;font-size:0.82rem;margin:0.25rem 0;\">"
                 f'<strong style="color:#fff;">{label}</strong>: '
                 f'<span style="color:var(--m3-neon-cyan);">{esc(qlen)} queued</span> · '
-                f'<span style="color:{c};">{status}</span>{eta_txt}</div>')
+                f'<span style="color:{c};">{status}</span>{eta_txt}</div>'
+            )
         parts.append("</div>")
 
-    parts.append('<div style="text-align:center;color:hsl(210,15%,45%);font-size:0.72rem;margin-top:1rem;">'
-                 f'report time: {generated} · '
-                 '<a href="/api/health" hx-get="/api/health" hx-target="closest div" '
-                 'style="color:var(--m3-neon-cyan);">refresh</a></div>')
+    parts.append(
+        '<div style="text-align:center;color:hsl(210,15%,45%);font-size:0.72rem;margin-top:1rem;">'
+        f"report time: {generated} · "
+        '<a href="/api/health" hx-get="/api/health" hx-target="closest div" '
+        'style="color:var(--m3-neon-cyan);">refresh</a></div>'
+    )
     return "\n".join(parts)
 
 
@@ -1603,7 +1718,9 @@ async def get_stats(request: Request):
     # Query Main DB (backend-blind; no file-existence guard — see module note)
     try:
         with db_readonly(main_db) as conn:
-            total_mems = conn.execute("SELECT COUNT(*) FROM memory_items WHERE COALESCE(is_deleted, 0) = 0 AND type != 'chat_log'").fetchone()[0]
+            total_mems = conn.execute(
+                "SELECT COUNT(*) FROM memory_items WHERE COALESCE(is_deleted, 0) = 0 AND type != 'chat_log'"
+            ).fetchone()[0]
 
             if table_exists(conn, "entities"):
                 total_ents = conn.execute("SELECT COUNT(*) FROM entities").fetchone()[0]
@@ -1617,6 +1734,7 @@ async def get_stats(request: Request):
             # queue_stats helper so this card and System Health agree.
             try:
                 from dashboard.queue_stats import _entity_backlog_count
+
                 queue_len = _entity_backlog_count(conn)
             except Exception:  # noqa: BLE001
                 queue_len = 0
@@ -1628,7 +1746,9 @@ async def get_stats(request: Request):
         chatlog_target = main_db if chatlog_db == main_db else chatlog_db
         with db_readonly(chatlog_target) as conn:
             chatlog_turns = conn.execute("SELECT COUNT(*) FROM memory_items WHERE type='chat_log'").fetchone()[0]
-            chatlog_sessions = conn.execute("SELECT COUNT(DISTINCT COALESCE(NULLIF(conversation_id, ''), 'legacy')) FROM memory_items WHERE type='chat_log'").fetchone()[0]
+            chatlog_sessions = conn.execute(
+                "SELECT COUNT(DISTINCT COALESCE(NULLIF(conversation_id, ''), 'legacy')) FROM memory_items WHERE type='chat_log'"
+            ).fetchone()[0]
     except Exception as e:
         print(f"Failed to query Chatlog DB stats: {e}", flush=True)
 
@@ -1642,24 +1762,32 @@ async def get_stats(request: Request):
     # undefined-object error instead.
     try:
         from files_memory.db import _files_store_is_a_schema as _files_is_pg
+
         if _files_is_pg():
             from files_memory.config import files_table
             from files_memory.db import _db as _files_seam
+
             _leaves, _nodes = files_table("leaves"), files_table("file_nodes")
             with _files_seam() as conn:
                 file_chunks = conn.execute(f"SELECT COUNT(*) FROM {_leaves}").fetchone()[0]
                 dedup_leaves = conn.execute(
                     f"SELECT text FROM {_leaves} WHERE superseded_by IS NULL GROUP BY text_sha256"
                 ).fetchall()
-                file_lines = sum(sum(1 for line in (leaf[0] or "").splitlines() if line.strip()) for leaf in dedup_leaves)
+                file_lines = sum(
+                    sum(1 for line in (leaf[0] or "").splitlines() if line.strip()) for leaf in dedup_leaves
+                )
                 files_count = conn.execute(f"SELECT COUNT(*) FROM {_nodes}").fetchone()[0]
         else:
             with db_readonly(files_db) as conn:
                 if table_exists(conn, "leaves"):
                     file_chunks = conn.execute("SELECT COUNT(*) FROM leaves").fetchone()[0]
                     # Count deduplicated non-blank lines in active leaves
-                    dedup_leaves = conn.execute("SELECT text FROM leaves WHERE superseded_by IS NULL GROUP BY text_sha256").fetchall()
-                    file_lines = sum(sum(1 for line in (leaf[0] or "").splitlines() if line.strip()) for leaf in dedup_leaves)
+                    dedup_leaves = conn.execute(
+                        "SELECT text FROM leaves WHERE superseded_by IS NULL GROUP BY text_sha256"
+                    ).fetchall()
+                    file_lines = sum(
+                        sum(1 for line in (leaf[0] or "").splitlines() if line.strip()) for leaf in dedup_leaves
+                    )
                 if table_exists(conn, "file_nodes"):
                     files_count = conn.execute("SELECT COUNT(*) FROM file_nodes").fetchone()[0]
     except Exception as e:
@@ -1687,7 +1815,9 @@ async def get_stats(request: Request):
         highlight_chatlog = "highlight-chatlog"
         style_main = "opacity: 0.55;"
         sub_main = '<span style="font-size: 0.72rem; color: hsl(210, 10%, 50%);">(Main DB only)</span>'
-        sub_chatlog = '<span style="font-size: 0.72rem; color: hsl(300, 100%, 65%); opacity: 0.85;">(Active Core)</span>'
+        sub_chatlog = (
+            '<span style="font-size: 0.72rem; color: hsl(300, 100%, 65%); opacity: 0.85;">(Active Core)</span>'
+        )
         sub_files = '<span style="font-size: 0.72rem; color: hsl(120, 10%, 50%);">(Files DB)</span>'
     elif selected_db == "files":
         highlight_files = "highlight-files"
@@ -1695,7 +1825,9 @@ async def get_stats(request: Request):
         style_chatlog = "opacity: 0.55;"
         sub_main = '<span style="font-size: 0.72rem; color: hsl(210, 10%, 50%);">(Main DB only)</span>'
         sub_chatlog = '<span style="font-size: 0.72rem; color: hsl(300, 10%, 50%);">(Chatlog DB)</span>'
-        sub_files = '<span style="font-size: 0.72rem; color: var(--m3-neon-emerald); opacity: 0.85;">(Active Core)</span>'
+        sub_files = (
+            '<span style="font-size: 0.72rem; color: var(--m3-neon-emerald); opacity: 0.85;">(Active Core)</span>'
+        )
 
     banner_html = ""
     if selected_db == "main":
@@ -1785,49 +1917,51 @@ async def get_pipeline(request: Request):
     except Exception as e:  # never break the panel — degrade to a message
         return HTMLResponse(
             f'<div class="metric-label" style="color:var(--m3-neon-orange);">'
-            f'pipeline stats unavailable: {type(e).__name__}</div>'
+            f"pipeline stats unavailable: {type(e).__name__}</div>"
         )
 
     # Governor line
     if gov.get("available"):
         mode = gov["mode"]
         mode_color = {
-            "HALTED": "var(--m3-neon-orange)", "THROTTLED": "var(--m3-neon-orange)",
-            "TAPERED": "var(--m3-neon-cyan)", "CONTINUOUS": "var(--m3-neon-emerald)",
+            "HALTED": "var(--m3-neon-orange)",
+            "THROTTLED": "var(--m3-neon-orange)",
+            "TAPERED": "var(--m3-neon-cyan)",
+            "CONTINUOUS": "var(--m3-neon-emerald)",
         }.get(mode, "hsl(210,15%,75%)")
         gov_html = (
             f'<div class="metric-card" style="grid-column: 1 / -1;">'
             f'<div class="metric-label">Governor</div>'
             f'<div style="display:flex; gap:1.25rem; align-items:baseline; flex-wrap:wrap; margin-top:0.35rem;">'
-            f'<span style="color:{mode_color}; font-weight:700; font-family:\'Fira Code\',monospace;">{mode}</span>'
-            f'<span style="font-family:\'Fira Code\',monospace; font-size:0.85rem; color:hsl(210,15%,75%);">'
-            f'load {gov["load"]:.0f}% (cpu {gov["cpu"]:.0f} · ram {gov["ram"]:.0f} · gpu {gov["gpu"]:.0f})</span>'
-            f'<span style="font-family:\'Fira Code\',monospace; font-size:0.85rem; color:hsl(210,15%,55%);">'
-            f'throttle {gov["initial_threshold"]}% · halt {gov["limit_threshold"]}% · {gov["thermal"]}</span>'
-            f'</div></div>'
+            f"<span style=\"color:{mode_color}; font-weight:700; font-family:'Fira Code',monospace;\">{mode}</span>"
+            f"<span style=\"font-family:'Fira Code',monospace; font-size:0.85rem; color:hsl(210,15%,75%);\">"
+            f"load {gov['load']:.0f}% (cpu {gov['cpu']:.0f} · ram {gov['ram']:.0f} · gpu {gov['gpu']:.0f})</span>"
+            f"<span style=\"font-family:'Fira Code',monospace; font-size:0.85rem; color:hsl(210,15%,55%);\">"
+            f"throttle {gov['initial_threshold']}% · halt {gov['limit_threshold']}% · {gov['thermal']}</span>"
+            f"</div></div>"
         )
     else:
-        gov_html = ('<div class="metric-card" style="grid-column: 1 / -1;">'
-                    '<div class="metric-label">Governor</div>'
-                    '<div style="color:hsl(210,15%,55%);">telemetry unavailable</div></div>')
+        gov_html = (
+            '<div class="metric-card" style="grid-column: 1 / -1;">'
+            '<div class="metric-label">Governor</div>'
+            '<div style="color:hsl(210,15%,55%);">telemetry unavailable</div></div>'
+        )
 
     # One card per pipeline: queue length, rates, drain ETA.
     cards = [gov_html]
     for p in stats["pipelines"]:
         r = p["rates"]
-        rate_line = " · ".join(
-            f'{w}m: {r.get(w, 0.0):.1f}/min' for w in (1, 10, 30, 60)
-        )
+        rate_line = " · ".join(f"{w}m: {r.get(w, 0.0):.1f}/min" for w in (1, 10, 30, 60))
         qcolor = "var(--m3-neon-emerald)" if p["queue_len"] == 0 else "var(--m3-neon-cyan)"
         cards.append(
             f'<div class="metric-card">'
             f'<div class="metric-value" style="color:{qcolor};">{p["queue_len"]:,}</div>'
             f'<div class="metric-label">{p["label"]} queue</div>'
             f'<div style="margin-top:0.25rem; font-size:0.75rem; color:hsl(210,15%,70%); '
-            f'font-family:\'Fira Code\',monospace;">{rate_line}</div>'
+            f"font-family:'Fira Code',monospace;\">{rate_line}</div>"
             f'<div style="margin-top:0.35rem; font-weight:600; font-size:0.85rem;">'
-            f'drain: {p["eta_human"]}</div>'
-            f'</div>'
+            f"drain: {p['eta_human']}</div>"
+            f"</div>"
         )
     return HTMLResponse("".join(cards))
 
@@ -1845,8 +1979,11 @@ async def get_graph(request: Request):
     # DB selector appeared to "do nothing" to the graph even though the backend
     # returned different data. The /graph WINDOW handler already sets no-store for
     # this reason; the data endpoint that actually differs was the one missing it.
-    _no_cache = {"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-                 "Pragma": "no-cache", "Expires": "0"}
+    _no_cache = {
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
+        "Expires": "0",
+    }
 
     nodes = []
     links = []
@@ -1857,49 +1994,34 @@ async def get_graph(request: Request):
                 # Draw File Ingest Nodes (index by position — backend-blind, no row_factory)
                 files = conn.execute("SELECT uuid, filename, filetype FROM file_nodes LIMIT 40").fetchall()
                 for f in files:
-                    nodes.append({
-                        "id": f[0],
-                        "name": f[1],
-                        "type": "file"
-                    })
+                    nodes.append({"id": f[0], "name": f[1], "type": "file"})
                 # Draw Chunk Leaf Nodes and link them to Files
                 leaves = conn.execute("SELECT uuid, file_node, division_id FROM leaves LIMIT 100").fetchall()
                 for l in leaves:
-                    nodes.append({
-                        "id": l[0],
-                        "name": f"Chunk {l[2]}",
-                        "type": "chunk"
-                    })
-                    links.append({
-                        "source": l[1],
-                        "target": l[0],
-                        "predicate": "contains"
-                    })
+                    nodes.append({"id": l[0], "name": f"Chunk {l[2]}", "type": "chunk"})
+                    links.append({"source": l[1], "target": l[0], "predicate": "contains"})
         except Exception as e:
             print(f"Failed to query files graph: {e}", flush=True)
         return JSONResponse({"nodes": nodes, "links": links}, headers=_no_cache)
 
     try:
         from m3_sdk import active_database
+
         with active_database(selected_db_path):
             with _db() as db:
                 if table_exists(db, "entities"):
                     rows = db.execute("SELECT id, canonical_name, entity_type FROM entities LIMIT 150").fetchall()
                     for r in rows:
-                        nodes.append({
-                            "id": r["id"],
-                            "name": r["canonical_name"],
-                            "type": r["entity_type"]
-                        })
+                        nodes.append({"id": r["id"], "name": r["canonical_name"], "type": r["entity_type"]})
 
                 if table_exists(db, "entity_relationships"):
-                    rows = db.execute("SELECT from_entity, to_entity, predicate FROM entity_relationships LIMIT 250").fetchall()
+                    rows = db.execute(
+                        "SELECT from_entity, to_entity, predicate FROM entity_relationships LIMIT 250"
+                    ).fetchall()
                     for r in rows:
-                        links.append({
-                            "source": r["from_entity"],
-                            "target": r["to_entity"],
-                            "predicate": r["predicate"]
-                        })
+                        links.append(
+                            {"source": r["from_entity"], "target": r["to_entity"], "predicate": r["predicate"]}
+                        )
     except Exception as e:
         print(f"Failed to load graph database items: {e}", flush=True)
 
@@ -1928,10 +2050,14 @@ async def search_memories(request: Request, q: str = "", ignore_case: int = 1):
             return '<p style="color: hsl(210, 15%, 65%); text-align: center; padding: 2rem 0;">Type in search bar to scan files and chunk indexes.</p>'
         try:
             from files_memory.search import files_search
+
             hits = files_search(search_text, limit=40, db_path=selected_db_path)
             # Apply the include/exclude grammar over chunk text + filename.
-            hits = [h for h in hits
-                    if matches_query_grammar(f"{getattr(h,'text','')} {getattr(h,'filename','')}", grammar, ic)][:15]
+            hits = [
+                h
+                for h in hits
+                if matches_query_grammar(f"{getattr(h, 'text', '')} {getattr(h, 'filename', '')}", grammar, ic)
+            ][:15]
             if not hits:
                 return f'<p style="color: hsl(210, 15%, 65%); text-align: center; padding: 2rem 0;">No matching indexed file chunks found for "{_h(q)}".</p>'
 
@@ -1949,7 +2075,7 @@ async def search_memories(request: Request, q: str = "", ignore_case: int = 1):
                     <div class="memory-content" style="margin-bottom: 0.75rem;">{_h(hit.text)}</div>
                     <div style="font-size: 0.75rem; color: hsl(210, 10%, 65%); display: flex; gap: 1rem; border-top: 1px solid var(--m3-border-glass); padding-top: 0.5rem;">
                         <span>Path: <code style="font-family: 'Fira Code', monospace; color: var(--m3-neon-cyan);">{_h(hit.path)}</code></span>
-                        <span>Corpus: <code style="font-family: 'Fira Code', monospace; color: var(--m3-neon-purple);">{_h(hit.corpus_id or 'default')}</code></span>
+                        <span>Corpus: <code style="font-family: 'Fira Code', monospace; color: var(--m3-neon-purple);">{_h(hit.corpus_id or "default")}</code></span>
                         <span>Score: <strong style="color: var(--m3-neon-amber);">{hit.score:.4f}</strong></span>
                     </div>
                 </div>
@@ -1963,16 +2089,20 @@ async def search_memories(request: Request, q: str = "", ignore_case: int = 1):
 
     try:
         from m3_sdk import active_database
+
         with active_database(selected_db_path):
             results = await memory_search_scored_impl(
                 query=search_text,
                 k=40,
                 explain=True,
-                extra_columns=["metadata_json", "conversation_id", "valid_from", "valid_to", "user_id"]
+                extra_columns=["metadata_json", "conversation_id", "valid_from", "valid_to", "user_id"],
             )
             # Apply the include/exclude grammar over title + content as a hard gate.
-            results = [(s, it) for (s, it) in results
-                       if matches_query_grammar(f"{it.get('title','')} {it.get('content','')}", grammar, ic)][:15]
+            results = [
+                (s, it)
+                for (s, it) in results
+                if matches_query_grammar(f"{it.get('title', '')} {it.get('content', '')}", grammar, ic)
+            ][:15]
 
             if not results:
                 return f'<p style="color: hsl(210, 15%, 65%); text-align: center; padding: 2rem 0;">No matching indexed memories found for "{_h(q)}".</p>'
@@ -1994,12 +2124,12 @@ async def search_memories(request: Request, q: str = "", ignore_case: int = 1):
                     <div class="explain-box">
                         <div class="explain-title">Explain Engine (Paired FTS5 + Vector Cosine)</div>
                         <div class="explain-grid">
-                            <div class="explain-metric"><span>Vector Score:</span> {exp.get('vector', 0.0):.4f}</div>
-                            <div class="explain-metric"><span>FTS BM25:</span> {exp.get('bm25', 0.0):.4f}</div>
-                            <div class="explain-metric"><span>Raw Hybrid:</span> {exp.get('raw_hybrid', 0.0):.4f}</div>
-                            <div class="explain-metric"><span>Title Boost:</span> {exp.get('title_boost', 0.0):.4f}</div>
-                            <div class="explain-metric"><span>Role Boost:</span> {exp.get('role_boost', 0.0):.4f}</div>
-                            <div class="explain-metric"><span>MMR Penalty:</span> -{exp.get('mmr_penalty', 0.0):.4f}</div>
+                            <div class="explain-metric"><span>Vector Score:</span> {exp.get("vector", 0.0):.4f}</div>
+                            <div class="explain-metric"><span>FTS BM25:</span> {exp.get("bm25", 0.0):.4f}</div>
+                            <div class="explain-metric"><span>Raw Hybrid:</span> {exp.get("raw_hybrid", 0.0):.4f}</div>
+                            <div class="explain-metric"><span>Title Boost:</span> {exp.get("title_boost", 0.0):.4f}</div>
+                            <div class="explain-metric"><span>Role Boost:</span> {exp.get("role_boost", 0.0):.4f}</div>
+                            <div class="explain-metric"><span>MMR Penalty:</span> -{exp.get("mmr_penalty", 0.0):.4f}</div>
                         </div>
                     </div>
                     """
@@ -2008,12 +2138,12 @@ async def search_memories(request: Request, q: str = "", ignore_case: int = 1):
                 <div class="memory-card">
                     <div class="memory-header">
                         <div>
-                            <span class="m3-badge {badge_class}">{_h(item.get('type', 'note'))}</span>
-                            <span style="font-family: 'Outfit', sans-serif; font-weight: 500; font-size: 0.95rem; margin-left: 0.5rem; color:#fff;">{_h(item.get('title') or 'Untitled Memory')}</span>
+                            <span class="m3-badge {badge_class}">{_h(item.get("type", "note"))}</span>
+                            <span style="font-family: 'Outfit', sans-serif; font-weight: 500; font-size: 0.95rem; margin-left: 0.5rem; color:#fff;">{_h(item.get("title") or "Untitled Memory")}</span>
                         </div>
-                        <span class="memory-id">{_h(item.get('id')[:8])}</span>
+                        <span class="memory-id">{_h(item.get("id")[:8])}</span>
                     </div>
-                    <div class="memory-content">{_h(item.get('content') or '')}</div>
+                    <div class="memory-content">{_h(item.get("content") or "")}</div>
                     {explain_html}
                 </div>
                 """)
@@ -2021,7 +2151,6 @@ async def search_memories(request: Request, q: str = "", ignore_case: int = 1):
 
     except Exception as e:
         return f'<p style="color: var(--m3-neon-amber); text-align: center; padding: 2rem 0;">Error scanning indices: {_h(str(e))}</p>'
-
 
 
 def _row_get(row, key, default=None):
@@ -2060,10 +2189,7 @@ def _provenance_html(row) -> str:
     # is the single most important trust signal on the card — call it out.
     vt = _row_get(row, "valid_to")
     if vt:
-        bits.append(
-            '<span style="color: var(--m3-neon-amber);">superseded '
-            f'{_h(str(vt)[:19])}</span>'
-        )
+        bits.append(f'<span style="color: var(--m3-neon-amber);">superseded {_h(str(vt)[:19])}</span>')
     corr = int(_row_get(row, "corroboration_count", 0) or 0)
     cont = int(_row_get(row, "contradiction_count", 0) or 0)
     if corr:
@@ -2074,9 +2200,7 @@ def _provenance_html(row) -> str:
         return ""
     return (
         "<div style=\"font-family: 'Fira Code', monospace; font-size: 0.7rem; "
-        "color: hsl(210, 15%, 55%); margin-bottom: 0.75rem;\">"
-        + " &middot; ".join(bits)
-        + "</div>"
+        'color: hsl(210, 15%, 55%); margin-bottom: 0.75rem;">' + " &middot; ".join(bits) + "</div>"
     )
 
 
@@ -2116,8 +2240,8 @@ async def get_kb_cards(request: Request, q: str = "", type: str = "", limit: int
                     <div class="memory-header">
                         <div>
                             <span style="font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 0.85rem; color: var(--m3-neon-emerald);">#{idx:03d}/{total}</span>
-                            <span class="m3-badge badge-sys" style="margin-left: 0.5rem;">{_h(row[3] or 'file')}</span>
-                            <span style="font-family: 'Fira Code', monospace; font-size: 0.75rem; color: hsl(210, 15%, 50%); margin-left: 0.75rem;">size: {size_kb} KB &middot; corpus: {_h(row[5] or 'default')}</span>
+                            <span class="m3-badge badge-sys" style="margin-left: 0.5rem;">{_h(row[3] or "file")}</span>
+                            <span style="font-family: 'Fira Code', monospace; font-size: 0.75rem; color: hsl(210, 15%, 50%); margin-left: 0.75rem;">size: {size_kb} KB &middot; corpus: {_h(row[5] or "default")}</span>
                         </div>
                     </div>
                     <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.15rem; font-weight: 600; color: #fff; margin-bottom: 0.5rem;">{_h(row[1])}</h3>
@@ -2163,12 +2287,22 @@ async def get_kb_cards(request: Request, q: str = "", type: str = "", limit: int
         # absent column as nothing via `_row_get`, so dropping one degrades the
         # card silently rather than breaking the page.
         _PROV_COLS = (
-            "metadata_json", "origin_device", "change_agent", "created_at",
-            "updated_at", "confidence", "pinned", "source", "valid_from",
-            "valid_to", "corroboration_count", "contradiction_count",
+            "metadata_json",
+            "origin_device",
+            "change_agent",
+            "created_at",
+            "updated_at",
+            "confidence",
+            "pinned",
+            "source",
+            "valid_from",
+            "valid_to",
+            "corroboration_count",
+            "contradiction_count",
         )
 
         from m3_sdk import active_database
+
         with active_database(selected_db_path):
             with _db() as db:
                 # Build the column list from what THIS store actually has.
@@ -2181,9 +2315,7 @@ async def get_kb_cards(request: Request, q: str = "", type: str = "", limit: int
                 # no provenance strip than a 500.
                 _prov = tuple(c for c in _PROV_COLS if c in _present) if _present else ()
                 _sel = ", ".join(f"mi.{c}" for c in (*_CORE_COLS, *_prov))
-                query = (
-                    f"SELECT {_sel} FROM memory_items AS mi WHERE mi.is_deleted = 0"
-                )
+                query = f"SELECT {_sel} FROM memory_items AS mi WHERE mi.is_deleted = 0"
                 if q.strip():
                     # RANKED keyword search through the seam: FTS5+bm25 on
                     # SQLite, tsvector+ts_rank on PostgreSQL. This replaced a
@@ -2193,7 +2325,9 @@ async def get_kb_cards(request: Request, q: str = "", type: str = "", limit: int
                     # faster and actually relevance-ordered, and it is the same
                     # primitive memory_search uses, so browse and search agree.
                     rows = _backend.keyword_search_with_row_data(
-                        db, q, limit=int(limit),
+                        db,
+                        q,
+                        limit=int(limit),
                         tenancy_sql=_tenancy_sql,
                         tenancy_params=tuple(_tenancy_params),
                         # Probed set, not the static tuple: the SEARCH path
@@ -2234,22 +2368,31 @@ async def get_kb_cards(request: Request, q: str = "", type: str = "", limit: int
             tags, extras = parse_metadata(row["metadata_json"])
             tag_html = ""
             if tags:
-                tag_html = '<div style="display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.75rem;">' + \
-                           "".join([f'<span class="m3-tag">{_h(t)}</span>' for t in tags]) + '</div>'
+                tag_html = (
+                    '<div style="display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.75rem;">'
+                    + "".join([f'<span class="m3-tag">{_h(t)}</span>' for t in tags])
+                    + "</div>"
+                )
 
             extras_html = ""
             if extras:
-                extras_list = [f'<span style="margin-right: 0.75rem; color: hsl(210, 10%, 65%);"><strong style="color: hsl(210, 10%, 80%);">{_h(k)}:</strong> {_h(v)}</span>' for k, v in extras.items()]
-                extras_html = '<div style="font-family: \'Fira Code\', monospace; font-size: 0.75rem; margin-top: 0.5rem; display: flex; flex-wrap: wrap;">' + \
-                              "".join(extras_list) + '</div>'
+                extras_list = [
+                    f'<span style="margin-right: 0.75rem; color: hsl(210, 10%, 65%);"><strong style="color: hsl(210, 10%, 80%);">{_h(k)}:</strong> {_h(v)}</span>'
+                    for k, v in extras.items()
+                ]
+                extras_html = (
+                    "<div style=\"font-family: 'Fira Code', monospace; font-size: 0.75rem; margin-top: 0.5rem; display: flex; flex-wrap: wrap;\">"
+                    + "".join(extras_list)
+                    + "</div>"
+                )
 
             cards.append(f"""
             <div class="memory-card">
                 <div class="memory-header">
                     <div>
                         <span style="font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 0.85rem; color: var(--m3-neon-cyan);">#{idx:03d}/{total}</span>
-                        <span class="m3-badge {badge_class}" style="margin-left: 0.5rem;">{_h(row['type'])}</span>
-                        <span style="font-family: 'Fira Code', monospace; font-size: 0.75rem; color: hsl(210, 15%, 50%); margin-left: 0.75rem;">{_h(row['origin_device'] or '?')} &middot; {_h(row['change_agent'] or '?')}</span>
+                        <span class="m3-badge {badge_class}" style="margin-left: 0.5rem;">{_h(row["type"])}</span>
+                        <span style="font-family: 'Fira Code', monospace; font-size: 0.75rem; color: hsl(210, 15%, 50%); margin-left: 0.75rem;">{_h(row["origin_device"] or "?")} &middot; {_h(row["change_agent"] or "?")}</span>
                     </div>
                     <div class="m3-progress-container" title="Importance score: {importance:.2f}">
                         <div class="m3-progress-bar">
@@ -2258,12 +2401,12 @@ async def get_kb_cards(request: Request, q: str = "", type: str = "", limit: int
                         <span>{importance:.2f}</span>
                     </div>
                 </div>
-                <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.15rem; font-weight: 600; color: #fff; margin-bottom: 0.5rem;">{_h(row['title'] or 'Untitled Entry')}</h3>
+                <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.15rem; font-weight: 600; color: #fff; margin-bottom: 0.5rem;">{_h(row["title"] or "Untitled Entry")}</h3>
                 <div style="font-family: 'Fira Code', monospace; font-size: 0.7rem; color: hsl(210, 15%, 55%); margin-bottom: 0.75rem;">
-                    id: {_h(row['id'])} &middot; created: {_h((row['created_at'] or '')[:19])} &middot; updated: {_h((row['updated_at'] or '')[:19])}
+                    id: {_h(row["id"])} &middot; created: {_h((row["created_at"] or "")[:19])} &middot; updated: {_h((row["updated_at"] or "")[:19])}
                 </div>
                 {_provenance_html(row)}
-                <div class="memory-content" style="white-space: pre-wrap;">{_h(row['content'] or '')}</div>
+                <div class="memory-content" style="white-space: pre-wrap;">{_h(row["content"] or "")}</div>
                 {tag_html}
                 {extras_html}
             </div>
@@ -2276,6 +2419,7 @@ async def get_kb_cards(request: Request, q: str = "", type: str = "", limit: int
         # #141 was reported as a bare "Error scanning DB" string with no
         # traceback anywhere to diagnose it from.
         import traceback
+
         traceback.print_exc()
         return f'<p style="color: var(--m3-neon-amber); text-align: center; padding: 2rem 0;">Error scanning DB: {_h(str(e))}</p>'
 
@@ -2290,6 +2434,7 @@ async def get_history_feed(request: Request):
     logs = []
     try:
         from m3_sdk import active_database
+
         with active_database(selected_db_path):
             with _db() as db:
                 if table_exists(db, "memory_history"):
@@ -2316,8 +2461,8 @@ async def get_history_feed(request: Request):
                                 <span style="font-family: 'Fira Code', monospace; color: hsl(210, 15%, 50%); font-weight: 400;">{_h(ts)}</span>
                             </div>
                             <div style="color: hsl(210, 15%, 85%); font-size: 0.82rem; margin-top: 0.4rem;">
-                                <strong>ID:</strong> {_h(r['memory_id'][:8])}<br>
-                                <strong>Details:</strong> {_h(r['new_value'] or r['prev_value'] or 'System record updated.')}
+                                <strong>ID:</strong> {_h(r["memory_id"][:8])}<br>
+                                <strong>Details:</strong> {_h(r["new_value"] or r["prev_value"] or "System record updated.")}
                             </div>
                         </div>
                         """)
@@ -2346,22 +2491,29 @@ def make_html_diff(prev_val: str, new_val: str) -> str:
         return f'<span style="background: rgba(239, 68, 68, 0.2); color: #ff6b6b; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(239, 68, 68, 0.3); text-decoration: line-through;">{_h(prev_val)}</span>'
 
     import difflib
+
     matcher = difflib.SequenceMatcher(None, prev_val.split(), new_val.split())
     result = []
     for opcode, a_start, a_end, b_start, b_end in matcher.get_opcodes():
-        if opcode == 'equal':
+        if opcode == "equal":
             result.append(_h(" ".join(prev_val.split()[a_start:a_end])))
-        elif opcode == 'insert':
+        elif opcode == "insert":
             inserted = _h(" ".join(new_val.split()[b_start:b_end]))
-            result.append(f'<span style="background: rgba(16, 185, 129, 0.25); color: #88ff88; border-bottom: 2px solid var(--m3-neon-emerald); padding: 0 4px; border-radius: 2px; font-weight: 600;">{inserted}</span>')
-        elif opcode == 'delete':
+            result.append(
+                f'<span style="background: rgba(16, 185, 129, 0.25); color: #88ff88; border-bottom: 2px solid var(--m3-neon-emerald); padding: 0 4px; border-radius: 2px; font-weight: 600;">{inserted}</span>'
+            )
+        elif opcode == "delete":
             deleted = _h(" ".join(prev_val.split()[a_start:a_end]))
-            result.append(f'<span style="background: rgba(239, 68, 68, 0.25); color: #ff6b6b; text-decoration: line-through; border-bottom: 2px solid #ef4444; padding: 0 4px; border-radius: 2px;">{deleted}</span>')
-        elif opcode == 'replace':
+            result.append(
+                f'<span style="background: rgba(239, 68, 68, 0.25); color: #ff6b6b; text-decoration: line-through; border-bottom: 2px solid #ef4444; padding: 0 4px; border-radius: 2px;">{deleted}</span>'
+            )
+        elif opcode == "replace":
             deleted = _h(" ".join(prev_val.split()[a_start:a_end]))
             inserted = _h(" ".join(new_val.split()[b_start:b_end]))
-            result.append(f'<span style="background: rgba(239, 68, 68, 0.25); color: #ff6b6b; text-decoration: line-through; padding: 0 4px; border-radius: 2px;">{deleted}</span>'
-                          f' <span style="background: rgba(16, 185, 129, 0.25); color: #88ff88; padding: 0 4px; border-radius: 2px; font-weight: 600;">{inserted}</span>')
+            result.append(
+                f'<span style="background: rgba(239, 68, 68, 0.25); color: #ff6b6b; text-decoration: line-through; padding: 0 4px; border-radius: 2px;">{deleted}</span>'
+                f' <span style="background: rgba(16, 185, 129, 0.25); color: #88ff88; padding: 0 4px; border-radius: 2px; font-weight: 600;">{inserted}</span>'
+            )
     return " ".join(result)
 
 
@@ -2372,8 +2524,8 @@ def render_audit_card(memory_id: str, db: Any) -> str:
     # 1. Fetch current memory state from memory_items if it exists.
     #    cols: 0=title 1=content 2=type 3=user_id 4=importance 5=is_deleted 6=updated_at
     row = db.execute(
-        "SELECT title, content, type, user_id, importance, is_deleted, updated_at "
-        f"FROM memory_items WHERE id = {ph()}", (memory_id,)
+        f"SELECT title, content, type, user_id, importance, is_deleted, updated_at FROM memory_items WHERE id = {ph()}",
+        (memory_id,),
     ).fetchone()
 
     current_title = "None (Deleted)"
@@ -2396,7 +2548,8 @@ def render_audit_card(memory_id: str, db: Any) -> str:
     hist_rows = db.execute(
         "SELECT event, field, prev_value, new_value, actor_id, created_at "
         f"FROM memory_history WHERE memory_id = {ph()} "
-        "ORDER BY created_at DESC", (memory_id,)
+        "ORDER BY created_at DESC",
+        (memory_id,),
     ).fetchall()
 
     # Check if there's any active conflict/contradiction
@@ -2452,7 +2605,7 @@ def render_audit_card(memory_id: str, db: Any) -> str:
             diff_html = f"""
             <div style="margin-top: 0.5rem;">
                 <span style="font-size: 0.75rem; font-weight: 600; color: hsl(210, 10%, 60%);">Resolution:</span>
-                <div class="diff-text" style="color: var(--m3-neon-purple);">{_h(new_v or 'Conflict resolved, marked active.')}</div>
+                <div class="diff-text" style="color: var(--m3-neon-purple);">{_h(new_v or "Conflict resolved, marked active.")}</div>
             </div>
             """
 
@@ -2530,7 +2683,7 @@ def render_audit_card(memory_id: str, db: Any) -> str:
                 <div style="font-family: 'Fira Code', monospace; font-size: 0.75rem; color: hsl(210, 10%, 65%); margin-top: 0.35rem; display: flex; flex-wrap: wrap; gap: 0.75rem;">
                     <span><strong>ID:</strong> {memory_id}</span>
                     <span><strong>Type:</strong> <span class="m3-badge badge-sys" style="font-size: 0.65rem; padding: 1px 4px;">{current_type}</span></span>
-                    {f'<span><strong>User ID:</strong> {user_id}</span>' if user_id else ''}
+                    {f"<span><strong>User ID:</strong> {user_id}</span>" if user_id else ""}
                     <span><strong>Importance:</strong> {importance:.2f}</span>
                 </div>
             </div>
@@ -2547,7 +2700,7 @@ def render_audit_card(memory_id: str, db: Any) -> str:
             <form hx-post="/api/audit/override/{memory_id}" hx-target="#card-{memory_id}" hx-swap="outerHTML">
                 <div style="margin-bottom: 0.75rem;">
                     <label style="display: block; font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600; color: var(--m3-neon-cyan);">Override Title</label>
-                    <input type="text" name="title" class="m3-input" value="{current_title.replace('"', '&quot;')}" style="width: 100%;" required>
+                    <input type="text" name="title" class="m3-input" value="{current_title.replace('"', "&quot;")}" style="width: 100%;" required>
                 </div>
                 <div style="margin-bottom: 0.75rem;">
                     <label style="display: block; font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 600; color: var(--m3-neon-cyan);">Override Content</label>
@@ -2571,16 +2724,19 @@ async def get_audit_timeline(request: Request, q: str = "", limit: int = 25):
 
     try:
         from m3_sdk import active_database
+
         with active_database(selected_db_path):
             with _db() as db:
                 if not table_exists(db, "memory_history"):
                     # Not damage: the chatlog store is a deliberate subset of
                     # main and never carries edit history. Say what the store
                     # does, not which table is missing (issue #141).
-                    return ('<p style="color: hsl(210, 15%, 55%); text-align: center; '
-                            'font-size: 0.85rem; padding: 2rem 0;">This store does not track '
-                            'edit history — the audit log is available on the main database. '
-                            'Switch the DB selector to <strong>main</strong> to view it.</p>')
+                    return (
+                        '<p style="color: hsl(210, 15%, 55%); text-align: center; '
+                        'font-size: 0.85rem; padding: 2rem 0;">This store does not track '
+                        "edit history — the audit log is available on the main database. "
+                        "Switch the DB selector to <strong>main</strong> to view it.</p>"
+                    )
 
                 # Fetch distinct memory IDs that have history, sorted by their latest activity
                 sql_ids = """
@@ -2635,6 +2791,7 @@ async def get_audit_timeline(request: Request, q: str = "", limit: int = 25):
                 """
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         return f'<p style="color: var(--m3-neon-amber); text-align: center; font-size: 0.85rem; padding: 2rem 0;">Failed to scan timelines: {e!s}</p>'
 
@@ -2647,9 +2804,11 @@ async def audit_override(memory_id: str, request: Request, title: str = Form(...
 
     # Import and run memory_update_impl
     from memory_core import memory_update_impl
+
     await memory_update_impl(id=memory_id, title=title, content=content, reembed=True)
 
     from m3_sdk import active_database
+
     with active_database(selected_db_path):
         with _db() as db:
             return render_audit_card(memory_id, db)
@@ -2665,6 +2824,7 @@ async def audit_resolve(memory_id: str, request: Request):
 
     from m3_sdk import active_database
     from memory.db import _record_history
+
     # Backend-agnostic placeholder: ? on SQLite, %s on PostgreSQL/others. _db()
     # yields the raw driver connection (no auto ?→%s translation), so inline SQL
     # MUST use the active backend's placeholder to work on every backend.
@@ -2672,13 +2832,23 @@ async def audit_resolve(memory_id: str, request: Request):
     with active_database(selected_db_path):
         with _db() as db:
             # 1. Undelete (is_deleted = 0)
-            db.execute(f"UPDATE memory_items SET is_deleted = 0, updated_at = {ph()} WHERE id = {ph()}",
-                       (datetime.now(UTC).isoformat(), memory_id))
+            db.execute(
+                f"UPDATE memory_items SET is_deleted = 0, updated_at = {ph()} WHERE id = {ph()}",
+                (datetime.now(UTC).isoformat(), memory_id),
+            )
             # 2. Record "resolve" event in history. Name access works on both
             #    backends (SQLite Row + PG _DualRow compat cursor).
             row = db.execute(f"SELECT content FROM memory_items WHERE id = {ph()}", (memory_id,)).fetchone()
             content = (row["content"] if row else None) or "Restored and active."
-            _record_history(memory_id, "resolve", "Conflict state or soft-deleted", content, "is_deleted", actor_id="dashboard", db=db)
+            _record_history(
+                memory_id,
+                "resolve",
+                "Conflict state or soft-deleted",
+                content,
+                "is_deleted",
+                actor_id="dashboard",
+                db=db,
+            )
 
             return render_audit_card(memory_id, db)
 
@@ -2690,9 +2860,11 @@ async def audit_soft_delete(memory_id: str, request: Request):
     set_active_db_env(selected_db)
 
     from memory_core import memory_delete_impl
+
     memory_delete_impl(memory_id, hard=False)
 
     from m3_sdk import active_database
+
     with active_database(selected_db_path):
         with _db() as db:
             return render_audit_card(memory_id, db)
@@ -2705,6 +2877,7 @@ async def audit_hard_delete(memory_id: str, request: Request):
     set_active_db_env(selected_db)
 
     from memory_core import memory_delete_impl
+
     memory_delete_impl(memory_id, hard=True)
 
     return f"""
@@ -2727,9 +2900,7 @@ async def export_gdpr_data(user_id: str = "default"):
         def iter_json():
             yield json.dumps(data, indent=2)
 
-        headers = {
-            "Content-Disposition": f'attachment; filename="m3_gdpr_export_{user_id}.json"'
-        }
+        headers = {"Content-Disposition": f'attachment; filename="m3_gdpr_export_{user_id}.json"'}
         return StreamingResponse(iter_json(), media_type="application/json", headers=headers)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Export failed: {e!s}") from e
@@ -2754,11 +2925,18 @@ async def forget_gdpr_data(
     defensible record. m3 does not verify or enforce these — see docs/COMPLIANCE.md.
     """
     try:
-        compliance = {k: v.strip() for k, v in {
-            "legal_basis": legal_basis, "reason": reason,
-            "verified_by": verified_by, "authorized_by": authorized_by,
-            "external_ref": external_ref, "retained_note": retained_note,
-        }.items() if v and v.strip()} or None
+        compliance = {
+            k: v.strip()
+            for k, v in {
+                "legal_basis": legal_basis,
+                "reason": reason,
+                "verified_by": verified_by,
+                "authorized_by": authorized_by,
+                "external_ref": external_ref,
+                "retained_note": retained_note,
+            }.items()
+            if v and v.strip()
+        } or None
         msg = gdpr_forget_impl(user_id, compliance=compliance)
         return HTMLResponse(content=f"GDPR Purge Successful: {msg}", status_code=200)
     except Exception as e:
@@ -2770,8 +2948,9 @@ active_task: dict[str, Any] = {
     "action": None,
     "log_path": None,
     "log_file_handle": None,
-    "expected_wait": ""
+    "expected_wait": "",
 }
+
 
 @app.post("/api/maintenance/{action}", response_class=HTMLResponse)
 @app.post("/api/maintenance/trigger/{action}", response_class=HTMLResponse)
@@ -2784,7 +2963,7 @@ async def trigger_maintenance_task(action: str):
     if proc is not None and proc.poll() is None:
         return HTMLResponse(
             content=f"[Error] Another task ({active_task['action']}) is already running. Please wait for it to complete.",
-            status_code=400
+            status_code=400,
         )
 
     # Explicitly the MAIN store, never the selector's. This task mutates data,
@@ -2795,6 +2974,7 @@ async def trigger_maintenance_task(action: str):
     # Resolve Chatlog DB path
     try:
         from chatlog_config import resolve_config
+
         config = resolve_config()
         chatlog_db = os.path.abspath(config.db_path)
     except Exception:
@@ -2802,11 +2982,31 @@ async def trigger_maintenance_task(action: str):
 
     cmd_map = {
         "decay_dry": [sys.executable, os.path.join(os.path.dirname(__file__), "chatlog_decay.py"), "--db", chatlog_db],
-        "decay_apply": [sys.executable, os.path.join(os.path.dirname(__file__), "chatlog_decay.py"), "--db", chatlog_db, "--apply"],
-        "embed_sweep": [sys.executable, os.path.join(os.path.dirname(__file__), "chatlog_embed_sweeper.py"), "--database", main_db, "--drain-spill"],
-        "backfill_titles": [sys.executable, os.path.join(os.path.dirname(__file__), "m3_chatlog_backfill_title.py"), "--yes"],
-        "backfill_embeds": [sys.executable, os.path.join(os.path.dirname(__file__), "m3_chatlog_backfill_embed.py"), "--yes"],
-        "files_health": [sys.executable, "-m", "files_memory.tools", "health", "--rebuild"]
+        "decay_apply": [
+            sys.executable,
+            os.path.join(os.path.dirname(__file__), "chatlog_decay.py"),
+            "--db",
+            chatlog_db,
+            "--apply",
+        ],
+        "embed_sweep": [
+            sys.executable,
+            os.path.join(os.path.dirname(__file__), "chatlog_embed_sweeper.py"),
+            "--database",
+            main_db,
+            "--drain-spill",
+        ],
+        "backfill_titles": [
+            sys.executable,
+            os.path.join(os.path.dirname(__file__), "m3_chatlog_backfill_title.py"),
+            "--yes",
+        ],
+        "backfill_embeds": [
+            sys.executable,
+            os.path.join(os.path.dirname(__file__), "m3_chatlog_backfill_embed.py"),
+            "--yes",
+        ],
+        "files_health": [sys.executable, "-m", "files_memory.tools", "health", "--rebuild"],
     }
 
     wait_map = {
@@ -2815,7 +3015,7 @@ async def trigger_maintenance_task(action: str):
         "embed_sweep": "10-60 seconds (sweeping and compacting queue)",
         "backfill_titles": "30-180 seconds (generating titles via LLM/fallback)",
         "backfill_embeds": "1-5 minutes (generating embedding vectors for queue)",
-        "files_health": "10-45 seconds (probing and rebuilding chunks)"
+        "files_health": "10-45 seconds (probing and rebuilding chunks)",
     }
 
     if action not in cmd_map:
@@ -2858,11 +3058,12 @@ async def trigger_maintenance_task(action: str):
         # Spawn child process in the background. no_window_kwargs() suppresses a
         # console window on Windows (the maintenance task would otherwise flash one).
         from _task_runtime import no_window_kwargs
+
         proc = subprocess.Popen(  # noqa: ASYNC220 — spawns and returns; the task runs detached
             cmd,
             env=env,
             stdout=log_file_handle,
-            stderr=subprocess.STDOUT, # redirect stderr to stdout
+            stderr=subprocess.STDOUT,  # redirect stderr to stdout
             shell=False,
             **no_window_kwargs(),
         )
@@ -2875,7 +3076,7 @@ async def trigger_maintenance_task(action: str):
 
         return HTMLResponse(
             content=f"[System] Triggered background task '{action}'.\nExpected wait: {expected_wait}.\nRunning in background...",
-            status_code=200
+            status_code=200,
         )
     except Exception as e:
         try:
@@ -2929,7 +3130,7 @@ async def get_maintenance_status():
             "action": active_task["action"],
             "expected_wait": active_task["expected_wait"],
             "exit_code": exit_code,
-            "logs": logs
+            "logs": logs,
         }
     )
 
@@ -2971,23 +3172,22 @@ def dashboard_show_url(host: str | None = None, port: int | None = None) -> int:
     try:
         import m3_http_auth as _auth
     except ImportError:
-        print("Auth module unavailable; the dashboard is running without a token.",
-              file=sys.stderr)
+        print("Auth module unavailable; the dashboard is running without a token.", file=sys.stderr)
         return 1
 
     token, _state = _auth.resolve_token()
     if _state is _auth.TokenState.PRESENT_UNDECRYPTABLE:
-        print(f"{_auth.SECRET_NAME} exists but cannot be decrypted on this device.",
-              file=sys.stderr)
+        print(f"{_auth.SECRET_NAME} exists but cannot be decrypted on this device.", file=sys.stderr)
         return 1
     if not token:
         if _auth.is_loopback(resolved_host):
-            print(f"No token configured; the dashboard is open on loopback.\n"
-                  f"  Open it directly:  http://{resolved_host}:{resolved_port}/\n"
-                  f"  To require a token: m3 serve --generate-token")
+            print(
+                f"No token configured; the dashboard is open on loopback.\n"
+                f"  Open it directly:  http://{resolved_host}:{resolved_port}/\n"
+                f"  To require a token: m3 serve --generate-token"
+            )
             return 0
-        print(f"No {_auth.SECRET_NAME} configured (run: m3 serve --generate-token).",
-              file=sys.stderr)
+        print(f"No {_auth.SECRET_NAME} configured (run: m3 serve --generate-token).", file=sys.stderr)
         return 1
 
     # Loopback is not reachable from another device; name the real address so the
@@ -3004,8 +3204,10 @@ def dashboard_show_url(host: str | None = None, port: int | None = None) -> int:
     print("Open this once on the target device (the token is exchanged for a cookie):\n")
     print(f"    http://{display_host}:{resolved_port}/?token={token}\n")
     if resolved_host not in ("0.0.0.0", "::"):  # nosec B104 — comparison, not a bind
-        print(f"NOTE: the dashboard is bound to {resolved_host}, so another device can only\n"
-              f"reach it if that address is routable from it (e.g. a VPN/tailnet address).")
+        print(
+            f"NOTE: the dashboard is bound to {resolved_host}, so another device can only\n"
+            f"reach it if that address is routable from it (e.g. a VPN/tailnet address)."
+        )
     return 0
 
 
@@ -3017,6 +3219,7 @@ def _port_already_serving(host: str, port: int, timeout: float = 1.0) -> bool:
     probed via loopback (you connect TO a concrete address, not the wildcard).
     """
     import socket
+
     # B104 false positive: "0.0.0.0" here is a string comparison that remaps the
     # wildcard to loopback for an outbound connect probe; this is not a bind-to-all.
     probe = "127.0.0.1" if host in ("0.0.0.0", "::", "") else host  # nosec B104
@@ -3031,6 +3234,7 @@ def _live_dashboards() -> list:
     """Registered, alive dashboard processes (reaps stale entries as a side effect)."""
     try:
         import m3_halt
+
         return [p for p in m3_halt.list_live_processes() if p.role == _HALT_ROLE]
     except Exception:  # noqa: BLE001
         return []
@@ -3065,6 +3269,7 @@ def _dashboard_pids_by_cmdline() -> set[int]:
             import subprocess
 
             from _task_runtime import no_window_kwargs
+
             # PowerShell CIM: python* whose cmdline has BOTH the script and --foreground.
             ps = (
                 "Get-CimInstance Win32_Process | "
@@ -3075,7 +3280,10 @@ def _dashboard_pids_by_cmdline() -> set[int]:
             )
             out = subprocess.run(  # noqa: S603
                 ["powershell", "-NoProfile", "-Command", ps],
-                capture_output=True, text=True, timeout=15, **no_window_kwargs(),
+                capture_output=True,
+                text=True,
+                timeout=15,
+                **no_window_kwargs(),
             ).stdout
             for line in out.splitlines():
                 line = line.strip()
@@ -3084,6 +3292,7 @@ def _dashboard_pids_by_cmdline() -> set[int]:
         else:
             # POSIX: scan /proc for a python cmdline with both signatures.
             import glob
+
             for cmdpath in glob.glob("/proc/[0-9]*/cmdline"):
                 try:
                     pid = int(cmdpath.split("/")[2])
@@ -3092,8 +3301,7 @@ def _dashboard_pids_by_cmdline() -> set[int]:
                     with open(cmdpath, "rb") as f:
                         parts = f.read().split(b"\x00")
                     joined = b" ".join(parts).decode("utf-8", "replace")
-                    if ("python" in joined and _DASHBOARD_CMDLINE_SIG in joined
-                            and _DASHBOARD_FOREGROUND_SIG in joined):
+                    if "python" in joined and _DASHBOARD_CMDLINE_SIG in joined and _DASHBOARD_FOREGROUND_SIG in joined:
                         pids.add(pid)
                 except (OSError, ValueError, IndexError):
                     continue
@@ -3105,14 +3313,21 @@ def _dashboard_pids_by_cmdline() -> set[int]:
 def _kill_pid(pid: int) -> bool:
     """Terminate a pid cross-platform (taskkill /F on Windows, SIGTERM on POSIX)."""
     import subprocess
+
     try:
         if is_windows():
             from _task_runtime import no_window_kwargs
-            subprocess.run(["taskkill", "/F", "/PID", str(pid)],  # noqa: S603,S607
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                           check=False, **no_window_kwargs())
+
+            subprocess.run(
+                ["taskkill", "/F", "/PID", str(pid)],  # noqa: S603,S607
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+                **no_window_kwargs(),
+            )
         else:
             import signal
+
             os.kill(pid, signal.SIGTERM)
         return True
     except Exception:  # noqa: BLE001
@@ -3134,8 +3349,7 @@ def dashboard_status(host: str | None = None, port: int | None = None) -> int:
     # Unregistered survivors (not in the registry) — surface them honestly.
     orphans = _dashboard_pids_by_cmdline() - registered_pids
     for pid in sorted(orphans):
-        print(f"dashboard: running but UNREGISTERED (pid {pid}) — "
-              "`m3 dashboard --stop` will clean it up.")
+        print(f"dashboard: running but UNREGISTERED (pid {pid}) — `m3 dashboard --stop` will clean it up.")
     if not live and not orphans:
         print("dashboard: not running  (start with `m3 dashboard`)")
         return 1
@@ -3183,6 +3397,7 @@ def _spawn_detached(host: str, port: int) -> int:
     (the actual blocking server) and self-registers in the PID registry.
     """
     import subprocess
+
     env = dict(os.environ)
     env["M3_DASHBOARD_HOST"] = host
     env["M3_DASHBOARD_PORT"] = str(port)
@@ -3194,8 +3409,11 @@ def _spawn_detached(host: str, port: int) -> int:
         pyw = sys.executable.replace("python.exe", "pythonw.exe")
         exe = pyw if os.path.exists(pyw) else sys.executable
         subprocess.Popen(  # noqa: S603
-            [exe, script, "--foreground"], env=env,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL,
+            [exe, script, "--foreground"],
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
             **detached_spawn_kwargs(),
         )
     else:
@@ -3203,18 +3421,22 @@ def _spawn_detached(host: str, port: int) -> int:
         # controlling terminal. no_window_kwargs() is an empty dict here (marks
         # the no-window intent for the regression guard; a no-op off Windows).
         from _task_runtime import no_window_kwargs
+
         subprocess.Popen(  # noqa: S603
-            [sys.executable, script, "--foreground"], env=env,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL,
-            start_new_session=True, **no_window_kwargs(),
+            [sys.executable, script, "--foreground"],
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+            **no_window_kwargs(),
         )
     print(f"m3 dashboard started in background → http://{host}:{port}", flush=True)
     print("  (keeps running after you close this window; stop with `m3 dashboard --stop`)", flush=True)
     return 0
 
 
-def run_dashboard(host: str | None = None, port: int | None = None,
-                  *, background: bool = True) -> int:
+def run_dashboard(host: str | None = None, port: int | None = None, *, background: bool = True) -> int:
     """Start the dashboard.
 
     DEFAULT (``background=True``): detach a WINDOWLESS server that SURVIVES the
@@ -3281,29 +3503,32 @@ def run_dashboard(host: str | None = None, port: int | None = None,
     # no-op, no respawn); a config/lock error → a degraded handle so we still run
     # (fail-safe §3). Held for the process lifetime (released via atexit+SIGTERM).
     from m3_sdk import acquire_or_exit
+
     _lock = acquire_or_exit(
         _HALT_ROLE,
         extra={"host": resolved_host, "port": resolved_port},
         on_already_running=lambda o: print(
-            f"dashboard already running (pid {o.pid if o else '?'}) on "
-            f"{resolved_host}:{resolved_port}; exiting.", flush=True),
+            f"dashboard already running (pid {o.pid if o else '?'}) on {resolved_host}:{resolved_port}; exiting.",
+            flush=True,
+        ),
     )
     run_dashboard._instance_lock = _lock  # type: ignore[attr-defined]  # keep alive
     if not _lock.acquired:
-        print(f"[warn] dashboard single-instance lock DEGRADED "
-              f"({_lock.status.value}) — running without enforcement", flush=True)
+        print(
+            f"[warn] dashboard single-instance lock DEGRADED ({_lock.status.value}) — running without enforcement",
+            flush=True,
+        )
 
     registered = False
     try:
         import m3_halt
-        m3_halt.register_process(
-            _HALT_ROLE, extra={"host": resolved_host, "port": resolved_port})
+
+        m3_halt.register_process(_HALT_ROLE, extra={"host": resolved_host, "port": resolved_port})
         registered = True
     except Exception as e:  # noqa: BLE001 — registration is advisory, not fatal
         print(f"[warn] could not register dashboard in PID registry: {e}", flush=True)
 
-    config = uvicorn.Config(app, host=resolved_host, port=resolved_port,
-                            log_level="warning", use_colors=False)
+    config = uvicorn.Config(app, host=resolved_host, port=resolved_port, log_level="warning", use_colors=False)
 
     class _NoSignalServer(uvicorn.Server):
         # Under pythonw there is NO console to deliver SIGINT/SIGTERM, and
@@ -3322,6 +3547,7 @@ def run_dashboard(host: str | None = None, port: int | None = None,
         if registered:
             try:
                 import m3_halt
+
                 m3_halt.deregister(_HALT_ROLE)
             except Exception:  # noqa: BLE001 — best-effort cleanup
                 pass
@@ -3334,24 +3560,29 @@ if __name__ == "__main__":
     _p = argparse.ArgumentParser(description="M3 local web dashboard.")
     _p.add_argument("--host", default=None, help="Bind address (default 127.0.0.1).")
     _p.add_argument("--port", type=int, default=None, help="TCP port (default 8088).")
-    _p.add_argument("--foreground", action="store_true",
-                    help="Run the server in THIS process (used by the detached "
-                         "child and the boot task). Default launches detached.")
+    _p.add_argument(
+        "--foreground",
+        action="store_true",
+        help="Run the server in THIS process (used by the detached "
+        "child and the boot task). Default launches detached.",
+    )
     _p.add_argument("--stop", action="store_true", help="Stop a running dashboard.")
     _p.add_argument("--status", action="store_true", help="Report dashboard status.")
     # --log-file is accepted for scheduled-task parity (self-logging); the task
     # runtime consumes it, so we just tolerate it here.
-    _p.add_argument("--show-url", action="store_true",
-                    help="Print the one-time sign-in URL (includes the token) for "
-                         "opening the dashboard on another device.")
+    _p.add_argument(
+        "--show-url",
+        action="store_true",
+        help="Print the one-time sign-in URL (includes the token) for opening the dashboard on another device.",
+    )
     _p.add_argument("--log-file", default=None, help=argparse.SUPPRESS)
     _a = _p.parse_args()
 
     if _a.log_file:
         try:
             import _task_runtime
-            _task_runtime.setup_task_runtime(log_file=_a.log_file, lock_name=None,
-                                             logger_name="dashboard")
+
+            _task_runtime.setup_task_runtime(log_file=_a.log_file, lock_name=None, logger_name="dashboard")
         except Exception:  # noqa: BLE001 — logging setup must never block startup
             pass
 

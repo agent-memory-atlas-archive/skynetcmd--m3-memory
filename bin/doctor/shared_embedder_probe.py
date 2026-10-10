@@ -21,6 +21,7 @@ command when task registration needs an admin shell it doesn't have.
 
 Report-and-fix, never crashes the doctor.
 """
+
 from __future__ import annotations
 
 import json
@@ -44,8 +45,11 @@ def _config_root() -> str:
     root = os.environ.get("M3_CONFIG_ROOT")
     if not root:
         mem = os.environ.get("M3_MEMORY_ROOT")
-        root = (os.path.join(os.path.abspath(os.path.expanduser(mem)), "config")
-                if mem else os.path.join(os.path.expanduser("~"), ".m3", "config"))
+        root = (
+            os.path.join(os.path.abspath(os.path.expanduser(mem)), "config")
+            if mem
+            else os.path.join(os.path.expanduser("~"), ".m3", "config")
+        )
     return root
 
 
@@ -72,9 +76,9 @@ def _known_agent_settings() -> list[tuple[str, str]]:
     j = os.path.join
     return [
         ("Claude Code", j(home, ".claude", "settings.json")),
-        ("Gemini CLI",  j(home, ".gemini", "settings.json")),
+        ("Gemini CLI", j(home, ".gemini", "settings.json")),
         ("Antigravity", j(home, ".gemini", "antigravity-cli", "settings.json")),
-        ("Aider",       j(home, ".aider", "settings.json")),
+        ("Aider", j(home, ".aider", "settings.json")),
     ]
 
 
@@ -83,9 +87,17 @@ def _shell_rc_candidates() -> list[str]:
     Order matters only for reporting; we scan all that exist."""
     home = os.path.expanduser("~")
     j = os.path.join
-    return [j(home, name) for name in (
-        ".zshrc", ".zshenv", ".zprofile", ".bashrc", ".bash_profile", ".profile",
-    )]
+    return [
+        j(home, name)
+        for name in (
+            ".zshrc",
+            ".zshenv",
+            ".zprofile",
+            ".bashrc",
+            ".bash_profile",
+            ".profile",
+        )
+    ]
 
 
 def _find_env_in_shell_rc(var: str) -> list[str]:
@@ -104,7 +116,7 @@ def _find_env_in_shell_rc(var: str) -> list[str]:
                     if stripped.startswith("#"):
                         continue  # commented-out — not live
                     # match `VAR=` or `export VAR=` (VAR at a word boundary)
-                    body = stripped[len("export "):].lstrip() if stripped.startswith("export ") else stripped
+                    body = stripped[len("export ") :].lstrip() if stripped.startswith("export ") else stripped
                     if body.startswith(needle):
                         hits.append(f"{path}:{lineno}")
         except Exception:  # noqa: BLE001 — an unreadable rc file just yields no hit
@@ -124,9 +136,11 @@ def _manual_env_leak_remains() -> bool:
     var that --fix provably cannot remove (as opposed to a settings.json env block,
     which it can auto-scrub). This is the signal that lets the doctor print manual
     instructions and STOP, instead of looping 'run --fix' forever."""
-    return bool((os.environ.get("M3_EMBED_GGUF") or "").strip()) or \
-        _windows_user_env_has("M3_EMBED_GGUF") or \
-        bool(_find_env_in_shell_rc("M3_EMBED_GGUF"))
+    return (
+        bool((os.environ.get("M3_EMBED_GGUF") or "").strip())
+        or _windows_user_env_has("M3_EMBED_GGUF")
+        or bool(_find_env_in_shell_rc("M3_EMBED_GGUF"))
+    )
 
 
 def _manual_removal_command() -> list[str]:
@@ -222,8 +236,9 @@ def _fix_scrub_env_leak() -> tuple[bool, bool]:
                 settings_scrubbed = True
             except Exception as e:  # noqa: BLE001
                 print(f"  [fix] could not rewrite {path}: {e}")
-    process_env_remains = bool((os.environ.get("M3_EMBED_GGUF") or "").strip()) or \
-        _windows_user_env_has("M3_EMBED_GGUF")
+    process_env_remains = bool((os.environ.get("M3_EMBED_GGUF") or "").strip()) or _windows_user_env_has(
+        "M3_EMBED_GGUF"
+    )
     if process_env_remains:
         print("  [fix] M3_EMBED_GGUF is ALSO set in the process/User env — that cannot")
         print("        be removed from here. Remove it so new shells + MCP servers stop")
@@ -274,6 +289,7 @@ def _task_registered_ok() -> bool | None:
         import io
 
         import install_schedules
+
         # _verify_windows_task prints its own [OK]/[FAIL] lines; silence them so
         # this probe emits a single clean 'keepalive:' verdict instead of two.
         with contextlib.redirect_stdout(io.StringIO()):
@@ -305,6 +321,7 @@ def _rust_service_state() -> str:
     try:
         sys.path.insert(0, os.path.join(_payload_bin(), "..", "m3_memory"))
         from m3_memory import embedder_admin
+
         binary = embedder_admin._server_binary()
         if binary is None:
             return "absent"
@@ -363,6 +380,7 @@ def _fix_write_config() -> bool:
         import argparse
 
         from m3_memory import embedder_admin
+
         # cmd_shared reads only args.port; pass a real Namespace to satisfy its
         # argparse.Namespace signature (SimpleNamespace is not a subtype).
         embedder_admin.cmd_shared(argparse.Namespace(port=_PORT))
@@ -383,6 +401,7 @@ def _fix_start_rust_service() -> bool:
     try:
         sys.path.insert(0, os.path.join(_payload_bin(), "..", "m3_memory"))
         from m3_memory import embedder_admin
+
         binary = embedder_admin._server_binary()
         gguf = embedder_admin._find_bundled_gguf()
         if binary is None or gguf is None:
@@ -391,6 +410,7 @@ def _fix_start_rust_service() -> bool:
         # Verify rather than trust the exit code: "already running" and "start
         # failed" are not distinguishable from it.
         import time
+
         for _ in range(10):
             if embedder_admin._service_reports_running(binary, gguf):
                 return True
@@ -427,7 +447,9 @@ def _fix_start_server() -> bool:
         kwargs.update(detached_spawn_kwargs())
         subprocess.Popen(  # noqa: S603 — fixed argv, our own script
             [exe, script, "--port", str(_PORT)],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **kwargs,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            **kwargs,
         )
         print(f"  [fix] launched embed server on {_DEFAULT_URL} (loading may take a few seconds).")
         return True
@@ -451,7 +473,8 @@ def _fix_register_task() -> bool:
         print("  [fix] install_schedules.py not found; cannot register the keep-alive task.")
         return False
     rc = subprocess.run(  # noqa: S603 — fixed argv
-        [sys.executable, script, "--add", "embed-server"], check=False,
+        [sys.executable, script, "--add", "embed-server"],
+        check=False,
     ).returncode
     if rc == 0:
         return True
@@ -492,8 +515,7 @@ def _offer_elevated_repair(script: str) -> bool:
     try:
         return bool(_offer_elevated_schedule_repair(script, non_interactive=False))
     except Exception as e:  # noqa: BLE001 — a repair attempt must not crash --fix
-        print(f"  [fix] elevated retry unavailable ({type(e).__name__}); "
-              f"falling back to the manual command.")
+        print(f"  [fix] elevated retry unavailable ({type(e).__name__}); falling back to the manual command.")
         return False
 
 
@@ -518,8 +540,7 @@ def _classify_embed_model(cfg: dict | None, body: dict) -> tuple[str | None, lis
     read here would make the probe's verdict depend on machine state, §3). When no
     model is pinned there is nothing to compare, so it stays quiet. Returns
     (token, lines): token in {'model-mismatch', None}; lines are printable rows."""
-    pinned = ((os.environ.get("M3_EMBED_MODEL") or "").strip()
-              or (cfg or {}).get("embed_model") or "").strip()
+    pinned = ((os.environ.get("M3_EMBED_MODEL") or "").strip() or (cfg or {}).get("embed_model") or "").strip()
     served = str((body or {}).get("model") or "").strip()
     try:
         served_dim = int((body or {}).get("dim") or 0)
@@ -534,8 +555,7 @@ def _classify_embed_model(cfg: dict | None, body: dict) -> tuple[str | None, lis
             "built with (embed_model in .embed_config.json / M3_EMBED_MODEL), or re-embed.",
         ]
     if pinned and served:
-        return None, [f"  model    : OK — server '{served}' matches pin '{pinned}' "
-                      f"(dim={served_dim or '?'})."]
+        return None, [f"  model    : OK — server '{served}' matches pin '{pinned}' (dim={served_dim or '?'})."]
     return None, []
 
 
@@ -588,6 +608,7 @@ def run(brief: bool = False, fix: bool = False) -> int:
             if _fix_start_server():
                 # re-probe after a short grace so the verdict reflects reality
                 import time
+
                 for _ in range(10):
                     time.sleep(1)
                     health, body = _server_health(url, timeout=2)
@@ -601,21 +622,19 @@ def run(brief: bool = False, fix: bool = False) -> int:
             if state == "stopped":
                 # Registered but down: the actionable repair is to START it, not
                 # to re-register. Do not clear the problem unless it comes up.
-                print("  [fix] Rust m3-embed-server service registered but stopped "
-                      "— starting it.")
+                print("  [fix] Rust m3-embed-server service registered but stopped — starting it.")
                 if _fix_start_rust_service():
-                    print("  [fix] service now RUNNING. Re-embed the outage window "
-                          "with `m3 embedder backfill`.")
+                    print("  [fix] service now RUNNING. Re-embed the outage window with `m3 embedder backfill`.")
                     problems = [p for p in problems if p != "keepalive-missing"]
                 else:
-                    print("  [fix] could not start it here (LocalSystem service "
-                          "usually needs an ADMIN shell).")
-                    print("        run: `m3 embedder start`  or  "
-                          "`sc.exe start m3-embed-server`")
+                    print("  [fix] could not start it here (LocalSystem service usually needs an ADMIN shell).")
+                    print("        run: `m3 embedder start`  or  `sc.exe start m3-embed-server`")
             elif state == "not-installed":
-                print("  [fix] Rust m3-embed-server present but not registered — "
-                      "register its OS service with `m3 embedder install` "
-                      "(keeps :8082 up cross-platform).")
+                print(
+                    "  [fix] Rust m3-embed-server present but not registered — "
+                    "register its OS service with `m3 embedder install` "
+                    "(keeps :8082 up cross-platform)."
+                )
                 if _keepalive()[1]:
                     problems = [p for p in problems if p != "keepalive-missing"]
             elif _fix_register_task():
@@ -640,8 +659,10 @@ def run(brief: bool = False, fix: bool = False) -> int:
         if healthy:
             print("✅ shared-embedder: OK (config + server + keep-alive)")
         elif manual_only:
-            print("⚠️  shared-embedder: M3_EMBED_GGUF set in your environment — "
-                  "remove it by hand (`m3 doctor --verbose` shows the exact command).")
+            print(
+                "⚠️  shared-embedder: M3_EMBED_GGUF set in your environment — "
+                "remove it by hand (`m3 doctor --verbose` shows the exact command)."
+            )
         else:
             print(f"⚠️  shared-embedder: {len(problems)} issue(s) — run `m3 doctor --fix`")
         return 0 if healthy else 1
@@ -664,16 +685,17 @@ def run(brief: bool = False, fix: bool = False) -> int:
         print(f"             fix: start it (`python bin/embed_server_inproc.py --port {_PORT}`)")
         print("                  or register the keep-alive task below.")
     else:
-        print(f"  server   : OK (model={body.get('model')}, dim={body.get('dim')}, "
-              f"status={health})")
+        print(f"  server   : OK (model={body.get('model')}, dim={body.get('dim')}, status={health})")
         for _ln in model_lines:
             print(_ln)
 
     match ka_kind:
-        case 'rust-service':
-            print("  keepalive: OK — Rust m3-embed-server OS service RUNNING "
-                  "(systemd/launchd/Windows Service, OS-native restart).")
-        case 'rust-service-stopped':
+        case "rust-service":
+            print(
+                "  keepalive: OK — Rust m3-embed-server OS service RUNNING "
+                "(systemd/launchd/Windows Service, OS-native restart)."
+            )
+        case "rust-service-stopped":
             print("  keepalive: [FAIL] Rust m3-embed-server service is REGISTERED but")
             print("             STOPPED — nothing is keeping :8082 alive. OS restart")
             print("             actions fire only on an abnormal exit, so a cleanly")
@@ -682,13 +704,12 @@ def run(brief: bool = False, fix: bool = False) -> int:
             print("             fix: `m3 embedder start`  (Windows: ADMIN shell, or")
             print("                  `sc.exe start m3-embed-server`)")
             print("             then re-embed the gap: `m3 embedder backfill`")
-        case 'rust-service-not-installed':
+        case "rust-service-not-installed":
             print("  keepalive: [FAIL] the Rust m3-embed-server binary is on disk but")
             print("             NO service is registered — nothing restarts :8082.")
             print("             fix: `m3 embedder install`  (Windows: ADMIN shell)")
-        case 'windows-task':
-            print(f"  keepalive: OK — {_TASK} scheduled task (1-min self-heal, "
-                  "Python-server fallback).")
+        case "windows-task":
+            print(f"  keepalive: OK — {_TASK} scheduled task (1-min self-heal, Python-server fallback).")
         case _:
             print("  keepalive: [FAIL] nothing keeps :8082 alive — no Rust m3-embed-server")
             print("             service and no embed-server task. A crash/reboot silently")
@@ -721,8 +742,10 @@ def run(brief: bool = False, fix: bool = False) -> int:
     elif healthy and model_token is not None:
         # Config/server/keep-alive are fine; the embedder MODEL is the concern.
         # Not `--fix`-repairable — it needs a repoint or a re-embed (see above).
-        print("  status   : [WARN] shared mode wired, but embedder-model mismatch "
-              "(see model line above) — not auto-fixable.")
+        print(
+            "  status   : [WARN] shared mode wired, but embedder-model mismatch "
+            "(see model line above) — not auto-fixable."
+        )
     elif manual_only:
         # Don't tell the user to run --fix for the one thing it can't fix; the
         # exact manual command is printed in the inproc block above.

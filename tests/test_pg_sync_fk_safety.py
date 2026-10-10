@@ -19,6 +19,7 @@ import pytest
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "bin"))
 
+
 # Stub psycopg2 so pg_sync import doesn't require it installed at test time.
 # Built unconditionally (not gated on `not in sys.modules`): the guard was an
 # isolation bug — when an earlier test imported the REAL psycopg2, the stub was
@@ -74,8 +75,9 @@ class FakePgCursor:
         s = " ".join(sql.split())
         if s.startswith("SELECT EXISTS"):
             self._next_one = (True,)  # pretend table exists
-        elif s.startswith(("SELECT id FROM memory_items WHERE id = ANY",
-                           "SELECT mi.id FROM memory_items mi WHERE mi.id = ANY")):
+        elif s.startswith(
+            ("SELECT id FROM memory_items WHERE id = ANY", "SELECT mi.id FROM memory_items mi WHERE mi.id = ANY")
+        ):
             queried = params[0] if params else []
             # psycopg2 adapts a list to ARRAY but a tuple to a ROW, and real
             # PostgreSQL rejects `= ANY(ROW)` (WrongObjectType: "op ANY/ALL
@@ -83,8 +85,7 @@ class FakePgCursor:
             # Reject what the server rejects, or this fake hides the bug.
             assert isinstance(queried, list), f"ANY() needs a list, got {type(queried).__name__}"
             self._next_all = [(i,) for i in queried if i in self.present_ids]
-        elif s.startswith("SELECT me.id, me.memory_id") or \
-             s.startswith("SELECT id, memory_id, embedding"):
+        elif s.startswith("SELECT me.id, me.memory_id") or s.startswith("SELECT id, memory_id, embedding"):
             self._next_all = []  # no remote rows to pull
         elif s.startswith("INSERT INTO memory_embeddings"):
             self.inserted_batches.append(list(params) if params else [])
@@ -126,12 +127,14 @@ class _CaptureHandler(logging.Handler):
     def __init__(self):
         super().__init__()
         self.messages: list[str] = []
+
     def emit(self, record):
         self.messages.append(record.getMessage())
 
 
 def _attach_capture():
     import pg_sync
+
     h = _CaptureHandler()
     h.setLevel(logging.DEBUG)
     pg_sync.logger.addHandler(h)
@@ -146,14 +149,20 @@ def test_skips_embedding_when_parent_not_in_pg():
     try:
         conn = _make_sqlite()
         cur = conn.cursor()
-        cur.execute("INSERT INTO memory_items (id, created_at) VALUES (?, ?)",
-                    ("mem-parent-present", "2026-04-19T00:00:00Z"))
-        cur.execute("INSERT INTO memory_items (id, created_at) VALUES (?, ?)",
-                    ("mem-parent-missing", "2026-04-19T00:00:00Z"))
-        cur.execute("INSERT INTO memory_embeddings VALUES (?,?,?,?,?)",
-                    ("emb-1", "mem-parent-present", b"\x01" * 8, "test-model", 8))
-        cur.execute("INSERT INTO memory_embeddings VALUES (?,?,?,?,?)",
-                    ("emb-2", "mem-parent-missing", b"\x02" * 8, "test-model", 8))
+        cur.execute(
+            "INSERT INTO memory_items (id, created_at) VALUES (?, ?)", ("mem-parent-present", "2026-04-19T00:00:00Z")
+        )
+        cur.execute(
+            "INSERT INTO memory_items (id, created_at) VALUES (?, ?)", ("mem-parent-missing", "2026-04-19T00:00:00Z")
+        )
+        cur.execute(
+            "INSERT INTO memory_embeddings VALUES (?,?,?,?,?)",
+            ("emb-1", "mem-parent-present", b"\x01" * 8, "test-model", 8),
+        )
+        cur.execute(
+            "INSERT INTO memory_embeddings VALUES (?,?,?,?,?)",
+            ("emb-2", "mem-parent-missing", b"\x02" * 8, "test-model", 8),
+        )
         conn.commit()
 
         pg_cur = FakePgCursor(present_ids={"mem-parent-present"})
@@ -167,8 +176,7 @@ def test_skips_embedding_when_parent_not_in_pg():
         for batch in pg_cur.inserted_batches:
             for row in batch:
                 pushed_ids.add(row[1])
-        assert pushed_ids == {"mem-parent-present"}, (
-            f"orphan embedding must not be pushed; got {pushed_ids}")
+        assert pushed_ids == {"mem-parent-present"}, f"orphan embedding must not be pushed; got {pushed_ids}"
     finally:
         pg_sync.logger.removeHandler(h)
 
@@ -181,10 +189,8 @@ def test_all_parents_present_pushes_everything():
         conn = _make_sqlite()
         cur = conn.cursor()
         for mid in ("a", "b", "c"):
-            cur.execute("INSERT INTO memory_items (id, created_at) VALUES (?, ?)",
-                        (mid, "2026-04-19T00:00:00Z"))
-            cur.execute("INSERT INTO memory_embeddings VALUES (?,?,?,?,?)",
-                        (f"emb-{mid}", mid, b"\xab" * 4, "m", 4))
+            cur.execute("INSERT INTO memory_items (id, created_at) VALUES (?, ?)", (mid, "2026-04-19T00:00:00Z"))
+            cur.execute("INSERT INTO memory_embeddings VALUES (?,?,?,?,?)", (f"emb-{mid}", mid, b"\xab" * 4, "m", 4))
         conn.commit()
 
         pg_cur = FakePgCursor(present_ids={"a", "b", "c"})
@@ -207,14 +213,11 @@ def test_all_parents_missing_pushes_nothing():
     conn = _make_sqlite()
     cur = conn.cursor()
     for mid in ("x", "y"):
-        cur.execute("INSERT INTO memory_items (id, created_at) VALUES (?, ?)",
-                    (mid, "2026-04-19T00:00:00Z"))
-        cur.execute("INSERT INTO memory_embeddings VALUES (?,?,?,?,?)",
-                    (f"emb-{mid}", mid, b"\xcd" * 4, "m", 4))
+        cur.execute("INSERT INTO memory_items (id, created_at) VALUES (?, ?)", (mid, "2026-04-19T00:00:00Z"))
+        cur.execute("INSERT INTO memory_embeddings VALUES (?,?,?,?,?)", (f"emb-{mid}", mid, b"\xcd" * 4, "m", 4))
     conn.commit()
 
     pg_cur = FakePgCursor(present_ids=set())
     pg_sync.sync_memory_embeddings(cur, pg_cur, conn, "test")
 
-    assert pg_cur.inserted_batches == [], (
-        "no rows should be inserted when every parent is missing")
+    assert pg_cur.inserted_batches == [], "no rows should be inserted when every parent is missing"

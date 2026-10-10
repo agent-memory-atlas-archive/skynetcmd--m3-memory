@@ -30,6 +30,7 @@ exception is the GDPR scan, whose failure the caller must surface (a cache holdi
 an erased id that is not flushed is a compliance gap), so that function returns a
 structured summary and lets the caller decide.
 """
+
 from __future__ import annotations
 
 import json
@@ -42,6 +43,7 @@ _log = logging.getLogger("m3.wiki.ledger")
 
 # ── run lifecycle (provenance) ───────────────────────────────────────────────
 
+
 def next_seq(db, dialect) -> int:
     """The next monotonic run sequence number. MAX(seq)+1, 1 on an empty table."""
     row = db.execute("SELECT MAX(seq) AS m FROM cluster_run").fetchone()
@@ -49,11 +51,17 @@ def next_seq(db, dialect) -> int:
     return int(cur) + 1
 
 
-def open_run(db, dialect, *, scope: str = "", user_id: str = "",
-             importance_threshold: float | None = None,
-             entity_comention: bool = False,
-             entity_max_degree: int | None = None,
-             as_of: str | None = None) -> str:
+def open_run(
+    db,
+    dialect,
+    *,
+    scope: str = "",
+    user_id: str = "",
+    importance_threshold: float | None = None,
+    entity_comention: bool = False,
+    entity_max_degree: int | None = None,
+    as_of: str | None = None,
+) -> str:
     """Insert an IN-PROGRESS run row (``completed_at`` NULL) and return its id.
 
     The row is invisible to readers until ``complete_run`` stamps ``completed_at``
@@ -67,8 +75,16 @@ def open_run(db, dialect, *, scope: str = "", user_id: str = "",
         f"(id, seq, completed_at, as_of, scope, user_id, importance_threshold, "
         f" entity_comention, entity_max_degree, cluster_count) "
         f"VALUES ({p}, {p}, NULL, {p}, {p}, {p}, {p}, {p}, {p}, 0)",
-        (run_id, seq, as_of, scope or "", user_id or "",
-         importance_threshold, 1 if entity_comention else 0, entity_max_degree),
+        (
+            run_id,
+            seq,
+            as_of,
+            scope or "",
+            user_id or "",
+            importance_threshold,
+            1 if entity_comention else 0,
+            entity_max_degree,
+        ),
     )
     return run_id
 
@@ -90,8 +106,7 @@ def record_members(db, dialect, run_id: str, members: list[tuple]) -> int:
     # INSERT + an ON CONFLICT (...) DO NOTHING trailing clause. Compose both from
     # the dialect so this one statement is backend-agnostic (§1).
     verb = dialect.insert_or_ignore()  # "INSERT OR IGNORE INTO" | "INSERT INTO"
-    conflict = dialect.on_conflict_ignore(
-        conflict_target="(run_id, cluster_key, memory_id)")  # "" on sqlite
+    conflict = dialect.on_conflict_ignore(conflict_target="(run_id, cluster_key, memory_id)")  # "" on sqlite
     n = 0
     for cluster_key, memory_id, cluster_hash, head_id in members:
         db.execute(
@@ -104,8 +119,9 @@ def record_members(db, dialect, run_id: str, members: list[tuple]) -> int:
     return n
 
 
-def complete_run(db, dialect, run_id: str, *, cluster_count: int | None = None,
-                 page_hash_digest: dict | None = None) -> None:
+def complete_run(
+    db, dialect, run_id: str, *, cluster_count: int | None = None, page_hash_digest: dict | None = None
+) -> None:
     """Stamp ``completed_at`` (making the run visible to readers) and optionally
     record the cluster count + a per-cluster page-hash digest.
 
@@ -123,8 +139,7 @@ def complete_run(db, dialect, run_id: str, *, cluster_count: int | None = None,
         sets.append(f"page_hash_digest = {p}")
         args.append(json.dumps(page_hash_digest, sort_keys=True))
     args.append(run_id)
-    db.execute(
-        f"UPDATE cluster_run SET {', '.join(sets)} WHERE id = {p}", args)
+    db.execute(f"UPDATE cluster_run SET {', '.join(sets)} WHERE id = {p}", args)
 
 
 def prune_superseded_members(db, dialect, keep_run_id: str) -> None:
@@ -147,14 +162,11 @@ def prune_superseded_members(db, dialect, keep_run_id: str) -> None:
 
 # ── read side (the skip-check) ───────────────────────────────────────────────
 
+
 def latest_completed_run(db, dialect) -> str | None:
     """Id of the most recent COMPLETED run, or None. Readers resolve only these —
     an in-progress (crashed) run is invisible."""
-    row = db.execute(
-        "SELECT id FROM cluster_run "
-        "WHERE completed_at IS NOT NULL "
-        "ORDER BY seq DESC LIMIT 1"
-    ).fetchone()
+    row = db.execute("SELECT id FROM cluster_run WHERE completed_at IS NOT NULL ORDER BY seq DESC LIMIT 1").fetchone()
     if not row:
         return None
     try:
@@ -173,8 +185,7 @@ def frozen_membership(db, dialect, run_id: str) -> dict[str, dict]:
     """
     p = dialect.param()
     rows = db.execute(
-        f"SELECT cluster_key, memory_id, cluster_hash, head_synthesis_id "
-        f"FROM cluster_members WHERE run_id = {p}",
+        f"SELECT cluster_key, memory_id, cluster_hash, head_synthesis_id FROM cluster_members WHERE run_id = {p}",
         (run_id,),
     ).fetchall()
     out: dict[str, dict] = {}
@@ -184,8 +195,7 @@ def frozen_membership(db, dialect, run_id: str) -> dict[str, dict]:
             ch, hid = r["cluster_hash"], r["head_synthesis_id"]
         except (KeyError, IndexError, TypeError):
             ck, mid, ch, hid = r[0], r[1], r[2], r[3]
-        slot = out.setdefault(ck, {"members": set(), "cluster_hash": ch,
-                                   "head_synthesis_id": hid})
+        slot = out.setdefault(ck, {"members": set(), "cluster_hash": ch, "head_synthesis_id": hid})
         slot["members"].add(mid)
     return out
 
@@ -210,8 +220,8 @@ def hash_is_unchanged(db, dialect, cluster_key: str, cluster_hash: str) -> bool:
 
 # ── GDPR (G2): scan for an erased id, record on the run, flush the cache ──────
 
-def scan_and_flush_on_erasure(db, dialect, erased_member_ids: list[str], *,
-                              timestamp: str) -> dict:
+
+def scan_and_flush_on_erasure(db, dialect, erased_member_ids: list[str], *, timestamp: str) -> dict:
     """Find every run whose cached membership references an erased UUID, record the
     erasure on those run rows (accumulating id + count + timestamps), and FLUSH the
     affected runs' cached membership.
@@ -231,8 +241,7 @@ def scan_and_flush_on_erasure(db, dialect, erased_member_ids: list[str], *,
     ph = dialect.placeholder(len(erased_member_ids))
     # Which completed runs cached any of the erased ids?
     rows = db.execute(
-        f"SELECT DISTINCT run_id FROM cluster_members "
-        f"WHERE memory_id IN ({ph})",
+        f"SELECT DISTINCT run_id FROM cluster_members WHERE memory_id IN ({ph})",
         list(erased_member_ids),
     ).fetchall()
     run_ids: list[str] = []
@@ -276,11 +285,9 @@ def scan_and_flush_on_erasure(db, dialect, erased_member_ids: list[str], *,
             (json.dumps(merged), len(merged), timestamp, timestamp, rid),
         )
         # Flush the cache for this run (membership is rebuildable; the record isn't).
-        db.execute(
-            f"DELETE FROM cluster_members WHERE run_id = {p}", (rid,))
+        db.execute(f"DELETE FROM cluster_members WHERE run_id = {p}", (rid,))
         summary["members_flushed"] += 1
     summary["runs_flagged"] = len(run_ids)
     summary["run_ids"] = run_ids
-    _log.info("wiki ledger GDPR flush: %d run(s) flagged, membership flushed",
-              len(run_ids))
+    _log.info("wiki ledger GDPR flush: %d run(s) flagged, membership flushed", len(run_ids))
     return summary

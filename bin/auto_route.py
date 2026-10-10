@@ -23,6 +23,7 @@ API:
 - signals_summary(query, candidates) -> dict  (all signals as a dict for capture)
 - count_named_entities(query) -> int  (count of proper-noun phrases in query)
 """
+
 from __future__ import annotations
 
 import logging
@@ -270,13 +271,19 @@ def _route_shadow_compare(query: str, py_branch: str, params: dict | None = None
         if mapped_branch == py_branch:
             _log.debug(
                 "route shadow AGREE: branch=%s query=%r rs_confidence=%.3f",
-                py_branch, query, decision.confidence,
+                py_branch,
+                query,
+                decision.confidence,
             )
         else:
             _log.warning(
                 "route shadow DISAGREE: py_branch=%s rs_branch=%s mapped_branch=%s query=%r "
                 "rs_confidence=%.3f rs_signal_breakdown=%s",
-                py_branch, rs_branch, mapped_branch, query, decision.confidence,
+                py_branch,
+                rs_branch,
+                mapped_branch,
+                query,
+                decision.confidence,
                 decision.signal_breakdown,
             )
     except Exception as exc:  # noqa: BLE001 — shadow must never break routing
@@ -315,8 +322,7 @@ def decide_branch(query: str, candidates: list, params: dict) -> str:
 
             if t1 > top1_sharp_min and s3 > slope_sharp_min and t1 > top1_low_threshold:
                 _log.debug(
-                    "route enforce mode: post-retrieval sharp spike override detected (top_1=%.3f, slope=%.3f)",
-                    t1, s3
+                    "route enforce mode: post-retrieval sharp spike override detected (top_1=%.3f, slope=%.3f)", t1, s3
                 )
                 return "sharp"
 
@@ -327,7 +333,10 @@ def decide_branch(query: str, candidates: list, params: dict) -> str:
             mapped_branch = _map_rust_to_py_branch(query, rs_branch, params)
             _log.debug(
                 "route enforce mode: rs_branch=%s -> mapped_branch=%s query=%r confidence=%.3f",
-                rs_branch, mapped_branch, query, decision.confidence
+                rs_branch,
+                mapped_branch,
+                query,
+                decision.confidence,
             )
             return mapped_branch
         except Exception as exc:
@@ -347,9 +356,7 @@ def _decide_branch_impl(query: str, candidates: list, params: dict) -> str:
         return "temporal"
 
     # Read thresholds from params (caller-overridable)
-    diversity_threshold = params.get(
-        "auto_conv_id_diversity_threshold", AUTO_CONV_ID_DIVERSITY_THRESHOLD
-    )
+    diversity_threshold = params.get("auto_conv_id_diversity_threshold", AUTO_CONV_ID_DIVERSITY_THRESHOLD)
     top1_sharp_min = params.get("auto_top1_sharp_min", AUTO_TOP1_SHARP_MIN)
     slope_sharp_min = params.get("auto_slope_at_3_sharp_min", AUTO_SLOPE_AT_3_SHARP_MIN)
     top1_low_threshold = params.get("auto_top1_low_threshold", AUTO_TOP1_LOW_THRESHOLD)

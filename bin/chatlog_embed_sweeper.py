@@ -6,6 +6,7 @@ Runs on a schedule (default every 30 min via install_schedules.py). Picks up
 rows written with embed=False, embeds in batches using memory_core._embed_many,
 and drains any spill-to-disk files from the async write queue.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -43,6 +44,7 @@ _spill_cfg_cache: dict = {"ts": 0.0, "mtime": None, "max_attempts": None}
 
 def _spill_config_path() -> str:
     from m3_core.paths import get_m3_config_root
+
     return os.path.join(get_m3_config_root(), ".spill_config.json")
 
 
@@ -73,9 +75,10 @@ def _spill_max_attempts(now: float | None = None) -> int:
                     # §3 never silent: a malformed file would otherwise revert to
                     # defaults invisibly, so the operator's tuning is not live.
                     logger.warning(
-                        "Spill config %s is unreadable/malformed (%s) — falling "
-                        "back to env var + default until fixed.",
-                        _spill_config_path(), e)
+                        "Spill config %s is unreadable/malformed (%s) — falling back to env var + default until fixed.",
+                        _spill_config_path(),
+                        e,
+                    )
                     cfg = {}
             _spill_cfg_cache["max_attempts"] = cfg.get("max_drain_attempts")
 
@@ -119,11 +122,14 @@ def _record_attempt(spill_path: str, ok: bool, reason: str = "") -> int:
     n = _read_attempts(spill_path) + 1
     try:
         with open(_attempts_path(spill_path), "w", encoding="utf-8") as fh:
-            json.dump({
-                "consecutive_failures": n,
-                "last_error": reason[:500],
-                "last_attempt": datetime.now(UTC).isoformat(),
-            }, fh)
+            json.dump(
+                {
+                    "consecutive_failures": n,
+                    "last_error": reason[:500],
+                    "last_attempt": datetime.now(UTC).isoformat(),
+                },
+                fh,
+            )
     except OSError as e:
         # Best-effort: a counter we cannot persist just means we retry longer.
         logger.warning("Could not record drain attempt for %s: %s", spill_path, e)
@@ -151,7 +157,12 @@ def _quarantine_spill(spill_path: str, reason: str, attempts: int) -> bool:
             "QUARANTINED undrainable spill %s -> %s after %d consecutive failures "
             "(%s). Turns are PRESERVED, not deleted — move the file back once the "
             "target store exists. Raise max_drain_attempts in %s to retry longer.",
-            spill_path, dest, attempts, reason, _spill_config_path())
+            spill_path,
+            dest,
+            attempts,
+            reason,
+            _spill_config_path(),
+        )
         return True
     except OSError as e:
         logger.warning("Could not quarantine %s: %s", spill_path, e)
@@ -234,21 +245,21 @@ async def drain_spill(conn=None) -> int:
                     doc.setdefault("_id", str(uuid.uuid4()))
                     doc.setdefault("_content", doc.get("content", ""))
                     doc.setdefault("_title", "")
-                    doc.setdefault("_created_at",
-                                   doc.get("timestamp")
-                                   or datetime.now(UTC).isoformat())
+                    doc.setdefault("_created_at", doc.get("timestamp") or datetime.now(UTC).isoformat())
                     doc.setdefault("conversation_id", "")
                     doc.setdefault("model_id", doc.get("model_id", "unknown"))
                     if not doc.get("agent_id"):
                         doc["agent_id"] = f"{host_agent}:spill"
                     if not doc.get("_metadata_json"):
-                        doc["_metadata_json"] = json.dumps({
-                            "role": doc.get("role", "unknown"),
-                            "provider": doc.get("provider", "unknown"),
-                            "model_id": doc.get("model_id", "unknown"),
-                            "host_agent": host_agent,
-                            "spill_source": True,
-                        })
+                        doc["_metadata_json"] = json.dumps(
+                            {
+                                "role": doc.get("role", "unknown"),
+                                "provider": doc.get("provider", "unknown"),
+                                "model_id": doc.get("model_id", "unknown"),
+                                "host_agent": host_agent,
+                                "spill_source": True,
+                            }
+                        )
 
                     per_db.setdefault(doc.get("_db_path"), []).append(doc)
 
@@ -276,13 +287,18 @@ async def drain_spill(conn=None) -> int:
                 # strand PG spill permanently. The orphan-store hazard is
                 # inherently SQLite's — a server backend cannot be conjured by
                 # connecting to it.
-                if (db_path and _backend.name == "sqlite"
-                        and not os.path.isdir(os.path.dirname(os.path.abspath(db_path)))):
+                if (
+                    db_path
+                    and _backend.name == "sqlite"
+                    and not os.path.isdir(os.path.dirname(os.path.abspath(db_path)))
+                ):
                     logger.error(
                         "Spill target %s is stale (parent directory missing) — "
                         "refusing to create an orphan store. Keeping %s; "
                         "re-point or remove the stale rows to drain it.",
-                        db_path, spill_path)
+                        db_path,
+                        spill_path,
+                    )
                     had_error = True
                     last_error = f"stale target {db_path} (parent directory missing)"
                     continue
@@ -300,7 +316,9 @@ async def drain_spill(conn=None) -> int:
                         "Spill target %s exists but carries no chatlog schema "
                         "(empty/foreign SQLite file) — refusing to write into it. "
                         "Keeping %s; re-point or remove the stale rows to drain it.",
-                        db_path, spill_path)
+                        db_path,
+                        spill_path,
+                    )
                     had_error = True
                     last_error = f"target {db_path} has no chatlog schema"
                     continue
@@ -322,15 +340,20 @@ async def drain_spill(conn=None) -> int:
                 # it; only the reinsertion threw it away.
                 try:
                     from chatlog_core import _executemany_insert
+
                     written = await asyncio.to_thread(_executemany_insert, rows)
                     file_drained += written
-                    logger.info("Drained %d rows from %s -> %s",
-                                written, spill_path, db_path or "<live resolver>")
+                    logger.info("Drained %d rows from %s -> %s", written, spill_path, db_path or "<live resolver>")
                 except Exception as e:  # noqa: BLE001 — per-target isolation
                     # Backend-agnostic: sqlite3.Error and psycopg2.Error are
                     # unrelated types, so catch broadly and keep the spill file.
-                    logger.error("Failed to insert drained rows from %s into %s: %s: %s",
-                                 spill_path, db_path, type(e).__name__, e)
+                    logger.error(
+                        "Failed to insert drained rows from %s into %s: %s: %s",
+                        spill_path,
+                        db_path,
+                        type(e).__name__,
+                        e,
+                    )
                     had_error = True
                     last_error = f"{type(e).__name__}: {e}"
 
@@ -353,7 +376,11 @@ async def drain_spill(conn=None) -> int:
                 else:
                     logger.warning(
                         "Spill %s did not fully drain (attempt %d/%d): %s",
-                        spill_path, n, _max_attempts, last_error or "unknown")
+                        spill_path,
+                        n,
+                        _max_attempts,
+                        last_error or "unknown",
+                    )
 
         except Exception as e:
             logger.error("Error processing spill file %s: %s", spill_path, e)
@@ -398,14 +425,16 @@ async def embed_batch(
                 if vec is not None:
                     packed = _pack(vec)
                     embed_id = str(uuid.uuid4())
-                    rows_to_insert.append((
-                        embed_id,
-                        mem_id,
-                        packed,
-                        model_str,
-                        len(vec),  # dim
-                        datetime.now(UTC).isoformat(),
-                    ))
+                    rows_to_insert.append(
+                        (
+                            embed_id,
+                            mem_id,
+                            packed,
+                            model_str,
+                            len(vec),  # dim
+                            datetime.now(UTC).isoformat(),
+                        )
+                    )
 
             if rows_to_insert:
                 conn.executemany(
@@ -487,6 +516,7 @@ def save_state(state: dict) -> None:
     state_dir = os.path.dirname(chatlog_config.STATE_FILE)
     os.makedirs(state_dir, exist_ok=True)
     from m3_core.atomic_io import atomic_write
+
     try:
         atomic_write(chatlog_config.STATE_FILE, json.dumps(state, indent=2))
     except OSError as e:
@@ -495,9 +525,7 @@ def save_state(state: dict) -> None:
 
 async def main() -> int:
     """Main entry point."""
-    parser = argparse.ArgumentParser(
-        description="Lazy embed chat log rows missing embeddings."
-    )
+    parser = argparse.ArgumentParser(description="Lazy embed chat log rows missing embeddings.")
     parser.add_argument(
         "--batch",
         type=int,
@@ -515,10 +543,10 @@ async def main() -> int:
         type=float,
         default=None,
         help="Soft wall-clock budget (seconds) for one run. The embed loop stops "
-             "starting new batches once this elapses, so a large backlog is drained "
-             "across several scheduled runs instead of monopolizing the GPU in one "
-             "long run. Default from CHATLOG_EMBED_DEADLINE_S env or 60s; 0 disables "
-             "(unbounded, the old behavior). max-per-run still caps total rows.",
+        "starting new batches once this elapses, so a large backlog is drained "
+        "across several scheduled runs instead of monopolizing the GPU in one "
+        "long run. Default from CHATLOG_EMBED_DEADLINE_S env or 60s; 0 disables "
+        "(unbounded, the old behavior). max-per-run still caps total rows.",
     )
     parser.add_argument(
         "--dry-run",
@@ -533,6 +561,7 @@ async def main() -> int:
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from _task_runtime import add_log_file_arg, setup_task_runtime
     from m3_sdk import add_database_arg
+
     add_log_file_arg(parser)
     add_database_arg(parser)
     args = parser.parse_args()
@@ -547,9 +576,8 @@ async def main() -> int:
     # Resolve config
     cfg = chatlog_config.resolve_config()
     batch_size = args.batch or cfg.embed_sweeper.batch_size
-    max_per_run = (
-        args.max_per_run
-        or int(getenv_compat("M3_CHATLOG_EMBED_MAX_PER_RUN", "CHATLOG_EMBED_MAX_PER_RUN", "10000"))
+    max_per_run = args.max_per_run or int(
+        getenv_compat("M3_CHATLOG_EMBED_MAX_PER_RUN", "CHATLOG_EMBED_MAX_PER_RUN", "10000")
     )
     # Soft time budget per run. None -> env default (60s). 0 -> unbounded (old
     # behavior). Keeps a big backlog from pinning the GPU in one long run; the
@@ -583,6 +611,7 @@ async def main() -> int:
     # Gate on the BACKEND, not the file: a PostgreSQL deployment can still have
     # a stale SQLite file on disk, and embedding it would be silent wrong work.
     from m3_core.paths import resolve_backend_name
+
     db_path = chatlog_config.chatlog_db_path()
     _bk = resolve_backend_name()
     if _bk != "sqlite" or not os.path.exists(db_path):
@@ -590,8 +619,11 @@ async def main() -> int:
             "Skipping the SQLite embedding backfill; observed: backend=%s, local "
             "chat log DB %s %s; spill drained: %d. On a server backend the "
             "cognitive loop's embed pass does this. inspect: M3_DB_BACKEND",
-            _bk, db_path, "present" if os.path.exists(db_path) else "absent",
-            early_spill_drained)
+            _bk,
+            db_path,
+            "present" if os.path.exists(db_path) else "absent",
+            early_spill_drained,
+        )
         return 0
 
     try:
@@ -699,9 +731,9 @@ async def main() -> int:
             content_hash_fn=_ch,
             transform_text=lambda t, _m: t,  # chatlog: no anchor augmentation
             batch_size=batch_size,
-            concurrency=1,                   # sweeper has historically run sequentially
-            timeout_s=300.0,                 # generous for a scheduled background job
-            deadline_s=deadline_s,           # soft per-run wall-clock budget (see --deadline)
+            concurrency=1,  # sweeper has historically run sequentially
+            timeout_s=300.0,  # generous for a scheduled background job
+            deadline_s=deadline_s,  # soft per-run wall-clock budget (see --deadline)
             max_consecutive_fails=5,
             max_row_bytes=32_768,
             # A long chat turn is exactly the row that used to be dropped here:
@@ -710,7 +742,7 @@ async def main() -> int:
             # loop's embed gate permanently "has work"). Subdivide + mean-pool
             # instead, so a long turn is still searchable.
             oversize_mode="subdivide",
-            expected_dim=None,               # don't reject by dim — chatlog has heterogenous models
+            expected_dim=None,  # don't reject by dim — chatlog has heterogenous models
             limit=max_per_run,
             log=lambda msg: logger.info("%s", msg),
         )

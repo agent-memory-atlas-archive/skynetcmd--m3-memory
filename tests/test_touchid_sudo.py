@@ -3,6 +3,7 @@
 Hermetic: the PAM files are temp files and `sudo tee` is a stub; nothing here
 touches /etc/pam.d.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -34,6 +35,7 @@ def _fake_sudo_tee(monkeypatch, write=True, rc=0):
             with open(argv[3], "a", encoding="utf-8") as fh:
                 fh.write(input)
         return type("R", (), {"returncode": rc, "stderr": ""})()
+
     monkeypatch.setattr(touchid.subprocess, "run", run)
 
 
@@ -58,7 +60,7 @@ def test_enable_appends_one_line_and_checks_the_file(mac, monkeypatch):
 
 
 def test_enable_does_not_claim_success_the_file_does_not_show(mac, monkeypatch):
-    _fake_sudo_tee(monkeypatch, write=False)      # sudo "succeeds", nothing written
+    _fake_sudo_tee(monkeypatch, write=False)  # sudo "succeeds", nothing written
     ok, detail = touchid.enable()
     assert not ok and "no active pam_tid line" in detail
 

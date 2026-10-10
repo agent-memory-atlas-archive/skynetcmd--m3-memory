@@ -4,6 +4,7 @@ Guards the fix where the Python telemetry path hardcoded gpu_total=0.0, leaving
 the governor blind to a GPU-pinned local LLM / embed server. probe_gpu_util now
 feeds real GPU utilization into the load metric so the loop throttles/halts.
 """
+
 from __future__ import annotations
 
 import os
@@ -33,20 +34,16 @@ def test_governor_reacts_to_gpu_load(monkeypatch):
     _idle_user()
     _pin_thresholds(monkeypatch, 85, 95)
     # GPU idle -> full speed.
-    assert m3_sdk.get_governor_pacing(
-        {"cpu_total": 5, "ram_total": 10, "gpu_total": 10})["background"] == "CONTINUOUS"
+    assert m3_sdk.get_governor_pacing({"cpu_total": 5, "ram_total": 10, "gpu_total": 10})["background"] == "CONTINUOUS"
     # GPU busy (>= initial 85) -> throttled, even with low CPU/RAM.
-    assert m3_sdk.get_governor_pacing(
-        {"cpu_total": 5, "ram_total": 10, "gpu_total": 87})["background"] == "THROTTLED"
+    assert m3_sdk.get_governor_pacing({"cpu_total": 5, "ram_total": 10, "gpu_total": 87})["background"] == "THROTTLED"
     # GPU critical (>= limit 95) -> halted.
-    assert m3_sdk.get_governor_pacing(
-        {"cpu_total": 5, "ram_total": 10, "gpu_total": 96})["background"] == "HALTED"
+    assert m3_sdk.get_governor_pacing({"cpu_total": 5, "ram_total": 10, "gpu_total": 96})["background"] == "HALTED"
 
 
 def _fresh_probe_cache(monkeypatch):
     monkeypatch.setattr(m3_sdk, "_GPU_PROBE_DISABLE", False)
-    monkeypatch.setattr(m3_sdk, "_gpu_probe_cache",
-                        {"ts": 0.0, "util": 0.0, "backend": None, "misses": 0})
+    monkeypatch.setattr(m3_sdk, "_gpu_probe_cache", {"ts": 0.0, "util": 0.0, "backend": None, "misses": 0})
 
 
 def test_probe_gpu_util_disabled_returns_zero(monkeypatch):
@@ -74,11 +71,15 @@ def test_probe_gpu_util_picks_first_working_backend(monkeypatch):
     # First backend unavailable (None), second returns a value -> that value
     # wins and its backend is pinned.
     _fresh_probe_cache(monkeypatch)
-    monkeypatch.setattr(m3_sdk, "_GPU_PROBES", (
-        ("nvidia", lambda: None),
-        ("windows", lambda: 73.0),
-        ("macos", lambda: 5.0),
-    ))
+    monkeypatch.setattr(
+        m3_sdk,
+        "_GPU_PROBES",
+        (
+            ("nvidia", lambda: None),
+            ("windows", lambda: 73.0),
+            ("macos", lambda: 5.0),
+        ),
+    )
     # Advance past the TTL rather than hardcoding a clock: _GPU_PROBE_TTL is
     # env-tunable (M3_GPU_PROBE_TTL), so a fixed `now` silently returns the
     # cached 0.0 -- and the test fails -- for anyone who raised it. Same
@@ -92,6 +93,7 @@ def _write_cfg(path, payload, mtime):
     detector fires deterministically (two writes in one OS tick can collide)."""
     import json
     import os
+
     path.write_text(json.dumps(payload))
     os.utime(str(path), (mtime, mtime))
 
@@ -103,8 +105,7 @@ def test_governor_thresholds_config_file_overrides(monkeypatch, tmp_path):
     cfg = cfg_root / ".governor_config.json"
     monkeypatch.setattr(m3_sdk, "get_m3_config_root", lambda: str(cfg_root))
     monkeypatch.setattr(m3_sdk, "_GOV_CFG_TTL", 0.0)  # always re-stat
-    monkeypatch.setattr(m3_sdk, "_gov_cfg_cache",
-                        {"ts": 0.0, "mtime": None, "initial": None, "limit": None})
+    monkeypatch.setattr(m3_sdk, "_gov_cfg_cache", {"ts": 0.0, "mtime": None, "initial": None, "limit": None})
     monkeypatch.delenv("M3_GOVERNOR_INITIAL_THRESHOLD", raising=False)
     monkeypatch.delenv("M3_GOVERNOR_LIMIT_THRESHOLD", raising=False)
 
@@ -126,8 +127,7 @@ def test_governor_thresholds_skips_reparse_when_unchanged(monkeypatch, tmp_path)
     cfg = cfg_root / ".governor_config.json"
     monkeypatch.setattr(m3_sdk, "get_m3_config_root", lambda: str(cfg_root))
     monkeypatch.setattr(m3_sdk, "_GOV_CFG_TTL", 0.0)
-    monkeypatch.setattr(m3_sdk, "_gov_cfg_cache",
-                        {"ts": 0.0, "mtime": None, "initial": None, "limit": None})
+    monkeypatch.setattr(m3_sdk, "_gov_cfg_cache", {"ts": 0.0, "mtime": None, "initial": None, "limit": None})
     monkeypatch.delenv("M3_GOVERNOR_INITIAL_THRESHOLD", raising=False)
     monkeypatch.delenv("M3_GOVERNOR_LIMIT_THRESHOLD", raising=False)
 
@@ -136,6 +136,7 @@ def test_governor_thresholds_skips_reparse_when_unchanged(monkeypatch, tmp_path)
 
     # Spy on open() to prove no re-parse happens when mtime is unchanged.
     import builtins
+
     opens = []
     real_open = builtins.open
 
@@ -143,6 +144,7 @@ def test_governor_thresholds_skips_reparse_when_unchanged(monkeypatch, tmp_path)
         if a and ".governor_config.json" in str(a[0]):
             opens.append(1)
         return real_open(*a, **k)
+
     monkeypatch.setattr(builtins, "open", _counting_open)
 
     # mtime is still 1000.0 -> stat sees no change -> no open of the config.
@@ -152,12 +154,12 @@ def test_governor_thresholds_skips_reparse_when_unchanged(monkeypatch, tmp_path)
 
 def test_ensure_governor_config_creates_and_is_idempotent(monkeypatch, tmp_path):
     import json
+
     cfg_root = tmp_path
     cfg = cfg_root / ".governor_config.json"
     monkeypatch.setattr(m3_sdk, "get_m3_config_root", lambda: str(cfg_root))
     monkeypatch.setattr(m3_sdk, "_GOV_CFG_TTL", 0.0)
-    monkeypatch.setattr(m3_sdk, "_gov_cfg_cache",
-                        {"ts": 0.0, "mtime": None, "initial": None, "limit": None})
+    monkeypatch.setattr(m3_sdk, "_gov_cfg_cache", {"ts": 0.0, "mtime": None, "initial": None, "limit": None})
     monkeypatch.setenv("M3_GOVERNOR_INITIAL_THRESHOLD", "40")
     monkeypatch.setenv("M3_GOVERNOR_LIMIT_THRESHOLD", "75")
 
@@ -181,8 +183,7 @@ def test_governor_thresholds_env_fallback(monkeypatch, tmp_path):
     # No config file -> env var is used over the default.
     monkeypatch.setattr(m3_sdk, "get_m3_config_root", lambda: str(tmp_path))
     monkeypatch.setattr(m3_sdk, "_GOV_CFG_TTL", 0.0)
-    monkeypatch.setattr(m3_sdk, "_gov_cfg_cache",
-                        {"ts": 0.0, "mtime": None, "initial": None, "limit": None})
+    monkeypatch.setattr(m3_sdk, "_gov_cfg_cache", {"ts": 0.0, "mtime": None, "initial": None, "limit": None})
     monkeypatch.setenv("M3_GOVERNOR_INITIAL_THRESHOLD", "30")
     monkeypatch.setenv("M3_GOVERNOR_LIMIT_THRESHOLD", "60")
     assert m3_sdk._governor_thresholds(now=1.0) == (30, 60)
@@ -190,6 +191,7 @@ def test_governor_thresholds_env_fallback(monkeypatch, tmp_path):
 
 def test_local_llm_url_detection():
     import m3_cognitive_loop as c
+
     # Loopback / localhost = on THIS GPU.
     assert c._is_local_llm_url("http://127.0.0.1:1234/v1/messages") is True
     assert c._is_local_llm_url("http://localhost:11434") is True
@@ -206,6 +208,7 @@ def test_local_llm_url_detection():
 
 def test_pace_for_pass_resource_scoping():
     import m3_cognitive_loop as c
+
     cpu_ram = {"background": "CONTINUOUS"}
     full = {"background": "THROTTLED"}  # GPU pushed it to THROTTLED
     # Local-GPU pass obeys the GPU-inclusive (stricter) verdict.
@@ -234,6 +237,7 @@ def test_probe_gpu_util_nvidia_parses_busiest_and_caches(monkeypatch):
         assert cmd[0] == "nvidia-smi"
         calls.append(1)
         return _R()
+
     monkeypatch.setattr(subprocess, "run", _fake_run)
 
     # Derive from the TTL (env-tunable) rather than a hardcoded clock.

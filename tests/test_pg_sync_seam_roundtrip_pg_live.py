@@ -18,6 +18,7 @@ This proves rows land, in both directions, against a real cluster:
 Skips cleanly without a reachable cluster. DSN from M3_PRIMARY_PG_URL/M3_PG_URL
 (never PG_URL -- that is the warehouse var).
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -43,14 +44,8 @@ def _local_store(tmp_path):
     """A SQLite store with just the columns sync_memory_items touches."""
     conn = sqlite3.connect(tmp_path / "local.db")
     conn.row_factory = sqlite3.Row
-    conn.execute(
-        f"CREATE TABLE memory_items ({_ITEM_COLS.replace(', ', ' TEXT, ')} TEXT, "
-        "PRIMARY KEY (id))"
-    )
-    conn.execute(
-        "CREATE TABLE sync_watermarks "
-        "(direction TEXT PRIMARY KEY, last_synced_at TEXT)"
-    )
+    conn.execute(f"CREATE TABLE memory_items ({_ITEM_COLS.replace(', ', ' TEXT, ')} TEXT, PRIMARY KEY (id))")
+    conn.execute("CREATE TABLE sync_watermarks (direction TEXT PRIMARY KEY, last_synced_at TEXT)")
     conn.commit()
     return conn
 
@@ -66,10 +61,7 @@ def env(pg_url, tmp_path):
     cur = pg.cursor()
     cur.execute(f"CREATE SCHEMA {ns}")
     cur.execute(f"SET search_path TO {ns}")
-    cur.execute(
-        f"CREATE TABLE memory_items ({_ITEM_COLS.replace(', ', ' TEXT, ')} TEXT, "
-        "PRIMARY KEY (id))"
-    )
+    cur.execute(f"CREATE TABLE memory_items ({_ITEM_COLS.replace(', ', ' TEXT, ')} TEXT, PRIMARY KEY (id))")
     local = _local_store(tmp_path)
     try:
         yield local, pg, ns
@@ -82,12 +74,26 @@ def env(pg_url, tmp_path):
 def _row(**kw):
     """One memory_items row as a 21-tuple, with sane defaults."""
     d = {
-        "id": "i1", "type": "note", "title": "t", "content": "c",
-        "metadata_json": "{}", "agent_id": "a", "model_id": "m",
-        "change_agent": "auto", "importance": "1", "source": "s",
-        "origin_device": "d", "is_deleted": "0", "expires_at": None,
-        "decay_rate": None, "created_at": "2026-01-01", "updated_at": "2026-01-01",
-        "user_id": "u", "scope": "sc", "valid_from": None, "valid_to": None,
+        "id": "i1",
+        "type": "note",
+        "title": "t",
+        "content": "c",
+        "metadata_json": "{}",
+        "agent_id": "a",
+        "model_id": "m",
+        "change_agent": "auto",
+        "importance": "1",
+        "source": "s",
+        "origin_device": "d",
+        "is_deleted": "0",
+        "expires_at": None,
+        "decay_rate": None,
+        "created_at": "2026-01-01",
+        "updated_at": "2026-01-01",
+        "user_id": "u",
+        "scope": "sc",
+        "valid_from": None,
+        "valid_to": None,
         "content_hash": "h",
     }
     d.update(kw)
@@ -123,9 +129,7 @@ def test_pull_reaches_the_local_store(env):
 
     pg_sync.sync_memory_items(local.cursor(), cur, local, "main")
 
-    got = local.execute(
-        "SELECT id, title FROM memory_items WHERE id = 'pulled'"
-    ).fetchone()
+    got = local.execute("SELECT id, title FROM memory_items WHERE id = 'pulled'").fetchone()
     assert got is not None and got["id"] == "pulled"
 
 

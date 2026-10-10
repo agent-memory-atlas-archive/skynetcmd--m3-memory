@@ -19,6 +19,7 @@ Test isolation pattern: each test uses a fresh tmp_path with an isolated SQLite 
 bootstrapped by _create_entity_graph_schema(). Module-level vars are controlled via
 monkeypatch.setattr; env vars via monkeypatch.setenv.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -35,6 +36,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 # ---------------------------------------------------------------------------
 # Schema bootstrap helper
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(autouse=True)
 def _skip_migrations_for_template_db(monkeypatch):
@@ -54,6 +56,7 @@ def _skip_migrations_for_template_db(monkeypatch):
     monkeypatch.setenv("M3_SKIP_MIGRATIONS", "1")
     try:
         import memory.embed as _me_embed
+
         _me_embed._ENTITY_NAME_EMBED_CACHE.clear()
         yield
         _me_embed._ENTITY_NAME_EMBED_CACHE.clear()
@@ -71,6 +74,7 @@ def _create_entity_graph_schema(db_path):
     test-specific DDL is needed.
     """
     from conftest import create_full_main_schema
+
     create_full_main_schema(db_path)
     return  # template already has every table the tests need
     # Legacy synthetic schema kept below as a fallback if the template
@@ -221,8 +225,9 @@ def _create_entity_graph_schema(db_path):
     conn.close()
 
 
-def _insert_memory(db_path, *, mid=None, type_="note", content="test content",
-                   variant=None, is_deleted=0, valid_from=None):
+def _insert_memory(
+    db_path, *, mid=None, type_="note", content="test content", variant=None, is_deleted=0, valid_from=None
+):
     """Helper to insert a minimal memory_items row."""
     mid = mid or str(uuid.uuid4())
     with sqlite3.connect(str(db_path)) as conn:
@@ -231,9 +236,20 @@ def _insert_memory(db_path, *, mid=None, type_="note", content="test content",
             (id, type, title, content, variant, is_deleted, created_at, valid_from,
              source, origin_device, scope, change_agent)
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (mid, type_, "test title", content, variant, is_deleted,
-             "2026-04-25T00:00:00Z", valid_from,
-             "agent", "test", "agent", "test_agent"),
+            (
+                mid,
+                type_,
+                "test title",
+                content,
+                variant,
+                is_deleted,
+                "2026-04-25T00:00:00Z",
+                valid_from,
+                "agent",
+                "test",
+                "agent",
+                "test_agent",
+            ),
         )
     return mid
 
@@ -241,6 +257,7 @@ def _insert_memory(db_path, *, mid=None, type_="note", content="test content",
 # ---------------------------------------------------------------------------
 # Test 1 — Type enum validates known values
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_type_enum_validates_known(monkeypatch, tmp_path):
@@ -257,12 +274,15 @@ async def test_type_enum_validates_known(monkeypatch, tmp_path):
     # object→legacy_object; both old and new names are accepted via the
     # legacy_* aliases for back-compat.
     for valid_type in (
-        "person", "place", "organization", "event", "date",
-        "legacy_concept", "legacy_object",
+        "person",
+        "place",
+        "organization",
+        "event",
+        "date",
+        "legacy_concept",
+        "legacy_object",
     ):
-        assert valid_type in memory_core.VALID_ENTITY_TYPES, (
-            f"Expected '{valid_type}' in VALID_ENTITY_TYPES"
-        )
+        assert valid_type in memory_core.VALID_ENTITY_TYPES, f"Expected '{valid_type}' in VALID_ENTITY_TYPES"
 
     # _create_entity with a valid type should succeed
     with sqlite3.connect(str(db_path)) as conn:
@@ -272,9 +292,7 @@ async def test_type_enum_validates_known(monkeypatch, tmp_path):
 
     # Verify the entity was stored
     with sqlite3.connect(str(db_path)) as conn:
-        row = conn.execute(
-            "SELECT entity_type FROM entities WHERE id=?", (entity_id,)
-        ).fetchone()
+        row = conn.execute("SELECT entity_type FROM entities WHERE id=?", (entity_id,)).fetchone()
     assert row is not None
     assert row[0] == "person"
 
@@ -286,6 +304,7 @@ async def test_type_enum_validates_known(monkeypatch, tmp_path):
 # ---------------------------------------------------------------------------
 # Test 2 — Predicate enum validates known values
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_predicate_enum_validates_known(monkeypatch, tmp_path):
@@ -316,7 +335,11 @@ async def test_predicate_enum_validates_known(monkeypatch, tmp_path):
         conn.row_factory = sqlite3.Row
         with pytest.raises(ValueError) as exc_info:
             memory_core._link_entity_relationship(eid_a, eid_b, "invented_predicate", 0.9, None, conn)
-    assert "invented_predicate" in str(exc_info.value) or "VALID" in str(exc_info.value).upper() or "predicate" in str(exc_info.value).lower()
+    assert (
+        "invented_predicate" in str(exc_info.value)
+        or "VALID" in str(exc_info.value).upper()
+        or "predicate" in str(exc_info.value).lower()
+    )
     # The error message must list some of the valid predicates
     err_msg = str(exc_info.value)
     assert any(p in err_msg for p in memory_core.VALID_ENTITY_PREDICATES), (
@@ -327,6 +350,7 @@ async def test_predicate_enum_validates_known(monkeypatch, tmp_path):
 # ---------------------------------------------------------------------------
 # Test 3 — Default off: no extraction when M3_ENABLE_ENTITY_GRAPH unset
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_default_off_no_extraction(monkeypatch, tmp_path):
@@ -344,9 +368,12 @@ async def test_default_off_no_extraction(monkeypatch, tmp_path):
 
     async def stub_extractor(content: str) -> dict:
         extractor_calls.append(content)
-        return {"entities": [{"canonical_name": "Alice", "entity_type": "person",
-                               "mention_text": "Alice", "confidence": 0.9}],
-                "relationships": []}
+        return {
+            "entities": [
+                {"canonical_name": "Alice", "entity_type": "person", "mention_text": "Alice", "confidence": 0.9}
+            ],
+            "relationships": [],
+        }
 
     mid = _insert_memory(db_path, content="Alice works here")
 
@@ -359,9 +386,9 @@ async def test_default_off_no_extraction(monkeypatch, tmp_path):
 
     with sqlite3.connect(str(db_path)) as conn:
         entity_count = conn.execute("SELECT COUNT(*) FROM entities").fetchone()[0]
-        queue_count = conn.execute(
-            "SELECT COUNT(*) FROM entity_extraction_queue WHERE memory_id=?", (mid,)
-        ).fetchone()[0]
+        queue_count = conn.execute("SELECT COUNT(*) FROM entity_extraction_queue WHERE memory_id=?", (mid,)).fetchone()[
+            0
+        ]
 
     assert entity_count == 0, "No entity rows when gate is off"
     assert queue_count == 0, "No queue rows when gate is off"
@@ -370,6 +397,7 @@ async def test_default_off_no_extraction(monkeypatch, tmp_path):
 # ---------------------------------------------------------------------------
 # Test 4 — Verbatim-first on extractor exception
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_verbatim_first_on_extractor_exception(monkeypatch, tmp_path):
@@ -394,17 +422,14 @@ async def test_verbatim_first_on_extractor_exception(monkeypatch, tmp_path):
 
     # Verbatim row persists
     with sqlite3.connect(str(db_path)) as conn:
-        source_row = conn.execute(
-            "SELECT id, type, content FROM memory_items WHERE id=?", (mid,)
-        ).fetchone()
+        source_row = conn.execute("SELECT id, type, content FROM memory_items WHERE id=?", (mid,)).fetchone()
     assert source_row is not None, "Source memory item must persist despite extractor failure"
     assert source_row[2] == "source content"
 
     # Queue row with error
     with sqlite3.connect(str(db_path)) as conn:
         queue_row = conn.execute(
-            "SELECT memory_id, attempts, last_error FROM entity_extraction_queue WHERE memory_id=?",
-            (mid,)
+            "SELECT memory_id, attempts, last_error FROM entity_extraction_queue WHERE memory_id=?", (mid,)
         ).fetchone()
     assert queue_row is not None, "Queue row should be created on extractor exception"
     assert queue_row[1] == 1, f"attempts should be 1 after first failure, got {queue_row[1]}"
@@ -417,6 +442,7 @@ async def test_verbatim_first_on_extractor_exception(monkeypatch, tmp_path):
 # ---------------------------------------------------------------------------
 # Test 5 — Variant skip default
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_variant_skip_default(monkeypatch, tmp_path):
@@ -439,17 +465,16 @@ async def test_variant_skip_default(monkeypatch, tmp_path):
     with sqlite3.connect(str(db_path)) as conn:
         conn.row_factory = sqlite3.Row
         await memory_core._try_extract_or_enqueue(
-            mid, "bench content", tracking_extractor, conn,
-            variant="lme-test", allowlist=None
+            mid, "bench content", tracking_extractor, conn, variant="lme-test", allowlist=None
         )
         await asyncio.sleep(0.05)
 
     assert len(extractor_calls) == 0, "Variant row should skip extraction when allowlist=None"
 
     with sqlite3.connect(str(db_path)) as conn:
-        queue_count = conn.execute(
-            "SELECT COUNT(*) FROM entity_extraction_queue WHERE memory_id=?", (mid,)
-        ).fetchone()[0]
+        queue_count = conn.execute("SELECT COUNT(*) FROM entity_extraction_queue WHERE memory_id=?", (mid,)).fetchone()[
+            0
+        ]
 
     assert queue_count == 0, "No queue row should exist for variant rows without allowlist"
 
@@ -457,6 +482,7 @@ async def test_variant_skip_default(monkeypatch, tmp_path):
 # ---------------------------------------------------------------------------
 # Test 6 — Variant allowlist override
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_variant_allowlist_override(monkeypatch, tmp_path):
@@ -473,8 +499,14 @@ async def test_variant_allowlist_override(monkeypatch, tmp_path):
     async def tracking_extractor(content: str) -> dict:
         extractor_calls.append(content)
         return {
-            "entities": [{"canonical_name": "TestPerson", "entity_type": "person",
-                           "mention_text": "TestPerson", "confidence": 0.9}],
+            "entities": [
+                {
+                    "canonical_name": "TestPerson",
+                    "entity_type": "person",
+                    "mention_text": "TestPerson",
+                    "confidence": 0.9,
+                }
+            ],
             "relationships": [],
         }
 
@@ -483,8 +515,7 @@ async def test_variant_allowlist_override(monkeypatch, tmp_path):
     with sqlite3.connect(str(db_path)) as conn:
         conn.row_factory = sqlite3.Row
         await memory_core._try_extract_or_enqueue(
-            mid, "bench content 2", tracking_extractor, conn,
-            variant="lme-test", allowlist={"lme-test"}
+            mid, "bench content 2", tracking_extractor, conn, variant="lme-test", allowlist={"lme-test"}
         )
         await asyncio.sleep(0.15)
 
@@ -498,6 +529,7 @@ async def test_variant_allowlist_override(monkeypatch, tmp_path):
 # ---------------------------------------------------------------------------
 # Test 7 — Resolution exact reuses entity_id
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_resolution_exact_reuses_entity_id(monkeypatch, tmp_path):
@@ -515,8 +547,14 @@ async def test_resolution_exact_reuses_entity_id(monkeypatch, tmp_path):
     async def stub_extractor(content: str) -> dict:
         call_count[0] += 1
         return {
-            "entities": [{"canonical_name": "Alice Johnson", "entity_type": "person",
-                           "mention_text": "Alice", "confidence": 0.95}],
+            "entities": [
+                {
+                    "canonical_name": "Alice Johnson",
+                    "entity_type": "person",
+                    "mention_text": "Alice",
+                    "confidence": 0.95,
+                }
+            ],
             "relationships": [],
         }
 
@@ -538,21 +576,16 @@ async def test_resolution_exact_reuses_entity_id(monkeypatch, tmp_path):
         entity_count = conn.execute(
             "SELECT COUNT(*) FROM entities WHERE canonical_name='Alice Johnson' AND entity_type='person'"
         ).fetchone()[0]
-        mie_count = conn.execute(
-            "SELECT COUNT(*) FROM memory_item_entities"
-        ).fetchone()[0]
+        mie_count = conn.execute("SELECT COUNT(*) FROM memory_item_entities").fetchone()[0]
 
-    assert entity_count == 1, (
-        f"Exact-match resolution should reuse the same entity_id; got {entity_count} entity rows"
-    )
-    assert mie_count == 2, (
-        f"Both memories should have a link to the single entity; got {mie_count} link rows"
-    )
+    assert entity_count == 1, f"Exact-match resolution should reuse the same entity_id; got {entity_count} entity rows"
+    assert mie_count == 2, f"Both memories should have a link to the single entity; got {mie_count} link rows"
 
 
 # ---------------------------------------------------------------------------
 # Test 8 — Resolution fuzzy reuses entity_id
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_resolution_fuzzy_reuses_entity_id(monkeypatch, tmp_path):
@@ -587,9 +620,7 @@ async def test_resolution_fuzzy_reuses_entity_id(monkeypatch, tmp_path):
         # Fuzzy resolve: same token set, different order → Jaccard == 1.0
         resolved = memory_core._resolve_entity("Johnson Alex", "person", conn)
 
-    assert resolved == eid1, (
-        f"Fuzzy resolution should map 'Johnson Alex' to existing entity {eid1!r}, got {resolved!r}"
-    )
+    assert resolved == eid1, f"Fuzzy resolution should map 'Johnson Alex' to existing entity {eid1!r}, got {resolved!r}"
 
 
 def test_token_jaccard_strips_punctuation():
@@ -600,6 +631,7 @@ def test_token_jaccard_strips_punctuation():
     punctuation stripping, those would never resolve to their canonical form.
     """
     import memory_core
+
     assert memory_core._token_jaccard("Alex Johnson", "Alex Johnson,") == 1.0
     assert memory_core._token_jaccard("Alex Johnson.", "Alex Johnson") == 1.0
     assert memory_core._token_jaccard("Hello, World!", "hello world") == 1.0
@@ -610,6 +642,7 @@ def test_token_jaccard_strips_punctuation():
 # ---------------------------------------------------------------------------
 # Test 9 — Resolution cosine separate when below threshold
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_resolution_cosine_separate_when_below_threshold(monkeypatch, tmp_path):
@@ -628,7 +661,7 @@ async def test_resolution_cosine_separate_when_below_threshold(monkeypatch, tmp_
     # Stub _embed so tier-3 cosine gets deterministic distinct vectors
     embed_map = {
         "Alexander": ([1.0, 0.0, 0.0], "stub"),
-        "Bob":        ([0.0, 1.0, 0.0], "stub"),
+        "Bob": ([0.0, 1.0, 0.0], "stub"),
     }
 
     async def stub_embed(text: str):
@@ -651,15 +684,14 @@ async def test_resolution_cosine_separate_when_below_threshold(monkeypatch, tmp_
     assert eid_a != eid_b, "Two distinct names must produce two distinct entity rows"
 
     with sqlite3.connect(str(db_path)) as conn:
-        count = conn.execute(
-            "SELECT COUNT(*) FROM entities WHERE entity_type='person'"
-        ).fetchone()[0]
+        count = conn.execute("SELECT COUNT(*) FROM entities WHERE entity_type='person'").fetchone()[0]
     assert count == 2, f"Expected 2 separate entity rows, got {count}"
 
 
 # ---------------------------------------------------------------------------
 # Test 9b — Store-once: tier-3 cosine persists + reuses candidate vectors
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_resolution_cosine_stores_and_reuses_candidate_vectors(monkeypatch, tmp_path):
@@ -710,9 +742,7 @@ async def test_resolution_cosine_stores_and_reuses_candidate_vectors(monkeypatch
         conn.row_factory = sqlite3.Row
         r1 = await me._resolve_entity_async("Globex Dynamics", "organization", conn)
         conn.commit()
-        stored = conn.execute(
-            "SELECT COUNT(*) FROM entity_embeddings WHERE entity_id=?", (seed_id,)
-        ).fetchone()[0]
+        stored = conn.execute("SELECT COUNT(*) FROM entity_embeddings WHERE entity_id=?", (seed_id,)).fetchone()[0]
 
     assert r1 is None, "Distinct vectors under COSINE_MIN=0.99 must not merge"
     assert stored == 1, f"Candidate vector should be persisted once; got {stored} rows"
@@ -733,14 +763,13 @@ async def test_resolution_cosine_stores_and_reuses_candidate_vectors(monkeypatch
         f"Stored candidate vector must be reused, not re-embedded; embed_calls={embed_calls}"
     )
     # Only the query name should be embedded on the second pass.
-    assert embed_calls == ["Globex Dynamics"], (
-        f"Second pass should embed only the query name; got {embed_calls}"
-    )
+    assert embed_calls == ["Globex Dynamics"], f"Second pass should embed only the query name; got {embed_calls}"
 
 
 # ---------------------------------------------------------------------------
 # Test 9c — Store-once deferred-write buffer (concurrent-safe flush)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_store_once_deferred_buffer_flush(monkeypatch, tmp_path):
@@ -781,13 +810,9 @@ async def test_store_once_deferred_buffer_flush(monkeypatch, tmp_path):
         # NOT written to entity_embeddings yet.
         with me.deferred_entity_vector_writes() as buf:
             r = await me._resolve_entity_async("Globex Dynamics", "organization", conn)
-            mid_phase = conn.execute(
-                "SELECT COUNT(*) FROM entity_embeddings"
-            ).fetchone()[0]
+            mid_phase = conn.execute("SELECT COUNT(*) FROM entity_embeddings").fetchone()[0]
             assert r is None
-            assert mid_phase == 0, (
-                f"No vectors should be written during the deferred phase; got {mid_phase}"
-            )
+            assert mid_phase == 0, f"No vectors should be written during the deferred phase; got {mid_phase}"
             assert len(buf) == 1, f"Candidate vector should be buffered; buf={buf}"
             assert buf[0][0] == seed_id
 
@@ -802,6 +827,7 @@ async def test_store_once_deferred_buffer_flush(monkeypatch, tmp_path):
 # ---------------------------------------------------------------------------
 # Test 9d — Batched name-cache priming (the GLiNER bulk-extractor speedup)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_prime_entity_name_cache_batches(monkeypatch):
@@ -845,6 +871,7 @@ async def test_prime_entity_name_cache_batches(monkeypatch):
 # Test 10 — Relationship predicate enforced
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_relationship_predicate_enforced(monkeypatch, tmp_path):
     """Invalid predicate raises ValueError with message mentioning VALID_ENTITY_PREDICATES."""
@@ -876,6 +903,7 @@ async def test_relationship_predicate_enforced(monkeypatch, tmp_path):
 # ---------------------------------------------------------------------------
 # Test 11 — fact_enriched rows skipped (recursion guard)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_fact_enriched_rows_skipped(monkeypatch, tmp_path):
@@ -914,6 +942,7 @@ async def test_fact_enriched_rows_skipped(monkeypatch, tmp_path):
 # Test 12 — Selection query excludes already-extracted items
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_select_pending_excludes_already_extracted(monkeypatch, tmp_path):
     """Write item, manually create a memory_item_entities row for it → that item
@@ -944,14 +973,13 @@ async def test_select_pending_excludes_already_extracted(monkeypatch, tmp_path):
         pending = memory_core._select_pending_entity_extraction(conn)
 
     pending_ids = [row[0] for row in pending]
-    assert mid not in pending_ids, (
-        "Items with existing memory_item_entities rows should be excluded from selection"
-    )
+    assert mid not in pending_ids, "Items with existing memory_item_entities rows should be excluded from selection"
 
 
 # ---------------------------------------------------------------------------
 # Test 13 — Selection query honors variant filter and allowlist
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_select_pending_honors_variant_filter_and_allowlist(monkeypatch, tmp_path):
@@ -981,9 +1009,7 @@ async def test_select_pending_honors_variant_filter_and_allowlist(monkeypatch, t
     # With allowlist=['lme-foo']: null + lme-foo
     with sqlite3.connect(str(db_path)) as conn:
         conn.row_factory = sqlite3.Row
-        pending_with_foo = memory_core._select_pending_entity_extraction(
-            conn, allowed_variants=["lme-foo"]
-        )
+        pending_with_foo = memory_core._select_pending_entity_extraction(conn, allowed_variants=["lme-foo"])
 
     foo_ids = [row[0] for row in pending_with_foo]
     assert mid_null in foo_ids, "NULL-variant item should appear in allowlist selection"
@@ -994,6 +1020,7 @@ async def test_select_pending_honors_variant_filter_and_allowlist(monkeypatch, t
 # ---------------------------------------------------------------------------
 # Test 14 — extract_pending_impl dry-run
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_extract_pending_dry_run(monkeypatch, tmp_path):
@@ -1048,6 +1075,7 @@ async def test_extract_pending_dry_run(monkeypatch, tmp_path):
 # Test 15 — entity_search_impl basic
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_entity_search_impl_basic(monkeypatch, tmp_path):
     """Insert 3 entities, one matching 'Alex'. entity_search_impl returns the matching one.
@@ -1092,15 +1120,14 @@ async def test_entity_search_impl_basic(monkeypatch, tmp_path):
     # with_neighbors=True: neighbor_count must be an int (even if 0)
     results_with_n = memory_core.entity_search_impl(query="Alex", with_neighbors=True, limit=10)
     assert len(results_with_n) == 1
-    assert isinstance(results_with_n[0]["neighbor_count"], int), (
-        "neighbor_count must be int even when 0"
-    )
+    assert isinstance(results_with_n[0]["neighbor_count"], int), "neighbor_count must be int even when 0"
     assert results_with_n[0]["neighbor_count"] == 0
 
 
 # ---------------------------------------------------------------------------
 # Test 16 — entity_get_impl returns neighborhood
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_entity_get_impl_returns_neighborhood(monkeypatch, tmp_path):
@@ -1147,9 +1174,7 @@ async def test_entity_get_impl_returns_neighborhood(monkeypatch, tmp_path):
     assert isinstance(result["linked_memories"], list)
 
     # Alex is the from_entity in works_at → eid_acme, so it has 1 successor
-    assert len(result["successors"]) == 1, (
-        f"Expected 1 successor (Acme via works_at), got {result['successors']}"
-    )
+    assert len(result["successors"]) == 1, f"Expected 1 successor (Acme via works_at), got {result['successors']}"
     assert result["successors"][0]["to_canonical_name"] == "Acme"
     assert result["successors"][0]["predicate"] == "works_at"
 
@@ -1164,6 +1189,7 @@ async def test_entity_get_impl_returns_neighborhood(monkeypatch, tmp_path):
 # ---------------------------------------------------------------------------
 # Test 17 — Routed with entity_graph kwarg
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_routed_with_entity_graph_kwarg(monkeypatch):
@@ -1190,8 +1216,10 @@ async def test_routed_with_entity_graph_kwarg(monkeypatch):
         return primary_hits
 
     async def stub_score_extra_rows(query, rows_by_id, base_score=0.0):
-        return [(0.7 - i * 0.1, {"id": rid, "content": f"entity-hit-{i}", "title": f"e{i}"})
-                for i, rid in enumerate(rows_by_id)]
+        return [
+            (0.7 - i * 0.1, {"id": rid, "content": f"entity-hit-{i}", "title": f"e{i}"})
+            for i, rid in enumerate(rows_by_id)
+        ]
 
     # Stub _db to a minimal no-op connection
     class _FakeDB:
@@ -1208,6 +1236,7 @@ async def test_routed_with_entity_graph_kwarg(monkeypatch):
             class _Cursor:
                 def fetchall(self_):
                     return []
+
             return _Cursor()
 
     monkeypatch.setattr(memory_core, "memory_search_scored_impl", stub_search)
@@ -1223,12 +1252,20 @@ async def test_routed_with_entity_graph_kwarg(monkeypatch):
 
     entity_graph_expand_called = {"value": False}
 
-    async def stub_maybe_expand(query, primary, k, graph_depth=0, expand_sessions=False,
-                                session_cap=12, entity_graph=False, entity_graph_depth=1,
-                                entity_graph_max_neighbors=20,
-                                entity_graph_valid_types=None,
-                                entity_graph_valid_predicates=None,
-                                **kwargs):
+    async def stub_maybe_expand(
+        query,
+        primary,
+        k,
+        graph_depth=0,
+        expand_sessions=False,
+        session_cap=12,
+        entity_graph=False,
+        entity_graph_depth=1,
+        entity_graph_max_neighbors=20,
+        entity_graph_valid_types=None,
+        entity_graph_valid_predicates=None,
+        **kwargs,
+    ):
         # **kwargs absorbs additions like entity_stoplist and _capture_dict
         # that production code threads through. Tests should not break when
         # _maybe_expand_routed grows new optional parameters.
@@ -1239,8 +1276,7 @@ async def test_routed_with_entity_graph_kwarg(monkeypatch):
                 neighbor_ids = await stub_entity_graph_neighbor_ids(
                     query, entity_graph_depth, entity_graph_max_neighbors, db
                 )
-            extra = [(0.7, {"id": nid, "content": f"neighbor {nid}", "title": nid})
-                     for nid in neighbor_ids]
+            extra = [(0.7, {"id": nid, "content": f"neighbor {nid}", "title": nid}) for nid in neighbor_ids]
             return primary + extra
         return primary
 
@@ -1254,9 +1290,7 @@ async def test_routed_with_entity_graph_kwarg(monkeypatch):
         entity_graph_max_neighbors=10,
     )
 
-    assert entity_graph_expand_called["value"], (
-        "_entity_graph_neighbor_ids should be invoked when entity_graph=True"
-    )
+    assert entity_graph_expand_called["value"], "_entity_graph_neighbor_ids should be invoked when entity_graph=True"
     result_ids = [item["id"] for _, item in result]
     assert "primary-mem-1" in result_ids, "Primary hit should be in result"
     # Entity neighbors should be fused
@@ -1269,6 +1303,7 @@ async def test_routed_with_entity_graph_kwarg(monkeypatch):
 # Test 18 — Migration 024 round-trip (file existence check)
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_migration_024_round_trip():
     """Confirm migration files exist and contain the expected table names.
@@ -1279,7 +1314,8 @@ async def test_migration_024_round_trip():
     """
     migrations_dir = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "memory", "migrations",
+        "memory",
+        "migrations",
     )
     up_path = os.path.join(migrations_dir, "024_entity_graph.up.sql")
     down_path = os.path.join(migrations_dir, "024_entity_graph.down.sql")
@@ -1291,37 +1327,35 @@ async def test_migration_024_round_trip():
         up_sql = f.read()
 
     # All 4 entity tables must be declared in the up migration
-    for table in ("entities", "memory_item_entities", "entity_relationships",
-                  "entity_extraction_queue"):
-        assert table in up_sql, (
-            f"Table '{table}' must appear in 024_entity_graph.up.sql"
-        )
+    for table in ("entities", "memory_item_entities", "entity_relationships", "entity_extraction_queue"):
+        assert table in up_sql, f"Table '{table}' must appear in 024_entity_graph.up.sql"
 
     # All 9 indexes must be declared
     for idx in (
-        "idx_entities_canonical_type", "idx_entities_type", "idx_entities_hash",
+        "idx_entities_canonical_type",
+        "idx_entities_type",
+        "idx_entities_hash",
         "idx_mie_entity",
-        "idx_er_from", "idx_er_to", "idx_er_predicate",
-        "idx_eeq_memory_id", "idx_eeq_attempts",
+        "idx_er_from",
+        "idx_er_to",
+        "idx_er_predicate",
+        "idx_eeq_memory_id",
+        "idx_eeq_attempts",
     ):
-        assert idx in up_sql, (
-            f"Index '{idx}' must appear in 024_entity_graph.up.sql"
-        )
+        assert idx in up_sql, f"Index '{idx}' must appear in 024_entity_graph.up.sql"
 
     with open(down_path, encoding="utf-8") as f:
         down_sql = f.read()
 
     # Down migration must drop all 4 tables
-    for table in ("entities", "memory_item_entities", "entity_relationships",
-                  "entity_extraction_queue"):
-        assert table in down_sql, (
-            f"Table '{table}' must be dropped in 024_entity_graph.down.sql"
-        )
+    for table in ("entities", "memory_item_entities", "entity_relationships", "entity_extraction_queue"):
+        assert table in down_sql, f"Table '{table}' must be dropped in 024_entity_graph.down.sql"
 
 
 # ---------------------------------------------------------------------------
 # LoCoMo audit test — entity_extractor=None default is byte-identical
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_locomo_audit_extractor_none(monkeypatch, tmp_path):
@@ -1340,10 +1374,7 @@ async def test_locomo_audit_extractor_none(monkeypatch, tmp_path):
 
     monkeypatch.setattr(memory_core, "_embed_many", fake_embed_many)
 
-    items = [
-        {"id": str(uuid.uuid4()), "type": "note", "content": f"content {i}"}
-        for i in range(5)
-    ]
+    items = [{"id": str(uuid.uuid4()), "type": "note", "content": f"content {i}"} for i in range(5)]
 
     # entity_extractor=None is the default
     await memory_core.memory_write_bulk_impl(items, entity_extractor=None)
@@ -1352,18 +1383,12 @@ async def test_locomo_audit_extractor_none(monkeypatch, tmp_path):
         item_count = conn.execute("SELECT COUNT(*) FROM memory_items").fetchone()[0]
         entity_count = conn.execute("SELECT COUNT(*) FROM entities").fetchone()[0]
         mie_count = conn.execute("SELECT COUNT(*) FROM memory_item_entities").fetchone()[0]
-        queue_count = conn.execute(
-            "SELECT COUNT(*) FROM entity_extraction_queue"
-        ).fetchone()[0]
+        queue_count = conn.execute("SELECT COUNT(*) FROM entity_extraction_queue").fetchone()[0]
 
     assert item_count == 5, f"All 5 items must be persisted; got {item_count}"
     assert entity_count == 0, f"No entity rows with entity_extractor=None; got {entity_count}"
-    assert mie_count == 0, (
-        f"No memory_item_entities rows with entity_extractor=None; got {mie_count}"
-    )
-    assert queue_count == 0, (
-        f"No entity_extraction_queue rows with entity_extractor=None; got {queue_count}"
-    )
+    assert mie_count == 0, f"No memory_item_entities rows with entity_extractor=None; got {mie_count}"
+    assert queue_count == 0, f"No entity_extraction_queue rows with entity_extractor=None; got {queue_count}"
 
 
 # ===========================================================================
@@ -1373,6 +1398,7 @@ async def test_locomo_audit_extractor_none(monkeypatch, tmp_path):
 # ---------------------------------------------------------------------------
 # E1 Test 1 — Retry: transient SLM failure on first call, success on second
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_extractor_retries_transient_failure(monkeypatch, tmp_path):
@@ -1392,8 +1418,14 @@ async def test_extractor_retries_transient_failure(monkeypatch, tmp_path):
         if call_count[0] == 1:
             raise RuntimeError("Transient SLM error")
         return {
-            "entities": [{"canonical_name": "RetryPerson", "entity_type": "person",
-                           "mention_text": "RetryPerson", "confidence": 0.9}],
+            "entities": [
+                {
+                    "canonical_name": "RetryPerson",
+                    "entity_type": "person",
+                    "mention_text": "RetryPerson",
+                    "confidence": 0.9,
+                }
+            ],
             "relationships": [],
         }
 
@@ -1411,9 +1443,7 @@ async def test_extractor_retries_transient_failure(monkeypatch, tmp_path):
         ).fetchone()
     assert q_row is not None, "Queue row must exist after first failure"
     assert q_row[0] == 1, f"attempts should be 1 after first failure, got {q_row[0]}"
-    assert q_row[1] is not None and "Transient" in q_row[1], (
-        f"last_error should mention the exception, got: {q_row[1]}"
-    )
+    assert q_row[1] is not None and "Transient" in q_row[1], f"last_error should mention the exception, got: {q_row[1]}"
 
     # Second call: extractor succeeds → entity created, queue row removed
     with sqlite3.connect(str(db_path)) as conn:
@@ -1422,12 +1452,8 @@ async def test_extractor_retries_transient_failure(monkeypatch, tmp_path):
         await asyncio.sleep(0.15)
 
     with sqlite3.connect(str(db_path)) as conn:
-        entity_count = conn.execute(
-            "SELECT COUNT(*) FROM entities WHERE canonical_name='RetryPerson'"
-        ).fetchone()[0]
-        q_count = conn.execute(
-            "SELECT COUNT(*) FROM entity_extraction_queue WHERE memory_id=?", (mid,)
-        ).fetchone()[0]
+        entity_count = conn.execute("SELECT COUNT(*) FROM entities WHERE canonical_name='RetryPerson'").fetchone()[0]
+        q_count = conn.execute("SELECT COUNT(*) FROM entity_extraction_queue WHERE memory_id=?", (mid,)).fetchone()[0]
 
     assert entity_count == 1, f"Entity should be created on successful retry, got {entity_count}"
     assert q_count == 0, f"Queue entry should be removed after successful extraction, got {q_count}"
@@ -1437,6 +1463,7 @@ async def test_extractor_retries_transient_failure(monkeypatch, tmp_path):
 # ---------------------------------------------------------------------------
 # E1 Test 2 — Idempotency: re-extraction doesn't double-insert
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_extractor_idempotent_on_reextraction(monkeypatch, tmp_path):
@@ -1452,14 +1479,26 @@ async def test_extractor_idempotent_on_reextraction(monkeypatch, tmp_path):
     async def stub_extractor(content: str) -> dict:
         return {
             "entities": [
-                {"canonical_name": "IdempotentPerson", "entity_type": "person",
-                 "mention_text": "IdempotentPerson", "confidence": 0.9},
-                {"canonical_name": "IdempotentOrg", "entity_type": "organization",
-                 "mention_text": "IdempotentOrg", "confidence": 0.9},
+                {
+                    "canonical_name": "IdempotentPerson",
+                    "entity_type": "person",
+                    "mention_text": "IdempotentPerson",
+                    "confidence": 0.9,
+                },
+                {
+                    "canonical_name": "IdempotentOrg",
+                    "entity_type": "organization",
+                    "mention_text": "IdempotentOrg",
+                    "confidence": 0.9,
+                },
             ],
             "relationships": [
-                {"from_entity": "IdempotentPerson", "to_entity": "IdempotentOrg",
-                 "predicate": "works_at", "confidence": 0.85},
+                {
+                    "from_entity": "IdempotentPerson",
+                    "to_entity": "IdempotentOrg",
+                    "predicate": "works_at",
+                    "confidence": 0.85,
+                },
             ],
         }
 
@@ -1500,14 +1539,13 @@ async def test_extractor_idempotent_on_reextraction(monkeypatch, tmp_path):
         f"Relationship count must not increase on re-extraction (delete-then-insert); "
         f"got {rel_count_2} (was {rel_count_1})"
     )
-    assert mie_count_2 == 2, (
-        f"mie rows should be re-created by INSERT OR IGNORE; got {mie_count_2}"
-    )
+    assert mie_count_2 == 2, f"mie rows should be re-created by INSERT OR IGNORE; got {mie_count_2}"
 
 
 # ---------------------------------------------------------------------------
 # E1 Test 3 — Vocabulary: invalid entity_type is rejected
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_extractor_validates_invalid_entity_type(monkeypatch, tmp_path, caplog):
@@ -1525,8 +1563,12 @@ async def test_extractor_validates_invalid_entity_type(monkeypatch, tmp_path, ca
     async def bad_type_extractor(content: str) -> dict:
         return {
             "entities": [
-                {"canonical_name": "SomeEntity", "entity_type": "invalid_thing",
-                 "mention_text": "SomeEntity", "confidence": 0.9},
+                {
+                    "canonical_name": "SomeEntity",
+                    "entity_type": "invalid_thing",
+                    "mention_text": "SomeEntity",
+                    "confidence": 0.9,
+                },
             ],
             "relationships": [],
         }
@@ -1541,9 +1583,7 @@ async def test_extractor_validates_invalid_entity_type(monkeypatch, tmp_path, ca
     with sqlite3.connect(str(db_path)) as conn:
         entity_count = conn.execute("SELECT COUNT(*) FROM entities").fetchone()[0]
 
-    assert entity_count == 0, (
-        f"Entity with invalid_type should be rejected; got {entity_count} entity rows"
-    )
+    assert entity_count == 0, f"Entity with invalid_type should be rejected; got {entity_count} entity rows"
     # A debug log mentioning the rejection should have been emitted
     log_text = caplog.text.lower()
     assert "invalid_thing" in log_text or "rejected" in log_text or "vocabulary" in log_text, (
@@ -1554,6 +1594,7 @@ async def test_extractor_validates_invalid_entity_type(monkeypatch, tmp_path, ca
 # ---------------------------------------------------------------------------
 # E1 Test 4 — Vocabulary: invalid predicate is rejected
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_extractor_validates_invalid_predicate(monkeypatch, tmp_path, caplog):
@@ -1571,14 +1612,11 @@ async def test_extractor_validates_invalid_predicate(monkeypatch, tmp_path, capl
     async def bad_predicate_extractor(content: str) -> dict:
         return {
             "entities": [
-                {"canonical_name": "Alice", "entity_type": "person",
-                 "mention_text": "Alice", "confidence": 0.9},
-                {"canonical_name": "Bob", "entity_type": "person",
-                 "mention_text": "Bob", "confidence": 0.9},
+                {"canonical_name": "Alice", "entity_type": "person", "mention_text": "Alice", "confidence": 0.9},
+                {"canonical_name": "Bob", "entity_type": "person", "mention_text": "Bob", "confidence": 0.9},
             ],
             "relationships": [
-                {"from_entity": "Alice", "to_entity": "Bob",
-                 "predicate": "invented_predicate", "confidence": 0.8},
+                {"from_entity": "Alice", "to_entity": "Bob", "predicate": "invented_predicate", "confidence": 0.8},
             ],
         }
 
@@ -1592,12 +1630,8 @@ async def test_extractor_validates_invalid_predicate(monkeypatch, tmp_path, capl
         entity_count = conn.execute("SELECT COUNT(*) FROM entities").fetchone()[0]
         rel_count = conn.execute("SELECT COUNT(*) FROM entity_relationships").fetchone()[0]
 
-    assert entity_count == 2, (
-        f"Both entities should be created even when predicate is invalid; got {entity_count}"
-    )
-    assert rel_count == 0, (
-        f"Relationship with invalid predicate must be rejected; got {rel_count} relationship rows"
-    )
+    assert entity_count == 2, f"Both entities should be created even when predicate is invalid; got {entity_count}"
+    assert rel_count == 0, f"Relationship with invalid predicate must be rejected; got {rel_count} relationship rows"
     log_text = caplog.text.lower()
     assert "invented_predicate" in log_text or "rejected" in log_text or "vocabulary" in log_text, (
         f"Expected a debug log about the rejected predicate, caplog: {caplog.text}"
@@ -1607,6 +1641,7 @@ async def test_extractor_validates_invalid_predicate(monkeypatch, tmp_path, capl
 # ---------------------------------------------------------------------------
 # E1 Test 5 — Bitemporal: valid_from inherits from source memory
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_bitemporal_valid_from_inherits_from_source(monkeypatch, tmp_path):
@@ -1624,8 +1659,12 @@ async def test_bitemporal_valid_from_inherits_from_source(monkeypatch, tmp_path)
     async def stub_extractor(content: str) -> dict:
         return {
             "entities": [
-                {"canonical_name": "HistoricalPerson", "entity_type": "person",
-                 "mention_text": "HistoricalPerson", "confidence": 0.9},
+                {
+                    "canonical_name": "HistoricalPerson",
+                    "entity_type": "person",
+                    "mention_text": "HistoricalPerson",
+                    "confidence": 0.9,
+                },
             ],
             "relationships": [],
         }
@@ -1635,9 +1674,7 @@ async def test_bitemporal_valid_from_inherits_from_source(monkeypatch, tmp_path)
     await memory_core._run_entity_extractor(mid, "HistoricalPerson existed", stub_extractor)
 
     with sqlite3.connect(str(db_path)) as conn:
-        row = conn.execute(
-            "SELECT valid_from FROM entities WHERE canonical_name='HistoricalPerson'"
-        ).fetchone()
+        row = conn.execute("SELECT valid_from FROM entities WHERE canonical_name='HistoricalPerson'").fetchone()
 
     assert row is not None, "Entity must have been created"
     assert row[0] == source_valid_from, (
@@ -1649,6 +1686,7 @@ async def test_bitemporal_valid_from_inherits_from_source(monkeypatch, tmp_path)
 # ---------------------------------------------------------------------------
 # E1 Test 6 — Vocabulary override: custom valid_types accepted/rejected
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_extractor_respects_vocabulary_override(monkeypatch, tmp_path):
@@ -1665,10 +1703,8 @@ async def test_extractor_respects_vocabulary_override(monkeypatch, tmp_path):
     async def custom_extractor(content: str) -> dict:
         return {
             "entities": [
-                {"canonical_name": "MyThing", "entity_type": "thing",
-                 "mention_text": "MyThing", "confidence": 0.9},
-                {"canonical_name": "MyPerson", "entity_type": "person",
-                 "mention_text": "MyPerson", "confidence": 0.9},
+                {"canonical_name": "MyThing", "entity_type": "thing", "mention_text": "MyThing", "confidence": 0.9},
+                {"canonical_name": "MyPerson", "entity_type": "person", "mention_text": "MyPerson", "confidence": 0.9},
             ],
             "relationships": [],
         }
@@ -1677,29 +1713,24 @@ async def test_extractor_respects_vocabulary_override(monkeypatch, tmp_path):
 
     custom_types = frozenset({"thing"})  # 'person' is NOT in this custom set
     await memory_core._run_entity_extractor(
-        mid, "MyThing and MyPerson are here", custom_extractor,
+        mid,
+        "MyThing and MyPerson are here",
+        custom_extractor,
         valid_types=custom_types,
     )
 
     with sqlite3.connect(str(db_path)) as conn:
-        thing_count = conn.execute(
-            "SELECT COUNT(*) FROM entities WHERE entity_type='thing'"
-        ).fetchone()[0]
-        person_count = conn.execute(
-            "SELECT COUNT(*) FROM entities WHERE entity_type='person'"
-        ).fetchone()[0]
+        thing_count = conn.execute("SELECT COUNT(*) FROM entities WHERE entity_type='thing'").fetchone()[0]
+        person_count = conn.execute("SELECT COUNT(*) FROM entities WHERE entity_type='person'").fetchone()[0]
 
-    assert thing_count == 1, (
-        f"'thing' is in custom vocabulary; entity must be created. Got {thing_count}"
-    )
-    assert person_count == 0, (
-        f"'person' is NOT in custom vocabulary; entity must be rejected. Got {person_count}"
-    )
+    assert thing_count == 1, f"'thing' is in custom vocabulary; entity must be created. Got {thing_count}"
+    assert person_count == 0, f"'person' is NOT in custom vocabulary; entity must be rejected. Got {person_count}"
 
 
 # ---------------------------------------------------------------------------
 # E1 Test 7 — MAX_ATTEMPTS: poisoned items excluded from eligible set
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_max_attempts_excludes_poisoned_items(monkeypatch, tmp_path):
@@ -1725,9 +1756,7 @@ async def test_max_attempts_excludes_poisoned_items(monkeypatch, tmp_path):
         await memory_core._run_entity_extractor(mid, "poisoned content", always_fail_extractor)
 
     with sqlite3.connect(str(db_path)) as conn:
-        q_row = conn.execute(
-            "SELECT attempts FROM entity_extraction_queue WHERE memory_id=?", (mid,)
-        ).fetchone()
+        q_row = conn.execute("SELECT attempts FROM entity_extraction_queue WHERE memory_id=?", (mid,)).fetchone()
     assert q_row is not None, "Queue row must still exist (kept for diagnostic visibility)"
     assert q_row[0] >= 2, f"attempts should be >= 2, got {q_row[0]}"
 
@@ -1737,14 +1766,13 @@ async def test_max_attempts_excludes_poisoned_items(monkeypatch, tmp_path):
         pending = memory_core._select_pending_entity_extraction(conn)
 
     pending_ids = [row[0] for row in pending]
-    assert mid not in pending_ids, (
-        "Poisoned item (attempts >= MAX_ATTEMPTS) must be excluded from eligible set"
-    )
+    assert mid not in pending_ids, "Poisoned item (attempts >= MAX_ATTEMPTS) must be excluded from eligible set"
 
 
 # ---------------------------------------------------------------------------
 # E1 Test 8 — entity_extractor_health reports correct state
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_entity_extractor_health_reports_state(monkeypatch, tmp_path):
@@ -1801,33 +1829,30 @@ async def test_entity_extractor_health_reports_state(monkeypatch, tmp_path):
 
     health = memory_core.entity_extractor_health()
 
-    assert health["queue_depth"] == 1, (
-        f"queue_depth should be 1 (attempts < 3); got {health['queue_depth']}"
-    )
-    assert health["poisoned"] == 1, (
-        f"poisoned should be 1 (attempts >= 3); got {health['poisoned']}"
-    )
-    assert health["entities_total"] == 2, (
-        f"entities_total should be 2; got {health['entities_total']}"
-    )
-    assert health["relationships_total"] == 1, (
-        f"relationships_total should be 1; got {health['relationships_total']}"
-    )
+    assert health["queue_depth"] == 1, f"queue_depth should be 1 (attempts < 3); got {health['queue_depth']}"
+    assert health["poisoned"] == 1, f"poisoned should be 1 (attempts >= 3); got {health['poisoned']}"
+    assert health["entities_total"] == 2, f"entities_total should be 2; got {health['entities_total']}"
+    assert health["relationships_total"] == 1, f"relationships_total should be 1; got {health['relationships_total']}"
     assert health["memory_item_entities_total"] == 2, (
         f"memory_item_entities_total should be 2; got {health['memory_item_entities_total']}"
     )
-    assert health["last_extracted_at"] is not None, (
-        "last_extracted_at should not be None when entities exist"
-    )
+    assert health["last_extracted_at"] is not None, "last_extracted_at should not be None when entities exist"
     # All 6 expected keys must be present
-    for key in ("queue_depth", "poisoned", "last_extracted_at",
-                "entities_total", "relationships_total", "memory_item_entities_total"):
+    for key in (
+        "queue_depth",
+        "poisoned",
+        "last_extracted_at",
+        "entities_total",
+        "relationships_total",
+        "memory_item_entities_total",
+    ):
         assert key in health, f"Missing key '{key}' in entity_extractor_health() result"
 
 
 # ---------------------------------------------------------------------------
 # YAML-driven entity vocabulary loading tests
 # ---------------------------------------------------------------------------
+
 
 def test_load_entity_vocab_defaults():
     """load_entity_vocab(None) returns same content as VALID_ENTITY_TYPES/VALID_ENTITY_PREDICATES."""
@@ -1894,9 +1919,7 @@ metadata:
     types, preds = memory_core.load_entity_vocab(str(placeholder_yaml))
 
     # Should fall back to defaults
-    assert types == memory_core._DEFAULT_VALID_ENTITY_TYPES, (
-        f"Empty types should fall back to defaults; got {types}"
-    )
+    assert types == memory_core._DEFAULT_VALID_ENTITY_TYPES, f"Empty types should fall back to defaults; got {types}"
     assert preds == memory_core._DEFAULT_VALID_ENTITY_PREDICATES, (
         f"Empty predicates should fall back to defaults; got {preds}"
     )
@@ -1940,9 +1963,7 @@ def test_extraction_prompt_vocab_matches_validation_vocab():
     import yaml
 
     repo = Path(__file__).parent.parent
-    types, preds = memory_core.load_entity_vocab(
-        str(repo / "config" / "lists" / "entity_graph_default.yaml")
-    )
+    types, preds = memory_core.load_entity_vocab(str(repo / "config" / "lists" / "entity_graph_default.yaml"))
     valid = set(types) | set(preds)
 
     prompt = yaml.safe_load((repo / "config" / "slm" / "entity_graph.yaml").read_text(encoding="utf-8"))["system"]
@@ -1962,11 +1983,7 @@ def test_extraction_prompt_vocab_matches_validation_vocab():
     pred_block = re.split(r"\n\s*[A-Z]{2,}", pred_block, maxsplit=1)[0]  # stop at the next ALLCAPS section header
     # Each predicate is the first lowercase token of an indented definition line
     # ("  located_in   person -> place"). Indentation is >=2 spaces.
-    declared_preds = {
-        ln.split()[0].lower()
-        for ln in pred_block.splitlines()
-        if re.match(r"\s{2,}[a-z_]+\s", ln)
-    }
+    declared_preds = {ln.split()[0].lower() for ln in pred_block.splitlines() if re.match(r"\s{2,}[a-z_]+\s", ln)}
 
     declared = declared_types | declared_preds
     assert declared, "Could not parse any declared vocab from the prompt — parser/format drift."

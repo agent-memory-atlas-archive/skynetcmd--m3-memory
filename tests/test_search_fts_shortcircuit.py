@@ -27,6 +27,7 @@ present AND on top" rather than "nothing else is present".
 Pattern mirrors test_agent_isolation.py: drive the real impl against a
 full-schema temp DB with the query embedder stubbed for determinism.
 """
+
 from __future__ import annotations
 
 import os
@@ -60,14 +61,12 @@ def _seed(conn, mid, title, content):
         "INSERT INTO memory_items (id, type, title, content, source, change_agent, "
         "created_at, importance, confidence, is_deleted, scope, agent_id) "
         "VALUES (?,?,?,?,?,?,?,?,?,0,?,?)",
-        (mid, "reference", title, content, "agent", "claude",
-         "2026-01-01T00:00:00Z", 0.5, 0.9, "user", None),
+        (mid, "reference", title, content, "agent", "claude", "2026-01-01T00:00:00Z", 0.5, 0.9, "user", None),
     )
     vec = [0.0] * EMBED_DIM
     vec[0] = 1.0
     conn.execute(
-        "INSERT INTO memory_embeddings (memory_id, embedding, embed_model, dim) "
-        "VALUES (?,?,?,?)",
+        "INSERT INTO memory_embeddings (memory_id, embedding, embed_model, dim) VALUES (?,?,?,?)",
         (mid, _pack(vec), EMBED_MODEL, EMBED_DIM),
     )
 
@@ -92,7 +91,7 @@ def _patch(monkeypatch, db_path, *, embed_ok=True):
 
     async def fake_embed(_q):
         if not embed_ok:
-            return (None, "embed-down")          # simulate backend outage
+            return (None, "embed-down")  # simulate backend outage
         return ([1.0] + [0.0] * (EMBED_DIM - 1), "test-embed")
 
     monkeypatch.setattr(memory_core, "_db", fake_db)
@@ -121,16 +120,18 @@ def _build(tmp_path, monkeypatch, *, embed_ok=True):
     # Three items all containing the exact phrase "core tenets" in content, plus
     # one that has it only in the title, plus a decoy that matches the FTS term
     # "tenets" but NOT the exact phrase.
-    _seed(conn, "aaaaaaaa-0000-0000-0000-000000000001",
-          "Alpha doc", "the seven core tenets are listed here")
-    _seed(conn, "bbbbbbbb-0000-0000-0000-000000000002",
-          "Beta doc", "we evaluate against the core tenets every change")
-    _seed(conn, "cccccccc-0000-0000-0000-000000000003",
-          "Gamma doc", "core tenets drive the design review")
-    _seed(conn, "dddddddd-0000-0000-0000-000000000004",
-          "core tenets in the title only", "unrelated body text about widgets")
-    _seed(conn, "eeeeeeee-0000-0000-0000-000000000005",
-          "Decoy", "this mentions tenets but not the exact two-word phrase")
+    _seed(conn, "aaaaaaaa-0000-0000-0000-000000000001", "Alpha doc", "the seven core tenets are listed here")
+    _seed(conn, "bbbbbbbb-0000-0000-0000-000000000002", "Beta doc", "we evaluate against the core tenets every change")
+    _seed(conn, "cccccccc-0000-0000-0000-000000000003", "Gamma doc", "core tenets drive the design review")
+    _seed(
+        conn,
+        "dddddddd-0000-0000-0000-000000000004",
+        "core tenets in the title only",
+        "unrelated body text about widgets",
+    )
+    _seed(
+        conn, "eeeeeeee-0000-0000-0000-000000000005", "Decoy", "this mentions tenets but not the exact two-word phrase"
+    )
     conn.commit()
     conn.close()
     return _patch(monkeypatch, db, embed_ok=embed_ok)
@@ -145,10 +146,12 @@ def test_shortcircuit_returns_all_exact_matches(tmp_path, monkeypatch):
 
     # All four rows containing the exact phrase (three in content, one in title)
     # must be present -- that is what this file exists to pin.
-    exact = ["aaaaaaaa-0000-0000-0000-000000000001",
-             "bbbbbbbb-0000-0000-0000-000000000002",
-             "cccccccc-0000-0000-0000-000000000003",
-             "dddddddd-0000-0000-0000-000000000004"]
+    exact = [
+        "aaaaaaaa-0000-0000-0000-000000000001",
+        "bbbbbbbb-0000-0000-0000-000000000002",
+        "cccccccc-0000-0000-0000-000000000003",
+        "dddddddd-0000-0000-0000-000000000004",
+    ]
     for _id in exact:
         assert _id in ids
     # Regression guard: the old code returned exactly 1.
@@ -158,9 +161,7 @@ def test_shortcircuit_returns_all_exact_matches(tmp_path, monkeypatch):
     # appear BELOW them: this query asks for k=20 against a 5-row store, and a
     # caller who asks for 20 gets the best 20 available rather than silently
     # fewer. What must never happen is a decoy outranking a literal match.
-    assert ids[:4] == [i for i in ids if i in exact], (
-        "exact-substring matches must occupy the top positions"
-    )
+    assert ids[:4] == [i for i in ids if i in exact], "exact-substring matches must occupy the top positions"
     assert set(exact).issubset(ids)
 
 
@@ -178,9 +179,7 @@ def test_shortcircuit_works_when_embedder_down(tmp_path, monkeypatch):
     assert len(ids) >= 4
 
 
-def test_shortcircuit_absent_phrase_does_not_fabricate_an_exact_hit(
-    tmp_path, monkeypatch
-):
+def test_shortcircuit_absent_phrase_does_not_fabricate_an_exact_hit(tmp_path, monkeypatch):
     """No row contains the exact phrase => the short-circuit must not fire.
 
     UPDATED 2026-07-26. This asserted `ids == []` — "embedder down and no exact
@@ -215,11 +214,7 @@ def test_shortcircuit_absent_phrase_does_not_fabricate_an_exact_hit(
 
     S._fts_only_results = spy
     try:
-        res = asyncio.run(
-            mc.memory_search_scored_impl(
-                query="widgets tenets", k=20, mmr=False, search_mode="hybrid"
-            )
-        )
+        res = asyncio.run(mc.memory_search_scored_impl(query="widgets tenets", k=20, mmr=False, search_mode="hybrid"))
     finally:
         S._fts_only_results = original
 
@@ -227,10 +222,7 @@ def test_shortcircuit_absent_phrase_does_not_fabricate_an_exact_hit(
         "the FALLBACK should have served this query — the short-circuit must "
         "decline when no row contains the exact phrase"
     )
-    assert res, (
-        "a lexical query that FTS can satisfy must not return [] just because "
-        "the embedder is down"
-    )
+    assert res, "a lexical query that FTS can satisfy must not return [] just because the embedder is down"
 
 
 # ---------------------------------------------------------------------------
@@ -253,6 +245,7 @@ def test_shortcircuit_absent_phrase_does_not_fabricate_an_exact_hit(
 # three paths cannot drift again. These tests pin the behaviour, not the
 # implementation: they assert the RESULT is narrowed.
 # ---------------------------------------------------------------------------
+
 
 def _build_typed(tmp_path, monkeypatch, *, embed_ok=True):
     """Rows that all contain the exact phrase, spread across several types.
@@ -282,12 +275,22 @@ def _build_typed(tmp_path, monkeypatch, *, embed_ok=True):
             "INSERT INTO memory_items (id, type, title, content, source, "
             "change_agent, created_at, importance, confidence, is_deleted, "
             "scope, agent_id) VALUES (?,?,?,?,?,?,?,?,?,0,?,?)",
-            (mid, typ, title, "the widget runbook lives here", "agent",
-             "claude", "2026-01-01T00:00:00Z", 0.5, 0.9, "user", agent),
+            (
+                mid,
+                typ,
+                title,
+                "the widget runbook lives here",
+                "agent",
+                "claude",
+                "2026-01-01T00:00:00Z",
+                0.5,
+                0.9,
+                "user",
+                agent,
+            ),
         )
         conn.execute(
-            "INSERT INTO memory_embeddings (memory_id, embedding, embed_model, dim) "
-            "VALUES (?,?,?,?)",
+            "INSERT INTO memory_embeddings (memory_id, embedding, embed_model, dim) VALUES (?,?,?,?)",
             (mid, _pack(vec), EMBED_MODEL, EMBED_DIM),
         )
     conn.commit()
@@ -331,8 +334,7 @@ async def test_short_circuit_honours_agent_filter(tmp_path, monkeypatch):
     }
     got = {i for i, _, _ in hits}
     assert got == agent_b_ids, (
-        f"agent_filter was dropped or over-narrowed — expected exactly the "
-        f"agent-b rows, got {got}"
+        f"agent_filter was dropped or over-narrowed — expected exactly the agent-b rows, got {got}"
     )
 
 
@@ -350,11 +352,9 @@ async def test_short_circuit_unfiltered_still_returns_every_type(tmp_path, monke
 async def test_short_circuit_type_and_agent_filters_compose(tmp_path, monkeypatch):
     """Both predicates AND together, not last-one-wins."""
     mc = _build_typed(tmp_path, monkeypatch)
-    hits = await _typed(mc, "widget runbook",
-                        type_filter="procedure", agent_filter="agent-b")
+    hits = await _typed(mc, "widget runbook", type_filter="procedure", agent_filter="agent-b")
     assert hits == [], (
-        "no row is both procedure AND agent-b; a non-empty result means the "
-        f"predicates did not compose: {hits}"
+        f"no row is both procedure AND agent-b; a non-empty result means the predicates did not compose: {hits}"
     )
 
 
@@ -378,6 +378,7 @@ async def test_short_circuit_type_and_agent_filters_compose(tmp_path, monkeypatc
 # gets it. "widget runbook" (in-order) is served by the short-circuit; verified
 # both ways before writing these.
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 async def _fallback_hits(mc, query, **kw):
     """Drive a search and PROVE the embedder-down fallback served it.
@@ -429,8 +430,7 @@ async def test_fallback_honours_type_filter(tmp_path, monkeypatch):
     assert hits, "fixture has 2 procedure rows — an empty result is a false pass"
     wrong = [(i, t) for i, t, _ in hits if t != "procedure"]
     assert not wrong, (
-        f"type_filter was DROPPED on the embedder-down path — got {wrong}. "
-        "This is the a28acf04 regression."
+        f"type_filter was DROPPED on the embedder-down path — got {wrong}. This is the a28acf04 regression."
     )
     assert len(hits) == 2, f"expected both procedure rows, got {len(hits)}"
 
@@ -465,9 +465,7 @@ async def test_fallback_honours_agent_filter(tmp_path, monkeypatch):
 async def test_fallback_filters_compose(tmp_path, monkeypatch):
     """Both predicates AND together on the degrade path too."""
     mc = _build_typed(tmp_path, monkeypatch, embed_ok=False)
-    hits, ran = await _fallback_hits(
-        mc, "runbook widget", type_filter="procedure", agent_filter="agent-b"
-    )
+    hits, ran = await _fallback_hits(mc, "runbook widget", type_filter="procedure", agent_filter="agent-b")
     assert ran, "fallback did not run; assertion below would be vacuous"
     assert hits == [], (
         "no fixture row is both procedure AND agent-b; a non-empty result means "
@@ -533,8 +531,7 @@ def test_fill_never_fails_when_the_store_has_fewer_than_k(tmp_path, monkeypatch)
     for k in (1, 5, 10, 100, 1000):
         ids = asyncio.run(_ids(mc, "core tenets", search_mode="hybrid", k=k))
         assert len(ids) == min(k, 5), (
-            f"k={k} against a 5-row store returned {len(ids)}; expected "
-            f"{min(k, 5)} -- fill must cap at what exists"
+            f"k={k} against a 5-row store returned {len(ids)}; expected {min(k, 5)} -- fill must cap at what exists"
         )
         assert len(ids) == len(set(ids)), f"k={k} returned duplicate ids"
 

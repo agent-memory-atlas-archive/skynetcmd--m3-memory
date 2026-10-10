@@ -4,6 +4,7 @@ Split out of mcp_tool_catalog.py's flat TOOLS list. Entries copied verbatim
 (name, description, parameters, impl, validators, flags unchanged). Domain
 assignment per tool_domains.domain_of_tool().
 """
+
 from __future__ import annotations
 
 from .lazy import LazyModuleProxy
@@ -31,16 +32,47 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "path":          {"type": "string", "description": "Directory (or single file) to ingest."},
-                "include":       {"type": "array",  "items": {"type": "string"}, "description": "Glob patterns; only matching files are ingested.", "default": None},
-                "exclude":       {"type": "array",  "items": {"type": "string"}, "description": "Glob patterns; matching files are skipped.", "default": None},
-                "max_depth":     {"type": "integer", "description": "Max recursion depth (0 = root only).", "default": None},
-                "corpus":        {"type": "string", "description": "Corpus tag (default: resolved from M3_FILES_CORPUS or 'default').", "default": None},
-                "dry_run":       {"type": "boolean", "description": "Walk + count without writing.", "default": False},
-                "force_size":    {"type": "boolean", "description": "Bypass the per-file size cap.", "default": False},
-                "record_noops":  {"type": "boolean", "description": "Write 'unchanged_skipped' rows for audit.", "default": False},
-                "extract_mode":  {"type": "string", "enum": ["none", "inline", "queue"], "description": "Fact-extraction mode.", "default": None},
-                "original_path": {"type": "string", "description": "Pointer to source artifact when single-file ingest is a conversion.", "default": None},
+                "path": {"type": "string", "description": "Directory (or single file) to ingest."},
+                "include": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Glob patterns; only matching files are ingested.",
+                    "default": None,
+                },
+                "exclude": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Glob patterns; matching files are skipped.",
+                    "default": None,
+                },
+                "max_depth": {
+                    "type": "integer",
+                    "description": "Max recursion depth (0 = root only).",
+                    "default": None,
+                },
+                "corpus": {
+                    "type": "string",
+                    "description": "Corpus tag (default: resolved from M3_FILES_CORPUS or 'default').",
+                    "default": None,
+                },
+                "dry_run": {"type": "boolean", "description": "Walk + count without writing.", "default": False},
+                "force_size": {"type": "boolean", "description": "Bypass the per-file size cap.", "default": False},
+                "record_noops": {
+                    "type": "boolean",
+                    "description": "Write 'unchanged_skipped' rows for audit.",
+                    "default": False,
+                },
+                "extract_mode": {
+                    "type": "string",
+                    "enum": ["none", "inline", "queue"],
+                    "description": "Fact-extraction mode.",
+                    "default": None,
+                },
+                "original_path": {
+                    "type": "string",
+                    "description": "Pointer to source artifact when single-file ingest is a conversion.",
+                    "default": None,
+                },
             },
             "required": ["path"],
         },
@@ -60,12 +92,25 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "query":           {"type": "string", "description": "Free-text query."},
-                "limit":           {"type": "integer", "description": "Max hits returned.", "default": 10},
-                "corpus":          {"type": "string", "description": "Single-corpus scope filter.", "default": None},
-                "corpora":         {"type": "array",  "items": {"type": "string"}, "description": "Fan-out across these corpora; overrides corpus.", "default": None},
-                "filetype":        {"type": "string", "description": "Filter to one filetype ('markdown', 'pdf', ...).", "default": None},
-                "include_history": {"type": "boolean", "description": "Include superseded leaves and file_nodes.", "default": False},
+                "query": {"type": "string", "description": "Free-text query."},
+                "limit": {"type": "integer", "description": "Max hits returned.", "default": 10},
+                "corpus": {"type": "string", "description": "Single-corpus scope filter.", "default": None},
+                "corpora": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Fan-out across these corpora; overrides corpus.",
+                    "default": None,
+                },
+                "filetype": {
+                    "type": "string",
+                    "description": "Filter to one filetype ('markdown', 'pdf', ...).",
+                    "default": None,
+                },
+                "include_history": {
+                    "type": "boolean",
+                    "description": "Include superseded leaves and file_nodes.",
+                    "default": False,
+                },
             },
             "required": ["query"],
         },
@@ -89,13 +134,13 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "corpus":          {"type": "string", "default": None},
-                "corpora":         {"type": "array",  "items": {"type": "string"}, "default": None},
-                "filetype":        {"type": "string", "default": None},
-                "directory":       {"type": "string", "default": None},
-                "filename_glob":   {"type": "string", "default": None},
+                "corpus": {"type": "string", "default": None},
+                "corpora": {"type": "array", "items": {"type": "string"}, "default": None},
+                "filetype": {"type": "string", "default": None},
+                "directory": {"type": "string", "default": None},
+                "filename_glob": {"type": "string", "default": None},
                 "include_history": {"type": "boolean", "default": False},
-                "limit":           {"type": "integer", "default": 500},
+                "limit": {"type": "integer", "default": 500},
             },
             "required": [],
         },
@@ -176,10 +221,14 @@ TOOLS: list[ToolSpec] = [
             "type": "object",
             "properties": {
                 "source_uuid": {"type": "string"},
-                "reason":      {"type": "string", "default": ""},
-                "mapped_type": {"type": "string", "description": "Override memory.db type (fact|knowledge|reference|...).", "default": None},
-                "scope":       {"type": "string", "default": None},
-                "importance":  {"type": "number", "default": 0.6},
+                "reason": {"type": "string", "default": ""},
+                "mapped_type": {
+                    "type": "string",
+                    "description": "Override memory.db type (fact|knowledge|reference|...).",
+                    "default": None,
+                },
+                "scope": {"type": "string", "default": None},
+                "importance": {"type": "number", "default": 0.6},
             },
             "required": ["source_uuid"],
         },
@@ -199,9 +248,9 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "source_file_node":   {"type": "string", "default": None},
-                "source_superseded":  {"type": "boolean", "default": None},
-                "limit":              {"type": "integer", "default": 100},
+                "source_file_node": {"type": "string", "default": None},
+                "source_superseded": {"type": "boolean", "default": None},
+                "limit": {"type": "integer", "default": 100},
             },
             "required": [],
         },
@@ -220,10 +269,10 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "limit":                       {"type": "integer", "default": 20},
-                "min_score":                   {"type": "number",  "default": 0.30},
-                "corpus":                      {"type": "string",  "default": None},
-                "include_already_promoted":    {"type": "boolean", "default": False},
+                "limit": {"type": "integer", "default": 20},
+                "min_score": {"type": "number", "default": 0.30},
+                "corpus": {"type": "string", "default": None},
+                "include_already_promoted": {"type": "boolean", "default": False},
             },
             "required": [],
         },
@@ -243,11 +292,11 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "threshold":                 {"type": "number",  "default": 0.92},
-                "max_pairs":                 {"type": "integer", "default": 500},
-                "leaf_limit":                {"type": "integer", "default": 10000},
-                "corpus":                    {"type": "string",  "default": None},
-                "include_already_detected":  {"type": "boolean", "default": False},
+                "threshold": {"type": "number", "default": 0.92},
+                "max_pairs": {"type": "integer", "default": 500},
+                "leaf_limit": {"type": "integer", "default": 10000},
+                "corpus": {"type": "string", "default": None},
+                "include_already_detected": {"type": "boolean", "default": False},
             },
             "required": [],
         },
@@ -263,9 +312,9 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "reviewed":   {"type": "boolean", "default": False},
-                "limit":      {"type": "integer", "default": 100},
-                "min_cosine": {"type": "number",  "default": None},
+                "reviewed": {"type": "boolean", "default": False},
+                "limit": {"type": "integer", "default": 100},
+                "min_cosine": {"type": "number", "default": None},
             },
             "required": [],
         },
@@ -277,16 +326,13 @@ TOOLS: list[ToolSpec] = [
     ),
     ToolSpec(
         name="files_dedup_review",
-        description=(
-            "Record a review decision on a near-duplicate candidate: "
-            "'kept' | 'merged' | 'ignored'."
-        ),
+        description=("Record a review decision on a near-duplicate candidate: 'kept' | 'merged' | 'ignored'."),
         parameters={
             "type": "object",
             "properties": {
                 "candidate_uuid": {"type": "string"},
-                "action":         {"type": "string", "enum": ["kept", "merged", "ignored"]},
-                "note":           {"type": "string", "default": ""},
+                "action": {"type": "string", "enum": ["kept", "merged", "ignored"]},
+                "note": {"type": "string", "default": ""},
             },
             "required": ["candidate_uuid", "action"],
         },
@@ -308,8 +354,8 @@ TOOLS: list[ToolSpec] = [
             "type": "object",
             "properties": {
                 "max_pairs": {"type": "integer", "default": 1000},
-                "dry_run":   {"type": "boolean", "default": False},
-                "corpus":    {"type": "string",  "default": None},
+                "dry_run": {"type": "boolean", "default": False},
+                "corpus": {"type": "string", "default": None},
             },
             "required": [],
         },
@@ -325,9 +371,9 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "reviewed":   {"type": "boolean", "default": False},
-                "limit":      {"type": "integer", "default": 100},
-                "min_cosine": {"type": "number",  "default": None},
+                "reviewed": {"type": "boolean", "default": False},
+                "limit": {"type": "integer", "default": 100},
+                "min_cosine": {"type": "number", "default": None},
             },
             "required": [],
         },
@@ -349,7 +395,7 @@ TOOLS: list[ToolSpec] = [
             "type": "object",
             "properties": {
                 "reviews": {"type": "array"},
-                "note":    {"type": "string", "default": ""},
+                "note": {"type": "string", "default": ""},
             },
             "required": ["reviews"],
         },
@@ -372,11 +418,11 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "candidate_uuids":    {"type": "array",   "default": None},
+                "candidate_uuids": {"type": "array", "default": None},
                 "include_auto_merge": {"type": "boolean", "default": False},
-                "resolution_run":     {"type": "string",  "default": None},
-                "dry_run":            {"type": "boolean", "default": False},
-                "confirm":            {"type": "boolean", "default": False},
+                "resolution_run": {"type": "string", "default": None},
+                "dry_run": {"type": "boolean", "default": False},
+                "confirm": {"type": "boolean", "default": False},
             },
             "required": [],
         },
@@ -423,9 +469,9 @@ TOOLS: list[ToolSpec] = [
             "type": "object",
             "properties": {
                 "directory": {"type": "string", "default": None},
-                "corpus":    {"type": "string", "default": None},
-                "rehash":    {"type": "boolean", "default": True},
-                "limit":     {"type": "integer", "default": 200},
+                "corpus": {"type": "string", "default": None},
+                "rehash": {"type": "boolean", "default": True},
+                "limit": {"type": "integer", "default": 200},
             },
             "required": [],
         },
@@ -446,8 +492,8 @@ TOOLS: list[ToolSpec] = [
             "type": "object",
             "properties": {
                 "missing_file_node_uuid": {"type": "string"},
-                "new_path":               {"type": "string"},
-                "expect_sha256":          {"type": "string", "default": None},
+                "new_path": {"type": "string"},
+                "expect_sha256": {"type": "string", "default": None},
             },
             "required": ["missing_file_node_uuid", "new_path"],
         },
@@ -468,11 +514,11 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "corpus_id":    {"type": "string"},
-                "description":  {"type": "string", "default": None},
+                "corpus_id": {"type": "string"},
+                "description": {"type": "string", "default": None},
                 "extract_mode": {"type": "string", "enum": ["none", "inline", "queue"], "default": None},
-                "scope":        {"type": "string", "default": None},
-                "default":      {"type": "boolean", "default": False},
+                "scope": {"type": "string", "default": None},
+                "default": {"type": "boolean", "default": False},
             },
             "required": ["corpus_id"],
         },
@@ -509,17 +555,16 @@ TOOLS: list[ToolSpec] = [
     ToolSpec(
         name="files_corpus_set",
         description=(
-            "Update settings for an existing corpus. None args are no-ops. "
-            "Creates the corpus_settings row if absent."
+            "Update settings for an existing corpus. None args are no-ops. Creates the corpus_settings row if absent."
         ),
         parameters={
             "type": "object",
             "properties": {
-                "corpus_id":      {"type": "string"},
-                "description":    {"type": "string", "default": None},
-                "extract_mode":   {"type": "string", "enum": ["none", "inline", "queue"], "default": None},
-                "scope":          {"type": "string", "default": None},
-                "default":        {"type": "boolean", "default": None},
+                "corpus_id": {"type": "string"},
+                "description": {"type": "string", "default": None},
+                "extract_mode": {"type": "string", "enum": ["none", "inline", "queue"], "default": None},
+                "scope": {"type": "string", "default": None},
+                "default": {"type": "boolean", "default": None},
                 "retention_days": {"type": "integer", "default": None},
             },
             "required": ["corpus_id"],
@@ -541,7 +586,7 @@ TOOLS: list[ToolSpec] = [
             "type": "object",
             "properties": {
                 "corpus_id": {"type": "string"},
-                "cascade":   {"type": "boolean", "default": False},
+                "cascade": {"type": "boolean", "default": False},
             },
             "required": ["corpus_id"],
         },
@@ -566,10 +611,10 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "directory":         {"type": "string",  "default": None},
-                "corpus":            {"type": "string",  "default": None},
-                "agent_id":          {"type": "string",  "default": "files_memory.watch"},
-                "cooldown_seconds":  {"type": "number",  "default": 3600.0},
+                "directory": {"type": "string", "default": None},
+                "corpus": {"type": "string", "default": None},
+                "agent_id": {"type": "string", "default": "files_memory.watch"},
+                "cooldown_seconds": {"type": "number", "default": 3600.0},
             },
             "required": [],
         },

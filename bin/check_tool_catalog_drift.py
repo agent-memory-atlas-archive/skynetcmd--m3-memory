@@ -73,8 +73,7 @@ def _regenerate() -> bool:
     for gen in _GENERATORS:
         rc = _run([_PY, *gen])
         if rc != 0:
-            print(f"[drift] generator failed: {' '.join(gen)} (exit {rc})",
-                  file=sys.stderr)
+            print(f"[drift] generator failed: {' '.join(gen)} (exit {rc})", file=sys.stderr)
             return False
     return True
 
@@ -83,17 +82,20 @@ def _git_drift() -> list[str]:
     """Return the list of generated paths that git reports as modified."""
     out = subprocess.run(
         ["git", "diff", "--name-only", "--", *_GENERATED_PATHS],
-        cwd=_ROOT, capture_output=True, text=True,
+        cwd=_ROOT,
+        capture_output=True,
+        text=True,
     )
     return [p for p in out.stdout.splitlines() if p.strip()]
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--fix", action="store_true",
-                        help="regenerate and leave changes in the working tree "
-                             "(don't fail on drift — for interactive fixing)")
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument(
+        "--fix",
+        action="store_true",
+        help="regenerate and leave changes in the working tree (don't fail on drift — for interactive fixing)",
+    )
     args = parser.parse_args(argv)
 
     if not _regenerate():
@@ -101,13 +103,15 @@ def main(argv: list[str] | None = None) -> int:
 
     drift = _git_drift()
     if drift and not args.fix:
-        print("[drift] generated artifacts are STALE vs bin/mcp_tool_catalog.py:",
-              file=sys.stderr)
+        print("[drift] generated artifacts are STALE vs bin/mcp_tool_catalog.py:", file=sys.stderr)
         for p in drift:
             print(f"          {p}", file=sys.stderr)
-        print("[drift] they have been regenerated in your working tree. Also update "
-              "any hardcoded 'N tools' counts in README/COMPARISON/MYTHS_AND_FACTS/"
-              "files_memory, then stage + commit and re-run.", file=sys.stderr)
+        print(
+            "[drift] they have been regenerated in your working tree. Also update "
+            "any hardcoded 'N tools' counts in README/COMPARISON/MYTHS_AND_FACTS/"
+            "files_memory, then stage + commit and re-run.",
+            file=sys.stderr,
+        )
         return 1
 
     # Drift tests also gate the prose 'N tools' counts the generators don't own.
@@ -115,14 +119,19 @@ def main(argv: list[str] | None = None) -> int:
     # nor asyncio) and the cache provider off — both shave fixed startup cost
     # off a check that runs on the push hot path.
     import os
+
     env = {**os.environ, "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1"}
     rc = subprocess.run(
         [_PY, "-m", "pytest", "-q", "-p", "no:cacheprovider", *_DRIFT_TESTS],
-        cwd=_ROOT, env=env,
+        cwd=_ROOT,
+        env=env,
     ).returncode
     if rc != 0:
-        print("[drift] drift tests failed — a hardcoded 'N tools' count or the "
-              "committed manifest is out of sync. Fix and re-run.", file=sys.stderr)
+        print(
+            "[drift] drift tests failed — a hardcoded 'N tools' count or the "
+            "committed manifest is out of sync. Fix and re-run.",
+            file=sys.stderr,
+        )
         return 1
 
     if args.fix and drift:

@@ -7,6 +7,7 @@ dicts for every input. These tests assert that across the full truth table,
 forcing the Python path with `M3_CORE_RS_DISABLE=1` and comparing against the
 native path (when a Governor-capable wheel is installed).
 """
+
 from __future__ import annotations
 
 import importlib
@@ -46,6 +47,7 @@ def _pacing(sdk, load: float, elapsed: float) -> dict:
     """Drive get_governor_pacing at a fixed (load, elapsed) by pinning the
     last-interaction clock so `elapsed` is deterministic."""
     import time
+
     sdk._LAST_USER_INTERACTION = time.time() - elapsed
     telemetry = {"cpu_total": load, "ram_total": 0.0, "gpu_total": 0.0}
     return sdk.get_governor_pacing(telemetry)
@@ -73,6 +75,7 @@ def test_python_fallback_truth_table():
 def _has_native_governor() -> bool:
     try:
         import m3_core_rs
+
         return hasattr(m3_core_rs, "Governor")
     except Exception:
         return False
@@ -80,8 +83,11 @@ def _has_native_governor() -> bool:
 
 @pytest.mark.skipif(
     not _has_native_governor(),
-    reason=skip_reason("dep", "native m3_core_rs.Governor not installed in this interpreter; "
-           "parity is covered by the Rust crate's own tests/parity.rs"),
+    reason=skip_reason(
+        "dep",
+        "native m3_core_rs.Governor not installed in this interpreter; "
+        "parity is covered by the Rust crate's own tests/parity.rs",
+    ),
 )
 def test_native_matches_python_fallback():
     """Native and Python paths must return identical dicts for every probe."""

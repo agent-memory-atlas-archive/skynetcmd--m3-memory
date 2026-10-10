@@ -10,6 +10,7 @@ These tests force the pure-Python path (M3_CORE_RS_DISABLE) and drive
 _LAST_USER_INTERACTION directly, so they are hermetic and independent of the
 host's real RAM/CPU/GPU.
 """
+
 from __future__ import annotations
 
 import sys
@@ -28,17 +29,16 @@ def gov(monkeypatch):
     """The governor module with the native fast-path disabled (pure-Python ladder)
     and clean RAM-threshold env. Restores globals on teardown."""
     monkeypatch.setenv("M3_CORE_RS_DISABLE", "1")
-    for v in ("M3_GOVERNOR_RAM_HALT_GB", "M3_GOVERNOR_RAM_THROTTLE_GB",
-              "M3_GOVERNOR_RAM_THROTTLE_IDLE_GB"):
+    for v in ("M3_GOVERNOR_RAM_HALT_GB", "M3_GOVERNOR_RAM_THROTTLE_GB", "M3_GOVERNOR_RAM_THROTTLE_IDLE_GB"):
         monkeypatch.delenv(v, raising=False)
     import m3_core.governor as g
+
     return g
 
 
 def _pace(g, free_gb, idle_s, cpu=5.0, gpu=0.0):
     g._LAST_USER_INTERACTION = time.time() - idle_s
-    tel = {"cpu_total": cpu, "gpu_total": gpu,
-           "ram_available_gb": free_gb, "ram_total": 92.0}
+    tel = {"cpu_total": cpu, "gpu_total": gpu, "ram_available_gb": free_gb, "ram_total": 92.0}
     return g.get_governor_pacing(tel)["background"]
 
 

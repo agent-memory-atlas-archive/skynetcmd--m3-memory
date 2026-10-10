@@ -19,6 +19,5 @@ def test_run_cmd_preserves_stdout_on_windows(capsys):
 
     captured = capsys.readouterr()
     assert "hello_from_child" in captured.out, (
-        "Child process stdout did not reach the parent. "
-        "If you used CREATE_NO_WINDOW, the pipe inheritance was broken."
+        "Child process stdout did not reach the parent. If you used CREATE_NO_WINDOW, the pipe inheritance was broken."
     )

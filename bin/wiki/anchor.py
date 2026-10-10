@@ -23,6 +23,7 @@ Metrics:
 
 All pure: no model, no new query, deterministic (inside the drift-tested surface).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -105,6 +106,7 @@ class KASWeights:
     (belief/consolidates rollups will populate it), so it's held for that future.
     A placeholder that over-weighted backbone gave KAS stdev 0.013 (flat, useless);
     this calibration gives 0.039 — 3x the ranking power."""
+
     backbone: float = 0.15
     provenance: float = 0.40
     confidence: float = 0.10
@@ -116,8 +118,12 @@ class KASWeights:
     null_confidence: float = 0.4
 
     def as_weights(self) -> dict[str, float]:
-        return {"backbone": self.backbone, "provenance": self.provenance,
-                "confidence": self.confidence, "backbone_ratio": self.backbone_ratio}
+        return {
+            "backbone": self.backbone,
+            "provenance": self.provenance,
+            "confidence": self.confidence,
+            "backbone_ratio": self.backbone_ratio,
+        }
 
     @classmethod
     def from_tuple(cls, t: tuple) -> KASWeights:
@@ -135,27 +141,28 @@ class ClusterAnchor:
     key: str
     title: str
     members: int
-    kas: float                       # the linear score in [0,1]
-    factors: dict = field(default_factory=dict)   # the raw normalized factors
+    kas: float  # the linear score in [0,1]
+    factors: dict = field(default_factory=dict)  # the raw normalized factors
     load_bearing_edges: int = 0
     comention_edges: int = 0
     adrift: bool = False
     drift_entities: list = field(default_factory=list)
 
 
-def kas_factors(cluster, edges, kw: KASWeights | None = None,
-                edge_weights: dict | None = None) -> tuple[dict, int, int]:
+def kas_factors(
+    cluster, edges, kw: KASWeights | None = None, edge_weights: dict | None = None
+) -> tuple[dict, int, int]:
     """Compute the four normalized KAS factors for a cluster. Returns
     (factors, load_bearing_edge_count, comention_edge_count)."""
     kw = kw or _DEFAULT_KAS
     if edge_weights is None:
         from .select import EDGE_WEIGHTS
+
         edge_weights = EDGE_WEIGHTS
 
     member_ids = {m.id for m in cluster.members}
     n = max(1, len(cluster.members))
-    conf = {m.id: (m.confidence if m.confidence is not None else kw.null_confidence)
-            for m in cluster.members}
+    conf = {m.id: (m.confidence if m.confidence is not None else kw.null_confidence) for m in cluster.members}
 
     backbone_strength = 0.0
     load_bearing = 0
@@ -188,8 +195,9 @@ def kas_factors(cluster, edges, kw: KASWeights | None = None,
     return factors, load_bearing, comention
 
 
-def cluster_anchor(cluster, edges, kas: KASWeights | None | dict = None,
-                   edge_weights: dict | None = None) -> ClusterAnchor:
+def cluster_anchor(
+    cluster, edges, kas: KASWeights | None | dict = None, edge_weights: dict | None = None
+) -> ClusterAnchor:
     """KAS for one cluster as a weighted sum of its four normalized factors. A
     bare edge-weights dict is accepted in the `kas` slot for back-compat (treated
     as edge_weights, default KAS weights)."""
@@ -233,12 +241,11 @@ def _flag_low_anchor(anchors) -> list:
 
 @dataclass(frozen=True, slots=True)
 class CoverageWeights:
-    representation: float = 1.0     # one factor; the algebra's degenerate case
+    representation: float = 1.0  # one factor; the algebra's degenerate case
     importance_floor: float = 0.7
 
 
-def coverage_score(clusters, cw: CoverageWeights | None = None
-                   ) -> tuple[float, int, int]:
+def coverage_score(clusters, cw: CoverageWeights | None = None) -> tuple[float, int, int]:
     """Fraction of high-importance memories in real topics vs. orphaned. Returns
     (score, covered, orphaned). Genuinely one factor — expressed in the same
     weighted-sum kernel for uniformity, not padded with invented factors."""
@@ -254,8 +261,7 @@ def coverage_score(clusters, cw: CoverageWeights | None = None
                 covered += 1
     total = covered + orphaned
     representation = 1.0 if total == 0 else covered / total
-    score = weighted_score({"representation": representation},
-                           {"representation": cw.representation})
+    score = weighted_score({"representation": representation}, {"representation": cw.representation})
     return round(score, 4), covered, orphaned
 
 
@@ -269,7 +275,7 @@ def coverage_score(clusters, cw: CoverageWeights | None = None
 @dataclass(frozen=True, slots=True)
 class StalenessWeights:
     stale_fraction: float = 1.0
-    threshold: float = 0.5          # flag clusters scoring above this
+    threshold: float = 0.5  # flag clusters scoring above this
 
 
 def cluster_staleness(cluster, sw: StalenessWeights | None = None) -> float:
@@ -278,8 +284,7 @@ def cluster_staleness(cluster, sw: StalenessWeights | None = None) -> float:
         return 0.0
     stale = sum(1 for m in cluster.members if m.valid_to)
     frac = stale / len(cluster.members)
-    return round(weighted_score({"stale_fraction": frac},
-                                {"stale_fraction": sw.stale_fraction}), 4)
+    return round(weighted_score({"stale_fraction": frac}, {"stale_fraction": sw.stale_fraction}), 4)
 
 
 def stale_topics(clusters, sw: StalenessWeights | None = None) -> list:
@@ -305,13 +310,16 @@ def stale_topics(clusters, sw: StalenessWeights | None = None) -> list:
 @dataclass(frozen=True, slots=True)
 class RedundancyWeights:
     member_overlap: float = 1.0
-    threshold: float = 0.6          # flag pairs scoring above this
+    threshold: float = 0.6  # flag pairs scoring above this
 
 
 def redundant_pairs(clusters, rw: RedundancyWeights | None = None) -> list:
     rw = rw or RedundancyWeights()
-    sets = [(c.key, {m.id for m in c.members}) for c in clusters
-            if not getattr(c, "is_orphan", False) and len(c.members) >= 2]
+    sets = [
+        (c.key, {m.id for m in c.members})
+        for c in clusters
+        if not getattr(c, "is_orphan", False) and len(c.members) >= 2
+    ]
     out = []
     for i in range(len(sets)):
         ka, sa = sets[i]
@@ -321,8 +329,7 @@ def redundant_pairs(clusters, rw: RedundancyWeights | None = None) -> list:
             if not inter:
                 continue
             jac = inter / len(sa | sb)
-            score = weighted_score({"member_overlap": jac},
-                                   {"member_overlap": rw.member_overlap})
+            score = weighted_score({"member_overlap": jac}, {"member_overlap": rw.member_overlap})
             if score >= rw.threshold:
                 a, b = sorted((ka, kb))
                 out.append((a, b, round(score, 4)))
@@ -354,16 +361,20 @@ def annotate_drift_entities(anchors, clusters, comention_entities) -> None:
         if not a.adrift:
             continue
         ids = by_key.get(a.key, set())
-        a.drift_entities = sorted(
-            name for name, members in comention_entities.items()
-            if len(members & ids) >= 2)[:8]
+        a.drift_entities = sorted(name for name, members in comention_entities.items() if len(members & ids) >= 2)[:8]
 
 
-def build_health(clusters, edges, kas: KASWeights | None | dict = None,
-                 comention_entities=None, *, edge_weights: dict | None = None,
-                 coverage_w: CoverageWeights | None = None,
-                 staleness_w: StalenessWeights | None = None,
-                 redundancy_w: RedundancyWeights | None = None) -> WikiHealth:
+def build_health(
+    clusters,
+    edges,
+    kas: KASWeights | None | dict = None,
+    comention_entities=None,
+    *,
+    edge_weights: dict | None = None,
+    coverage_w: CoverageWeights | None = None,
+    staleness_w: StalenessWeights | None = None,
+    redundancy_w: RedundancyWeights | None = None,
+) -> WikiHealth:
     """Assemble the Knowledge Anchor Report from the four linear metrics. Pure,
     deterministic, no queries. Each metric's weights are independently tunable; a
     bare edge-weights dict in `kas` is accepted for back-compat."""
@@ -372,8 +383,7 @@ def build_health(clusters, edges, kas: KASWeights | None | dict = None,
         kw = _DEFAULT_KAS
     else:
         kw = kas or _DEFAULT_KAS
-    anchors = [cluster_anchor(c, edges, kw, edge_weights)
-               for c in clusters if not getattr(c, "is_orphan", False)]
+    anchors = [cluster_anchor(c, edges, kw, edge_weights) for c in clusters if not getattr(c, "is_orphan", False)]
     annotate_drift_entities(anchors, clusters, comention_entities)
     frac, covered, orphaned = coverage_score(clusters, coverage_w)
     return WikiHealth(

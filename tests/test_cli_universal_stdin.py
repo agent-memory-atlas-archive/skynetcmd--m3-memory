@@ -23,6 +23,7 @@ Two consequences had to be handled, and both are pinned below:
    before the JSON was ever read. Requirements are checked after the merge, so
    either route satisfies them and a real omission still fails loudly.
 """
+
 from __future__ import annotations
 
 import json
@@ -44,12 +45,16 @@ def _run(args, stdin_text=None, timeout=120):
     """
     return subprocess.run(
         [sys.executable, "-m", "m3_memory.cli", *args],
-        input=stdin_text, capture_output=True, text=True,
-        cwd=_REPO, timeout=timeout,
+        input=stdin_text,
+        capture_output=True,
+        text=True,
+        cwd=_REPO,
+        timeout=timeout,
     )
 
 
 # ── the flags exist everywhere ───────────────────────────────────────────────
+
 
 def test_a_simple_tool_advertises_json_and_json_file():
     """memory_search has no object parameter, so it was previously excluded."""
@@ -60,16 +65,14 @@ def test_a_simple_tool_advertises_json_and_json_file():
 
 def test_the_help_names_stdin_explicitly():
     out = _run(["memory", "memory_search", "--help"]).stdout
-    assert "stdin" in out.lower(), (
-        "the help does not mention stdin, so the '-' convention is undiscoverable"
-    )
+    assert "stdin" in out.lower(), "the help does not mention stdin, so the '-' convention is undiscoverable"
 
 
 # ── piping works ─────────────────────────────────────────────────────────────
 
+
 def test_a_piped_object_drives_a_simple_tool():
-    r = _run(["memory", "memory_search", "--json-file", "-"],
-             stdin_text=json.dumps({"query": "postgres", "k": 2}))
+    r = _run(["memory", "memory_search", "--json-file", "-"], stdin_text=json.dumps({"query": "postgres", "k": 2}))
     assert r.returncode == 0, r.stderr[-400:]
     # The CLI defaults as_records on (its consumer is a pipe), so a
     # successful search is a records envelope, not the prose word
@@ -95,16 +98,16 @@ def test_flags_and_piped_json_compose():
     developer's corpus — an empty store returns "No results found" and the test
     becomes about seed data rather than about precedence.
     """
-    r = _run(["memory", "memory_search", "--json-file", "-", "--k", "1",
-              "--dry-run"],
-             stdin_text=json.dumps({"query": "postgres", "k": 9}))
-    assert r.returncode == 0, r.stderr[-400:]
-    assert '"ok": true' in r.stdout.lower(), (
-        f"the merged call did not validate: {r.stdout[-300:]}"
+    r = _run(
+        ["memory", "memory_search", "--json-file", "-", "--k", "1", "--dry-run"],
+        stdin_text=json.dumps({"query": "postgres", "k": 9}),
     )
+    assert r.returncode == 0, r.stderr[-400:]
+    assert '"ok": true' in r.stdout.lower(), f"the merged call did not validate: {r.stdout[-300:]}"
 
 
 # ── required arguments ───────────────────────────────────────────────────────
+
 
 def test_a_required_arg_can_come_from_the_pipe():
     """⚠ THE CASE ARGPARSE CANNOT SEE.
@@ -112,20 +115,15 @@ def test_a_required_arg_can_come_from_the_pipe():
     `query` is required. argparse rejects the call before any JSON is read, so
     leaving it argparse-required made the piped form impossible.
     """
-    r = _run(["memory", "memory_search", "--json-file", "-"],
-             stdin_text=json.dumps({"query": "postgres"}))
-    assert r.returncode == 0, (
-        f"a required arg supplied via the pipe was rejected: {r.stderr[-400:]}"
-    )
+    r = _run(["memory", "memory_search", "--json-file", "-"], stdin_text=json.dumps({"query": "postgres"}))
+    assert r.returncode == 0, f"a required arg supplied via the pipe was rejected: {r.stderr[-400:]}"
 
 
 def test_a_genuinely_missing_required_arg_still_fails_loudly():
     """Moving the check off argparse must not lose it (§3)."""
     r = _run(["memory", "memory_search", "--k", "1"])
     assert r.returncode != 0
-    assert "requires --query" in r.stderr, (
-        f"missing required arg did not produce a clear error: {r.stderr[-300:]}"
-    )
+    assert "requires --query" in r.stderr, f"missing required arg did not produce a clear error: {r.stderr[-300:]}"
 
 
 def test_a_json_only_tool_does_not_name_a_flag_it_lacks():
@@ -134,7 +132,8 @@ def test_a_json_only_tool_does_not_name_a_flag_it_lacks():
     r = _run(["tasks", "task_create", "--json", json.dumps({"title": "t"}), "--dry-run"])
     assert r.returncode != 0
     assert "'created_by'" in r.stderr and "--created_by" not in r.stderr, (
-        f"observed: {r.stderr[-300:]}. inspect: the required-arg message in m3_memory/cli.py")
+        f"observed: {r.stderr[-300:]}. inspect: the required-arg message in m3_memory/cli.py"
+    )
 
 
 def test_the_error_names_both_routes():
@@ -145,6 +144,7 @@ def test_the_error_names_both_routes():
 
 # ── safety ───────────────────────────────────────────────────────────────────
 
+
 def test_no_stdin_read_without_the_flag():
     """⚠ THE HANG GUARD.
 
@@ -152,8 +152,7 @@ def test_no_stdin_read_without_the_flag():
     speculatively, every interactive invocation with no piped input would block
     forever waiting for EOF.
     """
-    r = _run(["memory", "memory_search", "--query", "postgres", "--k", "1"],
-             timeout=45)
+    r = _run(["memory", "memory_search", "--query", "postgres", "--k", "1"], timeout=45)
     assert r.returncode == 0
 
 
@@ -165,9 +164,9 @@ def test_version_does_not_block():
 
 # ── malformed input ──────────────────────────────────────────────────────────
 
+
 def test_invalid_json_on_stdin_is_reported():
-    r = _run(["memory", "memory_search", "--json-file", "-"],
-             stdin_text="{not valid json")
+    r = _run(["memory", "memory_search", "--json-file", "-"], stdin_text="{not valid json")
     assert r.returncode != 0
     assert "json" in r.stderr.lower()
 
@@ -178,20 +177,22 @@ def test_an_unknown_key_is_rejected_with_a_suggestion():
     A near-miss key silently discarded is how a call reports ok while doing the
     wrong thing — the defect that guard was written for.
     """
-    r = _run(["memory", "memory_search", "--json-file", "-"],
-             stdin_text=json.dumps({"query": "x", "kk": 3}))
+    r = _run(["memory", "memory_search", "--json-file", "-"], stdin_text=json.dumps({"query": "x", "kk": 3}))
     assert r.returncode != 0
     assert "unknown key" in r.stderr.lower()
     assert "did you mean" in r.stderr.lower()
 
 
-@pytest.mark.parametrize("domain,tool", [
-    ("memory", "memory_get"),
-    ("memory", "memory_search"),
-    ("memory", "memory_write"),
-    ("files", "files_search"),
-    ("tasks", "task_list"),
-])
+@pytest.mark.parametrize(
+    "domain,tool",
+    [
+        ("memory", "memory_get"),
+        ("memory", "memory_search"),
+        ("memory", "memory_write"),
+        ("files", "files_search"),
+        ("tasks", "task_list"),
+    ],
+)
 def test_json_file_reaches_tools_of_every_shape(domain, tool):
     """Spot-check across domains that the flag is genuinely universal.
 
@@ -211,11 +212,6 @@ def test_an_explicit_json_null_is_a_missing_required_arg():
     from inside the tool. Flags cannot produce this -- flag_args drops None --
     so the JSON route the merge added is what opened it.
     """
-    r = _run(["memory", "memory_search", "--json-file", "-"],
-             stdin_text=json.dumps({"query": None}))
-    assert r.returncode != 0, (
-        "an explicit null satisfied the required-arg check and reached the impl"
-    )
-    assert "requires --query" in r.stderr, (
-        f"the null was rejected, but not with the clear CLI error: {r.stderr[-300:]}"
-    )
+    r = _run(["memory", "memory_search", "--json-file", "-"], stdin_text=json.dumps({"query": None}))
+    assert r.returncode != 0, "an explicit null satisfied the required-arg check and reached the impl"
+    assert "requires --query" in r.stderr, f"the null was rejected, but not with the clear CLI error: {r.stderr[-300:]}"

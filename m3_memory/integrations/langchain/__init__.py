@@ -60,8 +60,7 @@ def __getattr__(name: str) -> Any:
             from .history import M3ChatMessageHistory, with_m3_history
         except ImportError as e:
             raise ImportError(f"{name}: {_LANGCHAIN_HINT}") from e
-        return {"M3ChatMessageHistory": M3ChatMessageHistory,
-                "with_m3_history": with_m3_history}[name]
+        return {"M3ChatMessageHistory": M3ChatMessageHistory, "with_m3_history": with_m3_history}[name]
     if name == "M3Retriever":
         try:
             from .retriever import M3Retriever
@@ -79,6 +78,5 @@ def __getattr__(name: str) -> Any:
             from .lcel import MemoryRetrieve, MemoryWrite, with_m3_memory
         except ImportError as e:
             raise ImportError(f"{name}: {_LANGCHAIN_HINT}") from e
-        return {"MemoryWrite": MemoryWrite, "MemoryRetrieve": MemoryRetrieve,
-                "with_m3_memory": with_m3_memory}[name]
+        return {"MemoryWrite": MemoryWrite, "MemoryRetrieve": MemoryRetrieve, "with_m3_memory": with_m3_memory}[name]
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

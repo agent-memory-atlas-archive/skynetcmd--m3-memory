@@ -7,6 +7,7 @@ those paths go dead and chatlog capture silently breaks — but the old
 `_heal_agent_settings` only repointed the `memory` MCP entry, so `doctor --fix`
 and upgrades left the hooks broken. `_repoint_stale_chatlog_hooks` closes that.
 """
+
 from __future__ import annotations
 
 import json
@@ -34,8 +35,9 @@ def test_stale_hook_is_repointed(tmp_path, monkeypatch):
 
     data = {
         "hooks": {
-            "SessionEnd": [{"hooks": [{"type": "command",
-                "command": "python C:/dead/old/bin/hooks/chatlog/gemini_cli_onexit.py"}]}],
+            "SessionEnd": [
+                {"hooks": [{"type": "command", "command": "python C:/dead/old/bin/hooks/chatlog/gemini_cli_onexit.py"}]}
+            ],
         }
     }
     fixed = I._repoint_stale_chatlog_hooks(data)
@@ -62,11 +64,13 @@ def test_multiple_stale_hooks_all_fixed(tmp_path, monkeypatch):
     bridge = _mk_bridge(tmp_path)
     monkeypatch.setattr(I, "_canonical_bridge_path", lambda: bridge)
     dead = "python C:/dead/bin/hooks/chatlog/gemini_cli_onexit.py"
-    data = {"hooks": {
-        "SessionEnd": [{"hooks": [{"command": dead}]}],
-        "AfterModel": [{"hooks": [{"command": dead}]}],
-        "PreCompress": [{"hooks": [{"command": dead}]}],
-    }}
+    data = {
+        "hooks": {
+            "SessionEnd": [{"hooks": [{"command": dead}]}],
+            "AfterModel": [{"hooks": [{"command": dead}]}],
+            "PreCompress": [{"hooks": [{"command": dead}]}],
+        }
+    }
     assert I._repoint_stale_chatlog_hooks(data) == 3
 
 
@@ -100,11 +104,17 @@ def test_heal_fixes_hooks_even_when_mcp_entry_healthy(tmp_path, monkeypatch):
     # Make the MCP entry already-canonical so it needs no repoint.
     canonical = I._canonical_memory_server()
     settings = tmp_path / "settings.json"
-    settings.write_text(json.dumps({
-        "mcpServers": {"memory": canonical},
-        "hooks": {"SessionEnd": [{"hooks": [{
-            "command": "python C:/dead/bin/hooks/chatlog/gemini_cli_onexit.py"}]}]},
-    }), encoding="utf-8")
+    settings.write_text(
+        json.dumps(
+            {
+                "mcpServers": {"memory": canonical},
+                "hooks": {
+                    "SessionEnd": [{"hooks": [{"command": "python C:/dead/bin/hooks/chatlog/gemini_cli_onexit.py"}]}]
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
 
     result = I._heal_agent_settings(settings)
     assert result is not None and "chatlog hook" in result

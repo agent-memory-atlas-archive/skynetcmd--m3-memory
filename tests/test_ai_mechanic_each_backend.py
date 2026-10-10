@@ -4,6 +4,7 @@ It refused on PostgreSQL (require_sqlite_backend) and recreated the two tables
 from its own SQLite DDL, a second copy of the schema. It now drops them and
 replays their definition from the active backend's migrations.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -21,6 +22,7 @@ def _flags(each_backend) -> list[str]:
     if not each_backend.stores_databases_as_files:
         return []
     from m3_sdk import resolve_db_path
+
     return ["--database", resolve_db_path(None)]
 
 
@@ -41,7 +43,8 @@ def test_repair_recreates_from_the_owner_schema(each_backend, capsys):
         n = conn.execute("SELECT COUNT(*) FROM project_decisions").fetchone()[0]
         focus = conn.execute("SELECT id, summary FROM system_focus").fetchall()
     assert n == 0 and [tuple(r) for r in focus] == [(1, "System Repaired & Calibrated")], (
-        f"observed: {n} decisions, focus {focus!r} {where}")
+        f"observed: {n} decisions, focus {focus!r} {where}"
+    )
 
 
 def test_guard_rails(each_backend):

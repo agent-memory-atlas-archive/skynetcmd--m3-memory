@@ -6,6 +6,7 @@ M3_MEMORY_ROOT (or M3_ENGINE_ROOT) was set — even when that engine DB was a
 legacy memory/agent_memory.db. Fix: _db_is_populated() gates the derived engine
 path; an empty/missing derived engine DB falls through to a populated legacy DB.
 """
+
 from __future__ import annotations
 
 import os
@@ -53,14 +54,12 @@ def test_empty_engine_stub_falls_through_to_populated_legacy(tmp_path, monkeypat
     root = tmp_path / "m3-memory"
     engine_db = root / "engine" / "agent_memory.db"
     legacy_db = root / "memory" / "agent_memory.db"
-    _make_db(str(engine_db), populated=False)   # empty stub
-    _make_db(str(legacy_db), populated=True)     # real data
+    _make_db(str(engine_db), populated=False)  # empty stub
+    _make_db(str(legacy_db), populated=True)  # real data
     monkeypatch.setenv("M3_MEMORY_ROOT", str(root))
 
     resolved = m3_sdk._default_db_path()
-    assert os.path.abspath(resolved) == os.path.abspath(str(legacy_db)), (
-        f"expected populated legacy DB, got {resolved}"
-    )
+    assert os.path.abspath(resolved) == os.path.abspath(str(legacy_db)), f"expected populated legacy DB, got {resolved}"
 
 
 def test_populated_engine_wins_over_legacy(tmp_path, monkeypatch):
@@ -101,14 +100,18 @@ def test_fresh_install_no_data_returns_engine_path(tmp_path, monkeypatch):
 # (2026-09-12); on POSIX the mangled name is a LEGAL path, so SQLite would have
 # created an empty DB there and every read would have silently returned nothing.
 
-@pytest.mark.parametrize("dsn", [
-    "postgresql://user:pw@db.example.invalid:5432/agent_memory",
-    "postgres://u@h/db",
-    "mysql://u@h/db",
-    "mariadb://u@h/db",
-    "sqlite:///tmp/x.db",
-    "  POSTGRESQL://upper@h/db  ",  # whitespace + case must not evade the guard
-])
+
+@pytest.mark.parametrize(
+    "dsn",
+    [
+        "postgresql://user:pw@db.example.invalid:5432/agent_memory",
+        "postgres://u@h/db",
+        "mysql://u@h/db",
+        "mariadb://u@h/db",
+        "sqlite:///tmp/x.db",
+        "  POSTGRESQL://upper@h/db  ",  # whitespace + case must not evade the guard
+    ],
+)
 def test_dsn_is_rejected_not_coerced(dsn, monkeypatch):
     monkeypatch.setenv("M3_DATABASE", dsn)
     with pytest.raises(ValueError) as exc:

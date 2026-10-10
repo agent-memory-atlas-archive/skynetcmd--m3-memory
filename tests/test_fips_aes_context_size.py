@@ -15,6 +15,7 @@ x86-64) carries an aligned hardware key schedule, and async/devcrypto builds add
 more. We do not control it and cannot portably sizeof() it, so the buffer is
 deliberately over-allocated. These tests keep it that way.
 """
+
 from __future__ import annotations
 
 import re
@@ -34,6 +35,7 @@ def test_aes_context_is_generously_sized():
     build; 1024 was the first size that survived. The shipped value is higher
     still, on purpose."""
     import sys as _sys
+
     _sys.path.insert(0, str(_PROVIDER.parent))
     import crypto_provider as cp
 
@@ -56,9 +58,8 @@ def test_no_hardcoded_aes_buffer_sizes_remain():
         for n, line in enumerate(src.splitlines(), 1)
         if re.search(r"aes\s*=\s*ctypes\.create_string_buffer\(\s*\d+\s*\)", line)
     ]
-    assert not offenders, (
-        "AES context allocated with a literal size instead of _WC_AES_CTX_BYTES:\n  "
-        + "\n  ".join(offenders)
+    assert not offenders, "AES context allocated with a literal size instead of _WC_AES_CTX_BYTES:\n  " + "\n  ".join(
+        offenders
     )
 
 
@@ -81,10 +82,12 @@ def test_fips_process_exits_cleanly():
     # Pin the library explicitly: the child may be a different interpreter whose
     # trusted-path resolution does not find ~/.m3/lib, and this test is about the
     # EXIT CODE, not about discovery.
-    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
-                       env={**__import__("os").environ,
-                            "M3_FIPS_MODE": "1",
-                            "M3_WOLFSSL_LIB": str(lib)})
+    r = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        env={**__import__("os").environ, "M3_FIPS_MODE": "1", "M3_WOLFSSL_LIB": str(lib)},
+    )
     assert r.returncode == 0, (
         f"FIPS-mode process exited {r.returncode} "
         f"({'0xC0000005 access violation — heap corruption' if r.returncode in (3221225477, -1073741819) else 'unexpected'}). "

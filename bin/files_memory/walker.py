@@ -21,6 +21,7 @@ Public API:
     WalkEntry           — dataclass
     WalkStats           — counters returned at end (via stats arg)
 """
+
 from __future__ import annotations
 
 import fnmatch
@@ -41,18 +42,20 @@ logger = logging.getLogger("files_memory.walker")
 @dataclass(slots=True)
 class WalkEntry:
     """One file that survived all filters, ready for chunking/ingestion."""
-    path: str                # absolute
+
+    path: str  # absolute
     repo_relative: str | None
     filename: str
     filetype: str
     size_bytes: int
-    mtime: float             # POSIX timestamp
-    ctime: float             # POSIX timestamp (or birthtime where supported)
+    mtime: float  # POSIX timestamp
+    ctime: float  # POSIX timestamp (or birthtime where supported)
 
 
 @dataclass(slots=True)
 class WalkStats:
     """Counters surfaced to the caller after a walk completes."""
+
     files_seen: int = 0
     files_yielded: int = 0
     skipped_size: int = 0
@@ -113,8 +116,12 @@ class _IgnoreMatcher:
                 # Match against basename OR any path component sequence
                 if fnmatch.fnmatch(basename, pat):
                     return True
-                if fnmatch.fnmatch(rel, pat) or fnmatch.fnmatch(rel, f"*/{pat}") \
-                        or fnmatch.fnmatch(rel, f"{pat}/*") or fnmatch.fnmatch(rel, f"*/{pat}/*"):
+                if (
+                    fnmatch.fnmatch(rel, pat)
+                    or fnmatch.fnmatch(rel, f"*/{pat}")
+                    or fnmatch.fnmatch(rel, f"{pat}/*")
+                    or fnmatch.fnmatch(rel, f"*/{pat}/*")
+                ):
                     return True
         return False
 

@@ -1,4 +1,5 @@
 """Tests for `m3 status` / status_summary() — the one-glance health verdict."""
+
 from __future__ import annotations
 
 import contextlib

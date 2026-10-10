@@ -29,6 +29,7 @@ mitigation. The guard asserts the set never GROWS, and fails if an entry is
 fixed but not removed — so the debt is visible, shrinking, and cannot silently
 come back.
 """
+
 from __future__ import annotations
 
 import ast
@@ -78,17 +79,19 @@ def _executable_source(src: str) -> str:
     except SyntaxError:
         return src
     for node in ast.walk(tree):
-        if not isinstance(node, (ast.Module, ast.ClassDef,
-                                 ast.FunctionDef, ast.AsyncFunctionDef)):
+        if not isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
         body = getattr(node, "body", [])
-        if (body and isinstance(body[0], ast.Expr)
-                and isinstance(body[0].value, ast.Constant)
-                and isinstance(body[0].value.value, str)):
-            body.pop(0)          # drop the docstring
+        if (
+            body
+            and isinstance(body[0], ast.Expr)
+            and isinstance(body[0].value, ast.Constant)
+            and isinstance(body[0].value.value, str)
+        ):
+            body.pop(0)  # drop the docstring
     try:
         return ast.unparse(tree)  # comments are already gone via the AST
-    except Exception:             # noqa: BLE001
+    except Exception:  # noqa: BLE001
         return src
 
 
@@ -153,10 +156,12 @@ def _chat_post_functions(src: str):
         if not isinstance(fn, _FN) or id(fn) in inner:
             continue
         for node in ast.walk(fn):
-            if (isinstance(node, ast.Call)
-                    and isinstance(node.func, ast.Attribute)
-                    and node.func.attr == "post"
-                    and any(k.arg == "json" for k in node.keywords)):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "post"
+                and any(k.arg == "json" for k in node.keywords)
+            ):
                 yield fn.name, fn
                 break
 
@@ -175,8 +180,7 @@ def _unprotected_functions(rel: str) -> list[str]:
     bad = []
     for name, fn in _chat_post_functions(src):
         seg = ast.unparse(fn)
-        protected = (any(h in seg for h in _HELPERS)
-                     or "reasoning_effort" in seg)  # set directly, e.g. m3_entities
+        protected = any(h in seg for h in _HELPERS) or "reasoning_effort" in seg  # set directly, e.g. m3_entities
         if not protected:
             bad.append(name)
     return bad
@@ -197,7 +201,7 @@ def test_no_new_reasoning_effort_gaps():
     assert not new, (
         f"{sorted(new)} POST to a local chat/completions endpoint without "
         f"{_HELPER}(). On a reasoning model these return an empty `content` and "
-        f"the feature silently no-ops. Send reasoning_effort=\"none\" via the "
+        f'the feature silently no-ops. Send reasoning_effort="none" via the '
         f"shared helper (see bin/wiki/citation_drift.py::_call_model), or add "
         f"the module to _CLOUD_ONLY if it only ever talks to a cloud API."
     )
@@ -215,22 +219,27 @@ def test_known_gaps_list_is_accurate():
     )
 
 
-@pytest.mark.parametrize("rel", sorted([
-    "wiki/citation_drift.py",
-    "wiki/synth.py",
-    "wiki/prose_compiler.py",
-    "wiki/derivability_review.py",
-    "slm_intent.py",
-    "m3_entities.py",
-    "files_memory/extract.py",
-    "files_memory/summarize.py",
-    "files_memory/carry_forward.py",
-    "memory_core.py",
-    "memory/enrich.py",
-    "memory_maintenance.py",
-    "run_observer.py",
-    "run_reflector.py",
-]))
+@pytest.mark.parametrize(
+    "rel",
+    sorted(
+        [
+            "wiki/citation_drift.py",
+            "wiki/synth.py",
+            "wiki/prose_compiler.py",
+            "wiki/derivability_review.py",
+            "slm_intent.py",
+            "m3_entities.py",
+            "files_memory/extract.py",
+            "files_memory/summarize.py",
+            "files_memory/carry_forward.py",
+            "memory_core.py",
+            "memory/enrich.py",
+            "memory_maintenance.py",
+            "run_observer.py",
+            "run_reflector.py",
+        ]
+    ),
+)
 def test_known_good_callers_keep_the_mitigation(rel):
     """Pin the callers that HAVE it, so a refactor cannot quietly drop it."""
     assert (_BIN / rel).is_file(), f"{rel} moved — update this guard"
@@ -246,10 +255,11 @@ def test_helper_is_gated_to_local_runtimes():
     """The mitigation must stay OFF for cloud endpoints: reasoning_effort="none"
     is non-standard and 400s on real OpenAI."""
     import sys
+
     sys.path.insert(0, str(_BIN))
     from llm_failover import suppresses_thinking_via_effort as f
 
-    assert f("http://127.0.0.1:1234/v1/chat/completions") is True   # LM Studio
+    assert f("http://127.0.0.1:1234/v1/chat/completions") is True  # LM Studio
     assert f("http://127.0.0.1:11434/v1/chat/completions") is True  # Ollama
     assert f("https://api.openai.com/v1/chat/completions") is False
 

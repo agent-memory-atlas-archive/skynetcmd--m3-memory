@@ -5,6 +5,7 @@ The batch hasher routes through native m3_core_rs.hash_files when available
 per-path digest must equal the single-file file_content_sha256, and unreadable
 paths must map to None rather than raising.
 """
+
 from __future__ import annotations
 
 import os

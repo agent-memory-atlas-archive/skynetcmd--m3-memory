@@ -6,6 +6,7 @@ file (linked as evidence). Optional corpus allow/exclude filtering is a code sea
 for a future share/export path — by default (per the locked decision) nothing is
 excluded.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -79,6 +80,7 @@ def load_files_layer(
     """
     from files_memory.config import files_table
     from memory.backends import dialect as _dialect
+
     _d = _dialect()
     _p = _d.param()
     _fn_tbl = files_table("file_nodes")
@@ -130,6 +132,7 @@ def load_files_layer(
 
 def _load_facts(conn, file_node_uuid: str, _d, _p) -> list[Fact]:
     from files_memory.config import files_table
+
     try:
         rows = conn.execute(
             f"SELECT uuid, statement, confidence, leaf FROM {files_table('facts')} "

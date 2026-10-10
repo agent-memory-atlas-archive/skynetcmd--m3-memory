@@ -12,6 +12,7 @@ On failure: run
     python bin/gen_tool_inventory.py
 and commit the regenerated files.
 """
+
 from __future__ import annotations
 
 import ast
@@ -38,6 +39,7 @@ def test_capability_matrix_is_fresh(tmp_path, monkeypatch):
     assert os.path.exists(committed), "CAPABILITY_MATRIX.md missing — run gen_capability_matrix.py"
 
     import gen_capability_matrix
+
     # Redirect the generator's output to a temp file, then compare content.
     fresh = tmp_path / "CAPABILITY_MATRIX.md"
     monkeypatch.setattr(gen_capability_matrix, "OUTPUT", str(fresh))
@@ -53,6 +55,7 @@ def test_features_json_is_fresh(tmp_path, monkeypatch):
     assert os.path.exists(committed), "features.json missing — run gen_features_json.py"
 
     import gen_features_json
+
     fresh = tmp_path / "features.json"
     monkeypatch.setattr(gen_features_json, "OUTPUT", str(fresh))
     gen_features_json.main()
@@ -114,10 +117,7 @@ def test_tool_pages_are_fresh():
         actual = hashlib.sha1(_content).hexdigest()[: len(declared)]
         if actual != declared:
             stale.append(f"{md.name} (declares {declared}, source is {actual})")
-    assert not stale, (
-        "Stale tool pages — run `python bin/gen_tool_inventory.py` and commit:\n  "
-        + "\n  ".join(stale)
-    )
+    assert not stale, "Stale tool pages — run `python bin/gen_tool_inventory.py` and commit:\n  " + "\n  ".join(stale)
 
 
 def test_every_cli_tool_has_a_page():
@@ -173,15 +173,12 @@ def test_every_cli_tool_has_a_page():
         # would fight the generator and pressure someone into publishing a
         # bench doc to get a green build.
         rel = src.relative_to(_ROOT).as_posix()
-        if src.name in gen.PRIVATE or any(
-            rel.startswith(p) for p in gen.PRIVATE_PATH_PREFIXES
-        ):
+        if src.name in gen.PRIVATE or any(rel.startswith(p) for p in gen.PRIVATE_PATH_PREFIXES):
             continue
         # Page naming mirrors the generator: .py keeps <stem>.md, any other
         # extension gets <stem>_<ext>.md so a .py and a .sh sharing a stem
         # cannot clobber each other.
-        page = (f"{src.stem}.md" if src.suffix == ".py"
-                else f"{src.stem}_{src.suffix.lstrip('.')}.md")
+        page = f"{src.stem}.md" if src.suffix == ".py" else f"{src.stem}_{src.suffix.lstrip('.')}.md"
         if not (_TOOLS_DIR / page).exists():
             missing.append(rel)
 
@@ -200,14 +197,8 @@ def test_no_orphaned_tool_pages():
     test_knowledge.py was deleted outright and test_sqlite_pragmas.py moved to
     tests/, both leaving stale pages for months.
     """
-    orphans = [
-        f"{md.name} -> {src.relative_to(_ROOT).as_posix()}"
-        for md, src, _ in _tool_pages()
-        if not src.exists()
-    ]
-    assert not orphans, (
-        "Orphaned tool pages (source is gone) — delete them:\n  " + "\n  ".join(orphans)
-    )
+    orphans = [f"{md.name} -> {src.relative_to(_ROOT).as_posix()}" for md, src, _ in _tool_pages() if not src.exists()]
+    assert not orphans, "Orphaned tool pages (source is gone) — delete them:\n  " + "\n  ".join(orphans)
 
 
 def test_config_reference_and_schema_are_fresh(tmp_path, monkeypatch):
@@ -221,5 +212,6 @@ def test_config_reference_and_schema_are_fresh(tmp_path, monkeypatch):
     gen_config_docs.main()
     stale = "is stale — run `python bin/gen_config_docs.py` and commit."
     assert _read(committed_md) == _read(str(tmp_path / "ref.md")), f"CONFIG_REFERENCE.md {stale}"
-    assert json.loads(_read(committed_schema)) == json.loads(_read(str(tmp_path / "schema.json"))), \
+    assert json.loads(_read(committed_schema)) == json.loads(_read(str(tmp_path / "schema.json"))), (
         f"m3_config.schema.json {stale}"
+    )

@@ -6,6 +6,7 @@ them). If a new getenv_compat(new, old) call is added without a map entry, the
 helper would silently miss that var. This test greps every call site and asserts
 the map covers exactly them — so the two can't drift.
 """
+
 from __future__ import annotations
 
 import re
@@ -28,6 +29,7 @@ def _call_site_pairs() -> dict[str, str]:
 
 def test_rename_map_matches_call_sites():
     import sys
+
     sys.path.insert(0, str(_BIN))
     from m3_core.paths import DEPRECATED_ENV_RENAMES
 
@@ -49,6 +51,7 @@ def test_rename_map_matches_call_sites():
 
 def test_rename_map_is_pure_namespacing():
     import sys
+
     sys.path.insert(0, str(_BIN))
     from m3_core.paths import DEPRECATED_ENV_RENAMES
 

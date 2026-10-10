@@ -17,6 +17,7 @@ enabling them moves no row on the first pass. That is what makes the change
 observable in isolation: movement on pass one would be a bug, not the feature.
 `test_floor_is_inert_on_first_pass` is the enforcement site.
 """
+
 from __future__ import annotations
 
 import os
@@ -38,8 +39,11 @@ from memory.backends import dialect as _dialect  # noqa: E402
 def _decay_only():
     """Run ONLY the decay pass — the other passes touch unrelated state."""
     return mm.memory_maintenance_impl(
-        decay=True, purge_expired=False, prune_orphan_embeddings=False,
-        reinforce=False, prune_orphan_queues=False,
+        decay=True,
+        purge_expired=False,
+        prune_orphan_embeddings=False,
+        reinforce=False,
+        prune_orphan_queues=False,
     )
 
 
@@ -82,6 +86,7 @@ def _row(mid: str):
 
 # ── the dead column gets a writer ────────────────────────────────────────────
 
+
 def test_decay_records_its_rate(aged_row):
     """decay_rate must stop being 0.0-forever."""
     assert _row(aged_row)[1] in (0.0, None), "fixture should start un-decayed"
@@ -104,14 +109,14 @@ def test_importance_raw_is_never_decayed(aged_row):
 
 # ── the floor ────────────────────────────────────────────────────────────────
 
+
 def test_decay_asymptotes_to_the_floor_instead_of_zero(aged_row):
     """500 passes must not erase a memory — that is the point of a floor."""
     for _ in range(500):
         _decay_only()
     imp = _row(aged_row)[0]
     assert imp >= mm._ORDINARY_FLOOR, (
-        f"importance {imp} fell below the ordinary floor {mm._ORDINARY_FLOOR} — "
-        "decay is still heading to zero."
+        f"importance {imp} fell below the ordinary floor {mm._ORDINARY_FLOOR} — decay is still heading to zero."
     )
 
 
@@ -125,9 +130,7 @@ def test_graded_memories_get_a_higher_floor(aged_row):
     for _ in range(500):
         _decay_only()
     imp = _row(aged_row)[0]
-    assert imp >= mm._GRADED_FLOOR, (
-        f"graded memory sank to {imp}, below its {mm._GRADED_FLOOR} floor"
-    )
+    assert imp >= mm._GRADED_FLOOR, f"graded memory sank to {imp}, below its {mm._GRADED_FLOOR} floor"
 
 
 def test_unhelpful_outweighing_helpful_drops_to_the_ordinary_floor(aged_row):
@@ -145,8 +148,7 @@ def test_unhelpful_outweighing_helpful_drops_to_the_ordinary_floor(aged_row):
         _decay_only()
     imp = _row(aged_row)[0]
     assert imp < mm._GRADED_FLOOR, (
-        "a net-negative memory kept the graded floor — the floor is ignoring "
-        "unhelpful_count."
+        "a net-negative memory kept the graded floor — the floor is ignoring unhelpful_count."
     )
     assert imp >= mm._ORDINARY_FLOOR
 
@@ -154,6 +156,7 @@ def test_unhelpful_outweighing_helpful_drops_to_the_ordinary_floor(aged_row):
 def test_pinned_rows_are_untouched_by_decay(main_db_template, monkeypatch, tmp_path):
     """Pinned is excluded from the UPDATE entirely; nothing should move."""
     import shutil
+
     db_path = tmp_path / "pinned_probe.db"
     shutil.copy2(main_db_template, db_path)
     monkeypatch.setenv("M3_DATABASE", str(db_path))
@@ -176,6 +179,7 @@ def test_pinned_rows_are_untouched_by_decay(main_db_template, monkeypatch, tmp_p
 
 
 # ── the floors must not disturb the existing corpus ──────────────────────────
+
 
 def test_floor_is_inert_on_first_pass(main_db_template, monkeypatch, tmp_path):
     """⚠ THE SAFETY PROPERTY.
@@ -221,8 +225,7 @@ def test_floor_is_inert_on_first_pass(main_db_template, monkeypatch, tmp_path):
                 "(id, content, title, type, importance, importance_raw, "
                 " helpful_count, source, created_at) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-30 days'))",
-                (str(uuid.uuid4()), "inert probe", "probe", "belief",
-                 imp, imp, helpful, "agent"),
+                (str(uuid.uuid4()), "inert probe", "probe", "belief", imp, imp, helpful, "agent"),
             )
 
     _d = _dialect()
@@ -230,20 +233,15 @@ def test_floor_is_inert_on_first_pass(main_db_template, monkeypatch, tmp_path):
     new = _d.greatest(floor, f"importance * {mm._DECAY_RATE}")
     old = _d.greatest("0.0", f"importance * {mm._DECAY_RATE}")
     age7 = _d.age_days_gt("created_at", "7")
-    scope = (f"FROM memory_items WHERE is_deleted = 0 AND {age7} "
-             f"AND COALESCE(pinned, 0) = 0")
+    scope = f"FROM memory_items WHERE is_deleted = 0 AND {age7} AND COALESCE(pinned, 0) = 0"
 
     with mc._db() as db:
         # (a) Rows at or above their floor are untouched — the live-corpus case.
         moved_above = db.execute(
-            f"SELECT COUNT(*) {scope} AND importance >= ({floor}) "
-            f"AND ({new}) != ({old})"
+            f"SELECT COUNT(*) {scope} AND importance >= ({floor}) AND ({new}) != ({old})"
         ).fetchone()[0]
         # (b) Rows below their floor are RAISED to it — the floor working.
-        raised = db.execute(
-            f"SELECT COUNT(*) {scope} AND importance < ({floor}) "
-            f"AND ({new}) != ({old})"
-        ).fetchone()[0]
+        raised = db.execute(f"SELECT COUNT(*) {scope} AND importance < ({floor}) AND ({new}) != ({old})").fetchone()[0]
 
     assert moved_above == 0, (
         f"{moved_above} rows at or above their floor would move on the first "

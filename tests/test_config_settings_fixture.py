@@ -1,5 +1,6 @@
 """The m3_settings fixture (CONFIG_DESIGN §7; plan 2C.2): configuration for a
 test without touching os.environ, and hermetic against the developer's env."""
+
 from __future__ import annotations
 
 import pytest

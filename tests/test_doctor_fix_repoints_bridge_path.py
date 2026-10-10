@@ -26,6 +26,7 @@ config. Those divergences are legitimate, so the repair must stay quiet there �
 tested below, because a fix that over-reaches here is a worse bug than the one
 it replaces.
 """
+
 from __future__ import annotations
 
 import json
@@ -94,8 +95,7 @@ def test_fix_is_idempotent_when_already_correct(cfg_home, monkeypatch, tmp_path)
     monkeypatch.setattr(installer, "find_bridge", lambda: packaged)
 
     assert installer._heal_config_bridge_path(apply=True) == [], (
-        "a correct config must produce no repair line — otherwise every run "
-        "reports work it did not do"
+        "a correct config must produce no repair line — otherwise every run reports work it did not do"
     )
 
 

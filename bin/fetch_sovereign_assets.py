@@ -39,18 +39,22 @@ def get_sha256(file_path):
 def download_file(url, dest_path):
     os.makedirs(dest_path.parent, exist_ok=True)
     response = requests.get(url, stream=True, timeout=(10, 120))
-    total_size = int(response.headers.get('content-length', 0))
+    total_size = int(response.headers.get("content-length", 0))
 
-    with open(dest_path, "wb") as f, tqdm(
-        desc=dest_path.name,
-        total=total_size,
-        unit='iB',
-        unit_scale=True,
-        unit_divisor=1024,
-    ) as bar:
+    with (
+        open(dest_path, "wb") as f,
+        tqdm(
+            desc=dest_path.name,
+            total=total_size,
+            unit="iB",
+            unit_scale=True,
+            unit_divisor=1024,
+        ) as bar,
+    ):
         for data in response.iter_content(chunk_size=1024):
             size = f.write(data)
             bar.update(size)
+
 
 def main():
     print("--- M3 Sovereign Payload Hydrator ---")
@@ -90,6 +94,7 @@ def main():
     MANIFEST_FILE.write_text(json.dumps(manifest, indent=2))
     print(f"\nManifest generated: {MANIFEST_FILE}")
     print("Hydration complete. The _assets/embedder folder is ready for sovereign installation.")
+
 
 if __name__ == "__main__":
     main()

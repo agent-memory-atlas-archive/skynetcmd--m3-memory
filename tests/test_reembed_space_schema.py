@@ -5,6 +5,7 @@ agent_chatlog.db (or any pre-partition core DB): its memory_embeddings has only
 embed_model/dim. The queries now adapt — a constant 'default' space stands in for
 the missing column so a scan/delete works on both schemas.
 """
+
 from __future__ import annotations
 
 import os
@@ -23,11 +24,12 @@ def _make(path, *, with_vector_kind: bool):
     c = sqlite3.connect(path)
     c.execute(f"CREATE TABLE memory_embeddings ({cols})")
     if with_vector_kind:
-        c.execute("INSERT INTO memory_embeddings(memory_id, embed_model, dim, vector_kind) "
-                  "VALUES ('m1','bge-m3',1024,'default')")
+        c.execute(
+            "INSERT INTO memory_embeddings(memory_id, embed_model, dim, vector_kind) "
+            "VALUES ('m1','bge-m3',1024,'default')"
+        )
     else:
-        c.execute("INSERT INTO memory_embeddings(memory_id, embed_model, dim) "
-                  "VALUES ('m1','bge-m3',1024)")
+        c.execute("INSERT INTO memory_embeddings(memory_id, embed_model, dim) VALUES ('m1','bge-m3',1024)")
     c.commit()
     return c
 
@@ -41,8 +43,7 @@ def test_detects_missing_vector_kind_and_uses_constant(tmp_path):
         # the adaptive expression must actually run against this schema
         expr = r._vector_kind_expr(conn)
         rows = conn.execute(
-            f"SELECT {expr}, COALESCE(embed_model,''), COALESCE(dim,0), COUNT(*) "
-            "FROM memory_embeddings GROUP BY 1,2,3"
+            f"SELECT {expr}, COALESCE(embed_model,''), COALESCE(dim,0), COUNT(*) FROM memory_embeddings GROUP BY 1,2,3"
         ).fetchall()
         assert rows == [("default", "bge-m3", 1024, 1)]
     finally:

@@ -16,6 +16,7 @@ and embeds each chunk via the in-process Rust embedder. Verifies:
 No INSERT/UPDATE/DELETE. The DB connection is opened with
 mode=ro&immutable=1 so any accidental write attempt would raise.
 """
+
 from __future__ import annotations
 
 import math
@@ -123,9 +124,7 @@ def assert_invariants(content: str, chunks: list[tuple[str, int]]) -> list[str]:
         # Min tail size
         last_text, _ = chunks[-1]
         if len(last_text) < mc.MIN_OVERLAP_CHARS:
-            errs.append(
-                f"last window too thin: {len(last_text)} < {mc.MIN_OVERLAP_CHARS}"
-            )
+            errs.append(f"last window too thin: {len(last_text)} < {mc.MIN_OVERLAP_CHARS}")
         # Overlap between consecutive windows. Locate each chunk by its char
         # offset (chunks are contiguous slices of the original text — we
         # know start = idx * STRIDE_CHARS, except for the (potentially
@@ -144,9 +143,7 @@ def assert_invariants(content: str, chunks: list[tuple[str, int]]) -> list[str]:
                 if i == len(chunks) - 2 and overlap >= mc.MIN_OVERLAP_CHARS:
                     pass  # acceptable
                 else:
-                    errs.append(
-                        f"overlap between chunk {i} and {i+1}: {overlap} != {mc.MIN_OVERLAP_CHARS}"
-                    )
+                    errs.append(f"overlap between chunk {i} and {i + 1}: {overlap} != {mc.MIN_OVERLAP_CHARS}")
 
     # Tail coverage (last char present somewhere)
     if content and not any(ct.endswith(content[-1]) for ct, _ in chunks):
@@ -171,7 +168,7 @@ def main():
     t0 = time.perf_counter()
     embedder = m3_core_rs.EmbeddedEmbedder(os.environ["M3_EMBED_GGUF"])
     dim = embedder.embedding_dim()
-    print(f"  loaded in {time.perf_counter()-t0:.1f}s, dim={dim}, backend={m3_core_rs.embed_backend_label()}\n")
+    print(f"  loaded in {time.perf_counter() - t0:.1f}s, dim={dim}, backend={m3_core_rs.embed_backend_label()}\n")
     assert dim == 1024, f"expected 1024-dim bge-m3, got {dim}"
 
     total_pass = 0
@@ -225,9 +222,7 @@ def main():
                 sanity = f" sanity-cos={cos:.4f}"
 
             total_pass += 1
-            print(
-                f"  {memory_id[:8]} len={len(text):>6} n_chunks={n_chunks}{sanity}"
-            )
+            print(f"  {memory_id[:8]} len={len(text):>6} n_chunks={n_chunks}{sanity}")
         print()
 
     # No writes happened. Confirm by trying one:

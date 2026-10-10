@@ -15,6 +15,7 @@ also invited a needless re-register of a working job.
 
 Hermetic: pure string/XML parsing. No schtasks, no filesystem, no network.
 """
+
 from __future__ import annotations
 
 import sys
@@ -42,8 +43,7 @@ def _task_xml(command: str, arguments: str) -> str:
 
 # ── the exact shape that caused the false alarm ───────────────────────────────
 def test_skips_dash_u_and_finds_the_real_script():
-    args = ('"-u" "C:\\p\\bin\\m3_notification_waiter.py" '
-            '"--agent-id" "agy" "--interval" "5"')
+    args = '"-u" "C:\\p\\bin\\m3_notification_waiter.py" "--agent-id" "agy" "--interval" "5"'
     assert _script_from_args(args) == "C:\\p\\bin\\m3_notification_waiter.py"
 
 
@@ -54,23 +54,23 @@ def test_parse_exec_paths_on_the_notification_waiter_shape():
     )
     interpreter, script = _parse_exec_paths(xml)
     assert interpreter == "C:\\p\\Scripts\\pythonw.exe"
-    assert script == "C:\\p\\bin\\m3_notification_waiter.py", \
-        "took an interpreter flag as the script path"
+    assert script == "C:\\p\\bin\\m3_notification_waiter.py", "took an interpreter flag as the script path"
 
 
 # ── the other real shapes on this machine ─────────────────────────────────────
-@pytest.mark.parametrize("args,expected", [
-    # No flags at all (AgentOS_EmbedServer / dashboard shape).
-    ('"C:\\p\\bin\\embed_server_inproc.py" "--port" "8082"',
-     "C:\\p\\bin\\embed_server_inproc.py"),
-    # Several flags before the script (the PreToolUse hook shape).
-    ('-S -E "C:\\p\\hooks\\pretool_dispatch.py"',
-     "C:\\p\\hooks\\pretool_dispatch.py"),
-    # A flag that takes no value, then the script.
-    ('-u "C:\\p\\bin\\m3_loop_watchdog.py"', "C:\\p\\bin\\m3_loop_watchdog.py"),
-    # Unquoted, single token.
-    ("C:\\p\\bin\\sync_all.py", "C:\\p\\bin\\sync_all.py"),
-])
+@pytest.mark.parametrize(
+    "args,expected",
+    [
+        # No flags at all (AgentOS_EmbedServer / dashboard shape).
+        ('"C:\\p\\bin\\embed_server_inproc.py" "--port" "8082"', "C:\\p\\bin\\embed_server_inproc.py"),
+        # Several flags before the script (the PreToolUse hook shape).
+        ('-S -E "C:\\p\\hooks\\pretool_dispatch.py"', "C:\\p\\hooks\\pretool_dispatch.py"),
+        # A flag that takes no value, then the script.
+        ('-u "C:\\p\\bin\\m3_loop_watchdog.py"', "C:\\p\\bin\\m3_loop_watchdog.py"),
+        # Unquoted, single token.
+        ("C:\\p\\bin\\sync_all.py", "C:\\p\\bin\\sync_all.py"),
+    ],
+)
 def test_common_argument_shapes(args, expected):
     assert _script_from_args(args) == expected
 
@@ -96,14 +96,11 @@ def test_empty_arguments_yield_none():
 def test_a_real_missing_script_is_still_found(tmp_path):
     """The fix must not blind the probe: a task whose script is genuinely
     absent must still surface. Guard against over-correction."""
-    xml = _task_xml('"C:\\p\\Scripts\\pythonw.exe"',
-                    '"-u" "C:\\definitely\\not\\here.py"')
+    xml = _task_xml('"C:\\p\\Scripts\\pythonw.exe"', '"-u" "C:\\definitely\\not\\here.py"')
     _, script = _parse_exec_paths(xml)
-    assert script == "C:\\definitely\\not\\here.py", \
-        "the probe must still report the path it cannot find"
+    assert script == "C:\\definitely\\not\\here.py", "the probe must still report the path it cannot find"
 
 
 def test_missing_exec_element_is_handled():
-    xml = (f'<?xml version="1.0"?><Task xmlns="{_NS}">'
-           f"<Actions Context=\"Author\"></Actions></Task>")
+    xml = f'<?xml version="1.0"?><Task xmlns="{_NS}"><Actions Context="Author"></Actions></Task>'
     assert _parse_exec_paths(xml) == (None, None)

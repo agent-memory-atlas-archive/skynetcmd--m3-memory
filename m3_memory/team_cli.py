@@ -93,6 +93,7 @@ def _example_dir() -> Path:
         return local_example
 
     from m3_memory.installer import examples_dir
+
     examples = examples_dir()
     if examples:
         return examples / "multi-agent-team"
@@ -169,8 +170,7 @@ def cmd_check(path: Path) -> int:
                 errors.append(f"agent {agent.get('name', '?')}: missing {required}")
         if agent.get("provider") not in providers:
             errors.append(
-                f"agent {agent.get('name', '?')}: provider "
-                f"{agent.get('provider')!r} is not defined under providers"
+                f"agent {agent.get('name', '?')}: provider {agent.get('provider')!r} is not defined under providers"
             )
 
     if errors:
@@ -182,10 +182,7 @@ def cmd_check(path: Path) -> int:
     print(f"{path}: ok ({len(agents)} agent(s), {len(providers)} provider(s))")
 
     # Soft API key check — warn but don't fail.
-    missing = [
-        p["api_key_env"] for p in providers.values()
-        if p.get("api_key_env") and not os.getenv(p["api_key_env"])
-    ]
+    missing = [p["api_key_env"] for p in providers.values() if p.get("api_key_env") and not os.getenv(p["api_key_env"])]
     if missing:
         print(f"  note: these env vars are unset: {', '.join(sorted(set(missing)))}")
         print("        local providers (LM Studio, Ollama) accept any non-empty value.")
@@ -212,6 +209,7 @@ def cmd_run(path: Path) -> int:
 
     _add_orchestrator_to_path()
     from orchestrator import main as orchestrator_main
+
     asyncio.run(orchestrator_main(path))
     return 0
 
@@ -237,9 +235,7 @@ Docs: https://github.com/skynetcmd/m3-memory/tree/main/examples/multi-agent-team
     # 2026.4.8 for three months. Same source as `mcp-memory --version`.
     from m3_memory import __version__ as _m3_version
 
-    parser.add_argument(
-        "--version", action="version", version=f"m3-team {_m3_version}"
-    )
+    parser.add_argument("--version", action="version", version=f"m3-team {_m3_version}")
     sub = parser.add_subparsers(dest="cmd")
 
     p_init = sub.add_parser("init", help="write a starter team.yaml (LM Studio, no API keys)")

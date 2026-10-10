@@ -5,6 +5,7 @@ and an `na` skip, the kind that can hide a missing assertion, is listed for
 review. A marker-driven skip (requires_*) is tagged by conftest; an in-test
 skip must build its reason with conftest.skip_reason.
 """
+
 from __future__ import annotations
 
 import ast
@@ -42,11 +43,17 @@ def _untagged(tree: ast.AST) -> list[int]:
 
 
 def test_every_skip_names_a_dimension():
-    hits = [f"{p.name}:{ln}" for p in sorted(_TESTS.glob("test_*.py"))
-            for ln in _untagged(ast.parse(p.read_text(encoding="utf-8")))]
-    assert not hits, ("observed: a skip whose reason names no dimension: " + ", ".join(hits)
-                      + ". inspect: reason=skip_reason(<os|python|db|dep|env|na>, ...) from "
-                      "conftest, or a requires_* marker")
+    hits = [
+        f"{p.name}:{ln}"
+        for p in sorted(_TESTS.glob("test_*.py"))
+        for ln in _untagged(ast.parse(p.read_text(encoding="utf-8")))
+    ]
+    assert not hits, (
+        "observed: a skip whose reason names no dimension: "
+        + ", ".join(hits)
+        + ". inspect: reason=skip_reason(<os|python|db|dep|env|na>, ...) from "
+        "conftest, or a requires_* marker"
+    )
 
 
 def test_skip_reason_rejects_an_unknown_dimension():

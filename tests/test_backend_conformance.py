@@ -19,6 +19,7 @@ Three layers:
 SQLite runs always (in-memory). Postgres runs only when ``M3_PRIMARY_PG_URL`` is
 set (a throwaway cluster) — the same gate the other live-PG tests use.
 """
+
 from __future__ import annotations
 
 import struct
@@ -140,9 +141,7 @@ def test_every_backend_satisfies_protocol():
             # dialect conformance is still checked below; skip the live-instance
             # Protocol check here rather than failing on a correct fail-loud.
             continue
-        assert isinstance(backend, StorageBackend), (
-            f"{name} backend does not satisfy the StorageBackend Protocol"
-        )
+        assert isinstance(backend, StorageBackend), f"{name} backend does not satisfy the StorageBackend Protocol"
         assert backend.name == name
         checked += 1
     assert checked >= 1, "no backend was instantiable — expected at least sqlite"
@@ -226,8 +225,7 @@ def test_sqlite_floor_write_then_retrieve_both_ways():
         (cur.lastrowid, "postgres tuning", "shared buffers guide"),
     )
     conn.execute(
-        "INSERT INTO memory_embeddings(memory_id, embedding, dim, embed_model) "
-        "VALUES (?,?,?,?)",
+        "INSERT INTO memory_embeddings(memory_id, embedding, dim, embed_model) VALUES (?,?,?,?)",
         ("m1", _blob([1.0, 0.0, 0.0, 0.0]), _DIM, "test-model"),
     )
     conn.commit()
@@ -237,9 +235,7 @@ def test_sqlite_floor_write_then_retrieve_both_ways():
     assert [h.memory_id for h in khits] == ["m1"]
 
     # vector floor (Rust cosine over BLOB, no sqlite-vec)
-    vhits = backend.vector_search(
-        conn, [1.0, 0.0, 0.0, 0.0], limit=10, dim=_DIM, embed_models=("test-model",)
-    )
+    vhits = backend.vector_search(conn, [1.0, 0.0, 0.0, 0.0], limit=10, dim=_DIM, embed_models=("test-model",))
     assert [h.memory_id for h in vhits] == ["m1"]
     # shape identical across search kinds
     assert all(hasattr(h, "memory_id") and hasattr(h, "score") for h in khits + vhits)
@@ -272,14 +268,16 @@ def test_postgres_floor_write_then_retrieve_both_ways():
         cur.execute(
             # memory_embeddings.id is the NOT NULL PK in the real schema — supply
             # it (the SQLite floor conn was lenient; PG's ensure_schema enforces it).
-            "INSERT INTO memory_embeddings(id, memory_id, embedding, dim, embed_model) "
-            "VALUES (%s,%s,%s,%s,%s)",
+            "INSERT INTO memory_embeddings(id, memory_id, embedding, dim, embed_model) VALUES (%s,%s,%s,%s,%s)",
             (f"emb-{mid}", mid, _blob([1.0, 0.0, 0.0, 0.0]), _DIM, "test-model"),
         )
         conn.commit()
         khits = backend.keyword_search(conn, "postgres", limit=10)
         vhits = backend.vector_search(
-            conn, [1.0, 0.0, 0.0, 0.0], limit=10, dim=_DIM,
+            conn,
+            [1.0, 0.0, 0.0, 0.0],
+            limit=10,
+            dim=_DIM,
             embed_models=("test-model",),
         )
     assert mid in {h.memory_id for h in khits}
@@ -342,9 +340,7 @@ def test_postgres_result_can_be_iterated_and_fetched_alike():
         )
         sql, args = d.columns_of("memory_items")
         for row in conn.execute(sql, args):
-            assert row[0] == row["column_name"], (
-                "an iterated row lost key access; the wrapper must provide both"
-            )
+            assert row[0] == row["column_name"], "an iterated row lost key access; the wrapper must provide both"
             break
 
 
@@ -376,6 +372,7 @@ def test_unregistered_backend_fails_loud():
 
 # ── doctor probes must go through the seam, never a raw driver ───────────────
 
+
 def test_doctor_probes_do_not_bypass_the_storage_seam():
     """No doctor probe may call sqlite3.connect() directly.
 
@@ -395,8 +392,7 @@ def test_doctor_probes_do_not_bypass_the_storage_seam():
     """
     import pathlib
 
-    doctor_dir = (pathlib.Path(__file__).resolve().parent.parent
-                  / "bin" / "doctor")
+    doctor_dir = pathlib.Path(__file__).resolve().parent.parent / "bin" / "doctor"
     assert doctor_dir.is_dir(), f"doctor package not found at {doctor_dir}"
 
     # Parse rather than grep: a docstring explaining this very rule mentions
@@ -415,11 +411,13 @@ def test_doctor_probes_do_not_bypass_the_storage_seam():
             if not isinstance(node, ast.Call):
                 continue
             fn = node.func
-            if (isinstance(fn, ast.Attribute) and fn.attr == "connect"
-                    and isinstance(fn.value, ast.Name)
-                    and fn.value.id in {"sqlite3", "psycopg", "psycopg2"}):
-                offenders.append(
-                    f"{py.name}:{node.lineno}: {fn.value.id}.connect(...)")
+            if (
+                isinstance(fn, ast.Attribute)
+                and fn.attr == "connect"
+                and isinstance(fn.value, ast.Name)
+                and fn.value.id in {"sqlite3", "psycopg", "psycopg2"}
+            ):
+                offenders.append(f"{py.name}:{node.lineno}: {fn.value.id}.connect(...)")
 
     assert not offenders, (
         "doctor probe opens a driver connection directly instead of going "

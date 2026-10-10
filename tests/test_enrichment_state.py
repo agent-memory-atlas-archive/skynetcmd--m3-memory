@@ -9,6 +9,7 @@ Tests open a fresh sqlite file per case, apply migration 028 directly
 via executescript (the schema_versions table is not required for these
 unit tests — we test the state module's behavior, not the runner).
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -72,9 +73,13 @@ def test_content_hash_changes_when_content_changes():
 
 def test_enroll_group_idempotent(db_conn):
     args = {
-        "source_variant": "v1", "target_variant": "v1-out",
-        "group_key": "conv-A", "user_id": "u1", "db_path": "/tmp/x",
-        "turn_count": 5, "source_content_hash": "h1",
+        "source_variant": "v1",
+        "target_variant": "v1-out",
+        "group_key": "conv-A",
+        "user_id": "u1",
+        "db_path": "/tmp/x",
+        "turn_count": 5,
+        "source_content_hash": "h1",
     }
     gid1, action1 = estate.enroll_group(db_conn, **args)
     db_conn.commit()
@@ -91,8 +96,11 @@ def test_enroll_does_not_wipe_status_on_backfill_placeholder_hash(db_conn):
     status='success' to 'pending' and lose all backfilled progress).
     """
     base = {
-        "source_variant": "v1", "target_variant": "v1-out",
-        "group_key": "conv-A", "user_id": "u1", "db_path": "/tmp/x",
+        "source_variant": "v1",
+        "target_variant": "v1-out",
+        "group_key": "conv-A",
+        "user_id": "u1",
+        "db_path": "/tmp/x",
         "turn_count": 0,
     }
     # Backfill seeds a placeholder hash + status='success'
@@ -107,7 +115,8 @@ def test_enroll_does_not_wipe_status_on_backfill_placeholder_hash(db_conn):
     # Real run computes a real hash.
     real_hash = "a" * 64
     gid2, action = estate.enroll_group(
-        db_conn, source_content_hash=real_hash,
+        db_conn,
+        source_content_hash=real_hash,
         **{**base, "turn_count": 12, "user_id": "u1"},
     )
     db_conn.commit()
@@ -115,20 +124,22 @@ def test_enroll_does_not_wipe_status_on_backfill_placeholder_hash(db_conn):
     # 'unchanged' because we updated the hash in-place without resetting status.
     assert action == "unchanged"
     row = db_conn.execute(
-        "SELECT status, source_content_hash, obs_emitted, turn_count "
-        "FROM enrichment_groups WHERE id=?",
+        "SELECT status, source_content_hash, obs_emitted, turn_count FROM enrichment_groups WHERE id=?",
         (gid,),
     ).fetchone()
-    assert row[0] == "success"          # status preserved
-    assert row[1] == real_hash          # hash upgraded
-    assert row[2] == 7                  # obs_emitted preserved
-    assert row[3] == 12                 # turn_count refreshed
+    assert row[0] == "success"  # status preserved
+    assert row[1] == real_hash  # hash upgraded
+    assert row[2] == 7  # obs_emitted preserved
+    assert row[3] == 12  # turn_count refreshed
 
 
 def test_enroll_group_supersedes_on_content_drift(db_conn):
     base = {
-        "source_variant": "v1", "target_variant": "v1-out",
-        "group_key": "conv-A", "user_id": "u1", "db_path": "/tmp/x",
+        "source_variant": "v1",
+        "target_variant": "v1-out",
+        "group_key": "conv-A",
+        "user_id": "u1",
+        "db_path": "/tmp/x",
         "turn_count": 5,
     }
     gid_old, _ = estate.enroll_group(db_conn, source_content_hash="h1", **base)
@@ -140,8 +151,7 @@ def test_enroll_group_supersedes_on_content_drift(db_conn):
     # In-place reset preserves the row id (avoids FK churn).
     assert gid_new == gid_old
     row = db_conn.execute(
-        "SELECT status, source_content_hash, obs_emitted, attempts "
-        "FROM enrichment_groups WHERE id=?",
+        "SELECT status, source_content_hash, obs_emitted, attempts FROM enrichment_groups WHERE id=?",
         (gid_old,),
     ).fetchone()
     assert row == ("pending", "h2", 0, 0)
@@ -152,8 +162,13 @@ def test_enroll_group_supersedes_on_content_drift(db_conn):
 
 def test_claim_group_atomic(db_conn):
     gid, _ = estate.enroll_group(
-        db_conn, source_variant="v1", target_variant="v1-out",
-        group_key="c", user_id="u", db_path="/", turn_count=1,
+        db_conn,
+        source_variant="v1",
+        target_variant="v1-out",
+        group_key="c",
+        user_id="u",
+        db_path="/",
+        turn_count=1,
         source_content_hash="h",
     )
     db_conn.commit()
@@ -166,8 +181,13 @@ def test_claim_group_atomic(db_conn):
 
 def test_claim_increments_attempts(db_conn):
     gid, _ = estate.enroll_group(
-        db_conn, source_variant="v", target_variant="t",
-        group_key="c", user_id="u", db_path="/", turn_count=1,
+        db_conn,
+        source_variant="v",
+        target_variant="t",
+        group_key="c",
+        user_id="u",
+        db_path="/",
+        turn_count=1,
         source_content_hash="h",
     )
     db_conn.commit()
@@ -180,8 +200,13 @@ def test_claim_increments_attempts(db_conn):
 
 def test_recover_stale_claims(db_conn):
     gid, _ = estate.enroll_group(
-        db_conn, source_variant="v", target_variant="t",
-        group_key="c", user_id="u", db_path="/", turn_count=1,
+        db_conn,
+        source_variant="v",
+        target_variant="t",
+        group_key="c",
+        user_id="u",
+        db_path="/",
+        turn_count=1,
         source_content_hash="h",
     )
     db_conn.commit()
@@ -204,14 +229,18 @@ def test_recover_stale_claims(db_conn):
 
 def test_mark_success_clears_claim(db_conn):
     gid, _ = estate.enroll_group(
-        db_conn, source_variant="v", target_variant="t",
-        group_key="c", user_id="u", db_path="/", turn_count=1,
+        db_conn,
+        source_variant="v",
+        target_variant="t",
+        group_key="c",
+        user_id="u",
+        db_path="/",
+        turn_count=1,
         source_content_hash="h",
     )
     db_conn.commit()
     estate.claim_group(db_conn, gid, enrich_run_id="r")
-    estate.mark_success(db_conn, gid, obs_emitted=5, enrichment_ms=123,
-                        tokens_in=100, tokens_out=50, cost_usd=0.0012)
+    estate.mark_success(db_conn, gid, obs_emitted=5, enrichment_ms=123, tokens_in=100, tokens_out=50, cost_usd=0.0012)
     row = db_conn.execute(
         "SELECT status, obs_emitted, enrichment_ms, tokens_in, tokens_out, "
         "cost_usd, claim_token FROM enrichment_groups WHERE id=?",
@@ -227,8 +256,13 @@ def test_mark_success_clears_claim(db_conn):
 
 def test_mark_failed_promotes_to_dead_letter_after_max_attempts(db_conn):
     gid, _ = estate.enroll_group(
-        db_conn, source_variant="v", target_variant="t",
-        group_key="c", user_id="u", db_path="/", turn_count=1,
+        db_conn,
+        source_variant="v",
+        target_variant="t",
+        group_key="c",
+        user_id="u",
+        db_path="/",
+        turn_count=1,
         source_content_hash="h",
     )
     db_conn.commit()
@@ -246,8 +280,13 @@ def test_mark_failed_promotes_to_dead_letter_after_max_attempts(db_conn):
 
 def test_mark_failed_deterministic_error_immediately_dead_letters(db_conn):
     gid, _ = estate.enroll_group(
-        db_conn, source_variant="v", target_variant="t",
-        group_key="c", user_id="u", db_path="/", turn_count=1,
+        db_conn,
+        source_variant="v",
+        target_variant="t",
+        group_key="c",
+        user_id="u",
+        db_path="/",
+        turn_count=1,
         source_content_hash="h",
     )
     db_conn.commit()
@@ -262,20 +301,27 @@ def test_mark_failed_rate_limit_does_not_consume_attempts_budget(db_conn):
     attempts >= max_attempts, so a quota recovery picks them back up without
     needing --include-dead-letter."""
     gid, _ = estate.enroll_group(
-        db_conn, source_variant="v", target_variant="t",
-        group_key="c", user_id="u", db_path="/", turn_count=1,
+        db_conn,
+        source_variant="v",
+        target_variant="t",
+        group_key="c",
+        user_id="u",
+        db_path="/",
+        turn_count=1,
         source_content_hash="h",
     )
     db_conn.commit()
     quota_msg = (
-        "RuntimeError: observer http 429: You exceeded your current quota, "
-        "please check your plan and billing details."
+        "RuntimeError: observer http 429: You exceeded your current quota, please check your plan and billing details."
     )
     for _ in range(5):  # well past max_attempts=3
         estate.claim_group(db_conn, gid, enrich_run_id="r")
         s = estate.mark_failed(
-            db_conn, gid,
-            error_class="http_status", last_error=quota_msg, max_attempts=3,
+            db_conn,
+            gid,
+            error_class="http_status",
+            last_error=quota_msg,
+            max_attempts=3,
         )
         assert s == "failed", f"rate-limit must not promote to dead_letter (got {s})"
 
@@ -284,8 +330,13 @@ def test_mark_failed_non_rate_limit_http_status_still_dead_letters(db_conn):
     """Non-429 http_status (e.g. 500 Internal Server Error) is a real
     per-group failure and must still consume the attempts budget."""
     gid, _ = estate.enroll_group(
-        db_conn, source_variant="v", target_variant="t",
-        group_key="c", user_id="u", db_path="/", turn_count=1,
+        db_conn,
+        source_variant="v",
+        target_variant="t",
+        group_key="c",
+        user_id="u",
+        db_path="/",
+        turn_count=1,
         source_content_hash="h",
     )
     db_conn.commit()
@@ -303,16 +354,19 @@ def test_mark_failed_non_rate_limit_http_status_still_dead_letters(db_conn):
 
 def test_mark_failed_sets_backoff(db_conn):
     gid, _ = estate.enroll_group(
-        db_conn, source_variant="v", target_variant="t",
-        group_key="c", user_id="u", db_path="/", turn_count=1,
+        db_conn,
+        source_variant="v",
+        target_variant="t",
+        group_key="c",
+        user_id="u",
+        db_path="/",
+        turn_count=1,
         source_content_hash="h",
     )
     db_conn.commit()
     estate.claim_group(db_conn, gid, enrich_run_id="r")
     estate.mark_failed(db_conn, gid, error_class="http_timeout", last_error="x")
-    next_at = db_conn.execute(
-        "SELECT next_eligible_at FROM enrichment_groups WHERE id=?", (gid,)
-    ).fetchone()[0]
+    next_at = db_conn.execute("SELECT next_eligible_at FROM enrichment_groups WHERE id=?", (gid,)).fetchone()[0]
     assert next_at is not None
     # In the future
     assert next_at > estate._utcnow_iso()
@@ -322,9 +376,14 @@ def test_mark_failed_sets_backoff(db_conn):
 
 
 def test_eligible_for_resume_excludes_success_and_dead_letter(db_conn):
-    base = {"source_variant": "v", "target_variant": "t",
-                "user_id": "u", "db_path": "/", "turn_count": 1,
-                "source_content_hash": "h"}
+    base = {
+        "source_variant": "v",
+        "target_variant": "t",
+        "user_id": "u",
+        "db_path": "/",
+        "turn_count": 1,
+        "source_content_hash": "h",
+    }
     _g_pending, _ = estate.enroll_group(db_conn, group_key="c-pending", **base)
     g_success, _ = estate.enroll_group(db_conn, group_key="c-success", **base)
     g_dead, _ = estate.enroll_group(db_conn, group_key="c-dead", **base)
@@ -343,7 +402,9 @@ def test_eligible_for_resume_excludes_success_and_dead_letter(db_conn):
     )
     db_conn.commit()
     eligible = estate.eligible_for_resume(
-        db_conn, source_variant="v", target_variant="t",
+        db_conn,
+        source_variant="v",
+        target_variant="t",
     )
     keys = {gkey for _gid, gkey, _uid in eligible}
     assert "c-pending" in keys
@@ -353,7 +414,9 @@ def test_eligible_for_resume_excludes_success_and_dead_letter(db_conn):
 
     # With include_dead_letter
     eligible2 = estate.eligible_for_resume(
-        db_conn, source_variant="v", target_variant="t",
+        db_conn,
+        source_variant="v",
+        target_variant="t",
         include_dead_letter=True,
     )
     keys2 = {gkey for _gid, gkey, _uid in eligible2}
@@ -362,8 +425,13 @@ def test_eligible_for_resume_excludes_success_and_dead_letter(db_conn):
 
 def test_eligible_for_resume_respects_backoff(db_conn):
     gid, _ = estate.enroll_group(
-        db_conn, source_variant="v", target_variant="t",
-        group_key="c", user_id="u", db_path="/", turn_count=1,
+        db_conn,
+        source_variant="v",
+        target_variant="t",
+        group_key="c",
+        user_id="u",
+        db_path="/",
+        turn_count=1,
         source_content_hash="h",
     )
     db_conn.commit()
@@ -371,7 +439,9 @@ def test_eligible_for_resume_respects_backoff(db_conn):
     estate.mark_failed(db_conn, gid, error_class="http_timeout", last_error="x")
     # Default backoff = 30s in the future → shouldn't be eligible yet.
     eligible = estate.eligible_for_resume(
-        db_conn, source_variant="v", target_variant="t",
+        db_conn,
+        source_variant="v",
+        target_variant="t",
     )
     assert eligible == []
     # Backdate next_eligible_at to past.
@@ -381,7 +451,9 @@ def test_eligible_for_resume_respects_backoff(db_conn):
     )
     db_conn.commit()
     eligible = estate.eligible_for_resume(
-        db_conn, source_variant="v", target_variant="t",
+        db_conn,
+        source_variant="v",
+        target_variant="t",
     )
     assert len(eligible) == 1
 
@@ -392,15 +464,24 @@ def test_eligible_for_resume_respects_backoff(db_conn):
 def test_start_run_then_end_run_aggregates(db_conn):
     run_id = estate.start_run(
         db_conn,
-        profile="enrich_local_qwen", model="qwen3-8b",
-        source_variant="v", target_variant="t",
-        db_path="/tmp/x", concurrency=4,
+        profile="enrich_local_qwen",
+        model="qwen3-8b",
+        source_variant="v",
+        target_variant="t",
+        db_path="/tmp/x",
+        concurrency=4,
         launch_argv=["m3_enrich.py", "--track-state"],
     )
     # 3 success, 1 empty, 1 failed
-    base = {"source_variant": "v", "target_variant": "t",
-                "user_id": "u", "db_path": "/", "turn_count": 1,
-                "source_content_hash": "h", "enrich_run_id": run_id}
+    base = {
+        "source_variant": "v",
+        "target_variant": "t",
+        "user_id": "u",
+        "db_path": "/",
+        "turn_count": 1,
+        "source_content_hash": "h",
+        "enrich_run_id": run_id,
+    }
     for i in range(3):
         gid, _ = estate.enroll_group(db_conn, group_key=f"s{i}", **base)
         db_conn.commit()
@@ -417,27 +498,36 @@ def test_start_run_then_end_run_aggregates(db_conn):
 
     estate.end_run(db_conn, run_id, status="completed")
     row = db_conn.execute(
-        "SELECT n_success, n_empty, n_failed, n_dead_letter, "
-        "total_cost_usd, status FROM enrichment_runs WHERE id=?",
+        "SELECT n_success, n_empty, n_failed, n_dead_letter, total_cost_usd, status FROM enrichment_runs WHERE id=?",
         (run_id,),
     ).fetchone()
-    assert row[0] == 3       # success
-    assert row[1] == 1       # empty
-    assert row[2] == 1       # failed
-    assert row[3] == 0       # dead_letter
+    assert row[0] == 3  # success
+    assert row[1] == 1  # empty
+    assert row[2] == 1  # failed
+    assert row[3] == 0  # dead_letter
     assert row[4] == pytest.approx(0.003)
     assert row[5] == "completed"
 
 
 def test_run_total_cost_usd(db_conn):
     run_id = estate.start_run(
-        db_conn, profile="p", model="m",
-        source_variant="v", target_variant="t",
-        db_path="/", concurrency=1,
+        db_conn,
+        profile="p",
+        model="m",
+        source_variant="v",
+        target_variant="t",
+        db_path="/",
+        concurrency=1,
     )
-    base = {"source_variant": "v", "target_variant": "t",
-                "user_id": "u", "db_path": "/", "turn_count": 1,
-                "source_content_hash": "h", "enrich_run_id": run_id}
+    base = {
+        "source_variant": "v",
+        "target_variant": "t",
+        "user_id": "u",
+        "db_path": "/",
+        "turn_count": 1,
+        "source_content_hash": "h",
+        "enrich_run_id": run_id,
+    }
     gid, _ = estate.enroll_group(db_conn, group_key="a", **base)
     db_conn.commit()
     estate.claim_group(db_conn, gid, enrich_run_id=run_id)
@@ -455,8 +545,13 @@ def test_run_total_cost_usd(db_conn):
 def test_enroll_groups_bulk_counts(db_conn):
     # Pre-enroll one to test the unchanged path.
     estate.enroll_group(
-        db_conn, source_variant="v", target_variant="t",
-        group_key="x", user_id="u", db_path="/", turn_count=1,
+        db_conn,
+        source_variant="v",
+        target_variant="t",
+        group_key="x",
+        user_id="u",
+        db_path="/",
+        turn_count=1,
         source_content_hash="h-x",
     )
     db_conn.commit()
@@ -466,8 +561,11 @@ def test_enroll_groups_bulk_counts(db_conn):
         {"group_key": "z", "user_id": "u", "turn_count": 1, "source_content_hash": "h-z"},  # inserted
     ]
     counts = estate.enroll_groups_bulk(
-        db_conn, inputs,
-        source_variant="v", target_variant="t", db_path="/",
+        db_conn,
+        inputs,
+        source_variant="v",
+        target_variant="t",
+        db_path="/",
     )
     assert counts == {"inserted": 2, "unchanged": 1, "superseded": 0}
 
@@ -493,25 +591,34 @@ def test_compute_content_size_k():
 
 def test_enroll_records_content_size_k(db_conn):
     gid, _ = estate.enroll_group(
-        db_conn, source_variant="v", target_variant="t",
-        group_key="g", user_id="u", db_path="/", turn_count=3,
-        source_content_hash="h", content_size_k=7,
+        db_conn,
+        source_variant="v",
+        target_variant="t",
+        group_key="g",
+        user_id="u",
+        db_path="/",
+        turn_count=3,
+        source_content_hash="h",
+        content_size_k=7,
     )
     db_conn.commit()
-    row = db_conn.execute(
-        "SELECT content_size_k FROM enrichment_groups WHERE id=?", (gid,)
-    ).fetchone()
+    row = db_conn.execute("SELECT content_size_k FROM enrichment_groups WHERE id=?", (gid,)).fetchone()
     assert row[0] == 7
 
 
 def test_eligible_for_resume_size_filters(db_conn):
-    base = {"source_variant": "v", "target_variant": "t",
-                "user_id": "u", "db_path": "/", "turn_count": 1,
-                "source_content_hash": "h"}
+    base = {
+        "source_variant": "v",
+        "target_variant": "t",
+        "user_id": "u",
+        "db_path": "/",
+        "turn_count": 1,
+        "source_content_hash": "h",
+    }
     estate.enroll_group(db_conn, group_key="small", content_size_k=1, **base)
-    estate.enroll_group(db_conn, group_key="mid",   content_size_k=4, **base)
-    estate.enroll_group(db_conn, group_key="big",   content_size_k=10, **base)
-    estate.enroll_group(db_conn, group_key="huge",  content_size_k=50, **base)
+    estate.enroll_group(db_conn, group_key="mid", content_size_k=4, **base)
+    estate.enroll_group(db_conn, group_key="big", content_size_k=10, **base)
+    estate.enroll_group(db_conn, group_key="huge", content_size_k=50, **base)
     estate.enroll_group(db_conn, group_key="legacy", content_size_k=None, **{**base, "source_content_hash": "h2"})
     db_conn.commit()
 
@@ -521,28 +628,42 @@ def test_eligible_for_resume_size_filters(db_conn):
 
     # max=4 → keeps small + mid; excludes legacy (NULL)
     e = estate.eligible_for_resume(
-        db_conn, source_variant="v", target_variant="t", max_size_k=4,
+        db_conn,
+        source_variant="v",
+        target_variant="t",
+        max_size_k=4,
     )
     assert {gkey for _gid, gkey, _uid in e} == {"small", "mid"}
 
     # min=10 → big + huge
     e = estate.eligible_for_resume(
-        db_conn, source_variant="v", target_variant="t", min_size_k=10,
+        db_conn,
+        source_variant="v",
+        target_variant="t",
+        min_size_k=10,
     )
     assert {gkey for _gid, gkey, _uid in e} == {"big", "huge"}
 
     # min=4, max=10 → mid + big
     e = estate.eligible_for_resume(
-        db_conn, source_variant="v", target_variant="t",
-        min_size_k=4, max_size_k=10,
+        db_conn,
+        source_variant="v",
+        target_variant="t",
+        min_size_k=4,
+        max_size_k=10,
     )
     assert {gkey for _gid, gkey, _uid in e} == {"mid", "big"}
 
 
 def test_status_counts(db_conn):
-    base = {"source_variant": "v", "target_variant": "t",
-                "user_id": "u", "db_path": "/", "turn_count": 1,
-                "source_content_hash": "h"}
+    base = {
+        "source_variant": "v",
+        "target_variant": "t",
+        "user_id": "u",
+        "db_path": "/",
+        "turn_count": 1,
+        "source_content_hash": "h",
+    }
     for k in ("a", "b", "c"):
         gid, _ = estate.enroll_group(db_conn, group_key=k, **base)
         db_conn.commit()

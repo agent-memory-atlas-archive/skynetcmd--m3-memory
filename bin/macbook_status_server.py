@@ -3,6 +3,7 @@
 MacBook network & LM Studio status server for Homepage dashboard.
 Listens on port 9876. Returns JSON at /status with interface and LM Studio info.
 """
+
 import http.server
 import json
 import os
@@ -19,18 +20,15 @@ EMBEDDING_KEYWORDS = ("embed", "nomic", "jina", "bge", "minilm", "e5")
 
 # Interface map: ordered by preference (10GbE first, WiFi fallback)
 INTERFACES = [
-    ("en8", "10GbE"),   # Thunderbolt Ethernet
-    ("en0", "WiFi"),    # Wi-Fi
+    ("en8", "10GbE"),  # Thunderbolt Ethernet
+    ("en0", "WiFi"),  # Wi-Fi
 ]
 
 
 def get_iface_ip(iface: str):
     """Return IPv4 address for a given interface, or None if not up."""
     try:
-        out = subprocess.run(
-            ["ifconfig", iface],
-            capture_output=True, text=True, timeout=2
-        ).stdout
+        out = subprocess.run(["ifconfig", iface], capture_output=True, text=True, timeout=2).stdout
         for line in out.splitlines():
             line = line.strip()
             if line.startswith("inet ") and "127.0.0.1" not in line:
@@ -47,6 +45,7 @@ def get_lm_token() -> str:
     that was macOS-only and env-first (§1/§4 — don't reinvent the secret seam)."""
     try:
         from m3_sdk import get_secret
+
         return get_secret("LM_API_TOKEN") or ""
     except Exception:  # noqa: BLE001 — resolver import failure -> env fallback
         return os.environ.get("LM_API_TOKEN") or os.environ.get("LM_STUDIO_API_KEY") or ""
@@ -68,10 +67,7 @@ def check_lm_studio():
         with urllib.request.urlopen(req, timeout=3) as resp:  # nosec B310 - scheme checked above
             data = json.loads(resp.read())
             models = data.get("data", [])
-            inference = [
-                m["id"] for m in models
-                if not any(k in m["id"].lower() for k in EMBEDDING_KEYWORDS)
-            ]
+            inference = [m["id"] for m in models if not any(k in m["id"].lower() for k in EMBEDDING_KEYWORDS)]
             if inference:
                 return "up", inference[0]
             if models:

@@ -21,6 +21,7 @@ which had two consequences on a PostgreSQL-primary install:
     round-trips (§4, §8). It is now one set-based statement via
     ``Dialect.json_is_valid``.
 """
+
 from __future__ import annotations
 
 import logging
@@ -31,10 +32,10 @@ logger = logging.getLogger("memory.doctor.db_repair")
 def fix_missing_timestamps(conn, dialect) -> int:
     """Backfill NULL created_at on memory_items. Returns rows touched."""
     from m3_core.runtime import iso_utc_timestamp
+
     logger.info("Checking for missing timestamps...")
     res = conn.execute(
-        f"UPDATE memory_items SET created_at = {dialect.placeholder()} "
-        "WHERE created_at IS NULL",
+        f"UPDATE memory_items SET created_at = {dialect.placeholder()} WHERE created_at IS NULL",
         (iso_utc_timestamp(),),
     )
     touched = res.rowcount if res is not None else 0
@@ -94,6 +95,7 @@ def run(db_path: str | None = None) -> int:
     and it was how this module came to repair the wrong file.
     """
     import sys
+
     sys.path.insert(0, __file__.rsplit("db_repair.py", 1)[0] + "..")
 
     try:

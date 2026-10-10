@@ -6,6 +6,7 @@ the one fallback; dedup calls it. A dimension mismatch raises, as np.dot does,
 where zip() used to truncate silently and score the overlap as if it were the
 whole vector.
 """
+
 from __future__ import annotations
 
 import random

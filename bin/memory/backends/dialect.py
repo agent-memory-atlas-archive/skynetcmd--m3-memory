@@ -16,6 +16,7 @@ Parameterized SQL only (§6 of the philosophies): these helpers emit *placeholde
 and structural SQL*, never interpolated user values. ``json_path`` and column
 names are trusted, caller-supplied identifiers, never end-user input.
 """
+
 from __future__ import annotations
 
 import json as _json
@@ -36,9 +37,12 @@ def _warn_malformed_json(e: Exception) -> None:
     global _MALFORMED_JSON_WARNED
     if not _MALFORMED_JSON_WARNED:
         _MALFORMED_JSON_WARNED = True
-        _logger.warning(f"a JSON metadata column could not be read and was treated as empty; "
-                        f"observed: {type(e).__name__}: {e}. Later occurrences are not logged. "
-                        "inspect: m3 doctor (metadata_json integrity)")
+        _logger.warning(
+            f"a JSON metadata column could not be read and was treated as empty; "
+            f"observed: {type(e).__name__}: {e}. Later occurrences are not logged. "
+            "inspect: m3 doctor (metadata_json integrity)"
+        )
+
 
 _BARE_DATE_RE = _re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
@@ -109,9 +113,7 @@ class Dialect:
         """
         raise NotImplementedError("subclass must implement insert_or_ignore()")
 
-    def on_conflict_ignore(
-        self, *, conflict_target: str = "", index_predicate: str = ""
-    ) -> str:
+    def on_conflict_ignore(self, *, conflict_target: str = "", index_predicate: str = "") -> str:
         """Trailing clause that makes an INSERT a no-op on conflict.
 
         SQLite: empty (the OR IGNORE prefix already did it).
@@ -323,9 +325,7 @@ class Dialect:
         params: list = []
 
         def _quoted(v: str) -> bool:
-            return (v.startswith('"') and v.endswith('"')) or (
-                v.startswith("'") and v.endswith("'")
-            )
+            return (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'"))
 
         if user_id:
             sql += f" AND {a}.user_id = {ph}"
@@ -339,10 +339,7 @@ class Dialect:
             params.append(type_filter[1:-1] if exact else type_filter)
         if agent_filter:
             exact = _quoted(agent_filter)
-            sql += (
-                f" AND {a}.agent_id = {ph}" if exact
-                else f" AND LOWER({a}.agent_id) = LOWER({ph})"
-            )
+            sql += f" AND {a}.agent_id = {ph}" if exact else f" AND LOWER({a}.agent_id) = LOWER({ph})"
             params.append(agent_filter[1:-1] if exact else agent_filter)
         if exclude_types:
             marks = ", ".join(ph for _ in exclude_types)
@@ -473,8 +470,7 @@ class Dialect:
         Also handles a wrapped/chained exception via ``__cause__`` so a
         seam-adapted error still classifies.
         """
-        raise NotImplementedError(
-            "subclass must implement is_undefined_object_error()")
+        raise NotImplementedError("subclass must implement is_undefined_object_error()")
 
     def is_integrity_error(self, exc: BaseException) -> bool:
         """True if ``exc`` is an INTEGRITY-constraint violation — a unique/primary-
@@ -496,8 +492,7 @@ class Dialect:
         Handles a wrapped/chained exception via ``__cause__`` so a seam-adapted
         error still classifies.
         """
-        raise NotImplementedError(
-            "subclass must implement is_integrity_error()")
+        raise NotImplementedError("subclass must implement is_integrity_error()")
 
     # -- generated ids -------------------------------------------------------
     def returning_id_clause(self) -> str:
@@ -515,8 +510,14 @@ class Dialect:
         raise NotImplementedError("subclass must implement returning_id_clause()")
 
     def claim_message(
-        self, conn: object, *, table: str, where_sql: str, where_params: tuple,
-        claimant: str, lease_ttl: int = 300,
+        self,
+        conn: object,
+        *,
+        table: str,
+        where_sql: str,
+        where_params: tuple,
+        claimant: str,
+        lease_ttl: int = 300,
     ) -> tuple | None:
         """Atomically claim ONE unclaimed row, or return None if there are none.
 
@@ -598,16 +599,18 @@ class Dialect:
         registered backend.
         """
         p = self.param()
-        fence = (
-            f"id = {p} AND lease_token = {p} AND read_at IS NULL "
-            f"AND failed_at IS NULL"
-        )
+        fence = f"id = {p} AND lease_token = {p} AND read_at IS NULL AND failed_at IS NULL"
         if live_lease_only:
             fence += f" AND claim_expires_at > {self.now()}"
         return fence
 
     def complete_message(
-        self, conn: object, *, table: str, row_id: object, lease_token: str,
+        self,
+        conn: object,
+        *,
+        table: str,
+        row_id: object,
+        lease_token: str,
     ) -> bool:
         """Mark a claimed row COMPLETED. True iff the fence matched.
 
@@ -622,15 +625,19 @@ class Dialect:
         expected outcome of a slow worker.
         """
         cur = conn.execute(  # type: ignore[attr-defined]
-            f"UPDATE {table} SET read_at = {self.now()} "
-            f"WHERE {self.lease_fence_predicate()}",
+            f"UPDATE {table} SET read_at = {self.now()} WHERE {self.lease_fence_predicate()}",
             (row_id, lease_token),
         )
         conn.commit()  # type: ignore[attr-defined]
         return bool(cur.rowcount)
 
     def fail_message(
-        self, conn: object, *, table: str, row_id: object, lease_token: str,
+        self,
+        conn: object,
+        *,
+        table: str,
+        row_id: object,
+        lease_token: str,
     ) -> bool:
         """Mark a claimed row FAILED. True iff the fence matched.
 
@@ -640,15 +647,19 @@ class Dialect:
         forever.
         """
         cur = conn.execute(  # type: ignore[attr-defined]
-            f"UPDATE {table} SET failed_at = {self.now()} "
-            f"WHERE {self.lease_fence_predicate()}",
+            f"UPDATE {table} SET failed_at = {self.now()} WHERE {self.lease_fence_predicate()}",
             (row_id, lease_token),
         )
         conn.commit()  # type: ignore[attr-defined]
         return bool(cur.rowcount)
 
     def renew_lease(
-        self, conn: object, *, table: str, row_id: object, lease_token: str,
+        self,
+        conn: object,
+        *,
+        table: str,
+        row_id: object,
+        lease_token: str,
         lease_ttl: int = 300,
     ) -> bool:
         """Push a live claim's deadline out. True iff the fence matched.
@@ -717,7 +728,11 @@ class Dialect:
         )
 
     def sweep_expired_leases(
-        self, conn: object, *, table: str, max_attempts: int = 5,
+        self,
+        conn: object,
+        *,
+        table: str,
+        max_attempts: int = 5,
         limit: int = 100,
     ) -> tuple[int, int]:
         """Reclaim lapsed leases. Returns ``(reclaimed, dead_lettered)``.
@@ -1050,11 +1065,7 @@ class Dialect:
         genuinely differs. Making every backend restate the same three lines
         would be the duplication §10a warns about.
         """
-        esc = (
-            prefix.replace("\\", "\\\\")
-            .replace("%", "\\%")
-            .replace("_", "\\_")
-        )
+        esc = prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         return f"{column} LIKE {placeholder} ESCAPE '\\'", esc + "%"
 
     # -- temporal validity ---------------------------------------------------
@@ -1083,9 +1094,7 @@ class Dialect:
 
     def _temporal_open_clause_expr(self, column: str, op: str, p: str) -> str:
         """Backend fragment for :meth:`temporal_open_clause` (post-validation)."""
-        raise NotImplementedError(
-            "subclass must implement _temporal_open_clause_expr()"
-        )
+        raise NotImplementedError("subclass must implement _temporal_open_clause_expr()")
 
     @staticmethod
     def normalize_date_bound(value: str, side: str) -> str:
@@ -1311,8 +1320,7 @@ class Dialect:
         raise NotImplementedError("subclass must implement _qualified_table_expr()")
 
     # -- storage maintenance -------------------------------------------------
-    def compact_storage(self, *, sqlite_path: str | None = None,
-                        max_bytes: int = 500 * 1024 * 1024) -> str:
+    def compact_storage(self, *, sqlite_path: str | None = None, max_bytes: int = 500 * 1024 * 1024) -> str:
         """Reclaim free space in the store, if the backend has a client-issued
         compaction. Returns a human-readable status line for the maintenance report.
 
@@ -1375,8 +1383,6 @@ class Dialect:
         """
         conn.execute("BEGIN")  # type: ignore[attr-defined]
 
-
-
     def set_statement_timeout(self, conn: object, ms: int) -> None:
         """
         Sets the backend's query timeout, with per-backend semantics.
@@ -1386,6 +1392,7 @@ class Dialect:
         long-running queries.
         """
         raise NotImplementedError
+
 
 # ── Concrete per-backend dialects live in their backend modules ──────────────
 # `SqliteDialect`/`SQLITE` are in `sqlite_backend.py`; `PostgresDialect`/`POSTGRES`
@@ -1433,9 +1440,7 @@ def dialect_for_connection(obj: object) -> Dialect:
     mod = type(obj).__module__ or ""
     if mod.startswith(("psycopg", "psycopg2")):
         return dialect_for("postgres")
-    if conn is not None and (type(conn).__module__ or "").startswith(
-        ("psycopg", "psycopg2")
-    ):
+    if conn is not None and (type(conn).__module__ or "").startswith(("psycopg", "psycopg2")):
         return dialect_for("postgres")
 
     from .selector import dialect as _configured
@@ -1481,13 +1486,13 @@ def dialect_for(backend: BackendName) -> Dialect:
 # search on PG uses chat_log_items.search_vector via the seam's keyword_search.
 _CHATLOG_TABLES: dict[str, tuple[str, str]] = {
     #  role                core name (sqlite)         chat_log_* name (all non-sqlite)
-    "items":             ("memory_items",            "chat_log_items"),
-    "embeddings":        ("memory_embeddings",       "chat_log_embeddings"),
-    "relationships":     ("memory_relationships",    "chat_log_relationships"),
-    "entities":          ("entities",                "chat_log_entities"),
-    "item_entities":     ("memory_item_entities",    "chat_log_item_entities"),
-    "entity_rel":        ("entity_relationships",    "chat_log_entity_relationships"),
-    "extraction_queue":  ("entity_extraction_queue", "chat_log_extraction_queue"),
+    "items": ("memory_items", "chat_log_items"),
+    "embeddings": ("memory_embeddings", "chat_log_embeddings"),
+    "relationships": ("memory_relationships", "chat_log_relationships"),
+    "entities": ("entities", "chat_log_entities"),
+    "item_entities": ("memory_item_entities", "chat_log_item_entities"),
+    "entity_rel": ("entity_relationships", "chat_log_entity_relationships"),
+    "extraction_queue": ("entity_extraction_queue", "chat_log_extraction_queue"),
 }
 
 

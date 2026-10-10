@@ -4,6 +4,7 @@ Driven with real driver errors on each backend: the classification is the
 database seam's (StorageBackend.is_query_defect), so it is tested where the
 driver lives, not with hand-built exception objects.
 """
+
 from __future__ import annotations
 
 import ast
@@ -26,8 +27,11 @@ def _debug_only_swallows(tree: ast.AST) -> list[int]:
         if "Exception" not in typ and typ != "bare":
             continue
         body = [n for s in h.body for n in ast.walk(s)]
-        levels = {n.func.attr for n in body if isinstance(n, ast.Call)
-                  and isinstance(n.func, ast.Attribute) and n.func.attr in _LEVELS}
+        levels = {
+            n.func.attr
+            for n in body
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr in _LEVELS
+        }
         if levels == {"debug"} and not any(isinstance(n, ast.Raise) for n in body):
             out.append(h.lineno)
     return out
@@ -41,9 +45,10 @@ def test_no_broad_handler_swallows_at_debug_only():
                 continue
             rel = p.relative_to(_ROOT).as_posix()
             hits += [f"{rel}:{ln}" for ln in _debug_only_swallows(ast.parse(p.read_text(encoding="utf-8")))]
-    assert not hits, ("observed: a broad except that logs only at DEBUG, so a defect it "
-                      "catches is invisible: " + ", ".join(hits)
-                      + ". inspect: report it with m3_core.errors.log_swallowed")
+    assert not hits, (
+        "observed: a broad except that logs only at DEBUG, so a defect it "
+        "catches is invisible: " + ", ".join(hits) + ". inspect: report it with m3_core.errors.log_swallowed"
+    )
 
 
 def _error_from(backend, sql: str) -> BaseException:
@@ -61,13 +66,11 @@ def _error_from(backend, sql: str) -> BaseException:
 
 def test_bad_query_is_a_defect(each_backend):
     assert each_backend.is_query_defect(_error_from(each_backend, "SELEC id FROM memory_items"))
-    assert each_backend.is_query_defect(
-        _error_from(each_backend, "SELECT no_such_column_x FROM memory_items"))
+    assert each_backend.is_query_defect(_error_from(each_backend, "SELECT no_such_column_x FROM memory_items"))
 
 
 def test_missing_table_is_not_a_defect(each_backend):
-    assert not each_backend.is_query_defect(
-        _error_from(each_backend, "SELECT id FROM no_such_table_x"))
+    assert not each_backend.is_query_defect(_error_from(each_backend, "SELECT id FROM no_such_table_x"))
 
 
 def test_non_driver_errors_are_not_query_defects(each_backend):
@@ -85,8 +88,7 @@ def test_log_swallowed_levels(each_backend, caplog):
         log_swallowed(log, TimeoutError("slow"), "probe lookup failed")
         log_swallowed(log, TypeError("bad arg"), f"probe code failed for {'id-1'}")
     levels = {r.getMessage().split(" failed")[0]: r.levelno for r in caplog.records}
-    assert levels == {"probe query": logging.WARNING, "probe lookup": logging.DEBUG,
-                      "probe code": logging.WARNING}
+    assert levels == {"probe query": logging.WARNING, "probe lookup": logging.DEBUG, "probe code": logging.WARNING}
     warn = next(r.getMessage() for r in caplog.records if r.levelno == logging.WARNING)
     assert "observed:" in warn and "inspect:" in warn
 

@@ -4,6 +4,7 @@ resilience — the session's sync-restore + migration work.
 Pure-Python / no live PG needed: exercises the classification and validation
 logic in isolation. A live-PG end-to-end test lives separately (requires_pg).
 """
+
 from __future__ import annotations
 
 import os
@@ -20,6 +21,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 # corrupt cell can't abort the whole batch.
 def _valid_ts(v):
     from datetime import datetime
+
     if v is None:
         return True
     if v == "" or not isinstance(v, str):
@@ -40,10 +42,7 @@ class TestTimestampResilience:
         assert _valid_ts("") is False
 
     def test_real_iso_timestamps_are_valid(self):
-        for v in ("2026-07-19T04:05:51.509Z",
-                  "2026-07-19 04:05:51+00:00",
-                  "2026-07-19",
-                  "2026-07-19T04:05:51"):
+        for v in ("2026-07-19T04:05:51.509Z", "2026-07-19 04:05:51+00:00", "2026-07-19", "2026-07-19T04:05:51"):
             assert _valid_ts(v) is True, v
 
     def test_out_of_range_date_is_invalid(self):
@@ -63,8 +62,8 @@ class TestTimestampResilience:
         # it before a bad-timestamp row silently aborts sync again.
         import pathlib
         import re
-        src = (pathlib.Path(__file__).resolve().parents[1]
-               / "bin" / "pg_sync.py").read_text(encoding="utf-8")
+
+        src = (pathlib.Path(__file__).resolve().parents[1] / "bin" / "pg_sync.py").read_text(encoding="utf-8")
         m = re.search(r"_TS_POS\s*=\s*\(([^)]+)\)", src)
         assert m, "_TS_POS not found in pg_sync.py"
         positions = [int(x) for x in m.group(1).split(",") if x.strip()]
@@ -74,6 +73,7 @@ class TestTimestampResilience:
 # ── warehouse migration tool: classification logic ────────────────────────────
 class _FakeCursor:
     """Minimal cursor faking to_regclass + count() for the planner."""
+
     def __init__(self, present: dict):
         # present: {(schema, table): row_count} ; absent tables omitted
         self._present = present
@@ -100,6 +100,7 @@ class _FakeCursor:
 class TestMigrationPlanner:
     def _plan(self, present, table):
         import migrate_warehouse_to_schema as mw
+
         return mw._plan_for(_FakeCursor(present), table)
 
     def test_warehouse_only_is_ok(self):
@@ -116,9 +117,9 @@ class TestMigrationPlanner:
 
     def test_both_present_is_merge(self):
         p = self._plan(
-            {("public", "synchronized_secrets"): 11,
-             ("m3_warehouse", "synchronized_secrets"): 11},
-            "synchronized_secrets")
+            {("public", "synchronized_secrets"): 11, ("m3_warehouse", "synchronized_secrets"): 11},
+            "synchronized_secrets",
+        )
         assert p["action"] == "merge"
 
     def test_neither_present_is_absent(self):
@@ -129,6 +130,7 @@ class TestMigrationPlanner:
         # Watermarks are per-machine; the tool drops a warehouse-side copy and
         # never treats it as a table to keep.
         import migrate_warehouse_to_schema as mw
+
         assert "sync_watermarks" not in mw._WAREHOUSE_TABLES
         assert "sync_watermarks" in mw._DROP_IF_PRESENT
 
@@ -144,6 +146,7 @@ class TestStaleLockRecovery:
         from datetime import datetime, timedelta
 
         import pg_sync
+
         self.P = pg_sync
         self.os = os
         self.now = datetime.now(UTC)
@@ -164,7 +167,7 @@ class TestStaleLockRecovery:
         assert self.P._sync_lock_is_stale(self.now.isoformat()) is False
 
     def test_legacy_no_pid_old_lock_is_stale(self):
-        old = (self.now - self._td(seconds=self.P._SYNC_LOCK_STALE_SECONDS + 60))
+        old = self.now - self._td(seconds=self.P._SYNC_LOCK_STALE_SECONDS + 60)
         assert self.P._sync_lock_is_stale(old.isoformat()) is True
 
     def test_garbage_timestamp_is_stale_never_wedges(self):
@@ -183,6 +186,7 @@ class TestStaleLockRecovery:
     def test_acquire_reclaims_dead_pid_lock(self):
         # End-to-end against an in-memory sqlite: a dead-PID lock is reclaimed.
         import sqlite3
+
         conn = sqlite3.connect(":memory:")
         cur = conn.cursor()
         self.P._ensure_sync_lock_table(cur)
@@ -190,35 +194,34 @@ class TestStaleLockRecovery:
         # LEGACY host-less form: that is what a lock left by the previous build
         # looks like, and reclaiming it immediately is the property under test.
         cur.execute(
-            "INSERT INTO sync_locks (lock_name, holder, acquired_at) VALUES "
-            "(?, ?, ?)", (self.P._SYNC_LOCK_NAME,
-                          f"{self.now.isoformat()}|999999999",
-                          self.now.isoformat()))
+            "INSERT INTO sync_locks (lock_name, holder, acquired_at) VALUES (?, ?, ?)",
+            (self.P._SYNC_LOCK_NAME, f"{self.now.isoformat()}|999999999", self.now.isoformat()),
+        )
         assert self.P._acquire_sync_lock(cur) is True  # reclaimed
         # and the row is now stamped with OUR live pid
-        cur.execute("SELECT holder FROM sync_locks WHERE lock_name = ?",
-                    (self.P._SYNC_LOCK_NAME,))
+        cur.execute("SELECT holder FROM sync_locks WHERE lock_name = ?", (self.P._SYNC_LOCK_NAME,))
         _, pid, _host = self.P._parse_lock_value(cur.fetchone()[0])
         assert pid == self.os.getpid()
         conn.close()
 
     def test_acquire_blocks_on_live_pid_lock(self):
         import sqlite3
+
         conn = sqlite3.connect(":memory:")
         cur = conn.cursor()
         self.P._ensure_sync_lock_table(cur)
         # a lock owned by THIS (live) process, recent -> a second acquire is blocked
         cur.execute(
-            "INSERT INTO sync_locks (lock_name, holder, acquired_at) VALUES "
-            "(?, ?, ?)", (self.P._SYNC_LOCK_NAME,
-                          self.P._lock_value(self.now.isoformat()),
-                          self.now.isoformat()))
+            "INSERT INTO sync_locks (lock_name, holder, acquired_at) VALUES (?, ?, ?)",
+            (self.P._SYNC_LOCK_NAME, self.P._lock_value(self.now.isoformat()), self.now.isoformat()),
+        )
         assert self.P._acquire_sync_lock(cur) is False
         conn.close()
 
 
 if __name__ == "__main__":
     import pytest
+
     raise SystemExit(pytest.main([__file__, "-q"]))
 
 
@@ -234,8 +237,8 @@ class TestSyncAllInterpreter:
         import sys as _sys
 
         import sync_all
-        assert pathlib.Path(sync_all.PY).exists(), \
-            f"sync_all.PY does not exist: {sync_all.PY}"
+
+        assert pathlib.Path(sync_all.PY).exists(), f"sync_all.PY does not exist: {sync_all.PY}"
         # In any normal run PY is the current interpreter.
         assert sync_all.PY == _sys.executable
 
@@ -246,4 +249,5 @@ class TestSyncAllInterpreter:
         import sys as _sys
 
         import sync_all
+
         assert sync_all.PY == _sys.executable

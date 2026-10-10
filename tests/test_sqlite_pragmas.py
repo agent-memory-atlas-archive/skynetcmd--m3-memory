@@ -12,6 +12,7 @@ Run:
     python -m pytest bin/test_sqlite_pragmas.py -v
     python bin/test_sqlite_pragmas.py            # or run directly
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -42,6 +43,7 @@ from sqlite_pragmas import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _new_conn(db_path: str) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path, check_same_thread=False, timeout=30)
     conn.row_factory = sqlite3.Row
@@ -55,6 +57,7 @@ def _pragma(conn: sqlite3.Connection, name: str):
 # ---------------------------------------------------------------------------
 # profile_for_db()
 # ---------------------------------------------------------------------------
+
 
 class TestProfileForDb:
     def test_main_memory_db(self):
@@ -85,6 +88,7 @@ class TestProfileForDb:
 # ---------------------------------------------------------------------------
 # apply_pragmas() — correctness
 # ---------------------------------------------------------------------------
+
 
 class TestApplyPragmas:
     @pytest.fixture(params=list(PROFILES.keys()))
@@ -150,14 +154,10 @@ class TestApplyPragmas:
 # In-memory DBs do not have WAL semantics; we use a real on-disk file.
 # ---------------------------------------------------------------------------
 
+
 class TestWalGrowth:
     def _create_schema(self, conn: sqlite3.Connection) -> None:
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS items ("
-            "  id TEXT PRIMARY KEY,"
-            "  payload TEXT"
-            ")"
-        )
+        conn.execute("CREATE TABLE IF NOT EXISTS items (  id TEXT PRIMARY KEY,  payload TEXT)")
         conn.commit()
 
     @pytest.mark.parametrize("profile", list(PROFILES.keys()))
@@ -183,8 +183,7 @@ class TestWalGrowth:
                 if wal_path.exists():
                     wal_size = wal_path.stat().st_size
                     assert wal_size <= limit, (
-                        f"WAL grew to {wal_size} bytes (limit={limit}) "
-                        f"after {i+1} rows in profile {profile!r}"
+                        f"WAL grew to {wal_size} bytes (limit={limit}) after {i + 1} rows in profile {profile!r}"
                     )
 
         conn.commit()
@@ -193,8 +192,7 @@ class TestWalGrowth:
         if wal_path.exists():
             wal_size = wal_path.stat().st_size
             assert wal_size <= limit, (
-                f"WAL is {wal_size} bytes after final passive checkpoint "
-                f"(limit={limit}, profile={profile!r})"
+                f"WAL is {wal_size} bytes after final passive checkpoint (limit={limit}, profile={profile!r})"
             )
         conn.close()
 
@@ -202,6 +200,7 @@ class TestWalGrowth:
 # ---------------------------------------------------------------------------
 # checkpoint helpers
 # ---------------------------------------------------------------------------
+
 
 class TestCheckpointHelpers:
     def test_checkpoint_passive_returns_tuple(self, tmp_path):

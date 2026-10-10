@@ -8,6 +8,7 @@ All functions are ABSENCE-TOLERANT: on a DB that predates migration 036 (no
 trust_score / no ledger) they degrade to neutral defaults rather than raising, so
 the write path stays safe across deployments at different migration states.
 """
+
 from __future__ import annotations
 
 import logging
@@ -25,8 +26,7 @@ TRUST_CEIL = _conf.TRUST_MAX
 def _is_missing(exc) -> bool:
     """True for the pre-036 'no such column/table' errors we tolerate."""
     msg = str(exc).lower()
-    return ("no such column" in msg or "no such table" in msg
-            or "no column named" in msg)
+    return "no such column" in msg or "no such table" in msg or "no column named" in msg
 
 
 def get_agent_trust(db, agent_id: str) -> float:
@@ -37,9 +37,7 @@ def get_agent_trust(db, agent_id: str) -> float:
         from memory.backends import dialect
 
         _p = dialect().param()
-        row = db.execute(
-            f"SELECT trust_score FROM agents WHERE agent_id = {_p}", (agent_id,)
-        ).fetchone()
+        row = db.execute(f"SELECT trust_score FROM agents WHERE agent_id = {_p}", (agent_id,)).fetchone()
     except Exception as e:  # noqa: BLE001 — pre-036 DB has no trust_score
         if _is_missing(e):
             return _conf.TRUST_NEUTRAL
@@ -77,8 +75,7 @@ def corroboration_inputs(db, memory_id: str) -> tuple[float, int]:
 
         _p = dialect().param()
         rows = db.execute(
-            "SELECT source_kind, source_ref, trust_at_write, delta "
-            f"FROM memory_corroborations WHERE memory_id = {_p}",
+            f"SELECT source_kind, source_ref, trust_at_write, delta FROM memory_corroborations WHERE memory_id = {_p}",
             (memory_id,),
         ).fetchall()
     except Exception as e:  # noqa: BLE001 — pre-036 DB has no ledger
@@ -98,8 +95,9 @@ def corroboration_inputs(db, memory_id: str) -> tuple[float, int]:
     return sum(distinct.values()), contradictions
 
 
-def record_corroboration(db, memory_id: str, *, source_kind: str, source_ref: str,
-                         trust_at_write: float, delta: float) -> bool:
+def record_corroboration(
+    db, memory_id: str, *, source_kind: str, source_ref: str, trust_at_write: float, delta: float
+) -> bool:
     """Append a corroboration (delta>0) or contradiction (delta<0) event.
 
     Idempotent for positive deltas via the unique (memory_id, source_kind,
@@ -125,8 +123,7 @@ def record_corroboration(db, memory_id: str, *, source_kind: str, source_ref: st
             f"{_ins} memory_corroborations "
             "(id, memory_id, source_kind, source_ref, trust_at_write, delta) "
             f"VALUES ({_d.placeholder(6)}) {_suffix}".rstrip(),
-            (str(uuid.uuid4()), memory_id, source_kind, source_ref,
-             _conf.clamp_trust(trust_at_write), float(delta)),
+            (str(uuid.uuid4()), memory_id, source_kind, source_ref, _conf.clamp_trust(trust_at_write), float(delta)),
         )
         return cur.rowcount > 0
     except Exception as e:  # noqa: BLE001 — pre-036 DB has no ledger
@@ -198,6 +195,7 @@ def _distinct_positive_count(db, memory_id: str) -> int:
 
 def _observer_conf(metadata) -> float | None:
     import json
+
     try:
         meta = json.loads(metadata) if isinstance(metadata, str) else (metadata or {})
         if isinstance(meta, dict) and meta.get("confidence") is not None:

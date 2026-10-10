@@ -7,6 +7,7 @@ fence (a per-attempt lease_token) is what makes expiry real, and it must gate
 complete, fail AND renew. The renew case is the subtle one: without it, a
 straggler renews its way back into ownership of a row someone else now holds.
 """
+
 from __future__ import annotations
 
 import os
@@ -49,8 +50,12 @@ def conn():
 
 def _claim(conn, who="agent@s1", ttl=300):
     return D.claim_message(
-        conn, table=T, where_sql="agent_id = ?", where_params=("worker",),
-        claimant=who, lease_ttl=ttl,
+        conn,
+        table=T,
+        where_sql="agent_id = ?",
+        where_params=("worker",),
+        claimant=who,
+        lease_ttl=ttl,
     )
 
 
@@ -63,8 +68,7 @@ def _expire(conn, rid):
     column is what actually happens in production anyway: time passes.
     """
     conn.execute(
-        "UPDATE notifications SET claim_expires_at = "
-        "strftime('%Y-%m-%dT%H:%M:%SZ','now','-60 seconds') WHERE id = ?",
+        "UPDATE notifications SET claim_expires_at = strftime('%Y-%m-%dT%H:%M:%SZ','now','-60 seconds') WHERE id = ?",
         (rid,),
     )
 
@@ -97,9 +101,7 @@ def test_the_lease_deadline_comes_from_the_database_clock(conn):
     rid, _ = _claim(conn, ttl=300)
     expires = _row(conn, rid)["claim_expires_at"]
     expected = conn.execute(f"SELECT {D.now_plus_seconds('?')}", (300,)).fetchone()[0]
-    assert expires[:16] == expected[:16], (
-        f"lease deadline {expires!r} does not track the DB clock {expected!r}"
-    )
+    assert expires[:16] == expected[:16], f"lease deadline {expires!r} does not track the DB clock {expected!r}"
     assert expires.endswith("Z") and "+" not in expires
 
 
@@ -147,8 +149,7 @@ def test_renew_pushes_the_deadline_out(conn):
     # `_expire()` instead of waiting for one to pass.
     rid, token = _claim(conn)
     before = _row(conn, rid)["claim_expires_at"]
-    assert D.renew_lease(conn, table=T, row_id=rid, lease_token=token,
-                         lease_ttl=600) is True
+    assert D.renew_lease(conn, table=T, row_id=rid, lease_token=token, lease_ttl=600) is True
     assert _row(conn, rid)["claim_expires_at"] > before
 
 
@@ -172,8 +173,7 @@ def test_sweeper_reclaims_an_expired_lease_and_leaves_a_live_one(conn):
     assert _row(conn, dead_id)["claimed_by"] is None, "expired lease not reclaimed"
     assert _row(conn, dead_id)["lease_token"] is None
     assert _row(conn, live_id)["claimed_by"] == "agent@live", (
-        "the sweeper stole a LIVE claim -- this is the false-alarm failure the "
-        "whole lease design exists to avoid"
+        "the sweeper stole a LIVE claim -- this is the false-alarm failure the whole lease design exists to avoid"
     )
 
 
@@ -183,12 +183,9 @@ def test_a_reclaimed_worker_cannot_complete_fail_or_renew(conn):
     _expire(conn, rid)
     D.sweep_expired_leases(conn, table=T)
 
-    assert D.complete_message(conn, table=T, row_id=rid,
-                              lease_token=stale_token) is False
-    assert D.fail_message(conn, table=T, row_id=rid,
-                          lease_token=stale_token) is False
-    assert D.renew_lease(conn, table=T, row_id=rid,
-                         lease_token=stale_token) is False
+    assert D.complete_message(conn, table=T, row_id=rid, lease_token=stale_token) is False
+    assert D.fail_message(conn, table=T, row_id=rid, lease_token=stale_token) is False
+    assert D.renew_lease(conn, table=T, row_id=rid, lease_token=stale_token) is False
     assert _row(conn, rid)["read_at"] is None
     assert _row(conn, rid)["failed_at"] is None
 
@@ -248,6 +245,4 @@ def test_a_live_lease_is_never_null(conn):
     """The shape of the silent failure above: if this is ever NULL again, the
     row is immortal and nothing else in this file would notice."""
     rid, _ = _claim(conn, ttl=300)
-    assert _row(conn, rid)["claim_expires_at"] is not None, (
-        "NULL lease deadline -- this row can never be reclaimed"
-    )
+    assert _row(conn, rid)["claim_expires_at"] is not None, "NULL lease deadline -- this row can never be reclaimed"

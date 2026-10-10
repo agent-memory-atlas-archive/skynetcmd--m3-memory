@@ -15,6 +15,7 @@ Resolution order for finding the bridge (see ``find_bridge``):
    a clone of the repo.
 4. None — caller prints a helpful error pointing at ``install-m3``.
 """
+
 from __future__ import annotations
 
 import json
@@ -106,6 +107,7 @@ def load_config() -> dict:
 def save_config(cfg: dict) -> None:
     config_dir().mkdir(parents=True, exist_ok=True)
     import os
+
     for env_var in ("M3_CONFIG_ROOT", "M3_ENGINE_ROOT", "M3_FIPS_MODE"):
         if env_var in os.environ and env_var not in cfg:
             cfg[env_var] = os.environ[env_var]
@@ -135,6 +137,7 @@ def _payload_dir(component: str, env_var: str, must_contain: str | None = None) 
          (mirrors _developer_bridge for the pip-install-e . case)
       4. None
     """
+
     def _ok(base: Path) -> bool:
         return base.is_dir() and (must_contain is None or (base / must_contain).exists())
 
@@ -190,7 +193,9 @@ def _git_clone(tag: str, dest: Path) -> bool:
         subprocess.run(
             ["git", "clone", "--depth", "1", "--branch", tag, REPO_URL, str(dest)],
             check=True,
-            capture_output=True, **_hidden_window_kwargs())
+            capture_output=True,
+            **_hidden_window_kwargs(),
+        )
         return True
     except FileNotFoundError:
         return False
@@ -219,8 +224,7 @@ def _download_tarball(tag: str, dest: Path) -> None:
     _TRUSTED_URL_PREFIX = "https://github.com/skynetcmd/m3-memory/archive/refs/tags/"
     if not url.startswith(_TRUSTED_URL_PREFIX):
         raise RuntimeError(
-            f"refusing to fetch tarball from untrusted URL: {url!r} "
-            f"(expected prefix {_TRUSTED_URL_PREFIX!r})"
+            f"refusing to fetch tarball from untrusted URL: {url!r} (expected prefix {_TRUSTED_URL_PREFIX!r})"
         )
     with tempfile.TemporaryDirectory() as tmp_s:
         tmp = Path(tmp_s)
@@ -239,6 +243,7 @@ def _download_tarball(tag: str, dest: Path) -> None:
 
 
 # ───────── post-install helpers (tasks #8–#11 in plan memory 776d3729) ─────────
+
 
 def _m3_state_root() -> Path:
     """The M3_MEMORY_ROOT used in generated MCP env blocks (parent of the repo).
@@ -282,10 +287,19 @@ def _canonical_memory_env() -> dict:
     # sets them as env vars), so cfg is now only a last-resort override BELOW
     # env + the canonical derivation.
     from m3_sdk import get_m3_config_root, get_m3_engine_root
-    eng = os.environ.get("M3_ENGINE_ROOT") or get_m3_engine_root() \
-        or cfg.get("M3_ENGINE_ROOT") or str(_m3_state_root() / "engine")
-    conf = os.environ.get("M3_CONFIG_ROOT") or get_m3_config_root() \
-        or cfg.get("M3_CONFIG_ROOT") or str(_m3_state_root() / "config")
+
+    eng = (
+        os.environ.get("M3_ENGINE_ROOT")
+        or get_m3_engine_root()
+        or cfg.get("M3_ENGINE_ROOT")
+        or str(_m3_state_root() / "engine")
+    )
+    conf = (
+        os.environ.get("M3_CONFIG_ROOT")
+        or get_m3_config_root()
+        or cfg.get("M3_CONFIG_ROOT")
+        or str(_m3_state_root() / "config")
+    )
     env = {
         "M3_MEMORY_ROOT": state_root,
         "M3_ENGINE_ROOT": str(eng).replace("\\", "/"),
@@ -308,12 +322,12 @@ def _canonical_memory_env() -> dict:
     # owns the one CUDA context and the bridge defers to it.
     embed = os.environ.get("M3_EMBED_GGUF")
     if not embed:
-        cand = Path.home() / ".lmstudio" / "models" / "deepsweet" \
-            / "bge-m3-GGUF-Q4_K_M" / "bge-m3-GGUF-Q4_K_M.gguf"
+        cand = Path.home() / ".lmstudio" / "models" / "deepsweet" / "bge-m3-GGUF-Q4_K_M" / "bge-m3-GGUF-Q4_K_M.gguf"
         if cand.is_file():
             embed = str(cand)
     try:
         from m3_memory.embedder_admin import seed_shared_config
+
         seed_shared_config(conf, gguf_path=(str(embed) if embed else None))
     except Exception:  # noqa: BLE001 — env generation must not fail on config seed
         pass
@@ -377,8 +391,7 @@ def _memory_entry_needs_repoint(entry: object) -> bool:
     return False
 
 
-def _heal_agent_settings(settings_file: Path, *, force: bool = False,
-                         create_if_absent: bool = False) -> str | None:
+def _heal_agent_settings(settings_file: Path, *, force: bool = False, create_if_absent: bool = False) -> str | None:
     """Repoint a single agent's ``memory`` MCP entry to the canonical config.
 
     This FIXES the historical bug where registration skipped an already-present
@@ -419,9 +432,11 @@ def _heal_agent_settings(settings_file: Path, *, force: bool = False,
     # _dedupe_mcp_registration and the convergence check already own.
     if settings_file == Path.home() / ".claude" / "settings.json":
         if isinstance(data.get("mcpServers"), dict) and "memory" in data["mcpServers"]:
-            return (f"[!] {settings_file} has an inert m3 `mcpServers` entry "
-                    "(Claude Code ignores this key) — run "
-                    "`m3 doctor --fix --fix-hooks` to prune it")
+            return (
+                f"[!] {settings_file} has an inert m3 `mcpServers` entry "
+                "(Claude Code ignores this key) — run "
+                "`m3 doctor --fix --fix-hooks` to prune it"
+            )
         return None
 
     servers = data.setdefault("mcpServers", {})
@@ -540,8 +555,7 @@ def _register_antigravity_mcp() -> str | None:
         candidate = Path.home() / ".local" / "bin" / "agy"
         appdata = os.environ.get("LOCALAPPDATA")
         win_candidate = Path(appdata) / "agy" / "bin" / "agy.exe" if appdata else None
-        if not candidate.exists() and not (win_candidate and win_candidate.exists()) \
-                and not settings_dir.is_dir():
+        if not candidate.exists() and not (win_candidate and win_candidate.exists()) and not settings_dir.is_dir():
             return None
 
     settings_dir.mkdir(parents=True, exist_ok=True)
@@ -586,8 +600,7 @@ def _cline_config_path() -> Path:
         code_user = Path.home() / "Library" / "Application Support" / "Code" / "User"
     else:
         code_user = Path.home() / ".config" / "Code" / "User"
-    return (code_user / "globalStorage" / "saoudrizwan.claude-dev"
-            / "settings" / "cline_mcp_settings.json")
+    return code_user / "globalStorage" / "saoudrizwan.claude-dev" / "settings" / "cline_mcp_settings.json"
 
 
 def _register_cline_mcp() -> str | None:
@@ -723,9 +736,13 @@ def _register_cognitive_loop_task() -> bool:
         script = _install_schedules_script()
         if not script:
             return False
-        proc = subprocess.run([_python_exe(), str(script), "--add", "cognitive-loop"],
-                              check=False, capture_output=True, text=True,
-                              **_hidden_window_kwargs())
+        proc = subprocess.run(
+            [_python_exe(), str(script), "--add", "cognitive-loop"],
+            check=False,
+            capture_output=True,
+            text=True,
+            **_hidden_window_kwargs(),
+        )
         return proc.returncode == 0
     except Exception:  # noqa: BLE001 — never fail install on the task step
         return False
@@ -765,9 +782,11 @@ def _prompt_and_install_cognitive_loop(interactive: bool, forced: bool = False) 
         if _register_cognitive_loop_task():
             print("    [OK] cognitive loop installed (background enrichment enabled).")
             return True
-        print("    [!] cognitive loop NOT registered (install_schedules.py not "
-              "found on the payload, or the add failed). Enable later with:  "
-              "m3 schedules --add cognitive-loop")
+        print(
+            "    [!] cognitive loop NOT registered (install_schedules.py not "
+            "found on the payload, or the add failed). Enable later with:  "
+            "m3 schedules --add cognitive-loop"
+        )
         return False
     except (EOFError, KeyboardInterrupt):
         print()
@@ -805,8 +824,7 @@ def _prompt_and_install_dashboard(interactive: bool) -> None:
             # clobbering a port the user previously chose (the chosen port isn't
             # persisted to config, so we can't re-supply it). Preserving the
             # existing task keeps their port on upgrade.
-            _register_dashboard_task(skip_if_exists=True,
-                                     non_interactive=not interactive)
+            _register_dashboard_task(skip_if_exists=True, non_interactive=not interactive)
         return
 
     print()
@@ -826,9 +844,14 @@ def _prompt_and_install_dashboard(interactive: bool) -> None:
     print("  Installing web dashboard deps (fastapi + uvicorn)...")
     try:
         from m3_memory._pip import pip_command
+
         proc = subprocess.run(
             [*pip_command(), "install", "m3-memory[dashboard]"],
-            check=False, capture_output=True, text=True, **_hidden_window_kwargs())
+            check=False,
+            capture_output=True,
+            text=True,
+            **_hidden_window_kwargs(),
+        )
         if proc.returncode == 0:
             print("    [OK] web dashboard installed.")
             _register_dashboard_task(non_interactive=not interactive)
@@ -841,8 +864,7 @@ def _prompt_and_install_dashboard(interactive: bool) -> None:
         print(f'    [!] dashboard install skipped ({e}); add later:  pip install "m3-memory[dashboard]"')
 
 
-def _register_dashboard_task(skip_if_exists: bool = False,
-                             non_interactive: bool = False) -> None:
+def _register_dashboard_task(skip_if_exists: bool = False, non_interactive: bool = False) -> None:
     """Register the boot-start dashboard task (windowless). Best-effort.
 
     ``skip_if_exists``: on an upgrade, don't re-register when an AgentOS_Dashboard
@@ -869,15 +891,23 @@ def _register_dashboard_task(skip_if_exists: bool = False,
             # A 0 exit from schtasks /Query means the task exists → leave it.
             q = subprocess.run(
                 ["schtasks", "/Query", "/TN", "AgentOS_Dashboard"],
-                check=False, capture_output=True, text=True, **_hidden_window_kwargs())
+                check=False,
+                capture_output=True,
+                text=True,
+                **_hidden_window_kwargs(),
+            )
             if q.returncode == 0:
                 return
         script = _install_schedules_script()
         if not script:
             return
-        proc = subprocess.run([_python_exe(), str(script), "--add", "dashboard"],
-                              check=False, capture_output=True, text=True,
-                              **_hidden_window_kwargs())
+        proc = subprocess.run(
+            [_python_exe(), str(script), "--add", "dashboard"],
+            check=False,
+            capture_output=True,
+            text=True,
+            **_hidden_window_kwargs(),
+        )
         if proc.returncode == 0:
             return
         # Surface the child's own diagnostics — swallowing them is what made this
@@ -889,8 +919,8 @@ def _register_dashboard_task(skip_if_exists: bool = False,
         if "access is denied" not in out.lower():
             return  # a non-privilege failure: the printed output is the report
         from .setup_wizard import _offer_elevated_schedule_repair
-        elevated = _offer_elevated_schedule_repair(str(script),
-                                                   non_interactive=non_interactive)
+
+        elevated = _offer_elevated_schedule_repair(str(script), non_interactive=non_interactive)
         if elevated or elevated is None:
             return  # registered elevated, or queued for setup's admin prompt
         print("    [!] dashboard boot task NOT registered — it will not start after")
@@ -917,9 +947,7 @@ def _mask_dsn(dsn: str) -> str:
     return re.sub(r"(://[^:/@]+:)[^@/]+(@)", r"\1***\2", dsn)
 
 
-def _prompt_db_backend(
-    interactive: bool, backend_flag: str | None
-) -> tuple[str, str] | None:
+def _prompt_db_backend(interactive: bool, backend_flag: str | None) -> tuple[str, str] | None:
     """Ask which PRIMARY database backend to use.
 
     Returns ``None`` to accept the default (SQLite — zero-infrastructure, the
@@ -972,10 +1000,7 @@ def _prompt_db_backend(
     # Offer the env DSN as the default so the user can just hit enter.
     env_dsn = resolve_pg_dsn(PgRole.PRIMARY)
     hint = f" [{_mask_dsn(env_dsn)}]" if env_dsn else ""
-    print(
-        "\nPostgreSQL primary-store DSN "
-        "(e.g. postgresql://m3:PASSWORD@localhost:5432/m3_primary):"
-    )
+    print("\nPostgreSQL primary-store DSN (e.g. postgresql://m3:PASSWORD@localhost:5432/m3_primary):")
     try:
         entered = input(f"DSN{hint}: ").strip()
     except (EOFError, KeyboardInterrupt):
@@ -996,7 +1021,9 @@ def _chatlog_init_supports(chatlog_init: Path, flag: str) -> bool:
     try:
         result = subprocess.run(
             [_python_exe(), str(chatlog_init), "--help"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True,
+            text=True,
+            timeout=10,
             **_hidden_window_kwargs(),
         )
         return flag in (result.stdout or "")
@@ -1035,16 +1062,12 @@ def _run_chatlog_init(bridge: Path, capture_mode: str) -> str | None:
         cmd += ["--capture-mode", capture_mode]
     if has_apply_claude:
         cmd.append("--apply-claude")
-    gemini_present = (
-        shutil.which("gemini")
-        or (Path.home() / ".npm-global" / "bin" / "gemini").exists()
-    )
+    gemini_present = shutil.which("gemini") or (Path.home() / ".npm-global" / "bin" / "gemini").exists()
     if has_apply_gemini and gemini_present:
         cmd.append("--apply-gemini")
 
     try:
-        result = subprocess.run(cmd, check=True, capture_output=True,
-                                text=True, **_hidden_window_kwargs())
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True, **_hidden_window_kwargs())
     except subprocess.CalledProcessError as e:
         stderr = (e.stderr or "").strip()
         last = stderr.splitlines()[-1] if stderr else str(e)
@@ -1094,8 +1117,7 @@ def _run_main_migrations(bridge: Path, db_backend: str = "sqlite") -> str | None
 
     cmd = [_python_exe(), str(migrate_script), "up", "--yes", "--target", "main"]
     try:
-        subprocess.run(cmd, check=True, capture_output=True, text=True,
-                       **_hidden_window_kwargs())
+        subprocess.run(cmd, check=True, capture_output=True, text=True, **_hidden_window_kwargs())
         return "[+] main memory DB initialized (migrations applied)"
     except subprocess.CalledProcessError as e:
         stderr = (e.stderr or "").strip()
@@ -1239,7 +1261,13 @@ def _run_pg_migrations(bridge: Path, dsn: str) -> str | None:
     env["M3_PRIMARY_PG_URL"] = dsn
     try:
         subprocess.run(
-            [sys.executable, "-c", child], check=True, capture_output=True, text=True, env=env, **_hidden_window_kwargs())
+            [sys.executable, "-c", child],
+            check=True,
+            capture_output=True,
+            text=True,
+            env=env,
+            **_hidden_window_kwargs(),
+        )
         return "[+] PostgreSQL primary schema initialized (base + migrations applied)"
     except subprocess.CalledProcessError as e:
         stderr = (e.stderr or "").strip()
@@ -1282,7 +1310,8 @@ def _persist_pg_backend_env(dsn: str) -> list[str]:
             f"[!] the primary PostgreSQL DSN was NOT stored: {store_error}. m3 cannot reach the "
             "PostgreSQL store until it is: run `python -m keyring set system "
             "M3_PRIMARY_PG_URL` (prompts for it), or set M3_PRIMARY_PG_URL in the "
-            "environment of every m3 process.")
+            "environment of every m3 process."
+        )
 
     pairs = {"M3_DB_BACKEND": "postgres"}
     if _os_name() == "Windows":
@@ -1310,13 +1339,17 @@ def _legacy_plaintext_dsn_notes() -> list[str]:
     # The process copy is excluded: it is inherited from one of the places below
     # (or is the one the installer just set for its own post-install steps).
     unchecked: list[str] = []
-    where = [f"{n} in {loc}"
-             for n in ("M3_PRIMARY_PG_URL", "M3_PG_URL")
-             for loc in _find_env_var_locations(n, include_process_env=False, unchecked=unchecked)]
-    notes = [f"[!] plaintext DSN copy left in place: {w}. It overrides the stored DSN "
-             "while set; remove it once nothing reads it." for w in where]
-    notes += [f"[!] could not check {u} for a plaintext DSN copy; inspect it by hand."
-              for u in sorted(set(unchecked))]
+    where = [
+        f"{n} in {loc}"
+        for n in ("M3_PRIMARY_PG_URL", "M3_PG_URL")
+        for loc in _find_env_var_locations(n, include_process_env=False, unchecked=unchecked)
+    ]
+    notes = [
+        f"[!] plaintext DSN copy left in place: {w}. It overrides the stored DSN "
+        "while set; remove it once nothing reads it."
+        for w in where
+    ]
+    notes += [f"[!] could not check {u} for a plaintext DSN copy; inspect it by hand." for u in sorted(set(unchecked))]
     return notes
 
 
@@ -1382,8 +1415,10 @@ def _write_user_registry_env(pairs: dict[str, str]) -> list[str]:
             shown = _mask_dsn(value) if "PG_URL" in name else value
             msgs.append(f"[+] set {name}={shown} (User env; open a new shell to pick it up)")
         except (subprocess.CalledProcessError, OSError) as e:
-            msgs.append(f"[!] could not set {name} via setx; observed: {type(e).__name__}: {e}. "
-                        f"inspect: run `setx {name} <value>` by hand")
+            msgs.append(
+                f"[!] could not set {name} via setx; observed: {type(e).__name__}: {e}. "
+                f"inspect: run `setx {name} <value>` by hand"
+            )
     try:
         _broadcast_env_change()  # nudge live shells to reload (best-effort)
     except Exception:  # noqa: BLE001 — cosmetic
@@ -1452,10 +1487,10 @@ def _run_os_install(bridge: Path, interactive: bool = True) -> str | None:
         )
         return "OS-specific environment setup complete."
     except subprocess.TimeoutExpired:
-        return (f"OS setup timed out after 15 min and was skipped. Run it "
-                f"manually from {install_script}.")
+        return f"OS setup timed out after 15 min and was skipped. Run it manually from {install_script}."
     except subprocess.CalledProcessError as e:
         return f"OS setup failed (code {e.returncode}). Run it manually from {install_script}."
+
 
 def _post_install(
     bridge: Path,
@@ -1480,7 +1515,8 @@ def _post_install(
     _primary_backend = db_backend_choice[0] if db_backend_choice else "sqlite"
 
     messages = [
-        m for m in (
+        m
+        for m in (
             _run_os_install(bridge, interactive),
             _run_main_migrations(bridge, _primary_backend),
             _register_gemini_mcp(),
@@ -1489,7 +1525,8 @@ def _post_install(
             _register_cline_mcp(),
             _sqlite3_cli_hint(),
             _fix_npm_global_path(),
-        ) if m
+        )
+        if m
     ]
     cfg = load_config()
     changed = False
@@ -1576,7 +1613,9 @@ def _detect_cdw_target() -> str | None:
     from m3_sdk import PgRole, getenv_compat, resolve_pg_dsn
 
     # 1. Explicit warehouse IP/host (sync_all.py uses these).
-    host = getenv_compat("M3_POSTGRES_SERVER", "POSTGRES_SERVER") or getenv_compat("M3_SYNC_TARGET_IP", "SYNC_TARGET_IP")
+    host = getenv_compat("M3_POSTGRES_SERVER", "POSTGRES_SERVER") or getenv_compat(
+        "M3_SYNC_TARGET_IP", "SYNC_TARGET_IP"
+    )
     if host:
         return cast("str | None", host.strip())
 
@@ -1588,6 +1627,7 @@ def _detect_cdw_target() -> str | None:
     if pg_url:
         try:
             from urllib.parse import urlparse
+
             return cast("str | None", urlparse(pg_url).hostname)  # host only — drops user:pass
         except Exception:  # noqa: BLE001
             return "your configured PostgreSQL warehouse"
@@ -1602,6 +1642,7 @@ def _primary_backend_name() -> str:
     """
     try:
         import sys as _sys
+
         _sys.path.insert(0, str(bin_dir() or ""))
         from memory.backends import resolve_backend_name
 
@@ -1641,7 +1682,7 @@ def _print_backup_reminder() -> None:
         if dsn_masked:
             print(f"        pg_dump '{dsn_masked}' > m3_primary_$(date +%F).sql")
         else:
-            print("        pg_dump \"$M3_PRIMARY_PG_URL\" > m3_primary_$(date +%F).sql")
+            print('        pg_dump "$M3_PRIMARY_PG_URL" > m3_primary_$(date +%F).sql')
         print("  • The local file index (files_*.db under the engine root) is still")
         print("    SQLite — copy it too if you use file search.")
         print("  " + "-" * 68)
@@ -1705,7 +1746,6 @@ def install_m3(
         repo_path = default_repo_path()
     repo_path = repo_path.expanduser().resolve()
 
-
     if tag is None:
         tag = f"v{__version__}"
 
@@ -1747,18 +1787,18 @@ def install_m3(
                 "  • To upgrade:                 pipx upgrade m3-memory\n"
                 "  • To re-fetch a source tree:  m3 install-m3 --force"
             )
-            save_config({
-                "repo_path": str(payload_root),
-                "bridge_path": str(bridge),
-                "version": __version__,
-                "tag": tag,
-                "installed_at": datetime.now(UTC).strftime(
-                    "%Y-%m-%dT%H:%M:%SZ"),
-            })
+            save_config(
+                {
+                    "repo_path": str(payload_root),
+                    "bridge_path": str(bridge),
+                    "version": __version__,
+                    "tag": tag,
+                    "installed_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                }
+            )
             print(f"[OK] using installed payload. bridge_path = {bridge}")
             print(f"  config written to {config_file()}")
-            _post_install(bridge, interactive, endpoint_choice,
-                          capture_choice, db_backend_choice)
+            _post_install(bridge, interactive, endpoint_choice, capture_choice, db_backend_choice)
             return bridge
 
     # Preserve user data across --force / update. The repo tree under
@@ -1826,8 +1866,7 @@ def install_m3(
         bridge = packaged / "memory_bridge.py"
         if not bridge.is_file():
             raise RuntimeError(
-                f"payload bin_dir exists but {bridge} not found. This is unexpected; "
-                f"check your installation."
+                f"payload bin_dir exists but {bridge} not found. This is unexpected; check your installation."
             )
     else:
         print(f"fetching m3-memory {tag} -> {repo_path}")
@@ -1867,13 +1906,15 @@ def install_m3(
         if restored:
             print(f"  restored {restored} user-data file(s) into {memory_dir}")
 
-    save_config({
-        "repo_path": str(repo_path),
-        "bridge_path": str(bridge),
-        "version": __version__,
-        "tag": tag,
-        "installed_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-    })
+    save_config(
+        {
+            "repo_path": str(repo_path),
+            "bridge_path": str(bridge),
+            "version": __version__,
+            "tag": tag,
+            "installed_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
+    )
     print(f"[OK] installed. bridge_path = {bridge}")
     print(f"  config written to {config_file()}")
 
@@ -1907,7 +1948,6 @@ def uninstall_m3(yes: bool = False) -> None:
         print(f"  removed {config_file()}")
 
 
-
 def status_summary() -> dict:
     """Compute a single-glance health verdict + the facts a user cares about.
 
@@ -1915,8 +1955,14 @@ def status_summary() -> dict:
     verdict ∈ {healthy, degraded, broken}. Best-effort and fast; never raises.
     Used by `m3 status` (one-liner) and as the lead line of `m3 doctor`.
     """
-    out: dict = {"verdict": "broken", "installed": False, "memories": None,
-                 "embedder": "?", "chatlog": "?", "headline": ""}
+    out: dict = {
+        "verdict": "broken",
+        "installed": False,
+        "memories": None,
+        "embedder": "?",
+        "chatlog": "?",
+        "headline": "",
+    }
     # 1. Is the payload installed/resolvable?
     bridge = find_bridge()
     out["installed"] = bool(bridge and bridge.is_file())
@@ -1925,17 +1971,17 @@ def status_summary() -> dict:
     # 2. Memory count (main DB), best-effort.
     try:
         import sys as _sys
+
         _sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bin"))
         # No is_file() gate: on PostgreSQL there is no agent_memory.db, so the
         # gate reported 0 memories for a populated store. The backend decides
         # whether a file is involved at all.
         from m3_core.paths import seam_backend
         from m3_sdk import get_m3_engine_root
+
         main_db = Path(get_m3_engine_root()) / "agent_memory.db"
         with seam_backend().open_readonly(main_db.as_posix()) as conn:
-            row = conn.execute(
-                "SELECT COUNT(*) FROM memory_items WHERE COALESCE(is_deleted,0)=0"
-            ).fetchone()
+            row = conn.execute("SELECT COUNT(*) FROM memory_items WHERE COALESCE(is_deleted,0)=0").fetchone()
             out["memories"] = int(row[0]) if row else 0
     except Exception:  # noqa: BLE001
         pass
@@ -1944,6 +1990,7 @@ def status_summary() -> dict:
     try:
         from m3_memory.embedder_admin import shared_mode_enabled
         from m3_memory.rust_core_install import active_embedder_tier
+
         # Shared mode turns the in-process tier off, so a native wheel being
         # installed does not mean embeds run in-process.
         if shared_mode_enabled():
@@ -1976,8 +2023,7 @@ def status_summary() -> dict:
         out["verdict"] = "degraded" if degraded else "healthy"
         mem = "?" if out["memories"] is None else out["memories"]
         out["headline"] = (
-            f"{out['verdict'].upper()} · {mem} memories · embedder: {out['embedder']} · "
-            f"chatlog: {out['chatlog']}"
+            f"{out['verdict'].upper()} · {mem} memories · embedder: {out['embedder']} · chatlog: {out['chatlog']}"
         )
     return out
 
@@ -2001,14 +2047,14 @@ def _known_agent_settings() -> list[tuple[str, Path]]:
     home = Path.home()
     return [
         ("Claude Code", home / ".claude" / "settings.json"),
-        ("Gemini CLI",  home / ".gemini" / "settings.json"),
+        ("Gemini CLI", home / ".gemini" / "settings.json"),
         ("Antigravity", home / ".gemini" / "antigravity-cli" / "settings.json"),
         # Not OpenCode: its opencode.json registers servers under `mcp`, not
         # `mcpServers`, so a repair over this list would write an entry OpenCode
         # never reads. setup_wizard._wire_opencode owns that file.
-        ("Aider",       home / ".aider" / "settings.json"),
-        ("Cursor",      _cursor_config_path()),
-        ("Cline",       _cline_config_path()),
+        ("Aider", home / ".aider" / "settings.json"),
+        ("Cursor", _cursor_config_path()),
+        ("Cline", _cline_config_path()),
     ]
 
 
@@ -2050,14 +2096,14 @@ def _client_config_sources() -> dict[str, list[Path]]:
             claude_sources.append(cand)
     return {
         "Claude Code": claude_sources,
-        "Gemini CLI":  [home / ".gemini" / "settings.json"],
+        "Gemini CLI": [home / ".gemini" / "settings.json"],
         "Antigravity": [home / ".gemini" / "antigravity-cli" / "settings.json"],
         # OpenCode config is opencode.json under XDG ~/.config (or %APPDATA% on
         # Windows), not ~/.opencode/settings.json — the old path matched nothing.
-        "OpenCode":    _opencode_source_paths(),
-        "Aider":       [home / ".aider" / "settings.json"],
-        "Cursor":      [_cursor_config_path()],
-        "Cline":       [_cline_config_path()],
+        "OpenCode": _opencode_source_paths(),
+        "Aider": [home / ".aider" / "settings.json"],
+        "Cursor": [_cursor_config_path()],
+        "Cline": [_cline_config_path()],
     }
 
 
@@ -2088,7 +2134,7 @@ def _duplicate_mcp_registration() -> dict[str, dict[str, list[Path]]]:
                 data = json.loads(path.read_text(encoding="utf-8")) or {}
             except (OSError, json.JSONDecodeError):
                 continue
-            for name in (data.get("mcpServers") or {}):
+            for name in data.get("mcpServers") or {}:
                 seen.setdefault(name, []).append(path)
         client_dupes = {n: fs for n, fs in seen.items() if len(fs) > 1}
         if client_dupes:
@@ -2132,9 +2178,7 @@ def _dedupe_mcp_registration(*, apply: bool = False) -> list[str]:
                 if apply:
                     try:
                         data = json.loads(f.read_text(encoding="utf-8")) or {}
-                        f.with_suffix(f.suffix + ".bak").write_text(
-                            f.read_text(encoding="utf-8"), encoding="utf-8"
-                        )
+                        f.with_suffix(f.suffix + ".bak").write_text(f.read_text(encoding="utf-8"), encoding="utf-8")
                         (data.get("mcpServers") or {}).pop(name, None)
                         f.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
                     except (OSError, json.JSONDecodeError) as e:
@@ -2156,13 +2200,13 @@ def _deprecated_env_in_config() -> dict[Path, dict[str, str]]:
     files are skipped, never raised.
     """
     import sys as _sys
+
     _sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bin"))
     from m3_core.paths import all_env_renames
 
     # Union of pure-namespacing + role-split (e.g. PG_URL -> M3_CDW_PG_URL) renames.
     renames = all_env_renames()
-    return {path: {k: renames[k] for k in sorted(keys)}
-            for path, keys in _env_names_in_config(renames).items()}
+    return {path: {k: renames[k] for k in sorted(keys)} for path, keys in _env_names_in_config(renames).items()}
 
 
 def _env_names_in_config(names, unchecked: list[str] | None = None) -> dict[Path, set[str]]:
@@ -2229,8 +2273,7 @@ def _shell_assigns(text: str, name: str) -> bool:
 #    without admin). HKCU is User-writable; HKLM needs admin so --fix reports it.
 _WIN_ENV_REG_SCOPES = (
     ("HKEY_CURRENT_USER", r"Environment", "User", True),
-    ("HKEY_LOCAL_MACHINE",
-     r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment", "Machine", False),
+    ("HKEY_LOCAL_MACHINE", r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment", "Machine", False),
 )
 
 
@@ -2239,6 +2282,7 @@ def _all_env_renames() -> dict[str, str]:
     returns {} if the payload SDK isn't importable (thin pip pre-payload)."""
     try:
         import sys as _sys
+
         _sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bin"))
         from m3_core.paths import all_env_renames
 
@@ -2247,8 +2291,7 @@ def _all_env_renames() -> dict[str, str]:
         return {}
 
 
-def _scan_registry_env_deprecations(names: dict[str, str],
-                                    unchecked: list[str] | None = None) -> list[dict]:
+def _scan_registry_env_deprecations(names: dict[str, str], unchecked: list[str] | None = None) -> list[dict]:
     """Return one record per deprecated env var found in a Windows registry env
     scope. Each record: {scope, label, subkey, hive_name, old, new, writable}.
     Non-Windows → []. Read-only; never raises. A scope it could not read is
@@ -2272,11 +2315,17 @@ def _scan_registry_env_deprecations(names: dict[str, str],
                         winreg.QueryValueEx(k, old)
                     except FileNotFoundError:
                         continue  # this var not set at this scope
-                    hits.append({
-                        "scope": scope, "label": f"Windows {scope} env ({hive_name}\\{subkey})",
-                        "subkey": subkey, "hive_name": hive_name,
-                        "old": old, "new": new, "writable": writable,
-                    })
+                    hits.append(
+                        {
+                            "scope": scope,
+                            "label": f"Windows {scope} env ({hive_name}\\{subkey})",
+                            "subkey": subkey,
+                            "hive_name": hive_name,
+                            "old": old,
+                            "new": new,
+                            "writable": writable,
+                        }
+                    )
         except FileNotFoundError:
             continue  # scope key absent
         except OSError as e:  # e.g. no read permission on HKLM
@@ -2290,8 +2339,9 @@ def _find_deprecated_pg_url_locations() -> list[str]:
     return _find_env_var_locations("PG_URL")
 
 
-def _find_env_var_locations(name: str, *, include_process_env: bool = True,
-                            unchecked: list[str] | None = None) -> list[str]:
+def _find_env_var_locations(
+    name: str, *, include_process_env: bool = True, unchecked: list[str] | None = None
+) -> list[str]:
     """Return a human-readable location for EVERY place env var ``name`` is set.
     Each place it could NOT read is appended to ``unchecked`` when the caller
     passes a list: an unread file is not a clean one, and a caller that reports
@@ -2324,8 +2374,7 @@ def _find_env_var_locations(name: str, *, include_process_env: bool = True,
         skipped.append(f"MCP client configs ({type(e).__name__}: {e})")
 
     home = Path.home()
-    for rc in (".zshenv", ".zshrc", ".zprofile", ".bashrc",
-               ".bash_profile", ".bash_login", ".profile"):
+    for rc in (".zshenv", ".zshrc", ".zprofile", ".bashrc", ".bash_profile", ".bash_login", ".profile"):
         f = home / rc
         try:
             if f.is_file() and _shell_assigns(f.read_text(encoding="utf-8", errors="ignore"), name):
@@ -2442,8 +2491,8 @@ def _migrate_registry_env_names(*, apply: bool = False) -> list[str]:
             # HKLM — report the manual, admin-required command; never auto-write.
             actions.append(
                 f"[!] {label}: {old} must be renamed to {new} manually (admin): "
-                f"setx /M {new} \"%{old}%\" && REG delete "
-                f"\"HKLM\\{hit['subkey']}\" /v {old} /f"
+                f'setx /M {new} "%{old}%" && REG delete '
+                f'"HKLM\\{hit["subkey"]}" /v {old} /f'
             )
             continue
         hive = getattr(_wr, hit["hive_name"])
@@ -2474,9 +2523,7 @@ def _migrate_registry_env_names(*, apply: bool = False) -> list[str]:
                     actions.append(f"[X] {label}: could not delete {old}: {e}")
         else:
             verb = "renamed" if apply else "would rename"
-            actions.append(
-                f"[+] {verb} {old} -> {new} in {label} (value carried over)"
-            )
+            actions.append(f"[+] {verb} {old} -> {new} in {label} (value carried over)")
             if apply:
                 try:
                     with _wr.OpenKey(hive, hit["subkey"], 0, _wr.KEY_SET_VALUE) as k:
@@ -2502,8 +2549,13 @@ def _broadcast_env_change() -> None:
         SMTO_ABORTIFHUNG = 0x0002
         _ct: Any = ctypes  # Any alias: typeshed has ctypes.windll only for win32
         _ct.windll.user32.SendMessageTimeoutW(
-            HWND_BROADCAST, WM_SETTINGCHANGE, 0, "Environment",
-            SMTO_ABORTIFHUNG, 5000, ctypes.byref(ctypes.c_ulong()),
+            HWND_BROADCAST,
+            WM_SETTINGCHANGE,
+            0,
+            "Environment",
+            SMTO_ABORTIFHUNG,
+            5000,
+            ctypes.byref(ctypes.c_ulong()),
         )
     except Exception:  # noqa: BLE001
         pass
@@ -2598,6 +2650,7 @@ def _heal_embed_gguf_env_leak(*, apply: bool) -> list[str]:
     if apply:
         try:
             from m3_memory.embedder_admin import seed_shared_config
+
             _p, wrote = seed_shared_config()
             if wrote:
                 actions.append(f"[+] seeded shared embedder config: {_p}")
@@ -2661,8 +2714,10 @@ def _deprecated_env_config_section() -> None:
     if not affected:
         return  # clean — no noise
     print()
-    print("  [!] deprecated env var NAMES found in on-disk config (still work via "
-          "back-compat, but should migrate to the M3_ namespace):")
+    print(
+        "  [!] deprecated env var NAMES found in on-disk config (still work via "
+        "back-compat, but should migrate to the M3_ namespace):"
+    )
     for path, renames in sorted(affected.items(), key=lambda kv: str(kv[0])):
         for old, new in sorted(renames.items()):
             print(f"        {path}: {old}  ->  {new}")
@@ -2735,20 +2790,26 @@ def _duplicate_registration_section() -> None:
         return  # clean — no noise
     print()
     if dupes:
-        print("  [!] DUPLICATE MCP registration — a server is declared in MULTIPLE "
-              "config files the SAME client reads, so that client launches it TWICE:")
+        print(
+            "  [!] DUPLICATE MCP registration — a server is declared in MULTIPLE "
+            "config files the SAME client reads, so that client launches it TWICE:"
+        )
         for client, servers in sorted(dupes.items()):
             for name, files in sorted(servers.items()):
                 print(f"        {client} / {name}: " + " AND ".join(str(f) for f in files))
-        print("      → Run `m3 doctor --fix` to remove the duplicate automatically "
-              "(keeps the complete def with its env block, backs up the edited file).")
+        print(
+            "      → Run `m3 doctor --fix` to remove the duplicate automatically "
+            "(keeps the complete def with its env block, backs up the edited file)."
+        )
         print("        Then restart the MCP client so it relaunches a single bridge.")
     if live:
         print("  [!] Multiple live bridge processes (double-launch signature):")
         for script, n in sorted(live.items()):
             print(f"        {n}x {script}")
-        print("      → A duplicate bridge can wedge a tool call indefinitely on old "
-              "(no-timeout) code. Run `m3 doctor --fix` to de-duplicate the config,")
+        print(
+            "      → A duplicate bridge can wedge a tool call indefinitely on old "
+            "(no-timeout) code. Run `m3 doctor --fix` to de-duplicate the config,"
+        )
         print("        then restart the MCP client (that clears the extra processes).")
 
 
@@ -2797,19 +2858,19 @@ def _heal_config_bridge_path(*, apply: bool) -> list[str]:
     """
     packaged = Path(__file__).resolve().parent / "bin" / "memory_bridge.py"
     if not packaged.is_file():
-        return []                      # not a packaged install — nothing to record
+        return []  # not a packaged install — nothing to record
     resolved = find_bridge()
     if not resolved or Path(resolved).resolve() != packaged:
-        return []                      # env override or dev sibling — deliberate
+        return []  # env override or dev sibling — deliberate
     cfg = load_config()
     if not cfg:
-        return []                      # no install record to repair
+        return []  # no install record to repair
     current = cfg.get("bridge_path")
     try:
         if current and Path(current).expanduser().resolve() == packaged:
-            return []                  # already correct
+            return []  # already correct
     except OSError:
-        pass                           # unresolvable path — treat as stale, rewrite
+        pass  # unresolvable path — treat as stale, rewrite
     if not apply:
         return [f"[!] config bridge_path is stale: {current} -> {packaged}"]
     cfg["bridge_path"] = str(packaged)
@@ -2873,8 +2934,7 @@ def doctor(fix: bool = False, brief: bool = False) -> int:
     if brief:
         if fix:
             n = _heal_all_agents()
-            print(f"agent MCP configs: {n} repointed." if n
-                  else "agent MCP configs: all healthy.")
+            print(f"agent MCP configs: {n} repointed." if n else "agent MCP configs: all healthy.")
         else:
             _agent_config_section()
             for line in _heal_config_bridge_path(apply=False):
@@ -2883,7 +2943,7 @@ def doctor(fix: bool = False, brief: bool = False) -> int:
         _deprecated_env_config_section()
         bridge = find_bridge()
         if bridge and bridge.is_file():
-            print("[OK] memory bridge found")   # its path: `m3 doctor --verbose`
+            print("[OK] memory bridge found")  # its path: `m3 doctor --verbose`
             return 0
         print("[X] no bridge found. Run `mcp-memory install-m3` to fetch the system.")
         print("\nFor full detail, run:  m3 doctor --verbose")
@@ -2903,8 +2963,7 @@ def doctor(fix: bool = False, brief: bool = False) -> int:
     resolved = find_bridge()
     cfg_bridge = cfg.get("bridge_path") if cfg else None
     bridge_matches_config = bool(
-        resolved and cfg_bridge
-        and Path(resolved).resolve() == Path(cfg_bridge).expanduser().resolve()
+        resolved and cfg_bridge and Path(resolved).resolve() == Path(cfg_bridge).expanduser().resolve()
     )
     if cfg:
         # When the live bridge matches the config, these ARE the installed

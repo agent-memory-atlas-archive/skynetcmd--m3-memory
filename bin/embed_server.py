@@ -73,8 +73,10 @@ def create_embeddings(req: EmbeddingRequest) -> EmbeddingResponse:
     texts = [req.input] if isinstance(req.input, str) else req.input
     t0 = time.perf_counter()
     if model is None:
-        raise RuntimeError("embedding model not loaded; observed: the startup load did not "
-                           "run or failed. inspect: the server log above")
+        raise RuntimeError(
+            "embedding model not loaded; observed: the startup load did not "
+            "run or failed. inspect: the server log above"
+        )
     vectors = model.encode(texts, normalize_embeddings=True).tolist()
     elapsed = time.perf_counter() - t0
     logger.info(f"Embedded {len(texts)} text(s) in {elapsed:.3f}s")
@@ -112,6 +114,7 @@ def main():
     device = args.device
     if device is None:
         from m3_core.gpu import torch_device
+
         device = torch_device(prefer_index=True)
         logger.info(f"Auto-detected device for embeddings: {device}")
 

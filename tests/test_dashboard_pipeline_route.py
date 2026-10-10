@@ -5,6 +5,7 @@ asserts the rendered panel contains the governor line, per-queue cards, the
 1/10/30/60-min throughput, and a drain ETA. Requires the [web] extra (fastapi);
 skipped cleanly if it's not installed.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -18,7 +19,9 @@ from conftest import skip_reason
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bin"))
 
 pytest.importorskip("fastapi", reason=skip_reason("dep", "dashboard needs the [web] extra"))
-starlette_testclient = pytest.importorskip("starlette.testclient", reason=skip_reason("dep", f"{'starlette.testclient'} not installed"))
+starlette_testclient = pytest.importorskip(
+    "starlette.testclient", reason=skip_reason("dep", f"{'starlette.testclient'} not installed")
+)
 
 
 def _seed_db(tmp_path) -> str:
@@ -34,9 +37,11 @@ def _seed_db(tmp_path) -> str:
         """
     )
     # 3 embeddings produced "now" -> nonzero recent throughput -> a real ETA.
-    conn.execute("INSERT INTO memory_embeddings (id,memory_id,created_at) "
-                 "SELECT 'e'||value, 'm', datetime('now') "
-                 "FROM (SELECT 1 value UNION SELECT 2 UNION SELECT 3)")
+    conn.execute(
+        "INSERT INTO memory_embeddings (id,memory_id,created_at) "
+        "SELECT 'e'||value, 'm', datetime('now') "
+        "FROM (SELECT 1 value UNION SELECT 2 UNION SELECT 3)"
+    )
     conn.commit()
     conn.close()
     return db
@@ -47,6 +52,7 @@ def test_pipeline_route_renders_panel(tmp_path, monkeypatch):
     monkeypatch.setenv("M3_DATABASE", db)
 
     import dashboard_server as d
+
     client = starlette_testclient.TestClient(d.app)
     resp = client.get("/api/pipeline")
 

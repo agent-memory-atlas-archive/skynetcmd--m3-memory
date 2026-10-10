@@ -8,6 +8,7 @@ pin unset, destructive tools BLOCKED, agent isolation off, every bind 127.0.0.1.
 Today .governor_config.json wins for the GPU probe keys and .log_config.json for
 log.max_bytes; they fold in 2D (CONFIG_DESIGN §11).
 """
+
 from __future__ import annotations
 
 import re
@@ -24,18 +25,27 @@ def _yes(raw: str) -> bool:
 
 
 def _flag(name, env, default, doc, legacy=_eq1):
-    return Key[bool](name=name, parse=parse_bool, default=default, env_names=env,
-                     reloadable=False, legacy_parse=legacy, doc=doc)
+    return Key[bool](
+        name=name, parse=parse_bool, default=default, env_names=env, reloadable=False, legacy_parse=legacy, doc=doc
+    )
 
 
 def _int(name, env, default, doc, lo=1, hi=None):
-    return Key[int](name=name, parse=parse_int, default=default, validate=in_range(lo=lo, hi=hi),
-                    env_names=env, reloadable=False, doc=doc)
+    return Key[int](
+        name=name,
+        parse=parse_int,
+        default=default,
+        validate=in_range(lo=lo, hi=hi),
+        env_names=env,
+        reloadable=False,
+        doc=doc,
+    )
 
 
 def _float(name, env, default, doc):
-    return Key[float](name=name, parse=parse_float, default=default, validate=in_range(lo=0),
-                      env_names=env, reloadable=False, doc=doc)
+    return Key[float](
+        name=name, parse=parse_float, default=default, validate=in_range(lo=0), env_names=env, reloadable=False, doc=doc
+    )
 
 
 def _str(name, env, default, doc):
@@ -60,94 +70,220 @@ def _sha256_hex(value: str) -> None:
 
 RUNTIME: list[Key] = [
     # ── [crypto] (crypto_provider.py; read at import) ──
-    _flag("crypto.fips_mode", ("M3_FIPS_MODE",), False,
-          "FIPS 140-3 mode: wolfSSL/wolfCrypt is required and any failure is fatal."),
-    _flag("crypto.fips_strict", ("M3_FIPS_STRICT",), False,
-          "Also require the CMVP-validated wolfCrypt build (implies the wolfSSL backend)."),
-    Key[str](name="crypto.backend", parse=_upper, default="DEFAULT", validate=one_of("DEFAULT", "WOLFSSL"),
-             env_names=("M3_CRYPTO_BACKEND",), reloadable=False,
-             doc="Crypto backend: DEFAULT or WOLFSSL (forced by crypto.fips_mode / fips_strict). "
-                 "(Today an unknown value acts as DEFAULT; it is now an error.)"),
-    Key(name="crypto.wolfssl_lib", parse=parse_path, default=None, env_names=("M3_WOLFSSL_LIB",),
-        reloadable=False, doc="The wolfSSL library file tried first; unset searches the trusted lib dirs."),
-    Key[str](name="crypto.wolfssl_sha256", parse=_lower, default=None, validate=_sha256_hex,
-             env_names=("M3_WOLFSSL_SHA256",), reloadable=False,
-             doc="Integrity pin for the wolfSSL library; checked when wolfSSL initialises."),
+    _flag(
+        "crypto.fips_mode",
+        ("M3_FIPS_MODE",),
+        False,
+        "FIPS 140-3 mode: wolfSSL/wolfCrypt is required and any failure is fatal.",
+    ),
+    _flag(
+        "crypto.fips_strict",
+        ("M3_FIPS_STRICT",),
+        False,
+        "Also require the CMVP-validated wolfCrypt build (implies the wolfSSL backend).",
+    ),
+    Key[str](
+        name="crypto.backend",
+        parse=_upper,
+        default="DEFAULT",
+        validate=one_of("DEFAULT", "WOLFSSL"),
+        env_names=("M3_CRYPTO_BACKEND",),
+        reloadable=False,
+        doc="Crypto backend: DEFAULT or WOLFSSL (forced by crypto.fips_mode / fips_strict). "
+        "(Today an unknown value acts as DEFAULT; it is now an error.)",
+    ),
+    Key(
+        name="crypto.wolfssl_lib",
+        parse=parse_path,
+        default=None,
+        env_names=("M3_WOLFSSL_LIB",),
+        reloadable=False,
+        doc="The wolfSSL library file tried first; unset searches the trusted lib dirs.",
+    ),
+    Key[str](
+        name="crypto.wolfssl_sha256",
+        parse=_lower,
+        default=None,
+        validate=_sha256_hex,
+        env_names=("M3_WOLFSSL_SHA256",),
+        reloadable=False,
+        doc="Integrity pin for the wolfSSL library; checked when wolfSSL initialises.",
+    ),
     # ── [mcp] / [tools] / [dispatch] ──
-    _flag("mcp.allow_destructive", ("M3_MCP_PROXY_ALLOW_DESTRUCTIVE", "MCP_PROXY_ALLOW_DESTRUCTIVE"), False,
-          "Let proxies run catalog tools marked not default-allowed. Off: they are blocked.",
-          legacy=lambda raw: (raw or "").lower() in ("1", "true", "yes")),
+    _flag(
+        "mcp.allow_destructive",
+        ("M3_MCP_PROXY_ALLOW_DESTRUCTIVE", "MCP_PROXY_ALLOW_DESTRUCTIVE"),
+        False,
+        "Let proxies run catalog tools marked not default-allowed. Off: they are blocked.",
+        legacy=lambda raw: (raw or "").lower() in ("1", "true", "yes"),
+    ),
     _str("mcp.proxy_host", ("M3_MCP_PROXY_HOST", "MCP_PROXY_HOST"), "127.0.0.1", "Address the MCP proxy binds."),
-    _flag("tools.lazy", ("M3_TOOLS_LAZY",), True, "Load MCP tool domains on demand.",
-          legacy=lambda raw: raw != "0"),  # the bridge's reading (memory_bridge.py:265)
-    Key[float](name="tools.timeout_s", parse=parse_float, default=None,
-               env_names=("M3_TOOL_TIMEOUT",), reloadable=False,
-               doc="Seconds a tool call may take; 0 or less disables. Unset: each tool's own, else 30."),
-    Key[str](name="dispatch.mode", parse=_lower, default="separate", validate=one_of("separate", "integrated"),
-             env_names=("M3_DISPATCH_MODE",), reloadable=False,
-             doc="Dispatch queue store: separate (its own) or integrated (the main store). "
-                 "(Today an unknown value acts as separate; it is now an error.)"),
+    _flag(
+        "tools.lazy", ("M3_TOOLS_LAZY",), True, "Load MCP tool domains on demand.", legacy=lambda raw: raw != "0"
+    ),  # the bridge's reading (memory_bridge.py:265)
+    Key[float](
+        name="tools.timeout_s",
+        parse=parse_float,
+        default=None,
+        env_names=("M3_TOOL_TIMEOUT",),
+        reloadable=False,
+        doc="Seconds a tool call may take; 0 or less disables. Unset: each tool's own, else 30.",
+    ),
+    Key[str](
+        name="dispatch.mode",
+        parse=_lower,
+        default="separate",
+        validate=one_of("separate", "integrated"),
+        env_names=("M3_DISPATCH_MODE",),
+        reloadable=False,
+        doc="Dispatch queue store: separate (its own) or integrated (the main store). "
+        "(Today an unknown value acts as separate; it is now an error.)",
+    ),
     # ── [memory] safety ──
-    _flag("memory.enforce_agent_isolation", ("M3_ENFORCE_AGENT_ISOLATION",), False,
-          "Restrict a search to the requesting agent's memories."),
-    _flag("memory.disable_auto_activation", ("M3_DISABLE_AUTO_ACTIVATION",), False,
-          "Never switch features on automatically from data volume (an explicit flag still wins).",
-          legacy=lambda raw: raw.strip().lower() in ("1", "true", "yes", "on")),
+    _flag(
+        "memory.enforce_agent_isolation",
+        ("M3_ENFORCE_AGENT_ISOLATION",),
+        False,
+        "Restrict a search to the requesting agent's memories.",
+    ),
+    _flag(
+        "memory.disable_auto_activation",
+        ("M3_DISABLE_AUTO_ACTIVATION",),
+        False,
+        "Never switch features on automatically from data volume (an explicit flag still wins).",
+        legacy=lambda raw: raw.strip().lower() in ("1", "true", "yes", "on"),
+    ),
     # ── [identity] ──
-    _str("identity.node_id", ("M3_NODE_ID",), None,
-         "Sync node identity. Default: the host name (upper-cased on Windows)."),
-    _str("identity.origin_device", ("M3_ORIGIN_DEVICE", "ORIGIN_DEVICE"), None,
-         "Device name stamped on memories. Default: the host name."),
+    _str(
+        "identity.node_id",
+        ("M3_NODE_ID",),
+        None,
+        "Sync node identity. Default: the host name (upper-cased on Windows).",
+    ),
+    _str(
+        "identity.origin_device",
+        ("M3_ORIGIN_DEVICE", "ORIGIN_DEVICE"),
+        None,
+        "Device name stamped on memories. Default: the host name.",
+    ),
     # ── [integrations.hermes] (a $HERMES_HOME/m3.json wins today) ──
     _str("integrations.hermes.agent_id", ("M3_AGENT_ID",), "hermes", "Agent id the Hermes plugin writes as."),
     _str("integrations.hermes.user_id", ("M3_USER_ID",), "hermes-user", "User id the Hermes plugin writes as."),
-    Key(name="integrations.hermes.home", parse=parse_path, default=None, env_names=("M3_HERMES_HOME",),
-        reloadable=False, doc="Hermes Agent's home; unset uses HERMES_HOME, then probed locations."),
+    Key(
+        name="integrations.hermes.home",
+        parse=parse_path,
+        default=None,
+        env_names=("M3_HERMES_HOME",),
+        reloadable=False,
+        doc="Hermes Agent's home; unset uses HERMES_HOME, then probed locations.",
+    ),
     # ── [dashboard] / [services] ──
     _str("dashboard.host", ("M3_DASHBOARD_HOST",), "127.0.0.1", "Address the dashboard binds."),
     _int("dashboard.port", ("M3_DASHBOARD_PORT",), 8088, "Dashboard port.", hi=65535),
-    _flag("dashboard.llm_smoke", ("M3_DASHBOARD_LLM_SMOKE",), False,
-          "Let the dashboard send a small test prompt to each LLM endpoint.", legacy=_yes),
-    _float("dashboard.llm_smoke_ttl_s", ("M3_DASHBOARD_LLM_SMOKE_TTL_S",), 900.0,
-           "Seconds an LLM smoke result is cached."),
-    _float("dashboard.llm_block_ttl_s", ("M3_DASHBOARD_LLM_BLOCK_TTL_S",), 45.0,
-           "Seconds an endpoint that failed the smoke test is skipped."),
-    _str("services.macbook_status_host", ("M3_MACBOOK_STATUS_HOST", "MACBOOK_STATUS_HOST"), "127.0.0.1",
-         "Address the macbook status server binds."),
+    _flag(
+        "dashboard.llm_smoke",
+        ("M3_DASHBOARD_LLM_SMOKE",),
+        False,
+        "Let the dashboard send a small test prompt to each LLM endpoint.",
+        legacy=_yes,
+    ),
+    _float(
+        "dashboard.llm_smoke_ttl_s", ("M3_DASHBOARD_LLM_SMOKE_TTL_S",), 900.0, "Seconds an LLM smoke result is cached."
+    ),
+    _float(
+        "dashboard.llm_block_ttl_s",
+        ("M3_DASHBOARD_LLM_BLOCK_TTL_S",),
+        45.0,
+        "Seconds an endpoint that failed the smoke test is skipped.",
+    ),
+    _str(
+        "services.macbook_status_host",
+        ("M3_MACBOOK_STATUS_HOST", "MACBOOK_STATUS_HOST"),
+        "127.0.0.1",
+        "Address the macbook status server binds.",
+    ),
     # ── [governor] / [gpu] / [log] / [context] ──
-    _float("governor.config_ttl_s", ("M3_GOVERNOR_CFG_TTL",), 5.0,
-           "Seconds between checks of .governor_config.json for changes."),
+    _float(
+        "governor.config_ttl_s",
+        ("M3_GOVERNOR_CFG_TTL",),
+        5.0,
+        "Seconds between checks of .governor_config.json for changes.",
+    ),
     _int("loop.throttled_limit", ("M3_GOVERNOR_THROTTLED_LIMIT",), 1, "Items per loop pass under THROTTLED load."),
     # Thresholds read through governor wrappers the env gate could not see until
     # 2026-10-09 (governor.py:137, :176). Today out-of-range values are CLAMPED
     # silently; the registry rejects them (intended-change list). The file wins today.
-    _int("governor.initial_threshold", ("M3_GOVERNOR_INITIAL_THRESHOLD",), 85,
-         "Load percent at which the governor starts throttling.", lo=10, hi=99),
-    _int("governor.limit_threshold", ("M3_GOVERNOR_LIMIT_THRESHOLD",), 95,
-         "Load percent at which the governor halts background work.", lo=20, hi=100),
-    _float("governor.ram_halt_gb", ("M3_GOVERNOR_RAM_HALT_GB",), 1.0,
-           "Free RAM (GB) below which background work halts."),
-    _float("governor.ram_throttle_gb", ("M3_GOVERNOR_RAM_THROTTLE_GB",), 4.0,
-           "Free RAM (GB) below which background work throttles."),
-    _float("governor.ram_throttle_idle_gb", ("M3_GOVERNOR_RAM_THROTTLE_IDLE_GB",), 2.0,
-           "Free RAM (GB) below which work throttles while the user is idle."),
+    _int(
+        "governor.initial_threshold",
+        ("M3_GOVERNOR_INITIAL_THRESHOLD",),
+        85,
+        "Load percent at which the governor starts throttling.",
+        lo=10,
+        hi=99,
+    ),
+    _int(
+        "governor.limit_threshold",
+        ("M3_GOVERNOR_LIMIT_THRESHOLD",),
+        95,
+        "Load percent at which the governor halts background work.",
+        lo=20,
+        hi=100,
+    ),
+    _float(
+        "governor.ram_halt_gb", ("M3_GOVERNOR_RAM_HALT_GB",), 1.0, "Free RAM (GB) below which background work halts."
+    ),
+    _float(
+        "governor.ram_throttle_gb",
+        ("M3_GOVERNOR_RAM_THROTTLE_GB",),
+        4.0,
+        "Free RAM (GB) below which background work throttles.",
+    ),
+    _float(
+        "governor.ram_throttle_idle_gb",
+        ("M3_GOVERNOR_RAM_THROTTLE_IDLE_GB",),
+        2.0,
+        "Free RAM (GB) below which work throttles while the user is idle.",
+    ),
     _flag("gpu.probe_disabled", ("M3_GPU_PROBE_DISABLE",), False, "Do not probe GPU load.", legacy=_yes),
     _float("gpu.probe_ttl_s", ("M3_GPU_PROBE_TTL",), 60.0, "Seconds a GPU probe result is cached."),
-    _int("log.max_bytes", ("M3_LOG_MAX_BYTES",), 64 * 1024 * 1024,
-         "Task log size that triggers rotation; 0 disables rotation.", lo=0),
-    Key(name="log.task_log_file", parse=parse_path, default=None, env_names=("M3_TASK_LOG_FILE",),
-        reloadable=False, doc="A scheduled task's log file. Default: <logs root>/<task>.log."),
+    _int(
+        "log.max_bytes",
+        ("M3_LOG_MAX_BYTES",),
+        64 * 1024 * 1024,
+        "Task log size that triggers rotation; 0 disables rotation.",
+        lo=0,
+    ),
+    Key(
+        name="log.task_log_file",
+        parse=parse_path,
+        default=None,
+        env_names=("M3_TASK_LOG_FILE",),
+        reloadable=False,
+        doc="A scheduled task's log file. Default: <logs root>/<task>.log.",
+    ),
     _int("context.cache_size", ("M3_CONTEXT_CACHE_SIZE",), 16, "M3Context instances kept per process.", lo=2),
     # ── [install] ──
-    _flag("install.auto_install", ("M3_AUTO_INSTALL",), True,
-          "Let `m3` install a missing payload on first run.", legacy=lambda raw: raw.strip() != "0"),
-    _flag("install.no_model_download", ("M3_NO_MODEL_DOWNLOAD",), False,
-          "Never download embedding model weights."),
-    _int("install.os_install_timeout_s", ("M3_OS_INSTALL_TIMEOUT_S",), 180,
-         "Seconds an unattended OS package install may take."),
+    _flag(
+        "install.auto_install",
+        ("M3_AUTO_INSTALL",),
+        True,
+        "Let `m3` install a missing payload on first run.",
+        legacy=lambda raw: raw.strip() != "0",
+    ),
+    _flag("install.no_model_download", ("M3_NO_MODEL_DOWNLOAD",), False, "Never download embedding model weights."),
+    _int(
+        "install.os_install_timeout_s",
+        ("M3_OS_INSTALL_TIMEOUT_S",),
+        180,
+        "Seconds an unattended OS package install may take.",
+    ),
     # ── [sync]: pg_sync to the warehouse ──
     _int("sync.timeout_s", ("M3_PG_SYNC_TIMEOUT",), 600, "Seconds one warehouse sync may take."),
-    _str("sync.warehouse_host", ("M3_POSTGRES_SERVER", "POSTGRES_SERVER"), None,
-         "Warehouse host. Default: sync.target_ip, then the warehouse DSN's host."),
+    _str(
+        "sync.warehouse_host",
+        ("M3_POSTGRES_SERVER", "POSTGRES_SERVER"),
+        None,
+        "Warehouse host. Default: sync.target_ip, then the warehouse DSN's host.",
+    ),
     _str("sync.target_ip", ("M3_SYNC_TARGET_IP", "SYNC_TARGET_IP"), None, "Warehouse address (legacy form)."),
 ]

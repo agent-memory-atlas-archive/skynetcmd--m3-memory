@@ -8,6 +8,7 @@ guarantee regresses, rather than because it exercises a line.
 Hermetic (§3): no network, no live server, no OS keyring, no vault. Secret
 resolution is stubbed; nothing here reads or writes real credentials.
 """
+
 from __future__ import annotations
 
 import pathlib
@@ -361,9 +362,7 @@ class TestFailOpenCanary(unittest.TestCase):
         from starlette.testclient import TestClient
 
         mcp = FastMCP("test-open")
-        mcp_compat.set_transport_security(mcp, TransportSecuritySettings(
-            enable_dns_rebinding_protection=False
-        ))
+        mcp_compat.set_transport_security(mcp, TransportSecuritySettings(enable_dns_rebinding_protection=False))
         with TestClient(mcp_compat.http_app(mcp)) as c:
             r = c.post(
                 "/mcp",
@@ -429,13 +428,10 @@ class TestPortability(unittest.TestCase):
 
         src = (_BIN / "m3_http_auth.py").read_text(encoding="utf-8")
         fn = next(
-            n for n in ast.walk(ast.parse(src))
-            if isinstance(n, ast.FunctionDef) and n.name == "_vault_row_exists"
+            n for n in ast.walk(ast.parse(src)) if isinstance(n, ast.FunctionDef) and n.name == "_vault_row_exists"
         )
         calls = {
-            ast.unparse(n.func)
-            for n in ast.walk(fn)
-            if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+            ast.unparse(n.func) for n in ast.walk(fn) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
         }
         self.assertNotIn("os.path.exists", calls)
         self.assertNotIn("pathlib.Path.exists", calls)
@@ -522,8 +518,13 @@ class TestCliSurface(unittest.TestCase):
         import argparse
 
         base = {
-            "host": "127.0.0.1", "port": 8080, "path": "/mcp", "public_host": None,
-            "generate_token": False, "show_token": False, "force": False,
+            "host": "127.0.0.1",
+            "port": 8080,
+            "path": "/mcp",
+            "public_host": None,
+            "generate_token": False,
+            "show_token": False,
+            "force": False,
         }
         base.update(kw)
         return argparse.Namespace(**base)
@@ -698,15 +699,13 @@ class TestMcpImportSeam(unittest.TestCase):
                 # Strip comment lines so prose ABOUT the old import (e.g. the
                 # note in news_fetcher.py explaining why it was removed) is not
                 # mistaken for the import itself.
-                code = "\n".join(
-                    ln for ln in text.splitlines() if not ln.lstrip().startswith("#")
-                )
+                code = "\n".join(ln for ln in text.splitlines() if not ln.lstrip().startswith("#"))
                 if pattern.search(code):
                     offenders.append(rel)
 
         self.assertEqual(
-            offenders, [],
+            offenders,
+            [],
             "these import an mcp server class directly instead of via "
-            "`from mcp_compat import FastMCP`; they will fail on mcp 2.x: "
-            + ", ".join(sorted(offenders)),
+            "`from mcp_compat import FastMCP`; they will fail on mcp 2.x: " + ", ".join(sorted(offenders)),
         )

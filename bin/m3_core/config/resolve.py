@@ -13,6 +13,7 @@ still hold an old value; the shadowed env name is reported, never silently
 dropped. At N+3 the third rung goes. Secrets are not resolved here: their
 chain (``m3_core.secret_store``) touches the keyring, so they resolve on demand.
 """
+
 from __future__ import annotations
 
 import logging
@@ -31,9 +32,9 @@ ORIGIN_DEFAULT = "default"
 @dataclass(frozen=True, slots=True, kw_only=True)
 class Resolved:
     value: ConfigValue | None
-    origin: str                      # "env:NAME" | "file:<path> [t].k" | "env-legacy:NAME" | "default"
-    shadowed: tuple[str, ...] = ()   # env names set but outranked by the file
-    env_name: str | None = None      # the env / .env name that supplied the value, if one did
+    origin: str  # "env:NAME" | "file:<path> [t].k" | "env-legacy:NAME" | "default"
+    shadowed: tuple[str, ...] = ()  # env names set but outranked by the file
+    env_name: str | None = None  # the env / .env name that supplied the value, if one did
 
 
 class ConfigEnvError(ValueError):
@@ -70,11 +71,11 @@ def _from_env(key: Key, name: str, raw: str, where: str = "environment") -> Conf
         return key.coerce_env_value(raw)
     except ConfigValueError as e:
         # The value is shown: config, never a secret (secrets resolve elsewhere).
-        fix = (f"{name} (fix or unset it)" if where == "environment"
-               else f"{name} in {where} (fix or remove the line)")
+        fix = f"{name} (fix or unset it)" if where == "environment" else f"{name} in {where} (fix or remove the line)"
         raise ConfigEnvError(
             f"observed: {where} {name}={raw!r} for setting {show_key(key.name)}: {e}. "
-            f"inspect: {fix}; `m3 config show --origin`") from None
+            f"inspect: {fix}; `m3 config show --origin`"
+        ) from None
 
 
 _LEGACY_NOTED: set[tuple[str, str]] = set()
@@ -92,13 +93,18 @@ def _note_legacy_difference(key: Key, name: str, raw: str, value: ConfigValue) -
         return
     if old != value:
         _LEGACY_NOTED.add((name, raw))
-        logger.warning("m3 config: %s=%r now reads as %r for %s (it read as %r before release N; "
-                       "set it in m3_config.toml or use true/false)", name, raw, value,
-                       show_key(key.name), old)
+        logger.warning(
+            "m3 config: %s=%r now reads as %r for %s (it read as %r before release N; "
+            "set it in m3_config.toml or use true/false)",
+            name,
+            raw,
+            value,
+            show_key(key.name),
+            old,
+        )
 
 
-def resolve_key(key: Key, loaded: LoadedFile, environ: Mapping[str, str],
-                dotenv: DotEnv = NO_DOTENV) -> Resolved:
+def resolve_key(key: Key, loaded: LoadedFile, environ: Mapping[str, str], dotenv: DotEnv = NO_DOTENV) -> Resolved:
     if key.klass is not KeyClass.CONFIG:
         # A contract violation, not a diagnostic: secrets resolve in secret_store.
         raise ValueError(f"{key.name} is a {key.klass} key; secret_store resolves secrets, not resolve_key")
@@ -110,14 +116,14 @@ def resolve_key(key: Key, loaded: LoadedFile, environ: Mapping[str, str],
         shadowed = tuple(n for n in key.env_names if (environ.get(n) or "").strip())
         if dot is not None:
             shadowed += (f"{dot[0]} (in {dotenv.path})",)
-        return Resolved(value=loaded.values[key.name],
-                        origin=f"file:{loaded.location.file} {show_key(key.name)}", shadowed=shadowed)
+        return Resolved(
+            value=loaded.values[key.name], origin=f"file:{loaded.location.file} {show_key(key.name)}", shadowed=shadowed
+        )
     if hit is not None:
         value = _from_env(key, *hit)
         _note_legacy_difference(key, *hit, value)
         shadowed = (f"{dot[0]} (in {dotenv.path})",) if dot is not None else ()
-        return Resolved(value=value, origin=f"env-legacy:{hit[0]}", shadowed=shadowed,
-                        env_name=hit[0])
+        return Resolved(value=value, origin=f"env-legacy:{hit[0]}", shadowed=shadowed, env_name=hit[0])
     if dot is not None:  # the lowest source: below the file and below real env
         value = _from_env(key, *dot, where=f".env {dotenv.path}")
         _note_legacy_difference(key, *dot, value)
@@ -128,8 +134,9 @@ def resolve_key(key: Key, loaded: LoadedFile, environ: Mapping[str, str],
     return Resolved(value=default, origin=ORIGIN_DEFAULT)
 
 
-def resolve_all(registry: Registry, loaded: LoadedFile, environ: Mapping[str, str],
-                dotenv: DotEnv = NO_DOTENV) -> dict[str, Resolved]:
+def resolve_all(
+    registry: Registry, loaded: LoadedFile, environ: Mapping[str, str], dotenv: DotEnv = NO_DOTENV
+) -> dict[str, Resolved]:
     """Every CONFIG key, or ``ConfigEnvErrors`` naming EVERY bad env value."""
     out: dict[str, Resolved] = {}
     errors: list[Exception] = []

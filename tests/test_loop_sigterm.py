@@ -23,6 +23,7 @@ if BIN not in sys.path:
 
 def _install_like_the_loop(handler):
     """Mirror main_loop's handler-installation block."""
+
     async def _run():
         installed = {}
         loop = asyncio.get_running_loop()
@@ -37,6 +38,7 @@ def _install_like_the_loop(handler):
                 except (OSError, ValueError, AttributeError):
                     installed[sig.name] = None
         return installed
+
     return asyncio.run(_run())
 
 
@@ -61,8 +63,7 @@ def test_handler_only_sets_a_flag():
     assert "_STOP_EVENT.set()" in src
     for forbidden in ("await ", "loop.", "asyncio."):
         assert forbidden not in src, (
-            f"_signal_handler touches {forbidden!r}; unsafe from a "
-            "signal.signal handler on Windows"
+            f"_signal_handler touches {forbidden!r}; unsafe from a signal.signal handler on Windows"
         )
 
 

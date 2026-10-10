@@ -27,6 +27,7 @@ Public API:
     resolve_entity_uuid(name) -> tuple[str, bool]
         Returns (entity_uuid, was_created). Used by ad-hoc callers.
 """
+
 from __future__ import annotations
 
 import json
@@ -82,6 +83,7 @@ def _memory_db(path: str | None = None) -> Iterator[sqlite3.Connection]:
 
     # Default: the core memory store via the seam — correct on SQLite AND PG.
     from memory.db import _db as _seam_db
+
     with _seam_db() as conn:
         yield conn
 
@@ -96,11 +98,10 @@ def _normalize(name: str) -> str:
 def _find_existing(conn: sqlite3.Connection, name: str) -> str | None:
     """Case-insensitive exact match on canonical_name. Returns entity_id or None."""
     from memory.backends import dialect as _dialect
+
     _d = _dialect()
     row = conn.execute(
-        f"SELECT id FROM entities "
-        f"WHERE {_d.ci_equals('canonical_name', _d.param())} "
-        f"LIMIT 1",
+        f"SELECT id FROM entities WHERE {_d.ci_equals('canonical_name', _d.param())} LIMIT 1",
         (_normalize(name),),
     ).fetchone()
     return row[0] if row else None
@@ -116,10 +117,10 @@ def _create_provisional(conn: sqlite3.Connection, name: str) -> str:
     }
     attrs_json = json.dumps(attrs)
     import hashlib as _h
-    content_hash = _h.sha256(
-        f"{name}|unknown|{attrs_json}".encode(), usedforsecurity=False
-    ).hexdigest()
+
+    content_hash = _h.sha256(f"{name}|unknown|{attrs_json}".encode(), usedforsecurity=False).hexdigest()
     from memory.backends import dialect as _dialect
+
     _d = _dialect()
     try:
         conn.execute(
@@ -212,6 +213,7 @@ def link_facts_to_entities(
         return
 
     from memory.backends import dialect as _dialect
+
     _d = _dialect()
     try:
         with _memory_db() as mem:
@@ -244,8 +246,7 @@ def link_facts_to_entities(
         # No memory store reachable → skip linking entirely. Facts still get
         # written; they just have no entity_refs. (On PG the seam is always
         # reachable; this covers the SQLite no-file case.)
-        logger.debug("memory store unavailable; skipping entity linking for %d facts",
-                     len(fact_uuids))
+        logger.debug("memory store unavailable; skipping entity linking for %d facts", len(fact_uuids))
         return
 
     # Write fact_entity_refs to files.db.
@@ -259,6 +260,7 @@ def link_facts_to_entities(
             seen.add(ent_uuid)
             try:
                 from .config import files_table
+
                 _fer = files_table("fact_entity_refs")
                 files_conn.execute(
                     f"{_d.insert_or_ignore()} {_fer}(fact, entity_uuid, confidence) "

@@ -4,6 +4,7 @@ Three copies of "is this PID alive?" disagreed: one read another user's process
 as dead, one matched PIDs by substring (12 matched a running 1234). These tests
 pin the owner's contract on every OS and fail if a copy reappears.
 """
+
 from __future__ import annotations
 
 import os
@@ -46,16 +47,20 @@ def test_an_exited_process_is_not_alive():
 def _fake_posix(monkeypatch, exc):
     def kill(pid, sig):
         raise exc
+
     monkeypatch.setattr(process, "os", types.SimpleNamespace(name="posix", kill=kill))
     simulate_os(monkeypatch, "Linux")  # the branch is chosen by the OS seam
 
 
-@pytest.mark.parametrize("exc, expected", [
-    (ProcessLookupError(), False),   # no such process
-    (PermissionError(), True),       # another user's process EXISTS
-    (OSError(22, "EINVAL"), True),   # cannot disprove existence
-    (OverflowError(), True),
-])
+@pytest.mark.parametrize(
+    "exc, expected",
+    [
+        (ProcessLookupError(), False),  # no such process
+        (PermissionError(), True),  # another user's process EXISTS
+        (OSError(22, "EINVAL"), True),  # cannot disprove existence
+        (OverflowError(), True),
+    ],
+)
 def test_posix_branch_contract_on_every_os(monkeypatch, exc, expected):
     """Runs the POSIX branch even on Windows. PermissionError -> dead was the
     version_drift defect: a live server owned by another user read as gone."""
@@ -85,12 +90,9 @@ def test_live_owner_without_a_record_falls_back_to_liveness():
 
 def test_live_owner_uses_injected_probes():
     """m3_halt passes its own (patchable) probes; they must be the ones used."""
-    assert process.pid_is_live_owner(
-        1, 100.0, alive=lambda p: True, create_time=lambda p: 100.05) is True
-    assert process.pid_is_live_owner(
-        1, 100.0, alive=lambda p: True, create_time=lambda p: 105.0) is False
-    assert process.pid_is_live_owner(
-        1, 100.0, alive=lambda p: False, create_time=lambda p: 100.0) is False
+    assert process.pid_is_live_owner(1, 100.0, alive=lambda p: True, create_time=lambda p: 100.05) is True
+    assert process.pid_is_live_owner(1, 100.0, alive=lambda p: True, create_time=lambda p: 105.0) is False
+    assert process.pid_is_live_owner(1, 100.0, alive=lambda p: False, create_time=lambda p: 100.0) is False
 
 
 def test_former_copies_delegate_to_the_owner():
@@ -98,8 +100,7 @@ def test_former_copies_delegate_to_the_owner():
     import version_drift
     from m3_core import locking
 
-    for probe in (version_drift._pid_is_alive, locking._pid_alive, m3_halt._pid_is_alive,
-                  m3_halt.pid_is_alive):
+    for probe in (version_drift._pid_is_alive, locking._pid_alive, m3_halt._pid_is_alive, m3_halt.pid_is_alive):
         assert probe(os.getpid()) is True
         assert probe(0) is False
 
@@ -123,25 +124,29 @@ def test_no_second_pid_probe_exists():
 
 # -- launch-chain classification: a pure function, so a table, no patching ----
 
-@pytest.mark.parametrize("name, cmdline, own", [
-    ("m3.exe", ["m3"], True),                                   # pipx launcher (Windows)
-    ("m3", ["/home/u/.local/bin/m3", "serve"], True),           # launcher (POSIX)
-    ("python.exe", ["python.exe", "C:/u/.local/bin/m3.exe"], True),
-    ("python3", ["python3", "-m", "m3_memory.cli", "mcp"], True),
-    ("python3", ["python3", "bin/memory_bridge.py"], True),
-    ("cmd.exe", ["cmd", "/c", "m3"], True),                     # client wraps in a shell
-    ("bash", ["bash", "-c", "m3 agent agent_list"], True),
-    ("claude.exe", ["claude.exe", "--x"], False),               # the agent's client
-    ("python3", ["python3", "-m", "aider"], False),             # a Python-based client
-    ("bash", ["bash", "-l"], False),                            # an interactive shell
-    ("node", ["node", "gemini.js"], False),
-    ("python3", ["python3", "-m", "m3_memory"], True),
-    ("python.exe", ["python.exe", "C:/v/Lib/site-packages/m3_memory/cli.py"], True),
-    # Naming a file that merely CONTAINS an entry-point word is not running m3.
-    ("python.exe", ["python.exe", "-m", "pytest", "tests/test_memory_bridge_tools.py"], False),
-    ("bash", ["bash", "-c", "pytest tests/test_m3_memory_cli.py"], False),
-    ("python3", ["python3", "notes/m3_memory_ideas.py"], False),
-])
+
+@pytest.mark.parametrize(
+    "name, cmdline, own",
+    [
+        ("m3.exe", ["m3"], True),  # pipx launcher (Windows)
+        ("m3", ["/home/u/.local/bin/m3", "serve"], True),  # launcher (POSIX)
+        ("python.exe", ["python.exe", "C:/u/.local/bin/m3.exe"], True),
+        ("python3", ["python3", "-m", "m3_memory.cli", "mcp"], True),
+        ("python3", ["python3", "bin/memory_bridge.py"], True),
+        ("cmd.exe", ["cmd", "/c", "m3"], True),  # client wraps in a shell
+        ("bash", ["bash", "-c", "m3 agent agent_list"], True),
+        ("claude.exe", ["claude.exe", "--x"], False),  # the agent's client
+        ("python3", ["python3", "-m", "aider"], False),  # a Python-based client
+        ("bash", ["bash", "-l"], False),  # an interactive shell
+        ("node", ["node", "gemini.js"], False),
+        ("python3", ["python3", "-m", "m3_memory"], True),
+        ("python.exe", ["python.exe", "C:/v/Lib/site-packages/m3_memory/cli.py"], True),
+        # Naming a file that merely CONTAINS an entry-point word is not running m3.
+        ("python.exe", ["python.exe", "-m", "pytest", "tests/test_memory_bridge_tools.py"], False),
+        ("bash", ["bash", "-c", "pytest tests/test_m3_memory_cli.py"], False),
+        ("python3", ["python3", "notes/m3_memory_ideas.py"], False),
+    ],
+)
 def test_launch_chain_classification(name, cmdline, own):
     assert process.is_m3_launch_step(name, cmdline) is own
 
@@ -149,12 +154,15 @@ def test_launch_chain_classification(name, cmdline, own):
 _VENV_ARGV = ["C:/v/Scripts/python.exe", "-c", "print(1)"]
 
 
-@pytest.mark.parametrize("name, cmdline, below, redirector", [
-    ("python.exe", _VENV_ARGV, _VENV_ARGV, True),            # the Windows venv launcher
-    ("python.exe", _VENV_ARGV, [*_VENV_ARGV, "x"], False),   # different argv: a real parent
-    ("python.exe", _VENV_ARGV, None, False),                 # nothing below to compare
-    ("claude.exe", ["claude.exe"], ["claude.exe"], False),   # not a Python launcher
-])
+@pytest.mark.parametrize(
+    "name, cmdline, below, redirector",
+    [
+        ("python.exe", _VENV_ARGV, _VENV_ARGV, True),  # the Windows venv launcher
+        ("python.exe", _VENV_ARGV, [*_VENV_ARGV, "x"], False),  # different argv: a real parent
+        ("python.exe", _VENV_ARGV, None, False),  # nothing below to compare
+        ("claude.exe", ["claude.exe"], ["claude.exe"], False),  # not a Python launcher
+    ],
+)
 def test_venv_redirector_classification(name, cmdline, below, redirector):
     """The venv launcher re-runs its own argv as a child (measured, argv[0]
     included), so it is recognised structurally, not by an m3 marker."""
@@ -163,9 +171,11 @@ def test_venv_redirector_classification(name, cmdline, below, redirector):
 
 # -- agent_client against a REAL process tree (same mechanism on every OS) ----
 
-_CHILD = ("import os,sys; sys.path.insert(0, {bin!r}); "
-          "from m3_core.process import agent_client; c = agent_client(); "
-          "print(c.pid if c else 'NONE')")
+_CHILD = (
+    "import os,sys; sys.path.insert(0, {bin!r}); "
+    "from m3_core.process import agent_client; c = agent_client(); "
+    "print(c.pid if c else 'NONE')"
+)
 
 
 def _run_child(via_m3_shell: bool) -> str:

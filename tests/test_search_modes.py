@@ -4,6 +4,7 @@ The memory search schemas offered "keyword" while memory_search_scored_impl
 understood only "fts5", so a client choosing keyword search, as the schema
 offered, always got an empty result; an unknown mode was equally silent.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -22,8 +23,9 @@ def lexical_row():
 
     mc = importlib.import_module("memory_core")
     word = f"zq{uuid.uuid4().hex[:12]}"
-    out = asyncio.run(mc.memory_write_impl(type="note", content=f"the server listens on {word}",
-                                           title=f"server {word}", embed=False))
+    out = asyncio.run(
+        mc.memory_write_impl(type="note", content=f"the server listens on {word}", title=f"server {word}", embed=False)
+    )
     mid = re.search(r"[0-9a-f-]{36}", str(out)).group(0)
     yield word, mid
     mc.memory_delete_impl(mid, hard=True)
@@ -78,9 +80,11 @@ def test_chatlog_search_schema_offers_only_what_it_runs():
 
 def test_every_tool_schema_offers_exactly_the_public_modes():
     cat = importlib.import_module("mcp_tool_catalog")
-    offering = {t.name: t.parameters["properties"]["search_mode"].get("enum")
-                for t in cat.TOOLS if "search_mode" in t.parameters.get("properties", {})
-                and not t.name.startswith("chatlog_")}
+    offering = {
+        t.name: t.parameters["properties"]["search_mode"].get("enum")
+        for t in cat.TOOLS
+        if "search_mode" in t.parameters.get("properties", {}) and not t.name.startswith("chatlog_")
+    }
     assert offering, "no tool takes search_mode"
     wrong = {name: enum for name, enum in offering.items() if enum != list(PUBLIC_SEARCH_MODES)}
     assert not wrong, f"schema enum differs from m3_core.search_modes: {wrong}"

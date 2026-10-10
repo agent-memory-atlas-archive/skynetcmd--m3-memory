@@ -5,6 +5,7 @@ and the stale-core restart both sat in that report section under `if
 args.fix:`, so neither ever ran — the upgrade's `doctor --fix` step could not
 restart a server left on a replaced core, which is what it was added for.
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -14,8 +15,7 @@ import sys
 import pytest
 
 _BIN = pathlib.Path(__file__).resolve().parent.parent / "bin"
-_SKIP = ["--skip-shared-embedder", "--skip-dashboard", "--skip-environment",
-         "--skip-agent-paths", "--skip-claude-mcp"]
+_SKIP = ["--skip-shared-embedder", "--skip-dashboard", "--skip-environment", "--skip-agent-paths", "--skip-claude-mcp"]
 
 
 def _load():
@@ -31,6 +31,7 @@ def _load():
 def test_fix_reaches_the_embed_server_repairs(monkeypatch, extra, expect_called):
     md = _load()
     import importlib
+
     doctor_pkg = importlib.import_module("memory.doctor")
 
     async def _fix_impl(dry_run=False):

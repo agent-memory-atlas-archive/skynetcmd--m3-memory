@@ -10,6 +10,7 @@ This module imports from external libs (`embedding_utils`, optional
 numpy) but NEVER from other m3-memory modules — keeps the dependency
 graph clean and circular-import-free.
 """
+
 from __future__ import annotations
 
 from crypto_provider import get_sha256 as _sha256_hex_py
@@ -30,7 +31,14 @@ else:
 
 from . import config
 
-__all__ = ["_batch_cosine", "_check_content_safety", "_cosine", "_cosine_batch_maxpool_packed", "_cosine_batch_packed", "sha256_hex"]
+__all__ = [
+    "_batch_cosine",
+    "_check_content_safety",
+    "_cosine",
+    "_cosine_batch_maxpool_packed",
+    "_cosine_batch_packed",
+    "sha256_hex",
+]
 import logging
 import re
 
@@ -52,8 +60,7 @@ _POISON_LABELS = {
     r"<script\b": "HTML script tag (stored-XSS risk in any UI that renders this)",
     r"javascript:": "javascript: URI (stored-XSS risk)",
     r"__import__|\bexec\s*\(|\beval\s*\(": "Python code-execution token",
-    r"(?:ignore|disregard)\s+(?:all\s+)?(?:previous|prior)\s+instructions":
-        "prompt-injection phrase (downstream enrichment LLMs read this text)",
+    r"(?:ignore|disregard)\s+(?:all\s+)?(?:previous|prior)\s+instructions": "prompt-injection phrase (downstream enrichment LLMs read this text)",
 }
 
 
@@ -93,6 +100,7 @@ def _check_content_safety(content: str) -> str | None:
     try:
         import sqlglot
         from sqlglot.errors import SqlglotError
+
         try:
             parsed = sqlglot.parse(content)
             for expression in parsed:
@@ -113,7 +121,6 @@ def _check_content_safety(content: str) -> str | None:
         pass
 
     return None
-
 
 
 def sha256_hex(data: bytes) -> str:
@@ -164,6 +171,7 @@ def _cosine(v1: list[float], v2: list[float]) -> float:
     if config.m3_core_rs is not None and len(v1) == len(v2):
         return config.m3_core_rs.cosine(v1, v2)
     from embedding_utils import cosine
+
     return cosine(v1, v2)
 
 
@@ -209,6 +217,7 @@ def _cosine_batch_maxpool_packed(anchors, blobs, dim: int) -> list[float]:
     if rs is not None and hasattr(rs, "cosine_batch_maxpool_packed"):
         try:
             import struct
+
             anchor_buf = b"".join(struct.pack(f"{len(a)}f", *a) for a in anchors)
             cand_buf = b"".join(blobs)
             return rs.cosine_batch_maxpool_packed(anchor_buf, cand_buf, dim)

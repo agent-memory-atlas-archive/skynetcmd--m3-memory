@@ -23,6 +23,7 @@ import types
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "bin"))
 
+
 # ── Stub psycopg2 (mirrors test_pg_sync_fk_safety.py) ─────────────────────────
 # Build the stub module unconditionally. The previous `if "psycopg2" not in
 # sys.modules` guard was an ISOLATION BUG: when an earlier test in the same run
@@ -85,16 +86,18 @@ def _force_psycopg2_stub():
         else:
             sys.modules[k] = v
 
+
 # ── Manifest file paths ────────────────────────────────────────────────────────
 MANIFEST_DIR = REPO_ROOT / "config" / "sync_manifests"
-AGENT_MEMORY_MANIFEST  = MANIFEST_DIR / "agent_memory.yaml"
-AGENT_BENCH_MANIFEST   = MANIFEST_DIR / "agent_bench.yaml"
+AGENT_MEMORY_MANIFEST = MANIFEST_DIR / "agent_memory.yaml"
+AGENT_BENCH_MANIFEST = MANIFEST_DIR / "agent_bench.yaml"
 AGENT_BENCH_A_MANIFEST = MANIFEST_DIR / "agent_bench_analysis.yaml"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 1. Manifest YAML parses correctly
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def test_agent_memory_manifest_parses():
     m = pg_sync._load_manifest(str(AGENT_MEMORY_MANIFEST))
@@ -138,6 +141,7 @@ def test_all_manifests_have_required_keys():
 # 2. Composite PK ON CONFLICT clause
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def test_single_pk_conflict_clause():
     clause = pg_sync._build_conflict_clause(["id"])
     assert clause == "(id)"
@@ -157,6 +161,7 @@ def test_triple_pk_conflict_clause():
 # 3. Tombstone with custom column/value (analysis_findings)
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def test_analysis_findings_tombstone_config():
     """Manifest correctly describes status='retracted' as the soft-delete signal."""
     m = pg_sync._load_manifest(str(AGENT_BENCH_A_MANIFEST))
@@ -171,8 +176,10 @@ def test_analysis_findings_tombstone_config():
 # 4. --dry-run doesn't write
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class _RecordingCursor:
     """Cursor that records all execute/executemany calls and never modifies state."""
+
     def __init__(self):
         self.calls = []
         self.description = None
@@ -258,12 +265,14 @@ def test_dry_run_does_not_write_to_sqlite():
 # 5. skip=true excludes table from sync loop
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class _TrackingCursorWrapper:
     """Wraps a sqlite3.Cursor and records all SQL statements executed.
 
     sqlite3.Cursor.execute is read-only in Python 3.14+, so we cannot
     monkey-patch it. Instead we delegate via a wrapper object.
     """
+
     def __init__(self, real_cur: sqlite3.Cursor):
         self._cur = real_cur
         self.executed_sqls: list[str] = []
@@ -307,10 +316,18 @@ def test_skip_flag_excludes_table():
 
     class _NullPgCur:
         description = None
-        def execute(self, sql, params=None): pass
-        def executemany(self, sql, params=None): pass
-        def fetchone(self): return None
-        def fetchall(self): return []
+
+        def execute(self, sql, params=None):
+            pass
+
+        def executemany(self, sql, params=None):
+            pass
+
+        def fetchone(self):
+            return None
+
+        def fetchall(self):
+            return []
 
     m = pg_sync._load_manifest(str(AGENT_BENCH_MANIFEST))
 
@@ -319,15 +336,14 @@ def test_skip_flag_excludes_table():
 
     # No SQL should reference bench_hits
     bench_hits_sqls = [s for s in tracking_cur.executed_sqls if "bench_hits" in s.lower()]
-    assert bench_hits_sqls == [], (
-        f"bench_hits (skip=true) must never be queried; got: {bench_hits_sqls}"
-    )
+    assert bench_hits_sqls == [], f"bench_hits (skip=true) must never be queried; got: {bench_hits_sqls}"
     conn.close()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 6. _sync_table_generic pushes new rows (happy path, SQLite→SQLite stand-in)
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class _SQLitePgCursor:
     """Wraps a real SQLite cursor pretending to be a PG cursor.
@@ -336,6 +352,7 @@ class _SQLitePgCursor:
     this case and route through executemany with a %s→? substitution and
     simplified ON CONFLICT clause.
     """
+
     def __init__(self, conn: sqlite3.Connection):
         self._conn = conn
         self._cur = conn.cursor()
@@ -343,6 +360,7 @@ class _SQLitePgCursor:
 
     def execute(self, sql: str, params=None):
         import re
+
         # Skip PG-only DDL that has no SQLite equivalent
         if any(kw in sql.upper() for kw in ("INFORMATION_SCHEMA", "ALTER TABLE", "CREATE INDEX IF NOT EXISTS")):
             return
@@ -355,13 +373,14 @@ class _SQLitePgCursor:
             # Simplify ON CONFLICT: strip PG-specific WHERE guard
             oc_match = re.search(
                 r"ON CONFLICT\s*\(([^)]+)\)\s*DO\s+UPDATE\s+SET\s+(.+?)(?:WHERE.*)?$",
-                fixed_sql, re.IGNORECASE | re.DOTALL,
+                fixed_sql,
+                re.IGNORECASE | re.DOTALL,
             )
             if oc_match:
                 conflict_cols = oc_match.group(1).strip()
                 set_part = oc_match.group(2).strip()
                 set_part = re.split(r"\bWHERE\b", set_part, maxsplit=1, flags=re.IGNORECASE)[0].strip()
-                insert_part = fixed_sql[:fixed_sql.upper().index("ON CONFLICT")].strip()
+                insert_part = fixed_sql[: fixed_sql.upper().index("ON CONFLICT")].strip()
                 fixed_sql = f"{insert_part} ON CONFLICT ({conflict_cols}) DO UPDATE SET {set_part}"
             self._cur.executemany(fixed_sql, params)
             self.description = self._cur.description
@@ -450,6 +469,7 @@ def test_generic_sync_pulls_rows():
 # 7. Infer manifest path from DB basename
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def test_infer_manifest_path_agent_memory():
     path = pg_sync._infer_manifest_path("/some/dir/agent_memory.db")
     assert path.endswith("agent_memory.yaml"), path
@@ -476,17 +496,13 @@ def test_ensure_watermark_table_creates_missing_table():
     cur = conn.cursor()
 
     # Reproduce the bug precondition: table absent.
-    cur.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='sync_watermarks'"
-    )
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sync_watermarks'")
     assert cur.fetchone() is None
 
     pg_sync._ensure_watermark_table(cur)
     pg_sync._ensure_watermark_table(cur)  # idempotent — second call must not raise
 
-    cur.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='sync_watermarks'"
-    )
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sync_watermarks'")
     assert cur.fetchone() is not None
     conn.close()
 

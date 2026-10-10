@@ -31,6 +31,7 @@ not a JSON LIKE scan (§8), reuse the pool + batch-embed (§4), cluster-growth
 guardrail + type-constraint + false-split bias (lessons #2/#6/#7), structured
 returns + bulk review (§3).
 """
+
 from __future__ import annotations
 
 import logging
@@ -60,7 +61,9 @@ def _route_dialect(explicit_path: str | None):
     """
     from memory.backends import dialect as _active_dialect
     from memory.backends.dialect import dialect_for
+
     return dialect_for("sqlite") if explicit_path is not None else _active_dialect()
+
 
 # ── Tunables (env-overridable, mirrors files_dedup) ──────────────────────────
 AUTO_MERGE_COSINE: float = float(os.environ.get("M3_ENTITY_COALESCE_AUTOMERGE", "0.95"))
@@ -73,12 +76,43 @@ MAX_BLOCK: int = int(os.environ.get("M3_ENTITY_COALESCE_MAX_BLOCK", "400"))
 MAX_CLUSTER: int = int(os.environ.get("M3_ENTITY_COALESCE_MAX_CLUSTER", "12"))
 
 # Stage-0 noise: code keywords / generic nouns that are never useful entities.
-_DENY_NOUNS = frozenset({
-    "null", "true", "false", "none", "status", "result", "value", "default",
-    "database", "table", "row", "column", "key", "id", "name", "type", "data",
-    "error", "count", "max", "min", "sum", "coalesce", "select", "insert",
-    "update", "delete", "where", "from", "join", "index", "query", "field",
-})
+_DENY_NOUNS = frozenset(
+    {
+        "null",
+        "true",
+        "false",
+        "none",
+        "status",
+        "result",
+        "value",
+        "default",
+        "database",
+        "table",
+        "row",
+        "column",
+        "key",
+        "id",
+        "name",
+        "type",
+        "data",
+        "error",
+        "count",
+        "max",
+        "min",
+        "sum",
+        "coalesce",
+        "select",
+        "insert",
+        "update",
+        "delete",
+        "where",
+        "from",
+        "join",
+        "index",
+        "query",
+        "field",
+    }
+)
 # Name patterns that are clearly not entities: prices/numbers, shell/env vars,
 # channel handles, quoted fragments, pure punctuation/symbol starts.
 _NOISE_RE = re.compile(r"""^(?:\$|%|#|['"`]|\d|[^\w])""")
@@ -224,8 +258,8 @@ def ensure_schema(mem: sqlite3.Connection, *, dialect=None) -> None:
 
 def _name_hash(name: str) -> str:
     import hashlib
-    return hashlib.sha1((name or "").strip().lower().encode("utf-8"),
-                        usedforsecurity=False).hexdigest()[:16]
+
+    return hashlib.sha1((name or "").strip().lower().encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
 
 
 # THE owner of this format is m3_core.runtime.utc_iso; this is its local name.
@@ -243,8 +277,9 @@ def _embed_tier_info(model_seen: str | None) -> dict:
     info: dict = {"in_process": in_process, "model": model_seen}
     # Only nag when an HTTP-tier model actually served work — not on dry-runs.
     if model_seen is not None and not in_process:
-        info["hint"] = ("embedding used the HTTP fallback tier; a local BGE-M3 "
-                        "GGUF serves the ~10-85x-faster in-process tier (§8).")
+        info["hint"] = (
+            "embedding used the HTTP fallback tier; a local BGE-M3 GGUF serves the ~10-85x-faster in-process tier (§8)."
+        )
     return info
 
 
@@ -264,8 +299,7 @@ def _quarantine_noise(mem: sqlite3.Connection, run_id: str, dry_run: bool, _p: s
             f"UPDATE entities SET coalesce_state='quarantined', resolution_run={_p} WHERE id={_p}",
             [(run_id, eid) for eid, _ in to_q],
         )
-    return {"scanned": len(rows), "quarantined": len(to_q),
-            "samples": [n for _, n in to_q[:15]]}
+    return {"scanned": len(rows), "quarantined": len(to_q), "samples": [n for _, n in to_q[:15]]}
 
 
 def _prime_embeddings(mem, items, dry_run, _d):
@@ -287,9 +321,7 @@ def _prime_embeddings(mem, items, dry_run, _d):
     need_ids, need_names = [], []
     for eid, name in items:
         nh = _name_hash(name)
-        row = mem.execute(
-            f"SELECT name_hash FROM entity_coalesce_embeddings WHERE entity_id={_p}", (eid,)
-        ).fetchone()
+        row = mem.execute(f"SELECT name_hash FROM entity_coalesce_embeddings WHERE entity_id={_p}", (eid,)).fetchone()
         if not (row and row[0] == nh):
             need_ids.append((eid, name, nh))
             need_names.append(name)
@@ -298,6 +330,7 @@ def _prime_embeddings(mem, items, dry_run, _d):
     from embedding_utils import pack
 
     from .embed import embed_texts
+
     results = embed_texts(need_names)  # ONE batched cascade call
     n = 0
     model_seen = None
@@ -315,7 +348,7 @@ def _prime_embeddings(mem, items, dry_run, _d):
         model_seen = model
         mem.execute(_upsert, (eid, nh, pack(vec), len(vec), model, _now()))
         n += 1
-    mem.commit()   # durability point -> kill-and-resume safe (seam-safe method call)
+    mem.commit()  # durability point -> kill-and-resume safe (seam-safe method call)
     return n, model_seen
 
 
@@ -323,18 +356,14 @@ def _cached_embedding(mem, eid, _p):
     """Read-only: (packed, dim) from the cache, or (None, 0). Used in the
     pairwise loop — never embeds (priming already did). ``_p`` is the route
     placeholder."""
-    row = mem.execute(
-        f"SELECT embedding, dim FROM entity_coalesce_embeddings WHERE entity_id={_p}", (eid,)
-    ).fetchone()
+    row = mem.execute(f"SELECT embedding, dim FROM entity_coalesce_embeddings WHERE entity_id={_p}", (eid,)).fetchone()
     return (row[0], row[1]) if row else (None, 0)
 
 
 def _cluster_size(mem, cid, _p):
     if not cid:
         return 1
-    return mem.execute(
-        f"SELECT count(*) FROM entities WHERE cluster_id={_p}", (cid,)
-    ).fetchone()[0]
+    return mem.execute(f"SELECT count(*) FROM entities WHERE cluster_id={_p}", (cid,)).fetchone()[0]
 
 
 def coalesce_detect(*, corpus=None, max_pairs=MAX_PAIRS, dry_run=False, db_path=None):
@@ -380,14 +409,17 @@ def coalesce_detect(*, corpus=None, max_pairs=MAX_PAIRS, dry_run=False, db_path=
             for a, b in mem.execute(
                 "SELECT entity_a, entity_b FROM entity_coalesce_candidates WHERE reviewed_at IS NULL"
             ).fetchall():
-                existing.add((a, b)); existing.add((b, a))
+                existing.add((a, b))
+                existing.add((b, a))
 
             try:
                 from rapidfuzz import fuzz
+
                 def _fz(a, b):
                     return int(fuzz.token_sort_ratio(a.lower(), b.lower()))
             except ImportError:
                 import difflib
+
                 def _fz(a, b):
                     return int(difflib.SequenceMatcher(None, a.lower(), b.lower()).ratio() * 100)
 
@@ -438,10 +470,13 @@ def coalesce_detect(*, corpus=None, max_pairs=MAX_PAIRS, dry_run=False, db_path=
                         # trailing-number (distinct config/version) pairs score
                         # 0.95+/95+ but are usually DIFFERENT entities — never
                         # auto-merge, route to review. (Both validated, live v1.)
-                        if (cos >= AUTO_MERGE_COSINE and fz >= FUZZY_HIGH
-                                and not over
-                                and not _underscore_collision(an, bn)
-                                and not _numeric_suffix_collision(an, bn)):
+                        if (
+                            cos >= AUTO_MERGE_COSINE
+                            and fz >= FUZZY_HIGH
+                            and not over
+                            and not _underscore_collision(an, bn)
+                            and not _numeric_suffix_collision(an, bn)
+                        ):
                             band = "merge"
                         else:
                             band = "needs_llm"
@@ -450,7 +485,8 @@ def coalesce_detect(*, corpus=None, max_pairs=MAX_PAIRS, dry_run=False, db_path=
                                 _insert_cand,
                                 (str(_uuid.uuid4()), ai, bi, an, bn, cos, fz, band, run_id, _now()),
                             )
-                        existing.add((ai, bi)); existing.add((bi, ai))
+                        existing.add((ai, bi))
+                        existing.add((bi, ai))
                         recorded += 1
                         if recorded >= max_pairs:
                             break
@@ -466,29 +502,39 @@ def list_coalesce_candidates(*, reviewed=False, limit=100, min_cosine=None):
     """List coalescing candidate pairs (structured rows, §3). reviewed: None=both,
     False=unreviewed, True=reviewed."""
     _p = _route_dialect(None).param()
-    sql = ["SELECT uuid, entity_a, entity_b, name_a, name_b, cosine, fuzzy, band,"
-           " verdict, detected_at, reviewed_at, review_action "
-           "FROM entity_coalesce_candidates WHERE 1=1"]
+    sql = [
+        "SELECT uuid, entity_a, entity_b, name_a, name_b, cosine, fuzzy, band,"
+        " verdict, detected_at, reviewed_at, review_action "
+        "FROM entity_coalesce_candidates WHERE 1=1"
+    ]
     params: list = []
     if reviewed is False:
         sql.append("AND reviewed_at IS NULL")
     elif reviewed is True:
         sql.append("AND reviewed_at IS NOT NULL")
     if min_cosine is not None:
-        sql.append(f"AND cosine >= {_p}"); params.append(min_cosine)
-    sql.append(f"ORDER BY cosine DESC, fuzzy DESC LIMIT {_p}"); params.append(limit)
+        sql.append(f"AND cosine >= {_p}")
+        params.append(min_cosine)
+    sql.append(f"ORDER BY cosine DESC, fuzzy DESC LIMIT {_p}")
+    params.append(limit)
     with _memory_db() as mem:
         # The seam-pooled SQLite connection already carries row_factory=Row and the
         # PG compat cursor yields dual name/position rows, so the name access below
         # works on both — do NOT force sqlite3.Row (that would break on PG).
         rows = mem.execute(" ".join(sql), params).fetchall()
     return [
-        {"uuid": r["uuid"], "band": r["band"], "verdict": r["verdict"],
-         "cosine": round(r["cosine"] or 0.0, 4), "fuzzy": r["fuzzy"],
-         "detected_at": r["detected_at"], "reviewed_at": r["reviewed_at"],
-         "review_action": r["review_action"],
-         "entity_a": {"id": r["entity_a"], "name": r["name_a"]},
-         "entity_b": {"id": r["entity_b"], "name": r["name_b"]}}
+        {
+            "uuid": r["uuid"],
+            "band": r["band"],
+            "verdict": r["verdict"],
+            "cosine": round(r["cosine"] or 0.0, 4),
+            "fuzzy": r["fuzzy"],
+            "detected_at": r["detected_at"],
+            "reviewed_at": r["reviewed_at"],
+            "review_action": r["review_action"],
+            "entity_a": {"id": r["entity_a"], "name": r["name_a"]},
+            "entity_b": {"id": r["entity_b"], "name": r["name_b"]},
+        }
         for r in rows
     ]
 
@@ -512,15 +558,18 @@ def review_coalesce_candidates(reviews, *, note=""):
         # correct for TEXT on SQLite and JSONB on PG).
         for item in reviews:
             if not isinstance(item, dict) or "uuid" not in item or "action" not in item:
-                errors.append({"item": item, "error": "needs {uuid, action}"}); continue
+                errors.append({"item": item, "error": "needs {uuid, action}"})
+                continue
             if item["action"] not in valid:
-                errors.append({"uuid": item.get("uuid"), "error": f"action must be {sorted(valid)}"}); continue
+                errors.append({"uuid": item.get("uuid"), "error": f"action must be {sorted(valid)}"})
+                continue
             row = mem.execute(
                 f"SELECT metadata FROM entity_coalesce_candidates WHERE uuid={_p}",
                 (item["uuid"],),
             ).fetchone()
             if row is None:
-                errors.append({"uuid": item["uuid"], "error": "not found"}); continue
+                errors.append({"uuid": item["uuid"], "error": "not found"})
+                continue
             meta = _d.json_column_to_dict(row[0])
             meta["note"] = note
             cur = mem.execute(
@@ -542,6 +591,7 @@ def review_coalesce_candidates(reviews, *, note=""):
 # entity is deleted, no fact_entity_refs migrated. (Lesson #1: reversible by
 # construction.)
 
+
 # ── Alias-list mutation in Python (portable; replaces SQLite JSON funcs) ──────
 # The overlay stores a representative's merged-in member names as
 # attributes_json.aliases (a JSON list). SQLite did this in-SQL with
@@ -553,9 +603,7 @@ def review_coalesce_candidates(reviews, *, note=""):
 # not touched concurrently within one coalesce apply/unapply.
 def _entity_alias_add(mem, entity_id, alias, _d, _p):
     """Append ``alias`` to entity ``entity_id``'s attributes_json.aliases list."""
-    row = mem.execute(
-        f"SELECT attributes_json FROM entities WHERE id={_p}", (entity_id,)
-    ).fetchone()
+    row = mem.execute(f"SELECT attributes_json FROM entities WHERE id={_p}", (entity_id,)).fetchone()
     attrs = _d.json_column_to_dict(row[0] if row else None)
     aliases = attrs.get("aliases")
     if not isinstance(aliases, list):
@@ -571,9 +619,7 @@ def _entity_alias_add(mem, entity_id, alias, _d, _p):
 def _entity_alias_remove(mem, entity_id, alias, _d, _p):
     """Remove every occurrence of ``alias`` from entity ``entity_id``'s
     attributes_json.aliases list (no-op if absent)."""
-    row = mem.execute(
-        f"SELECT attributes_json FROM entities WHERE id={_p}", (entity_id,)
-    ).fetchone()
+    row = mem.execute(f"SELECT attributes_json FROM entities WHERE id={_p}", (entity_id,)).fetchone()
     attrs = _d.json_column_to_dict(row[0] if row else None)
     aliases = attrs.get("aliases")
     if not isinstance(aliases, list):
@@ -589,6 +635,7 @@ def _pick_representative(mem, eid_a, eid_b, _p):
     """Deterministic canonical pick (NOT the LLM's name — lesson #3): higher
     files.db ref-degree wins; tie -> longer (more complete) name; tie -> lower id.
     ``_p`` is the route placeholder."""
+
     def degree(eid):
         # ref count in files.db; falls back to 0 if unavailable (read-only probe).
         # files.db uses its own dialect/placeholder — resolve independently.
@@ -596,16 +643,19 @@ def _pick_representative(mem, eid_a, eid_b, _p):
             from memory.backends import dialect as _fd
 
             from .db import _db as _files_db
+
             _fp = _fd().param()
             with _files_db() as f:
                 return f.execute(
-                    f"SELECT count(*) FROM {_files_table('fact_entity_refs')} "
-                    f"WHERE entity_uuid={_fp}", (eid,)
+                    f"SELECT count(*) FROM {_files_table('fact_entity_refs')} WHERE entity_uuid={_fp}", (eid,)
                 ).fetchone()[0]
         except Exception as e:  # noqa: BLE001 — 0 refs assumed; warned
-            logger.warning(f"entity ref count unavailable; observed: {eid}: "
-                           f"{type(e).__name__}: {e}; assuming 0 refs. inspect: m3 doctor (files store)")
+            logger.warning(
+                f"entity ref count unavailable; observed: {eid}: "
+                f"{type(e).__name__}: {e}; assuming 0 refs. inspect: m3 doctor (files store)"
+            )
             return 0
+
     a = mem.execute(f"SELECT id, canonical_name, entity_type FROM entities WHERE id={_p}", (eid_a,)).fetchone()
     b = mem.execute(f"SELECT id, canonical_name, entity_type FROM entities WHERE id={_p}", (eid_b,)).fetchone()
     da, db_ = degree(eid_a), degree(eid_b)
@@ -618,9 +668,9 @@ def _pick_representative(mem, eid_a, eid_b, _p):
     return rep, mem_ent
 
 
-def apply_coalescence(*, candidate_uuids=None, include_auto_merge=False,
-                      resolution_run=None, dry_run=False, db_path=None,
-                      confirm=False):
+def apply_coalescence(
+    *, candidate_uuids=None, include_auto_merge=False, resolution_run=None, dry_run=False, db_path=None, confirm=False
+):
     """Apply the reversible same_as/cluster overlay for coalescing candidates.
 
     Sources (union): explicit candidate_uuids that are reviewed merge OR (if
@@ -641,10 +691,15 @@ def apply_coalescence(*, candidate_uuids=None, include_auto_merge=False,
     explicit `db_path` OR pass `confirm=True` to acknowledge it will write to the
     resolved core DB. dry_run is always allowed (it writes nothing)."""
     if not dry_run and db_path is None and not confirm:
-        return {"applied": 0, "skipped": 0, "clusters_touched": [], "dry_run": False,
-                "error": "refused: a real apply must pass db_path=<target> or "
-                          "confirm=True (it writes to the core entity graph). "
-                          "Use dry_run=True to preview."}
+        return {
+            "applied": 0,
+            "skipped": 0,
+            "clusters_touched": [],
+            "dry_run": False,
+            "error": "refused: a real apply must pass db_path=<target> or "
+            "confirm=True (it writes to the core entity graph). "
+            "Use dry_run=True to preview.",
+        }
     out: dict = {"applied": 0, "skipped": 0, "clusters_touched": set(), "dry_run": dry_run}
     _d = _route_dialect(db_path)
     _p = _d.param()
@@ -655,8 +710,7 @@ def apply_coalescence(*, candidate_uuids=None, include_auto_merge=False,
         # (every mutation is dry_run-guarded), so the clean-exit commit is a no-op;
         # the former explicit ROLLBACK is unnecessary.
         # collect target candidates
-        sel = ("SELECT uuid, entity_a, entity_b, band, review_action "
-               "FROM entity_coalesce_candidates WHERE ")
+        sel = "SELECT uuid, entity_a, entity_b, band, review_action FROM entity_coalesce_candidates WHERE "
         clauses, params = [], []
         if candidate_uuids:
             qs = _d.placeholder(len(candidate_uuids))
@@ -672,13 +726,11 @@ def apply_coalescence(*, candidate_uuids=None, include_auto_merge=False,
             run = resolution_run
             if run is None:
                 row = mem.execute(
-                    "SELECT resolution_run FROM entity_coalesce_candidates "
-                    "ORDER BY detected_at DESC LIMIT 1"
+                    "SELECT resolution_run FROM entity_coalesce_candidates ORDER BY detected_at DESC LIMIT 1"
                 ).fetchone()
                 run = row[0] if row else None
             if run is not None:
-                clauses.append(
-                    f"(band='merge' AND reviewed_at IS NULL AND resolution_run={_p})")
+                clauses.append(f"(band='merge' AND reviewed_at IS NULL AND resolution_run={_p})")
                 params.append(run)
         if not clauses:
             return {**out, "clusters_touched": [], "note": "nothing selected"}
@@ -692,9 +744,9 @@ def apply_coalescence(*, candidate_uuids=None, include_auto_merge=False,
             if rep is None or m is None:
                 out["skipped"] += 1
                 continue
-            cid = mem.execute(
-                f"SELECT cluster_id FROM entities WHERE id={_p}", (rep[0],)
-            ).fetchone()[0] or ("cluster-" + rep[0][:12])
+            cid = mem.execute(f"SELECT cluster_id FROM entities WHERE id={_p}", (rep[0],)).fetchone()[0] or (
+                "cluster-" + rep[0][:12]
+            )
             if not dry_run:
                 # representative gets/keeps the cluster_id
                 mem.execute(f"UPDATE entities SET cluster_id={_p} WHERE id={_p}", (cid, rep[0]))
@@ -750,27 +802,31 @@ def unapply_cluster(cluster_id: str, *, db_path=None) -> dict:
         member_rep = mem.execute(
             f"SELECT er.from_entity, er.to_entity FROM entity_relationships er "
             f"JOIN entities m ON m.id = er.from_entity "
-            f"WHERE er.predicate='same_as' AND m.cluster_id={_p}", (cluster_id,)
+            f"WHERE er.predicate='same_as' AND m.cluster_id={_p}",
+            (cluster_id,),
         ).fetchall()
-        members = [r[0] for r in mem.execute(
-            f"SELECT id FROM entities WHERE cluster_id={_p}", (cluster_id,)).fetchall()]
+        members = [
+            r[0] for r in mem.execute(f"SELECT id FROM entities WHERE cluster_id={_p}", (cluster_id,)).fetchall()
+        ]
         if members:
             qs = _d.placeholder(len(members))
             # Strip each member's name from its representative's alias list, so a
             # round-trip (apply->unapply) leaves NO stale alias behind. Python
             # read-modify-write (portable — replaces SQLite json_each/json_group_array).
             for member_id, rep_id in member_rep:
-                row = mem.execute(
-                    f"SELECT canonical_name FROM entities WHERE id={_p}", (member_id,)
-                ).fetchone()
+                row = mem.execute(f"SELECT canonical_name FROM entities WHERE id={_p}", (member_id,)).fetchone()
                 if row is None:
                     continue
                 _entity_alias_remove(mem, rep_id, row[0], _d, _p)
-            mem.execute(f"DELETE FROM entity_relationships WHERE predicate='same_as' "
-                        f"AND from_entity IN ({qs})", members)
-            mem.execute(f"UPDATE entities SET cluster_id=NULL, "
-                        f"coalesce_state=CASE WHEN entity_type='unknown' THEN 'provisional' ELSE coalesce_state END "
-                        f"WHERE id IN ({qs})", members)
+            mem.execute(
+                f"DELETE FROM entity_relationships WHERE predicate='same_as' AND from_entity IN ({qs})", members
+            )
+            mem.execute(
+                f"UPDATE entities SET cluster_id=NULL, "
+                f"coalesce_state=CASE WHEN entity_type='unknown' THEN 'provisional' ELSE coalesce_state END "
+                f"WHERE id IN ({qs})",
+                members,
+            )
             # Tombstone the candidate(s) so auto-merge won't resurrect them.
             mem.execute(
                 f"UPDATE entity_coalesce_candidates SET review_action='unapplied', "

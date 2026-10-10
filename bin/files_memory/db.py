@@ -18,6 +18,7 @@ Design points:
       cross-thread by default).
     - WAL mode is set in the schema script, applied on first init.
 """
+
 from __future__ import annotations
 
 import logging
@@ -100,6 +101,7 @@ def _files_store_is_a_schema() -> bool:
     resolved raises: answering False sent a PostgreSQL install's files store to
     a separate SQLite file without a word."""
     from m3_core.paths import store_is_a_file
+
     return not store_is_a_file()
 
 
@@ -136,6 +138,7 @@ def readonly_probe(sql: str, params: tuple = (), *, db_path: str | None = None) 
     except Exception as e:  # noqa: BLE001 — no store/table, or a defect (classified)
         log_swallowed(logger, e, "files probe failed (store %s): %s", path, e)
         return []
+
 
 def _new_connection(db_path: str) -> sqlite3.Connection:
     """Open a fresh SQLite connection to the separate files DB file.
@@ -190,6 +193,7 @@ def init_db(path: str | None = None) -> None:
             return
         try:
             from . import migrate as _migrate
+
             if is_pg:
                 # Borrow a connection from the primary backend's pool; the files
                 # schema is a namespace in the same database, so nothing store-
@@ -197,6 +201,7 @@ def init_db(path: str | None = None) -> None:
                 # `files.` — no search_path is set, so this pooled connection is
                 # safe to return and reuse for public-schema work.
                 from memory.db import _db as _seam_db
+
                 with _seam_db() as conn:
                     _migrate.run_pending(conn)
             else:
@@ -235,6 +240,7 @@ def _db(path: str | None = None) -> Iterator[sqlite3.Connection]:
         # The seam's _db() already applies commit-on-clean-exit / rollback-on-error
         # and returns the connection to the pool. We just yield through it.
         from memory.db import _db as _seam_db
+
         with _seam_db() as conn:
             yield conn
         return
@@ -294,19 +300,17 @@ def integrity_check(path: str | None = None) -> dict:
         # FTS5 row count must match base table row count.
         leaf_count = conn.execute("SELECT COUNT(*) FROM leaves").fetchone()[0]
         fts_count = conn.execute("SELECT COUNT(*) FROM leaves_fts").fetchone()[0]
-        out["fts5_in_sync"] = (leaf_count == fts_count)
+        out["fts5_in_sync"] = leaf_count == fts_count
         if not out["fts5_in_sync"]:
             out["ok"] = False
             out["fts5_drift"] = {"leaves": leaf_count, "fts": fts_count}
 
         # Orphans: leaves with no file_node, runs with no file_node.
         out["orphan_leaves"] = conn.execute(
-            "SELECT COUNT(*) FROM leaves "
-            "WHERE file_node NOT IN (SELECT uuid FROM file_nodes)"
+            "SELECT COUNT(*) FROM leaves WHERE file_node NOT IN (SELECT uuid FROM file_nodes)"
         ).fetchone()[0]
         out["orphan_runs"] = conn.execute(
-            "SELECT COUNT(*) FROM ingestion_runs "
-            "WHERE file_node NOT IN (SELECT uuid FROM file_nodes)"
+            "SELECT COUNT(*) FROM ingestion_runs WHERE file_node NOT IN (SELECT uuid FROM file_nodes)"
         ).fetchone()[0]
         if out["orphan_leaves"] or out["orphan_runs"]:
             out["ok"] = False

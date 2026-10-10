@@ -15,6 +15,7 @@ same behaviors are now selected by setting the chatlog DB path equal to (or
 different from) the main DB. Promote semantics switch automatically based on
 path equality.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -110,8 +111,7 @@ def get_hook_path_for_agent(agent: str) -> tuple[str, str, str]:
     # says why, never the unknown.sh fallback (which `m3 chat init` used to
     # store and tell the user to source for langchain).
     if agent in LIBRARY_HOST_AGENTS:
-        return ("", "", f"no hook: {agent} is a library integration; the "
-                        f"application submits turns through m3's API")
+        return ("", "", f"no hook: {agent} is a library integration; the application submits turns through m3's API")
     agent_map = {
         "claude-code": ("claude_code_precompact", "claude-code pre-compaction hook"),
         "gemini-cli": ("gemini_cli_onexit", "Gemini CLI session exit hook"),
@@ -140,7 +140,9 @@ def show_hook_wiring_instructions(agent: str, hook_spec: HookSpec) -> None:
     elif agent == "claude-code":
         print("    - Follow the 'Claude Code Settings' section below to add hooks to ~/.claude/settings.json")
     elif agent in ("gemini-cli", "antigravity-cli"):
-        config_file = "~/.gemini/antigravity-cli/settings.json" if agent == "antigravity-cli" else "~/.gemini/settings.json"
+        config_file = (
+            "~/.gemini/antigravity-cli/settings.json" if agent == "antigravity-cli" else "~/.gemini/settings.json"
+        )
         print(f"    - Register the hook in {config_file} (see docs/CHATLOG.md for snippet)")
         if on_windows:
             print(f"    - Command: powershell -NoProfile -ExecutionPolicy Bypass -File {ps1_path}")
@@ -202,9 +204,7 @@ def interactive_host_agents() -> dict[str, HookSpec]:
             print("    + Stop hook               - also fires on every assistant")
             print("                                turn. Real-time capture; adds")
             print("                                ~50-150ms per turn.")
-            spec.stop_hook = prompt_yes_no(
-                "  Enable Stop hook for per-turn capture?", default=False
-            )
+            spec.stop_hook = prompt_yes_no("  Enable Stop hook for per-turn capture?", default=False)
 
         host_agents[agent] = spec
         show_hook_wiring_instructions(agent, spec)
@@ -228,18 +228,14 @@ def interactive_redaction() -> RedactionSpec:
     if not enabled:
         return RedactionSpec(enabled=False)
 
-    patterns = [
-        "api_keys", "bearer_tokens", "jwt", "aws_keys", "github_tokens"
-    ]
+    patterns = ["api_keys", "bearer_tokens", "jwt", "aws_keys", "github_tokens"]
     selected_patterns = []
     for pattern in patterns:
         if prompt_yes_no(f"Redact {pattern}?", default=True):
             selected_patterns.append(pattern)
 
     redact_pii = prompt_yes_no("Redact PII (names, emails, IPs)?", default=False)
-    store_original_hash = prompt_yes_no(
-        "Store hash of original (for audit)?", default=True
-    )
+    store_original_hash = prompt_yes_no("Store hash of original (for audit)?", default=True)
 
     return RedactionSpec(
         enabled=True,
@@ -264,8 +260,7 @@ def run_migrations() -> bool:
     """Ask and run migrations if user agrees."""
     print_section("Database Migrations")
     if not _chatlog_is_sqlite_file():
-        print("PostgreSQL: the chatlog tables are created by the server schema; "
-              "no SQLite migrations to run.")
+        print("PostgreSQL: the chatlog tables are created by the server schema; no SQLite migrations to run.")
         return True
     if not prompt_yes_no("Run migrations now?", default=True):
         return False
@@ -286,9 +281,7 @@ def run_migrations() -> bool:
 def install_schedules() -> bool:
     """Ask and install embed sweeper schedule if user agrees."""
     print_section("Embed Sweeper Schedule")
-    if not prompt_yes_no(
-        "Install the embed sweeper schedule (~30min cadence)?", default=True
-    ):
+    if not prompt_yes_no("Install the embed sweeper schedule (~30min cadence)?", default=True):
         return False
 
     install_script = os.path.join(BASE_DIR, "bin", "install_schedules.py")
@@ -329,6 +322,7 @@ def _root_env_prefix() -> str:
         return ""
     try:
         from m3_sdk import get_m3_config_root, get_m3_engine_root
+
         eng, cfg = get_m3_engine_root(), get_m3_config_root()
     except Exception:  # noqa: BLE001 — SDK unavailable: env vars, then ~/.m3 defaults
         _home = os.path.expanduser("~")
@@ -373,6 +367,7 @@ def apply_claude_settings(config: ChatlogConfig) -> tuple[bool, str]:
     path_action: str | None = None
     try:
         from m3_memory.installer import _fix_npm_global_path
+
         path_msg = _fix_npm_global_path()
         if path_msg and path_msg.startswith("[+]"):
             path_action = "npm-global PATH"
@@ -381,6 +376,7 @@ def apply_claude_settings(config: ChatlogConfig) -> tuple[bool, str]:
 
     try:
         import generate_configs
+
         res = generate_configs.install_claude_settings(assume_yes=True)
         changed = bool(res.get("changed"))
     except Exception as e:  # noqa: BLE001 — surface, don't crash the caller
@@ -423,10 +419,8 @@ def apply_gemini_settings() -> tuple[bool, str]:
         except json.JSONDecodeError as e:
             return False, f"refused to edit {settings_path}: unparseable JSON ({e})"
 
-    sh = os.path.join(BASE_DIR, "bin", "hooks", "chatlog",
-                      "gemini_cli_onexit.sh").replace("\\", "/")
-    ps1 = os.path.join(BASE_DIR, "bin", "hooks", "chatlog",
-                       "gemini_cli_onexit.ps1").replace("\\", "/")
+    sh = os.path.join(BASE_DIR, "bin", "hooks", "chatlog", "gemini_cli_onexit.sh").replace("\\", "/")
+    ps1 = os.path.join(BASE_DIR, "bin", "hooks", "chatlog", "gemini_cli_onexit.ps1").replace("\\", "/")
     # Same split-brain pin as the Claude hook: the onExit hook inherits Gemini's
     # process env, not the MCP server env block.
     prefix = _root_env_prefix()
@@ -443,6 +437,7 @@ def apply_gemini_settings() -> tuple[bool, str]:
     #    Gemini-first install order).
     try:
         from m3_memory.installer import _fix_npm_global_path
+
         path_msg = _fix_npm_global_path()
         if path_msg and path_msg.startswith("[+]"):
             actions.append("npm-global PATH")
@@ -455,6 +450,7 @@ def apply_gemini_settings() -> tuple[bool, str]:
     #    writer instead of an add-only console-script stub that carried no roots.
     try:
         from m3_memory.installer import _canonical_memory_server
+
         canonical_mem = _canonical_memory_server()
     except Exception:  # noqa: BLE001 — degraded fallback, still callable
         canonical_mem = {"command": "mcp-memory"}
@@ -518,10 +514,8 @@ def show_claude_code_settings_snippet(config: ChatlogConfig) -> None:
     # Observed: C:\\Users\\<user>\\... paths showed up stripped in the
     # Claude Code hook error as "CUsers<user>..." — the shell chain ate
     # the escape sequences. Forward slashes sidestep the whole class.
-    ps1 = os.path.join(BASE_DIR, "bin", "hooks", "chatlog",
-                       "claude_code_precompact.ps1").replace("\\", "/")
-    sh = os.path.join(BASE_DIR, "bin", "hooks", "chatlog",
-                      "claude_code_precompact.sh").replace("\\", "/")
+    ps1 = os.path.join(BASE_DIR, "bin", "hooks", "chatlog", "claude_code_precompact.ps1").replace("\\", "/")
+    sh = os.path.join(BASE_DIR, "bin", "hooks", "chatlog", "claude_code_precompact.sh").replace("\\", "/")
     # Emit the snippet that matches the current OS; show the alternate below.
     on_windows = is_windows()
     if on_windows:
@@ -529,21 +523,15 @@ def show_claude_code_settings_snippet(config: ChatlogConfig) -> None:
         alt_label, alt_cmd = "macOS/Linux", f"/bin/sh {sh}"
     else:
         hook_cmd = f"/bin/sh {sh}"
-        alt_label, alt_cmd = "Windows", (
-            f"powershell -NoProfile -ExecutionPolicy Bypass -File {ps1}"
-        )
+        alt_label, alt_cmd = "Windows", (f"powershell -NoProfile -ExecutionPolicy Bypass -File {ps1}")
 
     hooks_block: dict = {
-        "PreCompact": [
-            {"hooks": [{"type": "command", "command": hook_cmd}]}
-        ],
+        "PreCompact": [{"hooks": [{"type": "command", "command": hook_cmd}]}],
     }
     cc = config.host_agents.get("claude-code")
     stop_enabled = bool(cc and cc.stop_hook)
     if stop_enabled:
-        hooks_block["Stop"] = [
-            {"hooks": [{"type": "command", "command": hook_cmd}]}
-        ]
+        hooks_block["Stop"] = [{"hooks": [{"type": "command", "command": hook_cmd}]}]
 
     status_script = os.path.join(BASE_DIR, "bin", "chatlog_status_line.py").replace("\\", "/")
     snippet = {
@@ -619,9 +607,7 @@ def show_existing_config() -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Set up the chat log subsystem"
-    )
+    parser = argparse.ArgumentParser(description="Set up the chat log subsystem")
     parser.add_argument(
         "--reconfigure",
         action="store_true",
@@ -645,9 +631,11 @@ def main() -> int:
     hook_group.add_argument(
         "--enable-stop-hook",
         action="store_true",
-        help=("Enable per-turn capture via Claude Code's Stop hook in addition "
-              "to PreCompact. Writes config and prints an updated settings.json "
-              "snippet. Default is PreCompact-only."),
+        help=(
+            "Enable per-turn capture via Claude Code's Stop hook in addition "
+            "to PreCompact. Writes config and prints an updated settings.json "
+            "snippet. Default is PreCompact-only."
+        ),
     )
     hook_group.add_argument(
         "--disable-stop-hook",
@@ -697,9 +685,13 @@ def main() -> int:
     # ALSO set, fall through to the normal path so config + migrations + apply
     # all happen in one command.
     if (args.apply_claude or args.apply_gemini) and not args.non_interactive:
-        cfg = resolve_config() if os.path.exists(CONFIG_PATH) else ChatlogConfig(
-            db_path=DEFAULT_DB_PATH,
-            host_agents={a: HookSpec() for a in VALID_HOST_AGENTS},
+        cfg = (
+            resolve_config()
+            if os.path.exists(CONFIG_PATH)
+            else ChatlogConfig(
+                db_path=DEFAULT_DB_PATH,
+                host_agents={a: HookSpec() for a in VALID_HOST_AGENTS},
+            )
         )
         if args.apply_claude:
             changed, msg = apply_claude_settings(cfg)
@@ -742,8 +734,7 @@ def main() -> int:
             # shouldn't mean a broken install.
             migrate_script = os.path.join(BASE_DIR, "bin", "migrate_memory.py")
             if not _chatlog_is_sqlite_file():
-                print("PostgreSQL: chatlog tables come from the server schema; "
-                      "skipping SQLite migrations.")
+                print("PostgreSQL: chatlog tables come from the server schema; skipping SQLite migrations.")
             else:
                 try:
                     subprocess.run(

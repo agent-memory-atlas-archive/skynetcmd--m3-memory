@@ -3,6 +3,7 @@
 It refused on PostgreSQL (require_sqlite_backend), resolved its store at import
 (before --database/--store were parsed), and spelled every bind `?`.
 """
+
 from __future__ import annotations
 
 import struct
@@ -32,10 +33,14 @@ def source(each_backend):
     with each_backend.connection() as conn:
         for name, v in vecs.items():
             mid = f"kg-{tag}-{name}"
-            conn.execute(f"INSERT INTO memory_items (id, type, content, variant, is_deleted) "
-                         f"VALUES ({p}, 'note', {p}, {p}, 0)", (mid, f"item {name}", src))
-            conn.execute(f"INSERT INTO memory_embeddings (id, memory_id, embedding, dim) VALUES ({p}, {p}, {p}, 4)",
-                         (f"kge-{tag}-{name}", mid, v))
+            conn.execute(
+                f"INSERT INTO memory_items (id, type, content, variant, is_deleted) VALUES ({p}, 'note', {p}, {p}, 0)",
+                (mid, f"item {name}", src),
+            )
+            conn.execute(
+                f"INSERT INTO memory_embeddings (id, memory_id, embedding, dim) VALUES ({p}, {p}, {p}, 4)",
+                (f"kge-{tag}-{name}", mid, v),
+            )
         conn.commit()
     try:
         yield src, tgt
@@ -55,6 +60,7 @@ def _run(monkeypatch, each_backend, *argv: str) -> None:
     extra: list[str] = []
     if each_backend.stores_databases_as_files:
         from m3_sdk import resolve_db_path
+
         extra = ["--database", resolve_db_path(None)]
     monkeypatch.setattr(sys, "argv", ["build_kg_variant", *argv, *extra])
     kg.main()
@@ -71,11 +77,19 @@ def test_copies_and_links_similar_items(each_backend, source, monkeypatch):
 
     with each_backend.connection() as conn:
         items = dict(conn.execute(f"SELECT content, id FROM memory_items WHERE variant = {p}", (tgt,)).fetchall())
-        n_emb = conn.execute(f"SELECT COUNT(*) FROM memory_embeddings WHERE memory_id IN "
-                             f"(SELECT id FROM memory_items WHERE variant = {p})", (tgt,)).fetchone()[0]
-        edges = {(f, t) for f, t in conn.execute(
-            f"SELECT from_id, to_id FROM memory_relationships WHERE from_id IN "
-            f"(SELECT id FROM memory_items WHERE variant = {p})", (tgt,)).fetchall()}
+        n_emb = conn.execute(
+            f"SELECT COUNT(*) FROM memory_embeddings WHERE memory_id IN "
+            f"(SELECT id FROM memory_items WHERE variant = {p})",
+            (tgt,),
+        ).fetchone()[0]
+        edges = {
+            (f, t)
+            for f, t in conn.execute(
+                f"SELECT from_id, to_id FROM memory_relationships WHERE from_id IN "
+                f"(SELECT id FROM memory_items WHERE variant = {p})",
+                (tgt,),
+            ).fetchall()
+        }
     assert sorted(items) == ["item a", "item b", "item c"] and n_emb == 3, f"observed: {items!r}, {n_emb} {where}"
     a, b = items["item a"], items["item b"]
     assert edges == {(a, b), (b, a)}, f"observed: {edges!r} {where}"

@@ -53,6 +53,7 @@ detail).
   - `entity_extractor_health` — pure stats from the queue; covered by
     a single direct-call check at the end of this script.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -168,13 +169,9 @@ def fingerprint_get(result: dict) -> dict:
         return {"error": f"non-dict result: {type(result).__name__}"}
     entity = _normalize_entity_row(result.get("entity") or result)
     neighbors = result.get("neighbors") or []
-    neighbor_ids = sorted(
-        n.get("id") if isinstance(n, dict) else None for n in neighbors
-    )
+    neighbor_ids = sorted(n.get("id") if isinstance(n, dict) else None for n in neighbors)
     memory_links = result.get("memory_links") or result.get("memories") or []
-    link_ids = sorted(
-        m.get("id") if isinstance(m, dict) else None for m in memory_links
-    )
+    link_ids = sorted(m.get("id") if isinstance(m, dict) else None for m in memory_links)
     payload = json.dumps(
         {"entity": entity, "neighbor_ids": neighbor_ids, "memory_link_ids": link_ids},
         sort_keys=True,
@@ -219,6 +216,7 @@ def capture_one(mc, eid: str, name: str, etype: str) -> dict:
 def capture() -> dict:
     """Run the full sweep. Returns the full baseline payload."""
     import memory_core as mc
+
     sample = sample_entities(N_ENTITIES)
     print(f"running {len(sample)} entities × 3 variants...")
     out: list[dict] = []
@@ -228,8 +226,7 @@ def capture() -> dict:
         if (i + 1) % 10 == 0:
             elapsed = time.perf_counter() - t0
             print(
-                f"  {i+1}/{len(sample)} done in {elapsed:.1f}s "
-                f"({(i+1)/elapsed:.1f}/s)",
+                f"  {i + 1}/{len(sample)} done in {elapsed:.1f}s ({(i + 1) / elapsed:.1f}/s)",
                 flush=True,
             )
 
@@ -264,10 +261,7 @@ def compare(current: dict, baseline: dict) -> tuple[bool, list[str]]:
         )
         return False, drift
     if current["n_entities"] != baseline["n_entities"]:
-        drift.append(
-            f"  N_ENTITIES MISMATCH — current={current['n_entities']} "
-            f"baseline={baseline['n_entities']}"
-        )
+        drift.append(f"  N_ENTITIES MISMATCH — current={current['n_entities']} baseline={baseline['n_entities']}")
 
     if current.get("health_shape") != baseline.get("health_shape"):
         drift.append(
@@ -279,12 +273,11 @@ def compare(current: dict, baseline: dict) -> tuple[bool, list[str]]:
     cur_results = current["results"]
     base_results = baseline["results"]
 
-    for i, (c, b) in enumerate(zip(cur_results, base_results, strict=False)):  # strict=False: a count mismatch is reported above; compare the common prefix
+    for i, (c, b) in enumerate(
+        zip(cur_results, base_results, strict=False)
+    ):  # strict=False: a count mismatch is reported above; compare the common prefix
         if c.get("id") != b.get("id"):
-            drift.append(
-                f"  [{i:>2}] ENTITY ID MISMATCH — current={c.get('id')} "
-                f"baseline={b.get('id')}"
-            )
+            drift.append(f"  [{i:>2}] ENTITY ID MISMATCH — current={c.get('id')} baseline={b.get('id')}")
             continue
         for variant in ("search_by_name", "search_by_name_type", "get_depth1"):
             c_fp = c.get(variant, {})
@@ -318,10 +311,7 @@ async def main():
 
     print(f"Comparing against baseline: {BASELINE_PATH}")
     baseline = json.loads(BASELINE_PATH.read_text())
-    print(
-        f"  baseline: seed={baseline['seed']} n_entities={baseline['n_entities']} "
-        f"search_k={baseline['search_k']}"
-    )
+    print(f"  baseline: seed={baseline['seed']} n_entities={baseline['n_entities']} search_k={baseline['search_k']}")
     current = capture()
     matched, drift_lines = compare(current, baseline)
 

@@ -7,6 +7,7 @@ mode had nothing restarting :8082 after a crash or reboot.
 Hermetic (§3): renders templates and drives the installer with every
 subprocess and service manager mocked. No launchctl, no systemctl, no HTTP.
 """
+
 from __future__ import annotations
 
 import os
@@ -62,8 +63,7 @@ def test_launchd_keepalive_is_unconditional():
     """KeepAlive={Crashed:true} ignores a CLEAN exit — the bug that left the
     cognitive loop dead for 4h on 2026-08-09. In shared mode the whole fleet
     defers to this process, so any exit must be restarted."""
-    data = plistlib.loads(
-        sched._render_template(str(PLIST), "/opt/m3", "/py").encode("utf-8"))
+    data = plistlib.loads(sched._render_template(str(PLIST), "/opt/m3", "/py").encode("utf-8"))
     assert data["KeepAlive"] is True, "KeepAlive must be unconditional, not Crashed-only"
     assert data.get("RunAtLoad") is True
     assert int(data.get("ThrottleInterval", 0)) > 0, "no crash-loop throttle"
@@ -80,8 +80,7 @@ def test_systemd_unit_does_not_narrow_the_start_limit():
     fix (SCM spent RESTART x3 on a sick GPU driver and never retried). The
     unit must not add its own StartLimitBurst on top."""
     rendered = sched._render_template(str(UNIT), "/opt/m3", "/py")
-    live = [ln.strip() for ln in rendered.splitlines()
-            if ln.strip() and not ln.strip().startswith("#")]
+    live = [ln.strip() for ln in rendered.splitlines() if ln.strip() and not ln.strip().startswith("#")]
     assert not any(ln.startswith("StartLimitBurst") for ln in live)
     assert not any(ln.startswith("StartLimitIntervalSec") for ln in live)
 
@@ -91,8 +90,7 @@ def test_neither_unit_hardcodes_a_gguf_path():
     .embed_config.json. The server auto-detects via discover_bge_m3_gguf()."""
     for tpl in (PLIST, UNIT):
         rendered = sched._render_template(str(tpl), "/opt/m3", "/py")
-        live = [ln for ln in rendered.splitlines()
-                if not ln.strip().startswith("#")]
+        live = [ln for ln in rendered.splitlines() if not ln.strip().startswith("#")]
         assert not any("M3_EMBED_GGUF=" in ln for ln in live), f"{tpl.name} pins a GGUF"
 
 
@@ -119,6 +117,7 @@ def fake_run(monkeypatch):
     def _run(cmd, **kw):
         calls.append(list(cmd))
         return R()
+
     monkeypatch.setattr(sched.subprocess, "run", _run)
     return calls
 
@@ -130,8 +129,9 @@ def test_refuses_when_rust_service_registered(monkeypatch, fake_run, tmp_path):
     monkeypatch.setattr(sched, "_os_name", lambda: "Darwin")
     with pytest.raises(sched.EmbedServerConflict):
         sched.install_unix_embed_server(str(tmp_path), "/py")
-    assert not any("launchctl" in c[0] for c in fake_run), \
+    assert not any("launchctl" in c[0] for c in fake_run), (
         "installed a competing unit while the Rust service owns :8082"
+    )
 
 
 def test_indeterminate_refuses(monkeypatch, fake_run, tmp_path):
@@ -156,14 +156,13 @@ def test_loaded_detects_the_real_live_mac_state(monkeypatch):
     The label is registered while the port is FREE and state = not running.
     A binary check and a /health probe both read 'clear' in this state, which
     is why the check must be `launchctl list`."""
-    real = ("-\t0\tcom.skynetcmd.m3-embed-server\n"
-            "-\t0\tcom.m3memory.sync_all\n"
-            "77535\t0\tcom.m3memory.cognitiveloop\n")
+    real = "-\t0\tcom.skynetcmd.m3-embed-server\n-\t0\tcom.m3memory.sync_all\n77535\t0\tcom.m3memory.cognitiveloop\n"
 
     class R:
         returncode = 0
         stdout = real
         stderr = ""
+
     monkeypatch.setattr(sched, "_os_name", lambda: "Darwin")
     monkeypatch.setattr(sched.subprocess, "run", lambda *a, **k: R())
     assert sched._rust_embed_service_loaded() is True
@@ -175,6 +174,7 @@ def test_loaded_is_none_when_launchctl_cannot_run(monkeypatch):
 
     def _boom(*a, **k):
         raise OSError("launchctl: not found")
+
     monkeypatch.setattr(sched.subprocess, "run", _boom)
     assert sched._rust_embed_service_loaded() is None
 
@@ -184,6 +184,7 @@ def test_loaded_is_none_on_nonzero_rc(monkeypatch):
         returncode = 1
         stdout = ""
         stderr = "Could not connect to server"
+
     monkeypatch.setattr(sched, "_os_name", lambda: "Darwin")
     monkeypatch.setattr(sched.subprocess, "run", lambda *a, **k: R())
     assert sched._rust_embed_service_loaded() is None
@@ -194,6 +195,7 @@ def test_loaded_false_when_label_absent(monkeypatch):
         returncode = 0
         stdout = "-\t0\tcom.m3memory.cognitiveloop\n"
         stderr = ""
+
     monkeypatch.setattr(sched, "_os_name", lambda: "Darwin")
     monkeypatch.setattr(sched.subprocess, "run", lambda *a, **k: R())
     assert sched._rust_embed_service_loaded() is False
@@ -214,16 +216,14 @@ def test_linux_is_false_without_a_unit(monkeypatch, tmp_path):
 
 
 def test_linux_is_false_for_our_own_unit(monkeypatch, tmp_path):
-    _linux_unit(monkeypatch, tmp_path,
-                "ExecStart=/py /opt/m3/bin/embed_server_inproc.py --port 8082\n")
+    _linux_unit(monkeypatch, tmp_path, "ExecStart=/py /opt/m3/bin/embed_server_inproc.py --port 8082\n")
     assert sched._rust_embed_service_loaded() is False
 
 
 def test_linux_detects_the_rust_servers_unit(monkeypatch, tmp_path):
     """`m3 embedder install` writes the same unit file name on Linux
     (m3-core-rs unit_render.rs); seen on a Debian 13 host, 2026-10-04."""
-    _linux_unit(monkeypatch, tmp_path,
-                "ExecStart=/venv/site-packages/m3_core_rs/m3-embed-server\n")
+    _linux_unit(monkeypatch, tmp_path, "ExecStart=/venv/site-packages/m3_core_rs/m3-embed-server\n")
     assert sched._rust_embed_service_loaded() is True
 
 
@@ -236,6 +236,7 @@ def test_guard_uses_the_one_owner_label(monkeypatch):
         returncode = 0
         stdout = "-\t0\tcom.example.relabeled\n"
         stderr = ""
+
     monkeypatch.setattr(sched, "_os_name", lambda: "Darwin")
     monkeypatch.setattr(sched.subprocess, "run", lambda *a, **k: R())
     assert sched._rust_embed_service_loaded() is True
@@ -245,8 +246,10 @@ def test_conflict_does_not_abort_the_whole_installer(monkeypatch, capsys):
     """install_unix_embed_server is the LAST call in install_unix_cognitive_loop,
     so a propagating raise would fail the installer AFTER the loop installed.
     The conflict is fatal to the embed-server unit only — loudly."""
+
     def _conflict(*a, **k):
         raise sched.EmbedServerConflict("two supervisors, one port")
+
     monkeypatch.setattr(sched, "_os_name", lambda: "Linux")
     monkeypatch.setattr(sched, "_rust_embed_service_loaded", lambda: None)
     monkeypatch.setattr(sched, "install_unix_embed_server", _conflict)
@@ -260,8 +263,9 @@ def test_a_registered_rust_server_is_reported_as_the_keep_alive(monkeypatch, cap
     """Not a failure: the Rust service is the keep-alive on that host."""
     monkeypatch.setattr(sched, "_os_name", lambda: "Linux")
     monkeypatch.setattr(sched, "_rust_embed_service_loaded", lambda: True)
-    monkeypatch.setattr(sched, "install_unix_embed_server",
-                        lambda *a, **k: pytest.fail("would overwrite the Rust unit"))
+    monkeypatch.setattr(
+        sched, "install_unix_embed_server", lambda *a, **k: pytest.fail("would overwrite the Rust unit")
+    )
     sched._install_embed_server_or_report("/root", "/py")
     out = capsys.readouterr().out
     assert sched.OK in out and sched.FAIL not in out
@@ -303,6 +307,7 @@ def test_installer_never_raises(monkeypatch, tmp_path):
 
     def _boom(*a, **k):
         raise OSError("no systemctl")
+
     monkeypatch.setattr(sched.subprocess, "run", _boom)
     # The unit file is written BEFORE systemctl runs; keep it out of the real ~.
     monkeypatch.setattr(os.path, "expanduser", lambda p: str(tmp_path / "home"))
@@ -320,13 +325,12 @@ def test_watchdog_unit_names_match_the_installed_units():
     """§10a one-owner check: the watchdog starts what the installer registers.
     A rename on either side silently breaks recovery on that OS."""
     import importlib.util
-    spec = importlib.util.spec_from_file_location(
-        "_ew", _BIN / "m3_embed_watchdog.py")
+
+    spec = importlib.util.spec_from_file_location("_ew", _BIN / "m3_embed_watchdog.py")
     ew = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(ew)
     assert ew._SYSTEMD_UNIT == UNIT.name
-    plist_label = plistlib.loads(
-        sched._render_template(str(PLIST), "/o", "/p").encode("utf-8"))["Label"]
+    plist_label = plistlib.loads(sched._render_template(str(PLIST), "/o", "/p").encode("utf-8"))["Label"]
     assert ew._LAUNCHD_LABEL == plist_label
 
 
@@ -338,6 +342,5 @@ def test_darwin_counts_an_unloaded_rust_plist_as_registered(monkeypatch, tmp_pat
     (agents / "com.skynetcmd.m3-embed-server.plist").write_text("<plist/>", encoding="utf-8")
     monkeypatch.setattr(sched, "_os_name", lambda: "Darwin")
     monkeypatch.setattr(os.path, "expanduser", lambda p: p.replace("~", str(tmp_path), 1))
-    monkeypatch.setattr(sched.subprocess, "run",
-                        lambda *a, **k: pytest.fail("launchctl must not be needed"))
+    monkeypatch.setattr(sched.subprocess, "run", lambda *a, **k: pytest.fail("launchctl must not be needed"))
     assert sched._rust_embed_service_loaded() is True

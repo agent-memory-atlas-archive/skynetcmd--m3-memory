@@ -1,8 +1,8 @@
 ---
 tool: bin/deep_sync.py
-sha1: bb5ea1cb6bc1
-mtime_utc: 2026-10-09T22:01:09.489441+00:00
-generated_utc: 2026-10-09T22:03:20.968837+00:00
+sha1: fb5870443d0e
+mtime_utc: 2026-10-10T21:05:17.248881+00:00
+generated_utc: 2026-10-10T21:05:29.482911+00:00
 private: false
 ---
 
@@ -42,8 +42,8 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.check_call()  → `['git', '-C', WORKSPACE, *args]`` (line 17)
-- `subprocess.run()  → `[cleanup_script]`` (line 29)
+- `subprocess.check_call()  → `['git', '-C', WORKSPACE, *args]`` (line 18)
+- `subprocess.run()  → `[cleanup_script]`` (line 31)
 
 
 ---

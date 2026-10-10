@@ -3,6 +3,7 @@
 Moved verbatim from mcp_tool_catalog.py (lines ~61-121 pre-split) as part of
 the catalog/ subpackage split.
 """
+
 from __future__ import annotations
 
 import re
@@ -17,50 +18,76 @@ memory_core = LazyModuleProxy("memory_core")
 MAX_CONTENT_SIZE = 50_000
 MAX_QUERY_LENGTH = 2_000
 MAX_K = 100
-VALID_MEMORY_TYPES = frozenset({
-    "note", "fact", "decision", "preference", "conversation", "message",
-    "task", "code", "config", "observation", "plan", "summary", "snippet",
-    "reference", "log", "home", "user_fact", "scratchpad", "auto",
-    "knowledge", "event_extraction", "fact_enriched", "chat_log",
-    # Autonomous episodic->semantic abstraction (knowledge-maintenance Phase 4):
-    # a higher-order rollup of many 'observation'/'fact' memories into a stable
-    # belief, distinct from a manual 'summary'. Carries high confidence + links
-    # back to its sources via 'consolidates' edges.
-    "belief",
-    # Home-network / infrastructure inventory categories. Pre-existing rows
-    # in the store predate the strict catalog (restored 2026-04-17 from the
-    # pre-hard-delete archive); widening lets new writes round-trip cleanly.
-    "local_device", "network_config", "infrastructure", "home_automation",
-    "migration-log",
-    # Security: SSH endpoints, credentials references, firewall rules,
-    # auth-related facts. Distinct from generic 'fact' for browsing.
-    "security",
-    # Platform-scoped notes — for guidance/snippets that only apply on one OS.
-    "windows_only", "macos_only", "linux_only",
-    # User-facing reminder / pending action. Lighter than 'task' which carries
-    # the full task-state machine; 'to_do' is just "remember to do this".
-    "to_do",
-    # Reusable, learned PROCEDURE — the "how to do X" memory (skill/runbook/
-    # how-to/checklist). A single head type; the sub-kind rides
-    # metadata_json.procedure_kind ∈ {skill, runbook, how_to, checklist} so the
-    # shipping taxonomy stays compact and users can extend the kind freely.
-    # Ordered steps ride content (markdown) + a structured metadata_json.steps
-    # array. Auto-distilled from successful task runs (memory_distill_procedures)
-    # and linked back to sources via 'distills_from' edges.
-    "procedure",
-    # Compiled prose over N source memories — the wiki's "compile at ingest"
-    # output. Distinct from 'belief' (autonomous episodic->semantic rollup of
-    # observations) and 'summary' (hand-written): a synthesis is LLM-compiled
-    # from an explicit cluster and carries compiler provenance (prompt version,
-    # model, cluster hash, member manifest) in metadata_json so a recompile is
-    # auditable and a prompt bump is an explained event, not silent churn.
-    # Sub-kind rides metadata_json.synthesis_kind in {compiled, answer,
-    # comparison, draft}; metadata_json.authority in {canonical, provisional,
-    # pending, draft} defaults to provisional and gates how it renders. Linked
-    # to sources via 'consolidates' (a compiled page) or 'distills_from' (a
-    # query answer filed back into the wiki).
-    "synthesis",
-})
+VALID_MEMORY_TYPES = frozenset(
+    {
+        "note",
+        "fact",
+        "decision",
+        "preference",
+        "conversation",
+        "message",
+        "task",
+        "code",
+        "config",
+        "observation",
+        "plan",
+        "summary",
+        "snippet",
+        "reference",
+        "log",
+        "home",
+        "user_fact",
+        "scratchpad",
+        "auto",
+        "knowledge",
+        "event_extraction",
+        "fact_enriched",
+        "chat_log",
+        # Autonomous episodic->semantic abstraction (knowledge-maintenance Phase 4):
+        # a higher-order rollup of many 'observation'/'fact' memories into a stable
+        # belief, distinct from a manual 'summary'. Carries high confidence + links
+        # back to its sources via 'consolidates' edges.
+        "belief",
+        # Home-network / infrastructure inventory categories. Pre-existing rows
+        # in the store predate the strict catalog (restored 2026-04-17 from the
+        # pre-hard-delete archive); widening lets new writes round-trip cleanly.
+        "local_device",
+        "network_config",
+        "infrastructure",
+        "home_automation",
+        "migration-log",
+        # Security: SSH endpoints, credentials references, firewall rules,
+        # auth-related facts. Distinct from generic 'fact' for browsing.
+        "security",
+        # Platform-scoped notes — for guidance/snippets that only apply on one OS.
+        "windows_only",
+        "macos_only",
+        "linux_only",
+        # User-facing reminder / pending action. Lighter than 'task' which carries
+        # the full task-state machine; 'to_do' is just "remember to do this".
+        "to_do",
+        # Reusable, learned PROCEDURE — the "how to do X" memory (skill/runbook/
+        # how-to/checklist). A single head type; the sub-kind rides
+        # metadata_json.procedure_kind ∈ {skill, runbook, how_to, checklist} so the
+        # shipping taxonomy stays compact and users can extend the kind freely.
+        # Ordered steps ride content (markdown) + a structured metadata_json.steps
+        # array. Auto-distilled from successful task runs (memory_distill_procedures)
+        # and linked back to sources via 'distills_from' edges.
+        "procedure",
+        # Compiled prose over N source memories — the wiki's "compile at ingest"
+        # output. Distinct from 'belief' (autonomous episodic->semantic rollup of
+        # observations) and 'summary' (hand-written): a synthesis is LLM-compiled
+        # from an explicit cluster and carries compiler provenance (prompt version,
+        # model, cluster hash, member manifest) in metadata_json so a recompile is
+        # auditable and a prompt bump is an explained event, not silent churn.
+        # Sub-kind rides metadata_json.synthesis_kind in {compiled, answer,
+        # comparison, draft}; metadata_json.authority in {canonical, provisional,
+        # pending, draft} defaults to provisional and gates how it renders. Linked
+        # to sources via 'consolidates' (a compiled page) or 'distills_from' (a
+        # query answer filed back into the wiki).
+        "synthesis",
+    }
+)
 
 # Entity-graph enums — defined in memory_core to avoid circular import
 # (mcp_tool_catalog imports memory_core, not vice versa). Re-exported here
@@ -71,17 +98,30 @@ VALID_ENTITY_PREDICATES = memory_core.VALID_ENTITY_PREDICATES
 # schemas render their description and enum from it at catalog load, before
 # memory_core is imported; memory_core imports it, so an agent is offered
 # exactly what memory_link_impl accepts.
-VALID_RELATIONSHIP_TYPES = frozenset({
-    "related", "supports", "contradicts", "extends", "supersedes", "references",
-    "message", "consolidates", "handoff", "precedes", "follows",
-})
+VALID_RELATIONSHIP_TYPES = frozenset(
+    {
+        "related",
+        "supports",
+        "contradicts",
+        "extends",
+        "supersedes",
+        "references",
+        "message",
+        "consolidates",
+        "handoff",
+        "precedes",
+        "follows",
+    }
+)
 # Edge types m3 writes itself but does not offer an agent: they can appear in
 # memory_graph, and memory_link_impl accepts them from internal callers, while
 # the memory_link tool's enum (VALID_RELATIONSHIP_TYPES) refuses them
 # (docs/AGENT_INSTRUCTIONS.md, docs/TECHNICAL_DETAILS.md).
-INTERNAL_RELATIONSHIP_TYPES = frozenset({
-    "distills_from",  # procedure distillation (memory_maintenance)
-})
+INTERNAL_RELATIONSHIP_TYPES = frozenset(
+    {
+        "distills_from",  # procedure distillation (memory_maintenance)
+    }
+)
 
 # Canonical UUID shape (8-4-4-4-12 hex). Mutating tools (supersede/delete)
 # require a full UUID, not the 8-char prefix that memory_get accepts for reads
@@ -96,6 +136,7 @@ def _is_full_uuid(s: str) -> bool:
     """True iff s is a full canonical UUID (not a prefix). Used to gate
     mutating memory tools against prefix-based id ambiguity."""
     return bool(_UUID_RE.match(s.strip()))
+
 
 # ── Dataclass ────────────────────────────────────────────────────────────────
 @dataclass(frozen=True, slots=True)

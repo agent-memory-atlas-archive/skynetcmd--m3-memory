@@ -79,8 +79,7 @@ def backfill(
 
     with ctx.get_chatlog_conn() as conn:
         rows = conn.execute(
-            f"SELECT id, content, metadata_json FROM {_T} "
-            f"WHERE {where} LIMIT {_p}",
+            f"SELECT id, content, metadata_json FROM {_T} WHERE {where} LIMIT {_p}",
             [*params, limit],
         ).fetchall()
 
@@ -96,12 +95,14 @@ def backfill(
             changed += 1
             blocks_removed_total += count
             if verbose and len(samples) < 20:
-                samples.append({
-                    "id": r["id"],
-                    "blocks_removed": count,
-                    "bytes_before": len(content),
-                    "bytes_after": len(stripped),
-                })
+                samples.append(
+                    {
+                        "id": r["id"],
+                        "blocks_removed": count,
+                        "bytes_before": len(content),
+                        "bytes_after": len(stripped),
+                    }
+                )
 
             if not apply:
                 continue
@@ -115,12 +116,9 @@ def backfill(
             if not meta.get("harness_framing_stripped"):
                 meta["original_content_sha256"] = _content_hash(content)
             meta["harness_framing_stripped"] = True
-            meta["harness_blocks_removed"] = (
-                int(meta.get("harness_blocks_removed", 0)) + count
-            )
+            meta["harness_blocks_removed"] = int(meta.get("harness_blocks_removed", 0)) + count
             conn.execute(
-                f"UPDATE {_T} SET content={_p}, metadata_json={_p}, updated_at={_p} "
-                f"WHERE id={_p}",
+                f"UPDATE {_T} SET content={_p}, metadata_json={_p}, updated_at={_p} WHERE id={_p}",
                 (stripped, json.dumps(meta, ensure_ascii=False), _utcnow_iso(), r["id"]),
             )
 
@@ -140,22 +138,15 @@ def backfill(
 def main() -> int:
     p = argparse.ArgumentParser(
         description="Backfill: strip harness control framing from existing "
-                    "chat_log rows (companion to the chatlog write-path fix).",
+        "chat_log rows (companion to the chatlog write-path fix).",
     )
-    p.add_argument("--apply", action="store_true",
-                   help="Write changes. Without this, runs a dry-run (default).")
-    p.add_argument("--conversation-id", default="",
-                   help="Limit to one conversation.")
-    p.add_argument("--since", default="",
-                   help="Only rows with created_at >= this ISO timestamp.")
-    p.add_argument("--until", default="",
-                   help="Only rows with created_at <= this ISO timestamp.")
-    p.add_argument("--limit", type=int, default=100_000,
-                   help="Max rows to scan (default 100000).")
-    p.add_argument("--verbose", action="store_true",
-                   help="Include per-row samples (first 20 changed rows).")
-    p.add_argument("--json", action="store_true",
-                   help="Emit the summary as JSON.")
+    p.add_argument("--apply", action="store_true", help="Write changes. Without this, runs a dry-run (default).")
+    p.add_argument("--conversation-id", default="", help="Limit to one conversation.")
+    p.add_argument("--since", default="", help="Only rows with created_at >= this ISO timestamp.")
+    p.add_argument("--until", default="", help="Only rows with created_at <= this ISO timestamp.")
+    p.add_argument("--limit", type=int, default=100_000, help="Max rows to scan (default 100000).")
+    p.add_argument("--verbose", action="store_true", help="Include per-row samples (first 20 changed rows).")
+    p.add_argument("--json", action="store_true", help="Emit the summary as JSON.")
     args = p.parse_args()
 
     result = backfill(
@@ -177,11 +168,9 @@ def main() -> int:
         if result["samples"]:
             print("  samples (id | blocks | bytes before->after):")
             for s in result["samples"]:
-                print(f"    {s['id'][:8]} | {s['blocks_removed']} | "
-                      f"{s['bytes_before']}->{s['bytes_after']}")
+                print(f"    {s['id'][:8]} | {s['blocks_removed']} | {s['bytes_before']}->{s['bytes_after']}")
         if not args.apply and result["changed"]:
-            print(f"\n  DRY-RUN — nothing written. Re-run with --apply to strip "
-                  f"{result['changed']} row(s).")
+            print(f"\n  DRY-RUN — nothing written. Re-run with --apply to strip {result['changed']} row(s).")
 
     return 0
 

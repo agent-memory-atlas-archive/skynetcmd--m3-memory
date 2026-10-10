@@ -19,6 +19,7 @@ defer imports here, because:
   2. Cold-start cost is negligible (~few ms). The original `memory_core`
      paid all of this already.
 """
+
 from . import (
     chunking,  # noqa: F401
     config,  # noqa: F401

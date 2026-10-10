@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_enrich_batch_parallel.py
-sha1: 52c3093745b0
-mtime_utc: 2026-10-10T06:50:41.232630+00:00
-generated_utc: 2026-10-10T06:50:42.160107+00:00
+sha1: ce502038f65a
+mtime_utc: 2026-10-10T21:05:16.852503+00:00
+generated_utc: 2026-10-10T21:05:29.698894+00:00
 private: false
 ---
 
@@ -48,7 +48,7 @@ logs/<base>_worker<N>_<ts>.log. PIDs are reported up front for kill-by-PID.
 
 ## Entry points
 
-- `def main()` (line 197)
+- `def main()` (line 206)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -94,7 +94,7 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.Popen()  → `cmd`` (line 132)
+- `subprocess.Popen()  → `cmd`` (line 137)
 
 
 ---

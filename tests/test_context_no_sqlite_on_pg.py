@@ -4,6 +4,7 @@ Hazard: memory_core binds a default context at import; an eager SQLite pool
 would create an empty agent_memory.db in the engine root of a PostgreSQL
 install.
 """
+
 from __future__ import annotations
 
 import os

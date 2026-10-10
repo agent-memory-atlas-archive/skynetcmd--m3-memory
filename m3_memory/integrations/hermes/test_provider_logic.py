@@ -10,6 +10,7 @@ live m3 catalog (that half is smoke-tested separately).
 
 Run:  python .scratch/hermes-plugin/test_provider_logic.py
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -24,6 +25,7 @@ HERE = Path(__file__).resolve().parent
 
 
 # ── Stub the three hermes-agent-only modules ──────────────────────────────────
+
 
 def _install_hermes_stubs() -> None:
     # agent.memory_provider.MemoryProvider — minimal ABC (plain object base;
@@ -60,15 +62,14 @@ def _install_hermes_stubs() -> None:
 
 def _load_provider():
     """Import m3/__init__.py as a module after stubs are installed."""
-    spec = importlib.util.spec_from_file_location(
-        "m3_provider_under_test", HERE / "__init__.py"
-    )
+    spec = importlib.util.spec_from_file_location("m3_provider_under_test", HERE / "__init__.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
 
 
 # ── Fake M3Client — records calls, controllable failures ──────────────────────
+
 
 class FakeM3Client:
     def __init__(self, **kw):
@@ -139,8 +140,9 @@ def main() -> int:
 
     # 2. m3_search dispatch
     out = json.loads(p.handle_tool_call("m3_search", {"query": "tea", "top_k": 5}))
-    check(out.get("count") == 1 and out["results"][0]["memory"].startswith("hit"),
-          "m3_search returns structured results")
+    check(
+        out.get("count") == 1 and out["results"][0]["memory"].startswith("hit"), "m3_search returns structured results"
+    )
     check(("search", "tea", "alice", 5) in fc.calls, "m3_search forwarded query+user+top_k")
 
     # 3. m3_search top_k cap at 50
@@ -155,8 +157,7 @@ def main() -> int:
     # 5. m3_profile (empty-query get_all path)
     out = json.loads(p.handle_tool_call("m3_profile", {}))
     check("spicy" in out.get("result", ""), "m3_profile returns user facts")
-    check(any(c[0] == "get_all" and c[2] == "user_fact" for c in fc.calls),
-          "m3_profile uses get_all(type='user_fact')")
+    check(any(c[0] == "get_all" and c[2] == "user_fact" for c in fc.calls), "m3_profile uses get_all(type='user_fact')")
 
     # 6. m3_conclude verbatim write
     out = json.loads(p.handle_tool_call("m3_conclude", {"conclusion": "alice uses vim"}))
@@ -194,8 +195,9 @@ def main() -> int:
     ps.sync_turn("hello", "hi there", session_id="sess9")
     if ps._sync_thread:
         ps._sync_thread.join(timeout=5.0)
-    check(any(c[0] == "chatlog_write" and c[1] == "sess9" for c in fcs.calls),
-          "sync_turn writes chatlog with session_id")
+    check(
+        any(c[0] == "chatlog_write" and c[1] == "sess9" for c in fcs.calls), "sync_turn writes chatlog with session_id"
+    )
 
     print(f"\n{_PASS} passed, {_FAIL} failed")
     return 1 if _FAIL else 0

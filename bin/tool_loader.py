@@ -10,6 +10,7 @@ the bridge, like in tests), the meta-tool impls fall back to returning
 the schemas as JSON in their result. That's the same behavior we use
 when the client doesn't advertise `tools.listChanged`.
 """
+
 from __future__ import annotations
 
 import json
@@ -41,19 +42,18 @@ def load_domain(domain: str) -> str:
     from tool_domains import DOMAIN_DESCRIPTIONS
 
     if domain not in DOMAIN_DESCRIPTIONS:
-        return (
-            f"Error: unknown domain '{domain}'. "
-            f"Valid domains: {', '.join(sorted(DOMAIN_DESCRIPTIONS.keys()))}"
-        )
+        return f"Error: unknown domain '{domain}'. Valid domains: {', '.join(sorted(DOMAIN_DESCRIPTIONS.keys()))}"
 
     if _register_domain_callback is None:
         # Catalog-only mode (no live bridge) — just describe what would
         # have happened.
-        return json.dumps({
-            "domain": domain,
-            "status": "callback-not-bound",
-            "hint": "Called outside the MCP bridge; tools are static in this context.",
-        })
+        return json.dumps(
+            {
+                "domain": domain,
+                "status": "callback-not-bound",
+                "hint": "Called outside the MCP bridge; tools are static in this context.",
+            }
+        )
 
     result = _register_domain_callback(domain)
     return json.dumps(result)
@@ -98,11 +98,10 @@ def help_capabilities(domain: str = "", query: str = "", as_records: bool = Fals
 
     if domain and domain not in DOMAIN_DESCRIPTIONS:
         return _records.emit(
-            f"Error: unknown domain '{domain}'. "
-            f"Valid domains: {', '.join(sorted(DOMAIN_DESCRIPTIONS.keys()))}",
-            _records.error_payload("unknown_domain", domain=domain,
-                                   valid_domains=sorted(DOMAIN_DESCRIPTIONS.keys())),
-            as_records)
+            f"Error: unknown domain '{domain}'. Valid domains: {', '.join(sorted(DOMAIN_DESCRIPTIONS.keys()))}",
+            _records.error_payload("unknown_domain", domain=domain, valid_domains=sorted(DOMAIN_DESCRIPTIONS.keys())),
+            as_records,
+        )
 
     matched_tools = []
     for spec in mcp_tool_catalog.TOOLS:
@@ -122,19 +121,21 @@ def help_capabilities(domain: str = "", query: str = "", as_records: bool = Fals
             p_desc = p_schema.get("description", "")
             params_info.append(f"- **{p_name}** ({p_type}, {req_str}): {p_desc}")
 
-        matched_tools.append({
-            "name": spec.name,
-            "domain": td,
-            "description": spec.description,
-            "is_essential": is_essential(spec.name),
-            "parameters": params_info,
-            # The real schema, kept alongside the rendered bullets. A records
-            # caller wants the parameter CONTRACT (types, defaults, required);
-            # re-parsing "- **k** (integer, optional): ..." back out of markdown
-            # is precisely the fallback this param removes. Dropped from the
-            # display path, which keeps using `parameters`.
-            "_schema": {"properties": props, "required": list(required)},
-        })
+        matched_tools.append(
+            {
+                "name": spec.name,
+                "domain": td,
+                "description": spec.description,
+                "is_essential": is_essential(spec.name),
+                "parameters": params_info,
+                # The real schema, kept alongside the rendered bullets. A records
+                # caller wants the parameter CONTRACT (types, defaults, required);
+                # re-parsing "- **k** (integer, optional): ..." back out of markdown
+                # is precisely the fallback this param removes. Dropped from the
+                # display path, which keeps using `parameters`.
+                "_schema": {"properties": props, "required": list(required)},
+            }
+        )
 
     # Group by domain for clean formatting
     grouped: dict[str, list[dict]] = {}
@@ -145,15 +146,14 @@ def help_capabilities(domain: str = "", query: str = "", as_records: bool = Fals
     if domain:
         lines.append(f"Filtering by domain: **{domain}**")
     if query:
-        lines.append(f"Searching for query: *\"{query}\"*")
+        lines.append(f'Searching for query: *"{query}"*')
     lines.append("")
 
     if not matched_tools:
         lines.append("No matching tools found.")
-        return _records.emit("\n".join(lines),
-                             _records.as_records_payload((), domain=domain or None,
-                                                         query=query or None),
-                             as_records)
+        return _records.emit(
+            "\n".join(lines), _records.as_records_payload((), domain=domain or None, query=query or None), as_records
+        )
 
     for d_name in sorted(grouped.keys()):
         d_desc = DOMAIN_DESCRIPTIONS.get(d_name, "")
@@ -162,7 +162,11 @@ def help_capabilities(domain: str = "", query: str = "", as_records: bool = Fals
         lines.append("")
 
         for t in grouped[d_name]:
-            availability = "Always Available (Essential)" if t["is_essential"] else f"Lazy (requires `tools_load_domain(domain=\"{d_name}\")`)"
+            availability = (
+                "Always Available (Essential)"
+                if t["is_essential"]
+                else f'Lazy (requires `tools_load_domain(domain="{d_name}")`)'
+            )
             lines.append(f"### `{t['name']}`")
             lines.append(f"**Description:** {t['description']}")
             lines.append(f"**Availability:** {availability}")
@@ -180,8 +184,6 @@ def help_capabilities(domain: str = "", query: str = "", as_records: bool = Fals
         _rec = {k: v for k, v in _t.items() if k not in ("parameters", "_schema")}
         _rec["parameters"] = _t.get("_schema", {})
         _items.append(_rec)
-    return _records.emit("\n".join(lines),
-                         _records.as_records_payload(_items, domain=domain or None,
-                                                     query=query or None),
-                         as_records)
-
+    return _records.emit(
+        "\n".join(lines), _records.as_records_payload(_items, domain=domain or None, query=query or None), as_records
+    )

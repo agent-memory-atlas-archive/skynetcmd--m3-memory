@@ -9,6 +9,7 @@ chat_log_items -> memory_items, no ATTACH).
 
 DSN from M3_PRIMARY_PG_URL/M3_PG_URL (never PG_URL).
 """
+
 from __future__ import annotations
 
 import json
@@ -94,10 +95,14 @@ def test_chatlog_write_flush_into_chat_log_items(pg):
     import asyncio
 
     conv = f"cv-{uuid.uuid4().hex[:8]}"
-    res = asyncio.run(_write_and_flush([
-        _item("the quick brown fox jumps over the lazy dog", conv, tokens_in=10, tokens_out=5),
-        _item("a second chatlog turn about postgres", conv, tokens_in=8, tokens_out=4),
-    ]))
+    res = asyncio.run(
+        _write_and_flush(
+            [
+                _item("the quick brown fox jumps over the lazy dog", conv, tokens_in=10, tokens_out=5),
+                _item("a second chatlog turn about postgres", conv, tokens_in=8, tokens_out=4),
+            ]
+        )
+    )
     assert res["failed"] == 0 and len(res["written_ids"]) == 2
     try:
         with pg.connection() as c:
@@ -107,9 +112,7 @@ def test_chatlog_write_flush_into_chat_log_items(pg):
             ).fetchone()[0]
         assert n == 2  # landed in chat_log_items, NOT core memory_items
         with pg.connection() as c:
-            core = c.execute(
-                "SELECT count(*) FROM memory_items WHERE conversation_id=%s", (conv,)
-            ).fetchone()[0]
+            core = c.execute("SELECT count(*) FROM memory_items WHERE conversation_id=%s", (conv,)).fetchone()[0]
         assert core == 0  # chatlog write must not touch the core table
     finally:
         with pg.connection() as c:
@@ -122,10 +125,14 @@ def test_chatlog_keyword_search_via_seam_on_pg(pg):
     import chatlog_core
 
     conv = f"cv-{uuid.uuid4().hex[:8]}"
-    asyncio.run(_write_and_flush([
-        _item("the quick brown fox jumps", conv),
-        _item("completely unrelated tacos and lunch", conv),
-    ]))
+    asyncio.run(
+        _write_and_flush(
+            [
+                _item("the quick brown fox jumps", conv),
+                _item("completely unrelated tacos and lunch", conv),
+            ]
+        )
+    )
     try:
         out = asyncio.run(chatlog_core.chatlog_search_impl(query="fox", k=5))
         res = json.loads(out) if isinstance(out, str) else out
@@ -149,10 +156,16 @@ def test_chatlog_promote_cross_table_on_pg(pg):
     res = asyncio.run(_write_and_flush([_item("promote me to core", conv)]))
     mid = res["written_ids"][0]
     try:
-        out = asyncio.run(chatlog_core.chatlog_promote_impl(
-            ids=[mid], conversation_id="", since="", until="",
-            copy=True, target_type="conversation",
-        ))
+        out = asyncio.run(
+            chatlog_core.chatlog_promote_impl(
+                ids=[mid],
+                conversation_id="",
+                since="",
+                until="",
+                copy=True,
+                target_type="conversation",
+            )
+        )
         pr = json.loads(out) if isinstance(out, str) else out
         assert pr["promoted"] == 1 and mid in pr["ids"]
         with pg.connection() as c:
@@ -162,9 +175,7 @@ def test_chatlog_promote_cross_table_on_pg(pg):
             ).fetchone()[0]
         assert promoted == 1  # landed in core memory_items as 'conversation'
         with pg.connection() as c:
-            still = c.execute(
-                "SELECT count(*) FROM chat_log_items WHERE id=%s", (mid,)
-            ).fetchone()[0]
+            still = c.execute("SELECT count(*) FROM chat_log_items WHERE id=%s", (mid,)).fetchone()[0]
         assert still == 1  # copy=True leaves the chatlog row
     finally:
         with pg.connection() as c:
@@ -173,6 +184,7 @@ def test_chatlog_promote_cross_table_on_pg(pg):
 
 
 # ── host-agent capture on PostgreSQL ─────────────────────────────────────────
+
 
 def test_every_host_agent_parser_writes_on_pg(pg):
     """⚠ §0.4 / §1: CAPTURE IS NOT DONE BECAUSE IT WORKS ON SQLITE.
@@ -199,21 +211,26 @@ def test_every_host_agent_parser_writes_on_pg(pg):
     # One representative turn per parser, built by the REAL parsers rather than
     # hand-written dicts — hand-written rows would not catch a parser emitting a
     # field the schema rejects, which is the defect this guards.
-    aider, _ = chatlog_ingest._parse_aider(
-        "# aider chat started at 2026-01-11 11:00:00\n#### q\n\nan answer\n")
+    aider, _ = chatlog_ingest._parse_aider("# aider chat started at 2026-01-11 11:00:00\n#### q\n\nan answer\n")
     openclaw, _ = chatlog_ingest._parse_openclaw(
         '{"type":"session","sessionId":"s1"}\n'
         '{"type":"model_change","model":"gpt-4o"}\n'
-        '{"id":"m1","type":"message","message":{"role":"user","content":"q"}}\n')
-    opencode = [chatlog_ingest._opencode_item(
-        {"role": "user", "providerID": "opencode", "modelID": "qwen3.6-plus-free"},
-        "m1", "s1", ["routed through opencode's own gateway"], 1767237681693)]
+        '{"id":"m1","type":"message","message":{"role":"user","content":"q"}}\n'
+    )
+    opencode = [
+        chatlog_ingest._opencode_item(
+            {"role": "user", "providerID": "opencode", "modelID": "qwen3.6-plus-free"},
+            "m1",
+            "s1",
+            ["routed through opencode's own gateway"],
+            1767237681693,
+        )
+    ]
 
-    for agent, items in (("aider", aider), ("openclaw", openclaw),
-                         ("opencode", opencode)):
+    for agent, items in (("aider", aider), ("openclaw", openclaw), ("opencode", opencode)):
         for it in items:
             row = dict(it)
-            row.pop("uuid", None)          # internal to ingest, not the schema
+            row.pop("uuid", None)  # internal to ingest, not the schema
             row["host_agent"] = agent
             row["conversation_id"] = convo
             rows.append(row)
@@ -221,9 +238,7 @@ def test_every_host_agent_parser_writes_on_pg(pg):
     assert len(rows) >= 4, "fixture did not produce turns from every parser"
 
     res = asyncio.run(chatlog_core.chatlog_write_bulk_impl(rows, embed=False))
-    assert res.get("failed", 0) == 0, (
-        f"turns rejected by PostgreSQL: {res.get('errors')}"
-    )
+    assert res.get("failed", 0) == 0, f"turns rejected by PostgreSQL: {res.get('errors')}"
     # The bulk writer reports ids, not a count — asserting a "written" key
     # that does not exist would have read as zero rows written while the
     # write actually succeeded.
@@ -236,6 +251,4 @@ def test_every_host_agent_parser_writes_on_pg(pg):
             "SELECT count(*) FROM chat_log_items WHERE conversation_id = %s",
             (convo,),
         )
-        assert cur.fetchone()[0] == len(rows), (
-            "write reported success but the rows are not in chat_log_items"
-        )
+        assert cur.fetchone()[0] == len(rows), "write reported success but the rows are not in chat_log_items"

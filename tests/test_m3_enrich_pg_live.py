@@ -9,6 +9,7 @@ extractor/reflector LLM paths are unchanged and not exercised.
 
 DSN from M3_PRIMARY_PG_URL/M3_PG_URL (never PG_URL).
 """
+
 from __future__ import annotations
 
 import sys
@@ -89,13 +90,25 @@ def test_enrichment_state_machine_on_pg(pg):
     try:
         assert es.has_state_tables(sc)
         rid = es.start_run(
-            sc, profile="p", model="m", source_variant=sv,
-            target_variant=tv, db_path="pg", concurrency=1,
+            sc,
+            profile="p",
+            model="m",
+            source_variant=sv,
+            target_variant=tv,
+            db_path="pg",
+            concurrency=1,
         )
         gid, action = es.enroll_group(
-            sc, source_variant=sv, target_variant=tv, group_key="g1",
-            user_id="u1", db_path="pg", turn_count=2, source_content_hash="h1",
-            content_size_k=1, enrich_run_id=rid,
+            sc,
+            source_variant=sv,
+            target_variant=tv,
+            group_key="g1",
+            user_id="u1",
+            db_path="pg",
+            turn_count=2,
+            source_content_hash="h1",
+            content_size_k=1,
+            enrich_run_id=rid,
         )
         sc.commit()
         assert isinstance(gid, int) and action == "inserted"  # RETURNING id

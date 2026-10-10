@@ -116,7 +116,7 @@ async def t2_claude() -> None:
         record(
             "Claude routes to Anthropic",
             finish in ("stop", "end_turn", "tool_calls", "length"),
-            f"finish={finish} tokens={resp.get('usage',{}).get('total_tokens','?')}",
+            f"finish={finish} tokens={resp.get('usage', {}).get('total_tokens', '?')}",
         )
         record(
             "Claude response received",
@@ -153,7 +153,7 @@ async def t3_gemini() -> None:
         record(
             "Gemini routes to Google AI",
             finish in ("stop", "end_turn", "tool_calls", "length"),
-            f"finish={finish} tokens={resp.get('usage',{}).get('total_tokens','?')}",
+            f"finish={finish} tokens={resp.get('usage', {}).get('total_tokens', '?')}",
         )
         record(
             "Gemini response received",
@@ -180,7 +180,9 @@ def t4_aider() -> None:
         try:
             result = subprocess.run(  # nosec B607 - `security` is the macOS keychain CLI
                 ["security", "find-generic-password", "-s", "ANTHROPIC_API_KEY", "-w"],  # nosec B105 - CLI subcommand name, not a password literal
-                capture_output=True, text=True, timeout=5,
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             if result.returncode == 0:
                 api_key = result.stdout.strip()
@@ -194,20 +196,30 @@ def t4_aider() -> None:
     # Run aider with a single message through the proxy, no git, no auto-commit
     cmd = [
         "aider",
-        "--config", f"{WORKSPACE}/.aider.conf.yml",
-        "--model", "openai/claude-sonnet-4-6",
-        "--openai-api-base", "http://localhost:9000/v1",
-        "--openai-api-key", api_key,
+        "--config",
+        f"{WORKSPACE}/.aider.conf.yml",
+        "--model",
+        "openai/claude-sonnet-4-6",
+        "--openai-api-base",
+        "http://localhost:9000/v1",
+        "--openai-api-key",
+        api_key,
         "--no-show-model-warnings",
         "--yes-always",
         "--no-git",
         "--no-auto-commits",
-        "--message", "Say only the word: PONG",
+        "--message",
+        "Say only the word: PONG",
     ]
     env = {**os.environ, "ANTHROPIC_API_KEY": api_key}
     try:
         proc = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=60, env=env, cwd=WORKSPACE,
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            env=env,
+            cwd=WORKSPACE,
         )
         output = proc.stdout + proc.stderr
         has_pong = "PONG" in output.upper()

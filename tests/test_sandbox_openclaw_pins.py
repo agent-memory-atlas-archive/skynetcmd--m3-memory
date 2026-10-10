@@ -14,6 +14,7 @@ fetched from the network, so the suite stays hermetic (a test that needs the
 internet fails in CI). When you bump the pin, re-read upstream's engines.node and
 update _EXPECTED_NODE_FLOOR in the same commit.
 """
+
 from __future__ import annotations
 
 import json
@@ -82,6 +83,7 @@ def test_openclaw_pin_is_exact_not_a_range():
 
 # ── the config the pins exist to support ─────────────────────────────────────
 
+
 def _server() -> dict:
     with open(_CONFIG, encoding="utf-8") as fh:
         cfg = json.load(fh)
@@ -121,10 +123,7 @@ def test_sandbox_tool_filter_matches_the_bridge_startup_set():
         pytest.skip(skip_reason("dep", f"payload not importable: {e}"))
 
     meta = set(memory_bridge._META_TOOLS)
-    expected = sorted({
-        s.name for s in mcp_tool_catalog.TOOLS
-        if s.name in meta or tool_domains.is_essential(s.name)
-    })
+    expected = sorted({s.name for s in mcp_tool_catalog.TOOLS if s.name in meta or tool_domains.is_essential(s.name)})
     assert sorted(_server()["toolFilter"]["include"]) == expected
 
 

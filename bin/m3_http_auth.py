@@ -38,6 +38,7 @@ Portability: ``secrets`` and ``hmac`` are stdlib and behave identically across
 the supported matrix (Windows/macOS/Linux, Python 3.12 and newer). The vault probe
 goes through the backend seam, so it is correct on SQLite and PostgreSQL alike.
 """
+
 from __future__ import annotations
 
 import enum
@@ -202,9 +203,7 @@ def resolve_token(service: str = SECRET_NAME) -> tuple[str | None, TokenState]:
     return None, TokenState.MISSING
 
 
-def preflight(
-    host: str, token: str | None, state: TokenState, service: str = SECRET_NAME
-) -> str:
+def preflight(host: str, token: str | None, state: TokenState, service: str = SECRET_NAME) -> str:
     """Validate startup auth config. Returns the token, or raises AuthConfigError.
 
     The refusal is UNCONDITIONAL -- it does not exempt loopback. A loopback
@@ -400,8 +399,7 @@ def attach(mcp, host: str, port: int, token: str, public_hosts: list[str] | None
     settings = getattr(mcp, "settings", None)
     if settings is None or not hasattr(settings, "auth"):
         raise AuthConfigError(
-            "incompatible mcp version: FastMCP settings has no 'auth' field -- "
-            "refusing to start unauthenticated"
+            "incompatible mcp version: FastMCP settings has no 'auth' field -- refusing to start unauthenticated"
         )
 
     auth_settings, verifier = build_auth(host, port, token)
@@ -419,14 +417,14 @@ def attach(mcp, host: str, port: int, token: str, public_hosts: list[str] | None
     # read-back below covers it too.
     ts = build_transport_security(host, public_hosts)
     import mcp_compat
+
     mcp_compat.set_transport_security(mcp, ts)
 
     # Read back: an assignment that did not stick is indistinguishable from one
     # that was never made, and both serve the catalog unauthenticated.
     if getattr(mcp, _VERIFIER_ATTR, None) is not verifier or settings.auth is not auth_settings:
         raise AuthConfigError(
-            "auth wiring did not take effect on the FastMCP instance -- "
-            "refusing to start unauthenticated"
+            "auth wiring did not take effect on the FastMCP instance -- refusing to start unauthenticated"
         )
     # Same read-back for the rebinding allowlist, wherever it landed. An
     # allowlist that did not stick is indistinguishable from one never built.

@@ -6,6 +6,7 @@ Verifies:
 2. When sqlite-vec is inactive (fails to load or not present), the system falls back
    gracefully to the FFI / Python _cosine_batch_packed pipeline.
 """
+
 from __future__ import annotations
 
 import os
@@ -24,6 +25,7 @@ def test_detect_sqlite_vec_active():
     from memory.search import _detect_sqlite_vec
 
     executed = []
+
     class ActiveConnection(sqlite3.Connection):
         def execute(self, sql, *args):
             executed.append(sql)
@@ -66,8 +68,10 @@ async def test_search_uses_sqlite_vec_when_active(monkeypatch):
 
     # Mock _embed to return a dummy query vector
     dummy_q_vec = [0.1, 0.2, 0.3]
+
     async def mock_embed(query):
         return dummy_q_vec, 1.0
+
     monkeypatch.setattr(search, "_embed", mock_embed)
     monkeypatch.setattr(memory_core, "_embed", mock_embed)
 
@@ -108,6 +112,7 @@ async def test_search_uses_sqlite_vec_when_active(monkeypatch):
         class MockDBContext:
             def __enter__(self):
                 return conn
+
             def __exit__(self, exc_type, exc_val, exc_tb):
                 pass
 
@@ -148,8 +153,10 @@ async def test_search_falls_back_when_sqlite_vec_inactive(monkeypatch):
 
     # Mock _embed to return a dummy query vector
     dummy_q_vec = [1.0, 0.0, 0.0]
+
     async def mock_embed(query):
         return dummy_q_vec, 1.0
+
     monkeypatch.setattr(search, "_embed", mock_embed)
     monkeypatch.setattr(memory_core, "_embed", mock_embed)
 
@@ -191,6 +198,7 @@ async def test_search_falls_back_when_sqlite_vec_inactive(monkeypatch):
         class MockDBContext:
             def __enter__(self):
                 return conn
+
             def __exit__(self, exc_type, exc_val, exc_tb):
                 pass
 

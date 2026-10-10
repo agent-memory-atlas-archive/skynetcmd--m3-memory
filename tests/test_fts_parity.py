@@ -6,6 +6,7 @@ the extension is present, with the regex/split Python body as fallback. FTS
 recall depends on these matching EXACTLY (including Python quirks like a lone
 quote char being treated as an exact phrase), so any divergence is a finding.
 """
+
 from __future__ import annotations
 
 import os
@@ -25,17 +26,57 @@ from memory import fts as ftsmod  # noqa: E402
 # Inputs that stress every branch: operators, exact phrases (incl. lone quote),
 # punctuation, Unicode, truncation, multi-space, mixed quotes, casing.
 INPUTS = [
-    "red wine", "wine", "AND OR NOT *(foo)", "ANDROID phones", "NEAR/3 quux",
-    '"red wine"', "'red wine'", '"', "'", "''", '""', "  ", "",
-    "Hello, World!", "a.b:c;d/e?f", "café", "naïve query", "MCP-tool",
-    "content_hash", "agent_id", "what did Caroline say about wine",
-    "DROP TABLE", "foo*bar", "(parens)", "[brackets]", "{braces}",
-    "multi   space    tokens", "trailing space ", " leading space",
-    "ALLCAPS QUERY", "Mixed Case Thing", "123 456", "a1b2c3",
-    "one", "two words", "three word phrase here", "x" * 600,
-    "réseau électrique", "日本語 query", "emoji 🎉 test",
-    "NOTthis", "ORnot", "ANDy", "near miss", "a-b-c", "under_score",
-    "'quoted start", "quoted end'", "mismatch\"quote'", "tab\tsep", "new\nline",
+    "red wine",
+    "wine",
+    "AND OR NOT *(foo)",
+    "ANDROID phones",
+    "NEAR/3 quux",
+    '"red wine"',
+    "'red wine'",
+    '"',
+    "'",
+    "''",
+    '""',
+    "  ",
+    "",
+    "Hello, World!",
+    "a.b:c;d/e?f",
+    "café",
+    "naïve query",
+    "MCP-tool",
+    "content_hash",
+    "agent_id",
+    "what did Caroline say about wine",
+    "DROP TABLE",
+    "foo*bar",
+    "(parens)",
+    "[brackets]",
+    "{braces}",
+    "multi   space    tokens",
+    "trailing space ",
+    " leading space",
+    "ALLCAPS QUERY",
+    "Mixed Case Thing",
+    "123 456",
+    "a1b2c3",
+    "one",
+    "two words",
+    "three word phrase here",
+    "x" * 600,
+    "réseau électrique",
+    "日本語 query",
+    "emoji 🎉 test",
+    "NOTthis",
+    "ORnot",
+    "ANDy",
+    "near miss",
+    "a-b-c",
+    "under_score",
+    "'quoted start",
+    "quoted end'",
+    "mismatch\"quote'",
+    "tab\tsep",
+    "new\nline",
 ]
 MODES = ["fts5", "hybrid", "semantic", "exact", ""]
 
@@ -71,6 +112,4 @@ def test_fts_module_uses_rust_when_present():
     """The wired fts.py functions return the same result as direct Rust calls."""
     for q in ["red wine", "wine", '"exact phrase"', "AND OR x"]:
         for mode in MODES:
-            assert ftsmod._compile_fts_query(q, mode) == tuple(
-                m3_core_rs.compile_fts_query(q, mode)
-            ), f"{q!r}/{mode!r}"
+            assert ftsmod._compile_fts_query(q, mode) == tuple(m3_core_rs.compile_fts_query(q, mode)), f"{q!r}/{mode!r}"

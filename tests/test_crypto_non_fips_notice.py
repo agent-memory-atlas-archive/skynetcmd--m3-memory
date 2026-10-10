@@ -19,6 +19,7 @@ ACTIONABILITY —
 The fact stays reachable at INFO and in ``m3 doctor``; it just stops being
 repeated to someone who cannot act on it.
 """
+
 from __future__ import annotations
 
 import logging
@@ -61,8 +62,7 @@ def _provider(monkeypatch, caplog, *, strict: bool):
     with caplog.at_level(logging.INFO, logger="m3-crypto"):
         # Re-run just the severity decision the way _initialize_wolfssl does.
         if cp._fips_strict():
-            cp.logger.warning("M3 Crypto: M3_FIPS_STRICT=1 but the loaded wolfSSL is "
-                              "the OPEN-SOURCE build")
+            cp.logger.warning("M3 Crypto: M3_FIPS_STRICT=1 but the loaded wolfSSL is the OPEN-SOURCE build")
         elif cp._fips_mode() and not cp.CryptoProvider._non_fips_notice_emitted:
             cp.CryptoProvider._non_fips_notice_emitted = True
             cp.logger.info("M3 Crypto: hardened wolfCrypt active (open-source build)")

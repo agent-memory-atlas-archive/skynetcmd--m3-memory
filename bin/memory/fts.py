@@ -7,6 +7,7 @@ at import; everything else is stateless.
 Used by the search and write paths. Re-exported through `memory_core` for
 back-compat with the 22+ callers that import these directly.
 """
+
 from __future__ import annotations
 
 import json
@@ -51,13 +52,32 @@ _DATE_RE_LONG = re.compile(
     r"\b(\d{1,2})(?:st|nd|rd|th)?\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|"
     r"apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|"
     r"nov(?:ember)?|dec(?:ember)?)(?:\s+,?\s*(\d{4}))?\b",
-    re.IGNORECASE
+    re.IGNORECASE,
 )
 _DATE_MONTHS = {
-    "jan": 1, "january": 1, "feb": 2, "february": 2, "mar": 3, "march": 3,
-    "apr": 4, "april": 4, "may": 5, "jun": 6, "june": 6, "jul": 7, "july": 7,
-    "aug": 8, "august": 8, "sep": 9, "september": 9, "oct": 10, "october": 10,
-    "nov": 11, "november": 11, "dec": 12, "december": 12
+    "jan": 1,
+    "january": 1,
+    "feb": 2,
+    "february": 2,
+    "mar": 3,
+    "march": 3,
+    "apr": 4,
+    "april": 4,
+    "may": 5,
+    "jun": 6,
+    "june": 6,
+    "jul": 7,
+    "july": 7,
+    "aug": 8,
+    "august": 8,
+    "sep": 9,
+    "september": 9,
+    "oct": 10,
+    "october": 10,
+    "nov": 11,
+    "november": 11,
+    "dec": 12,
+    "december": 12,
 }
 
 _TEMPORAL_QUERY_RE = re.compile(
@@ -66,7 +86,7 @@ _TEMPORAL_QUERY_RE = re.compile(
     r"\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\b|"
     r"\d{4}-\d{2}-\d{2}|"  # ISO date
     r"\b(?:morning|afternoon|evening|night|week|month|year|ago|recently|lately)\b",
-    re.IGNORECASE
+    re.IGNORECASE,
 )
 
 # Module-level temporal regex — same patterns memory `2d1d5812` documented;
@@ -74,41 +94,67 @@ _TEMPORAL_QUERY_RE = re.compile(
 # (Restored from pre-Phase-7+8 search.py; the refactor lost ~10 patterns
 # when consolidating into fts.py — see test_memory_search_routed.py.)
 _TEMPORAL_ROUTER_PATTERNS = (
-    r"\bwhen\b", r"\bhow long\b", r"\bwhat\s+(?:date|day|month|year|time)\b",
-    r"\bbefore\b", r"\bafter\b", r"\bsince\b", r"\buntil\b",
+    r"\bwhen\b",
+    r"\bhow long\b",
+    r"\bwhat\s+(?:date|day|month|year|time)\b",
+    r"\bbefore\b",
+    r"\bafter\b",
+    r"\bsince\b",
+    r"\buntil\b",
     r"\b(?:days?|weeks?|months?|years?)\s+ago\b",
-    r"\bfirst\b", r"\blast\b", r"\brecent(?:ly)?\b",
-    r"\bearliest\b", r"\blatest\b",
-    r"\bwhich\s+\w+\s+first\b", r"\bin\s+what\s+order\b",
+    r"\bfirst\b",
+    r"\blast\b",
+    r"\brecent(?:ly)?\b",
+    r"\bearliest\b",
+    r"\blatest\b",
+    r"\bwhich\s+\w+\s+first\b",
+    r"\bin\s+what\s+order\b",
     r"\b(?:mon|tue|wed|thu|fri|sat|sun)(?:day)?\b",
-    r"\bvalentine'?s?\s+day\b", r"\bchristmas\b", r"\bthanksgiving\b", r"\bnew\s+year'?s?\b",
+    r"\bvalentine'?s?\s+day\b",
+    r"\bchristmas\b",
+    r"\bthanksgiving\b",
+    r"\bnew\s+year'?s?\b",
 )
 _TEMPORAL_ROUTER_RE = re.compile("|".join(_TEMPORAL_ROUTER_PATTERNS), re.IGNORECASE)
 
 _ENTITY_MENTION_PATTERNS = (
-    r'"[^"]+"',                            # double-quoted strings
-    r"'[^']+'",                            # single-quoted strings
-    r"\b(?:19|20)\d{2}\b",                # 4-digit years (1900–2099)
+    r'"[^"]+"',  # double-quoted strings
+    r"'[^']+'",  # single-quoted strings
+    r"\b(?:19|20)\d{2}\b",  # 4-digit years (1900–2099)
     r"\b(?:January|February|March|April|May|June|July|August|September|"
-    r"October|November|December)\s+\d{1,2}\b",   # Month Day
-    r"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*",   # Capitalized noun phrases
+    r"October|November|December)\s+\d{1,2}\b",  # Month Day
+    r"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*",  # Capitalized noun phrases
 )
 _ENTITY_MENTION_RE = re.compile("|".join(_ENTITY_MENTION_PATTERNS))
 
 # Event extraction patterns
 _EVENT_VERB_LIST = (
-    "decided", "started", "finished", "completed", "installed", "configured",
-    "updated", "removed", "fixed", "bought", "purchased", "booked", "traveled",
-    "met", "attended", "presented", "wrote", "released", "launched", "deployed",
+    "decided",
+    "started",
+    "finished",
+    "completed",
+    "installed",
+    "configured",
+    "updated",
+    "removed",
+    "fixed",
+    "bought",
+    "purchased",
+    "booked",
+    "traveled",
+    "met",
+    "attended",
+    "presented",
+    "wrote",
+    "released",
+    "launched",
+    "deployed",
 )
 _EVENT_SENT_SPLIT = re.compile(r"(?<=[.!?])\s+")
 _EVENT_DATE_HINT = re.compile(
-    r"\b(?:today|yesterday|tomorrow|last|next|this|on|at|in|ago|from|to)\b|\d{4}-\d{2}-\d{2}",
-    re.IGNORECASE
+    r"\b(?:today|yesterday|tomorrow|last|next|this|on|at|in|ago|from|to)\b|\d{4}-\d{2}-\d{2}", re.IGNORECASE
 )
-_EVENT_VERB_RE = re.compile(
-    r"\b(" + "|".join(_EVENT_VERB_LIST) + r")\b", re.IGNORECASE
-)
+_EVENT_VERB_RE = re.compile(r"\b(" + "|".join(_EVENT_VERB_LIST) + r")\b", re.IGNORECASE)
 _EVENT_PROPER_NOUN = re.compile(r"\b([A-Z][a-z]{2,})\b")
 
 

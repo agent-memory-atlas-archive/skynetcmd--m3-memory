@@ -12,6 +12,7 @@ function object at import time and silently ignore any such patch. So we reach
 it via the module object, resolved lazily inside the function body — exactly
 the pattern used in m3_memory/wizard/persist.py for `_ask_yes_no`.
 """
+
 from __future__ import annotations
 
 import json
@@ -92,8 +93,10 @@ def _resolve_chatlog_db(cfg: dict) -> Path | None:
     # Decoupled engine root — the canonical location for chatlog DBs today.
     try:
         import sys as _sys
+
         _sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "bin"))
         from m3_sdk import get_m3_engine_root
+
         eng_db = Path(get_m3_engine_root()) / "agent_chatlog.db"
         if eng_db.is_file():
             return eng_db
@@ -109,6 +112,7 @@ def _resolve_chatlog_db(cfg: dict) -> Path | None:
     # reach it via the module object at call time, not a bound import, so a
     # test's monkeypatch.setattr(installer, "_developer_bridge", ...) is honored.
     from m3_memory import installer as _inst
+
     dev = _inst._developer_bridge()
     if dev:
         candidate = dev.parent.parent / "memory" / "agent_chatlog.db"
@@ -130,6 +134,7 @@ def _chatlog_db_stats(db_path: Path) -> dict:
         return out
     try:
         from m3_core.paths import seam_backend
+
         _cm = seam_backend().open_readonly(str(db_path))
         conn = _cm.__enter__()
         try:
@@ -137,8 +142,7 @@ def _chatlog_db_stats(db_path: Path) -> dict:
             # and 'message'. Matches chatlog_status's totals so the two
             # tools don't disagree.
             row = conn.execute(
-                "SELECT COUNT(*), MAX(created_at) FROM memory_items "
-                "WHERE type IN ('chat_log', 'message')"
+                "SELECT COUNT(*), MAX(created_at) FROM memory_items WHERE type IN ('chat_log', 'message')"
             ).fetchone()
             out["rows"] = row[0] or 0
             out["last_at"] = row[1] or ""
@@ -170,8 +174,7 @@ def _chatlog_server_stats() -> tuple[str, dict] | None:
     try:
         with seam_backend().open_readonly("") as conn:
             row = conn.execute(
-                f"SELECT COUNT(*), MAX(created_at) FROM {table} "
-                "WHERE type IN ('chat_log', 'message')"
+                f"SELECT COUNT(*), MAX(created_at) FROM {table} WHERE type IN ('chat_log', 'message')"
             ).fetchone()
         out.update(ok=True, rows=row[0] or 0, last_at=str(row[1] or ""))
     except Exception as e:  # noqa: BLE001 — doctor reports it; never raises
@@ -207,12 +210,9 @@ def _gemini_hook_state() -> dict:
     settings = _read_json(Path.home() / ".gemini" / "settings.json")
     if settings is None:
         return {"configured": False}
-    mcp = (settings.get("mcpServers") or {})
+    mcp = settings.get("mcpServers") or {}
     hooks = settings.get("hooks") or {}
-    session_end = any(
-        "chatlog" in json.dumps(h).lower()
-        for h in (hooks.get("SessionEnd") or [])
-    )
+    session_end = any("chatlog" in json.dumps(h).lower() for h in (hooks.get("SessionEnd") or []))
     return {
         "configured": True,
         "memory_mcp": "memory" in mcp,
@@ -277,6 +277,7 @@ def _embedder_tier_section() -> None:
     """
     try:
         from m3_memory.rust_core_install import active_embedder_tier
+
         tier = active_embedder_tier()
     except Exception:  # noqa: BLE001 — informational only
         return
@@ -301,22 +302,28 @@ def _shared_embedder_status() -> None:
     try:
         import json
         import os
+
         root = os.environ.get("M3_CONFIG_ROOT")
         if not root:
             mem = os.environ.get("M3_MEMORY_ROOT")
-            root = (os.path.join(os.path.abspath(os.path.expanduser(mem)), "config")
-                    if mem else os.path.join(os.path.expanduser("~"), ".m3", "config"))
+            root = (
+                os.path.join(os.path.abspath(os.path.expanduser(mem)), "config")
+                if mem
+                else os.path.join(os.path.expanduser("~"), ".m3", "config")
+            )
         path = os.path.join(root, ".embed_config.json")
         if not os.path.exists(path):
             # Shared mode is the shipped DEFAULT, so its absence is an anomaly to
             # flag, not a neutral state. A per-process fleet means N embedder
             # copies in host RAM and no single self-healed server.
-            print("  mode:                    [WARN] per-process — shared mode NOT "
-                  "enabled (this is the shipped default)")
-            print("    fix: re-run `m3 setup` (enables it automatically), or "
-                  "`m3 embedder shared` to enable it now.")
-            print("    then register the keep-alive task: "
-                  "`python bin/install_schedules.py --add embed-server` (admin shell).")
+            print(
+                "  mode:                    [WARN] per-process — shared mode NOT enabled (this is the shipped default)"
+            )
+            print("    fix: re-run `m3 setup` (enables it automatically), or `m3 embedder shared` to enable it now.")
+            print(
+                "    then register the keep-alive task: "
+                "`python bin/install_schedules.py --add embed-server` (admin shell)."
+            )
             return
         with open(path, encoding="utf-8") as f:
             cfg = json.load(f) or {}
@@ -325,8 +332,9 @@ def _shared_embedder_status() -> None:
         return
 
     if not cfg.get("disable_inproc_embedder"):
-        print("  mode:                    per-process (.embed_config.json present but "
-              "in-process embedder not disabled)")
+        print(
+            "  mode:                    per-process (.embed_config.json present but in-process embedder not disabled)"
+        )
         return
 
     url = (cfg.get("fallback_url") or "http://127.0.0.1:8082").rstrip("/")
@@ -335,13 +343,17 @@ def _shared_embedder_status() -> None:
     # malformed/hostile value (file://, custom scheme) must not turn this health
     # check into a local-file read (bandit B310). Only http/https reach urlopen.
     from urllib.parse import urlparse
+
     if urlparse(url).scheme not in ("http", "https"):
-        print(f"  shared server:           [WARN] fallback_url {url!r} is not http(s) "
-              "— refusing to probe. Fix .embed_config.json.")
+        print(
+            f"  shared server:           [WARN] fallback_url {url!r} is not http(s) "
+            "— refusing to probe. Fix .embed_config.json."
+        )
         return
     # Health-check the shared server. A dead endpoint here is the trap to surface.
     try:
         import urllib.request
+
         # scheme validated to http(s) above, so B310's file:// concern can't apply
         with urllib.request.urlopen(f"{url}/health", timeout=3) as r:  # nosec B310
             raw = r.read().decode("utf-8", "replace").strip()
@@ -355,17 +367,22 @@ def _shared_embedder_status() -> None:
         else:
             body = json.loads(raw)
         if body.get("status") == "ok":
-            print(f"  shared server:           OK (model={body.get('model')}, "
-                  f"dim={body.get('dim')})")
+            print(f"  shared server:           OK (model={body.get('model')}, dim={body.get('dim')})")
         else:
-            print(f"  shared server:           [WARN] responded status={body.get('status')!r} "
-                  "(not ready) — embeds will slow-cascade until it's serving.")
+            print(
+                f"  shared server:           [WARN] responded status={body.get('status')!r} "
+                "(not ready) — embeds will slow-cascade until it's serving."
+            )
     except Exception as e:  # noqa: BLE001
-        print(f"  shared server:           [WARN] UNREACHABLE at {url} ({type(e).__name__}) "
-              "— m3 is configured to defer to it but it's DOWN.")
-        print("    Fix: start it (AgentOS_EmbedServer task or "
-              "`python bin/embed_server_inproc.py`), or run `m3 embedder unshared` "
-              "to revert to per-process embedders.")
+        print(
+            f"  shared server:           [WARN] UNREACHABLE at {url} ({type(e).__name__}) "
+            "— m3 is configured to defer to it but it's DOWN."
+        )
+        print(
+            "    Fix: start it (AgentOS_EmbedServer task or "
+            "`python bin/embed_server_inproc.py`), or run `m3 embedder unshared` "
+            "to revert to per-process embedders."
+        )
 
 
 def _crypto_section() -> None:
@@ -378,8 +395,10 @@ def _crypto_section() -> None:
     """
     try:
         import sys as _sys
+
         _sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "bin"))
         from crypto_provider import active_crypto_status
+
         cs = active_crypto_status()
     except Exception:  # noqa: BLE001 — informational only
         return
@@ -388,8 +407,9 @@ def _crypto_section() -> None:
     tier = "strict" if cs["fips_strict"] else ("mode" if cs["fips_mode"] else "off")
     print(f"  backend:                 {cs['backend']}  (FIPS: {tier})")
     if cs["backend"] == "WOLFSSL" and cs.get("lib_path"):
-        print(f"  wolfSSL loaded from:     {cs['lib_path']}"
-              + ("  [integrity-pinned]" if cs["integrity_pinned"] else ""))
+        print(
+            f"  wolfSSL loaded from:     {cs['lib_path']}" + ("  [integrity-pinned]" if cs["integrity_pinned"] else "")
+        )
         print(f"  validated FIPS module:   {'yes' if cs['fips_validated'] else 'no (open-source build)'}")
         sha = cs.get("lib_sha256")
         if sha:
@@ -417,6 +437,7 @@ def _roots_section() -> None:
     """
     try:
         import sys as _sys
+
         _sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "bin"))
         from m3_sdk import (
             get_m3_config_root,
@@ -468,7 +489,7 @@ def _roots_section() -> None:
         print("      Pin BOTH together so the config and engine roots can't")
         print("      diverge. (Setting only one leaves the other on its")
         print("      derived/default path.)")
-    if (eng_pinned or cfg_pinned or os.environ.get("M3_MEMORY_ROOT")):
+    if eng_pinned or cfg_pinned or os.environ.get("M3_MEMORY_ROOT"):
         print()
         print("  [i] Decoupled-roots reminder: the m3 MCP server reads its root")
         print("      from the server `env` block in the client settings.json,")
@@ -517,8 +538,7 @@ def _fmt_dual_time(value: object) -> str:
     else:
         tzname = raw_tz or local.strftime("%z")
     utc = dt.astimezone(_dt.UTC)
-    return (f"{local.strftime('%Y-%m-%d %H:%M:%S')} {tzname} "
-            f"({utc.strftime('%Y-%m-%dT%H:%M:%SZ')})")
+    return f"{local.strftime('%Y-%m-%d %H:%M:%S')} {tzname} ({utc.strftime('%Y-%m-%dT%H:%M:%SZ')})"
 
 
 def _rows_fn(conn):
@@ -531,6 +551,7 @@ def _rows_fn(conn):
     def rows(sql, params=()):
         cur.execute(sql, params)
         return cur.fetchall()
+
     return rows
 
 
@@ -562,6 +583,7 @@ def _sqlite_store_stats(db_path: str) -> dict | None:
         return None
     try:
         from m3_core.paths import seam_backend
+
         _cm = seam_backend().open_readonly(str(db_path))
         conn = _cm.__enter__()
     except sqlite3.Error:
@@ -570,9 +592,11 @@ def _sqlite_store_stats(db_path: str) -> dict | None:
         from memory.backends.dialect import dialect_for
 
         d, rows = dialect_for("sqlite"), _rows_fn(conn)
-        return (_table_stats(rows, d, "memory_items", items=True)
-                or _table_stats(rows, d, "leaves", items=False)  # files DB
-                or {"rows": 0, "last_updated": None})
+        return (
+            _table_stats(rows, d, "memory_items", items=True)
+            or _table_stats(rows, d, "leaves", items=False)  # files DB
+            or {"rows": 0, "last_updated": None}
+        )
     except sqlite3.Error:
         return None
     finally:
@@ -589,6 +613,7 @@ def _cdw_sync_section() -> None:
     """
     try:
         import sys as _sys
+
         _sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "bin"))
         from m3_sdk import PgRole, resolve_db_path, resolve_pg_dsn
     except Exception:  # noqa: BLE001 — informational only
@@ -601,6 +626,7 @@ def _cdw_sync_section() -> None:
         return  # no warehouse configured — nothing to report
 
     import re as _re
+
     masked = _re.sub(r"(://[^:/@]+:)[^@/]+(@)", r"\1***\2", cdw)
     print()
     print("data warehouse (CDW) sync:")
@@ -616,21 +642,18 @@ def _cdw_sync_section() -> None:
         return
     try:
         from m3_core.paths import seam_backend
+
         _cm = seam_backend().open_readonly(str(core_db))
         conn = _cm.__enter__()
     except sqlite3.Error:
         print("  [!] could not open the local store to read watermarks.")
         return
     try:
-        have = conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='sync_watermarks'"
-        ).fetchone()
+        have = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='sync_watermarks'").fetchone()
         if not have:
             print("  last sync:                never (no sync_watermarks yet)")
             return
-        rows = conn.execute(
-            "SELECT direction, last_synced_at FROM sync_watermarks ORDER BY direction"
-        ).fetchall()
+        rows = conn.execute("SELECT direction, last_synced_at FROM sync_watermarks ORDER BY direction").fetchall()
         if not rows:
             print("  last sync:                never (no watermarks recorded)")
             return
@@ -658,6 +681,7 @@ def _backend_section(cfg: dict) -> None:
     """
     try:
         import sys as _sys
+
         _sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "bin"))
         from memory.backends import resolve_backend_name
     except Exception:  # noqa: BLE001 — informational only
@@ -677,10 +701,7 @@ def _backend_section(cfg: dict) -> None:
     # Config vs env divergence — the switch is env, config is only a record.
     recorded = cfg.get("db_backend")
     if recorded and recorded != live:
-        print(
-            f"  [!] config records db_backend={recorded!r} but the live environment "
-            f"resolves to {live!r}."
-        )
+        print(f"  [!] config records db_backend={recorded!r} but the live environment resolves to {live!r}.")
         print("      The runtime uses the ENV value. Set M3_DB_BACKEND (and, for")
         print("      postgres, M3_PRIMARY_PG_URL) wherever m3 runs — the MCP server")
         print("      `env` block and any process that imports m3 — or re-run install.")
@@ -692,8 +713,10 @@ def _backend_section(cfg: dict) -> None:
         # discernible": a store that doesn't exist is shown as absent, not an error.
         try:
             import sys as _sys
+
             _sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "bin"))
             from m3_sdk import resolve_db_path
+
             core_db = resolve_db_path(None)
             try:
                 # chatlog_db_path(), NOT the DEFAULT_DB_PATH constant. That
@@ -704,6 +727,7 @@ def _backend_section(cfg: dict) -> None:
                 # relocated their chatlog, i.e. was confidently wrong exactly
                 # where a user most needs the truth.
                 from chatlog_config import chatlog_db_path
+
                 chat_db = chatlog_db_path()
             except Exception:  # noqa: BLE001
                 chat_db = ""
@@ -755,6 +779,7 @@ def _backend_section(cfg: dict) -> None:
         return
 
     import re as _re
+
     masked = _re.sub(r"(://[^:/@]+:)[^@/]+(@)", r"\1***\2", dsn)
     print(f"  primary DSN:              {masked}")
     try:
@@ -777,10 +802,16 @@ def _backend_section(cfg: dict) -> None:
         rows = _rows_fn(conn)
         store_stats = [
             ("core", "memory_items", _table_stats(rows, d, "memory_items", items=True)),
-            ("chat", chatlog_table_for("items", "postgres"),
-             _table_stats(rows, d, chatlog_table_for("items", "postgres"), items=True)),
-            ("files", d.qualified_table("leaves", schema="files"),
-             _table_stats(rows, d, d.qualified_table("leaves", schema="files"), items=False)),
+            (
+                "chat",
+                chatlog_table_for("items", "postgres"),
+                _table_stats(rows, d, chatlog_table_for("items", "postgres"), items=True),
+            ),
+            (
+                "files",
+                d.qualified_table("leaves", schema="files"),
+                _table_stats(rows, d, d.qualified_table("leaves", schema="files"), items=False),
+            ),
         ]
         conn.close()
         if dbname:
@@ -818,8 +849,10 @@ def _plaintext_dsn_section() -> None:
     print()
     for note in notes:
         print(f"  {note}")
-    print("      The DSN belongs in the keyring or the user-only secrets file: "
-          "`python -m keyring set system M3_PRIMARY_PG_URL` (prompts for it).")
+    print(
+        "      The DSN belongs in the keyring or the user-only secrets file: "
+        "`python -m keyring set system M3_PRIMARY_PG_URL` (prompts for it)."
+    )
 
 
 def _deprecated_env_section() -> None:
@@ -837,6 +870,7 @@ def _deprecated_env_section() -> None:
     try:
         import os as _os
         import sys as _sys
+
         _sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "bin"))
         from m3_core.paths import ROLE_SPLIT_ENV_RENAMES
         from m3_sdk import deprecated_env_in_use
@@ -876,5 +910,7 @@ def _deprecated_env_section() -> None:
     for line in sorted(reg_lines):
         print(line)
     if reg_lines:
-        print("      (registry entries: `m3 doctor --fix` rewrites User scope; "
-              "Machine scope needs admin — command shown by --fix)")
+        print(
+            "      (registry entries: `m3 doctor --fix` rewrites User scope; "
+            "Machine scope needs admin — command shown by --fix)"
+        )

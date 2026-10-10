@@ -8,6 +8,7 @@ Bug 2: `memory_dedup` emitted self-pairs where `a == b` with score=1.0 when
        a memory had multiple embedding rows (e.g. v022 dual-embed adds both
        a `default` and `enriched` vector under the same `memory_id`).
 """
+
 from __future__ import annotations
 
 import os
@@ -20,6 +21,7 @@ if _BIN not in sys.path:
 
 
 # ── Bug 1: _batch_cosine NameError ──────────────────────────────────────────
+
 
 def test_scored_impl_has_floor_bindings_before_callback_resolution():
     """Even if `_resolve_mc_callbacks()` raises, the four locals
@@ -39,9 +41,9 @@ def test_scored_impl_has_floor_bindings_before_callback_resolution():
         src = _f.read()
     tree = ast.parse(src)
     scored = next(
-        n for n in ast.walk(tree)
-        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
-        and n.name == "memory_search_scored_impl"
+        n
+        for n in ast.walk(tree)
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == "memory_search_scored_impl"
     )
 
     floor_line = None
@@ -61,11 +63,7 @@ def test_scored_impl_has_floor_bindings_before_callback_resolution():
             if floor_line is None or stmt.lineno < floor_line:
                 floor_line = stmt.lineno
         # First Call to _resolve_mc_callbacks()
-        if (
-            isinstance(stmt, ast.Call)
-            and isinstance(stmt.func, ast.Name)
-            and stmt.func.id == "_resolve_mc_callbacks"
-        ):
+        if isinstance(stmt, ast.Call) and isinstance(stmt.func, ast.Name) and stmt.func.id == "_resolve_mc_callbacks":
             if callback_line is None or stmt.lineno < callback_line:
                 callback_line = stmt.lineno
 
@@ -95,9 +93,9 @@ def test_callback_resolution_is_wrapped_in_try_except():
         src = _f.read()
     tree = ast.parse(src)
     scored = next(
-        n for n in ast.walk(tree)
-        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
-        and n.name == "memory_search_scored_impl"
+        n
+        for n in ast.walk(tree)
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == "memory_search_scored_impl"
     )
 
     # Find a Try block that wraps a _resolve_mc_callbacks() call.
@@ -123,6 +121,7 @@ def test_callback_resolution_is_wrapped_in_try_except():
 
 # ── Bug 2: memory_dedup self-pairs ──────────────────────────────────────────
 
+
 def test_dedup_skips_self_pairs_when_multi_embed_rows_exist():
     """When a memory has 2 embedding rows (dual-embed: default + enriched),
     the SELECT in `memory_dedup_impl` returns it twice. Without the
@@ -144,9 +143,9 @@ def test_dedup_skips_self_pairs_when_multi_embed_rows_exist():
     fake_blob_c = b"\x01" * 16  # identical to A → high cosine with A
 
     fake_rows = [
-        {"memory_id": fake_id,   "embedding": fake_blob_a, "title": "T1"},
-        {"memory_id": fake_id,   "embedding": fake_blob_b, "title": "T1"},
-        {"memory_id": other_id,  "embedding": fake_blob_c, "title": "T2"},
+        {"memory_id": fake_id, "embedding": fake_blob_a, "title": "T1"},
+        {"memory_id": fake_id, "embedding": fake_blob_b, "title": "T1"},
+        {"memory_id": other_id, "embedding": fake_blob_c, "title": "T2"},
     ]
 
     # Mock the DB context manager to return our fake rows.
@@ -166,10 +165,12 @@ def test_dedup_skips_self_pairs_when_multi_embed_rows_exist():
     def _fake_cosine(a, b):
         return 1.0 if a == b else 0.1
 
-    with patch.object(mm, "_db", return_value=fake_cm), \
-         patch.object(mm, "_unpack", side_effect=_fake_unpack), \
-         patch.object(mm, "_cosine", side_effect=_fake_cosine), \
-         patch.object(mm, "m3_core_rs", None):  # force pure-Python branch
+    with (
+        patch.object(mm, "_db", return_value=fake_cm),
+        patch.object(mm, "_unpack", side_effect=_fake_unpack),
+        patch.object(mm, "_cosine", side_effect=_fake_cosine),
+        patch.object(mm, "m3_core_rs", None),
+    ):  # force pure-Python branch
         result = mm.memory_dedup_impl(threshold=0.9, dry_run=True)
 
     # No group should have a == b.

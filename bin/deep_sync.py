@@ -4,7 +4,7 @@ import subprocess
 from datetime import datetime
 
 # Structured Logging for macOS Unified Logging
-logging.basicConfig(level=logging.INFO, format='%(name)s: [%(levelname)s] %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(name)s: [%(levelname)s] %(message)s")
 logger = logging.getLogger("deep_sync")
 
 # Configuration
@@ -12,12 +12,14 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WORKSPACE = BASE_DIR
 BACKUP_MSG = f"Deep-Sync: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
+
 def run_git(args):
     try:
         subprocess.check_call(["git", "-C", WORKSPACE, *args], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except subprocess.CalledProcessError as e:
         logger.error(f"Git Error: Command {' '.join(args)} failed with exit code {e.returncode}")
         raise e
+
 
 def sync():
     logger.info("🚀 Starting Deep-Sync & Housekeeping for M3 Max...")
@@ -50,6 +52,7 @@ def sync():
         logger.info("✅ Deep-Sync Complete.")
     except Exception as e:
         logger.error(f"Deep-Sync failed: {e}")
+
 
 if __name__ == "__main__":
     sync()

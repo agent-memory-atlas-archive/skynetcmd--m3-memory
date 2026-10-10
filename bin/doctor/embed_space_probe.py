@@ -24,6 +24,7 @@ Report-only: never fails the doctor run (returns 0). A mixed store is a
 warning the operator must act on deliberately (re-embedding is a one-time cost
 they pay explicitly), not something a health check should decide for them.
 """
+
 from __future__ import annotations
 
 import logging
@@ -79,8 +80,9 @@ def unfindable_memories(conn, dialect, *, limit: int = 10) -> list:
     """
     size = dialect.byte_length("COALESCE(mi.content,'')")
     p = dialect.param()
-    return list(conn.execute(
-        f"""
+    return list(
+        conn.execute(
+            f"""
         SELECT mi.id, {size}
         FROM memory_items mi
         WHERE COALESCE(mi.is_deleted,0)=0
@@ -91,8 +93,9 @@ def unfindable_memories(conn, dialect, *, limit: int = 10) -> list:
                             AND e2.vector_kind = 'default')
         LIMIT {p}
         """,
-        (limit,),
-    ).fetchall())
+            (limit,),
+        ).fetchall()
+    )
 
 
 def _report_unfindable() -> None:
@@ -130,18 +133,21 @@ def _report_unfindable() -> None:
 
     if not orphans:
         return
-    print(f"  EMBEDDED BUT UNFINDABLE: {len(orphans)} memory row(s) have "
-          f"embeddings but no vector_kind='default' vector.")
-    print("    observed: rows exist, have embedding rows, and are returned by "
-          "memory_get; semantic search cannot reach them at any score.")
-    print("    cause: memory_search's default strategy scores only "
-          "vector_kind='default' rows.")
-    print("    effect: `m3 embedder backfill` reports these as DONE — its "
-          "check is 'has an embedding', not 'has a findable one'.")
+    print(
+        f"  EMBEDDED BUT UNFINDABLE: {len(orphans)} memory row(s) have embeddings but no vector_kind='default' vector."
+    )
+    print(
+        "    observed: rows exist, have embedding rows, and are returned by "
+        "memory_get; semantic search cannot reach them at any score."
+    )
+    print("    cause: memory_search's default strategy scores only vector_kind='default' rows.")
+    print(
+        "    effect: `m3 embedder backfill` reports these as DONE — its "
+        "check is 'has an embedding', not 'has a findable one'."
+    )
     for mid, n in orphans[:5]:
         print(f"      {mid}  ({n} chars)")
-    print("    fix: re-embed those rows "
-          "(`m3 embedder backfill --force`, or rewrite the memory).")
+    print("    fix: re-embed those rows (`m3 embedder backfill --force`, or rewrite the memory).")
 
 
 def run(brief: bool = False) -> int:
@@ -181,8 +187,7 @@ def run(brief: bool = False) -> int:
         if brief:
             print("embed-space: unknown (no embeddings table yet)")
         else:
-            print(f"  status   : could not read memory_embeddings: "
-                  f"{type(e).__name__}: {e}")
+            print(f"  status   : could not read memory_embeddings: {type(e).__name__}: {e}")
         return 0
 
     if not rows:
@@ -224,6 +229,7 @@ def run(brief: bool = False) -> int:
     unreachable: dict[str, int] = {}
     try:
         from memory.embed import _compatible_model_names
+
         compat = _compatible_model_names()
         if compat:
             for _kind, tag, _dim, n in rows:
@@ -235,16 +241,20 @@ def run(brief: bool = False) -> int:
     if brief:
         if mixed:
             worst = max(mixed.items(), key=lambda kv: len(kv[1]))
-            print(f"embed-space: MIXED — {len(worst[1])} incompatible model families "
-                  f"in '{worst[0]}' (search rankings unreliable)")
+            print(
+                f"embed-space: MIXED — {len(worst[1])} incompatible model families "
+                f"in '{worst[0]}' (search rankings unreliable)"
+            )
         elif dim_split:
             print("embed-space: MIXED dimensions — cosine cannot be computed")
         elif unreachable:
             total = sum(unreachable.values())
             worst_tag = max(unreachable.items(), key=lambda kv: kv[1])[0]
-            print(f"embed-space: UNREACHABLE — {total} row(s) tagged "
-                  f"{worst_tag!r} are excluded from search "
-                  f"(add it to M3_EMBED_COMPATIBLE_MODELS)")
+            print(
+                f"embed-space: UNREACHABLE — {total} row(s) tagged "
+                f"{worst_tag!r} are excluded from search "
+                f"(add it to M3_EMBED_COMPATIBLE_MODELS)"
+            )
         else:
             fam = next(iter(next(iter(by_kind.values()))))
             print(f"embed-space: ok (single space: {fam})")
@@ -265,25 +275,29 @@ def run(brief: bool = False) -> int:
 
     for kind, fams in sorted(mixed.items()):
         total = sum(fams.values())
-        print(f"  MIXED SPACE in vector_kind '{kind}' — {len(fams)} incompatible "
-              f"model families share one index:")
+        print(f"  MIXED SPACE in vector_kind '{kind}' — {len(fams)} incompatible model families share one index:")
         for fam, n in sorted(fams.items(), key=lambda kv: -kv[1]):
             share = n / total if total else 0.0
             tags = sorted(tags_by_family[(kind, fam)])
             alias = f"  [{', '.join(tags)}]" if len(tags) > 1 else ""
             flag = "  <-- minority: these rows rank wrongly" if share < _MINORITY_SHARE else ""
             print(f"    - {fam:22} {n:>8,} ({share:5.1%}){alias}{flag}")
-        print("    Why it matters: cosine similarity across different embedding "
-              "models is meaningless, so the minority rows are effectively "
-              "unsearchable — silently, with no error.")
-        print("    Fix: re-embed the whole store with one model "
-              "(see docs/EMBED_INPUT_RECIPE.md). This is a deliberate one-time "
-              "cost, so m3 will not do it automatically.")
+        print(
+            "    Why it matters: cosine similarity across different embedding "
+            "models is meaningless, so the minority rows are effectively "
+            "unsearchable — silently, with no error."
+        )
+        print(
+            "    Fix: re-embed the whole store with one model "
+            "(see docs/EMBED_INPUT_RECIPE.md). This is a deliberate one-time "
+            "cost, so m3 will not do it automatically."
+        )
 
     for kind, dims in sorted(dim_split.items()):
-        print(f"  MIXED DIMENSIONS in vector_kind '{kind}': "
-              f"{', '.join(str(d) for d in sorted(dims))} — vectors of different "
-              f"lengths cannot be compared at all.")
-
+        print(
+            f"  MIXED DIMENSIONS in vector_kind '{kind}': "
+            f"{', '.join(str(d) for d in sorted(dims))} — vectors of different "
+            f"lengths cannot be compared at all."
+        )
 
     return 0

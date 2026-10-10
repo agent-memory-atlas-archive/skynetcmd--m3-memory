@@ -1,4 +1,5 @@
 """Print functions for plan bodies, dry-run, and run summaries."""
+
 from __future__ import annotations
 
 
@@ -9,7 +10,7 @@ def _print_plan_body(plan: dict) -> None:
     print(f"  Endpoint:            {plan['url']}")
     print(f"  Backend:             {plan['backend']}")
     print(f"  Target variant:      {plan['target_variant']}")
-    src_label = plan.get('source_variant') or "(all)"
+    src_label = plan.get("source_variant") or "(all)"
     if src_label == "__none__":
         src_label = "__none__ (variant IS NULL)"
     print(f"  Source variant:      {src_label}")
@@ -20,9 +21,9 @@ def _print_plan_body(plan: dict) -> None:
         print(f"     path:          {db_info['path']}")
         print(f"     conversations: {db_info['n_groups']}")
         print(f"     turns total:   {db_info['n_turns']}")
-        if db_info.get('cost_estimate'):
+        if db_info.get("cost_estimate"):
             print(f"     est cost:      {db_info['cost_estimate']}")
-        if db_info.get('wall_estimate'):
+        if db_info.get("wall_estimate"):
             print(f"     est wall:      {db_info['wall_estimate']}")
         print()
 

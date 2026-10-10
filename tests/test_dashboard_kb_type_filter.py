@@ -18,6 +18,7 @@ This test pins the contract at the seam rather than asserting on dashboard HTML:
 whatever `scope_predicates` emits must be executable against the table shape the
 dashboard actually queries.
 """
+
 from __future__ import annotations
 
 import os
@@ -73,6 +74,7 @@ def store(tmp_path):
 
 def _dialect():
     from memory.backends import active_backend
+
     return active_backend().dialect()
 
 

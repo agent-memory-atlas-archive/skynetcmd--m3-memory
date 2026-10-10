@@ -6,6 +6,7 @@ Network is mocked via httpx.MockTransport. We assert:
   - write_observation populates valid_from with referenced_date,
     metadata_json with the audit fields
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -109,16 +110,21 @@ def bench_db(tmp_path, monkeypatch):
 
 def test_parse_observations_valid_input():
     import run_observer
-    text = json.dumps({
-        "observations": [
-            {"text": "User went to Paris.",
-             "observation_date": "2023-05-22",
-             "referenced_date": "2023-05-21",
-             "relative_date": "yesterday",
-             "confidence": 0.95,
-             "supersedes_hint": None}
-        ]
-    })
+
+    text = json.dumps(
+        {
+            "observations": [
+                {
+                    "text": "User went to Paris.",
+                    "observation_date": "2023-05-22",
+                    "referenced_date": "2023-05-21",
+                    "relative_date": "yesterday",
+                    "confidence": 0.95,
+                    "supersedes_hint": None,
+                }
+            ]
+        }
+    )
     out = run_observer.parse_observations(text)
     assert len(out) == 1
     assert out[0]["text"] == "User went to Paris."
@@ -130,8 +136,8 @@ def test_parse_observations_valid_input():
 
 def test_parse_observations_strips_code_fences():
     import run_observer
-    text = '```json\n{"observations": [{"text": "abc def",' \
-           ' "observation_date": "2023-01-01"}]}\n```'
+
+    text = '```json\n{"observations": [{"text": "abc def", "observation_date": "2023-01-01"}]}\n```'
     out = run_observer.parse_observations(text)
     assert len(out) == 1
     assert out[0]["text"] == "abc def"
@@ -139,11 +145,16 @@ def test_parse_observations_strips_code_fences():
 
 def test_parse_observations_drops_missing_text():
     import run_observer
-    text = json.dumps({"observations": [
-        {"observation_date": "2023-01-01"},  # no text
-        {"text": "x", "observation_date": "2023-01-01"},  # too short
-        {"text": "User valid.", "observation_date": "2023-01-01"},
-    ]})
+
+    text = json.dumps(
+        {
+            "observations": [
+                {"observation_date": "2023-01-01"},  # no text
+                {"text": "x", "observation_date": "2023-01-01"},  # too short
+                {"text": "User valid.", "observation_date": "2023-01-01"},
+            ]
+        }
+    )
     out = run_observer.parse_observations(text)
     assert len(out) == 1
     assert out[0]["text"] == "User valid."
@@ -151,10 +162,15 @@ def test_parse_observations_drops_missing_text():
 
 def test_parse_observations_drops_low_confidence():
     import run_observer
-    text = json.dumps({"observations": [
-        {"text": "ok confidence", "observation_date": "2023-01-01", "confidence": 0.7},
-        {"text": "low confidence", "observation_date": "2023-01-01", "confidence": 0.5},
-    ]})
+
+    text = json.dumps(
+        {
+            "observations": [
+                {"text": "ok confidence", "observation_date": "2023-01-01", "confidence": 0.7},
+                {"text": "low confidence", "observation_date": "2023-01-01", "confidence": 0.5},
+            ]
+        }
+    )
     out = run_observer.parse_observations(text)
     assert len(out) == 1
     assert out[0]["text"] == "ok confidence"
@@ -162,11 +178,14 @@ def test_parse_observations_drops_low_confidence():
 
 def test_parse_observations_normalizes_date_separators():
     import run_observer
-    text = json.dumps({"observations": [
-        {"text": "User test.",
-         "observation_date": "2023/05/22 (Mon) 14:30",
-         "referenced_date": "2023/05/21"}
-    ]})
+
+    text = json.dumps(
+        {
+            "observations": [
+                {"text": "User test.", "observation_date": "2023/05/22 (Mon) 14:30", "referenced_date": "2023/05/21"}
+            ]
+        }
+    )
     out = run_observer.parse_observations(text)
     assert out[0]["observation_date"] == "2023-05-22"
     assert out[0]["referenced_date"] == "2023-05-21"
@@ -175,15 +194,16 @@ def test_parse_observations_normalizes_date_separators():
 def test_parse_observations_coerces_string_null():
     """The model sometimes emits 'null' as a string rather than JSON null."""
     import run_observer
+
     # When relative_date is the string "null", the parser should coerce to None.
-    text = '{"observations": [{"text": "User x test.", ' \
-           '"observation_date": "2023-01-01", "relative_date": "null"}]}'
+    text = '{"observations": [{"text": "User x test.", "observation_date": "2023-01-01", "relative_date": "null"}]}'
     out = run_observer.parse_observations(text)
     assert out[0]["relative_date"] is None
 
 
 def test_parse_observations_malformed_json_returns_empty():
     import run_observer
+
     assert run_observer.parse_observations("not json") == []
     assert run_observer.parse_observations("{not parseable}") == []
     assert run_observer.parse_observations("") == []
@@ -191,6 +211,7 @@ def test_parse_observations_malformed_json_returns_empty():
 
 def test_parse_observations_non_list_observations_field():
     import run_observer
+
     text = json.dumps({"observations": "not a list"})
     assert run_observer.parse_observations(text) == []
 
@@ -204,19 +225,29 @@ def test_call_observer_anthropic_shape():
     def handler(request: httpx.Request) -> httpx.Response:
         captured["json"] = json.loads(request.content)
         captured["headers"] = dict(request.headers)
-        return httpx.Response(200, json={
-            "content": [
-                {"type": "text", "text": json.dumps({
-                    "observations": [
-                        {"text": "User did a thing.",
-                         "observation_date": "2023-01-01",
-                         "referenced_date": "2023-01-01"}
-                    ]
-                })}
-            ],
-            "usage": {"input_tokens": 50, "output_tokens": 30},
-            "stop_reason": "end_turn",
-        })
+        return httpx.Response(
+            200,
+            json={
+                "content": [
+                    {
+                        "type": "text",
+                        "text": json.dumps(
+                            {
+                                "observations": [
+                                    {
+                                        "text": "User did a thing.",
+                                        "observation_date": "2023-01-01",
+                                        "referenced_date": "2023-01-01",
+                                    }
+                                ]
+                            }
+                        ),
+                    }
+                ],
+                "usage": {"input_tokens": 50, "output_tokens": 30},
+                "stop_reason": "end_turn",
+            },
+        )
 
     transport = httpx.MockTransport(handler)
 
@@ -235,7 +266,9 @@ def test_call_observer_anthropic_shape():
         async with httpx.AsyncClient(transport=transport) as client:
             return await run_observer.call_observer(
                 {"session_date": "2023-01-01", "turns": []},
-                _Profile(), client, token="test-token",
+                _Profile(),
+                client,
+                token="test-token",
             )
 
     out, usage = asyncio.run(go())
@@ -262,14 +295,20 @@ def test_call_observer_openai_fallback():
 
     def handler(request: httpx.Request) -> httpx.Response:
         captured["json"] = json.loads(request.content)
-        return httpx.Response(200, json={
-            "choices": [{"message": {"content": json.dumps({
-                "observations": [
-                    {"text": "User OAI test.",
-                     "observation_date": "2023-01-01"}
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {"observations": [{"text": "User OAI test.", "observation_date": "2023-01-01"}]}
+                            )
+                        }
+                    }
                 ]
-            })}}]
-        })
+            },
+        )
 
     transport = httpx.MockTransport(handler)
 
@@ -287,7 +326,9 @@ def test_call_observer_openai_fallback():
         async with httpx.AsyncClient(transport=transport) as client:
             return await run_observer.call_observer(
                 {"session_date": "2023-01-01", "turns": []},
-                _Profile(), client, token="test-token",
+                _Profile(),
+                client,
+                token="test-token",
             )
 
     out, usage = asyncio.run(go())
@@ -308,6 +349,7 @@ def test_write_observation_populates_three_dates(bench_db, monkeypatch):
     metadata_json."""
     import memory_core
     import run_observer
+
     # Bypass _ensure_sync_tables which tries to invoke migrate_memory.py
     # — known fail in unit-test isolation due to migration 002's BEGIN.
     monkeypatch.setattr(memory_core, "_ensure_sync_tables", lambda *a, **kw: None)
@@ -322,17 +364,20 @@ def test_write_observation_populates_three_dates(bench_db, monkeypatch):
         "supersedes_hint": None,
     }
 
-    obs_id = asyncio.run(run_observer.write_observation(
-        obs, target_variant="test-variant",
-        user_id="alice", conversation_id="conv-1",
-        source_turn_ids=["turn-1", "turn-2"],
-    ))
+    obs_id = asyncio.run(
+        run_observer.write_observation(
+            obs,
+            target_variant="test-variant",
+            user_id="alice",
+            conversation_id="conv-1",
+            source_turn_ids=["turn-1", "turn-2"],
+        )
+    )
     assert obs_id is not None
 
     conn = sqlite3.connect(str(bench_db))
     row = conn.execute(
-        "SELECT type, content, valid_from, variant, user_id, metadata_json "
-        "FROM memory_items WHERE id=?", (obs_id,)
+        "SELECT type, content, valid_from, variant, user_id, metadata_json FROM memory_items WHERE id=?", (obs_id,)
     ).fetchone()
     assert row[0] == "observation"
     assert row[1] == "User started yoga in March 2024."
@@ -353,6 +398,7 @@ def test_write_observation_falls_back_to_observation_date_when_referenced_null(b
     """Timeless facts (referenced_date=null) should still set a valid_from."""
     import memory_core
     import run_observer
+
     monkeypatch.setattr(memory_core, "_ensure_sync_tables", lambda *a, **kw: None)
     monkeypatch.setenv("M3_OBSERVER_NO_EMBED", "1")
 
@@ -364,11 +410,15 @@ def test_write_observation_falls_back_to_observation_date_when_referenced_null(b
         "confidence": 0.95,
         "supersedes_hint": None,
     }
-    obs_id = asyncio.run(run_observer.write_observation(
-        obs, target_variant="test-variant",
-        user_id="alice", conversation_id="conv-1",
-        source_turn_ids=[],
-    ))
+    obs_id = asyncio.run(
+        run_observer.write_observation(
+            obs,
+            target_variant="test-variant",
+            user_id="alice",
+            conversation_id="conv-1",
+            source_turn_ids=[],
+        )
+    )
     conn = sqlite3.connect(str(bench_db))
     vf = conn.execute("SELECT valid_from FROM memory_items WHERE id=?", (obs_id,)).fetchone()[0]
     # Should fall back to observation_date when referenced_date is None.
@@ -384,13 +434,25 @@ def test_write_observation_falls_back_to_observation_date_when_referenced_null(b
 # resolves it when the model omits or garbles it. These tests cover the two
 # building blocks (parser carry-through + fallback), which are flag-independent.
 
+
 def test_parse_observations_carries_source_turn_index():
     import run_observer
-    text = json.dumps({"observations": [
-        {"text": "User went to Paris.", "observation_date": "2023-05-22",
-         "referenced_date": None, "relative_date": None, "confidence": 0.95,
-         "supersedes_hint": None, "source_turn_index": 4},
-    ]})
+
+    text = json.dumps(
+        {
+            "observations": [
+                {
+                    "text": "User went to Paris.",
+                    "observation_date": "2023-05-22",
+                    "referenced_date": None,
+                    "relative_date": None,
+                    "confidence": 0.95,
+                    "supersedes_hint": None,
+                    "source_turn_index": 4,
+                },
+            ]
+        }
+    )
     out = run_observer.parse_observations(text)
     assert len(out) == 1
     assert out[0]["source_turn_index"] == 4
@@ -398,14 +460,14 @@ def test_parse_observations_carries_source_turn_index():
 
 def test_parse_observations_source_turn_index_coercions():
     import run_observer
-    base = {"text": "User did a thing.", "observation_date": "2023-05-22",
-            "confidence": 0.95}
+
+    base = {"text": "User did a thing.", "observation_date": "2023-05-22", "confidence": 0.95}
     cases = [
-        ({"source_turn_index": "3"}, 3),       # numeric string -> int
-        ({"source_turn_index": [7, 9]}, 7),    # list -> first element
+        ({"source_turn_index": "3"}, 3),  # numeric string -> int
+        ({"source_turn_index": [7, 9]}, 7),  # list -> first element
         ({"source_turn_index": "abc"}, None),  # garbage -> None
-        ({"source_turn_index": None}, None),   # explicit null -> None
-        ({}, None),                             # omitted -> None
+        ({"source_turn_index": None}, None),  # explicit null -> None
+        ({}, None),  # omitted -> None
     ]
     for extra, expected in cases:
         text = json.dumps({"observations": [{**base, **extra}]})
@@ -416,6 +478,7 @@ def test_parse_observations_source_turn_index_coercions():
 
 def test_attribute_turn_matches_by_content_overlap():
     import run_observer
+
     # turns: (id, content, role, turn_index, ts)
     turns = [
         ("c::0", "I have three sisters and a brother", "user", 0, None),
@@ -428,6 +491,7 @@ def test_attribute_turn_matches_by_content_overlap():
 
 def test_attribute_turn_returns_none_without_overlap():
     import run_observer
+
     turns = [("c::0", "I have three sisters", "user", 0, None)]
     # No shared content tokens -> unresolved (caller falls back to session-wide).
     assert run_observer._attribute_turn({"text": "User enjoys opera music"}, turns) is None
@@ -435,6 +499,7 @@ def test_attribute_turn_returns_none_without_overlap():
 
 def test_attribute_turn_ignores_assistant_turns():
     import run_observer
+
     # The matching content is only in an assistant turn; facts are about the
     # user, so it must not attribute to the assistant turn.
     turns = [

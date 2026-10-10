@@ -18,6 +18,7 @@ and the helper modules directly. The bridge-side integration is covered by
 a separate test (`test_lazy_tool_loading_bridge_integration`) that imports
 memory_bridge under controlled env vars.
 """
+
 from __future__ import annotations
 
 import json
@@ -37,6 +38,7 @@ import tool_loader
 
 # ── tool_domains.py ──────────────────────────────────────────────────────────
 
+
 def test_every_catalog_tool_maps_to_a_known_domain():
     """No tool should fall through to the 'admin' catch-all by accident.
 
@@ -48,9 +50,7 @@ def test_every_catalog_tool_maps_to_a_known_domain():
     """
     # Build the set of "intentional admin tools" — name prefixes explicitly
     # routed to admin in _DOMAIN_PREFIXES.
-    intentional_admin_prefixes = {
-        p for p, d in tool_domains._DOMAIN_PREFIXES if d == "admin"
-    }
+    intentional_admin_prefixes = {p for p, d in tool_domains._DOMAIN_PREFIXES if d == "admin"}
 
     orphans = []
     for spec in mcp_tool_catalog.TOOLS:
@@ -81,9 +81,7 @@ def test_essentials_are_real_catalog_tools():
     """
     catalog_names = {t.name for t in mcp_tool_catalog.TOOLS}
     missing = tool_domains.ESSENTIAL_TOOL_NAMES - catalog_names
-    assert not missing, (
-        f"Essentials set references tool(s) not in the catalog: {sorted(missing)}"
-    )
+    assert not missing, f"Essentials set references tool(s) not in the catalog: {sorted(missing)}"
 
 
 def test_essentials_include_search_for_each_primary_store():
@@ -107,10 +105,7 @@ def test_domain_descriptions_cover_every_domain_seen_in_catalog():
     seen = {tool_domains.domain_of_tool(t.name) for t in mcp_tool_catalog.TOOLS}
     described = set(tool_domains.DOMAIN_DESCRIPTIONS.keys())
     missing = seen - described
-    assert not missing, (
-        f"Domain(s) have catalog tools but no description in "
-        f"DOMAIN_DESCRIPTIONS: {sorted(missing)}"
-    )
+    assert not missing, f"Domain(s) have catalog tools but no description in DOMAIN_DESCRIPTIONS: {sorted(missing)}"
 
 
 def test_group_by_domain_is_complete():
@@ -127,6 +122,7 @@ def test_group_by_domain_is_complete():
 
 
 # ── tool_loader.py meta-tool impls ───────────────────────────────────────────
+
 
 def test_list_domains_returns_well_formed_json():
     """`tools_list_domains` impl returns a JSON string with a `domains`
@@ -170,6 +166,7 @@ def test_load_domain_with_bound_callback_invokes_it():
     """Bind a stub callback, call `tools_load_domain`, confirm the
     callback was hit and the result is JSON-serialized."""
     seen = []
+
     def stub(domain):
         seen.append(domain)
         return {"domain": domain, "tools_now_available": ["x", "y"], "tools_total_registered": 8, "schemas": []}
@@ -187,6 +184,7 @@ def test_load_domain_with_bound_callback_invokes_it():
 
 
 # ── mcp_tool_catalog.py — meta-tool entries ──────────────────────────────────
+
 
 def test_meta_tools_registered_in_catalog():
     """Both `tools_list_domains` and `tools_load_domain` must appear in
@@ -210,12 +208,11 @@ def test_load_domain_spec_requires_domain_arg():
     raise a `KeyError`."""
     by_name = {t.name: t for t in mcp_tool_catalog.TOOLS}
     params = by_name["tools_load_domain"].parameters
-    assert "domain" in params.get("required", []), (
-        f"tools_load_domain.parameters.required missing 'domain': {params}"
-    )
+    assert "domain" in params.get("required", []), f"tools_load_domain.parameters.required missing 'domain': {params}"
 
 
 # ── Integration with memory_bridge ───────────────────────────────────────────
+
 
 def _reload_bridge_with_env(env_overrides: dict) -> object:
     """Import / re-import memory_bridge with controlled env. Returns the
@@ -239,6 +236,7 @@ def _reload_bridge_with_env(env_overrides: dict) -> object:
 
     try:
         import memory_bridge
+
         return memory_bridge
     finally:
         # Restore env so the rest of the test session is unaffected.
@@ -275,9 +273,7 @@ def test_bridge_eager_mode_registers_all_tools():
     mb = _reload_bridge_with_env({"M3_TOOLS_LAZY": "0"})
     assert mb._LAZY_MODE is False
     all_names = {t.name for t in mcp_tool_catalog.TOOLS}
-    assert mb._REGISTERED == all_names, (
-        f"eager mode missed: {sorted(all_names - mb._REGISTERED)}"
-    )
+    assert mb._REGISTERED == all_names, f"eager mode missed: {sorted(all_names - mb._REGISTERED)}"
 
 
 def test_bridge_lazy_mode_domain_callback_registers_domain():
@@ -292,9 +288,7 @@ def test_bridge_lazy_mode_domain_callback_registers_domain():
 
     result = mb._register_domain_callback(target)
     assert result["domain"] == target
-    expected_new = set(tool_domains.domain_tool_names(
-        [t.name for t in mcp_tool_catalog.TOOLS], target
-    )) - baseline
+    expected_new = set(tool_domains.domain_tool_names([t.name for t in mcp_tool_catalog.TOOLS], target)) - baseline
     assert set(result["tools_now_available"]) == expected_new
     assert mb._REGISTERED == baseline | expected_new
 

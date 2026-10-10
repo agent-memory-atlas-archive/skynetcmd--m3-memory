@@ -7,6 +7,7 @@ message, PostgreSQL via SQLSTATE 42703/42P01 — so callers ask the seam, not th
 message. The PG-live half is covered in test_memory_maintenance_pg_live; this pins
 the SQLite classifier + the false-positive guard.
 """
+
 import os
 import sqlite3
 import sys
@@ -68,6 +69,7 @@ def test_chained_cause_is_inspected():
 # a constraint violation but NOT a real error. SQLite raises sqlite3.IntegrityError;
 # PostgreSQL raises psycopg2 SQLSTATE class 23xxx. The PG half is covered live in
 # test_memory_maintenance/files PG suites; this pins the SQLite classifier + guards.
+
 
 def test_unique_violation_is_classified():
     d = SqliteDialect()

@@ -1,8 +1,8 @@
 ---
 tool: bin/governor_cli.py
-sha1: 7836e9cd8c4e
-mtime_utc: 2026-10-10T06:49:09.042920+00:00
-generated_utc: 2026-10-10T06:49:16.678134+00:00
+sha1: be75773b8792
+mtime_utc: 2026-10-10T21:05:16.953037+00:00
+generated_utc: 2026-10-10T21:05:29.555115+00:00
 private: false
 ---
 

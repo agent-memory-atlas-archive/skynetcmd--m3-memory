@@ -1,8 +1,8 @@
 ---
 tool: bin/gen_download_badges.py
-sha1: 256a5a870798
-mtime_utc: 2026-08-07T23:53:52.031203+00:00
-generated_utc: 2026-08-08T14:40:49.845365+00:00
+sha1: aa8e9b288245
+mtime_utc: 2026-10-10T21:05:16.764969+00:00
+generated_utc: 2026-10-10T21:05:29.526871+00:00
 private: false
 ---
 
@@ -41,7 +41,7 @@ Standard library only.
 
 ## Entry points
 
-- `def main()` (line 192)
+- `def main()` (line 187)
 - `if __name__ == "__main__"` guard
 
 ---

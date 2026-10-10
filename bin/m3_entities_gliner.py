@@ -37,6 +37,7 @@ Env vars (all optional):
     M3_GLINER_DEVICE         override device (default: cuda; falls back to cpu)
     M3_ENTITIES_CONV_LIST    optional path to a conv_id allowlist file
 """
+
 from __future__ import annotations
 
 import argparse
@@ -61,7 +62,13 @@ from m3_core.paths import resolve_cli_store, seam_backend  # noqa: E402
 
 # GLiNER's published 7-label vocab (person, place, organization, event, concept, object, date).
 GLINER_LABELS: list[str] = [
-    "person", "place", "organization", "event", "concept", "object", "date",
+    "person",
+    "place",
+    "organization",
+    "event",
+    "concept",
+    "object",
+    "date",
 ]
 # Map to memory_core's VALID_ENTITY_TYPES vocab so _run_entity_extractor
 # doesn't reject our writes for vocab mismatch. concept -> topic; object ->
@@ -121,8 +128,7 @@ def _transformers_floor():
         return None
     for raw in reqs:
         r = Requirement(raw)
-        if r.name.lower() == "transformers" and r.marker is not None \
-                and r.marker.evaluate({"extra": "embed-server"}):
+        if r.name.lower() == "transformers" and r.marker is not None and r.marker.evaluate({"extra": "embed-server"}):
             floors = [Version(s.version) for s in r.specifier if s.operator == ">="]
             return max(floors) if floors else None
     return None
@@ -144,11 +150,14 @@ def _warn_if_below_transformers_floor() -> None:
     except metadata.PackageNotFoundError:
         return
     if installed < floor:
-        print(f"[gliner] WARNING: observed: transformers {installed} is below m3's floor "
-              f"{floor}, which clears published CVEs. gliner requires the older "
-              "version, so the entity-ner extra cannot have it. inspect: "
-              "docs/DEPENDENCY_NOTES.md (transformers); run GLiNER only on trusted "
-              "models and data.", flush=True)
+        print(
+            f"[gliner] WARNING: observed: transformers {installed} is below m3's floor "
+            f"{floor}, which clears published CVEs. gliner requires the older "
+            "version, so the entity-ner extra cannot have it. inspect: "
+            "docs/DEPENDENCY_NOTES.md (transformers); run GLiNER only on trusted "
+            "models and data.",
+            flush=True,
+        )
 
 
 def _load_gliner(cfg: _Cfg):
@@ -177,6 +186,7 @@ def _load_gliner(cfg: _Cfg):
         # The old fallback went straight to cpu, skipping Metal on Apple Silicon
         # (DESIGN §1). An explicit --device cpu/mps skips this block untouched.
         from m3_core.gpu import torch_device
+
         resolved = torch_device()
         if resolved != "cuda":
             print(f"[gliner] cuda not available; using {resolved}", flush=True)
@@ -219,23 +229,20 @@ def _select_rows(
       - optional conversation_id allowlist (metadata_json.$.conversation_id OR mi.conversation_id)
     """
     from memory.backends import dialect as _dialect_fn
+
     _d = _dialect_fn()
     # '__none__' = IS NULL, a name = exact, omitted = every variant.
     variant_clause, variant_params = _d.scope_predicates(table_alias="mi", variant=source_variant or "")
     with pointed_store_connection(db_path) as conn:
         if recovery_pass:
             # Recovery pass: only rows currently absent from memory_item_entities.
-            extraction_clause = (
-                "AND mi.id NOT IN (SELECT DISTINCT memory_id FROM memory_item_entities)"
-            )
+            extraction_clause = "AND mi.id NOT IN (SELECT DISTINCT memory_id FROM memory_item_entities)"
         elif force:
             # Force: ignore extraction state, redo everything.
             extraction_clause = ""
         else:
             # Normal: skip rows already extracted.
-            extraction_clause = (
-                "AND mi.id NOT IN (SELECT DISTINCT memory_id FROM memory_item_entities)"
-            )
+            extraction_clause = "AND mi.id NOT IN (SELECT DISTINCT memory_id FROM memory_item_entities)"
         # Size predicate via the dialect: a bare length() counts CHARACTERS on
         # PostgreSQL, so a CJK row would be measured at ~1/3 its byte size and
         # the min_content_len floor would mean something different per encoding.
@@ -244,7 +251,7 @@ def _select_rows(
             FROM memory_items mi
             WHERE mi.type != 'fact_enriched'
               AND COALESCE(mi.is_deleted, 0) = 0
-              AND {_d.byte_length('mi.content')} > {int(min_content_len)}
+              AND {_d.byte_length("mi.content")} > {int(min_content_len)}
               {variant_clause}
               {extraction_clause}
             ORDER BY mi.created_at ASC
@@ -281,9 +288,7 @@ def _load_conv_allowlist(path: str | None) -> set[str] | None:
         items = json.loads(raw)
     else:
         items = [
-            ln.split("#", 1)[0].strip()
-            for ln in raw.splitlines()
-            if ln.strip() and not ln.strip().startswith("#")
+            ln.split("#", 1)[0].strip() for ln in raw.splitlines() if ln.strip() and not ln.strip().startswith("#")
         ]
     out = {s for s in items if s}
     print(f"[gliner] conv allowlist: {len(out)} ids", flush=True)
@@ -389,20 +394,21 @@ async def _run_async(args: argparse.Namespace) -> int:
         # context; pin it so an explicit --core-db wins for the write path too.
         os.environ["M3_DATABASE"] = db_path
 
-    conv_allowlist = _load_conv_allowlist(
-        args.source_conv_list or os.environ.get("M3_ENTITIES_CONV_LIST")
-    )
+    conv_allowlist = _load_conv_allowlist(args.source_conv_list or os.environ.get("M3_ENTITIES_CONV_LIST"))
 
     print(
-        f"[gliner] db={db_path or backend} variant={cfg.source_variant!r} "
-        f"limit={cfg.limit} force={cfg.force}",
+        f"[gliner] db={db_path or backend} variant={cfg.source_variant!r} limit={cfg.limit} force={cfg.force}",
         flush=True,
     )
     if cfg.recovery_pass and cfg.force:
         print("[gliner] FATAL: --recovery-pass and --force are mutually exclusive", flush=True)
         return 2
     rows = _select_rows(
-        db_path, cfg.source_variant, cfg.limit, cfg.force, conv_allowlist,
+        db_path,
+        cfg.source_variant,
+        cfg.limit,
+        cfg.force,
+        conv_allowlist,
         min_content_len=cfg.min_content_len,
         recovery_pass=cfg.recovery_pass,
     )
@@ -417,8 +423,7 @@ async def _run_async(args: argparse.Namespace) -> int:
 
     if cfg.dry_run:
         print(
-            "[gliner] --dry-run: would extract entities from "
-            f"{len(rows)} rows in batches of {cfg.batch_size}",
+            f"[gliner] --dry-run: would extract entities from {len(rows)} rows in batches of {cfg.batch_size}",
             flush=True,
         )
         for mid, txt in rows[:3]:
@@ -446,9 +451,7 @@ async def _run_async(args: argparse.Namespace) -> int:
                 f"{type(e).__name__}: {e}; falling back to per-row inference",
                 flush=True,
             )
-            spans_per_row = [
-                _gliner_predict_batch(model, [t], cfg)[0] for t in texts
-            ]
+            spans_per_row = [_gliner_predict_batch(model, [t], cfg)[0] for t in texts]
         await _process_batch(batch, spans_per_row, counters)
 
         # Progress log every 10 batches + at end-of-corpus.
@@ -467,7 +470,7 @@ async def _run_async(args: argparse.Namespace) -> int:
 
     elapsed = time.monotonic() - started
     print(
-        f"[gliner] done in {elapsed/60:.1f}m: "
+        f"[gliner] done in {elapsed / 60:.1f}m: "
         f"{counters['processed']} processed, "
         f"{counters['entities_emitted']} entities, "
         f"{counters['empty']} empty, "
@@ -479,49 +482,73 @@ async def _run_async(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    ap.add_argument("--core", action="store_true",
-                    help="Operate on the core memory DB (the default; kept for "
-                         "CLI symmetry with bin/m3_entities.py).")
-    ap.add_argument("--core-db", default=None,
-                    help="Explicit path to the core memory DB. Overrides M3_DATABASE.")
-    ap.add_argument("--source-variant", default=None,
-                    help="Filter source rows by variant. '__none__' = variant IS NULL "
-                         "(true core rows). A name scopes to a single variant. "
-                         "Omit to process all variants.")
-    ap.add_argument("--source-conv-list",
-                    default=os.environ.get("M3_ENTITIES_CONV_LIST"),
-                    help="Path to a conversation_id allowlist (newline-delimited "
-                         "or JSON array). Filters AFTER --source-variant.")
-    ap.add_argument("--limit", type=int, default=None,
-                    help="Cap eligible rows (smoke testing).")
-    ap.add_argument("--model", default="urchade/gliner_large-v2.1",
-                    help="GLiNER HF model id. Default: urchade/gliner_large-v2.1.")
-    ap.add_argument("--threshold", type=float, default=0.5,
-                    help="Confidence threshold (default: 0.5; lower e.g. 0.3 widens recall).")
-    ap.add_argument("--batch-size", type=int, default=32,
-                    help="Batch size for GLiNER inference (default: 32 — fits in "
-                         "a typical GPU alongside the embedder).")
-    ap.add_argument("--device", default="cuda",
-                    help="Inference device: 'cuda' (default; falls back to cpu) or 'cpu'.")
-    ap.add_argument("--force", action="store_true",
-                    help="Re-extract rows already linked in memory_item_entities. "
-                         "Default: skip already-extracted. Mutually exclusive "
-                         "with --recovery-pass.")
-    ap.add_argument("--min-content-len", type=int, default=5,
-                    help="Skip obs with content shorter than this many chars "
-                         "(default: 5). Was 10 historically, which excluded "
-                         "valid short canonical obs like 'User runs.' (10 chars). "
-                         "Lowered to 5 to capture canonical persona-action facts.")
-    ap.add_argument("--recovery-pass", action="store_true",
-                    help="Process ONLY obs that currently have zero entity rows "
-                         "(i.e. previously empty). Pair with --threshold < 0.5 "
-                         "to backfill below-cutoff entities. Mutually exclusive "
-                         "with --force. Idempotent: re-runs only touch new rows.")
-    ap.add_argument("--dry-run", action="store_true",
-                    help="Show eligible-row count + first 3 sample texts; don't load "
-                         "the model and don't write.")
+    ap.add_argument(
+        "--core",
+        action="store_true",
+        help="Operate on the core memory DB (the default; kept for CLI symmetry with bin/m3_entities.py).",
+    )
+    ap.add_argument("--core-db", default=None, help="Explicit path to the core memory DB. Overrides M3_DATABASE.")
+    ap.add_argument(
+        "--source-variant",
+        default=None,
+        help="Filter source rows by variant. '__none__' = variant IS NULL "
+        "(true core rows). A name scopes to a single variant. "
+        "Omit to process all variants.",
+    )
+    ap.add_argument(
+        "--source-conv-list",
+        default=os.environ.get("M3_ENTITIES_CONV_LIST"),
+        help="Path to a conversation_id allowlist (newline-delimited or JSON array). Filters AFTER --source-variant.",
+    )
+    ap.add_argument("--limit", type=int, default=None, help="Cap eligible rows (smoke testing).")
+    ap.add_argument(
+        "--model", default="urchade/gliner_large-v2.1", help="GLiNER HF model id. Default: urchade/gliner_large-v2.1."
+    )
+    ap.add_argument(
+        "--threshold",
+        type=float,
+        default=0.5,
+        help="Confidence threshold (default: 0.5; lower e.g. 0.3 widens recall).",
+    )
+    ap.add_argument(
+        "--batch-size",
+        type=int,
+        default=32,
+        help="Batch size for GLiNER inference (default: 32 — fits in a typical GPU alongside the embedder).",
+    )
+    ap.add_argument("--device", default="cuda", help="Inference device: 'cuda' (default; falls back to cpu) or 'cpu'.")
+    ap.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-extract rows already linked in memory_item_entities. "
+        "Default: skip already-extracted. Mutually exclusive "
+        "with --recovery-pass.",
+    )
+    ap.add_argument(
+        "--min-content-len",
+        type=int,
+        default=5,
+        help="Skip obs with content shorter than this many chars "
+        "(default: 5). Was 10 historically, which excluded "
+        "valid short canonical obs like 'User runs.' (10 chars). "
+        "Lowered to 5 to capture canonical persona-action facts.",
+    )
+    ap.add_argument(
+        "--recovery-pass",
+        action="store_true",
+        help="Process ONLY obs that currently have zero entity rows "
+        "(i.e. previously empty). Pair with --threshold < 0.5 "
+        "to backfill below-cutoff entities. Mutually exclusive "
+        "with --force. Idempotent: re-runs only touch new rows.",
+    )
+    ap.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show eligible-row count + first 3 sample texts; don't load the model and don't write.",
+    )
     return ap
 
 

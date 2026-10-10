@@ -9,6 +9,7 @@ test_memory_search_routed on every Rust lane, Phase 2A gate, 2026-10-08). The
 subprocess runs with no keyring backend, so its key is the user-only file under
 the sandboxed config root.
 """
+
 from __future__ import annotations
 
 import json
@@ -60,6 +61,7 @@ class _FakeKeyring:
 class _NoKeyring:
     def get_password(self, *a):
         import keyring.errors
+
         raise keyring.errors.NoKeyringError("no backend")
 
     set_password = get_password
@@ -68,6 +70,7 @@ class _NoKeyring:
 class _LockedKeyring:
     def get_password(self, *a):
         import keyring.errors
+
         raise keyring.errors.KeyringError("keychain locked")
 
     set_password = get_password
@@ -81,6 +84,7 @@ class _ReadsButWontWrite:
 
     def set_password(self, *a):
         import keyring.errors
+
         raise keyring.errors.PasswordSetError("Can't store password on keychain: (-25308, 'Unknown Error')")
 
 

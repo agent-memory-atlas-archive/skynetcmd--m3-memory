@@ -6,6 +6,7 @@ dumps its full per-tensor load trace + Metal teardown to stderr, burying the
 readable summary. memory_doctor.main() sets GGML_LOG_LEVEL=4 (error-only) before
 any probe runs, respecting an operator override.
 """
+
 import importlib.util
 import os
 import sys

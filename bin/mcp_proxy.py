@@ -87,6 +87,7 @@ is wired directly by `m3 setup` (see setup_wizard._wire_openclaw), so it no long
 needs this proxy. The removed line also pointed at a `claw-proxy` shell function
 that has never existed in config/zshrc.example -- following it led nowhere.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -155,6 +156,7 @@ sys.path.insert(0, os.path.join(WORKSPACE, "bin"))
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
+
 def _get_proxy_key() -> str:
     """Resolve the master proxy key. Required for all inbound requests."""
     return ctx.get_secret("MCP_PROXY_KEY") or ""
@@ -193,7 +195,7 @@ def _lmstudio_key() -> str:
     key = _get_key("LM_STUDIO_API_KEY")
     if not key:
         key = _get_key("LM_API_TOKEN")
-    return key or "lm-studio"   # LM Studio accepts any non-empty key
+    return key or "lm-studio"  # LM Studio accepts any non-empty key
 
 
 def _google_key() -> str:
@@ -211,6 +213,7 @@ def _perplexity_key() -> str:
 def _openai_key() -> str:
     return _get_key("OPENAI_API_KEY")
 
+
 # ── Bridge imports (lazy — avoids side effects at module load) ─────────────────
 
 _memory_mod = None
@@ -221,6 +224,7 @@ def _memory():
     if _memory_mod is None:
         try:
             import memory_bridge as m
+
             _memory_mod = m
             log.info("memory_bridge imported OK")
         except Exception as exc:
@@ -262,6 +266,7 @@ _catalog_built = False
 PROTOCOL_TOOLS: list[dict] = []
 DEBUG_TOOLS: list[dict] = []
 
+
 def _build_catalog_tools() -> tuple[list[dict], dict]:
     """Lazy-load mcp_tool_catalog and build (openai_schemas, name->spec)."""
     global _catalog_mod, _catalog_specs_by_name, _catalog_tool_schemas, _catalog_built
@@ -269,23 +274,23 @@ def _build_catalog_tools() -> tuple[list[dict], dict]:
         return _catalog_tool_schemas, _catalog_specs_by_name
     try:
         import mcp_tool_catalog as cat
+
         _catalog_mod = cat
         for spec in cat.TOOLS:
             if not ALLOW_DESTRUCTIVE and not spec.default_allowed:
                 continue
             _catalog_specs_by_name[spec.name] = spec
-            _catalog_tool_schemas.append({
-                "type": "function",
-                "function": {
-                    "name": spec.name,
-                    "description": spec.description,
-                    "parameters": spec.parameters,
-                },
-            })
-        log.info(
-            f"Catalog loaded: {len(_catalog_tool_schemas)} tools "
-            f"(ALLOW_DESTRUCTIVE={ALLOW_DESTRUCTIVE})"
-        )
+            _catalog_tool_schemas.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": spec.name,
+                        "description": spec.description,
+                        "parameters": spec.parameters,
+                    },
+                }
+            )
+        log.info(f"Catalog loaded: {len(_catalog_tool_schemas)} tools (ALLOW_DESTRUCTIVE={ALLOW_DESTRUCTIVE})")
     except Exception as exc:
         log.error(f"Failed to load mcp_tool_catalog: {type(exc).__name__}: {exc}")
     _catalog_built = True
@@ -371,7 +376,9 @@ async def _execute_tool(name: str, args: dict, agent_id: str = "mcp-proxy-client
         log.warning(f"Tool {name} raised {type(exc).__name__}: {exc}")
         return f"Tool error: {type(exc).__name__}: {exc}"
 
+
 # ── Routing ───────────────────────────────────────────────────────────────────
+
 
 def _bare_model(model: str) -> str:
     """Strip provider prefix (openai/, anthropic/, google/, etc.)."""
@@ -392,21 +399,32 @@ def _route(model: str) -> tuple[str, str, str]:
         return "openai_compat", GROK_BASE, _grok_key()
     if "sonar" in base or "perplexity" in base:
         return "openai_compat", PERPLEXITY_BASE, _perplexity_key()
-    if base.startswith(("gpt-", "o1-", "o3-", "o4-", "chatgpt-")) or base in ("gpt-4o", "gpt-4", "gpt-3.5-turbo", "o1", "o3", "o4"):
+    if base.startswith(("gpt-", "o1-", "o3-", "o4-", "chatgpt-")) or base in (
+        "gpt-4o",
+        "gpt-4",
+        "gpt-3.5-turbo",
+        "o1",
+        "o3",
+        "o4",
+    ):
         return "openai_compat", OPENAI_BASE, _openai_key()
     return "openai_compat", LMSTUDIO_BASE, _lmstudio_key()
 
+
 # ── OpenAI ↔ Anthropic format adapters ───────────────────────────────────────
+
 
 def _tools_oai_to_anthropic(tools: list) -> list:
     out = []
     for t in tools:
         f = t.get("function", {})
-        out.append({
-            "name": f["name"],
-            "description": f.get("description", ""),
-            "input_schema": f.get("parameters", {"type": "object", "properties": {}}),
-        })
+        out.append(
+            {
+                "name": f["name"],
+                "description": f.get("description", ""),
+                "input_schema": f.get("parameters", {"type": "object", "properties": {}}),
+            }
+        )
     return out
 
 
@@ -429,14 +447,18 @@ def _messages_oai_to_anthropic(messages: list) -> tuple[str, list]:
 
         if role == "tool":
             # OpenAI tool result → Anthropic tool_result block inside user message
-            converted.append({
-                "role": "user",
-                "content": [{
-                    "type": "tool_result",
-                    "tool_use_id": msg.get("tool_call_id", ""),
-                    "content": str(content or ""),
-                }],
-            })
+            converted.append(
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": msg.get("tool_call_id", ""),
+                            "content": str(content or ""),
+                        }
+                    ],
+                }
+            )
             continue
 
         if role == "assistant":
@@ -452,12 +474,14 @@ def _messages_oai_to_anthropic(messages: list) -> tuple[str, list]:
                         inp = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
                     except json.JSONDecodeError:
                         inp = {}
-                    blocks.append({
-                        "type": "tool_use",
-                        "id": tc.get("id", f"tu_{uuid.uuid4().hex[:8]}"),
-                        "name": fn.get("name", ""),
-                        "input": inp,
-                    })
+                    blocks.append(
+                        {
+                            "type": "tool_use",
+                            "id": tc.get("id", f"tu_{uuid.uuid4().hex[:8]}"),
+                            "name": fn.get("name", ""),
+                            "input": inp,
+                        }
+                    )
                 converted.append({"role": "assistant", "content": blocks})
                 continue
 
@@ -481,14 +505,16 @@ def _anthropic_resp_to_oai(resp: dict, model: str) -> dict:
         if btype == "text":
             text_parts.append(block.get("text", ""))
         elif btype == "tool_use":
-            tool_calls.append({
-                "id": block.get("id", f"call_{uuid.uuid4().hex[:8]}"),
-                "type": "function",
-                "function": {
-                    "name": block.get("name", ""),
-                    "arguments": json.dumps(block.get("input", {})),
-                },
-            })
+            tool_calls.append(
+                {
+                    "id": block.get("id", f"call_{uuid.uuid4().hex[:8]}"),
+                    "type": "function",
+                    "function": {
+                        "name": block.get("name", ""),
+                        "arguments": json.dumps(block.get("input", {})),
+                    },
+                }
+            )
 
     text = "".join(text_parts) or None
     stop = resp.get("stop_reason", "end_turn")
@@ -512,16 +538,21 @@ def _anthropic_resp_to_oai(resp: dict, model: str) -> dict:
         },
     }
 
+
 # ── Backend callers ───────────────────────────────────────────────────────────
 
 _http_timeout = httpx.Timeout(
-    connect=CONNECT_TIMEOUT, read=READ_TIMEOUT, write=10.0, pool=5.0,
+    connect=CONNECT_TIMEOUT,
+    read=READ_TIMEOUT,
+    write=10.0,
+    pool=5.0,
 )
 
 
 # ── Shared HTTP Client ────────────────────────────────────────────────────────
 
 _shared_client: httpx.AsyncClient | None = None
+
 
 def _get_client() -> httpx.AsyncClient:
     """Return a shared httpx.AsyncClient with connection pooling."""
@@ -530,14 +561,12 @@ def _get_client() -> httpx.AsyncClient:
         _shared_client = httpx.AsyncClient(
             timeout=httpx.Timeout(connect=CONNECT_TIMEOUT, read=READ_TIMEOUT, write=10.0, pool=5.0),
             http2=True,
-            limits=httpx.Limits(max_keepalive_connections=20, max_connections=100)
+            limits=httpx.Limits(max_keepalive_connections=20, max_connections=100),
         )
     return _shared_client
 
 
-async def _call_anthropic(
-    messages: list, model: str, tools: list, max_tokens: int
-) -> dict:
+async def _call_anthropic(messages: list, model: str, tools: list, max_tokens: int) -> dict:
     api_key = _anthropic_key()
     if not api_key:
         raise ValueError(
@@ -593,13 +622,13 @@ async def _call_openai_compat(
     }
 
     client = _get_client()
-    resp = await client.post(
-        f"{base_url}/chat/completions", json=payload, headers=headers
-    )
+    resp = await client.post(f"{base_url}/chat/completions", json=payload, headers=headers)
     resp.raise_for_status()
     return resp.json()
 
+
 # ── Core tool execution loop ──────────────────────────────────────────────────
+
 
 async def _run_with_tools(
     messages: list,
@@ -674,7 +703,9 @@ async def _run_with_tools(
     log.warning(f"Reached MAX_TOOL_ROUNDS ({MAX_TOOL_ROUNDS}) - returning last response")
     return response  # type: ignore[return-value]
 
+
 # ── SSE streaming adapter ─────────────────────────────────────────────────────
+
 
 async def _sse_from_completion(completion: dict) -> AsyncIterator[str]:
     """
@@ -694,8 +725,7 @@ async def _sse_from_completion(completion: dict) -> AsyncIterator[str]:
 
     def _chunk(delta: dict, finish_reason=None) -> str:
         c = {"index": 0, "delta": delta, "finish_reason": finish_reason}
-        payload = {"id": cid, "object": "chat.completion.chunk",
-                   "created": created, "model": model, "choices": [c]}
+        payload = {"id": cid, "object": "chat.completion.chunk", "created": created, "model": model, "choices": [c]}
         return f"data: {json.dumps(payload)}\n\n"
 
     # Role chunk
@@ -708,7 +738,7 @@ async def _sse_from_completion(completion: dict) -> AsyncIterator[str]:
         # Stream content in ~32-char pieces
         chunk_size = 32
         for i in range(0, len(content), chunk_size):
-            yield _chunk({"content": content[i:i + chunk_size]})
+            yield _chunk({"content": content[i : i + chunk_size]})
 
     # Finish chunk
     yield _chunk({}, finish_reason=finish)
@@ -716,6 +746,7 @@ async def _sse_from_completion(completion: dict) -> AsyncIterator[str]:
 
 
 # ── FastAPI application ───────────────────────────────────────────────────────
+
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
@@ -797,12 +828,14 @@ async def list_models(request: Request) -> dict:
 
 # ── Pydantic Models ───────────────────────────────────────────────────────────
 
+
 class ChatMessage(BaseModel):
     role: str
     content: str | list | None = None
     tool_calls: list | None = None
     tool_call_id: str | None = None
     name: str | None = None
+
 
 class ChatCompletionRequest(BaseModel):
     model: str
@@ -814,6 +847,7 @@ class ChatCompletionRequest(BaseModel):
     temperature: float | None = 0.7
     top_p: float | None = 1.0
     n: int | None = 1
+
 
 @app.post("/v1/chat/completions")
 async def chat_completions(request: Request) -> JSONResponse:
@@ -841,13 +875,13 @@ async def chat_completions(request: Request) -> JSONResponse:
     # Clients can opt out of MCP tool injection via either the standard
     # tool_choice="none" field or the proxy-specific X-MCP-NoTools header.
     no_tools_header = request.headers.get("X-MCP-NoTools", "0") == "1"
-    explicit_none = (body.tool_choice == "none")
+    explicit_none = body.tool_choice == "none"
 
     # Fix M8: Correctly handle max_tokens=0 or missing
     if body.max_tokens is not None and body.max_tokens > 0:
         max_tokens = body.max_tokens
     else:
-        max_tokens = (8096 if "claude" in model else 32768)
+        max_tokens = 8096 if "claude" in model else 32768
 
     btype, _burl, _ = _route(model)
     log.info(
@@ -857,12 +891,7 @@ async def chat_completions(request: Request) -> JSONResponse:
 
     try:
         result = await _run_with_tools(
-            messages,
-            model,
-            client_tools,
-            max_tokens,
-            agent_id,
-            skip_mcp=(no_tools_header or explicit_none)
+            messages, model, client_tools, max_tokens, agent_id, skip_mcp=(no_tools_header or explicit_none)
         )
 
         if wants_stream:
@@ -889,10 +918,12 @@ async def chat_completions(request: Request) -> JSONResponse:
         log.error(f"Backend HTTP {exc.response.status_code}")
         return JSONResponse(
             status_code=exc.response.status_code,
-            content={"error": {
-                "message": exc.response.text[:300],
-                "type": "backend_error",
-            }},
+            content={
+                "error": {
+                    "message": exc.response.text[:300],
+                    "type": "backend_error",
+                }
+            },
         )
     except ValueError as exc:
         log.error(f"Config error: {exc}")
@@ -918,16 +949,18 @@ if __name__ == "__main__":
     # (Previously the only guard was a POSIX-only .pid in start_mcp_proxy.sh —
     # racy and Windows-blind.) A degraded handle still lets it run (fail-safe §3).
     from m3_sdk import acquire_or_exit
+
     _instance_lock = acquire_or_exit(
         "mcp-proxy",
         extra={"host": PROXY_HOST, "port": PROXY_PORT},
         on_already_running=lambda o: log.info(
-            "MCP proxy already running (pid %s) on %s:%s — exiting.",
-            o.pid if o else "?", PROXY_HOST, PROXY_PORT),
+            "MCP proxy already running (pid %s) on %s:%s — exiting.", o.pid if o else "?", PROXY_HOST, PROXY_PORT
+        ),
     )
     if not _instance_lock.acquired:
-        log.warning("mcp-proxy: single-instance lock DEGRADED (%s) — running "
-                    "without enforcement", _instance_lock.status.value)
+        log.warning(
+            "mcp-proxy: single-instance lock DEGRADED (%s) — running without enforcement", _instance_lock.status.value
+        )
 
     catalog_schemas, _ = _build_catalog_tools()
     total_tools = len(PROTOCOL_TOOLS) + len(DEBUG_TOOLS) + len(catalog_schemas)
@@ -942,4 +975,3 @@ if __name__ == "__main__":
     log.info(f"  Total injected:     {total_tools}")
     log.info("=" * 60)
     uvicorn.run(app, host=PROXY_HOST, port=PROXY_PORT, log_level="warning")
-

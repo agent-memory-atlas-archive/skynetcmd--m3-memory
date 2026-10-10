@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_ingest.py
-sha1: fb2fbc360755
-mtime_utc: 2026-10-10T06:50:41.175785+00:00
-generated_utc: 2026-10-10T06:50:41.794842+00:00
+sha1: 3c9087708d8e
+mtime_utc: 2026-10-10T21:05:16.798983+00:00
+generated_utc: 2026-10-10T21:05:29.351219+00:00
 private: false
 ---
 
@@ -31,7 +31,7 @@ message ids / indices have been ingested so re-invoking on the same transcript
 
 ## Entry points
 
-- `async def main()` (line 869)
+- `async def main()` (line 875)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -81,7 +81,7 @@ message ids / indices have been ingested so re-invoking on the same transcript
 
 **sqlite**
 
-- `sqlite3.connect()  → `f'file:{db_path}?mode=ro'`` (line 641)
+- `sqlite3.connect()  → `f'file:{db_path}?mode=ro'`` (line 648)
 
 
 ---

@@ -16,6 +16,7 @@ unconverted readers still use. ``active_store(name)`` selects a store for a bloc
 the resolvers in m3_core.paths then follow it (§14 order, D3). The chatlog stays
 process-wide (D1). A store's files part follows it (3c).
 """
+
 from __future__ import annotations
 
 import difflib
@@ -76,8 +77,11 @@ def parse_stores(table: object, problem) -> dict[str, StoreRef]:
     for name, spec in table.items():
         where = f"stores.{name}"
         if name == MAIN:
-            problem(where, "main is derived from db.backend and the primary DSN or the default "
-                           "SQLite path until 2D; give this store another name")
+            problem(
+                where,
+                "main is derived from db.backend and the primary DSN or the default "
+                "SQLite path until 2D; give this store another name",
+            )
             continue
         if not _NAME.fullmatch(name):
             problem(where, "a store name is lowercase letters, digits, '_' or '-', starting with a letter")
@@ -101,8 +105,7 @@ def parse_stores(table: object, problem) -> dict[str, StoreRef]:
         if missing or bad or set(spec) - allowed:
             continue
         if backend == "sqlite":
-            out[name] = StoreRef(name=name, backend=backend,
-                                 path=str(Path(spec["path"]).expanduser().absolute()))
+            out[name] = StoreRef(name=name, backend=backend, path=str(Path(spec["path"]).expanduser().absolute()))
         else:
             out[name] = StoreRef(name=name, backend=backend, dsn_secret=spec["dsn_secret"])
     return out
@@ -125,8 +128,10 @@ def resolve_store(name: str) -> StoreRef | None:
         near = difflib.get_close_matches(name, list(stores), n=1, cutoff=0.6)
         hint = f"; did you mean {near[0]!r}?" if near else ""
         known = ", ".join(sorted([MAIN, *stores])) or MAIN
-        raise StoreError(f"observed: store {name!r} is not configured (configured: {known}){hint}. "
-                         "inspect: [stores.<name>] in m3_config.toml (`m3 config show --origin`)")
+        raise StoreError(
+            f"observed: store {name!r} is not configured (configured: {known}){hint}. "
+            "inspect: [stores.<name>] in m3_config.toml (`m3 config show --origin`)"
+        )
     return store
 
 
@@ -153,8 +158,9 @@ def files_db_path(store: StoreRef) -> str:
     store kept in the engine directory. A PostgreSQL store's files half is the
     ``files`` schema of its own database, so it has no path."""
     if store.backend != "sqlite" or store.path is None:
-        raise StoreError(f"observed: store {store.name!r} is {store.backend}. "
-                         "inspect: only a SQLite store has a files database file")
+        raise StoreError(
+            f"observed: store {store.name!r} is {store.backend}. inspect: only a SQLite store has a files database file"
+        )
     core = Path(store.path)
     return str(core.with_name(f"{core.stem}.files.db"))
 

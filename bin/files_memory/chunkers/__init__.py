@@ -23,6 +23,7 @@ Public API:
     chunk_file(...)     — convenience wrapper that dispatches + reads
     CHUNKER_REGISTRY    — dict[filetype → module]
 """
+
 from __future__ import annotations
 
 import logging
@@ -45,20 +46,22 @@ class Leaf:
     Fields map 1:1 onto columns in the `leaves` table (plus a few
     chunker-local fields that the ingester translates).
     """
+
     text: str
-    division_type: str        # 'heading'|'page'|'window'|'slide'|'function'|...
-    division_id: str          # stable within (file_node, division_type)
+    division_type: str  # 'heading'|'page'|'window'|'slide'|'function'|...
+    division_id: str  # stable within (file_node, division_type)
     division_label: str | None = None
     char_range_start: int = 0
     char_range_end: int = 0
     boundary_confidence: float = 1.0
     truncated: bool = False
-    sub_division: str | None = None    # e.g. sub-heading; metadata-only
+    sub_division: str | None = None  # e.g. sub-heading; metadata-only
     extra: dict = field(default_factory=dict)
 
 
 class ChunkerProtocol(Protocol):
     CHUNKER_VERSION: str
+
     def chunk(self, path: str, text: str | None = ...) -> Iterator[Leaf]: ...
 
 
@@ -82,11 +85,17 @@ CHUNKER_REGISTRY: dict[str, object] = {
     "html": _html_chunker,
     # Binary documents. One chunker: it converts to markdown and delegates
     # the heading split, so all of these share the markdown chunker's logic.
-    "docx": _office_chunker, "doc": _office_chunker,
-    "pptx": _office_chunker, "ppt": _office_chunker,
-    "xlsx": _office_chunker, "xls": _office_chunker,
-    "rtf": _office_chunker, "epub": _office_chunker,
-    "odt": _office_chunker, "odp": _office_chunker, "ods": _office_chunker,
+    "docx": _office_chunker,
+    "doc": _office_chunker,
+    "pptx": _office_chunker,
+    "ppt": _office_chunker,
+    "xlsx": _office_chunker,
+    "xls": _office_chunker,
+    "rtf": _office_chunker,
+    "epub": _office_chunker,
+    "odt": _office_chunker,
+    "odp": _office_chunker,
+    "ods": _office_chunker,
     # Apple iWork -- Pages, Keynote, Numbers share one container.
     "iwork": _iwork_chunker,
     "text": _text_chunker,
@@ -105,16 +114,54 @@ CHUNKER_REGISTRY: dict[str, object] = {
 #: degraded extraction, it is nonsense entering FTS and the embedding space,
 #: which is exactly how .html shipped broken (identity.py mapped it, no chunker
 #: existed, the fallback swallowed it silently).
-TEXT_CHUNKED_FILETYPES = frozenset({
-    "text", "log", "unknown",
-    # Source code — a dedicated AST chunker is a future upgrade, not a defect.
-    "python", "typescript", "javascript", "rust", "go", "java", "ruby", "php",
-    "c", "cpp", "csharp", "swift", "kotlin", "scala", "shell", "powershell",
-    "sql", "r", "perl", "lua", "dart", "elixir", "haskell", "clojure",
-    # Structured text / config.
-    "json", "jsonl", "yaml", "toml", "ini", "xml", "csv", "tsv", "latex",
-    "notebook", "diff", "makefile", "dockerfile", "gradle", "properties",
-})
+TEXT_CHUNKED_FILETYPES = frozenset(
+    {
+        "text",
+        "log",
+        "unknown",
+        # Source code — a dedicated AST chunker is a future upgrade, not a defect.
+        "python",
+        "typescript",
+        "javascript",
+        "rust",
+        "go",
+        "java",
+        "ruby",
+        "php",
+        "c",
+        "cpp",
+        "csharp",
+        "swift",
+        "kotlin",
+        "scala",
+        "shell",
+        "powershell",
+        "sql",
+        "r",
+        "perl",
+        "lua",
+        "dart",
+        "elixir",
+        "haskell",
+        "clojure",
+        # Structured text / config.
+        "json",
+        "jsonl",
+        "yaml",
+        "toml",
+        "ini",
+        "xml",
+        "csv",
+        "tsv",
+        "latex",
+        "notebook",
+        "diff",
+        "makefile",
+        "dockerfile",
+        "gradle",
+        "properties",
+    }
+)
 
 
 def get_chunker(filetype: str):
@@ -213,16 +260,20 @@ def _enforce_leaf_token_cap(leaf: Leaf) -> Iterator[Leaf]:
         logger.warning(
             "files: leaf %r is %d est. tokens (cap %d) and could not be split; "
             "flagged truncated=True. review: M3_FILES_MAX_LEAF_TOKENS",
-            leaf.division_id, estimate_tokens(leaf.text), FILES_MAX_LEAF_TOKENS,
+            leaf.division_id,
+            estimate_tokens(leaf.text),
+            FILES_MAX_LEAF_TOKENS,
         )
         leaf.truncated = True
         yield leaf
         return
 
     logger.info(
-        "files: leaf %r exceeded the token cap (%d > %d); split into %d pieces "
-        "so no content is lost.",
-        leaf.division_id, estimate_tokens(leaf.text), FILES_MAX_LEAF_TOKENS, len(pieces),
+        "files: leaf %r exceeded the token cap (%d > %d); split into %d pieces so no content is lost.",
+        leaf.division_id,
+        estimate_tokens(leaf.text),
+        FILES_MAX_LEAF_TOKENS,
+        len(pieces),
     )
     offset = leaf.char_range_start
     for i, piece in enumerate(pieces):

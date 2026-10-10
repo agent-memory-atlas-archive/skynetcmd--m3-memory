@@ -31,6 +31,7 @@ The script only touches `pending` and `failed` rows by default — it
 won't reassign rows that already succeeded. Use --include-completed to
 override.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -42,28 +43,31 @@ from m3_core.paths import resolve_cli_store, seam_dialect
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--db", default=None,
-                    help="SQLite database with enrichment_groups (default: the "
-                         "active store). Not used on PostgreSQL.")
-    ap.add_argument("--source-variant", required=True,
-                    help="Match enrichment_groups.source_variant.")
-    ap.add_argument("--target-variant", required=True,
-                    help="Match enrichment_groups.target_variant.")
-    ap.add_argument("--send-to", required=True,
-                    help="Provider name to assign (e.g. 'grok', 'gemini'). "
-                         "Pass the literal string 'NULL' to clear assignments.")
-    ap.add_argument("--min-size-k", type=int,
-                    help="Only assign rows whose content_size_k >= N.")
-    ap.add_argument("--max-size-k", type=int,
-                    help="Only assign rows whose content_size_k <= N.")
-    ap.add_argument("--only-unassigned", action="store_true",
-                    help="Only assign rows where send_to IS NULL. Use to "
-                         "avoid clobbering an existing routing scheme.")
-    ap.add_argument("--include-completed", action="store_true",
-                    help="Also reassign rows in success/empty/dead_letter "
-                         "status. Default: only pending and failed.")
-    ap.add_argument("--dry-run", action="store_true",
-                    help="Print what would be updated; don't write.")
+    ap.add_argument(
+        "--db",
+        default=None,
+        help="SQLite database with enrichment_groups (default: the active store). Not used on PostgreSQL.",
+    )
+    ap.add_argument("--source-variant", required=True, help="Match enrichment_groups.source_variant.")
+    ap.add_argument("--target-variant", required=True, help="Match enrichment_groups.target_variant.")
+    ap.add_argument(
+        "--send-to",
+        required=True,
+        help="Provider name to assign (e.g. 'grok', 'gemini'). Pass the literal string 'NULL' to clear assignments.",
+    )
+    ap.add_argument("--min-size-k", type=int, help="Only assign rows whose content_size_k >= N.")
+    ap.add_argument("--max-size-k", type=int, help="Only assign rows whose content_size_k <= N.")
+    ap.add_argument(
+        "--only-unassigned",
+        action="store_true",
+        help="Only assign rows where send_to IS NULL. Use to avoid clobbering an existing routing scheme.",
+    )
+    ap.add_argument(
+        "--include-completed",
+        action="store_true",
+        help="Also reassign rows in success/empty/dead_letter status. Default: only pending and failed.",
+    )
+    ap.add_argument("--dry-run", action="store_true", help="Print what would be updated; don't write.")
     args = ap.parse_args()
 
     try:
@@ -81,10 +85,13 @@ def _assign(conn, args, db_path: str | None) -> int:
     # Verify the column exists (migration 031; PostgreSQL pg_060).
     col_sql, col_params = d.columns_of("enrichment_groups")
     if "send_to" not in {r[0] for r in conn.execute(col_sql, col_params).fetchall()}:
-        print("ERROR: observed: enrichment_groups.send_to does not exist on this store. "
-              "inspect: apply the migrations (SQLite 031: "
-              f"python bin/migrate_memory.py --db {db_path or '<db>'} up; PostgreSQL pg_060: "
-              "m3 setup or bin/migrate_pg.py)", file=sys.stderr)
+        print(
+            "ERROR: observed: enrichment_groups.send_to does not exist on this store. "
+            "inspect: apply the migrations (SQLite 031: "
+            f"python bin/migrate_memory.py --db {db_path or '<db>'} up; PostgreSQL pg_060: "
+            "m3 setup or bin/migrate_pg.py)",
+            file=sys.stderr,
+        )
         return 2
 
     # Build the WHERE clause.
@@ -104,7 +111,8 @@ def _assign(conn, args, db_path: str | None) -> int:
 
     # Preview: count + size-band breakdown.
     n_match = conn.execute(
-        f"SELECT COUNT(*) FROM enrichment_groups WHERE {where_sql}", params,
+        f"SELECT COUNT(*) FROM enrichment_groups WHERE {where_sql}",
+        params,
     ).fetchone()[0]
 
     if n_match == 0:
@@ -115,15 +123,15 @@ def _assign(conn, args, db_path: str | None) -> int:
     print()
     print("Status breakdown:")
     for r in conn.execute(
-        f"SELECT status, COUNT(*) FROM enrichment_groups WHERE {where_sql} "
-        f"GROUP BY status ORDER BY 2 DESC", params,
+        f"SELECT status, COUNT(*) FROM enrichment_groups WHERE {where_sql} GROUP BY status ORDER BY 2 DESC",
+        params,
     ):
         print(f"  {r[0]:<15} {r[1]}")
     print()
     print("Current send_to breakdown (pre-update):")
     for r in conn.execute(
-        f"SELECT send_to, COUNT(*) FROM enrichment_groups WHERE {where_sql} "
-        f"GROUP BY send_to ORDER BY 2 DESC", params,
+        f"SELECT send_to, COUNT(*) FROM enrichment_groups WHERE {where_sql} GROUP BY send_to ORDER BY 2 DESC",
+        params,
     ):
         label = r[0] if r[0] is not None else "(NULL)"
         print(f"  {label:<15} {r[1]}")

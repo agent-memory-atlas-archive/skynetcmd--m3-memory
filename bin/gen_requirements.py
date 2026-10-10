@@ -17,6 +17,7 @@ the optional extras, and crewai's caps would pin older shared packages
 tests/test_dependency_sources.py fails when pyproject and this file disagree.
 Why each pin is what it is: docs/DEPENDENCY_NOTES.md.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -61,8 +62,10 @@ def header(digest: str) -> str:
 def render(*, upgrade: bool) -> str:
     uv = shutil.which("uv")
     if uv is None:
-        sys.exit("gen_requirements: uv is required; observed: no `uv` on PATH. "
-                 "inspect: https://docs.astral.sh/uv/getting-started/installation/")
+        sys.exit(
+            "gen_requirements: uv is required; observed: no `uv` on PATH. "
+            "inspect: https://docs.astral.sh/uv/getting-started/installation/"
+        )
     with tempfile.TemporaryDirectory() as tmp:
         # uv reads the pins to keep from, and writes its result to, the
         # --output-file. Work on a copy so a failed run leaves OUT untouched.
@@ -73,18 +76,29 @@ def render(*, upgrade: bool) -> str:
         # override-dependencies exist for the uv lock's extras; applied here
         # they let requirements.txt pin a set pip refuses (fastmcp 4 + mcp 1.x
         # did, 2026-10-10: docs/DEPENDENCY_NOTES.md).
-        cmd = [uv, "pip", "compile", str(PYPROJECT), "--universal", "--no-header",
-               "--quiet", "--no-config", "--output-file", str(work)]
+        cmd = [
+            uv,
+            "pip",
+            "compile",
+            str(PYPROJECT),
+            "--universal",
+            "--no-header",
+            "--quiet",
+            "--no-config",
+            "--output-file",
+            str(work),
+        ]
         for g in GROUPS:
             cmd += ["--group", g]
         if upgrade:
             cmd.append("--upgrade")
-        subprocess.run(cmd, cwd=ROOT, check=True, capture_output=True,
-                       text=True, encoding="utf-8")
+        subprocess.run(cmd, cwd=ROOT, check=True, capture_output=True, text=True, encoding="utf-8")
         body = work.read_text(encoding="utf-8")
     if "==" not in body:
-        sys.exit("gen_requirements: uv produced no pins; observed: an empty resolution. "
-                 "inspect: uv pip compile pyproject.toml --universal --group lint --group test")
+        sys.exit(
+            "gen_requirements: uv produced no pins; observed: an empty resolution. "
+            "inspect: uv pip compile pyproject.toml --universal --group lint --group test"
+        )
     return header(declarations_digest()) + body
 
 
@@ -95,8 +109,10 @@ def main() -> int:
     try:
         text = render(upgrade=args.upgrade)
     except subprocess.CalledProcessError as e:
-        sys.exit(f"gen_requirements: uv pip compile failed; observed: {e.stderr.strip()[-800:]} "
-                 "inspect: uv pip compile pyproject.toml --universal --group lint --group test")
+        sys.exit(
+            f"gen_requirements: uv pip compile failed; observed: {e.stderr.strip()[-800:]} "
+            "inspect: uv pip compile pyproject.toml --universal --group lint --group test"
+        )
     OUT.write_bytes(text.encode("utf-8"))
     print(f"wrote {OUT.name} ({text.count(chr(10))} lines)")
     return 0

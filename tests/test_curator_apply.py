@@ -9,6 +9,7 @@ Test strategy: build a scratch SQLite DB with the schema the bulk impls
 touch, feed a plan with every section populated, assert that exactly the
 expected rows get modified and the result dict has the expected shape.
 """
+
 from __future__ import annotations
 
 import os
@@ -86,6 +87,7 @@ def scratch_db(monkeypatch, tmp_path):
 
     monkeypatch.setenv("M3_DATABASE", str(db_path))
     import memory_core
+
     if hasattr(memory_core, "_initialized_dbs"):
         memory_core._initialized_dbs.clear()
     return {"path": str(db_path), "ids": ids}
@@ -97,6 +99,7 @@ def scratch_db(monkeypatch, tmp_path):
 def test_memory_plan_empty_is_noop():
     """An empty plan returns zero counts and no errors."""
     import curator_apply
+
     out = curator_apply.apply_memory_plan({})
     assert out["store"] == "memory"
     assert out["summary"] == {"deleted_soft": 0, "deleted_hard": 0, "linked": 0, "updated": 0}
@@ -108,6 +111,7 @@ def test_memory_plan_combined_sections(scratch_db):
     """A plan with delete + link + update sections all populated runs every
     section, returns per-section results, and physically writes to the DB."""
     import curator_apply
+
     ids = scratch_db["ids"]
     plan = {
         "delete": [ids[0]],
@@ -120,27 +124,25 @@ def test_memory_plan_combined_sections(scratch_db):
     assert out["delete"]["succeeded"] == [ids[0]]
     assert len(out["link"]["created"]) == 1
     assert ids[3] in out["update"]["succeeded"]
-    assert out["summary"] == {
-        "deleted_soft": 1, "deleted_hard": 0, "linked": 1, "updated": 1
-    }
+    assert out["summary"] == {"deleted_soft": 1, "deleted_hard": 0, "linked": 1, "updated": 1}
 
     # Verify the DB physically changed.
     conn = sqlite3.connect(scratch_db["path"])
-    assert conn.execute(
-        "SELECT is_deleted FROM memory_items WHERE id=?", (ids[0],)
-    ).fetchone()[0] == 1
-    assert conn.execute(
-        "SELECT COUNT(*) FROM memory_relationships WHERE from_id=? AND to_id=?",
-        (ids[1], ids[2]),
-    ).fetchone()[0] == 1
-    assert conn.execute(
-        "SELECT importance FROM memory_items WHERE id=?", (ids[3],)
-    ).fetchone()[0] == 0.9
+    assert conn.execute("SELECT is_deleted FROM memory_items WHERE id=?", (ids[0],)).fetchone()[0] == 1
+    assert (
+        conn.execute(
+            "SELECT COUNT(*) FROM memory_relationships WHERE from_id=? AND to_id=?",
+            (ids[1], ids[2]),
+        ).fetchone()[0]
+        == 1
+    )
+    assert conn.execute("SELECT importance FROM memory_items WHERE id=?", (ids[3],)).fetchone()[0] == 0.9
 
 
 def test_memory_plan_hard_delete(scratch_db):
     """delete_hard cascades to memory_embeddings + memory_relationships."""
     import curator_apply
+
     ids = scratch_db["ids"]
     conn = sqlite3.connect(scratch_db["path"])
     conn.execute(
@@ -157,18 +159,15 @@ def test_memory_plan_hard_delete(scratch_db):
 
     conn = sqlite3.connect(scratch_db["path"])
     # Item row gone (cascade), not just soft-deleted.
-    assert conn.execute(
-        "SELECT COUNT(*) FROM memory_items WHERE id=?", (ids[0],)
-    ).fetchone()[0] == 0
-    assert conn.execute(
-        "SELECT COUNT(*) FROM memory_embeddings WHERE memory_id=?", (ids[0],)
-    ).fetchone()[0] == 0
+    assert conn.execute("SELECT COUNT(*) FROM memory_items WHERE id=?", (ids[0],)).fetchone()[0] == 0
+    assert conn.execute("SELECT COUNT(*) FROM memory_embeddings WHERE memory_id=?", (ids[0],)).fetchone()[0] == 0
 
 
 def test_memory_plan_string_ids_in_delete_section(scratch_db):
     """Plan with comma-separated string for `delete` is accepted (lenient
     parser; some callers serialize this way)."""
     import curator_apply
+
     ids = scratch_db["ids"]
     plan = {"delete": f"{ids[0]},{ids[1]}"}
     out = curator_apply.apply_memory_plan(plan)
@@ -180,6 +179,7 @@ def test_memory_plan_section_error_does_not_block_others(scratch_db, monkeypatch
     Error is reported in `errors`, not propagated."""
     import curator_apply
     import memory_core
+
     ids = scratch_db["ids"]
 
     def _broken(*a, **kw):
@@ -189,7 +189,7 @@ def test_memory_plan_section_error_does_not_block_others(scratch_db, monkeypatch
 
     plan = {
         "delete": [ids[0]],
-        "link":   [{"from_id": ids[1], "to_id": ids[2]}],
+        "link": [{"from_id": ids[1], "to_id": ids[2]}],
     }
     out = curator_apply.apply_memory_plan(plan)
 
@@ -261,25 +261,20 @@ def test_chatlog_plan_prune_section(scratch_db):
     conn = sqlite3.connect(scratch_db["path"])
     # All 3 chat_log rows soft-deleted.
     n_deleted = conn.execute(
-        "SELECT COUNT(*) FROM memory_items "
-        "WHERE conversation_id=? AND type='chat_log' AND is_deleted=1",
-        (conv_id,)
+        "SELECT COUNT(*) FROM memory_items WHERE conversation_id=? AND type='chat_log' AND is_deleted=1", (conv_id,)
     ).fetchone()[0]
     assert n_deleted == 3
     # Non-chat_log row in same conversation NOT touched (type filter).
-    other_deleted = conn.execute(
-        "SELECT is_deleted FROM memory_items WHERE id=?", (other_id,)
-    ).fetchone()[0]
+    other_deleted = conn.execute("SELECT is_deleted FROM memory_items WHERE id=?", (other_id,)).fetchone()[0]
     assert other_deleted == 0
 
 
 def test_chatlog_plan_empty_is_noop():
     import curator_apply
+
     out = curator_apply.apply_chatlog_plan({})
     assert out["store"] == "chatlog"
-    assert out["summary"] == {
-        "decay_applied_writes": 0, "dedup_deleted": 0, "promoted": 0, "pruned": 0
-    }
+    assert out["summary"] == {"decay_applied_writes": 0, "dedup_deleted": 0, "promoted": 0, "pruned": 0}
     assert out["errors"] == []
 
 
@@ -320,8 +315,7 @@ def test_chatlog_dedup_uses_active_database_for_routing():
     assert dedup_section_start >= 0 and summary_section_start > dedup_section_start
     dedup_section = src[dedup_section_start:summary_section_start]
     assert "active_database(resolved_db)" in dedup_section, (
-        "active_database(resolved_db) must wrap the dedup bulk-delete call, "
-        "not just appear somewhere in the function."
+        "active_database(resolved_db) must wrap the dedup bulk-delete call, not just appear somewhere in the function."
     )
 
 
@@ -330,6 +324,7 @@ def test_chatlog_dedup_uses_active_database_for_routing():
 
 def test_curate_apply_tools_in_catalog():
     import mcp_tool_catalog
+
     names = {t.name for t in mcp_tool_catalog.TOOLS}
     assert "curate_memory_apply" in names
     assert "curate_chatlog_apply" in names
@@ -339,6 +334,7 @@ def test_curate_apply_tools_are_destructive_gated():
     """These do bulk writes / deletes; must be destructive-gated so the MCP
     proxy doesn't expose them by default."""
     import mcp_tool_catalog
+
     by_name = {t.name: t for t in mcp_tool_catalog.TOOLS}
     assert by_name["curate_memory_apply"].default_allowed is False
     assert by_name["curate_chatlog_apply"].default_allowed is False

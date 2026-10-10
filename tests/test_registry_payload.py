@@ -5,6 +5,7 @@ files; these pin build/parse round-trips, reserved-key shadowing, and malformed
 tolerance so the writers (m3_halt) and readers (m3_halt + a future dashboard
 panel) can never drift.
 """
+
 from __future__ import annotations
 
 import sys
@@ -24,8 +25,7 @@ from m3_core.registry_payload import (  # noqa: E402
 
 
 def test_build_payload_shape():
-    p = build_payload("dashboard", "/x/engine", pid=123, create_time=99.5,
-                      extra={"host": "127.0.0.1", "port": 8088})
+    p = build_payload("dashboard", "/x/engine", pid=123, create_time=99.5, extra={"host": "127.0.0.1", "port": 8088})
     assert p["pid"] == 123
     assert p["role"] == "dashboard"
     assert p["create_time"] == 99.5
@@ -44,22 +44,19 @@ def test_build_payload_no_extra_omits_key():
 def test_extra_cannot_shadow_reserved_keys():
     # A caller passing a reserved key inside extra must not be able to override
     # the real field — defense in depth.
-    p = build_payload("r", "/e", pid=7, create_time=1.0,
-                      extra={"pid": 999, "role": "evil", "host": "h"})
+    p = build_payload("r", "/e", pid=7, create_time=1.0, extra={"pid": 999, "role": "evil", "host": "h"})
     assert p["pid"] == 7 and p["role"] == "r"  # reserved fields intact
     assert "pid" not in p["extra"] and "role" not in p["extra"]
     assert p["extra"] == {"host": "h"}  # only the non-reserved survives
 
 
 def test_reserved_keys_frozenset():
-    for k in ("pid", "role", "started_at", "create_time", "engine_root",
-              "protocol", "extra"):
+    for k in ("pid", "role", "started_at", "create_time", "engine_root", "protocol", "extra"):
         assert k in RESERVED_PAYLOAD_KEYS
 
 
 def test_build_parse_round_trip():
-    p = build_payload("embed-server", "/e", pid=42, create_time=3.5,
-                      extra={"port": 8082})
+    p = build_payload("embed-server", "/e", pid=42, create_time=3.5, extra={"port": 8082})
     info = parse_payload(p, Path("embed-server.lock"))
     assert isinstance(info, ProcInfo)
     assert info.pid == 42 and info.role == "embed-server"
@@ -84,8 +81,9 @@ def test_parse_none_on_missing_or_bad_pid():
 def test_parse_role_falls_back_to_stem():
     # A legacy entry without a role uses the file stem so it still identifies.
     info = parse_payload({"pid": 5}, Path("cognitive-loop.lock"))
-    assert (info is not None and info.role == "cognitive-loop.lock".rsplit(".", 1)[0]) \
-        or info.role == "cognitive-loop"  # Path.stem drops one suffix
+    assert (
+        info is not None and info.role == "cognitive-loop.lock".rsplit(".", 1)[0]
+    ) or info.role == "cognitive-loop"  # Path.stem drops one suffix
 
 
 def test_parse_tolerates_missing_create_time_and_extra():

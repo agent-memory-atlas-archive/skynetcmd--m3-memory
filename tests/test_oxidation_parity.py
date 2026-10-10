@@ -61,6 +61,7 @@ dot/norm sums in f32. float32 has ~7 significant decimal digits; over a
 far above 1e-9. Demanding 1e-9 would be a false failure caused purely by
 float32 representation, not by an implementation divergence.
 """
+
 import pytest
 
 from conftest import skip_reason
@@ -236,11 +237,11 @@ def test_cosine_batch_empty_corpus():
 # values so there are no accidental ties in the pre-ranking.
 _MMR_QUERY = [1.0, 0.0, 0.0]
 _MMR_CANDS = [
-    [1.0, 0.0, 0.0],     # cos 1.00
-    [0.9, 0.4, 0.0],     # cos ~0.91
-    [0.5, 0.85, 0.0],    # cos ~0.51
-    [0.2, 0.9, 0.3],     # cos ~0.21
-    [0.0, 0.7, 0.7],     # cos 0.00
+    [1.0, 0.0, 0.0],  # cos 1.00
+    [0.9, 0.4, 0.0],  # cos ~0.91
+    [0.5, 0.85, 0.0],  # cos ~0.51
+    [0.2, 0.9, 0.3],  # cos ~0.21
+    [0.0, 0.7, 0.7],  # cos 0.00
 ]
 
 
@@ -320,8 +321,7 @@ def test_parity_summary():
     assert all(abs(r - p) < TOL for r, p in zip(rb, pb, strict=True))
 
     # mmr
-    assert list(m3_core_rs.mmr_rerank(query, corpus, _MMR_LAMBDA, 4)) == \
-        py_mmr_select(query, corpus, _MMR_LAMBDA, 4)
+    assert list(m3_core_rs.mmr_rerank(query, corpus, _MMR_LAMBDA, 4)) == py_mmr_select(query, corpus, _MMR_LAMBDA, 4)
 
 
 # --------------------------------------------------------------------------
@@ -367,10 +367,10 @@ def py_mmr_scored_select(relevance, candidates, lambda_, k, force_seed_first):
 # highest relevance but is NOT the max-cosine-to-anything item. This is the
 # exact shape where the generic mmr_rerank diverges from production.
 _SCORED_CANDS = [
-    [0.0, 1.0, 0.0],   # idx 0
-    [1.0, 0.0, 0.0],   # idx 1
-    [0.9, 0.1, 0.0],   # idx 2 — near-duplicate of idx 1
-    [0.0, 0.0, 1.0],   # idx 3
+    [0.0, 1.0, 0.0],  # idx 0
+    [1.0, 0.0, 0.0],  # idx 1
+    [0.9, 0.1, 0.0],  # idx 2 — near-duplicate of idx 1
+    [0.0, 0.0, 1.0],  # idx 3
     [0.1, 0.1, 0.95],  # idx 4 — near-duplicate of idx 3
 ]
 # Pre-sorted descending by relevance, as the production call site guarantees.
@@ -380,25 +380,15 @@ _SCORED_RELEVANCE = [0.95, 0.80, 0.70, 0.60, 0.40]
 @pytest.mark.parametrize("k", [1, 2, 3, 5, 8])
 def test_mmr_scored_parity_force_seed(k):
     """force_seed_first=True must reproduce the Python loop exactly."""
-    rust = list(
-        m3_core_rs.mmr_rerank_scored(
-            _SCORED_RELEVANCE, _SCORED_CANDS, _MMR_LAMBDA, k, True
-        )
-    )
-    py = py_mmr_scored_select(
-        _SCORED_RELEVANCE, _SCORED_CANDS, _MMR_LAMBDA, k, True
-    )
+    rust = list(m3_core_rs.mmr_rerank_scored(_SCORED_RELEVANCE, _SCORED_CANDS, _MMR_LAMBDA, k, True))
+    py = py_mmr_scored_select(_SCORED_RELEVANCE, _SCORED_CANDS, _MMR_LAMBDA, k, True)
     assert rust == py
 
 
 def test_mmr_scored_force_seed_pins_index_zero():
     """Index 0 is always selected first under force_seed_first, even though
     it is neither the max-cosine nor uniquely separable item."""
-    rust = list(
-        m3_core_rs.mmr_rerank_scored(
-            _SCORED_RELEVANCE, _SCORED_CANDS, _MMR_LAMBDA, 5, True
-        )
-    )
+    rust = list(m3_core_rs.mmr_rerank_scored(_SCORED_RELEVANCE, _SCORED_CANDS, _MMR_LAMBDA, 5, True))
     assert rust[0] == 0
 
 
@@ -411,9 +401,7 @@ def test_mmr_scored_max_relevance_not_max_cosine():
     """
     relevance = [0.9, 0.5, 0.4]
     cands = [[0.0, 1.0], [1.0, 0.0], [0.95, 0.05]]
-    rust = list(
-        m3_core_rs.mmr_rerank_scored(relevance, cands, _MMR_LAMBDA, 3, True)
-    )
+    rust = list(m3_core_rs.mmr_rerank_scored(relevance, cands, _MMR_LAMBDA, 3, True))
     py = py_mmr_scored_select(relevance, cands, _MMR_LAMBDA, 3, True)
     assert rust == py
     assert rust[0] == 0  # relevance-seeded, not cosine-seeded
@@ -422,14 +410,8 @@ def test_mmr_scored_max_relevance_not_max_cosine():
 def test_mmr_scored_no_force_seed_pure_greedy():
     """force_seed_first=False → pure greedy; first pick = argmax relevance
     (selected empty → max_sim=0, so mmr reduces to lambda*relevance)."""
-    rust = list(
-        m3_core_rs.mmr_rerank_scored(
-            _SCORED_RELEVANCE, _SCORED_CANDS, _MMR_LAMBDA, 5, False
-        )
-    )
-    py = py_mmr_scored_select(
-        _SCORED_RELEVANCE, _SCORED_CANDS, _MMR_LAMBDA, 5, False
-    )
+    rust = list(m3_core_rs.mmr_rerank_scored(_SCORED_RELEVANCE, _SCORED_CANDS, _MMR_LAMBDA, 5, False))
+    py = py_mmr_scored_select(_SCORED_RELEVANCE, _SCORED_CANDS, _MMR_LAMBDA, 5, False)
     assert rust == py
     assert rust[0] == 0  # argmax relevance
 
@@ -439,19 +421,13 @@ def test_mmr_scored_tie_case():
     order (Python's stable argmax / pop, Rust's ordered remove)."""
     relevance = [0.5, 0.5, 0.5]
     cands = [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]]
-    rust = list(
-        m3_core_rs.mmr_rerank_scored(relevance, cands, _MMR_LAMBDA, 3, True)
-    )
+    rust = list(m3_core_rs.mmr_rerank_scored(relevance, cands, _MMR_LAMBDA, 3, True))
     py = py_mmr_scored_select(relevance, cands, _MMR_LAMBDA, 3, True)
     assert rust == py
 
 
 def test_mmr_scored_k_zero():
-    assert list(
-        m3_core_rs.mmr_rerank_scored(
-            _SCORED_RELEVANCE, _SCORED_CANDS, _MMR_LAMBDA, 0, True
-        )
-    ) == []
+    assert list(m3_core_rs.mmr_rerank_scored(_SCORED_RELEVANCE, _SCORED_CANDS, _MMR_LAMBDA, 0, True)) == []
 
 
 # --------------------------------------------------------------------------
@@ -494,14 +470,10 @@ def _rows_eq(a, b):
     """Compare (score, is_expansion) lists; score within TOL (f32 round-trip)."""
     if len(a) != len(b):
         return False
-    return all(
-        abs(sa - sb) < TOL and ea == eb
-        for (sa, ea), (sb, eb) in zip(a, b, strict=True)
-    )
+    return all(abs(sa - sb) < TOL and ea == eb for (sa, ea), (sb, eb) in zip(a, b, strict=True))
 
 
-def _guard(items, protected_ranks=EXPANSION_PROTECTED_RANKS,
-           margin=EXPANSION_DISPLACEMENT_MARGIN):
+def _guard(items, protected_ranks=EXPANSION_PROTECTED_RANKS, margin=EXPANSION_DISPLACEMENT_MARGIN):
     # The Rust binding returns an index permutation, not reordered rows — so
     # callers can map back to their own row objects even when (score, flag)
     # pairs collide. Apply it to recover the reordered list for comparison.

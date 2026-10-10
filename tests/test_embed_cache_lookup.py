@@ -11,6 +11,7 @@ cache hit returns before either is reached, a miss reaches one and fails. (The
 HTTP stub matters: on a miss the code falls back to the CPU HTTP embedder, and
 without it the first version of this test called the real local server.)
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -45,10 +46,13 @@ def test_cached_vector_is_returned_without_embedding(monkeypatch, each_backend):
     mid = res.split(":", 1)[1].strip() if isinstance(res, str) else res["id"]
     d = dialect()
     with me._db() as db:
-        eid = seed_embedding_row(db, d, mid=mid, embedding=_pack(vec), dim=len(vec),
-                                 embed_model=me._EMBED_GGUF_MODEL_TAG)
-        db.execute(f"UPDATE memory_embeddings SET content_hash = {d.param()} WHERE id = {d.param()}",
-                   (_content_hash(text), eid))
+        eid = seed_embedding_row(
+            db, d, mid=mid, embedding=_pack(vec), dim=len(vec), embed_model=me._EMBED_GGUF_MODEL_TAG
+        )
+        db.execute(
+            f"UPDATE memory_embeddings SET content_hash = {d.param()} WHERE id = {d.param()}",
+            (_content_hash(text), eid),
+        )
         db.commit()
 
     out = asyncio.run(me._embed_many([text]))

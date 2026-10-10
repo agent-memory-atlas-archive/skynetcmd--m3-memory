@@ -36,10 +36,10 @@ from typing import Any
 
 # Reserved metadata_json keys the adapter owns. Namespaced so they can't collide
 # with a user's own metadata coming down from a CrewAI record.
-SCOPE_PATH_KEY = "_crewai_scope"       # the /-delimited CrewAI scope path
+SCOPE_PATH_KEY = "_crewai_scope"  # the /-delimited CrewAI scope path
 CATEGORIES_KEY = "_crewai_categories"  # CrewAI's category list
-PRIVATE_KEY = "_crewai_private"        # CrewAI's private flag
-CREWAI_SOURCE_KEY = "_crewai_source"   # CrewAI's per-record source tag
+PRIVATE_KEY = "_crewai_private"  # CrewAI's private flag
+CREWAI_SOURCE_KEY = "_crewai_source"  # CrewAI's per-record source tag
 
 # m3 columns surfaced back into each search-result item so a MemoryRecord can be
 # reconstructed with accurate scoring fields (§3 round-trip).

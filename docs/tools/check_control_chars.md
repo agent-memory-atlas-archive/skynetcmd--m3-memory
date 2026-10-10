@@ -1,8 +1,8 @@
 ---
 tool: bin/check_control_chars.py
-sha1: 484216b1aac3
-mtime_utc: 2026-10-08T22:10:44.215072+00:00
-generated_utc: 2026-10-08T22:11:47.762444+00:00
+sha1: c96b34247aaf
+mtime_utc: 2026-10-10T21:05:16.837499+00:00
+generated_utc: 2026-10-10T21:05:29.391483+00:00
 private: false
 ---
 
@@ -47,7 +47,7 @@ Exit 0 = clean, 1 = corruption found (prints file:line:col and a repair hint).
 
 ## Entry points
 
-- `def main()` (line 102)
+- `def main()` (line 106)
 - `if __name__ == "__main__"` guard
 
 ---

@@ -17,6 +17,7 @@ wheel is a separate distribution, so `pipx upgrade m3-memory` advances the Pytho
 code and leaves the extension behind. Measured 2026-09-30 on the Linux build box:
 m3-memory 2026.9.21.0 against m3_core_rs 3.9.7, expected 3.9.20.
 """
+
 from __future__ import annotations
 
 import ast
@@ -40,13 +41,10 @@ def _brief_strings() -> str:
     tree = ast.parse(_PROBE.read_text(encoding="utf-8"))
     out: list[str] = []
     for node in ast.walk(tree):
-        is_brief_if = (isinstance(node, ast.If) and isinstance(node.test, ast.Name)
-                       and node.test.id == "brief")
-        is_b_call = (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-                     and node.func.id == "_b")
+        is_brief_if = isinstance(node, ast.If) and isinstance(node.test, ast.Name) and node.test.id == "brief"
+        is_b_call = isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "_b"
         if is_brief_if or is_b_call:
-            out += [n.value for n in ast.walk(node)
-                    if isinstance(n, ast.Constant) and isinstance(n.value, str)]
+            out += [n.value for n in ast.walk(node) if isinstance(n, ast.Constant) and isinstance(n.value, str)]
     return " ".join(out)
 
 

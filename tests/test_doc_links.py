@@ -40,7 +40,7 @@ def _anchors(text: str) -> set[str]:
         t = re.sub(r"[^\w\s-]", "", t, flags=re.UNICODE)
         base = t.strip().replace(" ", "-")
         out.add(base)
-        out.add("-" + base)               # emoji-led heading
+        out.add("-" + base)  # emoji-led heading
         out.add(re.sub(r"-+", "-", base))  # tolerate a collapsed form
     out |= set(_HTML_ANCHOR.findall(text))
     return out

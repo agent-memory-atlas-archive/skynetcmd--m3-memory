@@ -4,6 +4,7 @@ Split out of mcp_tool_catalog.py's flat TOOLS list. Entries copied verbatim
 (name, description, parameters, impl, validators, flags unchanged). Domain
 assignment per tool_domains.domain_of_tool().
 """
+
 from __future__ import annotations
 
 from .dispatch import _conversation_search_impl
@@ -21,10 +22,10 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "title":    {"type": "string", "description": "Conversation title."},
+                "title": {"type": "string", "description": "Conversation title."},
                 "agent_id": {"type": "string", "description": "Owning agent id.", "default": ""},
                 "model_id": {"type": "string", "description": "Originating model id.", "default": ""},
-                "tags":     {"type": "string", "description": "Comma-separated tags.", "default": ""},
+                "tags": {"type": "string", "description": "Comma-separated tags.", "default": ""},
             },
             "required": ["title"],
         },
@@ -41,11 +42,11 @@ TOOLS: list[ToolSpec] = [
             "type": "object",
             "properties": {
                 "conversation_id": {"type": "string", "description": "Conversation UUID."},
-                "role":            {"type": "string", "description": "Message role (e.g., 'user', 'assistant')."},
-                "content":         {"type": "string", "description": "Message body."},
-                "agent_id":        {"type": "string", "description": "Agent adding the message.", "default": ""},
-                "model_id":        {"type": "string", "description": "Model that generated the message.", "default": ""},
-                "embed":           {"type": "boolean", "description": "Embed for semantic search.", "default": True},
+                "role": {"type": "string", "description": "Message role (e.g., 'user', 'assistant')."},
+                "content": {"type": "string", "description": "Message body."},
+                "agent_id": {"type": "string", "description": "Agent adding the message.", "default": ""},
+                "model_id": {"type": "string", "description": "Model that generated the message.", "default": ""},
+                "embed": {"type": "boolean", "description": "Embed for semantic search.", "default": True},
             },
             "required": ["conversation_id", "role", "content"],
         },
@@ -62,8 +63,12 @@ TOOLS: list[ToolSpec] = [
             "type": "object",
             "properties": {
                 "query": {"type": "string", "description": "Search query."},
-                "k":     {"type": "integer", "description": "Max results (1-100).", "default": 8},
-                "as_records": {"type": "boolean", "description": "Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged.", "default": False},
+                "k": {"type": "integer", "description": "Max results (1-100).", "default": 8},
+                "as_records": {
+                    "type": "boolean",
+                    "description": "Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged.",
+                    "default": False,
+                },
             },
             "required": ["query"],
         },
@@ -80,7 +85,7 @@ TOOLS: list[ToolSpec] = [
             "type": "object",
             "properties": {
                 "conversation_id": {"type": "string", "description": "Conversation UUID."},
-                "threshold":       {"type": "integer", "description": "Min message count to summarize.", "default": 20},
+                "threshold": {"type": "integer", "description": "Min message count to summarize.", "default": 20},
             },
             "required": ["conversation_id"],
         },

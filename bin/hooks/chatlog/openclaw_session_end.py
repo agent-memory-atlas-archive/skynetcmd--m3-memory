@@ -17,6 +17,7 @@ so this keeps working if OpenClaw grows one.
 Transcript layout, verified against a live install (OpenClaw 2026.3.28):
   ~/.openclaw/agents/<agent>/sessions/<session-uuid>.jsonl
 """
+
 import json
 import os
 import subprocess
@@ -30,6 +31,7 @@ FORMAT = "openclaw"
 
 # ── Shared core (parity across all m3 agent hooks) ───────────────────────────
 # ── Shared core (parity across all m3 agent hooks) ───────────────────────────
+
 
 def find_repo_root() -> Path:
     m3_home = os.environ.get("M3_HOME")
@@ -48,12 +50,15 @@ def usable_interpreter(candidate: Path) -> bool:
     guards against. Probe the import instead of trusting the path.
     """
     try:
-        return subprocess.run(
-            [str(candidate), "-c", "import httpx"],
-            capture_output=True, timeout=10,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
-            if os.name == "nt" else 0,
-        ).returncode == 0
+        return (
+            subprocess.run(
+                [str(candidate), "-c", "import httpx"],
+                capture_output=True,
+                timeout=10,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0,
+            ).returncode
+            == 0
+        )
     except Exception:
         return False
 
@@ -68,8 +73,7 @@ def find_python(repo: Path) -> str:
     return sys.executable
 
 
-def write_fallback(transcript: str, session_id: str, agent: str,
-                   event: str, variant: str, reason: str) -> Path:
+def write_fallback(transcript: str, session_id: str, agent: str, event: str, variant: str, reason: str) -> Path:
     ts = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     sid = (session_id or "unknown")[:8]
     save_dir = Path.home() / ".m3" / "unsaved_chats"
@@ -149,7 +153,7 @@ def _extract_last_json_object(output: str):
             depth -= 1
             if depth == 0:
                 try:
-                    return json.loads(output[i:end + 1])
+                    return json.loads(output[i : end + 1])
                 except json.JSONDecodeError:
                     return None
     return None
@@ -163,8 +167,8 @@ def run_ingest(py: str, ingest: Path, extra_args: list) -> tuple:
         # attribute reference valid on non-Windows (0 = default, no-op).
         _flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
         result = subprocess.run(
-            [py, str(ingest), *extra_args],
-            capture_output=True, text=True, timeout=60, creationflags=_flags)
+            [py, str(ingest), *extra_args], capture_output=True, text=True, timeout=60, creationflags=_flags
+        )
         output = result.stdout.strip()
         result_json = _extract_last_json_object(output)
         if not result_json:
@@ -184,6 +188,7 @@ def run_ingest(py: str, ingest: Path, extra_args: list) -> tuple:
 
 
 # ── OpenClaw-specific: find the transcript ───────────────────────────────────
+
 
 def openclaw_state_dir() -> Path:
     """OpenClaw's state root. OPENCLAW_STATE_DIR wins if set."""
@@ -263,9 +268,11 @@ def main() -> int:
     # fire on every /new in a fresh workspace and train the user to ignore the
     # one that matters (§3: a false alarm is a violation in its own right).
     if not transcript:
-        print(f"{AGENT} hook: no OpenClaw session transcript found under "
-              f"{openclaw_state_dir()} — nothing to ingest (no-op).",
-              file=sys.stderr)
+        print(
+            f"{AGENT} hook: no OpenClaw session transcript found under "
+            f"{openclaw_state_dir()} — nothing to ingest (no-op).",
+            file=sys.stderr,
+        )
         return 0
 
     repo = find_repo_root()
@@ -277,8 +284,7 @@ def main() -> int:
         return 1
 
     py = find_python(repo)
-    args = ["--format", FORMAT, "--variant", variant,
-            "--transcript-path", transcript]
+    args = ["--format", FORMAT, "--variant", variant, "--transcript-path", transcript]
     if session_id:
         args += ["--session-id", session_id]
 
@@ -287,7 +293,7 @@ def main() -> int:
     # Success is reachability, NOT written>0 — see the OpenCode hook for the
     # full rationale: the live MCP server usually captured the turns already, so
     # skipped=N with written=0 is a success.
-    captured_nothing = (written == 0 and skipped == 0)
+    captured_nothing = written == 0 and skipped == 0
     if error or failed > 0 or captured_nothing:
         if error:
             reason = error

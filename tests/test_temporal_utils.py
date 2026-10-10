@@ -8,6 +8,7 @@ Covers the quantifier and "this <period>" handling added 2026-06:
 The anchor is supplied as a datetime so tests don't depend on a registered
 dataset parser or on datetime.now().
 """
+
 import os
 import sys
 from datetime import datetime

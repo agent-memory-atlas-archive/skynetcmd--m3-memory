@@ -27,6 +27,7 @@ one:
 Skips cleanly without a reachable cluster (requires_pg). See
 ~/.m3-private/runbooks/WSL_POSTGRES_TEST_DB_RUNBOOK.md to stand one up.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -70,6 +71,7 @@ def pg(monkeypatch, pg_url):
         migrate_pg.run_pending_pg_migrations(c)
 
     import memory_maintenance as MM
+
     MM._FEEDBACK_WINDOW_REJECTIONS.update({"accepted": 0, "rejected": 0})
     yield b
     b.close()
@@ -77,6 +79,7 @@ def pg(monkeypatch, pg_url):
 
 def _write(uid, **kw):
     from memory.write import memory_write_impl
+
     raw = asyncio.run(memory_write_impl(embed=False, source="test", user_id=uid, **kw))
     return str(raw).replace("Created: ", "").strip().strip('"').split()[0]
 
@@ -86,6 +89,7 @@ def _sql(query, params=(), fetch=True):
     UPDATE, where sqlite3 returns an empty list. A helper that always fetched
     would make every write in this file look like a product failure."""
     from memory.db import _db
+
     with _db() as db:
         cur = db.execute(query, params)
         rows = cur.fetchall() if fetch else []
@@ -96,6 +100,7 @@ def _sql(query, params=(), fetch=True):
 
 def _p():
     from memory.backends import dialect
+
     return dialect().param()
 
 
@@ -103,8 +108,7 @@ def _set(mid, **cols):
     """Set columns directly, bypassing the write path (backdating, counters)."""
     p = _p()
     assigns = ", ".join(f"{k} = {p}" for k in cols)
-    _sql(f"UPDATE memory_items SET {assigns} WHERE id = {p}",
-         (*cols.values(), mid), fetch=False)
+    _sql(f"UPDATE memory_items SET {assigns} WHERE id = {p}", (*cols.values(), mid), fetch=False)
 
 
 def _get(mid, col):
@@ -112,10 +116,11 @@ def _get(mid, col):
     return _sql(f"SELECT {col} FROM memory_items WHERE id = {p}", (mid,))[0][0]
 
 
-_OLD = "2020-01-01T00:00:00+00:00"   # far older than the 7-day decay window
+_OLD = "2020-01-01T00:00:00+00:00"  # far older than the 7-day decay window
 
 
 # ── the migration reached BOTH tables ────────────────────────────────────────
+
 
 def test_the_chatlog_clone_carries_the_dynamics_columns(pg):
     """⚠ THE DEFECT THIS FILE CAUGHT. On PG the chatlog is chat_log_items, a
@@ -131,12 +136,13 @@ def test_the_chatlog_clone_carries_the_dynamics_columns(pg):
         "WHERE table_schema='public' AND table_name='chat_log_items' "
         "AND column_name IN ('importance_raw','helpful_count','unhelpful_count')"
     )
-    assert {r[0] for r in rows} == {
-        "importance_raw", "helpful_count", "unhelpful_count"
-    }, "pg_058 did not reach the chatlog clone"
+    assert {r[0] for r in rows} == {"importance_raw", "helpful_count", "unhelpful_count"}, (
+        "pg_058 did not reach the chatlog clone"
+    )
 
 
 # ── decay floors on PG ───────────────────────────────────────────────────────
+
 
 def test_decay_stops_at_the_ordinary_floor_on_pg(pg):
     """greatest() + the CASE floor must render and bind on PG.
@@ -146,6 +152,7 @@ def test_decay_stops_at_the_ordinary_floor_on_pg(pg):
     argument it would jump. Either way the assertion moves.
     """
     import memory_maintenance as MM
+
     uid = f"dyn-{uuid.uuid4().hex[:8]}"
     # Seeded just above the floor ON PURPOSE. Decay is geometric (x0.995), so
     # reaching 0.01 from 0.02 takes 139 passes -- running those against a live
@@ -156,9 +163,9 @@ def test_decay_stops_at_the_ordinary_floor_on_pg(pg):
     _set(mid, created_at=_OLD, last_accessed_at=None)
 
     for _ in range(10):
-        MM.memory_maintenance_impl(decay=True, purge_expired=False, reinforce=False,
-                                   prune_orphan_embeddings=False,
-                                   prune_orphan_queues=False)
+        MM.memory_maintenance_impl(
+            decay=True, purge_expired=False, reinforce=False, prune_orphan_embeddings=False, prune_orphan_queues=False
+        )
 
     imp = _get(mid, "importance")
     assert imp == pytest.approx(MM._ORDINARY_FLOOR, abs=1e-9), (
@@ -172,6 +179,7 @@ def test_a_graded_memory_holds_the_higher_floor_on_pg(pg):
     """The floor is a CASE over helpful/unhelpful counts -- PG is strict about
     the types in a CASE where SQLite coerces, so render it for real."""
     import memory_maintenance as MM
+
     uid = f"dyn-{uuid.uuid4().hex[:8]}"
     # Each seeded just above ITS OWN floor, for the reason given in the
     # ordinary-floor test: the point is which floor binds, not how many passes
@@ -182,9 +190,9 @@ def test_a_graded_memory_holds_the_higher_floor_on_pg(pg):
     _set(plain, created_at=_OLD, last_accessed_at=None)
 
     for _ in range(10):
-        MM.memory_maintenance_impl(decay=True, purge_expired=False, reinforce=False,
-                                   prune_orphan_embeddings=False,
-                                   prune_orphan_queues=False)
+        MM.memory_maintenance_impl(
+            decay=True, purge_expired=False, reinforce=False, prune_orphan_embeddings=False, prune_orphan_queues=False
+        )
 
     assert _get(graded, "importance") == pytest.approx(MM._GRADED_FLOOR, abs=1e-9)
     assert _get(plain, "importance") == pytest.approx(MM._ORDINARY_FLOOR, abs=1e-9)
@@ -194,22 +202,25 @@ def test_a_graded_memory_holds_the_higher_floor_on_pg(pg):
 def test_decay_rate_is_recorded_on_pg(pg):
     """The column existed since 001 with no writer. Assert PG gets one too."""
     import memory_maintenance as MM
+
     uid = f"dyn-{uuid.uuid4().hex[:8]}"
     mid = _write(uid, type="note", content="rate", importance=0.8)
     _set(mid, created_at=_OLD, last_accessed_at=None)
-    MM.memory_maintenance_impl(decay=True, purge_expired=False, reinforce=False,
-                               prune_orphan_embeddings=False,
-                               prune_orphan_queues=False)
+    MM.memory_maintenance_impl(
+        decay=True, purge_expired=False, reinforce=False, prune_orphan_embeddings=False, prune_orphan_queues=False
+    )
     assert _get(mid, "decay_rate") == pytest.approx(MM._DECAY_RATE)
 
 
 # ── reinforcement on PG ──────────────────────────────────────────────────────
+
 
 def test_reinforcement_discriminates_by_access_on_pg(pg):
     """Pre-registered metric 1, on the other backend: a heavily-read memory must
     retain more than an untouched one of the same age and starting importance.
     A zero gap means the feature is inert on PG."""
     import memory_maintenance as MM
+
     uid = f"dyn-{uuid.uuid4().hex[:8]}"
     # ⚠ SEEDED BELOW _REINFORCE_CEILING (0.39), which is where reinforcement
     # operates at all -- the UPDATE is gated `importance < ceiling`. That gate
@@ -224,9 +235,9 @@ def test_reinforcement_discriminates_by_access_on_pg(pg):
     _set(cold, created_at=_OLD, access_count=0, last_accessed_at=None)
 
     for _ in range(30):
-        MM.memory_maintenance_impl(decay=True, purge_expired=False, reinforce=True,
-                                   prune_orphan_embeddings=False,
-                                   prune_orphan_queues=False)
+        MM.memory_maintenance_impl(
+            decay=True, purge_expired=False, reinforce=True, prune_orphan_embeddings=False, prune_orphan_queues=False
+        )
 
     assert _get(hot, "importance") > _get(cold, "importance"), (
         "reinforcement is inert on PG: 500 reads decayed the same as zero"
@@ -238,6 +249,7 @@ def test_retrieval_alone_cannot_outrun_decay_on_pg(pg):
     being useful. A memory read constantly, never graded, must still fall -- and
     must stay strictly under the floor an explicit helpful verdict earns."""
     import memory_maintenance as MM
+
     uid = f"dyn-{uuid.uuid4().hex[:8]}"
     # Started inside the band where reinforcement actually applies (below
     # _REINFORCE_CEILING), so the cap is under real pressure rather than never
@@ -249,9 +261,9 @@ def test_retrieval_alone_cannot_outrun_decay_on_pg(pg):
     _set(mid, created_at=_OLD, access_count=10_000, last_accessed_at=recent)
 
     for _ in range(300):
-        MM.memory_maintenance_impl(decay=True, purge_expired=False, reinforce=True,
-                                   prune_orphan_embeddings=False,
-                                   prune_orphan_queues=False)
+        MM.memory_maintenance_impl(
+            decay=True, purge_expired=False, reinforce=True, prune_orphan_embeddings=False, prune_orphan_queues=False
+        )
 
     imp = _get(mid, "importance")
     assert imp < start, "retrieval alone outran decay on PG"
@@ -263,12 +275,14 @@ def test_retrieval_alone_cannot_outrun_decay_on_pg(pg):
 
 # ── the grading window: age_minutes_lt on PG ─────────────────────────────────
 
+
 def test_a_fresh_grade_lands_on_pg(pg):
     """⚠ THE DIALECT PRIMITIVE. age_minutes_lt renders NOW() - INTERVAL here and
     julianday() arithmetic on SQLite. It replaced a string comparison that
     rejected fresh grades whenever the timestamp formats differed -- exactly the
     kind of bug that is backend-shaped, so assert it on the live backend."""
     import memory_maintenance as MM
+
     uid = f"dyn-{uuid.uuid4().hex[:8]}"
     mid = _write(uid, type="note", content="fresh", importance=0.5)
     _set(mid, last_accessed_at=dt.datetime.now(dt.UTC).isoformat())
@@ -280,6 +294,7 @@ def test_a_fresh_grade_lands_on_pg(pg):
 
 def test_a_stale_grade_is_rejected_on_pg(pg):
     import memory_maintenance as MM
+
     uid = f"dyn-{uuid.uuid4().hex[:8]}"
     mid = _write(uid, type="note", content="stale", importance=0.5)
     old = (dt.datetime.now(dt.UTC) - dt.timedelta(hours=3)).isoformat()
@@ -288,23 +303,20 @@ def test_a_stale_grade_is_rejected_on_pg(pg):
     res = MM.memory_grade_impl(grades=[{"memory_id": mid, "verdict": "helpful"}])
     assert res["graded"] == 0
     assert res["reason"] == "outside_feedback_window"
-    assert _get(mid, "helpful_count") == 0, (
-        "the response said it was rejected but the counter moved anyway"
-    )
+    assert _get(mid, "helpful_count") == 0, "the response said it was rejected but the counter moved anyway"
 
 
 def test_the_window_ceiling_holds_on_pg(pg):
     """The clamp is Python-side, but the INTERVAL it produces is rendered by PG.
     Assert the whole path, not just the arithmetic."""
     import memory_maintenance as MM
+
     uid = f"dyn-{uuid.uuid4().hex[:8]}"
     mid = _write(uid, type="note", content="ancient", importance=0.5)
     old = (dt.datetime.now(dt.UTC) - dt.timedelta(days=30)).isoformat()
     _set(mid, last_accessed_at=old)
 
-    res = MM.memory_grade_impl(
-        grades=[{"memory_id": mid, "verdict": "helpful"}], window_minutes=525600
-    )
+    res = MM.memory_grade_impl(grades=[{"memory_id": mid, "verdict": "helpful"}], window_minutes=525600)
     assert res["graded"] == 0
     assert res["window_minutes"] == MM._FEEDBACK_WINDOW_MINUTES_MAX
     assert res["window_clamped_from"] == 525600
@@ -314,6 +326,7 @@ def test_the_window_ceiling_holds_on_pg(pg):
 def test_counters_stay_separate_on_pg(pg):
     """⚠ NEVER A NET. Two INTEGER columns incremented by separate UPDATEs."""
     import memory_maintenance as MM
+
     uid = f"dyn-{uuid.uuid4().hex[:8]}"
     mid = _write(uid, type="note", content="contested", importance=0.5)
     now = dt.datetime.now(dt.UTC).isoformat()
@@ -329,11 +342,13 @@ def test_counters_stay_separate_on_pg(pg):
 
 # ── feedback verdicts on PG ──────────────────────────────────────────────────
 
+
 def test_every_verdict_is_observable_on_pg(pg):
     """Pre-registered metric 2b. useful lifts, misleading drops, not_useful
     records without touching importance -- all three through PG's least()/
     greatest() clamps."""
     import memory_maintenance as MM
+
     uid = f"dyn-{uuid.uuid4().hex[:8]}"
 
     up = _write(uid, type="note", content="u", importance=0.5)
@@ -347,40 +362,41 @@ def test_every_verdict_is_observable_on_pg(pg):
     miss = _write(uid, type="note", content="n", importance=0.5)
     MM.memory_feedback_impl(miss, "not_useful")
     assert _get(miss, "importance") == pytest.approx(0.5), (
-        "a retrieval miss lowered importance: that punishes a correct memory "
-        "for matching the wrong query"
+        "a retrieval miss lowered importance: that punishes a correct memory for matching the wrong query"
     )
 
 
 # ── no autonomous deletion, and restore ──────────────────────────────────────
 
+
 def test_the_maintenance_pass_does_not_delete_on_pg(pg):
     """An autonomous pass deranks; removal is a person's decision."""
     import memory_maintenance as MM
+
     uid = f"dyn-{uuid.uuid4().hex[:8]}"
     mid = _write(uid, type="note", content="doomed", importance=0.01)
     _set(mid, created_at=_OLD, last_accessed_at=None)
 
     for _ in range(20):
-        MM.memory_maintenance_impl(decay=True, purge_expired=False, reinforce=True,
-                                   prune_orphan_embeddings=False,
-                                   prune_orphan_queues=False)
+        MM.memory_maintenance_impl(
+            decay=True, purge_expired=False, reinforce=True, prune_orphan_embeddings=False, prune_orphan_queues=False
+        )
 
-    assert _get(mid, "is_deleted") == 0, (
-        "the maintenance pass soft-deleted a low-importance memory on PG"
-    )
+    assert _get(mid, "is_deleted") == 0, "the maintenance pass soft-deleted a low-importance memory on PG"
 
 
 def test_restore_refuses_a_deliberate_deletion_on_pg(pg):
     """The allowlist is checked before SQL, but assert it end-to-end on PG: the
     archive row and its reason are what make the distinction safe."""
     import memory_maintenance as MM
+
     res = MM.memory_restore_impl(reason="user_delete", dry_run=True)
     assert res.get("ok") is False
     assert res.get("error") == "reason_not_autonomous"
 
 
 # ── the forensic read ────────────────────────────────────────────────────────
+
 
 def _search(query, uid, apply_decay):
     """Return {id: row_dict} for a search.
@@ -394,8 +410,8 @@ def _search(query, uid, apply_decay):
     since search_pg.py hydrates its own column list.
     """
     from memory.search import memory_search_scored_impl
-    res = asyncio.run(memory_search_scored_impl(
-        query=query, k=5, user_id=uid, apply_decay=apply_decay))
+
+    res = asyncio.run(memory_search_scored_impl(query=query, k=5, user_id=uid, apply_decay=apply_decay))
     return {row["id"]: row for _score, row in res}
 
 
@@ -415,15 +431,13 @@ def test_importance_raw_is_projected_only_for_a_forensic_read_on_pg(pg):
     forensic = _search("forensic marker alpha", uid, apply_decay=False)
     assert mid in forensic, "the seeded memory was not returned on the forensic path"
     assert forensic[mid].get("importance_raw") == pytest.approx(0.9), (
-        "importance_raw did not reach the PG projection: a forensic read would "
-        "silently rank on the decayed value"
+        "importance_raw did not reach the PG projection: a forensic read would silently rank on the decayed value"
     )
 
     ordinary = _search("forensic marker alpha", uid, apply_decay=True)
     assert mid in ordinary
     assert "importance_raw" not in ordinary[mid], (
-        "the default search projected importance_raw: an ordinary read pays for "
-        "a column only the forensic path uses"
+        "the default search projected importance_raw: an ordinary read pays for a column only the forensic path uses"
     )
 
 
@@ -434,6 +448,7 @@ def test_the_ranking_selection_prefers_raw_on_a_pg_row(pg):
     key than sqlite3.Row does -- and the NULL fallback is written as an
     except clause."""
     from memory.search import _ranking_importance
+
     uid = f"dyn-{uuid.uuid4().hex[:8]}"
     mid = _write(uid, type="note", content="selection marker gamma", importance=0.05)
     _set(mid, importance_raw=0.9)
@@ -449,6 +464,7 @@ def test_a_null_importance_raw_falls_back_on_pg(pg):
     the two drivers differ (psycopg2 gives None; the fallback must catch it
     rather than rely on a KeyError that never comes)."""
     from memory.search import _ranking_importance
+
     uid = f"dyn-{uuid.uuid4().hex[:8]}"
     mid = _write(uid, type="note", content="legacy marker beta", importance=0.7)
     _set(mid, importance_raw=None)
@@ -462,6 +478,7 @@ def test_a_null_importance_raw_falls_back_on_pg(pg):
 
 
 # ── access stamping on PG ────────────────────────────────────────────────────
+
 
 def test_access_stamps_are_written_on_pg(pg):
     """⚠ THE FLUSHER'S SQL WAS A SYNTAX ERROR ON POSTGRESQL, AND IT WAS SILENT.
@@ -487,8 +504,7 @@ def test_access_stamps_are_written_on_pg(pg):
 
     assert written == 1, "the flusher reported no rows written on PG"
     assert _get(mid, "last_accessed_at") is not None, (
-        "last_accessed_at is still NULL on PostgreSQL — the flusher's SQL was "
-        "rejected and the error swallowed"
+        "last_accessed_at is still NULL on PostgreSQL — the flusher's SQL was rejected and the error swallowed"
     )
     assert _get(mid, "access_count") == 1, "access_count did not increment on PG"
 
@@ -510,8 +526,5 @@ def test_a_stamped_memory_can_be_graded_on_pg(pg):
     flush_access_stamps_now()
 
     res = MM.memory_grade_impl(grades=[{"memory_id": mid, "verdict": "helpful"}])
-    assert res["applied"] is True, (
-        f"grading failed on PG after a stamp: {res.get('reason')} / "
-        f"{res.get('observed')}"
-    )
+    assert res["applied"] is True, f"grading failed on PG after a stamp: {res.get('reason')} / {res.get('observed')}"
     assert _get(mid, "helpful_count") == 1

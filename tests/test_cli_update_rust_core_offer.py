@@ -12,6 +12,7 @@ discover when they wonder why a fixed bug still bites.
 
 These tests pin the decision table, not the wording.
 """
+
 from __future__ import annotations
 
 import io
@@ -21,8 +22,7 @@ import unittest.mock as mock
 from m3_memory import cli
 
 
-def _run(*, current, installed, interactive, assume_yes=False, skip=False,
-         answer="", install_rc=0):
+def _run(*, current, installed, interactive, assume_yes=False, skip=False, answer="", install_rc=0):
     """Drive _offer_rust_core_upgrade with the core-state probes stubbed.
 
     Returns (stderr_text, list_of_install_calls).
@@ -33,19 +33,20 @@ def _run(*, current, installed, interactive, assume_yes=False, skip=False,
         calls.append(kwargs)
         return install_rc
 
-    with mock.patch("m3_memory.rust_core_install.is_rust_core_current",
-                    return_value=current), \
-         mock.patch("m3_memory.rust_core_install.installed_rust_core_version",
-                    return_value=installed), \
-         mock.patch("m3_memory.rust_core_install.install_rust_core",
-                    side_effect=_fake_install), \
-         mock.patch("builtins.input", return_value=answer):
+    with (
+        mock.patch("m3_memory.rust_core_install.is_rust_core_current", return_value=current),
+        mock.patch("m3_memory.rust_core_install.installed_rust_core_version", return_value=installed),
+        mock.patch("m3_memory.rust_core_install.install_rust_core", side_effect=_fake_install),
+        mock.patch("builtins.input", return_value=answer),
+    ):
         buf = io.StringIO()
         real = sys.stderr
         sys.stderr = buf
         try:
             cli._offer_rust_core_upgrade(
-                interactive=interactive, assume_yes=assume_yes, skip=skip,
+                interactive=interactive,
+                assume_yes=assume_yes,
+                skip=skip,
             )
         finally:
             sys.stderr = real
@@ -61,8 +62,7 @@ def test_current_core_is_silent():
 
 def test_stale_core_default_answer_installs():
     """Bare ENTER accepts -- the prompt is [Y/n], so empty means yes."""
-    out, calls = _run(current=False, installed="3.7.31", interactive=True,
-                      answer="")
+    out, calls = _run(current=False, installed="3.7.31", interactive=True, answer="")
     assert "behind this release" in out
     assert len(calls) == 1
     # Must not silently start a multi-minute Rust+cmake build, same rule
@@ -71,8 +71,7 @@ def test_stale_core_default_answer_installs():
 
 
 def test_stale_core_explicit_no_declines():
-    out, calls = _run(current=False, installed="3.7.31", interactive=True,
-                      answer="n")
+    out, calls = _run(current=False, installed="3.7.31", interactive=True, answer="n")
     assert calls == []
     assert "install-gpu" in out  # tells them how to do it later
 
@@ -86,14 +85,12 @@ def test_non_interactive_never_blocks():
 
 def test_yes_core_installs_without_a_tty():
     """--yes-core is the scripted opt-in; it must not need a TTY."""
-    _out, calls = _run(current=False, installed="3.7.31", interactive=False,
-                      assume_yes=True)
+    _out, calls = _run(current=False, installed="3.7.31", interactive=False, assume_yes=True)
     assert len(calls) == 1
 
 
 def test_no_core_suppresses_everything():
-    out, calls = _run(current=False, installed="3.7.31", interactive=True,
-                      skip=True)
+    out, calls = _run(current=False, installed="3.7.31", interactive=True, skip=True)
     assert out == ""
     assert calls == []
 
@@ -107,8 +104,7 @@ def test_missing_core_is_reported_not_crashed():
 
 def test_failed_install_is_reported_and_non_fatal():
     """A non-zero install must not raise -- embeddings still work on tier-2."""
-    out, calls = _run(current=False, installed="3.7.31", interactive=True,
-                      answer="", install_rc=3)
+    out, calls = _run(current=False, installed="3.7.31", interactive=True, answer="", install_rc=3)
     assert len(calls) == 1
     assert "exit 3" in out
     assert "tier-2" in out
@@ -116,8 +112,7 @@ def test_failed_install_is_reported_and_non_fatal():
 
 def test_probe_failure_is_swallowed():
     """Advisory only: an import/probe error must never fail `m3 update`."""
-    with mock.patch("m3_memory.rust_core_install.is_rust_core_current",
-                    side_effect=RuntimeError("probe exploded")):
+    with mock.patch("m3_memory.rust_core_install.is_rust_core_current", side_effect=RuntimeError("probe exploded")):
         buf = io.StringIO()
         real = sys.stderr
         sys.stderr = buf
@@ -133,7 +128,9 @@ def test_update_subcommand_exposes_both_flags():
 
     out = subprocess.run(
         [sys.executable, "-m", "m3_memory.cli", "update", "--help"],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     ).stdout
     assert "--yes-core" in out
     assert "--no-core" in out

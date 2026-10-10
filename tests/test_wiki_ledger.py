@@ -6,6 +6,7 @@ tests also prove the migration applies and the columns/indexes match what the co
 writes. A SQLite-flavoured dialect stub supplies only the primitives the ledger
 uses (param/placeholder/insert_or_ignore/on_conflict_ignore/now).
 """
+
 import json
 import os
 import sqlite3
@@ -19,8 +20,7 @@ if _BIN not in sys.path:
 
 from wiki import ledger as L  # noqa: E402
 
-_MIGRATION = os.path.join(
-    _ROOT, "memory", "migrations", "041_wiki_cluster_run.up.sql")
+_MIGRATION = os.path.join(_ROOT, "memory", "migrations", "041_wiki_cluster_run.up.sql")
 
 
 class _Dialect:
@@ -52,18 +52,19 @@ def _db():
 
 # ── the migration itself ─────────────────────────────────────────────────────
 
+
 def test_migration_creates_tables_and_indexes():
     db = _db()
-    tabs = {r["name"] for r in db.execute(
-        "SELECT name FROM sqlite_master WHERE type='table'")}
+    tabs = {r["name"] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert {"cluster_run", "cluster_members"} <= tabs
-    idx = {r["name"] for r in db.execute(
-        "SELECT name FROM sqlite_master WHERE type='index' "
-        "AND name NOT LIKE 'sqlite_%'")}
+    idx = {
+        r["name"] for r in db.execute("SELECT name FROM sqlite_master WHERE type='index' AND name NOT LIKE 'sqlite_%'")
+    }
     assert "idx_cluster_members_memory" in idx  # the GDPR scan index
 
 
 # ── run lifecycle ────────────────────────────────────────────────────────────
+
 
 def test_open_run_is_invisible_until_completed():
     db, d = _db(), _Dialect()
@@ -87,9 +88,7 @@ def test_seq_is_monotonic():
 def test_record_members_freezes_membership():
     db, d = _db(), _Dialect()
     rid = L.open_run(db, d)
-    rows = [("c1", "m-a", "h1", "syn-1"),
-            ("c1", "m-b", "h1", "syn-1"),
-            ("c2", "m-c", "h2", "syn-2")]
+    rows = [("c1", "m-a", "h1", "syn-1"), ("c1", "m-b", "h1", "syn-1"), ("c2", "m-c", "h2", "syn-2")]
     assert L.record_members(db, d, rid, rows) == 3
     L.complete_run(db, d, rid)
     frozen = L.frozen_membership(db, d, rid)
@@ -105,8 +104,7 @@ def test_record_members_idempotent_on_replay():
     rows = [("c1", "m-a", "h1", "syn-1")]
     L.record_members(db, d, rid, rows)
     L.record_members(db, d, rid, rows)  # replay (resumed pass) must not error/dupe
-    n = db.execute("SELECT COUNT(*) AS c FROM cluster_members "
-                   "WHERE run_id=?", (rid,)).fetchone()["c"]
+    n = db.execute("SELECT COUNT(*) AS c FROM cluster_members WHERE run_id=?", (rid,)).fetchone()["c"]
     assert n == 1
 
 
@@ -114,12 +112,12 @@ def test_members_store_uuids_never_content():
     """G2 invariant: cluster_members holds no content column at all."""
     db = _db()
     cols = {r[1] for r in db.execute("PRAGMA table_info(cluster_members)")}
-    assert cols == {"run_id", "cluster_key", "memory_id",
-                    "cluster_hash", "head_synthesis_id"}
+    assert cols == {"run_id", "cluster_key", "memory_id", "cluster_hash", "head_synthesis_id"}
     assert "content" not in cols and "text" not in cols
 
 
 # ── skip index ───────────────────────────────────────────────────────────────
+
 
 def test_hash_is_unchanged_only_for_completed_runs():
     db, d = _db(), _Dialect()
@@ -133,6 +131,7 @@ def test_hash_is_unchanged_only_for_completed_runs():
 
 
 # ── generational prune ───────────────────────────────────────────────────────
+
 
 def test_prune_keeps_only_the_latest_run_members():
     db, d = _db(), _Dialect()
@@ -152,11 +151,11 @@ def test_prune_keeps_only_the_latest_run_members():
 
 # ── GDPR scan + flush (G2) ───────────────────────────────────────────────────
 
+
 def test_scan_and_flush_on_erasure_records_and_flushes():
     db, d = _db(), _Dialect()
     rid = L.open_run(db, d)
-    L.record_members(db, d, rid, [("c1", "m-erased", "h1", "syn-1"),
-                                  ("c1", "m-keep", "h1", "syn-1")])
+    L.record_members(db, d, rid, [("c1", "m-erased", "h1", "syn-1"), ("c1", "m-keep", "h1", "syn-1")])
     L.complete_run(db, d, rid)
     summary = L.scan_and_flush_on_erasure(db, d, ["m-erased"], timestamp="t1")
     assert summary["runs_flagged"] == 1
@@ -167,7 +166,8 @@ def test_scan_and_flush_on_erasure_records_and_flushes():
     row = db.execute(
         "SELECT erased_member_ids, erased_count, first_erased_at, "
         "last_erased_at, membership_flushed FROM cluster_run WHERE id=?",
-        (rid,)).fetchone()
+        (rid,),
+    ).fetchone()
     assert json.loads(row["erased_member_ids"]) == ["m-erased"]
     assert row["erased_count"] == 1
     assert row["first_erased_at"] == "t1" and row["last_erased_at"] == "t1"
@@ -183,12 +183,13 @@ def test_scan_accumulates_multiple_erasures():
     # A second erasure touching the SAME run row (re-recorded via a later run):
     L.record_members(db, d, rid, [("c1", "m-2", "h1", "syn-1")])  # re-add to same run
     L.scan_and_flush_on_erasure(db, d, ["m-2"], timestamp="t2")
-    row = db.execute("SELECT erased_member_ids, erased_count, first_erased_at, "
-                     "last_erased_at FROM cluster_run WHERE id=?", (rid,)).fetchone()
+    row = db.execute(
+        "SELECT erased_member_ids, erased_count, first_erased_at, last_erased_at FROM cluster_run WHERE id=?", (rid,)
+    ).fetchone()
     assert set(json.loads(row["erased_member_ids"])) == {"m-1", "m-2"}
     assert row["erased_count"] == 2
-    assert row["first_erased_at"] == "t1"   # set once
-    assert row["last_erased_at"] == "t2"    # advances
+    assert row["first_erased_at"] == "t1"  # set once
+    assert row["last_erased_at"] == "t2"  # advances
 
 
 def test_scan_noop_when_erased_id_not_cached():
@@ -205,4 +206,7 @@ def test_scan_noop_when_erased_id_not_cached():
 def test_scan_empty_input():
     db, d = _db(), _Dialect()
     assert L.scan_and_flush_on_erasure(db, d, [], timestamp="t1") == {
-        "runs_flagged": 0, "members_flushed": 0, "run_ids": []}
+        "runs_flagged": 0,
+        "members_flushed": 0,
+        "run_ids": [],
+    }

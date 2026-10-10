@@ -15,6 +15,7 @@ the user had just been asked to skip.
 The tier choice is WHICH EMBEDDER RUNS (tier 2 alone / tier 1 + tier 2 / tier 3
 remote); the core is required by all three. These tests pin that.
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -41,13 +42,15 @@ def _drive(*, current, install_raises=None, plan=None):
         if install_raises is not None:
             raise install_raises
 
-    with mock.patch("m3_memory.rust_core_install.is_rust_core_current",
-                    return_value=current), \
-         mock.patch("m3_memory.rust_core_install.active_embedder_tier",
-                    return_value={"native": True, "backend": "cpu",
-                                  "version": "3.9.7"}), \
-         mock.patch("m3_memory.rust_core_install.M3_CORE_RS_VERSION", "3.9.7"), \
-         mock.patch.object(w, "_run", _fake_run):
+    with (
+        mock.patch("m3_memory.rust_core_install.is_rust_core_current", return_value=current),
+        mock.patch(
+            "m3_memory.rust_core_install.active_embedder_tier",
+            return_value={"native": True, "backend": "cpu", "version": "3.9.7"},
+        ),
+        mock.patch("m3_memory.rust_core_install.M3_CORE_RS_VERSION", "3.9.7"),
+        mock.patch.object(w, "_run", _fake_run),
+    ):
         out = w._step_rust_core(plan or _Plan())
     return out, ran
 
@@ -88,17 +91,17 @@ def test_source_build_opt_in_is_honoured():
 def test_no_matching_wheel_degrades_and_never_aborts_setup():
     """§1 local-first: a host with no prebuilt wheel (unsupported arch, or a
     Python outside 3.11-3.14) falls back to pure-Python. Setup CONTINUES."""
-    ok, ran = _drive(current=False,
-                     install_raises=subprocess.CalledProcessError(1, "x"))
-    assert ok is False          # reported, not raised
+    ok, ran = _drive(current=False, install_raises=subprocess.CalledProcessError(1, "x"))
+    assert ok is False  # reported, not raised
     assert len(ran) == 1
 
 
 def test_probe_failure_never_aborts_setup():
     """An import/probe error must not take the wizard down with it."""
-    with mock.patch("m3_memory.rust_core_install.is_rust_core_current",
-                    side_effect=RuntimeError("probe exploded")), \
-         mock.patch.object(w, "_run", lambda *a, **k: None):
+    with (
+        mock.patch("m3_memory.rust_core_install.is_rust_core_current", side_effect=RuntimeError("probe exploded")),
+        mock.patch.object(w, "_run", lambda *a, **k: None),
+    ):
         # Must return (False) rather than propagate.
         assert w._step_rust_core(_Plan()) in (False, True)
 
@@ -126,18 +129,23 @@ def test_core_step_is_unconditional():
     # Walk back to the start of that line and confirm it is not nested under
     # an `if plan.install_gpu_embedder` guard.
     line_start = src.rfind("\n", 0, call) + 1
-    preceding = src[max(0, line_start - 300):line_start]
+    preceding = src[max(0, line_start - 300) : line_start]
     last_if = preceding.rfind("if plan.install_gpu_embedder")
-    assert last_if == -1 or "\n" in preceding[last_if:], (
-        "_step_rust_core must not be gated on the tier-1 opt-in flag"
-    )
+    assert last_if == -1 or "\n" in preceding[last_if:], "_step_rust_core must not be gated on the tier-1 opt-in flag"
 
 
-@pytest.mark.parametrize("os_tok,backend", [
-    ("windows", "cpu"), ("windows", "cuda"), ("windows", "vulkan"),
-    ("linux", "cpu"), ("linux", "cuda"), ("linux", "vulkan"),
-    ("macos", "metal"),
-])
+@pytest.mark.parametrize(
+    "os_tok,backend",
+    [
+        ("windows", "cpu"),
+        ("windows", "cuda"),
+        ("windows", "vulkan"),
+        ("linux", "cpu"),
+        ("linux", "cuda"),
+        ("linux", "vulkan"),
+        ("macos", "metal"),
+    ],
+)
 def test_every_supported_os_backend_pair_resolves(os_tok, backend):
     """3 OSes x their backends: the core step delegates to detect_backend(), so
     it must stay OS-agnostic. Guards against a future hardcoded platform."""

@@ -28,6 +28,7 @@ Verified across the supported matrix by EXECUTION, not inference (§0.4):
 The DB axis does not apply: this function is pure path manipulation and never
 touches the seam (no dialect/backend/execute references in the module).
 """
+
 from __future__ import annotations
 
 import os
@@ -118,7 +119,9 @@ def test_pythonw_really_can_write_to_a_captured_pipe():
 
     r = subprocess.run(
         [pyw, "-c", "import sys; sys.stdout.write('OK'); sys.stdout.flush()"],
-        capture_output=True, text=True, timeout=60,
+        capture_output=True,
+        text=True,
+        timeout=60,
     )
     assert r.returncode == 0, r.stderr
     assert r.stdout == "OK", (

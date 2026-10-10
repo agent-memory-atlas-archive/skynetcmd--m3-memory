@@ -3,6 +3,7 @@
 Fixtures under tests/fixtures/ mirror the shapes Claude Code and Gemini CLI
 actually emit. If upstream changes either schema these tests surface the drift.
 """
+
 from __future__ import annotations
 
 import json
@@ -20,8 +21,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(HERE), "bin"))
 
 # ─── Claude Code parser ───────────────────────────────────────────────────────
 
+
 def test_parse_claude_code_real_schema():
     import chatlog_ingest
+
     with open(os.path.join(FIXTURES, "claude_code_sample.jsonl"), encoding="utf-8") as f:
         raw = f.read()
     items, session_id = chatlog_ingest._parse_claude_code(raw)
@@ -49,6 +52,7 @@ def test_parse_claude_code_real_schema():
 
 def test_parse_claude_code_skips_non_chat_types():
     import chatlog_ingest
+
     raw = (
         '{"type":"permission-mode","permissionMode":"default","sessionId":"x"}\n'
         '{"type":"file-history-snapshot","messageId":"x","snapshot":{}}\n'
@@ -64,6 +68,7 @@ def test_parse_claude_code_skips_non_chat_types():
 
 def test_parse_claude_code_empty_and_malformed():
     import chatlog_ingest
+
     items, session_id = chatlog_ingest._parse_claude_code("")
     assert items == []
     assert session_id is None
@@ -78,17 +83,22 @@ def test_parse_claude_code_empty_and_malformed():
 def test_parse_claude_code_skips_empty_content():
     """Tool-use-only assistant turns (no text block) produce empty content -> skip."""
     import chatlog_ingest
-    raw = ('{"type":"assistant","message":{"role":"assistant","model":"claude-opus-4-7",'
-           '"content":[{"type":"tool_use","id":"t","name":"X","input":{}}]},'
-           '"uuid":"a1","sessionId":"s"}\n')
+
+    raw = (
+        '{"type":"assistant","message":{"role":"assistant","model":"claude-opus-4-7",'
+        '"content":[{"type":"tool_use","id":"t","name":"X","input":{}}]},'
+        '"uuid":"a1","sessionId":"s"}\n'
+    )
     items, _ = chatlog_ingest._parse_claude_code(raw)
     assert items == []
 
 
 # ─── Gemini CLI parser ────────────────────────────────────────────────────────
 
+
 def test_parse_gemini_cli_real_schema():
     import chatlog_ingest
+
     with open(os.path.join(FIXTURES, "gemini_session_sample.json"), encoding="utf-8") as f:
         raw = f.read()
     items, session_id = chatlog_ingest._parse_gemini_cli(raw)
@@ -111,6 +121,7 @@ def test_parse_gemini_cli_real_schema():
 
 def test_parse_gemini_cli_empty_and_malformed():
     import chatlog_ingest
+
     items, session_id = chatlog_ingest._parse_gemini_cli("")
     assert items == []
     assert session_id is None
@@ -121,14 +132,22 @@ def test_parse_gemini_cli_empty_and_malformed():
 
 def test_parse_gemini_cli_handles_string_content_for_user():
     import chatlog_ingest
-    raw = json.dumps({
-        "sessionId": "s1",
-        "messages": [
-            {"id": "m1", "timestamp": "t", "type": "user", "content": "string form"},
-            {"id": "m2", "timestamp": "t", "type": "gemini",
-             "content": [{"text": "list "}, {"text": "form"}], "model": "gemini-2.5-pro"},
-        ],
-    })
+
+    raw = json.dumps(
+        {
+            "sessionId": "s1",
+            "messages": [
+                {"id": "m1", "timestamp": "t", "type": "user", "content": "string form"},
+                {
+                    "id": "m2",
+                    "timestamp": "t",
+                    "type": "gemini",
+                    "content": [{"text": "list "}, {"text": "form"}],
+                    "model": "gemini-2.5-pro",
+                },
+            ],
+        }
+    )
     items, session_id = chatlog_ingest._parse_gemini_cli(raw)
     assert session_id == "s1"
     assert len(items) == 2
@@ -138,24 +157,29 @@ def test_parse_gemini_cli_handles_string_content_for_user():
 
 # ─── Provider inference ───────────────────────────────────────────────────────
 
-@pytest.mark.parametrize("model,expected", [
-    ("claude-opus-4-7", "anthropic"),
-    ("claude-3-sonnet", "anthropic"),
-    ("gemini-2.5-pro", "google"),
-    ("palm-2", "google"),
-    ("gpt-4o", "openai"),
-    ("o1-preview", "openai"),
-    ("o3-mini", "openai"),
-    ("grok-4", "xai"),
-    ("deepseek-chat", "deepseek"),
-    ("llama-2-70b", "local"),
-    ("mistral-7b", "local"),
-    ("qwen-72b", "local"),
-    ("mystery-model", "other"),
-    ("", "other"),
-])
+
+@pytest.mark.parametrize(
+    "model,expected",
+    [
+        ("claude-opus-4-7", "anthropic"),
+        ("claude-3-sonnet", "anthropic"),
+        ("gemini-2.5-pro", "google"),
+        ("palm-2", "google"),
+        ("gpt-4o", "openai"),
+        ("o1-preview", "openai"),
+        ("o3-mini", "openai"),
+        ("grok-4", "xai"),
+        ("deepseek-chat", "deepseek"),
+        ("llama-2-70b", "local"),
+        ("mistral-7b", "local"),
+        ("qwen-72b", "local"),
+        ("mystery-model", "other"),
+        ("", "other"),
+    ],
+)
 def test_infer_provider(model, expected):
     import chatlog_ingest
+
     assert chatlog_ingest.infer_provider(model) == expected
 
 
@@ -171,6 +195,7 @@ def ingest_env(tmp_path, monkeypatch):
 
     cursor_file = tmp_path / ".chatlog_ingest_cursor.json"
     import chatlog_ingest
+
     monkeypatch.setattr(chatlog_ingest, "_cursor_path", lambda: str(cursor_file))
 
     create_memory_items_schema(paths["db_path"])
@@ -195,16 +220,18 @@ async def test_write_strips_harness_framing_end_to_end(ingest_env):
         "and the assistant's genuine reply"
     )
     row_id = await chatlog_core.chatlog_write_impl(
-        content=payload, role="assistant", conversation_id="c-inj",
-        host_agent="claude-code", provider="anthropic", model_id="claude-opus-4-8",
+        content=payload,
+        role="assistant",
+        conversation_id="c-inj",
+        host_agent="claude-code",
+        provider="anthropic",
+        model_id="claude-opus-4-8",
     )
     await chatlog_core._flush_once()
 
     conn = sqlite3.connect(ingest_env["db"])
     try:
-        row = conn.execute(
-            "SELECT content FROM memory_items WHERE id=?", (row_id,)
-        ).fetchone()
+        row = conn.execute("SELECT content FROM memory_items WHERE id=?", (row_id,)).fetchone()
     finally:
         conn.close()
 
@@ -223,10 +250,10 @@ async def test_write_strips_harness_framing_end_to_end(ingest_env):
 async def test_ingest_claude_code_from_file_writes_real_rows(ingest_env):
     import chatlog_core
     import chatlog_ingest
+
     fixture = os.path.join(FIXTURES, "claude_code_sample.jsonl")
 
-    result = await chatlog_ingest._ingest("claude-code", fixture,
-                                          session_override="", variant="test")
+    result = await chatlog_ingest._ingest("claude-code", fixture, session_override="", variant="test")
     await chatlog_core._flush_once()
 
     assert result["failed"] == 0
@@ -234,6 +261,7 @@ async def test_ingest_claude_code_from_file_writes_real_rows(ingest_env):
     assert result["session_id"] == "fix-claude-0001"
 
     import sqlite3
+
     conn = sqlite3.connect(str(ingest_env["db"]))
     rows = conn.execute(
         "SELECT role_from_meta, variant, conversation_id FROM ("
@@ -252,10 +280,10 @@ async def test_ingest_claude_code_from_file_writes_real_rows(ingest_env):
 async def test_ingest_gemini_from_file_writes_real_rows(ingest_env):
     import chatlog_core
     import chatlog_ingest
+
     fixture = os.path.join(FIXTURES, "gemini_session_sample.json")
 
-    result = await chatlog_ingest._ingest("gemini-cli", fixture,
-                                          session_override="", variant="test")
+    result = await chatlog_ingest._ingest("gemini-cli", fixture, session_override="", variant="test")
     await chatlog_core._flush_once()
 
     assert result["failed"] == 0
@@ -267,10 +295,10 @@ async def test_ingest_gemini_from_file_writes_real_rows(ingest_env):
 async def test_ingest_antigravity_from_file_writes_real_rows(ingest_env):
     import chatlog_core
     import chatlog_ingest
+
     fixture = os.path.join(FIXTURES, "gemini_session_sample.json")
 
-    result = await chatlog_ingest._ingest("antigravity-cli", fixture,
-                                          session_override="", variant="test")
+    result = await chatlog_ingest._ingest("antigravity-cli", fixture, session_override="", variant="test")
     await chatlog_core._flush_once()
 
     assert result["failed"] == 0
@@ -283,6 +311,7 @@ async def test_ingest_is_idempotent_via_cursor(ingest_env):
     """Second invocation on the same transcript skips already-seen uuids."""
     import chatlog_core
     import chatlog_ingest
+
     fixture = os.path.join(FIXTURES, "claude_code_sample.jsonl")
 
     first = await chatlog_ingest._ingest("claude-code", fixture, "", "test")
@@ -298,8 +327,8 @@ async def test_ingest_is_idempotent_via_cursor(ingest_env):
 @pytest.mark.asyncio
 async def test_ingest_missing_transcript_path_is_soft_failure(ingest_env):
     import chatlog_ingest
-    result = await chatlog_ingest._ingest("claude-code", r"C:\does\not\exist.jsonl",
-                                          "", None)
+
+    result = await chatlog_ingest._ingest("claude-code", r"C:\does\not\exist.jsonl", "", None)
     assert result["written"] == 0
     assert "not found" in result["error"]
 
@@ -313,11 +342,13 @@ async def test_ingest_session_override_mismatch_prefers_transcript(ingest_env, c
 
     import chatlog_core
     import chatlog_ingest
+
     fixture = os.path.join(FIXTURES, "claude_code_sample.jsonl")
 
     with caplog.at_level(logging.WARNING, logger="chatlog_ingest"):
         result = await chatlog_ingest._ingest(
-            "claude-code", fixture,
+            "claude-code",
+            fixture,
             session_override="envelope-said-something-else",
             variant="test",
         )
@@ -327,6 +358,7 @@ async def test_ingest_session_override_mismatch_prefers_transcript(ingest_env, c
     assert result["session_id"] == "fix-claude-0001"
 
     import sqlite3
+
     conn = sqlite3.connect(str(ingest_env["db"]))
     conv_ids = {row[0] for row in conn.execute("SELECT conversation_id FROM memory_items")}
     assert conv_ids == {"fix-claude-0001"}

@@ -21,6 +21,7 @@ Three bugs lived in one control loop in embed_sweep_lib.py, all from conflating
 Hermetic: the loop takes `embed_many` as a callback, so these drive the real
 control flow with stub embedders. No GPU, no model, no network.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -47,15 +48,20 @@ def _run(embed_many, rows, **kw):
         served.append(True)
         return rows
 
-    asyncio.run(L.run_embed_loop(
-        fetch_candidates=fetch,
-        write_embedding=lambda *_a: True,
-        counters=counters,
-        embed_many=embed_many,
-        content_hash_fn=lambda t: f"h{len(t)}",
-        batch_size=10, concurrency=1, expected_dim=None,
-        log=logs.append, **kw,
-    ))
+    asyncio.run(
+        L.run_embed_loop(
+            fetch_candidates=fetch,
+            write_embedding=lambda *_a: True,
+            counters=counters,
+            embed_many=embed_many,
+            content_hash_fn=lambda t: f"h{len(t)}",
+            batch_size=10,
+            concurrency=1,
+            expected_dim=None,
+            log=logs.append,
+            **kw,
+        )
+    )
     return counters, logs
 
 
@@ -77,13 +83,12 @@ async def _ok(texts):
 
 class TestFailureClassification(unittest.TestCase):
     def test_overflow_is_content_not_infrastructure(self):
-        self.assertFalse(L._is_infrastructure_failure(
-            RuntimeError("input too long: 16875 tokens > n_ctx 8192")))
+        self.assertFalse(L._is_infrastructure_failure(RuntimeError("input too long: 16875 tokens > n_ctx 8192")))
 
     def test_typed_context_error_is_content(self):
         from memory.embed import ContextLengthExceeded
-        self.assertFalse(L._is_infrastructure_failure(
-            ContextLengthExceeded("too long", 16875, 8192)))
+
+        self.assertFalse(L._is_infrastructure_failure(ContextLengthExceeded("too long", 16875, 8192)))
 
     def test_connection_error_is_infrastructure(self):
         self.assertTrue(L._is_infrastructure_failure(ConnectionError("refused")))
@@ -138,13 +143,12 @@ class TestOversizeGuardMeasuresTokens(unittest.TestCase):
         ratio) while being ~9,900 tokens. It used to pass the guard, skip the
         subdivide path, and blow n_ctx inside a shared batch."""
         import random
+
         random.seed(1)
         zh = ["数据库", "连接", "失败", "重试", "记录", "详细", "错误", "信息"]
         big = "".join(random.choice(zh) + random.choice("，。；、") for _ in range(2800))
-        self.assertLessEqual(len(big.encode("utf-8")), 32_768,
-                             "fixture must pass the BYTE guard to be meaningful")
-        self.assertGreater(L._token_budget(big), L._TOKEN_BUDGET,
-                           "fixture must exceed the TOKEN budget")
+        self.assertLessEqual(len(big.encode("utf-8")), 32_768, "fixture must pass the BYTE guard to be meaningful")
+        self.assertGreater(L._token_budget(big), L._TOKEN_BUDGET, "fixture must exceed the TOKEN budget")
 
         sent = []
 

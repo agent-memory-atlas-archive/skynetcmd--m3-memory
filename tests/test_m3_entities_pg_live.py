@@ -7,6 +7,7 @@ directly on PG, without the extractor LLM.
 
 DSN from M3_PRIMARY_PG_URL/M3_PG_URL (never PG_URL).
 """
+
 from __future__ import annotations
 
 import sys
@@ -78,9 +79,7 @@ def test_query_eligible_rows_on_pg(pg):
             (mid, conv, f'{{"conversation_id":"{conv}"}}'),
         )
     try:
-        rows = me._query_eligible_rows(
-            Path("ignored_on_pg"), ("message",), None, None, True
-        )
+        rows = me._query_eligible_rows(Path("ignored_on_pg"), ("message",), None, None, True)
         assert any(r[0] == mid for r in rows), "seeded row not eligible"
     finally:
         with pg.connection() as c:

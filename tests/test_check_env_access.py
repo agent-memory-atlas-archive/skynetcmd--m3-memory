@@ -4,6 +4,7 @@ REPORT mode only: it must catch every planted shape (selftest) and must scan
 every production file. It does not yet fail on violations; that is the
 enforce step, once the config package and child_env exist.
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -31,11 +32,14 @@ def test_every_production_file_is_scanned():
     assert "REPORT MODE" in r.stdout
 
 
-@pytest.mark.parametrize("snippet,expected", [
-    ("import os\nos.environ.get('HOME')", "allowed-os-name"),
-    ("import os\nos.environ.get('M3_X')", "violation"),
-    ("import os\nkey = 'M3_X'\nos.environ.get(key)", "violation"),
-])
+@pytest.mark.parametrize(
+    "snippet,expected",
+    [
+        ("import os\nos.environ.get('HOME')", "allowed-os-name"),
+        ("import os\nos.environ.get('M3_X')", "violation"),
+        ("import os\nkey = 'M3_X'\nos.environ.get(key)", "violation"),
+    ],
+)
 def test_verdicts(snippet, expected):
     sys.path.insert(0, str(_SCRIPT.parent))
     try:

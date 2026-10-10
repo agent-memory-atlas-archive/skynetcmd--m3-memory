@@ -10,6 +10,7 @@ marking the task done.
 
 No `_db` override is installed here: this exercises the real wrapper.
 """
+
 from __future__ import annotations
 
 import sqlite3

@@ -42,17 +42,9 @@ class AgentProtocol:
             if role == "system":
                 system = content
             else:
-                anthropic_messages.append({
-                    "role": role if role != "assistant" else "assistant",
-                    "content": content
-                })
+                anthropic_messages.append({"role": role if role != "assistant" else "assistant", "content": content})
 
-        return {
-            "model": model,
-            "system": system,
-            "messages": anthropic_messages,
-            "max_tokens": 4096
-        }
+        return {"model": model, "system": system, "messages": anthropic_messages, "max_tokens": 4096}
 
     @staticmethod
     def openai_to_gemini(messages: list, model: str) -> dict:
@@ -68,10 +60,7 @@ class AgentProtocol:
                 system_instruction = {"parts": [{"text": content}]}
             else:
                 gemini_role = "user" if role == "user" else "model"
-                contents.append({
-                    "role": gemini_role,
-                    "parts": [{"text": content}]
-                })
+                contents.append({"role": gemini_role, "parts": [{"text": content}]})
 
         payload = {"contents": contents}
         if system_instruction:
@@ -84,27 +73,28 @@ class AgentProtocol:
         """Translates backend-specific responses to OpenAI format."""
         if source == "anthropic":
             return {
-                "choices": [{
-                    "message": {
-                        "role": "assistant",
-                        "content": raw_resp.get("content", [{"text": ""}])[0].get("text", "")
-                    },
-                    "finish_reason": raw_resp.get("stop_reason", "stop")
-                }]
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": raw_resp.get("content", [{"text": ""}])[0].get("text", ""),
+                        },
+                        "finish_reason": raw_resp.get("stop_reason", "stop"),
+                    }
+                ]
             }
         elif source == "gemini":
             candidates = raw_resp.get("candidates", [{}])
             content = candidates[0].get("content", {}).get("parts", [{"text": ""}])[0].get("text", "")
             return {
-                "choices": [{
-                    "message": {
-                        "role": "assistant",
-                        "content": content
-                    },
-                    "finish_reason": candidates[0].get("finish_reason", "stop")
-                }]
+                "choices": [
+                    {
+                        "message": {"role": "assistant", "content": content},
+                        "finish_reason": candidates[0].get("finish_reason", "stop"),
+                    }
+                ]
             }
-        return raw_resp # Grok/PPLX/LM Studio are already OpenAI-compatible
+        return raw_resp  # Grok/PPLX/LM Studio are already OpenAI-compatible
 
     @staticmethod
     def extract_reasoning(content: str) -> tuple[str, str]:
@@ -118,11 +108,25 @@ class AgentProtocol:
 
     # ---------- Tool-calling extensions (v2 dispatch loop) ----------
 
-    _GEMINI_ALLOWED_SCHEMA_KEYS: ClassVar[frozenset[str]] = frozenset({
-        "type", "description", "enum", "properties", "required",
-        "items", "format", "nullable", "minimum", "maximum",
-        "minItems", "maxItems", "minLength", "maxLength", "pattern",
-    })
+    _GEMINI_ALLOWED_SCHEMA_KEYS: ClassVar[frozenset[str]] = frozenset(
+        {
+            "type",
+            "description",
+            "enum",
+            "properties",
+            "required",
+            "items",
+            "format",
+            "nullable",
+            "minimum",
+            "maximum",
+            "minItems",
+            "maxItems",
+            "minLength",
+            "maxLength",
+            "pattern",
+        }
+    )
 
     @staticmethod
     def _strip_gemini_unsupported(schema):
@@ -141,8 +145,7 @@ class AgentProtocol:
                 continue
             if key == "properties" and isinstance(value, dict):
                 cleaned[key] = {
-                    pname: AgentProtocol._strip_gemini_unsupported(pschema)
-                    for pname, pschema in value.items()
+                    pname: AgentProtocol._strip_gemini_unsupported(pschema) for pname, pschema in value.items()
                 }
             elif key == "items":
                 if isinstance(value, list):
@@ -161,11 +164,13 @@ class AgentProtocol:
         out = []
         for tool in tools:
             fn = tool.get("function", {})
-            out.append({
-                "name": fn.get("name", ""),
-                "description": fn.get("description", ""),
-                "input_schema": fn.get("parameters", {"type": "object", "properties": {}}),
-            })
+            out.append(
+                {
+                    "name": fn.get("name", ""),
+                    "description": fn.get("description", ""),
+                    "input_schema": fn.get("parameters", {"type": "object", "properties": {}}),
+                }
+            )
         return out
 
     @staticmethod
@@ -177,11 +182,13 @@ class AgentProtocol:
         for tool in tools:
             fn = tool.get("function", {})
             params = fn.get("parameters", {"type": "object", "properties": {}})
-            declarations.append({
-                "name": fn.get("name", ""),
-                "description": fn.get("description", ""),
-                "parameters": AgentProtocol._strip_gemini_unsupported(params),
-            })
+            declarations.append(
+                {
+                    "name": fn.get("name", ""),
+                    "description": fn.get("description", ""),
+                    "parameters": AgentProtocol._strip_gemini_unsupported(params),
+                }
+            )
         return [{"functionDeclarations": declarations}]
 
     @staticmethod
@@ -197,8 +204,7 @@ class AgentProtocol:
             return {}
 
     @staticmethod
-    def openai_to_anthropic_with_tools(messages: list, model: str,
-                                        tools: list = None, max_tokens: int = 4096) -> dict:
+    def openai_to_anthropic_with_tools(messages: list, model: str, tools: list = None, max_tokens: int = 4096) -> dict:
         """Tool-aware variant of openai_to_anthropic."""
         system = ""
         anthropic_messages = []
@@ -218,10 +224,13 @@ class AgentProtocol:
                     "content": content,
                 }
                 # Merge consecutive tool results into one user message.
-                if anthropic_messages and anthropic_messages[-1]["role"] == "user" \
-                        and isinstance(anthropic_messages[-1]["content"], list) \
-                        and anthropic_messages[-1]["content"] \
-                        and anthropic_messages[-1]["content"][0].get("type") == "tool_result":
+                if (
+                    anthropic_messages
+                    and anthropic_messages[-1]["role"] == "user"
+                    and isinstance(anthropic_messages[-1]["content"], list)
+                    and anthropic_messages[-1]["content"]
+                    and anthropic_messages[-1]["content"][0].get("type") == "tool_result"
+                ):
                     anthropic_messages[-1]["content"].append(block)
                 else:
                     anthropic_messages.append({"role": "user", "content": [block]})
@@ -237,12 +246,14 @@ class AgentProtocol:
                     blocks.append({"type": "text", "text": content})
                 for tc in tool_calls:
                     fn = tc.get("function", {})
-                    blocks.append({
-                        "type": "tool_use",
-                        "id": tc.get("id", ""),
-                        "name": fn.get("name", ""),
-                        "input": AgentProtocol._safe_json_loads(fn.get("arguments", "{}")),
-                    })
+                    blocks.append(
+                        {
+                            "type": "tool_use",
+                            "id": tc.get("id", ""),
+                            "name": fn.get("name", ""),
+                            "input": AgentProtocol._safe_json_loads(fn.get("arguments", "{}")),
+                        }
+                    )
                 anthropic_messages.append({"role": "assistant", "content": blocks})
                 continue
 
@@ -281,9 +292,12 @@ class AgentProtocol:
                         "response": {"result": content},
                     }
                 }
-                if contents and contents[-1]["role"] == "user" \
-                        and contents[-1]["parts"] \
-                        and "functionResponse" in contents[-1]["parts"][0]:
+                if (
+                    contents
+                    and contents[-1]["role"] == "user"
+                    and contents[-1]["parts"]
+                    and "functionResponse" in contents[-1]["parts"][0]
+                ):
                     contents[-1]["parts"].append(part)
                 else:
                     contents.append({"role": "user", "parts": [part]})
@@ -296,12 +310,14 @@ class AgentProtocol:
                     parts.append({"text": content})
                 for tc in tool_calls:
                     fn = tc.get("function", {})
-                    parts.append({
-                        "functionCall": {
-                            "name": fn.get("name", ""),
-                            "args": AgentProtocol._safe_json_loads(fn.get("arguments", "{}")),
+                    parts.append(
+                        {
+                            "functionCall": {
+                                "name": fn.get("name", ""),
+                                "args": AgentProtocol._safe_json_loads(fn.get("arguments", "{}")),
+                            }
                         }
-                    })
+                    )
                 if not parts:
                     parts = [{"text": ""}]
                 contents.append({"role": "model", "parts": parts})
@@ -335,14 +351,16 @@ class AgentProtocol:
                 if btype == "text":
                     text_parts.append(block.get("text", ""))
                 elif btype == "tool_use":
-                    tool_calls.append({
-                        "id": block.get("id", ""),
-                        "type": "function",
-                        "function": {
-                            "name": block.get("name", ""),
-                            "arguments": json.dumps(block.get("input", {})),
-                        },
-                    })
+                    tool_calls.append(
+                        {
+                            "id": block.get("id", ""),
+                            "type": "function",
+                            "function": {
+                                "name": block.get("name", ""),
+                                "arguments": json.dumps(block.get("input", {})),
+                            },
+                        }
+                    )
             return "".join(text_parts), tool_calls
 
         if provider == "gemini":
@@ -355,22 +373,23 @@ class AgentProtocol:
                     text_parts.append(part["text"])
                 if "functionCall" in part:
                     fc = part["functionCall"] or {}
-                    tool_calls.append({
-                        "id": "call_" + uuid.uuid4().hex[:12],
-                        "type": "function",
-                        "function": {
-                            "name": fc.get("name", ""),
-                            "arguments": json.dumps(fc.get("args") or {}),
-                        },
-                    })
+                    tool_calls.append(
+                        {
+                            "id": "call_" + uuid.uuid4().hex[:12],
+                            "type": "function",
+                            "function": {
+                                "name": fc.get("name", ""),
+                                "arguments": json.dumps(fc.get("args") or {}),
+                            },
+                        }
+                    )
             return "".join(text_parts), tool_calls
 
         # Unknown provider — best-effort passthrough
         return raw_response.get("content", "") or "", []
 
     @staticmethod
-    def format_tool_result(tool_call_id: str, name: str, result: str,
-                           is_error: bool = False) -> dict:
+    def format_tool_result(tool_call_id: str, name: str, result: str, is_error: bool = False) -> dict:
         """Build an OpenAI-shape tool message for the dispatch loop history."""
         content = result if result is not None else ""
         if is_error and not content.startswith("Error: "):

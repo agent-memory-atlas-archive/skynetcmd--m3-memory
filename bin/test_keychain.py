@@ -10,7 +10,8 @@ sys.path.insert(0, os.path.join(BASE_DIR, "bin"))
 from auth_utils import get_api_key
 
 if is_windows():
-    sys.stdout.reconfigure(encoding='utf-8')  # type: ignore[union-attr]
+    sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
+
 
 def test_key(service):
     print(f"Testing {service}...")
@@ -22,6 +23,7 @@ def test_key(service):
             print("❌ Failed: Secret not found in any store.")
     except Exception as e:
         print(f"❌ Failed: {e}")
+
 
 if __name__ == "__main__":
     test_key("PERPLEXITY_API_KEY")

@@ -64,8 +64,7 @@ def test_spawn_failure_also_exits_rather_than_falling_through():
     handlers = [n for n in ast.walk(fn) if isinstance(n, ast.ExceptHandler)]
     assert handlers, "no exception handling around the spawn"
     exits = [
-        n for h in handlers for n in ast.walk(h)
-        if isinstance(n, ast.Call) and getattr(n.func, "attr", None) == "_exit"
+        n for h in handlers for n in ast.walk(h) if isinstance(n, ast.Call) and getattr(n.func, "attr", None) == "_exit"
     ]
     assert exits, "a failed spawn must os._exit, not fall through to the loop"
 
@@ -75,7 +74,5 @@ def test_child_argv_drops_background_flag():
     with open(LOOP, encoding="utf-8") as fh:
         src = fh.read()
     start = src.index("def daemonize_windows")
-    body = src[start:start + 2000]
-    assert '!= "--background"' in body, (
-        "child argv must strip --background or the child daemonizes again"
-    )
+    body = src[start : start + 2000]
+    assert '!= "--background"' in body, "child argv must strip --background or the child daemonizes again"

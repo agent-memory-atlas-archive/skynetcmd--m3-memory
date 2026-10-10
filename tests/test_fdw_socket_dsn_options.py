@@ -56,7 +56,7 @@ def _wire(dsn: str) -> _RecordingCursor:
 @pytest.mark.parametrize(
     "dsn",
     [
-        "postgresql:///m3_mac",            # socket, no host, no user
+        "postgresql:///m3_mac",  # socket, no host, no user
         "postgresql:///m3_mac?sslmode=prefer",  # same with a trailing param (libpq rejects unknown ones)
     ],
 )

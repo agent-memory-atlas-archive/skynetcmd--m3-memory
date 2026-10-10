@@ -17,6 +17,7 @@ Run in CI on a schedule; commit the result back to main. Locally:
 Exit codes: 0 = SVG written (or unchanged), 2 = hard error (auth/network).
 Standard library only.
 """
+
 from __future__ import annotations
 
 import argparse

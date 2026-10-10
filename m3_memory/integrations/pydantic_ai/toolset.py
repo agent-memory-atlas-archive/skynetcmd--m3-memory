@@ -56,6 +56,7 @@ def _make_m3_memory_toolset() -> type:
     # string annotation "RunContext[M3Deps]" on the tool functions must be
     # evaluable in their module globals. Binding it at module scope makes it so.
     from pydantic_ai import RunContext  # noqa: F401 — used by annotation resolution
+
     globals().setdefault("RunContext", RunContext)
 
     class M3MemoryToolset(FunctionToolset):  # type: ignore[valid-type,misc]
@@ -89,9 +90,7 @@ def _make_m3_memory_toolset() -> type:
         # ── the m3-backed tool functions (ctx.deps is an M3Deps) ──────────────
 
         @staticmethod
-        def _remember(
-            ctx: RunContext[M3Deps], content: str, importance: float = 0.5
-        ) -> str:
+        def _remember(ctx: RunContext[M3Deps], content: str, importance: float = 0.5) -> str:
             """Save a fact to long-term memory so it can be recalled later.
 
             Args:
@@ -102,9 +101,7 @@ def _make_m3_memory_toolset() -> type:
             return f"Remembered (id={new_id})." if new_id else "Nothing to remember."
 
         @staticmethod
-        def _recall(
-            ctx: RunContext[M3Deps], query: str, limit: int = 5
-        ) -> list[dict]:
+        def _recall(ctx: RunContext[M3Deps], query: str, limit: int = 5) -> list[dict]:
             """Search long-term memory for facts relevant to ``query`` (best first)."""
             rows = _deps(ctx).recall(query, k=limit)
             return mapping.recall_hits_to_dicts(rows)

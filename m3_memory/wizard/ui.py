@@ -4,6 +4,7 @@ Extracted verbatim from setup_wizard.py. None of these are ever monkeypatched
 by tests, and none of them call anything that is — safe to live in a
 submodule and be imported back into setup_wizard.py at module load time.
 """
+
 from __future__ import annotations
 
 import os
@@ -36,6 +37,7 @@ def console_has_person() -> bool:
         return True
     import ctypes
     from ctypes import wintypes
+
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined, unused-ignore]
     handle = kernel32.GetStdHandle(wintypes.DWORD(-10 & 0xFFFFFFFF))  # STD_INPUT_HANDLE
     mode = wintypes.DWORD()
@@ -52,17 +54,22 @@ def _color(code: str, msg: str) -> str:
         return msg
     return f"\033[{code}m{msg}\033[0m"
 
+
 def _say(msg: str) -> None:
     print(f"{_color('36', '==>')} {msg}", flush=True)
+
 
 def _ok(msg: str) -> None:
     print(_color("32", f"[OK] {msg}"), flush=True)
 
+
 def _warn(msg: str) -> None:
     print(_color("33", f"[!] {msg}"), flush=True)
 
+
 def _err(msg: str) -> None:
     print(_color("31", f"[X] {msg}"), file=sys.stderr, flush=True)
+
 
 # Transient single-line progress for long, line-by-line sequences (per-package
 # installs, per-section embeds). On a TTY each call REWRITES the same line
@@ -73,6 +80,7 @@ def _err(msg: str) -> None:
 # follow with a plain _ok) to commit a final newline so the next output starts
 # on its own line.
 _PROGRESS_ACTIVE = False
+
 
 def _progress(msg: str, *, done: bool = False) -> None:
     global _PROGRESS_ACTIVE
@@ -86,6 +94,7 @@ def _progress(msg: str, *, done: bool = False) -> None:
     sys.stdout.write(f"\r\033[K    {msg}{end}")
     sys.stdout.flush()
     _PROGRESS_ACTIVE = not done
+
 
 def _progress_done() -> None:
     """Commit a newline if a transient progress line is still open (TTY only)."""

@@ -32,6 +32,7 @@ wired at init time, and reads `false` on HEALTHY installs where the
 Stop-hook/MCP write path captures fine (confirmed 2026-06-13) — a permanent
 false alarm. The data to trust is `capture.healthy` / `last_write_at`.
 """
+
 from __future__ import annotations
 
 import os
@@ -60,7 +61,7 @@ _STALE_PATTERNS = (
         "writes to the DB directly, independent of the MCP connection",
         "replace that warning with: \"m3's MCP tools are unreachable, so I "
         "can't search or write memory right now. Chatlog capture is "
-        "unaffected. Reconnect with `/mcp`.\"",
+        'unaffected. Reconnect with `/mcp`."',
     ),
     (
         "hooks-enabled-false-alarm",
@@ -68,8 +69,7 @@ _STALE_PATTERNS = (
         "`hooks[*].enabled` reads false on HEALTHY installs (it records only "
         "init-time shell-hook wiring), so alarming on it is a permanent false "
         "positive",
-        "trust `capture.healthy` and `last_write_at` from `chatlog_status` "
-        "instead — the data, not the flag",
+        "trust `capture.healthy` and `last_write_at` from `chatlog_status` instead — the data, not the flag",
     ),
 )
 
@@ -91,9 +91,14 @@ def check() -> list[dict]:
             continue
         for pid, needle, why, fix in _STALE_PATTERNS:
             if needle in text:
-                findings.append({
-                    "path": str(path), "id": pid, "why": why, "fix": fix,
-                })
+                findings.append(
+                    {
+                        "path": str(path),
+                        "id": pid,
+                        "why": why,
+                        "fix": fix,
+                    }
+                )
     return findings
 
 
@@ -105,8 +110,7 @@ def run(brief: bool = False) -> int:
         findings = check()
     except Exception as e:  # noqa: BLE001 — the doctor must never die on a probe
         if not brief:
-            print(f"  agent guidance: probe failed (non-fatal): "
-                  f"{type(e).__name__}: {e}")
+            print(f"  agent guidance: probe failed (non-fatal): {type(e).__name__}: {e}")
         return 0
 
     if not findings:
@@ -124,8 +128,7 @@ def run(brief: bool = False) -> int:
         print(f"    - {f['path']}")
         print(f"      why: {f['why']}")
         print(f"      fix: {f['fix']}")
-    print("    reference: docs/AGENT_INSTRUCTIONS.md "
-          "(§ Silent Failure Detection)")
+    print("    reference: docs/AGENT_INSTRUCTIONS.md (§ Silent Failure Detection)")
     return 0
 
 

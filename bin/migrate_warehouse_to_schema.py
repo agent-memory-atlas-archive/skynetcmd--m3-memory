@@ -26,6 +26,7 @@ Usage:
 
 Exit codes: 0 = success (or clean dry-run), 1 = error / verification failed.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -70,8 +71,7 @@ def _resolve_dsn(explicit: str | None) -> str:
 
 
 def _table_exists(cur, schema: str, table: str) -> bool:
-    cur.execute(
-        "SELECT to_regclass(%s) IS NOT NULL", (f"{schema}.{table}",))
+    cur.execute("SELECT to_regclass(%s) IS NOT NULL", (f"{schema}.{table}",))
     return bool(cur.fetchone()[0])
 
 
@@ -106,13 +106,13 @@ def _plan_for(cur, table: str) -> dict:
     pub = _row_count(cur, "public", table)
     wh = _row_count(cur, WAREHOUSE_SCHEMA, table)
     if pub is None and wh is not None:
-        action = "ok"           # already warehouse-only
+        action = "ok"  # already warehouse-only
     elif pub is not None and wh is None:
-        action = "move"         # create wh table + copy + (drop public)
+        action = "move"  # create wh table + copy + (drop public)
     elif pub is not None and wh is not None:
-        action = "merge"        # union public into wh + (drop public)
+        action = "merge"  # union public into wh + (drop public)
     else:
-        action = "absent"       # neither — nothing to do
+        action = "absent"  # neither — nothing to do
     return {"table": table, "public": pub, "warehouse": wh, "action": action}
 
 
@@ -144,18 +144,18 @@ def _apply(cur, plan: dict, warehouse_ddl_path: str | None, drop_public: bool) -
     if not _table_exists(cur, WAREHOUSE_SCHEMA, table):
         raise RuntimeError(
             f"{WAREHOUSE_SCHEMA}.{table} does not exist and could not be created "
-            f"(apply pg_warehouse_chatlog_v1.sql first).")
+            f"(apply pg_warehouse_chatlog_v1.sql first)."
+        )
 
     cols = _shared_columns(cur, table)
     if not cols:
-        raise RuntimeError(f"no shared columns between public.{table} and "
-                           f"{WAREHOUSE_SCHEMA}.{table} — cannot copy safely.")
+        raise RuntimeError(
+            f"no shared columns between public.{table} and {WAREHOUSE_SCHEMA}.{table} — cannot copy safely."
+        )
     collist = ", ".join(cols)
     pk = _pk_columns(cur, WAREHOUSE_SCHEMA, table)
     conflict = f"ON CONFLICT ({', '.join(pk)}) DO NOTHING" if pk else ""
-    cur.execute(
-        f"INSERT INTO {WAREHOUSE_SCHEMA}.{table} ({collist}) "
-        f"SELECT {collist} FROM public.{table} {conflict}")
+    cur.execute(f"INSERT INTO {WAREHOUSE_SCHEMA}.{table} ({collist}) SELECT {collist} FROM public.{table} {conflict}")
 
     # Verify BEFORE dropping: warehouse must now hold at least as many rows as
     # public did (union). Never drop on a short count.
@@ -163,8 +163,8 @@ def _apply(cur, plan: dict, warehouse_ddl_path: str | None, drop_public: bool) -
     wh_n = _row_count(cur, WAREHOUSE_SCHEMA, table) or 0
     if wh_n < pub_n:
         raise RuntimeError(
-            f"{table}: post-copy warehouse count {wh_n} < public {pub_n} — "
-            f"NOT dropping public (investigate).")
+            f"{table}: post-copy warehouse count {wh_n} < public {pub_n} — NOT dropping public (investigate)."
+        )
     if drop_public:
         cur.execute(f"DROP TABLE public.{table}")
 
@@ -173,8 +173,7 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Consolidate warehouse tables public -> m3_warehouse.")
     p.add_argument("--dsn", default=None, help="Warehouse DSN (else the stored warehouse DSN).")
     p.add_argument("--dry-run", action="store_true", help="Print the plan; change nothing.")
-    p.add_argument("--drop-public", action="store_true",
-                   help="After a verified copy, DROP the public.<table> copy.")
+    p.add_argument("--drop-public", action="store_true", help="After a verified copy, DROP the public.<table> copy.")
     p.add_argument("--yes", action="store_true", help="Skip the confirmation prompt.")
     args = p.parse_args(argv)
 
@@ -186,7 +185,11 @@ def main(argv: list[str] | None = None) -> int:
 
     warehouse_ddl = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "memory", "migrations", "postgres", "pg_warehouse_chatlog_v1.sql")
+        "memory",
+        "migrations",
+        "postgres",
+        "pg_warehouse_chatlog_v1.sql",
+    )
 
     conn = psycopg2.connect(dsn, connect_timeout=10)
     conn.autocommit = False
@@ -194,8 +197,7 @@ def main(argv: list[str] | None = None) -> int:
         with conn.cursor() as cur:
             cur.execute(f"CREATE SCHEMA IF NOT EXISTS {WAREHOUSE_SCHEMA}")
             plans = [_plan_for(cur, t) for t in _WAREHOUSE_TABLES]
-            legacy = [t for t in _DROP_IF_PRESENT
-                      if _table_exists(cur, WAREHOUSE_SCHEMA, t)]
+            legacy = [t for t in _DROP_IF_PRESENT if _table_exists(cur, WAREHOUSE_SCHEMA, t)]
 
         print(f"Warehouse consolidation plan (schema {WAREHOUSE_SCHEMA}):")
         print(f"  {'table':28} {'public':>8} {'m3_warehouse':>13}  action")
@@ -211,8 +213,11 @@ def main(argv: list[str] | None = None) -> int:
         if not todo and not legacy:
             print("\nNothing to migrate — warehouse is already consolidated.")
             return 0
-        drop_note = "will DROP public copies" if args.drop_public else \
-            "public copies LEFT INTACT (pass --drop-public to remove)"
+        drop_note = (
+            "will DROP public copies"
+            if args.drop_public
+            else "public copies LEFT INTACT (pass --drop-public to remove)"
+        )
         print(f"\n{todo} table(s) to consolidate; {drop_note}.")
 
         if args.dry_run:
@@ -237,8 +242,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     except Exception as e:
         conn.rollback()
-        print(f"\n❌ ERROR: {type(e).__name__}: {e}\n(rolled back — no changes made)",
-              file=sys.stderr)
+        print(f"\n❌ ERROR: {type(e).__name__}: {e}\n(rolled back — no changes made)", file=sys.stderr)
         return 1
     finally:
         conn.close()

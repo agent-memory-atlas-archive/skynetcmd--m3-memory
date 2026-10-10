@@ -13,6 +13,7 @@ The contract this pins:
   - a PARTIAL stop is exit 1 — it must not read as success, because the
     caller's next step is an upgrade that will then fail (§3)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -43,6 +44,7 @@ def fake_halt(monkeypatch):
     mod.results = []
     # The real classification, not a copy of it.
     import importlib.util
+
     spec = importlib.util.spec_from_file_location("_m3_halt_real", _ROOT / "bin" / "m3_halt.py")
     real = importlib.util.module_from_spec(spec)
     monkeypatch.setitem(sys.modules, "_m3_halt_real", real)  # dataclasses need it
@@ -58,8 +60,7 @@ def fake_halt(monkeypatch):
     sched.keeps_rust_embed_server = lambda: sched.keep
     monkeypatch.setitem(sys.modules, "install_schedules", sched)
     mod.sched = sched
-    monkeypatch.setattr(cli, "_resolve_bin_script",
-                        lambda name: Path(_ROOT / "bin" / "m3_halt.py"))
+    monkeypatch.setattr(cli, "_resolve_bin_script", lambda name: Path(_ROOT / "bin" / "m3_halt.py"))
     return mod
 
 
@@ -147,8 +148,7 @@ def test_stop_unix_services_stops_units_and_the_watchdog_timer(monkeypatch):
 
     monkeypatch.setattr(sched, "_platform_key", lambda: "linux")
     monkeypatch.setattr(sched, "keeps_rust_embed_server", lambda: False)
-    monkeypatch.setattr(sched, "_service_exists",
-                        lambda n: n != "m3-notification-waiter.service")
+    monkeypatch.setattr(sched, "_service_exists", lambda n: n != "m3-notification-waiter.service")
     monkeypatch.setattr(sched, "_run", fake_run)
     stopped = sched.stop_unix_services()
     assert ["systemctl", "--user", "stop", "m3-cognitive-loop.service"] in calls
@@ -164,14 +164,18 @@ def test_a_surviving_embed_server_is_left_running_not_a_failure(fake_halt, capsy
     stopped does not block an upgrade; say it was left, never that it stopped."""
     fake_halt.results = [
         {"pid": 1, "role": "cognitive-loop", "killed": True, "error": None},
-        {"pid": 2, "role": "embed-server(elevated?)", "killed": False,
-         "error": "ERROR: could not be terminated.\nReason: Access is denied."},
+        {
+            "pid": 2,
+            "role": "embed-server(elevated?)",
+            "killed": False,
+            "error": "ERROR: could not be terminated.\nReason: Access is denied.",
+        },
     ]
     assert _run() == 0
     out = capsys.readouterr().out
     assert "stopped embed-server" not in out
     assert "embed-server (pid 2) left running (it runs as administrator); it holds no data." in out
-    assert "Access is denied" not in out                # stated in words, not raw OS text
+    assert "Access is denied" not in out  # stated in words, not raw OS text
     assert "stopped 1/1 writer(s); 1 left running (no database)" in out
 
 
@@ -179,8 +183,7 @@ def test_quiet_omits_a_survivor_already_reported(fake_halt, capsys):
     """`m3 upgrade` stops twice; the second stop must not repeat the
     left-running line the first one printed, nor a 0/0 summary."""
     fake_halt.results = [
-        {"pid": 2, "role": "embed-server(elevated?)", "killed": False,
-         "error": "Access is denied."},
+        {"pid": 2, "role": "embed-server(elevated?)", "killed": False, "error": "Access is denied."},
     ]
     assert cli._cmd_stop(argparse.Namespace(timeout=8.0, quiet=True)) == 0
     assert capsys.readouterr().out == ""

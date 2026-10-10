@@ -15,6 +15,7 @@ Do NOT import `embed` here — that would create a cycle. `util.py` is safe to
 import: per its own docstring it is pure and never imports other
 memory-package modules, so `.textprep -> .util` cannot cycle back.
 """
+
 from __future__ import annotations
 
 import json

@@ -8,6 +8,7 @@ Why a wrapper at all: the impl returns a structured dict shaped for
 MCP responses; the CLI wants human-readable lines. This module owns
 that formatting + maps the impl's summary to an exit code.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -34,10 +35,7 @@ def run(brief: bool = False) -> int:
         from memory.doctor import memory_doctor_impl
     except Exception as e:
         if not brief:
-            logger.warning(
-                f"cascade doctor unavailable (memory.doctor not importable): "
-                f"{type(e).__name__}: {e}"
-            )
+            logger.warning(f"cascade doctor unavailable (memory.doctor not importable): {type(e).__name__}: {e}")
         else:
             print("embedding-cascade: unavailable (module not importable)")
         return 0
@@ -62,8 +60,10 @@ def run(brief: bool = False) -> int:
             # Reassuring, accurate phrasing for the shipped default: the shared
             # server is the fast path; per-process tier-1 is off by design.
             # GATED ON `healthy` — see below.
-            print(f"{glyph} embedding-cascade: {summary} — shared tier-2 embedder "
-                  f"online (tier-1 appropriately offline{lat})")
+            print(
+                f"{glyph} embedding-cascade: {summary} — shared tier-2 embedder "
+                f"online (tier-1 appropriately offline{lat})"
+            )
         elif out.get("tier_1", {}).get("shared_mode"):
             # Shared mode but NOT healthy. The reassuring text above used to
             # print unconditionally, so a broken cascade rendered as:
@@ -73,9 +73,11 @@ def run(brief: bool = False) -> int:
             # cause and no remedy. Observed 2026-09-30 on claude-dev. Report the
             # STATE and what to do instead; tier-1 being off is still by design
             # here, so say that without implying everything is fine.
-            print(f"{glyph} embedding-cascade: {summary} — shared mode, tier-2 "
-                  f"{t2}{lat} (tier-1 off by design) — fix: `m3 doctor --fix` "
-                  f"restarts the shared embedder; `--verbose` for detail")
+            print(
+                f"{glyph} embedding-cascade: {summary} — shared mode, tier-2 "
+                f"{t2}{lat} (tier-1 off by design) — fix: `m3 doctor --fix` "
+                f"restarts the shared embedder; `--verbose` for detail"
+            )
         else:
             print(f"{glyph} embedding-cascade: {summary} (tier1 {t1}, tier2 {t2}{lat})")
         return 0 if summary != "broken" else 1
@@ -85,18 +87,13 @@ def run(brief: bool = False) -> int:
     print(f"  summary  : {out.get('summary')}")
     _t1 = out.get("tier_1", {})
     if _t1.get("shared_mode"):
-        print("  tier_1   : shared-mode (intentionally off — the shared tier-2 "
-              "server owns the single GPU context)")
+        print("  tier_1   : shared-mode (intentionally off — the shared tier-2 server owns the single GPU context)")
     else:
         print(f"  tier_1   : {_t1.get('status')}")
-    print(
-        f"  tier_2   : {out.get('tier_2', {}).get('status')}"
-        f"  ({out.get('tier_2', {}).get('url')})"
-    )
+    print(f"  tier_2   : {out.get('tier_2', {}).get('status')}  ({out.get('tier_2', {}).get('url')})")
     print(f"  db       : {out.get('db', {}).get('status')}")
     print(
-        f"  roundtrip: {out.get('roundtrip', {}).get('status')}"
-        f"  latency={out.get('roundtrip', {}).get('latency_ms')}ms"
+        f"  roundtrip: {out.get('roundtrip', {}).get('status')}  latency={out.get('roundtrip', {}).get('latency_ms')}ms"
     )
     for issue in out.get("issues", []):
         print(f"  ISSUE: {issue}")

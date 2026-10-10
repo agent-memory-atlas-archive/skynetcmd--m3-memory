@@ -2,6 +2,7 @@
 """
 test_fips_integrity.py — Validation suite for FIPS-ready crypto abstraction.
 """
+
 import base64
 import ctypes
 import hashlib
@@ -22,6 +23,7 @@ class MockCFunction:
 
     def __call__(self, *args, **kwargs):
         return self.func(*args, **kwargs)
+
 
 class MockLibWolf:
     def __init__(self):
@@ -63,6 +65,7 @@ class MockLibWolf:
         iv_bytes = ctypes.string_at(iv, ivSz)
 
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
         aesgcm = AESGCM(key)
         full_enc = aesgcm.encrypt(iv_bytes, in_bytes, None)
 
@@ -81,6 +84,7 @@ class MockLibWolf:
         tag_bytes = ctypes.string_at(tag, tagSz)
 
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
         aesgcm = AESGCM(key)
         decrypted = aesgcm.decrypt(iv_bytes, in_bytes + tag_bytes, None)
 
@@ -96,6 +100,7 @@ class MockLibWolf:
     def _wc_PBKDF2(self, out, passwd, pLen, salt, sLen, iters, kLen, typeH):
         from cryptography.hazmat.primitives import hashes
         from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
         pw = ctypes.string_at(passwd, pLen)
         slt = ctypes.string_at(salt, sLen)
         kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=kLen, salt=slt, iterations=iters)
@@ -109,6 +114,7 @@ class MockLibWolf:
     def _PRIVATE_KEY_UNLOCK(self):
         pass
 
+
 if os.environ.get("M3_CRYPTO_BACKEND") == "WOLFSSL" or os.environ.get("M3_FIPS_MODE") == "1":
     try:
         lib_name = "libwolfssl.so" if not is_windows() else "wolfssl.dll"
@@ -116,10 +122,12 @@ if os.environ.get("M3_CRYPTO_BACKEND") == "WOLFSSL" or os.environ.get("M3_FIPS_M
     except OSError:
         print("--- Real wolfSSL library not found. Applying MockLibWolf for unit test parity. ---")
         mock_lib = MockLibWolf()
+
         def mock_cdll(name, *args, **kwargs):
             if "wolfssl" in name.lower() or "libwolfssl" in name.lower():
                 return mock_lib
             raise OSError(f"Mock CDLL: library {name} not found")
+
         ctypes.CDLL = mock_cdll  # type: ignore[assignment,misc]  # deliberate test monkeypatch of the CDLL loader
 
 # Add bin to path
@@ -209,6 +217,7 @@ class TestFipsIntegrity(unittest.TestCase):
         # Should not allow old versions
         if hasattr(ssl, "OP_NO_TLSv1"):
             self.assertTrue(ctx.options & ssl.OP_NO_TLSv1)
+
 
 if __name__ == "__main__":
     print(f"--- FIPS Readiness Validation (Backend: {provider.backend}) ---")

@@ -5,6 +5,7 @@ Verifies:
 2. get_bitemporal_timeline_impl constructs a correct consolidated chronological change timeline and active delta state.
 3. Fallback logic resolves identical structures regardless of whether Polars is present.
 """
+
 from __future__ import annotations
 
 import os
@@ -29,6 +30,7 @@ def test_compute_bitemporal_diffs_logic():
     # Run the standard logic
     res_json = history.compute_bitemporal_diffs_impl(history_rows)
     import json
+
     res = json.loads(res_json)
 
     # Convert list of dicts to a dict for verification
@@ -57,6 +59,7 @@ def test_compute_bitemporal_diffs_polars_fallback(monkeypatch):
     # 2. Polars result (mocked or real)
     try:
         import polars  # noqa: F401 - availability probe; only has_polars is used
+
         has_polars = True
     except ImportError:
         has_polars = False
@@ -68,17 +71,21 @@ def test_compute_bitemporal_diffs_polars_fallback(monkeypatch):
 
 def json_normalize(json_str: str) -> list[dict]:
     import json
+
     data = json.loads(json_str)
     return sorted(data, key=lambda x: (x["memory_id"], x["field"]))
 
 
 def test_get_bitemporal_timeline_empty(monkeypatch):
     """get_bitemporal_timeline_impl returns standard message when no history exists."""
+
     class MockDB:
         def __enter__(self):
             return self
+
         def __exit__(self, exc_type, exc_val, exc_tb):
             pass
+
         def execute(self, sql, *args):
             mock_res = mock.Mock()
             mock_res.fetchall.return_value = []
@@ -92,11 +99,14 @@ def test_get_bitemporal_timeline_empty(monkeypatch):
 
 def test_get_bitemporal_timeline_populated(monkeypatch):
     """get_bitemporal_timeline_impl formats raw history into a clean bitemporal change timeline."""
+
     class MockDB:
         def __enter__(self):
             return self
+
         def __exit__(self, exc_type, exc_val, exc_tb):
             pass
+
         def execute(self, sql, *args):
             mock_res = mock.Mock()
             mock_res.fetchall.return_value = [
@@ -106,7 +116,7 @@ def test_get_bitemporal_timeline_populated(monkeypatch):
                     "field": "title",
                     "prev_value": "A",
                     "new_value": "B",
-                    "created_at": "2026-06-01T00:00:00Z"
+                    "created_at": "2026-06-01T00:00:00Z",
                 },
                 {
                     "id": 2,
@@ -114,8 +124,8 @@ def test_get_bitemporal_timeline_populated(monkeypatch):
                     "field": "title",
                     "prev_value": "B",
                     "new_value": "C",
-                    "created_at": "2026-06-01T00:05:00Z"
-                }
+                    "created_at": "2026-06-01T00:05:00Z",
+                },
             ]
             return mock_res
 

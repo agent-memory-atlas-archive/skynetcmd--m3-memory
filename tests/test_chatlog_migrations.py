@@ -12,8 +12,7 @@ def test_bootstrap_migration_creates_schema(tmp_path):
 
     # Read and execute bootstrap SQL
     migrations_dir = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "memory", "chatlog_migrations"
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "memory", "chatlog_migrations"
     )
     bootstrap_up = os.path.join(migrations_dir, "001_bootstrap.up.sql")
 
@@ -50,8 +49,7 @@ def test_bootstrap_migration_rollback(tmp_path):
     cursor = conn.cursor()
 
     migrations_dir = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "memory", "chatlog_migrations"
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "memory", "chatlog_migrations"
     )
 
     # Apply up
@@ -83,8 +81,7 @@ def test_indexes_migration_creates_indexes(tmp_path):
     cursor = conn.cursor()
 
     migrations_dir = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "memory", "chatlog_migrations"
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "memory", "chatlog_migrations"
     )
 
     # Apply bootstrap first
@@ -120,8 +117,7 @@ def test_indexes_migration_rollback(tmp_path):
     cursor = conn.cursor()
 
     migrations_dir = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "memory", "chatlog_migrations"
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "memory", "chatlog_migrations"
     )
 
     # Apply both up
@@ -165,8 +161,7 @@ def test_fts_table_created(tmp_path):
     cursor = conn.cursor()
 
     migrations_dir = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "memory", "chatlog_migrations"
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "memory", "chatlog_migrations"
     )
 
     bootstrap_up = os.path.join(migrations_dir, "001_bootstrap.up.sql")
@@ -192,8 +187,7 @@ def test_triggers_created_in_bootstrap(tmp_path):
     cursor = conn.cursor()
 
     migrations_dir = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "memory", "chatlog_migrations"
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "memory", "chatlog_migrations"
     )
 
     bootstrap_up = os.path.join(migrations_dir, "001_bootstrap.up.sql")
@@ -215,8 +209,7 @@ def test_triggers_created_in_bootstrap(tmp_path):
 def test_migration_files_exist():
     """Expected migration files exist."""
     migrations_dir = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "memory", "chatlog_migrations"
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "memory", "chatlog_migrations"
     )
 
     assert os.path.isdir(migrations_dir)

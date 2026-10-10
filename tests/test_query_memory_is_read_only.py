@@ -4,6 +4,7 @@ It never commits; a mutating statement used to vanish when the connection went
 back to the pool. PRAGMA query_only now makes it raise, and the pool gets the
 connection back writable.
 """
+
 from __future__ import annotations
 
 import sqlite3

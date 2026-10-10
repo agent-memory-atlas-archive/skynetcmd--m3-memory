@@ -1,4 +1,5 @@
 """m3_core.monitoring.stage_timing: per-stage timing on sys.monitoring (PEP 669)."""
+
 from __future__ import annotations
 
 import asyncio
@@ -41,6 +42,7 @@ def test_nested_stages_split_self_time():
 
 def test_concurrent_invocations_of_one_coroutine_are_timed_apart():
     """Frame identity, not the code object, pairs a start with its return."""
+
     async def main():
         return await asyncio.gather(slow(1), slow(2))
 
@@ -143,8 +145,9 @@ def test_search_profile_times_a_real_search_on_each_backend(each_backend):
     # a word no other row has, deleted afterwards: on PostgreSQL the store is a
     # shared database that outlives the test.
     word = f"zq{uuid.uuid4().hex[:12]}"
-    out = asyncio.run(mc.memory_write_impl(type="note", content=f"the server listens on {word}",
-                                           title=f"server {word}", embed=False))
+    out = asyncio.run(
+        mc.memory_write_impl(type="note", content=f"the server listens on {word}", title=f"server {word}", embed=False)
+    )
     mid = re.search(r"[0-9a-f-]{36}", str(out)).group(0)
     try:
         out = asyncio.run(sp.search_profile_impl(word, k=5, search_mode="keyword"))

@@ -33,6 +33,7 @@ seen, which is correct — a partial tail beats a lock.
     python bin/chatlog_timing.py --since 2026-09-09T02:40 --slowest 10
     python bin/chatlog_timing.py --conversation <uuid> --json
 """
+
 from __future__ import annotations
 
 import argparse
@@ -49,11 +50,12 @@ import sys
 # with ModuleNotFoundError: m3_core the moment the file is moved.
 def _find_bin() -> str | None:
     here = os.path.dirname(os.path.abspath(__file__))
-    cands = [here,
-             os.environ.get("M3_PATH_BIN") or "",
-             os.path.expanduser("~/.m3-dev/m3-memory/bin"),
-             os.path.expanduser(
-                 "~/pipx/venvs/m3-memory/Lib/site-packages/m3_memory/bin")]
+    cands = [
+        here,
+        os.environ.get("M3_PATH_BIN") or "",
+        os.path.expanduser("~/.m3-dev/m3-memory/bin"),
+        os.path.expanduser("~/pipx/venvs/m3-memory/Lib/site-packages/m3_memory/bin"),
+    ]
     for c in cands:
         if c and os.path.isfile(os.path.join(c, "memory_bridge.py")):
             return c
@@ -66,7 +68,8 @@ if _BIN and _BIN not in sys.path:
 elif not _BIN:
     raise SystemExit(
         "[X] cannot locate the m3 payload bin/ (looked next to this file, "
-        "$M3_PATH_BIN, ~/.m3-dev/m3-memory/bin, and the pipx payload).")
+        "$M3_PATH_BIN, ~/.m3-dev/m3-memory/bin, and the pipx payload)."
+    )
 
 
 def _query(sql_tail: str, params: list) -> list[tuple]:
@@ -107,11 +110,11 @@ def _query(sql_tail: str, params: list) -> list[tuple]:
 def _rows(args) -> list[dict]:
     """Turns in scope, oldest first."""
     from memory.backends import active_backend
+
     p = active_backend().dialect().placeholder(1)
 
     where, params = ["type = 'chat_log'"], []
-    for col, val in (("conversation_id", args.conversation), ("agent_id", args.agent),
-                     ("model_id", args.model)):
+    for col, val in (("conversation_id", args.conversation), ("agent_id", args.agent), ("model_id", args.model)):
         if val:
             where.append(f"{col} = {p}")
             params.append(val)
@@ -126,14 +129,18 @@ def _rows(args) -> list[dict]:
     clen = active_backend().dialect().byte_length("content")
     got = _query(
         f"SELECT created_at, title, agent_id, model_id, {clen} "
-        "FROM {T} WHERE " + " AND ".join(where) +
-        " ORDER BY created_at DESC LIMIT {p}",
+        "FROM {T} WHERE " + " AND ".join(where) + " ORDER BY created_at DESC LIMIT {p}",
         params,
     )
     return [
-        {"created_at": str(r[0]), "title": r[1] or "", "agent_id": r[2] or "",
-         "model_id": r[3] or "", "chars": r[4] or 0}
-        for r in reversed(got)          # DESC+LIMIT takes the TAIL, then re-sort ASC
+        {
+            "created_at": str(r[0]),
+            "title": r[1] or "",
+            "agent_id": r[2] or "",
+            "model_id": r[3] or "",
+            "chars": r[4] or 0,
+        }
+        for r in reversed(got)  # DESC+LIMIT takes the TAIL, then re-sort ASC
     ]
 
 
@@ -148,22 +155,23 @@ def _annotate(rows: list[dict]) -> list[dict]:
         # went somewhere other than visible output — tool calls, or an Edit
         # whose old_string had to be reproduced verbatim. Both are generated
         # tokens that never appear in the reply.
-        r["ch_per_s"] = (round(r["chars"] / r["gap_s"]) if r["gap_s"] else None)
+        r["ch_per_s"] = round(r["chars"] / r["gap_s"]) if r["gap_s"] else None
         prev = t
     return rows
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--conversation", default="", help="conversation_id to scope to "
-                    "(default: the most recent one — see the concurrency note)")
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument(
+        "--conversation",
+        default="",
+        help="conversation_id to scope to (default: the most recent one — see the concurrency note)",
+    )
     ap.add_argument("--since", default="", help="ISO timestamp lower bound")
     ap.add_argument("--last", type=int, default=40, help="max turns (default 40)")
     ap.add_argument("--agent", default="", help="filter by agent_id")
     ap.add_argument("--model", default="", help="filter by model_id")
-    ap.add_argument("--slowest", type=int, default=0,
-                    help="also print the N slowest turns")
+    ap.add_argument("--slowest", type=int, default=0, help="also print the N slowest turns")
     ap.add_argument("--json", action="store_true", help="machine-readable output")
     args = ap.parse_args(argv)
 
@@ -174,7 +182,9 @@ def main(argv: list[str] | None = None) -> int:
         got = _query(
             "SELECT conversation_id FROM {T} "
             "WHERE type='chat_log' AND conversation_id IS NOT NULL "
-            "ORDER BY created_at DESC LIMIT {p}", [1])
+            "ORDER BY created_at DESC LIMIT {p}",
+            [1],
+        )
         if got:
             args.conversation = got[0][0]
 
@@ -192,23 +202,23 @@ def main(argv: list[str] | None = None) -> int:
     for r in rows:
         gap = f"{r['gap_s']:.1f}s" if r["gap_s"] is not None else "-"
         rate = f"{r['ch_per_s']}" if r["ch_per_s"] else "-"
-        print(f"{r['created_at'][11:23]} {gap:>8} {r['role']:9} "
-              f"{r['chars']:>7} {rate:>6}  {r['title'][:52]}")
+        print(f"{r['created_at'][11:23]} {gap:>8} {r['role']:9} {r['chars']:>7} {rate:>6}  {r['title'][:52]}")
 
     # Attribution: the whole point is separating agent time from everything else.
     asst = [r for r in rows if r["role"] == "assistant" and r["gap_s"]]
     total = sum(r["gap_s"] for r in rows if r["gap_s"])
     a_time = sum(r["gap_s"] for r in asst)
     print()
-    print(f"span {total:.0f}s · assistant turns {a_time:.0f}s "
-          f"({100*a_time/total:.0f}%) across {len(asst)} turns · "
-          f"{sum(r['chars'] for r in asst):,} chars")
+    print(
+        f"span {total:.0f}s · assistant turns {a_time:.0f}s "
+        f"({100 * a_time / total:.0f}%) across {len(asst)} turns · "
+        f"{sum(r['chars'] for r in asst):,} chars"
+    )
 
     if args.slowest:
         print(f"\nslowest {args.slowest}:")
         for r in sorted(asst, key=lambda x: -x["gap_s"])[: args.slowest]:
-            print(f"  {r['gap_s']:6.1f}s  {r['chars']:>6}ch  "
-                  f"{r['ch_per_s'] or '-':>5} ch/s  {r['title'][:48]}")
+            print(f"  {r['gap_s']:6.1f}s  {r['chars']:>6}ch  {r['ch_per_s'] or '-':>5} ch/s  {r['title'][:48]}")
     return 0
 
 

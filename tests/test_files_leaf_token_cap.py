@@ -16,6 +16,7 @@ text.py's MAX_CHARS=2400 is safe only by accident.
 
 Hermetic: pure chunker-level tests, no DB, no embedder, no filesystem.
 """
+
 from __future__ import annotations
 
 import pathlib
@@ -33,8 +34,11 @@ from memory.tokens import estimate_tokens  # noqa: E402
 
 def _leaf(text: str) -> Leaf:
     return Leaf(
-        text=text, division_type="heading", division_id="h1",
-        char_range_start=0, char_range_end=len(text),
+        text=text,
+        division_type="heading",
+        division_id="h1",
+        char_range_start=0,
+        char_range_end=len(text),
     )
 
 
@@ -112,6 +116,7 @@ class TestLeafTokenCap(unittest.TestCase):
         import inspect
 
         from files_memory import chunkers
+
         src = inspect.getsource(chunkers)
         self.assertIn("FILES_MAX_LEAF_TOKENS", src)
 
@@ -121,8 +126,8 @@ class TestLeafTokenCap(unittest.TestCase):
         import inspect
 
         from files_memory import chunkers
-        self.assertIn("_enforce_leaf_token_cap",
-                      inspect.getsource(chunkers.chunk_file))
+
+        self.assertIn("_enforce_leaf_token_cap", inspect.getsource(chunkers.chunk_file))
 
 
 if __name__ == "__main__":

@@ -27,16 +27,18 @@ except ImportError:
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger("homecoming")
 
+
 def get_size_mb(path):
     if os.path.isfile(path):
         return os.path.getsize(path) / (1024 * 1024)
     elif os.path.isdir(path):
         total = 0
-        for p in Path(path).rglob('*'):
+        for p in Path(path).rglob("*"):
             if p.is_file():
                 total += p.stat().st_size
         return total / (1024 * 1024)
     return 0
+
 
 def get_legacy_assets():
     """Identify legacy assets from repository clone's memory/ folder OR old ~/.m3-memory/
@@ -74,6 +76,7 @@ def get_legacy_assets():
 
     return assets
 
+
 def backup_db(src, dst):
     """WAL-safe, verified copy of a legacy SQLite DB to its new location.
 
@@ -84,6 +87,7 @@ def backup_db(src, dst):
     counts = snapshot_sqlite(src, dst)
     logger.info(f"Copied {os.path.basename(src)} (verified: {len(counts)} tables match)")
 
+
 def main():
     config_root = get_m3_config_root()
     engine_root = get_m3_engine_root()
@@ -92,7 +96,9 @@ def main():
 
     assets = get_legacy_assets()
     if not assets:
-        logger.info("No legacy assets found in repository or old ~/.m3-memory/. Current configuration is already standard.")
+        logger.info(
+            "No legacy assets found in repository or old ~/.m3-memory/. Current configuration is already standard."
+        )
         return None
 
     failed = []
@@ -142,8 +148,10 @@ def main():
                 _rewrite_chatlog_db_path(dst, engine_root)
 
     if failed:
-        logger.error(f"\nMigration INCOMPLETE — failed: {', '.join(failed)}. "
-                     "The legacy files are untouched; fix the cause and re-run.")
+        logger.error(
+            f"\nMigration INCOMPLETE — failed: {', '.join(failed)}. "
+            "The legacy files are untouched; fix the cause and re-run."
+        )
         return 1
 
     logger.info("\nMigration (Data & Configuration) completed.")
@@ -211,6 +219,7 @@ def _print_post_migration_checklist(config_root, engine_root):
         "   their env, then run `m3 doctor` / `/m3:health` to confirm the new root."
     )
     logger.info(sep)
+
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -68,6 +68,7 @@ are excluded from this sweep. Promotion graduates a turn out of the
 ephemeral regime entirely.
 
 """
+
 from __future__ import annotations
 
 import argparse
@@ -93,9 +94,11 @@ def resolve_db_path(cli_arg: str | None) -> str:
     # m3_cognitive_loop), then the generic M3_DATABASE. CHATLOG_DB_PATH was
     # previously skipped entirely — setting it and running decay silently
     # pointed at M3_DATABASE instead of the chatlog DB.
-    env = (getenv_compat("M3_CHATLOG_DB", "CHATLOG_DB")
-           or getenv_compat("M3_CHATLOG_DB_PATH", "CHATLOG_DB_PATH")
-           or os.environ.get("M3_DATABASE"))
+    env = (
+        getenv_compat("M3_CHATLOG_DB", "CHATLOG_DB")
+        or getenv_compat("M3_CHATLOG_DB_PATH", "CHATLOG_DB_PATH")
+        or os.environ.get("M3_DATABASE")
+    )
     if env:
         return os.path.abspath(env)
     # Default: bench worktree's standard chatlog location
@@ -107,12 +110,12 @@ def resolve_db_path(cli_arg: str | None) -> str:
 # ── Ephemeral classification ───────────────────────────────────────────────
 _PID_OR_UUID_RE = re.compile(
     r"(?:"
-    r"\bPID\s*\d+"                                      # PID 1234
+    r"\bPID\s*\d+"  # PID 1234
     r"|\bprocess[_\s]+id[\s:=]*\d+"
     r"|\bport\s*\d{4,5}"
-    r"|\bbatches/[A-Za-z0-9_-]{12,}"                    # batch ids
+    r"|\bbatches/[A-Za-z0-9_-]{12,}"  # batch ids
     r"|\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b"  # uuid
-    r"|/tmp/[A-Za-z0-9._/-]+"                           # /tmp paths (no \b before /)
+    r"|/tmp/[A-Za-z0-9._/-]+"  # /tmp paths (no \b before /)
     r"|AppData[\\\\/]+Local[\\\\/]+Temp"
     r")",
     re.IGNORECASE,
@@ -127,10 +130,24 @@ _STATUS_RE = re.compile(
     r")",
     re.IGNORECASE,
 )
-_SHORT_COMMAND_WORDS = frozenset({
-    "status", "start", "stop", "go", "yes", "y", "ok", "proceed", "continue",
-    "do it", "kick off", "run it", "fire", "fire it",
-})
+_SHORT_COMMAND_WORDS = frozenset(
+    {
+        "status",
+        "start",
+        "stop",
+        "go",
+        "yes",
+        "y",
+        "ok",
+        "proceed",
+        "continue",
+        "do it",
+        "kick off",
+        "run it",
+        "fire",
+        "fire it",
+    }
+)
 _REFUSAL_WORDS = frozenset({"no", "stop", "kill", "abort", "wait", "hold"})
 
 
@@ -189,7 +206,7 @@ def _decay_decision(role: str, content: str, age_days: float, now_ts: float):
 
     # General-ephemeral schedule
     if age_days < 1.0:
-        return 1.00, None, "ephemeral_fresh"   # no change yet
+        return 1.00, None, "ephemeral_fresh"  # no change yet
     if age_days < 3.0:
         return 0.50, None, "ephemeral_aging_1"
     if age_days < 7.0:
@@ -208,6 +225,7 @@ def _has_column(conn, dialect, table: str, col: str) -> bool:
 def run_sweep(db_path: str, *, apply: bool, batch_size: int = 1000) -> dict:
     """Walk all chat_log rows, apply decay decisions, return a summary."""
     from m3_core.paths import store_is_a_file
+
     # Only a file-per-database backend has a file to find.
     if store_is_a_file() and not os.path.exists(db_path):
         return {"error": f"DB not found: {db_path}"}
@@ -218,7 +236,7 @@ def run_sweep(db_path: str, *, apply: bool, batch_size: int = 1000) -> dict:
         "apply": apply,
         "scanned": 0,
         "skip_promoted": 0,
-        "unflagged_role": 0,    # rows whose title didn't match `<role>@<host>:` convention
+        "unflagged_role": 0,  # rows whose title didn't match `<role>@<host>:` convention
         "by_category": {},
         "applied_writes": 0,
         "errors": [],
@@ -245,26 +263,27 @@ def run_sweep(db_path: str, *, apply: bool, batch_size: int = 1000) -> dict:
         _tbl = chatlog_table("items")
         _conn_cm = backend.connection()
     with _conn_cm as conn:
-            try:
-                # Sanity: schema must have the columns we touch.
-                # NOTE: chatlog has no top-level `role` column. We derive role from
-                # the `title` prefix using the `<role>@<host_agent>: ...` convention.
-                # See `_extract_role_from_title` in the SQL CASE expression below.
-                for col in ("id", "type", "title", "content", "importance", "created_at"):
-                    if not _has_column(conn, _d, _tbl, col):
-                        return {"error": f"{_tbl}.{col} missing in {db_path}"}
-                has_valid_to = _has_column(conn, _d, _tbl, "valid_to")
+        try:
+            # Sanity: schema must have the columns we touch.
+            # NOTE: chatlog has no top-level `role` column. We derive role from
+            # the `title` prefix using the `<role>@<host_agent>: ...` convention.
+            # See `_extract_role_from_title` in the SQL CASE expression below.
+            for col in ("id", "type", "title", "content", "importance", "created_at"):
+                if not _has_column(conn, _d, _tbl, col):
+                    return {"error": f"{_tbl}.{col} missing in {db_path}"}
+            has_valid_to = _has_column(conn, _d, _tbl, "valid_to")
 
-                # MANDATORY: type='chat_log' filter, regardless of layout (per m3:curate-chatlog policy).
-                # Role is derived from `title` prefix using the `<role>@<host_agent>: ...`
-                # convention enforced by chatlog_core's writer. Empirical match rate vs
-                # metadata_json.role on 1000-row sample: 99.8% (2 mismatches).
-                # Rows whose title doesn't match the convention land in the
-                # "unflagged_role" bucket and are reported separately. They get the
-                # general-ephemeral schedule (short-command decay does not fire on them)
-                # so misclassification is in the safe direction.
-                role_sql, role_params = role_from_title_sql(_d)
-                cur = conn.execute(f"""
+            # MANDATORY: type='chat_log' filter, regardless of layout (per m3:curate-chatlog policy).
+            # Role is derived from `title` prefix using the `<role>@<host_agent>: ...`
+            # convention enforced by chatlog_core's writer. Empirical match rate vs
+            # metadata_json.role on 1000-row sample: 99.8% (2 mismatches).
+            # Rows whose title doesn't match the convention land in the
+            # "unflagged_role" bucket and are reported separately. They get the
+            # general-ephemeral schedule (short-command decay does not fire on them)
+            # so misclassification is in the safe direction.
+            role_sql, role_params = role_from_title_sql(_d)
+            cur = conn.execute(
+                f"""
                     SELECT id,
                            {role_sql} AS role,
                            content,
@@ -272,39 +291,41 @@ def run_sweep(db_path: str, *, apply: bool, batch_size: int = 1000) -> dict:
                            created_at
                     FROM {_tbl}
                     WHERE type='chat_log' AND is_deleted=0
-                """, role_params)
+                """,
+                role_params,
+            )
 
-                write_buffer = []
-                for row in cur:
-                    summary["scanned"] += 1
-                    role = row["role"] or ""
-                    if role == "":
-                        summary["unflagged_role"] += 1
-                    content = row["content"] or ""
-                    cur_imp = float(row["importance"]) if row["importance"] is not None else 0.3
-                    age = _age_days(row["created_at"], now_ts)
+            write_buffer = []
+            for row in cur:
+                summary["scanned"] += 1
+                role = row["role"] or ""
+                if role == "":
+                    summary["unflagged_role"] += 1
+                content = row["content"] or ""
+                cur_imp = float(row["importance"]) if row["importance"] is not None else 0.3
+                age = _age_days(row["created_at"], now_ts)
 
-                    factor, retire_at, category = _decay_decision(role, content, age, now_ts)
-                    if category is None:
-                        continue
-                    summary["by_category"][category] = summary["by_category"].get(category, 0) + 1
+                factor, retire_at, category = _decay_decision(role, content, age, now_ts)
+                if category is None:
+                    continue
+                summary["by_category"][category] = summary["by_category"].get(category, 0) + 1
 
-                    new_imp = round(cur_imp * factor, 4)
-                    if abs(new_imp - cur_imp) < 0.001 and retire_at is None:
-                        continue   # no-op (e.g., ephemeral_fresh with factor=1.0)
+                new_imp = round(cur_imp * factor, 4)
+                if abs(new_imp - cur_imp) < 0.001 and retire_at is None:
+                    continue  # no-op (e.g., ephemeral_fresh with factor=1.0)
 
-                    write_buffer.append((row["id"], new_imp, retire_at))
-                    if len(write_buffer) >= batch_size:
-                        summary["applied_writes"] += _flush(conn, _tbl, _p, write_buffer, apply, has_valid_to)
-                        write_buffer.clear()
-
-                if write_buffer:
+                write_buffer.append((row["id"], new_imp, retire_at))
+                if len(write_buffer) >= batch_size:
                     summary["applied_writes"] += _flush(conn, _tbl, _p, write_buffer, apply, has_valid_to)
+                    write_buffer.clear()
 
-                if apply:
-                    conn.commit()
-            except Exception as exc:
-                summary["errors"].append(repr(exc))
+            if write_buffer:
+                summary["applied_writes"] += _flush(conn, _tbl, _p, write_buffer, apply, has_valid_to)
+
+            if apply:
+                conn.commit()
+        except Exception as exc:
+            summary["errors"].append(repr(exc))
     return summary
 
 
@@ -315,14 +336,12 @@ def _flush(conn, tbl: str, p: str, buf: list[tuple], apply: bool, has_valid_to: 
     for row_id, new_imp, retire_at in buf:
         if retire_at and has_valid_to:
             conn.execute(
-                f"UPDATE {tbl} SET importance={p}, valid_to={p}, updated_at={p} "
-                f"WHERE id={p} AND type='chat_log'",
+                f"UPDATE {tbl} SET importance={p}, valid_to={p}, updated_at={p} WHERE id={p} AND type='chat_log'",
                 (new_imp, retire_at, datetime.now(UTC).isoformat(), row_id),
             )
         else:
             conn.execute(
-                f"UPDATE {tbl} SET importance={p}, updated_at={p} "
-                f"WHERE id={p} AND type='chat_log'",
+                f"UPDATE {tbl} SET importance={p}, updated_at={p} WHERE id={p} AND type='chat_log'",
                 (new_imp, datetime.now(UTC).isoformat(), row_id),
             )
         written += 1

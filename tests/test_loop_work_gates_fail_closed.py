@@ -20,6 +20,7 @@ A gate that cannot read its store does not know that there is work. It must
 say "no work this cycle" and let the next cycle find the backlog once the
 store answers.
 """
+
 from __future__ import annotations
 
 import os
@@ -85,6 +86,5 @@ def test_work_gate_says_why_at_warning(gate_name, args, monkeypatch, caplog):
         f"fail-closed is a gate that never reports why it stopped working."
     )
     assert any("observed:" in r.getMessage() for r in caplog.records), (
-        "the warning must mark measured fact with 'observed:' (§3: state what "
-        "you OBSERVED, mark what you INFERRED)"
+        "the warning must mark measured fact with 'observed:' (§3: state what you OBSERVED, mark what you INFERRED)"
     )

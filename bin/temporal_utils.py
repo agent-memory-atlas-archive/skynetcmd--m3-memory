@@ -3,6 +3,7 @@ Enhanced temporal resolution utility for m3-memory.
 Resolves relative date expressions (yesterday, last Friday, the Sunday before June 1st)
 into absolute ISO-8601 dates based on an anchor timestamp.
 """
+
 from __future__ import annotations
 
 import re
@@ -31,30 +32,31 @@ def parse_anchor_date(date_str: str) -> datetime | None:
     return None
 
 
-DAYS_OF_WEEK = {
-    "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3,
-    "friday": 4, "saturday": 5, "sunday": 6
-}
+DAYS_OF_WEEK = {"monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3, "friday": 4, "saturday": 5, "sunday": 6}
 
 MONTHS = [
-    "january", "february", "march", "april", "may", "june",
-    "july", "august", "september", "october", "november", "december"
+    "january",
+    "february",
+    "march",
+    "april",
+    "may",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
 ]
 
 # Precompiled patterns used by parse_generic_date and resolve_temporal_expressions.
 # Lifted to module scope because these run per-turn at ingest.
-_GENERIC_DATE_MONTH_FIRST_RE = re.compile(
-    r"([a-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?(?:,)?\s+(\d{4})"
-)
-_GENERIC_DATE_DAY_FIRST_RE = re.compile(
-    r"(\d{1,2})(?:st|nd|rd|th)?\s+([a-z]+)\s+(\d{4})"
-)
+_GENERIC_DATE_MONTH_FIRST_RE = re.compile(r"([a-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?(?:,)?\s+(\d{4})")
+_GENERIC_DATE_DAY_FIRST_RE = re.compile(r"(\d{1,2})(?:st|nd|rd|th)?\s+([a-z]+)\s+(\d{4})")
 _COMPLEX_WEEKDAY_REL_RE = re.compile(
     r"the\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+(before|after)\s+([^,.?!]+)"
 )
-_LAST_WEEKDAY_RE = re.compile(
-    r"\blast\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b"
-)
+_LAST_WEEKDAY_RE = re.compile(r"\blast\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b")
 _SIMPLE_REL_PATTERNS: list[tuple[re.Pattern[str], int]] = [
     (re.compile(r"\byesterday\b"), -1),
     (re.compile(r"\btoday\b"), 0),
@@ -66,9 +68,21 @@ _SIMPLE_REL_PATTERNS: list[tuple[re.Pattern[str], int]] = [
 # Conversational text uses "two months ago"/"a couple of weeks ago" far more
 # than bare digits, so word-numbers are not optional.
 _WORDNUM: dict[str, int] = {
-    "a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
-    "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
-    "couple": 2, "few": 3, "several": 3,
+    "a": 1,
+    "an": 1,
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "couple": 2,
+    "few": 3,
+    "several": 3,
 }
 # alternation of all spelled tokens, longest-first not needed (all \w), plus \d+
 _QTY = r"(\d+|" + "|".join(_WORDNUM) + r")"
@@ -107,9 +121,12 @@ _MAX_RELATIVE_DAYS = 365 * 100
 _TEMPORAL_CUE_RES = [
     re.compile(r"\b(when|before|after|how long|timeline|date)\b", re.IGNORECASE),
     re.compile(r"\b(yesterday|today|tomorrow|recently|ago)\b", re.IGNORECASE),
-    re.compile(r"\blast\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday|week|weekend|month)\b", re.IGNORECASE),
+    re.compile(
+        r"\blast\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday|week|weekend|month)\b", re.IGNORECASE
+    ),
 ]
 _ISO_DATE_RE = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
+
 
 def parse_generic_date(text: str) -> datetime | None:
     """Tries to parse a date from a string like 'May 25, 2023' or '25 May 2023'."""
@@ -137,6 +154,7 @@ def parse_generic_date(text: str) -> datetime | None:
 
     return None
 
+
 def resolve_weekday_relative(weekday_name: str, base_date: datetime, direction: str = "before") -> datetime:
     """Finds the nearest [weekday] before or after the base_date."""
     target_weekday = DAYS_OF_WEEK[weekday_name.lower()]
@@ -147,11 +165,12 @@ def resolve_weekday_relative(weekday_name: str, base_date: datetime, direction: 
         if days_diff == 0:
             days_diff = 7
         return base_date - timedelta(days=days_diff)
-    else: # after
+    else:  # after
         days_diff = (target_weekday - current_weekday) % 7
         if days_diff == 0:
             days_diff = 7
         return base_date + timedelta(days=days_diff)
+
 
 def resolve_temporal_expressions(text: str, anchor_date: datetime | str) -> list[dict[str, Any]]:
     """
@@ -172,10 +191,7 @@ def resolve_temporal_expressions(text: str, anchor_date: datetime | str) -> list
         base_date = parse_generic_date(date_part)
         if base_date:
             resolved = resolve_weekday_relative(weekday, base_date, direction)
-            results.append({
-                "ref": match.group(0),
-                "absolute": resolved.date().isoformat()
-            })
+            results.append({"ref": match.group(0), "absolute": resolved.date().isoformat()})
 
     # 2. Simple relative: "yesterday", "today", "tomorrow", "recently"
     # finditer instead of search so every occurrence contributes a result —
@@ -183,10 +199,7 @@ def resolve_temporal_expressions(text: str, anchor_date: datetime | str) -> list
     for pattern, days in _SIMPLE_REL_PATTERNS:
         for match in pattern.finditer(text_lower):
             resolved = anchor + timedelta(days=days)
-            results.append({
-                "ref": match.group(0),
-                "absolute": resolved.date().isoformat()
-            })
+            results.append({"ref": match.group(0), "absolute": resolved.date().isoformat()})
 
     # 3. Numeric relative: "N days/weeks/months/years ago"
     # Guard against overflow: "99999999999 months ago" would raise
@@ -200,30 +213,21 @@ def resolve_temporal_expressions(text: str, anchor_date: datetime | str) -> list
                 if abs(delta.days) > _MAX_RELATIVE_DAYS:
                     continue
                 resolved = anchor - delta
-                results.append({
-                    "ref": match.group(0),
-                    "absolute": resolved.date().isoformat()
-                })
+                results.append({"ref": match.group(0), "absolute": resolved.date().isoformat()})
             except (OverflowError, ValueError):
                 continue
 
     # 4. "last [weekday]"
     for match in _LAST_WEEKDAY_RE.finditer(text_lower):
         resolved = resolve_weekday_relative(match.group(1), anchor, "before")
-        results.append({
-            "ref": match.group(0),
-            "absolute": resolved.date().isoformat()
-        })
+        results.append({"ref": match.group(0), "absolute": resolved.date().isoformat()})
 
     # 5. "last weekend", "last week", "next month", "last month"
     # Same finditer fix as _SIMPLE_REL_PATTERNS above.
     for pattern, resolver in _STATIC_REL_PATTERNS:
         for match in pattern.finditer(text_lower):
             resolved = resolver(anchor)
-            results.append({
-                "ref": match.group(0),
-                "absolute": resolved.date().isoformat()
-            })
+            results.append({"ref": match.group(0), "absolute": resolved.date().isoformat()})
 
     return results
 
@@ -270,10 +274,23 @@ _RELATIVE_TIME_RE = re.compile(
 )
 
 _TEMPORAL_KEYWORDS = (
-    "how many days", "how many weeks", "how many months", "how many years",
-    "how long", "when did", "what date", "which came first", "in what order",
-    "before or after", "earlier", "later", "first to last", "last to first",
-    "chronological", "timeline", "sequence",
+    "how many days",
+    "how many weeks",
+    "how many months",
+    "how many years",
+    "how long",
+    "when did",
+    "what date",
+    "which came first",
+    "in what order",
+    "before or after",
+    "earlier",
+    "later",
+    "first to last",
+    "last to first",
+    "chronological",
+    "timeline",
+    "sequence",
 )
 
 _MONTH_INDEX: dict[str, int] = {}

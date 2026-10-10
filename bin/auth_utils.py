@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 _KEYRING_CB_OPEN_UNTIL = 0.0
 _KEYRING_LOCK = threading.Lock()
 
+
 def safe_keyring_get_password(service_name: str, username: str) -> str | None:
     """Wraps keyring.get_password with a single-concurrency lock and 2s timeout.
 
@@ -69,6 +70,7 @@ def _keyring_read(service_name: str, username: str) -> tuple[str | None, str | N
 
     try:
         import keyring
+
         res_queue: queue.Queue[tuple] = queue.Queue()
 
         def _target():
@@ -101,6 +103,7 @@ def _keyring_read(service_name: str, username: str) -> tuple[str | None, str | N
         return None, f"keyring: unavailable ({type(e).__name__}: {e})"
     finally:
         _KEYRING_LOCK.release()
+
 
 def _keyring_store(service: str, value: str) -> str | None:
     """Write one secret to the OS keyring (service "system", as the reader uses).
@@ -147,6 +150,7 @@ def _vault_db_path() -> str:
     """
     try:
         from m3_sdk import resolve_db_path
+
         return resolve_db_path(None)
     except ImportError:
         return DB_PATH
@@ -180,6 +184,7 @@ def _seam_is_being_built() -> bool:
         f = f.f_back
     return False
 
+
 def _backend():
     """The active storage backend, or a minimal SQLite-only shim.
 
@@ -200,6 +205,7 @@ def _backend():
     if not _seam_is_being_built():
         try:
             from memory.backends import active_backend
+
             return active_backend()
         except ImportError:  # bootstrap: seam not importable yet
             pass
@@ -222,8 +228,6 @@ def _backend():
     return _SqliteOnlyShim()
 
 
-
-
 def _dialect_param() -> str:
     """The active backend's bind placeholder ('?' on SQLite, '%s' on PG).
 
@@ -235,6 +239,7 @@ def _dialect_param() -> str:
         return "?"
     try:
         from memory.backends import dialect
+
         return dialect().param()
     except ImportError:  # bootstrap: seam not importable yet
         return "?"
@@ -257,7 +262,10 @@ def get_master_key() -> str | None:
         try:
             result = subprocess.run(
                 ["security", "find-generic-password", "-s", "AGENT_OS_MASTER_KEY", "-w"],
-                capture_output=True, text=True, check=True, timeout=5,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=5,
                 **no_window_kwargs(),
             )
             return result.stdout.strip()
@@ -291,9 +299,7 @@ def _vault_has_secrets() -> bool:
         # prevent. open_readonly() is backend-blind (SQLite honors db_path, PG
         # ignores it and yields a pooled connection).
         with _backend().open_readonly(vault_path) as conn:
-            row = conn.execute(
-                "SELECT 1 FROM synchronized_secrets LIMIT 1"
-            ).fetchone()
+            row = conn.execute("SELECT 1 FROM synchronized_secrets LIMIT 1").fetchone()
             return row is not None
     except Exception:  # noqa: BLE001 — missing table / locked / unreadable → treat as empty
         return False
@@ -402,6 +408,7 @@ def _get_device_salt() -> bytes:
 _PBKDF2_ITERATIONS = 600_000
 _PBKDF2_LEGACY_ITERATIONS = 100_000
 
+
 def _derive_raw_key(master_key: str, iterations: int = _PBKDF2_ITERATIONS) -> bytes:
     """
     Derives a raw 32-byte key from the master key using PBKDF2-HMAC-SHA256.
@@ -459,12 +466,14 @@ def _decrypt_token(token_str: str, master_key: str, iterations: int = _PBKDF2_IT
             except Exception:
                 # Try legacy Fernet
                 from cryptography.fernet import Fernet
+
                 f_key = base64.urlsafe_b64encode(key)
                 return Fernet(f_key).decrypt(raw_token).decode("utf-8")
             finally:
                 crypto.lock_key()
     except Exception:
         return None
+
 
 def _encrypt_value(value: str, master_key: str) -> str:
     """Encrypts a value using the modern AES-GCM provider. Protected by global sync."""
@@ -483,8 +492,9 @@ def _sanitize_service(service: str) -> str:
     Removes any characters that could be used for shell or PowerShell injection.
     Uses NFKC normalization to prevent bypass via similar-looking Unicode chars (H10).
     """
-    normalized = unicodedata.normalize('NFKC', service)
-    return re.sub(r'[^a-zA-Z0-9_\-]', '', normalized)
+    normalized = unicodedata.normalize("NFKC", service)
+    return re.sub(r"[^a-zA-Z0-9_\-]", "", normalized)
+
 
 def get_api_key(service: str | None) -> str | None:
     """
@@ -527,7 +537,10 @@ def _keyring_tier(service: str) -> tuple[str | None, str | None]:
         try:
             result = subprocess.run(
                 ["security", "find-generic-password", "-s", service, "-w"],
-                capture_output=True, text=True, check=True, timeout=5,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=5,
                 **no_window_kwargs(),
             )
             return result.stdout.strip(), None
@@ -544,10 +557,18 @@ def _keyring_tier(service: str) -> tuple[str | None, str | None]:
         # Check if D-Bus Secret Service is available before silent failures
         try:
             result = subprocess.run(
-                ["dbus-send", "--session", "--dest=org.freedesktop.DBus",
-                 "--type=method_call", "--print-reply",
-                 "/org/freedesktop/DBus", "org.freedesktop.DBus.ListNames"],
-                capture_output=True, text=True, timeout=3,
+                [
+                    "dbus-send",
+                    "--session",
+                    "--dest=org.freedesktop.DBus",
+                    "--type=method_call",
+                    "--print-reply",
+                    "/org/freedesktop/DBus",
+                    "org.freedesktop.DBus.ListNames",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=3,
                 **no_window_kwargs(),
             )
             if "org.freedesktop.secrets" not in result.stdout:
@@ -572,8 +593,9 @@ def _file_tier(service: str) -> tuple[str | None, str | None]:
             if val:
                 return val, None
         except SecretsFileError as e:
-            logger.error(f"Secrets file refused while resolving {service}: {e}. "
-                         "Not read; falling through to the vault.")
+            logger.error(
+                f"Secrets file refused while resolving {service}: {e}. Not read; falling through to the vault."
+            )
             return None, f"secrets file: {e}"
     except ImportError:
         logger.debug("m3_core.secret_store not importable (installer bootstrap); skipping the secrets file")
@@ -599,8 +621,7 @@ def _vault_tier(service: str) -> tuple[str | None, str | None]:
         conn = _cm.__enter__()
         cur = conn.cursor()
         cur.execute(
-            f"SELECT encrypted_value FROM synchronized_secrets "
-            f"WHERE service_name = {_p}",
+            f"SELECT encrypted_value FROM synchronized_secrets WHERE service_name = {_p}",
             (service,),
         )
         row = cur.fetchone()
@@ -662,6 +683,7 @@ def _vault_tier(service: str) -> tuple[str | None, str | None]:
 
     return None, error
 
+
 def _reencrypt_vault_row(service: str, plaintext: str, master_key: str) -> None:
     """Rewrite one legacy vault row in the current AES-GCM / PBKDF2 format.
 
@@ -673,8 +695,9 @@ def _reencrypt_vault_row(service: str, plaintext: str, master_key: str) -> None:
     backend = _backend()
     still = "It is still readable in the legacy format; the next read retries."
     if not hasattr(backend, "connection"):  # installer-bootstrap shim: read-only
-        logger.warning(f"Legacy vault row '{service}' not re-encrypted: no writable store yet "
-                       f"(installer bootstrap). {still}")
+        logger.warning(
+            f"Legacy vault row '{service}' not re-encrypted: no writable store yet (installer bootstrap). {still}"
+        )
         return
     store = type(backend).__name__
     conn = None
@@ -693,12 +716,15 @@ def _reencrypt_vault_row(service: str, plaintext: str, master_key: str) -> None:
         if cur.rowcount == 1:
             logger.info(f"Re-encrypted legacy vault row '{service}' in the current format.")
         else:
-            logger.warning(f"Legacy vault row '{service}' not re-encrypted: the UPDATE on {store} "
-                           f"matched {cur.rowcount} rows, expected 1 (the row was read from a "
-                           f"different store?). {still}")
+            logger.warning(
+                f"Legacy vault row '{service}' not re-encrypted: the UPDATE on {store} "
+                f"matched {cur.rowcount} rows, expected 1 (the row was read from a "
+                f"different store?). {still}"
+            )
     except Exception as e:  # noqa: BLE001 -- the read already succeeded; report, do not raise
-        logger.warning(f"Legacy vault row '{service}' could not be re-encrypted on {store}: "
-                       f"{type(e).__name__}: {e}. {still}")
+        logger.warning(
+            f"Legacy vault row '{service}' could not be re-encrypted on {store}: {type(e).__name__}: {e}. {still}"
+        )
     finally:
         if conn is not None:
             try:
@@ -717,7 +743,12 @@ def set_api_key(service: str, value: str):
         raise ValueError("AGENT_OS_MASTER_KEY not found in OS keyring. Cannot encrypt secret.")
 
     encrypted_value = _encrypt_value(value, master_key)
-    origin_device = getenv_compat("M3_ORIGIN_DEVICE", "ORIGIN_DEVICE") or os.environ.get("COMPUTERNAME") or os.environ.get("HOSTNAME") or platform.node()
+    origin_device = (
+        getenv_compat("M3_ORIGIN_DEVICE", "ORIGIN_DEVICE")
+        or os.environ.get("COMPUTERNAME")
+        or os.environ.get("HOSTNAME")
+        or platform.node()
+    )
     # ISO-8601 UTC timestamp
     now = datetime.now(UTC).isoformat()
 
@@ -741,7 +772,8 @@ def set_api_key(service: str, value: str):
 
         # ON CONFLICT ... DO UPDATE with excluded.* is spelled identically on
         # SQLite and PostgreSQL, so only the placeholders need the dialect.
-        cur.execute(f"""
+        cur.execute(
+            f"""
             INSERT INTO synchronized_secrets (service_name, encrypted_value, version, origin_device, updated_at)
             VALUES ({_p}, {_p}, {_p}, {_p}, {_p})
             ON CONFLICT(service_name) DO UPDATE SET
@@ -749,7 +781,9 @@ def set_api_key(service: str, value: str):
                 version = excluded.version,
                 origin_device = excluded.origin_device,
                 updated_at = excluded.updated_at
-        """, (service, encrypted_value, version, origin_device, now))
+        """,
+            (service, encrypted_value, version, origin_device, now),
+        )
 
         conn.commit()
         logger.info(f"Successfully saved encrypted {service} to the synchronized vault (version {version}).")

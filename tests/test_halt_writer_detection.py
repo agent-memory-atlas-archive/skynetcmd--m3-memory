@@ -29,6 +29,7 @@ if BIN not in sys.path:
 @pytest.fixture
 def halt():
     import m3_halt
+
     return m3_halt
 
 
@@ -45,11 +46,14 @@ def _name_role(halt, name):
     return None
 
 
-@pytest.mark.parametrize("cmdline", [
-    r"C:\Users\u\.local\bin\m3.exe",
-    "/home/u/.local/bin/m3.exe",
-    r"C:\Users\u\pipx\venvs\m3-memory\Scripts\m3.exe serve",
-])
+@pytest.mark.parametrize(
+    "cmdline",
+    [
+        r"C:\Users\u\.local\bin\m3.exe",
+        "/home/u/.local/bin/m3.exe",
+        r"C:\Users\u\pipx\venvs\m3-memory\Scripts\m3.exe serve",
+    ],
+)
 def test_plugin_launched_mcp_server_is_matched(halt, cmdline):
     """The plugin runs `command: "m3"`. This matched NOTHING before."""
     assert _cmd_role(halt, cmdline) == "mcp", cmdline
@@ -72,11 +76,14 @@ def test_legacy_entrypoints_still_matched(halt):
     assert _cmd_role(halt, "python bin/embed_server_inproc.py") == "embed-server"
 
 
-@pytest.mark.parametrize("cmdline", [
-    "python train_m3_model.py",       # 'm3' as a substring of a real word
-    "/usr/bin/helm3 upgrade",         # ends in m3 but is not m3
-    "python m3_analysis_notebook.py",
-])
+@pytest.mark.parametrize(
+    "cmdline",
+    [
+        "python train_m3_model.py",  # 'm3' as a substring of a real word
+        "/usr/bin/helm3 upgrade",  # ends in m3 but is not m3
+        "python m3_analysis_notebook.py",
+    ],
+)
 def test_unrelated_processes_are_not_claimed(halt, cmdline):
     """A false positive stops a legitimate upgrade, so anchor on separators."""
     assert _cmd_role(halt, cmdline) is None, cmdline
@@ -87,6 +94,7 @@ def test_unrelated_processes_are_not_claimed(halt, cmdline):
 # context, not a store, so it can never "release the DB": waiting on it burns
 # the whole quiesce timeout and then asks the operator to kill a process that
 # was never a hazard -- which is how people learn to reflex-dismiss the prompt.
+
 
 def test_embed_server_does_not_block(halt):
     assert halt._role_blocks("embed-server") is False
@@ -130,9 +138,13 @@ def test_wait_for_quiesce_ignores_non_blocking_roles(halt, monkeypatch):
     an upgrade made wait_for_quiesce burn its full timeout and report stuck."""
     from m3_core.registry_payload import ProcInfo
 
-    monkeypatch.setattr(halt, "list_all_db_writers", lambda engine_root=None: [
-        ProcInfo(pid=2, role="embed-server", started_at="", engine_root="", path=None),
-    ])
+    monkeypatch.setattr(
+        halt,
+        "list_all_db_writers",
+        lambda engine_root=None: [
+            ProcInfo(pid=2, role="embed-server", started_at="", engine_root="", path=None),
+        ],
+    )
     res = halt.wait_for_quiesce(timeout=0.5, poll=0.05)
     assert res.ok is True, f"embed server wrongly blocked quiesce: {res.stuck}"
 
@@ -144,6 +156,7 @@ def test_wait_for_quiesce_ignores_non_blocking_roles(halt, monkeypatch):
 # both -- so the pre-flight waited out its full timeout on a stub that holds no
 # DB and can never quiesce. (Diagnosed 2026-07-25: parent exe under the venv
 # Scripts dir, child exe C:\PythonXXX\pythonw.exe.)
+
 
 class _FakeProc:
     def __init__(self, exe, children=()):
@@ -159,8 +172,7 @@ class _FakeProc:
 def test_venv_stub_is_identified_on_windows(halt, monkeypatch):
     simulate_os(monkeypatch, "Windows")
     monkeypatch.setattr(os, "sep", "\\")
-    stub = _FakeProc(r"C:\Users\u\pipx\venvs\m3-memory\Scripts\pythonw.exe",
-                     [_FakeProc(r"C:\Python314\pythonw.exe")])
+    stub = _FakeProc(r"C:\Users\u\pipx\venvs\m3-memory\Scripts\pythonw.exe", [_FakeProc(r"C:\Python314\pythonw.exe")])
     assert halt._is_venv_launcher_stub(stub) is True
 
 

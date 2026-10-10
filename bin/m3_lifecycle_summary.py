@@ -9,6 +9,7 @@ and the operator see identical numbers. Read-only.
     python bin/m3_lifecycle_summary.py --window-days 30 --json
     python bin/m3_lifecycle_summary.py --top-n 10
 """
+
 import argparse
 import json
 import os
@@ -60,9 +61,7 @@ def main() -> int:
     parser.add_argument("--json", action="store_true", help="Emit raw JSON instead of a human table.")
     args = parser.parse_args()
 
-    summary = memory_maintenance.memory_lifecycle_summary_impl(
-        window_days=args.window_days, top_n=args.top_n
-    )
+    summary = memory_maintenance.memory_lifecycle_summary_impl(window_days=args.window_days, top_n=args.top_n)
     if args.json:
         print(json.dumps(summary, indent=2, default=str))
     else:

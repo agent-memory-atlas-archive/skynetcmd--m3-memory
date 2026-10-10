@@ -5,6 +5,7 @@ vault on their own; both now delegate. The policy comes from the registry's
 ``bootstrap`` flag: such a secret is never read from the vault (CONFIG_DESIGN
 §10), except D1's primary DSN, which still works and warns until N+3.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -23,14 +24,14 @@ def tiers(monkeypatch):
             if kind == "vault":
                 asked_vault.append(name)
             return store[kind].get(name), None
+
         return read
 
     monkeypatch.setattr(auth_utils, "_keyring_tier", make("keyring"))
     monkeypatch.setattr(auth_utils, "_file_tier", make("file"))
     monkeypatch.setattr(auth_utils, "_vault_tier", make("vault"))
     # Cleared, not assumed absent: a developer shell may hold a real ANTHROPIC_API_KEY.
-    for var in ("AGENT_OS_MASTER_KEY", "LM_API_TOKEN", "LM_STUDIO_API_KEY", "M3_DYNAMIC_PROBE",
-                "ANTHROPIC_API_KEY"):
+    for var in ("AGENT_OS_MASTER_KEY", "LM_API_TOKEN", "LM_STUDIO_API_KEY", "M3_DYNAMIC_PROBE", "ANTHROPIC_API_KEY"):
         monkeypatch.delenv(var, raising=False)
     store["asked_vault"] = asked_vault
     return store

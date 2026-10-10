@@ -20,6 +20,7 @@ from memory_core import (
 # dashboard server or another process — causing sqlite3.OperationalError:
 # database is locked inside _ensure_sync_tables.
 
+
 @pytest.fixture(autouse=True)
 def _isolated_db(monkeypatch, tmp_path):
     """Per-test isolated main DB.
@@ -53,6 +54,7 @@ def _isolated_db(monkeypatch, tmp_path):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def fresh_task():
     msg = task_create_impl(title="tombstone test task", created_by="pytest")
@@ -72,6 +74,7 @@ def _row(task_id):
 
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
+
 
 def test_soft_delete_sets_tombstone_and_hides_from_list(fresh_task):
     task_id = fresh_task

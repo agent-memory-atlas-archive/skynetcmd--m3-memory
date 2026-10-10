@@ -1,8 +1,8 @@
 ---
 tool: bin/setup_test_db.py
-sha1: d55d290ed9ec
-mtime_utc: 2026-10-09T20:20:02.994933+00:00
-generated_utc: 2026-10-09T20:22:03.997532+00:00
+sha1: 660b84346cb8
+mtime_utc: 2026-10-10T21:05:16.541885+00:00
+generated_utc: 2026-10-10T21:05:29.953116+00:00
 private: false
 ---
 
@@ -26,7 +26,7 @@ Exits non-zero if any migration fails.
 
 ## Entry points
 
-- `def main()` (line 38)
+- `def main()` (line 39)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -58,7 +58,7 @@ _(none detected)_
 
 **sqlite**
 
-- `sqlite3.connect()  → `db_path`` (line 62)
+- `sqlite3.connect()  → `db_path`` (line 63)
 
 
 ---

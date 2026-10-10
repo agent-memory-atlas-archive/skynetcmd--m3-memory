@@ -47,6 +47,7 @@ def restore_embed():
         return
     sys.modules["memory.embed"] = saved
     import memory
+
     memory.embed = saved
 
 
@@ -67,9 +68,7 @@ def test_import_survives_a_core_that_lacks_circuitbreaker(monkeypatch, restore_e
     assert mod._CPU_FALLBACK_BREAKER is None
 
 
-def test_a_present_but_broken_core_WARNS_rather_than_degrading_silently(
-    monkeypatch, restore_embed, caplog
-):
+def test_a_present_but_broken_core_WARNS_rather_than_degrading_silently(monkeypatch, restore_embed, caplog):
     """Fail-safe is not licence to be silent (DESIGN_PHILOSOPHIES §3).
 
     `rs is None` is the documented fallback and stays quiet. A core that is

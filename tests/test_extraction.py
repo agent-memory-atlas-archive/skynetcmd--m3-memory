@@ -1,4 +1,5 @@
 """Tests for the pluggable entity-extraction backend module bin/memory/extraction.py."""
+
 from __future__ import annotations
 
 import asyncio
@@ -34,6 +35,7 @@ def _skip_migrations(monkeypatch):
 def _mock_embeddings(monkeypatch):
     async def mock_embed_canonical_cached(canonical_name: str) -> list[float] | None:
         import hashlib
+
         h = hashlib.sha256(canonical_name.encode("utf-8")).digest()
         dim = getattr(_config, "EMBED_DIM", 1024)
         vec = []
@@ -41,12 +43,12 @@ def _mock_embeddings(monkeypatch):
             val = (h[i % len(h)] / 255.0) - 0.5
             vec.append(val)
         # Normalize to unit vector
-        mag = sum(x*x for x in vec) ** 0.5
+        mag = sum(x * x for x in vec) ** 0.5
         if mag > 0:
             vec = [x / mag for x in vec]
         return vec
-    monkeypatch.setattr(_entity_mod, "_embed_canonical_cached", mock_embed_canonical_cached)
 
+    monkeypatch.setattr(_entity_mod, "_embed_canonical_cached", mock_embed_canonical_cached)
 
 
 def _init_test_db(db_path, monkeypatch):
@@ -149,6 +151,7 @@ async def test_extract_pending_drain(tmp_path, monkeypatch):
     content = "John Doe lives in Roanoke."
 
     from memory.db import _db
+
     with _db() as db:
         db.execute(
             "INSERT INTO memory_items (id, type, content, is_deleted) VALUES (?, ?, ?, 0)",
@@ -206,6 +209,7 @@ async def test_write_through_mode(tmp_path, monkeypatch):
 
     # Verify entities and relationships were written immediately to the DB
     from memory.db import _db
+
     with _db() as db:
         entities = db.execute("SELECT canonical_name, entity_type FROM entities").fetchall()
         names = [e["canonical_name"] for e in entities]

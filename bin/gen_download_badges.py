@@ -27,6 +27,7 @@ Run in CI on a schedule; commit the result back. Locally:
 Exit codes: 0 = badges written (or unchanged); 2 = hard error (network/auth).
 Standard library only.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -75,8 +76,7 @@ def _shields_endpoint(label: str, message: str, color: str) -> dict:
     }
 
 
-def _write_badge_svg(path: Path, label: str, message: str, color: str,
-                     logo: str | None) -> bool:
+def _write_badge_svg(path: Path, label: str, message: str, color: str, logo: str | None) -> bool:
     """Fetch the RENDERED badge SVG from shields.io and commit it under
     docs/badges/. We self-host the SVG (not a live shields `endpoint?url=` link)
     because GitHub's Camo image proxy intermittently fails to fetch shields,
@@ -85,11 +85,12 @@ def _write_badge_svg(path: Path, label: str, message: str, color: str,
     file changed. On any fetch failure, leaves the existing SVG untouched (never
     overwrite a good badge with an error page)."""
     import urllib.parse
+
     def _enc(s: str) -> str:
         # shields path-encoding: '-' -> '--', ' ' -> '_', then URL-quote.
         return urllib.parse.quote(s.replace("-", "--").replace(" ", "_"), safe="")
-    url = (f"https://img.shields.io/badge/{_enc(label)}-{_enc(message)}-{color}"
-           f"?style=flat-square")
+
+    url = f"https://img.shields.io/badge/{_enc(label)}-{_enc(message)}-{color}?style=flat-square"
     if logo:
         url += f"&logo={urllib.parse.quote(logo)}&logoColor=white"
     try:
@@ -97,8 +98,7 @@ def _write_badge_svg(path: Path, label: str, message: str, color: str,
         with urllib.request.urlopen(req, timeout=30) as resp:  # nosec B310
             svg = resp.read()
         if b"<svg" not in svg[:200]:
-            print(f"[svg] {path.name}: unexpected response, not overwriting",
-                  file=sys.stderr)
+            print(f"[svg] {path.name}: unexpected response, not overwriting", file=sys.stderr)
             return False
         old = path.read_bytes() if path.exists() else b""
         if old != svg:
@@ -106,12 +106,12 @@ def _write_badge_svg(path: Path, label: str, message: str, color: str,
             return True
         return False
     except (urllib.error.URLError, urllib.error.HTTPError) as e:
-        print(f"[svg] {path.name}: fetch failed ({type(e).__name__}) — keeping existing",
-              file=sys.stderr)
+        print(f"[svg] {path.name}: fetch failed ({type(e).__name__}) — keeping existing", file=sys.stderr)
         return False
 
 
 # ── PyPI ─────────────────────────────────────────────────────────────────────
+
 
 def pypi_total_without_mirrors(package: str) -> int:
     """Sum of daily downloads (category without_mirrors) over pypistats' window.
@@ -122,14 +122,11 @@ def pypi_total_without_mirrors(package: str) -> int:
     """
     data = _get_json(f"{PYPISTATS_API}/{package}/overall")
     rows = data.get("data", [])
-    return sum(
-        int(r.get("downloads", 0))
-        for r in rows
-        if r.get("category") == "without_mirrors"
-    )
+    return sum(int(r.get("downloads", 0)) for r in rows if r.get("category") == "without_mirrors")
 
 
 # ── GitHub clones (running total across the 14-day window) ───────────────────
+
 
 def github_clone_days(repo: str, token: str) -> list[tuple[str, int]]:
     """Return [(YYYY-MM-DD, unique_clones), ...] from the traffic API (14-day)."""
@@ -161,10 +158,7 @@ def accumulate_clone_total(history_path: Path, fresh_days: list[tuple[str, int]]
     history: dict[str, int] = {}
     if history_path.exists():
         try:
-            history = {
-                str(k): int(v)
-                for k, v in json.loads(history_path.read_text("utf-8")).items()
-            }
+            history = {str(k): int(v) for k, v in json.loads(history_path.read_text("utf-8")).items()}
         except (json.JSONDecodeError, ValueError, TypeError):
             history = {}
     for day, uniques in fresh_days:
@@ -177,6 +171,7 @@ def accumulate_clone_total(history_path: Path, fresh_days: list[tuple[str, int]]
 
 
 # ── write + main ─────────────────────────────────────────────────────────────
+
 
 def _write_json(path: Path, obj: dict) -> bool:
     """Write pretty JSON; return True if the file content changed."""
@@ -208,19 +203,20 @@ def main() -> int:
         ):
             changed = True
         # Self-hosted SVG (Camo-reliable) — the README points at this, not the JSON.
-        if _write_badge_svg(badges / "pypi-downloads.svg", "PyPI downloads",
-                            _fmt(pypi_total), "blue", logo="pypi"):
+        if _write_badge_svg(badges / "pypi-downloads.svg", "PyPI downloads", _fmt(pypi_total), "blue", logo="pypi"):
             changed = True
         print(f"[pypi] total (without mirrors): {pypi_total:,} -> {_fmt(pypi_total)}")
     except (urllib.error.URLError, urllib.error.HTTPError, ValueError, KeyError) as e:
-        print(f"[pypi] WARNING: could not fetch downloads ({type(e).__name__}: {e})",
-              file=sys.stderr)
+        print(f"[pypi] WARNING: could not fetch downloads ({type(e).__name__}: {e})", file=sys.stderr)
 
     # GitHub clones — requires a token that can read the private traffic API.
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("M3_STARGAZER") or ""
     if not token:
-        print("[github] no GITHUB_TOKEN/M3_STARGAZER — skipping clone badge "
-              "(traffic API needs an admin/collaborator token).", file=sys.stderr)
+        print(
+            "[github] no GITHUB_TOKEN/M3_STARGAZER — skipping clone badge "
+            "(traffic API needs an admin/collaborator token).",
+            file=sys.stderr,
+        )
     else:
         try:
             days = github_clone_days(args.repo, token)
@@ -231,13 +227,11 @@ def main() -> int:
             ):
                 changed = True
             # Self-hosted SVG with the GitHub icon (Camo-reliable).
-            if _write_badge_svg(badges / "github-clones.svg", "GitHub clones",
-                                _fmt(total), "24292e", logo="github"):
+            if _write_badge_svg(badges / "github-clones.svg", "GitHub clones", _fmt(total), "24292e", logo="github"):
                 changed = True
             print(f"[github] running unique-clone total: {total:,} -> {_fmt(total)}")
         except (urllib.error.URLError, urllib.error.HTTPError, ValueError, KeyError) as e:
-            print(f"[github] WARNING: could not fetch clone traffic "
-                  f"({type(e).__name__}: {e})", file=sys.stderr)
+            print(f"[github] WARNING: could not fetch clone traffic ({type(e).__name__}: {e})", file=sys.stderr)
 
     print("changed" if changed else "unchanged")
     return 0

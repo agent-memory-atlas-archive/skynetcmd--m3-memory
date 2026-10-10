@@ -5,6 +5,7 @@ store; PostgreSQL is opt-in). Selecting ``postgres`` before its implementation
 ships raises a clear, actionable error rather than silently falling back — §3
 "fail loud, fail safe, never silent".
 """
+
 from __future__ import annotations
 
 import threading
@@ -77,8 +78,14 @@ def active_backend() -> StorageBackend:
         # schema is the installer's to manage). Only a NEW store is prepared.
         if store is not None:
             ident = backend.store_identity()
-            shared = next((e for e in [*_backends.values(), *_default_peer(name, factory)]
-                           if e.name == backend.name and e.store_identity() == ident), None)
+            shared = next(
+                (
+                    e
+                    for e in [*_backends.values(), *_default_peer(name, factory)]
+                    if e.name == backend.name and e.store_identity() == ident
+                ),
+                None,
+            )
             if shared is None:
                 backend.prepare_store()
             else:

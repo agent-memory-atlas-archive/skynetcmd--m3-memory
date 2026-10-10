@@ -7,6 +7,7 @@ shared server exists to avoid). So the wizard defaults the native wheel OFF and
 only installs it when explicitly requested via --install-gpu-embedder. These
 tests pin that opt-in contract through the non-interactive plan builder.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -22,8 +23,8 @@ def _ns(**over):
         "capture_mode": None,
         "clean_cache": False,
         "force_kill_mcp": False,
-        "install_gpu_embedder": False,   # tier-1 opt-in flag, default off
-        "no_native_wheel": False,        # explicit opt-out, default off
+        "install_gpu_embedder": False,  # tier-1 opt-in flag, default off
+        "no_native_wheel": False,  # explicit opt-out, default off
         "allow_native_source_build": False,
         "endpoint": None,
         "cognitive_loop": False,
@@ -47,9 +48,7 @@ def test_native_wheel_off_by_default():
 
 def test_install_gpu_flag_opts_in():
     """--install-gpu-embedder opts INTO the tier-1 native wheel."""
-    plan = setup_wizard._gather_plan(
-        setup_wizard.AgentTargets(), _ns(install_gpu_embedder=True)
-    )
+    plan = setup_wizard._gather_plan(setup_wizard.AgentTargets(), _ns(install_gpu_embedder=True))
     assert plan.install_gpu_embedder is True
 
 
@@ -66,9 +65,7 @@ def test_no_native_wheel_wins_over_opt_in():
 
 def test_source_build_opt_in():
     """--allow-native-source-build flips the source-build last resort on."""
-    plan = setup_wizard._gather_plan(
-        setup_wizard.AgentTargets(), _ns(allow_native_source_build=True)
-    )
+    plan = setup_wizard._gather_plan(setup_wizard.AgentTargets(), _ns(allow_native_source_build=True))
     assert plan.allow_native_source_build is True
 
 

@@ -21,6 +21,7 @@ Public API:
     apply_carry_forward(conn, diff, new_leaf_uuid) -> bool
     judge_material_change(old_text, new_text) -> bool
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -50,7 +51,8 @@ class LeafDiff:
     For 'evolve' kind, `material_change` is filled in later by the
     LLM judge (or set to True conservatively when no LLM is configured).
     """
-    new_index: int                 # index into the new_leaves list
+
+    new_index: int  # index into the new_leaves list
     kind: str
     prior_uuid: str | None = None
     prior_text: str | None = None
@@ -60,6 +62,7 @@ class LeafDiff:
 @dataclass(slots=True)
 class CarryForwardStats:
     """Counters surfaced to the ingest caller."""
+
     carry: int = 0
     evolve: int = 0
     new: int = 0
@@ -90,6 +93,7 @@ def compute_leaf_diffs(
     by_division: dict[tuple[str, str], tuple[str, str]] = {}  # (type,id) -> (uuid, text)
 
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     rows = conn.execute(
         f"SELECT uuid, text, text_sha256, division_type, division_id "
@@ -112,19 +116,27 @@ def compute_leaf_diffs(
         carry_uuid = by_hash.get(h)
         if carry_uuid and carry_uuid not in used_prior:
             used_prior.add(carry_uuid)
-            diffs.append(LeafDiff(
-                new_index=i, kind="carry", prior_uuid=carry_uuid,
-            ))
+            diffs.append(
+                LeafDiff(
+                    new_index=i,
+                    kind="carry",
+                    prior_uuid=carry_uuid,
+                )
+            )
             continue
 
         # Try same-division match for 'evolve'
         evo = by_division.get((leaf.division_type, leaf.division_id))
         if evo and evo[0] not in used_prior:
             used_prior.add(evo[0])
-            diffs.append(LeafDiff(
-                new_index=i, kind="evolve", prior_uuid=evo[0],
-                prior_text=evo[1],
-            ))
+            diffs.append(
+                LeafDiff(
+                    new_index=i,
+                    kind="evolve",
+                    prior_uuid=evo[0],
+                    prior_text=evo[1],
+                )
+            )
             continue
 
         diffs.append(LeafDiff(new_index=i, kind="new"))
@@ -152,9 +164,10 @@ def apply_carry_forward(
         return (False, 0)
 
     from memory.backends import dialect as _dialect
+
     _d = _dialect()
     _p = _d.param()
-    _le = files_table('leaf_embeddings')
+    _le = files_table("leaf_embeddings")
     # Copy text + summary embeddings (whichever kinds exist). INSERT OR REPLACE
     # SELECT → INSERT ... SELECT with an upsert on the (leaf_uuid, kind) PK.
     cur = conn.execute(
@@ -167,7 +180,8 @@ def apply_carry_forward(
     embedded = cur.rowcount > 0
     if embedded:
         conn.execute(
-            f"UPDATE {files_table('leaves')} SET embedded = 1 WHERE uuid = {_p}", (new_leaf_uuid,),
+            f"UPDATE {files_table('leaves')} SET embedded = 1 WHERE uuid = {_p}",
+            (new_leaf_uuid,),
         )
 
     facts_copied = 0
@@ -182,20 +196,26 @@ def apply_carry_forward(
             (diff.prior_uuid,),
         ).fetchall()
         import uuid as _uuid
-        _fe = files_table('fact_embeddings')
-        _fer = files_table('fact_entity_refs')
+
+        _fe = files_table("fact_embeddings")
+        _fer = files_table("fact_entity_refs")
         for pf in prior_facts:
             new_fact_uuid = str(_uuid.uuid4())
             new_file_node = conn.execute(
-                f"SELECT file_node FROM {files_table('leaves')} WHERE uuid = {_p}", (new_leaf_uuid,),
+                f"SELECT file_node FROM {files_table('leaves')} WHERE uuid = {_p}",
+                (new_leaf_uuid,),
             ).fetchone()[0]
             conn.execute(
                 f"INSERT INTO {files_table('facts')}(uuid, leaf, file_node, statement, "
                 f"source_span_start, source_span_end, confidence, extraction_run) "
                 f"VALUES ({_d.placeholder(8)})",
                 (
-                    new_fact_uuid, new_leaf_uuid, new_file_node,
-                    pf["statement"], pf["source_span_start"], pf["source_span_end"],
+                    new_fact_uuid,
+                    new_leaf_uuid,
+                    new_file_node,
+                    pf["statement"],
+                    pf["source_span_start"],
+                    pf["source_span_end"],
                     pf["confidence"],
                     new_ingestion_run_uuid or pf["uuid"],  # safe fallback
                 ),
@@ -280,17 +300,20 @@ def judge_material_change(old_text: str, new_text: str) -> tuple[bool | None, st
             resp = client.post(
                 url,
                 headers=llm_auth_headers(),
-                json=apply_thinking_suppression({
-                    "model": _llm_model(),
-                    "messages": [
-                        {"role": "system", "content": _JUDGE_PROMPT},
-                        {"role": "user", "content": user_content},
-                    ],
-                    "temperature": 0.0,
-                    "max_tokens": 128,
-                    # No response_format hint — some servers (LM Studio ministral)
-                    # 400 on {"type":"json_object"}. Prompt drives JSON output.
-                }, url),
+                json=apply_thinking_suppression(
+                    {
+                        "model": _llm_model(),
+                        "messages": [
+                            {"role": "system", "content": _JUDGE_PROMPT},
+                            {"role": "user", "content": user_content},
+                        ],
+                        "temperature": 0.0,
+                        "max_tokens": 128,
+                        # No response_format hint — some servers (LM Studio ministral)
+                        # 400 on {"type":"json_object"}. Prompt drives JSON output.
+                    },
+                    url,
+                ),
             )
             resp.raise_for_status()
             data = resp.json()
@@ -302,6 +325,7 @@ def judge_material_change(old_text: str, new_text: str) -> tuple[bool | None, st
     # Parse the JSON response defensively.
     if raw.startswith("```"):
         import re
+
         raw = re.sub(r"^```[a-zA-Z]*\n", "", raw)
         raw = re.sub(r"\n```\s*$", "", raw)
     first = raw.find("{")
@@ -309,7 +333,7 @@ def judge_material_change(old_text: str, new_text: str) -> tuple[bool | None, st
     if first < 0 or last <= first:
         return (None, None)
     try:
-        obj = json.loads(raw[first:last + 1])
+        obj = json.loads(raw[first : last + 1])
     except (ValueError, json.JSONDecodeError):
         return (None, None)
     flag = obj.get("material_change")

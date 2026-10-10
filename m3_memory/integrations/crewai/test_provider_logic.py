@@ -19,8 +19,7 @@ from datetime import UTC
 from types import SimpleNamespace
 
 # Allow running as a bare script: repo root is four levels up.
-_REPO_ROOT = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -37,9 +36,17 @@ _c.failed = False  # type: ignore[attr-defined]
 def _fake_record(**kw):
     """A stand-in for crewai.memory.types.MemoryRecord (duck-typed)."""
     base = {
-        "id": "", "content": "", "scope": "/", "categories": [], "metadata": {},
-        "importance": 0.5, "created_at": None, "last_accessed": None, "embedding": None,
-        "source": None, "private": False,
+        "id": "",
+        "content": "",
+        "scope": "/",
+        "categories": [],
+        "metadata": {},
+        "importance": 0.5,
+        "created_at": None,
+        "last_accessed": None,
+        "embedding": None,
+        "source": None,
+        "private": False,
     }
     base.update(kw)
     return SimpleNamespace(**base)
@@ -51,8 +58,10 @@ def test_embed_model_identity() -> None:
     print("mapping.crewai_embed_model — per-dim identity tag")
     _c(mapping.crewai_embed_model(3072) == "crewai-3072", "3072 -> crewai-3072")
     _c(mapping.crewai_embed_model(768) == "crewai-768", "768 -> crewai-768")
-    _c(mapping.crewai_embed_model(3072) != mapping.crewai_embed_model(768),
-       "different dims -> different identities (no cross-embedder collision)")
+    _c(
+        mapping.crewai_embed_model(3072) != mapping.crewai_embed_model(768),
+        "different dims -> different identities (no cross-embedder collision)",
+    )
     try:
         mapping.crewai_embed_model(0)
         _c(False, "dim 0 should raise")
@@ -66,20 +75,18 @@ def test_scope_normalization_and_matching() -> None:
     print("mapping.normalize_scope_prefix")
     _c(mapping.normalize_scope_prefix(None) == "", "None -> '' (match-all)")
     _c(mapping.normalize_scope_prefix("/") == "", "'/' -> '' (match-all)")
-    _c(mapping.normalize_scope_prefix("crew/research") == "/crew/research",
-       "adds leading slash")
-    _c(mapping.normalize_scope_prefix("/crew/research/") == "/crew/research",
-       "strips trailing slash")
+    _c(mapping.normalize_scope_prefix("crew/research") == "/crew/research", "adds leading slash")
+    _c(mapping.normalize_scope_prefix("/crew/research/") == "/crew/research", "strips trailing slash")
 
     print("mapping.scope_matches — prefix/descendant, segment-boundary safe")
     _c(mapping.scope_matches("/crew/research", "/crew/research"), "exact match")
-    _c(mapping.scope_matches("/crew/research/facts", "/crew/research"),
-       "descendant matches")
+    _c(mapping.scope_matches("/crew/research/facts", "/crew/research"), "descendant matches")
     _c(mapping.scope_matches("/crew/research", ""), "empty prefix matches all")
-    _c(not mapping.scope_matches("/crew/research2", "/crew/research"),
-       "segment boundary: /research does NOT match /research2 (the LIKE trap)")
-    _c(not mapping.scope_matches("/crew/other", "/crew/research"),
-       "sibling does not match")
+    _c(
+        not mapping.scope_matches("/crew/research2", "/crew/research"),
+        "segment boundary: /research does NOT match /research2 (the LIKE trap)",
+    )
+    _c(not mapping.scope_matches("/crew/other", "/crew/research"), "sibling does not match")
 
 
 def test_record_to_write_args() -> None:
@@ -87,9 +94,13 @@ def test_record_to_write_args() -> None:
 
     print("mapping.record_to_write_args — tenancy stamp + scope/categories in md")
     rec = _fake_record(
-        content="the sky is blue", scope="/crew/facts",
-        categories=["observation"], importance=0.8, private=True,
-        source="agent-x", metadata={"k": "v"},
+        content="the sky is blue",
+        scope="/crew/facts",
+        categories=["observation"],
+        importance=0.8,
+        private=True,
+        source="agent-x",
+        metadata={"k": "v"},
     )
     args = mapping.record_to_write_args(rec, user_id="crew-alpha", scope="user")
     _c(args["content"] == "the sky is blue", "content carried")
@@ -110,15 +121,23 @@ def test_item_to_record_roundtrip() -> None:
 
     print("mapping round-trip: record -> write_args.metadata -> item -> record")
     import json
+
     rec = _fake_record(
-        id="m1", content="body", scope="/crew/facts",
-        categories=["obs"], importance=0.7, private=True, source="a1",
+        id="m1",
+        content="body",
+        scope="/crew/facts",
+        categories=["obs"],
+        importance=0.7,
+        private=True,
+        source="a1",
         metadata={"tag": "z"},
     )
     args = mapping.record_to_write_args(rec, user_id="u", scope="user")
     # Simulate the m3 item row that search/list would return.
     item = {
-        "id": "m1", "content": "body", "importance": 0.7,
+        "id": "m1",
+        "content": "body",
+        "importance": 0.7,
         "created_at": "2026-07-17T00:00:00Z",
         "metadata_json": json.dumps(args["metadata"]),
     }
@@ -129,8 +148,7 @@ def test_item_to_record_roundtrip() -> None:
     _c(back.private is True, "private restored")
     _c(back.source == "a1", "source restored")
     _c(back.metadata.get("tag") == "z", "user metadata restored")
-    _c(mapping.SCOPE_PATH_KEY not in back.metadata,
-       "reserved keys stripped from user-facing metadata")
+    _c(mapping.SCOPE_PATH_KEY not in back.metadata, "reserved keys stripped from user-facing metadata")
     _c(abs(back.importance - 0.7) < 1e-9, "importance restored")
 
 
@@ -138,17 +156,18 @@ def test_helpers() -> None:
     from m3_memory.integrations.crewai import backend as b
 
     print("backend._parse_written_id")
-    _c(b._parse_written_id("Created: 11111111-2222-3333-4444-555555555555 (embedding deferred)")
-       == "11111111-2222-3333-4444-555555555555", "extracts uuid from Created: + suffix")
+    _c(
+        b._parse_written_id("Created: 11111111-2222-3333-4444-555555555555 (embedding deferred)")
+        == "11111111-2222-3333-4444-555555555555",
+        "extracts uuid from Created: + suffix",
+    )
     _c(b._parse_written_id("Error: nope") is None, "Error -> None")
     _c(b._parse_written_id("") is None, "empty -> None")
 
     print("backend._immediate_child")
-    _c(b._immediate_child("/crew", "/crew/research/facts") == "/crew/research",
-       "immediate child on the path")
+    _c(b._immediate_child("/crew", "/crew/research/facts") == "/crew/research", "immediate child on the path")
     _c(b._immediate_child("/crew", "/crew") is None, "node itself -> None")
-    _c(b._immediate_child("", "/research/x") == "/research",
-       "root prefix immediate child")
+    _c(b._immediate_child("", "/research/x") == "/research", "root prefix immediate child")
 
     print("backend._deleted_count")
     _c(b._deleted_count({"deleted": 3}, fallback=9) == 3, "reads deleted key")
@@ -156,13 +175,12 @@ def test_helpers() -> None:
 
     print("backend._match_for_delete — older_than")
     from datetime import datetime
+
     old_item = {"metadata_json": "{}", "created_at": "2020-01-01T00:00:00Z"}
     new_item = {"metadata_json": "{}", "created_at": "2030-01-01T00:00:00Z"}
     cutoff = datetime(2025, 1, 1, tzinfo=UTC)
-    _c(b._match_for_delete(old_item, None, None, cutoff),
-       "record older than cutoff matches")
-    _c(not b._match_for_delete(new_item, None, None, cutoff),
-       "record newer than cutoff does not match")
+    _c(b._match_for_delete(old_item, None, None, cutoff), "record older than cutoff matches")
+    _c(not b._match_for_delete(new_item, None, None, cutoff), "record newer than cutoff does not match")
 
 
 def test_backend_requires_tenant() -> None:
@@ -171,6 +189,7 @@ def test_backend_requires_tenant() -> None:
     # itself has no crewai import (only method bodies do, lazily). We import the
     # module directly to bypass the package __getattr__'s version check.
     from m3_memory.integrations.crewai.backend import M3StorageBackend
+
     try:
         M3StorageBackend(user_id="")
         _c(False, "empty user_id should raise")

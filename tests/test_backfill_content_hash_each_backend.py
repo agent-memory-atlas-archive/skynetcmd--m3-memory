@@ -5,6 +5,7 @@ path. A PostgreSQL store migrated from an old SQLite one carries the NULL
 hashes as copied, so the repair is needed there; --target picks the core or
 chatlog tables, which on PostgreSQL share one database.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -19,15 +20,19 @@ def null_hash_row(each_backend, request):
     from memory.backends.dialect import chatlog_table
 
     target = request.param
-    items, embeddings = ((chatlog_table("items"), chatlog_table("embeddings")) if target == "chatlog"
-                         else ("memory_items", "memory_embeddings"))
+    items, embeddings = (
+        (chatlog_table("items"), chatlog_table("embeddings"))
+        if target == "chatlog"
+        else ("memory_items", "memory_embeddings")
+    )
     p = dialect().param()
     tag = uuid.uuid4().hex[:8]
     mid, eid, content = f"bch-{tag}", f"bche-{tag}", f"hash me {tag}"
     with each_backend.connection() as conn:
         conn.execute(f"INSERT INTO {items} (id, type, content) VALUES ({p}, 'chat_log', {p})", (mid, content))
-        conn.execute(f"INSERT INTO {embeddings} (id, memory_id, embedding) VALUES ({p}, {p}, {p})",
-                     (eid, mid, b"\x00" * 8))
+        conn.execute(
+            f"INSERT INTO {embeddings} (id, memory_id, embedding) VALUES ({p}, {p}, {p})", (eid, mid, b"\x00" * 8)
+        )
         conn.commit()
     try:
         yield target, embeddings, eid, content

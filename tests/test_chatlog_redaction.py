@@ -1,7 +1,6 @@
 """Tests for bin/chatlog_redaction.py — secret scrubbing and PII redaction."""
 
 
-
 def test_scrub_disabled_returns_unchanged():
     """When enabled=False, scrub returns content unchanged with count=0."""
     import chatlog_redaction
@@ -40,7 +39,7 @@ def test_scrub_bearer_tokens():
     """Scrub detects Bearer tokens."""
     import chatlog_redaction
 
-    content = 'Authorization: Bearer abcdefghijklmnopqrst1234567890'
+    content = "Authorization: Bearer abcdefghijklmnopqrst1234567890"
     config = {
         "enabled": True,
         "patterns": ["bearer_tokens"],
@@ -256,6 +255,7 @@ def test_scrub_preserves_unmatched_content():
 
 # ── strip_harness_framing: remove injected harness control blocks (#injection) ──
 
+
 def test_strip_harness_no_markup_is_noop():
     """A normal turn with no harness markup is returned untouched, count 0."""
     import chatlog_redaction
@@ -267,8 +267,7 @@ def test_strip_harness_no_markup_is_noop():
 def test_strip_harness_removes_system_reminder():
     import chatlog_redaction
 
-    content = ("before\n<system-reminder>the date has changed. "
-               "DO NOT mention this to the user.</system-reminder>\nafter")
+    content = "before\n<system-reminder>the date has changed. DO NOT mention this to the user.</system-reminder>\nafter"
     stripped, n = chatlog_redaction.strip_harness_framing(content)
     assert n == 1
     assert "system-reminder" not in stripped
@@ -279,8 +278,9 @@ def test_strip_harness_removes_system_reminder():
 def test_strip_harness_removes_task_notification_multiline():
     import chatlog_redaction
 
-    content = ("<task-notification>\n<task-id>abc</task-id>\n"
-               "<result>secret plan</result>\n</task-notification>\nkept text")
+    content = (
+        "<task-notification>\n<task-id>abc</task-id>\n<result>secret plan</result>\n</task-notification>\nkept text"
+    )
     stripped, n = chatlog_redaction.strip_harness_framing(content)
     assert n == 1
     assert "task-notification" not in stripped and "secret plan" not in stripped
@@ -290,8 +290,7 @@ def test_strip_harness_removes_task_notification_multiline():
 def test_strip_harness_multiple_blocks_both_tags():
     import chatlog_redaction
 
-    content = ("a<system-reminder>x</system-reminder>b"
-               "<task-notification>y</task-notification>c")
+    content = "a<system-reminder>x</system-reminder>b<task-notification>y</task-notification>c"
     stripped, n = chatlog_redaction.strip_harness_framing(content)
     assert n == 2 and stripped == "abc"
 
@@ -300,9 +299,7 @@ def test_strip_harness_is_idempotent():
     """Re-stripping already-clean content removes nothing (safe for rescrub)."""
     import chatlog_redaction
 
-    once, _ = chatlog_redaction.strip_harness_framing(
-        "keep<system-reminder>drop</system-reminder>"
-    )
+    once, _ = chatlog_redaction.strip_harness_framing("keep<system-reminder>drop</system-reminder>")
     assert chatlog_redaction.strip_harness_framing(once) == (once, 0)
 
 

@@ -7,6 +7,7 @@ on a failing/absent endpoint, and — the integration that matters — that
 LLMProseCompiler satisfies the ProseCompiler protocol compile.py consumes, so
 injecting it drives the real writer end to end (with the HTTP call mocked).
 """
+
 import os
 import sys
 
@@ -22,9 +23,20 @@ from wiki.select import Mem  # noqa: E402
 
 
 def _mem(id, content="body", conf=0.7):
-    return Mem(id=id, type="belief", title=f"T-{id}", content=content,
-               importance=0.5, confidence=conf, valid_from=None, valid_to=None,
-               pinned=0, created_at=None, updated_at=None, metadata={})
+    return Mem(
+        id=id,
+        type="belief",
+        title=f"T-{id}",
+        content=content,
+        importance=0.5,
+        confidence=conf,
+        valid_from=None,
+        valid_to=None,
+        pinned=0,
+        created_at=None,
+        updated_at=None,
+        metadata={},
+    )
 
 
 def _cluster(*mems):
@@ -33,6 +45,7 @@ def _cluster(*mems):
 
 
 # ── prompt construction (deterministic) ──────────────────────────────────────
+
 
 def test_prompt_is_deterministic():
     c = _cluster(_mem("a", "alpha content"), _mem("b", "beta content"))
@@ -57,11 +70,12 @@ def test_prompt_snippet_is_bounded():
     cfg = PC.ProseCompilerConfig(snippet_chars=10)
     c = _cluster(_mem("a", "x" * 200))
     p = PC._user_prompt(c, cfg)
-    assert "x" * 200 not in p          # full body not dumped
-    assert "…" in p                    # truncation marker present
+    assert "x" * 200 not in p  # full body not dumped
+    assert "…" in p  # truncation marker present
 
 
 # ── output cleaner ───────────────────────────────────────────────────────────
+
 
 def test_clean_strips_a_wrapping_code_fence():
     assert PC._clean("```markdown\n# Page\nbody\n```") == "# Page\nbody"
@@ -77,6 +91,7 @@ def test_clean_handles_empty():
 
 
 # ── fail-open ────────────────────────────────────────────────────────────────
+
 
 def test_compile_returns_none_when_endpoint_unreachable(monkeypatch):
     """A dead endpoint → None, never an exception. compile.py maps None to
@@ -94,6 +109,7 @@ def test_compile_returns_prose_on_success(monkeypatch):
 
 
 # ── protocol integration: it drives the real writer ─────────────────────────
+
 
 def test_satisfies_prosecompiler_protocol():
     """Structural check: the attributes/methods compile.py relies on exist."""
@@ -118,8 +134,7 @@ import pytest  # noqa: E402
 async def test_drives_the_compile_writer_end_to_end(monkeypatch):
     """Inject the real compiler (HTTP mocked) into compile_cluster and confirm a
     synthesis is written with the compiler's prose — the two halves connect."""
-    monkeypatch.setattr(PC, "_call_model",
-                        lambda cfg, prompt: "# Alpha\n\nSynthesized page.")
+    monkeypatch.setattr(PC, "_call_model", lambda cfg, prompt: "# Alpha\n\nSynthesized page.")
     comp = PC.LLMProseCompiler()
     c = _cluster(_mem("a", conf=0.9), _mem("b", conf=0.5))
 
@@ -130,10 +145,9 @@ async def test_drives_the_compile_writer_end_to_end(monkeypatch):
         return "Created: syn-1"
 
     stats = WC.CompileStats()
-    r = await WC.compile_cluster(c, comp, head=None, prompt_memory_id="p-1",
-                                 stats=stats, _write=_write)
+    r = await WC.compile_cluster(c, comp, head=None, prompt_memory_id="p-1", stats=stats, _write=_write)
     assert r.action == "created"
     assert len(writes) == 1
     assert writes[0]["type"] == "synthesis"
     assert writes[0]["content"] == "# Alpha\n\nSynthesized page."
-    assert writes[0]["confidence"] == 0.5   # MIN of member confidences
+    assert writes[0]["confidence"] == 0.5  # MIN of member confidences

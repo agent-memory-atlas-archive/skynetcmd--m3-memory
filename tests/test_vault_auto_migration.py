@@ -7,6 +7,7 @@ with a hardcoded '?', so it always failed ("attempt to write a readonly
 database" on SQLite; '?' is rejected on PostgreSQL), was swallowed at debug,
 and the "will be auto-migrated" WARNING repeated on every read (m3 2a82d0f2).
 """
+
 from __future__ import annotations
 
 import uuid
@@ -38,8 +39,9 @@ def _remove_probe_rows(each_backend):
     from memory.backends import active_backend, dialect
 
     with active_backend().connection() as conn:
-        conn.execute(f"DELETE FROM synchronized_secrets WHERE service_name LIKE {dialect().param()}",
-                     ("M3_R3_PROBE_%",))
+        conn.execute(
+            f"DELETE FROM synchronized_secrets WHERE service_name LIKE {dialect().param()}", ("M3_R3_PROBE_%",)
+        )
         conn.commit()
 
 
@@ -52,7 +54,8 @@ def _put_raw(auth, service, encrypted):
         cur.execute(
             f"INSERT INTO synchronized_secrets (service_name, encrypted_value, version, origin_device, updated_at) "
             f"VALUES ({p}, {p}, {p}, {p}, {p})",
-            (service, encrypted, 1, "test", "2026-01-01T00:00:00Z"))
+            (service, encrypted, 1, "test", "2026-01-01T00:00:00Z"),
+        )
         conn.commit()
 
 

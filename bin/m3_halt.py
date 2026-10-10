@@ -29,6 +29,7 @@ Granularity note: there is ONE master switch (HALT_m3). ``halt_is_active`` takes
 a ``role`` argument so per-role switches (HALT_<role>) are an addable extension,
 but none are shipped — see the "Granularity" section of the design doc for why.
 """
+
 from __future__ import annotations
 
 import enum
@@ -78,8 +79,7 @@ def _safe_role(role: str) -> str:
     (§12c: guard the footgun, don't shrug at it). Allow letters/digits/-/_ only.
     """
     if not role or not all(c.isalnum() or c in "-_" for c in role):
-        raise ValueError(f"m3_halt: invalid role {role!r} "
-                         "(letters, digits, '-' and '_' only)")
+        raise ValueError(f"m3_halt: invalid role {role!r} (letters, digits, '-' and '_' only)")
     return role
 
 
@@ -94,6 +94,7 @@ def _engine_root(engine_root: str | None = None) -> Path:
     # engine > ~/.m3/engine). Imported lazily so this module has no import-time
     # dependency on bin/ being on sys.path yet.
     from m3_sdk import get_m3_engine_root
+
     return Path(get_m3_engine_root())
 
 
@@ -126,8 +127,7 @@ def _pid_is_live_owner(pid: int, recorded_create_time: float | None) -> bool:
     Passes this module's probes at CALL time so a patched `_pid_is_alive` /
     `_proc_create_time` is honoured, as the PID registry and lock tests rely on.
     """
-    return _process.pid_is_live_owner(
-        pid, recorded_create_time, alive=_pid_is_alive, create_time=_proc_create_time)
+    return _process.pid_is_live_owner(pid, recorded_create_time, alive=_pid_is_alive, create_time=_proc_create_time)
 
 
 # Public alias: cross-module callers (pg_sync, doctor, services) should use the
@@ -333,14 +333,14 @@ def _program_and_args(argv: list[str]) -> tuple[str, list[str]]:
     while i < len(argv):
         tok = argv[i]
         if tok in ("-c", "-m"):
-            return "", []                      # inline code / a module, not a script
+            return "", []  # inline code / a module, not a script
         if tok in _PY_OPTS_WITH_VALUE:
             i += 2
             continue
         if tok.startswith("-"):
             i += 1
             continue
-        return _bare(tok), list(argv[i + 1:])
+        return _bare(tok), list(argv[i + 1 :])
     return "", []
 
 
@@ -409,8 +409,7 @@ def scan_db_writer_processes(engine_root: str | None = None) -> list[ProcInfo]:
                 # but holds nothing (_is_venv_launcher_stub).
                 if _is_venv_launcher_stub(proc):
                     continue
-                found.append(ProcInfo(pid=pid, role=matched, started_at="",
-                                      engine_root=root, path=Path()))
+                found.append(ProcInfo(pid=pid, role=matched, started_at="", engine_root=root, path=Path()))
                 continue
 
             # 2. Name-only fallback for unreadable (typically ELEVATED) cmdlines.
@@ -427,9 +426,9 @@ def scan_db_writer_processes(engine_root: str | None = None) -> list[ProcInfo]:
             if not cmdline:
                 for role, sigs in _WRITER_NAME_SIGNATURES.items():
                     if any(sig in name for sig in sigs):
-                        found.append(ProcInfo(pid=pid, role=f"{role}(elevated?)",
-                                              started_at="", engine_root=root,
-                                              path=Path()))
+                        found.append(
+                            ProcInfo(pid=pid, role=f"{role}(elevated?)", started_at="", engine_root=root, path=Path())
+                        )
                         break
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             continue
@@ -679,15 +678,16 @@ def kill_stale_daemons(
                 # flag. Output is captured, so the helper's precondition holds.
                 from _task_runtime import no_window_kwargs
 
-                cp = subprocess.run(["taskkill", "/F", "/T", "/PID", str(w.pid)],
-                                    capture_output=True, text=True,
-                                    **no_window_kwargs())
+                cp = subprocess.run(
+                    ["taskkill", "/F", "/T", "/PID", str(w.pid)], capture_output=True, text=True, **no_window_kwargs()
+                )
                 # /T also kills the child tree — a pythonw launcher stub + its real
                 # worker die together, so no orphaned half-generation is left.
                 if cp.returncode != 0 and _pid_is_alive(w.pid):
                     entry["error"] = (cp.stderr or cp.stdout or "taskkill failed").strip()
             else:
                 import signal as _signal
+
                 os.kill(w.pid, _signal.SIGTERM)
                 for _ in range(int(timeout * 10)):
                     if not _pid_is_alive(w.pid):
@@ -710,8 +710,9 @@ def kill_stale_daemons(
             entry["error"] = f"access denied (elevated writer?): {e}"
         except Exception as e:  # noqa: BLE001 — one bad pid must not abort the sweep
             entry["error"] = str(e)
-        _log_lock_event("killed_stale" if entry["killed"] else "kill_failed",
-                        w.role, None, victim_pid=w.pid, by_pid=self_pid)
+        _log_lock_event(
+            "killed_stale" if entry["killed"] else "kill_failed", w.role, None, victim_pid=w.pid, by_pid=self_pid
+        )
         results.append(entry)
     return results
 
@@ -719,8 +720,7 @@ def kill_stale_daemons(
 # ──────────────────────────────────────────────────────────────────────────
 # HALT semaphore
 # ──────────────────────────────────────────────────────────────────────────
-def set_halt(owner: str, reason: str, engine_root: str | None = None,
-             targets: str = _TARGET_ALL) -> Path:
+def set_halt(owner: str, reason: str, engine_root: str | None = None, targets: str = _TARGET_ALL) -> Path:
     """Raise the quiesce semaphore. Only ``targets="*"`` (all writers) is
     implemented — the per-role extension point is documented but unshipped.
 
@@ -795,8 +795,7 @@ class QuiesceResult:
     stuck: list[ProcInfo]
 
 
-def wait_for_roles(roles, engine_root: str | None = None,
-                   timeout: float = 20.0, poll: float = 0.5) -> list:
+def wait_for_roles(roles, engine_root: str | None = None, timeout: float = 20.0, poll: float = 0.5) -> list:
     """Wait up to ``timeout`` s for every role in ``roles`` to appear registered.
 
     The inverse of ``wait_for_quiesce``: that waits for writers to LEAVE the
@@ -834,10 +833,12 @@ def wait_for_roles(roles, engine_root: str | None = None,
         time.sleep(poll)
 
 
-def wait_for_quiesce(engine_root: str | None = None, timeout: float = 30.0,
-                     poll: float = 0.5,
-                     on_tick: Callable[[float, float, list[ProcInfo]], None] | None = None
-                     ) -> QuiesceResult:
+def wait_for_quiesce(
+    engine_root: str | None = None,
+    timeout: float = 30.0,
+    poll: float = 0.5,
+    on_tick: Callable[[float, float, list[ProcInfo]], None] | None = None,
+) -> QuiesceResult:
     """Wait up to ``timeout`` s for the PID registry to empty.
 
     Invariant (see the writer contract in HALT_PROTOCOL.md): a writer that honors
@@ -968,8 +969,7 @@ def _lock_events_path(engine_root: str | None = None) -> Path:
     return _internal_dir(engine_root) / _LOCK_EVENTS_FILENAME
 
 
-def _log_lock_event(event: str, role: str, engine_root: str | None,
-                    **fields) -> None:
+def _log_lock_event(event: str, role: str, engine_root: str | None, **fields) -> None:
     """Append one JSONL lock event. Best-effort — swallow ALL errors so logging
     can never affect a lock acquire/release. Rotates when the file exceeds
     _LOCK_EVENTS_MAX_BYTES (keeps a single .1 backup) to stay bounded."""
@@ -983,8 +983,7 @@ def _log_lock_event(event: str, role: str, engine_root: str | None,
                 os.replace(str(p), str(backup))  # atomic; drops the older .1
         except OSError:
             pass
-        rec = {"ts": iso_local_timestamp(), "event": event, "role": role,
-               "pid": os.getpid()}
+        rec = {"ts": iso_local_timestamp(), "event": event, "role": role, "pid": os.getpid()}
         rec.update(fields)
         with open(p, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(rec))
@@ -993,9 +992,7 @@ def _log_lock_event(event: str, role: str, engine_root: str | None,
         pass
 
 
-def read_lock_events(engine_root: str | None = None,
-                     role: str | None = None,
-                     limit: int = 200) -> list[dict]:
+def read_lock_events(engine_root: str | None = None, role: str | None = None, limit: int = 200) -> list[dict]:
     """Return recent lock events (newest last), optionally filtered by ``role``.
     For doctor / the dashboard lock panel. Reads the current file only (rotated
     .1 backup is not merged — recent history is what matters). Empty list (never
@@ -1025,8 +1022,8 @@ class LockStatus(enum.StrEnum):
     downstream handling — a caller must NOT collapse every non-ACQUIRED into
     "already running" (a wedged lock or a config error is not a live peer)."""
 
-    ACQUIRED = "acquired"        # WON — we hold the OS lock; run.
-    REENTRANT = "reentrant"      # this process already held this role; same handle.
+    ACQUIRED = "acquired"  # WON — we hold the OS lock; run.
+    REENTRANT = "reentrant"  # this process already held this role; same handle.
     HELD_BY_PEER = "held_by_peer"  # a LIVE peer holds the OS lock → exit
     #                                EXIT_ALREADY_RUNNING (by construction the
     #                                holder is alive; the OS freed it if it died).
@@ -1034,7 +1031,7 @@ class LockStatus(enum.StrEnum):
     #                                unwritable/missing .internal dir, bad engine
     #                                root, permissions. A SETUP problem, not a
     #                                lock contention. Fail safe: run degraded.
-    LOCK_ERROR = "lock_error"    # the OS lock call itself failed for an
+    LOCK_ERROR = "lock_error"  # the OS lock call itself failed for an
     #                                unexpected reason (not "already held"). Rare;
     #                                surfaced for doctor. Fail safe: run degraded.
 
@@ -1046,15 +1043,14 @@ class LockStatus(enum.StrEnum):
         return {
             LockStatus.ACQUIRED: 0,
             LockStatus.REENTRANT: 0,
-            LockStatus.HELD_BY_PEER: EXIT_ALREADY_RUNNING,   # 4
+            LockStatus.HELD_BY_PEER: EXIT_ALREADY_RUNNING,  # 4
             LockStatus.CONFIG_ERROR: EXIT_LOCK_CONFIG_ERROR,  # 5
-            LockStatus.LOCK_ERROR: EXIT_LOCK_ERROR,           # 6
+            LockStatus.LOCK_ERROR: EXIT_LOCK_ERROR,  # 6
         }[self]
 
 
 # Statuses under which the service SHOULD run (has, at least, a usable handle).
-_RUNNABLE = frozenset({LockStatus.ACQUIRED, LockStatus.REENTRANT,
-                       LockStatus.CONFIG_ERROR, LockStatus.LOCK_ERROR})
+_RUNNABLE = frozenset({LockStatus.ACQUIRED, LockStatus.REENTRANT, LockStatus.CONFIG_ERROR, LockStatus.LOCK_ERROR})
 
 
 _proc_create_time = _process.proc_create_time
@@ -1085,6 +1081,7 @@ def _os_lock_exclusive_nb(fd: int) -> tuple[bool, Exception | None]:
         # Linux (CI is ubuntu) flags locking/LK_* as missing — but this branch
         # never runs there. Suppress the platform-stub false positive (§12c).
         import msvcrt
+
         try:
             # Lock 1 byte, non-blocking. Raises OSError if another handle holds it.
             msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)  # type: ignore[attr-defined, unused-ignore]
@@ -1092,6 +1089,7 @@ def _os_lock_exclusive_nb(fd: int) -> tuple[bool, Exception | None]:
         except OSError as e:
             # EACCES/EDEADLOCK == already locked by another process (would-block).
             import errno
+
             # errno.EDEADLOCK exists on Windows (where this branch runs) but not
             # in the macOS errno stub a type checker sees — same platform-stub
             # false positive as msvcrt above; this line never executes off-nt.
@@ -1104,6 +1102,7 @@ def _os_lock_exclusive_nb(fd: int) -> tuple[bool, Exception | None]:
         # there (guarded by os.name == "nt" above). Suppress the platform-stub
         # false positive rather than let it read as a real error (§12c).
         import fcntl
+
         try:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)  # type: ignore[attr-defined, unused-ignore]
             return True, None
@@ -1111,6 +1110,7 @@ def _os_lock_exclusive_nb(fd: int) -> tuple[bool, Exception | None]:
             return False, None  # held by a live peer
         except OSError as e:
             import errno
+
             if e.errno in (errno.EACCES, errno.EAGAIN, errno.EWOULDBLOCK):
                 return False, None
             return False, e
@@ -1122,12 +1122,14 @@ def _os_unlock(fd: int) -> None:
     try:
         if is_windows():
             import msvcrt  # Windows only (see above)
+
             try:
                 msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)  # type: ignore[attr-defined, unused-ignore]
             except OSError:
                 pass
         else:
             import fcntl  # POSIX only (see above)
+
             try:
                 fcntl.flock(fd, fcntl.LOCK_UN)  # type: ignore[attr-defined, unused-ignore]
             except OSError:
@@ -1233,10 +1235,12 @@ def _register_lock_cleanup(lock: InstanceLock) -> None:
     next acquirer. Fail-safe: never crash the service or clobber a pre-existing
     SIGTERM handler (we chain to it)."""
     import atexit
+
     atexit.register(lock.release)
     try:
         import signal
         import threading
+
         if threading.current_thread() is not threading.main_thread():
             return  # signal handlers install only from the main thread
         prev = signal.getsignal(signal.SIGTERM)
@@ -1347,14 +1351,18 @@ def acquire_single_instance(
             path.parent.mkdir(parents=True, exist_ok=True)
             fd = os.open(str(path), os.O_CREAT | os.O_RDWR, 0o644)
         except OSError as e:
-            logger.warning("m3_halt: cannot open lock file %s: %s — running DEGRADED "
-                           "(single-instance NOT enforced; check .internal perms/root)",
-                           path, e)
+            logger.warning(
+                "m3_halt: cannot open lock file %s: %s — running DEGRADED "
+                "(single-instance NOT enforced; check .internal perms/root)",
+                path,
+                e,
+            )
             _log_lock_event("config_error", role, engine_root, error=str(e)[:200])
             return LockResult(
                 status=LockStatus.CONFIG_ERROR,
-                lock=InstanceLock(role=role, pid=my_pid, path=path, fd=-1,
-                                  status=LockStatus.CONFIG_ERROR, engine_root=engine_root),
+                lock=InstanceLock(
+                    role=role, pid=my_pid, path=path, fd=-1, status=LockStatus.CONFIG_ERROR, engine_root=engine_root
+                ),
             )
 
         # 2. Try the OS advisory lock (non-blocking; one retry to cover a steal).
@@ -1367,22 +1375,22 @@ def acquire_single_instance(
                     payload = _build_registry_payload(role, engine_root, extra, pid=my_pid)
                     op = _owner_sidecar_path(path)
                     from m3_core.atomic_io import atomic_write
+
                     atomic_write(op, json.dumps(payload))
                 except OSError as e:
-                    logger.warning("m3_halt: owner-sidecar write failed for %s: %s "
-                                   "(lock still held)", path, e)
-                lock = InstanceLock(role=role, pid=my_pid, path=path, fd=fd,
-                                    status=LockStatus.ACQUIRED, engine_root=engine_root)
+                    logger.warning("m3_halt: owner-sidecar write failed for %s: %s (lock still held)", path, e)
+                lock = InstanceLock(
+                    role=role, pid=my_pid, path=path, fd=fd, status=LockStatus.ACQUIRED, engine_root=engine_root
+                )
                 _HELD_LOCKS[key] = lock
                 _register_lock_cleanup(lock)
-                _log_lock_event("acquired", role, engine_root,
-                                **{k: v for k, v in (extra or {}).items()
-                                   if k in ("host", "port")})
+                _log_lock_event(
+                    "acquired", role, engine_root, **{k: v for k, v in (extra or {}).items() if k in ("host", "port")}
+                )
                 return LockResult(status=LockStatus.ACQUIRED, lock=lock)
 
             if err is not None:
-                logger.warning("m3_halt: OS lock error on %s: %s — running DEGRADED",
-                               path, err)
+                logger.warning("m3_halt: OS lock error on %s: %s — running DEGRADED", path, err)
                 try:
                     os.close(fd)
                 except OSError:
@@ -1390,8 +1398,9 @@ def acquire_single_instance(
                 _log_lock_event("lock_error", role, engine_root, error=str(err)[:200])
                 return LockResult(
                     status=LockStatus.LOCK_ERROR,
-                    lock=InstanceLock(role=role, pid=my_pid, path=path, fd=-1,
-                                      status=LockStatus.LOCK_ERROR, engine_root=engine_root),
+                    lock=InstanceLock(
+                        role=role, pid=my_pid, path=path, fd=-1, status=LockStatus.LOCK_ERROR, engine_root=engine_root
+                    ),
                 )
 
             # would-block: a LIVE peer holds it.
@@ -1410,8 +1419,7 @@ def acquire_single_instance(
             os.close(fd)
         except OSError:
             pass
-        return LockResult(status=LockStatus.HELD_BY_PEER,
-                          owner=_read_sidecar_owner(path, engine_root))
+        return LockResult(status=LockStatus.HELD_BY_PEER, owner=_read_sidecar_owner(path, engine_root))
 
     deadline = time.monotonic() + max(0.0, timeout)
     while True:
@@ -1421,8 +1429,7 @@ def acquire_single_instance(
         # waiting; ACQUIRED/REENTRANT are done). Poll until the deadline.
         if res.status is not LockStatus.HELD_BY_PEER or time.monotonic() >= deadline:
             if res.status is LockStatus.HELD_BY_PEER:
-                _log_lock_event("held_by_peer", role, engine_root,
-                                owner_pid=(res.owner.pid if res.owner else None))
+                _log_lock_event("held_by_peer", role, engine_root, owner_pid=(res.owner.pid if res.owner else None))
             return res
         time.sleep(min(0.1, max(0.0, deadline - time.monotonic())))
 
@@ -1471,14 +1478,15 @@ def acquire_or_exit(
         # Caller opted to bail on a broken lock rather than run degraded. The
         # distinct code (5/6) tells the operator whether it's a config/perms
         # problem or an unexpected OS lock failure.
-        print(f"{role}: single-instance lock unavailable ({res.status.value}); "
-              f"exiting.", flush=True)
+        print(f"{role}: single-instance lock unavailable ({res.status.value}); exiting.", flush=True)
         sys.exit(res.status.exit_code)  # 5 or 6
     # RUNNABLE — ACQUIRED/REENTRANT hold the OS lock; CONFIG/LOCK_ERROR degraded.
     if res.lock is None:  # ACQUIRED/REENTRANT hold the lock; CONFIG/LOCK_ERROR degraded
-        raise RuntimeError(f"{role}: lock status {res.status.value} carried no lock; "
-                           "observed: a runnable status without an InstanceLock. "
-                           "inspect: InstanceLock.acquire's status contract")
+        raise RuntimeError(
+            f"{role}: lock status {res.status.value} carried no lock; "
+            "observed: a runnable status without an InstanceLock. "
+            "inspect: InstanceLock.acquire's status contract"
+        )
     return res.lock
 
 
@@ -1489,14 +1497,16 @@ def _steal_lock(owner: ProcInfo | None, path: Path) -> None:
     and only if a sidecar pid is readable. Audited. The OS releases the victim's
     advisory lock when it dies, so our caller's retry can then take it."""
     if owner is None:
-        logger.warning("m3_halt: STEAL requested for %s but no readable owner "
-                       "sidecar — cannot identify a pid to kill; not stealing.",
-                       path.name)
+        logger.warning(
+            "m3_halt: STEAL requested for %s but no readable owner "
+            "sidecar — cannot identify a pid to kill; not stealing.",
+            path.name,
+        )
         return
-    logger.warning("m3_halt: STEAL — killing live lock holder role=%s pid=%s to "
-                   "take over %s", owner.role, owner.pid, path.name)
-    _log_lock_event("stolen", owner.role, None,
-                    victim_pid=owner.pid, by_pid=os.getpid())
+    logger.warning(
+        "m3_halt: STEAL — killing live lock holder role=%s pid=%s to take over %s", owner.role, owner.pid, path.name
+    )
+    _log_lock_event("stolen", owner.role, None, victim_pid=owner.pid, by_pid=os.getpid())
     try:
         if is_windows():
             import subprocess
@@ -1504,11 +1514,12 @@ def _steal_lock(owner: ProcInfo | None, path: Path) -> None:
             # taskkill is console-subsystem: flashes a window without the flag.
             from _task_runtime import no_window_kwargs
 
-            subprocess.run(["taskkill", "/F", "/PID", str(owner.pid)],
-                           capture_output=True, check=False,
-                           **no_window_kwargs())
+            subprocess.run(
+                ["taskkill", "/F", "/PID", str(owner.pid)], capture_output=True, check=False, **no_window_kwargs()
+            )
         else:
             import signal as _signal
+
             os.kill(owner.pid, _signal.SIGTERM)
     except Exception as e:  # noqa: BLE001
         logger.warning("m3_halt: steal kill of pid %s failed: %s", owner.pid, e)

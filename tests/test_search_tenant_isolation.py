@@ -32,10 +32,8 @@ _ALICE_NOTE = "alice public project planning roadmap notes"
 
 async def _seed(link: bool = False):
     """Write bob's secret + alice's note; optionally link them cross-tenant."""
-    rb = await memory_write_impl(type="fact", content=_BOB_SECRET,
-                                 user_id="bob", scope="user", auto_classify=False)
-    ra = await memory_write_impl(type="fact", content=_ALICE_NOTE,
-                                 user_id="alice", scope="user", auto_classify=False)
+    rb = await memory_write_impl(type="fact", content=_BOB_SECRET, user_id="bob", scope="user", auto_classify=False)
+    ra = await memory_write_impl(type="fact", content=_ALICE_NOTE, user_id="alice", scope="user", auto_classify=False)
     bid = re.search(r"[0-9a-f-]{36}", rb).group(0)
     aid = re.search(r"[0-9a-f-]{36}", ra).group(0)
     if link:
@@ -51,8 +49,9 @@ def _leaks_bob(result) -> bool:
     gate: alice's own id was c4d9f0a7-dc3b-4429-..., a false "leak" on a
     security test, which is worse than no test)."""
     rows = result if isinstance(result, list) else []
-    texts = [f"{it.get('content') or ''} {it.get('title') or ''}".lower()
-             for _score, it in rows if isinstance(it, dict)]
+    texts = [
+        f"{it.get('content') or ''} {it.get('title') or ''}".lower() for _score, it in rows if isinstance(it, dict)
+    ]
     if not rows and not isinstance(result, list):  # a formatted-string result
         texts = [_ID_RE.sub("", str(result)).lower()]
     return any(("merger" in t or "acme" in t or "4429" in t) for t in texts)
@@ -66,22 +65,32 @@ async def test_scored_fts_short_circuit_no_leak():
     await _seed()
     for mode in ("hybrid", "fts5"):
         rows = await memory_search_scored_impl(
-            query="merger target Acme Corp", user_id="alice", scope="user",
-            k=5, search_mode=mode, extra_columns=["user_id"],
+            query="merger target Acme Corp",
+            user_id="alice",
+            scope="user",
+            k=5,
+            search_mode=mode,
+            extra_columns=["user_id"],
         )
-        assert not any(it.get("user_id") == "bob" for _s, it in rows), \
+        assert not any(it.get("user_id") == "bob" for _s, it in rows), (
             f"FTS short-circuit leaked bob's row to alice in mode={mode}"
+        )
 
 
 async def test_scored_cross_scope_no_leak():
     """user-scope query must not surface org-scope rows of another user."""
-    await memory_write_impl(type="fact", content="org roadmap Q3 launch secret",
-                            user_id="carol", scope="org", auto_classify=False)
-    await memory_write_impl(type="fact", content="alice tea preference",
-                            user_id="alice", scope="user", auto_classify=False)
+    await memory_write_impl(
+        type="fact", content="org roadmap Q3 launch secret", user_id="carol", scope="org", auto_classify=False
+    )
+    await memory_write_impl(
+        type="fact", content="alice tea preference", user_id="alice", scope="user", auto_classify=False
+    )
     rows = await memory_search_scored_impl(
-        query="roadmap Q3 launch secret", user_id="alice", scope="user",
-        k=5, extra_columns=["user_id", "scope"],
+        query="roadmap Q3 launch secret",
+        user_id="alice",
+        scope="user",
+        k=5,
+        extra_columns=["user_id", "scope"],
     )
     assert not any(it.get("scope") == "org" for _s, it in rows)
     assert not any(it.get("user_id") == "carol" for _s, it in rows)
@@ -91,8 +100,11 @@ async def test_bob_still_finds_own():
     """The fix must not over-block: bob still retrieves his own row."""
     await _seed()
     rows = await memory_search_scored_impl(
-        query="merger target Acme Corp", user_id="bob", scope="user",
-        k=5, extra_columns=["user_id"],
+        query="merger target Acme Corp",
+        user_id="bob",
+        scope="user",
+        k=5,
+        extra_columns=["user_id"],
     )
     assert any(it.get("user_id") == "bob" for _s, it in rows)
 
@@ -107,8 +119,12 @@ async def test_routed_expansion_no_leak(graph_depth, expand_sessions, entity_gra
     must still never surface bob's content through the expansion."""
     await _seed(link=True)
     result = await memory_search_routed_impl(
-        query="project planning roadmap", user_id="alice", scope="user", k=5,
-        graph_depth=graph_depth, expand_sessions=expand_sessions,
+        query="project planning roadmap",
+        user_id="alice",
+        scope="user",
+        k=5,
+        graph_depth=graph_depth,
+        expand_sessions=expand_sessions,
         entity_graph=entity_graph,
     )
     assert not _leaks_bob(result), (

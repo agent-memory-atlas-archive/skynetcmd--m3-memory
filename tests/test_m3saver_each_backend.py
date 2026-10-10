@@ -4,6 +4,7 @@ It refused on PostgreSQL (require_sqlite_backend): BLOB columns, executescript
 and INSERT OR REPLACE. The schema, the upserts and the binds now come from the
 dialect; this pins put / get_tuple / list / put_writes / delete_thread on each.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -51,7 +52,8 @@ def test_checkpoints_round_trip(each_backend):
     got = saver.get_tuple(_cfg(thread, first["id"]))
     assert got is not None, f"observed: no checkpoint {where}"
     assert got.checkpoint["channel_values"] == {"blob": b"\x00\xffraw", "n": 2}, (
-        f"observed: {got.checkpoint['channel_values']!r} {where}")
+        f"observed: {got.checkpoint['channel_values']!r} {where}"
+    )
     assert got.metadata == {"step": 1}, f"observed: metadata {got.metadata!r} {where}"
 
     latest = saver.get_tuple(_cfg(thread))

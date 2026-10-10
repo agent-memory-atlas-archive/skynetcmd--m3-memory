@@ -16,6 +16,7 @@ The BGE-M3 GGUF (~438MB) ships with the repo via Git LFS under
 `_assets/models/bge-m3-Q4_K_M.gguf`. The installer locates it via the
 m3-memory payload root (set by `install-m3`); no network fetch.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -38,6 +39,7 @@ from m3_memory._platform import is_macos, is_windows
 EXIT_REGISTERED_NOT_RUNNING = 3
 
 # ── locations ─────────────────────────────────────────────────────────────────
+
 
 def _m3_root() -> Path:
     root = os.environ.get("M3_MEMORY_ROOT")
@@ -180,8 +182,7 @@ def _find_bundled_gguf() -> Path | None:
             raise RuntimeError("autodetect disabled")
         cfg = Path(_embed_config_path())
         if cfg.is_file():
-            raw = (json.loads(cfg.read_text(encoding="utf-8"))
-                   .get("gguf_path") or "").strip()
+            raw = (json.loads(cfg.read_text(encoding="utf-8")).get("gguf_path") or "").strip()
             if raw and Path(raw).is_file():
                 configured = Path(raw)
                 if _is_sovereign_path(configured):
@@ -217,6 +218,7 @@ def _find_bundled_gguf() -> Path | None:
     # 3. Resolve via the install-m3 payload root.
     try:
         from m3_memory.installer import assets_dir
+
         assets = assets_dir()
         if assets:
             candidate = assets / "models" / BGE_M3_FILENAME
@@ -255,6 +257,7 @@ def _is_lfs_pointer(p: Path) -> bool:
 
 # ── m3-embed-server binary discovery ─────────────────────────────────────────
 
+
 def _server_binary() -> Path | None:
     """Locate the m3-embed-server binary.
 
@@ -269,6 +272,7 @@ def _server_binary() -> Path | None:
 
     try:
         import m3_core_rs
+
         wheel_dir = Path(m3_core_rs.__file__).parent
         exe_name = "m3-embed-server.exe" if is_windows() else "m3-embed-server"
         for candidate in (
@@ -308,8 +312,7 @@ def _ensure_executable(binary: Path) -> None:
             return
         mode = os.stat(binary).st_mode
         os.chmod(binary, mode | 0o111)
-        print(f"[~] added the exec bit to {binary.name} "
-              f"(the wheel shipped it non-executable)")
+        print(f"[~] added the exec bit to {binary.name} (the wheel shipped it non-executable)")
     except OSError as exc:
         # Say it here rather than let the exec's EACCES stand alone: that error
         # names a permission problem without saying we tried to correct it.
@@ -353,8 +356,7 @@ def exec_bit_status(binary: str | os.PathLike[str] | None = None) -> dict:
     try:
         mode = os.stat(binary).st_mode
     except OSError as exc:
-        return {"state": "unknown", "path": str(binary),
-                "detail": f"{type(exc).__name__}: {exc}"}
+        return {"state": "unknown", "path": str(binary), "detail": f"{type(exc).__name__}: {exc}"}
     if mode & 0o111:
         return {"state": "ok", "path": str(binary), "mode": f"{mode & 0o777:o}"}
     return {
@@ -388,17 +390,17 @@ def repair_exec_bit(binary: Path | None = None, dry_run: bool = False) -> dict:
     """
     status = exec_bit_status(binary)
     if status.get("state") != "not-executable":
-        return {"status": "ok", "detail": status.get("detail")
-                or f"already executable ({status.get('state')})"}
+        return {"status": "ok", "detail": status.get("detail") or f"already executable ({status.get('state')})"}
 
     path = status.get("path")
     if not path:
-        return {"status": "failed",
-                "detail": "observed: exec_bit_status reported not-executable without a path. "
-                          "inspect: exec_bit_status's return contract"}
+        return {
+            "status": "failed",
+            "detail": "observed: exec_bit_status reported not-executable without a path. "
+            "inspect: exec_bit_status's return contract",
+        }
     if dry_run:
-        return {"status": "skipped",
-                "detail": f"dry_run=True; would chmod +x {path}"}
+        return {"status": "skipped", "detail": f"dry_run=True; would chmod +x {path}"}
 
     # 1. As the current user.
     try:
@@ -413,12 +415,9 @@ def repair_exec_bit(binary: Path | None = None, dry_run: bool = False) -> dict:
 
     # 2. Escalate, without ever blocking on a prompt.
     try:
-        proc = subprocess.run(["sudo", "-n", "chmod", "a+x", str(path)],
-                              capture_output=True, text=True, timeout=30)
+        proc = subprocess.run(["sudo", "-n", "chmod", "a+x", str(path)], capture_output=True, text=True, timeout=30)
     except (OSError, subprocess.SubprocessError) as exc:
-        return {"status": "failed",
-                "detail": f"observed: {first}. sudo unavailable: {exc}. "
-                          f"fix: sudo chmod +x {path}"}
+        return {"status": "failed", "detail": f"observed: {first}. sudo unavailable: {exc}. fix: sudo chmod +x {path}"}
     if proc.returncode == 0 and exec_bit_status(Path(path)).get("state") == "ok":
         return {"status": "fixed", "detail": f"sudo chmod a+x {path}"}
     return {
@@ -451,8 +450,9 @@ def _service_cmd_quiet(binary: Path, gguf: Path, sub: str, *extra: str) -> int:
     env = os.environ.copy()
     env.setdefault("M3_EMBED_GGUF", str(gguf))
     env.setdefault("M3_EMBED_SERVER_PORT", "8082")
-    proc = subprocess.run([str(binary), sub, *extra], env=env, check=False,
-                          capture_output=True, text=True, errors="replace")
+    proc = subprocess.run(
+        [str(binary), sub, *extra], env=env, check=False, capture_output=True, text=True, errors="replace"
+    )
     if proc.returncode != 0:
         sys.stdout.write(proc.stdout or "")
         sys.stderr.write(proc.stderr or "")
@@ -474,6 +474,7 @@ def _port_in_use(port: int, host: str = "127.0.0.1", timeout: float = 0.3) -> bo
     some other process) is already listening before we (re)start one, so a second
     instance doesn't silently fail to bind."""
     import socket
+
     try:
         with socket.create_connection((host, port), timeout=timeout):
             return True
@@ -490,8 +491,12 @@ def _service_reports_installed(binary: Path, gguf: Path) -> bool:
     env.setdefault("M3_EMBED_SERVER_PORT", "8082")
     try:
         out = subprocess.run(
-            [str(binary), "status"], env=env, check=False,
-            capture_output=True, text=True, timeout=15,
+            [str(binary), "status"],
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
     except (OSError, subprocess.SubprocessError):
         return False
@@ -570,7 +575,10 @@ def _service_reports_running(binary: Path, gguf: Path) -> bool:
         proc = subprocess.run(
             [str(binary), "status"],
             env={**os.environ, "M3_EMBED_GGUF": str(gguf)},
-            capture_output=True, text=True, timeout=20, check=False,
+            capture_output=True,
+            text=True,
+            timeout=20,
+            check=False,
         )
     except Exception:  # noqa: BLE001 — probe must never raise into setup (§3)
         return False
@@ -584,15 +592,38 @@ def _service_reports_running(binary: Path, gguf: Path) -> bool:
 # healthy is the exact inversion this probe exists to prevent, and it is now
 # load-bearing for the post-start verification.
 _STATUS_NOT_RUNNING = (
-    "not installed", "not running", "isn't running", "is not running",
-    "not started", "stopped", "inactive", "activating", "start_pending",
-    "dead", "failed", "unknown", "-pending",
+    "not installed",
+    "not running",
+    "isn't running",
+    "is not running",
+    "not started",
+    "stopped",
+    "inactive",
+    "activating",
+    "start_pending",
+    "dead",
+    "failed",
+    "unknown",
+    "-pending",
 )
 _STATUS_RUNNING = ("running", "active", "started")
 # Every state word a registered service can be reported in — transitional ones
 # included. "not installed" is handled separately, before this is consulted.
 # m3-embed-server prints SCM's transitional states hyphenated ("start-pending").
-_STATUS_REGISTERED = (*_STATUS_RUNNING, "stopped", "inactive", "activating", "start_pending", "stop_pending", "-pending", "paused", "dead", "failed", "disabled", "loaded")
+_STATUS_REGISTERED = (
+    *_STATUS_RUNNING,
+    "stopped",
+    "inactive",
+    "activating",
+    "start_pending",
+    "stop_pending",
+    "-pending",
+    "paused",
+    "dead",
+    "failed",
+    "disabled",
+    "loaded",
+)
 
 
 def _status_says_running(blob: str) -> bool:
@@ -624,8 +655,7 @@ def _port_holder_hint(port: int) -> str:
     return f"    ss -lptn 'sport = :{port}'   (or: lsof -nP -iTCP:{port} -sTCP:LISTEN)"
 
 
-def _confirm_started(binary: Path, gguf: Path, *,
-                     attempts: int = 6, delay: float = 0.5) -> bool:
+def _confirm_started(binary: Path, gguf: Path, *, attempts: int = 6, delay: float = 0.5) -> bool:
     """True once the service manager itself reports RUNNING.
 
     Startup is asynchronous on all three platforms, so a single probe fired
@@ -655,13 +685,14 @@ def stale_embed_servers() -> list[dict]:
         import glob
 
         import psutil
+
         binary = _server_binary()
         if not binary:
             return []
-        records = glob.glob(os.path.join(os.path.dirname(os.path.dirname(str(binary))),
-                                         "m3_core_rs*.dist-info", "RECORD"))
-        installed = max((os.path.getmtime(r) for r in records),
-                        default=os.path.getmtime(str(binary)))
+        records = glob.glob(
+            os.path.join(os.path.dirname(os.path.dirname(str(binary))), "m3_core_rs*.dist-info", "RECORD")
+        )
+        installed = max((os.path.getmtime(r) for r in records), default=os.path.getmtime(str(binary)))
     except Exception:  # noqa: BLE001 — a diagnostic must never raise
         return []
     stale = []
@@ -709,14 +740,14 @@ def restart_stale_embed_service(*, allow_elevation: bool) -> dict:
         if not allow_elevation:
             return {"outcome": "needs-admin", "pids": pids, "detail": ""}
         from m3_memory.elevate import ElevationBatch
+
         batch = ElevationBatch()
         batch.add("stop the embed service", [str(binary), "stop"])
         batch.add("start the embed service on the new core", [str(binary), "start"])
         results = batch.run()
         if results is None:
             return {"outcome": "declined", "pids": pids, "detail": ""}
-        detail = "; ".join(f"{label}: exit {r['rc']}" for label, r in results.items()
-                           if r["rc"] != 0)
+        detail = "; ".join(f"{label}: exit {r['rc']}" for label, r in results.items() if r["rc"] != 0)
     else:
         gguf = _find_bundled_gguf() or Path("/")
         for verb in ("stop", "start"):
@@ -725,8 +756,11 @@ def restart_stale_embed_service(*, allow_elevation: bool) -> dict:
                 detail = f"`m3-embed-server {verb}` exited {rc}"
                 break
     still = stale_embed_servers()
-    return {"outcome": "still-stale" if still else "restarted",
-            "pids": [s["pid"] for s in still] or pids, "detail": detail}
+    return {
+        "outcome": "still-stale" if still else "restarted",
+        "pids": [s["pid"] for s in still] or pids,
+        "detail": detail,
+    }
 
 
 _SERVE_WAIT_S = 60.0
@@ -735,11 +769,13 @@ _SERVE_WAIT_S = 60.0
 def _wait_serving_impl(port: int, timeout: float = _SERVE_WAIT_S) -> bool:
     """True once GET /health on the embed port returns 200, within ``timeout``."""
     import urllib.request
+
     deadline = time.monotonic() + timeout
     while True:
         try:
             with urllib.request.urlopen(  # nosec B310 — fixed http:// loopback URL
-                    f"http://127.0.0.1:{port}/health", timeout=2) as r:
+                f"http://127.0.0.1:{port}/health", timeout=2
+            ) as r:
                 if r.status == 200:
                     return True
         except OSError:
@@ -752,8 +788,7 @@ def _wait_serving_impl(port: int, timeout: float = _SERVE_WAIT_S) -> bool:
 _wait_serving = _wait_serving_impl  # tests stub this name (conftest)
 
 
-def _verify_started_or_explain(binary: Path, gguf: Path, *, start_rc: int = 0,
-                               quiet_ok: bool = False) -> int:
+def _verify_started_or_explain(binary: Path, gguf: Path, *, start_rc: int = 0, quiet_ok: bool = False) -> int:
     """Confirm the embedder is really up; explain loudly if it is not (§3).
 
     A success line must never rest on an exit code alone. On 2026-09-27
@@ -773,9 +808,12 @@ def _verify_started_or_explain(binary: Path, gguf: Path, *, start_rc: int = 0,
             if not quiet_ok:
                 print(f"[OK] sovereign CPU embedder running on port {port}")
         else:
-            print(f"[!] m3-embed-server is running but port {port} has not answered "
-                  f"after {_SERVE_WAIT_S:.0f}s (model still loading, or stuck).\n"
-                  "  inspect: m3 embedder status", file=sys.stderr)
+            print(
+                f"[!] m3-embed-server is running but port {port} has not answered "
+                f"after {_SERVE_WAIT_S:.0f}s (model still loading, or stuck).\n"
+                "  inspect: m3 embedder status",
+                file=sys.stderr,
+            )
         return 0
     # The underlying `start` rc is reported in the message below; the RETURN code
     # is the specific one so callers can tell this apart from "never installed".
@@ -874,10 +912,12 @@ def _warn_if_port_busy(action: str) -> None:
     """
     port = _embed_server_port()
     if _port_in_use(port):
-        print(f"[i] port {port} is already in use. If that is an existing "
-              f"m3-embed-server, `{action}` is idempotent; if it is any other "
-              f"process, the service will not be able to bind. Confirmed after "
-              "start — check anytime with `m3 embedder status`.")
+        print(
+            f"[i] port {port} is already in use. If that is an existing "
+            f"m3-embed-server, `{action}` is idempotent; if it is any other "
+            f"process, the service will not be able to bind. Confirmed after "
+            "start — check anytime with `m3 embedder status`."
+        )
 
 
 def _locate_gguf_or_explain() -> Path | None:
@@ -928,8 +968,10 @@ def _offer_model_download() -> Path | None:
     if os.environ.get("M3_NO_MODEL_DOWNLOAD", "") == "1":
         return None
 
-    prompt = ("  No BGE-M3 model found on this machine.\n"
-              "  Download it (~418 MB) into ~/.m3/models so m3 owns its own copy? [Y/n] ")
+    prompt = (
+        "  No BGE-M3 model found on this machine.\n"
+        "  Download it (~418 MB) into ~/.m3/models so m3 owns its own copy? [Y/n] "
+    )
     try:
         if sys.stdin is not None and sys.stdin.isatty():
             answer = input(prompt).strip().lower()
@@ -943,13 +985,13 @@ def _offer_model_download() -> Path | None:
 
 # ── subcommands ───────────────────────────────────────────────────────────────
 
+
 def cmd_fetch_model(args: argparse.Namespace) -> int:
     """Download the BGE-M3 GGUF into m3's own model directory."""
     fetch_bge_m3 = _import_model_fetch("fetch_bge_m3")
     m3_models_dir = _import_model_fetch("m3_models_dir")
     if fetch_bge_m3 is None or m3_models_dir is None:
-        print("Error: could not load the model fetcher (bin/memory/model_fetch.py).",
-              file=sys.stderr)
+        print("Error: could not load the model fetcher (bin/memory/model_fetch.py).", file=sys.stderr)
         return 1
 
     dest = Path(args.dest).expanduser() if getattr(args, "dest", None) else m3_models_dir()
@@ -961,7 +1003,6 @@ def cmd_fetch_model(args: argparse.Namespace) -> int:
     return 0
 
 
-
 def cmd_install(args: argparse.Namespace) -> int:
     """End-to-end CPU embedder install: locate GGUF + register service + start."""
     binary = _server_binary()
@@ -970,6 +1011,7 @@ def cmd_install(args: argparse.Namespace) -> int:
         # so we can give an actionable next step rather than a raw git URL.
         try:
             from m3_memory.rust_core_install import detect_backend
+
             choice = detect_backend()
             prebuilt_hint = f"m3-core-rs-{choice.os_tok}-{choice.backend}"
         except Exception:
@@ -1008,13 +1050,13 @@ def cmd_install(args: argparse.Namespace) -> int:
         return 2
     size_mb = _gguf_size_bytes(gguf) // (1024 * 1024)
     from .wizard.ui import called_by_upgrade
-    quiet = called_by_upgrade()   # under `m3 upgrade`: changes and problems only
+
+    quiet = called_by_upgrade()  # under `m3 upgrade`: changes and problems only
 
     # Registered, running and on the current binary: nothing to install or
     # start, and a port-in-use notice would be about this same service.
     registered = _service_reports_installed(binary, gguf) or _service_defined_on_disk()
-    if (registered and _service_reports_running(binary, gguf)
-            and not _service_binary_is_stale(binary)):
+    if registered and _service_reports_running(binary, gguf) and not _service_binary_is_stale(binary):
         if not quiet:
             print(f"[=] using bundled GGUF: {gguf} ({size_mb} MB)")
         return _verify_started_or_explain(binary, gguf, quiet_ok=quiet)
@@ -1050,11 +1092,12 @@ def cmd_install(args: argparse.Namespace) -> int:
                 print("[~] on-disk binary is newer than the running service — restarting it")
                 _service_cmd(binary, gguf, "stop")
                 if _service_cmd(binary, gguf, "start") == 0:
-                    print(f"[OK] sovereign CPU embedder restarted on the new binary "
-                          f"(port {_embed_server_port()})")
+                    print(f"[OK] sovereign CPU embedder restarted on the new binary (port {_embed_server_port()})")
                     return 0
-                print("[!] restart failed — the service is still on the OLD binary.\n"
-                      f"{_install_failure_hint(gguf)}", file=sys.stderr)
+                print(
+                    f"[!] restart failed — the service is still on the OLD binary.\n{_install_failure_hint(gguf)}",
+                    file=sys.stderr,
+                )
                 return rc
             # Whether the port answers says nothing about OUR service — a stray
             # in-process embedder answers it too. Concluding "already serving"
@@ -1109,7 +1152,8 @@ def _binary_and_gguf_or_fail() -> tuple[Path, Path] | None:
 
 def cmd_start(args: argparse.Namespace) -> int:
     pair = _binary_and_gguf_or_fail()
-    if not pair: return 1
+    if not pair:
+        return 1
     binary, gguf = pair
     # `start` on a service that was never registered used to fail with generic
     # start-troubleshooting advice (systemd/nohup), not the real fix. When the
@@ -1125,19 +1169,22 @@ def cmd_start(args: argparse.Namespace) -> int:
 
 def cmd_stop(args: argparse.Namespace) -> int:
     pair = _binary_and_gguf_or_fail()
-    if not pair: return 1
+    if not pair:
+        return 1
     return _service_cmd(*pair, "stop")
 
 
 def cmd_status(args: argparse.Namespace) -> int:
     pair = _binary_and_gguf_or_fail()
-    if not pair: return 1
+    if not pair:
+        return 1
     return _service_cmd(*pair, "status")
 
 
 def cmd_uninstall(args: argparse.Namespace) -> int:
     pair = _binary_and_gguf_or_fail()
-    if not pair: return 1
+    if not pair:
+        return 1
     return _service_cmd(*pair, "uninstall")
 
 
@@ -1169,8 +1216,10 @@ def cmd_install_gpu(args: argparse.Namespace) -> int:
         stale = stale_embed_servers()
         if stale:
             pids = ", ".join(str(s["pid"]) for s in stale)
-            print(f"[OK] m3-core-rs installed; the embed server (pid {pids}) still runs "
-                  f"the previous core. restart it: {restart_embed_service_hint()}")
+            print(
+                f"[OK] m3-core-rs installed; the embed server (pid {pids}) still runs "
+                f"the previous core. restart it: {restart_embed_service_hint()}"
+            )
         else:
             print("[OK] m3-core-rs installed")
     return rc
@@ -1178,13 +1227,16 @@ def cmd_install_gpu(args: argparse.Namespace) -> int:
 
 # ── argparse wiring ───────────────────────────────────────────────────────────
 
+
 def _print_stop_proc_hint(script_name: str) -> None:
     """Print the platform-appropriate one-liner to find + stop a python process
     running `script_name`, so a user isn't left guessing how to 'restart the loop'."""
     if is_windows():
         print("         Find + stop it (PowerShell):")
-        print("           Get-CimInstance Win32_Process | ? { $_.CommandLine -like "
-              f"'*{script_name}*' }} | ForEach {{ Stop-Process -Id $_.ProcessId -Force }}")
+        print(
+            "           Get-CimInstance Win32_Process | ? { $_.CommandLine -like "
+            f"'*{script_name}*' }} | ForEach {{ Stop-Process -Id $_.ProcessId -Force }}"
+        )
     else:
         print(f"           pkill -f {script_name}   # find + stop it")
 
@@ -1246,8 +1298,11 @@ def _embed_config_path() -> str:
     root = os.environ.get("M3_CONFIG_ROOT")
     if not root:
         mem_root = os.environ.get("M3_MEMORY_ROOT")
-        root = (os.path.join(os.path.abspath(os.path.expanduser(mem_root)), "config")
-                if mem_root else os.path.join(os.path.expanduser("~"), ".m3", "config"))
+        root = (
+            os.path.join(os.path.abspath(os.path.expanduser(mem_root)), "config")
+            if mem_root
+            else os.path.join(os.path.expanduser("~"), ".m3", "config")
+        )
     return os.path.join(root, ".embed_config.json")
 
 
@@ -1298,6 +1353,7 @@ def seed_shared_config(
     as-is. Pure/deterministic apart from the file write; safe to call repeatedly.
     """
     import json
+
     if config_root is None:
         path = _embed_config_path()
     else:
@@ -1330,7 +1386,8 @@ def seed_shared_config(
     desired["_comment"] = (
         "Route all m3 processes to the shared GPU embedder "
         "(bin/embed_server_inproc.py) so only ONE CUDA context exists. "
-        "Seeded by the installer/doctor; edit via `m3 embedder shared|unshared`.")
+        "Seeded by the installer/doctor; edit via `m3 embedder shared|unshared`."
+    )
 
     if desired == existing:
         return path, False
@@ -1358,14 +1415,17 @@ def cmd_shared(args: argparse.Namespace) -> int:
         boot; or start it manually: `python bin/embed_server_inproc.py --port 8082`.
       - restart the MCP server + cognitive loop so they re-read the config."""
     import json
+
     port = getattr(args, "port", 8082) or 8082
     url = f"http://127.0.0.1:{port}"
     cfg = {
         "disable_inproc_embedder": True,
         "fallback_url": url,
-        "_comment": ("Route all m3 processes to the shared GPU embedder "
-                     "(bin/embed_server_inproc.py) so only ONE CUDA context exists. "
-                     "Written by `m3 embedder shared`. Revert with `m3 embedder unshared`."),
+        "_comment": (
+            "Route all m3 processes to the shared GPU embedder "
+            "(bin/embed_server_inproc.py) so only ONE CUDA context exists. "
+            "Written by `m3 embedder shared`. Revert with `m3 embedder unshared`."
+        ),
     }
     path = _embed_config_path()
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -1394,7 +1454,7 @@ def cmd_shared(args: argparse.Namespace) -> int:
     print("         the client connection — run `/mcp` to reconnect afterward (a")
     print("         plain reconnect alone does NOT reload code; the process must restart).")
     print("\n  3. Verify:  m3 doctor   (reports shared mode + server health), or")
-    print(f"              curl {url}/health   ->  {{\"status\":\"ok\"}}")
+    print(f'              curl {url}/health   ->  {{"status":"ok"}}')
     return 0
 
 
@@ -1419,8 +1479,7 @@ def cmd_unshared(args: argparse.Namespace) -> int:
     inproc_on = os.environ.get("M3_EMBED_INPROC", "0") == "1"
     print()
     if inproc_on:
-        print("     M3_EMBED_INPROC=1 is set, so processes WILL load their own "
-              "in-process embedder.")
+        print("     M3_EMBED_INPROC=1 is set, so processes WILL load their own in-process embedder.")
     else:
         print("     NOTE: removing the config does NOT enable in-process embedding.")
         print("     With no config file and M3_EMBED_INPROC unset (default 0), every")
@@ -1452,8 +1511,7 @@ def cmd_backfill(args: argparse.Namespace) -> int:
 
     script = _resolve_bin_script("embed_backfill.py")
     if script is None:
-        print("error: bin/embed_backfill.py not found — is the payload installed? "
-              "Try `m3 update`.", file=sys.stderr)
+        print("error: bin/embed_backfill.py not found — is the payload installed? Try `m3 update`.", file=sys.stderr)
         return 1
 
     targets: list[str] = []
@@ -1468,15 +1526,17 @@ def cmd_backfill(args: argparse.Namespace) -> int:
             sys.path.insert(0, bin_dir)
         try:
             import m3_cognitive_loop as _loop
+
             targets = _loop._embed_target_dbs(os.environ.get("M3_DATABASE"))
         except Exception as e:  # noqa: BLE001
-            print(f"warning: could not resolve the store list ({e}); "
-                  f"falling back to the default database.", file=sys.stderr)
+            print(
+                f"warning: could not resolve the store list ({e}); falling back to the default database.",
+                file=sys.stderr,
+            )
             targets = [""]
 
     common: list[str] = []
-    for name, flag in (("limit", "--limit"), ("max_row_bytes", "--max-row-bytes"),
-                       ("batch_size", "--batch-size")):
+    for name, flag in (("limit", "--limit"), ("max_row_bytes", "--max-row-bytes"), ("batch_size", "--batch-size")):
         val = getattr(args, name, None)
         if val:
             common += [flag, str(val)]
@@ -1507,8 +1567,7 @@ def cmd_reembed(args: argparse.Namespace) -> int:
     from m3_memory.cli import _resolve_bin_script, _run_bin_script
 
     if _resolve_bin_script("reembed_space.py") is None:
-        print("error: bin/reembed_space.py not found — is the payload installed? "
-              "Try `m3 update`.")
+        print("error: bin/reembed_space.py not found — is the payload installed? Try `m3 update`.")
         return 1
 
     argv: list[str] = []
@@ -1531,7 +1590,9 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
         help="Install the sovereign CPU embedder (BGE-M3 on port 8082) as an OS service.",
     )
     p_install.add_argument(
-        "--concurrency", type=int, default=2,
+        "--concurrency",
+        type=int,
+        default=2,
         help="Max concurrent embed requests (default: 2). Higher = more RAM.",
     )
     p_install.set_defaults(func=cmd_install)
@@ -1539,24 +1600,27 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     p_install_gpu = sub.add_parser(
         "install-gpu",
         help="Install the GPU-accelerated Rust core (CUDA/Vulkan/Metal autodetected); "
-             "prebuilt wheel from PyPI, source build fallback.",
+        "prebuilt wheel from PyPI, source build fallback.",
     )
     p_install_gpu.add_argument(
-        "--no-source-fallback", action="store_true",
-        help="Fail instead of building from source when no prebuilt wheel matches "
-             "this platform/Python.",
+        "--no-source-fallback",
+        action="store_true",
+        help="Fail instead of building from source when no prebuilt wheel matches this platform/Python.",
     )
     p_install_gpu.add_argument(
-        "--backend", choices=["cpu", "cuda", "vulkan", "metal"], default=None,
+        "--backend",
+        choices=["cpu", "cuda", "vulkan", "metal"],
+        default=None,
         help="Override backend detection (cpu/cuda/vulkan/metal). Use when "
-             "auto-detection picks the wrong backend — e.g. Vulkan tools are "
-             "installed system-wide but no Vulkan GPU is present, so pass "
-             "--backend cpu to force the CPU prebuilt wheel.",
+        "auto-detection picks the wrong backend — e.g. Vulkan tools are "
+        "installed system-wide but no Vulkan GPU is present, so pass "
+        "--backend cpu to force the CPU prebuilt wheel.",
     )
     p_install_gpu.add_argument(
-        "--force", action="store_true",
+        "--force",
+        action="store_true",
         help="Reinstall even if the target m3-core-rs version is already present "
-             "(default: skip the re-download when already current).",
+        "(default: skip the re-download when already current).",
     )
     # Setup reports the install and restarts a stale server itself.
     p_install_gpu.add_argument("--from-setup", action="store_true", help=argparse.SUPPRESS)
@@ -1578,18 +1642,18 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
         "fetch-model",
         help="Download the BGE-M3 GGUF (~418 MB) into m3's own model dir (~/.m3/models).",
     )
-    p_fetch.add_argument("--dest", default=None,
-                         help="Override the destination dir (default: ~/.m3/models).")
+    p_fetch.add_argument("--dest", default=None, help="Override the destination dir (default: ~/.m3/models).")
     p_fetch.set_defaults(func=cmd_fetch_model)
 
     p_shared = sub.add_parser(
         "shared",
         help="Route all m3 processes to ONE shared GPU embedder (one CUDA context, "
-             "~9-10 GB reclaimed). Writes .embed_config.json; then run the shared "
-             "server + restart the MCP server & cognitive loop.",
+        "~9-10 GB reclaimed). Writes .embed_config.json; then run the shared "
+        "server + restart the MCP server & cognitive loop.",
     )
-    p_shared.add_argument("--port", type=int, default=8082,
-                          help="Port the shared embedder server listens on (default: 8082).")
+    p_shared.add_argument(
+        "--port", type=int, default=8082, help="Port the shared embedder server listens on (default: 8082)."
+    )
     p_shared.set_defaults(func=cmd_shared)
 
     p_unshared = sub.add_parser(
@@ -1600,49 +1664,54 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
 
     p_backfill = sub.add_parser(
         "backfill",
-        help="Embed rows that have no vector yet. Sweeps EVERY store (main and "
-             "chatlog) unless --db targets one.",
+        help="Embed rows that have no vector yet. Sweeps EVERY store (main and chatlog) unless --db targets one.",
     )
     p_backfill.add_argument(
-        "--db", default=None,
+        "--db",
+        default=None,
         help="Sweep only this database. Default: every store the cognitive "
-             "loop drains, so a split-topology chatlog is not left behind.",
+        "loop drains, so a split-topology chatlog is not left behind.",
     )
     p_backfill.add_argument(
-        "--limit", type=int, default=None,
+        "--limit",
+        type=int,
+        default=None,
         help="Stop after embedding this many rows (per store).",
     )
     p_backfill.add_argument(
-        "--batch-size", type=int, default=None,
+        "--batch-size",
+        type=int,
+        default=None,
         help="Rows per embed call.",
     )
     p_backfill.add_argument(
-        "--max-row-bytes", type=int, default=None,
+        "--max-row-bytes",
+        type=int,
+        default=None,
         help="Coarse per-row size bound. The real guard is the TOKEN budget "
-             "(M3_EMBED_TOKEN_BUDGET); this is a byte backstop.",
+        "(M3_EMBED_TOKEN_BUDGET); this is a byte backstop.",
     )
     p_backfill.add_argument(
-        "--no-subdivide-oversize", action="store_true",
+        "--no-subdivide-oversize",
+        action="store_true",
         help="Drop oversized rows instead of splitting and mean-pooling them. "
-             "Leaves them permanently unembedded — prefer the default.",
+        "Leaves them permanently unembedded — prefer the default.",
     )
     p_backfill.set_defaults(func=cmd_backfill)
 
     p_reembed = sub.add_parser(
         "reembed",
         help="Retire vectors from a non-current embedding model so they can be "
-             "regenerated (fixes a mixed embed space reported by `m3 doctor`). "
-             "Dry-run unless --apply is given.",
+        "regenerated (fixes a mixed embed space reported by `m3 doctor`). "
+        "Dry-run unless --apply is given.",
     )
-    p_reembed.add_argument("--db", default=None,
-                           help="Target DB (default: the resolved engine agent_memory.db).")
-    p_reembed.add_argument("--keep", default=None,
-                           help="Model family to KEEP (e.g. 'bge-m3'). "
-                                "Default: the family holding the most vectors.")
-    p_reembed.add_argument("--apply", action="store_true",
-                           help="Actually delete. Without this it only reports.")
-    p_reembed.add_argument("--no-backup", action="store_true",
-                           help="Skip the pre-delete DB copy (not recommended).")
-    p_reembed.add_argument("--no-backfill", action="store_true",
-                           help="Do not chain embed_backfill.py after deleting.")
+    p_reembed.add_argument("--db", default=None, help="Target DB (default: the resolved engine agent_memory.db).")
+    p_reembed.add_argument(
+        "--keep",
+        default=None,
+        help="Model family to KEEP (e.g. 'bge-m3'). Default: the family holding the most vectors.",
+    )
+    p_reembed.add_argument("--apply", action="store_true", help="Actually delete. Without this it only reports.")
+    p_reembed.add_argument("--no-backup", action="store_true", help="Skip the pre-delete DB copy (not recommended).")
+    p_reembed.add_argument("--no-backfill", action="store_true", help="Do not chain embed_backfill.py after deleting.")
     p_reembed.set_defaults(func=cmd_reembed)

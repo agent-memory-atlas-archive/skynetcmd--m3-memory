@@ -13,6 +13,7 @@ chain would need ``except*`` (user decision 2026-10-08, m3 74995ad5).
 Use ``asyncio.gather(..., return_exceptions=True)`` instead when partial
 failure is an expected result rather than an error.
 """
+
 from __future__ import annotations
 
 import asyncio

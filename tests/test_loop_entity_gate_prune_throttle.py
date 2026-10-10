@@ -10,6 +10,7 @@ Two fixes for a loop that pegged a CPU core:
      same `_due` min-interval gate the time-driven passes use.
 Hermetic — a temp SQLite DB and a temp config dir, no loop, no server.
 """
+
 import sqlite3
 import sys
 from pathlib import Path
@@ -35,8 +36,10 @@ def _mk_db(path):
     c.execute("INSERT INTO entity_extraction_queue(memory_id,status) VALUES (2,'done')")
     # row 3: failed past the attempt cap -> NOT work
     c.execute("INSERT INTO memory_items(id,type,content) VALUES (3,?,'doomed turn')", (t,))
-    c.execute("INSERT INTO entity_extraction_queue(memory_id,status,attempts) VALUES (3,'failed',?)",
-              (ME.MAX_ENTITY_ATTEMPTS,))
+    c.execute(
+        "INSERT INTO entity_extraction_queue(memory_id,status,attempts) VALUES (3,'failed',?)",
+        (ME.MAX_ENTITY_ATTEMPTS,),
+    )
     # row 4: already has an entity link -> NOT work
     c.execute("INSERT INTO memory_items(id,type,content) VALUES (4,?,'linked turn')", (t,))
     c.execute("INSERT INTO memory_item_entities(memory_id,entity_id) VALUES (4,99)")
@@ -62,8 +65,7 @@ def test_gate_goes_empty_once_fresh_row_is_done(tmp_path):
 
 
 def _probe(conn, items="memory_items", links="memory_item_entities", queue="entity_extraction_queue"):
-    return len(L._probe_entity_work(
-        lambda sql, params=(): conn.execute(sql, params).fetchall(), items, links, queue))
+    return len(L._probe_entity_work(lambda sql, params=(): conn.execute(sql, params).fetchall(), items, links, queue))
 
 
 def _mini_db(path, *, with_queue=True, with_status=True):
@@ -101,7 +103,7 @@ def test_degrades_to_link_only_when_queue_table_missing(tmp_path):
 
 def test_prune_throttle_due_roundtrip(tmp_path, monkeypatch):
     monkeypatch.setattr(L, "get_m3_config_root", lambda: str(tmp_path), raising=False)
-    assert L._due("chatlog_prune", 300.0) is True   # never run -> due
+    assert L._due("chatlog_prune", 300.0) is True  # never run -> due
     L._record_pass_run("chatlog_prune")
     assert L._due("chatlog_prune", 300.0) is False  # just ran -> throttled
-    assert L._due("chatlog_prune", 0.0) is True     # zero interval -> always due
+    assert L._due("chatlog_prune", 0.0) is True  # zero interval -> always due

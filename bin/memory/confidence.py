@@ -20,29 +20,30 @@ Tuning constants live here as module-level literals (not env-driven) because the
 are model parameters, not deployment knobs — the deployment knobs (weights,
 on/off) live in config.py.
 """
+
 from __future__ import annotations
 
 # ── Provenance priors ────────────────────────────────────────────────────────
 # Base confidence implied by *where a memory came from*, before any
 # corroboration/contradiction signal. Reuses fields that already exist on
 # memory_items (source, change_agent) plus the Observer SLM's own confidence.
-USER_PRIOR: float = 0.95          # source='user' or change_agent='manual'
-AGENT_PRIOR: float = 0.70         # an agent asserted it (scaled by agent trust)
-INTERNET_PRIOR: float = 0.40      # source='internet' / web research
-NEUTRAL_PRIOR: float = 0.50       # unknown — matches importance's neutral default
+USER_PRIOR: float = 0.95  # source='user' or change_agent='manual'
+AGENT_PRIOR: float = 0.70  # an agent asserted it (scaled by agent trust)
+INTERNET_PRIOR: float = 0.40  # source='internet' / web research
+NEUTRAL_PRIOR: float = 0.50  # unknown — matches importance's neutral default
 
 # ── Aggregation caps (keep any single signal from dominating) ────────────────
 CORROBORATION_UNIT: float = 0.05  # per unit of distinct-source trust
-CORROBORATION_CAP: float = 0.20   # max total corroboration bonus
+CORROBORATION_CAP: float = 0.20  # max total corroboration bonus
 CONTRADICTION_UNIT: float = 0.10  # per contradiction
-CONTRADICTION_CAP: float = 0.30   # max total contradiction penalty
+CONTRADICTION_CAP: float = 0.30  # max total contradiction penalty
 
 # ── Reinforcement / decay (Phase 3) ──────────────────────────────────────────
-NEUTRAL: float = 0.50             # the floor confidence decays TOWARD (not 0)
-DECAY_RATE: float = 0.02          # per pass: confidence moves this fraction of
+NEUTRAL: float = 0.50  # the floor confidence decays TOWARD (not 0)
+DECAY_RATE: float = 0.02  # per pass: confidence moves this fraction of
 #                                   the distance toward NEUTRAL when un-reinforced
-ACCESS_REINFORCE_UNIT: float = 0.01   # weak positive per access-bucket
-ACCESS_REINFORCE_CAP: float = 0.05    # hard cap so "frequently read" != "corroborated"
+ACCESS_REINFORCE_UNIT: float = 0.01  # weak positive per access-bucket
+ACCESS_REINFORCE_CAP: float = 0.05  # hard cap so "frequently read" != "corroborated"
 
 # ── Trust bounds ─────────────────────────────────────────────────────────────
 TRUST_MIN: float = 0.5
@@ -133,11 +134,11 @@ def aggregate(
 ) -> float:
     """The transparent, user-facing confidence in [0, 1].
 
-        confidence = clamp01(
-            base_source_conf
-          + corroboration_bonus(distinct_trust_sum)
-          - contradiction_penalty(contradiction_count)
-        )
+    confidence = clamp01(
+        base_source_conf
+      + corroboration_bonus(distinct_trust_sum)
+      - contradiction_penalty(contradiction_count)
+    )
     """
     base = base_source_conf(
         source=source,
@@ -145,14 +146,11 @@ def aggregate(
         observer_confidence=observer_confidence,
         agent_trust=agent_trust,
     )
-    return clamp01(
-        base
-        + corroboration_bonus(distinct_trust_sum)
-        - contradiction_penalty(contradiction_count)
-    )
+    return clamp01(base + corroboration_bonus(distinct_trust_sum) - contradiction_penalty(contradiction_count))
 
 
 # ── Reinforcement (Phase 3) ───────────────────────────────────────────────────
+
 
 def decay_toward_neutral(confidence: float, floor: float = NEUTRAL) -> float:
     """Move a confidence one step toward NEUTRAL (un-reinforced decay).
@@ -181,6 +179,7 @@ def access_reinforcement(access_count: int) -> float:
         return 0.0
     # log2(1+n) buckets: 1->1, 3->2, 7->3, 15->4 ... times the unit, capped.
     import math
+
     buckets = math.log2(1.0 + access_count)
     return min(ACCESS_REINFORCE_CAP, ACCESS_REINFORCE_UNIT * buckets)
 

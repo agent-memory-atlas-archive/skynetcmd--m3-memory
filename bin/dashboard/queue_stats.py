@@ -12,6 +12,7 @@ type for enrichment/entities). That is an honest measure of work actually done,
 not a guess. Drain ETA = queue_len / recent_rate (assumes the recent rate holds
 — labelled as an estimate in the UI).
 """
+
 from __future__ import annotations
 
 # Time windows (minutes) the dashboard reports throughput over.
@@ -80,12 +81,8 @@ _ALLOWED_TABLES: frozenset[str] = frozenset(
 _ALLOWED_TS_COLS: frozenset[str] = frozenset(
     {p["queue_ts"] for p in _PIPELINES} | {p["produced_ts"] for p in _PIPELINES}
 )
-_ALLOWED_WHERE: frozenset[str] = frozenset(
-    p["produced_where"] for p in _PIPELINES if p["produced_where"]
-)
-_ALLOWED_QUEUE_WHERE: frozenset[str] = frozenset(
-    p["queue_where"] for p in _PIPELINES if p.get("queue_where")
-)
+_ALLOWED_WHERE: frozenset[str] = frozenset(p["produced_where"] for p in _PIPELINES if p["produced_where"])
+_ALLOWED_QUEUE_WHERE: frozenset[str] = frozenset(p["queue_where"] for p in _PIPELINES if p.get("queue_where"))
 
 
 def _safe_ident(value: str, allowed: frozenset[str], kind: str) -> str:
@@ -100,6 +97,7 @@ def _dialect():
     """The active backend's SQL dialect (placeholder/table_exists/time math).
     Backend-agnostic: SQLite, PostgreSQL, and any future SQL backend."""
     from memory.backends import dialect
+
     return dialect()
 
 
@@ -139,9 +137,22 @@ def _entity_backlog_count(conn) -> int:
     # worker never processes, so the number never dropped. It must mirror the worker's
     # eligibility or the "Entity extraction" backlog is phantom.
     DEFAULT_TYPES = (
-        "note", "decision", "knowledge", "reference", "fact", "plan",
-        "document", "observation", "project", "config", "infrastructure",
-        "network_config", "local_device", "home_automation", "log", "preference",
+        "note",
+        "decision",
+        "knowledge",
+        "reference",
+        "fact",
+        "plan",
+        "document",
+        "observation",
+        "project",
+        "config",
+        "infrastructure",
+        "network_config",
+        "local_device",
+        "home_automation",
+        "log",
+        "preference",
     )
     SKIP = ("auto", "scratchpad", "summary")
     try:
@@ -157,7 +168,8 @@ def _entity_backlog_count(conn) -> int:
         done_clause = (
             " AND mi.id NOT IN (SELECT memory_id FROM entity_extraction_queue"
             "                   WHERE status IN ('done', 'ctx_error'))"
-            if has_queue else ""
+            if has_queue
+            else ""
         )
         sql = (
             "SELECT COUNT(*) FROM memory_items mi "
@@ -169,8 +181,7 @@ def _entity_backlog_count(conn) -> int:
             # "stuck" forever regardless of how long the worker runs.
             "AND mi.variant IS NULL "
             f"AND mi.type IN ({type_ph}) AND mi.type NOT IN ({skip_ph}) "
-            "AND mi.id NOT IN (SELECT DISTINCT memory_id FROM memory_item_entities)"
-            + done_clause
+            "AND mi.id NOT IN (SELECT DISTINCT memory_id FROM memory_item_entities)" + done_clause
         )
         return conn.execute(sql, (*DEFAULT_TYPES, *SKIP)).fetchone()[0]
     except Exception:  # noqa: BLE001 — best-effort
@@ -256,6 +267,7 @@ def collect_pipeline_stats(db_path: str) -> dict:
     out: list[dict] = []
     try:
         from memory.backends import active_backend
+
         _cm = active_backend().open_readonly(db_path)
     except Exception:  # noqa: BLE001 — seam unavailable → empty (never crash)
         return {"pipelines": []}
@@ -278,8 +290,11 @@ def collect_pipeline_stats(db_path: str) -> dict:
             elif _table_exists(conn, p["produced_table"]):
                 for w in WINDOWS_MIN:
                     produced = _produced_in_window(
-                        conn, p["produced_table"], p["produced_ts"],
-                        p["produced_where"], w,
+                        conn,
+                        p["produced_table"],
+                        p["produced_ts"],
+                        p["produced_where"],
+                        w,
                     )
                     rates[w] = produced / w  # items per minute over the window
             else:
@@ -289,14 +304,16 @@ def collect_pipeline_stats(db_path: str) -> dict:
             # window with signal (smoother, honest), falling back to shorter ones.
             recent_rate = rates.get(60) or rates.get(30) or rates.get(10) or rates.get(1) or 0.0
             eta = _eta_seconds(queue_len, recent_rate)
-            out.append({
-                "key": p["key"],
-                "label": p["label"],
-                "queue_len": queue_len,
-                "rates": rates,
-                "eta_seconds": eta,
-                "eta_human": _human_eta(eta),
-            })
+            out.append(
+                {
+                    "key": p["key"],
+                    "label": p["label"],
+                    "queue_len": queue_len,
+                    "rates": rates,
+                    "eta_seconds": eta,
+                    "eta_human": _human_eta(eta),
+                }
+            )
     return {"pipelines": out}
 
 
@@ -310,7 +327,7 @@ def _human_eta(eta_seconds: float | None) -> str:
         return f"~{int(eta_seconds)}s"
     if m < 60:
         return f"~{int(m)}m"
-    return f"~{m/60:.1f}h"
+    return f"~{m / 60:.1f}h"
 
 
 def collect_governor(db_path: str) -> dict:

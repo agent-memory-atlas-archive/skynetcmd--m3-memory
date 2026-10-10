@@ -1,8 +1,8 @@
 ---
 tool: bin/migrate_flat_memory.py
-sha1: 060e167874aa
-mtime_utc: 2026-10-10T05:37:43.388377+00:00
-generated_utc: 2026-10-10T05:42:31.659496+00:00
+sha1: aba82e06bb9d
+mtime_utc: 2026-10-10T21:05:16.618918+00:00
+generated_utc: 2026-10-10T21:05:29.850240+00:00
 private: false
 ---
 
@@ -38,8 +38,8 @@ Usage:
 
 ## Entry points
 
-- `async def run()` (line 472)
-- `def main()` (line 613)
+- `async def run()` (line 517)
+- `def main()` (line 664)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -77,7 +77,7 @@ Usage:
 
 **sqlite**
 
-- `sqlite3.connect()  → `uri`` (line 310)
+- `sqlite3.connect()  → `uri`` (line 351)
 
 
 ---

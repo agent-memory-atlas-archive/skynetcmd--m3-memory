@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_init.py
-sha1: 5bba43eb0447
-mtime_utc: 2026-10-10T13:31:00.808824+00:00
-generated_utc: 2026-10-10T13:31:15.926659+00:00
+sha1: 2ab3c53327f2
+mtime_utc: 2026-10-10T21:05:16.803987+00:00
+generated_utc: 2026-10-10T21:05:29.359846+00:00
 private: false
 ---
 
@@ -29,7 +29,7 @@ path equality.
 
 ## Entry points
 
-- `def main()` (line 621)
+- `def main()` (line 609)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -71,9 +71,9 @@ path equality.
 
 **subprocess**
 
-- `subprocess.run()  → `[sys.executable, install_script, '--add', 'chatlog-embed-sweep']`` (line 300)
-- `subprocess.run()  → `[sys.executable, migrate_script, 'up', '--target', 'chatlog', '-y']`` (line 275)
-- `subprocess.run()  → `[sys.executable, migrate_script, 'up', '--target', 'chatlog', '-y']`` (line 749)
+- `subprocess.run()  → `[sys.executable, install_script, '--add', 'chatlog-embed-sweep']`` (line 293)
+- `subprocess.run()  → `[sys.executable, migrate_script, 'up', '--target', 'chatlog', '-y']`` (line 270)
+- `subprocess.run()  → `[sys.executable, migrate_script, 'up', '--target', 'chatlog', '-y']`` (line 740)
 
 
 ---

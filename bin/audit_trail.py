@@ -18,6 +18,7 @@ def get_audit_trail_path() -> str:
     """Returns the path to the secure audit trail log file."""
     return os.path.join(get_m3_root(), "audit_trail.log.jsonl")
 
+
 def write_audit_entry(action: str, target_id: str, metadata: dict[str, Any]) -> str:
     """Appends a new cryptographically signed entry to the audit trail log.
 
@@ -55,15 +56,15 @@ def write_audit_entry(action: str, target_id: str, metadata: dict[str, Any]) -> 
         "action": action,
         "target_id": target_id,
         "metadata": metadata,
-        "prev_hash": prev_hash
+        "prev_hash": prev_hash,
     }
 
     # 4. Generate canonical string representation (sorted keys, no spaces) for hashing.
     # Route through crypto_provider so the audit chain honors the FIPS boundary
     # (M3_FIPS_MODE -> wolfCrypt). SHA-256 hex is byte-identical to the prior
     # hashlib path on the DEFAULT backend, so existing log entries stay verifiable.
-    canonical_str = json.dumps(entry, sort_keys=True, separators=(',', ':'))
-    current_hash = get_sha256(canonical_str.encode('utf-8'))
+    canonical_str = json.dumps(entry, sort_keys=True, separators=(",", ":"))
+    current_hash = get_sha256(canonical_str.encode("utf-8"))
 
     # 5. Append signed entry to log
     entry["hash"] = current_hash
@@ -71,6 +72,7 @@ def write_audit_entry(action: str, target_id: str, metadata: dict[str, Any]) -> 
         f.write(json.dumps(entry) + "\n")
 
     return current_hash
+
 
 def verify_audit_trail() -> bool:
     """Verifies the integrity of the audit trail log.
@@ -103,8 +105,8 @@ def verify_audit_trail() -> bool:
                 if signature is None:
                     return False
 
-                canonical_str = json.dumps(entry, sort_keys=True, separators=(',', ':'))
-                computed_hash = get_sha256(canonical_str.encode('utf-8'))
+                canonical_str = json.dumps(entry, sort_keys=True, separators=(",", ":"))
+                computed_hash = get_sha256(canonical_str.encode("utf-8"))
 
                 if computed_hash != signature:
                     return False
@@ -116,8 +118,7 @@ def verify_audit_trail() -> bool:
         return False
 
 
-def log_event(ctx, category: str, detail_a: str,
-              detail_b: str = "", detail_c: Any = None) -> None:
+def log_event(ctx, category: str, detail_a: str, detail_b: str = "", detail_c: Any = None) -> None:
     """Route a structured event to the correct legacy table.
 
     Used by bridges that predate the unified memory_items model.
@@ -134,15 +135,12 @@ def log_event(ctx, category: str, detail_a: str,
     with active_database(ctx.db_path), seam_backend().connection() as conn:
         if category == "decision":
             conn.execute(
-                "INSERT INTO project_decisions (project, decision, rationale, timestamp) "
-                f"VALUES ({marks})",
+                f"INSERT INTO project_decisions (project, decision, rationale, timestamp) VALUES ({marks})",
                 (detail_c or "default", detail_a, detail_b, now),
             )
         else:
             conn.execute(
-                "INSERT INTO activity_logs (timestamp, query, response, model_used) "
-                f"VALUES ({marks})",
+                f"INSERT INTO activity_logs (timestamp, query, response, model_used) VALUES ({marks})",
                 (now, detail_a, detail_b, detail_c or category),
             )
         conn.commit()
-

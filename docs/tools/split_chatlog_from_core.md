@@ -1,8 +1,8 @@
 ---
 tool: bin/split_chatlog_from_core.py
-sha1: 7691edf28545
-mtime_utc: 2026-10-09T23:19:58.847134+00:00
-generated_utc: 2026-10-09T23:24:14.359061+00:00
+sha1: 3b71a8916f0e
+mtime_utc: 2026-10-10T21:05:16.554907+00:00
+generated_utc: 2026-10-10T21:05:29.963553+00:00
 private: false
 ---
 
@@ -73,7 +73,7 @@ Take a filesystem backup of both DBs before --commit; this script does not.
 
 ## Entry points
 
-- `def main()` (line 119)
+- `def main()` (line 121)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -105,8 +105,8 @@ Take a filesystem backup of both DBs before --commit; this script does not.
 
 **sqlite**
 
-- `sqlite3.connect()  → `p`` (line 101)
-- `sqlite3.connect()  → `source`` (line 151)
+- `sqlite3.connect()  → `p`` (line 102)
+- `sqlite3.connect()  → `source`` (line 155)
 
 
 ---

@@ -16,6 +16,7 @@ a user never runs two. This suite pins that behavior:
   * the plugin manifest declares its server under key `memory`
     (-> mcp__plugin_m3_memory__), keeps the "m3" display name.
 """
+
 from __future__ import annotations
 
 import json
@@ -82,6 +83,7 @@ def _no_repo_writes(monkeypatch, gc):
 
 # ── generate_configs.install_claude_settings ────────────────────────────────
 
+
 def _load(path):
     with open(path, encoding="utf-8") as f:
         return json.load(f)
@@ -93,34 +95,36 @@ def test_prunes_m3_mcpservers_and_disables_plugin(monkeypatch):
     d = tempfile.mkdtemp()
     sp = os.path.join(d, "settings.json")
     with open(sp, "w", encoding="utf-8") as f:
-        json.dump({
-            "mcpServers": {
-                "memory": {"command": "python", "args": ["memory_bridge.py"]},
-                "web_research": {"command": "python", "args": ["web_research_bridge.py"]},
-                "someones_tool": {"command": "othertool"},
+        json.dump(
+            {
+                "mcpServers": {
+                    "memory": {"command": "python", "args": ["memory_bridge.py"]},
+                    "web_research": {"command": "python", "args": ["web_research_bridge.py"]},
+                    "someones_tool": {"command": "othertool"},
+                },
+                "disabledMcpServers": ["user:already-off"],
+                "hooks": {"Stop": [{"hooks": [{"type": "command", "command": "/usr/bin/user_hook"}]}]},
             },
-            "disabledMcpServers": ["user:already-off"],
-            "hooks": {"Stop": [{"hooks": [{"type": "command", "command": "/usr/bin/user_hook"}]}]},
-        }, f)
+            f,
+        )
 
     res = gc.install_claude_settings(settings_path=sp, assume_yes=True)
     assert res["changed"] is True
     out = _load(sp)
 
     mcp = out.get("mcpServers", {})
-    assert "memory" not in mcp and "web_research" not in mcp   # m3-owned pruned
-    assert mcp.get("someones_tool")                            # foreign preserved
+    assert "memory" not in mcp and "web_research" not in mcp  # m3-owned pruned
+    assert mcp.get("someones_tool")  # foreign preserved
 
     dis = out["disabledMcpServers"]
     assert "plugin:m3:memory" in dis and "plugin:m3:m3" in dis  # plugin off (both keys)
-    assert "user:already-off" in dis                           # user disable kept
+    assert "user:already-off" in dis  # user disable kept
 
     assert any("user_hook" in json.dumps(e) for e in out["hooks"]["Stop"])  # hook kept
 
 
 def test_disabled_list_is_idempotent(monkeypatch):
     import generate_configs as gc
-
 
     d = tempfile.mkdtemp()
     sp = os.path.join(d, "settings.json")
@@ -137,6 +141,7 @@ def test_disabled_list_is_idempotent(monkeypatch):
 
 # ── plugin manifest ─────────────────────────────────────────────────────────
 
+
 def test_plugin_declares_memory_server_keeps_m3_display():
     repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     manifest = _load(os.path.join(repo, ".claude-plugin", "plugin.json"))
@@ -147,6 +152,7 @@ def test_plugin_declares_memory_server_keeps_m3_display():
 
 
 # ── _wire_claude registration ───────────────────────────────────────────────
+
 
 def test_wire_claude_registers_m3_memory_and_migrates_old(monkeypatch):
     """_wire_claude must `claude mcp add m3_memory` (not `memory`), remove the
@@ -160,8 +166,10 @@ def test_wire_claude_registers_m3_memory_and_migrates_old(monkeypatch):
     monkeypatch.setattr(sw, "_wire_claude_hooks", lambda mode: True)
     # Deterministic roots.
     import m3_memory.installer as inst
-    monkeypatch.setattr(inst, "_canonical_memory_env",
-                        lambda: {"M3_ENGINE_ROOT": "/data/e", "M3_CONFIG_ROOT": "/data/c"})
+
+    monkeypatch.setattr(
+        inst, "_canonical_memory_env", lambda: {"M3_ENGINE_ROOT": "/data/e", "M3_CONFIG_ROOT": "/data/c"}
+    )
 
     calls: list[list[str]] = []
 
@@ -177,7 +185,7 @@ def test_wire_claude_registers_m3_memory_and_migrates_old(monkeypatch):
     assert any("mcp remove --scope user memory" in j for j in joined)
     assert any("mcp remove --scope user m3_memory" in j for j in joined)
     add = [c for c in calls if "add" in c][0]
-    assert add[-2:] == ["m3_memory", "m3"]                 # name m3_memory, cmd m3
+    assert add[-2:] == ["m3_memory", "m3"]  # name m3_memory, cmd m3
     assert "--env" in add and "M3_ENGINE_ROOT=/data/e" in add and "M3_CONFIG_ROOT=/data/c" in add
     # Never registers the old bare `memory` name.
     assert not any(c[-2:] == ["memory", "m3"] for c in calls if "add" in c)
@@ -191,9 +199,9 @@ def test_wire_claude_prints_loud_plugin_default_notice(monkeypatch, capsys):
     monkeypatch.setattr(sw.shutil, "which", lambda name: "/usr/bin/claude")
     monkeypatch.setattr(sw, "_wire_claude_hooks", lambda mode: True)
     import m3_memory.installer as inst
+
     monkeypatch.setattr(inst, "_canonical_memory_env", lambda: {})
-    monkeypatch.setattr(sw.subprocess, "run",
-                        lambda *a, **k: SimpleNamespace(returncode=0, stdout="", stderr=""))
+    monkeypatch.setattr(sw.subprocess, "run", lambda *a, **k: SimpleNamespace(returncode=0, stdout="", stderr=""))
     sw._wire_claude("both")
     out = capsys.readouterr().out
     assert "mcp__m3_memory__" in out
@@ -222,14 +230,17 @@ def test_add_terminates_options_before_the_positionals(monkeypatch):
     monkeypatch.setattr(sw.shutil, "which", lambda name: "/usr/bin/claude")
     monkeypatch.setattr(sw, "_wire_claude_hooks", lambda mode: True)
     import m3_memory.installer as inst
-    monkeypatch.setattr(inst, "_canonical_memory_env",
-                        lambda: {"M3_ENGINE_ROOT": "/data/e", "M3_CONFIG_ROOT": "/data/c"})
+
+    monkeypatch.setattr(
+        inst, "_canonical_memory_env", lambda: {"M3_ENGINE_ROOT": "/data/e", "M3_CONFIG_ROOT": "/data/c"}
+    )
 
     calls: list[list[str]] = []
-    monkeypatch.setattr(sw.subprocess, "run",
-                        lambda cmd, *a, **k: (calls.append(list(cmd)),
-                                              SimpleNamespace(returncode=0,
-                                                              stdout="ok", stderr=""))[1])
+    monkeypatch.setattr(
+        sw.subprocess,
+        "run",
+        lambda cmd, *a, **k: (calls.append(list(cmd)), SimpleNamespace(returncode=0, stdout="ok", stderr=""))[1],
+    )
     assert sw._wire_claude("both") is True
 
     add = [c for c in calls if "add" in c][0]
@@ -290,7 +301,6 @@ def test_install_claude_settings_removes_legacy_and_keeps_foreign(tmp_path, monk
     """A legacy config is cleaned; a server the USER added is untouched."""
     import generate_configs as gc
 
-
     settings = tmp_path / "settings.json"
     live = {"mcpServers": {name: {"command": "old"} for name in _LEGACY_NAMES}}
     live["mcpServers"]["memory"] = {"command": "old"}
@@ -298,17 +308,13 @@ def test_install_claude_settings_removes_legacy_and_keeps_foreign(tmp_path, monk
     live["somethingElse"] = {"keep": True}
     settings.write_text(json.dumps(live), encoding="utf-8")
 
-    gc.install_claude_settings(
-        settings_path=str(settings), assume_yes=True, keep_status_line=True)
+    gc.install_claude_settings(settings_path=str(settings), assume_yes=True, keep_status_line=True)
 
     after = json.loads(settings.read_text(encoding="utf-8"))
     remaining = set(after.get("mcpServers", {}))
-    assert not (_LEGACY_NAMES & remaining), (
-        f"legacy servers survived the prune: {sorted(_LEGACY_NAMES & remaining)}")
-    assert "users_own_thing" in remaining, (
-        "a user's own MCP server was removed -- m3 prunes only what it wrote")
-    assert after.get("somethingElse") == {"keep": True}, (
-        "an unrelated settings key was lost")
+    assert not (_LEGACY_NAMES & remaining), f"legacy servers survived the prune: {sorted(_LEGACY_NAMES & remaining)}"
+    assert "users_own_thing" in remaining, "a user's own MCP server was removed -- m3 prunes only what it wrote"
+    assert after.get("somethingElse") == {"keep": True}, "an unrelated settings key was lost"
 
 
 def test_a_dry_run_writes_and_announces_nothing(monkeypatch, tmp_path, capsys):
@@ -331,12 +337,14 @@ def _not_already_registered(monkeypatch):
     """The "already registered" checks read the developer's real ~/.claude.json
     and ~/.openclaw; pin them so these tests exercise registration everywhere."""
     from m3_memory import setup_wizard as _sw
+
     monkeypatch.setattr(_sw, "_claude_registration_current", lambda env: False)
     monkeypatch.setattr(_sw, "_openclaw_entry_current", lambda spec: False)
 
 
 def test_claude_registration_is_current_only_when_identical(monkeypatch, tmp_path):
     from m3_memory import setup_wizard as sw
+
     monkeypatch.setattr(sw.os.path, "expanduser", lambda p: str(tmp_path) if p == "~" else p)
     env = {"M3_ENGINE_ROOT": "/e", "M3_CONFIG_ROOT": "/c"}
     entry = {"type": "stdio", "command": "m3", "args": [], "env": env}
@@ -347,5 +355,5 @@ def test_claude_registration_is_current_only_when_identical(monkeypatch, tmp_pat
     write({"m3_memory": entry})
     assert _REAL_CLAUDE_CURRENT(env) is True
     assert _REAL_CLAUDE_CURRENT({**env, "M3_ENGINE_ROOT": "/other"}) is False
-    write({"m3_memory": entry, "memory": {"command": "python"}})   # legacy entry to migrate
+    write({"m3_memory": entry, "memory": {"command": "python"}})  # legacy entry to migrate
     assert _REAL_CLAUDE_CURRENT(env) is False

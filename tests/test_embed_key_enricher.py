@@ -7,6 +7,7 @@ unit test on _enrich_one (which lives inline in memory_write_bulk_impl)
 would require exposing it, so we drive the whole function with mocks and
 assert the enricher ran with the expected inputs.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -51,10 +52,22 @@ async def test_enricher_receives_content_and_metadata_dict(monkeypatch):
     # reusing the same concurrency pattern as the production hook. This
     # verifies the contract without needing a full DB.
     prepared = [
-        {"id": "a", "content": "turn one", "metadata": '{"role": "user", "session_index": 0}', "embed": True, "embed_text": "turn one"},
+        {
+            "id": "a",
+            "content": "turn one",
+            "metadata": '{"role": "user", "session_index": 0}',
+            "embed": True,
+            "embed_text": "turn one",
+        },
         {"id": "b", "content": "turn two", "metadata": {"role": "assistant"}, "embed": True, "embed_text": "turn two"},
-        {"id": "c", "content": "",          "metadata": {}, "embed": True, "embed_text": ""},  # empty embed_text skipped
-        {"id": "d", "content": "turn four", "metadata": {}, "embed": False, "embed_text": "turn four"},  # embed=False skipped
+        {"id": "c", "content": "", "metadata": {}, "embed": True, "embed_text": ""},  # empty embed_text skipped
+        {
+            "id": "d",
+            "content": "turn four",
+            "metadata": {},
+            "embed": False,
+            "embed_text": "turn four",
+        },  # embed=False skipped
     ]
 
     sem = asyncio.Semaphore(2)
@@ -116,26 +129,41 @@ async def test_enriched_text_persisted_to_metadata(monkeypatch):
     # Replace _embed_many so we don't hit an endpoint.
     async def fake_embed_many(texts):
         return [(None, "stub") for _ in texts]
+
     monkeypatch.setattr(memory_core, "_embed_many", fake_embed_many)
 
     # Spy on prepared list just before DB insert by replacing the
     # context-manager that does the INSERT.
     class _FakeDB:
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
         def execute(self, sql, args=None):
             if "INSERT INTO memory_items" in sql and args:
                 # args is a tuple per INSERT; metadata_json is at index 4
                 metadata_json = args[4]
                 import json as _json
+
                 captured_prepared_after_enrichment.append(_json.loads(metadata_json or "{}"))
+
             class _C:
-                def fetchone(self): return None
-                def fetchall(self): return []
+                def fetchone(self):
+                    return None
+
+                def fetchall(self):
+                    return []
+
             return _C()
-        def commit(self): pass
+
+        def commit(self):
+            pass
+
     def fake_db():
         return _FakeDB()
+
     monkeypatch.setattr(memory_core, "_db", fake_db)
 
     async def enricher(content: str, metadata: dict) -> str:
@@ -157,7 +185,9 @@ async def test_enriched_text_persisted_to_metadata(monkeypatch):
     without_enriched = sum(1 for m in captured_prepared_after_enrichment if "enriched_embed_text" not in m)
 
     assert with_enriched == 1, f"Expected 1 item with enriched_embed_text, got {with_enriched}"
-    assert without_enriched == 1, f"Expected 1 item WITHOUT enriched_embed_text (short pass-through), got {without_enriched}"
+    assert without_enriched == 1, (
+        f"Expected 1 item WITHOUT enriched_embed_text (short pass-through), got {without_enriched}"
+    )
 
     # The enriched content should be the "FACTS: long content" string
     for m in captured_prepared_after_enrichment:
@@ -190,11 +220,16 @@ async def test_dual_embed_emits_two_vectors(monkeypatch):
     async def fake_embed_many(texts):
         # Stable non-null vectors so Phase 2 actually INSERTs.
         return [([0.1, 0.2, 0.3], "stub-model") for _ in texts]
+
     monkeypatch.setattr(memory_core, "_embed_many", fake_embed_many)
 
     class _FakeDB:
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
         def execute(self, sql, args=None):
             if "INSERT INTO memory_embeddings" in sql and args:
                 # New dual-capable schema: (id, memory_id, embedding, embed_model,
@@ -204,11 +239,19 @@ async def test_dual_embed_emits_two_vectors(monkeypatch):
                     "vector_kind": args[7] if len(args) >= 8 else "default",
                 }
                 embed_inserts.append(row)
+
             class _C:
-                def fetchone(self): return None
-                def fetchall(self): return []
+                def fetchone(self):
+                    return None
+
+                def fetchall(self):
+                    return []
+
             return _C()
-        def commit(self): pass
+
+        def commit(self):
+            pass
+
     monkeypatch.setattr(memory_core, "_db", lambda: _FakeDB())
 
     async def enricher(content: str, metadata: dict) -> str:
@@ -222,9 +265,7 @@ async def test_dual_embed_emits_two_vectors(monkeypatch):
         {"id": "dA1", "type": "message", "content": "long content to enrich", "embed": True},
         {"id": "dA2", "type": "message", "content": "short", "embed": True},
     ]
-    await memory_core.memory_write_bulk_impl(
-        items, embed_key_enricher=enricher, dual_embed=True
-    )
+    await memory_core.memory_write_bulk_impl(items, embed_key_enricher=enricher, dual_embed=True)
     by_id: dict[str, list[str]] = {}
     for r in embed_inserts:
         by_id.setdefault(r["memory_id"], []).append(r["vector_kind"])
@@ -236,9 +277,7 @@ async def test_dual_embed_emits_two_vectors(monkeypatch):
     items = [
         {"id": "dB1", "type": "message", "content": "long content to enrich", "embed": True},
     ]
-    await memory_core.memory_write_bulk_impl(
-        items, embed_key_enricher=enricher, dual_embed=False
-    )
+    await memory_core.memory_write_bulk_impl(items, embed_key_enricher=enricher, dual_embed=False)
     by_id = {}
     for r in embed_inserts:
         by_id.setdefault(r["memory_id"], []).append(r["vector_kind"])

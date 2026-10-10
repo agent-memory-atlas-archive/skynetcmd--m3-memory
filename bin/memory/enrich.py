@@ -32,18 +32,23 @@ def _read_gate(name: str):
     """
     try:
         import memory_core
+
         if hasattr(memory_core, name):
             return getattr(memory_core, name)
     except ImportError:
         pass
     return getattr(_config, name)
+
+
 from .db import _db
 from .embed import _content_hash, _get_embed_client
 
 logger = logging.getLogger("memory.enrich")
 
+
 def _ctx() -> M3Context:
     return M3Context.for_db(resolve_db_path(None))
+
 
 _CLASSIFY_CACHE: dict[str, str] = {}
 
@@ -85,13 +90,40 @@ async def _auto_classify(content: str, title: str) -> str:
     # "auto" (auto is the sentinel that REQUESTS classification, not an output).
     # tests/test_procedural_type.py asserts this parity so drift can't recur.
     valid_types = {
-        "note", "fact", "decision", "preference", "conversation", "message",
-        "task", "code", "config", "observation", "plan", "summary", "snippet",
-        "reference", "log", "home", "user_fact", "scratchpad", "knowledge",
-        "event_extraction", "fact_enriched", "chat_log", "belief",
-        "local_device", "network_config", "infrastructure", "home_automation",
-        "migration-log", "security",
-        "windows_only", "macos_only", "linux_only", "to_do", "procedure",
+        "note",
+        "fact",
+        "decision",
+        "preference",
+        "conversation",
+        "message",
+        "task",
+        "code",
+        "config",
+        "observation",
+        "plan",
+        "summary",
+        "snippet",
+        "reference",
+        "log",
+        "home",
+        "user_fact",
+        "scratchpad",
+        "knowledge",
+        "event_extraction",
+        "fact_enriched",
+        "chat_log",
+        "belief",
+        "local_device",
+        "network_config",
+        "infrastructure",
+        "home_automation",
+        "migration-log",
+        "security",
+        "windows_only",
+        "macos_only",
+        "linux_only",
+        "to_do",
+        "procedure",
         "synthesis",
     }
 
@@ -115,13 +147,11 @@ async def _auto_classify(content: str, title: str) -> str:
             chat_url,
             # A reasoning model would answer in the `reasoning` channel and
             # leave `content` empty, silently yielding no enrichment.
-            json=apply_thinking_suppression({
-                "model": model,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.1
-            }, chat_url),
+            json=apply_thinking_suppression(
+                {"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": 0.1}, chat_url
+            ),
             headers={"Authorization": f"Bearer {token}"},
-            timeout=30.0
+            timeout=30.0,
         )
         resp.raise_for_status()
         m_type = resp.json()["choices"][0]["message"]["content"].strip().lower()
@@ -131,6 +161,7 @@ async def _auto_classify(content: str, title: str) -> str:
     except Exception as e:
         log_swallowed(logger, e, f"Auto-classification failed: {e}")
         from llm_failover import clear_failover_caches
+
         clear_failover_caches()
 
     return "note"
@@ -154,9 +185,9 @@ async def _maybe_auto_title(content: str, title: str, force: bool = False) -> st
         return title
     if not force:
         t = (title or "").strip()
-        trivial = (not t) or len(t) < 4 or t.rstrip(":").lower() in {
-            "user", "assistant", "system", "tool", "msg", "note"
-        }
+        trivial = (
+            (not t) or len(t) < 4 or t.rstrip(":").lower() in {"user", "assistant", "system", "tool", "msg", "note"}
+        )
         if not trivial:
             return title
 
@@ -181,12 +212,15 @@ async def _maybe_auto_title(content: str, title: str, force: bool = False) -> st
             chat_url,
             # A reasoning model would answer in the `reasoning` channel and
             # leave `content` empty, silently yielding no enrichment.
-            json=apply_thinking_suppression({
-                "model": model,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.2,
-                "max_tokens": 32,
-            }, chat_url),
+            json=apply_thinking_suppression(
+                {
+                    "model": model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.2,
+                    "max_tokens": 32,
+                },
+                chat_url,
+            ),
             headers={"Authorization": f"Bearer {token}"},
             timeout=20.0,
         )
@@ -237,12 +271,15 @@ async def _maybe_auto_entities(content: str, force: bool = False) -> list[str]:
             chat_url,
             # A reasoning model would answer in the `reasoning` channel and
             # leave `content` empty, silently yielding no enrichment.
-            json=apply_thinking_suppression({
-                "model": model,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.1,
-                "max_tokens": 128,
-            }, chat_url),
+            json=apply_thinking_suppression(
+                {
+                    "model": model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.1,
+                    "max_tokens": 128,
+                },
+                chat_url,
+            ),
             headers={"Authorization": f"Bearer {token}"},
             timeout=20.0,
         )
@@ -253,7 +290,7 @@ async def _maybe_auto_entities(content: str, force: bool = False) -> list[str]:
         start, end = raw.find("["), raw.rfind("]")
         if start < 0 or end < 0 or end <= start:
             return []
-        parsed = json.loads(raw[start:end + 1])
+        parsed = json.loads(raw[start : end + 1])
         if not isinstance(parsed, list):
             return []
         ents = [str(x).strip() for x in parsed if isinstance(x, (str, int, float)) and str(x).strip()]
@@ -265,7 +302,9 @@ async def _maybe_auto_entities(content: str, force: bool = False) -> list[str]:
         return []
 
 
-async def _try_enrich_or_enqueue(memory_id: str, content: str, fact_enricher, db, variant: str | None = None, allowlist: set[str] | None = None) -> None:
+async def _try_enrich_or_enqueue(
+    memory_id: str, content: str, fact_enricher, db, variant: str | None = None, allowlist: set[str] | None = None
+) -> None:
     """Non-blocking: try enrichment under semaphore; on miss, enqueue.
 
     Variant-skip rule: if variant is not None and (allowlist is None or variant not in allowlist),
@@ -286,6 +325,7 @@ async def _try_enrich_or_enqueue(memory_id: str, content: str, fact_enricher, db
     pending = _PENDING_FACT_TASKS
     try:
         import memory_core as _mc
+
         sem = getattr(_mc, "_FACT_ENRICH_SEM", sem)
         pending = getattr(_mc, "_PENDING_FACT_TASKS", pending)
     except ImportError:
@@ -318,15 +358,13 @@ def _enqueue_fact_enrichment(memory_id: str, db) -> None:
         _ins = _d.insert_or_ignore()
         _suffix = _d.on_conflict_ignore(conflict_target="(memory_id)")
         db.execute(
-            f"{_ins} fact_enrichment_queue(memory_id) VALUES ({_d.placeholder(1)}) {_suffix}".rstrip(),
-            (memory_id,)
+            f"{_ins} fact_enrichment_queue(memory_id) VALUES ({_d.placeholder(1)}) {_suffix}".rstrip(), (memory_id,)
         )
     except Exception as e:
         log_swallowed(logger, e, f"Failed to enqueue fact enrichment for {memory_id}: {e}")
 
 
-async def _run_fact_enricher(memory_id: str, content: str, fact_enricher,
-                              sem: asyncio.Semaphore | None = None) -> None:
+async def _run_fact_enricher(memory_id: str, content: str, fact_enricher, sem: asyncio.Semaphore | None = None) -> None:
     """Run the actual fact extractor with error handling and retries.
 
     `sem` is the semaphore that was acquired in the caller; we release
@@ -358,11 +396,14 @@ async def _run_fact_enricher(memory_id: str, content: str, fact_enricher,
                 # last_attempt_at via _d.now(): the SQLite strftime literal both
                 # is wrong on PG *and* its %Y/%m tokens collide with psycopg's %s
                 # parameter parsing (raises before the SQL reaches the server).
-                db.execute(f"""
+                db.execute(
+                    f"""
                     INSERT INTO fact_enrichment_queue(memory_id, attempts, last_error, last_attempt_at)
                     VALUES ({_p}, COALESCE((SELECT attempts FROM fact_enrichment_queue WHERE memory_id={_p}),0)+1, {_p}, {_d.now()})
                     {_suffix}
-                """.rstrip(), (memory_id, memory_id, str(e)[:500]))
+                """.rstrip(),
+                    (memory_id, memory_id, str(e)[:500]),
+                )
         except Exception as db_err:
             log_swallowed(logger, db_err, f"Failed to record enrichment error for {memory_id}: {db_err}")
     finally:
@@ -388,6 +429,7 @@ async def _write_fact_rows(memory_id: str, facts: list[dict]) -> None:
 
         try:
             from memory.backends import dialect
+
             _d = dialect()
             with _db() as db:
                 # Insert the fact row
@@ -406,7 +448,7 @@ async def _write_fact_rows(memory_id: str, facts: list[dict]) -> None:
                         "agent",
                         now,
                         _sha256_hex(fact_text.encode("utf-8")),
-                    )
+                    ),
                 )
                 # Link via references edge: fact_id -> memory_id (from fact to source)
                 db.execute(
@@ -417,14 +459,16 @@ async def _write_fact_rows(memory_id: str, facts: list[dict]) -> None:
                         memory_id,
                         "references",
                         now,
-                    )
+                    ),
                 )
                 _record_history(fact_id, "create", None, fact_text, "content", "fact_enricher", db=db)
         except Exception as e:
             log_swallowed(logger, e, f"Failed to write fact row for {memory_id}: {e}")
 
 
-def _select_pending_fact_enrichment(db, limit: int | None = None, allowed_variants: list[str] | None = None) -> list[tuple[str, str]]:
+def _select_pending_fact_enrichment(
+    db, limit: int | None = None, allowed_variants: list[str] | None = None
+) -> list[tuple[str, str]]:
     """Returns [(memory_id, content), ...] eligible for enrichment.
 
     Eligibility: type != fact_enriched, variant IS NULL (or in allowed_variants),
@@ -434,6 +478,7 @@ def _select_pending_fact_enrichment(db, limit: int | None = None, allowed_varian
     to (variant IS NULL OR variant IN (...)).
     """
     from memory.backends import dialect
+
     _d = dialect()
     p = _d.param()
     # Build the variant clause
@@ -516,5 +561,3 @@ async def enrich_pending_impl(dry_run: bool = True, limit: int = 0, allowed_vari
         "failed": 0,
         "errors_summary": "Execution requires enricher (Wave 3 MCP tool)",
     }
-
-

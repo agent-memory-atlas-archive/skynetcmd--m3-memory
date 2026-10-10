@@ -6,6 +6,7 @@ chunker — so a Word file's ZIP container bytes were ingested as prose. These
 tests pin that binary documents now reach a real extractor and that their own
 heading structure survives into the leaves.
 """
+
 from __future__ import annotations
 
 import os
@@ -22,7 +23,8 @@ from files_memory import chunkers, identity  # noqa: E402
 from files_memory.chunkers import office as office_chunker  # noqa: E402
 
 pytestmark = pytest.mark.skipif(
-    not office_chunker.available, reason=skip_reason("dep", "sharepoint-to-text not installed"))
+    not office_chunker.available, reason=skip_reason("dep", "sharepoint-to-text not installed")
+)
 
 docx = pytest.importorskip("docx", reason=skip_reason("dep", "python-docx needed to BUILD fixtures"))
 
@@ -39,8 +41,7 @@ def _docx(tmp_path, sections):
 
 
 def test_docx_splits_on_its_own_headings(tmp_path):
-    path = _docx(tmp_path, [("Chapter One", "Body prose here."),
-                            ("Chapter Two", "More prose.")])
+    path = _docx(tmp_path, [("Chapter One", "Body prose here."), ("Chapter Two", "More prose.")])
     leaves = list(office_chunker.chunk(path))
     assert len(leaves) == 2
     assert [lf.division_label for lf in leaves] == ["Chapter One", "Chapter Two"]
@@ -58,8 +59,8 @@ def test_container_bytes_never_reach_the_text(tmp_path):
     # A .docx is a ZIP: these are the markers of raw-container ingestion.
     for marker in ("PK\x03\x04", "word/document.xml", "[Content_Types]"):
         assert marker not in joined, (
-            f"{marker!r} leaked into extracted text — the file was read as a "
-            f"container, not a document")
+            f"{marker!r} leaked into extracted text — the file was read as a container, not a document"
+        )
 
 
 def test_leaves_are_tagged_with_their_source_format(tmp_path):
@@ -82,14 +83,22 @@ def test_missing_file_yields_nothing_and_does_not_raise(tmp_path):
     assert list(office_chunker.chunk(str(tmp_path / "nope.docx"))) == []
 
 
-@pytest.mark.parametrize("ext,filetype", [
-    (".docx", "docx"), (".doc", "doc"), (".pptx", "pptx"), (".ppt", "ppt"),
-    (".xlsx", "xlsx"), (".xls", "xls"), (".rtf", "rtf"), (".epub", "epub"),
-    (".odt", "odt"),
-])
+@pytest.mark.parametrize(
+    "ext,filetype",
+    [
+        (".docx", "docx"),
+        (".doc", "doc"),
+        (".pptx", "pptx"),
+        (".ppt", "ppt"),
+        (".xlsx", "xlsx"),
+        (".xls", "xls"),
+        (".rtf", "rtf"),
+        (".epub", "epub"),
+        (".odt", "odt"),
+    ],
+)
 def test_every_office_format_routes_to_this_chunker(ext, filetype):
     """The routing half: extension -> filetype -> office chunker, not text."""
     assert identity.FILETYPE_BY_EXT.get(ext) == filetype
     mod = chunkers.get_chunker(filetype)
-    assert mod.__name__.endswith(".office"), (
-        f"{ext} resolved to {mod.__name__} — it would be ingested as raw bytes")
+    assert mod.__name__.endswith(".office"), f"{ext} resolved to {mod.__name__} — it would be ingested as raw bytes"

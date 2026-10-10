@@ -14,6 +14,7 @@ Yields Leaf with:
 Phase-2 upgrade: per-table preservation, per-figure caption extraction,
 PyMuPDF-only mode for layout-aware bbox extraction.
 """
+
 from __future__ import annotations
 
 import logging
@@ -30,10 +31,12 @@ CHUNKER_VERSION = "1.0.0"
 _BACKEND: str | None = None
 try:
     import fitz
+
     _BACKEND = "fitz"
 except ImportError:
     try:
         import pypdf
+
         _BACKEND = "pypdf"
     except ImportError:
         pass

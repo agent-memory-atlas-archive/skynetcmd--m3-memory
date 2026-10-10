@@ -17,6 +17,7 @@ Deliberately a WARNING, not an error:
 So it is surfaced where a caller actually reads -- the returned string, and the
 ``task_get`` line a reviewer inspects -- rather than forbidden.
 """
+
 from __future__ import annotations
 
 import pathlib

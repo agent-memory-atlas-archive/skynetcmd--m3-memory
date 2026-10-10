@@ -4,6 +4,7 @@ Split out of mcp_tool_catalog.py's flat TOOLS list. Entries copied verbatim
 (name, description, parameters, impl, validators, flags unchanged). Domain
 assignment per tool_domains.domain_of_tool().
 """
+
 from __future__ import annotations
 
 from m3_core.search_modes import PUBLIC_SEARCH_MODES
@@ -40,26 +41,57 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "type":          {"type": "string", "description": f"Memory type. One of: {', '.join(sorted(VALID_MEMORY_TYPES))}."},
-                "content":       {"type": "string", "description": "Memory body (max 50000 chars)."},
-                "title":         {"type": "string", "description": "Short title.", "default": ""},
-                "metadata":      {"type": "string", "description": "JSON-encoded metadata object.", "default": "{}"},
-                "agent_id":      {"type": "string", "description": "Owning agent id. Injected by the orchestrator.", "default": ""},
-                "model_id":      {"type": "string", "description": "Originating model id.", "default": ""},
-                "change_agent":  {"type": "string", "description": "Agent causing the write (audit).", "default": ""},
-                "importance":    {"type": "number", "description": "0.0-1.0 relevance.", "default": 0.5},
-                "source":        {"type": "string", "description": "Provenance tag.", "default": "agent"},
-                "embed":         {"type": "boolean", "description": "Embed for semantic search.", "default": True},
-                "user_id":       {"type": "string", "description": "Data subject id.", "default": ""},
-                "scope":         {"type": "string", "description": "Isolation scope.", "default": "agent"},
-                "valid_from":    {"type": "string", "description": "ISO-8601 validity start.", "default": ""},
-                "valid_to":      {"type": "string", "description": "ISO-8601 validity end.", "default": ""},
-                "auto_classify": {"type": "boolean", "description": "Let the LLM pick the type (forced true if type='auto').", "default": False},
-                "conversation_id": {"type": "string", "description": "Groups this memory with a conversation / team session. Same ID space as conversation_start.", "default": ""},
-                "refresh_on":    {"type": "string", "description": "ISO-8601 timestamp when this memory should be flagged for review (lifecycle / planned obsolescence).", "default": ""},
-                "refresh_reason": {"type": "string", "description": "Why this memory needs refreshing (e.g., 'quarterly policy review').", "default": ""},
-                "variant":       {"type": "string", "description": "Pipeline identifier for A/B variant tracking.", "default": ""},
-                "embed_text":    {"type": "string", "description": "Override text used for embedding; falls back to content when empty.", "default": ""},
+                "type": {
+                    "type": "string",
+                    "description": f"Memory type. One of: {', '.join(sorted(VALID_MEMORY_TYPES))}.",
+                },
+                "content": {"type": "string", "description": "Memory body (max 50000 chars)."},
+                "title": {"type": "string", "description": "Short title.", "default": ""},
+                "metadata": {"type": "string", "description": "JSON-encoded metadata object.", "default": "{}"},
+                "agent_id": {
+                    "type": "string",
+                    "description": "Owning agent id. Injected by the orchestrator.",
+                    "default": "",
+                },
+                "model_id": {"type": "string", "description": "Originating model id.", "default": ""},
+                "change_agent": {"type": "string", "description": "Agent causing the write (audit).", "default": ""},
+                "importance": {"type": "number", "description": "0.0-1.0 relevance.", "default": 0.5},
+                "source": {"type": "string", "description": "Provenance tag.", "default": "agent"},
+                "embed": {"type": "boolean", "description": "Embed for semantic search.", "default": True},
+                "user_id": {"type": "string", "description": "Data subject id.", "default": ""},
+                "scope": {"type": "string", "description": "Isolation scope.", "default": "agent"},
+                "valid_from": {"type": "string", "description": "ISO-8601 validity start.", "default": ""},
+                "valid_to": {"type": "string", "description": "ISO-8601 validity end.", "default": ""},
+                "auto_classify": {
+                    "type": "boolean",
+                    "description": "Let the LLM pick the type (forced true if type='auto').",
+                    "default": False,
+                },
+                "conversation_id": {
+                    "type": "string",
+                    "description": "Groups this memory with a conversation / team session. Same ID space as conversation_start.",
+                    "default": "",
+                },
+                "refresh_on": {
+                    "type": "string",
+                    "description": "ISO-8601 timestamp when this memory should be flagged for review (lifecycle / planned obsolescence).",
+                    "default": "",
+                },
+                "refresh_reason": {
+                    "type": "string",
+                    "description": "Why this memory needs refreshing (e.g., 'quarterly policy review').",
+                    "default": "",
+                },
+                "variant": {
+                    "type": "string",
+                    "description": "Pipeline identifier for A/B variant tracking.",
+                    "default": "",
+                },
+                "embed_text": {
+                    "type": "string",
+                    "description": "Override text used for embedding; falls back to content when empty.",
+                    "default": "",
+                },
             },
             "required": ["type", "content"],
         },
@@ -86,26 +118,56 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "path":          {"type": "string", "description": "Absolute path to a UTF-8 text file on the MCP server host. The file's contents become the memory `content`."},
-                "type":          {"type": "string", "description": f"Memory type. One of: {', '.join(sorted(VALID_MEMORY_TYPES))}."},
-                "title":         {"type": "string", "description": "Short title.", "default": ""},
-                "metadata":      {"type": "string", "description": "JSON-encoded metadata object.", "default": "{}"},
-                "agent_id":      {"type": "string", "description": "Owning agent id. Injected by the orchestrator.", "default": ""},
-                "model_id":      {"type": "string", "description": "Originating model id.", "default": ""},
-                "change_agent":  {"type": "string", "description": "Agent causing the write (audit).", "default": ""},
-                "importance":    {"type": "number", "description": "0.0-1.0 relevance.", "default": 0.5},
-                "source":        {"type": "string", "description": "Provenance tag.", "default": "agent"},
-                "embed":         {"type": "boolean", "description": "Embed for semantic search.", "default": True},
-                "user_id":       {"type": "string", "description": "Data subject id.", "default": ""},
-                "scope":         {"type": "string", "description": "Isolation scope.", "default": "agent"},
-                "valid_from":    {"type": "string", "description": "ISO-8601 validity start.", "default": ""},
-                "valid_to":      {"type": "string", "description": "ISO-8601 validity end.", "default": ""},
-                "auto_classify": {"type": "boolean", "description": "Let the LLM pick the type (forced true if type='auto').", "default": False},
-                "conversation_id": {"type": "string", "description": "Groups this memory with a conversation / team session.", "default": ""},
-                "refresh_on":    {"type": "string", "description": "ISO-8601 timestamp when this memory should be flagged for review.", "default": ""},
+                "path": {
+                    "type": "string",
+                    "description": "Absolute path to a UTF-8 text file on the MCP server host. The file's contents become the memory `content`.",
+                },
+                "type": {
+                    "type": "string",
+                    "description": f"Memory type. One of: {', '.join(sorted(VALID_MEMORY_TYPES))}.",
+                },
+                "title": {"type": "string", "description": "Short title.", "default": ""},
+                "metadata": {"type": "string", "description": "JSON-encoded metadata object.", "default": "{}"},
+                "agent_id": {
+                    "type": "string",
+                    "description": "Owning agent id. Injected by the orchestrator.",
+                    "default": "",
+                },
+                "model_id": {"type": "string", "description": "Originating model id.", "default": ""},
+                "change_agent": {"type": "string", "description": "Agent causing the write (audit).", "default": ""},
+                "importance": {"type": "number", "description": "0.0-1.0 relevance.", "default": 0.5},
+                "source": {"type": "string", "description": "Provenance tag.", "default": "agent"},
+                "embed": {"type": "boolean", "description": "Embed for semantic search.", "default": True},
+                "user_id": {"type": "string", "description": "Data subject id.", "default": ""},
+                "scope": {"type": "string", "description": "Isolation scope.", "default": "agent"},
+                "valid_from": {"type": "string", "description": "ISO-8601 validity start.", "default": ""},
+                "valid_to": {"type": "string", "description": "ISO-8601 validity end.", "default": ""},
+                "auto_classify": {
+                    "type": "boolean",
+                    "description": "Let the LLM pick the type (forced true if type='auto').",
+                    "default": False,
+                },
+                "conversation_id": {
+                    "type": "string",
+                    "description": "Groups this memory with a conversation / team session.",
+                    "default": "",
+                },
+                "refresh_on": {
+                    "type": "string",
+                    "description": "ISO-8601 timestamp when this memory should be flagged for review.",
+                    "default": "",
+                },
                 "refresh_reason": {"type": "string", "description": "Why this memory needs refreshing.", "default": ""},
-                "variant":       {"type": "string", "description": "Pipeline identifier for A/B variant tracking.", "default": ""},
-                "delete_after_read": {"type": "boolean", "description": "Delete the source file after successful write. Default true (signals contents are now authoritative in m3-memory).", "default": True},
+                "variant": {
+                    "type": "string",
+                    "description": "Pipeline identifier for A/B variant tracking.",
+                    "default": "",
+                },
+                "delete_after_read": {
+                    "type": "boolean",
+                    "description": "Delete the source file after successful write. Default true (signals contents are now authoritative in m3-memory).",
+                    "default": True,
+                },
             },
             "required": ["path", "type"],
         },
@@ -140,22 +202,69 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "old_id":       {"type": "string", "description": "FULL UUID of the memory being superseded (not an 8-char prefix — a prefix is rejected for mutation safety). Must exist and not already be deleted/superseded."},
-                "content":      {"type": "string", "description": "Body of the replacement memory (max 50000 chars)."},
-                "type":         {"type": "string", "description": f"Memory type of the replacement. Omit to inherit the old memory's type. One of: {', '.join(sorted(VALID_MEMORY_TYPES))}.", "default": ""},
-                "title":        {"type": "string", "description": "Title of the replacement. Omit to inherit the old memory's title.", "default": ""},
-                "metadata":     {"type": "string", "description": "JSON-encoded metadata object for the replacement.", "default": "{}"},
-                "agent_id":     {"type": "string", "description": "Owning agent id. Injected by the orchestrator.", "default": ""},
-                "model_id":     {"type": "string", "description": "Originating model id.", "default": ""},
-                "change_agent": {"type": "string", "description": "Agent causing the supersede (audit).", "default": ""},
-                "importance":   {"type": "number", "description": "0.0-1.0 relevance of the replacement. Omit (leave at -1) to inherit the old memory's importance.", "default": -1.0},
-                "source":       {"type": "string", "description": "Provenance tag.", "default": "agent"},
-                "embed":        {"type": "boolean", "description": "Embed the replacement for semantic search.", "default": True},
-                "user_id":      {"type": "string", "description": "Data subject id.", "default": ""},
-                "scope":        {"type": "string", "description": "Isolation scope of the replacement. Omit to inherit the old memory's scope.", "default": ""},
-                "valid_from":   {"type": "string", "description": "ISO-8601 validity start of the replacement; also the point at which the old memory's validity is closed. Defaults to now.", "default": ""},
-                "variant":      {"type": "string", "description": "Pipeline identifier for A/B variant tracking.", "default": ""},
-                "embed_text":   {"type": "string", "description": "Override text used for embedding; falls back to content when empty.", "default": ""},
+                "old_id": {
+                    "type": "string",
+                    "description": "FULL UUID of the memory being superseded (not an 8-char prefix — a prefix is rejected for mutation safety). Must exist and not already be deleted/superseded.",
+                },
+                "content": {"type": "string", "description": "Body of the replacement memory (max 50000 chars)."},
+                "type": {
+                    "type": "string",
+                    "description": f"Memory type of the replacement. Omit to inherit the old memory's type. One of: {', '.join(sorted(VALID_MEMORY_TYPES))}.",
+                    "default": "",
+                },
+                "title": {
+                    "type": "string",
+                    "description": "Title of the replacement. Omit to inherit the old memory's title.",
+                    "default": "",
+                },
+                "metadata": {
+                    "type": "string",
+                    "description": "JSON-encoded metadata object for the replacement.",
+                    "default": "{}",
+                },
+                "agent_id": {
+                    "type": "string",
+                    "description": "Owning agent id. Injected by the orchestrator.",
+                    "default": "",
+                },
+                "model_id": {"type": "string", "description": "Originating model id.", "default": ""},
+                "change_agent": {
+                    "type": "string",
+                    "description": "Agent causing the supersede (audit).",
+                    "default": "",
+                },
+                "importance": {
+                    "type": "number",
+                    "description": "0.0-1.0 relevance of the replacement. Omit (leave at -1) to inherit the old memory's importance.",
+                    "default": -1.0,
+                },
+                "source": {"type": "string", "description": "Provenance tag.", "default": "agent"},
+                "embed": {
+                    "type": "boolean",
+                    "description": "Embed the replacement for semantic search.",
+                    "default": True,
+                },
+                "user_id": {"type": "string", "description": "Data subject id.", "default": ""},
+                "scope": {
+                    "type": "string",
+                    "description": "Isolation scope of the replacement. Omit to inherit the old memory's scope.",
+                    "default": "",
+                },
+                "valid_from": {
+                    "type": "string",
+                    "description": "ISO-8601 validity start of the replacement; also the point at which the old memory's validity is closed. Defaults to now.",
+                    "default": "",
+                },
+                "variant": {
+                    "type": "string",
+                    "description": "Pipeline identifier for A/B variant tracking.",
+                    "default": "",
+                },
+                "embed_text": {
+                    "type": "string",
+                    "description": "Override text used for embedding; falls back to content when empty.",
+                    "default": "",
+                },
             },
             "required": ["old_id", "content"],
         },
@@ -171,23 +280,64 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "query":              {"type": "string", "description": "Search query."},
-                "k":                  {"type": "integer", "description": "Max results (1-100).", "default": 8},
-                "type_filter":        {"type": "string", "description": "Restrict to a memory type.", "default": ""},
-                "agent_filter":       {"type": "string", "description": "Restrict to an agent id.", "default": ""},
-                "search_mode":        {"type": "string", "enum": list(PUBLIC_SEARCH_MODES), "description": "Retrieval mode.", "default": "hybrid"},
-                "include_scratchpad": {"type": "boolean", "description": "Include ephemeral scratchpad items.", "default": False},
-                "user_id":            {"type": "string", "description": "Filter by data subject.", "default": ""},
-                "scope":              {"type": "string", "description": "Filter by isolation scope.", "default": ""},
-                "requesting_agent":   {"type": "string", "description": "Calling agent's id. When set, ENFORCES cross-agent isolation: private (scope='agent') rows from OTHER agents are excluded; the caller still sees its own private rows plus all shared scopes (org/user/session). Empty = no enforcement (sees all, back-compat).", "default": ""},
-                "as_of":              {"type": "string", "description": "ISO-8601 time-travel cutoff.", "default": ""},
-                "conversation_id":    {"type": "string", "description": "Restrict to a conversation / team session.", "default": ""},
-                "recency_bias":       {"type": "number", "description": "Boost newer items (0.0=off, 0.1-0.2=moderate, higher=aggressive). Useful for 'current' or 'latest' queries.", "default": 0.0},
-                "adaptive_k":         {"type": "boolean", "description": "Auto-trim results at the score drop-off point. WARNING: regresses on temporal-reasoning, knowledge-update, and multi-session queries; safe only for sharp-curve queries where most retrievals would be noise. Prefer `auto_route=True` on memory_search_routed for safer multi-signal routing.", "default": False},
-                "variant":            {"type": "string", "description": "Ingest-pipeline filter. '' = real user data only (default, equivalent to IS NULL). Pass a specific variant name (e.g. 'heuristic_c1c4') to scope to that bench ingest.", "default": ""},
-                "include_bench_data": {"type": "boolean", "description": "Opt in to LOCOMO / LongMemEval bench rows. Default False hides any row with a variant tag.", "default": False},
-                "explain":            {"type": "boolean", "description": "Attach a per-result `_explanation` block (vector/bm25/title_overlap/importance/recency/temporal score breakdown) plus a human-readable `reason` string explaining why each row matched. Same breakdown memory_suggest shows, on the primary search path.", "default": False},
-                "as_records": {"type": "boolean", "description": "Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged.", "default": False},
+                "query": {"type": "string", "description": "Search query."},
+                "k": {"type": "integer", "description": "Max results (1-100).", "default": 8},
+                "type_filter": {"type": "string", "description": "Restrict to a memory type.", "default": ""},
+                "agent_filter": {"type": "string", "description": "Restrict to an agent id.", "default": ""},
+                "search_mode": {
+                    "type": "string",
+                    "enum": list(PUBLIC_SEARCH_MODES),
+                    "description": "Retrieval mode.",
+                    "default": "hybrid",
+                },
+                "include_scratchpad": {
+                    "type": "boolean",
+                    "description": "Include ephemeral scratchpad items.",
+                    "default": False,
+                },
+                "user_id": {"type": "string", "description": "Filter by data subject.", "default": ""},
+                "scope": {"type": "string", "description": "Filter by isolation scope.", "default": ""},
+                "requesting_agent": {
+                    "type": "string",
+                    "description": "Calling agent's id. When set, ENFORCES cross-agent isolation: private (scope='agent') rows from OTHER agents are excluded; the caller still sees its own private rows plus all shared scopes (org/user/session). Empty = no enforcement (sees all, back-compat).",
+                    "default": "",
+                },
+                "as_of": {"type": "string", "description": "ISO-8601 time-travel cutoff.", "default": ""},
+                "conversation_id": {
+                    "type": "string",
+                    "description": "Restrict to a conversation / team session.",
+                    "default": "",
+                },
+                "recency_bias": {
+                    "type": "number",
+                    "description": "Boost newer items (0.0=off, 0.1-0.2=moderate, higher=aggressive). Useful for 'current' or 'latest' queries.",
+                    "default": 0.0,
+                },
+                "adaptive_k": {
+                    "type": "boolean",
+                    "description": "Auto-trim results at the score drop-off point. WARNING: regresses on temporal-reasoning, knowledge-update, and multi-session queries; safe only for sharp-curve queries where most retrievals would be noise. Prefer `auto_route=True` on memory_search_routed for safer multi-signal routing.",
+                    "default": False,
+                },
+                "variant": {
+                    "type": "string",
+                    "description": "Ingest-pipeline filter. '' = real user data only (default, equivalent to IS NULL). Pass a specific variant name (e.g. 'heuristic_c1c4') to scope to that bench ingest.",
+                    "default": "",
+                },
+                "include_bench_data": {
+                    "type": "boolean",
+                    "description": "Opt in to LOCOMO / LongMemEval bench rows. Default False hides any row with a variant tag.",
+                    "default": False,
+                },
+                "explain": {
+                    "type": "boolean",
+                    "description": "Attach a per-result `_explanation` block (vector/bm25/title_overlap/importance/recency/temporal score breakdown) plus a human-readable `reason` string explaining why each row matched. Same breakdown memory_suggest shows, on the primary search path.",
+                    "default": False,
+                },
+                "as_records": {
+                    "type": "boolean",
+                    "description": "Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged.",
+                    "default": False,
+                },
             },
             "required": ["query"],
         },
@@ -210,19 +360,52 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "query":              {"type": "string", "description": "Search text. Empty string = filter-only (type/scope) listing.", "default": ""},
-                "k":                  {"type": "integer", "description": "Max rows (1-100).", "default": 8},
-                "type_filter":        {"type": "string", "description": "Restrict to a memory type (e.g. 'user_fact').", "default": ""},
-                "agent_filter":       {"type": "string", "description": "Restrict to an agent id.", "default": ""},
-                "search_mode":        {"type": "string", "enum": list(PUBLIC_SEARCH_MODES), "description": "Retrieval mode.", "default": "hybrid"},
-                "user_id":            {"type": "string", "description": "Filter by data subject.", "default": ""},
-                "scope":              {"type": "string", "description": "Filter by isolation scope.", "default": ""},
-                "requesting_agent":   {"type": "string", "description": "Calling agent's id. When set, ENFORCES cross-agent isolation: private (scope='agent') rows from OTHER agents are excluded; the caller still sees its own private rows plus all shared scopes (org/user/session). Empty = no enforcement (sees all, back-compat).", "default": ""},
-                "as_of":              {"type": "string", "description": "ISO-8601 time-travel cutoff (bitemporal point-in-time query).", "default": ""},
-                "conversation_id":    {"type": "string", "description": "Restrict to a conversation / team session.", "default": ""},
-                "recency_bias":       {"type": "number", "description": "Boost newer items (0.0=off).", "default": 0.0},
-                "variant":            {"type": "string", "description": "Ingest-pipeline filter. '' = real user data only.", "default": ""},
-                "include_bench_data": {"type": "boolean", "description": "Opt in to LOCOMO / LongMemEval bench rows. Default False hides any variant-tagged row.", "default": False},
+                "query": {
+                    "type": "string",
+                    "description": "Search text. Empty string = filter-only (type/scope) listing.",
+                    "default": "",
+                },
+                "k": {"type": "integer", "description": "Max rows (1-100).", "default": 8},
+                "type_filter": {
+                    "type": "string",
+                    "description": "Restrict to a memory type (e.g. 'user_fact').",
+                    "default": "",
+                },
+                "agent_filter": {"type": "string", "description": "Restrict to an agent id.", "default": ""},
+                "search_mode": {
+                    "type": "string",
+                    "enum": list(PUBLIC_SEARCH_MODES),
+                    "description": "Retrieval mode.",
+                    "default": "hybrid",
+                },
+                "user_id": {"type": "string", "description": "Filter by data subject.", "default": ""},
+                "scope": {"type": "string", "description": "Filter by isolation scope.", "default": ""},
+                "requesting_agent": {
+                    "type": "string",
+                    "description": "Calling agent's id. When set, ENFORCES cross-agent isolation: private (scope='agent') rows from OTHER agents are excluded; the caller still sees its own private rows plus all shared scopes (org/user/session). Empty = no enforcement (sees all, back-compat).",
+                    "default": "",
+                },
+                "as_of": {
+                    "type": "string",
+                    "description": "ISO-8601 time-travel cutoff (bitemporal point-in-time query).",
+                    "default": "",
+                },
+                "conversation_id": {
+                    "type": "string",
+                    "description": "Restrict to a conversation / team session.",
+                    "default": "",
+                },
+                "recency_bias": {"type": "number", "description": "Boost newer items (0.0=off).", "default": 0.0},
+                "variant": {
+                    "type": "string",
+                    "description": "Ingest-pipeline filter. '' = real user data only.",
+                    "default": "",
+                },
+                "include_bench_data": {
+                    "type": "boolean",
+                    "description": "Opt in to LOCOMO / LongMemEval bench rows. Default False hides any variant-tagged row.",
+                    "default": False,
+                },
             },
             "required": [],
         },
@@ -238,10 +421,18 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "query":              {"type": "string", "description": "Search query."},
-                "k":                  {"type": "integer", "description": "Max results to preview.", "default": 5},
-                "variant":            {"type": "string", "description": "Ingest-pipeline filter. Default '__none__' = real user data only.", "default": "__none__"},
-                "include_bench_data": {"type": "boolean", "description": "Opt in to bench rows. Default False.", "default": False},
+                "query": {"type": "string", "description": "Search query."},
+                "k": {"type": "integer", "description": "Max results to preview.", "default": 5},
+                "variant": {
+                    "type": "string",
+                    "description": "Ingest-pipeline filter. Default '__none__' = real user data only.",
+                    "default": "__none__",
+                },
+                "include_bench_data": {
+                    "type": "boolean",
+                    "description": "Opt in to bench rows. Default False.",
+                    "default": False,
+                },
             },
             "required": ["query"],
         },
@@ -257,50 +448,189 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "query":           {"type": "string", "description": "Search query."},
-                "k":               {"type": "integer", "default": 10, "description": "Top-K to return."},
-                "fact_variant":    {"type": "string", "default": "", "description": "Optional fact-tier variant to fuse with base. Empty = single-variant."},
-                "temporal_k_bump": {"type": "integer", "default": 5, "description": "Extra slots added when query is temporal."},
-                "graph_depth":     {"type": "integer", "default": 0, "description": "If > 0, traverse memory_relationships up to N hops from each top-K hit and re-fuse. Clamped to 3."},
-                "expand_sessions": {"type": "boolean", "default": False, "description": "If true, pull all turns sharing each top-K hit's conversation_id (capped at session_cap) and re-fuse."},
-                "session_cap":     {"type": "integer", "default": 12, "description": "Per-session turn cap when expand_sessions=true."},
-                "user_id":         {"type": "string", "default": ""},
-                "scope":           {"type": "string", "default": ""},
-                "requesting_agent": {"type": "string", "description": "Calling agent's id. When set, ENFORCES cross-agent isolation: other agents' private (scope='agent') rows are excluded; caller sees its own private + shared scopes. Empty = no enforcement.", "default": ""},
-                "type_filter":     {"type": "string", "default": ""},
-                "agent_filter":    {"type": "string", "default": ""},
-                "search_mode":     {"type": "string", "enum": list(PUBLIC_SEARCH_MODES), "description": "Retrieval mode.", "default": "hybrid"},
-                "variant":         {"type": "string", "default": ""},
-                "as_of":           {"type": "string", "default": ""},
+                "query": {"type": "string", "description": "Search query."},
+                "k": {"type": "integer", "default": 10, "description": "Top-K to return."},
+                "fact_variant": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Optional fact-tier variant to fuse with base. Empty = single-variant.",
+                },
+                "temporal_k_bump": {
+                    "type": "integer",
+                    "default": 5,
+                    "description": "Extra slots added when query is temporal.",
+                },
+                "graph_depth": {
+                    "type": "integer",
+                    "default": 0,
+                    "description": "If > 0, traverse memory_relationships up to N hops from each top-K hit and re-fuse. Clamped to 3.",
+                },
+                "expand_sessions": {
+                    "type": "boolean",
+                    "default": False,
+                    "description": "If true, pull all turns sharing each top-K hit's conversation_id (capped at session_cap) and re-fuse.",
+                },
+                "session_cap": {
+                    "type": "integer",
+                    "default": 12,
+                    "description": "Per-session turn cap when expand_sessions=true.",
+                },
+                "user_id": {"type": "string", "default": ""},
+                "scope": {"type": "string", "default": ""},
+                "requesting_agent": {
+                    "type": "string",
+                    "description": "Calling agent's id. When set, ENFORCES cross-agent isolation: other agents' private (scope='agent') rows are excluded; caller sees its own private + shared scopes. Empty = no enforcement.",
+                    "default": "",
+                },
+                "type_filter": {"type": "string", "default": ""},
+                "agent_filter": {"type": "string", "default": ""},
+                "search_mode": {
+                    "type": "string",
+                    "enum": list(PUBLIC_SEARCH_MODES),
+                    "description": "Retrieval mode.",
+                    "default": "hybrid",
+                },
+                "variant": {"type": "string", "default": ""},
+                "as_of": {"type": "string", "default": ""},
                 "conversation_id": {"type": "string", "default": ""},
-                "explain":         {"type": "boolean", "default": False},
-                "entity_graph":    {"type": "boolean", "description": "Direct lever for entity-graph expansion. Default False = OFF (production default; matches memory_search behavior). True = parse query for named entities, traverse entity_relationships up to entity_graph_depth hops, fold matched memory_ids into the result set tagged expanded_via='entity_graph'. The AUTO layer can also flip this on for the entity_anchored branch (see auto_entity_graph_enabled), but caller-explicit entity_graph=True works without auto_route. Use for benchmarking + production opt-in once empirically validated.", "default": False},
-                "rerank":          {"type": "boolean", "description": "Cross-encoder reranking. Default False = OFF (production behavior unchanged). True = re-score top (rerank_pool_k or 3*k) hits with sentence-transformers CrossEncoder, blend with hybrid score per rerank_blend, re-sort. Adds ~12MB-560MB model download (cached at ~/.cache/torch) + ~50ms/pair on GPU, ~200ms/pair on CPU. Used in benchmarking; opt-in for production retrieval.", "default": False},
-                "rerank_model":    {"type": "string", "description": "Cross-encoder model id. Default empty = DEFAULT_RERANK_MODEL (cross-encoder/ms-marco-MiniLM-L-6-v2 — small, fast, English-tuned). Higher-accuracy alternative: BAAI/bge-reranker-v2-m3 (multilingual, larger, slower). Override via M3_RERANK_MODEL env var.", "default": ""},
-                "rerank_pool_k":   {"type": "integer", "description": "Pool size before rerank. Default 0 = 3*k. Higher pool = more candidates rescored = slower but potentially higher recall. Never truncates below final k. Only used when rerank=True.", "default": 0},
-                "rerank_blend":    {"type": "number", "description": "Blend factor: final_score = rerank_blend * ce_score + (1 - rerank_blend) * hybrid_score. Default 1.0 = pure CE replacement (most aggressive). 0.5 = average. 0.3 = CE as tiebreaker over hybrid. 0.0 = no-op (skip rerank — same effect as rerank=False). Only used when rerank=True.", "default": 1.0},
-                "entity_graph_depth":         {"type": "integer", "description": "BFS hop count over entity_relationships when entity_graph=True. Default 1 = direct neighbors only. Clamped to [1,3] core-side. Higher depth pulls more neighbors but adds noise; depth=2 typically helps multi-hop questions but regresses sharp single-fact lookups.", "default": 1},
-                "entity_graph_max_neighbors": {"type": "integer", "description": "Cap on entity nodes discovered during BFS traversal when entity_graph=True. Default 20. Clamped to [1,100] core-side. Lower = fewer rows folded in but tighter relevance; higher = broader recall at cost of precision.", "default": 20},
-                "auto_route":      {"type": "boolean", "description": "Multi-signal retrieval routing. Default False = no auto-routing (existing behavior). True = router picks branch (temporal/multi_session/sharp/default) and fills in unset parameters with branch-specific values; caller-explicit values still win.", "default": False},
-                "auto_top1_sharp_min": {"type": "number", "description": "Top-1 score above which query is marked sharp. Default 0.89. Used by sharp branch to detect high-confidence queries.", "default": 0.89},
-                "auto_slope_at_3_sharp_min": {"type": "number", "description": "Slope-at-3 (score drop per rank) above which query is marked sharp. Default 0.08. Steeper curves = more relevance discrimination.", "default": 0.08},
-                "auto_conv_id_diversity_threshold": {"type": "integer", "description": "Number of distinct conversation IDs in top-10 hits above which query is routed to multi_session. Default 5. Higher threshold = only very scattered results trigger expansion.", "default": 5},
-                "auto_top1_low_threshold": {"type": "number", "description": "Score floor for sharp detection (OOD guard). Default 0.50. Below this, query is not marked sharp even if other signals fire (prevents misclassifying low-confidence matches).", "default": 0.50},
-                "auto_temporal_k": {"type": "integer", "description": "k for temporal branch when auto_route=True. Default 15. Branch fires when query has temporal cues (when/since/before/after/dates).", "default": 15},
-                "auto_temporal_recency_bias": {"type": "number", "description": "recency_bias for temporal branch. Default 0.05. Boosts recent memories over older ones (useful for 'recently'/'today' questions).", "default": 0.05},
-                "auto_temporal_expand_sessions": {"type": "boolean", "description": "expand_sessions for temporal branch. Default True. Pulls full conversation context when a temporal hit is found (important for 'what happened after X' questions).", "default": True},
-                "auto_temporal_graph_depth": {"type": "integer", "description": "graph_depth for temporal branch (AUTO_v2 fix). Default 1. Traverses memory relationships to find cross-temporal references (e.g., follow-up discussions on an earlier event).", "default": 1},
-                "auto_multi_k": {"type": "integer", "description": "k for multi_session branch when auto_route=True. Default 20. Branch fires on comparison queries (how many/count/total) or when hits scatter across multiple conversations.", "default": 20},
-                "auto_multi_expand_sessions": {"type": "boolean", "description": "expand_sessions for multi_session branch. Default True. Pulls all turns from detected conversation IDs for aggregate comparisons ('list all X across conversations').", "default": True},
-                "auto_sharp_threshold_ratio": {"type": "number", "description": "Trim hits below (top_score * ratio) in sharp branch. Default 0.85. Removes tail noise when there's a clear high-confidence cluster.", "default": 0.85},
-                "auto_sharp_k_min": {"type": "integer", "description": "Floor for hit count after sharp threshold trim. Default 3. Ensures at least this many hits even if threshold trim is aggressive.", "default": 3},
-                "auto_sharp_k_max": {"type": "integer", "description": "Ceiling for hit count after sharp threshold trim. Default 10. Caps result set when sharp curve is very steep.", "default": 10},
-                "auto_entity_graph_enabled": {"type": "boolean", "description": "AUTO entity-anchored branch enable. Default True = branch fires when query has named entities AND auto_route=True. Caller can pass False to disable AUTO from enabling entity_graph (still works if caller passes entity_graph=True explicitly).", "default": True},
-                "auto_entity_graph_depth": {"type": "integer", "description": "Entity-graph traversal depth when AUTO entity_anchored branch fires. Default 1 = single-hop neighbors. Higher (2-3) traverses further but adds noise.", "default": 1},
-                "auto_entity_graph_max_neighbors": {"type": "integer", "description": "Cap on entities expanded during AUTO entity-anchored traversal. Default 20.", "default": 20},
-                "auto_entity_graph_named_entity_threshold": {"type": "integer", "description": "Minimum named-entity count in query for AUTO entity_anchored branch to fire. Default 1 = fire on any proper noun phrase (two+ capitalized words). Higher (2-3) is more conservative.", "default": 1},
-                "entity_graph_valid_types": {"type": "array", "items": {"type": "string"}, "description": "Override list of allowed entity_type values for graph traversal. Default empty = use core defaults (person, place, organization, event, concept, object, date). Pass a list to filter traversal to specific types.", "default": []},
-                "entity_graph_valid_predicates": {"type": "array", "items": {"type": "string"}, "description": "Override list of allowed predicate values for graph traversal. Default empty = use core defaults (works_at, located_in, before, after, same_as, contradicts, mentions, relates_to). Pass a list to filter traversal to specific predicates.", "default": []},
+                "explain": {"type": "boolean", "default": False},
+                "entity_graph": {
+                    "type": "boolean",
+                    "description": "Direct lever for entity-graph expansion. Default False = OFF (production default; matches memory_search behavior). True = parse query for named entities, traverse entity_relationships up to entity_graph_depth hops, fold matched memory_ids into the result set tagged expanded_via='entity_graph'. The AUTO layer can also flip this on for the entity_anchored branch (see auto_entity_graph_enabled), but caller-explicit entity_graph=True works without auto_route. Use for benchmarking + production opt-in once empirically validated.",
+                    "default": False,
+                },
+                "rerank": {
+                    "type": "boolean",
+                    "description": "Cross-encoder reranking. Default False = OFF (production behavior unchanged). True = re-score top (rerank_pool_k or 3*k) hits with sentence-transformers CrossEncoder, blend with hybrid score per rerank_blend, re-sort. Adds ~12MB-560MB model download (cached at ~/.cache/torch) + ~50ms/pair on GPU, ~200ms/pair on CPU. Used in benchmarking; opt-in for production retrieval.",
+                    "default": False,
+                },
+                "rerank_model": {
+                    "type": "string",
+                    "description": "Cross-encoder model id. Default empty = DEFAULT_RERANK_MODEL (cross-encoder/ms-marco-MiniLM-L-6-v2 — small, fast, English-tuned). Higher-accuracy alternative: BAAI/bge-reranker-v2-m3 (multilingual, larger, slower). Override via M3_RERANK_MODEL env var.",
+                    "default": "",
+                },
+                "rerank_pool_k": {
+                    "type": "integer",
+                    "description": "Pool size before rerank. Default 0 = 3*k. Higher pool = more candidates rescored = slower but potentially higher recall. Never truncates below final k. Only used when rerank=True.",
+                    "default": 0,
+                },
+                "rerank_blend": {
+                    "type": "number",
+                    "description": "Blend factor: final_score = rerank_blend * ce_score + (1 - rerank_blend) * hybrid_score. Default 1.0 = pure CE replacement (most aggressive). 0.5 = average. 0.3 = CE as tiebreaker over hybrid. 0.0 = no-op (skip rerank — same effect as rerank=False). Only used when rerank=True.",
+                    "default": 1.0,
+                },
+                "entity_graph_depth": {
+                    "type": "integer",
+                    "description": "BFS hop count over entity_relationships when entity_graph=True. Default 1 = direct neighbors only. Clamped to [1,3] core-side. Higher depth pulls more neighbors but adds noise; depth=2 typically helps multi-hop questions but regresses sharp single-fact lookups.",
+                    "default": 1,
+                },
+                "entity_graph_max_neighbors": {
+                    "type": "integer",
+                    "description": "Cap on entity nodes discovered during BFS traversal when entity_graph=True. Default 20. Clamped to [1,100] core-side. Lower = fewer rows folded in but tighter relevance; higher = broader recall at cost of precision.",
+                    "default": 20,
+                },
+                "auto_route": {
+                    "type": "boolean",
+                    "description": "Multi-signal retrieval routing. Default False = no auto-routing (existing behavior). True = router picks branch (temporal/multi_session/sharp/default) and fills in unset parameters with branch-specific values; caller-explicit values still win.",
+                    "default": False,
+                },
+                "auto_top1_sharp_min": {
+                    "type": "number",
+                    "description": "Top-1 score above which query is marked sharp. Default 0.89. Used by sharp branch to detect high-confidence queries.",
+                    "default": 0.89,
+                },
+                "auto_slope_at_3_sharp_min": {
+                    "type": "number",
+                    "description": "Slope-at-3 (score drop per rank) above which query is marked sharp. Default 0.08. Steeper curves = more relevance discrimination.",
+                    "default": 0.08,
+                },
+                "auto_conv_id_diversity_threshold": {
+                    "type": "integer",
+                    "description": "Number of distinct conversation IDs in top-10 hits above which query is routed to multi_session. Default 5. Higher threshold = only very scattered results trigger expansion.",
+                    "default": 5,
+                },
+                "auto_top1_low_threshold": {
+                    "type": "number",
+                    "description": "Score floor for sharp detection (OOD guard). Default 0.50. Below this, query is not marked sharp even if other signals fire (prevents misclassifying low-confidence matches).",
+                    "default": 0.50,
+                },
+                "auto_temporal_k": {
+                    "type": "integer",
+                    "description": "k for temporal branch when auto_route=True. Default 15. Branch fires when query has temporal cues (when/since/before/after/dates).",
+                    "default": 15,
+                },
+                "auto_temporal_recency_bias": {
+                    "type": "number",
+                    "description": "recency_bias for temporal branch. Default 0.05. Boosts recent memories over older ones (useful for 'recently'/'today' questions).",
+                    "default": 0.05,
+                },
+                "auto_temporal_expand_sessions": {
+                    "type": "boolean",
+                    "description": "expand_sessions for temporal branch. Default True. Pulls full conversation context when a temporal hit is found (important for 'what happened after X' questions).",
+                    "default": True,
+                },
+                "auto_temporal_graph_depth": {
+                    "type": "integer",
+                    "description": "graph_depth for temporal branch (AUTO_v2 fix). Default 1. Traverses memory relationships to find cross-temporal references (e.g., follow-up discussions on an earlier event).",
+                    "default": 1,
+                },
+                "auto_multi_k": {
+                    "type": "integer",
+                    "description": "k for multi_session branch when auto_route=True. Default 20. Branch fires on comparison queries (how many/count/total) or when hits scatter across multiple conversations.",
+                    "default": 20,
+                },
+                "auto_multi_expand_sessions": {
+                    "type": "boolean",
+                    "description": "expand_sessions for multi_session branch. Default True. Pulls all turns from detected conversation IDs for aggregate comparisons ('list all X across conversations').",
+                    "default": True,
+                },
+                "auto_sharp_threshold_ratio": {
+                    "type": "number",
+                    "description": "Trim hits below (top_score * ratio) in sharp branch. Default 0.85. Removes tail noise when there's a clear high-confidence cluster.",
+                    "default": 0.85,
+                },
+                "auto_sharp_k_min": {
+                    "type": "integer",
+                    "description": "Floor for hit count after sharp threshold trim. Default 3. Ensures at least this many hits even if threshold trim is aggressive.",
+                    "default": 3,
+                },
+                "auto_sharp_k_max": {
+                    "type": "integer",
+                    "description": "Ceiling for hit count after sharp threshold trim. Default 10. Caps result set when sharp curve is very steep.",
+                    "default": 10,
+                },
+                "auto_entity_graph_enabled": {
+                    "type": "boolean",
+                    "description": "AUTO entity-anchored branch enable. Default True = branch fires when query has named entities AND auto_route=True. Caller can pass False to disable AUTO from enabling entity_graph (still works if caller passes entity_graph=True explicitly).",
+                    "default": True,
+                },
+                "auto_entity_graph_depth": {
+                    "type": "integer",
+                    "description": "Entity-graph traversal depth when AUTO entity_anchored branch fires. Default 1 = single-hop neighbors. Higher (2-3) traverses further but adds noise.",
+                    "default": 1,
+                },
+                "auto_entity_graph_max_neighbors": {
+                    "type": "integer",
+                    "description": "Cap on entities expanded during AUTO entity-anchored traversal. Default 20.",
+                    "default": 20,
+                },
+                "auto_entity_graph_named_entity_threshold": {
+                    "type": "integer",
+                    "description": "Minimum named-entity count in query for AUTO entity_anchored branch to fire. Default 1 = fire on any proper noun phrase (two+ capitalized words). Higher (2-3) is more conservative.",
+                    "default": 1,
+                },
+                "entity_graph_valid_types": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Override list of allowed entity_type values for graph traversal. Default empty = use core defaults (person, place, organization, event, concept, object, date). Pass a list to filter traversal to specific types.",
+                    "default": [],
+                },
+                "entity_graph_valid_predicates": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Override list of allowed predicate values for graph traversal. Default empty = use core defaults (works_at, located_in, before, after, same_as, contradicts, mentions, relates_to). Pass a list to filter traversal to specific predicates.",
+                    "default": [],
+                },
             },
             "required": ["query"],
         },
@@ -315,21 +645,45 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "query":           {"type": "string", "description": "Search query."},
-                "databases":       {"type": "string", "description": "Comma-separated list of DB paths to fan out to (e.g. 'memory/agent_memory.db,memory/agent_chatlog.db'). Empty = no-op."},
-                "k":               {"type": "integer", "default": 8, "description": "Top-K to return globally after merge. Each per-DB search also retrieves K, then results are pooled and re-sorted."},
-                "type_filter":     {"type": "string", "default": ""},
-                "agent_filter":    {"type": "string", "default": ""},
-                "search_mode":     {"type": "string", "enum": list(PUBLIC_SEARCH_MODES), "description": "Retrieval mode.", "default": "hybrid"},
-                "user_id":         {"type": "string", "default": ""},
-                "scope":           {"type": "string", "default": ""},
-                "requesting_agent": {"type": "string", "description": "Calling agent's id. When set, ENFORCES cross-agent isolation: other agents' private (scope='agent') rows are excluded; caller sees its own private + shared scopes. Empty = no enforcement.", "default": ""},
-                "as_of":           {"type": "string", "default": ""},
+                "query": {"type": "string", "description": "Search query."},
+                "databases": {
+                    "type": "string",
+                    "description": "Comma-separated list of DB paths to fan out to (e.g. 'memory/agent_memory.db,memory/agent_chatlog.db'). Empty = no-op.",
+                },
+                "k": {
+                    "type": "integer",
+                    "default": 8,
+                    "description": "Top-K to return globally after merge. Each per-DB search also retrieves K, then results are pooled and re-sorted.",
+                },
+                "type_filter": {"type": "string", "default": ""},
+                "agent_filter": {"type": "string", "default": ""},
+                "search_mode": {
+                    "type": "string",
+                    "enum": list(PUBLIC_SEARCH_MODES),
+                    "description": "Retrieval mode.",
+                    "default": "hybrid",
+                },
+                "user_id": {"type": "string", "default": ""},
+                "scope": {"type": "string", "default": ""},
+                "requesting_agent": {
+                    "type": "string",
+                    "description": "Calling agent's id. When set, ENFORCES cross-agent isolation: other agents' private (scope='agent') rows are excluded; caller sees its own private + shared scopes. Empty = no enforcement.",
+                    "default": "",
+                },
+                "as_of": {"type": "string", "default": ""},
                 "conversation_id": {"type": "string", "default": ""},
-                "recency_bias":    {"type": "number", "default": 0.0},
-                "adaptive_k":      {"type": "boolean", "default": False},
-                "variant":         {"type": "string", "default": "", "description": "Variant filter applied uniformly to each DB. Pass a comma-separated list to use multi-variant IN filtering (passed through to memory_search_scored_impl)."},
-                "fan_out_limit":   {"type": "integer", "default": 0, "description": "Cap on concurrent per-DB searches. 0 = unbounded (typical, since fan-out N is small)."},
+                "recency_bias": {"type": "number", "default": 0.0},
+                "adaptive_k": {"type": "boolean", "default": False},
+                "variant": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Variant filter applied uniformly to each DB. Pass a comma-separated list to use multi-variant IN filtering (passed through to memory_search_scored_impl).",
+                },
+                "fan_out_limit": {
+                    "type": "integer",
+                    "default": 0,
+                    "description": "Cap on concurrent per-DB searches. 0 = unbounded (typical, since fan-out N is small).",
+                },
             },
             "required": ["query", "databases"],
         },
@@ -347,7 +701,7 @@ TOOLS: list[ToolSpec] = [
                 "id": {
                     "type": "string",
                     "description": "Memory item id — 36-char UUID or 8-char prefix. "
-                                   "Ambiguous prefixes return an error listing the matching ids.",
+                    "Ambiguous prefixes return an error listing the matching ids.",
                 },
             },
             "required": ["id"],
@@ -364,15 +718,35 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "id":        {"type": "string", "description": "Memory item UUID."},
-                "content":   {"type": "string", "description": "New content (empty = no change).", "default": ""},
-                "title":     {"type": "string", "description": "New title (empty = no change).", "default": ""},
-                "metadata":  {"type": "string", "description": "JSON-encoded metadata (empty = no change).", "default": ""},
-                "importance": {"type": "number", "description": "New importance score (-1.0 = no change).", "default": -1.0},
-                "reembed":   {"type": "boolean", "description": "Re-embed for semantic search.", "default": False},
-                "refresh_on": {"type": "string", "description": "New refresh timestamp. 'clear' removes the reminder; empty = no change.", "default": ""},
-                "refresh_reason": {"type": "string", "description": "New refresh reason. 'clear' removes; empty = no change.", "default": ""},
-                "conversation_id": {"type": "string", "description": "New conversation id. 'clear' removes; empty = no change.", "default": ""},
+                "id": {"type": "string", "description": "Memory item UUID."},
+                "content": {"type": "string", "description": "New content (empty = no change).", "default": ""},
+                "title": {"type": "string", "description": "New title (empty = no change).", "default": ""},
+                "metadata": {
+                    "type": "string",
+                    "description": "JSON-encoded metadata (empty = no change).",
+                    "default": "",
+                },
+                "importance": {
+                    "type": "number",
+                    "description": "New importance score (-1.0 = no change).",
+                    "default": -1.0,
+                },
+                "reembed": {"type": "boolean", "description": "Re-embed for semantic search.", "default": False},
+                "refresh_on": {
+                    "type": "string",
+                    "description": "New refresh timestamp. 'clear' removes the reminder; empty = no change.",
+                    "default": "",
+                },
+                "refresh_reason": {
+                    "type": "string",
+                    "description": "New refresh reason. 'clear' removes; empty = no change.",
+                    "default": "",
+                },
+                "conversation_id": {
+                    "type": "string",
+                    "description": "New conversation id. 'clear' removes; empty = no change.",
+                    "default": "",
+                },
             },
             "required": ["id"],
         },
@@ -406,13 +780,13 @@ TOOLS: list[ToolSpec] = [
                     "items": {
                         "type": "object",
                         "properties": {
-                            "id":              {"type": "string"},
-                            "content":         {"type": "string"},
-                            "title":           {"type": "string"},
-                            "importance":      {"type": "number"},
-                            "metadata":        {"type": "string", "description": "JSON-encoded."},
-                            "refresh_on":      {"type": "string"},
-                            "refresh_reason":  {"type": "string"},
+                            "id": {"type": "string"},
+                            "content": {"type": "string"},
+                            "title": {"type": "string"},
+                            "importance": {"type": "number"},
+                            "metadata": {"type": "string", "description": "JSON-encoded."},
+                            "refresh_on": {"type": "string"},
+                            "refresh_reason": {"type": "string"},
                             "conversation_id": {"type": "string"},
                         },
                         "required": ["id"],
@@ -445,10 +819,10 @@ TOOLS: list[ToolSpec] = [
                     "type": "object",
                     "description": "Curator plan; see tool description for schema.",
                     "properties": {
-                        "delete":      {"type": "array", "items": {"type": "string"}},
+                        "delete": {"type": "array", "items": {"type": "string"}},
                         "delete_hard": {"type": "array", "items": {"type": "string"}},
-                        "link":        {"type": "array", "items": {"type": "object"}},
-                        "update":      {"type": "array", "items": {"type": "object"}},
+                        "link": {"type": "array", "items": {"type": "object"}},
+                        "update": {"type": "array", "items": {"type": "object"}},
                     },
                 },
             },
@@ -470,7 +844,10 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "id":   {"type": "string", "description": "FULL UUID of the memory (not an 8-char prefix — a prefix is rejected for mutation safety)."},
+                "id": {
+                    "type": "string",
+                    "description": "FULL UUID of the memory (not an 8-char prefix — a prefix is rejected for mutation safety).",
+                },
                 "hard": {"type": "boolean", "description": "Hard delete (permanent).", "default": False},
             },
             "required": ["id"],
@@ -492,7 +869,7 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "ids":  {
+                "ids": {
                     "type": "array",
                     "items": {"type": "string"},
                     "description": "List of memory item UUIDs to delete.",
@@ -513,9 +890,13 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "decay":                   {"type": "boolean", "description": "Apply importance decay.", "default": True},
-                "purge_expired":           {"type": "boolean", "description": "Delete expired items.", "default": True},
-                "prune_orphan_embeddings": {"type": "boolean", "description": "Remove orphaned embeddings.", "default": True},
+                "decay": {"type": "boolean", "description": "Apply importance decay.", "default": True},
+                "purge_expired": {"type": "boolean", "description": "Delete expired items.", "default": True},
+                "prune_orphan_embeddings": {
+                    "type": "boolean",
+                    "description": "Remove orphaned embeddings.",
+                    "default": True,
+                },
             },
             "required": [],
         },
@@ -540,7 +921,11 @@ TOOLS: list[ToolSpec] = [
             "type": "object",
             "properties": {
                 "window_days": {"type": "integer", "description": "Look-back window in days.", "default": 7},
-                "top_n":       {"type": "integer", "description": "Max rows in the most-revised / most-contradicted lists (0 = omit them).", "default": 5},
+                "top_n": {
+                    "type": "integer",
+                    "description": "Max rows in the most-revised / most-contradicted lists (0 = omit them).",
+                    "default": 5,
+                },
             },
             "required": [],
         },
@@ -556,9 +941,9 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "type_filter":  {"type": "string", "description": "Restrict to a memory type.", "default": ""},
+                "type_filter": {"type": "string", "description": "Restrict to a memory type.", "default": ""},
                 "agent_filter": {"type": "string", "description": "Restrict to an agent id.", "default": ""},
-                "threshold":    {"type": "integer", "description": "Min items to consolidate.", "default": 20},
+                "threshold": {"type": "integer", "description": "Min items to consolidate.", "default": 20},
             },
             "required": [],
         },
@@ -580,9 +965,16 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "threshold": {"type": "number", "description": "Cosine similarity threshold in [0, 1]. Higher = stricter near-duplicate. Omit for memory.dedup.threshold from m3_config.toml."},
-                "dry_run":   {"type": "boolean", "description": "Preview without applying.", "default": True},
-                "limit":     {"type": "integer", "description": "Cap on returned groups (0 = no cap). count reflects true total regardless.", "default": 0},
+                "threshold": {
+                    "type": "number",
+                    "description": "Cosine similarity threshold in [0, 1]. Higher = stricter near-duplicate. Omit for memory.dedup.threshold from m3_config.toml.",
+                },
+                "dry_run": {"type": "boolean", "description": "Preview without applying.", "default": True},
+                "limit": {
+                    "type": "integer",
+                    "description": "Cap on returned groups (0 = no cap). count reflects true total regardless.",
+                    "default": 0,
+                },
             },
             "required": [],
         },
@@ -599,7 +991,12 @@ TOOLS: list[ToolSpec] = [
             "type": "object",
             "properties": {
                 "memory_id": {"type": "string", "description": "Memory item UUID."},
-                "feedback":  {"type": "string", "enum": ["useful", "not_useful", "misleading"], "description": "Feedback type.", "default": "useful"},
+                "feedback": {
+                    "type": "string",
+                    "enum": ["useful", "not_useful", "misleading"],
+                    "description": "Feedback type.",
+                    "default": "useful",
+                },
             },
             "required": ["memory_id"],
         },
@@ -625,10 +1022,21 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "memory_id": {"type": "string", "description": "Restore one specific memory UUID. Omit to restore in bulk."},
-                "reason":    {"type": "string", "enum": ["low_importance"], "description": "Restrict to one autonomous archive reason. Omit for all of them."},
-                "dry_run":   {"type": "boolean", "description": "Report the count without writing. Default true.", "default": True},
-                "limit":     {"type": "integer", "description": "Max rows per bulk call.", "default": 1000},
+                "memory_id": {
+                    "type": "string",
+                    "description": "Restore one specific memory UUID. Omit to restore in bulk.",
+                },
+                "reason": {
+                    "type": "string",
+                    "enum": ["low_importance"],
+                    "description": "Restrict to one autonomous archive reason. Omit for all of them.",
+                },
+                "dry_run": {
+                    "type": "boolean",
+                    "description": "Report the count without writing. Default true.",
+                    "default": True,
+                },
+                "limit": {"type": "integer", "description": "Max rows per bulk call.", "default": 1000},
             },
             "required": [],
         },
@@ -665,12 +1073,21 @@ TOOLS: list[ToolSpec] = [
                         "type": "object",
                         "properties": {
                             "memory_id": {"type": "string", "description": "Memory item UUID, as returned by search."},
-                            "verdict":   {"type": "string", "enum": ["helpful", "unhelpful"], "description": "Did you actually rely on this memory?"},
+                            "verdict": {
+                                "type": "string",
+                                "enum": ["helpful", "unhelpful"],
+                                "description": "Did you actually rely on this memory?",
+                            },
                         },
                         "required": ["memory_id", "verdict"],
                     },
                 },
-                "window_minutes": {"type": "integer", "minimum": 1, "maximum": 1440, "description": "Override the feedback window for this call. Omit to use the configured default. Clamped to 1440 (24h): the window is what makes retrieval the capability to grade, so it cannot be widened to cover the whole store. An over-wide request is clamped, not rejected, and the response reports window_clamped_from."},
+                "window_minutes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1440,
+                    "description": "Override the feedback window for this call. Omit to use the configured default. Clamped to 1440 (24h): the window is what makes retrieval the capability to grade, so it cannot be widened to cover the whole store. An over-wide request is clamped, not rejected, and the response reports window_clamped_from.",
+                },
             },
             "required": ["grades"],
         },
@@ -703,8 +1120,12 @@ TOOLS: list[ToolSpec] = [
             "type": "object",
             "properties": {
                 "memory_id": {"type": "string", "description": "Memory item UUID."},
-                "limit":     {"type": "integer", "description": "Max history records.", "default": 20},
-                "as_records": {"type": "boolean", "description": "Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged.", "default": False},
+                "limit": {"type": "integer", "description": "Max history records.", "default": 20},
+                "as_records": {
+                    "type": "boolean",
+                    "description": "Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged.",
+                    "default": False,
+                },
             },
             "required": ["memory_id"],
         },
@@ -717,13 +1138,19 @@ TOOLS: list[ToolSpec] = [
     ToolSpec(
         name="memory_link",
         description="Creates a directional link between two memory items. Valid types: "
-                    + ", ".join(sorted(VALID_RELATIONSHIP_TYPES)) + ".",
+        + ", ".join(sorted(VALID_RELATIONSHIP_TYPES))
+        + ".",
         parameters={
             "type": "object",
             "properties": {
-                "from_id":            {"type": "string", "description": "Source memory UUID."},
-                "to_id":              {"type": "string", "description": "Target memory UUID."},
-                "relationship_type":  {"type": "string", "enum": sorted(VALID_RELATIONSHIP_TYPES), "description": "Link type.", "default": "related"},
+                "from_id": {"type": "string", "description": "Source memory UUID."},
+                "to_id": {"type": "string", "description": "Target memory UUID."},
+                "relationship_type": {
+                    "type": "string",
+                    "enum": sorted(VALID_RELATIONSHIP_TYPES),
+                    "description": "Link type.",
+                    "default": "related",
+                },
             },
             "required": ["from_id", "to_id"],
         },
@@ -750,8 +1177,8 @@ TOOLS: list[ToolSpec] = [
                     "items": {
                         "type": "object",
                         "properties": {
-                            "from_id":           {"type": "string"},
-                            "to_id":             {"type": "string"},
+                            "from_id": {"type": "string"},
+                            "to_id": {"type": "string"},
                             "relationship_type": {"type": "string", "enum": sorted(VALID_RELATIONSHIP_TYPES)},
                         },
                         "required": ["from_id", "to_id"],
@@ -780,8 +1207,12 @@ TOOLS: list[ToolSpec] = [
             "type": "object",
             "properties": {
                 "memory_id": {"type": "string", "description": "Memory item UUID."},
-                "depth":     {"type": "integer", "description": "Traversal depth (1-3).", "default": 1},
-                "as_records": {"type": "boolean", "description": "Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged.", "default": False},
+                "depth": {"type": "integer", "description": "Traversal depth (1-3).", "default": 1},
+                "as_records": {
+                    "type": "boolean",
+                    "description": "Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged.",
+                    "default": False,
+                },
             },
             "required": ["memory_id"],
         },
@@ -822,7 +1253,7 @@ TOOLS: list[ToolSpec] = [
                 "id": {
                     "type": "string",
                     "description": "Memory item id — 36-char UUID or 8-char prefix. "
-                                   "Ambiguous prefixes return an error listing the matching ids.",
+                    "Ambiguous prefixes return an error listing the matching ids.",
                 },
             },
             "required": ["id"],
@@ -842,7 +1273,7 @@ TOOLS: list[ToolSpec] = [
                 "id": {
                     "type": "string",
                     "description": "Memory item id — 36-char UUID or 8-char prefix. "
-                                   "Ambiguous prefixes return an error listing the matching ids.",
+                    "Ambiguous prefixes return an error listing the matching ids.",
                 },
             },
             "required": ["id"],
@@ -859,9 +1290,9 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "agent_id":     {"type": "string", "description": "Agent id for policy."},
+                "agent_id": {"type": "string", "description": "Agent id for policy."},
                 "max_memories": {"type": "integer", "description": "Max items to retain.", "default": 1000},
-                "ttl_days":     {"type": "integer", "description": "Time-to-live in days (0 = no limit).", "default": 0},
+                "ttl_days": {"type": "integer", "description": "Time-to-live in days (0 = no limit).", "default": 0},
                 "auto_archive": {"type": "integer", "description": "Auto-archive threshold.", "default": 1},
             },
             "required": ["agent_id"],
@@ -879,8 +1310,8 @@ TOOLS: list[ToolSpec] = [
             "type": "object",
             "properties": {
                 "agent_filter": {"type": "string", "description": "Restrict to an agent id.", "default": ""},
-                "type_filter":  {"type": "string", "description": "Restrict to a memory type.", "default": ""},
-                "since":        {"type": "string", "description": "ISO-8601 start date.", "default": ""},
+                "type_filter": {"type": "string", "description": "Restrict to a memory type.", "default": ""},
+                "since": {"type": "string", "description": "ISO-8601 start date.", "default": ""},
             },
             "required": [],
         },
@@ -912,7 +1343,11 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "as_records": {"type": "boolean", "description": "Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged.", "default": False},
+                "as_records": {
+                    "type": "boolean",
+                    "description": "Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged.",
+                    "default": False,
+                },
             },
             "required": [],
         },
@@ -932,20 +1367,26 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "from_agent":  {"type": "string", "description": "Sending agent id."},
-                "to_agent":    {"type": "string", "description": "Receiving agent id."},
-                "task":        {"type": "string", "description": "What the receiver should do."},
-                "context_ids": {"type": "array", "items": {"type": "string"}, "description": "Memory ids to link via 'handoff' edges.", "default": []},
-                "note":        {"type": "string", "description": "Optional free-text note.", "default": ""},
-                "task_id":     {"type": "string", "description": "Optional tracked task id.", "default": ""},
+                "from_agent": {"type": "string", "description": "Sending agent id."},
+                "to_agent": {"type": "string", "description": "Receiving agent id."},
+                "task": {"type": "string", "description": "What the receiver should do."},
+                "context_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Memory ids to link via 'handoff' edges.",
+                    "default": [],
+                },
+                "note": {"type": "string", "description": "Optional free-text note.", "default": ""},
+                "task_id": {"type": "string", "description": "Optional tracked task id.", "default": ""},
                 "from_session": {
-                    "type": "string", "default": "",
+                    "type": "string",
+                    "default": "",
                     "description": "Optional: WHICH SESSION of from_agent is handing "
-                                   "off. N concurrent sessions of one agent type share "
-                                   "a single agent_id, so a reply addressed to the name "
-                                   "alone reaches whichever sister polls first. Recorded "
-                                   "in the handoff metadata and in the notification's "
-                                   "`_from.session`. A disambiguator, not a credential.",
+                    "off. N concurrent sessions of one agent type share "
+                    "a single agent_id, so a reply addressed to the name "
+                    "alone reaches whichever sister polls first. Recorded "
+                    "in the handoff metadata and in the notification's "
+                    "`_from.session`. A disambiguator, not a credential.",
                 },
             },
             "required": ["from_agent", "to_agent", "task"],
@@ -962,10 +1403,14 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "agent_id":     {"type": "string", "description": "Receiving agent id."},
-                "unread_only":  {"type": "boolean", "description": "Show only unread messages.", "default": True},
-                "limit":        {"type": "integer", "description": "Max messages to return.", "default": 20},
-                "as_records": {"type": "boolean", "description": "Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged.", "default": False},
+                "agent_id": {"type": "string", "description": "Receiving agent id."},
+                "unread_only": {"type": "boolean", "description": "Show only unread messages.", "default": True},
+                "limit": {"type": "integer", "description": "Max messages to return.", "default": 20},
+                "as_records": {
+                    "type": "boolean",
+                    "description": "Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged.",
+                    "default": False,
+                },
             },
             "required": ["agent_id"],
         },
@@ -986,7 +1431,10 @@ TOOLS: list[ToolSpec] = [
             "type": "object",
             "properties": {
                 "memory_id": {"type": "string", "description": "Handoff memory UUID."},
-                "agent_id": {"type": "string", "description": "Acking agent id. Injected; scopes the ack to mail addressed to this agent."},
+                "agent_id": {
+                    "type": "string",
+                    "description": "Acking agent id. Injected; scopes the ack to mail addressed to this agent.",
+                },
             },
             "required": ["memory_id"],
         },
@@ -1007,10 +1455,22 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "agent_id":       {"type": "string", "description": "Restrict to memories owned by this agent.", "default": ""},
-                "limit":          {"type": "integer", "description": "Max rows to return (1-500).", "default": 50},
-                "include_future": {"type": "boolean", "description": "Include memories whose refresh_on is still in the future.", "default": False},
-                "as_records": {"type": "boolean", "description": "Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged.", "default": False},
+                "agent_id": {
+                    "type": "string",
+                    "description": "Restrict to memories owned by this agent.",
+                    "default": "",
+                },
+                "limit": {"type": "integer", "description": "Max rows to return (1-500).", "default": 50},
+                "include_future": {
+                    "type": "boolean",
+                    "description": "Include memories whose refresh_on is still in the future.",
+                    "default": False,
+                },
+                "as_records": {
+                    "type": "boolean",
+                    "description": "Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged.",
+                    "default": False,
+                },
             },
             "required": [],
         },
@@ -1033,9 +1493,20 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "conversation_id": {"type": "string", "description": "Required. The conversation to scope the count to. Empty / missing → ValueError (cross-conversation scans are not supported)."},
-                "entity_type":     {"type": "string", "default": "", "description": "Optional type filter (e.g. 'product', 'place', 'person'). Empty = all types."},
-                "pattern":         {"type": "string", "default": "", "description": "Optional case-insensitive substring filter on canonical_name. Max length 256."},
+                "conversation_id": {
+                    "type": "string",
+                    "description": "Required. The conversation to scope the count to. Empty / missing → ValueError (cross-conversation scans are not supported).",
+                },
+                "entity_type": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Optional type filter (e.g. 'product', 'place', 'person'). Empty = all types.",
+                },
+                "pattern": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Optional case-insensitive substring filter on canonical_name. Max length 256.",
+                },
             },
             "required": ["conversation_id"],
         },
@@ -1056,10 +1527,21 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "conversation_id": {"type": "string", "description": "Required. The conversation to scope the count to."},
-                "entity_type":     {"type": "string", "default": "", "description": "Optional type filter."},
-                "pattern":         {"type": "string", "default": "", "description": "Optional case-insensitive substring filter on canonical_name. Max length 256."},
-                "limit":           {"type": "integer", "default": 0, "description": "Max rows to return. 0 = default (1000). Hard cap = 10000."},
+                "conversation_id": {
+                    "type": "string",
+                    "description": "Required. The conversation to scope the count to.",
+                },
+                "entity_type": {"type": "string", "default": "", "description": "Optional type filter."},
+                "pattern": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Optional case-insensitive substring filter on canonical_name. Max length 256.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "default": 0,
+                    "description": "Max rows to return. 0 = default (1000). Hard cap = 10000.",
+                },
             },
             "required": ["conversation_id"],
         },

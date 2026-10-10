@@ -35,13 +35,12 @@ def file_lock(lock_path: str, *, purpose: str):
     if not M3_CORE_RS_DISABLE:
         try:
             import m3_core_rs
+
             if hasattr(m3_core_rs, "NativeMigrationLock"):
                 lock = m3_core_rs.NativeMigrationLock(lock_path)
                 acquired = lock.acquire(120)
                 if not acquired:
-                    raise RuntimeError(
-                        f"Could not acquire native {purpose} lock at {lock_path} within 120 seconds."
-                    )
+                    raise RuntimeError(f"Could not acquire native {purpose} lock at {lock_path} within 120 seconds.")
                 try:
                     yield
                 finally:
@@ -107,6 +106,7 @@ _MIGRATION_LOCK_MAX_AGE_S = 600.0
 def _lock_owner_stamp() -> str:
     """Owner metadata written into the lock file: 'pid host epoch'."""
     import socket
+
     return f"{os.getpid()} {socket.gethostname()} {int(time.time())}"
 
 
@@ -117,6 +117,7 @@ def _pid_alive(pid: int) -> bool:
     existence reads as alive, so a live lock is never stolen.
     """
     from m3_core.process import pid_is_alive
+
     return pid_is_alive(pid)
 
 
@@ -132,6 +133,7 @@ def _reclaim_stale_lock(lock_path: str) -> bool:
       - Otherwise -> not stale (return False; caller keeps waiting).
     """
     import socket
+
     try:
         raw = ""
         with Path(lock_path).open(encoding="utf-8") as f:
@@ -172,7 +174,10 @@ def _reclaim_stale_lock(lock_path: str) -> bool:
         Path(lock_path).unlink()
         logger.warning(
             "Reclaimed stale lock %s (owner pid=%s host=%s age=%.0fs)",
-            lock_path, pid or "?", host or "?", age,
+            lock_path,
+            pid or "?",
+            host or "?",
+            age,
         )
         return True
     except FileNotFoundError:

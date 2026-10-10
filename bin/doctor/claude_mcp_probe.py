@@ -34,6 +34,7 @@ a user who deliberately prefers the plugin is a supported choice — so this nag
 with the exact fix but never fails the doctor. Cross-platform, network-free
 (reads local Claude Code config only), never raises.
 """
+
 from __future__ import annotations
 
 import json
@@ -48,8 +49,8 @@ import time
 _PLUGIN_SERVER_IDS = ("plugin:m3:memory", "plugin:m3:m3")
 
 # The direct registration names m3 uses/used in ~/.claude.json mcpServers.
-_DIRECT_NAME = "m3_memory"       # current, roots-pinned, mcp__m3_memory__
-_LEGACY_DIRECT_NAME = "memory"   # pre-rename, roots-less, mcp__memory__
+_DIRECT_NAME = "m3_memory"  # current, roots-pinned, mcp__m3_memory__
+_LEGACY_DIRECT_NAME = "memory"  # pre-rename, roots-less, mcp__memory__
 
 
 def _claude_dir() -> str:
@@ -75,14 +76,10 @@ def _looks_m3(entry: object) -> bool:
     if base in ("m3", "m3.exe") or base.startswith("m3-memory"):
         return True
     args = entry.get("args")
-    if isinstance(args, list) and any(
-        isinstance(a, str) and ("memory_bridge" in a or "m3_memory" in a) for a in args
-    ):
+    if isinstance(args, list) and any(isinstance(a, str) and ("memory_bridge" in a or "m3_memory" in a) for a in args):
         return True
     env = entry.get("env")
-    if isinstance(env, dict) and any(
-        k.startswith("M3_") or k == "LLM_ENDPOINTS_CSV" for k in env
-    ):
+    if isinstance(env, dict) and any(k.startswith("M3_") or k == "LLM_ENDPOINTS_CSV" for k in env):
         return True
     return False
 
@@ -130,15 +127,14 @@ def _plugin_state() -> dict:
     for the install+enabled read so there is one source of truth for that."""
     try:
         from doctor import plugin_version_probe as pv
+
         installed = pv._installed_version() is not None
         enabled = pv._enabled() is True
     except Exception:  # noqa: BLE001
         installed, enabled = False, False
     settings = _read_json(os.path.join(_claude_dir(), "settings.json"))
     disabled = settings.get("disabledMcpServers") if isinstance(settings, dict) else None
-    server_disabled = (
-        isinstance(disabled, list) and "plugin:m3:memory" in disabled
-    )
+    server_disabled = isinstance(disabled, list) and "plugin:m3:memory" in disabled
     return {
         "installed": installed,
         "enabled": enabled,
@@ -179,8 +175,7 @@ def _assess() -> dict:
     }
 
 
-def _claude_mcp_remove(name: str, scope: str = "user",
-                       cwd: str | None = None) -> tuple[bool, str]:
+def _claude_mcp_remove(name: str, scope: str = "user", cwd: str | None = None) -> tuple[bool, str]:
     """Best-effort `claude mcp remove --scope <scope> <name>`; a local-scope
     entry belongs to a directory, so it is removed from inside that directory."""
     if not shutil.which("claude"):
@@ -188,12 +183,14 @@ def _claude_mcp_remove(name: str, scope: str = "user",
     try:
         proc = subprocess.run(
             ["claude", "mcp", "remove", "--scope", scope, name],
-            check=False, capture_output=True, text=True, cwd=cwd,
+            check=False,
+            capture_output=True,
+            text=True,
+            cwd=cwd,
         )
     except Exception as e:  # noqa: BLE001
         return False, f"{type(e).__name__}: {e}"
-    ok = proc.returncode == 0 or "no mcp server" in (
-        (proc.stdout or "") + (proc.stderr or "")).lower()
+    ok = proc.returncode == 0 or "no mcp server" in ((proc.stdout or "") + (proc.stderr or "")).lower()
     return ok, (proc.stdout or proc.stderr or "").strip()
 
 
@@ -252,42 +249,48 @@ def _fix(a: dict, brief: bool = False) -> None:
     #    never remove the user's only working server.
     if a["legacy_present"] and (a["direct_present"] or a["plugin"]["active"]):
         ok, detail = _claude_mcp_remove(_LEGACY_DIRECT_NAME)
-        print(f"  [{'ok' if ok else 'error'}] remove legacy `memory` server: "
-              f"{detail or 'done'}")
+        print(f"  [{'ok' if ok else 'error'}] remove legacy `memory` server: {detail or 'done'}")
         acted = acted or ok
     elif a["legacy_present"]:
-        print("  [skip] legacy `memory` is the only m3 server — not removing it; "
-              "run `m3 setup` to migrate it to `m3_memory` (adds root pins).")
+        print(
+            "  [skip] legacy `memory` is the only m3 server — not removing it; "
+            "run `m3 setup` to migrate it to `m3_memory` (adds root pins)."
+        )
 
     # 3. Local-scope m3 entries (projects[dir] in ~/.claude.json) load beside the
     #    user-scope server for sessions started in that directory. Remove them
     #    only while a user-scope or plugin server remains.
     for directory, name, _entry in a.get("local", ()):
         if a["direct_present"] or a["plugin"]["active"]:
-            ok, detail = _claude_mcp_remove(name, scope="local",
-                                            cwd=directory if os.path.isdir(directory) else None)
-            print(f"  [{'ok' if ok else 'error'}] remove `{name}` registered for "
-                  f"{directory} (local scope): {detail or 'done'}")
+            ok, detail = _claude_mcp_remove(name, scope="local", cwd=directory if os.path.isdir(directory) else None)
+            print(
+                f"  [{'ok' if ok else 'error'}] remove `{name}` registered for "
+                f"{directory} (local scope): {detail or 'done'}"
+            )
             acted = acted or ok
         else:
-            print(f"  [skip] `{name}` for {directory} is the only m3 server there — "
-                  f"not removing it; run `m3 setup` to register m3_memory.")
+            print(
+                f"  [skip] `{name}` for {directory} is the only m3 server there — "
+                f"not removing it; run `m3 setup` to register m3_memory."
+            )
 
     if not acted:
-        print("✅ claude mcp: single direct server (mcp__m3_memory__)" if brief
-              else "  (nothing to converge — already single-server)")
+        print(
+            "✅ claude mcp: single direct server (mcp__m3_memory__)"
+            if brief
+            else "  (nothing to converge — already single-server)"
+        )
     else:
-        print("  Restart Claude Code for the change to take effect "
-              "(server env re-resolves only on restart).")
+        print("  Restart Claude Code for the change to take effect (server env re-resolves only on restart).")
 
 
 def _print_fix_hint() -> None:
-    print("  fix       : m3 setup                     (recommended — direct "
-          "mcp__m3_memory__, plugin server off)")
-    print("              m3 doctor --fix --fix-hooks  (converge in place; backs up "
-          "~/.claude/settings.json)")
-    print("              To keep the PLUGIN instead: `claude mcp remove --scope user "
-          "m3_memory` and drop \"plugin:m3:memory\" from disabledMcpServers.")
+    print("  fix       : m3 setup                     (recommended — direct mcp__m3_memory__, plugin server off)")
+    print("              m3 doctor --fix --fix-hooks  (converge in place; backs up ~/.claude/settings.json)")
+    print(
+        "              To keep the PLUGIN instead: `claude mcp remove --scope user "
+        'm3_memory` and drop "plugin:m3:memory" from disabledMcpServers.'
+    )
 
 
 def run(brief: bool = False, fix: bool = False) -> int:
@@ -302,20 +305,19 @@ def run(brief: bool = False, fix: bool = False) -> int:
 
     if brief:
         for directory, name, _e in a.get("local", ()):
-            print(f"⚠️  claude mcp: `{name}` is also registered for {directory} (local "
-                  f"scope) — sessions started there load it beside the user-scope "
-                  f"server. Run `m3 doctor --fix --fix-hooks`")
+            print(
+                f"⚠️  claude mcp: `{name}` is also registered for {directory} (local "
+                f"scope) — sessions started there load it beside the user-scope "
+                f"server. Run `m3 doctor --fix --fix-hooks`"
+            )
         if a.get("local") and not (a["double_run"] or a["two_direct"] or a["legacy_present"]):
             return 0  # the warning above is the verdict; no "single server" line
         if a["double_run"]:
-            print("⚠️  claude mcp: TWO m3 servers live (direct + plugin) — "
-                  "run `m3 doctor --fix --fix-hooks`")
+            print("⚠️  claude mcp: TWO m3 servers live (direct + plugin) — run `m3 doctor --fix --fix-hooks`")
         elif a["two_direct"]:
-            print("⚠️  claude mcp: `memory` AND `m3_memory` both registered — "
-                  "run `m3 doctor --fix --fix-hooks`")
+            print("⚠️  claude mcp: `memory` AND `m3_memory` both registered — run `m3 doctor --fix --fix-hooks`")
         elif a["legacy_present"]:
-            print("⚠️  claude mcp: legacy `memory` server (wrong namespace / no root "
-                  "pins) — run `m3 setup`")
+            print("⚠️  claude mcp: legacy `memory` server (wrong namespace / no root pins) — run `m3 setup`")
         elif a["direct_present"]:
             print("✅ claude mcp: single direct server (mcp__m3_memory__)")
         elif a["plugin"]["active"]:
@@ -323,8 +325,9 @@ def run(brief: bool = False, fix: bool = False) -> int:
         elif a["none"] and not shutil.which("claude"):
             print("claude mcp: `claude` CLI not on PATH — nothing to check")
         elif a["none"]:
-            print("claude mcp: no m3 memory server registered (to add one: "
-                  "`m3 setup --non-interactive --agents claude`)")
+            print(
+                "claude mcp: no m3 memory server registered (to add one: `m3 setup --non-interactive --agents claude`)"
+            )
         else:
             print("✅ claude mcp: single m3 server")
         return 0
@@ -333,17 +336,19 @@ def run(brief: bool = False, fix: bool = False) -> int:
     print("=== Claude MCP server(s) (one m3 memory server, not two) ===")
     p = a["plugin"]
     print(f"  direct m3_memory : {'yes' if a['direct_present'] else 'no'}")
-    print(f"  legacy memory    : {'yes (roots-less)' if a['legacy_rootless'] else ('yes' if a['legacy_present'] else 'no')}")
+    print(
+        f"  legacy memory    : {'yes (roots-less)' if a['legacy_rootless'] else ('yes' if a['legacy_present'] else 'no')}"
+    )
     for directory, name, _e in a.get("local", ()):
-        print(f"  local scope      : `{name}` for {directory} [WARN] — loaded beside "
-              f"the user-scope server in sessions started there")
-    print(f"  plugin installed : {p['installed']}  enabled: {p['enabled']}  "
-          f"server disabled: {p['server_disabled']}")
+        print(
+            f"  local scope      : `{name}` for {directory} [WARN] — loaded beside "
+            f"the user-scope server in sessions started there"
+        )
+    print(f"  plugin installed : {p['installed']}  enabled: {p['enabled']}  server disabled: {p['server_disabled']}")
 
     if a["double_run"]:
         _which = "m3_memory" if a["direct_present"] else "legacy `memory`"
-        print("  status    : [WARN] TWO m3 servers are live — a direct server "
-              f"({_which}) AND")
+        print(f"  status    : [WARN] TWO m3 servers are live — a direct server ({_which}) AND")
         print("              the plugin's server. Claude loads the m3 payload twice and")
         print("              the tools split across mcp__m3_memory__ / mcp__memory__ AND")
         print("              mcp__plugin_m3_memory__. A `/plugin install m3` after setup")
@@ -355,8 +360,10 @@ def run(brief: bool = False, fix: bool = False) -> int:
         _print_fix_hint()
     elif a["legacy_present"]:
         print("  status    : [WARN] only the legacy `memory` server is registered — it")
-        print("              uses the wrong mcp__memory__ namespace" +
-              (" and pins no roots (split-brain risk)." if a["legacy_rootless"] else "."))
+        print(
+            "              uses the wrong mcp__memory__ namespace"
+            + (" and pins no roots (split-brain risk)." if a["legacy_rootless"] else ".")
+        )
         print("  fix       : m3 setup   (migrates `memory` -> `m3_memory`, pins roots,")
         print("              disables the plugin's competing server)")
     elif a["direct_present"]:

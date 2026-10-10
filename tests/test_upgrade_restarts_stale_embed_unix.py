@@ -10,6 +10,7 @@
 3. `~/.local/bin/m3 upgrade` from a shell without that directory on PATH said
    "m3 is not on PATH. Install it first" about a working install.
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -36,8 +37,7 @@ def _host(monkeypatch, stale_sequence, *, windows=False, rcs=(0, 0)):
     monkeypatch.setattr(embedder_admin, "_is_windows", lambda: windows)
     seq = iter(stale_sequence)
     monkeypatch.setattr(embedder_admin, "stale_embed_servers", lambda: next(seq))
-    monkeypatch.setattr(embedder_admin, "_server_binary",
-                        lambda: pathlib.Path("/opt/core/m3-embed-server"))
+    monkeypatch.setattr(embedder_admin, "_server_binary", lambda: pathlib.Path("/opt/core/m3-embed-server"))
     monkeypatch.setattr(embedder_admin, "_ensure_executable", lambda _p: None)
     monkeypatch.setattr(embedder_admin, "_find_bundled_gguf", lambda: None)
     calls: list[str] = []
@@ -52,6 +52,7 @@ def _host(monkeypatch, stale_sequence, *, windows=False, rcs=(0, 0)):
 
 
 # ── setup on Linux / macOS ────────────────────────────────────────────────────
+
 
 def test_a_stale_unix_embed_server_is_restarted_and_rechecked(monkeypatch, capsys):
     calls = _host(monkeypatch, [_STALE, _STALE, []])
@@ -88,6 +89,7 @@ def test_nothing_stale_runs_nothing(monkeypatch, capsys):
 
 # ── the shared helper on Windows (what `m3 doctor --fix` calls) ──────────────
 
+
 def test_windows_without_a_person_raises_no_prompt(monkeypatch):
     _host(monkeypatch, [_STALE], windows=True)
 
@@ -96,6 +98,7 @@ def test_windows_without_a_person_raises_no_prompt(monkeypatch):
             raise AssertionError("must not build an elevation batch")
 
     import m3_memory.elevate as elevate
+
     monkeypatch.setattr(elevate, "ElevationBatch", _Boom)
     res = embedder_admin.restart_stale_embed_service(allow_elevation=False)
     assert res == {"outcome": "needs-admin", "pids": [4242], "detail": ""}
@@ -124,6 +127,7 @@ def test_windows_restart_runs_stop_and_start_under_one_prompt(monkeypatch):
             return {label: {"rc": 0, "output": ""} for label, _a in self.actions}
 
     import m3_memory.elevate as elevate
+
     monkeypatch.setattr(elevate, "ElevationBatch", _Batch)
     res = embedder_admin.restart_stale_embed_service(allow_elevation=True)
     assert seen == ["stop", "start"]
@@ -133,12 +137,14 @@ def test_windows_restart_runs_stop_and_start_under_one_prompt(monkeypatch):
 def test_a_declined_prompt_is_reported_as_declined(monkeypatch):
     _host(monkeypatch, [_STALE], windows=True)
     import m3_memory.elevate as elevate
+
     monkeypatch.setattr(elevate, "ElevationBatch", _FakeBatch)  # run() -> None
     res = embedder_admin.restart_stale_embed_service(allow_elevation=True)
     assert res["outcome"] == "declined"
 
 
 # ── the launcher lookup ───────────────────────────────────────────────────────
+
 
 def test_the_launcher_beside_this_interpreter_is_found_without_path(monkeypatch, tmp_path):
     name = "m3.exe" if sys.platform == "win32" else "m3"
@@ -160,10 +166,12 @@ def test_no_launcher_anywhere_says_where_it_looked(monkeypatch, tmp_path, capsys
 
 # ── `m3 embedder install-gpu`'s closing line ─────────────────────────────────
 
+
 def _install_gpu(monkeypatch, stale):
     import argparse
 
     from m3_memory import rust_core_install
+
     monkeypatch.setattr(rust_core_install, "install_rust_core", lambda **k: 0)
     monkeypatch.setattr(embedder_admin, "stale_embed_servers", lambda: stale)
     return lambda **kw: embedder_admin.cmd_install_gpu(argparse.Namespace(**kw))
@@ -183,17 +191,20 @@ def test_install_gpu_names_a_restart_only_when_a_server_is_stale(monkeypatch, ca
 
 # ── who can approve an administrator prompt ──────────────────────────────────
 
+
 def _body(fn) -> str:
     """Source after the docstring: the logic, without the prose around it."""
     import ast
     import inspect
     import textwrap
+
     node = ast.parse(textwrap.dedent(inspect.getsource(fn))).body[0]
     return "\n".join(ast.unparse(stmt) for stmt in node.body[1:])
 
 
 def test_upgrade_and_setup_ask_the_same_is_a_person_here_question():
     from m3_memory.wizard.ui import console_has_person
+
     assert _body(console_has_person) == _body(m3u.interactive_console)
 
 

@@ -8,6 +8,7 @@ after this module partition is assembled) — those import `mcp_tool_catalog`
 LAZILY inside the function body to avoid a circular import at module-load
 time (mcp_tool_catalog imports this module at its own module top).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -24,11 +25,15 @@ from .spec import ToolSpec, memory_core
 # ── Helpers ──────────────────────────────────────────────────────────────────
 def get_tool(name: str) -> ToolSpec | None:
     import mcp_tool_catalog
+
     return mcp_tool_catalog._BY_NAME.get(name)
+
 
 def default_allowlist() -> set[str]:
     import mcp_tool_catalog
+
     return {t.name for t in mcp_tool_catalog.TOOLS if t.default_allowed}
+
 
 def _pop_database(args: dict, tool: str) -> str | None:
     """Pop the universal `database` arg so validators/impls never see it.
@@ -57,11 +62,12 @@ def _pop_database(args: dict, tool: str) -> str | None:
 
     backend = resolve_backend_name()
     if tool_domains.domain_of_tool(tool) == "files":
-        cause = ("files tools resolve their own store and never read `database` "
-                 "(a named store, `store`, carries its files half)")
+        cause = (
+            "files tools resolve their own store and never read `database` "
+            "(a named store, `store`, carries its files half)"
+        )
     elif backend != "sqlite":
-        cause = (f"`database` names a SQLite file, and the {backend} backend "
-                 f"addresses its configured store regardless")
+        cause = f"`database` names a SQLite file, and the {backend} backend addresses its configured store regardless"
     else:
         return db
     raise ValueError(
@@ -90,8 +96,9 @@ def _pop_store(args: dict, tool: str) -> str | None:
     if not _given(name):
         return None
     if not isinstance(name, str):
-        raise ValueError(f"{tool}: observed: store={name!r} ({type(name).__name__}). "
-                         "inspect: `store` is a store name such as 'main'")
+        raise ValueError(
+            f"{tool}: observed: store={name!r} ({type(name).__name__}). inspect: `store` is a store name such as 'main'"
+        )
     name = name.strip()
     # Files tools follow it too: a store is core + files (§14, plan 2C.3c).
     from m3_core.config.stores import resolve_store
@@ -115,7 +122,8 @@ def pop_call_scope(args: dict, tool: str) -> AbstractContextManager[object]:
         raise ValueError(
             f"{tool}: observed: store={args['store']!r} and database={args['database']!r}. "
             "cause: both select the store for this call. inspect: pass one; a "
-            "SQLite file can be declared as a store under [stores.<name>].")
+            "SQLite file can be declared as a store under [stores.<name>]."
+        )
     store = _pop_store(args, tool)
     database = _pop_database(args, tool)
     if store is not None:
@@ -133,6 +141,7 @@ def validate_args(spec: ToolSpec, args: dict) -> tuple[dict, str | None]:
         if isinstance(result, dict):
             args = result
     return args, None
+
 
 # ── Per-call timeout (§6 hardening: strict timeouts everywhere) ───────────────
 # Every MCP tool call is bounded so a slow/hung impl can never block the server
@@ -223,7 +232,11 @@ async def execute_tool(spec: ToolSpec, args: dict, agent_id: str) -> str:
 
 
 async def execute_tool_structured(
-    spec: ToolSpec, args: dict, agent_id: str, *, dry_run: bool = False,
+    spec: ToolSpec,
+    args: dict,
+    agent_id: str,
+    *,
+    dry_run: bool = False,
     allow_caller_agent_id: bool = False,
 ) -> Any:
     """Like execute_tool, but returns the impl's NATIVE return value (dict/list/
@@ -287,6 +300,7 @@ _DISPATCH_EXCLUDE = frozenset({"m3_call", "m3_index", "tools_load_domain", "tool
 
 def _spec_by_name(name: str) -> ToolSpec | None:
     import mcp_tool_catalog
+
     for t in mcp_tool_catalog.TOOLS:
         if t.name == name:
             return t
@@ -296,6 +310,7 @@ def _spec_by_name(name: str) -> ToolSpec | None:
 def _did_you_mean(name: str, n: int = 3) -> list[str]:
     """Cheap prefix/substring suggestions for an unknown tool name."""
     import mcp_tool_catalog
+
     name = (name or "").lower()
     if not name:
         return []
@@ -316,28 +331,35 @@ async def _dispatch_one(tool: str, args: dict, *, dry_run: bool) -> Any:
     # knob (tests patch mcp_tool_catalog._DESTRUCTIVE_ALLOWED), so the gate
     # must consult that name at call time, not capture this module's value.
     import mcp_tool_catalog
+
     destructive_allowed = mcp_tool_catalog._DESTRUCTIVE_ALLOWED
     spec = _spec_by_name(tool)
     if spec is None:
-        return {"ok": False, "error": "unknown_tool", "tool": tool,
-                "did_you_mean": _did_you_mean(tool)}
+        return {"ok": False, "error": "unknown_tool", "tool": tool, "did_you_mean": _did_you_mean(tool)}
     if tool in _DISPATCH_EXCLUDE:
-        return {"ok": False, "error": "not_dispatchable", "tool": tool,
-                "hint": "Meta/dispatcher tools cannot be called through m3_call."}
+        return {
+            "ok": False,
+            "error": "not_dispatchable",
+            "tool": tool,
+            "hint": "Meta/dispatcher tools cannot be called through m3_call.",
+        }
     if not destructive_allowed and not spec.default_allowed:
-        return {"ok": False, "error": "destructive_gated", "tool": tool,
-                "hint": "This tool mutates/deletes. Set M3_MCP_PROXY_ALLOW_DESTRUCTIVE=1 to enable."}
+        return {
+            "ok": False,
+            "error": "destructive_gated",
+            "tool": tool,
+            "hint": "This tool mutates/deletes. Set M3_MCP_PROXY_ALLOW_DESTRUCTIVE=1 to enable.",
+        }
     try:
-        result = await execute_tool_structured(
-            spec, args or {}, agent_id="", dry_run=dry_run)
+        result = await execute_tool_structured(spec, args or {}, agent_id="", dry_run=dry_run)
         return {"ok": True, "tool": tool, "result": result}
     except Exception as e:  # validation or impl error — isolate per item
-        return {"ok": False, "error": "call_failed", "tool": tool,
-                "detail": f"{type(e).__name__}: {e}"}
+        return {"ok": False, "error": "call_failed", "tool": tool, "detail": f"{type(e).__name__}: {e}"}
 
 
-async def m3_call_impl(tool: str = "", args: dict | None = None,
-                       batch: list | None = None, dry_run: bool = False) -> str:
+async def m3_call_impl(
+    tool: str = "", args: dict | None = None, batch: list | None = None, dry_run: bool = False
+) -> str:
     """Invoke any catalog tool by name. Single: pass tool+args. Batch: pass a
     list of {tool, args} (each item isolated — one failure doesn't abort the
     rest; result order matches input). dry_run validates + checks the
@@ -345,26 +367,23 @@ async def m3_call_impl(tool: str = "", args: dict | None = None,
     MAX_BATCH = 100
     if batch is not None:
         if not isinstance(batch, list):
-            return json.dumps({"ok": False, "error": "bad_batch",
-                               "hint": "batch must be a list of {tool, args}."})
+            return json.dumps({"ok": False, "error": "bad_batch", "hint": "batch must be a list of {tool, args}."})
         if len(batch) > MAX_BATCH:
-            return json.dumps({"ok": False, "error": "batch_too_large",
-                               "hint": f"batch capped at {MAX_BATCH} items."})
+            return json.dumps({"ok": False, "error": "batch_too_large", "hint": f"batch capped at {MAX_BATCH} items."})
         results = []
         for item in batch:
             if not isinstance(item, dict) or "tool" not in item:
-                results.append({"ok": False, "error": "bad_batch_item",
-                                "hint": "each item needs a 'tool' key."})
+                results.append({"ok": False, "error": "bad_batch_item", "hint": "each item needs a 'tool' key."})
                 continue
-            results.append(await _dispatch_one(
-                item["tool"], item.get("args") or {},
-                dry_run=bool(item.get("dry_run", dry_run))))
+            results.append(
+                await _dispatch_one(item["tool"], item.get("args") or {}, dry_run=bool(item.get("dry_run", dry_run)))
+            )
         return json.dumps({"batch": results}, default=str)
     if not tool:
-        return json.dumps({"ok": False, "error": "missing_tool",
-                           "hint": "Pass 'tool' (and optional 'args'), or 'batch'."})
-    return json.dumps(await _dispatch_one(tool, args or {}, dry_run=dry_run),
-                      default=str)
+        return json.dumps(
+            {"ok": False, "error": "missing_tool", "hint": "Pass 'tool' (and optional 'args'), or 'batch'."}
+        )
+    return json.dumps(await _dispatch_one(tool, args or {}, dry_run=dry_run), default=str)
 
 
 def _tool_arg_rows(spec: ToolSpec) -> list[dict]:
@@ -374,8 +393,7 @@ def _tool_arg_rows(spec: ToolSpec) -> list[dict]:
     for name, pdef in props.items():
         if name == "database":  # universal injected arg — omit from the index
             continue
-        rows.append({"name": name, "type": pdef.get("type", "string"),
-                     "required": name in required})
+        rows.append({"name": name, "type": pdef.get("type", "string"), "required": name in required})
     return rows
 
 
@@ -384,6 +402,7 @@ def m3_index_impl(domain: str = "") -> str:
     Read-only catalog metadata — never tool output. Returns JSON."""
     import mcp_tool_catalog
     import tool_domains
+
     rows = []
     for t in mcp_tool_catalog.TOOLS:
         if t.name in _DISPATCH_EXCLUDE:
@@ -392,11 +411,18 @@ def m3_index_impl(domain: str = "") -> str:
         if domain and d != domain:
             continue
         summary = (t.description or "").split(".")[0].strip()[:100]
-        rows.append({"name": t.name, "domain": d, "summary": summary,
-                     "destructive": not t.default_allowed,
-                     "args": _tool_arg_rows(t)})
+        rows.append(
+            {
+                "name": t.name,
+                "domain": d,
+                "summary": summary,
+                "destructive": not t.default_allowed,
+                "args": _tool_arg_rows(t),
+            }
+        )
     rows.sort(key=lambda r: (r["domain"], r["name"]))
     return json.dumps({"count": len(rows), "tools": rows}, default=str)
+
 
 # ── Inline impl wrapper for conversation_search ──────────────────────────────
 async def _conversation_search_impl(query, k=8, as_records=False):
@@ -406,24 +432,29 @@ async def _conversation_search_impl(query, k=8, as_records=False):
     conversation is included so callers always see the full Q&A pair.
     """
     ranked = await memory_core.memory_search_scored_impl(
-        query, k=int(k), type_filter="message",
+        query,
+        k=int(k),
+        type_filter="message",
         extra_columns=["metadata_json", "conversation_id"],
     )
     from memory import records as _records
+
     if ranked is None:
         # A BACKEND FAILURE, not an empty result: both retrieval paths are down,
         # so "no results" would tell the caller the corpus lacks a match when the
         # truth is nothing was searched.
-        return _records.emit("Search failed: FTS and semantic both unavailable.",
-                             _records.error_payload("search_unavailable", query=query),
-                             as_records)
+        return _records.emit(
+            "Search failed: FTS and semantic both unavailable.",
+            _records.error_payload("search_unavailable", query=query),
+            as_records,
+        )
     if not ranked:
-        return _records.emit("No results found.",
-                             _records.as_records_payload((), query=query), as_records)
+        return _records.emit("No results found.", _records.as_records_payload((), query=query), as_records)
 
     # Build initial result set. JSON columns go through the dialect: PostgreSQL
     # JSONB arrives as a dict, where a bare json.loads raises TypeError.
     from memory.backends import dialect
+
     _d = dialect()
     items = []
     seen_ids: set = set()
@@ -463,15 +494,17 @@ async def _conversation_search_impl(query, k=8, as_records=False):
                 continue
             seen_ids.add(row["id"])
             rm = _d.json_column_to_dict(row["metadata_json"])
-            extras.append({
-                "id": row["id"],
-                "content": row["content"],
-                "title": row["title"],
-                "type": "message",
-                "conversation_id": row["conversation_id"],
-                "score": wanted[key] * 0.85,
-                "_meta": rm,
-            })
+            extras.append(
+                {
+                    "id": row["id"],
+                    "content": row["content"],
+                    "title": row["title"],
+                    "type": "message",
+                    "conversation_id": row["conversation_id"],
+                    "score": wanted[key] * 0.85,
+                    "_meta": rm,
+                }
+            )
     items.extend(extras)
     items.sort(key=lambda x: x.get("score", 0), reverse=True)
 
@@ -480,7 +513,9 @@ async def _conversation_search_impl(query, k=8, as_records=False):
     for rank, item in enumerate(items, 1):
         content = item.get("content") or ""
         lines.append("-" * 40)
-        lines.append(f"{rank}. [{item['id']}] score={item['score']:.4f}  type: {item.get('type', 'unknown')}  title: {item.get('title','')}")
+        lines.append(
+            f"{rank}. [{item['id']}] score={item['score']:.4f}  type: {item.get('type', 'unknown')}  title: {item.get('title', '')}"
+        )
         lines.append(f"Content:\n{content}\n")
     lines.append("-" * 40)
     # `_meta` is this function's internal scratch (used for turn pairing) and is
@@ -491,8 +526,8 @@ async def _conversation_search_impl(query, k=8, as_records=False):
         _rec = {k: v for k, v in _it.items() if k not in ("_meta", "metadata_json")}
         _rec["metadata"] = _it.get("_meta") or {}
         _items.append(_rec)
-    return _records.emit("\n".join(lines),
-                         _records.as_records_payload(_items, query=query), as_records)
+    return _records.emit("\n".join(lines), _records.as_records_payload(_items, query=query), as_records)
+
 
 # ── Inline impl wrapper for memory_verify ────────────────────────────────────
 # The LLM-facing parameter is `id` (preserves the existing bridge contract);

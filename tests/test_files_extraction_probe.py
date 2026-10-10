@@ -7,6 +7,7 @@ which doesn't advertise it) and must recognize LM Studio's `reasoning_content`,
 Ollama's `thinking`/`reasoning`, and inline `<think>`. These pin `_classify_
 thinking` on those shapes. Pure/hermetic — no server.
 """
+
 import sys
 from pathlib import Path
 
@@ -47,11 +48,12 @@ def test_empty_reasoning_is_not_on():
 
 
 def test_unrecognizable_shape_is_none():
-    assert P._classify_thinking({"choices": []}) == "off"          # no message -> plain
+    assert P._classify_thinking({"choices": []}) == "off"  # no message -> plain
     assert P._classify_thinking({"choices": [{"message": "nope"}]}) is None  # message not a dict
 
 
 # ── suppression-awareness: the probe mirrors extraction's reasoning_effort ─────
+
 
 def test_suppressible_matches_local_runtimes():
     # delegates to the shared gate: LM Studio + Ollama yes, others no
@@ -65,11 +67,15 @@ def _capture_detect_payload(monkeypatch, **kwargs):
     """Run _detect_thinking with urlopen stubbed; return the JSON body it POSTed."""
     import io
     import json
+
     captured = {}
 
     class _Resp(io.BytesIO):
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
 
     def fake_urlopen(req, timeout=None):  # noqa: ARG001
         captured["body"] = json.loads(req.data.decode())

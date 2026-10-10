@@ -11,6 +11,7 @@ it asserts the judge catches real drift (recall) without crying wolf (precision)
 at the floors recorded in wiki.citation_drift, so a prompt regression fails CI
 wherever a model is available.
 """
+
 from __future__ import annotations
 
 import json
@@ -91,13 +92,14 @@ def test_judge_meets_recall_and_precision_floor(judge):
 
     judged = tp + fp + fn + tn
     assert judged >= max(6, len(cases) // 2), (
-        f"too many abstentions to validate ({abstain}/{len(cases)}); "
-        f"model may be misconfigured. {judge.summary()}")
+        f"too many abstentions to validate ({abstain}/{len(cases)}); model may be misconfigured. {judge.summary()}"
+    )
     recall = tp / (tp + fn) if (tp + fn) else 1.0
     precision = tp / (tp + fp) if (tp + fp) else 1.0
-    detail = (f"recall={recall:.2f} precision={precision:.2f} "
-              f"(tp={tp} fp={fp} fn={fn} tn={tn} abstain={abstain}) | "
-              + "; ".join(misses))
+    detail = (
+        f"recall={recall:.2f} precision={precision:.2f} "
+        f"(tp={tp} fp={fp} fn={fn} tn={tn} abstain={abstain}) | " + "; ".join(misses)
+    )
     assert recall >= DRIFT_RECALL_FLOOR, f"recall below floor: {detail}"
     assert precision >= DRIFT_PRECISION_FLOOR, f"precision below floor: {detail}"
 
@@ -106,8 +108,7 @@ def test_judge_fails_open_when_model_unreachable(tmp_path):
     """Point the judge at a dead endpoint: it must ABSTAIN (drifted=None), never
     raise and never report a drift. This runs even with a live model (it uses its
     own bad URL), but keep it here so the fail-open contract lives beside the judge."""
-    cfg = DriftConfig(url="http://127.0.0.1:9/invalid", timeout_s=1.0,
-                      cache_dir=str(tmp_path / "c"))
+    cfg = DriftConfig(url="http://127.0.0.1:9/invalid", timeout_s=1.0, cache_dir=str(tmp_path / "c"))
     j = ModelDriftJudge(cfg)
     v = j.judge("a claim", ["a source"])
     assert v.drifted is None, "unreachable model must abstain, not manufacture a drift"

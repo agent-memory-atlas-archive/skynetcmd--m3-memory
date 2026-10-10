@@ -8,6 +8,7 @@ invariant — with only the fetch differing.
 
 Cycle-break (§2): the Rust-cosine helper is imported lazily inside the function.
 """
+
 from __future__ import annotations
 
 from .base import VectorHit

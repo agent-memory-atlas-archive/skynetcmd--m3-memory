@@ -13,6 +13,7 @@ it should. A production-grade recall@10 on a realistic multi-session corpus
 belongs with the LongMemEval bench harness (bench territory, not shipped here).
 The number here is a mechanism check, not a published benchmark result.
 """
+
 from __future__ import annotations
 
 import os
@@ -34,6 +35,7 @@ def _skip_migrations(monkeypatch):
 
 def _full_db(db_path):
     from conftest import create_full_main_schema
+
     create_full_main_schema(db_path)
 
 
@@ -69,9 +71,7 @@ def _patch(monkeypatch, db_path, qvec):
 
 
 async def _recall_at_k(mc, targets, k):
-    res = await mc.memory_search_scored_impl(
-        query="q", k=k, mmr=False, search_mode="semantic"
-    )
+    res = await mc.memory_search_scored_impl(query="q", k=k, mmr=False, search_mode="semantic")
     got = set()
     for r in res:
         got.add(r[1]["id"] if isinstance(r, tuple) else r["id"])
@@ -100,8 +100,17 @@ async def test_confidence_ranking_lifts_corroborated_recall(monkeypatch, tmp_pat
             conn.execute(
                 "INSERT INTO memory_items (id, type, title, content, source, change_agent, "
                 "created_at, importance, confidence, is_deleted) VALUES (?,?,?,?,?,?,?,?,?,0)",
-                (f"target-{i}", "fact", f"t{i}", f"target fact {i}", "agent", "claude",
-                 "2026-01-01T00:00:00Z", 0.5, 0.95),
+                (
+                    f"target-{i}",
+                    "fact",
+                    f"t{i}",
+                    f"target fact {i}",
+                    "agent",
+                    "claude",
+                    "2026-01-01T00:00:00Z",
+                    0.5,
+                    0.95,
+                ),
             )
             conn.execute(
                 "INSERT INTO memory_embeddings (memory_id, embedding, embed_model, dim) VALUES (?,?,?,?)",
@@ -111,8 +120,17 @@ async def test_confidence_ranking_lifts_corroborated_recall(monkeypatch, tmp_pat
             conn.execute(
                 "INSERT INTO memory_items (id, type, title, content, source, change_agent, "
                 "created_at, importance, confidence, is_deleted) VALUES (?,?,?,?,?,?,?,?,?,0)",
-                (f"distractor-{j}", "fact", f"d{j}", f"distractor fact {j}", "agent", "claude",
-                 "2026-01-01T00:00:00Z", 0.5, 0.15),
+                (
+                    f"distractor-{j}",
+                    "fact",
+                    f"d{j}",
+                    f"distractor fact {j}",
+                    "agent",
+                    "claude",
+                    "2026-01-01T00:00:00Z",
+                    0.5,
+                    0.15,
+                ),
             )
             conn.execute(
                 "INSERT INTO memory_embeddings (memory_id, embedding, embed_model, dim) VALUES (?,?,?,?)",
@@ -135,8 +153,7 @@ async def test_confidence_ranking_lifts_corroborated_recall(monkeypatch, tmp_pat
 
     # Pre-registered direction: ON must not regress, and should lift recall when
     # confidence is the deciding signal at the k boundary.
-    assert recall_on >= recall_off, (
-        f"confidence ranking must not regress recall (off={recall_off}, on={recall_on})")
+    assert recall_on >= recall_off, f"confidence ranking must not regress recall (off={recall_off}, on={recall_on})"
     assert recall_on >= 0.99, (
-        f"with confidence deciding ties, all corroborated targets should make k "
-        f"(off={recall_off}, on={recall_on})")
+        f"with confidence deciding ties, all corroborated targets should make k (off={recall_off}, on={recall_on})"
+    )

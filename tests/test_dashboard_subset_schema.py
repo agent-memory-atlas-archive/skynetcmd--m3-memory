@@ -30,6 +30,7 @@ DESIGN_PHILOSOPHIES 10a: the column list is derived from the store, never
 hand-maintained at the call site, so the next provenance column added to main
 cannot silently break the chatlog view the way this one did.
 """
+
 from __future__ import annotations
 
 import os
@@ -50,9 +51,18 @@ from memory.backends.sqlite_backend import SqliteDialect  # noqa: E402
 # main-only trust/provenance columns that a subset store may lack.
 _CORE_COLS = ("id", "type", "title", "content", "importance")
 _PROV_COLS = (
-    "metadata_json", "origin_device", "change_agent", "created_at",
-    "updated_at", "confidence", "pinned", "source", "valid_from",
-    "valid_to", "corroboration_count", "contradiction_count",
+    "metadata_json",
+    "origin_device",
+    "change_agent",
+    "created_at",
+    "updated_at",
+    "confidence",
+    "pinned",
+    "source",
+    "valid_from",
+    "valid_to",
+    "corroboration_count",
+    "contradiction_count",
 )
 # Present on main, absent on the chatlog subset -- the exact trio from #141.
 _MAIN_ONLY = ("confidence", "corroboration_count", "contradiction_count")
@@ -61,20 +71,30 @@ _MAIN_ONLY = ("confidence", "corroboration_count", "contradiction_count")
 def _make_store(path: str, *, subset: bool) -> None:
     """Create a memory_items table shaped like main (full) or chatlog (subset)."""
     cols = [
-        "id TEXT PRIMARY KEY", "type TEXT", "title TEXT", "content TEXT",
-        "metadata_json TEXT", "importance REAL", "origin_device TEXT",
-        "change_agent TEXT", "created_at TEXT", "updated_at TEXT",
-        "pinned INTEGER", "source TEXT", "valid_from TEXT", "valid_to TEXT",
+        "id TEXT PRIMARY KEY",
+        "type TEXT",
+        "title TEXT",
+        "content TEXT",
+        "metadata_json TEXT",
+        "importance REAL",
+        "origin_device TEXT",
+        "change_agent TEXT",
+        "created_at TEXT",
+        "updated_at TEXT",
+        "pinned INTEGER",
+        "source TEXT",
+        "valid_from TEXT",
+        "valid_to TEXT",
         "is_deleted INTEGER DEFAULT 0",
     ]
     if not subset:
-        cols += ["confidence REAL", "corroboration_count INTEGER",
-                 "contradiction_count INTEGER"]
+        cols += ["confidence REAL", "corroboration_count INTEGER", "contradiction_count INTEGER"]
     conn = sqlite3.connect(path)
     conn.execute("CREATE TABLE memory_items (" + ", ".join(cols) + ")")
     if not subset:
-        conn.execute("CREATE TABLE memory_history (event TEXT, memory_id TEXT, "
-                     "prev_value TEXT, new_value TEXT, created_at TEXT)")
+        conn.execute(
+            "CREATE TABLE memory_history (event TEXT, memory_id TEXT, prev_value TEXT, new_value TEXT, created_at TEXT)"
+        )
     conn.execute(
         "INSERT INTO memory_items (id, type, title, content, importance, is_deleted) "
         "VALUES ('m1', 'chat_log', 'T', 'C', 0.5, 0)"
@@ -183,6 +203,7 @@ def test_dashboard_does_not_hardcode_main_only_columns_in_sql():
                 "list from available_columns() instead (issue #141)"
             )
 
+
 def test_core_columns_are_in_every_bootstrap_schema():
     """The core set must be guaranteed by EVERY schema, not just observed today.
 
@@ -199,16 +220,16 @@ def test_core_columns_are_in_every_bootstrap_schema():
     ]
     for path in schemas:
         if not os.path.exists(path):
-            pytest.fail("observed: a shipped schema is missing: " + path
-                        + ". inspect: memory/migrations")
+            pytest.fail("observed: a shipped schema is missing: " + path + ". inspect: memory/migrations")
         with open(path, encoding="utf-8") as fh:
             sql = fh.read()
-        m = re.search(r"CREATE TABLE (?:IF NOT EXISTS )?memory_items\s*\((.*?)\n\);",
-                      sql, re.DOTALL | re.IGNORECASE)
+        m = re.search(r"CREATE TABLE (?:IF NOT EXISTS )?memory_items\s*\((.*?)\n\);", sql, re.DOTALL | re.IGNORECASE)
         assert m, "memory_items DDL not found in " + os.path.basename(path)
         body = m.group(1)
         for col in (*_CORE_COLS, "is_deleted"):
             assert re.search(r"^\s*" + col + r"\s", body, re.MULTILINE), (
-                col + " must be in the bootstrap of " + os.path.basename(path) +
-                " -- the dashboard selects/filters it unconditionally"
+                col
+                + " must be in the bootstrap of "
+                + os.path.basename(path)
+                + " -- the dashboard selects/filters it unconditionally"
             )

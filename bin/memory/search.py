@@ -19,6 +19,7 @@ imports inside the function body for those callbacks so this module
 never imports `memory_core` at top level. Top-level imports here are
 all stdlib + the `memory.*` package + a few external libs.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -69,6 +70,7 @@ def _resolve_graph_helper(name: str):
     """
     try:
         import memory_core as _mc
+
         fn = getattr(_mc, name, None)
         if fn is not None:
             return fn
@@ -90,6 +92,7 @@ def _resolve_search_callable(name: str):
     """
     try:
         import memory_core as _mc
+
         fn = getattr(_mc, name, None)
         if fn is not None:
             return fn
@@ -97,6 +100,8 @@ def _resolve_search_callable(name: str):
         pass
     # Resolve via the current module's globals — the canonical local copy.
     return globals()[name]
+
+
 from .fts import (
     _DATE_RE_ISO,  # noqa: F401 — memory_core lazy-registry shim resolves this from memory.search
     _DATE_RE_LONG,  # noqa: F401 — memory_core lazy-registry shim resolves this from memory.search
@@ -197,6 +202,7 @@ def _resolve_mc_callbacks() -> None:
     if _MC_CALLBACKS_BOUND and all(callable(g.get(n)) for n in _MC_CALLBACK_NAMES):
         return
     import memory_core as _mc
+
     bound_all = True
     for n in _MC_CALLBACK_NAMES:
         val = getattr(_mc, n, None)
@@ -242,9 +248,7 @@ def _resolve_mc_callbacks() -> None:
 # Carries an already-computed query vector from a hybrid search into its
 # semantic fallback, so the fallback does not re-embed the same query. Holds
 # (query, vector) so a stale entry can never be mistaken for a fresh one.
-_FALLBACK_QVEC: contextvars.ContextVar[tuple | None] = contextvars.ContextVar(
-    "m3_fallback_qvec", default=None
-)
+_FALLBACK_QVEC: contextvars.ContextVar[tuple | None] = contextvars.ContextVar("m3_fallback_qvec", default=None)
 
 _RERANKER_MODEL = None  # CrossEncoder | None — lazy-init
 _RERANKER_MODEL_NAME = ""
@@ -290,6 +294,7 @@ def _get_reranker(model_name: str):
         # cuda > mps (Apple Metal) > cpu. A bare cuda-only check pins Apple
         # Silicon to CPU (DESIGN §1); torch_device() probes MPS as the middle tier.
         from m3_core.gpu import torch_device
+
         device = torch_device()
         model = CrossEncoder(model_name, device=device)
         # Publish name FIRST then model? No — publish model then name would let a
@@ -369,14 +374,26 @@ def _apply_rerank(
 # Module-level temporal regex — same patterns memory `2d1d5812` documented;
 # 100% recall on LongMemEval temporal-reasoning, low FPR on others.
 _TEMPORAL_ROUTER_PATTERNS = (
-    r"\bwhen\b", r"\bhow long\b", r"\bwhat\s+(?:date|day|month|year|time)\b",
-    r"\bbefore\b", r"\bafter\b", r"\bsince\b", r"\buntil\b",
+    r"\bwhen\b",
+    r"\bhow long\b",
+    r"\bwhat\s+(?:date|day|month|year|time)\b",
+    r"\bbefore\b",
+    r"\bafter\b",
+    r"\bsince\b",
+    r"\buntil\b",
     r"\b(?:days?|weeks?|months?|years?)\s+ago\b",
-    r"\bfirst\b", r"\blast\b", r"\brecent(?:ly)?\b",
-    r"\bearliest\b", r"\blatest\b",
-    r"\bwhich\s+\w+\s+first\b", r"\bin\s+what\s+order\b",
+    r"\bfirst\b",
+    r"\blast\b",
+    r"\brecent(?:ly)?\b",
+    r"\bearliest\b",
+    r"\blatest\b",
+    r"\bwhich\s+\w+\s+first\b",
+    r"\bin\s+what\s+order\b",
     r"\b(?:mon|tue|wed|thu|fri|sat|sun)(?:day)?\b",
-    r"\bvalentine'?s?\s+day\b", r"\bchristmas\b", r"\bthanksgiving\b", r"\bnew\s+year'?s?\b",
+    r"\bvalentine'?s?\s+day\b",
+    r"\bchristmas\b",
+    r"\bthanksgiving\b",
+    r"\bnew\s+year'?s?\b",
 )
 
 # Module-level entity mention patterns for question-time parsing (Phase 6).
@@ -384,12 +401,12 @@ _TEMPORAL_ROUTER_PATTERNS = (
 # memory_core's `_entity_graph_neighbor_ids` (graph code, stays in memory_core)
 # reads `_ENTITY_MENTION_RE` through the shim re-export.
 _ENTITY_MENTION_PATTERNS = (
-    r'"[^"]+"',                            # double-quoted strings
-    r"'[^']+'",                            # single-quoted strings
-    r"\b(?:19|20)\d{2}\b",                # 4-digit years (1900–2099)
+    r'"[^"]+"',  # double-quoted strings
+    r"'[^']+'",  # single-quoted strings
+    r"\b(?:19|20)\d{2}\b",  # 4-digit years (1900–2099)
     r"\b(?:January|February|March|April|May|June|July|August|September|"
-    r"October|November|December)\s+\d{1,2}\b",   # Month Day
-    r"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*",   # Capitalized noun phrases
+    r"October|November|December)\s+\d{1,2}\b",  # Month Day
+    r"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*",  # Capitalized noun phrases
 )
 _ENTITY_MENTION_RE = re.compile("|".join(_ENTITY_MENTION_PATTERNS))
 
@@ -449,8 +466,7 @@ def _explain_unscored(hits, explain: bool, source: str) -> None:
             item["_explanation"] = {"source": source, "reason": source}
 
 
-def _fts_only_results(query, search_mode, k, user_id, scope, extra_columns,
-                      row_filter: dict | None = None):
+def _fts_only_results(query, search_mode, k, user_id, scope, extra_columns, row_filter: dict | None = None):
     """Bm25-ranked FTS keyword results, in the memory_search_scored_impl row shape.
 
     The degrade path used when NO query vector is available (embedder down/slow):
@@ -505,8 +521,11 @@ def _fts_only_results(query, search_mode, k, user_id, scope, extra_columns,
         )
         with _db() as conn:
             rows = _backend_fb.keyword_search_with_row_data(
-                conn, query, limit=k,
-                tenancy_sql=tenancy_sql, tenancy_params=tuple(tenancy_params),
+                conn,
+                query,
+                limit=k,
+                tenancy_sql=tenancy_sql,
+                tenancy_params=tuple(tenancy_params),
                 extra_columns=tuple(safe_extra),
             )
         # Score 1.0 for every hit: these are keyword matches with no vector
@@ -519,16 +538,26 @@ def _fts_only_results(query, search_mode, k, user_id, scope, extra_columns,
 
 _BASE_COLS = ["id", "content", "title", "type", "importance"]
 
-_ALLOWED_EXTRA = frozenset({
-    "metadata_json", "conversation_id", "valid_from", "valid_to",
-    "user_id", "scope", "agent_id", "created_at", "source",
-    "confidence", "corroboration_count", "contradiction_count",
-    "importance_raw",
-})
+_ALLOWED_EXTRA = frozenset(
+    {
+        "metadata_json",
+        "conversation_id",
+        "valid_from",
+        "valid_to",
+        "user_id",
+        "scope",
+        "agent_id",
+        "created_at",
+        "source",
+        "confidence",
+        "corroboration_count",
+        "contradiction_count",
+        "importance_raw",
+    }
+)
 
 
-def _resolve_extra_columns(extra_columns, *, apply_decay=True, recency_bias=False,
-                           confidence_ranking=False):
+def _resolve_extra_columns(extra_columns, *, apply_decay=True, recency_bias=False, confidence_ranking=False):
     """The projected extra columns for one search. SINGLE OWNER (§10a).
 
     ⚠ THIS WAS DUPLICATED AND THE COPIES DRIFTED. The FTS exact-match
@@ -578,11 +607,13 @@ def _stamp_retrieved(hits) -> None:
     """
     if not hits:
         return
-    _enqueue_access_stamps([
-        h[1].get("id") for h in hits
-        if isinstance(h, (list, tuple)) and len(h) > 1
-        and isinstance(h[1], dict) and h[1].get("id")
-    ])
+    _enqueue_access_stamps(
+        [
+            h[1].get("id")
+            for h in hits
+            if isinstance(h, (list, tuple)) and len(h) > 1 and isinstance(h[1], dict) and h[1].get("id")
+        ]
+    )
 
 
 def _ranking_importance(row, apply_decay: bool) -> float:
@@ -693,10 +724,15 @@ async def memory_search_scored_impl(
         agent_filter.strip("\"'") if (_scfg.ENFORCE_AGENT_ISOLATION and agent_filter) else ""
     )
     _row_filter = {
-        "user_id": user_id, "scope": scope, "type_filter": type_filter,
-        "agent_filter": agent_filter, "exclude_types": tuple(exclude_types),
-        "requesting_agent": _req_agent, "conversation_id": conversation_id,
-        "variant": variant, "as_of": as_of,
+        "user_id": user_id,
+        "scope": scope,
+        "type_filter": type_filter,
+        "agent_filter": agent_filter,
+        "exclude_types": tuple(exclude_types),
+        "requesting_agent": _req_agent,
+        "conversation_id": conversation_id,
+        "variant": variant,
+        "as_of": as_of,
     }
     # Public "keyword" -> the "fts5" this function implements; an unknown mode
     # raises instead of returning an empty result (m3_core.search_modes).
@@ -747,6 +783,7 @@ async def memory_search_scored_impl(
     # override working while never replacing a good default with None.
     try:
         import memory_core as _mc
+
         _embed = _mc_callable(_mc, "_embed", _embed)
         _db = _mc_callable(_mc, "_db", _db)
         _batch_cosine = _mc_callable(_mc, "_batch_cosine", _batch_cosine)
@@ -770,6 +807,7 @@ async def memory_search_scored_impl(
     if not intent_hint:
         try:
             from slm_intent import classify_intent
+
             _label = await classify_intent(query)
             if _label:
                 intent_hint = _label
@@ -798,7 +836,22 @@ async def memory_search_scored_impl(
     if len(query.strip()) > 3 and not intent_hint and search_mode in ("hybrid", "fts5"):
         try:
             # Gating: Reject generic conversational queries from short-circuiting
-            conversational_stops = {"show", "get", "find", "tell", "me", "the", "about", "what", "who", "when", "where", "why", "how", "list"}
+            conversational_stops = {
+                "show",
+                "get",
+                "find",
+                "tell",
+                "me",
+                "the",
+                "about",
+                "what",
+                "who",
+                "when",
+                "where",
+                "why",
+                "how",
+                "list",
+            }
             query_words = set(query.lower().split())
             if query_words.issubset(conversational_stops):
                 raise ValueError("Generic conversational query; skipping short-circuit.")
@@ -809,7 +862,8 @@ async def memory_search_scored_impl(
             # query hit an exact substring.
             extra_columns = list(extra_columns or [])
             safe_extra = _resolve_extra_columns(
-                extra_columns, apply_decay=apply_decay,
+                extra_columns,
+                apply_decay=apply_decay,
                 recency_bias=recency_bias,
                 confidence_ranking=_scfg.CONFIDENCE_RANKING,
             )
@@ -837,7 +891,9 @@ async def memory_search_scored_impl(
                 # Over-fetch (k*4, floor 20): the exact-substring gate
                 # below discards most rows, so a bare `k` would starve it.
                 fts_rows = _sc_backend.keyword_search_with_row_data(
-                    conn, query, limit=max(k * 4, 20),
+                    conn,
+                    query,
+                    limit=max(k * 4, 20),
                     tenancy_sql=_tenancy_sql,
                     tenancy_params=tuple(_tenancy_params),
                     extra_columns=tuple(safe_extra),
@@ -862,7 +918,8 @@ async def memory_search_scored_impl(
                 if len(exact_hits) >= k:
                     logger.info(
                         "FTS Short-Circuit early exit for query %r: %d exact match(es)",
-                        query, len(exact_hits),
+                        query,
+                        len(exact_hits),
                     )
                     # bm25 order preserved (rows came back ORDER BY _bm25 ASC);
                     # all share score 1.0 as exact-substring hits. Cap at k.
@@ -874,7 +931,9 @@ async def memory_search_scored_impl(
                     # `last_accessed_at` authorises `memory_grade`, so grading
                     # the result of a precise search always failed as stale.
                     _hits = exact_hits[:k]
-                    _explain_unscored(_hits, explain, "exact substring match (keyword short-circuit, no vector scoring)")
+                    _explain_unscored(
+                        _hits, explain, "exact substring match (keyword short-circuit, no vector scoring)"
+                    )
                     _stamp_retrieved(_hits)
                     return _hits
                 if exact_hits:
@@ -890,12 +949,16 @@ async def memory_search_scored_impl(
                     # optimisation this short-circuit exists for -- skipping an
                     # EMBED -- is preserved for the >= k case above, which is
                     # the only case where it could ever have answered in full.
-                    _explain_unscored(exact_hits, explain, "exact substring match (keyword short-circuit, no vector scoring)")
+                    _explain_unscored(
+                        exact_hits, explain, "exact substring match (keyword short-circuit, no vector scoring)"
+                    )
                     _sc_exact = exact_hits
                     logger.info(
                         "FTS Short-Circuit found %d exact match(es) for %r, "
                         "fewer than k=%d: filling from the ranked path",
-                        len(exact_hits), query, k,
+                        len(exact_hits),
+                        query,
+                        k,
                     )
         except Exception as exc:
             log_swallowed(logger, exc, "FTS Short-circuit check failed (non-fatal): %s", exc)
@@ -909,6 +972,7 @@ async def memory_search_scored_impl(
     # caller/test injected a different `_embed` (floor-bind adopted a memory_core
     # override at ~L504) the predictor is meaningless, so gate=False there.
     from memory import embed as _embed_mod
+
     _embed_is_real = _embed is getattr(_embed_mod, "_embed", None)
     _carried = _FALLBACK_QVEC.get()
     if _carried is not None and _carried[0] == query:
@@ -927,9 +991,7 @@ async def memory_search_scored_impl(
         # a mismatch means it is not ours and we embed normally.
         q_vec = _carried[1]
     else:
-        q_vec, _ = await _embed_mod.embed_for_search(
-            query, embed_fn=_embed, gate=_embed_is_real
-        )
+        q_vec, _ = await _embed_mod.embed_for_search(query, embed_fn=_embed, gate=_embed_is_real)
     if not q_vec:
         # No query vector (embedder degraded, skipped, or timed out). Do NOT
         # return [] — that silently DISCARDS valid keyword matches. Instead fall
@@ -944,17 +1006,21 @@ async def memory_search_scored_impl(
         # path (embedder down, which is exactly when it fires) silently ranked on
         # the decayed importance.
         fts_fallback = _fts_only_results(
-            query, search_mode, k, user_id, scope,
+            query,
+            search_mode,
+            k,
+            user_id,
+            scope,
             _resolve_extra_columns(
-                extra_columns, apply_decay=apply_decay,
+                extra_columns,
+                apply_decay=apply_decay,
                 recency_bias=recency_bias,
                 confidence_ranking=_scfg.CONFIDENCE_RANKING,
             ),
             row_filter=_row_filter,
         )
         if fts_fallback:
-            logger.info("FTS-only fallback (no query vector) for %r: %d match(es)",
-                        query, len(fts_fallback))
+            logger.info("FTS-only fallback (no query vector) for %r: %d match(es)", query, len(fts_fallback))
         # Third early return, same reason as the short-circuit above: this path
         # answers in full when the embedder is down, so without stamping here a
         # degraded-mode search would return memories that can never be graded.
@@ -966,16 +1032,21 @@ async def memory_search_scored_impl(
     # rows rather than crashing. Log it for visibility (a mismatch means a
     # misconfigured EMBED_DIM or a non-proper query embedder) but don't hard-fail.
     if len(q_vec) != config.EMBED_DIM:
-        logger.debug("Query embedding dim %d != EMBED_DIM %d; semantic matches "
-                     "will be empty unless the store also uses dim %d.",
-                     len(q_vec), config.EMBED_DIM, len(q_vec))
+        logger.debug(
+            "Query embedding dim %d != EMBED_DIM %d; semantic matches will be empty unless the store also uses dim %d.",
+            len(q_vec),
+            config.EMBED_DIM,
+            len(q_vec),
+        )
 
     # One resolver for every path (§10a). The conditional appends -- valid_from
     # for recency_bias, confidence for confidence-ranking, importance_raw for a
     # forensic read -- all live inside it, so the short-circuit above, the
     # FTS-only fallback and the PG branch cannot project different sets.
     safe_extra = _resolve_extra_columns(
-        extra_columns, apply_decay=apply_decay, recency_bias=recency_bias,
+        extra_columns,
+        apply_decay=apply_decay,
+        recency_bias=recency_bias,
         confidence_ranking=_scfg.CONFIDENCE_RANKING,
     )
     # Rebound so the PG branch and the recursive calls below carry the resolved
@@ -1008,9 +1079,7 @@ async def memory_search_scored_impl(
     if vector_kind_strategy == "default":
         where_clauses.append("me.vector_kind = 'default'")
     elif vector_kind_strategy != "max":
-        raise ValueError(
-            f"vector_kind_strategy must be 'default' or 'max', got {vector_kind_strategy!r}"
-        )
+        raise ValueError(f"vector_kind_strategy must be 'default' or 'max', got {vector_kind_strategy!r}")
 
     # Identity filter: only compare vectors from the proper embedder. A row whose
     # embed_model isn't a compatible identity, or whose dim differs, is in a
@@ -1019,10 +1088,10 @@ async def memory_search_scored_impl(
     from memory.embed import _compatible_model_names
 
     from .backends import dialect as _dl_m
+
     _compat = sorted(_compatible_model_names())
     if _compat:
-        where_clauses.append(
-            f"me.embed_model IN ({_dl_m().placeholder(len(_compat))})")
+        where_clauses.append(f"me.embed_model IN ({_dl_m().placeholder(len(_compat))})")
         params.extend(_compat)
     where_clauses.append(f"me.dim = {_dl_m().param()}")
     params.append(config.EMBED_DIM)
@@ -1046,11 +1115,20 @@ async def memory_search_scored_impl(
         _tok = _FALLBACK_QVEC.set((query, q_vec))
         try:
             return await memory_search_scored_impl(
-                query, k=k, type_filter=type_filter, agent_filter=agent_filter,
-                search_mode="semantic", user_id=user_id, scope=scope, as_of=as_of,
-                conversation_id=conversation_id, explain=explain,
-                extra_columns=extra_columns, recency_bias=recency_bias,
-                vector_weight=vector_weight, adaptive_k=adaptive_k,
+                query,
+                k=k,
+                type_filter=type_filter,
+                agent_filter=agent_filter,
+                search_mode="semantic",
+                user_id=user_id,
+                scope=scope,
+                as_of=as_of,
+                conversation_id=conversation_id,
+                explain=explain,
+                extra_columns=extra_columns,
+                recency_bias=recency_bias,
+                vector_weight=vector_weight,
+                adaptive_k=adaptive_k,
                 smart_time_boost=smart_time_boost,
                 smart_neighbor_sessions=smart_neighbor_sessions,
                 variant=variant,
@@ -1102,8 +1180,11 @@ async def memory_search_scored_impl(
             try:
                 with _backend.connection() as _pgconn:
                     return fetch_candidates_pg(
-                        _backend, _pgconn,
-                        query=query, q_vec=q_vec, search_mode=search_mode,
+                        _backend,
+                        _pgconn,
+                        query=query,
+                        q_vec=q_vec,
+                        search_mode=search_mode,
                         dim=config.EMBED_DIM,
                         embed_models=tuple(_compat),
                         tenancy_sql=_pg_tenancy_sql,
@@ -1130,14 +1211,17 @@ async def memory_search_scored_impl(
                 _has_vec = _detect_sqlite_vec(db)
                 if search_mode == "semantic":
                     sql = build_candidate_sql(
-                        search_mode="semantic", has_vec=_has_vec,
-                        where_sql=where_sql, extra_sql=extra_sql,
+                        search_mode="semantic",
+                        has_vec=_has_vec,
+                        where_sql=where_sql,
+                        extra_sql=extra_sql,
                     )
                     if os.environ.get("M3_DEBUG"):
                         _lbl = "sqlite-vec" if _has_vec else "standard"
                         print(f"DEBUG SQL (semantic {_lbl}):\n{sql}")
                     if _has_vec:
                         import struct
+
                         q_blob = struct.pack(f"{len(q_vec)}f", *q_vec)
                         _rows = db.execute(sql, (q_blob, *params)).fetchall()
                     else:
@@ -1151,8 +1235,10 @@ async def memory_search_scored_impl(
                     return (_RECURSE if search_mode != "fts5" else _EMPTY), _has_vec
 
                 sql = build_candidate_sql(
-                    search_mode=search_mode, has_vec=_has_vec,
-                    where_sql=where_sql, extra_sql=extra_sql,
+                    search_mode=search_mode,
+                    has_vec=_has_vec,
+                    where_sql=where_sql,
+                    extra_sql=extra_sql,
                     row_limit=sql_row_limit,
                 )
                 if os.environ.get("M3_DEBUG"):
@@ -1166,6 +1252,7 @@ async def memory_search_scored_impl(
                 # wrong value to MATCH.
                 if _has_vec:
                     import struct
+
                     q_blob = struct.pack(f"{len(q_vec)}f", *q_vec)
                     _rows = db.execute(sql, (fts_query, q_blob, *params)).fetchall()
                 else:
@@ -1186,10 +1273,9 @@ async def memory_search_scored_impl(
         _sem = await _recurse_semantic()
         if _sc_exact:
             _seen = {it.get("id") for _, it in _sc_exact if isinstance(it, dict)}
-            return (_sc_exact + [
-                (sc, it) for sc, it in (_sem or [])
-                if isinstance(it, dict) and it.get("id") not in _seen
-            ])[:k]
+            return (
+                _sc_exact + [(sc, it) for sc, it in (_sem or []) if isinstance(it, dict) and it.get("id") not in _seen]
+            )[:k]
         return _sem
     if rows is _EMPTY:
         # Staging the exact hits must never LOSE them: a dim-mismatched embedder
@@ -1259,9 +1345,15 @@ async def memory_search_scored_impl(
         title_overlaps.append(_title_overlap_from_qset(q_title_set, row["title"] or ""))
 
     final_scores = _hybrid_score_batch(
-        page_scores, bm25_arr, content_lens, importances, title_overlaps,
-        vector_weight=vector_weight, importance_weight=importance_w,
-        title_match_boost=title_boost_const, short_turn_threshold=short_turn_t,
+        page_scores,
+        bm25_arr,
+        content_lens,
+        importances,
+        title_overlaps,
+        vector_weight=vector_weight,
+        importance_weight=importance_w,
+        title_match_boost=title_boost_const,
+        short_turn_threshold=short_turn_t,
     )
 
     intent_user_fact_active = INTENT_ROUTING and intent_hint == "user-fact"
@@ -1272,6 +1364,7 @@ async def memory_search_scored_impl(
         # nothing on PG (dict key-membership test), so the boost never applied
         # there. Route the whole-column read through the seam normalizer instead.
         from .backends import dialect as _dialect
+
         _d = _dialect()
         for i, row in enumerate(rows):
             try:
@@ -1317,7 +1410,10 @@ async def memory_search_scored_impl(
 
     # ── Candidate Assembly & Ranking (Tier-A Oxidation) ───────────────────
     if not explain and m3_core_rs is not None and mmr and len(rows) > k:
-        relevance = [float(s + b + c + p) for s, b, c, p in zip(final_scores, role_boosts, confidence_boosts, procedure_boosts, strict=True)]
+        relevance = [
+            float(s + b + c + p)
+            for s, b, c, p in zip(final_scores, role_boosts, confidence_boosts, procedure_boosts, strict=True)
+        ]
         contents = [(r["content"] or "") for r in rows]
         _bytes_per_row = EMBED_DIM * 4
         if all(isinstance(b, (bytes, bytearray)) and len(b) == _bytes_per_row for b in page_blobs):
@@ -1349,12 +1445,17 @@ async def memory_search_scored_impl(
                 bm25_norm = 1.0 / (1.0 + abs(row["bm25_score"]))
                 length_penalty = max(0.3, content_lens[i] / short_turn_t) if content_lens[i] < short_turn_t else 1.0
                 _expl = {
-                    "vector": page_scores[i], "bm25": bm25_norm, "importance": row["importance"],
+                    "vector": page_scores[i],
+                    "bm25": bm25_norm,
+                    "importance": row["importance"],
                     "raw_hybrid": page_scores[i] * vector_weight + bm25_norm * bm25_w_complement,
-                    "length_penalty": length_penalty, "title_overlap": title_overlaps[i],
+                    "length_penalty": length_penalty,
+                    "title_overlap": title_overlaps[i],
                     "title_boost": title_boost_const * title_overlaps[i],
                     "importance_boost": importance_w * importances[i],
-                    "vector_weight": vector_weight, "intent_hint": intent_hint, "role_boost": role_boosts[i],
+                    "vector_weight": vector_weight,
+                    "intent_hint": intent_hint,
+                    "role_boost": role_boosts[i],
                 }
                 # Human-readable summary synthesized from the numeric components
                 # above (no new computation) so callers can answer "why did you
@@ -1387,9 +1488,11 @@ async def memory_search_scored_impl(
             c = (entry[1].get("content") or "").strip()
             if c and c in seen_content:
                 continue
-            if c: seen_content.add(c)
+            if c:
+                seen_content.add(c)
             pre_ranked.append(entry)
-            if len(pre_ranked) >= k * 3: break
+            if len(pre_ranked) >= k * 3:
+                break
 
         if mmr and len(pre_ranked) > k and page_blobs:
             _id_to_blob_idx = {rows[i]["id"]: i for i in range(len(rows))}
@@ -1416,6 +1519,7 @@ async def memory_search_scored_impl(
                 # to lambda*relevance for them (they still rank, just don't
                 # contribute to the diversity penalty).
                 from embedding_utils import unpack as _unpack
+
                 _cand_vecs: list = []
                 for _, it in pre_ranked:
                     idx = _id_to_blob_idx.get(it["id"])
@@ -1490,10 +1594,7 @@ async def memory_search_scored_impl(
         # Exact-substring hits lead: nothing semantic should outrank a literal
         # match. The ranked remainder fills to k, minus anything already there.
         _seen = {it.get("id") for _, it in _sc_exact if isinstance(it, dict)}
-        _fill = [
-            (sc, it) for sc, it in (ranked or [])
-            if isinstance(it, dict) and it.get("id") not in _seen
-        ]
+        _fill = [(sc, it) for sc, it in (ranked or []) if isinstance(it, dict) and it.get("id") not in _seen]
         ranked = _sc_exact + _fill
 
     # TOP UP TO k FROM SEMANTIC. The hybrid candidate SQL requires an FTS MATCH,
@@ -1505,12 +1606,7 @@ async def memory_search_scored_impl(
     # If the caller asked for k, give them the best k available: every lexical
     # hit keeps its earned position, then semantic neighbours fill the shortfall.
     # Depth-gated so the semantic pass cannot recurse into another top-up.
-    if (
-        _depth == 0
-        and search_mode == "hybrid"
-        and ranked
-        and len(ranked) < k
-    ):
+    if _depth == 0 and search_mode == "hybrid" and ranked and len(ranked) < k:
         _have = {it.get("id") for _, it in ranked if isinstance(it, dict)}
         try:
             _sem = await _recurse_semantic()
@@ -1521,10 +1617,7 @@ async def memory_search_scored_impl(
         # own ranking, but appending in arrival order left the tail unsorted
         # (0.6548, 0.6363, 0.6487). Lexical hits keep their positions ahead of
         # it regardless -- only the filled tail is ordered here.
-        _new = [
-            (_sc, _it) for _sc, _it in (_sem or [])
-            if isinstance(_it, dict) and _it.get("id") not in _have
-        ]
+        _new = [(_sc, _it) for _sc, _it in (_sem or []) if isinstance(_it, dict) and _it.get("id") not in _have]
         _new.sort(key=lambda t: t[0], reverse=True)
         ranked.extend(_new[: max(0, k - len(ranked))])
 
@@ -1547,10 +1640,8 @@ def _apply_observation_preference(ranked, k):
         obs_budget = int(os.environ.get("M3_OBSERVATION_BUDGET_TOKENS", "4000"))
     except ValueError:
         obs_budget = 4000
-    obs_hits = [(s, it) for s, it in ranked
-                if isinstance(it, dict) and it.get("type") == "observation"]
-    raw_hits = [(s, it) for s, it in ranked
-                if not (isinstance(it, dict) and it.get("type") == "observation")]
+    obs_hits = [(s, it) for s, it in ranked if isinstance(it, dict) and it.get("type") == "observation"]
+    raw_hits = [(s, it) for s, it in ranked if not (isinstance(it, dict) and it.get("type") == "observation")]
     if obs_hits:
         # Cheap token estimate: 1 token per 4 chars — an order-of-magnitude
         # gate, not precise tokenization.
@@ -1614,6 +1705,7 @@ async def _apply_two_stage_expansion(ranked, k, user_id: str = "", scope: str = 
             # tenancy clause GONE. The hardened siblings (graph._session_
             # neighbor_ids, search_routing) already use dialect().param().
             from .backends import dialect as _dialect_t
+
             _d_t = _dialect_t()
             _p_t = _d_t.param()
             _tenancy_sql = ""
@@ -1635,17 +1727,23 @@ async def _apply_two_stage_expansion(ranked, k, user_id: str = "", scope: str = 
             base_score = min((s for s, _ in topk), default=0.5)
             floor = max(0.01, base_score * turn_penalty)
             for r in turn_rows:
-                expanded_item = dict(r) if hasattr(r, "keys") else {
-                    "id": r[0], "content": r[1], "title": r[2],
-                    "type": r[3], "importance": r[4] or 0.0,
-                }
+                expanded_item = (
+                    dict(r)
+                    if hasattr(r, "keys")
+                    else {
+                        "id": r[0],
+                        "content": r[1],
+                        "title": r[2],
+                        "type": r[3],
+                        "importance": r[4] or 0.0,
+                    }
+                )
                 expanded_item["_two_stage_expanded"] = True
                 ranked.append((floor, expanded_item))
             ranked.sort(key=lambda t: t[0], reverse=True)
         except Exception as e:
             log_swallowed(logger, e, f"two-stage observation expansion failed: {e}")
     return ranked
-
 
 
 async def memory_search_routed_impl(
@@ -1660,17 +1758,17 @@ async def memory_search_routed_impl(
     entity_graph: bool = False,
     entity_graph_depth: int = 1,
     entity_graph_max_neighbors: int = 20,
-    entity_graph_valid_types: list = None,          # None = use VALID_ENTITY_TYPES; [] from MCP treated as None
-    entity_graph_valid_predicates: list = None,     # None = use VALID_ENTITY_PREDICATES; [] from MCP treated as None
-    entity_stoplist: list = None,                   # None = use M3_ENTITY_SEED_STOPLIST env; [] disables filtering
+    entity_graph_valid_types: list = None,  # None = use VALID_ENTITY_TYPES; [] from MCP treated as None
+    entity_graph_valid_predicates: list = None,  # None = use VALID_ENTITY_PREDICATES; [] from MCP treated as None
+    entity_stoplist: list = None,  # None = use M3_ENTITY_SEED_STOPLIST env; [] disables filtering
     # Cross-encoder rerank — default off; production behavior unchanged when False.
     # When True: rescores top (rerank_pool_k or 3*k) hits with sentence-transformers
     # CrossEncoder, blends with hybrid score, re-sorts. See _apply_rerank() docstring
     # and decision memory for the resolution chain.
     rerank: bool = False,
-    rerank_model: str = "",                         # empty = DEFAULT_RERANK_MODEL
-    rerank_pool_k: int = 0,                         # 0 = 3*k (sensible default; never below k)
-    rerank_blend: float = 1.0,                      # 1.0 = pure CE replacement, 0.5 = avg, 0.0 = no-op
+    rerank_model: str = "",  # empty = DEFAULT_RERANK_MODEL
+    rerank_pool_k: int = 0,  # 0 = 3*k (sensible default; never below k)
+    rerank_blend: float = 1.0,  # 1.0 = pure CE replacement, 0.5 = avg, 0.0 = no-op
     user_id: str = "",
     scope: str = "",
     type_filter: str = "",
@@ -1682,7 +1780,7 @@ async def memory_search_routed_impl(
     # ADR-0001: union the materialized bypass_surface for this scope (rank-independent
     # recall). Default off ⇒ byte-identical to pre-ADR output (the auto_route invariant).
     bypass_surface: bool = False,
-    bypass_surface_cap: int = 0,                            # 0 = use built cap; >0 = read-time truncate
+    bypass_surface_cap: int = 0,  # 0 = use built cap; >0 = read-time truncate
     explain: bool = False,
     extra_columns=None,
     recency_bias: float = 0.0,
@@ -1699,27 +1797,27 @@ async def memory_search_routed_impl(
     # Invariant: auto_route=False produces byte-identical output to pre-refactor.
     auto_route: bool = False,
     # Signal-detection thresholds (overridable)
-    auto_top1_sharp_min: float = 0.89,                     # top-1 score above which query is "sharp"
-    auto_slope_at_3_sharp_min: float = 0.08,               # slope-at-3 above which query is "sharp"
-    auto_conv_id_diversity_threshold: int = 5,             # conv_id diversity above which → multi_session
-    auto_top1_low_threshold: float = 0.50,                 # OOD guard — below this, not sharp
+    auto_top1_sharp_min: float = 0.89,  # top-1 score above which query is "sharp"
+    auto_slope_at_3_sharp_min: float = 0.08,  # slope-at-3 above which query is "sharp"
+    auto_conv_id_diversity_threshold: int = 5,  # conv_id diversity above which → multi_session
+    auto_top1_low_threshold: float = 0.50,  # OOD guard — below this, not sharp
     # Branch values: temporal
-    auto_temporal_k: int = 15,                             # k for temporal branch
-    auto_temporal_recency_bias: float = 0.05,              # recency_bias for temporal branch
-    auto_temporal_expand_sessions: bool = True,            # expand_sessions for temporal branch
-    auto_temporal_graph_depth: int = 1,                    # graph_depth for temporal branch (AUTO_v2 fix)
+    auto_temporal_k: int = 15,  # k for temporal branch
+    auto_temporal_recency_bias: float = 0.05,  # recency_bias for temporal branch
+    auto_temporal_expand_sessions: bool = True,  # expand_sessions for temporal branch
+    auto_temporal_graph_depth: int = 1,  # graph_depth for temporal branch (AUTO_v2 fix)
     # Branch values: multi_session
-    auto_multi_k: int = 20,                                # k for multi_session branch
-    auto_multi_expand_sessions: bool = True,               # expand_sessions for multi_session branch
+    auto_multi_k: int = 20,  # k for multi_session branch
+    auto_multi_expand_sessions: bool = True,  # expand_sessions for multi_session branch
     # Branch values: sharp (post-process trim)
-    auto_sharp_threshold_ratio: float = 0.85,              # trim hits below top_score * ratio
-    auto_sharp_k_min: int = 3,                             # floor after threshold trim
-    auto_sharp_k_max: int = 10,                            # ceiling after threshold trim
+    auto_sharp_threshold_ratio: float = 0.85,  # trim hits below top_score * ratio
+    auto_sharp_k_min: int = 3,  # floor after threshold trim
+    auto_sharp_k_max: int = 10,  # ceiling after threshold trim
     # Branch values: entity_anchored (AUTO entity-graph expansion)
-    auto_entity_graph_enabled: bool = True,                # AUTO fires entity branch when query has named entities
-    auto_entity_graph_depth: int = 1,                      # entity_graph_depth for entity_anchored branch
-    auto_entity_graph_max_neighbors: int = 20,             # entity_graph_max_neighbors for entity_anchored branch
-    auto_entity_graph_named_entity_threshold: int = 1,     # min named entities to fire entity_anchored branch
+    auto_entity_graph_enabled: bool = True,  # AUTO fires entity branch when query has named entities
+    auto_entity_graph_depth: int = 1,  # entity_graph_depth for entity_anchored branch
+    auto_entity_graph_max_neighbors: int = 20,  # entity_graph_max_neighbors for entity_anchored branch
+    auto_entity_graph_named_entity_threshold: int = 1,  # min named entities to fire entity_anchored branch
     requesting_agent: str = "",
     # Capture mechanism (option b): caller passes a dict, function populates it
     _capture_dict: dict = None,
@@ -1773,7 +1871,7 @@ async def memory_search_routed_impl(
     auto_metadata = None
     resolved = None
     overshoot_candidates: list = []  # captured for possible reuse as base_hits
-    _overshoot_k = 20                 # the fixed overshoot pool size
+    _overshoot_k = 20  # the fixed overshoot pool size
     # The overshoot's job is signal-extraction (top_1, slope_at_3, conv_id
     # diversity). We deliberately align its `vector_kind_strategy` with the
     # branch the primary call would use — temporal -> "default", non-temporal
@@ -1787,10 +1885,19 @@ async def memory_search_routed_impl(
         # the overshoot doubles as the primary pool. When reuse doesn't fire,
         # the primary call below overwrites these keys — both writes describe
         # the same family of values (pool sizes for the candidate retrieval).
-        overshoot_candidates = await _resolve_search_callable("memory_search_scored_impl")(query, mmr=mmr, k=_overshoot_k, user_id=user_id, scope=scope,
-            type_filter=type_filter, agent_filter=agent_filter,
-            search_mode=search_mode, variant=variant, as_of=as_of,
-            conversation_id=conversation_id, extra_columns=extra_columns,
+        overshoot_candidates = await _resolve_search_callable("memory_search_scored_impl")(
+            query,
+            mmr=mmr,
+            k=_overshoot_k,
+            user_id=user_id,
+            scope=scope,
+            type_filter=type_filter,
+            agent_filter=agent_filter,
+            search_mode=search_mode,
+            variant=variant,
+            as_of=as_of,
+            conversation_id=conversation_id,
+            extra_columns=extra_columns,
             vector_kind_strategy=_overshoot_strategy,
             requesting_agent=requesting_agent,
             _capture_dict=_capture_dict,
@@ -1867,9 +1974,7 @@ async def memory_search_routed_impl(
             "auto_entity_graph_named_entity_threshold": auto_entity_graph_named_entity_threshold,
         }
 
-        resolved, auto_metadata = _apply_auto_layer(
-            query, overshoot_candidates, _current_params, _sig_defaults
-        )
+        resolved, auto_metadata = _apply_auto_layer(query, overshoot_candidates, _current_params, _sig_defaults)
 
         # Apply resolved values back to local variables so the rest of the
         # function (which is unchanged) uses the AUTO-adjusted parameters.
@@ -1885,9 +1990,8 @@ async def memory_search_routed_impl(
         # Also: if caller explicitly passed entity_graph=False (recorded in caller_overrides),
         # that beats the entity_anchored branch value.
         _eg_caller_overrides = auto_metadata.get("caller_overrides", {})
-        _eg_auto_blocked = (
-            not auto_entity_graph_enabled
-            or ("entity_graph" in _eg_caller_overrides and not _eg_caller_overrides["entity_graph"])
+        _eg_auto_blocked = not auto_entity_graph_enabled or (
+            "entity_graph" in _eg_caller_overrides and not _eg_caller_overrides["entity_graph"]
         )
         if _eg_auto_blocked and auto_metadata.get("auto_branch") == "entity_anchored":
             # Suppress AUTO's entity_graph=True — use the original entity_graph value
@@ -1944,10 +2048,7 @@ async def memory_search_routed_impl(
             return False
         if abs(float(vector_weight) - 0.7) > 1e-9:
             return False
-        effective_primary_k = (
-            (k + bump) if is_temporal_query(query)
-            else (k * 2 if fact_variant else k)
-        )
+        effective_primary_k = (k + bump) if is_temporal_query(query) else (k * 2 if fact_variant else k)
         if effective_primary_k > _overshoot_k:
             return False
         return True
@@ -1963,30 +2064,48 @@ async def memory_search_routed_impl(
         if _reuse_overshoot:
             primary = overshoot_candidates[: (k + bump)]
         else:
-            primary = await _resolve_search_callable("memory_search_scored_impl")(query, mmr=mmr, k=k + bump, user_id=user_id, scope=scope,
-            type_filter=type_filter, agent_filter=agent_filter,
-            search_mode=search_mode, variant=variant, as_of=as_of,
-            conversation_id=conversation_id, explain=explain,
-            extra_columns=extra_columns, recency_bias=recency_bias,
-            vector_weight=vector_weight, adaptive_k=adaptive_k,
-            elbow_sensitivity=elbow_sensitivity, adaptive_k_min=adaptive_k_min,
-            adaptive_k_max=adaptive_k_max, smart_time_boost=smart_time_boost,
-            smart_neighbor_sessions=smart_neighbor_sessions,
-            intent_hint=intent_hint, vector_kind_strategy="default",
-            requesting_agent=requesting_agent,
-            _capture_dict=_capture_dict,
-        )
+            primary = await _resolve_search_callable("memory_search_scored_impl")(
+                query,
+                mmr=mmr,
+                k=k + bump,
+                user_id=user_id,
+                scope=scope,
+                type_filter=type_filter,
+                agent_filter=agent_filter,
+                search_mode=search_mode,
+                variant=variant,
+                as_of=as_of,
+                conversation_id=conversation_id,
+                explain=explain,
+                extra_columns=extra_columns,
+                recency_bias=recency_bias,
+                vector_weight=vector_weight,
+                adaptive_k=adaptive_k,
+                elbow_sensitivity=elbow_sensitivity,
+                adaptive_k_min=adaptive_k_min,
+                adaptive_k_max=adaptive_k_max,
+                smart_time_boost=smart_time_boost,
+                smart_neighbor_sessions=smart_neighbor_sessions,
+                intent_hint=intent_hint,
+                vector_kind_strategy="default",
+                requesting_agent=requesting_agent,
+                _capture_dict=_capture_dict,
+            )
         final_hits = await _resolve_search_callable("_maybe_expand_routed")(
-            query, primary, k=k + bump,
+            query,
+            primary,
+            k=k + bump,
             graph_depth=graph_depth,
-            expand_sessions=expand_sessions, session_cap=session_cap,
+            expand_sessions=expand_sessions,
+            session_cap=session_cap,
             entity_graph=entity_graph,
             entity_graph_depth=entity_graph_depth,
             entity_graph_max_neighbors=entity_graph_max_neighbors,
             entity_graph_valid_types=_egt,
             entity_graph_valid_predicates=_egp,
             entity_stoplist=entity_stoplist,
-            user_id=user_id, scope=scope,  # tenancy for neighbor hydration (SECURITY)
+            user_id=user_id,
+            scope=scope,  # tenancy for neighbor hydration (SECURITY)
             _capture_dict=_capture_dict,
         )
     else:
@@ -1994,46 +2113,78 @@ async def memory_search_routed_impl(
         if _reuse_overshoot:
             base_hits = overshoot_candidates[: (k * 2 if fact_variant else k)]
         else:
-            base_hits = await _resolve_search_callable("memory_search_scored_impl")(query, mmr=mmr, k=k * 2 if fact_variant else k,
-            user_id=user_id, scope=scope, type_filter=type_filter,
-            agent_filter=agent_filter, search_mode=search_mode,
-            variant=variant, as_of=as_of, conversation_id=conversation_id,
-            explain=explain, extra_columns=extra_columns, recency_bias=recency_bias,
-            vector_weight=vector_weight, adaptive_k=adaptive_k,
-            elbow_sensitivity=elbow_sensitivity, adaptive_k_min=adaptive_k_min,
-            adaptive_k_max=adaptive_k_max, smart_time_boost=smart_time_boost,
-            smart_neighbor_sessions=smart_neighbor_sessions,
-            intent_hint=intent_hint, vector_kind_strategy="max",
-            requesting_agent=requesting_agent,
-            _capture_dict=_capture_dict,
-        )
+            base_hits = await _resolve_search_callable("memory_search_scored_impl")(
+                query,
+                mmr=mmr,
+                k=k * 2 if fact_variant else k,
+                user_id=user_id,
+                scope=scope,
+                type_filter=type_filter,
+                agent_filter=agent_filter,
+                search_mode=search_mode,
+                variant=variant,
+                as_of=as_of,
+                conversation_id=conversation_id,
+                explain=explain,
+                extra_columns=extra_columns,
+                recency_bias=recency_bias,
+                vector_weight=vector_weight,
+                adaptive_k=adaptive_k,
+                elbow_sensitivity=elbow_sensitivity,
+                adaptive_k_min=adaptive_k_min,
+                adaptive_k_max=adaptive_k_max,
+                smart_time_boost=smart_time_boost,
+                smart_neighbor_sessions=smart_neighbor_sessions,
+                intent_hint=intent_hint,
+                vector_kind_strategy="max",
+                requesting_agent=requesting_agent,
+                _capture_dict=_capture_dict,
+            )
 
         if not fact_variant:
             final_hits = await _resolve_search_callable("_maybe_expand_routed")(
-                query, base_hits[:k], k=k,
+                query,
+                base_hits[:k],
+                k=k,
                 graph_depth=graph_depth,
-                expand_sessions=expand_sessions, session_cap=session_cap,
+                expand_sessions=expand_sessions,
+                session_cap=session_cap,
                 entity_graph=entity_graph,
                 entity_graph_depth=entity_graph_depth,
                 entity_graph_max_neighbors=entity_graph_max_neighbors,
                 entity_graph_valid_types=_egt,
                 entity_graph_valid_predicates=_egp,
                 entity_stoplist=entity_stoplist,
-                user_id=user_id, scope=scope,  # tenancy for neighbor hydration (SECURITY)
+                user_id=user_id,
+                scope=scope,  # tenancy for neighbor hydration (SECURITY)
                 _capture_dict=_capture_dict,
             )
         else:
             # Fuse with fact_variant hits (client-side max-fusion by memory_id, top-k)
-            fact_hits = await _resolve_search_callable("memory_search_scored_impl")(query, mmr=mmr, k=k * 2, user_id=user_id, scope=scope,
-                type_filter=type_filter, agent_filter=agent_filter,
-                search_mode=search_mode, variant=fact_variant, as_of=as_of,
-                conversation_id=conversation_id, explain=explain,
-                extra_columns=extra_columns, recency_bias=recency_bias,
-                vector_weight=vector_weight, adaptive_k=adaptive_k,
-                elbow_sensitivity=elbow_sensitivity, adaptive_k_min=adaptive_k_min,
-                adaptive_k_max=adaptive_k_max, smart_time_boost=smart_time_boost,
+            fact_hits = await _resolve_search_callable("memory_search_scored_impl")(
+                query,
+                mmr=mmr,
+                k=k * 2,
+                user_id=user_id,
+                scope=scope,
+                type_filter=type_filter,
+                agent_filter=agent_filter,
+                search_mode=search_mode,
+                variant=fact_variant,
+                as_of=as_of,
+                conversation_id=conversation_id,
+                explain=explain,
+                extra_columns=extra_columns,
+                recency_bias=recency_bias,
+                vector_weight=vector_weight,
+                adaptive_k=adaptive_k,
+                elbow_sensitivity=elbow_sensitivity,
+                adaptive_k_min=adaptive_k_min,
+                adaptive_k_max=adaptive_k_max,
+                smart_time_boost=smart_time_boost,
                 smart_neighbor_sessions=smart_neighbor_sessions,
-                intent_hint=intent_hint, vector_kind_strategy="default",
+                intent_hint=intent_hint,
+                vector_kind_strategy="default",
                 requesting_agent=requesting_agent,
             )
 
@@ -2047,22 +2198,25 @@ async def memory_search_routed_impl(
                     best[mid] = (s, item)
             fused = sorted(best.values(), key=lambda x: x[0], reverse=True)[:k]
             final_hits = await _resolve_search_callable("_maybe_expand_routed")(
-                query, fused, k=k,
+                query,
+                fused,
+                k=k,
                 graph_depth=graph_depth,
-                expand_sessions=expand_sessions, session_cap=session_cap,
+                expand_sessions=expand_sessions,
+                session_cap=session_cap,
                 entity_graph=entity_graph,
                 entity_graph_depth=entity_graph_depth,
                 entity_graph_max_neighbors=entity_graph_max_neighbors,
                 entity_graph_valid_types=_egt,
                 entity_graph_valid_predicates=_egp,
                 entity_stoplist=entity_stoplist,
-                user_id=user_id, scope=scope,  # tenancy for neighbor hydration (SECURITY)
+                user_id=user_id,
+                scope=scope,  # tenancy for neighbor hydration (SECURITY)
                 _capture_dict=_capture_dict,
             )
 
     # Sharp-branch post-process trim (only when AUTO routing is active and sharp branch fired)
-    if (auto_route and auto_metadata and resolved is not None
-            and auto_metadata.get("auto_branch") == "sharp"):
+    if auto_route and auto_metadata and resolved is not None and auto_metadata.get("auto_branch") == "sharp":
         final_hits = _apply_sharp_trim(
             final_hits,
             threshold_ratio=resolved["auto_sharp_threshold_ratio"],
@@ -2076,8 +2230,7 @@ async def memory_search_routed_impl(
     if auto_route and auto_metadata and auto_metadata.get("auto_branch") == "entity_anchored":
         if _capture_dict is not None:
             eg_count = sum(
-                1 for _, item in final_hits
-                if isinstance(item, dict) and item.get("_expanded_via") == "entity_graph"
+                1 for _, item in final_hits if isinstance(item, dict) and item.get("_expanded_via") == "entity_graph"
             )
             _capture_dict["entity_graph_neighbors_added"] = eg_count
 
@@ -2121,6 +2274,7 @@ async def memory_search_routed_impl(
             try:
                 with _db() as db:
                     from .backends import dialect as _dl_h
+
                     placeholders = _dl_h().placeholder(len(hit_ids))
                     sup_rows = db.execute(
                         f"SELECT to_id FROM memory_relationships "
@@ -2132,7 +2286,9 @@ async def memory_search_routed_impl(
                 if superseded_ids:
                     final_hits = [
                         (
-                            (s * SUPERSEDES_PENALTY) if isinstance(item, dict) and item.get("id") in superseded_ids else s,
+                            (s * SUPERSEDES_PENALTY)
+                            if isinstance(item, dict) and item.get("id") in superseded_ids
+                            else s,
                             item,
                         )
                         for s, item in final_hits
@@ -2156,16 +2312,13 @@ async def memory_search_routed_impl(
                 "(scope isolation — never an un-scoped surface read; ADR-0001 §7)"
             )
         try:
-            already = {
-                item.get("id")
-                for _s, item in final_hits
-                if isinstance(item, dict) and item.get("id")
-            }
+            already = {item.get("id") for _s, item in final_hits if isinstance(item, dict) and item.get("id")}
             # Seam placeholders (§10a). Same reasoning as the other tenancy
             # filters in this module: a hardcoded `?` is a syntax error on
             # PostgreSQL, and this clause is what keeps bypass_surface rows
             # inside the caller's tenant.
             from .backends import dialect as _dialect_b
+
             _d_b = _dialect_b()
             _p_b = _d_b.param()
             params: list = [conversation_id]
@@ -2178,8 +2331,7 @@ async def memory_search_routed_impl(
                 params.append(user_id)
             with _db() as db:
                 surf_rows = db.execute(
-                    f"SELECT memory_id FROM bypass_surface "
-                    f"WHERE conversation_id = {_p_b}{scope_clause}",
+                    f"SELECT memory_id FROM bypass_surface WHERE conversation_id = {_p_b}{scope_clause}",
                     params,
                 ).fetchall()
                 surf_ids = [r[0] for r in surf_rows if r[0] not in already]
@@ -2195,18 +2347,22 @@ async def memory_search_routed_impl(
                 if surf_ids:
                     placeholders = _d_b.placeholder(len(surf_ids))
                     item_rows = db.execute(
-                        f"SELECT id, title, type, conversation_id FROM memory_items "
-                        f"WHERE id IN ({placeholders})",
+                        f"SELECT id, title, type, conversation_id FROM memory_items WHERE id IN ({placeholders})",
                         surf_ids,
                     ).fetchall()
                     for r in item_rows:
-                        final_hits.append((0.0, {
-                            "id": r["id"],
-                            "title": r["title"] or "",
-                            "type": r["type"],
-                            "conversation_id": r["conversation_id"],
-                            "bypass_surface": True,
-                        }))
+                        final_hits.append(
+                            (
+                                0.0,
+                                {
+                                    "id": r["id"],
+                                    "title": r["title"] or "",
+                                    "type": r["type"],
+                                    "conversation_id": r["conversation_id"],
+                                    "bypass_surface": True,
+                                },
+                            )
+                        )
         except ValueError:
             raise
         except Exception as e:  # pragma: no cover - additive leg must never break search
@@ -2216,7 +2372,9 @@ async def memory_search_routed_impl(
 
 
 async def _maybe_expand_routed(
-    query: str, primary: list, k: int,
+    query: str,
+    primary: list,
+    k: int,
     graph_depth: int = 0,
     expand_sessions: bool = False,
     session_cap: int = 12,
@@ -2250,6 +2408,7 @@ async def _maybe_expand_routed(
     # search_routing were hardened for exactly this; these two sites in search.py
     # were missed.
     from .backends import dialect as _dialect_e
+
     _p_e = _dialect_e().param()
     _tenancy_sql = ""
     _tenancy_params: list = []
@@ -2266,6 +2425,7 @@ async def _maybe_expand_routed(
     # patches take effect; production reads memory.db._db.
     try:
         import memory_core as _mc
+
         _db = getattr(_mc, "_db", globals()["_db"])
     except ImportError:
         _db = globals()["_db"]
@@ -2299,8 +2459,8 @@ async def _maybe_expand_routed(
 
     if expand_sessions and seed_ids:
         session_rows = _resolve_graph_helper("_session_neighbor_ids")(
-            seed_ids, session_cap=int(session_cap),
-            user_id=user_id, scope=scope)
+            seed_ids, session_cap=int(session_cap), user_id=user_id, scope=scope
+        )
         for rid, item in session_rows.items():
             if rid not in extra_rows:
                 extra_rows[rid] = item
@@ -2435,15 +2595,24 @@ async def memory_search_multi_db_impl(
     async def _one(path: str):
         async def _run():
             with active_database(path):
-                return await memory_search_scored_impl(query, mmr=mmr, k=k, type_filter=type_filter,
-                    agent_filter=agent_filter, search_mode=search_mode,
-                    user_id=user_id, scope=scope, as_of=as_of,
+                return await memory_search_scored_impl(
+                    query,
+                    mmr=mmr,
+                    k=k,
+                    type_filter=type_filter,
+                    agent_filter=agent_filter,
+                    search_mode=search_mode,
+                    user_id=user_id,
+                    scope=scope,
+                    as_of=as_of,
                     conversation_id=conversation_id,
                     extra_columns=extra_columns,
-                    recency_bias=recency_bias, adaptive_k=adaptive_k,
+                    recency_bias=recency_bias,
+                    adaptive_k=adaptive_k,
                     variant=variant,
                     requesting_agent=requesting_agent,
                 )
+
         if sem is None:
             ranked = await _run()
         else:
@@ -2458,10 +2627,7 @@ async def memory_search_multi_db_impl(
     merged: list[tuple[float, dict]] = []
     for path, result in zip(resolved, per_db, strict=True):
         if isinstance(result, BaseException):
-            logger.warning(
-                f"memory_search_multi_db_impl: search failed for {path}: "
-                f"{type(result).__name__}: {result}"
-            )
+            logger.warning(f"memory_search_multi_db_impl: search failed for {path}: {type(result).__name__}: {result}")
             continue
         merged.extend(result)
 
@@ -2516,22 +2682,26 @@ async def memory_search_impl(
         requesting_agent=requesting_agent,
     )
     from . import records as _records
+
     if ranked is None:
         # A BACKEND FAILURE, not an empty result: both retrieval paths are down,
         # so "no results" would tell the caller the corpus lacks a match when
         # the truth is that nothing was searched.
-        return _records.emit("Search failed: FTS and semantic both unavailable.",
-                             _records.error_payload("search_unavailable", query=query),
-                             as_records)
+        return _records.emit(
+            "Search failed: FTS and semantic both unavailable.",
+            _records.error_payload("search_unavailable", query=query),
+            as_records,
+        )
 
     if not ranked:
-        return _records.emit("No results found.",
-                             _records.as_records_payload((), query=query), as_records)
+        return _records.emit("No results found.", _records.as_records_payload((), query=query), as_records)
     lines = [f"Top {len(ranked)} results:"]
     for rank, (score, item) in enumerate(ranked, 1):
         content = item.get("content") or ""
         lines.append("-" * 40)
-        lines.append(f"{rank}. [{item['id']}] score={score:.4f}  type: {item.get('type', 'unknown')}  title: {item.get('title','')}")
+        lines.append(
+            f"{rank}. [{item['id']}] score={score:.4f}  type: {item.get('type', 'unknown')}  title: {item.get('title', '')}"
+        )
 
         if explain and "_explanation" in item:
             exp = item["_explanation"]
@@ -2541,9 +2711,13 @@ async def memory_search_impl(
                 lines.append(f"   Why: {exp['reason']}")
             if "raw_hybrid" in exp:
                 vw = exp.get("vector_weight", 0.7)
-                lines.append(f"   Breakdown: vector={exp['vector']:.4f} (weight {vw:.2f}) + bm25={exp['bm25']:.4f} (weight {1.0-vw:.2f}) -> raw={exp['raw_hybrid']:.4f}")
+                lines.append(
+                    f"   Breakdown: vector={exp['vector']:.4f} (weight {vw:.2f}) + bm25={exp['bm25']:.4f} (weight {1.0 - vw:.2f}) -> raw={exp['raw_hybrid']:.4f}"
+                )
                 if "mmr_penalty" in exp:
-                    lines.append(f"   MMR penalty: -{exp['mmr_penalty']:.4f} (max_sim_to_selected={exp['max_sim_to_selected']:.4f})")
+                    lines.append(
+                        f"   MMR penalty: -{exp['mmr_penalty']:.4f} (max_sim_to_selected={exp['max_sim_to_selected']:.4f})"
+                    )
                 lines.append(f"   Importance: {exp['importance']:.4f}")
             else:
                 lines.append(f"   Source: {exp.get('source', 'unknown')}")
@@ -2561,5 +2735,4 @@ async def memory_search_impl(
         if explain and "_explanation" in _item:
             _rec["explanation"] = _item["_explanation"]
         _items.append(_rec)
-    return _records.emit("\n".join(lines),
-                         _records.as_records_payload(_items, query=query), as_records)
+    return _records.emit("\n".join(lines), _records.as_records_payload(_items, query=query), as_records)

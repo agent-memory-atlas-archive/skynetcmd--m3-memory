@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_enrich_assign.py
-sha1: ec53e443e127
-mtime_utc: 2026-10-10T15:13:04.208473+00:00
-generated_utc: 2026-10-10T15:13:47.254700+00:00
+sha1: 0a47f7b24ad6
+mtime_utc: 2026-10-10T21:05:16.840499+00:00
+generated_utc: 2026-10-10T21:05:29.676467+00:00
 private: false
 ---
 
@@ -45,7 +45,7 @@ override.
 
 ## Entry points
 
-- `def main()` (line 43)
+- `def main()` (line 44)
 - `if __name__ == "__main__"` guard
 
 ---

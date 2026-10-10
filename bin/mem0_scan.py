@@ -19,6 +19,7 @@ Usage:
 
 Exit code: 0 if no mem0 usage found, 1 if any found (report), 0 after --fix.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -37,7 +38,13 @@ MEM0_CLASSES = {"Memory", "AsyncMemory", "MemoryClient"}
 # The m3 mem0-compat surface (m3_memory/integrations/langchain/mem0_compat.py).
 # Keep in sync with the public methods on that ``Memory`` class.
 M3_DROP_IN = {
-    "add", "search", "get", "get_all", "delete", "delete_all", "from_config",
+    "add",
+    "search",
+    "get",
+    "get_all",
+    "delete",
+    "delete_all",
+    "from_config",
 }
 # mem0 verbs that m3 exposes under a first-class extra (works, but the m3-native
 # name is better) — reported so a migrant knows the stronger tool exists.
@@ -52,8 +59,19 @@ M3_UNSUPPORTED = {
 }
 
 SKIP_DIRS = {
-    ".git", ".hg", "__pycache__", ".venv", "venv", "env", "node_modules",
-    ".mypy_cache", ".pytest_cache", ".ruff_cache", "build", "dist", ".eggs",
+    ".git",
+    ".hg",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "env",
+    "node_modules",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    "build",
+    "dist",
+    ".eggs",
     "site-packages",
 }
 
@@ -64,9 +82,9 @@ M3_IMPORT = "from m3_memory.langchain import Memory"
 class Finding:
     line: int
     col: int
-    kind: str          # "import" | "drop-in" | "mapped" | "unsupported"
-    text: str          # the source snippet or method name
-    note: str = ""     # guidance
+    kind: str  # "import" | "drop-in" | "mapped" | "unsupported"
+    text: str  # the source snippet or method name
+    note: str = ""  # guidance
 
 
 @dataclass(slots=True)
@@ -105,11 +123,15 @@ class _Visitor(ast.NodeVisitor):
                     local = alias.asname or alias.name
                     self.class_aliases[local] = alias.name
             self.import_lines.append(node.lineno)
-            self.findings.append(Finding(
-                node.lineno, node.col_offset, "import",
-                f"from {node.module} import ...",
-                note=f"swap → {M3_IMPORT}",
-            ))
+            self.findings.append(
+                Finding(
+                    node.lineno,
+                    node.col_offset,
+                    "import",
+                    f"from {node.module} import ...",
+                    note=f"swap → {M3_IMPORT}",
+                )
+            )
         self.generic_visit(node)
 
     @override
@@ -119,13 +141,16 @@ class _Visitor(ast.NodeVisitor):
             if root in MEM0_MODULES:
                 self.module_aliases[alias.asname or alias.name] = "mem0"
                 self.import_lines.append(node.lineno)
-                self.findings.append(Finding(
-                    node.lineno, node.col_offset, "import",
-                    f"import {alias.name}"
-                    + (f" as {alias.asname}" if alias.asname else ""),
-                    note="m3 has no top-level `mem0` module import; use "
-                         f"`{M3_IMPORT}` and construct Memory() directly.",
-                ))
+                self.findings.append(
+                    Finding(
+                        node.lineno,
+                        node.col_offset,
+                        "import",
+                        f"import {alias.name}" + (f" as {alias.asname}" if alias.asname else ""),
+                        note="m3 has no top-level `mem0` module import; use "
+                        f"`{M3_IMPORT}` and construct Memory() directly.",
+                    )
+                )
         self.generic_visit(node)
 
     # --- construction: track instances -------------------------------------
@@ -144,15 +169,20 @@ class _Visitor(ast.NodeVisitor):
         if isinstance(func, ast.Name) and func.id in self.class_aliases:
             return self.class_aliases[func.id]
         # mem0.Memory(...) where `import mem0`
-        if (isinstance(func, ast.Attribute)
-                and isinstance(func.value, ast.Name)
-                and func.value.id in self.module_aliases
-                and func.attr in MEM0_CLASSES):
+        if (
+            isinstance(func, ast.Attribute)
+            and isinstance(func.value, ast.Name)
+            and func.value.id in self.module_aliases
+            and func.attr in MEM0_CLASSES
+        ):
             return func.attr
         # Memory.from_config(...) classmethod construction
-        if (isinstance(func, ast.Attribute) and func.attr == "from_config"
-                and isinstance(func.value, ast.Name)
-                and func.value.id in self.class_aliases):
+        if (
+            isinstance(func, ast.Attribute)
+            and func.attr == "from_config"
+            and isinstance(func.value, ast.Name)
+            and func.value.id in self.class_aliases
+        ):
             return self.class_aliases[func.value.id]
         return None
 
@@ -168,20 +198,35 @@ class _Visitor(ast.NodeVisitor):
 
     def _classify(self, method: str, line: int, col: int) -> None:
         if method in M3_DROP_IN:
-            self.findings.append(Finding(
-                line, col, "drop-in", method,
-                note="identical on m3 — no code change.",
-            ))
+            self.findings.append(
+                Finding(
+                    line,
+                    col,
+                    "drop-in",
+                    method,
+                    note="identical on m3 — no code change.",
+                )
+            )
         elif method in M3_MAPPED:
-            self.findings.append(Finding(
-                line, col, "mapped", method,
-                note="m3 extra → " + M3_MAPPED[method],
-            ))
+            self.findings.append(
+                Finding(
+                    line,
+                    col,
+                    "mapped",
+                    method,
+                    note="m3 extra → " + M3_MAPPED[method],
+                )
+            )
         elif method in M3_UNSUPPORTED:
-            self.findings.append(Finding(
-                line, col, "unsupported", method,
-                note=M3_UNSUPPORTED[method],
-            ))
+            self.findings.append(
+                Finding(
+                    line,
+                    col,
+                    "unsupported",
+                    method,
+                    note=M3_UNSUPPORTED[method],
+                )
+            )
         # methods not in any table are left unflagged: they're either not
         # memory calls or user code — we only speak to the mem0 surface.
 
@@ -249,8 +294,7 @@ def apply_fix(report: FileReport) -> bool:
 
 
 # ── rendering ──────────────────────────────────────────────────────────────
-_ICON = {"import": "IMPORT", "drop-in": "  OK  ", "mapped": " MAP  ",
-         "unsupported": " STOP "}
+_ICON = {"import": "IMPORT", "drop-in": "  OK  ", "mapped": " MAP  ", "unsupported": " STOP "}
 
 
 def render_text(reports: list[FileReport]) -> str:
@@ -288,22 +332,19 @@ def render_json(reports: list[FileReport]) -> str:
         {
             "path": str(r.path),
             "findings": [
-                {"line": f.line, "col": f.col, "kind": f.kind,
-                 "text": f.text, "note": f.note}
-                for f in r.findings
+                {"line": f.line, "col": f.col, "kind": f.kind, "text": f.text, "note": f.note} for f in r.findings
             ],
         }
-        for r in reports if r.has_mem0
+        for r in reports
+        if r.has_mem0
     ]
     return json.dumps({"files": payload}, indent=2)
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("paths", nargs="+", type=Path, help="files or directories to scan")
-    ap.add_argument("--fix", action="store_true",
-                    help="rewrite `from mem0 import ...` lines to the m3 import in place")
+    ap.add_argument("--fix", action="store_true", help="rewrite `from mem0 import ...` lines to the m3 import in place")
     ap.add_argument("--json", action="store_true", help="machine-readable output")
     args = ap.parse_args(argv)
 
@@ -313,11 +354,12 @@ def main(argv: list[str] | None = None) -> int:
         fixed = [r for r in reports if r.has_mem0 and apply_fix(r)]
         for r in fixed:
             print(f"fixed import(s) in {r.path}")
-        remaining = sum(1 for r in reports for f in r.findings
-                        if f.kind in ("mapped", "unsupported"))
-        print(f"\nRewrote imports in {len(fixed)} file(s). "
-              f"{remaining} call site(s) still need review (MAP/STOP) — "
-              "run without --fix to list them.")
+        remaining = sum(1 for r in reports for f in r.findings if f.kind in ("mapped", "unsupported"))
+        print(
+            f"\nRewrote imports in {len(fixed)} file(s). "
+            f"{remaining} call site(s) still need review (MAP/STOP) — "
+            "run without --fix to list them."
+        )
         return 0
 
     if args.json:

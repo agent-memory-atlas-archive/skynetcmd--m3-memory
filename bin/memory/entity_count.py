@@ -57,6 +57,7 @@ by virtue of the read-only API surface — no need for the
 - `docs/MCP_TOOL_PERF_LESSONS.md` — structured returns over strings
 - `docs/MEMORY_CORE_MODULARIZATION_LESSONS.md` — extraction discipline
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -69,9 +70,9 @@ from .db import _db
 # callers can introspect them; not re-imported via shim because they are not
 # part of the public m3-memory API surface (internal contract).
 
-MAX_LIMIT = 10_000          # absolute ceiling on result-set size
-DEFAULT_LIMIT = 1_000        # used when caller passes 0 or omits
-MAX_PATTERN_LEN = 256        # reject overlong LIKE patterns
+MAX_LIMIT = 10_000  # absolute ceiling on result-set size
+DEFAULT_LIMIT = 1_000  # used when caller passes 0 or omits
+MAX_PATTERN_LEN = 256  # reject overlong LIKE patterns
 
 
 # ── Validation helpers ───────────────────────────────────────────────────────
@@ -85,9 +86,7 @@ def _require_conversation_id(conversation_id: str | None) -> str:
     than risk a cross-tenant leak by accident.
     """
     if not isinstance(conversation_id, str) or not conversation_id.strip():
-        raise ValueError(
-            "conversation_id is required and must be a non-empty string"
-        )
+        raise ValueError("conversation_id is required and must be a non-empty string")
     return conversation_id
 
 
@@ -106,9 +105,7 @@ def _validate_pattern(pattern: str | None) -> str | None:
     if not pattern:
         return None
     if len(pattern) > MAX_PATTERN_LEN:
-        raise ValueError(
-            f"pattern length {len(pattern)} exceeds MAX_PATTERN_LEN={MAX_PATTERN_LEN}"
-        )
+        raise ValueError(f"pattern length {len(pattern)} exceeds MAX_PATTERN_LEN={MAX_PATTERN_LEN}")
     return pattern
 
 
@@ -314,9 +311,7 @@ def list_mentions_impl(
     etype_in = (entity_type or "").strip()
 
     if not eid_in and not cname_in:
-        raise ValueError(
-            "must provide either entity_id or canonical_name"
-        )
+        raise ValueError("must provide either entity_id or canonical_name")
 
     resolved_id = ""
     resolved_cname = ""

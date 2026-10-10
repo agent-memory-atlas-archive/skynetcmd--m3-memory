@@ -32,6 +32,7 @@ Usage:
 
 Exit 0 = clean, 1 = corruption found (prints file:line:col and a repair hint).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -48,14 +49,13 @@ _BAD = re.compile(rb"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 # PowerShell escape -> the letter it consumed, for the repair hint.
 _PS_ESCAPES = {
     0x08: ("`b", "b"),
-    0x0b: ("`v", "v"),
-    0x0c: ("`f", "f"),
+    0x0B: ("`v", "v"),
+    0x0C: ("`f", "f"),
     0x07: ("`a", "a"),
     0x00: ("`0", "0"),
 }
 
-_TEXT_EXT = {".md", ".txt", ".rst", ".py", ".json", ".yaml", ".yml", ".toml",
-             ".cfg", ".ini", ".sh", ".ps1", ".sql"}
+_TEXT_EXT = {".md", ".txt", ".rst", ".py", ".json", ".yaml", ".yml", ".toml", ".cfg", ".ini", ".sh", ".ps1", ".sql"}
 
 
 def _is_text(path: str) -> bool:
@@ -67,7 +67,9 @@ def _staged_files() -> list[str]:
     try:
         out = subprocess.run(
             ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            check=True,
         ).stdout
     except (subprocess.CalledProcessError, FileNotFoundError):
         return []
@@ -93,9 +95,11 @@ def scan(path: str) -> list[tuple[int, int, int]]:
 def _hint(byte: int, path: str, line: int) -> str:
     if byte in _PS_ESCAPES:
         seq, letter = _PS_ESCAPES[byte]
-        return (f"looks like PowerShell consumed {seq!r} — a word starting with "
-                f"{letter!r} lost its first letter (e.g. `{letter}ytemuck` -> "
-                f"\\x{byte:02x}ytemuck). Restore the letter and the backticks.")
+        return (
+            f"looks like PowerShell consumed {seq!r} — a word starting with "
+            f"{letter!r} lost its first letter (e.g. `{letter}ytemuck` -> "
+            f"\\x{byte:02x}ytemuck). Restore the letter and the backticks."
+        )
     return f"unexpected control byte \\x{byte:02x}"
 
 
@@ -105,8 +109,7 @@ def main(argv=None) -> int:
         description="Fail on stray control characters in text files.",
     )
     ap.add_argument("paths", nargs="*", help="Files to scan.")
-    ap.add_argument("--staged", action="store_true",
-                    help="Scan the git-staged text files instead of PATHS.")
+    ap.add_argument("--staged", action="store_true", help="Scan the git-staged text files instead of PATHS.")
     args = ap.parse_args(argv)
 
     targets = _staged_files() if args.staged else [p for p in args.paths if _is_text(p)]
@@ -117,8 +120,7 @@ def main(argv=None) -> int:
     for path in targets:
         for line, col, byte in scan(path):
             bad += 1
-            print(f"{path}:{line}:{col}: stray control char \\x{byte:02x} — "
-                  f"{_hint(byte, path, line)}")
+            print(f"{path}:{line}:{col}: stray control char \\x{byte:02x} — {_hint(byte, path, line)}")
 
     if bad:
         print()

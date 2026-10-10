@@ -28,6 +28,7 @@ The fix names the FIRST window 'default' (later windows stay window_N and are
 reachable via vector_kind_strategy="max"). These tests pin the invariant, not
 the implementation.
 """
+
 from __future__ import annotations
 
 import sys
@@ -58,7 +59,8 @@ class TestFirstWindowIsDefault(unittest.TestCase):
         """THE REGRESSION. A split row must keep a 'default' vector or the
         default search strategy can never reach it."""
         self.assertEqual(
-            self._kind(0), "default",
+            self._kind(0),
+            "default",
             "the first window of a multi-window memory must be 'default'",
         )
 
@@ -76,9 +78,7 @@ class TestFirstWindowIsDefault(unittest.TestCase):
         import memory.write as w
 
         src = inspect.getsource(w)
-        code = "\n".join(
-            ln for ln in src.splitlines() if not ln.strip().startswith("#")
-        )
+        code = "\n".join(ln for ln in src.splitlines() if not ln.strip().startswith("#"))
         self.assertIn('base_kind = "default" if chunk_idx == 0', code)
         self.assertNotIn('base_kind = "default" if len(chunks) == 1', code)
 
@@ -97,9 +97,9 @@ def _seed_one_healthy_one_unfindable(conn, d):
         seed_memory_row(conn, d, mid=mid, title=mid, content="body " * 20)
     for mid, kinds in ((healthy, (None, "window_1")), (orphan, ("window_0", "window_1"))):
         for i, kind in enumerate(kinds):
-            seed_embedding_row(conn, d, mid=mid, embedding=vec, dim=4,
-                               embed_model="test-model", emb_id=f"e{i}-{mid}",
-                               vector_kind=kind)
+            seed_embedding_row(
+                conn, d, mid=mid, embedding=vec, dim=4, embed_model="test-model", emb_id=f"e{i}-{mid}", vector_kind=kind
+            )
     conn.commit()
     return healthy, orphan
 
@@ -179,13 +179,16 @@ class TestNoEmbeddedButUnfindableRows(unittest.TestCase):
 
         import os
 
-        root = os.environ.get("M3_ENGINE_ROOT") or os.path.join(
-            os.path.expanduser("~"), ".m3", "engine"
-        )
+        root = os.environ.get("M3_ENGINE_ROOT") or os.path.join(os.path.expanduser("~"), ".m3", "engine")
         path = os.path.join(root, "agent_memory.db")
         if not os.path.isfile(path):
-            self.skipTest(skip_reason("env", f"no local engine store at {path} (the test sandbox "
-                                  "redirects M3_ENGINE_ROOT; `m3 doctor` runs this check live)"))
+            self.skipTest(
+                skip_reason(
+                    "env",
+                    f"no local engine store at {path} (the test sandbox "
+                    "redirects M3_ENGINE_ROOT; `m3 doctor` runs this check live)",
+                )
+            )
         return active_backend(), path
 
     def test_every_embedded_memory_has_a_default_vector(self):
@@ -200,13 +203,15 @@ class TestNoEmbeddedButUnfindableRows(unittest.TestCase):
         try:
             from doctor.embed_space_probe import unfindable_memories
             from memory.backends import dialect
+
             with backend.open_readonly(str(path)) as conn:
                 rows = unfindable_memories(conn, dialect(), limit=20)
         except Exception as exc:  # pragma: no cover - no store / no table yet
             self.skipTest(skip_reason("env", f"store not queryable: {exc}"))
 
         self.assertEqual(
-            [], list(rows),
+            [],
+            list(rows),
             "These memories are EMBEDDED BUT UNFINDABLE: they have embedding "
             "rows (so `m3 embedder backfill` reports 0 pending) but no "
             "vector_kind='default' row, and memory_search's default strategy "

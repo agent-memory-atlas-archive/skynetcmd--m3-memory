@@ -6,6 +6,7 @@ a JSON blob; a small vanilla-JS renderer turns the Markdown into HTML and rewrit
 `foo.md` / `foo.md#sec` links into in-page navigation (hash routing), so clicking
 through the vault works entirely offline. Fully local: nothing leaves the machine.
 """
+
 from __future__ import annotations
 
 import json
@@ -20,7 +21,7 @@ def build_html(pages: dict[str, str], *, title: str = "m3 Wiki") -> str:
 
 
 def _esc(s: str) -> str:
-    return (s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 # The viewer. A deliberately small, dependency-free Markdown subset renderer —

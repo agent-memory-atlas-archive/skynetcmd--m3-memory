@@ -44,6 +44,7 @@ agent's m3 MCP server, a hook) blocks pip from replacing it, and pip then leaves
 the package uninstalled. ``locked_launchers`` checks for that before anything
 is stopped or replaced.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -111,8 +112,8 @@ def find_m3_package(exe: str) -> pathlib.Path | None:
             # <venv>/Scripts/m3.exe -> <venv>; <venv>/bin/m3 -> <venv>
             venv = resolved.parent.parent
             for sp in (
-                venv / "Lib" / "site-packages" / "m3_memory",          # Windows
-                *(venv.glob("lib/python*/site-packages/m3_memory")),   # POSIX
+                venv / "Lib" / "site-packages" / "m3_memory",  # Windows
+                *(venv.glob("lib/python*/site-packages/m3_memory")),  # POSIX
             ):
                 if sp.exists():
                     return sp
@@ -133,8 +134,7 @@ def find_m3_package(exe: str) -> pathlib.Path | None:
                     str(py),
                     "-E",  # ignore PYTHONPATH/PYTHONHOME: no ambient substitution
                     "-c",
-                    "import m3_memory,pathlib;"
-                    "print(pathlib.Path(m3_memory.__file__).parent)",
+                    "import m3_memory,pathlib;print(pathlib.Path(m3_memory.__file__).parent)",
                 ],
                 capture_output=True,
                 text=True,
@@ -145,7 +145,6 @@ def find_m3_package(exe: str) -> pathlib.Path | None:
         if out.returncode == 0 and out.stdout.strip():
             return pathlib.Path(out.stdout.strip())
     return None
-
 
 
 def cognitive_loop_installed(exe: str) -> bool | None:
@@ -186,7 +185,9 @@ def cognitive_loop_installed(exe: str) -> bool | None:
             try:
                 r = subprocess.run(  # nosec B603 - argv list, no shell
                     [sys.executable, "-c", code],
-                    capture_output=True, text=True, timeout=60,
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
                 )
             except (OSError, subprocess.TimeoutExpired):
                 return None
@@ -195,6 +196,7 @@ def cognitive_loop_installed(exe: str) -> bool | None:
                 return out[-1] == "YES"
             return None
     return None
+
 
 def detect_install_method(pkg_dir: pathlib.Path | None) -> tuple[str, str]:
     """Return ``(method, evidence)``.
@@ -278,13 +280,11 @@ def source_is_missing_path(spec: str) -> bool:
     s = spec.strip()
     if "://" in s or s.startswith("git+"):
         return False
-    looks_local = (os.path.isabs(s) or s.startswith((".", "~"))
-                   or os.sep in s or "/" in s or s.endswith(".whl"))
+    looks_local = os.path.isabs(s) or s.startswith((".", "~")) or os.sep in s or "/" in s or s.endswith(".whl")
     return looks_local and not os.path.exists(os.path.expanduser(s))
 
 
-def upgrade_command(method: str, python: str = sys.executable,
-                    from_pypi: bool = False) -> list[str] | None:
+def upgrade_command(method: str, python: str = sys.executable, from_pypi: bool = False) -> list[str] | None:
     """The package-level upgrade command for a method, or None when we must not
     run one (plugin-managed or undetermined installs).
 
@@ -324,7 +324,7 @@ def installed_version(pkg: pathlib.Path | None) -> str | None:
     if pkg is None:
         return None
     for d in sorted(pkg.parent.glob("m3_memory-*.dist-info")):
-        return d.name[len("m3_memory-"):-len(".dist-info")]
+        return d.name[len("m3_memory-") : -len(".dist-info")]
     return None
 
 
@@ -353,8 +353,9 @@ def locked_launchers(scripts_dir: pathlib.Path, names: list[str]) -> list[pathli
         try:
             os.rename(probe, exe)
         except OSError as e:
-            raise SystemExit(f"could not restore {exe} after a lock probe ({e}); "
-                             f"rename {probe.name} back to {exe.name} by hand") from e
+            raise SystemExit(
+                f"could not restore {exe} after a lock probe ({e}); rename {probe.name} back to {exe.name} by hand"
+            ) from e
     return locked
 
 
@@ -411,6 +412,7 @@ def stop_holders(pids: list[int], timeout: float = 10.0) -> None:
     """Stop these m3 launcher processes and their children (the real server is
     the launcher's child). Precise pids only, never a name match."""
     import psutil
+
     procs = []
     for pid in pids:
         try:
@@ -431,8 +433,7 @@ def stop_holders(pids: list[int], timeout: float = 10.0) -> None:
         except psutil.Error:
             pass
     for pid in pids:
-        print(f"  stopped m3 in an agent session (pid {pid}); reconnect that agent "
-              f"afterwards (Claude Code: /mcp)")
+        print(f"  stopped m3 in an agent session (pid {pid}); reconnect that agent afterwards (Claude Code: /mcp)")
 
 
 def interactive_console() -> bool:
@@ -451,6 +452,7 @@ def interactive_console() -> bool:
         return True
     import ctypes
     from ctypes import wintypes
+
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined, unused-ignore]
     handle = kernel32.GetStdHandle(wintypes.DWORD(-10 & 0xFFFFFFFF))  # STD_INPUT_HANDLE
     mode = wintypes.DWORD()
@@ -460,6 +462,7 @@ def interactive_console() -> bool:
 def wait_for_exit(pids: list[int], timeout: float = 60.0) -> bool:
     """True once none of ``pids`` is running (or ``timeout`` passed: False)."""
     import psutil
+
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if not any(psutil.pid_exists(p) for p in pids):
@@ -476,18 +479,25 @@ def hand_off_to_new_window(owner_python: str, argv: list[str], pids: list[int]) 
     stays open until Enter, and records everything in the returned log file.
     """
     import tempfile
-    log = os.path.join(tempfile.gettempdir(),
-                       time.strftime("m3-upgrade-%Y%m%d-%H%M%S.log"))
-    cmd = [owner_python, str(pathlib.Path(__file__).resolve()), *argv, "--yes",
-           "--wait-for-pid", ",".join(str(p) for p in pids), "--pause-at-end",
-           "--log", log]
+
+    log = os.path.join(tempfile.gettempdir(), time.strftime("m3-upgrade-%Y%m%d-%H%M%S.log"))
+    cmd = [
+        owner_python,
+        str(pathlib.Path(__file__).resolve()),
+        *argv,
+        "--yes",
+        "--wait-for-pid",
+        ",".join(str(p) for p in pids),
+        "--pause-at-end",
+        "--log",
+        log,
+    ]
     flags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
     subprocess.Popen(cmd, creationflags=flags, close_fds=True)  # nosec B603 - argv list, no shell
     return log
 
 
-def explain_locked(locked: list[pathlib.Path], owner_python: str,
-                   user_flags: list[str] | None = None) -> None:
+def explain_locked(locked: list[pathlib.Path], owner_python: str, user_flags: list[str] | None = None) -> None:
     print("\nCannot upgrade now: Windows keeps these m3 programs locked while they")
     print("run, and replacing them would remove m3 and then fail:")
     for p in locked:
@@ -502,7 +512,7 @@ def explain_locked(locked: list[pathlib.Path], owner_python: str,
         unattended = "" if interactive_console() else " --yes"
         # Carry the user's own flags (--from-pypi, --stop-agents) so the printed
         # command does what the refused one was asked to do.
-        for flag in (user_flags or []):
+        for flag in user_flags or []:
             unattended += f" {flag}"
         print(f'      "{owner_python}" "{pathlib.Path(__file__).resolve()}"{unattended}')
     if any("own launcher" not in h for h in holders) or not holders:
@@ -530,8 +540,7 @@ class _Tee:
         self._log.flush()
 
 
-def run(cmd: list[str], *, dry: bool, timeout: int = 900,
-        env: dict[str, str] | None = None) -> int:
+def run(cmd: list[str], *, dry: bool, timeout: int = 900, env: dict[str, str] | None = None) -> int:
     printable = " ".join(cmd)
     if dry:
         print(f"      would run: {printable}")
@@ -540,8 +549,15 @@ def run(cmd: list[str], *, dry: bool, timeout: int = 900,
     try:
         if isinstance(sys.stdout, _Tee):
             # Logging: relay the child's output so it reaches the log as well.
-            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,  # nosec B603
-                                    text=True, encoding="utf-8", errors="replace", env=env)
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,  # nosec B603
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=env,
+            )
             deadline = time.monotonic() + timeout
             assert proc.stdout is not None
             for line in proc.stdout:
@@ -565,14 +581,20 @@ def _cmd_label(cmd: list[str]) -> str:
     return " ".join([pathlib.Path(cmd[0]).stem, *cmd[1:]])
 
 
-def run_captured_rc(cmd: list[str], *, timeout: int = 900,
-                    env: dict[str, str] | None = None) -> tuple[int, str]:
+def run_captured_rc(cmd: list[str], *, timeout: int = 900, env: dict[str, str] | None = None) -> tuple[int, str]:
     """Run ``cmd`` and return (exit code, combined output), for the caller to
     print only when there is something to say. A failure to launch is rc 127
     (timeout 124, as run() reports them) with the reason as text."""
     try:
-        cp = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",  # nosec B603
-                            errors="replace", timeout=timeout, env=env)
+        cp = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",  # nosec B603
+            errors="replace",
+            timeout=timeout,
+            env=env,
+        )
         return cp.returncode, (cp.stdout or "") + (cp.stderr or "")
     except OSError:
         return 127, f"      !! could not run: {cmd[0]}\n"
@@ -617,7 +639,11 @@ def m3_still_installed(owner_python: str) -> bool | None:
             # module stays stdlib-only, so it carries its own two arguments.
             [owner_python, "-E", "-c", "import importlib; importlib.import_module('m3_memory.cli')"],
             cwd=os.path.dirname(os.path.abspath(owner_python)),
-            capture_output=True, text=True, errors="replace", timeout=60)
+            capture_output=True,
+            text=True,
+            errors="replace",
+            timeout=60,
+        )
     except (OSError, subprocess.SubprocessError):
         return None
     if cp.returncode == 0:
@@ -632,8 +658,7 @@ def no_cache_env() -> dict[str, str]:
     return {**os.environ, "PIP_NO_CACHE_DIR": "1", "UV_NO_CACHE": "1"}
 
 
-def should_retry_uncached(*, unchanged: bool, local_source: bool,
-                          latest: str | None, installed: str | None) -> bool:
+def should_retry_uncached(*, unchanged: bool, local_source: bool, latest: str | None, installed: str | None) -> bool:
     """Retry the install without caches only when it changed nothing, the
     source is the package index, and PyPI says something else is current."""
     return bool(unchanged and not local_source and latest and latest != installed)
@@ -644,9 +669,9 @@ def pypi_latest() -> str | None:
     when PyPI cannot be asked."""
     import json
     import urllib.request
+
     try:
-        req = urllib.request.Request("https://pypi.org/pypi/m3-memory/json",
-                                     headers={"Cache-Control": "no-cache"})
+        req = urllib.request.Request("https://pypi.org/pypi/m3-memory/json", headers={"Cache-Control": "no-cache"})
         with urllib.request.urlopen(req, timeout=10) as r:  # nosec B310 — fixed https URL
             return str(json.load(r)["info"]["version"])
     except (OSError, ValueError, KeyError):
@@ -659,7 +684,8 @@ _DOCTOR_HEALTHY = re.compile(
     r"|✅ |\[OK\] Web Dashboard available at|agent paths: no wired agent configs found"
     r"|\s*\[ok\] plugin plugin: .*already at the latest version"
     r"|\s*\[ok\] plugin plugin: .*updated from \S+ to \S+"
-    r"|\s*\[ok\] plugin restart: )")
+    r"|\s*\[ok\] plugin restart: )"
+)
 
 _PLUGIN_UPDATED = re.compile(r"\[ok\] plugin plugin: .*updated from (\S+) to (\S+?)(?=\s|$)")
 
@@ -676,31 +702,38 @@ def plugin_update(out: str) -> tuple[str, str] | None:
     return (m.group(1), m.group(2)) if m else None
 
 
-def summary_lines(*, old: str | None, new: str | None, unchanged: bool,
-                  agents_stopped: int, failed_step: str, rc: int, log: str,
-                  plugin_updated: bool = False) -> list[str]:
+def summary_lines(
+    *,
+    old: str | None,
+    new: str | None,
+    unchanged: bool,
+    agents_stopped: int,
+    failed_step: str,
+    rc: int,
+    log: str,
+    plugin_updated: bool = False,
+) -> list[str]:
     """The end-of-run summary: the lines a user needs after the step output
     has scrolled away."""
     if unchanged:
         version = f"m3 {old}: already installed, nothing was upgraded"
     else:
         version = f"m3 {old or '?'} -> {new or '?'}"
-    lines = ["", "Upgrade incomplete." if failed_step else "Done.",
-             f"  version : {version}"]
+    lines = ["", "Upgrade incomplete." if failed_step else "Done.", f"  version : {version}"]
     if plugin_updated:
         # One instruction: `/mcp` reconnects the server but keeps the old plugin.
-        lines.append("  agents  : restart Claude Code (its m3 plugin was updated); "
-                     "reconnect or restart any other agent")
+        lines.append(
+            "  agents  : restart Claude Code (its m3 plugin was updated); reconnect or restart any other agent"
+        )
     elif agents_stopped:
-        lines.append(f"  agents  : m3 was stopped in {agents_stopped} agent session(s); "
-                     "reconnect them (Claude Code: /mcp)")
+        lines.append(
+            f"  agents  : m3 was stopped in {agents_stopped} agent session(s); reconnect them (Claude Code: /mcp)"
+        )
     elif not unchanged:
         # Setup leaves this to us when we call it (its own list is suppressed).
-        lines.append("  agents  : restart your agents, or reconnect m3 (Claude Code: /mcp), "
-                     "to load the new version")
+        lines.append("  agents  : restart your agents, or reconnect m3 (Claude Code: /mcp), to load the new version")
     if failed_step:
-        lines.append(f"  health  : {failed_step} reported problems (exit {rc}); "
-                     "see its output above")
+        lines.append(f"  health  : {failed_step} reported problems (exit {rc}); see its output above")
     else:
         lines.append("  health  : m3 doctor passed")
     if log:
@@ -709,23 +742,27 @@ def summary_lines(*, old: str | None, new: str | None, unchanged: bool,
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(
-        description="Upgrade m3-memory using the right command for this install."
-    )
+    ap = argparse.ArgumentParser(description="Upgrade m3-memory using the right command for this install.")
     ap.add_argument("--dry-run", action="store_true", help="Show the plan; change nothing.")
     ap.add_argument("--skip-stop", action="store_true", help="Do not stop DB writers first.")
     ap.add_argument("--yes", action="store_true", help="Do not prompt (for scripted use).")
-    ap.add_argument("--from-pypi", dest="from_pypi", action="store_true",
-                    help="pipx installs: reinstall from PyPI, moving the recorded "
-                         "source off a local wheel or path.")
+    ap.add_argument(
+        "--from-pypi",
+        dest="from_pypi",
+        action="store_true",
+        help="pipx installs: reinstall from PyPI, moving the recorded source off a local wheel or path.",
+    )
     # Internal: set by the Windows hand-off (see hand_off_to_new_window).
     ap.add_argument("--wait-for-pid", dest="wait_for_pid", default="", help=argparse.SUPPRESS)
-    ap.add_argument("--pause-at-end", dest="pause_at_end", action="store_true",
-                    help=argparse.SUPPRESS)
+    ap.add_argument("--pause-at-end", dest="pause_at_end", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument("--log", dest="log", default="", help=argparse.SUPPRESS)
-    ap.add_argument("--stop-agents", dest="stop_agents", action="store_true",
-                    help="Windows: stop m3 in agent sessions that hold its launcher "
-                         "(they reconnect afterwards). Asked interactively otherwise.")
+    ap.add_argument(
+        "--stop-agents",
+        dest="stop_agents",
+        action="store_true",
+        help="Windows: stop m3 in agent sessions that hold its launcher "
+        "(they reconnect afterwards). Asked interactively otherwise.",
+    )
     ap.add_argument("--stop-pids", dest="stop_pids", default="", help=argparse.SUPPRESS)
     raw_argv = list(sys.argv[1:] if argv is None else argv)
     args = ap.parse_args(raw_argv)
@@ -741,8 +778,10 @@ def main(argv: list[str] | None = None) -> int:
 
     m3 = find_m3_launcher()
     if not m3:
-        print("m3 was not found on PATH or beside this interpreter "
-              f"({sys.executable}). Install it first, e.g. `pipx install m3-memory`.")
+        print(
+            "m3 was not found on PATH or beside this interpreter "
+            f"({sys.executable}). Install it first, e.g. `pipx install m3-memory`."
+        )
         return 1
 
     pkg = find_m3_package(m3)
@@ -760,15 +799,19 @@ def main(argv: list[str] | None = None) -> int:
             if source_is_missing_path(spec):
                 # pipx upgrade would fail after the services were already
                 # stopped; stop here instead, with the way back to PyPI.
-                print(f"\nThe source pipx installed m3 from no longer exists:\n"
-                      f"    {spec}\n"
-                      f"so `pipx upgrade` cannot run. Upgrade from PyPI instead:\n"
-                      f"    m3 upgrade --from-pypi\n"
-                      f"Your memories and settings under ~/.m3 are kept.")
+                print(
+                    f"\nThe source pipx installed m3 from no longer exists:\n"
+                    f"    {spec}\n"
+                    f"so `pipx upgrade` cannot run. Upgrade from PyPI instead:\n"
+                    f"    m3 upgrade --from-pypi\n"
+                    f"Your memories and settings under ~/.m3 are kept."
+                )
                 return 2
             # `pipx upgrade` rebuilds from the recorded spec, not from PyPI.
-            print("  [!] pipx will upgrade from this source, NOT the PyPI release.\n"
-                  "      To move to the PyPI release instead: m3 upgrade --from-pypi")
+            print(
+                "  [!] pipx will upgrade from this source, NOT the PyPI release.\n"
+                "      To move to the PyPI release instead: m3 upgrade --from-pypi"
+            )
 
     if method == PLUGIN:
         print(
@@ -843,11 +886,15 @@ def main(argv: list[str] | None = None) -> int:
                 explain_locked(locked, owner_python, user_flags)
                 return 2
             hand_off_pids = own
-            print("\nWindows will not let pip replace m3.exe while this command runs "
-                  "from it,\nso the upgrade continues in a new window once this one exits.")
+            print(
+                "\nWindows will not let pip replace m3.exe while this command runs "
+                "from it,\nso the upgrade continues in a new window once this one exits."
+            )
         if agent_pids:
-            print("\nThese agent sessions run m3 and must stop for the upgrade "
-                  "(they reconnect afterwards; Claude Code: /mcp):")
+            print(
+                "\nThese agent sessions run m3 and must stop for the upgrade "
+                "(they reconnect afterwards; Claude Code: /mcp):"
+            )
             print("\n".join(h for h in describe_holders(locked) if "own launcher" not in h))
 
     if not args.yes and not args.dry_run:
@@ -872,8 +919,7 @@ def main(argv: list[str] | None = None) -> int:
 
     dry = args.dry_run
     if hand_off_pids and not dry:
-        argv_out = raw_argv + (["--stop-pids", ",".join(str(p) for p in agent_pids)]
-                               if agent_pids else [])
+        argv_out = raw_argv + (["--stop-pids", ",".join(str(p) for p in agent_pids)] if agent_pids else [])
         log = hand_off_to_new_window(owner_python, argv_out, hand_off_pids)
         print("Opened the upgrade window. Nothing has changed yet in this one.")
         print(f"Its full output is also written to:\n    {log}")
@@ -889,9 +935,11 @@ def main(argv: list[str] | None = None) -> int:
     # stop does not remove, but the payload that owns the detector is about to
     # be deleted.
     loop_was_installed = cognitive_loop_installed(m3)
-    if args.dry_run:   # otherwise step 4 carries it (and notes when unknown)
-        print(f"\ncognitive loop currently installed: "
-              f"{'yes' if loop_was_installed else 'no' if loop_was_installed is False else 'unknown'}")
+    if args.dry_run:  # otherwise step 4 carries it (and notes when unknown)
+        print(
+            f"\ncognitive loop currently installed: "
+            f"{'yes' if loop_was_installed else 'no' if loop_was_installed is False else 'unknown'}"
+        )
 
     if not args.skip_stop:
         print(f"\n[1/5] stopping m3 DB writers: {_cmd_label([m3, 'stop'])}")
@@ -919,17 +967,23 @@ def main(argv: list[str] | None = None) -> int:
     if rc != 0:
         installed = m3_still_installed(owner_python)
         if installed is True:
-            print(f"\nUpgrade command failed (exit {rc}). Nothing further was run; "
-                  f"m3 {old_version or ''} is still installed.")
+            print(
+                f"\nUpgrade command failed (exit {rc}). Nothing further was run; "
+                f"m3 {old_version or ''} is still installed."
+            )
         elif installed is None:
-            print(f"\nUpgrade command failed (exit {rc}), and whether m3 is still "
-                  f"installed could not be checked. Run `m3 --version`; if it fails, "
-                  f'restore with:\n    "{owner_python}" -m pip install --force-reinstall '
-                  f"--no-deps m3-memory{'==' + old_version if old_version else ''}")
+            print(
+                f"\nUpgrade command failed (exit {rc}), and whether m3 is still "
+                f"installed could not be checked. Run `m3 --version`; if it fails, "
+                f'restore with:\n    "{owner_python}" -m pip install --force-reinstall '
+                f"--no-deps m3-memory{'==' + old_version if old_version else ''}"
+            )
         else:
-            print(f"\nUpgrade command failed (exit {rc}) after removing the old "
-                  "package: m3 is NOT installed now.\nRestore it once nothing "
-                  "runs from the m3 launchers:")
+            print(
+                f"\nUpgrade command failed (exit {rc}) after removing the old "
+                "package: m3 is NOT installed now.\nRestore it once nothing "
+                "runs from the m3 launchers:"
+            )
             pin = f"m3-memory=={old_version}" if old_version else "m3-memory"
             print(f'    "{owner_python}" -m pip install --force-reinstall --no-deps {pin}')
             print("then: m3 setup")
@@ -942,17 +996,16 @@ def main(argv: list[str] | None = None) -> int:
     # source already holds the installed version, and without this the run ends
     # in "Done." with the old version still installed.
     new_version = None if dry else installed_version(find_m3_package(m3) or pkg)
-    unchanged = (not dry and old_version is not None and new_version == old_version)
+    unchanged = not dry and old_version is not None and new_version == old_version
     local_source = bool(spec and not source_is_pypi(spec)) and not args.from_pypi
     latest = pypi_latest() if unchanged and not local_source else None
-    if (should_retry_uncached(unchanged=unchanged, local_source=local_source,
-                              latest=latest, installed=old_version)
-            and not locked_launchers(scripts_dir, launchers)):
+    if should_retry_uncached(
+        unchanged=unchanged, local_source=local_source, latest=latest, installed=old_version
+    ) and not locked_launchers(scripts_dir, launchers):
         # pip's (and uv's) cached index can lag a release published minutes ago:
         # the install "succeeds" on the old version while PyPI serves the new
         # one. Only then is a second install worth its time.
-        print(f"\n  PyPI has {latest} but the cached index offered nothing newer; "
-              "asking again without the cache")
+        print(f"\n  PyPI has {latest} but the cached index offered nothing newer; asking again without the cache")
         retry_rc, retry_out = run_captured_rc(up, timeout=900, env=no_cache_env())
         if retry_rc != 0 or args.log:
             print(retry_out.rstrip())
@@ -963,8 +1016,9 @@ def main(argv: list[str] | None = None) -> int:
         where = spec if local_source else "the package index"
         print(f"\n  [!] m3 is still {old_version}: {where} has no newer version.")
         if local_source:
-            print("      This install tracks that source, not PyPI. To move to the "
-                  "PyPI release: m3 upgrade --from-pypi")
+            print(
+                "      This install tracks that source, not PyPI. To move to the PyPI release: m3 upgrade --from-pypi"
+            )
 
     # A long-lived daemon that SURVIVED step 1 now runs the OLD code against a
     # NEW package, and step 4's verify only restarts services it finds STOPPED —
@@ -1010,18 +1064,30 @@ def main(argv: list[str] | None = None) -> int:
         setup_cmd.append("--no-cognitive-loop")
     print("\n[4/5] finalizing (agent configs, migrations, services): m3 setup")
     if loop_was_installed is None:
-        print("  note: could not determine whether the cognitive loop is "
-              "installed; leaving that choice untouched. If it was running, "
-              "`m3 doctor --fix` or `m3 schedules repair` will bring it back.")
+        print(
+            "  note: could not determine whether the cognitive loop is "
+            "installed; leaving that choice untouched. If it was running, "
+            "`m3 doctor --fix` or `m3 schedules repair` will bring it back."
+        )
     stopped_agents = 0 if dry else len(handed_stop) + len(agent_pids)
     plugin_changed: list[bool] = [False]
 
     def _summary(failed_step: str = "", rc: int = 0) -> None:
         if not dry:
-            print("\n".join(summary_lines(
-                old=old_version, new=new_version, unchanged=unchanged,
-                agents_stopped=stopped_agents, failed_step=failed_step, rc=rc,
-                log=args.log, plugin_updated=plugin_changed[0])))
+            print(
+                "\n".join(
+                    summary_lines(
+                        old=old_version,
+                        new=new_version,
+                        unchanged=unchanged,
+                        agents_stopped=stopped_agents,
+                        failed_step=failed_step,
+                        rc=rc,
+                        log=args.log,
+                        plugin_updated=plugin_changed[0],
+                    )
+                )
+            )
 
     # Tells setup that this run verifies and summarizes (see setup_wizard._called_by_upgrade).
     rc = run(setup_cmd, dry=dry, env=_as_upgrade())

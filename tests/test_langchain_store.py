@@ -40,7 +40,7 @@ def test_put_get_roundtrip_and_metadata():
     item = s.get(ns, "pref1")
     assert item is not None
     assert item.value["content"] == "Alice likes dark mode"
-    assert item.value["category"] == "ui"           # metadata_json round-trip
+    assert item.value["category"] == "ui"  # metadata_json round-trip
     assert item.namespace == ns
     assert item.key == "pref1"
 
@@ -49,7 +49,7 @@ def test_idempotent_put_supersedes_no_duplicate():
     s = M3Store()
     ns = ("alice", "user")
     s.put(ns, "pref1", {"content": "dark mode"})
-    s.put(ns, "pref1", {"content": "light mode"})    # same key -> supersede
+    s.put(ns, "pref1", {"content": "light mode"})  # same key -> supersede
     item = s.get(ns, "pref1")
     assert "light" in item.value["content"]
     # exactly one live row under this key
@@ -71,7 +71,7 @@ def test_delete_paths():
     s = M3Store()
     ns = ("alice", "user")
     s.put(ns, "k1", {"content": "to be deleted"})
-    s.put(ns, "k1", None)                              # delete via put(None)
+    s.put(ns, "k1", None)  # delete via put(None)
     assert s.get(ns, "k1") is None
     s.put(ns, "k2", {"content": "delete via method"})
     s.delete(ns, "k2")
@@ -124,10 +124,9 @@ async def test_abatch_coalesces_multiple_puts():
     from langgraph.store.base import PutOp
 
     s = M3Store()
-    ops = [PutOp(("carol", "user"), f"k{i}", {"content": f"carol {i}"})
-           for i in range(5)]
+    ops = [PutOp(("carol", "user"), f"k{i}", {"content": f"carol {i}"}) for i in range(5)]
     results = await s.abatch(ops)
-    assert results == [None] * 5           # PutOp returns None
+    assert results == [None] * 5  # PutOp returns None
     # all five landed
     got = await s.asearch(("carol", "user"), query="carol", limit=10)
     assert len(got) == 5
@@ -135,4 +134,5 @@ async def test_abatch_coalesces_multiple_puts():
 
 if __name__ == "__main__":
     import sys
+
     sys.exit(pytest.main([__file__, "-v"]))

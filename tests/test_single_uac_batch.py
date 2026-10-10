@@ -5,6 +5,7 @@ raised its own UAC dialog, and a dialog lost behind the terminal silently
 dropped its step. These tests never raise a real prompt: the elevated process
 is replaced by a stub that writes what the real one would.
 """
+
 from __future__ import annotations
 
 import json
@@ -31,6 +32,7 @@ def test_the_script_runs_each_action_once_and_quotes_safely():
 
 def _fake_elevated(monkeypatch, codes: dict, outputs: dict):
     """Stand in for `Start-Process -Verb RunAs`: write results + logs."""
+
     def fake_run(argv, **_kw):
         launcher = argv[-1]
         script = launcher.split("'-File',")[1].split(" -Verb")[0].strip().strip("'")
@@ -41,6 +43,7 @@ def _fake_elevated(monkeypatch, codes: dict, outputs: dict):
             with open(os.path.join(tmp, f"{i}.log"), "w", encoding="utf-16") as fh:
                 fh.write(text)
         return type("R", (), {"returncode": 0})()
+
     monkeypatch.setattr(elevate.subprocess, "run", fake_run)
     simulate_os(monkeypatch, "Windows")
 
@@ -50,16 +53,16 @@ def test_run_reports_each_step_with_its_output(monkeypatch):
     b.add("repair", ["py", "s.py", "--repair"])
     b.add("delete", ["schtasks", "/Delete", "/TN", "X", "/F"])
     _fake_elevated(monkeypatch, {"repair": 0, "delete": 1}, {1: "ERROR: not found\n"})
-    assert b.run() == {"repair": {"rc": 0, "output": ""},
-                       "delete": {"rc": 1, "output": "ERROR: not found"}}
+    assert b.run() == {"repair": {"rc": 0, "output": ""}, "delete": {"rc": 1, "output": "ERROR: not found"}}
 
 
 def test_a_declined_prompt_means_nothing_ran(monkeypatch):
     b = elevate.ElevationBatch()
     b.add("repair", ["py", "s.py", "--repair"])
     simulate_os(monkeypatch, "Windows")
-    monkeypatch.setattr(elevate.subprocess, "run",
-                        lambda *a, **k: type("R", (), {"returncode": 1})())  # no results file
+    monkeypatch.setattr(
+        elevate.subprocess, "run", lambda *a, **k: type("R", (), {"returncode": 1})()
+    )  # no results file
     assert b.run() is None
 
 
@@ -79,19 +82,19 @@ def test_setup_queues_privileged_steps_and_asks_once(batching, monkeypatch, caps
     # told apart from "yes"; any other question would still use _ask_yes_no.
     monkeypatch.setattr(setup_wizard, "_prompt", lambda q: asked.append(q) or "y")
     monkeypatch.setattr(setup_wizard, "_ask_yes_no", lambda q, default=True: asked.append(q) or True)
-    monkeypatch.setattr(setup_wizard, "_runas_schedule_repair_windows",
-                        lambda s: pytest.fail("must queue, not prompt now"))
+    monkeypatch.setattr(
+        setup_wizard, "_runas_schedule_repair_windows", lambda s: pytest.fail("must queue, not prompt now")
+    )
 
     assert setup_wizard._offer_elevated_schedule_repair("s.py", non_interactive=True) is None
     assert setup_wizard._offer_elevated_schedule_repair("s.py", non_interactive=True) is None
-    assert setup_wizard._offer_elevated_task_delete(["AgentOS_Maintenance"],
-                                                    non_interactive=True) is None
+    assert setup_wizard._offer_elevated_task_delete(["AgentOS_Maintenance"], non_interactive=True) is None
     assert asked == [], "queuing asks nothing"
 
     def fake_run(self):
         runs.append([label for label, _ in self.actions])
-        return {label: {"rc": 0 if "boot" in label else 1, "output": "denied"}
-                for label, _ in self.actions}
+        return {label: {"rc": 0 if "boot" in label else 1, "output": "denied"} for label, _ in self.actions}
+
     monkeypatch.setattr(elevate.ElevationBatch, "run", fake_run)
 
     setup_wizard._flush_elevation()
@@ -121,8 +124,10 @@ def test_without_a_human_nothing_is_queued(monkeypatch):
 
 def test_a_stale_windows_embed_service_restart_joins_the_one_prompt(batching, monkeypatch):
     from m3_memory import embedder_admin
-    monkeypatch.setattr(embedder_admin, "stale_embed_servers",
-                        lambda: [{"pid": 4242, "started": 1.0, "installed": 2.0}])
+
+    monkeypatch.setattr(
+        embedder_admin, "stale_embed_servers", lambda: [{"pid": 4242, "started": 1.0, "installed": 2.0}]
+    )
     setup_wizard._restart_stale_embed_server()
     labels = [label for label, _ in setup_wizard._ELEVATION.actions]
     argvs = [argv[-1] for _, argv in setup_wizard._ELEVATION.actions]
@@ -132,6 +137,7 @@ def test_a_stale_windows_embed_service_restart_joins_the_one_prompt(batching, mo
 def test_stale_detection_compares_process_start_with_core_install(monkeypatch, tmp_path):
     """Started before the core was installed = still the previous binary."""
     from m3_memory import embedder_admin
+
     pkg = tmp_path / "site" / "m3_core_rs"
     pkg.mkdir(parents=True)
     exe = pkg / "m3-embed-server.exe"
@@ -146,10 +152,12 @@ def test_stale_detection_compares_process_start_with_core_install(monkeypatch, t
         def __init__(self, pid, t):
             self.info = {"pid": pid, "name": "m3-embed-server.exe"}
             self._t = t
+
         def create_time(self):
             return self._t
 
     import psutil
+
     monkeypatch.setattr(psutil, "process_iter", lambda attrs=None: [_P(1, 500.0), _P(2, 2000.0)])
     assert [s["pid"] for s in embedder_admin.stale_embed_servers()] == [1]
 
@@ -201,8 +209,10 @@ def test_the_expiry_condition_holds_in_powershell(offset, expired):
     b.add("stop", ["x", "stop"])
     script = b.render_script("C:/t/r.json", "C:/t", expires_epoch=int(time.time()) + offset)
     line = next(ln for ln in script.splitlines() if "expired = 1" in ln)
-    cond = line[line.index("(") + 1: line.index(") {")]
-    out = subprocess.run(["powershell", "-NoProfile", "-Command",
-                          f"if ({cond}) {{ 'EXPIRED' }} else {{ 'valid' }}"],
-                         capture_output=True, text=True).stdout.strip()
+    cond = line[line.index("(") + 1 : line.index(") {")]
+    out = subprocess.run(
+        ["powershell", "-NoProfile", "-Command", f"if ({cond}) {{ 'EXPIRED' }} else {{ 'valid' }}"],
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
     assert out == ("EXPIRED" if expired else "valid"), (offset, out)

@@ -39,6 +39,7 @@ _BREAKER_COOLDOWN_SECS = 120
 # Config
 # ---------------------------------------------------------------------------
 
+
 def _load_config() -> dict:
     """Env vars with $HERMES_HOME/m3.json overrides (mem0 pattern)."""
     from hermes_constants import get_hermes_home
@@ -52,8 +53,7 @@ def _load_config() -> dict:
     if config_path.exists():
         try:
             file_cfg = json.loads(config_path.read_text(encoding="utf-8"))
-            config.update({k: v for k, v in file_cfg.items()
-                           if v is not None and v != ""})
+            config.update({k: v for k, v in file_cfg.items() if v is not None and v != ""})
         except Exception:
             pass
 
@@ -109,6 +109,7 @@ CONCLUDE_SCHEMA = {
 # MemoryProvider implementation
 # ---------------------------------------------------------------------------
 
+
 class M3MemoryProvider(MemoryProvider):
     """m3-memory: async extraction (Observer/Reflector), hybrid recall, KG
     supersession, exposed through the MemoryProvider ABC."""
@@ -139,6 +140,7 @@ class M3MemoryProvider(MemoryProvider):
         # stall on Py3.14/Windows). find_spec only resolves the module location
         # — no execution, no side effects, instant.
         import importlib.util
+
         try:
             return importlib.util.find_spec("mcp_tool_catalog") is not None
         except (ImportError, ValueError):
@@ -147,6 +149,7 @@ class M3MemoryProvider(MemoryProvider):
     def save_config(self, values, hermes_home):
         import json as _json
         from pathlib import Path
+
         config_path = Path(hermes_home) / "m3.json"
         existing = {}
         if config_path.exists():
@@ -157,6 +160,7 @@ class M3MemoryProvider(MemoryProvider):
         existing.update(values)
         try:
             from utils import atomic_json_write
+
             atomic_json_write(config_path, existing, mode=0o600)
         except Exception:
             config_path.write_text(_json.dumps(existing, indent=2))
@@ -200,9 +204,9 @@ class M3MemoryProvider(MemoryProvider):
         if self._consecutive_failures >= _BREAKER_THRESHOLD:
             self._breaker_open_until = time.monotonic() + _BREAKER_COOLDOWN_SECS
             logger.warning(
-                "m3 circuit breaker tripped after %d consecutive failures. "
-                "Pausing calls for %ds.",
-                self._consecutive_failures, _BREAKER_COOLDOWN_SECS,
+                "m3 circuit breaker tripped after %d consecutive failures. Pausing calls for %ds.",
+                self._consecutive_failures,
+                _BREAKER_COOLDOWN_SECS,
             )
 
     def initialize(self, session_id: str, **kwargs) -> None:
@@ -245,11 +249,10 @@ class M3MemoryProvider(MemoryProvider):
             except Exception as e:
                 self._record_failure()
                 from m3_core.errors import log_swallowed
+
                 log_swallowed(logger, e, "m3 prefetch failed: %s", e)
 
-        self._prefetch_thread = threading.Thread(
-            target=_run, daemon=True, name="m3-prefetch"
-        )
+        self._prefetch_thread = threading.Thread(target=_run, daemon=True, name="m3-prefetch")
         self._prefetch_thread.start()
 
     def sync_turn(
@@ -290,10 +293,9 @@ class M3MemoryProvider(MemoryProvider):
 
     def handle_tool_call(self, tool_name: str, args: dict, **kwargs) -> str:
         if self._is_breaker_open():
-            return json.dumps({
-                "error": "m3 temporarily unavailable (multiple consecutive "
-                         "failures). Will retry automatically."
-            })
+            return json.dumps(
+                {"error": "m3 temporarily unavailable (multiple consecutive failures). Will retry automatically."}
+            )
 
         try:
             client = self._get_client()
@@ -322,8 +324,7 @@ class M3MemoryProvider(MemoryProvider):
                 self._record_success()
                 if not results:
                     return json.dumps({"result": "No relevant memories found."})
-                items = [{"memory": r.get("content", ""), "score": r.get("score", 0)}
-                         for r in results]
+                items = [{"memory": r.get("content", ""), "score": r.get("score", 0)} for r in results]
                 return json.dumps({"results": items, "count": len(items)})
             except Exception as e:
                 self._record_failure()

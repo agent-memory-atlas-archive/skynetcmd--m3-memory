@@ -3,6 +3,7 @@ is written as `match` (3.10+), unless listed here with a reason.
 
 ruff has no rule for this, so this static scan is the gate.
 """
+
 from __future__ import annotations
 
 import ast
@@ -13,10 +14,14 @@ _MIN_ARMS = 4
 
 # (file, function) -> why the ladder stays.
 _KEEP = {
-    ("bin/dashboard_server.py", "make_html_diff"):
-        "arm bodies hold multi-line string literals; re-indenting them changes the HTML",
-    ("bin/dashboard_server.py", "render_audit_card"):
-        "arm bodies hold multi-line string literals; re-indenting them changes the HTML",
+    (
+        "bin/dashboard_server.py",
+        "make_html_diff",
+    ): "arm bodies hold multi-line string literals; re-indenting them changes the HTML",
+    (
+        "bin/dashboard_server.py",
+        "render_audit_card",
+    ): "arm bodies hold multi-line string literals; re-indenting them changes the HTML",
 }
 
 
@@ -27,8 +32,11 @@ def _literal_arm(test: ast.expr) -> str | None:
     op, right = test.ops[0], test.comparators[0]
     if isinstance(op, ast.Eq) and isinstance(right, ast.Constant):
         return ast.unparse(test.left)
-    if (isinstance(op, ast.In) and isinstance(right, (ast.Tuple, ast.List, ast.Set))
-            and all(isinstance(e, ast.Constant) for e in right.elts)):
+    if (
+        isinstance(op, ast.In)
+        and isinstance(right, (ast.Tuple, ast.List, ast.Set))
+        and all(isinstance(e, ast.Constant) for e in right.elts)
+    ):
         return ast.unparse(test.left)
     return None
 
@@ -66,8 +74,7 @@ def _ladders(roots=("bin", "m3_memory"), base: Path = _ROOT) -> set[tuple[str, s
                         inner.add(id(cur))
                     else:
                         break
-                if (len(subjects) >= _MIN_ARMS and None not in subjects
-                        and len(set(subjects)) == 1):
+                if len(subjects) >= _MIN_ARMS and None not in subjects and len(set(subjects)) == 1:
                     found.add((p.relative_to(base).as_posix(), owner[id(n)]))
     return found
 
@@ -76,8 +83,8 @@ def test_literal_ladders_are_match_statements():
     extra = _ladders() - set(_KEEP)
     assert not extra, (
         "if/elif ladder over one subject and literals; write it as `match` "
-        "(or list it in _KEEP with the reason):\n  "
-        + "\n  ".join(f"{f}: {fn}()" for f, fn in sorted(extra)))
+        "(or list it in _KEEP with the reason):\n  " + "\n  ".join(f"{f}: {fn}()" for f, fn in sorted(extra))
+    )
 
 
 def test_the_keep_list_is_not_stale():

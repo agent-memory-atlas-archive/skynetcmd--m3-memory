@@ -6,6 +6,7 @@ broken piece (non-zero exit) and, with fix=True, repairs it. These tests pin the
 verdict matrix and the keep-alive preference by mocking the three detectors, so
 no real server/GPU/scheduler is touched (CI-safe).
 """
+
 import json
 import sys
 from pathlib import Path
@@ -46,9 +47,7 @@ def cfg_root(monkeypatch, tmp_path):
 
 
 def _write_shared_config(root, url="http://127.0.0.1:8082"):
-    (root / ".embed_config.json").write_text(
-        json.dumps({"disable_inproc_embedder": True, "fallback_url": url})
-    )
+    (root / ".embed_config.json").write_text(json.dumps({"disable_inproc_embedder": True, "fallback_url": url}))
 
 
 def _patch(monkeypatch, *, health="ok", rust=False, task=None, rust_state=None):
@@ -188,11 +187,7 @@ def no_env_leak(monkeypatch, tmp_path):
 
 def test_shell_rc_leak_localizes_to_file_line(monkeypatch, tmp_path):
     rc = tmp_path / ".zshrc"
-    rc.write_text(
-        "# a comment\n"
-        'export PATH="$PATH:/x"\n'
-        'export M3_EMBED_GGUF="/models/bge-m3.gguf"\n'
-    )
+    rc.write_text('# a comment\nexport PATH="$PATH:/x"\nexport M3_EMBED_GGUF="/models/bge-m3.gguf"\n')
     monkeypatch.setattr(P, "_shell_rc_candidates", lambda: [str(rc)])
     hits = P._find_env_in_shell_rc("M3_EMBED_GGUF")
     assert hits == [f"{rc}:3"]  # exact file:line, not just "shell rc"
@@ -269,6 +264,7 @@ def test_no_leak_verbose_stays_clean(monkeypatch, cfg_root, capsys, no_env_leak)
 # Regression guard for the 2026-09-13 outage: `_rust_service_present()` returned
 # True from the binary being on disk, so doctor printed "keepalive: OK" for ten
 # weeks while :8082 was dead and `--fix` skipped the repair entirely.
+
 
 def test_registered_but_stopped_service_is_not_a_keepalive(monkeypatch, cfg_root, capsys, no_env_leak):
     _write_shared_config(cfg_root)

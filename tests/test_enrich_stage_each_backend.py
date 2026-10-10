@@ -5,6 +5,7 @@ short-circuits on PostgreSQL. It does not: enrich/prep.py skips only the SQLite
 DDL, because PostgreSQL gets both queues (with `stage`, pg_044) from
 migrations. SQL now comes from the dialect of the connection handed in.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -28,8 +29,9 @@ def queued(each_backend, request):
     convs = [f"conv-{stage}-{i}" for i in range(2)]
     with each_backend.connection() as conn:
         for c in convs:
-            conn.execute(f"INSERT INTO {table} (conversation_id, user_id, stage) VALUES ({p}, {p}, {p})",
-                         (c, "u-stage", stage))
+            conn.execute(
+                f"INSERT INTO {table} (conversation_id, user_id, stage) VALUES ({p}, {p}, {p})", (c, "u-stage", stage)
+            )
         conn.commit()
     try:
         yield table, stage, convs

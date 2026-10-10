@@ -6,6 +6,7 @@ password. This is a system security setting, so m3 only ever ADDS that line,
 only when asked, and checks the file afterwards. A fingerprint cannot reach an
 SSH session, so the offer is made only to someone at the Mac.
 """
+
 from __future__ import annotations
 
 import os
@@ -24,15 +25,17 @@ def _is_mac() -> bool:
 
 
 def _active_tid_line(text: str) -> bool:
-    return any(ln.split()[:3] == ["auth", "sufficient", "pam_tid.so"]
-               for ln in text.splitlines() if ln.strip() and not ln.lstrip().startswith("#"))
+    return any(
+        ln.split()[:3] == ["auth", "sufficient", "pam_tid.so"]
+        for ln in text.splitlines()
+        if ln.strip() and not ln.lstrip().startswith("#")
+    )
 
 
 def _sensor_present() -> bool | None:
     """True/False from `bioutil -r -s`; None when it cannot be asked."""
     try:
-        out = subprocess.run(["bioutil", "-r", "-s"], capture_output=True, text=True,
-                             timeout=10).stdout or ""
+        out = subprocess.run(["bioutil", "-r", "-s"], capture_output=True, text=True, timeout=10).stdout or ""
     except (OSError, subprocess.SubprocessError):
         return None
     for ln in out.splitlines():
@@ -66,8 +69,9 @@ def enable() -> tuple[bool, str]:
     """Append the pam_tid line to sudo_local via sudo (asks for the password
     once). Returns (enabled, detail); success is read back from the file."""
     try:
-        r = subprocess.run(["sudo", "tee", "-a", SUDO_LOCAL], input=LINE + "\n",
-                           capture_output=True, text=True, timeout=120)
+        r = subprocess.run(
+            ["sudo", "tee", "-a", SUDO_LOCAL], input=LINE + "\n", capture_output=True, text=True, timeout=120
+        )
     except (OSError, subprocess.SubprocessError) as e:
         return False, f"sudo could not run ({e})"
     if r.returncode != 0:

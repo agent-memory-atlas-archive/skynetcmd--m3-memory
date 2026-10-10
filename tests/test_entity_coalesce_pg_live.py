@@ -10,6 +10,7 @@ actually work on Postgres, not just SQLite.
 
 DSN from M3_PRIMARY_PG_URL/M3_PG_URL (never PG_URL).
 """
+
 from __future__ import annotations
 
 import sys
@@ -71,8 +72,7 @@ def _seed_entities(b, rows):
     with b.connection() as c:
         cur = c.cursor()
         cur.executemany(
-            "INSERT INTO entities(id, canonical_name, entity_type, attributes_json) "
-            "VALUES (%s,%s,%s,%s)",
+            "INSERT INTO entities(id, canonical_name, entity_type, attributes_json) VALUES (%s,%s,%s,%s)",
             rows,
         )
 
@@ -96,18 +96,24 @@ def test_detect_apply_unapply_on_pg(pg):
     prov = '{"provisional": true, "first_seen_in": "files.db"}'
     a, bid, noise = (f"e-{uuid.uuid4().hex[:10]}" for _ in range(3))
     ids = [a, bid, noise]
-    _seed_entities(pg, [
-        (a, "small models", "unknown", prov),
-        (bid, "small model", "unknown", prov),
-        (noise, "$0.25", "unknown", prov),   # quarantined, not a candidate
-    ])
+    _seed_entities(
+        pg,
+        [
+            (a, "small models", "unknown", prov),
+            (bid, "small model", "unknown", prov),
+            (noise, "$0.25", "unknown", prov),  # quarantined, not a candidate
+        ],
+    )
     try:
         # DETECT (seam route: no db_path). Writes quarantine flag + candidate row.
         r = ec.coalesce_detect(dry_run=False, max_pairs=50)
         assert "error" not in r, r.get("error")
         assert r["prune"]["quarantined"] >= 1
-        cands = [c for c in ec.list_coalesce_candidates(limit=99)
-                 if c["entity_a"]["id"] in ids and c["entity_b"]["id"] in ids]
+        cands = [
+            c
+            for c in ec.list_coalesce_candidates(limit=99)
+            if c["entity_a"]["id"] in ids and c["entity_b"]["id"] in ids
+        ]
         assert cands, "expected the small model(s) pair as a candidate"
         assert cands[0]["band"] == "merge"
 
@@ -119,12 +125,18 @@ def test_detect_apply_unapply_on_pg(pg):
 
         with pg.connection() as c:
             cur = c.cursor()
-            cur.execute("SELECT count(*) FROM entity_relationships WHERE predicate='same_as' "
-                        "AND (from_entity IN %s OR to_entity IN %s)", (tuple(ids), tuple(ids)))
+            cur.execute(
+                "SELECT count(*) FROM entity_relationships WHERE predicate='same_as' "
+                "AND (from_entity IN %s OR to_entity IN %s)",
+                (tuple(ids), tuple(ids)),
+            )
             assert cur.fetchone()[0] >= 1
             # the representative got an alias written via the Python read-modify-write
-            cur.execute("SELECT attributes_json FROM entities WHERE cluster_id=%s AND "
-                        "attributes_json ->> 'aliases' IS NOT NULL", (cid,))
+            cur.execute(
+                "SELECT attributes_json FROM entities WHERE cluster_id=%s AND "
+                "attributes_json ->> 'aliases' IS NOT NULL",
+                (cid,),
+            )
             assert cur.fetchone() is not None, "apply should have written an alias (JSONB)"
 
         # UNAPPLY: drops edge, clears cluster, strips alias, tombstones.
@@ -132,8 +144,10 @@ def test_detect_apply_unapply_on_pg(pg):
         assert rev["reverted_members"] >= 1
         with pg.connection() as c:
             cur = c.cursor()
-            cur.execute("SELECT count(*) FROM entity_relationships WHERE predicate='same_as' "
-                        "AND from_entity IN %s", (tuple(ids),))
+            cur.execute(
+                "SELECT count(*) FROM entity_relationships WHERE predicate='same_as' AND from_entity IN %s",
+                (tuple(ids),),
+            )
             assert cur.fetchone()[0] == 0
             cur.execute("SELECT count(*) FROM entities WHERE cluster_id=%s", (cid,))
             assert cur.fetchone()[0] == 0
@@ -149,22 +163,26 @@ def test_review_records_decision_on_pg(pg):
     prov = '{"provisional": true}'
     a, bid = (f"e-{uuid.uuid4().hex[:10]}" for _ in range(2))
     ids = [a, bid]
-    _seed_entities(pg, [
-        (a, "memory item", "unknown", prov),
-        (bid, "memory items", "unknown", prov),
-    ])
+    _seed_entities(
+        pg,
+        [
+            (a, "memory item", "unknown", prov),
+            (bid, "memory items", "unknown", prov),
+        ],
+    )
     try:
         ec.coalesce_detect(dry_run=False, max_pairs=50)
-        cands = [c for c in ec.list_coalesce_candidates(reviewed=False, limit=99)
-                 if c["entity_a"]["id"] in ids and c["entity_b"]["id"] in ids]
+        cands = [
+            c
+            for c in ec.list_coalesce_candidates(reviewed=False, limit=99)
+            if c["entity_a"]["id"] in ids and c["entity_b"]["id"] in ids
+        ]
         assert cands
-        res = ec.review_coalesce_candidates(
-            [{"uuid": cands[0]["uuid"], "action": "merge"}], note="pg-live")
+        res = ec.review_coalesce_candidates([{"uuid": cands[0]["uuid"], "action": "merge"}], note="pg-live")
         assert res["updated"] == 1
         with pg.connection() as c:
             cur = c.cursor()
-            cur.execute("SELECT metadata ->> 'note' FROM entity_coalesce_candidates WHERE uuid=%s",
-                        (cands[0]["uuid"],))
+            cur.execute("SELECT metadata ->> 'note' FROM entity_coalesce_candidates WHERE uuid=%s", (cands[0]["uuid"],))
             assert cur.fetchone()[0] == "pg-live"
     finally:
         _cleanup(pg, ids)

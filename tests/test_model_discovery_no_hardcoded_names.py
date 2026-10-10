@@ -16,6 +16,7 @@ Precedence these tests pin, everywhere:
 A hardcoded literal must never be the tail. `None` means "caller decides and
 says so"; it must not be turned back into a name.
 """
+
 from __future__ import annotations
 
 import sys
@@ -87,9 +88,7 @@ def _strip_comments_and_docstrings(src: str) -> str:
 
     tree = ast.parse(src)
     for node in ast.walk(tree):
-        if not isinstance(
-            node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
-        ):
+        if not isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
         body = getattr(node, "body", None)
         if (
@@ -110,7 +109,6 @@ def _contains_literal(code: str, needle: str) -> bool:
     '"/v1/chat/completions"' against it always fails. Normalise both sides.
     """
     return needle.replace('"', "'") in code.replace('"', "'")
-
 
 
 class TestDiscoverModelSync:
@@ -172,8 +170,7 @@ class TestDiscoverModelSync:
         L.discover_model_sync("http://x/v1")
         assert cap["headers"] == {}
 
-    def test_no_token_resolved_means_no_header_even_from_a_configured_host(
-            self, monkeypatch):
+    def test_no_token_resolved_means_no_header_even_from_a_configured_host(self, monkeypatch):
         """The resolver is the seam, so pin BOTH sides of it: a resolver that
         yields nothing must produce no header, and one that yields a token must
         produce exactly that header. Without this the suite could only ever
@@ -250,8 +247,7 @@ class TestCallersDoNotHardcodeNames:
         src = (Path(_BIN) / module).read_text(encoding="utf-8")
         code = _strip_comments_and_docstrings(src)
         assert not _contains_literal(code, literal), (
-            f"{module} still names {literal!r} outside a comment — "
-            "model names belong in an override, never a fallback"
+            f"{module} still names {literal!r} outside a comment — model names belong in an override, never a fallback"
         )
 
 
@@ -326,7 +322,8 @@ class TestAuthHeaderOmittedWhenTokenless:
             t.join(timeout=2)
 
     @pytest.mark.parametrize(
-        "fn", ["get_best_llm", "get_smallest_llm", "get_best_embed"],
+        "fn",
+        ["get_best_llm", "get_smallest_llm", "get_best_embed"],
     )
     def test_async_discovery_uses_the_helper(self, fn):
         """All three async paths must route through _auth_headers.
@@ -533,18 +530,13 @@ class TestChatCompletionsUrl:
         TRAILING /v1 is the version segment we own."""
         from files_memory.config import chat_completions_url
 
-        assert (
-            chat_completions_url("http://h/openai/v1")
-            == "http://h/openai/v1/chat/completions"
-        )
+        assert chat_completions_url("http://h/openai/v1") == "http://h/openai/v1/chat/completions"
         # ...and a path segment that merely CONTAINS v1 is not stripped.
-        assert (
-            chat_completions_url("http://h/v1beta")
-            == "http://h/v1beta/v1/chat/completions"
-        )
+        assert chat_completions_url("http://h/v1beta") == "http://h/v1beta/v1/chat/completions"
 
     @pytest.mark.parametrize(
-        "module", ["summarize", "extract", "carry_forward"],
+        "module",
+        ["summarize", "extract", "carry_forward"],
     )
     def test_no_caller_hand_builds_the_url(self, module):
         """All three LLM callers must route through the one builder.
@@ -555,6 +547,5 @@ class TestChatCompletionsUrl:
         src = (Path(_BIN) / "files_memory" / f"{module}.py").read_text(encoding="utf-8")
         code = _strip_comments_and_docstrings(src)
         assert not _contains_literal(code, '"/v1/chat/completions"'), (
-            f"{module}.py still hand-builds the chat URL; use "
-            "config.chat_completions_url so both base forms work"
+            f"{module}.py still hand-builds the chat URL; use config.chat_completions_url so both base forms work"
         )

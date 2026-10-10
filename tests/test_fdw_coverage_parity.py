@@ -12,6 +12,7 @@ table is added to one path and not the other.
 
 Hermetic: inspects the specs and the generated SQL. No cluster needed.
 """
+
 from __future__ import annotations
 
 import pathlib
@@ -48,8 +49,7 @@ def _sql_for(table_name):
             continue
         guard = spec[4] if len(spec) > 4 else None
         cur = _RecordingCursor()
-        F._upsert(cur, f"wh.{table}", f"public.{table}", cols, pk, ts_col,
-                  "2026-01-01", guard)
+        F._upsert(cur, f"wh.{table}", f"public.{table}", cols, pk, ts_col, "2026-01-01", guard)
         return cur.sql
     raise AssertionError(f"{table_name} not in _TABLE_SPECS")
 

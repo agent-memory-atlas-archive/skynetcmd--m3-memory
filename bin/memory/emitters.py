@@ -94,7 +94,9 @@ async def _maybe_emit_event_rows(
                 try:
                     memory_link_impl(m.group(1), parent_id, "references")
                 except Exception as le:  # noqa: BLE001 — logged; the caller carries on
-                    logger.warning(f"event link failed; observed: {m.group(1)} -> {parent_id} not linked ({type(le).__name__}: {le}). inspect: memory_link on those ids")
+                    logger.warning(
+                        f"event link failed; observed: {m.group(1)} -> {parent_id} not linked ({type(le).__name__}: {le}). inspect: memory_link on those ids"
+                    )
         except Exception as e:
             log_swallowed(logger, e, f"event_extraction emit failed: {e}")
 
@@ -108,6 +110,7 @@ async def _maybe_emit_window_chunk(conversation_id: str, user_id: str) -> None:
     if not conversation_id:
         return
     from memory.backends import dialect
+
     try:
         with _db() as db:
             rows = db.execute(
@@ -135,12 +138,14 @@ async def _maybe_emit_window_chunk(conversation_id: str, user_id: str) -> None:
             type="summary",
             content=joined,
             title=f"window:{conversation_id}:{n}",
-            metadata=json.dumps({
-                "kind": "window_chunk",
-                "window_end_turn": n,
-                "window_size": INGEST_WINDOW_SIZE,
-                "source_message_ids": [r["id"] for r in window_rows],
-            }),
+            metadata=json.dumps(
+                {
+                    "kind": "window_chunk",
+                    "window_end_turn": n,
+                    "window_size": INGEST_WINDOW_SIZE,
+                    "source_message_ids": [r["id"] for r in window_rows],
+                }
+            ),
             user_id=user_id,
             source="window_chunk",
             conversation_id=conversation_id,
@@ -159,6 +164,7 @@ async def _maybe_emit_gist_row(conversation_id: str, user_id: str) -> None:
     if not conversation_id:
         return
     from memory.backends import dialect
+
     try:
         with _db() as db:
             rows = db.execute(
@@ -205,11 +211,13 @@ async def _maybe_emit_gist_row(conversation_id: str, user_id: str) -> None:
             type="summary",
             content=gist,
             title=f"gist:{conversation_id}:{n}",
-            metadata=json.dumps({
-                "kind": "conversation_gist",
-                "turn_count": n,
-                "entities": entities[:16],
-            }),
+            metadata=json.dumps(
+                {
+                    "kind": "conversation_gist",
+                    "turn_count": n,
+                    "entities": entities[:16],
+                }
+            ),
             user_id=user_id,
             source="conversation_gist",
             conversation_id=conversation_id,

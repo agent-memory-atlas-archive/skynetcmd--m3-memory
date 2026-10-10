@@ -109,9 +109,7 @@ def compile_patterns(config: dict) -> None:
 
     # Compute config hash to detect changes
     config_tuple = (enabled, tuple(patterns), tuple(custom_regex), redact_pii)
-    config_hash = hashlib.blake2b(
-        str(config_tuple).encode(), digest_size=16
-    ).hexdigest()
+    config_hash = hashlib.blake2b(str(config_tuple).encode(), digest_size=16).hexdigest()
 
     with _COMPILE_LOCK:
         if _LAST_CONFIG_HASH == config_hash:
@@ -151,9 +149,7 @@ def compile_patterns(config: dict) -> None:
             "bearer_tokens": [
                 (
                     "auth_header",
-                    re.compile(
-                        r"(?i)Authorization:\s*Bearer\s+[A-Za-z0-9._~+/=-]{20,}"
-                    ),
+                    re.compile(r"(?i)Authorization:\s*Bearer\s+[A-Za-z0-9._~+/=-]{20,}"),
                 ),
                 (
                     "bearer_generic",
@@ -163,9 +159,7 @@ def compile_patterns(config: dict) -> None:
             "jwt": [
                 (
                     "jwt",
-                    re.compile(
-                        r"eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"
-                    ),
+                    re.compile(r"eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"),
                 ),
             ],
             "aws_keys": [
@@ -179,9 +173,7 @@ def compile_patterns(config: dict) -> None:
                 ),
                 (
                     "secret_access_key",
-                    re.compile(
-                        r"(?i)aws[_-]?secret[_-]?access[_-]?key[\"'\s:=]+[A-Za-z0-9/+=]{40}"
-                    ),
+                    re.compile(r"(?i)aws[_-]?secret[_-]?access[_-]?key[\"'\s:=]+[A-Za-z0-9/+=]{40}"),
                 ),
                 # The other two halves of a pre-signed URL. Without these, scrubbing
                 # the key ID alone still leaves a working signed request in the log.
@@ -194,9 +186,7 @@ def compile_patterns(config: dict) -> None:
                 ),
                 (
                     "presigned_signature",
-                    re.compile(
-                        r"(?i)(?:X-Amz-)?Signature[\"'\s:=]*[A-Za-z0-9/+=%]{16,}"
-                    ),
+                    re.compile(r"(?i)(?:X-Amz-)?Signature[\"'\s:=]*[A-Za-z0-9/+=%]{16,}"),
                 ),
             ],
             "github_tokens": [
@@ -209,15 +199,11 @@ def compile_patterns(config: dict) -> None:
             "pii": [
                 (
                     "email",
-                    re.compile(
-                        r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
-                    ),
+                    re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"),
                 ),
                 (
                     "us_phone",
-                    re.compile(
-                        r"\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b"
-                    ),
+                    re.compile(r"\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b"),
                 ),
                 (
                     "ssn",
@@ -244,9 +230,7 @@ def compile_patterns(config: dict) -> None:
                 try:
                     custom_compiled.append((pattern_str, re.compile(pattern_str)))
                 except re.error as e:
-                    _COMPILE_ERRORS.append(
-                        f"custom_regex compilation error: {pattern_str}: {e}"
-                    )
+                    _COMPILE_ERRORS.append(f"custom_regex compilation error: {pattern_str}: {e}")
             if custom_compiled:
                 _COMPILED["custom_regex"] = custom_compiled
 
@@ -319,13 +303,12 @@ def _scrub_python(content: str, config: dict) -> tuple[str, int, list[str]]:
             def replacement_fn(m):
                 counter[0] += 1
                 return f"[REDACTED:{group}]"
+
             return replacement_fn
 
         # Apply each pattern in the group
         for pattern_name, pattern in group_patterns:
-            scrubbed = pattern.sub(
-                make_replacement(group_name, match_count_for_group), scrubbed
-            )
+            scrubbed = pattern.sub(make_replacement(group_name, match_count_for_group), scrubbed)
 
         if match_count_for_group[0] > 0:
             total_matches += match_count_for_group[0]
@@ -400,9 +383,7 @@ if __name__ == "__main__":
     )
     assert n == 1 and "task-notification" not in s and s.strip() == "kept", repr(s)
     # Multiple blocks + both tag types in one turn.
-    s, n = strip_harness_framing(
-        "a<system-reminder>x</system-reminder>b<task-notification>y</task-notification>c"
-    )
+    s, n = strip_harness_framing("a<system-reminder>x</system-reminder>b<task-notification>y</task-notification>c")
     assert n == 2 and "abc" == s, repr(s)
     # Idempotent: re-stripping already-clean content removes nothing.
     assert strip_harness_framing(s) == (s, 0)

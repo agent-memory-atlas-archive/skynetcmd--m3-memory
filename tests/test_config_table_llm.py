@@ -1,4 +1,5 @@
 """Registry tables [llm], [cloud], [extraction], [promote] (plan 2C.1)."""
+
 from __future__ import annotations
 
 _PINNED = {
@@ -24,8 +25,9 @@ def test_the_proxy_reads_the_same_defaults_as_runtime():
     """mcp_proxy.py:141,149 read the same two names; one key covers both."""
     from config_defaults_helper import mismatches
 
-    assert not mismatches({"llm.lmstudio_base": ("mcp_proxy", "LMSTUDIO_BASE"),
-                           "llm.read_timeout_s": ("mcp_proxy", "READ_TIMEOUT")})
+    assert not mismatches(
+        {"llm.lmstudio_base": ("mcp_proxy", "LMSTUDIO_BASE"), "llm.read_timeout_s": ("mcp_proxy", "READ_TIMEOUT")}
+    )
 
 
 def test_the_keyring_reference_is_config_and_the_token_is_a_secret():

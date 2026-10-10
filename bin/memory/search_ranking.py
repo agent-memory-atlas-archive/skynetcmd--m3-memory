@@ -10,6 +10,7 @@ CONTRACT: this module must NOT import `memory.search` (that would create a
 cycle, since search.py re-imports these names at its top to keep the
 memory_core lazy-registry shim resolving to the same function objects).
 """
+
 from __future__ import annotations
 
 import logging
@@ -27,8 +28,18 @@ logger = logging.getLogger("memory.search_ranking")
 # Hoisted out of _apply_temporal_boost so it isn't re-compiled per search call.
 # These match ISO `YYYY-MM-DD` and `D Month YYYY` shapes inside the query.
 _DATE_MONTHS = (
-    "january", "february", "march", "april", "may", "june",
-    "july", "august", "september", "october", "november", "december",
+    "january",
+    "february",
+    "march",
+    "april",
+    "may",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
 )
 
 
@@ -223,9 +234,7 @@ def _hybrid_score_batch(
         clen = float(content_lens[i])
         len_penalty: float = max(0.3, clen / stt) if clen < stt else 1.0
         out.append(
-            raw * len_penalty
-            + title_match_boost * title_overlaps[i]
-            + importance_weight * float(importances[i])
+            raw * len_penalty + title_match_boost * title_overlaps[i] + importance_weight * float(importances[i])
         )
     return out
 
@@ -253,7 +262,8 @@ def _recency_bonus_ranks(valid_froms, bias: float) -> list[float]:
     if config.m3_core_rs is not None:
         try:
             return config.m3_core_rs.recency_bonus_ranks(
-                [(v or None) for v in valid_froms], float(bias),
+                [(v or None) for v in valid_froms],
+                float(bias),
             )
         except Exception as e:  # noqa: BLE001
             log_swallowed(logger, e, f"recency_bonus_ranks Rust path failed, falling back: {e}")

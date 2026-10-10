@@ -46,6 +46,7 @@ Hardening:
 This script is read-mostly + small bulk writes; safe to run alongside
 an active enricher in WAL mode (SQLite handles concurrent reads fine).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -69,7 +70,7 @@ DEFAULT_TIMEOUT_S = 60.0
 DEFAULT_MAX_RUNTIME_MIN = 60
 DEFAULT_MAX_CONSEC_FAILS = 5
 DEFAULT_MAX_ROW_BYTES = 32_768  # bge-m3 ctx is 8192 tokens ≈ 32KB
-DEFAULT_EXPECTED_DIM = 1024     # bge-m3 / qwen3-embed default
+DEFAULT_EXPECTED_DIM = 1024  # bge-m3 / qwen3-embed default
 DEFAULT_CONN_REFRESH_BATCHES = 1000
 
 
@@ -101,8 +102,7 @@ class _StandaloneSqliteDialect:
     def now_minus_days(self, days_placeholder: str) -> str:
         # strftime, not datetime(): the columns store "...T..Z" and a bare
         # datetime() bound matches every same-day row. Matches the seam.
-        return (f"strftime('%Y-%m-%dT%H:%M:%SZ', 'now', "
-                f"'-' || {days_placeholder} || ' days')")
+        return f"strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-' || {days_placeholder} || ' days')"
 
     def insert_or_ignore(self) -> str:
         return "INSERT OR IGNORE INTO"
@@ -121,6 +121,7 @@ def _sql():
     """The active backend's dialect; the SQLite subset when standalone."""
     try:
         from memory.backends import dialect
+
         return dialect()
     except Exception:  # pragma: no cover - standalone fallback
         return _StandaloneSqliteDialect()
@@ -136,11 +137,11 @@ def _tables(args: argparse.Namespace) -> tuple[str, str]:
     if getattr(args, "target", "core") == "chatlog":
         try:
             from memory.backends import chatlog_table
+
             return chatlog_table("items"), chatlog_table("embeddings")
         except Exception:  # pragma: no cover - standalone fallback
             pass
     return "memory_items", "memory_embeddings"
-
 
 
 @contextmanager
@@ -189,6 +190,7 @@ def _db_for_display(value: str | None) -> str:
         return "<unset>"
     try:
         from m3_core.paths import _looks_like_dsn
+
         is_dsn = _looks_like_dsn(value)
     except Exception:  # pragma: no cover - standalone fallback
         is_dsn = "://" in value
@@ -322,21 +324,20 @@ def _verify_schema(db_path: Path, store: str = "core") -> None:
         for tbl, cols in required.items():
             if conn.execute(*d.table_exists(tbl)).fetchone() is None:
                 raise RuntimeError(
-                    f"Table {tbl!r} not found in {db_path}. "
-                    f"Run `python bin/migrate_memory.py --db {db_path} up` first."
+                    f"Table {tbl!r} not found in {db_path}. Run `python bin/migrate_memory.py --db {db_path} up` first."
                 )
             have = {r[0] for r in conn.execute(*d.columns_of(tbl)).fetchall()}
             for col in cols:
                 if col not in have:
                     raise RuntimeError(
-                        f"{tbl}.{col} missing from {db_path}. "
-                        f"DB schema is too old; run migrate_memory.py up."
+                        f"{tbl}.{col} missing from {db_path}. DB schema is too old; run migrate_memory.py up."
                     )
 
 
 # ── Build the candidate-row query ─────────────────────────────────────────
 def _build_query(
-    args: argparse.Namespace, after_id: str | None = None,
+    args: argparse.Namespace,
+    after_id: str | None = None,
 ) -> tuple[str, list]:
     """Return (sql, params) for the candidate-rows SELECT.
 
@@ -415,7 +416,7 @@ def _build_query(
     sql = f"""
         SELECT mi.id, mi.content, mi.title, mi.metadata_json
         FROM {items} mi
-        WHERE {' AND '.join(where)}
+        WHERE {" AND ".join(where)}
         ORDER BY mi.id
         LIMIT {p}
     """
@@ -427,9 +428,7 @@ def _count_pending(db_path: Path, args: argparse.Namespace) -> int:
     """How many rows would be in scope?  Cheap; uses same WHERE clause."""
     sql, params = _build_query(args)
     # Replace the LIMIT with a COUNT.
-    count_sql = sql.replace(
-        "SELECT mi.id, mi.content, mi.title, mi.metadata_json", "SELECT COUNT(*)"
-    )
+    count_sql = sql.replace("SELECT mi.id, mi.content, mi.title, mi.metadata_json", "SELECT COUNT(*)")
     # Strip ORDER BY + LIMIT (we don't pass a LIMIT param for count)
     count_sql = count_sql.split("ORDER BY")[0]
     with _bound_db(db_path) as conn:
@@ -576,6 +575,7 @@ async def _run_sweep_inner(args: argparse.Namespace, counters: Counters) -> int:
     if args.no_augment_anchors:
         transform = None  # use lib default (identity)
     else:
+
         def transform(text: str, metadata) -> str:
             return mc._augment_embed_text_with_anchors(text, metadata)
 
@@ -589,7 +589,7 @@ async def _run_sweep_inner(args: argparse.Namespace, counters: Counters) -> int:
     # would target the MAIN db while reads came from the swept one. ContextVars
     # propagate across `await` within a task, so this covers the whole drive.
     # Not needed on a backend with one pooled store: mc._db() reaches it anyway.
-    with (_sweep_binding(args.db) if store_is_a_file() else nullcontext()):
+    with _sweep_binding(args.db) if store_is_a_file() else nullcontext():
         await run_embed_loop(
             fetch_candidates=_fetch,
             write_embedding=_write,
@@ -603,8 +603,7 @@ async def _run_sweep_inner(args: argparse.Namespace, counters: Counters) -> int:
             deadline_s=deadline,
             max_consecutive_fails=args.max_consecutive_fails,
             max_row_bytes=args.max_row_bytes,
-            oversize_mode=("subdivide" if getattr(args, "subdivide_oversize", False)
-                           else "skip"),
+            oversize_mode=("subdivide" if getattr(args, "subdivide_oversize", False) else "skip"),
             expected_dim=(args.expected_dim or None),
             limit=args.limit,
             log=_log,
@@ -628,11 +627,11 @@ def _log(msg: str, ts: str | None = None) -> None:
 
 def _new_uuid() -> str:
     import uuid
+
     return str(uuid.uuid4())
 
 
-def _print_report(counters: Counters, started_at: float, db_path: Path,
-                  args: argparse.Namespace | None = None) -> None:
+def _print_report(counters: Counters, started_at: float, db_path: Path, args: argparse.Namespace | None = None) -> None:
     elapsed = time.monotonic() - started_at
     rate = counters.embedded / max(elapsed, 1e-3)
     print()
@@ -645,14 +644,15 @@ def _print_report(counters: Counters, started_at: float, db_path: Path,
     print(f"  skipped (empty):   {counters.skipped_empty}")
     print(f"  skipped (oversize):{counters.skipped_oversize}")
     if getattr(counters, "oversize_subdivided", 0):
-        print(f"  subdivided (big):  {counters.oversize_subdivided}"
-              f"  <- embedded via split + mean-pool")
+        print(f"  subdivided (big):  {counters.oversize_subdivided}  <- embedded via split + mean-pool")
     print(f"  skipped (bad dim): {counters.skipped_bad_dim}")
     _excluded = count_oversize_excluded(db_path, args) if args is not None else 0
     if _excluded:
-        print(f"  EXCLUDED oversize: {_excluded}  <- never embedded; over "
-              f"--max-row-bytes={getattr(args, 'max_row_bytes', 0)}. Not counted "
-              f"as pending (they cannot drain); needs the subdivide path.")
+        print(
+            f"  EXCLUDED oversize: {_excluded}  <- never embedded; over "
+            f"--max-row-bytes={getattr(args, 'max_row_bytes', 0)}. Not counted "
+            f"as pending (they cannot drain); needs the subdivide path."
+        )
     print(f"  failed batches:    {counters.failed_batches}")
     print("  cache reuses:      (handled by _embed_many internal cache)")
     print(f"  wall time:         {elapsed:.1f}s")
@@ -660,8 +660,7 @@ def _print_report(counters: Counters, started_at: float, db_path: Path,
     if counters.errors_by_class:
         print()
         print("  Error breakdown:")
-        for cls, n in sorted(counters.errors_by_class.items(),
-                             key=lambda kv: kv[1], reverse=True):
+        for cls, n in sorted(counters.errors_by_class.items(), key=lambda kv: kv[1], reverse=True):
             print(f"    {cls:<32} {n}")
     print()
 
@@ -675,85 +674,146 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
     # Selection
     sel = ap.add_argument_group("selection")
-    sel.add_argument("--db", type=Path, default=Path(os.environ.get("M3_DATABASE", str(DEFAULT_DB))),
-                     help=f"Target DB. Default: $M3_DATABASE or {DEFAULT_DB}")
-    sel.add_argument("--target", choices=("core", "chatlog"), default="core",
-                     help="Which tables to sweep on a backend that keeps both in one "
-                          "database (PostgreSQL). On SQLite --db selects the file.")
-    sel.add_argument("--store", dest="target", choices=("core", "chatlog"),
-                     action=deprecated_alias("--target"), help=argparse.SUPPRESS)
-    sel.add_argument("--variant", action="append", default=[],
-                     help="Filter to one variant. Repeatable for OR.")
-    sel.add_argument("--type", action="append", default=[],
-                     help="Filter to one memory type. Repeatable for OR.")
-    sel.add_argument("--user-id", type=str, default=None,
-                     help="Filter to one user_id.")
-    sel.add_argument("--scope", type=str, default=None,
-                     help="Filter to one scope (user/session/agent/org).")
-    sel.add_argument("--id-prefix", type=str, default=None,
-                     help="Backfill only rows whose id starts with this hex prefix. "
-                          "Use to shard across multiple sweeper instances.")
-    sel.add_argument("--max-age-days", type=int, default=None,
-                     help="Only rows older than N days. Useful when you want "
-                          "to leave fresh writes alone for a window first.")
-    sel.add_argument("--limit", type=int, default=None,
-                     help="Stop after AT LEAST N successful embeds. The check "
-                          "fires at outer-cycle boundaries, so the actual stop "
-                          "point can overshoot by up to one cycle's fetch "
-                          "(batch_size * concurrency * 4 = "
-                          f"{DEFAULT_BATCH_SIZE * DEFAULT_CONCURRENCY * 4} rows "
-                          "at defaults). Used for smoke testing — for strict "
-                          "row caps, also lower --batch-size and --concurrency.")
+    sel.add_argument(
+        "--db",
+        type=Path,
+        default=Path(os.environ.get("M3_DATABASE", str(DEFAULT_DB))),
+        help=f"Target DB. Default: $M3_DATABASE or {DEFAULT_DB}",
+    )
+    sel.add_argument(
+        "--target",
+        choices=("core", "chatlog"),
+        default="core",
+        help="Which tables to sweep on a backend that keeps both in one "
+        "database (PostgreSQL). On SQLite --db selects the file.",
+    )
+    sel.add_argument(
+        "--store",
+        dest="target",
+        choices=("core", "chatlog"),
+        action=deprecated_alias("--target"),
+        help=argparse.SUPPRESS,
+    )
+    sel.add_argument("--variant", action="append", default=[], help="Filter to one variant. Repeatable for OR.")
+    sel.add_argument("--type", action="append", default=[], help="Filter to one memory type. Repeatable for OR.")
+    sel.add_argument("--user-id", type=str, default=None, help="Filter to one user_id.")
+    sel.add_argument("--scope", type=str, default=None, help="Filter to one scope (user/session/agent/org).")
+    sel.add_argument(
+        "--id-prefix",
+        type=str,
+        default=None,
+        help="Backfill only rows whose id starts with this hex prefix. Use to shard across multiple sweeper instances.",
+    )
+    sel.add_argument(
+        "--max-age-days",
+        type=int,
+        default=None,
+        help="Only rows older than N days. Useful when you want to leave fresh writes alone for a window first.",
+    )
+    sel.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Stop after AT LEAST N successful embeds. The check "
+        "fires at outer-cycle boundaries, so the actual stop "
+        "point can overshoot by up to one cycle's fetch "
+        "(batch_size * concurrency * 4 = "
+        f"{DEFAULT_BATCH_SIZE * DEFAULT_CONCURRENCY * 4} rows "
+        "at defaults). Used for smoke testing — for strict "
+        "row caps, also lower --batch-size and --concurrency.",
+    )
 
     # Performance
     perf = ap.add_argument_group("performance")
-    perf.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE,
-                      help=f"Rows per embed call. Default: {DEFAULT_BATCH_SIZE}.")
-    perf.add_argument("--concurrency", type=int, default=DEFAULT_CONCURRENCY,
-                      help=f"Concurrent batches in flight. Default: {DEFAULT_CONCURRENCY}. "
-                           f"Cap by your llama-server's --parallel slots.")
-    perf.add_argument("--connection-refresh", type=int, default=DEFAULT_CONN_REFRESH_BATCHES,
-                      help=f"Batches between connection-pool recycle. "
-                           f"Default: {DEFAULT_CONN_REFRESH_BATCHES}.")
+    perf.add_argument(
+        "--batch-size",
+        type=int,
+        default=DEFAULT_BATCH_SIZE,
+        help=f"Rows per embed call. Default: {DEFAULT_BATCH_SIZE}.",
+    )
+    perf.add_argument(
+        "--concurrency",
+        type=int,
+        default=DEFAULT_CONCURRENCY,
+        help=f"Concurrent batches in flight. Default: {DEFAULT_CONCURRENCY}. "
+        f"Cap by your llama-server's --parallel slots.",
+    )
+    perf.add_argument(
+        "--connection-refresh",
+        type=int,
+        default=DEFAULT_CONN_REFRESH_BATCHES,
+        help=f"Batches between connection-pool recycle. Default: {DEFAULT_CONN_REFRESH_BATCHES}.",
+    )
 
     # Resilience
     res = ap.add_argument_group("resilience")
-    res.add_argument("--timeout-s", type=float, default=DEFAULT_TIMEOUT_S,
-                     help=f"Per-batch embed call timeout. Default: {DEFAULT_TIMEOUT_S}s.")
-    res.add_argument("--max-runtime-min", type=int, default=DEFAULT_MAX_RUNTIME_MIN,
-                     help=f"Hard kill at N min wall-clock. Default: {DEFAULT_MAX_RUNTIME_MIN}.")
-    res.add_argument("--max-consecutive-fails", type=int, default=DEFAULT_MAX_CONSEC_FAILS,
-                     help=f"Abort after N back-to-back batch fails. "
-                          f"Default: {DEFAULT_MAX_CONSEC_FAILS}.")
-    res.add_argument("--max-row-bytes", type=int, default=DEFAULT_MAX_ROW_BYTES,
-                     help=f"Size threshold for a row's post-transform text. "
-                          f"Default: {DEFAULT_MAX_ROW_BYTES} (bge-m3 ctx limit). "
-                          f"See --subdivide-oversize for what happens above it.")
-    res.add_argument("--subdivide-oversize", dest="subdivide_oversize",
-                     action="store_true", default=True,
-                     help="Embed rows over --max-row-bytes by splitting them "
-                          "and mean-pooling the sub-vectors, instead of "
-                          "skipping them. Default: on.")
-    res.add_argument("--no-subdivide-oversize", dest="subdivide_oversize",
-                     action="store_false",
-                     help="Drop rows over --max-row-bytes (pre-2026.8.19.5 "
-                          "behaviour). They are then excluded from the pending "
-                          "count so they cannot livelock the cognitive loop, "
-                          "and reported separately as EXCLUDED oversize.")
-    res.add_argument("--expected-dim", type=int, default=DEFAULT_EXPECTED_DIM,
-                     help=f"Skip embeddings whose dim != N. "
-                          f"Default: {DEFAULT_EXPECTED_DIM}. Pass 0 to disable.")
-    res.add_argument("--lockfile", type=Path, default=None,
-                     help="Refuse to start if this file exists; create it on start, "
-                          "delete on clean exit. Use for cron / scheduled sweepers.")
+    res.add_argument(
+        "--timeout-s",
+        type=float,
+        default=DEFAULT_TIMEOUT_S,
+        help=f"Per-batch embed call timeout. Default: {DEFAULT_TIMEOUT_S}s.",
+    )
+    res.add_argument(
+        "--max-runtime-min",
+        type=int,
+        default=DEFAULT_MAX_RUNTIME_MIN,
+        help=f"Hard kill at N min wall-clock. Default: {DEFAULT_MAX_RUNTIME_MIN}.",
+    )
+    res.add_argument(
+        "--max-consecutive-fails",
+        type=int,
+        default=DEFAULT_MAX_CONSEC_FAILS,
+        help=f"Abort after N back-to-back batch fails. Default: {DEFAULT_MAX_CONSEC_FAILS}.",
+    )
+    res.add_argument(
+        "--max-row-bytes",
+        type=int,
+        default=DEFAULT_MAX_ROW_BYTES,
+        help=f"Size threshold for a row's post-transform text. "
+        f"Default: {DEFAULT_MAX_ROW_BYTES} (bge-m3 ctx limit). "
+        f"See --subdivide-oversize for what happens above it.",
+    )
+    res.add_argument(
+        "--subdivide-oversize",
+        dest="subdivide_oversize",
+        action="store_true",
+        default=True,
+        help="Embed rows over --max-row-bytes by splitting them "
+        "and mean-pooling the sub-vectors, instead of "
+        "skipping them. Default: on.",
+    )
+    res.add_argument(
+        "--no-subdivide-oversize",
+        dest="subdivide_oversize",
+        action="store_false",
+        help="Drop rows over --max-row-bytes (pre-2026.8.19.5 "
+        "behaviour). They are then excluded from the pending "
+        "count so they cannot livelock the cognitive loop, "
+        "and reported separately as EXCLUDED oversize.",
+    )
+    res.add_argument(
+        "--expected-dim",
+        type=int,
+        default=DEFAULT_EXPECTED_DIM,
+        help=f"Skip embeddings whose dim != N. Default: {DEFAULT_EXPECTED_DIM}. Pass 0 to disable.",
+    )
+    res.add_argument(
+        "--lockfile",
+        type=Path,
+        default=None,
+        help="Refuse to start if this file exists; create it on start, "
+        "delete on clean exit. Use for cron / scheduled sweepers.",
+    )
 
     # Behavior
     beh = ap.add_argument_group("behavior")
-    beh.add_argument("--no-augment-anchors", action="store_true",
-                     help="Skip _augment_embed_text_with_anchors before embed. "
-                          "Default OFF — anchors match memory_write_impl behavior.")
-    beh.add_argument("--dry-run", action="store_true",
-                     help="Print plan and counts; don't embed or write.")
+    beh.add_argument(
+        "--no-augment-anchors",
+        action="store_true",
+        help="Skip _augment_embed_text_with_anchors before embed. "
+        "Default OFF — anchors match memory_write_impl behavior.",
+    )
+    beh.add_argument("--dry-run", action="store_true", help="Print plan and counts; don't embed or write.")
 
     return ap.parse_args(argv)
 
@@ -773,16 +833,25 @@ def main(argv: list[str] | None = None) -> int:
     print(f"DB:       {args.db}" if store_is_a_file() else f"Target:   {args.target} (one database)")
     print(f"Pending:  {pending}")
     print("Filters:")
-    if args.variant:    print(f"  variant: {args.variant}")
-    if args.type:       print(f"  type: {args.type}")
-    if args.user_id:    print(f"  user_id: {args.user_id}")
-    if args.scope:      print(f"  scope: {args.scope}")
-    if args.id_prefix:  print(f"  id_prefix: {args.id_prefix!r}")
-    if args.max_age_days is not None: print(f"  max_age_days: {args.max_age_days}")
-    if args.limit:      print(f"  limit: {args.limit}")
+    if args.variant:
+        print(f"  variant: {args.variant}")
+    if args.type:
+        print(f"  type: {args.type}")
+    if args.user_id:
+        print(f"  user_id: {args.user_id}")
+    if args.scope:
+        print(f"  scope: {args.scope}")
+    if args.id_prefix:
+        print(f"  id_prefix: {args.id_prefix!r}")
+    if args.max_age_days is not None:
+        print(f"  max_age_days: {args.max_age_days}")
+    if args.limit:
+        print(f"  limit: {args.limit}")
     print(f"Performance: batch_size={args.batch_size} concurrency={args.concurrency}")
-    print(f"Resilience:  timeout={args.timeout_s}s max_runtime={args.max_runtime_min}min "
-          f"max_consec_fails={args.max_consecutive_fails}")
+    print(
+        f"Resilience:  timeout={args.timeout_s}s max_runtime={args.max_runtime_min}min "
+        f"max_consec_fails={args.max_consecutive_fails}"
+    )
     if args.dry_run:
         print()
         print("(dry-run: no embeddings written)")

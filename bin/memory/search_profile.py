@@ -8,6 +8,7 @@ total. ``unattributed_ms`` is total's SELF time: work done inline in the search
 function, outside every named stage. Instrumentation is local to these
 functions and exists only for the duration of the call (sys.monitoring, PEP 669).
 """
+
 from __future__ import annotations
 
 import time
@@ -17,8 +18,7 @@ from m3_core.monitoring import StageMap, c_target, stage_timing
 
 # A driver call is DB time when its owner is one of these modules.
 _DB_MODULES = ("sqlite3", "_sqlite3", "psycopg2", "psycopg")
-_DB_CALLS = frozenset({"execute", "executemany", "executescript", "fetchone", "fetchall",
-                       "fetchmany"})
+_DB_CALLS = frozenset({"execute", "executemany", "executescript", "fetchone", "fetchall", "fetchmany"})
 
 
 def _classify_c(callable_: object, arg0: object) -> str | None:
@@ -40,15 +40,20 @@ def retrieval_stage_map() -> StageMap:
         "total": [search.memory_search_scored_impl],
         "embed": [embed.embed_for_search],  # the search path's one query-vector entry
         "hybrid_score": [search_ranking._hybrid_score_batch],
-        "rank": [search_ranking._apply_recency_bonus, search_ranking._apply_temporal_boost,
-                 search_ranking._trim_by_elbow],
+        "rank": [
+            search_ranking._apply_recency_bonus,
+            search_ranking._apply_temporal_boost,
+            search_ranking._trim_by_elbow,
+        ],
         "rerank": [search._apply_rerank],
-        "expand": [search._apply_two_stage_expansion, search._apply_observation_preference,
-                   search_routing._pull_predecessor_turns,
-                   search_routing._enforce_expansion_displacement_guard],
+        "expand": [
+            search._apply_two_stage_expansion,
+            search._apply_observation_preference,
+            search_routing._pull_predecessor_turns,
+            search_routing._enforce_expansion_displacement_guard,
+        ],
         "fts_fallback": [search._fts_only_results],
-        "db": [postgres_backend._SqliteCompatConnection.execute,
-               postgres_backend._SqliteCompatConnection.executemany],
+        "db": [postgres_backend._SqliteCompatConnection.execute, postgres_backend._SqliteCompatConnection.executemany],
     }
     # Driver C calls are counted wherever the search path makes them: the search
     # modules' helpers and the backends' own query methods (keyword search runs
@@ -59,21 +64,31 @@ def retrieval_stage_map() -> StageMap:
     # is not always the code that runs (seen as an order-dependent miss).
     from memory.backends import active_backend
 
-    return StageMap(functions=functions,
-                    c_call_modules=[search, search_ranking, search_routing, fts, db,
-                                    sqlite_backend, postgres_backend, type(active_backend())],
-                    classify_c=_classify_c)
+    return StageMap(
+        functions=functions,
+        c_call_modules=[
+            search,
+            search_ranking,
+            search_routing,
+            fts,
+            db,
+            sqlite_backend,
+            postgres_backend,
+            type(active_backend()),
+        ],
+        classify_c=_classify_c,
+    )
 
 
-async def search_profile_impl(query: str, k: int = 8, search_mode: str = "hybrid",
-                              user_id: str = "", scope: str = "") -> dict[str, Any]:
+async def search_profile_impl(
+    query: str, k: int = 8, search_mode: str = "hybrid", user_id: str = "", scope: str = ""
+) -> dict[str, Any]:
     """Run one search with per-stage timing; return the hit count and the timings."""
     from memory.search import memory_search_scored_impl
 
     started = time.perf_counter()
     with stage_timing(retrieval_stage_map()) as report:
-        hits = await memory_search_scored_impl(query, k=k, search_mode=search_mode,
-                                               user_id=user_id, scope=scope)
+        hits = await memory_search_scored_impl(query, k=k, search_mode=search_mode, user_id=user_id, scope=scope)
     elapsed_ms = round((time.perf_counter() - started) * 1000, 3)
     stages = report.as_dict()
     total = stages.get("total", {})
@@ -83,6 +98,8 @@ async def search_profile_impl(query: str, k: int = 8, search_mode: str = "hybrid
         "elapsed_ms": elapsed_ms,
         "unattributed_ms": total.get("self_ms"),
         "stages": stages,
-        "note": ("wall-clock per stage; self_ms excludes nested stages in the same task. "
-                 "unattributed_ms is inline work in the search function outside every stage."),
+        "note": (
+            "wall-clock per stage; self_ms excludes nested stages in the same task. "
+            "unattributed_ms is inline work in the search function outside every stage."
+        ),
     }

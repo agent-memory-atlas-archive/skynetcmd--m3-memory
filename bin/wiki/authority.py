@@ -23,6 +23,7 @@ Config (optional): M3_CONFIG_ROOT/.wiki_authority.json
     {"body_authorities": ["canonical", "peer-reviewed"]}
 Malformed / absent → the default set (fail safe, and warned once).
 """
+
 from __future__ import annotations
 
 import json
@@ -79,9 +80,12 @@ def _warn_once(path: str, why: str) -> None:
         return
     _WARNED.add(path)
     import logging
+
     logging.getLogger("m3.wiki").warning(
         "wiki authority config %s: %s — using default %s",
-        path, why, sorted(_DEFAULT_BODY_AUTHORITIES),
+        path,
+        why,
+        sorted(_DEFAULT_BODY_AUTHORITIES),
     )
 
 

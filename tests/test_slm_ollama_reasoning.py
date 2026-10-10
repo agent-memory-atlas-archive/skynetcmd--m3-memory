@@ -9,6 +9,7 @@ non-standard and 400s on real OpenAI cloud and is unverified on other servers, s
 that the payload carries ``reasoning_effort`` for LM Studio + Ollama and NOT for
 other servers. Hermetic — MockTransport captures the request, no server.
 """
+
 import sys
 from pathlib import Path
 
@@ -24,15 +25,24 @@ import slm_intent as SI  # noqa: E402
 
 def _write_profile(path, **fields):
     import yaml
-    base = {"url": "http://127.0.0.1:1234/v1/chat/completions", "model": "m",
-            "system": "s", "labels": ["a"], "fallback": "a", "backend": "openai",
-            "temperature": 0, "timeout_s": 5.0}
+
+    base = {
+        "url": "http://127.0.0.1:1234/v1/chat/completions",
+        "model": "m",
+        "system": "s",
+        "labels": ["a"],
+        "fallback": "a",
+        "backend": "openai",
+        "temperature": 0,
+        "timeout_s": 5.0,
+    }
     base.update(fields)
     path.write_text(yaml.safe_dump(base), encoding="utf-8")
 
 
 async def _capture_payload(monkeypatch, tmp_path, endpoints):
     import httpx
+
     monkeypatch.setattr(LF, "LLM_ENDPOINTS", endpoints, raising=False)
     _write_profile(tmp_path / "p.yaml")
     monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
@@ -43,6 +53,7 @@ async def _capture_payload(monkeypatch, tmp_path, endpoints):
 
     def handler(request: httpx.Request) -> httpx.Response:
         import json
+
         captured["json"] = json.loads(request.content)
         captured["url"] = str(request.url)
         return httpx.Response(200, json={"choices": [{"message": {"content": "ok"}}]})

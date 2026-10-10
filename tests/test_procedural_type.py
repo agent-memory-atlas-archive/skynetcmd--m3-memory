@@ -8,6 +8,7 @@ Covers:
     of the enrich copy. If this test fails, sync bin/memory/enrich.py's
     `valid_types` set with bin/catalog/spec.py's VALID_MEMORY_TYPES.
 """
+
 from __future__ import annotations
 
 import os
@@ -18,6 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
 def test_procedure_is_a_valid_memory_type():
     import mcp_tool_catalog
+
     assert "procedure" in mcp_tool_catalog.VALID_MEMORY_TYPES
 
 
@@ -48,6 +50,5 @@ def test_enrich_valid_types_matches_spec():
 def test_procedure_kind_constants():
     """The engine's soft-validated sub-kinds are the four shipping kinds."""
     import memory_maintenance
-    assert memory_maintenance.VALID_PROCEDURE_KINDS == {
-        "skill", "runbook", "how_to", "checklist"
-    }
+
+    assert memory_maintenance.VALID_PROCEDURE_KINDS == {"skill", "runbook", "how_to", "checklist"}

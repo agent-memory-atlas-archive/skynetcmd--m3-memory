@@ -19,6 +19,7 @@ re-opened it against 3,742 aged rows. Two constants, no expressed relationship.
 This suite pins both halves: the sweep must not delete, and what it already
 deleted must be restorable.
 """
+
 from __future__ import annotations
 
 import os
@@ -54,8 +55,7 @@ def store(main_db_template, monkeypatch, tmp_path):
                 "(id, content, title, type, importance, importance_raw, "
                 " is_deleted, source, created_at) "
                 f"VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-{age_days} days'))",
-                (mid, "probe body", "probe", "belief", importance, importance,
-                 deleted, "agent"),
+                (mid, "probe body", "probe", "belief", importance, importance, deleted, "agent"),
             )
             if reason:
                 db.execute(
@@ -71,20 +71,22 @@ def store(main_db_template, monkeypatch, tmp_path):
 
 def _alive(mid: str) -> bool:
     with mc._db() as db:
-        row = db.execute(
-            "SELECT is_deleted FROM memory_items WHERE id = ?", (mid,)
-        ).fetchone()
+        row = db.execute("SELECT is_deleted FROM memory_items WHERE id = ?", (mid,)).fetchone()
     return row is not None and not row[0]
 
 
 def _full_pass():
     return mm.memory_maintenance_impl(
-        decay=True, purge_expired=False, prune_orphan_embeddings=False,
-        reinforce=True, prune_orphan_queues=False,
+        decay=True,
+        purge_expired=False,
+        prune_orphan_embeddings=False,
+        reinforce=True,
+        prune_orphan_queues=False,
     )
 
 
 # ── the sweep must not delete ────────────────────────────────────────────────
+
 
 @pytest.mark.parametrize("importance", [0.0, 0.001, 0.009, 0.02, 0.049])
 def test_a_memory_below_every_threshold_is_never_auto_deleted(store, importance):
@@ -103,9 +105,7 @@ def test_the_pass_reports_candidates_instead_of_acting(store):
     for _ in range(3):
         store(importance=0.001, age_days=90)
     out = str(_full_pass())
-    assert "CANDIDATE" in out.upper(), (
-        f"the pass did not surface archive candidates: {out}"
-    )
+    assert "CANDIDATE" in out.upper(), f"the pass did not surface archive candidates: {out}"
     assert "archived 3" not in out.lower()
 
 
@@ -123,6 +123,7 @@ def test_the_candidate_threshold_tracks_the_floor():
 
 # ── what was already deleted must come back ──────────────────────────────────
 
+
 def test_autonomously_archived_memories_are_restorable(store):
     mid = store(importance=0.001, deleted=1, reason="low_importance")
     assert not _alive(mid)
@@ -137,9 +138,7 @@ def test_restore_returns_them_deranked_not_promoted(store):
     mid = store(importance=0.0, deleted=1, reason="low_importance")
     mm.memory_restore_impl(memory_id=mid, dry_run=False)
     with mc._db() as db:
-        imp = db.execute(
-            "SELECT importance FROM memory_items WHERE id = ?", (mid,)
-        ).fetchone()[0]
+        imp = db.execute("SELECT importance FROM memory_items WHERE id = ?", (mid,)).fetchone()[0]
     assert imp == pytest.approx(mm._ARCHIVE_CANDIDATE_THRESHOLD)
     assert imp < mm._GRADED_FLOOR, "restoring must not promote a memory"
 
@@ -153,9 +152,7 @@ def test_user_deletions_are_never_restored(store):
     """
     mid = store(importance=0.9, deleted=1, reason="user_delete")
     res = mm.memory_restore_impl(dry_run=False)
-    assert _alive(mid) is False, (
-        "a user-deleted memory was swept back in by the bulk restore"
-    )
+    assert _alive(mid) is False, "a user-deleted memory was swept back in by the bulk restore"
     assert mid not in str(res)
 
 

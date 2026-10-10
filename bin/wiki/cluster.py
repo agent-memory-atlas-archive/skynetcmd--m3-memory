@@ -11,6 +11,7 @@ Output is deterministic run-to-run: greedy_modularity_communities is a greedy
 algorithm with defined tie-breaks, and members/clusters are sorted by stable keys
 (id, importance) so `m3 wiki generate --check` stays byte-reproducible.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -29,9 +30,9 @@ _MAX_CLUSTER = 60
 
 @dataclass(slots=True)
 class Cluster:
-    key: str                       # deterministic slug-seed (smallest member id)
+    key: str  # deterministic slug-seed (smallest member id)
     members: list[Mem] = field(default_factory=list)
-    is_orphan: bool = False        # singleton with no binding edges
+    is_orphan: bool = False  # singleton with no binding edges
 
     def rank_key(self) -> tuple:
         # Bigger, more-important clusters first; ties broken by key for determinism.

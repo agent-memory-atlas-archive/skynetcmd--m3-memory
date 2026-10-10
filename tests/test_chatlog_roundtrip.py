@@ -48,18 +48,20 @@ async def test_roundtrip_write_and_search(chatlog_with_schema):
 
     items = []
     for i in range(50):
-        items.append({
-            "content": f"This is message {i} with unique content",
-            "role": "user" if i % 2 == 0 else "assistant",
-            "conversation_id": f"conv-{i % 3}",
-            "host_agent": "claude-code",
-            "provider": "anthropic",
-            "model_id": "claude-3-sonnet",
-            "turn_index": i,
-            "tokens_in": 100 + i,
-            "tokens_out": 50 + i,
-            "variant": "test",
-        })
+        items.append(
+            {
+                "content": f"This is message {i} with unique content",
+                "role": "user" if i % 2 == 0 else "assistant",
+                "conversation_id": f"conv-{i % 3}",
+                "host_agent": "claude-code",
+                "provider": "anthropic",
+                "model_id": "claude-3-sonnet",
+                "turn_index": i,
+                "tokens_in": 100 + i,
+                "tokens_out": 50 + i,
+                "variant": "test",
+            }
+        )
 
     result = await chatlog_core.chatlog_write_bulk_impl(items)
 
@@ -151,7 +153,9 @@ async def test_search_with_filters_does_not_crash(chatlog_with_schema):
     # rows for that conversation — a "browse", which should find the 3 conv-1
     # messages written above.
     out2 = await chatlog_core.chatlog_search_impl(
-        query="", k=5, conversation_id="conv-1",
+        query="",
+        k=5,
+        conversation_id="conv-1",
     )
     payload2 = json.loads(out2)
     assert isinstance(payload2["results"], list)

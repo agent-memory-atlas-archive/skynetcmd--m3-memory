@@ -14,6 +14,7 @@ from memory_core import _embed, _pack
 async def re_embed_all(db_path: str):
     print(f"Connecting to {db_path}...")
     from m3_core.paths import active_database, seam_backend, seam_dialect
+
     _p = seam_dialect().param()
     # A WRITABLE connection to db_path: this rewrites embeddings, and
     # open_readonly is read-only (mode=ro on SQLite), so it could never commit.
@@ -31,31 +32,30 @@ async def re_embed_all(db_path: str):
 
     updated = 0
     for item in items:
-        rid = item['id']
-        text = item['content'] or item['title'] or ""
+        rid = item["id"]
+        text = item["content"] or item["title"] or ""
 
         if not text.strip():
-            print(f"[{updated+1}/{len(items)}] Skipping {rid} (no embeddable text)")
+            print(f"[{updated + 1}/{len(items)}] Skipping {rid} (no embeddable text)")
             continue
 
-        print(f"[{updated+1}/{len(items)}] Re-embedding {rid}...")
+        print(f"[{updated + 1}/{len(items)}] Re-embedding {rid}...")
         vec, model = await _embed(text)
 
         if vec:
             blob = _pack(vec)
-            existing = conn.execute(
-                f"SELECT id FROM memory_embeddings WHERE memory_id = {_p}", (rid,)
-            ).fetchone()
+            existing = conn.execute(f"SELECT id FROM memory_embeddings WHERE memory_id = {_p}", (rid,)).fetchone()
             if existing:
                 conn.execute(
                     f"UPDATE memory_embeddings SET embedding = {_p}, embed_model = {_p}, dim = {_p} WHERE memory_id = {_p}",
-                    (blob, model, len(vec), rid)
+                    (blob, model, len(vec), rid),
                 )
             else:
                 import uuid
+
                 conn.execute(
                     f"INSERT INTO memory_embeddings (id, memory_id, embedding, embed_model, dim) VALUES ({seam_dialect().placeholder(5)})",
-                    (str(uuid.uuid4()), rid, blob, model, len(vec))
+                    (str(uuid.uuid4()), rid, blob, model, len(vec)),
                 )
             updated += 1
         else:

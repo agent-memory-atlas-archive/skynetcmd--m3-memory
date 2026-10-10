@@ -26,6 +26,7 @@ of the target store is taken and verified before the first delete unless
 Deleting an embedding is non-destructive to the MEMORY — content, metadata and
 relationships are untouched; only the vector is dropped and regenerated.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -78,6 +79,7 @@ def _resolve_default_db() -> str:
     """The engine-root agent_memory.db. Separate seam so tests can point the
     default-path branch at a temp store."""
     from m3_core.paths import resolve_engine_file
+
     return resolve_engine_file("agent_memory.db")
 
 
@@ -86,6 +88,7 @@ def _resolve_chatlog_db() -> str:
     --all-dbs. Its memory_embeddings table predates ``vector_kind`` — handled by
     _has_vector_kind so a scan no longer errors 'no such column'."""
     from m3_core.paths import resolve_engine_file
+
     return resolve_engine_file("agent_chatlog.db")
 
 
@@ -176,6 +179,7 @@ def _delete_doomed(db_path: str, doomed) -> int:
     cm: Any
     if is_file:
         import sqlite3
+
         _conn = sqlite3.connect(db_path, timeout=30.0)
         # §10 DB hygiene: every new SQLite connection applies the pragma stack
         # (WAL autocheckpoint, journal_size_limit, mmap/cache) via the shared
@@ -183,6 +187,7 @@ def _delete_doomed(db_path: str, doomed) -> int:
         # abort the delete. SQLite-only; pooled backends tune their own pool.
         try:
             from sqlite_pragmas import apply_pragmas, profile_for_db
+
             apply_pragmas(_conn, profile_for_db(db_path))
         except Exception:  # noqa: BLE001 — hygiene is best-effort, not a gate
             pass
@@ -215,6 +220,7 @@ def _delete_doomed(db_path: str, doomed) -> int:
             # it bloated. Best-effort — never fail a completed delete on hygiene.
             try:
                 from sqlite_pragmas import checkpoint_truncate
+
                 checkpoint_truncate(conn)
             except Exception:  # noqa: BLE001
                 pass
@@ -241,28 +247,30 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(
         prog="reembed_space.py",
         description="Retire embeddings produced by a non-current model so they "
-                    "can be regenerated. Dry-run unless --apply is given.",
+        "can be regenerated. Dry-run unless --apply is given.",
     )
-    ap.add_argument("--db", default=None,
-                    help="Target DB (default: the resolved engine agent_memory.db).")
-    ap.add_argument("--keep", default=None,
-                    help="Model family to KEEP (e.g. 'bge-m3'). Default: the "
-                         "family holding the most vectors.")
-    ap.add_argument("--apply", action="store_true",
-                    help="Actually delete. Without this the tool only reports.")
-    ap.add_argument("--no-backup", action="store_true",
-                    help="Skip the pre-delete snapshot (not recommended).")
-    ap.add_argument("--no-backfill", action="store_true",
-                    help="Do not chain embed_backfill.py after deleting.")
-    ap.add_argument("--all-dbs", action="store_true",
-                    help="Process BOTH engine stores (agent_memory.db and "
-                         "agent_chatlog.db). File backend only. Ignores --db.")
+    ap.add_argument("--db", default=None, help="Target DB (default: the resolved engine agent_memory.db).")
+    ap.add_argument(
+        "--keep",
+        default=None,
+        help="Model family to KEEP (e.g. 'bge-m3'). Default: the family holding the most vectors.",
+    )
+    ap.add_argument("--apply", action="store_true", help="Actually delete. Without this the tool only reports.")
+    ap.add_argument("--no-backup", action="store_true", help="Skip the pre-delete snapshot (not recommended).")
+    ap.add_argument("--no-backfill", action="store_true", help="Do not chain embed_backfill.py after deleting.")
+    ap.add_argument(
+        "--all-dbs",
+        action="store_true",
+        help="Process BOTH engine stores (agent_memory.db and agent_chatlog.db). File backend only. Ignores --db.",
+    )
     args = ap.parse_args(argv)
 
     if args.all_dbs:
         if not store_is_a_file():
-            print("error: --all-dbs is a file-backend convenience (per-file stores). "
-                  "On a pooled backend run once per logical store instead.")
+            print(
+                "error: --all-dbs is a file-backend convenience (per-file stores). "
+                "On a pooled backend run once per logical store instead."
+            )
             return 1
         try:
             targets = [_resolve_default_db(), _resolve_chatlog_db()]
@@ -310,15 +318,13 @@ def _process_one_db(db_path: str, args) -> int:
     mixed = _mixed_kinds(rows)
     if not mixed:
         print(f"DB      : {db_path}")
-        print("Status  : no vector_kind holds more than one model family — "
-              "nothing to retire.")
+        print("Status  : no vector_kind holds more than one model family — nothing to retire.")
         return 0
 
     keep = _keep_family(rows, args.keep)
     families = sorted({f for _k, _t, f, _d, _n in rows})
     if keep not in families:
-        print(f"error: --keep '{keep}' is not present in this store. "
-              f"Families found: {', '.join(families)}")
+        print(f"error: --keep '{keep}' is not present in this store. Families found: {', '.join(families)}")
         return 1
 
     # Only rows inside a MIXED kind are candidates. A different model living
@@ -334,13 +340,17 @@ def _process_one_db(db_path: str, args) -> int:
         print("Status  : single embedding space — nothing to retire.")
         return 0
 
-    print(f"Retiring: {total_doomed:,} vectors from {len({r[2] for r in doomed})} "
-          f"other famil{'y' if len({r[2] for r in doomed}) == 1 else 'ies'}:")
+    print(
+        f"Retiring: {total_doomed:,} vectors from {len({r[2] for r in doomed})} "
+        f"other famil{'y' if len({r[2] for r in doomed}) == 1 else 'ies'}:"
+    )
     for kind, tag, fam, dim, n in sorted(doomed, key=lambda r: -r[4]):
         print(f"  - {fam:22} tag={tag:38} kind={kind:10} dim={dim:<5} {n:>8,}")
     print()
-    print("The parent memories are NOT touched — only their vectors are dropped, "
-          "then regenerated by embed_backfill.py against the current model.")
+    print(
+        "The parent memories are NOT touched — only their vectors are dropped, "
+        "then regenerated by embed_backfill.py against the current model."
+    )
 
     if not args.apply:
         print()
@@ -353,8 +363,7 @@ def _process_one_db(db_path: str, args) -> int:
             backup_path = _backup(db_path)
             print(f"backup  : {backup_path}")
         except Exception as e:  # noqa: BLE001
-            print(f"error: backup failed ({type(e).__name__}: {e}); aborting. "
-                  f"Pass --no-backup to override.")
+            print(f"error: backup failed ({type(e).__name__}: {e}); aborting. Pass --no-backup to override.")
             return 1
 
     deleted = _delete_doomed(db_path, doomed)
@@ -368,6 +377,7 @@ def _process_one_db(db_path: str, args) -> int:
     print()
     print("Regenerating via embed_backfill.py ...")
     import subprocess
+
     # ALWAYS pass the resolved db_path, never only when --db was given.
     # embed_backfill's own default is the pre-Homecoming repo-relative
     # `<repo>/memory/agent_memory.db`, which does not exist on a decoupled-roots
@@ -382,6 +392,7 @@ def _process_one_db(db_path: str, args) -> int:
     try:
         sys.path.insert(0, _BIN)
         from _task_runtime import no_window_kwargs as _nwk
+
         _nw = _nwk()
     except Exception:
         _f = getattr(subprocess, "CREATE_NO_WINDOW", 0) if is_windows() else 0
@@ -389,8 +400,7 @@ def _process_one_db(db_path: str, args) -> int:
     rc = subprocess.call(cmd, **_nw)
     if rc != 0:
         print()
-        print(f"WARNING: embed_backfill.py exited {rc} — the stale vectors are "
-              f"deleted but NOT yet regenerated.")
+        print(f"WARNING: embed_backfill.py exited {rc} — the stale vectors are deleted but NOT yet regenerated.")
         print(f"         Re-run manually:  python bin/embed_backfill.py --db {db_path}")
         print(f"         Or restore:       {backup_path or '(no backup taken)'}")
     return rc

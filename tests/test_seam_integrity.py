@@ -6,6 +6,7 @@ the hierarchy (what each seam may import) and each seam's own contract. The
 gates that keep call sites OUT of the seams' business are separate:
 test_python_version_seam.py, test_os_seam_ratchet.py, test_scratchpad_filter.py.
 """
+
 from __future__ import annotations
 
 import ast
@@ -68,8 +69,11 @@ def test_the_version_seam_is_stdlib_only():
 
 def test_the_os_seam_imports_only_stdlib_and_the_version_seam():
     names = _imports(_PLATFORM)
-    foreign = {m for m in names if m.split(".")[0] not in sys.stdlib_module_names
-               and m != "__future__" and not m.startswith("m3_memory._pyver")}
+    foreign = {
+        m
+        for m in names
+        if m.split(".")[0] not in sys.stdlib_module_names and m != "__future__" and not m.startswith("m3_memory._pyver")
+    }
     assert not foreign, f"m3_memory/_platform.py may import only the stdlib and _pyver: {foreign}"
 
 
@@ -81,8 +85,7 @@ def test_the_database_seam_does_not_import_business_logic():
                 owner = next((a for a in _DB_SEAM_ALLOWED_MEMORY if m == a or m.startswith(a + ".")), None)
                 if owner is None:
                     leaks.append(f"{p.name}: {m}")
-    assert not leaks, ("the database seam imports business logic (layer 2 may not reach up): "
-                       + ", ".join(leaks))
+    assert not leaks, "the database seam imports business logic (layer 2 may not reach up): " + ", ".join(leaks)
 
 
 def test_the_db_seam_allowlist_is_not_stale():
@@ -116,14 +119,14 @@ def test_the_version_seam_describes_this_interpreter():
 def test_every_dialect_implements_the_whole_contract(backend):
     dl = importlib.import_module("memory.backends.dialect")
     concrete = type(dl.dialect_for(backend))
+
     def _declares_contract(fn) -> bool:
         try:
             return "raise NotImplementedError" in inspect.getsource(fn)
         except (OSError, TypeError):  # generated (dataclass) methods have no source
             return False
 
-    abstract = [name for name, fn in inspect.getmembers(dl.Dialect, inspect.isfunction)
-                if _declares_contract(fn)]
+    abstract = [name for name, fn in inspect.getmembers(dl.Dialect, inspect.isfunction) if _declares_contract(fn)]
     assert abstract, "the base Dialect declares no contract methods; the probe is broken"
     missing = [n for n in abstract if getattr(concrete, n) is getattr(dl.Dialect, n)]
     assert not missing, f"{concrete.__name__} leaves base contract methods unimplemented: {missing}"
@@ -139,12 +142,18 @@ def test_bin_reaches_the_seams_only_through_m3_core_seams():
         if "__pycache__" in p.parts or p.name == "seams.py":
             continue
         for n in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
-            mods = ([n.module] if isinstance(n, ast.ImportFrom) and n.module else
-                    [a.name for a in n.names] if isinstance(n, ast.Import) else [])
+            mods = (
+                [n.module]
+                if isinstance(n, ast.ImportFrom) and n.module
+                else [a.name for a in n.names]
+                if isinstance(n, ast.Import)
+                else []
+            )
             if any(m in ("m3_memory._platform", "m3_memory._pyver") for m in mods):
                 hits.append(f"{p.relative_to(_ROOT).as_posix()}:{n.lineno}")
-    assert not hits, ("observed: bin/ imports a seam module directly: " + ", ".join(hits)
-                      + ". inspect: import it from m3_core.seams")
+    assert not hits, (
+        "observed: bin/ imports a seam module directly: " + ", ".join(hits) + ". inspect: import it from m3_core.seams"
+    )
 
 
 def test_m3_core_seams_reexports_the_seams_unchanged():
@@ -155,8 +164,11 @@ def test_m3_core_seams_reexports_the_seams_unchanged():
     for name in seams.__all__:
         owner = pf if hasattr(pf, name) else pv
         assert getattr(seams, name) is getattr(owner, name), f"m3_core.seams.{name} is not the seam's own"
-    defs = [n.name for n in ast.parse((_ROOT / "bin" / "m3_core" / "seams.py").read_text(encoding="utf-8")).body
-            if isinstance(n, (ast.FunctionDef, ast.ClassDef))]
+    defs = [
+        n.name
+        for n in ast.parse((_ROOT / "bin" / "m3_core" / "seams.py").read_text(encoding="utf-8")).body
+        if isinstance(n, (ast.FunctionDef, ast.ClassDef))
+    ]
     assert not defs, f"m3_core.seams defines logic of its own: {defs}"
 
 
@@ -171,10 +183,14 @@ def test_business_logic_asks_the_dialect_to_compile_keyword_queries():
             continue
         for n in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
             if isinstance(n, ast.ImportFrom) and any(
-                    a.name in ("_compile_fts_query", "_compile_tsquery") for a in n.names):
+                a.name in ("_compile_fts_query", "_compile_tsquery") for a in n.names
+            ):
                 hits.append(f"{rel}:{n.lineno}")
-    assert not hits, ("observed: business logic imports a keyword compiler: " + ", ".join(hits)
-                      + ". inspect: call dialect().compile_keyword_query(query, mode)")
+    assert not hits, (
+        "observed: business logic imports a keyword compiler: "
+        + ", ".join(hits)
+        + ". inspect: call dialect().compile_keyword_query(query, mode)"
+    )
 
 
 def test_the_user_environment_primitives_agree():

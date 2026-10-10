@@ -19,6 +19,7 @@ the new output — the assertion message prints the actual string) and the diff 
 human-reviewable, exactly like the symbol-parity snapshot discipline. An
 UNintended change (a helper edited for one backend only) fails here immediately.
 """
+
 from __future__ import annotations
 
 from memory.backends.postgres_backend import POSTGRES
@@ -111,15 +112,11 @@ GOLDEN_POSTGRES: dict[str, str] = {
 def _assert_matches_golden(actual: dict[str, str], golden: dict[str, str], label: str):
     # Report EVERY drift at once (not just the first) so a regen is one pass.
     assert set(actual) == set(golden), (
-        f"{label}: helper set drifted. "
-        f"extra={set(actual) - set(golden)} missing={set(golden) - set(actual)}"
+        f"{label}: helper set drifted. extra={set(actual) - set(golden)} missing={set(golden) - set(actual)}"
     )
-    mismatches = {
-        k: (golden[k], actual[k]) for k in golden if actual[k] != golden[k]
-    }
-    assert not mismatches, (
-        f"{label}: SQL fragment drift (golden -> actual):\n"
-        + "\n".join(f"  {k}:\n    golden: {g!r}\n    actual: {a!r}" for k, (g, a) in mismatches.items())
+    mismatches = {k: (golden[k], actual[k]) for k in golden if actual[k] != golden[k]}
+    assert not mismatches, f"{label}: SQL fragment drift (golden -> actual):\n" + "\n".join(
+        f"  {k}:\n    golden: {g!r}\n    actual: {a!r}" for k, (g, a) in mismatches.items()
     )
 
 
@@ -165,6 +162,5 @@ def test_golden_covers_every_divergent_helper():
     covered = set(GOLDEN_SQLITE)
     missing = differing - covered
     assert not missing, (
-        f"divergent fragments not pinned in the golden: {missing} — add them to "
-        f"_emit() and both GOLDEN dicts"
+        f"divergent fragments not pinned in the golden: {missing} — add them to _emit() and both GOLDEN dicts"
     )

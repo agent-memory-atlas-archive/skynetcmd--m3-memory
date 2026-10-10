@@ -5,6 +5,7 @@ answer is a graph fact, not a judgement. A wrong synthesis contaminates exactly
 the syntheses compiled FROM it (transitively via consolidates / distills_from),
 and nothing else.
 """
+
 import os
 import sqlite3
 import sys
@@ -22,9 +23,20 @@ from wiki.select import Edge, Mem  # noqa: E402
 
 def _mem(id, verdict=None):
     meta = {"verdict": verdict} if verdict is not None else {}
-    return Mem(id=id, type="synthesis", title=id, content=f"c-{id}",
-               importance=0.5, confidence=0.5, valid_from=None, valid_to=None,
-               pinned=0, created_at=None, updated_at=None, metadata=meta)
+    return Mem(
+        id=id,
+        type="synthesis",
+        title=id,
+        content=f"c-{id}",
+        importance=0.5,
+        confidence=0.5,
+        valid_from=None,
+        valid_to=None,
+        pinned=0,
+        created_at=None,
+        updated_at=None,
+        metadata=meta,
+    )
 
 
 def _clusters(*mems):
@@ -36,6 +48,7 @@ def _edge(frm, to, rel="consolidates"):
 
 
 # ── exact topology: precision AND recall ─────────────────────────────────────
+
 
 def test_chain_contaminates_all_downstream():
     """C consolidates B consolidates A; A wrong ⇒ exactly {B, C}, nothing else."""
@@ -88,13 +101,13 @@ def test_cycle_is_safe():
 
 
 def test_multiple_wrong_roots_union():
-    clusters = _clusters(_mem("A", verdict="wrong"), _mem("X", verdict="wrong"),
-                         _mem("B"), _mem("Y"))
+    clusters = _clusters(_mem("A", verdict="wrong"), _mem("X", verdict="wrong"), _mem("B"), _mem("Y"))
     edges = [_edge("B", "A"), _edge("Y", "X")]
     assert B.contaminated(clusters, edges) == {"B", "Y"}
 
 
 # ── delta-lint scope ─────────────────────────────────────────────────────────
+
 
 def test_delta_scope_is_changed_plus_direct_dependents():
     edges = [_edge("B", "A"), _edge("C", "B")]
@@ -108,6 +121,7 @@ def test_delta_scope_of_leaf_is_just_itself():
 
 
 # ── end-to-end: lint page renders the section deterministically ──────────────
+
 
 def _db_with_wrong_chain():
     conn = sqlite3.connect(":memory:")
@@ -124,11 +138,10 @@ def _db_with_wrong_chain():
              confidence REAL DEFAULT 0.85);"""
     )
     import json
+
     rows = [
-        ("wrong-a", "synthesis", "Wrong A", "bad root",
-         json.dumps({"authority": "canonical", "verdict": "wrong"})),
-        ("dep-b", "synthesis", "Dependent B", "downstream",
-         json.dumps({"authority": "canonical"})),
+        ("wrong-a", "synthesis", "Wrong A", "bad root", json.dumps({"authority": "canonical", "verdict": "wrong"})),
+        ("dep-b", "synthesis", "Dependent B", "downstream", json.dumps({"authority": "canonical"})),
     ]
     conn.executemany(
         "INSERT INTO memory_items (id,type,title,content,importance,confidence,"
@@ -136,8 +149,9 @@ def _db_with_wrong_chain():
         "(?,?,?,?,0.9,0.8,'2026-01-01','2026-01-01','2026-01-02',?)",
         [(r[0], r[1], r[2], r[3], r[4]) for r in rows],
     )
-    conn.execute("INSERT INTO memory_relationships (from_id,to_id,relationship_type) "
-                 "VALUES ('dep-b','wrong-a','consolidates')")
+    conn.execute(
+        "INSERT INTO memory_relationships (from_id,to_id,relationship_type) VALUES ('dep-b','wrong-a','consolidates')"
+    )
     conn.commit()
     return conn
 
@@ -162,6 +176,7 @@ def test_blast_radius_adds_zero_queries():
     sqlite3.set_trace_callback fires per executed statement — the real query
     count, independent of the row factory the seam sets.
     """
+
     def count(with_wrong):
         conn = _db_with_wrong_chain() if with_wrong else _db_clean()
         n = [0]
@@ -181,8 +196,7 @@ def test_blast_radius_adds_zero_queries():
     # re-counting on the SAME fixture with the section reachable vs not: here we
     # assert the with-wrong build is not MORE query-heavy per contaminated node.
     # Both fixtures are 2 items / 1 edge, so query counts must be identical.
-    assert with_wrong == clean, (
-        f"blast radius scaled queries: {with_wrong} vs {clean} — expected equal")
+    assert with_wrong == clean, f"blast radius scaled queries: {with_wrong} vs {clean} — expected equal"
 
 
 def _db_clean():
@@ -202,11 +216,10 @@ def _db_clean():
              confidence REAL DEFAULT 0.85);"""
     )
     import json
+
     rows = [
-        ("wrong-a", "synthesis", "Wrong A", "bad root",
-         json.dumps({"authority": "canonical"})),  # NO wrong verdict
-        ("dep-b", "synthesis", "Dependent B", "downstream",
-         json.dumps({"authority": "canonical"})),
+        ("wrong-a", "synthesis", "Wrong A", "bad root", json.dumps({"authority": "canonical"})),  # NO wrong verdict
+        ("dep-b", "synthesis", "Dependent B", "downstream", json.dumps({"authority": "canonical"})),
     ]
     conn.executemany(
         "INSERT INTO memory_items (id,type,title,content,importance,confidence,"
@@ -214,8 +227,9 @@ def _db_clean():
         "(?,?,?,?,0.9,0.8,'2026-01-01','2026-01-01','2026-01-02',?)",
         [(r[0], r[1], r[2], r[3], r[4]) for r in rows],
     )
-    conn.execute("INSERT INTO memory_relationships (from_id,to_id,relationship_type) "
-                 "VALUES ('dep-b','wrong-a','consolidates')")
+    conn.execute(
+        "INSERT INTO memory_relationships (from_id,to_id,relationship_type) VALUES ('dep-b','wrong-a','consolidates')"
+    )
     conn.commit()
     return conn
 
@@ -236,10 +250,12 @@ def test_clean_store_says_blast_radius_zero_not_absent():
              mention_text TEXT, mention_offset INTEGER DEFAULT 0,
              confidence REAL DEFAULT 0.85);"""
     )
-    conn.execute("INSERT INTO memory_items (id,type,title,content,importance,"
-                 "confidence,valid_from,created_at,updated_at,metadata_json) VALUES "
-                 "('b','belief','B','x',0.9,0.8,'2026-01-01','2026-01-01',"
-                 "'2026-01-02','{}')")
+    conn.execute(
+        "INSERT INTO memory_items (id,type,title,content,importance,"
+        "confidence,valid_from,created_at,updated_at,metadata_json) VALUES "
+        "('b','belief','B','x',0.9,0.8,'2026-01-01','2026-01-01',"
+        "'2026-01-02','{}')"
+    )
     conn.commit()
     try:
         pages = build_wiki(conn, None, WikiOptions(importance_threshold=0.6))

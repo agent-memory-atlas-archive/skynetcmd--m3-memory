@@ -25,6 +25,7 @@ scrub_prose returns (text, n) and never raises; a pattern that can't compile is
 skipped with the rest still applied. The caller decides policy; the default here
 is best-effort-but-applied.
 """
+
 from __future__ import annotations
 
 import os
@@ -71,6 +72,7 @@ def _self_names() -> tuple[str, ...]:
     M3_CONFIG_ROOT/.wiki_pii.json  {"names": ["alice", "alice-laptop"]}. A code-resolved
     file, not an env var (§3: headless launchers inherit no shell env)."""
     import json
+
     names: set[str] = set(_DEFAULT_SELF_NAMES)
     path = Path(_config_root()) / _CONFIG_BASENAME
     try:
@@ -93,8 +95,7 @@ def _redact_secrets(text: str) -> tuple[str, int]:
     # Enable the full secret set + classic PII for a shareable artifact.
     cfg = {
         "enabled": True,
-        "patterns": ["api_keys", "bearer_tokens", "jwt", "aws_keys",
-                     "github_tokens", "pii"],
+        "patterns": ["api_keys", "bearer_tokens", "jwt", "aws_keys", "github_tokens", "pii"],
         "custom_regex": [],
         "redact_pii": True,
     }

@@ -11,6 +11,7 @@ failed, the wizard aborted before Step 5, and it exited 1 — while
 different launcher. Reproduced directly: passing a .py path to `m3.exe` prints
 "invalid choice: '...py'" and returns 2.
 """
+
 from __future__ import annotations
 
 import os
@@ -111,19 +112,22 @@ def test_no_package_module_spawns_a_script_via_sys_executable():
                 offenders.append(f"{py.relative_to(pkg.parent)}:{n}: {line.strip()}")
     assert not offenders, (
         "sys.executable passed a script path in code that runs under the console "
-        "script shim; use m3_memory._platform.python_exe():\n  "
-        + "\n  ".join(offenders)
+        "script shim; use m3_memory._platform.python_exe():\n  " + "\n  ".join(offenders)
     )
 
 
 # ── `m3 setup` must exit 0 when it succeeds ─────────────────────────────────
 
-@pytest.mark.parametrize("rc,blob,expect", [
-    (0,  "Added MCP server memory",                    True),
-    (1,  "MCP server memory already exists in user config", True),
-    (1,  "Error: connection refused",                  False),
-    (2,  "unknown option '--global'",                  False),
-])
+
+@pytest.mark.parametrize(
+    "rc,blob,expect",
+    [
+        (0, "Added MCP server memory", True),
+        (1, "MCP server memory already exists in user config", True),
+        (1, "Error: connection refused", False),
+        (2, "unknown option '--global'", False),
+    ],
+)
 def test_claude_mcp_add_already_exists_is_success(monkeypatch, capsys, rc, blob, expect):
     """`claude mcp add` is idempotent in EFFECT but not in EXIT CODE.
 
@@ -139,7 +143,8 @@ def test_claude_mcp_add_already_exists_is_success(monkeypatch, capsys, rc, blob,
 
     monkeypatch.setattr(sw.shutil, "which", lambda name: "/usr/bin/claude")
     monkeypatch.setattr(
-        sw.subprocess, "run",
+        sw.subprocess,
+        "run",
         lambda *a, **k: SimpleNamespace(returncode=rc, stdout=blob, stderr=""),
     )
     assert sw._wire_claude("both") is expect
@@ -152,5 +157,6 @@ def _not_already_registered(monkeypatch):
     """The "already registered" checks read the developer's real ~/.claude.json
     and ~/.openclaw; pin them so these tests exercise registration everywhere."""
     from m3_memory import setup_wizard as _sw
+
     monkeypatch.setattr(_sw, "_claude_registration_current", lambda env: False)
     monkeypatch.setattr(_sw, "_openclaw_entry_current", lambda spec: False)

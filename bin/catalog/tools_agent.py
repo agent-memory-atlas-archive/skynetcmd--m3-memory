@@ -4,6 +4,7 @@ Split out of mcp_tool_catalog.py's flat TOOLS list. Entries copied verbatim
 (name, description, parameters, impl, validators, flags unchanged). Domain
 assignment per tool_domains.domain_of_tool().
 """
+
 from __future__ import annotations
 
 from .lazy import LazyModuleProxy
@@ -19,10 +20,15 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "agent_id":    {"type": "string", "description": "Unique agent identifier."},
-                "role":        {"type": "string", "description": "Agent role or function.", "default": ""},
-                "capabilities": {"type": "array", "items": {"type": "string"}, "description": "List of capabilities.", "default": []},
-                "metadata":    {"type": "object", "description": "Free-form metadata.", "default": {}},
+                "agent_id": {"type": "string", "description": "Unique agent identifier."},
+                "role": {"type": "string", "description": "Agent role or function.", "default": ""},
+                "capabilities": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of capabilities.",
+                    "default": [],
+                },
+                "metadata": {"type": "object", "description": "Free-form metadata.", "default": {}},
             },
             "required": ["agent_id"],
         },
@@ -50,16 +56,22 @@ TOOLS: list[ToolSpec] = [
     ),
     ToolSpec(
         name="agent_list",
-        description=("List registered agents, optionally filtered by status and/or role. "
-                     "Each carries a derived membership: member (touched within 24h), idle "
-                     "(client process still alive on its node) or left — judge liveness by "
-                     "membership, not status."),
+        description=(
+            "List registered agents, optionally filtered by status and/or role. "
+            "Each carries a derived membership: member (touched within 24h), idle "
+            "(client process still alive on its node) or left — judge liveness by "
+            "membership, not status."
+        ),
         parameters={
             "type": "object",
             "properties": {
                 "status": {"type": "string", "description": "Filter by agent status.", "default": ""},
-                "role":   {"type": "string", "description": "Filter by agent role.", "default": ""},
-                "as_records": {"type": "boolean", "description": "Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged.", "default": False},
+                "role": {"type": "string", "description": "Filter by agent role.", "default": ""},
+                "as_records": {
+                    "type": "boolean",
+                    "description": "Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged.",
+                    "default": False,
+                },
             },
             "required": [],
         },
@@ -95,7 +107,7 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "agent_id":    {"type": "string", "description": "Unique agent identifier."},
+                "agent_id": {"type": "string", "description": "Unique agent identifier."},
                 "trust_score": {"type": "number", "description": "Trust in [0.5, 1.0]; clamped."},
             },
             "required": ["agent_id", "trust_score"],

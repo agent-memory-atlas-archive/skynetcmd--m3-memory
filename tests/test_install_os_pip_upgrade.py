@@ -44,18 +44,21 @@ def source() -> str:
 
 def test_pip_self_upgrade_uses_python_m_pip(source: str) -> None:
     """`pip.exe install --upgrade pip` fails by design on Windows."""
-    assert not re.search(r"run_cmd\(\s*\[\s*pip_exe\s*,\s*[\"']install[\"']\s*,"
-                         r"\s*[\"']--upgrade[\"']\s*,\s*[\"']pip[\"']",
-                         source), (
+    assert not re.search(
+        r"run_cmd\(\s*\[\s*pip_exe\s*,\s*[\"']install[\"']\s*,"
+        r"\s*[\"']--upgrade[\"']\s*,\s*[\"']pip[\"']",
+        source,
+    ), (
         "install_os.py upgrades pip via pip_exe. On Windows that exits non-zero "
         "with 'To modify pip, please run: <python> -m pip install --upgrade "
         "pip' -- use python_exe and `-m pip`."
     )
-    assert re.search(r"run_cmd\(\s*\[\s*python_exe\s*,\s*[\"']-m[\"']\s*,"
-                     r"\s*[\"']pip[\"']\s*,\s*[\"']install[\"']\s*,"
-                     r"\s*[\"']--upgrade[\"']\s*,\s*[\"']pip[\"']", source), (
-        "expected the pip self-upgrade to go through `python -m pip`"
-    )
+    assert re.search(
+        r"run_cmd\(\s*\[\s*python_exe\s*,\s*[\"']-m[\"']\s*,"
+        r"\s*[\"']pip[\"']\s*,\s*[\"']install[\"']\s*,"
+        r"\s*[\"']--upgrade[\"']\s*,\s*[\"']pip[\"']",
+        source,
+    ), "expected the pip self-upgrade to go through `python -m pip`"
 
 
 def test_pip_self_upgrade_is_not_fatal(source: str) -> None:
@@ -64,8 +67,7 @@ def test_pip_self_upgrade_is_not_fatal(source: str) -> None:
     Every dependency install works on the pip a venv ships with, so failing to
     upgrade it changes nothing about whether m3 runs.
     """
-    m = re.search(r"run_cmd\(\s*\[\s*python_exe\s*,\s*[\"']-m[\"']\s*,\s*[\"']pip[\"'].*?\)",
-                  source, re.DOTALL)
+    m = re.search(r"run_cmd\(\s*\[\s*python_exe\s*,\s*[\"']-m[\"']\s*,\s*[\"']pip[\"'].*?\)", source, re.DOTALL)
     assert m, "could not find the pip self-upgrade call"
     assert "optional=True" in m.group(0), (
         "the pip self-upgrade is still fatal: run_cmd exits the process on a "

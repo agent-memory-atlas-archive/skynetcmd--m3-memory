@@ -28,9 +28,7 @@ from m3_memory.langchain import M3Memory, Memory, MemoryClient
 # performance — pool + embedder affinity). It's a daemon (dies with the process)
 # and intentionally long-lived, so pytest's "left non-main thread alive" check is
 # expected here, not a leak.
-pytestmark = pytest.mark.filterwarnings(
-    "ignore:.*non-main thread.*:UserWarning"
-)
+pytestmark = pytest.mark.filterwarnings("ignore:.*non-main thread.*:UserWarning")
 
 
 def test_class_aliases_are_the_same():
@@ -144,11 +142,13 @@ def test_extras_supersede_forget_related():
 
 def test_from_config_accepts_and_ignores():
     # mem0-style config with infra keys must not raise
-    m = Memory.from_config({
-        "embedder": {"provider": "openai"},
-        "vector_store": {"provider": "qdrant"},
-        "user_id": "carol",
-    })
+    m = Memory.from_config(
+        {
+            "embedder": {"provider": "openai"},
+            "vector_store": {"provider": "qdrant"},
+            "user_id": "carol",
+        }
+    )
     assert isinstance(m, Memory)
     # the known key (user_id) became the default
     assert m._default_user_id == "carol"
@@ -156,4 +156,5 @@ def test_from_config_accepts_and_ignores():
 
 if __name__ == "__main__":
     import sys
+
     sys.exit(pytest.main([__file__, "-v"]))

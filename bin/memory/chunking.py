@@ -13,6 +13,7 @@ The chunk-size / dense-recovery constants below are read-only config
 here verbatim from embed.py so this module has no import-time coupling
 back to embed.py. Do NOT import `embed` here — that would create a cycle.
 """
+
 from __future__ import annotations
 
 import math
@@ -94,8 +95,7 @@ def _chunk_for_sliding_window(text: str) -> list[tuple[str, int]]:
         if depth >= _MAX_SPLIT_DEPTH:
             return [part]  # pathological input: hand it back rather than loop
         mid = len(part) // 2
-        return _split_to_budget(part[:mid], depth + 1) + \
-            _split_to_budget(part[mid:], depth + 1)
+        return _split_to_budget(part[:mid], depth + 1) + _split_to_budget(part[mid:], depth + 1)
 
     out: list[tuple[str, int]] = []
     for part in coarse:
@@ -169,6 +169,7 @@ def _subdivide_dense_chunk(text: str, observed_tokens: int) -> list[str]:
         return [text]
     if observed_tokens <= 0:
         from .tokens import estimate_tokens
+
         observed_tokens = estimate_tokens(text)
         if observed_tokens <= 0:  # unreachable for non-empty text; belt-and-braces
             return [text]

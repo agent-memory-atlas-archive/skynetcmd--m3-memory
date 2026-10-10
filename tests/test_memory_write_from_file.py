@@ -94,9 +94,7 @@ def _row_count(db_path):
 def _fetch_one(db_path):
     conn = sqlite3.connect(str(db_path))
     try:
-        return conn.execute(
-            "SELECT type, title, content FROM memory_items LIMIT 1"
-        ).fetchone()
+        return conn.execute("SELECT type, title, content FROM memory_items LIMIT 1").fetchone()
     finally:
         conn.close()
 
@@ -131,11 +129,7 @@ def test_happy_path_writes_row_and_deletes_tempfile(isolated_db):
     body = "# Hello\n\nA small markdown body."
     path = _make_tempfile(body)
 
-    out = asyncio.run(
-        memory_write_from_file_impl(
-            path=path, type="note", title="test title", embed=False
-        )
-    )
+    out = asyncio.run(memory_write_from_file_impl(path=path, type="note", title="test title", embed=False))
 
     assert isinstance(out, str)
     assert out.startswith("Created:"), f"unexpected result: {out!r}"
@@ -150,12 +144,8 @@ def test_happy_path_writes_row_and_deletes_tempfile(isolated_db):
 def test_missing_path_returns_error_and_writes_no_row(isolated_db):
     from memory_core import memory_write_from_file_impl
 
-    bogus = os.path.join(
-        os.path.dirname(str(isolated_db)), "nonexistent_does_not_exist.md"
-    )
-    out = asyncio.run(
-        memory_write_from_file_impl(path=bogus, type="note", embed=False)
-    )
+    bogus = os.path.join(os.path.dirname(str(isolated_db)), "nonexistent_does_not_exist.md")
+    out = asyncio.run(memory_write_from_file_impl(path=bogus, type="note", embed=False))
 
     assert isinstance(out, str)
     assert out.startswith("Error: file not found:"), f"unexpected: {out!r}"
@@ -165,9 +155,7 @@ def test_missing_path_returns_error_and_writes_no_row(isolated_db):
 def test_empty_path_returns_required_error(isolated_db):
     from memory_core import memory_write_from_file_impl
 
-    out = asyncio.run(
-        memory_write_from_file_impl(path="", type="note", embed=False)
-    )
+    out = asyncio.run(memory_write_from_file_impl(path="", type="note", embed=False))
 
     assert out == "Error: path is required"
     assert _row_count(isolated_db) == 0
@@ -233,9 +221,7 @@ def test_file_too_large_rejected_before_read(isolated_db):
     body = "x" * 200_001
     path = _make_tempfile(body, suffix=".txt")
     try:
-        out = asyncio.run(
-            memory_write_from_file_impl(path=path, type="note", embed=False)
-        )
+        out = asyncio.run(memory_write_from_file_impl(path=path, type="note", embed=False))
 
         assert isinstance(out, str)
         assert out.startswith("Error: file too large"), f"unexpected: {out!r}"
@@ -266,7 +252,8 @@ def test_file_is_read_off_the_event_loop_thread(isolated_db, monkeypatch):
 
     async def run():
         return threading.get_ident(), await memory_write_from_file_impl(
-            path=path, type="note", title="thread", embed=False)
+            path=path, type="note", title="thread", embed=False
+        )
 
     try:
         loop_thread, out = asyncio.run(run())

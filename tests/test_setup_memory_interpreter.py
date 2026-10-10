@@ -13,6 +13,7 @@ would not have caught it. They assert on the resolved interpreter and on whether
 a nested venv directory appears; a test that only asserted "no .venv" would pass
 on a crash, which is how the first draft of this fix fooled its own check.
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -38,7 +39,9 @@ def _stage(root: Path) -> Path:
 def _run(bin_dir: Path, db: Path) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, str(bin_dir / "setup_memory.py"), "--database", str(db)],
-        capture_output=True, text=True, timeout=300,
+        capture_output=True,
+        text=True,
+        timeout=300,
     )
 
 
@@ -125,6 +128,5 @@ def test_setup_memory_does_not_duplicate_the_predicate():
     src = _SCRIPT.read_text(encoding="utf-8")
     assert "from generate_configs import _is_installed_layout" in src
     assert "def _is_installed_layout" not in src, (
-        "setup_memory defines its own copy of the layout predicate; import the "
-        "single owner in generate_configs instead"
+        "setup_memory defines its own copy of the layout predicate; import the single owner in generate_configs instead"
     )

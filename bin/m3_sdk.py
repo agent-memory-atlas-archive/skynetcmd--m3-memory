@@ -1,5 +1,6 @@
 """m3_sdk — facade. Real implementations live in bin/m3_core/*.
 Kept as the stable import surface for ~60 callers. Do not add logic here."""
+
 import sys as _sys
 import types as _types
 from typing import override
@@ -152,6 +153,7 @@ def get_secret(service: str) -> "str | None":
     reads back through M3Context — a top-level import would cycle); this mirrors
     M3Context.get_secret, which is the context-bound wrapper around the same fn."""
     from auth_utils import get_api_key
+
     return get_api_key(service)
 
 

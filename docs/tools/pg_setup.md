@@ -1,8 +1,8 @@
 ---
 tool: bin/pg_setup.py
-sha1: 9ce5d31020f5
-mtime_utc: 2026-10-10T06:50:41.184999+00:00
-generated_utc: 2026-10-10T06:50:42.360696+00:00
+sha1: 6b9f38807eaa
+mtime_utc: 2026-10-10T21:05:16.652430+00:00
+generated_utc: 2026-10-10T21:05:29.880962+00:00
 private: false
 ---
 
@@ -16,7 +16,7 @@ _(no module docstring — update the source file.)_
 
 ## Entry points
 
-- `def main()` (line 102)
+- `def main()` (line 107)
 - `if __name__ == "__main__"` guard
 
 ---

@@ -4,6 +4,7 @@ We do NOT run the actual multi-minute build here; we test the pure logic:
 install-path resolution (must match crypto_provider's discovery), the SHA-256
 helper, and prereq detection shape.
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -27,6 +28,7 @@ def test_install_dir_matches_crypto_provider(monkeypatch, tmp_path):
     monkeypatch.setenv("M3_MEMORY_ROOT", str(tmp_path))
     iw = _load()
     import crypto_provider as cp
+
     importlib.reload(cp)
     assert os.path.abspath(iw._m3_lib_dir()) == os.path.abspath(cp._m3_lib_dir())
 
@@ -64,6 +66,7 @@ def test_lib_dir_pin_outranks_roots(monkeypatch, tmp_path):
     monkeypatch.setenv("M3_LIB_DIR", str(tmp_path / "pinned"))
     iw = _load()
     import crypto_provider as cp
+
     expected = os.path.abspath(str(tmp_path / "pinned"))
     assert os.path.abspath(iw._m3_lib_dir()) == expected
     assert os.path.abspath(cp._m3_lib_dir()) == expected
@@ -71,6 +74,7 @@ def test_lib_dir_pin_outranks_roots(monkeypatch, tmp_path):
 
 def test_sha256_matches_hashlib(tmp_path):
     import hashlib
+
     iw = _load()
     f = tmp_path / "x.bin"
     data = b"wolf-bytes" * 1000

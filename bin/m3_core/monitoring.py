@@ -25,6 +25,7 @@ latency a caller sees); ``self_s`` excludes nested stages that ran in the same
 task, so stages sum without double counting. Work fanned out to OTHER tasks is
 not subtracted from its parent.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -61,9 +62,13 @@ class StageStats:
     errors: int = 0
 
     def as_dict(self) -> dict[str, float | int]:
-        return {"calls": self.calls, "wall_ms": round(self.wall_s * 1000, 3),
-                "self_ms": round(self.self_s * 1000, 3), "max_ms": round(self.max_s * 1000, 3),
-                "errors": self.errors}
+        return {
+            "calls": self.calls,
+            "wall_ms": round(self.wall_s * 1000, 3),
+            "self_ms": round(self.self_s * 1000, 3),
+            "max_ms": round(self.max_s * 1000, 3),
+            "errors": self.errors,
+        }
 
 
 @dataclass(slots=True)
@@ -164,8 +169,7 @@ def _live_copies(keys: set[tuple[str, str]]) -> list[CodeType]:
         code = getattr(obj, "__code__", None) if callable(obj) else None
         # qualname first (cheap), then the normalised path: a copy loaded through
         # spec_from_file_location spells the same file differently.
-        if (isinstance(code, CodeType) and code.co_qualname in qualnames
-                and _code_key(code) in keys):
+        if isinstance(code, CodeType) and code.co_qualname in qualnames and _code_key(code) in keys:
             pending = [code]
             while pending:
                 c = pending.pop()
@@ -209,8 +213,10 @@ def _code_of(fn: Callable[..., Any]) -> CodeType:
     target = getattr(target, "__wrapped__", target)
     code = getattr(target, "__code__", None)
     if not isinstance(code, CodeType):
-        raise TypeError(f"observed: {fn!r} has no Python code object. inspect: the stage map; "
-                        "C callables are timed through classify_c, not functions")
+        raise TypeError(
+            f"observed: {fn!r} has no Python code object. inspect: the stage map; "
+            "C callables are timed through classify_c, not functions"
+        )
     return code
 
 
@@ -229,7 +235,7 @@ def stage_timing(stage_map: StageMap) -> Iterator[StageReport]:
     classify = stage_map.classify_c
 
     report = StageReport()
-    frames: dict[int, _Open] = {}        # id(frame) -> its open stage
+    frames: dict[int, _Open] = {}  # id(frame) -> its open stage
     top: dict[tuple[int, int], _Open] = {}  # context -> innermost open stage
     c_open: dict[tuple[int, int], list[tuple[object, _Open]]] = {}
 
@@ -287,22 +293,32 @@ def stage_timing(stage_map: StageMap) -> Iterator[StageReport]:
             stack = c_open.get(_context_key())
             if stack and stack[-1][0] is callable_:
                 _close(stack.pop()[1], error=error)
+
         return end
 
     if not _SESSION_LOCK.acquire(blocking=False):
-        raise MonitoringBusy("observed: a stage-timing session is already active in this process. "
-                             "inspect: sys.monitoring is process-wide; run one session at a time")
+        raise MonitoringBusy(
+            "observed: a stage-timing session is already active in this process. "
+            "inspect: sys.monitoring is process-wide; run one session at a time"
+        )
     try:
         tool = next((t for t in _TOOL_CANDIDATES if _MON.get_tool(t) is None), None)
         if tool is None:
             held = ", ".join(f"{t}={_MON.get_tool(t)!r}" for t in _TOOL_CANDIDATES)
-            raise MonitoringBusy(f"observed: every sys.monitoring tool id m3 can use is held ({held}). "
-                                 "inspect: stop one of those tools (a profiler, debugger) and retry")
+            raise MonitoringBusy(
+                f"observed: every sys.monitoring tool id m3 can use is held ({held}). "
+                "inspect: stop one of those tools (a profiler, debugger) and retry"
+            )
         _MON.use_tool_id(tool, _TOOL_NAME)
         try:
-            callbacks: dict[int, Callable[..., object]] = {_EV.PY_START: on_start, _EV.PY_RETURN: on_return,
-                         _EV.PY_UNWIND: on_unwind, _EV.CALL: on_call,
-                         _EV.C_RETURN: _c_end(False), _EV.C_RAISE: _c_end(True)}
+            callbacks: dict[int, Callable[..., object]] = {
+                _EV.PY_START: on_start,
+                _EV.PY_RETURN: on_return,
+                _EV.PY_UNWIND: on_unwind,
+                _EV.CALL: on_call,
+                _EV.C_RETURN: _c_end(False),
+                _EV.C_RAISE: _c_end(True),
+            }
             for event, cb in callbacks.items():
                 _MON.register_callback(tool, event, cb)
             for code in objects:  # by identity: every live copy
@@ -318,8 +334,7 @@ def stage_timing(stage_map: StageMap) -> Iterator[StageReport]:
             _MON.set_events(tool, 0)
             for code in objects:
                 _MON.set_local_events(tool, code, 0)
-            for event in (_EV.PY_START, _EV.PY_RETURN, _EV.PY_UNWIND, _EV.CALL,
-                          _EV.C_RETURN, _EV.C_RAISE):
+            for event in (_EV.PY_START, _EV.PY_RETURN, _EV.PY_UNWIND, _EV.CALL, _EV.C_RETURN, _EV.C_RAISE):
                 _MON.register_callback(tool, event, None)
             _MON.free_tool_id(tool)
     finally:

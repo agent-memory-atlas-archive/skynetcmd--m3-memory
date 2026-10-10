@@ -68,7 +68,11 @@ def autonomy_flag(config_key: str, env_name: str, default: bool = False) -> bool
     except Exception as e:
         logger.warning(
             "Cognitive-loop autonomy config %s is unreadable/malformed (%s) — "
-            "falling back to env var %s + default until fixed.", path, e, env_name)
+            "falling back to env var %s + default until fixed.",
+            path,
+            e,
+            env_name,
+        )
     return _truthy(os.environ.get(env_name, "1" if default else "0"))
 
 
@@ -98,6 +102,5 @@ def ensure_autonomy_config() -> str:
     except FileExistsError:
         pass  # a peer seeded it between the check and the create — fine
     except Exception as e:
-        logger.warning("Could not seed autonomy config %s (%s) — "
-                       "loop stays on env+defaults.", path, e)
+        logger.warning("Could not seed autonomy config %s (%s) — loop stays on env+defaults.", path, e)
     return path

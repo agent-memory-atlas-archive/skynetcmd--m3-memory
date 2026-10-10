@@ -3,6 +3,7 @@
 Hazard: pipx 1.17+ builds app venvs without pip, so `python -m pip` fails and
 the native core, its embed-server binary and the dashboard extras never install.
 """
+
 from __future__ import annotations
 
 import sys
@@ -61,8 +62,9 @@ def test_rust_core_install_reports_missing_pip_not_a_missing_wheel(monkeypatch, 
 
     monkeypatch.setattr(_pip, "pip_command", boom)
     monkeypatch.setattr(rci, "install_log", lambda *a, **k: None)
-    monkeypatch.setattr(rci, "install_from_github_release",
-                        lambda *a, **k: pytest.fail("no install attempt without pip"))
+    monkeypatch.setattr(
+        rci, "install_from_github_release", lambda *a, **k: pytest.fail("no install attempt without pip")
+    )
     assert rci.install_rust_core(os_tok="macos", force=True) == 1
     err = capsys.readouterr().err
     assert "pip is not available" in err

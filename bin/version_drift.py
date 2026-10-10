@@ -29,6 +29,7 @@ startup. Prints a single-line WARNING to stderr; never aborts.
 
 No new dependencies. Uses only stdlib (pathlib, json, datetime, os).
 """
+
 from __future__ import annotations
 
 import json
@@ -63,6 +64,7 @@ def _current_version() -> str:
     """Resolve m3-memory package version. Returns '0.0.0+local' on failure."""
     try:
         from m3_memory import __version__
+
         return str(__version__) or "0.0.0+local"
     except Exception:
         return "0.0.0+local"
@@ -122,7 +124,9 @@ def check_and_record() -> dict:
                 "%s. If the older server is still running (PID %s), restart "
                 "it to pick up the changes (kill it OR /mcp restart in your "
                 "agent).",
-                current, prior_version, prior.get("last_boot_pid", "?"),
+                current,
+                prior_version,
+                prior.get("last_boot_pid", "?"),
             )
 
     # Detect any other live mcp-memory processes from previous boots
@@ -135,14 +139,17 @@ def check_and_record() -> dict:
                 "PID %s from the previous boot is STILL RUNNING. Two MCP "
                 "servers serving the same agent will produce inconsistent "
                 "results. Kill PID %s.",
-                prior["last_boot_pid"], prior["last_boot_pid"],
+                prior["last_boot_pid"],
+                prior["last_boot_pid"],
             )
 
-    _save_state({
-        "last_boot_version": current,
-        "last_boot_at": now,
-        "last_boot_pid": pid,
-    })
+    _save_state(
+        {
+            "last_boot_version": current,
+            "last_boot_at": now,
+            "last_boot_pid": pid,
+        }
+    )
 
     return findings
 
@@ -155,6 +162,7 @@ def _pid_is_alive(pid: int) -> bool:
     """
     try:
         from m3_core.process import pid_is_alive
+
         return pid_is_alive(pid)
     except Exception:  # noqa: BLE001 -- see docstring
         return False

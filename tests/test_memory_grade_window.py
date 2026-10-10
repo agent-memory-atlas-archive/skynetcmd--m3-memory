@@ -31,6 +31,7 @@ fixtures use `datetime.now(timezone.utc).isoformat()` — exactly what productio
 writes — and the fix was a new dialect.age_minutes_lt() that compares PARSED
 instants.
 """
+
 from __future__ import annotations
 
 import datetime as dt
@@ -73,8 +74,7 @@ def store(main_db_template, monkeypatch, tmp_path):
                 "(id, content, title, type, importance, importance_raw, "
                 " is_deleted, source, last_accessed_at, created_at) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (mid, "probe", "probe", "belief", 0.5, 0.5, deleted, "agent",
-                 accessed, now.isoformat()),
+                (mid, "probe", "probe", "belief", 0.5, 0.5, deleted, "agent", accessed, now.isoformat()),
             )
         return mid
 
@@ -84,13 +84,13 @@ def store(main_db_template, monkeypatch, tmp_path):
 def _counts(mid: str):
     with mc._db() as db:
         row = db.execute(
-            "SELECT COALESCE(helpful_count,0), COALESCE(unhelpful_count,0) "
-            "FROM memory_items WHERE id = ?", (mid,)
+            "SELECT COALESCE(helpful_count,0), COALESCE(unhelpful_count,0) FROM memory_items WHERE id = ?", (mid,)
         ).fetchone()
     return (row[0], row[1])
 
 
 # ── the happy path ───────────────────────────────────────────────────────────
+
 
 def test_a_fresh_grade_lands(store):
     mid = store(accessed_minutes_ago=0)
@@ -125,22 +125,20 @@ def test_contested_is_distinguishable_from_ignored(store):
     assert _counts(contested) == (5, 5)
     assert _counts(ignored) == (0, 0)
     assert _counts(contested) != _counts(ignored), (
-        "contested and ignored memories are indistinguishable — the counters "
-        "have been collapsed into a net somewhere."
+        "contested and ignored memories are indistinguishable — the counters have been collapsed into a net somewhere."
     )
 
 
 def test_one_call_grades_many(store):
     """Bulk by design: ten results must not be ten round trips (§4)."""
     ids = [store() for _ in range(10)]
-    res = mm.memory_grade_impl(
-        grades=[{"memory_id": m, "verdict": "helpful"} for m in ids]
-    )
+    res = mm.memory_grade_impl(grades=[{"memory_id": m, "verdict": "helpful"} for m in ids])
     assert res["graded"] == 10
     assert all(_counts(m) == (1, 0) for m in ids)
 
 
 # ── the window ───────────────────────────────────────────────────────────────
+
 
 def test_a_stale_grade_is_rejected_not_applied(store):
     mid = store(accessed_minutes_ago=60)
@@ -149,8 +147,7 @@ def test_a_stale_grade_is_rejected_not_applied(store):
     assert res["rejected_stale"] == 1
     assert res["reason"] == "outside_feedback_window"
     assert _counts(mid) == (0, 0), (
-        "the response said applied=false but the counter moved anyway — the "
-        "same class of lie as a false success."
+        "the response said applied=false but the counter moved anyway — the same class of lie as a false success."
     )
 
 
@@ -167,8 +164,7 @@ def test_the_window_boundary_holds_on_production_timestamps(store):
     inside = store(accessed_minutes_ago=1)
     outside = store(accessed_minutes_ago=30)
     res = mm.memory_grade_impl(
-        grades=[{"memory_id": inside, "verdict": "helpful"},
-                {"memory_id": outside, "verdict": "helpful"}],
+        grades=[{"memory_id": inside, "verdict": "helpful"}, {"memory_id": outside, "verdict": "helpful"}],
         window_minutes=5,
     )
     assert res["graded"] == 1 and res["rejected_stale"] == 1
@@ -226,10 +222,7 @@ def test_a_timestamp_in_the_same_second_as_the_cutoff_is_not_judged_stale(store)
     ts = (dt.datetime.now(dt.UTC) - dt.timedelta(minutes=1)).isoformat()
     pred = dialect_for("sqlite").age_minutes_lt("?", "?")
     got = conn.execute(f"SELECT {pred}", (ts, 5)).fetchone()[0]
-    assert got, (
-        f"a production-format timestamp 1 minute old ({ts}) was judged outside "
-        "a 5-minute window"
-    )
+    assert got, f"a production-format timestamp 1 minute old ({ts}) was judged outside a 5-minute window"
 
 
 def test_the_grade_query_uses_the_parsed_seam_not_a_string_compare():
@@ -244,9 +237,7 @@ def test_the_grade_query_uses_the_parsed_seam_not_a_string_compare():
     import inspect
 
     src = inspect.getsource(mm.memory_grade_impl)
-    assert "age_minutes_lt" in src, (
-        "memory_grade_impl stopped using the parsed-instant seam"
-    )
+    assert "age_minutes_lt" in src, "memory_grade_impl stopped using the parsed-instant seam"
     assert "now_minus_minutes" not in src, (
         "memory_grade_impl is string-comparing timestamps again — see "
         "dialect.age_minutes_lt for why that silently rejects fresh grades."
@@ -256,12 +247,8 @@ def test_the_grade_query_uses_the_parsed_seam_not_a_string_compare():
 def test_window_is_configurable_per_call(store):
     """A long tool-using turn must be able to widen the window."""
     mid = store(accessed_minutes_ago=30)
-    assert mm.memory_grade_impl(
-        grades=[{"memory_id": mid, "verdict": "helpful"}], window_minutes=5
-    )["graded"] == 0
-    assert mm.memory_grade_impl(
-        grades=[{"memory_id": mid, "verdict": "helpful"}], window_minutes=60
-    )["graded"] == 1
+    assert mm.memory_grade_impl(grades=[{"memory_id": mid, "verdict": "helpful"}], window_minutes=5)["graded"] == 0
+    assert mm.memory_grade_impl(grades=[{"memory_id": mid, "verdict": "helpful"}], window_minutes=60)["graded"] == 1
 
 
 def test_never_retrieved_memories_cannot_be_graded(store):
@@ -280,20 +267,17 @@ def test_never_retrieved_memories_cannot_be_graded(store):
 
 
 def test_unknown_ids_are_counted_not_silently_dropped(store):
-    res = mm.memory_grade_impl(
-        grades=[{"memory_id": str(uuid.uuid4()), "verdict": "helpful"}]
-    )
+    res = mm.memory_grade_impl(grades=[{"memory_id": str(uuid.uuid4()), "verdict": "helpful"}])
     assert res.get("unknown") == 1
 
 
 # ── instrumentation ──────────────────────────────────────────────────────────
 
+
 def test_rejection_rate_is_measurable(store):
     """§5: a window nobody can evaluate is not a tunable knob."""
-    mm.memory_grade_impl(
-        grades=[{"memory_id": store(accessed_minutes_ago=0), "verdict": "helpful"}])
-    mm.memory_grade_impl(
-        grades=[{"memory_id": store(accessed_minutes_ago=90), "verdict": "helpful"}])
+    mm.memory_grade_impl(grades=[{"memory_id": store(accessed_minutes_ago=0), "verdict": "helpful"}])
+    mm.memory_grade_impl(grades=[{"memory_id": store(accessed_minutes_ago=90), "verdict": "helpful"}])
 
     stats = mm.memory_feedback_stats_impl()
     assert stats["accepted"] == 1
@@ -308,6 +292,7 @@ def test_window_default_is_five_minutes_and_configurable():
 
 # ── the window ceiling ───────────────────────────────────────────────────────
 
+
 def test_an_over_wide_window_cannot_reach_an_ancient_retrieval(store):
     """⚠ THE CEILING IS WHAT KEEPS RETRIEVAL THE CAPABILITY.
 
@@ -317,24 +302,19 @@ def test_an_over_wide_window_cannot_reach_an_ancient_retrieval(store):
     which is most of the store, and the grade stops being evidence that this
     caller used this memory.
     """
-    mid = store(accessed_minutes_ago=60 * 24 * 30)          # 30 days ago
+    mid = store(accessed_minutes_ago=60 * 24 * 30)  # 30 days ago
     res = mm.memory_grade_impl(
         grades=[{"memory_id": mid, "verdict": "helpful"}],
-        window_minutes=525600,                              # one year
+        window_minutes=525600,  # one year
     )
-    assert res["graded"] == 0, (
-        "a year-wide window reached a 30-day-old retrieval: the clamp is not "
-        "being applied"
-    )
+    assert res["graded"] == 0, "a year-wide window reached a 30-day-old retrieval: the clamp is not being applied"
     assert _counts(mid) == (0, 0)
 
 
 def test_the_clamp_is_reported_not_silent(store):
     """§3: applying a different window than asked, silently, is a false success."""
     mid = store(accessed_minutes_ago=0)
-    res = mm.memory_grade_impl(
-        grades=[{"memory_id": mid, "verdict": "helpful"}], window_minutes=525600
-    )
+    res = mm.memory_grade_impl(grades=[{"memory_id": mid, "verdict": "helpful"}], window_minutes=525600)
     assert res["window_minutes"] == mm._FEEDBACK_WINDOW_MINUTES_MAX
     assert res["window_clamped_from"] == 525600
     assert "note" in res, "the clamp happened with no word to the caller"
@@ -343,9 +323,7 @@ def test_the_clamp_is_reported_not_silent(store):
 def test_a_window_under_the_ceiling_is_untouched(store):
     """The clamp must not cost the legitimate widening case."""
     mid = store(accessed_minutes_ago=30)
-    res = mm.memory_grade_impl(
-        grades=[{"memory_id": mid, "verdict": "helpful"}], window_minutes=60
-    )
+    res = mm.memory_grade_impl(grades=[{"memory_id": mid, "verdict": "helpful"}], window_minutes=60)
     assert res["graded"] == 1
     assert res["window_minutes"] == 60
     assert "window_clamped_from" not in res
@@ -365,9 +343,7 @@ def test_a_non_integer_window_returns_a_structured_error(store):
     from one of them makes the caller handle two shapes for one tool.
     """
     mid = store()
-    res = mm.memory_grade_impl(
-        grades=[{"memory_id": mid, "verdict": "helpful"}], window_minutes="abc"
-    )
+    res = mm.memory_grade_impl(grades=[{"memory_id": mid, "verdict": "helpful"}], window_minutes="abc")
     assert res["ok"] is False
     assert res["error"] == "bad_window_minutes"
     assert _counts(mid) == (0, 0)

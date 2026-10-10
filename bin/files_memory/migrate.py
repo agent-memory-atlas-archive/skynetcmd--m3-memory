@@ -16,6 +16,7 @@ Design:
     manual/test revert path (``revert_to``), not the hot init path.
   - Idempotent: a version already in schema_versions is skipped.
 """
+
 from __future__ import annotations
 
 import glob
@@ -35,7 +36,7 @@ logger = logging.getLogger("files_memory.migrate")
 # runner the same "already satisfied" tolerance (see run_pending).
 _SQLITE_ALREADY_APPLIED = (
     "duplicate column name",  # ALTER TABLE ... ADD COLUMN (no IF NOT EXISTS in SQLite)
-    "already exists",         # CREATE TABLE/INDEX/TRIGGER without IF NOT EXISTS
+    "already exists",  # CREATE TABLE/INDEX/TRIGGER without IF NOT EXISTS
 )
 
 
@@ -48,6 +49,7 @@ def _is_sqlite_idempotency_error(exc: Exception) -> bool:
         return False
     msg = str(exc).lower()
     return any(marker in msg for marker in _SQLITE_ALREADY_APPLIED)
+
 
 _HERE = Path(__file__).resolve().parent
 _SQLITE_DIR = _HERE / "migrations"
@@ -62,6 +64,7 @@ def _schema_versions_ref() -> str:
     from memory.backends import dialect
 
     from .config import files_table  # local import: avoids cycle at module load
+
     del dialect  # files_table already routes through the active dialect
     return files_table("schema_versions")
 
@@ -92,16 +95,11 @@ def _ensure_versions_table(conn) -> None:
     On SQLite there is no schema namespace and this is a plain CREATE TABLE.
     """
     from .config import FILES_SCHEMA
+
     if _files_store_is_a_schema():
         conn.execute(f"CREATE SCHEMA IF NOT EXISTS {FILES_SCHEMA}")
     ref = _schema_versions_ref()
-    conn.execute(
-        f"CREATE TABLE IF NOT EXISTS {ref} ("
-        f"  version INTEGER PRIMARY KEY,"
-        f"  filename TEXT,"
-        f"  applied_at TEXT"
-        f")"
-    )
+    conn.execute(f"CREATE TABLE IF NOT EXISTS {ref} (  version INTEGER PRIMARY KEY,  filename TEXT,  applied_at TEXT)")
 
 
 def _applied_versions(conn) -> set[int]:
@@ -122,6 +120,7 @@ def run_pending(conn) -> list[int]:
     files-store connection is a raw sqlite3.Connection (executescript needed) and
     on PG it is the compat wrapper (execute handles multi-statement)."""
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     _is_pg = _files_store_is_a_schema()
 
@@ -156,11 +155,13 @@ def run_pending(conn) -> list[int]:
                 logger.warning(
                     "files_memory: migration v%s (%s) objects already present "
                     "(%s) — schema was ahead of the version ledger; stamping "
-                    "without re-applying.", version, up_path.name, e,
+                    "without re-applying.",
+                    version,
+                    up_path.name,
+                    e,
                 )
         conn.execute(
-            f"INSERT INTO {ref} (version, filename, applied_at) "
-            f"VALUES ({_p}, {_p}, {_dialect().now()})",
+            f"INSERT INTO {ref} (version, filename, applied_at) VALUES ({_p}, {_p}, {_dialect().now()})",
             (version, up_path.name),
         )
         applied.append(version)

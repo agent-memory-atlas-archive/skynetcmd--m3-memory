@@ -10,6 +10,7 @@ before any PostgreSQL code exists.
 Cycle-break (§2): resolve `M3Context` lazily; do not top-level-import
 `memory_core`.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -63,9 +64,7 @@ class SqliteDialect(Dialect):
         return "INSERT OR IGNORE INTO"
 
     @override
-    def on_conflict_ignore(
-        self, *, conflict_target: str = "", index_predicate: str = ""
-    ) -> str:
+    def on_conflict_ignore(self, *, conflict_target: str = "", index_predicate: str = "") -> str:
         return ""  # the OR IGNORE prefix already handled it
 
     @override
@@ -77,8 +76,7 @@ class SqliteDialect(Dialect):
         # `?` binds an int; build the '-N days' modifier string in SQL.
         # strftime, not datetime(): see now_minus_minutes for why a bare
         # datetime() bound silently matches every same-day row.
-        return (f"strftime('%Y-%m-%dT%H:%M:%SZ', 'now', "
-                f"'-' || {days_placeholder} || ' days')")
+        return f"strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-' || {days_placeholder} || ' days')"
 
     @override
     def now_plus_seconds(self, seconds_placeholder: str) -> str:
@@ -93,8 +91,7 @@ class SqliteDialect(Dialect):
         # and the claim is immortal. Found by a test that passed a negative TTL
         # (§3: this used to fail silently). Callers are additionally guarded at
         # claim_message, which rejects a non-positive TTL outright.
-        return (f"strftime('%Y-%m-%dT%H:%M:%SZ','now',"
-                f"{seconds_placeholder} || ' seconds')")
+        return f"strftime('%Y-%m-%dT%H:%M:%SZ','now',{seconds_placeholder} || ' seconds')"
 
     @override
     def now_minus_minutes(self, minutes_placeholder: str) -> str:
@@ -112,8 +109,7 @@ class SqliteDialect(Dialect):
         # as active. Same failure class as the `until=<bare date>` bug that
         # test_date_bound_parity.py exists for: same wrong query, a different
         # wrong answer per backend, neither obviously broken in isolation.
-        return (f"strftime('%Y-%m-%dT%H:%M:%SZ', 'now', "
-                f"'-' || {minutes_placeholder} || ' minutes')")
+        return f"strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-' || {minutes_placeholder} || ' minutes')"
 
     @override
     def age_days_gt(self, ts_column: str, days_expr: str) -> str:
@@ -148,8 +144,7 @@ class SqliteDialect(Dialect):
             if e is None:
                 continue
             msg = str(e).lower()
-            if ("no such column" in msg or "no such table" in msg
-                    or "no column named" in msg):
+            if "no such column" in msg or "no such table" in msg or "no column named" in msg:
                 return True
         return False
 
@@ -157,6 +152,7 @@ class SqliteDialect(Dialect):
     def is_integrity_error(self, exc: BaseException) -> bool:
         # SQLite raises sqlite3.IntegrityError for unique/PK/NOT NULL/FK conflicts.
         import sqlite3 as _sqlite3
+
         for e in (exc, getattr(exc, "__cause__", None)):
             if isinstance(e, _sqlite3.IntegrityError):
                 return True
@@ -187,8 +183,14 @@ class SqliteDialect(Dialect):
 
     @override
     def claim_message(
-        self, conn: object, *, table: str, where_sql: str, where_params: tuple,
-        claimant: str, lease_ttl: int = 300,
+        self,
+        conn: object,
+        *,
+        table: str,
+        where_sql: str,
+        where_params: tuple,
+        claimant: str,
+        lease_ttl: int = 300,
     ) -> tuple | None:
         """Claim via BEGIN IMMEDIATE + a unique token + SELECT-back.
 
@@ -370,13 +372,13 @@ class SqliteDialect(Dialect):
         conn.execute("BEGIN IMMEDIATE")  # type: ignore[attr-defined]
 
     @override
-    def compact_storage(self, *, sqlite_path: str | None = None,
-                        max_bytes: int = 500 * 1024 * 1024) -> str:
+    def compact_storage(self, *, sqlite_path: str | None = None, max_bytes: int = 500 * 1024 * 1024) -> str:
         # VACUUM rewrites the file to reclaim free pages. It needs a fresh
         # connection OUTSIDE any open transaction (VACUUM cannot run inside one)
         # and the *active* path — hence sqlite_path from the caller, not a constant.
         import sqlite3
         from pathlib import Path
+
         if not sqlite_path:
             return "VACUUM skipped: no active SQLite path supplied"
         try:
@@ -396,14 +398,13 @@ class SqliteDialect(Dialect):
         except Exception as e:  # noqa: BLE001 — VACUUM is best-effort maintenance
             return f"VACUUM skipped: {e}"
 
-
-
     @override
     def set_statement_timeout(self, conn: object, ms: int) -> None:
         # int() is a hard coercion, so the f-string carries no injection
         # vector -- and it MUST be an f-string: PRAGMA takes no bound
         # parameter. Do not "fix" this to a placeholder; it will break.
         conn.execute(f"PRAGMA busy_timeout = {int(ms)}")  # type: ignore[attr-defined]
+
 
 # The one shared frozen singleton for SQLite. Obtain via dialect_for / dialect(),
 # not by constructing per call site.
@@ -478,14 +479,11 @@ class SqliteBackend:
         """
         with self.connection() as conn:
             row = conn.execute(
-                "SELECT name FROM sqlite_master "
-                "WHERE type='table' AND name='schema_versions'"
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_versions'"
             ).fetchone()
             if row is None:
                 return None
-            vrow = conn.execute(
-                "SELECT MAX(version) FROM schema_versions"
-            ).fetchone()
+            vrow = conn.execute("SELECT MAX(version) FROM schema_versions").fetchone()
             return int(vrow[0]) if vrow and vrow[0] is not None else None
 
     def capabilities(self) -> Capabilities:
@@ -618,9 +616,16 @@ class SqliteBackend:
             return True
         if isinstance(exc, sqlite3.OperationalError):
             msg = str(exc).lower()
-            return any(s in msg for s in ("syntax error", "no such column",
-                                          "no such function", "unrecognized token",
-                                          "attempt to write a readonly database"))
+            return any(
+                s in msg
+                for s in (
+                    "syntax error",
+                    "no such column",
+                    "no such function",
+                    "unrecognized token",
+                    "attempt to write a readonly database",
+                )
+            )
         return False
 
     def placeholder(self, n: int = 1) -> str:
@@ -638,10 +643,7 @@ class SqliteBackend:
         the caller's decision, not the backend's.
         """
         cur = conn.cursor()  # type: ignore[attr-defined]
-        cur.execute(
-            "SELECT name FROM sqlite_master "
-            "WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
-        )
+        cur.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
         return {r[0] for r in cur.fetchall()}
 
     def bulk_upsert(
@@ -697,10 +699,7 @@ class SqliteBackend:
             return 0
         del conflict_target  # see docstring
         d = self.dialect()
-        sql = (
-            f"{d.insert_or_ignore()} {table} ({', '.join(columns)}) "
-            f"VALUES ({d.placeholder(len(columns))})"
-        )
+        sql = f"{d.insert_or_ignore()} {table} ({', '.join(columns)}) VALUES ({d.placeholder(len(columns))})"
         cur = conn.cursor()  # type: ignore[attr-defined]
         cur.executemany(sql, rows)
         return len(rows)

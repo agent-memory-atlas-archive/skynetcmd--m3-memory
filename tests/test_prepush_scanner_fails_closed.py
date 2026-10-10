@@ -6,6 +6,7 @@ compile, a broken allow-list — and every one of them must BLOCK rather than
 pass. Both directions are asserted: a gate tested only for quiet is one nobody
 has shown still catches anything.
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -24,7 +25,9 @@ _HIT = _KEY_PREFIX + "abcdefghij0123456789xyz"
 def _run(diff: str, *args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, str(SCANNER), *args],
-        input=diff, capture_output=True, text=True,
+        input=diff,
+        capture_output=True,
+        text=True,
     )
 
 
@@ -51,7 +54,7 @@ def test_a_clean_diff_passes(tmp_path):
 def test_an_uncompilable_pattern_blocks_instead_of_passing(tmp_path):
     """The exact shape of the 2026-10-02 failure."""
     pats = tmp_path / "p.txt"
-    pats.write_text(_PATTERN + "\nfoo(\n")          # second pattern cannot compile
+    pats.write_text(_PATTERN + "\nfoo(\n")  # second pattern cannot compile
     r = _run("+++ b/x.py\n+nothing to see\n", "--patterns", str(pats))
     assert r.returncode == 1, "an unevaluable policy read as a clean scan"
     assert "BLOCKED" in r.stderr
@@ -61,7 +64,7 @@ def test_an_uncompilable_pattern_blocks_instead_of_passing(tmp_path):
 def test_the_block_message_withholds_the_pattern_body(tmp_path):
     """The patterns are themselves a disclosure; the error must not print them."""
     pats = tmp_path / "p.txt"
-    secret_pattern = "internal-codename-xyzzy[0-9]{2,}("   # uncompilable AND sensitive
+    secret_pattern = "internal-codename-xyzzy[0-9]{2,}("  # uncompilable AND sensitive
     pats.write_text(secret_pattern + "\n")
     r = _run("+nothing\n", "--patterns", str(pats))
     assert r.returncode == 1
@@ -115,11 +118,11 @@ def test_the_placeholder_allow_list_is_applied(tmp_path):
     pats = tmp_path / "p.txt"
     pats.write_text(r"/home/[a-z]+/" + "\n")
     allow = r"(/home/(bob|alice))([\\/]|$)"
-    assert _run("+p = /home/bob/x\n", "--patterns", str(pats),
-                "--exclude-identities", allow).returncode == 0
+    assert _run("+p = /home/bob/x\n", "--patterns", str(pats), "--exclude-identities", allow).returncode == 0
     # Assembled at runtime: the literal would trip the live leak policy on push.
-    assert _run("+p = /home/" + "realperson/x\n", "--patterns", str(pats),
-                "--exclude-identities", allow).returncode == 1
+    assert (
+        _run("+p = /home/" + "realperson/x\n", "--patterns", str(pats), "--exclude-identities", allow).returncode == 1
+    )
 
 
 def test_an_uncompilable_allow_list_blocks(tmp_path):

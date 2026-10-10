@@ -14,6 +14,7 @@ That is the §3 failure in its worst form. The waiter would watch
 finding nothing, with no error and no log line: a blind waiter that looks
 perfectly healthy.
 """
+
 from __future__ import annotations
 
 import os
@@ -132,7 +133,8 @@ def test_seam_failure_sends_only_sqlite_to_the_file_lane(name, monkeypatch):
     _seam_unimportable(monkeypatch)
     monkeypatch.setenv("M3_DB_BACKEND", name)
     assert not waiter._has_change_signal("agent_memory.db"), (
-        f"M3_DB_BACKEND={name!r} with no seam got the SQLite file-signal lane")
+        f"M3_DB_BACKEND={name!r} with no seam got the SQLite file-signal lane"
+    )
 
 
 @pytest.mark.parametrize("also_m3_core", [False, True])

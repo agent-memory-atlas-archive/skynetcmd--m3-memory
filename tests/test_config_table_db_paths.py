@@ -4,6 +4,7 @@ Defaults are pinned to today's readers where the code holds them in a named
 constant or a callable, so the registry cannot drift from what runs; literals
 inside a call (the SQLite pool's 5 / 30) are covered by the 2A.2 parity capture.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -41,23 +42,37 @@ def test_dispatch_schema_default_is_the_readers(monkeypatch):
     assert _key("db.postgres.dispatch_schema").default == paths.dispatch_pg_schema()
 
 
-@pytest.mark.parametrize("name,env,raw,value", [
-    ("db.pool_size", "DB_POOL_SIZE", "7", 7),                 # legacy alias still answers
-    ("db.pool_timeout_s", "M3_DB_POOL_TIMEOUT", "45", 45),
-    ("db.postgres.forbidden_hosts", "M3_PG_FORBIDDEN_HOSTS", " a.b , ,c.d ", ["a.b", "c.d"]),
-    ("db.postgres.upsert_page_size", "M3_PG_UPSERT_PAGE_SIZE", "250", 250),
-])
+@pytest.mark.parametrize(
+    "name,env,raw,value",
+    [
+        ("db.pool_size", "DB_POOL_SIZE", "7", 7),  # legacy alias still answers
+        ("db.pool_timeout_s", "M3_DB_POOL_TIMEOUT", "45", 45),
+        ("db.postgres.forbidden_hosts", "M3_PG_FORBIDDEN_HOSTS", " a.b , ,c.d ", ["a.b", "c.d"]),
+        ("db.postgres.upsert_page_size", "M3_PG_UPSERT_PAGE_SIZE", "250", 250),
+    ],
+)
 def test_env_names_parse_as_todays_readers_do(tmp_path, name, env, raw, value):
     s = _build(tmp_path, None, {env: raw})
     assert s[_key(name)] == value and s.origin(_key(name)) == f"env-legacy:{env}"
 
 
 def test_the_file_spells_them_as_tables(tmp_path):
-    s = _build(tmp_path, "\n".join([
-        "[db]", "pool_size = 3",
-        "[db.postgres]", "pool_max = 32", 'forbidden_hosts = ["wh.example"]',
-        "[paths]", 'engine_root = "~/m3-engine"', "",
-    ]), {})
+    s = _build(
+        tmp_path,
+        "\n".join(
+            [
+                "[db]",
+                "pool_size = 3",
+                "[db.postgres]",
+                "pool_max = 32",
+                'forbidden_hosts = ["wh.example"]',
+                "[paths]",
+                'engine_root = "~/m3-engine"',
+                "",
+            ]
+        ),
+        {},
+    )
     assert (s[_key("db.pool_size")], s[_key("db.postgres.pool_max")]) == (3, 32)
     assert s[_key("db.postgres.forbidden_hosts")] == ["wh.example"]
     assert s[_key("paths.engine_root")] == Path("~/m3-engine").expanduser()

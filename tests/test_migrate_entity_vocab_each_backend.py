@@ -4,6 +4,7 @@ It refused on PostgreSQL (require_sqlite_backend). A PostgreSQL store migrated
 from a pre-2026-05-03 SQLite one carries the v1 names as copied, so the repair
 is needed there too; SQL now comes from the dialect.
 """
+
 from __future__ import annotations
 
 import sys
@@ -22,12 +23,16 @@ def v1_rows(each_backend):
     tag = uuid.uuid4().hex[:8]
     a, b = f"ent-{tag}-a", f"ent-{tag}-b"
     with each_backend.connection() as conn:
-        conn.execute(f"INSERT INTO entities (id, canonical_name, entity_type) VALUES ({p}, {p}, 'concept')",
-                     (a, f"idea {tag}"))
-        conn.execute(f"INSERT INTO entities (id, canonical_name, entity_type) VALUES ({p}, {p}, 'object')",
-                     (b, f"thing {tag}"))
-        conn.execute(f"INSERT INTO entity_relationships (from_entity, to_entity, predicate) "
-                     f"VALUES ({p}, {p}, 'relates_to')", (a, b))
+        conn.execute(
+            f"INSERT INTO entities (id, canonical_name, entity_type) VALUES ({p}, {p}, 'concept')", (a, f"idea {tag}")
+        )
+        conn.execute(
+            f"INSERT INTO entities (id, canonical_name, entity_type) VALUES ({p}, {p}, 'object')", (b, f"thing {tag}")
+        )
+        conn.execute(
+            f"INSERT INTO entity_relationships (from_entity, to_entity, predicate) VALUES ({p}, {p}, 'relates_to')",
+            (a, b),
+        )
         conn.commit()
     try:
         yield a, b
@@ -54,8 +59,9 @@ def test_renames_and_is_idempotent(each_backend, v1_rows, monkeypatch, capsys):
 
     assert _run(monkeypatch, "--dry-run") == 0
     with each_backend.connection() as conn:
-        assert conn.execute(f"SELECT entity_type FROM entities WHERE id = {p}", (a,)).fetchone()[0] == "concept", \
+        assert conn.execute(f"SELECT entity_type FROM entities WHERE id = {p}", (a,)).fetchone()[0] == "concept", (
             f"observed: --dry-run wrote {where}"
+        )
 
     assert _run(monkeypatch) == 0
     with each_backend.connection() as conn:

@@ -1,8 +1,8 @@
 ---
 tool: bin/test_memory_bridge.py
-sha1: e5ba6948acbb
-mtime_utc: 2026-10-10T20:00:51.371438+00:00
-generated_utc: 2026-10-10T20:01:06.521824+00:00
+sha1: 627fcaee75d1
+mtime_utc: 2026-10-10T21:05:16.636923+00:00
+generated_utc: 2026-10-10T21:05:30.013940+00:00
 private: false
 ---
 
@@ -22,8 +22,8 @@ embedding model is not loaded in LM Studio.
 
 ## Entry points
 
-- `async def run()` (line 158)
-- `async def main()` (line 1222)
+- `async def run()` (line 174)
+- `async def main()` (line 1298)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -55,7 +55,7 @@ _(no argparse arguments detected)_
 
 **http**
 
-- `httpx.AsyncClient()` (line 90)
+- `httpx.AsyncClient()` (line 94)
 
 
 ---

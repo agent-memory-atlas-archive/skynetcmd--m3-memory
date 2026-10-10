@@ -19,6 +19,7 @@ The chat method returns just the assistant's text content. For richer
 metadata (token counts, finish reason) call .chat_raw() which returns
 the parsed provider-native JSON.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -41,8 +42,9 @@ def _is_gemini_endpoint(url: str | None) -> bool:
     return host == "generativelanguage.googleapis.com" or host.endswith(".googleapis.com")
 
 
-def hardened_async_client(timeout: httpx.Timeout | float | None = None,
-                          max_connections: int = 200) -> httpx.AsyncClient:
+def hardened_async_client(
+    timeout: httpx.Timeout | float | None = None, max_connections: int = 200
+) -> httpx.AsyncClient:
     """Async httpx.AsyncClient with keep-alive disabled and HTTP/2 off.
     Use ONLY for Gemini's OpenAI-compat endpoint — the rest of our HTTP
     paths (LM Studio local, Anthropic) work fine with stock httpx and
@@ -52,13 +54,13 @@ def hardened_async_client(timeout: httpx.Timeout | float | None = None,
     return httpx.AsyncClient(
         timeout=timeout,
         http2=False,
-        limits=httpx.Limits(max_keepalive_connections=0,
-                            max_connections=max_connections),
+        limits=httpx.Limits(max_keepalive_connections=0, max_connections=max_connections),
     )
 
 
-def async_client_for_profile(profile, *, timeout: float | httpx.Timeout | None = None,
-                             max_connections: int = 200) -> httpx.AsyncClient:
+def async_client_for_profile(
+    profile, *, timeout: float | httpx.Timeout | None = None, max_connections: int = 200
+) -> httpx.AsyncClient:
     """Pick the right httpx client for a Profile-shaped object.
     Hardened transport only for Gemini; default httpx for everything
     else (LM Studio, Anthropic, OpenAI)."""
@@ -176,8 +178,7 @@ class UnifiedAI:
             raise RuntimeError(f"claude http {r.status_code}: {r.text[:600]}")
         data = r.json()
         text = "".join(
-            b.get("text", "") for b in data.get("content", [])
-            if isinstance(b, dict) and b.get("type") == "text"
+            b.get("text", "") for b in data.get("content", []) if isinstance(b, dict) and b.get("type") == "text"
         ).strip()
         return {"content": text, "usage": data.get("usage", {}), "raw": data}
 

@@ -5,6 +5,7 @@ copied OS fact out of business logic (secret_store, config_parity,
 embed_server_gpu, chatlog_status). Both branches of each run here wherever the
 suite runs.
 """
+
 from __future__ import annotations
 
 import os

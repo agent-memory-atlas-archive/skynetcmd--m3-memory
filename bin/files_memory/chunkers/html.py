@@ -29,6 +29,7 @@ before text extraction. Their contents are not document prose, and keeping them
 is the defect above. This is content selection, NOT a security boundary: parsing
 happens with html.parser, nothing is executed, and no network fetch occurs.
 """
+
 from __future__ import annotations
 
 import logging
@@ -61,10 +62,7 @@ _HEADINGS = ("h1", "h2", "h3", "h4", "h5", "h6")
 def chunk(path: str, text: str | None = None) -> Iterator[Leaf]:
     """Yield one Leaf per heading section, or a single Leaf when there are none."""
     if not available:
-        logger.warning(
-            "HTML chunker unavailable (beautifulsoup4 not installed); "
-            "falling back for %s", path
-        )
+        logger.warning("HTML chunker unavailable (beautifulsoup4 not installed); falling back for %s", path)
         return
 
     if text is None:
@@ -117,9 +115,7 @@ def chunk(path: str, text: str | None = None) -> Iterator[Leaf]:
             name = getattr(sib, "name", None)
             if name in _HEADINGS:
                 break
-            chunk_text = (
-                sib.get_text(separator="\n") if name is not None else str(sib)
-            )
+            chunk_text = sib.get_text(separator="\n") if name is not None else str(sib)
             if chunk_text:
                 parts.append(chunk_text)
 

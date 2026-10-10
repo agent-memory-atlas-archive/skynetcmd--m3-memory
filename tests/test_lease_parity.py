@@ -33,6 +33,7 @@ The live-PG leg follows `test_schema_parity_pg_live.py` and
 failing, so the suite stays green on a SQLite-only box while still proving
 portability wherever PG is reachable.
 """
+
 from __future__ import annotations
 
 import re
@@ -99,8 +100,7 @@ def _terms(sql: str) -> set:
     divergence. What must agree is WHICH COLUMNS are constrained and HOW.
     """
     out = set()
-    for col in ("claim_expires_at", "read_at", "failed_at", "attempt_count",
-                "claimed_by", "lease_token", "id"):
+    for col in ("claim_expires_at", "read_at", "failed_at", "attempt_count", "claimed_by", "lease_token", "id"):
         for op in ("IS NOT NULL", "IS NULL", "<=", ">=", "<", ">", "="):
             # `IS NOT NULL` must win over `IS NULL`, and `<=` over `<`.
             if re.search(rf"\b{col}\s+{re.escape(op)}", sql):
@@ -156,13 +156,11 @@ class TestExpiredPredicateHasOneOwner(unittest.TestCase):
         This replaces a copy-vs-copy comparison. The copies are gone; what must
         now hold is that nobody adds one back by overriding the owner.
         """
-        owners = {
-            name: type(d).lease_expired_predicate.__qualname__
-            for name, d in _registered_dialects()
-        }
+        owners = {name: type(d).lease_expired_predicate.__qualname__ for name, d in _registered_dialects()}
         distinct = set(owners.values())
         self.assertEqual(
-            len(distinct), 1,
+            len(distinct),
+            1,
             "a backend overrode the lease `expired` predicate.\n"
             f"observed: {owners}\n"
             "cause: lease_expired_predicate is defined in more than one place, "
@@ -184,7 +182,8 @@ class TestExpiredPredicateHasOneOwner(unittest.TestCase):
                 got = _terms(_expired_sql(d))
                 missing = _REQUIRED_TERMS - got
                 self.assertEqual(
-                    got & _REQUIRED_TERMS, _REQUIRED_TERMS,
+                    got & _REQUIRED_TERMS,
+                    _REQUIRED_TERMS,
                     f"`expired` lost a required term on {name}.\n"
                     f"observed: missing={sorted(missing)}\n"
                     "cause: a term required by the lease contract is absent "
@@ -204,7 +203,8 @@ class TestExpiredPredicateHasOneOwner(unittest.TestCase):
         """
         rendered = {name: _expired_sql(d) for name, d in _registered_dialects()}
         self.assertEqual(
-            len(set(rendered.values())), len(rendered),
+            len(set(rendered.values())),
+            len(rendered),
             f"observed: {rendered}\n"
             "cause: two backends rendered the same SQL for an expression that "
             "must be backend-specific (TEXT compare vs TIMESTAMPTZ)\n"
@@ -222,12 +222,10 @@ class TestLeaseFencePredicate(unittest.TestCase):
     """
 
     def test_every_registered_backend_resolves_to_the_same_owner(self):
-        owners = {
-            name: type(d).lease_fence_predicate.__qualname__
-            for name, d in _registered_dialects()
-        }
+        owners = {name: type(d).lease_fence_predicate.__qualname__ for name, d in _registered_dialects()}
         self.assertEqual(
-            len(set(owners.values())), 1,
+            len(set(owners.values())),
+            1,
             "a backend overrode the lease fence predicate.\n"
             f"observed: {owners}\n"
             "cause: lease_fence_predicate is defined in more than one place, so "
@@ -243,7 +241,8 @@ class TestLeaseFencePredicate(unittest.TestCase):
             with self.subTest(backend=name):
                 got = _terms(d.lease_fence_predicate())
                 self.assertEqual(
-                    got & _REQUIRED_FENCE_TERMS, _REQUIRED_FENCE_TERMS,
+                    got & _REQUIRED_FENCE_TERMS,
+                    _REQUIRED_FENCE_TERMS,
                     f"the lease fence lost a required term on {name}.\n"
                     f"observed: missing={sorted(_REQUIRED_FENCE_TERMS - got)}\n"
                     "cause: a term required by the fence contract is absent from "
@@ -271,7 +270,8 @@ class TestLeaseFencePredicate(unittest.TestCase):
                     "inspect: Dialect.lease_fence_predicate",
                 )
                 self.assertNotIn(
-                    "claim_expires_at", basic,
+                    "claim_expires_at",
+                    basic,
                     f"observed: the default fence carries an expiry bound on {name}\n"
                     "possible impact: complete/fail would then refuse a row whose lease "
                     "lapsed mid-work, even though the token still matches\n"
@@ -303,19 +303,20 @@ class TestExpiryComparisonIsPortable(unittest.TestCase):
 
     def test_text_ordering_matches_time_ordering(self):
         conn = sqlite3.connect(":memory:")
-        conn.execute("CREATE TABLE t (id INTEGER, claim_expires_at TEXT, "
-                     "read_at TEXT, failed_at TEXT)")
+        conn.execute("CREATE TABLE t (id INTEGER, claim_expires_at TEXT, read_at TEXT, failed_at TEXT)")
         conn.executemany(
             "INSERT INTO t (id, claim_expires_at) VALUES (?,?)",
-            [(1, "2025-12-31T23:59:59Z"),   # last year, lapsed
-             (2, "2026-09-16T00:00:00Z"),   # lapsed
-             (3, "2099-01-01T00:00:00Z")],  # live
+            [
+                (1, "2025-12-31T23:59:59Z"),  # last year, lapsed
+                (2, "2026-09-16T00:00:00Z"),  # lapsed
+                (3, "2099-01-01T00:00:00Z"),
+            ],  # live
         )
         pred = SqliteDialect().lease_expired_predicate()
-        got = [r[0] for r in conn.execute(
-            f"SELECT id FROM t WHERE {pred} ORDER BY id").fetchall()]
+        got = [r[0] for r in conn.execute(f"SELECT id FROM t WHERE {pred} ORDER BY id").fetchall()]
         self.assertEqual(
-            got, [1, 2],
+            got,
+            [1, 2],
             "lexicographic order no longer matches chronological order.\n"
             f"observed: expired={got} expected=[1, 2]\n"
             "possible: the timestamp format changed width, so a lapsed lease "
@@ -327,9 +328,7 @@ class TestExpiryComparisonIsPortable(unittest.TestCase):
     def test_strftime_zero_pads_so_the_unpadded_form_cannot_be_written(self):
         """The invariant above holds because the only writer cannot break it."""
         conn = sqlite3.connect(":memory:")
-        got = conn.execute(
-            "SELECT strftime('%Y-%m-%dT%H:%M:%SZ','2026-01-05 00:00:00')"
-        ).fetchone()[0]
+        got = conn.execute("SELECT strftime('%Y-%m-%dT%H:%M:%SZ','2026-01-05 00:00:00')").fetchone()[0]
         self.assertEqual(got, "2026-01-05T00:00:00Z")
         conn.close()
 
@@ -358,8 +357,7 @@ class TestSweepExpiredLeasesSqlite(unittest.TestCase):
         self._insert(1, expires="2000-01-01T00:00:00Z")
         back, dead = self.d.sweep_expired_leases(self.conn, table=_TABLE)
         self.assertEqual((back, dead), (1, 0))
-        row = self.conn.execute(
-            f"SELECT claimed_by, lease_token FROM {_TABLE} WHERE id=1").fetchone()
+        row = self.conn.execute(f"SELECT claimed_by, lease_token FROM {_TABLE} WHERE id=1").fetchone()
         self.assertEqual(row, (None, None), "reclaim must clear the fence")
 
     def test_a_live_lease_is_untouched(self):
@@ -381,9 +379,7 @@ class TestSweepExpiredLeasesSqlite(unittest.TestCase):
         self._insert(1, expires="2000-01-01T00:00:00Z", attempts=5)
         back, dead = self.d.sweep_expired_leases(self.conn, table=_TABLE, max_attempts=5)
         self.assertEqual((back, dead), (0, 1))
-        self.assertIsNotNone(
-            self.conn.execute(
-                f"SELECT failed_at FROM {_TABLE} WHERE id=1").fetchone()[0])
+        self.assertIsNotNone(self.conn.execute(f"SELECT failed_at FROM {_TABLE} WHERE id=1").fetchone()[0])
 
     def test_sweep_is_idempotent(self):
         """P1's resolution has every polling agent sweep opportunistically, so a
@@ -434,12 +430,14 @@ class TestSweepExpiredLeasesPostgresLive(unittest.TestCase):
         except ImportError:  # pragma: no cover
             raise unittest.SkipTest(skip_reason("dep", "psycopg not installed")) from None
         from conftest import pg_dsn
+
         cls.url = pg_dsn()
         if not cls.url:  # requires_pg should already have skipped us
             raise unittest.SkipTest(skip_reason("db", "no throwaway PostgreSQL DSN configured"))
 
     def setUp(self):
         import psycopg
+
         self.conn = psycopg.connect(self.url, connect_timeout=10)
         cur = self.conn.cursor()
         cur.execute("DROP TABLE IF EXISTS _m3_lease_parity")
@@ -448,7 +446,8 @@ class TestSweepExpiredLeasesPostgresLive(unittest.TestCase):
             " id int PRIMARY KEY, agent_id text, read_at timestamptz,"
             " received_at timestamptz, claimed_by text, claimed_at timestamptz,"
             " claim_expires_at timestamptz, lease_token text,"
-            " attempt_count int NOT NULL DEFAULT 0, failed_at timestamptz)")
+            " attempt_count int NOT NULL DEFAULT 0, failed_at timestamptz)"
+        )
         self.conn.commit()
         self.d = PostgresDialect()
 
@@ -464,7 +463,8 @@ class TestSweepExpiredLeasesPostgresLive(unittest.TestCase):
             "INSERT INTO _m3_lease_parity (id, agent_id, claimed_by, lease_token,"
             " claim_expires_at, read_at, failed_at, attempt_count)"
             " VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
-            (rid, "a@1", "worker", "tok", expires, read_at, failed_at, attempts))
+            (rid, "a@1", "worker", "tok", expires, read_at, failed_at, attempts),
+        )
         self.conn.commit()
 
     def test_an_expired_lease_is_reclaimed(self):
@@ -474,23 +474,19 @@ class TestSweepExpiredLeasesPostgresLive(unittest.TestCase):
 
     def test_a_live_lease_is_untouched(self):
         self._insert(1, expires="2999-01-01T00:00:00Z")
-        self.assertEqual(
-            self.d.sweep_expired_leases(self.conn, table="_m3_lease_parity"), (0, 0))
+        self.assertEqual(self.d.sweep_expired_leases(self.conn, table="_m3_lease_parity"), (0, 0))
 
     def test_a_completed_row_is_never_reclaimed(self):
         self._insert(1, expires="2000-01-01T00:00:00Z", read_at="2026-01-01T00:00:00Z")
-        self.assertEqual(
-            self.d.sweep_expired_leases(self.conn, table="_m3_lease_parity"), (0, 0))
+        self.assertEqual(self.d.sweep_expired_leases(self.conn, table="_m3_lease_parity"), (0, 0))
 
     def test_a_dead_lettered_row_is_never_reclaimed(self):
         self._insert(1, expires="2000-01-01T00:00:00Z", failed_at="2026-01-01T00:00:00Z")
-        self.assertEqual(
-            self.d.sweep_expired_leases(self.conn, table="_m3_lease_parity"), (0, 0))
+        self.assertEqual(self.d.sweep_expired_leases(self.conn, table="_m3_lease_parity"), (0, 0))
 
     def test_max_attempts_dead_letters_instead_of_requeueing(self):
         self._insert(1, expires="2000-01-01T00:00:00Z", attempts=5)
-        back, dead = self.d.sweep_expired_leases(
-            self.conn, table="_m3_lease_parity", max_attempts=5)
+        back, dead = self.d.sweep_expired_leases(self.conn, table="_m3_lease_parity", max_attempts=5)
         self.assertEqual((back, dead), (0, 1))
 
     def test_sweep_is_idempotent(self):

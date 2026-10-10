@@ -16,6 +16,7 @@ falls back to a 4-chars-per-token approximation otherwise.
 Run this whenever the catalog grows or descriptions change so the numbers
 in CLAUDE.md / GEMINI.md / README.md / docs/* stay honest.
 """
+
 from __future__ import annotations
 
 import json
@@ -33,6 +34,7 @@ import mcp_proxy  # noqa: E402
 
 try:
     import tiktoken
+
     _enc = tiktoken.get_encoding("cl100k_base")
 
     def tok(s: str) -> int:
@@ -40,6 +42,7 @@ try:
 
     METHOD = "tiktoken cl100k_base"
 except ImportError:
+
     def tok(s: str) -> int:
         return max(1, len(s) // 4)
 
@@ -67,11 +70,16 @@ def mcp_schema_tokens(names: list[str]) -> int:
         spec = by_name.get(n)
         if spec is None:
             continue
-        total += tok(json.dumps({
-            "name": spec.name,
-            "description": spec.description or "",
-            "inputSchema": spec.parameters or {},
-        }, separators=(",", ":")))
+        total += tok(
+            json.dumps(
+                {
+                    "name": spec.name,
+                    "description": spec.description or "",
+                    "inputSchema": spec.parameters or {},
+                },
+                separators=(",", ":"),
+            )
+        )
     return total
 
 
@@ -89,6 +97,7 @@ def measure() -> dict:
     meta = ["tools_list_domains", "tools_load_domain"]
     try:
         import memory_bridge  # noqa: PLC0415
+
         meta = sorted(getattr(memory_bridge, "_META_TOOLS", None) or meta)
     except Exception:  # noqa: BLE001 — measurement must not need a live bridge
         pass
@@ -99,9 +108,12 @@ def measure() -> dict:
         typical |= set(td.domain_tool_names(all_names, domain))
     return {
         "method": METHOD,
-        "eager_tools": len(all_names), "eager_tokens": mcp_schema_tokens(all_names),
-        "lazy_tools": len(startup), "lazy_tokens": mcp_schema_tokens(startup),
-        "typical_tools": len(typical), "typical_tokens": mcp_schema_tokens(sorted(typical)),
+        "eager_tools": len(all_names),
+        "eager_tokens": mcp_schema_tokens(all_names),
+        "lazy_tools": len(startup),
+        "lazy_tokens": mcp_schema_tokens(startup),
+        "typical_tools": len(typical),
+        "typical_tokens": mcp_schema_tokens(sorted(typical)),
     }
 
 
@@ -110,11 +122,8 @@ def main() -> int:
 
     # Full repertoire: every tool the proxy can dispatch (protocol + debug +
     # the whole catalog), independent of lazy-mode gating.
-    full = (
-        mcp_proxy.PROTOCOL_TOOLS
-        + mcp_proxy.DEBUG_TOOLS
-        + mcp_proxy._build_catalog_tools()[0]
-    )
+    full = mcp_proxy.PROTOCOL_TOOLS + mcp_proxy.DEBUG_TOOLS + mcp_proxy._build_catalog_tools()[0]
+
     # Schemas are OpenAI function-calling shape: {"type":"function","function":{"name":…}}.
     def _name(t: dict) -> str:
         return t.get("function", {}).get("name") or t.get("name", "")
@@ -130,6 +139,7 @@ def main() -> int:
     meta = ["tools_list_domains", "tools_load_domain"]
     try:
         import memory_bridge  # noqa: PLC0415
+
         meta = sorted(getattr(memory_bridge, "_META_TOOLS", None) or meta)
     except Exception:  # noqa: BLE001 — measurement must not need a live bridge
         pass
@@ -138,8 +148,9 @@ def main() -> int:
 
     all_names = [_name(t) for t in full if _name(t)]
     m = measure()
-    print(f"Typical session (lazy + memory + admin, MCP wire): "
-          f"{m['typical_tools']} tools, {m['typical_tokens']} tokens")
+    print(
+        f"Typical session (lazy + memory + admin, MCP wire): {m['typical_tools']} tools, {m['typical_tokens']} tokens"
+    )
     rows: list[tuple[str, int, int]] = [
         ("Full repertoire (MCP wire)", len(full), mcp_schema_tokens(all_names)),
         ("Lazy startup (MCP wire)", len(essentials), mcp_schema_tokens(startup_names)),
@@ -152,8 +163,7 @@ def main() -> int:
     catalog_names = [_name(t) for t in full if _name(t)]
     for domain in sorted(td.DOMAIN_DESCRIPTIONS):
         names = [
-            n for n in td.domain_tool_names(catalog_names, domain)
-            if n not in td.ESSENTIAL_TOOL_NAMES and n in by_name
+            n for n in td.domain_tool_names(catalog_names, domain) if n not in td.ESSENTIAL_TOOL_NAMES and n in by_name
         ]
         if not names:
             continue

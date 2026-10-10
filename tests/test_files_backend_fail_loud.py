@@ -5,6 +5,7 @@ a PostgreSQL install's files store went to a separate SQLite file. And
 `_applied_versions()` answered "nothing applied" on any error, so the runner
 re-applied every migration. Both now raise.
 """
+
 from __future__ import annotations
 
 import importlib

@@ -8,6 +8,7 @@ Two layers:
     memories, decays the un-reinforced toward neutral in one set-based UPDATE,
     skips recently-accessed rows, and is absence-tolerant on a pre-035/036 DB.
 """
+
 from __future__ import annotations
 
 import os
@@ -24,15 +25,16 @@ from memory import confidence as C  # noqa: E402
 
 # ── pure decay math ──────────────────────────────────────────────────────────
 
+
 def test_neutral_is_a_fixed_point():
     assert C.decay_toward_neutral(C.NEUTRAL) == C.NEUTRAL
 
 
 def test_decay_moves_toward_neutral_from_both_sides():
-    assert C.decay_toward_neutral(0.9) < 0.9          # above neutral -> down
-    assert C.decay_toward_neutral(0.9) > C.NEUTRAL     # but not past it
-    assert C.decay_toward_neutral(0.1) > 0.1          # below neutral -> up
-    assert C.decay_toward_neutral(0.1) < C.NEUTRAL     # but not past it
+    assert C.decay_toward_neutral(0.9) < 0.9  # above neutral -> down
+    assert C.decay_toward_neutral(0.9) > C.NEUTRAL  # but not past it
+    assert C.decay_toward_neutral(0.1) > 0.1  # below neutral -> up
+    assert C.decay_toward_neutral(0.1) < C.NEUTRAL  # but not past it
 
 
 def test_decay_converges_to_neutral_no_oscillation():
@@ -64,6 +66,7 @@ def test_decay_stays_in_unit_interval():
 
 # ── pure access reinforcement ────────────────────────────────────────────────
 
+
 def test_access_reinforcement_zero_and_capped():
     assert C.access_reinforcement(0) == 0.0
     assert C.access_reinforcement(-3) == 0.0
@@ -80,6 +83,7 @@ def test_access_reinforcement_cannot_rival_corroboration():
 
 # ── maintenance pass integration ─────────────────────────────────────────────
 
+
 @pytest.fixture(autouse=True)
 def _skip_migrations(monkeypatch):
     monkeypatch.setenv("M3_SKIP_MIGRATIONS", "1")
@@ -87,6 +91,7 @@ def _skip_migrations(monkeypatch):
 
 def _full_db(db_path):
     from conftest import create_full_main_schema
+
     create_full_main_schema(db_path)
 
 
@@ -95,19 +100,19 @@ def _seed(conn, mid, confidence, *, last_accessed=None, source="agent", change_a
         "INSERT INTO memory_items (id, type, title, content, source, change_agent, "
         "created_at, confidence, last_accessed_at, is_deleted) "
         "VALUES (?,?,?,?,?,?,?,?,?,0)",
-        (mid, "fact", "t", "c", source, change_agent, "2026-01-01T00:00:00Z",
-         confidence, last_accessed),
+        (mid, "fact", "t", "c", source, change_agent, "2026-01-01T00:00:00Z", confidence, last_accessed),
     )
 
 
 def test_decays_unreinforced_toward_neutral(tmp_path):
     from memory_maintenance import _reinforce_confidence
+
     db = tmp_path / "t.db"
     _full_db(db)
     with sqlite3.connect(str(db)) as conn:
         conn.row_factory = sqlite3.Row
-        _seed(conn, "high", 0.95)   # old, never accessed -> should decay down
-        _seed(conn, "low", 0.10)    # -> should rise toward neutral
+        _seed(conn, "high", 0.95)  # old, never accessed -> should decay down
+        _seed(conn, "low", 0.10)  # -> should rise toward neutral
         conn.commit()
         reaggregated, decayed = _reinforce_confidence(conn)
         conn.commit()
@@ -120,9 +125,11 @@ def test_decays_unreinforced_toward_neutral(tmp_path):
 
 def test_recently_accessed_is_not_decayed(tmp_path):
     from memory_maintenance import _reinforce_confidence
+
     db = tmp_path / "t.db"
     _full_db(db)
     from datetime import datetime
+
     now = datetime.now(UTC).isoformat()
     with sqlite3.connect(str(db)) as conn:
         conn.row_factory = sqlite3.Row
@@ -138,16 +145,15 @@ def test_ledger_active_is_reaggregated_not_decayed(tmp_path):
     from memory_maintenance import _reinforce_confidence
 
     from memory import trust
+
     db = tmp_path / "t.db"
     _full_db(db)
     with sqlite3.connect(str(db)) as conn:
         conn.row_factory = sqlite3.Row
         _seed(conn, "m", 0.70, source="agent", change_agent="claude")
         # Two distinct corroborating sources in the ledger.
-        trust.record_corroboration(conn, "m", source_kind="agent", source_ref="gemini",
-                                   trust_at_write=1.0, delta=1.0)
-        trust.record_corroboration(conn, "m", source_kind="agent", source_ref="grok",
-                                   trust_at_write=1.0, delta=1.0)
+        trust.record_corroboration(conn, "m", source_kind="agent", source_ref="gemini", trust_at_write=1.0, delta=1.0)
+        trust.record_corroboration(conn, "m", source_kind="agent", source_ref="grok", trust_at_write=1.0, delta=1.0)
         conn.commit()
         reaggregated, _decayed = _reinforce_confidence(conn)
         conn.commit()
@@ -161,6 +167,7 @@ def test_ledger_active_is_reaggregated_not_decayed(tmp_path):
 def test_reinforcement_absence_tolerant_pre_035(tmp_path):
     """Drop the confidence column → the pass is a no-op, doesn't raise."""
     from memory_maintenance import _reinforce_confidence
+
     db = tmp_path / "t.db"
     _full_db(db)
     with sqlite3.connect(str(db)) as conn:

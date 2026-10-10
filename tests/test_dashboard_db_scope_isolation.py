@@ -21,6 +21,7 @@ which propagates across `await` inside a task and stays invisible to other
 tasks. These tests pin the isolation, the operator override, and the two panels
 that must NOT follow the selector.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -40,6 +41,7 @@ pytest.importorskip("fastapi", reason=skip_reason("dep", "dashboard needs the [d
 from m3_core.paths import active_database, resolve_db_path  # noqa: E402
 
 # ── The mechanism, independent of the dashboard ───────────────────────────────
+
 
 def test_env_var_outranks_the_contextvar(monkeypatch, tmp_path):
     """Why the env write was not merely redundant but actively harmful.
@@ -75,7 +77,7 @@ def test_process_global_write_cross_contaminates_concurrent_tasks(monkeypatch, t
     seen: dict[str, str] = {}
 
     async def handler(name: str, path: str, delay: float) -> None:
-        os.environ["M3_DATABASE"] = path      # what set_active_db_env used to do
+        os.environ["M3_DATABASE"] = path  # what set_active_db_env used to do
         await asyncio.sleep(delay)
         seen[name] = resolve_db_path(None)
 
@@ -88,8 +90,7 @@ def test_process_global_write_cross_contaminates_concurrent_tasks(monkeypatch, t
     try:
         asyncio.run(drive())
         assert seen["A"] == os.path.abspath(chat), (
-            "expected the documented cross-contamination; if A saw its own "
-            "store, the mechanism changed"
+            "expected the documented cross-contamination; if A saw its own store, the mechanism changed"
         )
     finally:
         os.environ.pop("M3_DATABASE", None)
@@ -120,6 +121,7 @@ def test_contextvar_isolates_concurrent_tasks(monkeypatch, tmp_path):
 
 # ── The dashboard wiring ──────────────────────────────────────────────────────
 
+
 def test_set_active_db_env_no_longer_writes_the_environment(monkeypatch):
     """The old function is retained as a no-op; it must stay a no-op.
 
@@ -130,9 +132,7 @@ def test_set_active_db_env_no_longer_writes_the_environment(monkeypatch):
 
     monkeypatch.delenv("M3_DATABASE", raising=False)
     D.set_active_db_env("chatlog")
-    assert "M3_DATABASE" not in os.environ, (
-        "set_active_db_env must not write the process-global env var"
-    )
+    assert "M3_DATABASE" not in os.environ, "set_active_db_env must not write the process-global env var"
 
 
 def test_selected_db_store_maps_files_to_main(monkeypatch):
@@ -144,9 +144,15 @@ def test_selected_db_store_maps_files_to_main(monkeypatch):
     """
     import dashboard_server as D
 
-    monkeypatch.setattr(D, "_DB_PATHS", {
-        "main": "/x/main.db", "chatlog": "/x/chat.db", "files": "/x/files.db",
-    })
+    monkeypatch.setattr(
+        D,
+        "_DB_PATHS",
+        {
+            "main": "/x/main.db",
+            "chatlog": "/x/chat.db",
+            "files": "/x/files.db",
+        },
+    )
     assert D.selected_db_store("files") == "/x/main.db"
     assert D.selected_db_store("chatlog") == "/x/chat.db"
     assert D.selected_db_store("main") == "/x/main.db"

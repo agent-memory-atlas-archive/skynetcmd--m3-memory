@@ -16,6 +16,7 @@ separate file with core names), so they're excluded from the comparison set.
 Skips cleanly without a reachable cluster. DSN from M3_PRIMARY_PG_URL/M3_PG_URL
 (never PG_URL — that's the warehouse var).
 """
+
 from __future__ import annotations
 
 import os
@@ -56,6 +57,7 @@ def _dsn() -> str:
         "marker should have skipped this module.)"
     )
     return d
+
 
 # Core tables that both backends are expected to carry with the same columns.
 # (Excludes: SQLite-only FTS shadow tables memory_items_fts*, the schema_versions
@@ -153,8 +155,7 @@ def _pg_all_tables(backend) -> set[str]:
 def _pg_columns(backend, tables=None) -> dict:
     """{table: set(column_names)} on the live PG store, through the seam."""
     with backend.connection() as c:
-        return _columns(c, backend.dialect(), sorted(tables if tables is not None
-                                                     else _SHARED_CORE_TABLES))
+        return _columns(c, backend.dialect(), sorted(tables if tables is not None else _SHARED_CORE_TABLES))
 
 
 @pytest.fixture()
@@ -278,8 +279,7 @@ def test_column_parity_sqlite_vs_pg(pg):
 def test_chroma_tables_absent_on_both(pg):
     """The retired ChromaDB tables must be gone from BOTH schemas (SQLite migration
     040 / the PG baseline never recreates them)."""
-    chroma = {"chroma_sync_queue", "chroma_mirror", "chroma_mirror_embeddings",
-              "sync_conflicts", "sync_state"}
+    chroma = {"chroma_sync_queue", "chroma_mirror", "chroma_mirror_embeddings", "sync_conflicts", "sync_state"}
     sq_tables = _sqlite_all_tables()
     assert not (chroma & sq_tables), f"chroma tables still in SQLite schema: {chroma & sq_tables}"
     # PG
@@ -306,8 +306,7 @@ def test_chatlog_clones_mirror_core_columns(pg):
 
     def _cols(cur, tbl: str) -> set:
         cur.execute(
-            "SELECT column_name FROM information_schema.columns "
-            "WHERE table_schema='public' AND table_name=%s",
+            "SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=%s",
             (tbl,),
         )
         return {r[0] for r in cur.fetchall()}
@@ -315,7 +314,7 @@ def test_chatlog_clones_mirror_core_columns(pg):
     dropped: dict = {}
     with pg.connection() as c:
         cur = c.cursor()
-        for (core_name, chat_log_name) in _CHATLOG_TABLES.values():
+        for core_name, chat_log_name in _CHATLOG_TABLES.values():
             core_cols = _cols(cur, core_name)
             cl_cols = _cols(cur, chat_log_name)
             if not core_cols or not cl_cols:
@@ -323,6 +322,4 @@ def test_chatlog_clones_mirror_core_columns(pg):
             missing = core_cols - cl_cols
             if missing:
                 dropped[chat_log_name] = sorted(missing)
-    assert not dropped, (
-        f"chatlog clone(s) missing core columns (PG-only parity gap): {dropped}"
-    )
+    assert not dropped, f"chatlog clone(s) missing core columns (PG-only parity gap): {dropped}"

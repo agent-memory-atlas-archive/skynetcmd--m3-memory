@@ -90,8 +90,7 @@ def _check_pydantic_ai_version() -> None:
 
     if _parts(raw) < _parts(MIN_PYDANTIC_AI_VERSION):
         raise ImportError(
-            f"pydantic-ai {raw} is installed, but the m3 integration needs "
-            f">={MIN_PYDANTIC_AI_VERSION}.\n{_PAI_HINT}"
+            f"pydantic-ai {raw} is installed, but the m3 integration needs >={MIN_PYDANTIC_AI_VERSION}.\n{_PAI_HINT}"
         )
 
 

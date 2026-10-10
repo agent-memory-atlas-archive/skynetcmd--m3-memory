@@ -11,6 +11,7 @@ The embed_many call is mocked to keep tests offline; we assert:
   - lockfile prevents two concurrent sweepers
   - schema sanity check fails clearly on missing tables
 """
+
 from __future__ import annotations
 
 import argparse
@@ -26,6 +27,7 @@ sys.path.insert(0, str(REPO / "bin"))
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
+
 
 def _make_min_schema(db_path: Path) -> None:
     """Create the minimum schema embed_backfill operates on.
@@ -131,12 +133,17 @@ def db(tmp_path):
 
 # ── Query construction tests ──────────────────────────────────────────────
 
+
 def test_build_query_excludes_already_embedded(db):
     import embed_backfill as eb
-    _seed_rows(db, [
-        {"id": "row-A", "content": "alpha"},
-        {"id": "row-B", "content": "beta"},
-    ])
+
+    _seed_rows(
+        db,
+        [
+            {"id": "row-A", "content": "alpha"},
+            {"id": "row-B", "content": "beta"},
+        ],
+    )
     # Pretend row-A already has an embedding
     conn = sqlite3.connect(str(db))
     conn.execute(
@@ -154,33 +161,45 @@ def test_build_query_excludes_already_embedded(db):
 
 def test_build_query_excludes_soft_deleted(db):
     import embed_backfill as eb
-    _seed_rows(db, [
-        {"id": "row-A", "content": "alpha", "is_deleted": 0},
-        {"id": "row-B", "content": "beta", "is_deleted": 1},
-    ])
+
+    _seed_rows(
+        db,
+        [
+            {"id": "row-A", "content": "alpha", "is_deleted": 0},
+            {"id": "row-B", "content": "beta", "is_deleted": 1},
+        ],
+    )
     args = _make_args(db)
     assert eb._count_pending(db, args) == 1
 
 
 def test_build_query_excludes_empty_content(db):
     import embed_backfill as eb
-    _seed_rows(db, [
-        {"id": "row-A", "content": "alpha"},
-        {"id": "row-B", "content": ""},
-        {"id": "row-C", "content": "   "},  # whitespace-only
-        {"id": "row-D", "content": None},
-    ])
+
+    _seed_rows(
+        db,
+        [
+            {"id": "row-A", "content": "alpha"},
+            {"id": "row-B", "content": ""},
+            {"id": "row-C", "content": "   "},  # whitespace-only
+            {"id": "row-D", "content": None},
+        ],
+    )
     args = _make_args(db)
     assert eb._count_pending(db, args) == 1
 
 
 def test_build_query_filter_variant(db):
     import embed_backfill as eb
-    _seed_rows(db, [
-        {"id": "row-A", "content": "alpha", "variant": "VARIANT_X"},
-        {"id": "row-B", "content": "beta",  "variant": "VARIANT_Y"},
-        {"id": "row-C", "content": "gamma", "variant": None},
-    ])
+
+    _seed_rows(
+        db,
+        [
+            {"id": "row-A", "content": "alpha", "variant": "VARIANT_X"},
+            {"id": "row-B", "content": "beta", "variant": "VARIANT_Y"},
+            {"id": "row-C", "content": "gamma", "variant": None},
+        ],
+    )
     args = _make_args(db, variant=["VARIANT_X"])
     assert eb._count_pending(db, args) == 1
 
@@ -190,20 +209,28 @@ def test_build_query_filter_variant(db):
 
 def test_build_query_filter_type(db):
     import embed_backfill as eb
-    _seed_rows(db, [
-        {"id": "row-A", "content": "alpha", "type": "note"},
-        {"id": "row-B", "content": "beta",  "type": "decision"},
-    ])
+
+    _seed_rows(
+        db,
+        [
+            {"id": "row-A", "content": "alpha", "type": "note"},
+            {"id": "row-B", "content": "beta", "type": "decision"},
+        ],
+    )
     args = _make_args(db, type=["note"])
     assert eb._count_pending(db, args) == 1
 
 
 def test_build_query_filter_user_id_and_scope(db):
     import embed_backfill as eb
-    _seed_rows(db, [
-        {"id": "row-A", "content": "alpha", "user_id": "u1", "scope": "user"},
-        {"id": "row-B", "content": "beta",  "user_id": "u2", "scope": "agent"},
-    ])
+
+    _seed_rows(
+        db,
+        [
+            {"id": "row-A", "content": "alpha", "user_id": "u1", "scope": "user"},
+            {"id": "row-B", "content": "beta", "user_id": "u2", "scope": "agent"},
+        ],
+    )
     args = _make_args(db, user_id="u1")
     assert eb._count_pending(db, args) == 1
     args = _make_args(db, scope="agent")
@@ -212,16 +239,21 @@ def test_build_query_filter_user_id_and_scope(db):
 
 def test_build_query_filter_id_prefix(db):
     import embed_backfill as eb
-    _seed_rows(db, [
-        {"id": "abc-A", "content": "alpha"},
-        {"id": "abd-B", "content": "beta"},
-        {"id": "xyz-C", "content": "gamma"},
-    ])
+
+    _seed_rows(
+        db,
+        [
+            {"id": "abc-A", "content": "alpha"},
+            {"id": "abd-B", "content": "beta"},
+            {"id": "xyz-C", "content": "gamma"},
+        ],
+    )
     args = _make_args(db, id_prefix="ab")
     assert eb._count_pending(db, args) == 2
 
 
 # ── Schema sanity tests ──────────────────────────────────────────────────
+
 
 def test_verify_schema_missing_db_errors(tmp_path):
     """A bad --db must fail LOUD. The exception TYPE changed deliberately.
@@ -238,6 +270,7 @@ def test_verify_schema_missing_db_errors(tmp_path):
     asserts the CONTRACT, not the historical exception class.
     """
     import embed_backfill as eb
+
     bad = tmp_path / "nope.db"
     with pytest.raises((FileNotFoundError, RuntimeError)) as exc:
         eb._verify_schema(bad)
@@ -246,6 +279,7 @@ def test_verify_schema_missing_db_errors(tmp_path):
 
 def test_verify_schema_missing_table_errors(tmp_path):
     import embed_backfill as eb
+
     p = tmp_path / "bare.db"
     sqlite3.connect(str(p)).close()  # empty DB, no tables
     with pytest.raises(RuntimeError, match="memory_items"):
@@ -254,13 +288,16 @@ def test_verify_schema_missing_table_errors(tmp_path):
 
 def test_verify_schema_minimal_ok(db):
     import embed_backfill as eb
+
     eb._verify_schema(db)  # should not raise
 
 
 # ── Lockfile tests ────────────────────────────────────────────────────────
 
+
 def test_lockfile_creates_and_deletes(tmp_path):
     import embed_backfill as eb
+
     lock = tmp_path / "lock.txt"
     assert not lock.exists()
     with eb._lockfile_guard(lock):
@@ -275,6 +312,7 @@ def test_lockfile_creates_and_deletes(tmp_path):
 
 def test_lockfile_blocks_second_sweeper(tmp_path):
     import embed_backfill as eb
+
     lock = tmp_path / "lock.txt"
     lock.write_text("99999 1234567890", encoding="utf-8")
     with pytest.raises(RuntimeError, match="Lockfile already exists"):
@@ -286,14 +324,17 @@ def test_lockfile_blocks_second_sweeper(tmp_path):
 
 def test_lockfile_none_is_noop(tmp_path):
     import embed_backfill as eb
+
     with eb._lockfile_guard(None):
         pass  # no-op; just shouldn't error
 
 
 # ── Counters ─────────────────────────────────────────────────────────────
 
+
 def test_counters_record_error():
     import embed_backfill as eb
+
     c = eb.Counters()
     c.record_error(ValueError("x"))
     c.record_error(ValueError("y"))
@@ -303,15 +344,19 @@ def test_counters_record_error():
 
 # ── End-to-end async sweep with mocked _embed_many ────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_sweep_writes_embeddings_and_queue(db, monkeypatch):
     """Full async sweep with _embed_many mocked. Assert embeddings land."""
     import embed_backfill as eb
 
-    _seed_rows(db, [
-        {"id": "row-A", "content": "alpha cat"},
-        {"id": "row-B", "content": "beta dog"},
-    ])
+    _seed_rows(
+        db,
+        [
+            {"id": "row-A", "content": "alpha cat"},
+            {"id": "row-B", "content": "beta dog"},
+        ],
+    )
 
     # Mock _embed_many BEFORE _run_sweep imports memory_core (it sets
     # M3_DATABASE first, then late-imports). We monkeypatch on the module
@@ -332,8 +377,7 @@ async def test_sweep_writes_embeddings_and_queue(db, monkeypatch):
     monkeypatch.setattr(mc, "_embed_many", fake_embed_many)
     # Bypass _augment_embed_text_with_anchors variability since we're
     # passing no_augment_anchors=True anyway, but be defensive.
-    monkeypatch.setattr(mc, "_augment_embed_text_with_anchors",
-                        lambda text, _meta: text)
+    monkeypatch.setattr(mc, "_augment_embed_text_with_anchors", lambda text, _meta: text)
     # _content_hash + _pack are real — we want them to produce real bytes
 
     await eb._run_sweep(args, counters)
@@ -355,19 +399,25 @@ async def test_sweep_skips_oversize(db, monkeypatch):
     """--no-subdivide-oversize (legacy) mode: drop the row, exclude it from
     pending so it cannot livelock the loop, and report it as EXCLUDED."""
     import embed_backfill as eb
+
     big = "x" * 50_000  # 50KB > default 32KB
-    _seed_rows(db, [
-        {"id": "row-A", "content": big},
-        {"id": "row-B", "content": "small"},
-    ])
+    _seed_rows(
+        db,
+        [
+            {"id": "row-A", "content": big},
+            {"id": "row-B", "content": "small"},
+        ],
+    )
 
     os.environ["M3_DATABASE"] = str(db)
     import memory_core as mc
 
     embed_calls = []
+
     async def fake_embed_many(texts):
         embed_calls.append(list(texts))
         return [([0.1, 0.2, 0.3, 0.4], "test-model") for _ in texts]
+
     monkeypatch.setattr(mc, "_embed_many", fake_embed_many)
 
     args = _make_args(db, max_row_bytes=32_768, subdivide_oversize=False)
@@ -400,25 +450,26 @@ async def test_sweep_skips_oversize_after_augment(db, monkeypatch):
     it once anchors are prepended. Query-time filtering alone would let that row
     reach the embedder and fail the batch."""
     import embed_backfill as eb
+
     _seed_rows(db, [{"id": "row-A", "content": "small enough on disk"}])
 
     os.environ["M3_DATABASE"] = str(db)
     import memory_core as mc
 
     # Row passes the query filter, then augmentation blows it past the cap.
-    monkeypatch.setattr(mc, "_augment_embed_text_with_anchors",
-                        lambda text, metadata: "y" * 50_000)
+    monkeypatch.setattr(mc, "_augment_embed_text_with_anchors", lambda text, metadata: "y" * 50_000)
 
     embed_calls = []
+
     async def fake_embed_many(texts):
         embed_calls.append(list(texts))
         return [([0.1, 0.2, 0.3, 0.4], "test-model") for _ in texts]
+
     monkeypatch.setattr(mc, "_embed_many", fake_embed_many)
 
     # no_augment_anchors must be False or _run_sweep uses the identity transform
     # and the augmentation path under test never runs.
-    args = _make_args(db, max_row_bytes=32_768, no_augment_anchors=False,
-                      subdivide_oversize=False)
+    args = _make_args(db, max_row_bytes=32_768, no_augment_anchors=False, subdivide_oversize=False)
 
     # Small on disk: the query DOES select it, and it counts as real pending work.
     assert eb._count_pending(db, args) == 1
@@ -445,23 +496,29 @@ async def test_sweep_subdivides_oversize_by_default(db, monkeypatch):
     counted so "did subdivide actually happen?" is answerable from the report.
     """
     import embed_backfill as eb
+
     big = "x" * 50_000  # 50KB > default 32KB
-    _seed_rows(db, [
-        {"id": "row-A", "content": big},
-        {"id": "row-B", "content": "small"},
-    ])
+    _seed_rows(
+        db,
+        [
+            {"id": "row-A", "content": big},
+            {"id": "row-B", "content": "small"},
+        ],
+    )
 
     os.environ["M3_DATABASE"] = str(db)
     import memory_core as mc
 
     embed_calls = []
+
     async def fake_embed_many(texts):
         embed_calls.append(list(texts))
         return [([0.1, 0.2, 0.3, 0.4], "test-model") for _ in texts]
+
     monkeypatch.setattr(mc, "_embed_many", fake_embed_many)
 
     args = _make_args(db, max_row_bytes=32_768)  # subdivide_oversize=True
-    assert eb._count_pending(db, args) == 2          # drainable, so pending
+    assert eb._count_pending(db, args) == 2  # drainable, so pending
     assert eb.count_oversize_excluded(db, args) == 0  # nothing written off
 
     counters = eb.Counters()
@@ -474,8 +531,7 @@ async def test_sweep_subdivides_oversize_by_default(db, monkeypatch):
     # The oversize row must have been sent in a batch of its own.
     lone = [b for b in embed_calls if b == [big]]
     assert lone, f"oversize row was not sent alone: {[len(b) for b in embed_calls]}"
-    assert all(big not in b for b in embed_calls if b != [big]), \
-        "oversize row must not ride along in a shared batch"
+    assert all(big not in b for b in embed_calls if b != [big]), "oversize row must not ride along in a shared batch"
 
     # And it is genuinely gone from the backlog.
     assert eb._count_pending(db, args) == 0
@@ -486,19 +542,21 @@ async def test_sweep_subdivides_oversize_after_augment(db, monkeypatch):
     """Same for a row that only becomes oversize after anchor augmentation —
     the case the candidate query cannot see."""
     import embed_backfill as eb
+
     _seed_rows(db, [{"id": "row-A", "content": "small enough on disk"}])
 
     os.environ["M3_DATABASE"] = str(db)
     import memory_core as mc
 
     huge = "y" * 50_000
-    monkeypatch.setattr(mc, "_augment_embed_text_with_anchors",
-                        lambda text, metadata: huge)
+    monkeypatch.setattr(mc, "_augment_embed_text_with_anchors", lambda text, metadata: huge)
 
     embed_calls = []
+
     async def fake_embed_many(texts):
         embed_calls.append(list(texts))
         return [([0.1, 0.2, 0.3, 0.4], "test-model") for _ in texts]
+
     monkeypatch.setattr(mc, "_embed_many", fake_embed_many)
 
     args = _make_args(db, max_row_bytes=32_768, no_augment_anchors=False)
@@ -514,6 +572,7 @@ async def test_sweep_subdivides_oversize_after_augment(db, monkeypatch):
 @pytest.mark.asyncio
 async def test_sweep_skips_bad_dim(db, monkeypatch):
     import embed_backfill as eb
+
     _seed_rows(db, [{"id": "row-A", "content": "alpha"}])
 
     os.environ["M3_DATABASE"] = str(db)
@@ -522,9 +581,9 @@ async def test_sweep_skips_bad_dim(db, monkeypatch):
     async def fake_embed_many(texts):
         # Wrong dim — 8 instead of expected 4
         return [([0.0] * 8, "test-model") for _ in texts]
+
     monkeypatch.setattr(mc, "_embed_many", fake_embed_many)
-    monkeypatch.setattr(mc, "_augment_embed_text_with_anchors",
-                        lambda text, _meta: text)
+    monkeypatch.setattr(mc, "_augment_embed_text_with_anchors", lambda text, _meta: text)
 
     args = _make_args(db, expected_dim=4)
     counters = eb.Counters()
@@ -542,6 +601,7 @@ async def test_sweep_skips_bad_dim(db, monkeypatch):
 @pytest.mark.asyncio
 async def test_sweep_handles_embed_failure_gracefully(db, monkeypatch):
     import embed_backfill as eb
+
     _seed_rows(db, [{"id": "row-A", "content": "alpha"}])
 
     os.environ["M3_DATABASE"] = str(db)
@@ -550,9 +610,9 @@ async def test_sweep_handles_embed_failure_gracefully(db, monkeypatch):
     async def fake_embed_many(texts):
         # _embed_many returns (None, model) on failure
         return [(None, "test-model") for _ in texts]
+
     monkeypatch.setattr(mc, "_embed_many", fake_embed_many)
-    monkeypatch.setattr(mc, "_augment_embed_text_with_anchors",
-                        lambda text, _meta: text)
+    monkeypatch.setattr(mc, "_augment_embed_text_with_anchors", lambda text, _meta: text)
 
     args = _make_args(db)
     counters = eb.Counters()
@@ -567,21 +627,26 @@ async def test_sweep_handles_embed_failure_gracefully(db, monkeypatch):
 async def test_sweep_resumes_skipping_already_embedded(db, monkeypatch):
     """Run sweep twice — second pass should embed nothing (resume by NOT EXISTS)."""
     import embed_backfill as eb
-    _seed_rows(db, [
-        {"id": "row-A", "content": "alpha"},
-        {"id": "row-B", "content": "beta"},
-    ])
+
+    _seed_rows(
+        db,
+        [
+            {"id": "row-A", "content": "alpha"},
+            {"id": "row-B", "content": "beta"},
+        ],
+    )
 
     os.environ["M3_DATABASE"] = str(db)
     import memory_core as mc
 
     n_calls = [0]
+
     async def fake_embed_many(texts):
         n_calls[0] += len(texts)
         return [([0.1, 0.2, 0.3, 0.4], "test-model") for _ in texts]
+
     monkeypatch.setattr(mc, "_embed_many", fake_embed_many)
-    monkeypatch.setattr(mc, "_augment_embed_text_with_anchors",
-                        lambda text, _meta: text)
+    monkeypatch.setattr(mc, "_augment_embed_text_with_anchors", lambda text, _meta: text)
 
     args = _make_args(db)
     counters1 = eb.Counters()
@@ -598,8 +663,10 @@ async def test_sweep_resumes_skipping_already_embedded(db, monkeypatch):
 
 # ── argparse smoke ────────────────────────────────────────────────────────
 
+
 def test_parse_args_defaults(monkeypatch):
     import embed_backfill as eb
+
     monkeypatch.delenv("M3_DATABASE", raising=False)
     args = eb._parse_args([])
     assert args.batch_size == 256
@@ -611,10 +678,19 @@ def test_parse_args_defaults(monkeypatch):
 
 def test_parse_args_repeatable_filters():
     import embed_backfill as eb
-    args = eb._parse_args([
-        "--variant", "A", "--variant", "B",
-        "--type", "note", "--type", "decision",
-    ])
+
+    args = eb._parse_args(
+        [
+            "--variant",
+            "A",
+            "--variant",
+            "B",
+            "--type",
+            "note",
+            "--type",
+            "decision",
+        ]
+    )
     assert args.variant == ["A", "B"]
     assert args.type == ["note", "decision"]
 
@@ -626,6 +702,7 @@ def test_parse_args_repeatable_filters():
 # the chatlog path as its "main store", collapsed to one entry, and the chatlog
 # store dropped out of _embed_target_dbs() entirely -- unembedded chat turns
 # then grew without bound until a restart. These pin the restore, not the sweep.
+
 
 @pytest.mark.asyncio
 async def test_run_sweep_restores_m3_database(tmp_path, monkeypatch):
@@ -640,9 +717,7 @@ async def test_run_sweep_restores_m3_database(tmp_path, monkeypatch):
 
     await eb._run_sweep(_make_args(swept), eb.Counters())
 
-    assert os.environ["M3_DATABASE"] == sentinel, (
-        "M3_DATABASE leaked the swept db; see #180"
-    )
+    assert os.environ["M3_DATABASE"] == sentinel, "M3_DATABASE leaked the swept db; see #180"
 
 
 @pytest.mark.asyncio
@@ -663,9 +738,7 @@ async def test_run_sweep_restores_m3_database_absence(tmp_path, monkeypatch):
 
     await eb._run_sweep(_make_args(swept), eb.Counters())
 
-    assert "M3_DATABASE" not in os.environ, (
-        "absence must be restored as absence, not as an empty string; see #180"
-    )
+    assert "M3_DATABASE" not in os.environ, "absence must be restored as absence, not as an empty string; see #180"
 
 
 @pytest.mark.asyncio
@@ -694,6 +767,4 @@ async def test_run_sweep_restores_m3_database_on_exception(tmp_path, monkeypatch
     with pytest.raises(RuntimeError):
         await eb._run_sweep(_make_args(swept), eb.Counters())
 
-    assert os.environ["M3_DATABASE"] == sentinel, (
-        "M3_DATABASE leaked after a failing sweep; see #180"
-    )
+    assert os.environ["M3_DATABASE"] == sentinel, "M3_DATABASE leaked after a failing sweep; see #180"

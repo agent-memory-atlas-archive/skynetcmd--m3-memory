@@ -13,6 +13,7 @@ Invoked by `m3 wiki generate` / `m3 wiki status` (see m3_memory/cli.py). The wik
 is a core feature and runs on the base install — clustering uses networkx, which
 is a base dependency of m3-memory (no optional extra required).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -33,6 +34,7 @@ from wiki.select import DEFAULT_IMPORTANCE_THRESHOLD  # noqa: E402
 def _engine_root() -> str:
     try:
         from m3_core.paths import get_m3_engine_root
+
         return get_m3_engine_root()
     except Exception:
         return os.path.join(os.path.expanduser("~"), ".m3", "engine")
@@ -45,6 +47,7 @@ def _default_out() -> str:
 def _memory_db_path() -> str:
     try:
         from files_memory.config import memory_db_path
+
         return memory_db_path()
     except Exception:
         return os.path.join(_engine_root(), "agent_memory.db")
@@ -53,6 +56,7 @@ def _memory_db_path() -> str:
 def _files_db_path() -> str:
     try:
         from files_memory.config import FILES_DB_PATH
+
         return FILES_DB_PATH
     except Exception:
         return os.path.join(_engine_root(), "files_database.db")
@@ -71,9 +75,9 @@ def _open_ro_sqlite(path: str) -> sqlite3.Connection:
 
 def _build_vault(args: argparse.Namespace, out_dir: str) -> dict[str, str]:
     opts = WikiOptions(
-        importance_threshold=(args.importance_threshold
-                              if args.importance_threshold is not None
-                              else DEFAULT_IMPORTANCE_THRESHOLD),
+        importance_threshold=(
+            args.importance_threshold if args.importance_threshold is not None else DEFAULT_IMPORTANCE_THRESHOLD
+        ),
         include_files=not args.no_files,
         exclude_regex=_resolve_exclude(args),
         obsidian=getattr(args, "obsidian", False),
@@ -82,6 +86,7 @@ def _build_vault(args: argparse.Namespace, out_dir: str) -> dict[str, str]:
     synthesizer = None
     if getattr(args, "synthesize", False):
         from wiki.synth import SynthConfig, Synthesizer
+
         cache_dir = os.path.join(out_dir, ".synth-cache")
         synthesizer = Synthesizer(SynthConfig.from_env(cache_dir))
 
@@ -91,6 +96,7 @@ def _build_vault(args: argparse.Namespace, out_dir: str) -> dict[str, str]:
     drift_judge = None
     if getattr(args, "check_drift", False):
         from wiki.citation_drift import DriftConfig, ModelDriftJudge
+
         drift_cache = os.path.join(out_dir, ".drift-cache")
         drift_judge = ModelDriftJudge(DriftConfig.from_env(drift_cache))
 
@@ -103,6 +109,7 @@ def _build_vault(args: argparse.Namespace, out_dir: str) -> dict[str, str]:
     if getattr(args, "review_derivability", False):
         from wiki.citation_drift import DriftConfig
         from wiki.derivability_review import ModelDerivabilityJudge
+
         deriv_cache = os.path.join(out_dir, ".deriv-cache")
         derivability_judge = ModelDerivabilityJudge(DriftConfig.from_env(deriv_cache))
 
@@ -124,6 +131,7 @@ def _build_vault(args: argparse.Namespace, out_dir: str) -> dict[str, str]:
     _memory_seam: Callable[[], AbstractContextManager[Any]] | None
     try:
         from memory.db import _db as _mdb
+
         _memory_seam = _mdb
     except Exception:  # noqa: BLE001 — no seam: the legacy sidecar path below
         _memory_seam = None
@@ -135,15 +143,17 @@ def _build_vault(args: argparse.Namespace, out_dir: str) -> dict[str, str]:
             if _files_is_pg():
                 try:
                     from files_memory.db import _db as _files_seam
+
                     files_conn = stack.enter_context(_files_seam())
                 except Exception as e:
-                    print(f"warning: could not open the PostgreSQL files store "
-                          f"({e}); rendering memory-only.", file=sys.stderr)
+                    print(
+                        f"warning: could not open the PostgreSQL files store ({e}); rendering memory-only.",
+                        file=sys.stderr,
+                    )
             else:
                 fpath = _files_db_path()
                 if os.path.isfile(fpath):
-                    files_conn = stack.enter_context(
-                        _closing(_open_ro_sqlite(fpath)))
+                    files_conn = stack.enter_context(_closing(_open_ro_sqlite(fpath)))
 
         # Memory connection: through the seam (active backend), else legacy sidecar.
         if _memory_seam is not None:
@@ -151,14 +161,18 @@ def _build_vault(args: argparse.Namespace, out_dir: str) -> dict[str, str]:
         else:
             mem_path = _memory_db_path()
             if not os.path.isfile(mem_path):
-                print(f"memory DB not found at {mem_path} — run `m3 setup` first.",
-                      file=sys.stderr)
+                print(f"memory DB not found at {mem_path} — run `m3 setup` first.", file=sys.stderr)
                 raise SystemExit(2)
             mem_conn = stack.enter_context(_closing(_open_ro_sqlite(mem_path)))
 
-        vault = build_wiki(mem_conn, files_conn, opts, synthesizer=synthesizer,
-                           drift_judge=drift_judge,
-                           derivability_judge=derivability_judge)
+        vault = build_wiki(
+            mem_conn,
+            files_conn,
+            opts,
+            synthesizer=synthesizer,
+            drift_judge=drift_judge,
+            derivability_judge=derivability_judge,
+        )
 
     if synthesizer is not None:
         print(synthesizer.summary(), file=sys.stderr)
@@ -178,6 +192,7 @@ def _read_manifest(out_dir: str) -> list[str]:
     path = os.path.join(out_dir, _MANIFEST)
     try:
         import json
+
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
         files = data.get("generated", [])
@@ -188,6 +203,7 @@ def _read_manifest(out_dir: str) -> list[str]:
 
 def _write_manifest(out_dir: str, relpaths: list[str]) -> None:
     import json
+
     path = os.path.join(out_dir, _MANIFEST)
     payload = {"generated": sorted(relpaths)}
     with open(path, "w", encoding="utf-8", newline="\n") as f:
@@ -273,15 +289,20 @@ def _check_vault(vault: dict[str, str], out_dir: str) -> int:
 
 def _cmd_generate(args: argparse.Namespace) -> int:
     out_dir = args.out or _default_out()
-    _model_flags = [("--synthesize", getattr(args, "synthesize", False)),
-                    ("--check-drift", getattr(args, "check_drift", False)),
-                    ("--review-derivability", getattr(args, "review_derivability", False))]
+    _model_flags = [
+        ("--synthesize", getattr(args, "synthesize", False)),
+        ("--check-drift", getattr(args, "check_drift", False)),
+        ("--review-derivability", getattr(args, "review_derivability", False)),
+    ]
     _active = [name for name, on in _model_flags if on]
     if args.check and _active:
         offender = _active[0]
-        print(f"--check and {offender} are mutually exclusive: model output is not "
-              "bit-reproducible, so the drift check runs on the deterministic vault "
-              f"only (drop {offender}).", file=sys.stderr)
+        print(
+            f"--check and {offender} are mutually exclusive: model output is not "
+            "bit-reproducible, so the drift check runs on the deterministic vault "
+            f"only (drop {offender}).",
+            file=sys.stderr,
+        )
         return 2
     vault = _build_vault(args, out_dir)
     if args.check:
@@ -294,6 +315,7 @@ def _cmd_generate(args: argparse.Namespace) -> int:
 
 def _write_html(vault: dict[str, str], out_dir: str) -> None:
     from wiki.html_view import build_html
+
     html = build_html(vault)
     dest = os.path.join(out_dir, "wiki.html")
     with open(dest, "w", encoding="utf-8", newline="\n") as f:
@@ -327,25 +349,22 @@ def _cmd_compile(args: argparse.Namespace) -> int:
     from wiki.compile import compile_clusters, load_heads
     from wiki.prose_compiler import LLMProseCompiler
 
-    tau = (args.importance_threshold if args.importance_threshold is not None
-           else DEFAULT_IMPORTANCE_THRESHOLD)
+    tau = args.importance_threshold if args.importance_threshold is not None else DEFAULT_IMPORTANCE_THRESHOLD
     compiler = LLMProseCompiler()
 
     async def _run(gate=None):
         with _memory_seam() as conn:
-            mems = _select.select_core_memories(conn, importance_threshold=tau,
-                                                limit=5000)
+            mems = _select.select_core_memories(conn, importance_threshold=tau, limit=5000)
             ids = {m.id for m in mems}
             edges = list(_select.load_memory_edges(conn, ids))
             edges += _select.load_entity_comention_edges(conn, ids)
-            clusters = [c for c in _cluster_mod.cluster(mems, edges)
-                        if not c.is_orphan]
+            clusters = [c for c in _cluster_mod.cluster(mems, edges) if not c.is_orphan]
             # Heads: live syntheses already in `mems` (CORE_TYPES includes it),
             # keyed by title. No extra query — reuse the loaded rows.
             head_rows = [
-                {"id": m.id, "title": m.title, "content": m.content,
-                 "metadata": m.metadata}
-                for m in mems if m.type == "synthesis"
+                {"id": m.id, "title": m.title, "content": m.content, "metadata": m.metadata}
+                for m in mems
+                if m.type == "synthesis"
             ]
             heads = load_heads(head_rows)
             backend = None
@@ -354,30 +373,34 @@ def _cmd_compile(args: argparse.Namespace) -> int:
             except Exception:
                 backend = None  # checkpointing is best-effort; PG is a no-op anyway
             return await compile_clusters(
-                clusters, compiler, heads,
+                clusters,
+                compiler,
+                heads,
                 scope=getattr(args, "scope", "agent") or "agent",
                 user_id=getattr(args, "user_id", "") or "",
-                backend=backend, edges=edges, gate=gate,
+                backend=backend,
+                edges=edges,
+                gate=gate,
                 # Ledger (G1): record this pass's provenance + frozen membership on
                 # the SAME seam connection — opening a second connection to the
                 # SQLite file mid-pass would contend on the write lock.
                 importance_threshold=tau,
                 entity_comention=True,  # gen_wiki always loads co-mention edges above
-                _ledger_db=conn)
+                _ledger_db=conn,
+            )
 
     if args.dry_run:
         # Load + cluster only; report what WOULD be compiled without calling the
         # model or writing. Honest preview (§3): no side effects — including the
         # admission gate, so the count matches a real run.
         from wiki import admission as _admission
+
         with _memory_seam() as conn:
-            mems = _select.select_core_memories(conn, importance_threshold=tau,
-                                                limit=5000)
+            mems = _select.select_core_memories(conn, importance_threshold=tau, limit=5000)
             ids = {m.id for m in mems}
             edges = list(_select.load_memory_edges(conn, ids))
             edges += _select.load_entity_comention_edges(conn, ids)
-            clusters = [c for c in _cluster_mod.cluster(mems, edges)
-                        if not c.is_orphan]
+            clusters = [c for c in _cluster_mod.cluster(mems, edges) if not c.is_orphan]
         gate = _admission.load_gate()
         demoted = 0
         if gate.enabled:
@@ -389,8 +412,10 @@ def _cmd_compile(args: argparse.Namespace) -> int:
                     kept.append(c)
             clusters = kept
         tail = f" ({demoted} demoted by admission gate)" if demoted else ""
-        print(f"dry-run: {len(clusters)} topic cluster(s) would be compiled "
-              f"(threshold {tau}){tail}. No model call, no write.")
+        print(
+            f"dry-run: {len(clusters)} topic cluster(s) would be compiled "
+            f"(threshold {tau}){tail}. No model call, no write."
+        )
         return 0
 
     # Single pass — no cold/warm distinction. The admission gate reads only
@@ -417,6 +442,7 @@ def _cmd_status(args: argparse.Namespace) -> int:
         return 0
     latest = max(os.path.getmtime(p) for p in pages)
     import datetime
+
     ts = datetime.datetime.fromtimestamp(latest).isoformat(timespec="seconds")
     print(f"wiki: {out_dir}")
     print(f"pages: {len(pages)}")
@@ -426,44 +452,69 @@ def _cmd_status(args: argparse.Namespace) -> int:
 
 def _add_generate_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--out", default=None, help="Output vault dir (default <engine_root>/wiki).")
-    p.add_argument("--check", action="store_true",
-                   help="Exit non-zero if the on-disk vault differs from a fresh build.")
-    p.add_argument("--no-files", action="store_true",
-                   help="Skip the files corpus (memory-only vault).")
-    p.add_argument("--synthesize", action="store_true",
-                   help="Write an LLM prose lede per topic via a local chat endpoint "
-                        "(opt-in; cached; degrades to member-lists if no model). "
-                        "Mutually exclusive with --check.")
-    p.add_argument("--check-drift", action="store_true",
-                   help="Add a citation-drift lint section: a local chat model audits "
-                        "each synthesis against the sources it was compiled from and "
-                        "flags claims that no longer match (report-only; opt-in; cached; "
-                        "fail-open if no model). Mutually exclusive with --check.")
-    p.add_argument("--review-derivability", action="store_true",
-                   help="Refine the GDPR derivability review queue with a local chat "
-                        "model: for each synthesis restricted by an erasure, judge "
-                        "whether it is still derivable from its surviving sources "
-                        "(report-only; the deterministic queue renders regardless; "
-                        "fail-safe if no model). Mutually exclusive with --check.")
-    p.add_argument("--importance-threshold", type=float, default=None,
-                   help="Min importance for a memory to count as 'core' (default 0.55).")
-    p.add_argument("--exclude", default=None, metavar="REGEX",
-                   help="Drop any memory whose title/content matches this regex "
-                        "(case-insensitive). REPLACES the default private/bench "
-                        "filter — pass --no-default-exclude to drop it instead.")
-    p.add_argument("--no-default-exclude", action="store_true",
-                   help="Do NOT apply the built-in private/bench exclusion. The "
-                        "vault will then contain benchmark and private-project "
-                        "material verbatim — only for a local, unshared build.")
-    p.add_argument("--html", action="store_true",
-                   help="Also write a single self-contained wiki.html viewer — open "
-                        "it in any browser to click through the vault offline "
-                        "(no server, no dependencies).")
-    p.add_argument("--obsidian", action="store_true",
-                   help="Emit [[wikilinks]] instead of standard Markdown links so "
-                        "Obsidian's graph view and backlinks work. (Wikilinks show "
-                        "as literal text outside Obsidian, so this is opt-in.)")
-
+    p.add_argument(
+        "--check", action="store_true", help="Exit non-zero if the on-disk vault differs from a fresh build."
+    )
+    p.add_argument("--no-files", action="store_true", help="Skip the files corpus (memory-only vault).")
+    p.add_argument(
+        "--synthesize",
+        action="store_true",
+        help="Write an LLM prose lede per topic via a local chat endpoint "
+        "(opt-in; cached; degrades to member-lists if no model). "
+        "Mutually exclusive with --check.",
+    )
+    p.add_argument(
+        "--check-drift",
+        action="store_true",
+        help="Add a citation-drift lint section: a local chat model audits "
+        "each synthesis against the sources it was compiled from and "
+        "flags claims that no longer match (report-only; opt-in; cached; "
+        "fail-open if no model). Mutually exclusive with --check.",
+    )
+    p.add_argument(
+        "--review-derivability",
+        action="store_true",
+        help="Refine the GDPR derivability review queue with a local chat "
+        "model: for each synthesis restricted by an erasure, judge "
+        "whether it is still derivable from its surviving sources "
+        "(report-only; the deterministic queue renders regardless; "
+        "fail-safe if no model). Mutually exclusive with --check.",
+    )
+    p.add_argument(
+        "--importance-threshold",
+        type=float,
+        default=None,
+        help="Min importance for a memory to count as 'core' (default 0.55).",
+    )
+    p.add_argument(
+        "--exclude",
+        default=None,
+        metavar="REGEX",
+        help="Drop any memory whose title/content matches this regex "
+        "(case-insensitive). REPLACES the default private/bench "
+        "filter — pass --no-default-exclude to drop it instead.",
+    )
+    p.add_argument(
+        "--no-default-exclude",
+        action="store_true",
+        help="Do NOT apply the built-in private/bench exclusion. The "
+        "vault will then contain benchmark and private-project "
+        "material verbatim — only for a local, unshared build.",
+    )
+    p.add_argument(
+        "--html",
+        action="store_true",
+        help="Also write a single self-contained wiki.html viewer — open "
+        "it in any browser to click through the vault offline "
+        "(no server, no dependencies).",
+    )
+    p.add_argument(
+        "--obsidian",
+        action="store_true",
+        help="Emit [[wikilinks]] instead of standard Markdown links so "
+        "Obsidian's graph view and backlinks work. (Wikilinks show "
+        "as literal text outside Obsidian, so this is opt-in.)",
+    )
 
 
 # Built-in exclusion, ON BY DEFAULT (2026-07-26).
@@ -499,16 +550,16 @@ def main(argv: list[str] | None = None) -> int:
 
     p_compile = sub.add_parser(
         "compile",
-        help="WRITE compiled synthesis memories for topic clusters (mutates the "
-             "store; idempotent — safe to re-run).")
-    p_compile.add_argument("--importance-threshold", type=float, default=None,
-                           help="Core-memory importance floor (default 0.55).")
-    p_compile.add_argument("--scope", default="agent",
-                           help="Tenancy scope for written syntheses (default agent).")
-    p_compile.add_argument("--user-id", default="",
-                           help="Owner user_id for written syntheses.")
-    p_compile.add_argument("--dry-run", action="store_true",
-                           help="Report what would be compiled; no model call, no write.")
+        help="WRITE compiled synthesis memories for topic clusters (mutates the store; idempotent — safe to re-run).",
+    )
+    p_compile.add_argument(
+        "--importance-threshold", type=float, default=None, help="Core-memory importance floor (default 0.55)."
+    )
+    p_compile.add_argument("--scope", default="agent", help="Tenancy scope for written syntheses (default agent).")
+    p_compile.add_argument("--user-id", default="", help="Owner user_id for written syntheses.")
+    p_compile.add_argument(
+        "--dry-run", action="store_true", help="Report what would be compiled; no model call, no write."
+    )
     p_compile.set_defaults(func=_cmd_compile)
 
     p_status = sub.add_parser("status", help="Report vault location, page count, last build.")

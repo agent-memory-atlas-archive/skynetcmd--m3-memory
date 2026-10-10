@@ -1,4 +1,5 @@
 """LLM endpoint switches reach daemons that never read the shell rc."""
+
 import argparse
 import json
 import logging
@@ -27,6 +28,7 @@ def test_file_is_used_when_the_environment_is_bare(config_root):
     assert llm_config.llm_setting("M3_ENABLE_OLLAMA_FAILOVER") == "1"
 
     import llm_failover
+
     assert llm_failover._flag("M3_ENABLE_OLLAMA_FAILOVER", False) is True
 
 
@@ -35,6 +37,7 @@ def test_environment_outranks_the_file(config_root, monkeypatch):
     monkeypatch.setenv("M3_ENABLE_OLLAMA_FAILOVER", "0")
 
     import llm_failover
+
     assert llm_failover._flag("M3_ENABLE_OLLAMA_FAILOVER", True) is False
 
 
@@ -55,8 +58,7 @@ def _probe(monkeypatch, reachable_port):
     monkeypatch.delenv("LLM_ENDPOINTS_CSV", raising=False)
     monkeypatch.delenv("M3_LLM_ENDPOINTS_CSV", raising=False)
     monkeypatch.delenv("M3_LLM_URL", raising=False)
-    monkeypatch.setattr(setup_wizard, "_endpoint_reachable",
-                        lambda url, **k: reachable_port in url)
+    monkeypatch.setattr(setup_wizard, "_endpoint_reachable", lambda url, **k: reachable_port in url)
     monkeypatch.setattr(setup_wizard, "_persist_env_var", lambda *a, **k: None)
     setup_wizard._probe_llm_endpoints(object(), argparse.Namespace(non_interactive=True))
 
@@ -91,6 +93,7 @@ def test_setup_records_a_custom_server_url(config_root, monkeypatch):
 
     monkeypatch.delenv("M3_LLM_URL")
     import llm_failover
+
     assert llm_failover._setting("M3_LLM_URL") == "http://localhost:8080/v1"
 
 
@@ -100,13 +103,16 @@ def test_setup_writes_nothing_when_only_the_default_is_reachable(config_root, mo
 
 
 @pytest.mark.requires_posix  # shell rc files are POSIX
-@pytest.mark.parametrize("text, expected", [
-    ('export M3_ENABLE_OLLAMA_FAILOVER="1"\n', True),
-    ("export M3_ENABLE_OLLAMA_FAILOVER=1  # m3\n", True),
-    ('# export M3_ENABLE_OLLAMA_FAILOVER="1"\n', False),
-    ('export M3_ENABLE_OLLAMA_FAILOVER="1"\nexport M3_ENABLE_OLLAMA_FAILOVER=0\n', False),
-    ("export M3_ENABLE_OLLAMA_FAILOVER=10\n", False),
-])
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        ('export M3_ENABLE_OLLAMA_FAILOVER="1"\n', True),
+        ("export M3_ENABLE_OLLAMA_FAILOVER=1  # m3\n", True),
+        ('# export M3_ENABLE_OLLAMA_FAILOVER="1"\n', False),
+        ('export M3_ENABLE_OLLAMA_FAILOVER="1"\nexport M3_ENABLE_OLLAMA_FAILOVER=0\n', False),
+        ("export M3_ENABLE_OLLAMA_FAILOVER=10\n", False),
+    ],
+)
 def test_shell_rc_has_reads_the_effective_assignment(monkeypatch, tmp_path, text, expected):
     from m3_memory.wizard import persist
 

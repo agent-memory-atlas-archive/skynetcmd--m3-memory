@@ -90,13 +90,10 @@ class MemoryWrite(Runnable):
         return uid
 
     @override
-    def invoke(
-        self, input: Any, config: RunnableConfig | None = None, **kwargs: Any
-    ) -> Any:
+    def invoke(self, input: Any, config: RunnableConfig | None = None, **kwargs: Any) -> Any:
         text = _text_of(input)
         if text.strip():
-            uid = self._require_user((config or {}).get("configurable", {}).get("user_id")
-                                     if config else None)
+            uid = self._require_user((config or {}).get("configurable", {}).get("user_id") if config else None)
             self._client._tool(
                 "memory_write",
                 type=self._mem_type,
@@ -110,9 +107,7 @@ class MemoryWrite(Runnable):
         return input  # pass-through: never mutate the chain's data
 
     @override
-    async def ainvoke(
-        self, input: Any, config: RunnableConfig | None = None, **kwargs: Any
-    ) -> Any:
+    async def ainvoke(self, input: Any, config: RunnableConfig | None = None, **kwargs: Any) -> Any:
         # _tool rides the shared loop-thread; the sync body is loop-safe.
         return self.invoke(input, config, **kwargs)
 
@@ -152,6 +147,7 @@ def with_m3_memory(
     records the question). Tenancy is resolved via ``M3_DEFAULT_USER_ID`` if no
     ``user_id`` is given — and still raises when nothing resolves.
     """
+
     def _decorate(func: Callable) -> Callable:
         writer = MemoryWrite(user_id=user_id, mem_type=mem_type, agent_id=agent_id)
 

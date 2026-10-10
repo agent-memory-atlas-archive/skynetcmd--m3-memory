@@ -12,6 +12,7 @@ without m3's loop installed and failing on hosts with it, i.e. on a correctly
 configured box (measured 2026-09-30). Patch `_unix_service_paths` too when the
 premise is "nothing is installed".
 """
+
 from __future__ import annotations
 
 import os
@@ -63,22 +64,23 @@ def test_sync_runs_via_both_governor_and_scheduled_task_all_oses():
     This test locks the dual-path default so neither half can silently regress."""
     import pathlib
     import re
+
     repo = pathlib.Path(__file__).resolve().parents[1]
 
     loop_src = (repo / "bin" / "m3_cognitive_loop.py").read_text(encoding="utf-8")
     # Governor path: a 'sync' pass exists in the registry and defaults ON
     # (gated by --skip-sync, which is a store_true flag => default False).
     assert '"name": "sync"' in loop_src
-    assert 'run_sync_pass' in loop_src
+    assert "run_sync_pass" in loop_src
     assert re.search(r'--skip-sync["\'],\s*action=["\']store_true', loop_src)
 
     # Scheduled floor — Unix: the rendered cron block runs sync hourly, and
     # macOS gets a launchd agent with the same hourly interval.
     import install_schedules
+
     cron = install_schedules.render_cron_block(str(repo))
-    assert re.search(r'^0 \* \* \* \* .*sync_all\.py', cron, re.MULTILINE)
-    hourly = next(s for s in install_schedules.unix_periodic_specs(str(repo))
-                  if s["name"] == "AgentOS_HourlySync")
+    assert re.search(r"^0 \* \* \* \* .*sync_all\.py", cron, re.MULTILINE)
+    hourly = next(s for s in install_schedules.unix_periodic_specs(str(repo)) if s["name"] == "AgentOS_HourlySync")
     assert install_schedules.launchd_trigger(hourly) == {"StartInterval": 3600}
 
     # Scheduled floor — Windows: install_schedules emits an AgentOS_HourlySync
@@ -127,6 +129,7 @@ def test_loop_embed_pass_drains_spill():
     task is ever re-classified.
     """
     import pathlib
+
     repo = pathlib.Path(__file__).resolve().parents[1]
     loop_src = (repo / "bin" / "m3_cognitive_loop.py").read_text(encoding="utf-8")
 
@@ -152,13 +155,18 @@ def test_floor_and_not_migratable_excluded_from_eligible(monkeypatch):
     not-migratable tasks (SecretRotator/CognitiveLoop) must be EXCLUDED from the
     removal set, and only the genuinely loop-covered tasks remain eligible."""
     monkeypatch.setattr(
-        gm, "_list_installed_task_names",
+        gm,
+        "_list_installed_task_names",
         lambda: {
-            "AgentOS_HourlySync", "AgentOS_ChatlogEmbedSweep",
-            "AgentOS_ObservationDrain", "AgentOS_Maintenance",
-            "AgentOS_WeeklyAuditor", "AgentOS_SecretRotator",
+            "AgentOS_HourlySync",
+            "AgentOS_ChatlogEmbedSweep",
+            "AgentOS_ObservationDrain",
+            "AgentOS_Maintenance",
+            "AgentOS_WeeklyAuditor",
+            "AgentOS_SecretRotator",
             "AgentOS_CognitiveLoop",
-        })
+        },
+    )
     out = gm.detect_scheduled_tasks()
     assert set(out["eligible"]) == set(gm.GOVERNOR_ELIGIBLE)
     assert set(out["keep_scheduled_floor"]) == {n for n, _ in gm.KEEP_SCHEDULED_FLOOR}
@@ -202,8 +210,7 @@ def test_privileged_commands_macos_uses_crontab(monkeypatch):
 def test_hourlysync_is_detected_in_both_crontab_forms():
     # The rendered line runs sync_all.py; crontabs written by older payloads
     # run pg_sync.sh. Detection must see both or an existing floor goes missing.
-    assert gm._cron_line_is("AgentOS_HourlySync",
-                            "0 * * * * /v/bin/python /p/bin/sync_all.py --log-file /l/s.log")
+    assert gm._cron_line_is("AgentOS_HourlySync", "0 * * * * /v/bin/python /p/bin/sync_all.py --log-file /l/s.log")
     assert gm._cron_line_is("AgentOS_HourlySync", "0 * * * * /p/bin/pg_sync.sh >> /l/s.log 2>&1")
     assert not gm._cron_line_is("AgentOS_HourlySync", "*/30 * * * * /p/bin/chatlog_embed_sweeper.py")
     # Cognitive loop is NOT a cron marker (it's a service).
@@ -217,7 +224,8 @@ def test_cognitive_loop_detected_as_service(monkeypatch, tmp_path):
     svc = tmp_path / "m3-cognitive-loop.service"
     svc.write_text("[Unit]\n")
     monkeypatch.setattr(
-        gm, "_unix_service_paths",
+        gm,
+        "_unix_service_paths",
         lambda: {"AgentOS_CognitiveLoop": str(svc)},
     )
 
@@ -316,9 +324,9 @@ def test_detect_never_raises_without_scheduler(monkeypatch):
     # added service is covered automatically.
     real_paths = gm._unix_service_paths()
     monkeypatch.setattr(
-        gm, "_unix_service_paths",
-        lambda: {name: f"/nonexistent/m3-test/{name}.service"
-                 for name in real_paths},
+        gm,
+        "_unix_service_paths",
+        lambda: {name: f"/nonexistent/m3-test/{name}.service" for name in real_paths},
     )
     out = gm.detect_scheduled_tasks()
     assert out == {"eligible": [], "not_migratable_present": [], "keep_scheduled_floor": []}
@@ -332,17 +340,14 @@ def test_detect_reports_the_loop_when_its_service_file_EXISTS(monkeypatch, tmp_p
     detection entirely and both tests would still pass.
     """
     monkeypatch.setattr(gm, "_os_name", lambda: "Linux")
-    monkeypatch.setattr(gm.subprocess, "run",
-                        lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError("crontab")))
+    monkeypatch.setattr(gm.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError("crontab")))
     svc = tmp_path / "m3-cognitive-loop.service"
     svc.write_text("[Unit]\n", encoding="utf-8")
-    monkeypatch.setattr(gm, "_unix_service_paths",
-                        lambda: {"AgentOS_CognitiveLoop": str(svc)})
+    monkeypatch.setattr(gm, "_unix_service_paths", lambda: {"AgentOS_CognitiveLoop": str(svc)})
 
     out = gm.detect_scheduled_tasks()
     assert out["not_migratable_present"] == ["AgentOS_CognitiveLoop"], (
-        "a present service file must still be detected; this is the behaviour "
-        "the isolation fix must not break"
+        "a present service file must still be detected; this is the behaviour the isolation fix must not break"
     )
     assert out["eligible"] == []
 
@@ -401,6 +406,7 @@ def test_not_migratable_lines_have_reasons():
 # is NOT named AgentOS_HourlySync, so the name-only query misses it. Detection
 # must catch it by its ACTION and surface it under its REAL name for removal.
 
+
 def _verbose_list(records: list[tuple[str, str]]) -> str:
     """Render a fake `schtasks /Query /FO LIST /V` blob from (TaskName, action)."""
     blocks = []
@@ -418,6 +424,7 @@ def _win_run_factory(verbose_blob: str, name_present: set[str]):
     - /TN <name>            → present iff name in name_present
     - /FO LIST /V           → returns the verbose blob
     """
+
     class _R:
         def __init__(self, rc, out):
             self.returncode = rc
@@ -436,11 +443,12 @@ def _win_run_factory(verbose_blob: str, name_present: set[str]):
 def test_windows_detects_legacy_sync_task_by_action(monkeypatch):
     monkeypatch.setattr(gm, "_os_name", lambda: "Windows")
     # No canonical task installed by name; a legacy task runs sync_all.py.
-    blob = _verbose_list([
-        (r"\m3-memory-sync",
-         r'powershell.exe -Command "& ...\.venv\Scripts\python.exe ...\bin\sync_all.py"'),
-        (r"\Microsoft\Windows\SomethingElse", r"C:\Windows\system32\noop.exe"),
-    ])
+    blob = _verbose_list(
+        [
+            (r"\m3-memory-sync", r'powershell.exe -Command "& ...\.venv\Scripts\python.exe ...\bin\sync_all.py"'),
+            (r"\Microsoft\Windows\SomethingElse", r"C:\Windows\system32\noop.exe"),
+        ]
+    )
     monkeypatch.setattr(gm.subprocess, "run", _win_run_factory(blob, set()))
     out = gm.detect_scheduled_tasks()
     # Surfaced under its REAL name so `schtasks /Delete /TN m3-memory-sync` works.
@@ -452,11 +460,14 @@ def test_windows_action_scan_skips_canonical_names(monkeypatch):
     # A task NAMED AgentOS_HourlySync running sync_all.py must NOT be double-listed
     # by the action scan — it's already found by the name-based query.
     monkeypatch.setattr(gm, "_os_name", lambda: "Windows")
-    blob = _verbose_list([
-        (r"\AgentOS_HourlySync", r'"...\pythonw.exe" "...\bin\sync_all.py"'),
-    ])
+    blob = _verbose_list(
+        [
+            (r"\AgentOS_HourlySync", r'"...\pythonw.exe" "...\bin\sync_all.py"'),
+        ]
+    )
     monkeypatch.setattr(
-        gm.subprocess, "run",
+        gm.subprocess,
+        "run",
         _win_run_factory(blob, {"AgentOS_HourlySync"}),
     )
     out = gm.detect_scheduled_tasks()
@@ -472,11 +483,12 @@ def test_windows_action_match_is_path_anchored_not_bare_substring(monkeypatch):
     # must be path-anchored. A task that merely MENTIONS a script filename (not as
     # an invoked path) must NOT be matched and scheduled for deletion.
     monkeypatch.setattr(gm, "_os_name", lambda: "Windows")
-    blob = _verbose_list([
-        # bare mention in an argument — NOT an invocation, must be ignored
-        (r"\unrelated-backup-job",
-         r'C:\tools\backup.exe --note "remember to port sync_all.py settings"'),
-    ])
+    blob = _verbose_list(
+        [
+            # bare mention in an argument — NOT an invocation, must be ignored
+            (r"\unrelated-backup-job", r'C:\tools\backup.exe --note "remember to port sync_all.py settings"'),
+        ]
+    )
     monkeypatch.setattr(gm.subprocess, "run", _win_run_factory(blob, set()))
     out = gm.detect_scheduled_tasks()
     assert "unrelated-backup-job" not in out["eligible"]
@@ -487,11 +499,11 @@ def test_action_invokes_marker_path_anchored_helper():
     markers = ("sync_all.py", "m3_enrich.py")
     # Invoked by path (Windows or POSIX separator) -> match.
     assert gm._action_invokes_marker(r'"py" "C:\m3\bin\sync_all.py"', markers)
-    assert gm._action_invokes_marker('python /opt/m3/bin/sync_all.py', markers)
+    assert gm._action_invokes_marker("python /opt/m3/bin/sync_all.py", markers)
     # Case-insensitive (Windows paths) -> match.
     assert gm._action_invokes_marker(r'"PY" "C:\M3\BIN\SYNC_ALL.PY"', markers)
     # Bare mention with no leading separator -> no match.
-    assert not gm._action_invokes_marker('echo sync_all.py is the script', markers)
+    assert not gm._action_invokes_marker("echo sync_all.py is the script", markers)
     # Different marker not present -> no match.
     assert not gm._action_invokes_marker(r'"py" "C:\m3\bin\other.py"', markers)
 
@@ -520,11 +532,14 @@ def test_windows_legacy_does_not_reclassify_not_migratable(monkeypatch):
     # A hand-named task whose leaf collides with a NOT_MIGRATABLE name must not be
     # pulled into `eligible` (that would schedule a security task for removal).
     monkeypatch.setattr(gm, "_os_name", lambda: "Windows")
-    blob = _verbose_list([
-        (r"\AgentOS_SecretRotator", r'"...\pythonw.exe" "...\bin\secret_rotator.py"'),
-    ])
+    blob = _verbose_list(
+        [
+            (r"\AgentOS_SecretRotator", r'"...\pythonw.exe" "...\bin\secret_rotator.py"'),
+        ]
+    )
     monkeypatch.setattr(
-        gm.subprocess, "run",
+        gm.subprocess,
+        "run",
         _win_run_factory(blob, {"AgentOS_SecretRotator"}),
     )
     out = gm.detect_scheduled_tasks()

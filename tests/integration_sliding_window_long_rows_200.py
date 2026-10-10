@@ -7,6 +7,7 @@ Records per-row chunk count, chunk char/token sizes, embed success, dense
 overflow incidents. Quantifies how often dense content trips the 8192-token
 ceiling despite the conservative 28000-char limit.
 """
+
 from __future__ import annotations
 
 import csv
@@ -90,17 +91,26 @@ def main():
     t0 = time.perf_counter()
     embedder = m3_core_rs.EmbeddedEmbedder(os.environ["M3_EMBED_GGUF"])
     dim = embedder.embedding_dim()
-    print(f"  loaded in {time.perf_counter()-t0:.1f}s, dim={dim}, backend={m3_core_rs.embed_backend_label()}\n")
+    print(f"  loaded in {time.perf_counter() - t0:.1f}s, dim={dim}, backend={m3_core_rs.embed_backend_label()}\n")
     assert dim == 1024
 
     CSV_OUT.parent.mkdir(parents=True, exist_ok=True)
     csv_f = CSV_OUT.open("w", newline="", encoding="utf-8")
     csv_w = csv.writer(csv_f)
-    csv_w.writerow([
-        "db", "memory_id", "raw_chars", "aug_chars", "n_chunks",
-        "chunk_chars", "approx_tokens", "embed_ok_per_chunk",
-        "row_embed_s", "errors",
-    ])
+    csv_w.writerow(
+        [
+            "db",
+            "memory_id",
+            "raw_chars",
+            "aug_chars",
+            "n_chunks",
+            "chunk_chars",
+            "approx_tokens",
+            "embed_ok_per_chunk",
+            "row_embed_s",
+            "errors",
+        ]
+    )
 
     counters = Counter()
     n_chunks_hist = Counter()
@@ -155,23 +165,26 @@ def main():
                     # Extract NNNN robustly.
                     tok = None
                     import re
+
                     m = re.search(r"input too long:\s*(\d+)\s*tokens", err)
                     if m:
                         try:
                             tok = int(m.group(1))
                         except Exception:
                             pass
-                    dense_overflow_rows.append({
-                        "db": db_label,
-                        "memory_id": mid,
-                        "raw_chars": raw_chars,
-                        "n_chunks": n_chunks,
-                        "chunk_idx": j,
-                        "chunk_chars": chunk_chars[j],
-                        "reported_tokens": tok,
-                        "chars_per_token": (chunk_chars[j] / tok) if tok else None,
-                        "err": err,
-                    })
+                    dense_overflow_rows.append(
+                        {
+                            "db": db_label,
+                            "memory_id": mid,
+                            "raw_chars": raw_chars,
+                            "n_chunks": n_chunks,
+                            "chunk_idx": j,
+                            "chunk_chars": chunk_chars[j],
+                            "reported_tokens": tok,
+                            "chars_per_token": (chunk_chars[j] / tok) if tok else None,
+                            "err": err,
+                        }
+                    )
                     failed_chunk_token_counts.append(tok or 0)
                 else:
                     other_failures.append({"db": db_label, "memory_id": mid, "err": err})
@@ -196,21 +209,27 @@ def main():
             per_db_counters[db_label]["all_fail"] += 1
         per_db_counters[db_label]["rows"] += 1
 
-        csv_w.writerow([
-            db_label, mid, raw_chars, aug_chars, n_chunks,
-            ";".join(str(c) for c in chunk_chars),
-            ";".join(str(t) for t in approx_tokens),
-            ";".join("1" if ok else "0" for ok in per_chunk_ok),
-            f"{row_s:.3f}",
-            " | ".join(row_errors) if row_errors else "",
-        ])
+        csv_w.writerow(
+            [
+                db_label,
+                mid,
+                raw_chars,
+                aug_chars,
+                n_chunks,
+                ";".join(str(c) for c in chunk_chars),
+                ";".join(str(t) for t in approx_tokens),
+                ";".join("1" if ok else "0" for ok in per_chunk_ok),
+                f"{row_s:.3f}",
+                " | ".join(row_errors) if row_errors else "",
+            ]
+        )
 
         if (i + 1) % PROGRESS_EVERY == 0:
             elapsed = time.perf_counter() - t_run
             rate = (i + 1) / elapsed if elapsed > 0 else 0
             eta = (len(rows) - i - 1) / rate if rate > 0 else 0
             print(
-                f"  {i+1}/{len(rows)} rows  chunks_total={total_chunks}  "
+                f"  {i + 1}/{len(rows)} rows  chunks_total={total_chunks}  "
                 f"chunks_ok={total_chunks_embedded_ok}  "
                 f"dense_overflow_chunks={len(dense_overflow_rows)}  "
                 f"row_rate={rate:.1f}/s  eta={eta:.0f}s",
@@ -223,35 +242,37 @@ def main():
 
     print("\n=== TIMING ===")
     print(f"  total wall: {total_wall:.1f}s")
-    print(f"  rows/sec: {N/total_wall:.1f}")
-    print(f"  chunks/sec: {total_chunks/total_wall:.1f}")
+    print(f"  rows/sec: {N / total_wall:.1f}")
+    print(f"  chunks/sec: {total_chunks / total_wall:.1f}")
     print(f"  total chunks: {total_chunks}")
-    print(f"  chunks/row avg: {total_chunks/N:.2f}")
+    print(f"  chunks/row avg: {total_chunks / N:.2f}")
 
     print(f"\n=== ROW BUCKETS (combined, N={N}) ===")
     print(f"  single_chunk: {counters['single_chunk']}  (sanity check: should be 0 — we filtered to long rows)")
-    print(f"  multi_chunk:  {counters['multi_chunk']}  ({100*counters['multi_chunk']/N:.1f}%)")
-    print(f"  all_chunks_ok: {counters['all_chunks_ok']}  ({100*counters['all_chunks_ok']/N:.1f}%)")
-    print(f"  partial_ok:    {counters['partial_ok']}  ({100*counters['partial_ok']/N:.1f}%)")
-    print(f"  all_fail:      {counters['all_fail']}  ({100*counters['all_fail']/N:.1f}%)")
+    print(f"  multi_chunk:  {counters['multi_chunk']}  ({100 * counters['multi_chunk'] / N:.1f}%)")
+    print(f"  all_chunks_ok: {counters['all_chunks_ok']}  ({100 * counters['all_chunks_ok'] / N:.1f}%)")
+    print(f"  partial_ok:    {counters['partial_ok']}  ({100 * counters['partial_ok'] / N:.1f}%)")
+    print(f"  all_fail:      {counters['all_fail']}  ({100 * counters['all_fail'] / N:.1f}%)")
 
     print("\n=== PER-DB BREAKDOWN ===")
     for db_label, pc in per_db_counters.items():
         n = pc["rows"]
         print(f"  {db_label} (N={n}):")
-        print(f"    multi_chunk={pc['multi_chunk']} all_ok={pc['all_chunks_ok']} partial={pc['partial_ok']} all_fail={pc['all_fail']}")
+        print(
+            f"    multi_chunk={pc['multi_chunk']} all_ok={pc['all_chunks_ok']} partial={pc['partial_ok']} all_fail={pc['all_fail']}"
+        )
 
     print("\n=== n_chunks distribution ===")
     for nc in sorted(n_chunks_hist):
-        print(f"  n_chunks={nc:>3}: {n_chunks_hist[nc]:>4} rows  ({100*n_chunks_hist[nc]/N:.1f}%)")
+        print(f"  n_chunks={nc:>3}: {n_chunks_hist[nc]:>4} rows  ({100 * n_chunks_hist[nc] / N:.1f}%)")
 
     print("\n=== chunk char-length distribution (5000-char bins) ===")
     for bucket in sorted(chunk_char_hist):
-        print(f"  [{bucket:>6}, {bucket+5000:>6}): {chunk_char_hist[bucket]:>5} chunks")
+        print(f"  [{bucket:>6}, {bucket + 5000:>6}): {chunk_char_hist[bucket]:>5} chunks")
 
     print("\n=== chunk approx-token distribution (1000-token bins, chars/4) ===")
     for bucket in sorted(chunk_tok_hist):
-        print(f"  [{bucket:>5}, {bucket+1000:>5}): {chunk_tok_hist[bucket]:>5} chunks")
+        print(f"  [{bucket:>5}, {bucket + 1000:>5}): {chunk_tok_hist[bucket]:>5} chunks")
 
     print("\n=== DENSE OVERFLOW (chunks tokenized > 8192) ===")
     print(f"  failed-chunk count: {len(dense_overflow_rows)}")
@@ -259,14 +280,16 @@ def main():
     if dense_overflow_rows:
         toks = [r["reported_tokens"] for r in dense_overflow_rows if r["reported_tokens"]]
         if toks:
-            print(f"  observed token counts: min={min(toks)}, max={max(toks)}, median={sorted(toks)[len(toks)//2]}")
+            print(f"  observed token counts: min={min(toks)}, max={max(toks)}, median={sorted(toks)[len(toks) // 2]}")
         ratios = [r["chars_per_token"] for r in dense_overflow_rows if r["chars_per_token"]]
         if ratios:
-            print(f"  observed chars/token: min={min(ratios):.2f}, max={max(ratios):.2f}, median={sorted(ratios)[len(ratios)//2]:.2f}")
+            print(
+                f"  observed chars/token: min={min(ratios):.2f}, max={max(ratios):.2f}, median={sorted(ratios)[len(ratios) // 2]:.2f}"
+            )
         # Sample dense-overflow rows
         print("\n  Sample of overflowing chunks (first 8):")
         for r in dense_overflow_rows[:8]:
-            cpt = f"{r['chars_per_token']:.2f}" if r['chars_per_token'] else "n/a"
+            cpt = f"{r['chars_per_token']:.2f}" if r["chars_per_token"] else "n/a"
             print(
                 f"    {r['memory_id'][:8]} raw={r['raw_chars']:>6}c "
                 f"chunk[{r['chunk_idx']}]={r['chunk_chars']}c "
@@ -281,7 +304,7 @@ def main():
     # Recommendation
     print("\n=== IMPLICATION ===")
     if dense_overflow_rows:
-        n_failed_rows = len({r['memory_id'] for r in dense_overflow_rows})
+        n_failed_rows = len({r["memory_id"] for r in dense_overflow_rows})
         pct = 100 * n_failed_rows / N
         print(f"  {pct:.1f}% of long rows had at least one chunk hit the dense-overflow ceiling.")
         # What MAX_CHARS would have been safe?
@@ -289,7 +312,9 @@ def main():
             worst_ratio = min(ratios)
             safe_max = int(8192 * worst_ratio * 0.9)  # 10% safety margin
             print(f"  Worst chars/token observed: {worst_ratio:.2f}")
-            print(f"  Recommended MAX_CHARS_PER_CHUNK for 100% safety: ~{safe_max} (10% margin under 8192-token ceiling)")
+            print(
+                f"  Recommended MAX_CHARS_PER_CHUNK for 100% safety: ~{safe_max} (10% margin under 8192-token ceiling)"
+            )
     else:
         print(f"  No dense overflow on {N} long rows. Current MAX={mc.MAX_CHARS_PER_CHUNK} is safe for this corpus.")
 

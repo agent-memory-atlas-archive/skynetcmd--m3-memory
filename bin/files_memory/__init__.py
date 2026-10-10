@@ -21,6 +21,7 @@ This package has NO direct imports of `bin/memory` internals beyond
 `memory.config` (path resolution) and `memory.embed` (the embed cascade).
 Cross-DB linkage is via UUID references only — never direct table joins.
 """
+
 # Submodules are imported as they land. The package boots cleanly even
 # during phased construction — each `from . import X` line is added when
 # module X exists, so `import files_memory` always works.

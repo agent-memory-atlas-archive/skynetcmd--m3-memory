@@ -27,6 +27,7 @@ Usage:
     python bin/augment_memory.py enrich-titles --database memory/x.db --limit 500
     python bin/augment_memory.py all --database memory/x.db  # both in sequence
 """
+
 from __future__ import annotations
 
 import argparse
@@ -168,8 +169,7 @@ async def enrich_user_titles(user_id: str = "", limit: int = 200) -> int:
         updated += 1
 
     logger.info(
-        f"Enriched {updated}; skipped {skipped_already} (already prefixed), "
-        f"{skipped_empty} (no entities extracted)."
+        f"Enriched {updated}; skipped {skipped_already} (already prefixed), {skipped_empty} (no entities extracted)."
     )
     return updated
 

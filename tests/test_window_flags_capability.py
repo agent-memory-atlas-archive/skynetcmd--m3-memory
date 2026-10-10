@@ -6,6 +6,7 @@ Windows on Linux/macOS reached them and raised AttributeError (six failures on
 the POSIX lanes, 2026-10-10). Emulated here on any OS by removing the
 attributes, as a POSIX interpreter lacks them.
 """
+
 from __future__ import annotations
 
 import subprocess

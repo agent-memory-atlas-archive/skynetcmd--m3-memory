@@ -34,6 +34,7 @@ def register_m3_tools(agent: Agent[M3Deps, Any]) -> Agent[M3Deps, Any]:
     # functions must be evaluable in this module's globals. Bind it for real (it's
     # only under TYPE_CHECKING at module top to keep the import optional).
     from pydantic_ai import RunContext  # noqa: F401 — annotation resolution
+
     globals().setdefault("RunContext", RunContext)
 
     @agent.tool
@@ -95,6 +96,7 @@ def m3_recall_processor(
     # Bind RunContext for real so PydanticAI can resolve the processor's
     # annotation (it inspects the signature to decide whether to pass ctx).
     from pydantic_ai import RunContext  # noqa: F401 — annotation resolution
+
     globals().setdefault("RunContext", RunContext)
 
     async def _processor(ctx: RunContext[M3Deps], messages: list) -> list:
@@ -119,6 +121,7 @@ def m3_recall_processor(
 # ── PydanticAI message-shape helpers (kept out of mapping.py because they need
 #    the live pydantic_ai message classes; imported lazily so the module stays
 #    importable without pydantic_ai installed) ─────────────────────────────────
+
 
 def _latest_user_text(messages: list) -> str:
     """Extract the most recent user-authored text from a message list.

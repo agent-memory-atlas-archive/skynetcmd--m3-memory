@@ -5,6 +5,7 @@ memory_core._memory_link_inner made: the tool accepted an invented type, a
 dangling edge, and answered a duplicate (an ON CONFLICT no-op) as "Linked".
 Found by bin/test_memory_bridge.py, 2026-10-10.
 """
+
 from __future__ import annotations
 
 import asyncio

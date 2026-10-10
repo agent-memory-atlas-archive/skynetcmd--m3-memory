@@ -1,4 +1,5 @@
 """Tests for memory_doctor diagnostic tool (B11)."""
+
 from __future__ import annotations
 
 import asyncio
@@ -53,6 +54,7 @@ def _isolate_env(monkeypatch, tmp_path):
     _models_root = tmp_path / "models"
     _models_root.mkdir(exist_ok=True)
     monkeypatch.setenv("M3_MODELS_ROOT", str(_models_root))
+
     # Force fresh module load so each doctor test re-reads the env above.
     # CRITICAL: snapshot and RESTORE the purged modules on teardown. Without
     # restore, the whole rest of the pytest session runs with memory.* modules
@@ -98,6 +100,7 @@ def test_shim_identity_preserved(monkeypatch):
     sys.modules.pop("memory.doctor", None)
     import memory_core as mc
     from memory.doctor import memory_doctor_impl
+
     assert mc.memory_doctor_impl is memory_doctor_impl
 
 
@@ -105,10 +108,16 @@ def test_shim_identity_preserved(monkeypatch):
 async def test_returns_required_top_level_keys():
     """Contract: every doctor call returns the documented top-level shape."""
     from memory.doctor import memory_doctor_impl
+
     out = await memory_doctor_impl()
     assert set(out.keys()) == {
-        "summary", "tier_1", "tier_2", "db", "roundtrip",
-        "issues", "recommendations",
+        "summary",
+        "tier_1",
+        "tier_2",
+        "db",
+        "roundtrip",
+        "issues",
+        "recommendations",
     }
     assert out["summary"] in {"healthy", "degraded", "broken"}
     assert isinstance(out["issues"], list)
@@ -133,9 +142,11 @@ async def test_tier1_not_configured_when_no_gguf(monkeypatch):
     test_doctor_shared_embedder.py."""
     monkeypatch.setenv("M3_EMBED_GGUF_AUTODETECT", "0")
     import memory.embed as _emb
+
     monkeypatch.setattr(_emb, "_INPROC_ALLOWED", True, raising=False)
     monkeypatch.setattr(_emb, "_EMBED_CFG", {}, raising=False)
     from memory.doctor import memory_doctor_impl
+
     out = await memory_doctor_impl()
     assert out["tier_1"]["status"] == "not-configured"
     assert out["tier_1"]["gguf_path"] is None
@@ -148,10 +159,10 @@ async def test_tier1_gguf_missing_reports_error(monkeypatch):
     a specific issue (not a generic offline)."""
     monkeypatch.setenv("M3_EMBED_GGUF", r"C:\nonexistent\fake.gguf")
     from memory.doctor import memory_doctor_impl
+
     out = await memory_doctor_impl()
     assert out["tier_1"]["gguf_exists"] is False
-    assert any("missing" in issue.lower() or "fake.gguf" in issue
-                 for issue in out["issues"])
+    assert any("missing" in issue.lower() or "fake.gguf" in issue for issue in out["issues"])
 
 
 @pytest.mark.asyncio
@@ -175,6 +186,7 @@ async def test_doctor_bounded_latency():
     import time
 
     from memory.doctor import memory_doctor_impl
+
     t0 = time.perf_counter()
     out = await asyncio.wait_for(memory_doctor_impl(), timeout=10.0)
     elapsed = time.perf_counter() - t0
@@ -223,6 +235,7 @@ async def test_doctor_cold_cascade_slo(monkeypatch):
                 return fn()
             finally:
                 spans[name] = time.perf_counter() - t
+
         return run
 
     async def _timed_roundtrip(fn=d._probe_roundtrip):
@@ -259,9 +272,12 @@ async def test_doctor_cold_cascade_slo(monkeypatch):
 
 @pytest.mark.skipif(
     not embed_backend_reachable(),
-    reason=skip_reason("env", "warm-cascade <3s SLO requires a reachable embedder; with no backend "
-           "(e.g. CI) every probe waits out its full retry/backoff and the warm "
-           "call can't beat 3s — an environment limit, not a regression."),
+    reason=skip_reason(
+        "env",
+        "warm-cascade <3s SLO requires a reachable embedder; with no backend "
+        "(e.g. CI) every probe waits out its full retry/backoff and the warm "
+        "call can't beat 3s — an environment limit, not a regression.",
+    ),
 )
 @pytest.mark.asyncio
 async def test_doctor_warm_cascade_slo():
@@ -308,6 +324,7 @@ async def test_doctor_classification_all_four_states():
     default for any install that hasn't set M3_EMBED_GGUF). Other
     states are exercised by neighboring tests."""
     from memory.doctor import memory_doctor_impl
+
     out = await memory_doctor_impl()
     # In test env: no GGUF (tier 1 not-configured), 8082 may or may not
     # be up depending on environment. Either way, classification logic
@@ -323,9 +340,7 @@ async def test_doctor_classification_all_four_states():
         if t1 == "online" and t2 == "online":
             assert summary == "healthy", f"both tiers online but summary={summary}"
         else:
-            assert summary == "degraded", (
-                f"one tier online, one missing: expected degraded, got {summary}"
-            )
+            assert summary == "degraded", f"one tier online, one missing: expected degraded, got {summary}"
     elif rt != "ok":
         assert summary == "broken", f"roundtrip failed but summary={summary}"
 
@@ -355,8 +370,7 @@ async def test_doctor_per_probe_timeouts_respected(monkeypatch):
     out = await asyncio.wait_for(memory_doctor_impl(), timeout=8.0)
     elapsed = time.perf_counter() - t0
     assert elapsed < 5.0, (
-        f"doctor took {elapsed:.1f}s with one hanging probe — a probe is not "
-        f"bounded by its own timeout"
+        f"doctor took {elapsed:.1f}s with one hanging probe — a probe is not bounded by its own timeout"
     )
     # Tier-2 must report unreachable rather than crash
     assert out["tier_2"]["status"] != "online"
@@ -374,7 +388,7 @@ async def test_doctor_probes_run_concurrently(monkeypatch):
     # Each probe's REAL result, captured once; the timed run replays it after a
     # fixed 1s, so the timing depends only on how the probes are scheduled — not
     # on how long the real ones take here (2s+ on Windows, measured).
-    monkeypatch.setenv("M3_EMBED_FALLBACK_URL", "http://127.0.0.1:1")   # refuses at once
+    monkeypatch.setenv("M3_EMBED_FALLBACK_URL", "http://127.0.0.1:1")  # refuses at once
     results = {name: getattr(d, name)() for name in ("_probe_tier1", "_probe_tier2", "_probe_db")}
     results["_probe_roundtrip"] = await d._probe_roundtrip()
 
@@ -382,6 +396,7 @@ async def test_doctor_probes_run_concurrently(monkeypatch):
         def probe(*_a, **_k):
             time.sleep(1.0)
             return results[name]
+
         return probe
 
     async def slow_roundtrip(*_a, **_k):
@@ -396,8 +411,7 @@ async def test_doctor_probes_run_concurrently(monkeypatch):
     await asyncio.wait_for(d.memory_doctor_impl(), timeout=10.0)
     elapsed = time.perf_counter() - t0
     assert elapsed < 3.0, (
-        f"doctor took {elapsed:.1f}s with four 1s probes — they are running "
-        f"sequentially instead of concurrently"
+        f"doctor took {elapsed:.1f}s with four 1s probes — they are running sequentially instead of concurrently"
     )
 
 
@@ -407,6 +421,7 @@ async def test_summary_broken_when_no_tiers_and_no_roundtrip(monkeypatch):
     # Point fallback URL at a port nothing listens on
     monkeypatch.setenv("M3_EMBED_FALLBACK_URL", "http://127.0.0.1:1")
     from memory.doctor import memory_doctor_impl
+
     out = await memory_doctor_impl()
     assert out["tier_2"]["status"] != "online"
     # Summary: broken (no tier 1, no tier 2, roundtrip likely fails)
@@ -419,6 +434,7 @@ async def test_summary_broken_when_no_tiers_and_no_roundtrip(monkeypatch):
 async def test_recommendations_actionable():
     """Recommendations should be human-actionable strings, not generic."""
     from memory.doctor import memory_doctor_impl
+
     out = await memory_doctor_impl()
     for rec in out["recommendations"]:
         assert isinstance(rec, str)
@@ -429,6 +445,7 @@ async def test_recommendations_actionable():
 async def test_doctor_fix_mode():
     """Verify that memory_doctor_fix_impl runs successfully in both dry_run and active mode."""
     from memory.doctor import memory_doctor_fix_impl
+
     # 1. Test dry_run=True (should run diagnosis and record skipped/dry_run actions)
     out_dry = await memory_doctor_fix_impl(dry_run=True)
     assert out_dry["dry_run"] is True
@@ -453,15 +470,17 @@ async def test_doctor_fix_mode():
     assert out_active["summary"] in {"ok", "nothing_to_do", "partial", "failed"}
 
 
-
-@pytest.mark.skipif(__import__("sqlite3").sqlite_version_info < (3, 44, 0),
-                    reason=skip_reason("db", "content comparison needs SQLite 3.44+"))
+@pytest.mark.skipif(
+    __import__("sqlite3").sqlite_version_info < (3, 44, 0),
+    reason=skip_reason("db", "content comparison needs SQLite 3.44+"),
+)
 def test_fts_check_spots_an_index_out_of_step_with_its_content(tmp_path):
     """doctor --fix rebuilds the FTS5 index only when it no longer matches the
     content; the check must catch a desync that the plain integrity-check misses."""
     import sqlite3
 
     import memory.doctor as d
+
     db = tmp_path / "m.db"
     c = sqlite3.connect(db)
     c.executescript("""
@@ -483,5 +502,6 @@ def test_fts_check_answers_rebuild_on_old_sqlite(monkeypatch, tmp_path):
     import sqlite3
 
     import memory.doctor as d
+
     monkeypatch.setattr(sqlite3, "sqlite_version_info", (3, 37, 2))
     assert d._fts5_index_matches_content(str(tmp_path / "none.db")) is False

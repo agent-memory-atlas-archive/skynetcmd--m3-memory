@@ -48,6 +48,7 @@ Embeddings: `EMBED_MODEL`, `EMBED_DIM`, `EMBED_BULK_CHUNK`,
 Other: `CONTRADICTION_THRESHOLD`, `DEDUP_LIMIT`, `DEDUP_THRESHOLD`,
 `LLM_TIMEOUT`, `ORIGIN_DEVICE`.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -141,7 +142,6 @@ _LAZY_IMPORTS = {
     "TITLE_MATCH_BOOST": "memory.config",
     "m3_core_rs": "memory.config",
     "_mc_config": "memory",
-
     # memory.db
     "_ACCESS_FLUSH_INTERVAL": "memory.db",
     "_ENTITY_COUNT_QUERY": "memory.db",
@@ -168,11 +168,9 @@ _LAZY_IMPORTS = {
     "_record_history": "memory.db",
     "memory_history_impl": "memory.db",
     "_mc_db": "memory",
-
     # memory.doctor
     "memory_doctor_impl": "memory.doctor",
     "memory_doctor_fix_impl": "memory.doctor",
-
     # memory.embed
     "_CPU_FALLBACK_BREAKER": "memory.embed",
     "_DENSE_ERR_RE": "memory.embed",
@@ -228,12 +226,10 @@ _LAZY_IMPORTS = {
     "reset_embed_breakers": "memory.embed",
     "set_embed_override": "memory.embed",
     "_mc_embed": "memory",
-
     # memory.enrich
     "_select_pending_fact_enrichment": "memory.enrich",
     "_try_enrich_or_enqueue": "memory.enrich",
     "enrich_pending_impl": "memory.enrich",
-
     # memory.entity
     "_ENTITY_EXTRACT_SEM": "memory.entity",
     "_PENDING_ENTITY_TASKS": "memory.entity",
@@ -256,12 +252,10 @@ _LAZY_IMPORTS = {
     "extract_pending_impl": "memory.entity",
     "load_entity_vocab": "memory.entity",
     "_mc_entity": "memory",
-
     # memory.entity_count
     "count_entities_impl": "memory.entity_count",
     "count_mentions_impl": "memory.entity_count",
     "list_mentions_impl": "memory.entity_count",
-
     # memory.fts
     "_EVENT_DATE_HINT": "memory.fts",
     "_EVENT_PROPER_NOUN": "memory.fts",
@@ -278,18 +272,15 @@ _LAZY_IMPORTS = {
     "_sanitize_for_searchable": "memory.fts",
     "_sanitize_fts": "memory.fts",
     "_title_overlap_from_qset": "memory.fts",
-
     # memory.graph
     "_entity_graph_neighbor_ids": "memory.graph",
     "_graph_neighbor_ids": "memory.graph",
     "_score_extra_rows": "memory.graph",
     "_session_neighbor_ids": "memory.graph",
     "memory_graph_impl": "memory.graph",
-
     # memory.history
     "compute_bitemporal_diffs_impl": "memory.history",
     "get_bitemporal_timeline_impl": "memory.history",
-
     # memory.search
     "_DATE_MONTHS": "memory.search",
     "_DATE_RE_ISO": "memory.search",
@@ -323,12 +314,10 @@ _LAZY_IMPORTS = {
     "memory_search_routed_impl": "memory.search",
     "memory_search_scored_impl": "memory.search",
     "_mc_search": "memory",
-
     # memory.util
     "_batch_cosine": "memory.util",
     "_cosine": "memory.util",
     "_sha256_hex": "memory.util",
-
     # memory.write
     "_check_contradictions": "memory.write",
     "memory_link_impl": "memory.write",
@@ -337,15 +326,16 @@ _LAZY_IMPORTS = {
     "memory_write_bulk_impl": "memory.write",
     "memory_write_from_file_impl": "memory.write",
     "memory_write_impl": "memory.write",
-
     # lazy semaphores / variables
     "_FACT_ENRICH_SEM": "lazy_sem",
 }
+
 
 def __getattr__(name: str) -> Any:
     if name in _LAZY_IMPORTS:
         mod_name = _LAZY_IMPORTS[name]
         import importlib
+
         if mod_name == "memory":
             real_sub = name.replace("_mc_", "")
             val = importlib.import_module(f"memory.{real_sub}")
@@ -355,6 +345,7 @@ def __getattr__(name: str) -> Any:
             import asyncio
 
             from memory.config import FACT_ENRICH_CONCURRENCY
+
             val = asyncio.Semaphore(FACT_ENRICH_CONCURRENCY)
         else:
             mod = importlib.import_module(mod_name)
@@ -367,11 +358,9 @@ def __getattr__(name: str) -> Any:
         return val
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
+
 def __dir__() -> list[str]:
     return sorted(list(globals().keys()) + list(_LAZY_IMPORTS.keys()))
-
-
-
 
 
 # Guarded on EMBED_DIM: if the GGUF's dimension doesn't match, the embedded
@@ -394,12 +383,11 @@ def __dir__() -> list[str]:
 # Phase 4.B sub-commit 1. Re-exported via the shim at the top.
 
 
-
-
 async def conversation_summarize_impl(conversation_id: str, threshold: int = 20) -> str:
     """Summarizes a conversation into key points using the local LLM."""
     # 1. Fetch all messages for the conversation
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     with _db() as db:
         rows = db.execute(
@@ -408,7 +396,7 @@ async def conversation_summarize_impl(conversation_id: str, threshold: int = 20)
                JOIN memory_items mi ON mr.to_id = mi.id
                WHERE mr.from_id = {_p} AND mr.relationship_type = 'message' AND mi.is_deleted = 0
                ORDER BY mi.created_at ASC""",
-            (conversation_id,)
+            (conversation_id,),
         ).fetchall()
 
     # 2. Threshold check
@@ -430,26 +418,26 @@ async def conversation_summarize_impl(conversation_id: str, threshold: int = 20)
 
     chat_url = f"{base_url}/chat/completions"
     import importlib
+
     try:
         resp = await client.post(
             chat_url,
             # Reasoning models answer in the `reasoning` channel and leave
             # `content` empty; without this the summary comes back "".
-            json=apply_thinking_suppression({
-                "model": model,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.3
-            }, chat_url),
+            json=apply_thinking_suppression(
+                {"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": 0.3}, chat_url
+            ),
             headers={"Authorization": f"Bearer {token}"},
             # A setting, read at call time (2D.1): never bound into this
             # module's globals, so the bare name raised NameError here.
-            timeout=importlib.import_module("memory.config").LLM_TIMEOUT
+            timeout=importlib.import_module("memory.config").LLM_TIMEOUT,
         )
         resp.raise_for_status()
         summary_text = resp.json()["choices"][0]["message"]["content"].strip()
     except Exception as e:
         logger.error(f"Summarization failed: {e}")
         from llm_failover import clear_failover_caches
+
         clear_failover_caches()
         return f"Error during LLM summarization: {type(e).__name__}: {e}"
 
@@ -457,11 +445,12 @@ async def conversation_summarize_impl(conversation_id: str, threshold: int = 20)
     summary_id = str(uuid.uuid4())
     now = datetime.now(UTC).isoformat()
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     with _db() as db:
         db.execute(
             f"INSERT INTO memory_items (id, type, title, content, created_at, content_hash) VALUES ({_p}, 'summary', {_p}, {_p}, {_p}, {_p})",
-            (summary_id, f"Summary of {conversation_id[:8]}", summary_text, now, _content_hash(summary_text))
+            (summary_id, f"Summary of {conversation_id[:8]}", summary_text, now, _content_hash(summary_text)),
         )
 
     # 6. Link it to the conversation
@@ -500,6 +489,7 @@ def _current_ctx() -> M3Context:
     """
     return M3Context.for_db(resolve_db_path(None))
 
+
 # ── Constants ─────────────────────────────────────────────────────────────────
 # All ~25 constants formerly defined here moved to bin/memory/config.py in
 # Phase 1; the re-export shim at the top of this file makes them available
@@ -528,11 +518,20 @@ def _current_ctx() -> M3Context:
 # bin/memory/search.py in Phase 4.B sub-4. Re-exported via the shim at the top.
 
 
-
-
 # Module-level: load defaults at import. Existing callers see same contents as before.
 
-VALID_CHANGE_AGENTS = {"claude", "gemini", "aider", "openclaw", "deepseek", "grok", "manual", "system", "unknown", "legacy"}
+VALID_CHANGE_AGENTS = {
+    "claude",
+    "gemini",
+    "aider",
+    "openclaw",
+    "deepseek",
+    "grok",
+    "manual",
+    "system",
+    "unknown",
+    "legacy",
+}
 
 # FTS5 query helpers and title-overlap math moved to bin/memory/fts.py in
 # Phase 2 (_FTS_OPERATORS, _sanitize_fts, _SEARCHABLE_PUNCT, _sanitize_for_searchable,
@@ -556,17 +555,9 @@ VALID_CHANGE_AGENTS = {"claude", "gemini", "aider", "openclaw", "deepseek", "gro
 # imports it via the shim re-export at the top of this file.
 
 
-
-
 # Temporal query regexes (_TEMPORAL_QUERY_RE, _DATE_RE_ISO, _DATE_RE_LONG,
 # _DATE_MONTHS), _pull_predecessor_turns, and _maybe_route_query moved to
 # bin/memory/search.py in Phase 4.B sub-2. Re-exported via the shim at the top.
-
-
-
-
-
-
 
 
 # _POISON_PATTERNS + _check_content_safety moved to bin/memory/util.py as the
@@ -619,7 +610,6 @@ _COST_COUNTERS = {"embed_calls": 0, "embed_tokens_est": 0, "search_calls": 0, "w
 _PENDING_FACT_TASKS: set[asyncio.Task] = set()
 
 
-
 # ── Ingest-time LLM enrichment (opt-in) ──────────────────────────────────────
 # Gated by env vars so behavior matches today's default (no extra LLM calls at
 # write time) unless explicitly enabled. Intended for production callers that
@@ -639,19 +629,25 @@ _PENDING_FACT_TASKS: set[asyncio.Task] = set()
 # _OBS_COUNT_QUERY, _ENTITY_COUNT_QUERY) moved to bin/memory/db.py in Phase 2.B.
 # Re-exported via the shim at the top.
 
+
 def _prefer_observations_gate() -> bool:
     import sys
+
     mc = sys.modules[__name__]
     return getattr(mc, "_gate_active")("M3_PREFER_OBSERVATIONS", getattr(mc, "_OBS_COUNT_QUERY"), threshold=100)
+
 
 def _two_stage_observations_gate() -> bool:
     # Paired with PREFER_OBSERVATIONS: same trigger.
     import sys
+
     mc = sys.modules[__name__]
     return getattr(mc, "_gate_active")("M3_TWO_STAGE_OBSERVATIONS", getattr(mc, "_OBS_COUNT_QUERY"), threshold=100)
 
+
 def _enable_entity_graph_gate() -> bool:
     import sys
+
     mc = sys.modules[__name__]
     return getattr(mc, "_gate_active")("M3_ENABLE_ENTITY_GRAPH", getattr(mc, "_ENTITY_COUNT_QUERY"), threshold=1)
 
@@ -659,13 +655,11 @@ def _enable_entity_graph_gate() -> bool:
 _AUTO_ENTITIES_CACHE: dict[str, list[str]] = {}
 
 
-
-
-
 def _track_cost(operation: str, tokens_est: int = 0):
     _COST_COUNTERS[operation] = _COST_COUNTERS.get(operation, 0) + 1
     if tokens_est:
         _COST_COUNTERS["embed_tokens_est"] += tokens_est
+
 
 # Phase 2.B: _ensure_sync_tables, _backfill_change_agent, _initialized_dbs,
 # _lazy_init, _db, _conn, _record_history, memory_history_impl all moved to
@@ -686,22 +680,10 @@ from threading import Lock as _ThreadLock  # noqa: F401
 # moved to bin/memory/embed.py in Phase 3. Re-exported via the shim at the top.
 
 
-
-
 # ── Fact enrichment pipeline (Phase 4-5) ──────────────────────────────────────
 
 
-
-
-
-
-
-
 # ── Entity-relation graph pipeline (Phase 4-5) ───────────────────────────────
-
-
-
-
 
 
 # Process-global cache for canonical_name embeddings used in Tier-3 cosine
@@ -716,20 +698,6 @@ from threading import Lock as _ThreadLock  # noqa: F401
 # _ENTITY_NAME_EMBED_CACHE, ENTITY_NAME_EMBED_CACHE_MAX, and
 # _embed_canonical_cached moved to bin/memory/embed.py in Phase 3.
 # Re-exported via the shim at the top.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 # _apply_recency_bonus, _trim_by_elbow, _apply_temporal_boost moved to
@@ -752,19 +720,10 @@ from threading import Lock as _ThreadLock  # noqa: F401
 # Re-exported via the shim at the top.
 
 
-
 # Route helpers (_TEMPORAL_ROUTER_*, _ENTITY_MENTION_*, _UNSET,
 # _extract_caller_overrides, _apply_auto_layer, _apply_sharp_trim,
 # is_temporal_query) moved to bin/memory/search.py in Phase 4.B sub-5.
 # Re-exported via the shim at the top.
-
-
-
-
-
-
-
-
 
 
 # Phase 4.B sub-6+7: memory_search_routed_impl, _maybe_expand_routed,
@@ -776,11 +735,13 @@ async def memory_suggest_impl(query: str, k: int = 5, variant: str = "__none__")
     """Returns which memories would be retrieved for a query and explains why."""
     return await memory_search_impl(query, k=k, explain=True, variant=variant)
 
+
 def _row_out(row) -> dict:
     """A memory_items row as memory_get emits it, identical on every backend:
     metadata_json is JSON TEXT (what SQLite stores), not the nested object a
     JSON-typed backend's driver returns. Clients json.loads that field."""
     from memory.backends import dialect as _dialect
+
     out = dict(row)
     if "metadata_json" in out:
         out["metadata_json"] = _dialect().json_bind_value(out["metadata_json"])
@@ -798,6 +759,7 @@ def memory_get_impl(id):
     # '?' raises a SyntaxError on PG ("syntax error at end of input"), so this read
     # primitive must go through the dialect like every other seam query.
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     if len(ident) == 36:
         with _db() as db:
@@ -819,9 +781,11 @@ def memory_get_impl(id):
         return json.dumps(_row_out(rows[0]), indent=2, default=str)
     return "Error: id must be 36-char UUID or 8-char prefix"
 
+
 def memory_verify_impl(memory_id: str) -> str:
     """Verify content integrity by comparing stored hash with computed hash."""
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     with _db() as db:
         row = db.execute(f"SELECT content, content_hash FROM memory_items WHERE id = {_p}", (memory_id,)).fetchone()
@@ -833,11 +797,15 @@ def memory_verify_impl(memory_id: str) -> str:
             return f"Warning: no content hash stored for {memory_id}. Computed: {computed_hash}"
         if stored_hash == computed_hash:
             return f"Integrity OK: {memory_id} (hash: {computed_hash[:16]}...)"
-        return f"INTEGRITY VIOLATION: {memory_id} — stored hash {stored_hash[:16]}... != computed {computed_hash[:16]}..."
+        return (
+            f"INTEGRITY VIOLATION: {memory_id} — stored hash {stored_hash[:16]}... != computed {computed_hash[:16]}..."
+        )
+
 
 def memory_cost_report_impl(as_records: bool = False) -> str:
     """Returns current session cost/usage counters."""
     from memory import records as _records
+
     lines = ["Memory Operation Costs (this session):"]
     for key, val in sorted(_COST_COUNTERS.items()):
         lines.append(f"  {key}: {val}")
@@ -845,11 +813,21 @@ def memory_cost_report_impl(as_records: bool = False) -> str:
     # the {count, items} envelope. It still takes as_records so the param means
     # the same thing on every tool -- a flag present on 11 of 12 siblings is a
     # surface an agent cannot reason about without special-casing.
-    return _records.emit("\n".join(lines),
-                         _records.scalar_payload(**dict(sorted(_COST_COUNTERS.items()))),
-                         as_records)
+    return _records.emit("\n".join(lines), _records.scalar_payload(**dict(sorted(_COST_COUNTERS.items()))), as_records)
 
-async def memory_update_impl(id, content="", title="", metadata="", importance=-1.0, reembed=False, refresh_on="", refresh_reason="", conversation_id="", type=""):
+
+async def memory_update_impl(
+    id,
+    content="",
+    title="",
+    metadata="",
+    importance=-1.0,
+    reembed=False,
+    refresh_on="",
+    refresh_reason="",
+    conversation_id="",
+    type="",
+):
     if isinstance(metadata, dict):
         metadata = json.dumps(metadata)
     elif not isinstance(metadata, str):
@@ -860,12 +838,13 @@ async def memory_update_impl(id, content="", title="", metadata="", importance=-
     except (TypeError, ValueError):
         importance = -1.0
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     with _db() as db:
         # Read old values for audit trail
         old = db.execute(
             f"SELECT content, title, type, refresh_on, refresh_reason, conversation_id FROM memory_items WHERE id = {_p}",
-            (id,)
+            (id,),
         ).fetchone()
         if content:
             _record_history(id, "update", old["content"] if old else None, content, "content", db=db)
@@ -882,17 +861,16 @@ async def memory_update_impl(id, content="", title="", metadata="", importance=-
             from catalog.spec import VALID_MEMORY_TYPES
 
             if type not in VALID_MEMORY_TYPES:
-                raise ValueError(
-                    f"invalid memory type {type!r}. Valid types: "
-                    + ", ".join(sorted(VALID_MEMORY_TYPES))
-                )
+                raise ValueError(f"invalid memory type {type!r}. Valid types: " + ", ".join(sorted(VALID_MEMORY_TYPES)))
             # History row like content/title (not silent like importance): a type
             # change alters which searches can reach the row, so it must be
             # auditable.
             _record_history(id, "update", old["type"] if old else None, type, "type", db=db)
             db.execute(f"UPDATE memory_items SET type = {_p} WHERE id = {_p}", (type, id))
-        if importance >= 0: db.execute(f"UPDATE memory_items SET importance = {_p} WHERE id = {_p}", (importance, id))
-        if metadata: db.execute(f"UPDATE memory_items SET metadata_json = {_p} WHERE id = {_p}", (metadata, id))
+        if importance >= 0:
+            db.execute(f"UPDATE memory_items SET importance = {_p} WHERE id = {_p}", (importance, id))
+        if metadata:
+            db.execute(f"UPDATE memory_items SET metadata_json = {_p} WHERE id = {_p}", (metadata, id))
         # Refresh lifecycle: empty string leaves unchanged, "clear" clears, anything
         # else is treated as a new ISO timestamp. Using the explicit sentinel "clear"
         # lets callers distinguish "no change" from "mark as refreshed, remove reminder".
@@ -913,7 +891,10 @@ async def memory_update_impl(id, content="", title="", metadata="", importance=-
         vec, m = await _embed(content)
         if vec:
             with _db() as db:
-                db.execute(f"UPDATE memory_embeddings SET embedding = {_p}, embed_model = {_p} WHERE memory_id = {_p}", (_pack(vec), m, id))
+                db.execute(
+                    f"UPDATE memory_embeddings SET embedding = {_p}, embed_model = {_p} WHERE memory_id = {_p}",
+                    (_pack(vec), m, id),
+                )
     return f"Updated: {id}"
 
 
@@ -926,6 +907,7 @@ def _resolve_pin_id(db, ident: str) -> str:
         return ident
     if len(ident) == 8:
         from memory.backends import dialect as _dialect
+
         rows = db.execute(
             f"SELECT id FROM memory_items WHERE SUBSTR(id,1,8) = {_dialect().param()}", (ident,)
         ).fetchall()
@@ -940,6 +922,7 @@ def _resolve_pin_id(db, ident: str) -> str:
 
 def _set_pinned(id, val) -> str:
     from memory.db import ensure_pinned_column
+
     with _db() as db:
         # Ensure column first (idempotent, best-effort) — old DBs get it
         # lazily on first pin/unpin call even if _lazy_init's bootstrap
@@ -950,6 +933,7 @@ def _set_pinned(id, val) -> str:
         except ValueError as e:
             return str(e)
         from memory.backends import dialect as _dialect
+
         _p = _dialect().param()
         cur = db.execute(f"UPDATE memory_items SET pinned = {_p} WHERE id = {_p}", (val, full_id))
         if cur.rowcount == 0:
@@ -972,6 +956,7 @@ def memory_unpin_impl(id: str) -> str:
 def memory_delete_impl(id, hard=False):
     """Deletes a MemoryItem (soft or hard). Implements cascade for hard delete (C5)."""
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     with _db() as db:
         row = db.execute(f"SELECT id, content FROM memory_items WHERE id = {_p}", (id,)).fetchone()
@@ -983,15 +968,14 @@ def memory_delete_impl(id, hard=False):
             db.execute(f"DELETE FROM memory_relationships WHERE from_id = {_p} OR to_id = {_p}", (id, id))
             db.execute(f"DELETE FROM memory_items WHERE id = {_p}", (id,))
         else:
-            db.execute(f"UPDATE memory_items SET is_deleted = 1, updated_at = {_p} WHERE id = {_p}",
-                       (datetime.now(UTC).isoformat(), id))
+            db.execute(
+                f"UPDATE memory_items SET is_deleted = 1, updated_at = {_p} WHERE id = {_p}",
+                (datetime.now(UTC).isoformat(), id),
+            )
     try:
         from audit_trail import write_audit_entry
-        write_audit_entry(
-            action="memory_delete",
-            target_id=id,
-            metadata={"hard": hard}
-        )
+
+        write_audit_entry(action="memory_delete", target_id=id, metadata={"hard": hard})
     except Exception as e:
         logger.warning(f"Failed to write audit trail entry for delete: {e}")
     return f"{'Hard' if hard else 'Soft'}-deleted: {id}"
@@ -1046,6 +1030,7 @@ def memory_delete_bulk_impl(ids, hard=False):
     now_iso = datetime.now(UTC).isoformat()
 
     from memory.backends import dialect
+
     _d = dialect()
     p = _d.param()
     with _db() as db:
@@ -1078,8 +1063,7 @@ def memory_delete_bulk_impl(ids, hard=False):
                 )
                 # memory_relationships matches on EITHER from_id or to_id.
                 db.execute(
-                    f"DELETE FROM memory_relationships "
-                    f"WHERE from_id IN ({ph_existing}) OR to_id IN ({ph_existing})",
+                    f"DELETE FROM memory_relationships WHERE from_id IN ({ph_existing}) OR to_id IN ({ph_existing})",
                     existing_ids + existing_ids,
                 )
                 db.execute(
@@ -1088,8 +1072,7 @@ def memory_delete_bulk_impl(ids, hard=False):
                 )
             else:
                 db.execute(
-                    f"UPDATE memory_items SET is_deleted = 1, updated_at = {p} "
-                    f"WHERE id IN ({ph_existing})",
+                    f"UPDATE memory_items SET is_deleted = 1, updated_at = {p} WHERE id IN ({ph_existing})",
                     [now_iso, *existing_ids],
                 )
 
@@ -1097,15 +1080,11 @@ def memory_delete_bulk_impl(ids, hard=False):
 
     try:
         from audit_trail import write_audit_entry
+
         write_audit_entry(
             action="memory_delete_bulk",
             target_id="bulk",
-            metadata={
-                "ids": id_list,
-                "hard": hard,
-                "succeeded": succeeded,
-                "not_found": not_found
-            }
+            metadata={"ids": id_list, "hard": hard, "succeeded": succeeded, "not_found": not_found},
         )
     except Exception as e:
         logger.warning(f"Failed to write audit trail entry for bulk delete: {e}")
@@ -1174,6 +1153,7 @@ def memory_update_bulk_impl(updates):
     id_list = list(by_id.keys())
 
     from memory.backends import dialect
+
     _d = dialect()
     p = _d.param()
     with _db() as db:
@@ -1346,11 +1326,11 @@ def memory_link_bulk_impl(links, relationship_type: str = "related"):
     now_iso = datetime.now(UTC).isoformat()
 
     from memory.backends import dialect
+
     _d = dialect()
     p = _d.param()
     with _db() as db:
         for chunk in batched(normalized, _MEMORY_LINK_BULK_CHUNK):
-
             # Collect every distinct memory_id referenced in this chunk to do
             # a single existence check.
             all_ids = list({mid for triple in chunk for mid in (triple[0], triple[1])})
@@ -1363,33 +1343,41 @@ def memory_link_bulk_impl(links, relationship_type: str = "related"):
 
             for from_id, to_id, rel_type in chunk:
                 if rel_type not in VALID_RELATIONSHIP_TYPES:
-                    skipped_missing.append({
-                        "from_id": from_id, "to_id": to_id,
-                        "relationship_type": rel_type,
-                        "missing": [],  # invalid rel_type, not missing ids
-                        "reason": f"invalid relationship_type '{rel_type}'",
-                    })
+                    skipped_missing.append(
+                        {
+                            "from_id": from_id,
+                            "to_id": to_id,
+                            "relationship_type": rel_type,
+                            "missing": [],  # invalid rel_type, not missing ids
+                            "reason": f"invalid relationship_type '{rel_type}'",
+                        }
+                    )
                     continue
                 missing = [m for m in (from_id, to_id) if m not in existing_ids]
                 if missing:
-                    skipped_missing.append({
-                        "from_id": from_id, "to_id": to_id,
-                        "relationship_type": rel_type,
-                        "missing": missing,
-                    })
+                    skipped_missing.append(
+                        {
+                            "from_id": from_id,
+                            "to_id": to_id,
+                            "relationship_type": rel_type,
+                            "missing": missing,
+                        }
+                    )
                     continue
                 # Duplicate check — same (from, to, type) already linked?
                 existing = db.execute(
-                    f"SELECT id FROM memory_relationships "
-                    f"WHERE from_id={p} AND to_id={p} AND relationship_type={p}",
+                    f"SELECT id FROM memory_relationships WHERE from_id={p} AND to_id={p} AND relationship_type={p}",
                     (from_id, to_id, rel_type),
                 ).fetchone()
                 if existing:
-                    skipped_duplicate.append({
-                        "from_id": from_id, "to_id": to_id,
-                        "relationship_type": rel_type,
-                        "existing_id": existing["id"],
-                    })
+                    skipped_duplicate.append(
+                        {
+                            "from_id": from_id,
+                            "to_id": to_id,
+                            "relationship_type": rel_type,
+                            "existing_id": existing["id"],
+                        }
+                    )
                     continue
                 rid = str(uuid.uuid4())
                 db.execute(
@@ -1398,10 +1386,14 @@ def memory_link_bulk_impl(links, relationship_type: str = "related"):
                     f"VALUES ({_d.placeholder(5)})",
                     (rid, from_id, to_id, rel_type, now_iso),
                 )
-                created.append({
-                    "id": rid, "from_id": from_id, "to_id": to_id,
-                    "relationship_type": rel_type,
-                })
+                created.append(
+                    {
+                        "id": rid,
+                        "from_id": from_id,
+                        "to_id": to_id,
+                        "relationship_type": rel_type,
+                    }
+                )
 
     return {
         "created": created,
@@ -1417,11 +1409,15 @@ def _memory_link_inner(from_id: str, to_id: str, relationship_type: str, db) -> 
     return memory_link_impl(from_id, to_id, relationship_type, db=db)
 
 
-
-
-def memory_handoff_impl(from_agent: str, to_agent: str, task: str,
-                        context_ids: list | None = None, note: str = "",
-                        task_id: str = "", from_session: str = "") -> str:
+def memory_handoff_impl(
+    from_agent: str,
+    to_agent: str,
+    task: str,
+    context_ids: list | None = None,
+    note: str = "",
+    task_id: str = "",
+    from_session: str = "",
+) -> str:
     """Creates a handoff memory for inter-agent task transfer.
 
     ``from_session`` is optional and identifies WHICH session of ``from_agent``
@@ -1450,6 +1446,7 @@ def memory_handoff_impl(from_agent: str, to_agent: str, task: str,
 
     # 2. Insert handoff memory directly via raw SQL
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     with _db() as db:
         meta = {"from_agent": from_agent, "note": note}
@@ -1464,7 +1461,7 @@ def memory_handoff_impl(from_agent: str, to_agent: str, task: str,
         db.execute(
             f"INSERT INTO memory_items (id, type, title, content, agent_id, scope, metadata_json, created_at, updated_at, is_deleted) "
             f"VALUES ({_p}, 'handoff', {_p}, {_p}, {_p}, 'agent', {_p}, {_p}, {_p}, 0)",
-            (new_id, f"Handoff from {from_agent}", task, to_agent, metadata_json, now, now)
+            (new_id, f"Handoff from {from_agent}", task, to_agent, metadata_json, now, now),
         )
 
     # 3. Link context items (each opens its own _db() context)
@@ -1485,12 +1482,18 @@ def memory_handoff_impl(from_agent: str, to_agent: str, task: str,
     # content: one row owns the text, the other owns the state machine.
     notified = True
     try:
-        notify_impl(to_agent, "handoff", {
-            "memory_id": new_id,
-            "from_agent": from_agent,
-            "task": (task or "")[:200],
-            "task_id": task_id or None,
-        }, from_agent=from_agent, from_session=from_session)
+        notify_impl(
+            to_agent,
+            "handoff",
+            {
+                "memory_id": new_id,
+                "from_agent": from_agent,
+                "task": (task or "")[:200],
+                "task_id": task_id or None,
+            },
+            from_agent=from_agent,
+            from_session=from_session,
+        )
     except Exception as e:
         # Report it in the RETURN VALUE, not only the log. The memory row is
         # already committed at this point, so a swallowed failure leaves a
@@ -1502,15 +1505,16 @@ def memory_handoff_impl(from_agent: str, to_agent: str, task: str,
 
     # 6. Return status
     delivery = "" if notified else " -- WARNING: stored but NOT notified, the recipient has no queue entry"
-    return (f"Handoff created: {new_id} ({from_agent} -> {to_agent}, "
-            f"{len(context_ids)} context links){delivery}")
+    return f"Handoff created: {new_id} ({from_agent} -> {to_agent}, {len(context_ids)} context links){delivery}"
 
-def memory_inbox_impl(agent_id: str, unread_only: bool = True, limit: int = 20,
-                      as_records: bool = False) -> str:
+
+def memory_inbox_impl(agent_id: str, unread_only: bool = True, limit: int = 20, as_records: bool = False) -> str:
     """Retrieves handoff messages for an agent, optionally filtered to unread."""
     from memory.orchestration import _addressing_predicate, require_agent_id
+
     require_agent_id(agent_id, "memory_inbox")
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     # Handoffs obey the SAME addressing rule as notifications: a bare type is a
     # FAN-OUT read (the type and every instance of it), a qualified id is a
@@ -1530,16 +1534,18 @@ def memory_inbox_impl(agent_id: str, unread_only: bool = True, limit: int = 20,
         rows = db.execute(
             f"SELECT id, title, content, metadata_json, created_at, read_at FROM memory_items "
             f"{where_clause} ORDER BY created_at DESC LIMIT {_p}",
-            (*_addr, limit)
+            (*_addr, limit),
         ).fetchall()
 
     # Format result
     from memory import records as _records
+
     if not rows:
-        return _records.emit(f"Inbox for {agent_id}: (empty)",
-                             _records.as_records_payload((), agent_id=agent_id,
-                                                         unread_only=unread_only),
-                             as_records)
+        return _records.emit(
+            f"Inbox for {agent_id}: (empty)",
+            _records.as_records_payload((), agent_id=agent_id, unread_only=unread_only),
+            as_records,
+        )
 
     lines = [f"Inbox for {agent_id} ({len(rows)} {'unread' if unread_only else 'total'}):"]
     for row in rows:
@@ -1548,6 +1554,7 @@ def memory_inbox_impl(agent_id: str, unread_only: bool = True, limit: int = 20,
         # TypeError, swallowed here, so every line read from=? there. The seam
         # normalizes either shape and fails safe to {} on malformed data.
         from memory.backends import dialect as _dialect
+
         from_agent = _dialect().json_column_to_dict(row["metadata_json"]).get("from_agent", "?")
 
         # Truncate task (content) to 60 chars
@@ -1555,6 +1562,7 @@ def memory_inbox_impl(agent_id: str, unread_only: bool = True, limit: int = 20,
         lines.append(f"  [{row['id'][:8]}] from={from_agent} task={task_truncated} created={row['created_at']}")
 
     return "\n".join(lines)
+
 
 def memory_inbox_ack_impl(memory_id: str, agent_id: str = "") -> str:
     """Marks a handoff memory as read.
@@ -1578,17 +1586,19 @@ def memory_inbox_ack_impl(memory_id: str, agent_id: str = "") -> str:
 
     # 2. Update read_at and updated_at
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     scope_sql, scope_params = "", ()
     if agent_id:
         from memory.orchestration import _addressing_predicate
+
         _pred, scope_params = _addressing_predicate(agent_id, _p)
         scope_sql = f" AND {_pred}"
     with _db() as db:
         db.execute(
             f"UPDATE memory_items SET read_at = {_p}, updated_at = {_p} "
             f"WHERE id = {_p} AND type = 'handoff' AND is_deleted = 0{scope_sql}",
-            (now, now, memory_id, *scope_params)
+            (now, now, memory_id, *scope_params),
         )
 
         # Verify update actually happened. Scoped the same way, so a caller that
@@ -1597,7 +1607,7 @@ def memory_inbox_ack_impl(memory_id: str, agent_id: str = "") -> str:
         verify = db.execute(
             f"SELECT id FROM memory_items WHERE id = {_p} AND type = 'handoff' "
             f"AND is_deleted = 0 AND read_at IS NOT NULL{scope_sql}",
-            (memory_id, *scope_params)
+            (memory_id, *scope_params),
         ).fetchone()
 
     # 3. Check result
@@ -1608,6 +1618,7 @@ def memory_inbox_ack_impl(memory_id: str, agent_id: str = "") -> str:
     _record_history(memory_id, "handoff_ack", None, now, "read_at", "")
     return f"Acked: {memory_id}"
 
+
 def _count_refresh_backlog(agent_id: str = "") -> int:
     """Cheap count of memories whose refresh_on has arrived. Used by lifecycle
     hooks (agent_register / agent_offline) and maintenance to surface the
@@ -1616,6 +1627,7 @@ def _count_refresh_backlog(agent_id: str = "") -> int:
     """
     now = datetime.now(UTC).isoformat()
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     where = ["is_deleted = 0", "refresh_on IS NOT NULL", f"refresh_on <= {_p}"]
     params: list = [now]
@@ -1633,6 +1645,7 @@ def _count_refresh_backlog(agent_id: str = "") -> int:
         # refresh_on column may not exist on an un-migrated DB — fail quiet.
         return 0
 
+
 def _refresh_hint(agent_id: str = "") -> str:
     """One-line hint suitable for appending to lifecycle response strings.
     Returns empty string when there is no backlog, so callers can concatenate
@@ -1645,8 +1658,10 @@ def _refresh_hint(agent_id: str = "") -> str:
     scope = "of yours" if agent_id else "in the store"
     return f" | {n} {noun} {scope} due for refresh (see memory_refresh_queue)"
 
-def memory_refresh_queue_impl(agent_id: str = "", limit: int = 50, include_future: bool = False,
-                              as_records: bool = False) -> str:
+
+def memory_refresh_queue_impl(
+    agent_id: str = "", limit: int = 50, include_future: bool = False, as_records: bool = False
+) -> str:
     """Lists memories whose refresh_on timestamp has arrived (or all with refresh_on set
     if include_future=True). Read-only — actual refresh goes through memory_update.
 
@@ -1661,6 +1676,7 @@ def memory_refresh_queue_impl(agent_id: str = "", limit: int = 50, include_futur
     limit = max(1, min(limit, 500))
 
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     where = ["is_deleted = 0", "refresh_on IS NOT NULL"]
     params: list = []
@@ -1676,54 +1692,59 @@ def memory_refresh_queue_impl(agent_id: str = "", limit: int = 50, include_futur
         rows = db.execute(
             f"SELECT id, type, title, refresh_on, refresh_reason, agent_id, updated_at "
             f"FROM memory_items WHERE {where_sql} ORDER BY refresh_on ASC LIMIT {_p}",
-            (*params, limit)
+            (*params, limit),
         ).fetchall()
 
     if not rows:
         scope_label = f" for {agent_id}" if agent_id else ""
         when = "with refresh_on set" if include_future else "due for refresh"
         from memory import records as _records
-        return _records.emit(f"Refresh queue{scope_label}: (empty — no memories {when})",
-                             _records.as_records_payload((), agent_id=agent_id or None,
-                                                         include_future=include_future),
-                             as_records)
+
+        return _records.emit(
+            f"Refresh queue{scope_label}: (empty — no memories {when})",
+            _records.as_records_payload((), agent_id=agent_id or None, include_future=include_future),
+            as_records,
+        )
 
     scope_label = f" for {agent_id}" if agent_id else ""
     lines = [f"Refresh queue{scope_label} ({len(rows)} item{'s' if len(rows) != 1 else ''}):"]
     for row in rows:
         title = (row["title"] or "")[:60]
         reason = row["refresh_reason"] or "(no reason)"
-        lines.append(
-            f"  [{row['id'][:8]}] {row['type']:<12} due={row['refresh_on']} "
-            f"reason={reason} title={title}"
-        )
+        lines.append(f"  [{row['id'][:8]}] {row['type']:<12} due={row['refresh_on']} reason={reason} title={title}")
     # Full id and untruncated title in records; the display clips both.
     from memory import records as _records
-    return _records.emit("\n".join(lines),
-                         _records.as_records_payload(rows, agent_id=agent_id or None,
-                                                     include_future=include_future),
-                         as_records)
+
+    return _records.emit(
+        "\n".join(lines),
+        _records.as_records_payload(rows, agent_id=agent_id or None, include_future=include_future),
+        as_records,
+    )
+
 
 async def conversation_start_impl(title, agent_id="", model_id="", tags=""):
     cid = str(uuid.uuid4())
     now = datetime.now(UTC).isoformat()
     metadata = json.dumps({"tags": [t.strip() for t in tags.split(",") if t.strip()]}) if tags else "{}"
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     with _db() as db:
         db.execute(
             f"INSERT INTO memory_items (id, type, title, agent_id, model_id, metadata_json, created_at) VALUES ({_p}, 'conversation', {_p}, {_p}, {_p}, {_p}, {_p})",
-            (cid, title, agent_id, model_id, metadata, now)
+            (cid, title, agent_id, model_id, metadata, now),
         )
     return f"Conversation started: {cid}"
 
+
 async def conversation_append_impl(conversation_id, role, content, agent_id="", model_id="", embed=True):
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     with _db() as db:
         exists = db.execute(
             f"SELECT id FROM memory_items WHERE id = {_p} AND type = 'conversation' AND is_deleted = 0",
-            (conversation_id,)
+            (conversation_id,),
         ).fetchone()
     if not exists:
         return f"Error: conversation {conversation_id} not found"
@@ -1732,16 +1753,20 @@ async def conversation_append_impl(conversation_id, role, content, agent_id="", 
     with _db() as db:
         db.execute(
             f"INSERT INTO memory_items (id, type, title, content, agent_id, model_id, created_at) VALUES ({_p}, 'message', {_p}, {_p}, {_p}, {_p}, {_p})",
-            (mid, role, content, agent_id, model_id, now)
+            (mid, role, content, agent_id, model_id, now),
         )
-        db.execute(f"INSERT INTO memory_relationships (id, from_id, to_id, relationship_type, created_at) VALUES ({_p}, {_p}, {_p}, 'message', {_p})",
-                   (str(uuid.uuid4()), conversation_id, mid, now))
+        db.execute(
+            f"INSERT INTO memory_relationships (id, from_id, to_id, relationship_type, created_at) VALUES ({_p}, {_p}, {_p}, 'message', {_p})",
+            (str(uuid.uuid4()), conversation_id, mid, now),
+        )
     if embed:
         vec, m = await _embed(content)
         if vec:
             with _db() as db:
-                db.execute(f"INSERT INTO memory_embeddings (id, memory_id, embedding, embed_model, dim, created_at) VALUES ({_p},{_p},{_p},{_p},{_p},{_p})",
-                          (str(uuid.uuid4()), mid, _pack(vec), m, len(vec), now))
+                db.execute(
+                    f"INSERT INTO memory_embeddings (id, memory_id, embedding, embed_model, dim, created_at) VALUES ({_p},{_p},{_p},{_p},{_p},{_p})",
+                    (str(uuid.uuid4()), mid, _pack(vec), m, len(vec), now),
+                )
     return f"Appended: {mid}"
 
 
@@ -1765,6 +1790,7 @@ def observation_enqueue_impl(
         return "Error: conversation_id required"
     try:
         from memory.backends import dialect as _dialect
+
         _d = _dialect()
         _p = _d.param()
         with _db() as db:
@@ -1800,6 +1826,7 @@ def reflector_enqueue_impl(
         return "Error: conversation_id required"
     try:
         from memory.backends import dialect as _dialect
+
         _d = _dialect()
         _p = _d.param()
         with _db() as db:
@@ -1825,9 +1852,6 @@ def reflector_enqueue_impl(
 VALID_SCOPES = {"user", "session", "agent", "org"}
 
 
-
-
-
 # Task orchestration (agent registry + notifications + tasks) moved to
 # bin/memory/orchestration.py in this pass. Re-exported via the import near
 # the top of this file (see the `memory.util` import block above).
@@ -1836,10 +1860,7 @@ VALID_SCOPES = {"user", "session", "agent", "org"}
 # ── Fact enrichment queue drain (Phase 5) ────────────────────────────────────
 
 
-
-
 # ── Entity extraction queue drain (Phase 5) ──────────────────────────────────
-
 
 
 # ── Entity extractor health (Phase E1) ───────────────────────────────────────
@@ -1864,12 +1885,17 @@ VALID_SCOPES = {"user", "session", "agent", "org"}
 # introduces no new circular-import risk. Best-effort per symbol — if one isn't
 # resolvable in some stripped environment, skip it rather than break import.
 for _eager in (
-    "_db", "_record_history", "_embed", "_content_hash", "_get_embed_client",
-    "_sha256_hex", "memory_link_impl", "memory_search_impl",
+    "_db",
+    "_record_history",
+    "_embed",
+    "_content_hash",
+    "_get_embed_client",
+    "_sha256_hex",
+    "memory_link_impl",
+    "memory_search_impl",
 ):
     try:
         globals()[_eager] = __getattr__(_eager)
     except Exception:  # noqa: BLE001 — never let eager-binding break module import
         pass
 del _eager
-

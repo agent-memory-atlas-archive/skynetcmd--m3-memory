@@ -10,6 +10,7 @@ damage survive review — the rest of the document looks perfect. These tests
 pin both halves: it must catch the real corruption, and it must not fire on
 legitimate text (a false positive here blocks every commit).
 """
+
 from __future__ import annotations
 
 import os
@@ -29,6 +30,7 @@ def _write(tmp_path, name, data: bytes):
 
 
 # ── catches the real corruption ──────────────────────────────────────────────
+
 
 def test_detects_backspace_from_ps_backtick_b(tmp_path):
     """`bytemuck` through a double-quoted PS string -> \\x08ytemuck."""
@@ -67,6 +69,7 @@ def test_hint_names_the_consumed_letter(tmp_path, capsys):
 
 
 # ── must NOT false-positive ──────────────────────────────────────────────────
+
 
 def test_tab_cr_lf_are_legitimate(tmp_path):
     """TAB, CR and LF are normal text — flagging them would block every commit."""

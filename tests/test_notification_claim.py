@@ -9,6 +9,7 @@ The concurrency tests below use PROCESSES, not threads. Threads share one
 interpreter and can pass while the real deployment (N agent sessions, N OS
 processes, one database file) still races.
 """
+
 from __future__ import annotations
 
 import collections
@@ -46,8 +47,7 @@ def _make_db(path: str, rows: int = 200) -> None:
         "attempt_count INTEGER NOT NULL DEFAULT 0)"
     )
     conn.executemany(
-        "INSERT INTO notifications (id, agent_id, claimed_by, claimed_at) "
-        "VALUES (?, 'worker', NULL, NULL)",
+        "INSERT INTO notifications (id, agent_id, claimed_by, claimed_at) VALUES (?, 'worker', NULL, NULL)",
         [(i,) for i in range(1, rows + 1)],
     )
     conn.commit()
@@ -77,8 +77,12 @@ def _claim(conn, claimant: str, lease_ttl: int = 300):
 def _claim2(conn, claimant: str, lease_ttl: int = 300):
     """Returns the full (id, lease_token) contract."""
     return SqliteDialect().claim_message(
-        conn, table="notifications", where_sql="agent_id = ?",
-        where_params=("worker",), claimant=claimant, lease_ttl=lease_ttl,
+        conn,
+        table="notifications",
+        where_sql="agent_id = ?",
+        where_params=("worker",),
+        claimant=claimant,
+        lease_ttl=lease_ttl,
     )
 
 
@@ -87,12 +91,8 @@ def test_claim_returns_a_row_and_stamps_the_claimant(db_path):
     got = _claim(conn, "claude-code@s1")
     assert got is not None
 
-    row = conn.execute(
-        "SELECT claimed_by, claimed_at FROM notifications WHERE id = ?", (got,)
-    ).fetchone()
-    assert row[0] == "claude-code@s1", (
-        f"the caller's real id must replace the internal token, got {row[0]!r}"
-    )
+    row = conn.execute("SELECT claimed_by, claimed_at FROM notifications WHERE id = ?", (got,)).fetchone()
+    assert row[0] == "claude-code@s1", f"the caller's real id must replace the internal token, got {row[0]!r}"
     assert row[1], "claimed_at must be stamped by the database, not left NULL"
     conn.close()
 
@@ -102,9 +102,7 @@ def test_no_token_survives_the_claim(db_path):
     for a later reader to mistake for an agent id."""
     conn = _open(db_path)
     _claim(conn, "claude-code@s1")
-    leaked = conn.execute(
-        "SELECT COUNT(*) FROM notifications WHERE claimed_by LIKE '%#%'"
-    ).fetchone()[0]
+    leaked = conn.execute("SELECT COUNT(*) FROM notifications WHERE claimed_by LIKE '%#%'").fetchone()[0]
     assert leaked == 0, "an internal claim token was left in claimed_by"
     conn.close()
 
@@ -130,12 +128,14 @@ def test_the_addressing_predicate_is_honoured(db_path):
     """A claim must not reach across to another addressee's mail."""
     conn = _open(db_path)
     conn.execute(
-        "INSERT INTO notifications (id, agent_id, claimed_by, attempt_count) "
-        "VALUES (9999, 'someone-else', NULL, 0)"
+        "INSERT INTO notifications (id, agent_id, claimed_by, attempt_count) VALUES (9999, 'someone-else', NULL, 0)"
     )
     got = SqliteDialect().claim_message(
-        conn, table="notifications", where_sql="agent_id = ?",
-        where_params=("someone-else",), claimant="claude-code@s1",
+        conn,
+        table="notifications",
+        where_sql="agent_id = ?",
+        where_params=("someone-else",),
+        claimant="claude-code@s1",
     )
     assert got and got[0] == 9999
     # And the reverse: claiming 'worker' never returns the other row.
@@ -151,8 +151,11 @@ def _worker(args):
     for _ in range(n):
         try:
             row = SqliteDialect().claim_message(
-                conn, table="notifications", where_sql="agent_id = ?",
-                where_params=("worker",), claimant=name,
+                conn,
+                table="notifications",
+                where_sql="agent_id = ?",
+                where_params=("worker",),
+                claimant=name,
             )
             if row is not None:
                 got.append(row[0])
@@ -203,12 +206,8 @@ def test_every_row_ends_up_owned_by_exactly_one_agent():
     assert len(handed_out) == len(set(handed_out)), "a row was handed to two agents"
 
     conn = _open(path)
-    unclaimed = conn.execute(
-        "SELECT COUNT(*) FROM notifications WHERE claimed_by IS NULL"
-    ).fetchone()[0]
-    owners = [r[0] for r in conn.execute(
-        "SELECT DISTINCT claimed_by FROM notifications"
-    ).fetchall()]
+    unclaimed = conn.execute("SELECT COUNT(*) FROM notifications WHERE claimed_by IS NULL").fetchone()[0]
+    owners = [r[0] for r in conn.execute("SELECT DISTINCT claimed_by FROM notifications").fetchall()]
     conn.close()
 
     assert unclaimed == 0, f"{unclaimed} rows left unclaimed"
@@ -235,13 +234,12 @@ def _upgrade_worker(args):
         token = f"{name}#{uuid.uuid4()}"
         try:
             conn.execute(f"BEGIN {mode}".strip())
-            conn.execute(
-                "SELECT COUNT(*) FROM notifications WHERE claimed_by IS NULL"
-            ).fetchone()
+            conn.execute("SELECT COUNT(*) FROM notifications WHERE claimed_by IS NULL").fetchone()
             conn.execute(
                 "UPDATE notifications SET claimed_by = ? WHERE id = ("
                 "SELECT id FROM notifications WHERE claimed_by IS NULL "
-                "ORDER BY id LIMIT 1)", (token,),
+                "ORDER BY id LIMIT 1)",
+                (token,),
             )
             conn.commit()
         except Exception as exc:  # noqa: BLE001
@@ -276,18 +274,12 @@ def test_begin_immediate_survives_the_upgrade_shape():
     path = os.path.join(tempfile.mkdtemp(), "upgrade.db")
     _make_db(path, rows=200)
     with Pool(8) as pool:
-        immediate = pool.map(
-            _upgrade_worker, [(path, f"a{i}", "IMMEDIATE", 100) for i in range(8)]
-        )
+        immediate = pool.map(_upgrade_worker, [(path, f"a{i}", "IMMEDIATE", 100) for i in range(8)])
     errors = [e for errs in immediate for e in errs]
-    assert not errors, (
-        f"BEGIN IMMEDIATE raised under contention: {collections.Counter(errors)}"
-    )
+    assert not errors, f"BEGIN IMMEDIATE raised under contention: {collections.Counter(errors)}"
 
     conn = _open(path)
-    unclaimed = conn.execute(
-        "SELECT COUNT(*) FROM notifications WHERE claimed_by IS NULL"
-    ).fetchone()[0]
+    unclaimed = conn.execute("SELECT COUNT(*) FROM notifications WHERE claimed_by IS NULL").fetchone()[0]
     conn.close()
     assert unclaimed == 0, f"{unclaimed} rows never claimed despite 800 attempts"
 
@@ -312,9 +304,9 @@ def test_a_killed_claimer_leaves_no_ghost():
         f"c=sqlite3.connect({str(path)!r},timeout=30,isolation_level=None);"
         "c.execute('PRAGMA journal_mode=WAL');"
         "c.execute('BEGIN IMMEDIATE');"
-        "c.execute(\"UPDATE notifications SET claimed_by=? WHERE id=("
+        'c.execute("UPDATE notifications SET claimed_by=? WHERE id=('
         "SELECT id FROM notifications WHERE claimed_by IS NULL ORDER BY id "
-        "LIMIT 1)\",(str(uuid.uuid4()),));"
+        'LIMIT 1)",(str(uuid.uuid4()),));'
         "os._exit(9)"
     )
     for _ in range(5):
@@ -322,13 +314,10 @@ def test_a_killed_claimer_leaves_no_ghost():
         assert proc.returncode == 9, f"child exited {proc.returncode}, not the kill"
 
     conn = _open(path)
-    orphaned = conn.execute(
-        "SELECT COUNT(*) FROM notifications WHERE claimed_by IS NOT NULL"
-    ).fetchone()[0]
+    orphaned = conn.execute("SELECT COUNT(*) FROM notifications WHERE claimed_by IS NOT NULL").fetchone()[0]
     conn.close()
     assert orphaned == 0, (
-        f"{orphaned} rows stranded by a killed claimer -- the claim is no "
-        f"longer atomic and a reclaim path IS required"
+        f"{orphaned} rows stranded by a killed claimer -- the claim is no longer atomic and a reclaim path IS required"
     )
 
 
@@ -354,18 +343,14 @@ def test_claim_time_comes_from_the_database_not_the_caller(db_path):
 
     conn = _open(db_path)
     claimed = _claim(conn, "claude-code@s1")
-    stamped = conn.execute(
-        "SELECT claimed_at FROM notifications WHERE id = ?", (claimed,)
-    ).fetchone()[0]
+    stamped = conn.execute("SELECT claimed_at FROM notifications WHERE id = ?", (claimed,)).fetchone()[0]
     db_now = conn.execute(f"SELECT {SqliteDialect().now()}").fetchone()[0]
     conn.close()
 
     assert stamped, "claimed_at was not stamped"
     # Same second-resolution format the column default uses, so a Python-side
     # isoformat() (microseconds, +00:00 offset) would not match this shape.
-    assert stamped[:13] == db_now[:13], (
-        f"claimed_at {stamped!r} does not track the database clock {db_now!r}"
-    )
+    assert stamped[:13] == db_now[:13], f"claimed_at {stamped!r} does not track the database clock {db_now!r}"
     assert stamped.endswith("Z") and "+" not in stamped, (
         f"claimed_at {stamped!r} is not in the DB's own format -- a Python "
         f"datetime.isoformat() leaks a +00:00 offset and microseconds"

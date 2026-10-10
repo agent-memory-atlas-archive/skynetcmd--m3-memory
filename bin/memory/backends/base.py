@@ -32,6 +32,7 @@ backend, regardless of which engine or accelerator produced it. The accelerator
 is an implementation detail chosen behind a capability probe; it is never exposed
 upstream. This is what lets a search caller be identical on both backends.
 """
+
 from __future__ import annotations
 
 import os
@@ -144,8 +145,12 @@ def snapshot_target(dest_dir: str, stem: str, label: str, ext: str) -> str:
         raise SnapshotError(f"snapshot label must match [A-Za-z0-9._-]+; got {label!r}")
     if not dest_dir:
         # os.makedirs("") raised; Path("").mkdir() would silently mean the cwd.
-        raise FileNotFoundError(2, "snapshot destination directory is empty; observed: dest_dir="
-                                f"{dest_dir!r}. inspect: the caller's snapshot destination", dest_dir)
+        raise FileNotFoundError(
+            2,
+            "snapshot destination directory is empty; observed: dest_dir="
+            f"{dest_dir!r}. inspect: the caller's snapshot destination",
+            dest_dir,
+        )
     dest = Path(dest_dir)
     dest.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")

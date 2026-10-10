@@ -12,6 +12,7 @@ The rule for PostgreSQL testing is a THROWAWAY cluster
 (see ~/.m3-private/runbooks/WSL_POSTGRES_TEST_DB_RUNBOOK.md), never the CDW.
 These assertions make that rule mechanical rather than remembered.
 """
+
 from __future__ import annotations
 
 import os
@@ -24,7 +25,7 @@ from conftest import skip_reason
 _WAREHOUSE_VARS = (
     "M3_CDW_PG_URL",
     "M3_CDW_URL",
-    "PG_URL",            # legacy name for the warehouse DSN
+    "PG_URL",  # legacy name for the warehouse DSN
     "M3_SYNC_TARGET_IP",
     "SYNC_TARGET_IP",
     "M3_POSTGRES_SERVER",
@@ -95,15 +96,14 @@ def test_the_conftest_scrub_list_still_covers_the_warehouse():
 
     scrubbed = set(getattr(conftest, "_SANDBOX_CLEAR_ENV", ()) or ())
     assert scrubbed, "conftest._SANDBOX_CLEAR_ENV is missing or empty"
-    missing = sorted(v for v in ("M3_CDW_PG_URL", "M3_CDW_URL", "PG_URL")
-                     if v not in scrubbed)
+    missing = sorted(v for v in ("M3_CDW_PG_URL", "M3_CDW_URL", "PG_URL") if v not in scrubbed)
     assert not missing, (
-        f"conftest no longer scrubs {missing}; a developer's real warehouse DSN "
-        f"would reach the test suite"
+        f"conftest no longer scrubs {missing}; a developer's real warehouse DSN would reach the test suite"
     )
 
 
 # ── the blind spot: the sandbox cannot reach import time or setUpClass ────────
+
 
 def _warehouse_reads_outside_functions(path) -> list[str]:
     """`os.environ[...]` / `.get(...)` of a warehouse var at module or class scope.
@@ -127,9 +127,12 @@ def _warehouse_reads_outside_functions(path) -> list[str]:
             if isinstance(sub, ast.Subscript) and isinstance(sub.value, ast.Attribute):
                 target = sub.value
                 key = sub.slice
-            elif (isinstance(sub, ast.Call) and isinstance(sub.func, ast.Attribute)
-                    and sub.func.attr == "get"
-                    and isinstance(sub.func.value, ast.Attribute)):
+            elif (
+                isinstance(sub, ast.Call)
+                and isinstance(sub.func, ast.Attribute)
+                and sub.func.attr == "get"
+                and isinstance(sub.func.value, ast.Attribute)
+            ):
                 target = sub.func.value
                 key = sub.args[0] if sub.args else None
             if target is None or target.attr != "environ":
@@ -149,9 +152,9 @@ def _warehouse_reads_outside_functions(path) -> list[str]:
             for stmt in node.body:
                 if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     # a classmethod body still runs before function fixtures
-                    if any(getattr(d, "id", getattr(d, "attr", "")) == "classmethod"
-                           for d in stmt.decorator_list) or stmt.name in (
-                               "setUpClass", "tearDownClass"):
+                    if any(
+                        getattr(d, "id", getattr(d, "attr", "")) == "classmethod" for d in stmt.decorator_list
+                    ) or stmt.name in ("setUpClass", "tearDownClass"):
                         hits += _names_in(stmt)
                     continue
                 hits += _names_in(stmt)

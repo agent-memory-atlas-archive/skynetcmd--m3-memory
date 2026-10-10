@@ -41,6 +41,7 @@ Usage:
     python bin/measure_tool_usage.py --since 2026-08-01
     python bin/measure_tool_usage.py --transcripts DIR
 """
+
 from __future__ import annotations
 
 import argparse
@@ -65,10 +66,33 @@ _CLI_RE = re.compile(
 # Subcommands of `m3` that are NOT catalog tools -- counting them would inflate
 # the CLI surface with things that have no ToolSpec at all.
 _CLI_NON_TOOLS = {
-    "install", "setup", "start", "stop", "status", "doctor", "upgrade",
-    "uninstall", "version", "help", "embedder", "chatlog", "memory", "admin",
-    "agent", "tasks", "files", "conversations", "entity", "diagnostics",
-    "config", "serve", "run", "init", "migrate", "backup", "restore",
+    "install",
+    "setup",
+    "start",
+    "stop",
+    "status",
+    "doctor",
+    "upgrade",
+    "uninstall",
+    "version",
+    "help",
+    "embedder",
+    "chatlog",
+    "memory",
+    "admin",
+    "agent",
+    "tasks",
+    "files",
+    "conversations",
+    "entity",
+    "diagnostics",
+    "config",
+    "serve",
+    "run",
+    "init",
+    "migrate",
+    "backup",
+    "restore",
 }
 
 
@@ -194,6 +218,7 @@ def _catalog_tools() -> set[str]:
         sys.path.insert(0, str(bin_dir))
     try:
         import mcp_tool_catalog as cat
+
         names: set[str] = set()
         for attr in ("TOOLS", "PROTOCOL_TOOLS", "DEBUG_TOOLS"):
             val = getattr(cat, attr, None)
@@ -201,14 +226,12 @@ def _catalog_tools() -> set[str]:
                 names.update(val.keys())
             elif isinstance(val, (list, tuple, set)):
                 for item in val:
-                    n = getattr(item, "name", None) or (
-                        item.get("name") if isinstance(item, dict) else None)
+                    n = getattr(item, "name", None) or (item.get("name") if isinstance(item, dict) else None)
                     if n:
                         names.add(n)
         return names
     except Exception as e:  # noqa: BLE001
-        print(f"[warn] catalog unavailable ({type(e).__name__}: {e}); "
-              f"zero-call list omitted", file=sys.stderr)
+        print(f"[warn] catalog unavailable ({type(e).__name__}: {e}); zero-call list omitted", file=sys.stderr)
         return set()
 
 
@@ -223,8 +246,10 @@ def render(data: dict) -> None:
     print()
     print("BY SURFACE (these are different questions -- do not sum them):")
     print(f"  direct   (loaded schema, startup surface) : {t['direct']:6d}")
-    print(f"  delegate (via m3_call, no schema loaded)  : {t['delegate']:6d}"
-          f"   in {t['m3_call_wrappers']} m3_call wrapper(s)")
+    print(
+        f"  delegate (via m3_call, no schema loaded)  : {t['delegate']:6d}"
+        f"   in {t['m3_call_wrappers']} m3_call wrapper(s)"
+    )
     print(f"  cli      (m3 ... in a shell command)      : {t['cli']:6d}")
     print()
 
@@ -252,18 +277,15 @@ def render(data: dict) -> None:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     default_dir = Path(os.path.expanduser("~/.claude/projects"))
-    ap.add_argument("--transcripts", type=Path, default=default_dir,
-                    help=f"transcript root (default: {default_dir})")
+    ap.add_argument("--transcripts", type=Path, default=default_dir, help=f"transcript root (default: {default_dir})")
     ap.add_argument("--since", help="ignore calls before this YYYY-MM-DD")
     ap.add_argument("--json", action="store_true", help="emit JSON")
     args = ap.parse_args()
 
     if not args.transcripts.is_dir():
-        print(f"error: no transcript directory at {args.transcripts}",
-              file=sys.stderr)
+        print(f"error: no transcript directory at {args.transcripts}", file=sys.stderr)
         return 2
 
     data = collect(args.transcripts, args.since)

@@ -9,6 +9,7 @@ Two layers:
 The live PostgreSQL side is covered by tests/test_postgres_backend_live.py, which
 skips without a cluster.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -32,10 +33,10 @@ class TestCompileTsquery:
     @pytest.mark.parametrize(
         "query,expected",
         [
-            ("postgresql", "postgresql:*"),      # single alnum -> prefix wildcard
-            ("core tenets", "core | tenets"),    # multi-token fts5-mode -> OR (|)
+            ("postgresql", "postgresql:*"),  # single alnum -> prefix wildcard
+            ("core tenets", "core | tenets"),  # multi-token fts5-mode -> OR (|)
             ('"exact phrase"', "exact <-> phrase"),  # quoted -> phrase (<->)
-            ("gpt-4o", "gpt | 4o"),              # punctuation split like FTS5
+            ("gpt-4o", "gpt | 4o"),  # punctuation split like FTS5
         ],
     )
     def test_shapes(self, query, expected):
@@ -126,8 +127,11 @@ class TestSqliteKeywordSearch:
         conn.execute("UPDATE memory_items SET user_id='bob' WHERE id='u2'")
         conn.commit()
         hits = active_backend().keyword_search(
-            conn, "postgres", limit=10,
-            tenancy_sql=" AND mi.user_id = ?", tenancy_params=("alice",),
+            conn,
+            "postgres",
+            limit=10,
+            tenancy_sql=" AND mi.user_id = ?",
+            tenancy_params=("alice",),
         )
         assert {h.memory_id for h in hits} == {"u1"}
 
@@ -253,7 +257,10 @@ class TestKeywordSearchWithRowDataMatchMode:
         """
         conn = self._corpus()
         rows = active_backend().keyword_search_with_row_data(
-            conn, "portable m3 command", limit=5, search_mode="fts5",
+            conn,
+            "portable m3 command",
+            limit=5,
+            search_mode="fts5",
         )
         assert len(rows) == 5, "OR compile should fill the limit with filler"
         non_phrase = [r["id"] for r in rows if "portable m3 command" not in r["content"]]
@@ -262,11 +269,12 @@ class TestKeywordSearchWithRowDataMatchMode:
     def test_hybrid_mode_keeps_the_phrase_row_first(self):
         conn = self._corpus()
         rows = active_backend().keyword_search_with_row_data(
-            conn, "portable m3 command", limit=5, search_mode="hybrid",
+            conn,
+            "portable m3 command",
+            limit=5,
+            search_mode="hybrid",
         )
-        assert [r["id"] for r in rows] == ["phrase"], (
-            "phrase compile must match ONLY the row containing the phrase"
-        )
+        assert [r["id"] for r in rows] == ["phrase"], "phrase compile must match ONLY the row containing the phrase"
 
     def test_phrase_recall_is_monotonic_in_limit(self):
         """The actual defect: more budget must never yield fewer phrase hits."""
@@ -275,7 +283,10 @@ class TestKeywordSearchWithRowDataMatchMode:
         counts = []
         for limit in (2, 5, 20, 50):
             rows = backend.keyword_search_with_row_data(
-                conn, "portable m3 command", limit=limit, search_mode="hybrid",
+                conn,
+                "portable m3 command",
+                limit=limit,
+                search_mode="hybrid",
             )
             counts.append(sum(1 for r in rows if "portable m3 command" in r["content"]))
         assert counts == sorted(counts), f"non-monotonic phrase recall: {counts}"
@@ -286,10 +297,15 @@ class TestKeywordSearchWithRowDataMatchMode:
         conn = self._corpus()
         backend = active_backend()
         default = backend.keyword_search_with_row_data(
-            conn, "portable m3 command", limit=5,
+            conn,
+            "portable m3 command",
+            limit=5,
         )
         explicit = backend.keyword_search_with_row_data(
-            conn, "portable m3 command", limit=5, search_mode="fts5",
+            conn,
+            "portable m3 command",
+            limit=5,
+            search_mode="fts5",
         )
         assert [r["id"] for r in default] == [r["id"] for r in explicit]
 
@@ -315,12 +331,9 @@ class TestSqliteVectorSearch:
         return conn
 
     def _seed(self, conn, mid, vec, model="test-model", is_deleted=0):
+        conn.execute("INSERT INTO memory_items(id, is_deleted) VALUES (?,?)", (mid, is_deleted))
         conn.execute(
-            "INSERT INTO memory_items(id, is_deleted) VALUES (?,?)", (mid, is_deleted)
-        )
-        conn.execute(
-            "INSERT INTO memory_embeddings(memory_id,embedding,dim,embed_model) "
-            "VALUES (?,?,?,?)",
+            "INSERT INTO memory_embeddings(memory_id,embedding,dim,embed_model) VALUES (?,?,?,?)",
             (mid, self._blob(vec), self.DIM, model),
         )
         conn.commit()
@@ -331,14 +344,17 @@ class TestSqliteVectorSearch:
         self._seed(conn, "mid", [0.5, 0.5, 0.5, 0.5])
         self._seed(conn, "opp", [-1.0, 0.0, 0.0, 0.0])
         hits = active_backend().vector_search(
-            conn, [1.0, 0.0, 0.0, 0.0], limit=10, dim=self.DIM,
+            conn,
+            [1.0, 0.0, 0.0, 0.0],
+            limit=10,
+            dim=self.DIM,
             embed_models=("test-model",),
         )
         # Structural contract, not class identity (see keyword test note).
         assert all(hasattr(h, "memory_id") and hasattr(h, "score") for h in hits)
         ids = [h.memory_id for h in hits]
-        assert ids[0] == "near"          # highest cosine first
-        assert ids[-1] == "opp"          # opposite last
+        assert ids[0] == "near"  # highest cosine first
+        assert ids[-1] == "opp"  # opposite last
         # scores descending (higher = better)
         assert [h.score for h in hits] == sorted((h.score for h in hits), reverse=True)
 
@@ -348,7 +364,10 @@ class TestSqliteVectorSearch:
         self._seed(conn, "deleted", [1.0, 0.0, 0.0, 0.0], is_deleted=1)
         self._seed(conn, "othermodel", [1.0, 0.0, 0.0, 0.0], model="other")
         hits = active_backend().vector_search(
-            conn, [1.0, 0.0, 0.0, 0.0], limit=10, dim=self.DIM,
+            conn,
+            [1.0, 0.0, 0.0, 0.0],
+            limit=10,
+            dim=self.DIM,
             embed_models=("test-model",),
         )
         assert {h.memory_id for h in hits} == {"keep"}
@@ -356,7 +375,10 @@ class TestSqliteVectorSearch:
     def test_empty_candidates_returns_empty(self):
         conn = self._make_db()
         hits = active_backend().vector_search(
-            conn, [1.0, 0.0, 0.0, 0.0], limit=10, dim=self.DIM,
+            conn,
+            [1.0, 0.0, 0.0, 0.0],
+            limit=10,
+            dim=self.DIM,
             embed_models=("test-model",),
         )
         assert hits == []

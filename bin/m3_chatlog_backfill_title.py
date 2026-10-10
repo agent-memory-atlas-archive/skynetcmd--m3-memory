@@ -13,6 +13,7 @@ Quick start:
     python bin/m3_chatlog_backfill_title.py --dry-run
     python bin/m3_chatlog_backfill_title.py
 """
+
 from __future__ import annotations
 
 import argparse
@@ -39,8 +40,16 @@ BACKUP_DIR = Path(get_m3_backups_root()) / "title-backfill"
 # These are role labels or generic placeholders — they tell you nothing
 # about what the row contains.
 DEFAULT_USELESS_TITLES = (
-    "", "user", "assistant", "system", "message", "chat_log",
-    "None", "none", "[AUTO] Generated", "untitled",
+    "",
+    "user",
+    "assistant",
+    "system",
+    "message",
+    "chat_log",
+    "None",
+    "none",
+    "[AUTO] Generated",
+    "untitled",
 )
 
 
@@ -206,7 +215,7 @@ def _sample_derivations(
             WHERE COALESCE(is_deleted,0)=0
               AND (title IS NULL OR title IN ({placeholders}))
               AND {seam_dialect().byte_length("COALESCE(content,'')")} >= {seam_dialect().param()}
-            ORDER BY {seam_dialect().byte_length('content')} DESC LIMIT {seam_dialect().param()}
+            ORDER BY {seam_dialect().byte_length("content")} DESC LIMIT {seam_dialect().param()}
         """
         rows = conn.execute(sql, [*list(useless_titles), min_chars, n]).fetchall()
         return [(r[0] or "<NULL>", _derive_title(r[1] or "", max_title_chars)) for r in rows]
@@ -220,13 +229,18 @@ def main() -> int:
     ap.add_argument("--chatlog", action="store_true", dest="chatlog_only")
     ap.add_argument("--core-db", default=None)
     ap.add_argument("--chatlog-db", default=None)
-    ap.add_argument("--useless-titles", default=None,
-                    help="Comma-separated list of titles to treat as useless. "
-                         "Default: user,assistant,system,message,chat_log,None,'',etc.")
-    ap.add_argument("--min-chars", type=int, default=10,
-                    help="Skip rows whose content is shorter than this. Default 10.")
-    ap.add_argument("--max-title-chars", type=int, default=100,
-                    help="Cap derived titles at this many chars. Default 100.")
+    ap.add_argument(
+        "--useless-titles",
+        default=None,
+        help="Comma-separated list of titles to treat as useless. "
+        "Default: user,assistant,system,message,chat_log,None,'',etc.",
+    )
+    ap.add_argument(
+        "--min-chars", type=int, default=10, help="Skip rows whose content is shorter than this. Default 10."
+    )
+    ap.add_argument(
+        "--max-title-chars", type=int, default=100, help="Cap derived titles at this many chars. Default 100."
+    )
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--skip-backup", action="store_true")
@@ -255,14 +269,15 @@ def main() -> int:
     if not db_targets:
         sys.exit("ERROR: no DBs found.")
 
-    plan = {"useless": list(useless), "min_chars": args.min_chars,
-            "max_title_chars": args.max_title_chars, "dbs": {}}
+    plan = {"useless": list(useless), "min_chars": args.min_chars, "max_title_chars": args.max_title_chars, "dbs": {}}
     for label, db_path in db_targets:
         n_total, by_type = _audit(db_path, useless, args.min_chars)
         samples = _sample_derivations(db_path, useless, args.min_chars, args.max_title_chars)
         plan["dbs"][label] = {
-            "path": str(db_path), "n_total": n_total,
-            "by_type": by_type, "samples": samples,
+            "path": str(db_path),
+            "n_total": n_total,
+            "by_type": by_type,
+            "samples": samples,
         }
 
     if args.dry_run:
@@ -294,10 +309,13 @@ def main() -> int:
         counters = _backfill(db_path, useless, args.min_chars, args.max_title_chars, args.limit)
         for k in grand:
             grand[k] += counters[k]
-        print(f"[title-backfill] {db_path.name} done: "
-              f"{counters['updated']} updated, "
-              f"{counters['skipped_empty_derived']} skipped (empty derived), "
-              f"{counters['wall_s']:.1f}s wall", flush=True)
+        print(
+            f"[title-backfill] {db_path.name} done: "
+            f"{counters['updated']} updated, "
+            f"{counters['skipped_empty_derived']} skipped (empty derived), "
+            f"{counters['wall_s']:.1f}s wall",
+            flush=True,
+        )
 
     print()
     print("══════════════════════════════════════════════════════════════")

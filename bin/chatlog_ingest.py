@@ -68,6 +68,7 @@ def infer_provider(model_id: str) -> str:
 #                "model": "claude-...", "usage": {"input_tokens": N, ...}}}
 # Only user/assistant records carry chat content; the rest are skipped.
 
+
 def _claude_content_to_text(content: Any) -> str:
     """Flatten Claude Code message.content to plain text.
 
@@ -115,17 +116,19 @@ def _parse_claude_code(raw: str) -> tuple[list[dict], str | None]:
         usage = msg.get("usage") or {}
         if session_id is None:
             session_id = obj.get("sessionId")
-        items.append({
-            "content": content,
-            "role": role,
-            "model_id": model or "unknown",
-            "conversation_id": obj.get("sessionId", ""),
-            "provider": infer_provider(model),
-            "tokens_in": usage.get("input_tokens"),
-            "tokens_out": usage.get("output_tokens"),
-            "timestamp": obj.get("timestamp", ""),
-            "uuid": obj.get("uuid"),
-        })
+        items.append(
+            {
+                "content": content,
+                "role": role,
+                "model_id": model or "unknown",
+                "conversation_id": obj.get("sessionId", ""),
+                "provider": infer_provider(model),
+                "tokens_in": usage.get("input_tokens"),
+                "tokens_out": usage.get("output_tokens"),
+                "timestamp": obj.get("timestamp", ""),
+                "uuid": obj.get("uuid"),
+            }
+        )
     return items, session_id
 
 
@@ -144,6 +147,7 @@ def _parse_claude_code(raw: str) -> tuple[list[dict], str | None]:
 # "info" messages (CLI chrome) are skipped. "gemini" → assistant role.
 # Observed 2026-04-24 on Gemini CLI 0.39.1. The older .json format (single
 # object with messages[]) is still handled as a fallback for historical files.
+
 
 def _gemini_content_to_text(content: Any) -> str:
     """Flatten Gemini message.content to plain text.
@@ -230,31 +234,36 @@ def _parse_gemini_cli(raw: str) -> tuple[list[dict], str | None]:
             continue
         model = msg.get("model") or ""
         tokens = msg.get("tokens") or {}
-        items.append({
-            "content": content,
-            "role": role,
-            "model_id": model or "unknown",
-            "conversation_id": session_id or "",
-            "provider": "google",
-            "tokens_in": tokens.get("input"),
-            "tokens_out": tokens.get("output"),
-            "timestamp": msg.get("timestamp", ""),
-            "uuid": msg.get("id"),
-        })
+        items.append(
+            {
+                "content": content,
+                "role": role,
+                "model_id": model or "unknown",
+                "conversation_id": session_id or "",
+                "provider": "google",
+                "tokens_in": tokens.get("input"),
+                "tokens_out": tokens.get("output"),
+                "timestamp": msg.get("timestamp", ""),
+                "uuid": msg.get("id"),
+            }
+        )
     return items, session_id
 
 
 # ─── Cursor (per-sessionId idempotency) ───────────────────────────────────────
 
+
 def _legacy_cursor_path() -> str:
     """Where the cursor lived before 2026.10.5.0: inside the payload, which a reinstall wipes."""
-    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                        "memory", ".chatlog_ingest_cursor.json")
+    return os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "memory", ".chatlog_ingest_cursor.json"
+    )
 
 
 def _cursor_path() -> str:
     """The ingest cursor, under the engine root (chatlog_config owns the location)."""
     import chatlog_config
+
     return str(chatlog_config.INGEST_CURSOR)
 
 
@@ -273,6 +282,7 @@ def _save_cursor(state: dict) -> None:
     path = _cursor_path()
     os.makedirs(os.path.dirname(path), exist_ok=True)
     from m3_core.atomic_io import atomic_write
+
     atomic_write(path, json.dumps(state))
 
 
@@ -308,6 +318,7 @@ def _commit_cursor(items: list[dict], session_id: str, cursor: dict) -> None:
 
 # ─── Normalization ────────────────────────────────────────────────────────────
 
+
 def _make_agent_id(host_agent: str) -> str:
     user = os.environ.get("USER") or os.environ.get("USERNAME", "unknown")
     host = os.environ.get("COMPUTERNAME") or os.environ.get("HOSTNAME") or platform.node()
@@ -321,8 +332,7 @@ def _make_agent_id(host_agent: str) -> str:
     return f"{host_agent}:{user}@{host}"
 
 
-def _normalize(items: list[dict], host_agent: str, variant: str | None,
-               session_override: str) -> list[dict]:
+def _normalize(items: list[dict], host_agent: str, variant: str | None, session_override: str) -> list[dict]:
     agent_id = _make_agent_id(host_agent)
     user_id = os.environ.get("USER") or os.environ.get("USERNAME", "unknown")
     out: list[dict] = []
@@ -351,10 +361,7 @@ def _openclaw_content_to_text(content) -> str:
     if isinstance(content, str):
         return content.strip()
     if isinstance(content, list):
-        parts = [
-            p.get("text", "") for p in content
-            if isinstance(p, dict) and p.get("type") == "text"
-        ]
+        parts = [p.get("text", "") for p in content if isinstance(p, dict) and p.get("type") == "text"]
         return "\n".join(t for t in parts if t).strip()
     return ""
 
@@ -419,15 +426,17 @@ def _parse_openclaw(raw: str) -> tuple[list[dict], str | None]:
         if not content or content.startswith("/"):
             continue
 
-        items.append({
-            "content": content,
-            "role": role,
-            "model_id": model_id or "unknown",
-            "conversation_id": session_id or "",
-            "provider": "other",
-            "timestamp": msg.get("timestamp") or obj.get("timestamp", ""),
-            "uuid": obj.get("id"),
-        })
+        items.append(
+            {
+                "content": content,
+                "role": role,
+                "model_id": model_id or "unknown",
+                "conversation_id": session_id or "",
+                "provider": "other",
+                "timestamp": msg.get("timestamp") or obj.get("timestamp", ""),
+                "uuid": obj.get("id"),
+            }
+        )
 
     return items, session_id
 
@@ -476,17 +485,19 @@ def _parse_aider(raw: str) -> tuple[list[dict], str | None]:
             return
         text = "\n".join(buf).strip()
         if text:
-            items.append({
-                "content": text,
-                "role": role,
-                "model_id": "unknown",
-                "conversation_id": session_id or "",
-                "provider": "other",
-                "timestamp": session_id or "",
-                # No per-turn id exists in the format; index within the session
-                # keeps the cursor's idempotency working across re-ingests.
-                "uuid": f"{session_id or 'aider'}#{len(items)}",
-            })
+            items.append(
+                {
+                    "content": text,
+                    "role": role,
+                    "model_id": "unknown",
+                    "conversation_id": session_id or "",
+                    "provider": "other",
+                    "timestamp": session_id or "",
+                    # No per-turn id exists in the format; index within the session
+                    # keeps the cursor's idempotency working across re-ingests.
+                    "uuid": f"{session_id or 'aider'}#{len(items)}",
+                }
+            )
 
     for line in raw.splitlines():
         m = _AIDER_SESSION_RE.match(line)
@@ -565,8 +576,7 @@ def opencode_store_candidates() -> list[Path]:
     return [c for c in cands if c.exists()]
 
 
-def _opencode_item(msg: dict, msg_id: str, session_id: str,
-                   texts: list, created) -> dict | None:
+def _opencode_item(msg: dict, msg_id: str, session_id: str, texts: list, created) -> dict | None:
     """One chatlog item from an OpenCode message payload + its text parts.
 
     Shared by the SQLite and legacy-JSON readers: the `data` payload is
@@ -609,10 +619,7 @@ def _opencode_item(msg: dict, msg_id: str, session_id: str,
         "tokens_in": tokens.get("input"),
         "tokens_out": tokens.get("output"),
         # `created` is epoch MILLISECONDS, not seconds.
-        "timestamp": (
-            datetime.fromtimestamp(created / 1000, UTC)
-            .strftime("%Y-%m-%dT%H:%M:%SZ") if created else ""
-        ),
+        "timestamp": (datetime.fromtimestamp(created / 1000, UTC).strftime("%Y-%m-%dT%H:%M:%SZ") if created else ""),
         "uuid": msg_id,
     }
 
@@ -645,10 +652,7 @@ def _parse_opencode_sqlite(db_path: Path, session_id: str | None = None):
 
     try:
         if session_id is None:
-            row = con.execute(
-                "SELECT id FROM session ORDER BY time_updated DESC, "
-                "time_created DESC LIMIT 1"
-            ).fetchone()
+            row = con.execute("SELECT id FROM session ORDER BY time_updated DESC, time_created DESC LIMIT 1").fetchone()
             if not row:
                 return [], None
             session_id = row[0]
@@ -656,8 +660,7 @@ def _parse_opencode_sqlite(db_path: Path, session_id: str | None = None):
         # Parts first, grouped by message, so the join is one pass each.
         texts: dict = {}
         for mid, data in con.execute(
-            "SELECT message_id, data FROM part WHERE session_id = ? "
-            "ORDER BY time_created, id", (session_id,)
+            "SELECT message_id, data FROM part WHERE session_id = ? ORDER BY time_created, id", (session_id,)
         ):
             try:
                 part = json.loads(data)
@@ -668,16 +671,16 @@ def _parse_opencode_sqlite(db_path: Path, session_id: str | None = None):
 
         items = []
         for mid, created, data in con.execute(
-            "SELECT id, time_created, data FROM message WHERE session_id = ? "
-            "ORDER BY time_created, id", (session_id,)
+            "SELECT id, time_created, data FROM message WHERE session_id = ? ORDER BY time_created, id", (session_id,)
         ):
             try:
                 msg = json.loads(data)
             except (TypeError, json.JSONDecodeError) as e:
                 logger.warning(f"Malformed OpenCode message {mid}, skipping: {e}")
                 continue
-            item = _opencode_item(msg, mid, session_id, texts.get(mid, []),
-                                  (msg.get("time") or {}).get("created") or created)
+            item = _opencode_item(
+                msg, mid, session_id, texts.get(mid, []), (msg.get("time") or {}).get("created") or created
+            )
             if item:
                 items.append(item)
         return items, session_id
@@ -764,8 +767,7 @@ def _parse_opencode(transcript_path: str) -> tuple[list[dict], str | None]:
 
         # Same interpreter as the SQLite reader — the payload is identical
         # between the layouts, so only the locator differs.
-        item = _opencode_item(msg, msg.get("id", ""), session_id or "", texts,
-                              (msg.get("time") or {}).get("created"))
+        item = _opencode_item(msg, msg.get("id", ""), session_id or "", texts, (msg.get("time") or {}).get("created"))
         if item:
             items.append(item)
 
@@ -776,7 +778,7 @@ def _parse_opencode(transcript_path: str) -> tuple[list[dict], str | None]:
 
 PARSERS = {
     "claude-code": _parse_claude_code,
-    "gemini-cli":  _parse_gemini_cli,
+    "gemini-cli": _parse_gemini_cli,
     "antigravity-cli": _parse_gemini_cli,
     "openclaw": _parse_openclaw,
     "opencode": _parse_opencode,
@@ -789,12 +791,10 @@ PARSERS = {
 _PATH_PARSERS = frozenset({"opencode"})
 
 
-async def _ingest(format_name: str, transcript_path: str,
-                  session_override: str, variant: str | None) -> dict:
+async def _ingest(format_name: str, transcript_path: str, session_override: str, variant: str | None) -> dict:
     parser = PARSERS.get(format_name)
     if parser is None:
-        return {"written": 0, "skipped": 0, "failed": 1,
-                "error": f"unknown format: {format_name}"}
+        return {"written": 0, "skipped": 0, "failed": 1, "error": f"unknown format: {format_name}"}
 
     # ⚠ NOT EVERY HOST WRITES A TRANSCRIPT FILE. OpenCode keeps sessions in a
     # SQLite database (v1.2.0+) or a directory tree of per-message JSON, so its
@@ -807,14 +807,12 @@ async def _ingest(format_name: str, transcript_path: str,
         # than teaching every hook to compute a path it cannot know portably.
         if transcript_path not in ("auto", "", "-") and not os.path.exists(transcript_path):
             logger.warning(f"Transcript path not found: {transcript_path}")
-            return {"written": 0, "skipped": 0, "failed": 0,
-                    "error": f"transcript not found: {transcript_path}"}
+            return {"written": 0, "skipped": 0, "failed": 0, "error": f"transcript not found: {transcript_path}"}
         items, parsed_session = parser(transcript_path)
     else:
         if not os.path.isfile(transcript_path):
             logger.warning(f"Transcript path not found: {transcript_path}")
-            return {"written": 0, "skipped": 0, "failed": 0,
-                    "error": f"transcript not found: {transcript_path}"}
+            return {"written": 0, "skipped": 0, "failed": 0, "error": f"transcript not found: {transcript_path}"}
         try:
             with open(transcript_path, encoding="utf-8") as f:  # noqa: ASYNC230 — one-shot CLI; nothing else on its loop
                 raw = f.read()
@@ -828,7 +826,8 @@ async def _ingest(format_name: str, transcript_path: str,
     if session_override and parsed_session and session_override != parsed_session:
         logger.warning(
             "session_id mismatch: envelope=%r, transcript=%r; using transcript value",
-            session_override, parsed_session,
+            session_override,
+            parsed_session,
         )
     session_id = parsed_session or session_override or ""
 
@@ -850,6 +849,7 @@ async def _ingest(format_name: str, transcript_path: str,
 
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import chatlog_core
+
     result = await chatlog_core.chatlog_write_bulk_impl(normalized, embed=False)
     written = len(result.get("written_ids", []))
     failed = result.get("failed", 0)
@@ -858,37 +858,50 @@ async def _ingest(format_name: str, transcript_path: str,
     if written > 0:
         _commit_cursor([{"uuid": u} for u in uuids_to_commit], session_id, cursor)
 
-    logger.info(f"Ingested {transcript_path}: written={written}, skipped={skipped}, "
-                f"spilled={spilled}, failed={failed}, session_id={session_id}")
+    logger.info(
+        f"Ingested {transcript_path}: written={written}, skipped={skipped}, "
+        f"spilled={spilled}, failed={failed}, session_id={session_id}"
+    )
     return {
-        "written": written, "skipped": skipped, "spilled": spilled, "failed": failed,
-        "errors": result.get("errors", []), "session_id": session_id,
+        "written": written,
+        "skipped": skipped,
+        "spilled": spilled,
+        "failed": failed,
+        "errors": result.get("errors", []),
+        "session_id": session_id,
     }
 
 
 async def main() -> int:
     parser = argparse.ArgumentParser(description="Ingest a host-agent transcript into the chat log subsystem.")
-    parser.add_argument("--format", required=True, choices=sorted(PARSERS.keys()),
-                        help="Transcript format / host agent")
+    parser.add_argument(
+        "--format", required=True, choices=sorted(PARSERS.keys()), help="Transcript format / host agent"
+    )
     parser.add_argument("--transcript-path", required=True, help="Path to the transcript file on disk")
-    parser.add_argument("--session-id", default="",
-                        help="Override conversation_id (defaults to parsed sessionId)")
-    parser.add_argument("--variant", default=None,
-                        help="Provenance tag (e.g. pre_compact, stop, session_end, test)")
-    parser.add_argument("--db", default=None,
-                        help="Deprecated: chatlog-only override. Prefer --database. "
-                             "Sets CHATLOG_DB_PATH for the duration of the process.")
-    parser.add_argument("--spill-dir", default=None,
-                        help="Override spill directory for this run (dev smoke tests). "
-                             "Prevents stale spill files from polluting production.")
+    parser.add_argument("--session-id", default="", help="Override conversation_id (defaults to parsed sessionId)")
+    parser.add_argument("--variant", default=None, help="Provenance tag (e.g. pre_compact, stop, session_end, test)")
+    parser.add_argument(
+        "--db",
+        default=None,
+        help="Deprecated: chatlog-only override. Prefer --database. "
+        "Sets CHATLOG_DB_PATH for the duration of the process.",
+    )
+    parser.add_argument(
+        "--spill-dir",
+        default=None,
+        help="Override spill directory for this run (dev smoke tests). "
+        "Prevents stale spill files from polluting production.",
+    )
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from m3_sdk import add_database_arg
+
     add_database_arg(parser)
     args = parser.parse_args()
 
     if args.database or args.db or args.spill_dir:
         sys.path.insert(0, os.path.dirname(__file__))
         import chatlog_config
+
         if args.database:
             # Unified model: --database sets M3_DATABASE so main + chatlog
             # resolution both see it. CHATLOG_DB_PATH overrides that for the
@@ -927,19 +940,19 @@ async def main() -> int:
             sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
             try:
                 import memory_core as _mc
+
                 # observation_enqueue_impl is idempotent: INSERT OR IGNORE on
                 # conversation_id, so re-enqueuing the same conversation is a
                 # no-op. user_id may be empty for some chatlog flows; that's
                 # fine — the drainer scopes by conversation_id alone for
                 # chatlog rows.
                 enqueue_result = _mc.observation_enqueue_impl(
-                    conversation_id=sid, user_id="",
+                    conversation_id=sid,
+                    user_id="",
                 )
-                logger.info(f"M3_AUTO_ENRICH: {enqueue_result} for {sid[:12]} "
-                            f"({written} new turns)")
+                logger.info(f"M3_AUTO_ENRICH: {enqueue_result} for {sid[:12]} ({written} new turns)")
             except Exception as e:
-                logger.warning(f"M3_AUTO_ENRICH enqueue failed (non-fatal): "
-                               f"{type(e).__name__}: {e}")
+                logger.warning(f"M3_AUTO_ENRICH enqueue failed (non-fatal): {type(e).__name__}: {e}")
 
     # Shutdown drain: chatlog_write_bulk_impl enqueues rows on an async
     # Queue drained by the _flush_loop background task. asyncio.run()
@@ -951,6 +964,7 @@ async def main() -> int:
     # reaches the spill file cleanly.
     try:
         import chatlog_core as _cc
+
         if _cc._QUEUE is not None:
             # Drain remaining items. _flush_once is idempotent once the
             # queue is empty so calling in a loop is safe.

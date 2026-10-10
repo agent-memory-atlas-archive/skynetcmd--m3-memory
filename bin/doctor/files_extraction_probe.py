@@ -21,6 +21,7 @@ auto-suppress (OpenAI cloud, vLLM) it warns on a bare thinking-on result. So the
 warning fires only when the operator actually needs to act — no false alarms for
 the auto-handled case, and one bounded probe (no redundant testing).
 """
+
 from __future__ import annotations
 
 import os
@@ -43,6 +44,7 @@ def _file_extract_endpoint() -> str | None:
     try:
         _ensure_path()
         from files_memory.extract import _llm_endpoint
+
         return _llm_endpoint()
     except Exception:  # noqa: BLE001 — diagnostic best-effort
         return None
@@ -52,6 +54,7 @@ def _main_path_endpoints() -> list[str]:
     try:
         _ensure_path()
         from llm_failover import LLM_ENDPOINTS
+
         return list(LLM_ENDPOINTS or [])
     except Exception:  # noqa: BLE001
         return []
@@ -64,6 +67,7 @@ def _reach(endpoint: str, timeout: float = 3.0) -> tuple[str, list[str]]:
     try:
         _ensure_path()
         from files_memory.config import llm_auth_headers
+
         headers = llm_auth_headers()
     except Exception:  # noqa: BLE001
         headers = {}
@@ -71,6 +75,7 @@ def _reach(endpoint: str, timeout: float = 3.0) -> tuple[str, list[str]]:
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:  # nosec B310 — scheme checked
             import json
+
             body = json.loads(r.read().decode("utf-8", "replace"))
         models = [m.get("id", "") for m in body.get("data", []) if isinstance(m, dict)]
         return "ok", [m for m in models if m]
@@ -96,16 +101,16 @@ def _classify_thinking(body: dict) -> str | None:
         return None
     if not isinstance(msg, dict):
         return None
-    reasoning = str(msg.get("reasoning_content") or msg.get("reasoning")
-                    or msg.get("thinking") or "").strip()
+    reasoning = str(msg.get("reasoning_content") or msg.get("reasoning") or msg.get("thinking") or "").strip()
     content = str(msg.get("content") or "")
     if reasoning or "<think>" in content.lower():
         return "on"
     return "off"
 
 
-def _detect_thinking(endpoint: str, model: str, headers: dict, timeout: float = 20.0,
-                     reasoning_effort: str | None = None) -> str | None:
+def _detect_thinking(
+    endpoint: str, model: str, headers: dict, timeout: float = 20.0, reasoning_effort: str | None = None
+) -> str | None:
     """Active probe: send ONE tiny chat request and classify whether the loaded
     model reasons. Works against any OpenAI-compatible server (LM Studio, Ollama,
     vLLM, …) at ``{endpoint}/chat/completions``. When ``reasoning_effort`` is given
@@ -113,6 +118,7 @@ def _detect_thinking(endpoint: str, model: str, headers: dict, timeout: float = 
     runtimes that honor it, so the probe reflects the real post-suppression state.
     Returns 'on'|'off'|None; None on any error (never a false alarm)."""
     import json
+
     body: dict = {
         "model": model,
         "messages": [{"role": "user", "content": "Reply with exactly: OK"}],
@@ -123,8 +129,11 @@ def _detect_thinking(endpoint: str, model: str, headers: dict, timeout: float = 
         body["reasoning_effort"] = reasoning_effort
     payload = json.dumps(body).encode("utf-8")
     req = urllib.request.Request(
-        f"{endpoint.rstrip('/')}/chat/completions", data=payload,
-        headers={**headers, "Content-Type": "application/json"}, method="POST")
+        f"{endpoint.rstrip('/')}/chat/completions",
+        data=payload,
+        headers={**headers, "Content-Type": "application/json"},
+        method="POST",
+    )
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:  # nosec B310 — scheme checked upstream
             return _classify_thinking(json.loads(r.read().decode("utf-8", "replace")))
@@ -139,6 +148,7 @@ def _suppressible(endpoint: str) -> bool:
     try:
         _ensure_path()
         from llm_failover import suppresses_thinking_via_effort
+
         return suppresses_thinking_via_effort(endpoint)
     except Exception:  # noqa: BLE001
         return False
@@ -151,14 +161,19 @@ def run(brief: bool = False, fix: bool = False) -> int:
     # Regression guard: file-extraction blind while the main path has an LLM.
     if not endpoint:
         if main_eps:
-            print("❌ file-extraction LLM: NONE resolved, but the main path has "
-                  f"{main_eps[0]} — inline/queue extraction will no-op (leaves "
-                  "marked 'failed').")
-            print("   fix: file-extraction should fall back to llm_failover "
-                  "(bin/files_memory/extract.py::_llm_endpoint).")
+            print(
+                "❌ file-extraction LLM: NONE resolved, but the main path has "
+                f"{main_eps[0]} — inline/queue extraction will no-op (leaves "
+                "marked 'failed')."
+            )
+            print(
+                "   fix: file-extraction should fall back to llm_failover (bin/files_memory/extract.py::_llm_endpoint)."
+            )
             return 1
-        print("file-extraction LLM: none configured (no LLM anywhere) — fact "
-              "extraction is off; embeddings + keyword search still work.")
+        print(
+            "file-extraction LLM: none configured (no LLM anywhere) — fact "
+            "extraction is off; embeddings + keyword search still work."
+        )
         return 0
 
     if brief:
@@ -168,8 +183,10 @@ def run(brief: bool = False, fix: bool = False) -> int:
     if state == "ok":
         shown = ", ".join(models[:3]) if models else "no models loaded"
         glyph = "✅" if models else "⚠️ "
-        print(f"{glyph} file-extraction LLM: {endpoint} reachable ({shown})"
-              + ("" if models else " — load a chat/instruct model to enable extraction."))
+        print(
+            f"{glyph} file-extraction LLM: {endpoint} reachable ({shown})"
+            + ("" if models else " — load a chat/instruct model to enable extraction.")
+        )
         if models:
             # Reasoning/thinking ON = extraction gets 0 parseable facts (the answer
             # goes to the reasoning channel, not the JSON content). m3 auto-fixes
@@ -181,6 +198,7 @@ def run(brief: bool = False, fix: bool = False) -> int:
             _ensure_path()
             try:
                 from files_memory.config import llm_auth_headers
+
                 _hdr = llm_auth_headers()
             except Exception:  # noqa: BLE001
                 _hdr = {}
@@ -188,22 +206,31 @@ def run(brief: bool = False, fix: bool = False) -> int:
             effort = "none" if supp else None
             if _detect_thinking(endpoint, models[0], _hdr, reasoning_effort=effort) == "on":
                 if supp:
-                    print(f"⚠️  reasoning/thinking is ON for '{models[0]}' and "
-                          "reasoning_effort='none' did NOT suppress it — extraction "
-                          "(files + entities) will yield 0 parseable facts.")
-                    print("   fix: disable thinking for this model in LM Studio / "
-                          "Ollama, or load a non-reasoning instruct model.")
+                    print(
+                        f"⚠️  reasoning/thinking is ON for '{models[0]}' and "
+                        "reasoning_effort='none' did NOT suppress it — extraction "
+                        "(files + entities) will yield 0 parseable facts."
+                    )
+                    print(
+                        "   fix: disable thinking for this model in LM Studio / "
+                        "Ollama, or load a non-reasoning instruct model."
+                    )
                 else:
-                    print(f"⚠️  reasoning/thinking is ON for '{models[0]}' and this "
-                          "endpoint isn't one m3 can auto-suppress — extraction "
-                          "(files + entities) will yield 0 parseable facts.")
-                    print("   fix: disable thinking / use a non-reasoning instruct "
-                          "model (m3 auto-suppresses only on local LM Studio / Ollama).")
+                    print(
+                        f"⚠️  reasoning/thinking is ON for '{models[0]}' and this "
+                        "endpoint isn't one m3 can auto-suppress — extraction "
+                        "(files + entities) will yield 0 parseable facts."
+                    )
+                    print(
+                        "   fix: disable thinking / use a non-reasoning instruct "
+                        "model (m3 auto-suppresses only on local LM Studio / Ollama)."
+                    )
         return 0 if models else 1
     if state == "auth":
-        print(f"⚠️  file-extraction LLM: {endpoint} needs auth and the token didn't "
-              "resolve — set LM_API_TOKEN in the OS keyring (headless-safe).")
+        print(
+            f"⚠️  file-extraction LLM: {endpoint} needs auth and the token didn't "
+            "resolve — set LM_API_TOKEN in the OS keyring (headless-safe)."
+        )
         return 1
-    print(f"⚠️  file-extraction LLM: {endpoint} not reachable — inline/queue "
-          "extraction will no-op until it serves.")
+    print(f"⚠️  file-extraction LLM: {endpoint} not reachable — inline/queue extraction will no-op until it serves.")
     return 1

@@ -15,6 +15,7 @@ The contract this file pins:
 Hermetic: no DB, no network. Row objects are faked to the shapes the backends
 actually return.
 """
+
 from __future__ import annotations
 
 import datetime
@@ -55,6 +56,7 @@ def test_default_returns_the_display_string_untouched():
 def test_default_ignores_the_payload_entirely():
     """Even a payload that would raise on serialization must not affect the
     string path -- the default branch may not depend on record building."""
+
     class Boom:
         def __repr__(self):
             raise AssertionError("payload was touched on the default path")
@@ -127,7 +129,11 @@ def test_blobs_report_size_rather_than_dumping_base64():
 
 def test_records_are_json_serializable_for_every_supported_scalar():
     row = _Row(
-        s="text", i=1, f=1.5, b=True, n=None,
+        s="text",
+        i=1,
+        f=1.5,
+        b=True,
+        n=None,
         dt=datetime.datetime(2026, 1, 1),
         d=decimal.Decimal("2.5"),
         blob=b"xx",
@@ -161,8 +167,7 @@ def test_error_envelope_has_no_count_or_items():
     """The missing keys are the contract. A caller that lazily reaches for
     data['items'] without checking for 'error' must get a KeyError -- that is
     the correct fail-loud outcome, not a silent empty set."""
-    data = json.loads(records.emit("Error: nope",
-                                   records.error_payload("not_found", memory_id="x"), True))
+    data = json.loads(records.emit("Error: nope", records.error_payload("not_found", memory_id="x"), True))
     assert data["error"] == "not_found"
     assert "count" not in data
     assert "items" not in data

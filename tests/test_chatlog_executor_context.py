@@ -11,6 +11,7 @@ silently ignored. `asyncio.to_thread` copies the context (plan item R5).
 Measured by recording the ContextVar value the thread sees when it opens the
 connection, then stopping, so no store is touched.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -43,17 +44,19 @@ def seen(monkeypatch):
 
 async def _search():
     import chatlog_core
-    return await chatlog_core._chatlog_search_separate(
-        "q", 5, "", "", "", "", "", "", "", db_path="unused")
+
+    return await chatlog_core._chatlog_search_separate("q", 5, "", "", "", "", "", "", "", db_path="unused")
 
 
 async def _cost_report():
     import chatlog_core
+
     return await chatlog_core.chatlog_cost_report_impl()
 
 
 async def _promote():
     import chatlog_core
+
     return await chatlog_core.chatlog_promote_impl(ids=["00000000-0000-0000-0000-000000000000"])
 
 
@@ -71,5 +74,4 @@ def test_worker_thread_sees_the_callers_database(seen, tmp_path, call):
 
     resolved = asyncio.run(_go())
     assert seen, "the chatlog connection was never opened; the test exercised nothing"
-    assert seen[-1] == resolved, (
-        f"worker thread saw active_database={seen[-1]!r}, caller set {resolved!r}")
+    assert seen[-1] == resolved, f"worker thread saw active_database={seen[-1]!r}, caller set {resolved!r}"

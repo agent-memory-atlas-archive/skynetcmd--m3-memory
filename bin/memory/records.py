@@ -34,6 +34,7 @@ JSON-serializable and whose repr leaks the backend. `_jsonable()` normalizes to
 plain dicts with JSON-safe scalars, so the same tool returns the same records on
 SQLite and PostgreSQL (section 0.4 -- a green SQLite-only run proves nothing).
 """
+
 from __future__ import annotations
 
 import datetime

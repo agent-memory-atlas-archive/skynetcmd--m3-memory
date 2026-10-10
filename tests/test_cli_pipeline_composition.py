@@ -22,6 +22,7 @@ never moved, so reinforcement had nothing to read and grading could never open
 its window. See test_chatlog_pg_live / test_memory_dynamics_pg_live for the
 backend-live half; this file pins the seam usage and the CLI behaviour.
 """
+
 from __future__ import annotations
 
 import json
@@ -39,12 +40,16 @@ def _run(args, stdin_text=None, timeout=180):
     """Invoke the WORKING-TREE cli, never the installed `m3` on PATH."""
     return subprocess.run(
         [sys.executable, "-m", "m3_memory.cli", *args],
-        input=stdin_text, capture_output=True, text=True,
-        cwd=_REPO, timeout=timeout,
+        input=stdin_text,
+        capture_output=True,
+        text=True,
+        cwd=_REPO,
+        timeout=timeout,
     )
 
 
 # ── output composes ──────────────────────────────────────────────────────────
+
 
 def test_as_records_is_not_double_encoded():
     """⚠ THE DEFECT. One json.loads must reach the object, not a string.
@@ -52,13 +57,11 @@ def test_as_records_is_not_double_encoded():
     A consumer that has to parse twice is not composable: every jq filter, every
     `| python -c`, every hook silently sees a string where it expected records.
     """
-    r = _run(["memory", "memory_search", "--query", "postgres", "--k", "2",
-              "--as_records"])
+    r = _run(["memory", "memory_search", "--query", "postgres", "--k", "2", "--as_records"])
     assert r.returncode == 0, r.stderr[-400:]
     payload = json.loads(r.stdout)
     assert isinstance(payload, dict), (
-        f"stdout parsed to {type(payload).__name__}, not an object — the result "
-        f"is still JSON inside JSON"
+        f"stdout parsed to {type(payload).__name__}, not an object — the result is still JSON inside JSON"
     )
     assert "items" in payload and isinstance(payload["items"], list)
 
@@ -72,14 +75,10 @@ def test_a_prose_result_is_still_valid_json():
     # memory_search now defaults to records on the CLI, so ask for the display
     # string explicitly — that is the path this guards. A tool WITHOUT an
     # as_records option would take it implicitly.
-    r = _run(["memory", "memory_search", "--query", "postgres", "--k", "1",
-              "--no-as_records"])
+    r = _run(["memory", "memory_search", "--query", "postgres", "--k", "1", "--no-as_records"])
     assert r.returncode == 0, r.stderr[-400:]
-    payload = json.loads(r.stdout)          # must not raise
-    assert isinstance(payload, str), (
-        "a prose result was emitted unwrapped, so stdout is no longer "
-        "guaranteed-parseable"
-    )
+    payload = json.loads(r.stdout)  # must not raise
+    assert isinstance(payload, str), "a prose result was emitted unwrapped, so stdout is no longer guaranteed-parseable"
 
 
 def test_ids_can_be_extracted_without_scraping_text():
@@ -90,12 +89,10 @@ def test_ids_can_be_extracted_without_scraping_text():
     projection.
     """
     marker = "zeta-pipeline-marker-" + os.urandom(4).hex()
-    w = _run(["memory", "memory_write", "--content", marker,
-              "--type", "note", "--title", marker])
+    w = _run(["memory", "memory_write", "--content", marker, "--type", "note", "--title", marker])
     assert w.returncode == 0, w.stderr[-300:]
 
-    r = _run(["memory", "memory_search", "--query", marker, "--k", "3",
-              "--as_records"])
+    r = _run(["memory", "memory_search", "--query", marker, "--k", "3", "--as_records"])
     assert r.returncode == 0, r.stderr[-400:]
     items = json.loads(r.stdout)["items"]
     assert items, "the seeded memory was not returned"
@@ -104,6 +101,7 @@ def test_ids_can_be_extracted_without_scraping_text():
 
 
 # ── the pipeline completes ───────────────────────────────────────────────────
+
 
 def test_a_cli_search_stamps_access_so_a_grade_can_land():
     """⚠ THE BLOCKER. Without a synchronous drain the process exits before the
@@ -118,11 +116,9 @@ def test_a_cli_search_stamps_access_so_a_grade_can_land():
     import memory_core as mc
 
     marker = "stamp-probe-" + os.urandom(4).hex()
-    assert _run(["memory", "memory_write", "--content", marker,
-                 "--type", "note", "--title", marker]).returncode == 0
+    assert _run(["memory", "memory_write", "--content", marker, "--type", "note", "--title", marker]).returncode == 0
 
-    r = _run(["memory", "memory_search", "--query", marker,
-              "--k", "3", "--as_records"])
+    r = _run(["memory", "memory_search", "--query", marker, "--k", "3", "--as_records"])
     assert r.returncode == 0, r.stderr[-400:]
     ids = [i["id"] for i in json.loads(r.stdout)["items"]]
     assert ids, "the seeded memory was not returned — nothing to assert on"
@@ -145,29 +141,23 @@ def test_a_cli_search_stamps_access_so_a_grade_can_land():
 def test_search_then_grade_composes_end_to_end():
     """The pipeline a user would now obviously write."""
     marker = "grade-probe-" + os.urandom(4).hex()
-    assert _run(["memory", "memory_write", "--content", marker,
-                 "--type", "note", "--title", marker]).returncode == 0
+    assert _run(["memory", "memory_write", "--content", marker, "--type", "note", "--title", marker]).returncode == 0
 
-    search = _run(["memory", "memory_search", "--query", marker,
-                   "--k", "2", "--as_records"])
+    search = _run(["memory", "memory_search", "--query", marker, "--k", "2", "--as_records"])
     assert search.returncode == 0, search.stderr[-400:]
     items = json.loads(search.stdout)["items"]
     assert items, "the seeded memory was not returned — nothing to grade"
 
-    grades = json.dumps({"grades": [
-        {"memory_id": i["id"], "verdict": "helpful"} for i in items
-    ]})
-    graded = _run(["memory", "memory_grade", "--json-file", "-"],
-                  stdin_text=grades)
+    grades = json.dumps({"grades": [{"memory_id": i["id"], "verdict": "helpful"} for i in items]})
+    graded = _run(["memory", "memory_grade", "--json-file", "-"], stdin_text=grades)
     assert graded.returncode == 0, graded.stderr[-400:]
     out = json.loads(graded.stdout)
-    assert out["applied"] is True, (
-        f"grades did not apply: {out.get('reason')} / {out.get('observed')}"
-    )
+    assert out["applied"] is True, f"grades did not apply: {out.get('reason')} / {out.get('observed')}"
     assert out["graded"] == len(items)
 
 
 # ── the access flusher goes through the seam ─────────────────────────────────
+
 
 def test_the_access_flusher_does_not_hardcode_placeholders():
     """⚠ POSTGRES REJECTED THIS SQL OUTRIGHT, AND THE ERROR WAS SWALLOWED.
@@ -184,10 +174,8 @@ def test_the_access_flusher_does_not_hardcode_placeholders():
     from memory import db as mdb
 
     src = inspect.getsource(mdb._flush_access_batch)
-    assert "_d.param()" in src or "_p" in src, (
-        "the access flusher no longer resolves its placeholder from the dialect"
-    )
-    assert 'last_accessed_at = ?' not in src, (
+    assert "_d.param()" in src or "_p" in src, "the access flusher no longer resolves its placeholder from the dialect"
+    assert "last_accessed_at = ?" not in src, (
         "the access flusher hardcodes a '?' placeholder again — PostgreSQL "
         "rejects it and the failure is swallowed at debug level"
     )
@@ -212,6 +200,7 @@ def test_flush_never_raises_into_the_caller():
 
 
 # ── every search path records retrieval ──────────────────────────────────────
+
 
 def test_all_three_search_paths_stamp_through_one_owner():
     """⚠ THE MOST PRECISE RESULTS WERE THE LEAST LIKELY TO BE STAMPED.
@@ -245,19 +234,18 @@ def test_all_three_search_paths_stamp_through_one_owner():
 def test_an_exact_phrase_hit_is_stamped(tmp_path):
     """The concrete case: search by exact title, then confirm it is gradeable."""
     marker = "exactphrase-" + os.urandom(4).hex()
-    assert _run(["memory", "memory_write", "--content", marker,
-                 "--type", "note", "--title", marker]).returncode == 0
+    assert _run(["memory", "memory_write", "--content", marker, "--type", "note", "--title", marker]).returncode == 0
 
     # An exact-substring query >3 chars takes the short-circuit path.
-    r = _run(["memory", "memory_search", "--query", marker, "--k", "1",
-              "--as_records"])
+    r = _run(["memory", "memory_search", "--query", marker, "--k", "1", "--as_records"])
     assert r.returncode == 0, r.stderr[-400:]
     items = json.loads(r.stdout)["items"]
     assert items, "the exact-phrase query returned nothing"
 
-    graded = _run(["memory", "memory_grade", "--json-file", "-"],
-                  stdin_text=json.dumps({"grades": [
-                      {"memory_id": items[0]["id"], "verdict": "helpful"}]}))
+    graded = _run(
+        ["memory", "memory_grade", "--json-file", "-"],
+        stdin_text=json.dumps({"grades": [{"memory_id": items[0]["id"], "verdict": "helpful"}]}),
+    )
     out = json.loads(graded.stdout)
     assert out["applied"] is True, (
         f"an exact-phrase hit could not be graded: {out.get('reason')} — the "
@@ -266,6 +254,7 @@ def test_an_exact_phrase_hit_is_stamped(tmp_path):
 
 
 # ── a completed-but-inapplicable call narrates on stderr ─────────────────────
+
 
 def test_a_non_applied_result_is_narrated_on_stderr():
     """⚠ A SUCCESS THAT DID NOTHING WAS INVISIBLE TO A PIPELINE.
@@ -282,33 +271,27 @@ def test_a_non_applied_result_is_narrated_on_stderr():
     import memory_core as mc
 
     marker = "stale-narrate-" + os.urandom(4).hex()
-    assert _run(["memory", "memory_write", "--content", marker,
-                 "--type", "note", "--title", marker]).returncode == 0
-    r = _run(["memory", "memory_search", "--query", marker, "--k", "1",
-              "--as_records"])
+    assert _run(["memory", "memory_write", "--content", marker, "--type", "note", "--title", marker]).returncode == 0
+    r = _run(["memory", "memory_search", "--query", marker, "--k", "1", "--as_records"])
     mid = json.loads(r.stdout)["items"][0]["id"]
 
     # Age the retrieval past the window so the grade is declined.
     with mc._db() as db:
-        db.execute("UPDATE memory_items SET last_accessed_at = ? WHERE id = ?",
-                   ("2020-01-01T00:00:00+00:00", mid))
+        db.execute("UPDATE memory_items SET last_accessed_at = ? WHERE id = ?", ("2020-01-01T00:00:00+00:00", mid))
         db.commit()
 
-    graded = _run(["memory", "memory_grade", "--json-file", "-"],
-                  stdin_text=json.dumps({"grades": [
-                      {"memory_id": mid, "verdict": "helpful"}]}))
-
-    assert graded.returncode == 0, (
-        "a declined grade is a result, not a failure — the exit code must stay 0"
+    graded = _run(
+        ["memory", "memory_grade", "--json-file", "-"],
+        stdin_text=json.dumps({"grades": [{"memory_id": mid, "verdict": "helpful"}]}),
     )
+
+    assert graded.returncode == 0, "a declined grade is a result, not a failure — the exit code must stay 0"
     payload = json.loads(graded.stdout)
     assert payload["applied"] is False
     assert "reason" not in graded.stdout or True  # payload keeps the machine signal
 
     err = graded.stderr
-    assert "applied nothing" in err, (
-        f"nothing on stderr explained the non-application: {err[-200:]!r}"
-    )
+    assert "applied nothing" in err, f"nothing on stderr explained the non-application: {err[-200:]!r}"
     assert "observed:" in err, "the §3 observed: line was not relayed"
     assert "inspect:" in err, "the §3 inspect: line (the knob) was not relayed"
     # Verbatim, not paraphrased.
@@ -323,19 +306,16 @@ def test_a_successful_call_says_nothing_on_stderr():
     one that matters, which is a violation in its own right.
     """
     marker = "quiet-" + os.urandom(4).hex()
-    assert _run(["memory", "memory_write", "--content", marker,
-                 "--type", "note", "--title", marker]).returncode == 0
-    r = _run(["memory", "memory_search", "--query", marker, "--k", "1",
-              "--as_records"])
+    assert _run(["memory", "memory_write", "--content", marker, "--type", "note", "--title", marker]).returncode == 0
+    r = _run(["memory", "memory_search", "--query", marker, "--k", "1", "--as_records"])
     mid = json.loads(r.stdout)["items"][0]["id"]
 
-    graded = _run(["memory", "memory_grade", "--json-file", "-"],
-                  stdin_text=json.dumps({"grades": [
-                      {"memory_id": mid, "verdict": "helpful"}]}))
-    assert json.loads(graded.stdout)["applied"] is True
-    assert "applied nothing" not in graded.stderr, (
-        "the non-application note fired on a call that DID apply"
+    graded = _run(
+        ["memory", "memory_grade", "--json-file", "-"],
+        stdin_text=json.dumps({"grades": [{"memory_id": mid, "verdict": "helpful"}]}),
     )
+    assert json.loads(graded.stdout)["applied"] is True
+    assert "applied nothing" not in graded.stderr, "the non-application note fired on a call that DID apply"
 
 
 def test_stdout_stays_pure_json_when_stderr_narrates():
@@ -343,18 +323,16 @@ def test_stdout_stays_pure_json_when_stderr_narrates():
     import memory_core as mc
 
     marker = "purity-" + os.urandom(4).hex()
-    assert _run(["memory", "memory_write", "--content", marker,
-                 "--type", "note", "--title", marker]).returncode == 0
-    r = _run(["memory", "memory_search", "--query", marker, "--k", "1",
-              "--as_records"])
+    assert _run(["memory", "memory_write", "--content", marker, "--type", "note", "--title", marker]).returncode == 0
+    r = _run(["memory", "memory_search", "--query", marker, "--k", "1", "--as_records"])
     mid = json.loads(r.stdout)["items"][0]["id"]
     with mc._db() as db:
-        db.execute("UPDATE memory_items SET last_accessed_at = ? WHERE id = ?",
-                   ("2020-01-01T00:00:00+00:00", mid))
+        db.execute("UPDATE memory_items SET last_accessed_at = ? WHERE id = ?", ("2020-01-01T00:00:00+00:00", mid))
         db.commit()
 
-    graded = _run(["memory", "memory_grade", "--json-file", "-"],
-                  stdin_text=json.dumps({"grades": [
-                      {"memory_id": mid, "verdict": "helpful"}]}))
-    json.loads(graded.stdout)      # must not raise
+    graded = _run(
+        ["memory", "memory_grade", "--json-file", "-"],
+        stdin_text=json.dumps({"grades": [{"memory_id": mid, "verdict": "helpful"}]}),
+    )
+    json.loads(graded.stdout)  # must not raise
     assert graded.stderr.strip(), "stderr should carry the narration"

@@ -13,6 +13,7 @@ asserted on input that FITS the token budget, where the char pass is the only
 one that fires. The token bound gets its own tests below, and
 tests/test_token_budget.py covers the estimator itself.
 """
+
 import os
 import sys
 import unittest
@@ -26,11 +27,13 @@ class SlidingWindowTests(unittest.TestCase):
         # In practice the constants are read at module import; we set defaults
         # here and rely on the module being imported once with those defaults.
         import memory_core
+
         self.mc = memory_core
         self.MAX = memory_core.MAX_CHARS_PER_CHUNK
         self.OVL = memory_core.MIN_OVERLAP_CHARS
         self.STRIDE = memory_core.STRIDE_CHARS
         from memory.tokens import TOKEN_BUDGET, estimate_tokens
+
         self.BUDGET = TOKEN_BUDGET
         self.estimate = estimate_tokens
         # Longest ASCII run that still fits the token budget. ASCII is the
@@ -72,8 +75,7 @@ class SlidingWindowTests(unittest.TestCase):
     def test_just_over_token_budget_produces_multiple_windows(self):
         """One character past the token budget must yield >1 window, each
         within budget, with full coverage."""
-        text = "".join(chr(ord("a") + (i % 26))
-                       for i in range(self.BUDGET_CHARS + 1))
+        text = "".join(chr(ord("a") + (i % 26)) for i in range(self.BUDGET_CHARS + 1))
         result = self.mc._chunk_for_sliding_window(text)
         self.assertGreater(len(result), 1)
         for chunk, _ in result:
@@ -88,7 +90,8 @@ class SlidingWindowTests(unittest.TestCase):
             result = self.mc._chunk_for_sliding_window(text)
             for chunk_text, _ in result:
                 self.assertLessEqual(
-                    len(chunk_text), self.MAX,
+                    len(chunk_text),
+                    self.MAX,
                     f"chunk over ceiling for n={n}: {len(chunk_text)} > {self.MAX}",
                 )
 
@@ -101,16 +104,14 @@ class SlidingWindowTests(unittest.TestCase):
         SHRINK; re-adding overlap would push it back over n_ctx), so coverage —
         not overlap — is the invariant that matters for not losing content."""
         for text in (
-            "x" * (self.MAX - 1),                     # char-fits, token-oversize
-            "数据库连接失败" * 2000,                     # dense CJK
+            "x" * (self.MAX - 1),  # char-fits, token-oversize
+            "数据库连接失败" * 2000,  # dense CJK
             "".join(chr(ord("a") + (i % 26)) for i in range(self.MAX * 2 + 13)),
         ):
             result = self.mc._chunk_for_sliding_window(text)
             self.assertGreater(len(result), 1)
             for chunk, _ in result:
-                self.assertLessEqual(
-                    self.estimate(chunk), self.BUDGET,
-                    "a window exceeded the token budget")
+                self.assertLessEqual(self.estimate(chunk), self.BUDGET, "a window exceeded the token budget")
             # Every character survives somewhere, in order.
             self.assertTrue(text.startswith(result[0][0]))
             self.assertTrue(text.endswith(result[-1][0]))
@@ -143,6 +144,7 @@ class SlidingWindowTests(unittest.TestCase):
             text = "K" + "x" * (n - 1)
             result = self.mc._chunk_for_sliding_window(text)
             self.assertTrue(result[0][0].startswith("K"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -11,6 +11,7 @@ CONTRACT: this module must NOT import `memory.search` (that would create a
 cycle, since search.py re-imports these names at its top to keep the
 memory_core lazy-registry shim resolving to the same function objects).
 """
+
 from __future__ import annotations
 
 import json
@@ -76,6 +77,7 @@ def _pull_predecessor_turns(scored: list, user_id: str = "", scope: str = "") ->
         # on PostgreSQL. Route binds through param()/placeholder() and the JSON
         # cast through json_extract_int() so this executes on both backends.
         from .backends import dialect as _dialect
+
         _d = _dialect()
         _p = _d.param()
         with _db() as db:
@@ -303,7 +305,6 @@ def is_temporal_query(query: str) -> bool:
     if not query:
         return False
     return bool(_TEMPORAL_ROUTER_RE.search(query))
-
 
 
 # ──────────────────────────────────────────────────────────────────────────────

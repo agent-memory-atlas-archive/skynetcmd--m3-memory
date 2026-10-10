@@ -10,6 +10,7 @@ passing it straight to spec.impl(**args). Any impl with a strict signature
 "unexpected keyword argument 'timeout'". This test guards both wrapper
 branches (sync + async).
 """
+
 import asyncio
 
 
@@ -97,9 +98,7 @@ def test_sync_impl_offloaded_on_mcp_path():
         seen["thread"] = threading.current_thread().name
         return f"sync:{query}"
 
-    fn = memory_bridge._build_typed_function(
-        _spec(_thread_probe_impl, is_async=False), for_mcp=True
-    )
+    fn = memory_bridge._build_typed_function(_spec(_thread_probe_impl, is_async=False), for_mcp=True)
     assert inspect.iscoroutinefunction(fn), "MCP-path sync impl must become async"
 
     async def _drive():
@@ -118,9 +117,7 @@ def test_async_impl_unaffected_by_for_mcp():
     import memory_bridge
 
     f_plain = memory_bridge._build_typed_function(_spec(_strict_async_impl, is_async=True))
-    f_mcp = memory_bridge._build_typed_function(
-        _spec(_strict_async_impl, is_async=True), for_mcp=True
-    )
+    f_mcp = memory_bridge._build_typed_function(_spec(_strict_async_impl, is_async=True), for_mcp=True)
     assert inspect.iscoroutinefunction(f_plain)
     assert inspect.iscoroutinefunction(f_mcp)
     assert asyncio.run(f_mcp(query="hi", timeout=1)) == "async:hi"

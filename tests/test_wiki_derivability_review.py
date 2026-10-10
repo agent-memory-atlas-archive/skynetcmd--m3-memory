@@ -5,6 +5,7 @@ queue with a deterministic derivability signal (surviving provenance sources) an
 a 30-day review SLA. Deterministic + report-only; the optional LLM judge is
 exercised with a stub (no model on this path, mirrors citation_drift).
 """
+
 from __future__ import annotations
 
 import json
@@ -24,8 +25,7 @@ from wiki import derivability_review as DR  # noqa: E402
 from wiki.cluster import Cluster  # noqa: E402
 from wiki.select import Edge, Mem  # noqa: E402
 
-_DERIV_FIXTURE = (Path(__file__).resolve().parent / "fixtures" / "citation_drift"
-                  / "derivability_pairs.json")
+_DERIV_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "citation_drift" / "derivability_pairs.json"
 
 _NOW = datetime(2026, 7, 25, tzinfo=UTC)
 
@@ -40,21 +40,42 @@ def _syn(id, *, restricted=True, erased_days_ago=1.0, erasures=1, content="the c
         review = {
             "restricted": True,
             "erasure_records": [
-                {"erased_members": 1, "erased_at": _erased_at(erased_days_ago),
-                 "reason": "gdpr_forget (Art. 17)"}
+                {"erased_members": 1, "erased_at": _erased_at(erased_days_ago), "reason": "gdpr_forget (Art. 17)"}
                 for _ in range(erasures)
             ],
         }
     meta = {"restricted": True, "review": review} if restricted else {}
-    return Mem(id=id, type="synthesis", title=id, content=content, importance=0.5,
-               confidence=0.5, valid_from=None, valid_to=None, pinned=0,
-               created_at=None, updated_at=None, metadata=meta)
+    return Mem(
+        id=id,
+        type="synthesis",
+        title=id,
+        content=content,
+        importance=0.5,
+        confidence=0.5,
+        valid_from=None,
+        valid_to=None,
+        pinned=0,
+        created_at=None,
+        updated_at=None,
+        metadata=meta,
+    )
 
 
 def _src(id, content="a surviving source"):
-    return Mem(id=id, type="belief", title=id, content=content, importance=0.5,
-               confidence=0.5, valid_from=None, valid_to=None, pinned=0,
-               created_at=None, updated_at=None, metadata={})
+    return Mem(
+        id=id,
+        type="belief",
+        title=id,
+        content=content,
+        importance=0.5,
+        confidence=0.5,
+        valid_from=None,
+        valid_to=None,
+        pinned=0,
+        created_at=None,
+        updated_at=None,
+        metadata={},
+    )
 
 
 class _StubJudge:
@@ -71,6 +92,7 @@ class _StubJudge:
 
 
 # ── deterministic queue ──────────────────────────────────────────────────────
+
 
 def test_restricted_with_surviving_source_is_unrestrict_candidate():
     syn, src = _syn("s"), _src("x")
@@ -102,8 +124,10 @@ def test_edge_to_a_since_erased_member_does_not_count_as_surviving():
     # an edge whose to_id is NOT a live member (erased) must not count.
     syn, src = _syn("s"), _src("live")
     clusters = [Cluster(key="s", members=[syn, src])]
-    edges = [Edge("s", "erased-ghost", "consolidates"),  # target row gone
-             Edge("s", "live", "distills_from")]         # target survives
+    edges = [
+        Edge("s", "erased-ghost", "consolidates"),  # target row gone
+        Edge("s", "live", "distills_from"),
+    ]  # target survives
     r = DR.build_queue(clusters, edges, now=_NOW)
     assert r.items[0].surviving_sources == 1
 
@@ -155,6 +179,7 @@ def test_queue_never_mutates_metadata():
 
 # ── optional judge ───────────────────────────────────────────────────────────
 
+
 def test_judge_sees_only_surviving_sources():
     syn, src = _syn("s", content="claim"), _src("x", "surviving text")
     clusters = [Cluster(key="s", members=[syn, src])]
@@ -181,16 +206,15 @@ def test_judge_says_not_derivable_removes_from_unrestrict_candidates():
     j = _StubJudge(derivable=False)
     r = DR.build_queue(clusters, [Edge("s", "x", "consolidates")], judge=j, now=_NOW)
     it = r.items[0]
-    assert it.derivable_candidate is True          # deterministic floor still true
-    assert it.judged_derivable is False            # but judge overrode
-    assert r.unrestrict_candidates == []           # so not an unrestrict candidate
+    assert it.derivable_candidate is True  # deterministic floor still true
+    assert it.judged_derivable is False  # but judge overrode
+    assert r.unrestrict_candidates == []  # so not an unrestrict candidate
 
 
 def test_judge_error_is_fail_open():
     syn, src = _syn("s"), _src("x")
     clusters = [Cluster(key="s", members=[syn, src])]
-    r = DR.build_queue(clusters, [Edge("s", "x", "consolidates")],
-                       judge=_StubJudge(raises=True), now=_NOW)
+    r = DR.build_queue(clusters, [Edge("s", "x", "consolidates")], judge=_StubJudge(raises=True), now=_NOW)
     assert r.abstained == 1
     assert r.items[0].judged_derivable is None
     # falls back to the deterministic floor
@@ -200,14 +224,14 @@ def test_judge_error_is_fail_open():
 def test_judge_abstain_falls_back_to_floor():
     syn, src = _syn("s"), _src("x")
     clusters = [Cluster(key="s", members=[syn, src])]
-    r = DR.build_queue(clusters, [Edge("s", "x", "consolidates")],
-                       judge=_StubJudge(abstain=True), now=_NOW)
+    r = DR.build_queue(clusters, [Edge("s", "x", "consolidates")], judge=_StubJudge(abstain=True), now=_NOW)
     assert r.abstained == 1
     assert r.items[0].judged_derivable is None
     assert r.unrestrict_candidates == [r.items[0]]
 
 
 # ── render section ───────────────────────────────────────────────────────────
+
 
 def test_render_none_report_is_empty():
     assert DR.render_section(None) == []
@@ -238,6 +262,7 @@ def test_render_lists_overdue_first_and_states():
 
 # ── optional model-backed judge: hermetic + live ─────────────────────────────
 
+
 def _load_deriv_cases():
     data = json.loads(_DERIV_FIXTURE.read_text(encoding="utf-8"))
     return data["cases"], data.get("recall_floor", 0.8), data.get("precision_floor", 0.8)
@@ -260,8 +285,8 @@ def test_model_judge_fails_open_when_model_unreachable(tmp_path):
     """A dead endpoint → abstain (derivable=None), never raise, never force a
     decision on privacy-erased content. Runs on the hermetic lane (own bad URL)."""
     from wiki.citation_drift import DriftConfig
-    cfg = DriftConfig(url="http://127.0.0.1:9/invalid", timeout_s=1.0,
-                      cache_dir=str(tmp_path / "c"))
+
+    cfg = DriftConfig(url="http://127.0.0.1:9/invalid", timeout_s=1.0, cache_dir=str(tmp_path / "c"))
     j = DR.ModelDerivabilityJudge(cfg)
     v = j.judge("a claim", ["a surviving source"])
     assert v.derivable is None
@@ -278,6 +303,7 @@ def test_model_judge_meets_floor_on_fixture(tmp_path):
     LOOSE. Measured 2026-07-25 (local model): precision 1.00, recall 0.67 — the
     single miss was a defensible conservative read of a generalizing paraphrase."""
     from wiki.citation_drift import DriftConfig
+
     cases, recall_floor, precision_floor = _load_deriv_cases()
     j = DR.ModelDerivabilityJudge(DriftConfig.from_env(cache_dir=str(tmp_path)))
     tp = fp = fn = tn = ab = 0

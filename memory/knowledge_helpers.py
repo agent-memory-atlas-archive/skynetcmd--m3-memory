@@ -18,7 +18,14 @@ from memory_bridge import (  # type: ignore[attr-defined]  # dynamic registratio
 from memory_core import _db
 
 
-def add_knowledge(content: str, title: str = "", source: str = "", tags: list[str] = None, item_type: str = "knowledge", metadata: str = "") -> str:
+def add_knowledge(
+    content: str,
+    title: str = "",
+    source: str = "",
+    tags: list[str] = None,
+    item_type: str = "knowledge",
+    metadata: str = "",
+) -> str:
     """Adds a new knowledge item to memory."""
     tags = tags or []
     # If custom metadata JSON is provided, use it; otherwise build from source/tags
@@ -32,27 +39,28 @@ def add_knowledge(content: str, title: str = "", source: str = "", tags: list[st
         asyncio.get_running_loop()
         return "Error: add_knowledge called from running event loop. Use async version."
     except RuntimeError:
-        return asyncio.run(memory_write(
-            type=item_type,
-            content=content,
-            title=title,
-            metadata=final_metadata
-        ))
+        return asyncio.run(memory_write(type=item_type, content=content, title=title, metadata=final_metadata))
 
-def update_knowledge(item_id: str, content: str = "", title: str = "", metadata: str = "", importance: float = -1.0, reembed: bool = False) -> str:
+
+def update_knowledge(
+    item_id: str,
+    content: str = "",
+    title: str = "",
+    metadata: str = "",
+    importance: float = -1.0,
+    reembed: bool = False,
+) -> str:
     """Updates an existing knowledge item."""
     try:
         asyncio.get_running_loop()
         return "Error: update_knowledge called from running event loop. Use async version."
     except RuntimeError:
-        return asyncio.run(memory_update(
-            id=item_id,
-            content=content,
-            title=title,
-            metadata=metadata,
-            importance=importance,
-            reembed=reembed
-        ))
+        return asyncio.run(
+            memory_update(
+                id=item_id, content=content, title=title, metadata=metadata, importance=importance, reembed=reembed
+            )
+        )
+
 
 def search_knowledge(query: str, k: int = 8, type_filter: str = "") -> str:
     """Searches knowledge items using hybrid semantic/keyword search."""
@@ -60,23 +68,25 @@ def search_knowledge(query: str, k: int = 8, type_filter: str = "") -> str:
         asyncio.get_running_loop()
         return "Error: search_knowledge called from running event loop."
     except RuntimeError:
-        return asyncio.run(memory_search(
-            query=query,
-            k=k,
-            type_filter=type_filter
-        ))
+        return asyncio.run(memory_search(query=query, k=k, type_filter=type_filter))
+
 
 def get_all_types() -> list[str]:
     """Returns a list of all distinct memory item types in the database."""
     with _db() as db:
-        rows = db.execute("SELECT DISTINCT type FROM memory_items WHERE type IS NOT NULL AND type != '' ORDER BY type").fetchall()
+        rows = db.execute(
+            "SELECT DISTINCT type FROM memory_items WHERE type IS NOT NULL AND type != '' ORDER BY type"
+        ).fetchall()
         return [r["type"] for r in rows]
+
 
 def list_knowledge(limit: int = 50, type_filter: str = "") -> list[dict]:
     """Lists recent knowledge items without semantic search."""
     with _db() as db:
         if type_filter:
-            is_exact = (type_filter.startswith('"') and type_filter.endswith('"')) or (type_filter.startswith("'") and type_filter.endswith("'"))
+            is_exact = (type_filter.startswith('"') and type_filter.endswith('"')) or (
+                type_filter.startswith("'") and type_filter.endswith("'")
+            )
             actual_type = type_filter[1:-1] if is_exact else type_filter
             if is_exact:
                 sql = """
@@ -117,17 +127,20 @@ def list_knowledge(limit: int = 50, type_filter: str = "") -> list[dict]:
                 except json.JSONDecodeError:
                     pass
 
-            results.append({
-                "id": r["id"],
-                "type": r["type"],
-                "title": r["title"],
-                "content": r["content"],
-                "source": meta.get("source", ""),
-                "tags": meta.get("tags", []),
-                "created_at": r["created_at"],
-                "importance": r["importance"]
-            })
+            results.append(
+                {
+                    "id": r["id"],
+                    "type": r["type"],
+                    "title": r["title"],
+                    "content": r["content"],
+                    "source": meta.get("source", ""),
+                    "tags": meta.get("tags", []),
+                    "created_at": r["created_at"],
+                    "importance": r["importance"],
+                }
+            )
         return results
+
 
 def delete_knowledge(item_id: str, hard: bool = False) -> str:
     """Deletes a knowledge item by ID."""

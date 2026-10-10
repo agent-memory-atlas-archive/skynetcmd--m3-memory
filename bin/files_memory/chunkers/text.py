@@ -18,6 +18,7 @@ Yields Leaf with:
   division_label = '<first 60 chars of text>...'
   boundary_confidence = 0.8 (paragraph boundaries are good but not structural)
 """
+
 from __future__ import annotations
 
 import logging
@@ -59,7 +60,7 @@ def chunk(path: str, text: str | None = None) -> Iterator[Leaf]:
     paragraphs: list[tuple[int, str]] = []
     cursor = 0
     for m in para_re.finditer(body):
-        para = body[cursor:m.start()]
+        para = body[cursor : m.start()]
         if para.strip():
             paragraphs.append((cursor + lstrip_offset, para))
         cursor = m.end()

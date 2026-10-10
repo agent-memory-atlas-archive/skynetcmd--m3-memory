@@ -31,6 +31,7 @@ Backend rules (§1): this module writes through `memory_write_impl` and never
 emits SQL. WAL checkpointing goes through `backend.maintenance_checkpoint()`;
 metadata reads go through `dialect.json_column_to_dict()`. No `if backend ==`.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -77,9 +78,10 @@ class ProseCompiler(Protocol):
 @dataclass(slots=True)
 class CompileResult:
     """Per-cluster outcome, for reporting + the idempotence metric."""
+
     cluster_key: str
-    action: str                 # "skipped-hash" | "skipped-identical" |
-                                # "created" | "superseded" | "compile-failed"
+    action: str  # "skipped-hash" | "skipped-identical" |
+    # "created" | "superseded" | "compile-failed"
     synthesis_id: str | None = None
     superseded_id: str | None = None
 
@@ -102,8 +104,7 @@ class CompileStats:
             "created": lambda: setattr(self, "created", self.created + 1),
             "superseded": lambda: setattr(self, "superseded", self.superseded + 1),
             "skipped-hash": lambda: setattr(self, "skipped_hash", self.skipped_hash + 1),
-            "skipped-identical": lambda: setattr(
-                self, "skipped_identical", self.skipped_identical + 1),
+            "skipped-identical": lambda: setattr(self, "skipped_identical", self.skipped_identical + 1),
             "compile-failed": lambda: setattr(self, "failed", self.failed + 1),
         }[r.action]()
 
@@ -113,19 +114,21 @@ class CompileStats:
         whatever the per-cluster outcome (created / superseded / skipped / failed).
         The retry wrapper uses (admitted == 0 and demoted > 0) as its cold-corpus
         signal: every cluster existed but the gate sent them all to orphans."""
-        return (self.created + self.superseded + self.skipped_hash
-                + self.skipped_identical + self.failed)
+        return self.created + self.superseded + self.skipped_hash + self.skipped_identical + self.failed
 
     def summary(self) -> str:
         demoted = f", {self.demoted} demoted (weak-anchor)" if self.demoted else ""
-        return (f"compile: {self.created} created, {self.superseded} superseded, "
-                f"{self.skipped_hash + self.skipped_identical} skipped "
-                f"({self.skipped_hash} unchanged, {self.skipped_identical} identical), "
-                f"{self.failed} failed{demoted}; prompts {self.prompts_written} written / "
-                f"{self.prompts_reused} reused")
+        return (
+            f"compile: {self.created} created, {self.superseded} superseded, "
+            f"{self.skipped_hash + self.skipped_identical} skipped "
+            f"({self.skipped_hash} unchanged, {self.skipped_identical} identical), "
+            f"{self.failed} failed{demoted}; prompts {self.prompts_written} written / "
+            f"{self.prompts_reused} reused"
+        )
 
 
 # ── pure helpers (deterministic, unit-tested without a model) ─────────────────
+
 
 def source_members(cluster: Cluster) -> list:
     """Cluster members that are legitimate SOURCES for a synthesis — i.e. NOT
@@ -214,8 +217,13 @@ def is_compiler_prompt(metadata: dict) -> bool:
 
 
 async def _ensure_prompt_row(
-    compiler: ProseCompiler, stats: CompileStats, *, scope: str, user_id: str,
-    _write=None, _lookup=None,
+    compiler: ProseCompiler,
+    stats: CompileStats,
+    *,
+    scope: str,
+    user_id: str,
+    _write=None,
+    _lookup=None,
 ) -> str:
     """Persist the compiler's prompt text ONCE (deduped by content hash), return
     its memory id. A re-run with an unchanged prompt must not create a 2nd row —
@@ -235,14 +243,23 @@ async def _ensure_prompt_row(
         stats.prompts_reused += 1
         return existing
 
-    meta = {_PROMPT_MARKER: True, "prompt_version": compiler.prompt_version,
-            "prompt_hash": digest, "model": compiler.model}
+    meta = {
+        _PROMPT_MARKER: True,
+        "prompt_version": compiler.prompt_version,
+        "prompt_hash": digest,
+        "model": compiler.model,
+    }
     new_id = await _write(
-        type=_PROMPT_TYPE, content=text, title=title,
+        type=_PROMPT_TYPE,
+        content=text,
+        title=title,
         metadata=json.dumps(meta),
         # Below any wiki importance threshold + marked, so it never renders as a
         # topic. embed=False: a prompt is not a retrieval target.
-        importance=0.0, embed=False, scope=scope or "agent", user_id=user_id,
+        importance=0.0,
+        embed=False,
+        scope=scope or "agent",
+        user_id=user_id,
         source="wiki-compile",
     )
     stats.prompts_written += 1
@@ -272,9 +289,7 @@ def _find_prompt_by_title(title: str, *, _lookup=None) -> str | None:
         p = dialect().param()
         with _db() as conn:
             row = conn.execute(
-                f"SELECT id FROM memory_items "
-                f"WHERE title = {p} AND is_deleted = 0 "
-                f"ORDER BY id LIMIT 1",
+                f"SELECT id FROM memory_items WHERE title = {p} AND is_deleted = 0 ORDER BY id LIMIT 1",
                 (title,),
             ).fetchone()
     except Exception:
@@ -327,6 +342,7 @@ async def compile_cluster(
         # regardless of instruction. Also feeds the prose_hash below, so the
         # idempotence gate keys on the scrubbed text (stable across runs).
         from .pii_scrub import scrub_prose
+
         prose, _n = scrub_prose(prose)
     if not prose:  # fail-open: a compiler failure must not abort the batch.
         r = CompileResult(key, "compile-failed")
@@ -348,10 +364,16 @@ async def compile_cluster(
         if _write is None:
             from memory.write import memory_write_impl as _write
         new_raw = await _write(
-            type="synthesis", content=prose, title=title,
-            metadata=json.dumps(meta), confidence=conf,
-            importance=_cluster_importance(cluster), embed=True,
-            embed_text=embed_text, scope=scope, user_id=user_id,
+            type="synthesis",
+            content=prose,
+            title=title,
+            metadata=json.dumps(meta),
+            confidence=conf,
+            importance=_cluster_importance(cluster),
+            embed=True,
+            embed_text=embed_text,
+            scope=scope,
+            user_id=user_id,
             source="wiki-compile",
         )
         r = CompileResult(key, "created", synthesis_id=_extract_id(new_raw))
@@ -359,13 +381,19 @@ async def compile_cluster(
         if _supersede is None:
             from memory.write import memory_supersede_impl as _supersede
         new_raw = await _supersede(
-            old_id=head.id, type="synthesis", content=prose, title=title,
-            metadata=json.dumps(meta), importance=_cluster_importance(cluster),
-            embed=True, embed_text=embed_text, scope=scope or "", user_id=user_id,
+            old_id=head.id,
+            type="synthesis",
+            content=prose,
+            title=title,
+            metadata=json.dumps(meta),
+            importance=_cluster_importance(cluster),
+            embed=True,
+            embed_text=embed_text,
+            scope=scope or "",
+            user_id=user_id,
             source="wiki-compile",
         )
-        r = CompileResult(key, "superseded",
-                          synthesis_id=_extract_id(new_raw), superseded_id=head.id)
+        r = CompileResult(key, "superseded", synthesis_id=_extract_id(new_raw), superseded_id=head.id)
 
     # Write the provenance edges the whole design depends on: a `consolidates`
     # edge from the new synthesis to every source member. Without these the
@@ -415,6 +443,7 @@ def _extract_id(raw: object) -> str:
 class ExistingSynthesis:
     """The current (head) synthesis for a topic, loaded from the store so the
     writer can decide skip vs. supersede without re-deriving it."""
+
     id: str
     cluster_hash: str
     prose_hash: str
@@ -463,6 +492,7 @@ def _admit(clusters, edges, gate, stats: CompileStats) -> list:
     if edges is None:
         return clusters
     from . import admission
+
     gate = gate or admission.load_gate()
     if not gate.enabled:
         return clusters
@@ -534,9 +564,14 @@ async def compile_clusters(
 
     # Ledger: open a provenance run (invisible until completed) and collect the
     # membership rows as we go. All best-effort — a ledger failure must not abort.
-    run_ctx = _LedgerRun(record_run, _ledger_db, scope=scope, user_id=user_id,
-                         importance_threshold=importance_threshold,
-                         entity_comention=entity_comention)
+    run_ctx = _LedgerRun(
+        record_run,
+        _ledger_db,
+        scope=scope,
+        user_id=user_id,
+        importance_threshold=importance_threshold,
+        entity_comention=entity_comention,
+    )
     run_ctx.open()
 
     writes_since_ckpt = 0
@@ -544,9 +579,17 @@ async def compile_clusters(
         title = cluster.members[0].display_title if cluster.members else ""
         head = heads.get(title)
         r = await compile_cluster(
-            cluster, compiler, head, prompt_id, stats,
-            scope=scope, user_id=user_id, _write=_write, _supersede=_supersede,
-            _link=_link)
+            cluster,
+            compiler,
+            head,
+            prompt_id,
+            stats,
+            scope=scope,
+            user_id=user_id,
+            _write=_write,
+            _supersede=_supersede,
+            _link=_link,
+        )
         run_ctx.add(cluster, compiler, r)
         if r.action in ("created", "superseded"):
             writes_since_ckpt += 1
@@ -569,8 +612,7 @@ class _LedgerRun:
     per admitted cluster, then writes them all + completes the run at the end.
     """
 
-    def __init__(self, enabled, db, *, scope, user_id, importance_threshold,
-                 entity_comention):
+    def __init__(self, enabled, db, *, scope, user_id, importance_threshold, entity_comention):
         self.enabled = bool(enabled)
         self._db_arg = db
         self._scope = scope
@@ -587,10 +629,12 @@ class _LedgerRun:
         if self._db_arg is not None:
             self._db = self._db_arg
             from memory.backends import dialect
+
             self._dialect = dialect()
             return True
         from memory.backends import dialect
         from memory.db import _db
+
         self._own_cm = _db()
         self._db = self._own_cm.__enter__()
         self._own_db = True
@@ -602,10 +646,16 @@ class _LedgerRun:
             return
         try:
             from . import ledger
+
             self._resolve()
             self.run_id = ledger.open_run(
-                self._db, self._dialect, scope=self._scope, user_id=self._user_id,
-                importance_threshold=self._tau, entity_comention=self._comention)
+                self._db,
+                self._dialect,
+                scope=self._scope,
+                user_id=self._user_id,
+                importance_threshold=self._tau,
+                entity_comention=self._comention,
+            )
         except _LEDGER_BUGS:
             raise
         except Exception as e:  # pragma: no cover - defensive
@@ -617,6 +667,7 @@ class _LedgerRun:
             return
         try:
             from .synth import _cluster_hash
+
             chash = _cluster_hash(cluster, compiler.model)
             head_id = result.synthesis_id
             for m in cluster.members:  # freeze ALL members (source + synthesis)
@@ -631,9 +682,9 @@ class _LedgerRun:
             return
         try:
             from . import ledger
+
             ledger.record_members(self._db, self._dialect, self.run_id, self._rows)
-            ledger.complete_run(self._db, self._dialect, self.run_id,
-                                cluster_count=cluster_count)
+            ledger.complete_run(self._db, self._dialect, self.run_id, cluster_count=cluster_count)
             # Generational cleanup: keep only this run's cached membership warm.
             ledger.prune_superseded_members(self._db, self._dialect, self.run_id)
             if hasattr(self._db, "commit"):
@@ -666,8 +717,8 @@ _LEDGER_BUGS = (TypeError, AttributeError, ImportError, NameError)
 
 def _log_ledger(phase: str, e: Exception) -> None:
     import logging
-    logging.getLogger("m3.wiki.ledger").warning(
-        "compile ledger %s failed (non-fatal): %r", phase, e)
+
+    logging.getLogger("m3.wiki.ledger").warning("compile ledger %s failed (non-fatal): %r", phase, e)
 
 
 def _try_checkpoint(backend, *, final: bool) -> None:

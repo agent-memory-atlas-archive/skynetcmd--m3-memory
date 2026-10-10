@@ -4,6 +4,7 @@ The bridge's wrappers popped `timeout` and ran the impl unbounded, so the
 argument every tool schema advertises was ignored over MCP only. They now go
 through catalog.dispatch._run_impl_bounded, the path execute_tool uses.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -27,22 +28,23 @@ def _mcp_fn(impl, is_async, timeout_s=None):
     import memory_bridge
 
     spec = cat.ToolSpec(
-        name="memory_probe", description="probe",
+        name="memory_probe",
+        description="probe",
         parameters={"type": "object", "properties": {"timeout": {"type": "number"}}},
-        impl=impl, is_async=is_async, timeout_s=timeout_s,
+        impl=impl,
+        is_async=is_async,
+        timeout_s=timeout_s,
     )
     return memory_bridge._build_typed_function(spec, for_mcp=True)
 
 
-@pytest.mark.parametrize("impl,is_async", [(_slow_async, True), (_slow_sync, False)],
-                         ids=["async-impl", "sync-impl"])
+@pytest.mark.parametrize("impl,is_async", [(_slow_async, True), (_slow_sync, False)], ids=["async-impl", "sync-impl"])
 def test_a_per_call_timeout_bounds_an_mcp_call(impl, is_async):
     out = asyncio.run(_mcp_fn(impl, is_async)(timeout=0.1))
     assert out.startswith("Error: ToolTimeout: memory_probe exceeded 0.1s"), out
 
 
-@pytest.mark.parametrize("impl,is_async", [(_slow_async, True), (_slow_sync, False)],
-                         ids=["async-impl", "sync-impl"])
+@pytest.mark.parametrize("impl,is_async", [(_slow_async, True), (_slow_sync, False)], ids=["async-impl", "sync-impl"])
 def test_timeout_zero_disables_the_bound(impl, is_async):
     assert asyncio.run(_mcp_fn(impl, is_async)(timeout=0)) == "done"
 

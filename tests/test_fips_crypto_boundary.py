@@ -7,6 +7,7 @@ Both now go through crypto_provider. These tests pin (a) byte-compatibility
 with the prior direct paths — so existing audit logs / encrypted secrets stay
 valid — and (b) that the provider routes the call (FIPS-coverable).
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -21,6 +22,7 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC  # noqa: E402
 
 # ── SHA-256 (audit_trail leak) ─────────────────────────────────────────────────
 
+
 def test_provider_sha256_matches_hashlib():
     """get_sha256 must be byte-identical to hashlib on the DEFAULT backend so
     pre-existing audit-trail hash chains still verify."""
@@ -34,6 +36,7 @@ def test_audit_trail_uses_provider(monkeypatch, tmp_path):
     import importlib
 
     import audit_trail
+
     importlib.reload(audit_trail)
     h = audit_trail.write_audit_entry("delete", "mem-1", {"k": "v"})
     assert isinstance(h, str) and len(h) == 64
@@ -41,6 +44,7 @@ def test_audit_trail_uses_provider(monkeypatch, tmp_path):
 
 
 # ── PBKDF2 (auth_utils leak) ────────────────────────────────────────────────────
+
 
 def test_provider_pbkdf2_matches_cryptography():
     """provider.pbkdf2_sha256 must match cryptography's PBKDF2HMAC byte-for-byte
@@ -59,6 +63,7 @@ def test_derive_raw_key_round_trips_through_provider(monkeypatch, tmp_path):
     import importlib
 
     import auth_utils
+
     importlib.reload(auth_utils)
     key = auth_utils._derive_raw_key("master-pw", 100_000)
     assert isinstance(key, (bytes, bytearray)) and len(key) == 32
@@ -75,6 +80,7 @@ def test_fernet_kdf_routes_through_provider(monkeypatch, tmp_path):
     import importlib
 
     import auth_utils
+
     importlib.reload(auth_utils)
     f = auth_utils._get_fernet("master-pw", 100_000)
     # Fernet token round-trips (proves the derived key is valid base64-urlsafe 32B).

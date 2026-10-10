@@ -57,9 +57,7 @@ class M3Client:
             if cls._loop is not None and cls._loop.is_running():
                 return
             loop = asyncio.new_event_loop()
-            t = threading.Thread(
-                target=loop.run_forever, name="m3client-loop", daemon=True
-            )
+            t = threading.Thread(target=loop.run_forever, name="m3client-loop", daemon=True)
             t.start()
             cls._loop, cls._thread = loop, t
 
@@ -76,9 +74,11 @@ class M3Client:
         """
         import importlib.util
         import sys
+
         spec = importlib.util.find_spec("mcp_tool_catalog")
         if spec and spec.origin:
             import os
+
             bin_dir = os.path.dirname(spec.origin)
             if sys.path and sys.path[0] != bin_dir:
                 # Drop any existing occurrence, then prepend.
@@ -90,13 +90,13 @@ class M3Client:
             if _m is not None:
                 _f = getattr(_m, "__file__", "") or ""
                 if not _f.startswith(bin_dir):
-                    for _name in [n for n in sys.modules
-                                  if n == "memory" or n.startswith("memory.")]:
+                    for _name in [n for n in sys.modules if n == "memory" or n.startswith("memory.")]:
                         del sys.modules[_name]
 
     def _call(self, name: str, **args) -> Any:
         self._ensure_m3_path_priority()
         import mcp_tool_catalog as cat  # lazy — see module-top note
+
         spec = cat.get_tool(name)
         if spec is None:
             raise ValueError(f"unknown m3 tool: {name}")
@@ -104,8 +104,9 @@ class M3Client:
         # in place (pops 'database', filters keys).
         loop = self._loop
         if loop is None:
-            raise RuntimeError("M3Client: no event loop; observed: _ensure_loop() did not start one. "
-                           "inspect: M3Client._ensure_loop")
+            raise RuntimeError(
+                "M3Client: no event loop; observed: _ensure_loop() did not start one. inspect: M3Client._ensure_loop"
+            )
         fut: Future = asyncio.run_coroutine_threadsafe(
             cat.execute_tool_structured(spec, dict(args), self._agent_id),
             loop,

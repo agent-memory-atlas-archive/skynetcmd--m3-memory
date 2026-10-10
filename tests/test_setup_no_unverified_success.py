@@ -17,6 +17,7 @@ success CLAIM for work that had not been checked, which is the same
 silent-success class `_step_doctor` was fixed for (it used to `return True` in
 both branches). A reader who sees `[OK] restarted` stops reading.
 """
+
 from __future__ import annotations
 
 import sys

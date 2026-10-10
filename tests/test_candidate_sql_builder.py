@@ -20,6 +20,7 @@ raw blobs the query returns either way — verified equal to a reference cosine 
 ~3e-09. The variants differ in WHERE the arithmetic happens and how rows are
 ordered/limited in SQL, not in what similarity means.
 """
+
 from __future__ import annotations
 
 import os
@@ -124,8 +125,11 @@ def test_matches_pre_extraction_sql_byte_for_byte(mode, has_vec):
     edits this query without updating the pin and stating why.
     """
     got = build_candidate_sql(
-        search_mode=mode, has_vec=has_vec, where_sql=WHERE,
-        extra_sql=EXTRA, row_limit=LIMIT,
+        search_mode=mode,
+        has_vec=has_vec,
+        where_sql=WHERE,
+        extra_sql=EXTRA,
+        row_limit=LIMIT,
     )
     assert got == _orig(mode, has_vec)
 
@@ -134,12 +138,8 @@ class TestVariantShape:
     def test_vec_variants_score_in_sql_others_do_not(self):
         """has_vec is exactly what decides SQL-side cosine."""
         for mode in ("semantic", "hybrid"):
-            with_vec = build_candidate_sql(
-                search_mode=mode, has_vec=True, where_sql=WHERE, row_limit=LIMIT
-            )
-            without = build_candidate_sql(
-                search_mode=mode, has_vec=False, where_sql=WHERE, row_limit=LIMIT
-            )
+            with_vec = build_candidate_sql(search_mode=mode, has_vec=True, where_sql=WHERE, row_limit=LIMIT)
+            without = build_candidate_sql(search_mode=mode, has_vec=False, where_sql=WHERE, row_limit=LIMIT)
             assert "vec_distance_cosine" in with_vec
             assert "vec_distance_cosine" not in without
             # Both must still return the raw blob — without it the Rust cosine
@@ -147,12 +147,8 @@ class TestVariantShape:
             assert "me.embedding" in with_vec and "me.embedding" in without
 
     def test_semantic_has_no_fts_and_hybrid_does(self):
-        sem = build_candidate_sql(
-            search_mode="semantic", has_vec=False, where_sql=WHERE
-        )
-        hyb = build_candidate_sql(
-            search_mode="hybrid", has_vec=False, where_sql=WHERE, row_limit=LIMIT
-        )
+        sem = build_candidate_sql(search_mode="semantic", has_vec=False, where_sql=WHERE)
+        hyb = build_candidate_sql(search_mode="hybrid", has_vec=False, where_sql=WHERE, row_limit=LIMIT)
         assert "memory_items_fts" not in sem
         assert "memory_items_fts MATCH ?" in hyb
 
@@ -162,19 +158,15 @@ class TestVariantShape:
         Flattening it into the outer query would silently change how many
         distinct memories reach the ranker whenever an item has >1 embedding.
         """
-        sql = build_candidate_sql(
-            search_mode="semantic", has_vec=False, where_sql=WHERE
-        )
+        sql = build_candidate_sql(search_mode="semantic", has_vec=False, where_sql=WHERE)
         assert "WITH limited AS" in sql
-        cte = sql[sql.index("WITH limited AS"): sql.index(")", sql.index("LIMIT 50"))]
+        cte = sql[sql.index("WITH limited AS") : sql.index(")", sql.index("LIMIT 50"))]
         assert "JOIN" not in cte, "LIMIT must apply before the embedding join"
 
     @pytest.mark.parametrize("mode", ["hybrid", "fts5"])
     def test_non_semantic_modes_take_the_hybrid_shape(self, mode):
         """Only "semantic" selects the vector-only shape; fts5 is hybrid-shaped."""
-        sql = build_candidate_sql(
-            search_mode=mode, has_vec=False, where_sql=WHERE, row_limit=LIMIT
-        )
+        sql = build_candidate_sql(search_mode=mode, has_vec=False, where_sql=WHERE, row_limit=LIMIT)
         assert "memory_items_fts MATCH ?" in sql
         assert "WITH limited AS" not in sql
 
@@ -182,21 +174,14 @@ class TestVariantShape:
         """Scoping predicates come from Dialect.scope_predicates and must not be
         rewritten here — the builder owns the query SHAPE, not the predicates."""
         marker = "mi.type = ? AND mi.agent_id = ?"
-        for mode, hv in [("semantic", True), ("semantic", False),
-                         ("hybrid", True), ("hybrid", False)]:
-            sql = build_candidate_sql(
-                search_mode=mode, has_vec=hv, where_sql=marker, row_limit=LIMIT
-            )
+        for mode, hv in [("semantic", True), ("semantic", False), ("hybrid", True), ("hybrid", False)]:
+            sql = build_candidate_sql(search_mode=mode, has_vec=hv, where_sql=marker, row_limit=LIMIT)
             assert marker in sql
 
     def test_row_limit_applied_to_hybrid_only(self):
-        hyb = build_candidate_sql(
-            search_mode="hybrid", has_vec=False, where_sql=WHERE, row_limit=17
-        )
+        hyb = build_candidate_sql(search_mode="hybrid", has_vec=False, where_sql=WHERE, row_limit=17)
         assert "LIMIT 17" in hyb
-        sem = build_candidate_sql(
-            search_mode="semantic", has_vec=False, where_sql=WHERE
-        )
+        sem = build_candidate_sql(search_mode="semantic", has_vec=False, where_sql=WHERE)
         assert "LIMIT 50" in sem and "LIMIT 17" not in sem
 
 
@@ -210,8 +195,7 @@ class TestSqlIsValid:
 
     @pytest.mark.parametrize(
         "mode,has_vec",
-        [("semantic", True), ("semantic", False),
-         ("hybrid", True), ("hybrid", False)],
+        [("semantic", True), ("semantic", False), ("hybrid", True), ("hybrid", False)],
     )
     def test_parses(self, mode, has_vec):
         conn = sqlite3.connect(":memory:")
@@ -230,8 +214,11 @@ class TestSqlIsValid:
             """
         )
         sql = build_candidate_sql(
-            search_mode=mode, has_vec=has_vec, where_sql=WHERE,
-            extra_sql=EXTRA, row_limit=LIMIT,
+            search_mode=mode,
+            has_vec=has_vec,
+            where_sql=WHERE,
+            extra_sql=EXTRA,
+            row_limit=LIMIT,
         )
         try:
             conn.execute("EXPLAIN " + sql, ["x"] * sql.count("?"))
@@ -281,14 +268,10 @@ def test_keyword_search_returns_the_full_limit_despite_deleted_rows():
     # rank 5, drop the ~2-3 deleted ones, and return 2-3 instead of 5.
     for i in range(10):
         conn.execute(
-            "INSERT INTO memory_items (id, content, title, type, is_deleted) "
-            "VALUES (?, ?, ?, 'note', ?)",
+            "INSERT INTO memory_items (id, content, title, type, is_deleted) VALUES (?, ?, ?, 'note', ?)",
             (f"id-{i}", f"widget alpha row {i}", f"widget {i}", i % 2),
         )
-    conn.execute(
-        "INSERT INTO memory_items_fts(rowid, content, title) "
-        "SELECT rowid, content, title FROM memory_items"
-    )
+    conn.execute("INSERT INTO memory_items_fts(rowid, content, title) SELECT rowid, content, title FROM memory_items")
     conn.commit()
 
     from memory.backends.sqlite_backend import SqliteBackend

@@ -3,6 +3,7 @@
 mission_control.py — Cross-platform pulse dashboard (macOS / Windows / Linux).
 Run:  python bin/mission_control.py
 """
+
 from __future__ import annotations
 
 import logging
@@ -20,8 +21,8 @@ import requests
 from m3_core.seams import is_linux, is_macos, is_windows
 
 # ── Platform detection ────────────────────────────────────────────────────────
-IS_WIN   = is_windows()
-IS_MAC   = is_macos()
+IS_WIN = is_windows()
+IS_MAC = is_macos()
 IS_LINUX = is_linux()
 
 # ── UTF-8 stdout (Windows terminals default to cp1252) ────────────────────────
@@ -53,21 +54,25 @@ _sys.path.insert(0, str(BASE / "bin"))
 try:
     from _task_runtime import no_window_kwargs
 except ImportError:  # pragma: no cover - standalone/partial checkout
+
     def no_window_kwargs() -> dict:
         """Fallback mirroring `_task_runtime.no_window_kwargs`."""
         import subprocess as _sp
+
         flags = getattr(_sp, "CREATE_NO_WINDOW", 0) if is_windows() else 0
         return {"creationflags": flags} if flags else {}
 
+
 try:
     from m3_sdk import resolve_db_path as _resolve_db
+
     DB_PATH = pathlib.Path(_resolve_db(None))
 except ImportError:
     DB_PATH = BASE / "memory" / "agent_memory.db"
 from m3_core.errors import log_swallowed
 from m3_core.paths import get_m3_logs_root  # noqa: E402
 
-LOG_DIR  = pathlib.Path(get_m3_logs_root())
+LOG_DIR = pathlib.Path(get_m3_logs_root())
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -82,15 +87,14 @@ logging.basicConfig(
 logger = logging.getLogger("mission_control")
 
 # ── ANSI colours ──────────────────────────────────────────────────────────────
-GREEN, BLUE, CYAN, YELLOW, RED, RESET = (
-    "\033[92m", "\033[94m", "\033[96m", "\033[93m", "\033[91m", "\033[0m"
-)
+GREEN, BLUE, CYAN, YELLOW, RED, RESET = ("\033[92m", "\033[94m", "\033[96m", "\033[93m", "\033[91m", "\033[0m")
 BOLD = "\033[1m"
 
 # Enable VT100 on Windows 10+ (required for ANSI escape codes)
 if IS_WIN:
     try:
         import ctypes
+
         kernel32 = ctypes.windll.kernel32
         kernel32.SetConsoleMode(kernel32.GetStdHandle(-11), 7)
     except Exception:
@@ -104,6 +108,7 @@ def get_api_token() -> str | None:
     # keyring path (§1/§4 — don't reinvent the secret seam; see m3_sdk.get_secret).
     try:
         from m3_sdk import get_secret
+
         return get_secret("LM_API_TOKEN")
     except Exception:  # noqa: BLE001 — resolver import failure -> env fallback
         return os.getenv("LM_API_TOKEN") or os.getenv("LM_STUDIO_API_KEY")
@@ -121,9 +126,7 @@ def get_kv_stats() -> tuple:
         return 0, 0, 0, "TOKEN_MISSING", None
     try:
         headers = {"Authorization": f"Bearer {API_TOKEN}"}
-        resp = requests.get(
-            "http://127.0.0.1:1234/api/v0/models", headers=headers, timeout=4.5
-        )
+        resp = requests.get("http://127.0.0.1:1234/api/v0/models", headers=headers, timeout=4.5)
         if resp.status_code == 401:
             API_TOKEN = None
             return 0, 0, 0, "UNAUTHORIZED", None
@@ -137,14 +140,14 @@ def get_kv_stats() -> tuple:
         # Select the model with the largest parameter count
         def get_params(m_id: str) -> float:
             # Look for 70b, 8B, 1.5b etc.
-            match = re.search(r'(\d+(?:\.\d+)?)[bB]', m_id)
+            match = re.search(r"(\d+(?:\.\d+)?)[bB]", m_id)
             return float(match.group(1)) if match else 0.0
 
         models.sort(key=lambda x: get_params(x.get("id", "")), reverse=True)
         model = models[0]
         model_id = model.get("id", "Unknown")
 
-        loaded  = model.get("loaded_context_length") or model.get("context_length", 0)
+        loaded = model.get("loaded_context_length") or model.get("context_length", 0)
         maximum = model.get("max_context_length", 1) or 1
         return loaded, maximum, (loaded / maximum) * 100, "OK", model_id
     except requests.exceptions.Timeout:
@@ -161,7 +164,9 @@ def get_gpu_usage() -> float:
         try:
             out = subprocess.check_output(
                 ["ioreg", "-r", "-d", "1", "-w", "0", "-c", "IOAccelerator"],
-                stderr=subprocess.DEVNULL, timeout=10, **no_window_kwargs(),
+                stderr=subprocess.DEVNULL,
+                timeout=10,
+                **no_window_kwargs(),
             ).decode()
             m = re.search(r'"Device Utilization %"=(\d+)', out)
             return float(m.group(1)) if m else 0.0
@@ -172,6 +177,7 @@ def get_gpu_usage() -> float:
         # Try WMI (requires pywin32 or wmi package) — graceful fallback
         try:
             import wmi  # type: ignore
+
             w = wmi.WMI(namespace="root\\cimv2")
             gpus = w.Win32_VideoController()
             if gpus:
@@ -182,11 +188,16 @@ def get_gpu_usage() -> float:
             pass
         # Try nvidia-smi (NVIDIA GPUs)
         try:
-            out = subprocess.check_output(
-                ["nvidia-smi", "--query-gpu=utilization.gpu",
-                 "--format=csv,noheader,nounits"],
-                stderr=subprocess.DEVNULL, timeout=10, **no_window_kwargs(),
-            ).decode().strip()
+            out = (
+                subprocess.check_output(
+                    ["nvidia-smi", "--query-gpu=utilization.gpu", "--format=csv,noheader,nounits"],
+                    stderr=subprocess.DEVNULL,
+                    timeout=10,
+                    **no_window_kwargs(),
+                )
+                .decode()
+                .strip()
+            )
             return float(out.splitlines()[0])
         except Exception:
             pass
@@ -196,11 +207,16 @@ def get_gpu_usage() -> float:
     if IS_LINUX:
         # NVIDIA
         try:
-            out = subprocess.check_output(
-                ["nvidia-smi", "--query-gpu=utilization.gpu",
-                 "--format=csv,noheader,nounits"],
-                stderr=subprocess.DEVNULL, timeout=10, **no_window_kwargs(),
-            ).decode().strip()
+            out = (
+                subprocess.check_output(
+                    ["nvidia-smi", "--query-gpu=utilization.gpu", "--format=csv,noheader,nounits"],
+                    stderr=subprocess.DEVNULL,
+                    timeout=10,
+                    **no_window_kwargs(),
+                )
+                .decode()
+                .strip()
+            )
             return float(out.splitlines()[0])
         except Exception:
             pass
@@ -224,13 +240,19 @@ def get_vram_usage() -> tuple[float, float, float] | None:
     if IS_MAC:
         return None  # unified memory — VRAM == system RAM, no separate pool
     try:
-        out = subprocess.check_output(
-            ["nvidia-smi", "--query-gpu=memory.used,memory.total",
-             "--format=csv,noheader,nounits"],
-            stderr=subprocess.DEVNULL, timeout=10, **no_window_kwargs(),
-        ).decode().strip().splitlines()[0]
+        out = (
+            subprocess.check_output(
+                ["nvidia-smi", "--query-gpu=memory.used,memory.total", "--format=csv,noheader,nounits"],
+                stderr=subprocess.DEVNULL,
+                timeout=10,
+                **no_window_kwargs(),
+            )
+            .decode()
+            .strip()
+            .splitlines()[0]
+        )
         used_mib, total_mib = (int(x.strip()) for x in out.split(","))
-        used_gb  = used_mib  / 1024
+        used_gb = used_mib / 1024
         total_gb = total_mib / 1024
         pct = (used_mib / total_mib) * 100
         return used_gb, total_gb, pct
@@ -244,10 +266,7 @@ def gpu_label() -> str:
         return "GPU (Metal)"
     if IS_WIN or IS_LINUX:
         try:
-            subprocess.check_output(
-                ["nvidia-smi"], stderr=subprocess.DEVNULL, timeout=10,
-                **no_window_kwargs()
-            )
+            subprocess.check_output(["nvidia-smi"], stderr=subprocess.DEVNULL, timeout=10, **no_window_kwargs())
             return "GPU (NVIDIA)"
         except Exception:
             pass
@@ -269,8 +288,7 @@ def ping_ms(host: str) -> str | None:
         else:
             cmd = ["ping", "-c", "1", "-W", "1", host]
             pat = r"time[=<]([\d.]+) ms|min/avg/max/(?:mdev|stddev)\s*=\s*[\d.]+/([\d.]+)/"
-        out = subprocess.check_output(cmd, stderr=subprocess.DEVNULL, timeout=3,
-                                      **no_window_kwargs()).decode()
+        out = subprocess.check_output(cmd, stderr=subprocess.DEVNULL, timeout=3, **no_window_kwargs()).decode()
         m = re.search(pat, out)
         if m:
             val = next(g for g in m.groups() if g is not None)
@@ -301,24 +319,39 @@ def get_hw_info() -> tuple[str, str]:
     chip = ""
     if IS_WIN:
         try:
-            chip = subprocess.check_output(
-                ["powershell.exe", "-NoProfile", "-Command",
-                 "(Get-WmiObject Win32_Processor).Name"],
-                stderr=subprocess.DEVNULL, timeout=10, **no_window_kwargs(),
-            ).decode().strip().splitlines()[0].strip()
+            chip = (
+                subprocess.check_output(
+                    ["powershell.exe", "-NoProfile", "-Command", "(Get-WmiObject Win32_Processor).Name"],
+                    stderr=subprocess.DEVNULL,
+                    timeout=10,
+                    **no_window_kwargs(),
+                )
+                .decode()
+                .strip()
+                .splitlines()[0]
+                .strip()
+            )
         except Exception:
             pass
     elif IS_MAC:
         try:
-            chip = subprocess.check_output(
-                ["sysctl", "-n", "machdep.cpu.brand_string"],
-                stderr=subprocess.DEVNULL, timeout=10, **no_window_kwargs(),
-            ).decode().strip()
+            chip = (
+                subprocess.check_output(
+                    ["sysctl", "-n", "machdep.cpu.brand_string"],
+                    stderr=subprocess.DEVNULL,
+                    timeout=10,
+                    **no_window_kwargs(),
+                )
+                .decode()
+                .strip()
+            )
             # Prefer Apple Silicon marketing name if available
             try:
                 model = subprocess.check_output(
                     ["system_profiler", "SPHardwareDataType"],
-                    stderr=subprocess.DEVNULL, timeout=10, **no_window_kwargs(),
+                    stderr=subprocess.DEVNULL,
+                    timeout=10,
+                    **no_window_kwargs(),
                 ).decode()
                 m = re.search(r"Chip:\s+(.+)", model)
                 if m:
@@ -340,22 +373,26 @@ def get_hw_info() -> tuple[str, str]:
         # Avoid platform.machine() — it routes through uname()/WMI and can hang
         # on Py3.14/Windows. processor() is WMI-free; fall back to the arch env
         # var (Windows) or a generic label rather than the hanging WMI path.
-        chip = (platform.processor()
-                or os.environ.get("PROCESSOR_ARCHITECTURE")
-                or "Unknown CPU")
+        chip = platform.processor() or os.environ.get("PROCESSOR_ARCHITECTURE") or "Unknown CPU"
 
     # RAM
-    total_gb = psutil.virtual_memory().total / (1024 ** 3)
+    total_gb = psutil.virtual_memory().total / (1024**3)
     mem = f"{round(total_gb)}GB RAM"
 
     # GPU name + VRAM (nvidia-smi; macOS/AMD fall back to empty)
     gpu_info = ""
     try:
-        out = subprocess.check_output(
-            ["nvidia-smi", "--query-gpu=name,memory.total",
-             "--format=csv,noheader,nounits"],
-            stderr=subprocess.DEVNULL, timeout=10, **no_window_kwargs(),
-        ).decode().strip().splitlines()[0]
+        out = (
+            subprocess.check_output(
+                ["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader,nounits"],
+                stderr=subprocess.DEVNULL,
+                timeout=10,
+                **no_window_kwargs(),
+            )
+            .decode()
+            .strip()
+            .splitlines()[0]
+        )
         name, vram_mib = out.split(",", 1)
         vram_gb = round(int(vram_mib.strip()) / 1024)
         gpu_info = f"{name.strip()} {vram_gb}GB VRAM"
@@ -364,7 +401,9 @@ def get_hw_info() -> tuple[str, str]:
             try:
                 out = subprocess.check_output(
                     ["system_profiler", "SPDisplaysDataType"],
-                    stderr=subprocess.DEVNULL, timeout=10, **no_window_kwargs(),
+                    stderr=subprocess.DEVNULL,
+                    timeout=10,
+                    **no_window_kwargs(),
                 ).decode()
                 m = re.search(r"Chipset Model:\s+(.+)", out)
                 vram_m = re.search(r"VRAM.*?:\s+(.+)", out)
@@ -384,13 +423,13 @@ def get_latest_activity() -> tuple:
     # activity_logs both live in the core store.
     try:
         import memory_core as mc
+
         with mc._db() as conn:
             cur = conn.execute("SELECT summary FROM system_focus LIMIT 1")
-            row   = cur.fetchone()
+            row = cur.fetchone()
             focus = row[0] if row else "IDLE"
             logs = conn.execute(
-                "SELECT query, model_used FROM activity_logs "
-                "ORDER BY timestamp DESC LIMIT 3"
+                "SELECT query, model_used FROM activity_logs ORDER BY timestamp DESC LIMIT 3"
             ).fetchall()
         return focus, [(r[0], r[1]) for r in logs]
     except Exception:
@@ -401,8 +440,12 @@ def get_latest_activity() -> tuple:
 def get_memory_health() -> dict:
     """Query memory system stats for the dashboard."""
     stats = {
-        "total": 0, "by_type": {}, "by_agent": {},
-        "queue_depth": 0, "embedded": 0, "unembedded": 0,
+        "total": 0,
+        "by_type": {},
+        "by_agent": {},
+        "queue_depth": 0,
+        "embedded": 0,
+        "unembedded": 0,
         "watermarks": {},
     }
     try:
@@ -413,11 +456,10 @@ def get_memory_health() -> dict:
         # so no dialect placeholders are needed; positional row access is
         # backend-safe.
         import memory_core as mc
+
         with mc._db() as conn:
             # Total active items
-            stats["total"] = conn.execute(
-                "SELECT COUNT(*) FROM memory_items WHERE is_deleted = 0"
-            ).fetchone()[0]
+            stats["total"] = conn.execute("SELECT COUNT(*) FROM memory_items WHERE is_deleted = 0").fetchone()[0]
 
             # By type
             for row in conn.execute(
@@ -469,10 +511,10 @@ def run_dashboard(iterations: int = 0) -> None:
             clear_screen(is_apple_terminal)
 
             loaded_ctx, max_ctx, kv_pct, api_status, model_name = get_kv_stats()
-            gpu_pct  = get_gpu_usage()
+            gpu_pct = get_gpu_usage()
             focus, logs = get_latest_activity()
             now = datetime.now().strftime("%H:%M:%S")
-            os_tag = ("macOS" if IS_MAC else "Windows" if IS_WIN else "Linux")
+            os_tag = "macOS" if IS_MAC else "Windows" if IS_WIN else "Linux"
 
             print(
                 f"{BOLD}{BLUE}--- MISSION CONTROL [{now}] [{os_tag}] ---{RESET}",
@@ -502,16 +544,14 @@ def run_dashboard(iterations: int = 0) -> None:
                 used_gb, total_gb, vram_pct = vram
                 vc = GREEN if vram_pct < 70 else (YELLOW if vram_pct < 90 else RED)
                 print(
-                    f"{BOLD}VRAM:      {RESET}{draw_bar(vram_pct, color=vc)}"
-                    f"  {used_gb:.1f}/{total_gb:.0f}GB",
+                    f"{BOLD}VRAM:      {RESET}{draw_bar(vram_pct, color=vc)}  {used_gb:.1f}/{total_gb:.0f}GB",
                     flush=True,
                 )
             ram = psutil.virtual_memory()
-            ram_used_gb = (ram.total - ram.available) / (1024 ** 3)
-            ram_total_gb = ram.total / (1024 ** 3)
+            ram_used_gb = (ram.total - ram.available) / (1024**3)
+            ram_total_gb = ram.total / (1024**3)
             print(
-                f"{BOLD}RAM:       {RESET}{draw_bar(ram.percent, color=BLUE)}"
-                f"  {ram_used_gb:.1f}/{ram_total_gb:.0f}GB",
+                f"{BOLD}RAM:       {RESET}{draw_bar(ram.percent, color=BLUE)}  {ram_used_gb:.1f}/{ram_total_gb:.0f}GB",
                 flush=True,
             )
 
@@ -519,8 +559,7 @@ def run_dashboard(iterations: int = 0) -> None:
             if api_status == "OK":
                 if loaded_ctx == max_ctx:
                     print(
-                        f"\n{BOLD}CTX WIN:   {RESET}{GREEN}LOADED & READY{RESET}"
-                        f" (Max: {max_ctx:,})",
+                        f"\n{BOLD}CTX WIN:   {RESET}{GREEN}LOADED & READY{RESET} (Max: {max_ctx:,})",
                         flush=True,
                     )
                     print(f"Stats:     Standby | {max_ctx:,} context | {BOLD}{model_name}{RESET}", flush=True)
@@ -578,8 +617,7 @@ def run_dashboard(iterations: int = 0) -> None:
                     print(f" >> {label}: {RED}OFF{RESET}", end="  |  ", flush=True)
 
             print(
-                f"\n\n{BOLD}STATUS:{RESET} [OK] web_research | [OK] grok_intel"
-                f" | [OK] memory | [OK] custom_pc_tool",
+                f"\n\n{BOLD}STATUS:{RESET} [OK] web_research | [OK] grok_intel | [OK] memory | [OK] custom_pc_tool",
                 flush=True,
             )
 

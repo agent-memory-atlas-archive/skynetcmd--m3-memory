@@ -19,13 +19,53 @@ from .util import _cosine_batch_packed
 # to prevent spurious entity lookups on conversational query starters.
 # Kept here (graph.py) rather than config.py because it's specific to the
 # entity-graph BFS seed-extraction and has no other readers.
-_QUERY_STARTER_STOPWORDS: frozenset[str] = frozenset({
-    "Can", "Could", "Would", "Will", "Should", "Shall",
-    "What", "Which", "Where", "When", "Why", "Who", "Whom", "Whose", "How",
-    "Did", "Do", "Does", "Is", "Are", "Was", "Were", "Am",
-    "I", "My", "Me", "Mine", "We", "Our", "Us", "You", "Your", "Yours",
-    "Tell", "Show", "Give", "Help", "Please", "Hi", "Hello", "Hey", "Yes", "No",
-})
+_QUERY_STARTER_STOPWORDS: frozenset[str] = frozenset(
+    {
+        "Can",
+        "Could",
+        "Would",
+        "Will",
+        "Should",
+        "Shall",
+        "What",
+        "Which",
+        "Where",
+        "When",
+        "Why",
+        "Who",
+        "Whom",
+        "Whose",
+        "How",
+        "Did",
+        "Do",
+        "Does",
+        "Is",
+        "Are",
+        "Was",
+        "Were",
+        "Am",
+        "I",
+        "My",
+        "Me",
+        "Mine",
+        "We",
+        "Our",
+        "Us",
+        "You",
+        "Your",
+        "Yours",
+        "Tell",
+        "Show",
+        "Give",
+        "Help",
+        "Please",
+        "Hi",
+        "Hello",
+        "Hey",
+        "Yes",
+        "No",
+    }
+)
 
 logger = logging.getLogger("memory.graph")
 
@@ -119,8 +159,7 @@ def _graph_neighbor_ids(seed_ids: list, depth: int) -> set:
     return seen
 
 
-def _session_neighbor_ids(seed_ids: list, session_cap: int = 12,
-                          user_id: str = "", scope: str = "") -> dict:
+def _session_neighbor_ids(seed_ids: list, session_cap: int = 12, user_id: str = "", scope: str = "") -> dict:
     """For each conversation_id present in `seed_ids`' rows, return up to
     session_cap turns from that conversation (excluding seeds themselves).
 
@@ -176,7 +215,10 @@ def _session_neighbor_ids(seed_ids: list, session_cap: int = 12,
 
 
 async def _entity_graph_neighbor_ids(
-    query: str, depth: int, max_neighbors: int, db,
+    query: str,
+    depth: int,
+    max_neighbors: int,
+    db,
     valid_types: list = None,
     valid_predicates: list = None,
     entity_stoplist: list = None,
@@ -282,10 +324,7 @@ async def _entity_graph_neighbor_ids(
     # that's the case the LIKE-tier filter wouldn't redeem either, so it's a
     # true seed-rejection rather than a "no exact match, fell through to LIKE"
     # event. Cheap O(N) set check; no extra SQL.
-    seeds_dropped = (
-        sum(1 for c in candidates if c.lower() in _stoplist_lower)
-        if _stoplist_lower else 0
-    )
+    seeds_dropped = sum(1 for c in candidates if c.lower() in _stoplist_lower) if _stoplist_lower else 0
 
     matched_entity_ids: set[str] = set()
     # Tier 1 (batched): one query for all candidate exact-matches.
@@ -295,8 +334,7 @@ async def _entity_graph_neighbor_ids(
     try:
         cand_ph = _d.placeholder(len(candidates))
         tier1_rows = db.execute(
-            f"SELECT id, canonical_name FROM entities "
-            f"WHERE canonical_name IN ({cand_ph}){_type_clause}{_stop_clause}",
+            f"SELECT id, canonical_name FROM entities WHERE canonical_name IN ({cand_ph}){_type_clause}{_stop_clause}",
             list(candidates) + _type_params + _stop_params,
         ).fetchall()
         for r in tier1_rows:
@@ -381,8 +419,7 @@ async def _entity_graph_neighbor_ids(
     try:
         placeholders = _d.placeholder(len(seen_entities))
         mie_rows = db.execute(
-            f"SELECT DISTINCT memory_id FROM memory_item_entities "
-            f"WHERE entity_id IN ({placeholders})",
+            f"SELECT DISTINCT memory_id FROM memory_item_entities WHERE entity_id IN ({placeholders})",
             list(seen_entities),
         ).fetchall()
         return {r["memory_id"] for r in mie_rows}
@@ -411,8 +448,7 @@ async def _score_extra_rows(query: str, rows_by_id: dict, base_score: float = 0.
         ids = list(rows_by_id.keys())
         placeholders = _d.placeholder(len(ids))
         emb_rows = db.execute(
-            f"SELECT memory_id, embedding FROM memory_embeddings "
-            f"WHERE memory_id IN ({placeholders})",
+            f"SELECT memory_id, embedding FROM memory_embeddings WHERE memory_id IN ({placeholders})",
             ids,
         ).fetchall()
     # Batched packed-cosine: aligned by id so scoring is one parallel pass.
@@ -441,10 +477,12 @@ def memory_graph_impl(memory_id: str, depth: int = 1, as_records: bool = False) 
             return records.emit(
                 f"Error: memory {memory_id} not found",
                 records.error_payload("not_found", memory_id=memory_id),
-                as_records)
+                as_records,
+            )
 
         # Recursive CTE to traverse relationships up to `depth` hops
-        rows = db.execute(f"""
+        rows = db.execute(
+            f"""
             WITH RECURSIVE graph(node_id, hop) AS (
                 SELECT {p}, 0
                 UNION ALL
@@ -458,19 +496,23 @@ def memory_graph_impl(memory_id: str, depth: int = 1, as_records: bool = False) 
             JOIN memory_items mi ON g.node_id = mi.id
             WHERE mi.is_deleted = 0
             ORDER BY g.hop, mi.type
-        """, (memory_id, depth)).fetchall()
+        """,
+            (memory_id, depth),
+        ).fetchall()
 
         # Also get the edges
         node_ids = [r["id"] for r in rows]
         if not node_ids:
-            return records.emit(f"No graph neighborhood for {memory_id}",
-                                records.as_records_payload((), edges=[], root_id=memory_id),
-                                as_records)
+            return records.emit(
+                f"No graph neighborhood for {memory_id}",
+                records.as_records_payload((), edges=[], root_id=memory_id),
+                as_records,
+            )
         placeholders = _d.placeholder(len(node_ids))
         edges = db.execute(
             f"SELECT from_id, to_id, relationship_type FROM memory_relationships "
             f"WHERE from_id IN ({placeholders}) OR to_id IN ({placeholders})",
-            node_ids + node_ids
+            node_ids + node_ids,
         ).fetchall()
 
     lines = [f"Graph for {root['title'] or root['id']} (type={root['type']}, depth={depth}):"]
@@ -490,11 +532,11 @@ def memory_graph_impl(memory_id: str, depth: int = 1, as_records: bool = False) 
     # Nodes are the items; edges ride the envelope as a sibling key. Flattening
     # both into one list would lose which is which -- the envelope exists so a
     # second row set does not need a second tool.
-    return records.emit("\n".join(lines),
-                        records.as_records_payload(
-                            rows, edges=records.to_records(relevant_edges),
-                            root_id=memory_id, depth=depth),
-                        as_records)
+    return records.emit(
+        "\n".join(lines),
+        records.as_records_payload(rows, edges=records.to_records(relevant_edges), root_id=memory_id, depth=depth),
+        as_records,
+    )
 
 
 def _neighbor_session_ids(seed_ids: list, window: int, cap_per_session: int = 12) -> dict:
@@ -519,9 +561,7 @@ def _neighbor_session_ids(seed_ids: list, window: int, cap_per_session: int = 12
         _turn_expr = _d.json_extract_int("metadata_json", "turn_idx")
         placeholders = _d.placeholder(len(seed_ids))
         seed_rows = db.execute(
-            f"SELECT id, conversation_id, "
-            f"  {_sidx_expr} AS sidx "
-            f"FROM memory_items WHERE id IN ({placeholders})",
+            f"SELECT id, conversation_id,   {_sidx_expr} AS sidx FROM memory_items WHERE id IN ({placeholders})",
             seed_ids,
         ).fetchall()
         wanted_windows: set = set()
@@ -555,9 +595,9 @@ def _neighbor_session_ids(seed_ids: list, window: int, cap_per_session: int = 12
     return out
 
 
-async def _apply_smart_expansions(ranked: list, query: str,
-                                  smart_time_boost: float = 0.0,
-                                  smart_neighbor_sessions: int = 0) -> list:
+async def _apply_smart_expansions(
+    ranked: list, query: str, smart_time_boost: float = 0.0, smart_neighbor_sessions: int = 0
+) -> list:
     """Post-retrieval expansion for the scored path: pull turns from sessions
     adjacent to each hit and (optionally) nudge hits toward recency, then re-fuse.
 
@@ -579,15 +619,9 @@ async def _apply_smart_expansions(ranked: list, query: str,
         return ranked
     try:
         if smart_neighbor_sessions and smart_neighbor_sessions > 0:
-            seed_ids = [
-                item.get("id") for _, item in ranked
-                if isinstance(item, dict) and item.get("id")
-            ]
+            seed_ids = [item.get("id") for _, item in ranked if isinstance(item, dict) and item.get("id")]
             neighbor_rows = _neighbor_session_ids(seed_ids, int(smart_neighbor_sessions))
-            existing_ids = {
-                item.get("id") for _, item in ranked
-                if isinstance(item, dict) and item.get("id")
-            }
+            existing_ids = {item.get("id") for _, item in ranked if isinstance(item, dict) and item.get("id")}
             for rid in list(neighbor_rows.keys()):
                 if rid in existing_ids:
                     neighbor_rows.pop(rid, None)
@@ -603,18 +637,17 @@ async def _apply_smart_expansions(ranked: list, query: str,
                 ranked = sorted(best.values(), key=lambda t: t[0], reverse=True)
 
         if smart_time_boost and smart_time_boost > 0.0:
+
             def _vf(pair):
                 item = pair[1]
                 return (item.get("valid_from") or "") if isinstance(item, dict) else ""
+
             order = sorted(range(len(ranked)), key=lambda i: _vf(ranked[i]), reverse=True)
             n = max(1, len(order) - 1)
             boost_for: dict = {}
             for rank, orig_i in enumerate(order):
                 boost_for[orig_i] = float(smart_time_boost) * (1.0 - rank / n)
-            ranked = [
-                (sc + boost_for.get(i, 0.0), item)
-                for i, (sc, item) in enumerate(ranked)
-            ]
+            ranked = [(sc + boost_for.get(i, 0.0), item) for i, (sc, item) in enumerate(ranked)]
             ranked.sort(key=lambda t: t[0], reverse=True)
     except sqlite3.Error as e:  # transient DB error — degrade safe, but visibly
         logger.warning(f"smart expansions skipped (DB error): {type(e).__name__}: {e}")

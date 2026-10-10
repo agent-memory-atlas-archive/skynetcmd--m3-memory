@@ -4,6 +4,7 @@ Split out of mcp_tool_catalog.py's flat TOOLS list. Entries copied verbatim
 (name, description, parameters, impl, validators, flags unchanged). Domain
 assignment per tool_domains.domain_of_tool().
 """
+
 from __future__ import annotations
 
 from .lazy import LazyModuleProxy
@@ -19,12 +20,16 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "title":          {"type": "string", "description": "Task title."},
-                "created_by":     {"type": "string", "description": "Agent or user that created the task."},
-                "description":    {"type": "string", "description": "Longer description.", "default": ""},
-                "owner_agent":    {"type": "string", "description": "Initial owner (blank = unassigned).", "default": ""},
-                "parent_task_id": {"type": "string", "description": "Optional parent task id for sub-tasks.", "default": ""},
-                "metadata":       {"type": "object", "description": "Free-form metadata.", "default": {}},
+                "title": {"type": "string", "description": "Task title."},
+                "created_by": {"type": "string", "description": "Agent or user that created the task."},
+                "description": {"type": "string", "description": "Longer description.", "default": ""},
+                "owner_agent": {"type": "string", "description": "Initial owner (blank = unassigned).", "default": ""},
+                "parent_task_id": {
+                    "type": "string",
+                    "description": "Optional parent task id for sub-tasks.",
+                    "default": "",
+                },
+                "metadata": {"type": "object", "description": "Free-form metadata.", "default": {}},
             },
             "required": ["title", "created_by"],
         },
@@ -40,7 +45,7 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "task_id":     {"type": "string", "description": "Task UUID."},
+                "task_id": {"type": "string", "description": "Task UUID."},
                 "owner_agent": {"type": "string", "description": "Agent to assign to."},
             },
             "required": ["task_id", "owner_agent"],
@@ -57,11 +62,16 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "task_id":     {"type": "string", "description": "Task UUID."},
-                "state":       {"type": "string", "enum": ["", "pending", "in_progress", "blocked", "completed", "failed", "cancelled"], "description": "New state (empty = no change).", "default": ""},
+                "task_id": {"type": "string", "description": "Task UUID."},
+                "state": {
+                    "type": "string",
+                    "enum": ["", "pending", "in_progress", "blocked", "completed", "failed", "cancelled"],
+                    "description": "New state (empty = no change).",
+                    "default": "",
+                },
                 "description": {"type": "string", "description": "New description (empty = no change).", "default": ""},
-                "metadata":    {"type": "object", "description": "New metadata (empty = no change).", "default": {}},
-                "actor":       {"type": "string", "description": "Actor making the update.", "default": ""},
+                "metadata": {"type": "object", "description": "New metadata (empty = no change).", "default": {}},
+                "actor": {"type": "string", "description": "Actor making the update.", "default": ""},
             },
             "required": ["task_id"],
         },
@@ -78,8 +88,12 @@ TOOLS: list[ToolSpec] = [
             "type": "object",
             "properties": {
                 "task_id": {"type": "string", "description": "Task UUID."},
-                "hard":    {"type": "boolean", "description": "If true, permanently remove an already-tombstoned row from local SQLite.", "default": False},
-                "actor":   {"type": "string", "description": "Actor performing the delete (audit log).", "default": ""},
+                "hard": {
+                    "type": "boolean",
+                    "description": "If true, permanently remove an already-tombstoned row from local SQLite.",
+                    "default": False,
+                },
+                "actor": {"type": "string", "description": "Actor performing the delete (audit log).", "default": ""},
             },
             "required": ["task_id"],
         },
@@ -95,7 +109,7 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "task_id":         {"type": "string", "description": "Task UUID."},
+                "task_id": {"type": "string", "description": "Task UUID."},
                 "result_memory_id": {"type": "string", "description": "Result memory UUID."},
             },
             "required": ["task_id", "result_memory_id"],
@@ -128,11 +142,15 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "owner_agent":   {"type": "string", "description": "Filter by owner agent.", "default": ""},
-                "state":         {"type": "string", "description": "Filter by task state.", "default": ""},
+                "owner_agent": {"type": "string", "description": "Filter by owner agent.", "default": ""},
+                "state": {"type": "string", "description": "Filter by task state.", "default": ""},
                 "parent_task_id": {"type": "string", "description": "Filter by parent task id.", "default": ""},
-                "limit":         {"type": "integer", "description": "Max tasks to return.", "default": 50},
-                "as_records": {"type": "boolean", "description": "Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged.", "default": False},
+                "limit": {"type": "integer", "description": "Max tasks to return.", "default": 50},
+                "as_records": {
+                    "type": "boolean",
+                    "description": "Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged.",
+                    "default": False,
+                },
             },
             "required": [],
         },
@@ -149,8 +167,12 @@ TOOLS: list[ToolSpec] = [
             "type": "object",
             "properties": {
                 "root_task_id": {"type": "string", "description": "Root task UUID."},
-                "max_depth":    {"type": "integer", "description": "Max recursion depth.", "default": 3},
-                "as_records": {"type": "boolean", "description": "Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged.", "default": False},
+                "max_depth": {"type": "integer", "description": "Max recursion depth.", "default": 3},
+                "as_records": {
+                    "type": "boolean",
+                    "description": "Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged.",
+                    "default": False,
+                },
             },
             "required": ["root_task_id"],
         },

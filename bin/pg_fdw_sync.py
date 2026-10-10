@@ -21,6 +21,7 @@ unreachable, it signals the caller to fall back to the generic path.
 Requires (one-time, superuser on the PRIMARY pg): CREATE EXTENSION postgres_fdw.
 Requires on the WAREHOUSE: the sync role has USAGE + DML on m3_warehouse.
 """
+
 from __future__ import annotations
 
 import logging
@@ -39,11 +40,34 @@ WAREHOUSE_SCHEMA = "m3_warehouse"
 # explicit (not SELECT *) is REQUIRED: primary.memory_items has more columns than
 # warehouse.memory_items, so a * would mismatch arity.
 _MEMORY_ITEMS_COLS = [
-    "id", "type", "title", "content", "metadata_json", "agent_id", "model_id",
-    "change_agent", "importance", "source", "origin_device", "is_deleted",
-    "expires_at", "decay_rate", "created_at", "updated_at", "last_accessed_at",
-    "access_count", "user_id", "scope", "valid_from", "valid_to", "content_hash",
-    "read_at", "conversation_id", "refresh_on", "refresh_reason", "variant",
+    "id",
+    "type",
+    "title",
+    "content",
+    "metadata_json",
+    "agent_id",
+    "model_id",
+    "change_agent",
+    "importance",
+    "source",
+    "origin_device",
+    "is_deleted",
+    "expires_at",
+    "decay_rate",
+    "created_at",
+    "updated_at",
+    "last_accessed_at",
+    "access_count",
+    "user_id",
+    "scope",
+    "valid_from",
+    "valid_to",
+    "content_hash",
+    "read_at",
+    "conversation_id",
+    "refresh_on",
+    "refresh_reason",
+    "variant",
 ]
 
 # Per-table sync spec: (table, columns, pk, timestamp_col). Columns are the
@@ -57,17 +81,15 @@ _MEMORY_ITEMS_COLS = [
 # Heterogeneous by design: (name, columns, pk, [watermark], [conflict guard]).
 # Annotated so mypy sees the per-position types instead of collapsing the
 # tuple into `str | list[str]`, which made every _upsert() arg look wrong.
-_TABLE_SPECS: list[
-    tuple[str, list[str], str, str | None] | tuple[str, list[str], str, str | None, str]
-] = [
+_TABLE_SPECS: list[tuple[str, list[str], str, str | None] | tuple[str, list[str], str, str | None, str]] = [
     ("memory_items", _MEMORY_ITEMS_COLS, "id", "updated_at"),
-    ("memory_embeddings",
-     ["id", "memory_id", "embedding", "embed_model", "dim", "created_at",
-      "content_hash", "vector_kind"],
-     "id", None),
-    ("memory_relationships",
-     ["id", "from_id", "to_id", "relationship_type", "created_at"],
-     "id", None),
+    (
+        "memory_embeddings",
+        ["id", "memory_id", "embedding", "embed_model", "dim", "created_at", "content_hash", "vector_kind"],
+        "id",
+        None,
+    ),
+    ("memory_relationships", ["id", "from_id", "to_id", "relationship_type", "created_at"], "id", None),
     # ── Added to close a SILENT coverage gap ──────────────────────────────────
     # These two were absent while the generic bridge synced them, so a PostgreSQL
     # deployment with the fast path WORKING still lost its tasks and its secrets
@@ -77,20 +99,38 @@ _TABLE_SPECS: list[
     #
     # Columns are the PRIMARY ∩ WAREHOUSE intersection, verified against both
     # live schemas rather than guessed (they are identical for both tables).
-    ("tasks",
-     ["id", "title", "description", "state", "owner_agent", "created_by",
-      "parent_task_id", "result_memory_id", "metadata_json", "created_at",
-      "updated_at", "completed_at", "deleted_at"],
-     "id", "updated_at"),
+    (
+        "tasks",
+        [
+            "id",
+            "title",
+            "description",
+            "state",
+            "owner_agent",
+            "created_by",
+            "parent_task_id",
+            "result_memory_id",
+            "metadata_json",
+            "created_at",
+            "updated_at",
+            "completed_at",
+            "deleted_at",
+        ],
+        "id",
+        "updated_at",
+    ),
     # ⚠ VERSION precedence, not LWW. ts_col stays None so no timestamp delta
     # filter is applied — a secret whose version was bumped without its
     # updated_at moving must still propagate — and the guard is explicit.
-    ("synchronized_secrets",
-     ["service_name", "encrypted_value", "version", "origin_device", "updated_at"],
-     "service_name", None,
-     "WHERE EXCLUDED.version > {target}.version "
-     "OR (EXCLUDED.version = {target}.version "
-     "AND EXCLUDED.updated_at > {target}.updated_at)"),
+    (
+        "synchronized_secrets",
+        ["service_name", "encrypted_value", "version", "origin_device", "updated_at"],
+        "service_name",
+        None,
+        "WHERE EXCLUDED.version > {target}.version "
+        "OR (EXCLUDED.version = {target}.version "
+        "AND EXCLUDED.updated_at > {target}.updated_at)",
+    ),
 ]
 
 
@@ -109,8 +149,9 @@ def _ensure_fdw_wired(pg_cur, warehouse_dsn: str) -> None:
     # left a URI's percent-encoded password encoded in the user mapping.
     parts = parse_pg_dsn(warehouse_dsn)
     if parts is None:
-        raise FdwUnavailable("observed: the warehouse DSN is not a DSN libpq can parse. "
-                             "inspect: M3_CDW_PG_URL (or the stored PG_URL)")
+        raise FdwUnavailable(
+            "observed: the warehouse DSN is not a DSN libpq can parse. inspect: M3_CDW_PG_URL (or the stored PG_URL)"
+        )
     host, port = parts.host, str(parts.port)
     dbname, user, password = parts.dbname, parts.user, parts.password
 
@@ -118,8 +159,8 @@ def _ensure_fdw_wired(pg_cur, warehouse_dsn: str) -> None:
     pg_cur.execute("SELECT 1 FROM pg_extension WHERE extname = 'postgres_fdw'")
     if pg_cur.fetchone() is None:
         raise FdwUnavailable(
-            "postgres_fdw extension not installed on the primary "
-            "(run `CREATE EXTENSION postgres_fdw;` as superuser)")
+            "postgres_fdw extension not installed on the primary (run `CREATE EXTENSION postgres_fdw;` as superuser)"
+        )
 
     # Foreign server + user mapping (idempotent). Server options can't be changed
     # by CREATE IF NOT EXISTS if they drift, but for our fixed warehouse they're
@@ -136,7 +177,9 @@ def _ensure_fdw_wired(pg_cur, warehouse_dsn: str) -> None:
         server_args.insert(0, host)
     pg_cur.execute(
         f"CREATE SERVER IF NOT EXISTS {FDW_SERVER} FOREIGN DATA WRAPPER postgres_fdw "
-        f"OPTIONS ({', '.join(server_opts)})", tuple(server_args))
+        f"OPTIONS ({', '.join(server_opts)})",
+        tuple(server_args),
+    )
     # User mapping: recreate to pick up a rotated password. current_user maps to
     # the warehouse role. Omit the password option entirely when the DSN carries
     # none (e.g. trust/peer/.pgpass auth) — passing password=NULL is a SQL syntax
@@ -156,11 +199,10 @@ def _ensure_fdw_wired(pg_cur, warehouse_dsn: str) -> None:
         map_args.append(password)
     if map_opts:
         pg_cur.execute(
-            f"CREATE USER MAPPING FOR CURRENT_USER SERVER {FDW_SERVER} "
-            f"OPTIONS ({', '.join(map_opts)})", tuple(map_args))
+            f"CREATE USER MAPPING FOR CURRENT_USER SERVER {FDW_SERVER} OPTIONS ({', '.join(map_opts)})", tuple(map_args)
+        )
     else:
-        pg_cur.execute(
-            f"CREATE USER MAPPING FOR CURRENT_USER SERVER {FDW_SERVER}")
+        pg_cur.execute(f"CREATE USER MAPPING FOR CURRENT_USER SERVER {FDW_SERVER}")
 
     pg_cur.execute(f"CREATE SCHEMA IF NOT EXISTS {FDW_SCHEMA}")
     # (Re)import the warehouse tables as foreign tables. IMPORT FOREIGN SCHEMA is
@@ -171,16 +213,23 @@ def _ensure_fdw_wired(pg_cur, warehouse_dsn: str) -> None:
     pg_cur.execute(f"CREATE SCHEMA {FDW_SCHEMA}")
     try:
         pg_cur.execute(
-            f"IMPORT FOREIGN SCHEMA {WAREHOUSE_SCHEMA} LIMIT TO ({tables}) "
-            f"FROM SERVER {FDW_SERVER} INTO {FDW_SCHEMA}")
+            f"IMPORT FOREIGN SCHEMA {WAREHOUSE_SCHEMA} LIMIT TO ({tables}) FROM SERVER {FDW_SERVER} INTO {FDW_SCHEMA}"
+        )
     except Exception as e:
         # Connection / auth / permission failures surface here.
         raise FdwUnavailable(f"IMPORT FOREIGN SCHEMA failed: {e}") from e
 
 
-def _upsert(pg_cur, target_qual: str, source_qual: str, cols: list[str], pk: str,
-            ts_col: str | None, watermark: str | None,
-            guard: str | None = None) -> int:
+def _upsert(
+    pg_cur,
+    target_qual: str,
+    source_qual: str,
+    cols: list[str],
+    pk: str,
+    ts_col: str | None,
+    watermark: str | None,
+    guard: str | None = None,
+) -> int:
     """One set-based delta upsert. target/source are schema-qualified table names.
     Returns rows affected. Last-writer-wins on ts_col unless `guard` overrides it.
 
@@ -203,8 +252,7 @@ def _upsert(pg_cur, target_qual: str, source_qual: str, cols: list[str], pk: str
         conflict_guard = " " + guard.format(target=target_qual)
     else:
         # Last-writer-wins guard only when we have a timestamp to compare.
-        conflict_guard = (f" WHERE {target_qual}.{ts_col} < EXCLUDED.{ts_col}"
-                          if ts_col else "")
+        conflict_guard = f" WHERE {target_qual}.{ts_col} < EXCLUDED.{ts_col}" if ts_col else ""
     sql = (
         f"INSERT INTO {target_qual} ({collist}) "
         f"SELECT {collist} FROM {source_qual}{where_delta} "
@@ -214,8 +262,7 @@ def _upsert(pg_cur, target_qual: str, source_qual: str, cols: list[str], pk: str
     return pg_cur.rowcount
 
 
-def sync_pg_to_pg(primary_conn, warehouse_dsn: str, get_wm, set_wm,
-                  dry_run: bool = False) -> dict:
+def sync_pg_to_pg(primary_conn, warehouse_dsn: str, get_wm, set_wm, dry_run: bool = False) -> dict:
     """Bidirectional PG<->PG warehouse sync via FDW, driven from the primary.
 
     primary_conn: an open psycopg connection to the PRIMARY (public.* store).
@@ -240,11 +287,9 @@ def sync_pg_to_pg(primary_conn, warehouse_dsn: str, get_wm, set_wm,
             foreign = f"{FDW_SCHEMA}.{table}"
             push_key, pull_key = f"fdw_{table}_push", f"fdw_{table}_pull"
             # PUSH: primary -> warehouse (write the foreign table)
-            n_push = _upsert(cur, foreign, local, cols, pk, ts_col,
-                             get_wm(push_key), guard)
+            n_push = _upsert(cur, foreign, local, cols, pk, ts_col, get_wm(push_key), guard)
             # PULL: warehouse -> primary (read the foreign table)
-            n_pull = _upsert(cur, local, foreign, cols, pk, ts_col,
-                             get_wm(pull_key), guard)
+            n_pull = _upsert(cur, local, foreign, cols, pk, ts_col, get_wm(pull_key), guard)
             set_wm(push_key, now)
             set_wm(pull_key, now)
             results[table] = {"push": n_push, "pull": n_pull}

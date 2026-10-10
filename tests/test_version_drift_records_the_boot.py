@@ -7,6 +7,7 @@ of `check_and_record()` before it could save state. The caller logs that at
 DEBUG, so the symptom was silent: a boot record frozen since 2026-07-06 and a
 "version drift detected ... kill PID <long-dead>" warning on every single boot.
 """
+
 from __future__ import annotations
 
 import sys
@@ -20,7 +21,7 @@ import version_drift  # noqa: E402
 def test_a_dead_pid_reports_not_alive_rather_than_raising():
     # 2**22 is above the default pid_max on both Linux and macOS, so it cannot
     # be a live process; the point is that this returns rather than raises.
-    assert version_drift._pid_is_alive(2 ** 22) is False
+    assert version_drift._pid_is_alive(2**22) is False
 
 
 def test_our_own_pid_is_alive():
@@ -41,8 +42,7 @@ def test_check_and_record_persists_the_boot(tmp_path, monkeypatch):
 
     # A prior boot by a PID that is now dead -- the condition that used to throw.
     (tmp_path / version_drift.STATE_FILENAME).write_text(
-        '{"last_boot_at": "2026-07-06T17:03:23Z", "last_boot_pid": 4194304,'
-        ' "last_boot_version": "2026.7.5.0"}'
+        '{"last_boot_at": "2026-07-06T17:03:23Z", "last_boot_pid": 4194304, "last_boot_version": "2026.7.5.0"}'
     )
 
     findings = version_drift.check_and_record()

@@ -9,6 +9,7 @@ Public surface:
     build.build_wiki(mem_conn, files_conn, opts) -> dict[relpath, markdown_text]
     build.WikiOptions                             — the knobs
 """
+
 from __future__ import annotations
 
 from .build import WikiOptions, build_wiki

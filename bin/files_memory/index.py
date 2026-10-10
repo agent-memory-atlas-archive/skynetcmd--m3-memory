@@ -12,6 +12,7 @@ The win is token efficiency: a 200-file corpus = ~10k tokens for the
 index call. Beats embed-search-everything when the corpus has good
 file-level summaries.
 """
+
 from __future__ import annotations
 
 import logging
@@ -32,6 +33,7 @@ class IndexEntry:
     original — `path` is then the right reference to surface to the
     user.
     """
+
     file_node_uuid: str
     filename: str
     filetype: str
@@ -66,6 +68,7 @@ def files_index(
         limit: max entries returned (sorted by date_modified DESC).
     """
     from memory.backends import dialect as _dialect
+
     _d = _dialect()
     _p = _d.param()
     sql_parts = [
@@ -112,19 +115,22 @@ def files_index(
         rows = conn.execute(" ".join(sql_parts), params).fetchall()
 
     from .provenance import original_path_for_metadata
+
     out: list[IndexEntry] = []
     for r in rows:
-        out.append(IndexEntry(
-            file_node_uuid=r["uuid"],
-            filename=r["filename"],
-            filetype=r["filetype"],
-            path=r["path_absolute"],
-            version_label=r["version_label"],
-            date_modified=r["date_modified"],
-            summary=r["file_summary"],
-            original_path=original_path_for_metadata(r["metadata"]),
-            corpus_id=r["corpus_id"],
-        ))
+        out.append(
+            IndexEntry(
+                file_node_uuid=r["uuid"],
+                filename=r["filename"],
+                filetype=r["filetype"],
+                path=r["path_absolute"],
+                version_label=r["version_label"],
+                date_modified=r["date_modified"],
+                summary=r["file_summary"],
+                original_path=original_path_for_metadata(r["metadata"]),
+                corpus_id=r["corpus_id"],
+            )
+        )
     return out
 
 
@@ -135,6 +141,7 @@ def files_stats(
 ) -> dict:
     """Corpus-level counters for files_stats MCP tool."""
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     with _db(db_path) as conn:
         # seam yields name-addressable rows on both backends (no sqlite3.Row).
@@ -144,25 +151,23 @@ def files_stats(
             scope_clause = f" WHERE corpus_id = {_p}"
             params = [corpus_id]
 
-        _fn = files_table('file_nodes')
-        _lv = files_table('leaves')
-        _le = files_table('leaf_embeddings')
-        _ir = files_table('ingestion_runs')
+        _fn = files_table("file_nodes")
+        _lv = files_table("leaves")
+        _le = files_table("leaf_embeddings")
+        _ir = files_table("ingestion_runs")
 
         fn_count = conn.execute(
-            f"SELECT COUNT(*) FROM {_fn}{scope_clause}", params,
+            f"SELECT COUNT(*) FROM {_fn}{scope_clause}",
+            params,
         ).fetchone()[0]
         fn_current = conn.execute(
-            f"SELECT COUNT(*) FROM {_fn}{scope_clause} "
-            f"{'AND' if scope_clause else 'WHERE'} superseded_by IS NULL",
+            f"SELECT COUNT(*) FROM {_fn}{scope_clause} {'AND' if scope_clause else 'WHERE'} superseded_by IS NULL",
             params,
         ).fetchone()[0]
 
         # Leaf counts can't be conditionally scoped without a join; we
         # join through file_nodes.
-        leaf_q = (
-            f"SELECT COUNT(*) FROM {_lv} l JOIN {_fn} fn ON fn.uuid = l.file_node"
-        )
+        leaf_q = f"SELECT COUNT(*) FROM {_lv} l JOIN {_fn} fn ON fn.uuid = l.file_node"
         leaf_current_q = leaf_q + " WHERE l.superseded_by IS NULL AND fn.superseded_by IS NULL"
         if corpus_id:
             leaf_q += f" WHERE fn.corpus_id = {_p}"
@@ -181,10 +186,7 @@ def files_stats(
         leaf_embed_count = conn.execute(embed_q, params).fetchone()[0]
 
         # Per-filetype breakdown (current only).
-        ft_q = (
-            f"SELECT filetype, COUNT(*) AS n FROM {_fn} "
-            f"WHERE superseded_by IS NULL"
-        )
+        ft_q = f"SELECT filetype, COUNT(*) AS n FROM {_fn} WHERE superseded_by IS NULL"
         if corpus_id:
             ft_q += f" AND corpus_id = {_p}"
         ft_q += " GROUP BY filetype ORDER BY n DESC"
@@ -201,9 +203,7 @@ def files_stats(
             "leaves_total": leaf_count,
             "leaves_current": leaf_current,
             "leaves_with_text_embedding": leaf_embed_count,
-            "leaves_embed_coverage": (
-                (leaf_embed_count / leaf_current) if leaf_current else 0.0
-            ),
+            "leaves_embed_coverage": ((leaf_embed_count / leaf_current) if leaf_current else 0.0),
             "by_filetype": by_filetype,
             "ingest_runs": run_count,
             "corpus_id": corpus_id,
@@ -221,13 +221,16 @@ def files_get(uuid: str, *, db_path: str | None = None) -> dict | None:
     Returns None if no UUID match.
     """
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     from .provenance import original_path_for_metadata
+
     with _db(db_path) as conn:
         # seam yields name-addressable rows on both backends (no sqlite3.Row).
         # Try file_nodes first
         r = conn.execute(
-            f"SELECT * FROM {files_table('file_nodes')} WHERE uuid = {_p}", (uuid,),
+            f"SELECT * FROM {files_table('file_nodes')} WHERE uuid = {_p}",
+            (uuid,),
         ).fetchone()
         if r:
             d = dict(r)

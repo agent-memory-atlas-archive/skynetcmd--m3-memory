@@ -31,6 +31,7 @@ backend's connection()); callers manage its lifecycle. SQL is rendered by the
 dialect of the connection handed in, so a caller holding a SQLite file while
 the process is configured for PostgreSQL still gets SQLite syntax.
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterable
@@ -42,17 +43,21 @@ from typing import Any
 STAGE_OBSERVER = "observer"
 STAGE_REFLECTOR = "reflector"
 
-KNOWN_STAGES: frozenset[str] = frozenset({
-    STAGE_OBSERVER,
-    STAGE_REFLECTOR,
-})
+KNOWN_STAGES: frozenset[str] = frozenset(
+    {
+        STAGE_OBSERVER,
+        STAGE_REFLECTOR,
+    }
+)
 
 # Queue tables. After Option B these collapse to a single
 # `enrichment_queue` table; until then this module accepts both.
-QUEUE_TABLES: frozenset[str] = frozenset({
-    "observation_queue",
-    "reflector_queue",
-})
+QUEUE_TABLES: frozenset[str] = frozenset(
+    {
+        "observation_queue",
+        "reflector_queue",
+    }
+)
 
 # Hard cap on attempts before a row is considered poisoned. Mirrors
 # the inline `attempts < 5` filter in the existing drainers.

@@ -12,6 +12,7 @@ SAFETY: these tests CREATE and DROP their own temp tables (prefixed `_it_`).
 They refuse to run against a production/warehouse hub (configured via
 M3_PG_FORBIDDEN_HOSTS) as a guard against a misconfigured DSN.
 """
+
 from __future__ import annotations
 
 import os
@@ -21,9 +22,7 @@ import pytest
 # Hosts these destructive tests must never touch. The production CDW hub is
 # supplied via env (M3_PG_FORBIDDEN_HOSTS, comma-separated) so no internal
 # infrastructure address is hardcoded in source. Defaults to empty.
-_FORBIDDEN = [
-    h.strip() for h in os.environ.get("M3_PG_FORBIDDEN_HOSTS", "").split(",") if h.strip()
-]
+_FORBIDDEN = [h.strip() for h in os.environ.get("M3_PG_FORBIDDEN_HOSTS", "").split(",") if h.strip()]
 
 
 # Gated by the requires_pg marker (auto-skips when no Postgres reachable).
@@ -59,9 +58,7 @@ def backend(monkeypatch):
     _dsn_val = _dsn()
     for forbidden in _FORBIDDEN:
         if forbidden in _dsn_val:
-            pytest.fail(
-                f"refusing to run destructive tests against forbidden host {forbidden}"
-            )
+            pytest.fail(f"refusing to run destructive tests against forbidden host {forbidden}")
     monkeypatch.setenv("M3_DB_BACKEND", "postgres")
     monkeypatch.setenv("M3_PG_URL", _dsn_val)
     from memory.backends import selector as _selector
@@ -95,9 +92,7 @@ def test_connection_commits_on_success(backend):
 
 def test_connection_rolls_back_on_exception(backend):
     with backend.connection() as conn:
-        conn.cursor().execute(
-            "CREATE TABLE IF NOT EXISTS _it_rb(id int primary key, v text)"
-        )
+        conn.cursor().execute("CREATE TABLE IF NOT EXISTS _it_rb(id int primary key, v text)")
     with pytest.raises(RuntimeError):
         with backend.connection() as conn:
             conn.cursor().execute("INSERT INTO _it_rb(id, v) VALUES (2, 'doomed')")
@@ -145,8 +140,7 @@ def test_ensure_schema_creates_primary_schema(backend):
     # Simulate a fresh deployment: drop the core tables.
     with backend.connection() as conn:
         conn.cursor().execute(
-            "DROP TABLE IF EXISTS memory_embeddings, memory_relationships, "
-            "memory_items, schema_versions CASCADE"
+            "DROP TABLE IF EXISTS memory_embeddings, memory_relationships, memory_items, schema_versions CASCADE"
         )
     backend._schema_ready = False  # allow a fresh apply after the drop
 
@@ -180,8 +174,7 @@ def test_ensure_schema_creates_primary_schema(backend):
         # assertion below already applies to the schema version.
         n_cols = cur.fetchone()[0]
         assert n_cols >= 37, (
-            f"memory_items has {n_cols} columns: the full primary schema "
-            f"(37 at pg_039 + search_vector) was not applied"
+            f"memory_items has {n_cols} columns: the full primary schema (37 at pg_039 + search_vector) was not applied"
         )
 
     # Idempotent: re-applying the SQL (IF NOT EXISTS throughout) must not error.
@@ -217,11 +210,11 @@ def test_dual_row_positional_and_named_access(backend):
     with backend.connection() as conn:
         cur = conn.execute("SELECT 42 AS answer, 'hi' AS greeting")
         row = cur.fetchone()
-        assert row[0] == 42                    # positional
-        assert row["answer"] == 42             # named
+        assert row[0] == 42  # positional
+        assert row["answer"] == 42  # named
         assert row[1] == "hi"
         assert row["greeting"] == "hi"
-        assert list(row) == [42, "hi"]         # tuple-iterable
+        assert list(row) == [42, "hi"]  # tuple-iterable
         assert len(row) == 2
         assert row.get("missing", "d") == "d"  # sqlite3.Row-like .get
 
@@ -307,15 +300,13 @@ def test_keyword_search_tsvector(backend):
     with backend.connection() as conn:
         hits = backend.keyword_search(conn, "postgresql", limit=10)
     ids = [h.memory_id for h in hits]
-    assert set(ids) == {"kw_a", "kw_b"}          # kw_c excluded
-    assert ids[0] == "kw_a"                        # title hit ranks first
-    assert hits[0].score <= hits[1].score          # lower = better
+    assert set(ids) == {"kw_a", "kw_b"}  # kw_c excluded
+    assert ids[0] == "kw_a"  # title hit ranks first
+    assert hits[0].score <= hits[1].score  # lower = better
 
     with backend.connection() as conn:
         assert backend.keyword_search(conn, "!!!", limit=10) == []  # empty compile
-        conn.cursor().execute(
-            "DELETE FROM memory_items WHERE id IN ('kw_a','kw_b','kw_c')"
-        )
+        conn.cursor().execute("DELETE FROM memory_items WHERE id IN ('kw_a','kw_b','kw_c')")
 
 
 def test_vector_search_matches_sqlite(backend):
@@ -325,6 +316,7 @@ def test_vector_search_matches_sqlite(backend):
     import struct
 
     dim = 4
+
     def blob(v):
         return struct.pack(f"{len(v)}f", *v)
 
@@ -350,9 +342,7 @@ def test_vector_search_matches_sqlite(backend):
             (mid, blob(vec), dim, "m"),
         )
     sconn.commit()
-    s_hits = SqliteBackend().vector_search(
-        sconn, query, limit=10, dim=dim, embed_models=("m",)
-    )
+    s_hits = SqliteBackend().vector_search(sconn, query, limit=10, dim=dim, embed_models=("m",))
 
     # Postgres under test
     with backend.connection() as conn:
@@ -363,9 +353,7 @@ def test_vector_search_matches_sqlite(backend):
             "CREATE TABLE memory_items(id TEXT PRIMARY KEY, type TEXT DEFAULT 'note', "
             "is_deleted INTEGER DEFAULT 0, user_id TEXT DEFAULT '')"
         )
-        cur.execute(
-            "CREATE TABLE memory_embeddings(memory_id TEXT, embedding BYTEA, dim BIGINT, embed_model TEXT)"
-        )
+        cur.execute("CREATE TABLE memory_embeddings(memory_id TEXT, embedding BYTEA, dim BIGINT, embed_model TEXT)")
         for mid, vec in cands:
             cur.execute("INSERT INTO memory_items(id) VALUES (%s)", (mid,))
             cur.execute(

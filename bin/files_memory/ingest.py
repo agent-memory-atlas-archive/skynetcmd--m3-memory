@@ -12,6 +12,7 @@ Public API:
 
 CLI entry: `python -m files_memory.ingest <root>` (added in tools.py).
 """
+
 from __future__ import annotations
 
 import logging
@@ -58,9 +59,10 @@ _COARSE_DIVISIONS = frozenset({"page", "slide", "heading", "cell"})
 @dataclass(slots=True)
 class FileIngestResult:
     """Outcome of ingesting a single file."""
+
     path: str
     file_node_uuid: str | None
-    status: str           # 'created'|'unchanged_skipped'|'superseded'|'failed'
+    status: str  # 'created'|'unchanged_skipped'|'superseded'|'failed'
     leaf_count: int = 0
     fact_count: int = 0
     chars_embedded: int = 0
@@ -77,6 +79,7 @@ class FileIngestResult:
 @dataclass(slots=True)
 class IngestResult:
     """Outcome of a full directory walk + ingest."""
+
     run_id: str
     root: str
     started_at: float
@@ -103,6 +106,7 @@ class IngestResult:
 def _iso_utc(ts: float | None = None) -> str:
     """ISO 8601 UTC string. Stable across timezones."""
     import datetime as _dt
+
     if ts is None:
         return _dt.datetime.now(_dt.UTC).isoformat()
     return _dt.datetime.fromtimestamp(ts, tz=_dt.UTC).isoformat()
@@ -110,7 +114,13 @@ def _iso_utc(ts: float | None = None) -> str:
 
 def _source_host() -> str:
     """Identifier for the host that produced this ingest record."""
-    return os.environ.get("COMPUTERNAME") or os.environ.get("HOSTNAME") or platform.node() or socket.gethostname() or "unknown"
+    return (
+        os.environ.get("COMPUTERNAME")
+        or os.environ.get("HOSTNAME")
+        or platform.node()
+        or socket.gethostname()
+        or "unknown"
+    )
 
 
 def _next_version_label(conn, identity_key: str) -> str:
@@ -119,6 +129,7 @@ def _next_version_label(conn, identity_key: str) -> str:
     Convention: `ingest-N` where N is `1 + count of prior versions`.
     """
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     row = conn.execute(
         f"SELECT COUNT(*) FROM {files_table('file_nodes')} WHERE identity_key = {_p}",
@@ -135,6 +146,7 @@ def _find_current_version(conn, identity_key: str) -> dict | None:
     version exists yet.
     """
     from memory.backends import dialect as _dialect
+
     _p = _dialect().param()
     row = conn.execute(
         f"SELECT uuid, content_sha256, version_label, paths_seen, path_absolute "
@@ -217,7 +229,9 @@ def ingest_one_file(
         content_sha = file_content_sha256(path)
     except OSError as e:
         return FileIngestResult(
-            path=path, file_node_uuid=None, status="failed",
+            path=path,
+            file_node_uuid=None,
+            status="failed",
             reason=f"hash failed: {e}",
             duration_ms=int((time.perf_counter() - t_start) * 1000),
         )
@@ -231,7 +245,9 @@ def ingest_one_file(
         text = _read_file_text(path, config.FILES_MAX_FILE_BYTES)
         if text is None:
             return FileIngestResult(
-                path=path, file_node_uuid=None, status="failed",
+                path=path,
+                file_node_uuid=None,
+                status="failed",
                 reason="read failed",
                 duration_ms=int((time.perf_counter() - t_start) * 1000),
             )
@@ -240,6 +256,7 @@ def ingest_one_file(
 
     # 3. Check for prior version. The supersession decision happens here.
     from memory.backends import dialect as _dialect
+
     _d = _dialect()
     _p = _d.param()
     with _db(db_path) as conn:
@@ -249,7 +266,8 @@ def ingest_one_file(
             if record_noops:
                 _record_noop_run(conn, prior["uuid"], run_id, entry)
             return FileIngestResult(
-                path=path, file_node_uuid=prior["uuid"],
+                path=path,
+                file_node_uuid=prior["uuid"],
                 status="unchanged_skipped",
                 duration_ms=int((time.perf_counter() - t_start) * 1000),
                 reason="content_sha256 matches current version",
@@ -262,7 +280,9 @@ def ingest_one_file(
         except Exception as e:
             logger.exception("chunker raised for %s: %s", path, e)
             return FileIngestResult(
-                path=path, file_node_uuid=None, status="failed",
+                path=path,
+                file_node_uuid=None,
+                status="failed",
                 reason=f"chunker raised: {type(e).__name__}: {e}",
                 duration_ms=int((time.perf_counter() - t_start) * 1000),
             )
@@ -277,7 +297,9 @@ def ingest_one_file(
         #    concatenate the leaf texts (PDF case).
         summary_input = text or "\n\n".join(leaf.text for leaf in leaves[:20])
         file_summary, file_summary_used_llm = summarize_file(
-            summary_input, entry.filename, entry.filetype,
+            summary_input,
+            entry.filename,
+            entry.filetype,
         )
 
         # 6. Insert file_node + ingestion_run + leaves in one transaction.
@@ -287,6 +309,7 @@ def ingest_one_file(
         # Build paths_seen — start with current path; prior versions
         # contribute their paths_seen if identity_key matches.
         import json as _json
+
         paths_seen = [canonical_path(path)]
         if prior:
             try:
@@ -301,6 +324,7 @@ def ingest_one_file(
 
         # Resolve original-vs-processed provenance (sidecar > CLI flag).
         from .provenance import resolve_provenance
+
         provenance = resolve_provenance(path, cli_original_path=cli_original_path)
 
         # Build the metadata blob. Provenance is optional; absent means
@@ -320,10 +344,17 @@ def ingest_one_file(
             f"version_label, supersedes, paths_seen, corpus_id, file_summary, metadata) "
             f"VALUES ({_d.placeholder(17)})",
             (
-                file_node_uuid, identity_key, entry.filename, entry.filetype,
-                canonical_path(path), entry.repo_relative,
-                entry.size_bytes, content_sha,
-                _iso_utc(entry.ctime), _iso_utc(entry.mtime), _source_host(),
+                file_node_uuid,
+                identity_key,
+                entry.filename,
+                entry.filetype,
+                canonical_path(path),
+                entry.repo_relative,
+                entry.size_bytes,
+                content_sha,
+                _iso_utc(entry.ctime),
+                _iso_utc(entry.mtime),
+                _source_host(),
                 version_label,
                 prior["uuid"] if prior else None,
                 _json.dumps(paths_seen),
@@ -358,9 +389,7 @@ def ingest_one_file(
         # extractor_version is recorded ONLY if we actually plan to extract.
         # For mode='none' we leave it NULL — staleness review then knows
         # these leaves haven't been considered for extraction yet.
-        run_extractor_version = (
-            config.EXTRACTOR_VERSION if extract_mode != "none" else None
-        )
+        run_extractor_version = config.EXTRACTOR_VERSION if extract_mode != "none" else None
         conn.execute(
             f"INSERT INTO {files_table('ingestion_runs')}("
             f"uuid, file_node, run_id, ingest_date, ingester_version, "
@@ -368,10 +397,16 @@ def ingest_one_file(
             f"chunk_count, leaf_count, status, metadata) "
             f"VALUES ({_p}, {_p}, {_p}, {_p}, {_p}, {_p}, {_p}, {_p}, NULL, {_p}, {_p}, 'ok', {_p})",
             (
-                run_uuid, file_node_uuid, run_id, _iso_utc(),
-                config.INGESTER_VERSION, chunker_ver, run_extractor_version,
+                run_uuid,
+                file_node_uuid,
+                run_id,
+                _iso_utc(),
+                config.INGESTER_VERSION,
+                chunker_ver,
+                run_extractor_version,
                 extract_mode,
-                len(leaves), len(leaves),
+                len(leaves),
+                len(leaves),
                 _json.dumps({"filetype": entry.filetype}),
             ),
         )
@@ -386,6 +421,7 @@ def ingest_one_file(
         # Builds a per-new-leaf classification: carry | evolve | new.
         # Used below to skip re-embedding unchanged leaves.
         from .carry_forward import CarryForwardStats, LeafDiff, compute_leaf_diffs
+
         carry_stats = CarryForwardStats()
         leaf_diffs: Sequence[LeafDiff | None]
         if prior:
@@ -415,10 +451,16 @@ def ingest_one_file(
                 f"extraction_status, evolved_from, metadata) "
                 f"VALUES ({_d.placeholder(16)})",
                 (
-                    leaf_uuid, file_node_uuid, run_uuid,
-                    leaf.division_type, leaf.division_id, leaf.division_label,
-                    leaf.text, text_hash,
-                    leaf.char_range_start, leaf.char_range_end,
+                    leaf_uuid,
+                    file_node_uuid,
+                    run_uuid,
+                    leaf.division_type,
+                    leaf.division_id,
+                    leaf.division_label,
+                    leaf.text,
+                    text_hash,
+                    leaf.char_range_start,
+                    leaf.char_range_end,
                     leaf_summary_text,
                     leaf.boundary_confidence,
                     1 if leaf.truncated else 0,
@@ -435,6 +477,7 @@ def ingest_one_file(
         #    version's embedding row + facts instead of re-running the
         #    embedder.
         from .carry_forward import apply_carry_forward
+
         embedded_count = 0
         if leaf_records:
             # Split into carry-able vs embed-required.
@@ -449,7 +492,9 @@ def ingest_one_file(
             # Apply carry-forward: copy embeddings + facts from prior leaves.
             for new_uuid, diff in carry_targets:
                 copied_embed, n_facts = apply_carry_forward(
-                    conn, diff, new_uuid,
+                    conn,
+                    diff,
+                    new_uuid,
                     carry_facts=True,
                     new_ingestion_run_uuid=run_uuid,
                 )
@@ -513,6 +558,7 @@ def ingest_one_file(
         if extract_mode == "inline" and leaf_records:
             try:
                 from .extract import extract_facts_for_leaf, llm_available, write_extraction_result
+
                 if llm_available():
                     model_id = (
                         os.environ.get("M3_FILES_EXTRACT_MODEL")
@@ -538,11 +584,13 @@ def ingest_one_file(
                                 continue
                         with _INGEST_LLM_SEM:
                             result = extract_facts_for_leaf(
-                                leaf_uuid, leaf_text,
+                                leaf_uuid,
+                                leaf_text,
                                 file_summary=file_summary,
                             )
                         write_extraction_result(
-                            conn, result,
+                            conn,
+                            result,
                             file_node_uuid=file_node_uuid,
                             ingestion_run_uuid=run_uuid,
                             extractor_version=config.EXTRACTOR_VERSION or "p2.0.0",
@@ -554,12 +602,13 @@ def ingest_one_file(
                     # No LLM: mark every leaf 'failed' with reason logged.
                     for leaf_uuid, _, _, _ in leaf_records:
                         conn.execute(
-                            f"UPDATE {files_table('leaves')} SET extraction_status = 'failed' "
-                            f"WHERE uuid = {_p}", (leaf_uuid,),
+                            f"UPDATE {files_table('leaves')} SET extraction_status = 'failed' WHERE uuid = {_p}",
+                            (leaf_uuid,),
                         )
                     logger.warning(
                         "inline extraction requested but no LLM endpoint configured; "
-                        "leaves marked extraction_status='failed' for %s", path,
+                        "leaves marked extraction_status='failed' for %s",
+                        path,
                     )
             except Exception as e:
                 logger.exception("inline extraction step failed for %s: %s", path, e)
@@ -591,6 +640,7 @@ def _record_noop_run(conn, file_node_uuid: str, run_id: str, entry: WalkEntry) -
     import json as _json
 
     from memory.backends import dialect as _dialect
+
     _d = _dialect()
     conn.execute(
         f"INSERT INTO {files_table('ingestion_runs')}("
@@ -598,8 +648,11 @@ def _record_noop_run(conn, file_node_uuid: str, run_id: str, entry: WalkEntry) -
         f"extractor_version, extract_mode, leaf_count, status, metadata) "
         f"VALUES ({_d.placeholder(6)}, 'none', 0, 'unchanged_skipped', {_d.param()})",
         (
-            str(_uuid.uuid4()), file_node_uuid, run_id,
-            config.INGESTER_VERSION, chunker_version(entry.filetype),
+            str(_uuid.uuid4()),
+            file_node_uuid,
+            run_id,
+            config.INGESTER_VERSION,
+            chunker_version(entry.filetype),
             config.EXTRACTOR_VERSION,
             _json.dumps({"filetype": entry.filetype}),
         ),
@@ -608,6 +661,7 @@ def _record_noop_run(conn, file_node_uuid: str, run_id: str, entry: WalkEntry) -
 
 def _sha256_short(text: str) -> str:
     import hashlib as _h
+
     return _h.sha256(text.encode("utf-8"), usedforsecurity=False).hexdigest()
 
 
@@ -680,8 +734,7 @@ def ingest_path(
     run_id = f"run_{int(time.time())}_{_uuid.uuid4().hex[:8]}"
     started = time.perf_counter()
     walk_stats = WalkStats()
-    result = IngestResult(run_id=run_id, root=canonical_path(root),
-                          started_at=time.time(), walk_stats=walk_stats)
+    result = IngestResult(run_id=run_id, root=canonical_path(root), started_at=time.time(), walk_stats=walk_stats)
     corpus = corpus_id or config.FILES_DEFAULT_CORPUS
 
     # Single-file mode: root is a file, not a directory. The CLI
@@ -707,18 +760,30 @@ def ingest_path(
             return result
         entries_iter = iter([single_entry])
     elif dry_run:
-        for _ in walk(root, include=include, exclude=exclude,
-                      max_depth=max_depth, follow_symlinks=follow_symlinks,
-                      force_size=force_size, stats=walk_stats,
-                      repo_root=repo_root):
+        for _ in walk(
+            root,
+            include=include,
+            exclude=exclude,
+            max_depth=max_depth,
+            follow_symlinks=follow_symlinks,
+            force_size=force_size,
+            stats=walk_stats,
+            repo_root=repo_root,
+        ):
             pass
         result.duration_ms = int((time.perf_counter() - started) * 1000)
         return result
     else:
-        entries_iter = walk(root, include=include, exclude=exclude,
-                            max_depth=max_depth, follow_symlinks=follow_symlinks,
-                            force_size=force_size, stats=walk_stats,
-                            repo_root=repo_root)
+        entries_iter = walk(
+            root,
+            include=include,
+            exclude=exclude,
+            max_depth=max_depth,
+            follow_symlinks=follow_symlinks,
+            force_size=force_size,
+            stats=walk_stats,
+            repo_root=repo_root,
+        )
 
     # Pay the model load cost ONCE, before the loop, instead of letting the
     # first file pay it against a 30s per-call timeout. Measured 2026-07-26
@@ -739,15 +804,19 @@ def ingest_path(
     for entry in entries_iter:
         idx += 1
         if idx > config.FILES_MAX_FILES_PER_INGEST:
-            result.failures.append({
-                "path": entry.path,
-                "reason": f"per-ingest file cap reached ({config.FILES_MAX_FILES_PER_INGEST})",
-            })
+            result.failures.append(
+                {
+                    "path": entry.path,
+                    "reason": f"per-ingest file cap reached ({config.FILES_MAX_FILES_PER_INGEST})",
+                }
+            )
             break
 
         try:
             fr = ingest_one_file(
-                entry, run_id, corpus,
+                entry,
+                run_id,
+                corpus,
                 record_noops=record_noops,
                 extract_mode=extract_mode,
                 cli_original_path=cli_original_path,
@@ -756,20 +825,22 @@ def ingest_path(
         except Exception as e:
             logger.exception("ingest_one_file raised for %s", entry.path)
             fr = FileIngestResult(
-                path=entry.path, file_node_uuid=None, status="failed",
+                path=entry.path,
+                file_node_uuid=None,
+                status="failed",
                 reason=f"{type(e).__name__}: {e}",
             )
             result.failures.append({"path": entry.path, "reason": fr.reason})
 
         result.per_file.append(fr)
         match fr.status:
-            case 'created':
+            case "created":
                 result.files_created += 1
-            case 'superseded':
+            case "superseded":
                 result.files_superseded += 1
-            case 'unchanged_skipped':
+            case "unchanged_skipped":
                 result.files_unchanged += 1
-            case 'failed':
+            case "failed":
                 result.files_failed += 1
 
         result.leaves_written += fr.leaf_count

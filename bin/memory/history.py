@@ -4,6 +4,7 @@ Provides:
 1. compute_bitemporal_diffs_impl: high-speed columnar timeline grouping using Polars if available, falling back gracefully to pure-Python dictionary grouping.
 2. get_bitemporal_timeline_impl: constructs a consolidated chronological delta timeline of all field mutations for a specific memory item.
 """
+
 from __future__ import annotations
 
 import json
@@ -14,9 +15,7 @@ from memory.db import _db
 logger = logging.getLogger("memory.history")
 
 
-def compute_bitemporal_diffs_impl(
-    history_rows: list[tuple[int, str, str, str, str]]
-) -> str:
+def compute_bitemporal_diffs_impl(history_rows: list[tuple[int, str, str, str, str]]) -> str:
     """Compute consolidated current values per memory_id and field from raw history rows.
 
     Parameters:
@@ -33,11 +32,7 @@ def compute_bitemporal_diffs_impl(
         import polars as pl
 
         # 1. Load data directly into columnar Polars Arrow chunks
-        df = pl.DataFrame(
-            history_rows,
-            schema=["id", "memory_id", "field", "old_value", "new_value"],
-            orient="row"
-        )
+        df = pl.DataFrame(history_rows, schema=["id", "memory_id", "field", "old_value", "new_value"], orient="row")
 
         # 2. Perform parallel time-series grouping and delta calculation
         # Group by memory_id and field, select the last new_value chronologically (last id)
@@ -64,17 +59,14 @@ def compute_bitemporal_diffs_impl(
 
     results = []
     for (mem_id, field), current_val in grouped_dict.items():
-        results.append({
-            "memory_id": mem_id,
-            "field": field,
-            "current_value": current_val
-        })
+        results.append({"memory_id": mem_id, "field": field, "current_value": current_val})
     return json.dumps(results)
 
 
 def get_bitemporal_timeline_impl(memory_id: str, limit: int = 100) -> str:
     """Constructs a consolidated chronological delta timeline of all mutations for a memory."""
     from memory.backends import dialect
+
     _p = dialect().param()
     with _db() as db:
         rows = db.execute(
@@ -88,13 +80,7 @@ def get_bitemporal_timeline_impl(memory_id: str, limit: int = 100) -> str:
 
     history_tuples = []
     for r in rows:
-        history_tuples.append((
-            r["id"],
-            r["memory_id"],
-            r["field"],
-            r["prev_value"] or "",
-            r["new_value"] or ""
-        ))
+        history_tuples.append((r["id"], r["memory_id"], r["field"], r["prev_value"] or "", r["new_value"] or ""))
 
     # Run the fast Polars or fallback grouping
     diffs_json = compute_bitemporal_diffs_impl(history_tuples)
@@ -105,9 +91,7 @@ def get_bitemporal_timeline_impl(memory_id: str, limit: int = 100) -> str:
     for r in rows:
         prev = (r["prev_value"] or "")[:40]
         new = (r["new_value"] or "")[:40]
-        lines.append(
-            f"  [{r['created_at']}] mutated '{r['field']}': {prev!r} -> {new!r}"
-        )
+        lines.append(f"  [{r['created_at']}] mutated '{r['field']}': {prev!r} -> {new!r}")
     lines.append("-" * 60)
     lines.append("Consolidated Current State (Active Delta Grouping):")
     for diff in diffs:

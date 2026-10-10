@@ -20,6 +20,7 @@ which is the §3 failure mode this file exists to convert into a red test.
 
 The rule: registering an agent is a claim of support. This asserts the claim.
 """
+
 from __future__ import annotations
 
 import os
@@ -107,15 +108,18 @@ def test_library_agents_are_registered_and_hookless():
     for langchain and told the user to source it."""
     lib = chatlog_config.LIBRARY_HOST_AGENTS
     assert lib <= chatlog_config.VALID_HOST_AGENTS, (
-        f"library agent(s) not registered: {sorted(lib - chatlog_config.VALID_HOST_AGENTS)}")
+        f"library agent(s) not registered: {sorted(lib - chatlog_config.VALID_HOST_AGENTS)}"
+    )
     from doctor.environment_probe import _capture_support_gap
+
     for agent in sorted(lib):
         sh_path, ps1_path, desc = chatlog_init.get_hook_path_for_agent(agent)
         assert (sh_path, ps1_path) == ("", ""), f"{agent}: handed a hook path {sh_path!r}"
         assert "library" in desc and "unknown" not in desc, f"{agent}: desc {desc!r}"
         assert agent not in chatlog_ingest.PARSERS, (
             f"'{agent}' has a transcript parser, so it is not a library integration: "
-            f"remove it from LIBRARY_HOST_AGENTS so the capture sweeps test it")
+            f"remove it from LIBRARY_HOST_AGENTS so the capture sweeps test it"
+        )
         assert _capture_support_gap(agent) is None, f"doctor reports {agent} as a capture gap"
 
 
@@ -155,17 +159,19 @@ def test_the_openclaw_parser_handles_a_real_transcript_shape():
     ~/.openclaw/agents/<agent>/sessions/<uuid>.jsonl — a `session` header, then
     `model_change` / `custom` / `message` records.
     """
-    raw = "\n".join([
-        '{"type":"session","sessionId":"sess-1","timestamp":"2026-09-20T00:00:00Z"}',
-        '{"type":"model_change","model":"gpt-4o"}',
-        '{"type":"custom","payload":{"note":"ignored"}}',
-        '{"id":"m1","type":"message","timestamp":"2026-09-20T00:00:01Z",'
-        '"message":{"role":"user","content":"how do I pin a memory?"}}',
-        '{"id":"m2","type":"message","timestamp":"2026-09-20T00:00:02Z",'
-        '"message":{"role":"assistant","content":[{"type":"text","text":"Use memory_pin."}]}}',
-        '{"id":"m3","type":"message","message":{"role":"user","content":"/reset"}}',
-        'not json at all',
-    ])
+    raw = "\n".join(
+        [
+            '{"type":"session","sessionId":"sess-1","timestamp":"2026-09-20T00:00:00Z"}',
+            '{"type":"model_change","model":"gpt-4o"}',
+            '{"type":"custom","payload":{"note":"ignored"}}',
+            '{"id":"m1","type":"message","timestamp":"2026-09-20T00:00:01Z",'
+            '"message":{"role":"user","content":"how do I pin a memory?"}}',
+            '{"id":"m2","type":"message","timestamp":"2026-09-20T00:00:02Z",'
+            '"message":{"role":"assistant","content":[{"type":"text","text":"Use memory_pin."}]}}',
+            '{"id":"m3","type":"message","message":{"role":"user","content":"/reset"}}',
+            "not json at all",
+        ]
+    )
     items, session_id = chatlog_ingest._parse_openclaw(raw)
 
     assert session_id == "sess-1"
@@ -174,9 +180,7 @@ def test_the_openclaw_parser_handles_a_real_transcript_shape():
         "input, and the malformed line must be skipped without aborting"
     )
     assert items[1]["content"] == "Use memory_pin.", "list-of-parts content not flattened"
-    assert all(i["model_id"] == "gpt-4o" for i in items), (
-        "model_change did not attribute the turns that follow it"
-    )
+    assert all(i["model_id"] == "gpt-4o" for i in items), "model_change did not attribute the turns that follow it"
     assert all(i["conversation_id"] == "sess-1" for i in items)
 
 
@@ -187,6 +191,7 @@ def test_the_openclaw_parser_tolerates_an_empty_transcript():
 
 
 # ── the doctor must see it ───────────────────────────────────────────────────
+
 
 def test_doctor_reports_an_enabled_agent_it_cannot_capture():
     """⚠ THE SECOND HALF OF THE USER'S REPORT.
@@ -206,8 +211,7 @@ def test_doctor_reports_an_enabled_agent_it_cannot_capture():
         # A synthetic agent, NOT a real one: every registered agent is now
         # supported, so naming one here would make this test go green the day
         # that agent gets fixed rather than when the probe stops working.
-        host_agents = {a: chatlog_config.HookSpec(enabled=True)
-                       for a in ("claude-code", "some-unwired-agent")}
+        host_agents = {a: chatlog_config.HookSpec(enabled=True) for a in ("claude-code", "some-unwired-agent")}
 
     chatlog_config.resolve_config = lambda *a, **k: _Cfg()
     try:
@@ -241,13 +245,13 @@ def test_doctor_does_not_cry_wolf_about_a_working_agent():
     finally:
         chatlog_config.resolve_config = orig
 
-    assert not [f for f in findings
-                if f["kind"] == "claimed_not_supported" and f["event"] == "openclaw"], (
+    assert not [f for f in findings if f["kind"] == "claimed_not_supported" and f["event"] == "openclaw"], (
         "doctor flagged openclaw, which now has both a parser and a hook"
     )
 
 
 # ── Aider: markdown, not JSON ────────────────────────────────────────────────
+
 
 def test_the_aider_parser_separates_turns_from_console_output():
     """⚠ `>` LINES ARE NOT CONVERSATION.
@@ -258,33 +262,33 @@ def test_the_aider_parser_separates_turns_from_console_output():
     confirmed against Aider's io.py append_chat_history on main, and against a
     real 2,434-line history from 0.86.1.
     """
-    raw = "\n".join([
-        "",
-        "# aider chat started at 2026-01-11 11:59:16",
-        "",
-        "> Terminal does not support pretty output (UnicodeDecodeError)  ",
-        "> Aider v0.86.1  ",
-        "",
-        "#### how do I enable the repo map?  ",
-        "",
-        "Aider disables repo-map by default because:",
-        "- It can slow down startup.",
-        "",
-        "```bash",
-        "aider --repo-map",
-        "```",
-        "",
-        "> Tokens: 617 sent, 8 received.  ",
-    ])
+    raw = "\n".join(
+        [
+            "",
+            "# aider chat started at 2026-01-11 11:59:16",
+            "",
+            "> Terminal does not support pretty output (UnicodeDecodeError)  ",
+            "> Aider v0.86.1  ",
+            "",
+            "#### how do I enable the repo map?  ",
+            "",
+            "Aider disables repo-map by default because:",
+            "- It can slow down startup.",
+            "",
+            "```bash",
+            "aider --repo-map",
+            "```",
+            "",
+            "> Tokens: 617 sent, 8 received.  ",
+        ]
+    )
     items, session = chatlog_ingest._parse_aider(raw)
 
     assert session == "2026-01-11 11:59:16"
     assert [i["role"] for i in items] == ["user", "assistant"]
     assert "repo map" in items[0]["content"]
     assert "```bash" in items[1]["content"], "fenced code was dropped from the reply"
-    assert not any(i["content"].lstrip().startswith(">") for i in items), (
-        "console output was captured as conversation"
-    )
+    assert not any(i["content"].lstrip().startswith(">") for i in items), "console output was captured as conversation"
     assert not any("Tokens:" in i["content"] for i in items)
 
 
@@ -296,14 +300,16 @@ def test_a_multi_line_aider_user_message_is_one_turn():
     pasted stack trace into a dozen one-line 'messages'. This case is absent
     from the local sample, so it comes from the writer's source.
     """
-    raw = "\n".join([
-        "# aider chat started at 2026-01-11 12:00:00",
-        "#### first line of the paste  ",
-        "#### second line of the paste  ",
-        "#### third line  ",
-        "",
-        "Understood.",
-    ])
+    raw = "\n".join(
+        [
+            "# aider chat started at 2026-01-11 12:00:00",
+            "#### first line of the paste  ",
+            "#### second line of the paste  ",
+            "#### third line  ",
+            "",
+            "Understood.",
+        ]
+    )
     items, _ = chatlog_ingest._parse_aider(raw)
     assert [i["role"] for i in items] == ["user", "assistant"], (
         f"expected one user turn and one reply, got {[i['role'] for i in items]}"
@@ -313,17 +319,19 @@ def test_a_multi_line_aider_user_message_is_one_turn():
 
 def test_aider_turns_are_attributed_to_their_own_session():
     """One file holds every run, so turns must not merge across sessions."""
-    raw = "\n".join([
-        "# aider chat started at 2026-01-11 11:00:00",
-        "#### first question",
-        "",
-        "first answer",
-        "",
-        "# aider chat started at 2026-01-11 12:00:00",
-        "#### second question",
-        "",
-        "second answer",
-    ])
+    raw = "\n".join(
+        [
+            "# aider chat started at 2026-01-11 11:00:00",
+            "#### first question",
+            "",
+            "first answer",
+            "",
+            "# aider chat started at 2026-01-11 12:00:00",
+            "#### second question",
+            "",
+            "second answer",
+        ]
+    )
     items, session = chatlog_ingest._parse_aider(raw)
     convs = {i["conversation_id"] for i in items}
     assert len(convs) == 2, f"turns from two runs collapsed into {convs}"
@@ -331,6 +339,7 @@ def test_aider_turns_are_attributed_to_their_own_session():
 
 
 # ── OpenCode: a store, not a transcript ──────────────────────────────────────
+
 
 def test_opencode_is_a_path_parser_not_a_text_parser():
     """OpenCode writes no transcript file, so its parser takes the STORE PATH.
@@ -340,9 +349,7 @@ def test_opencode_is_a_path_parser_not_a_text_parser():
     """
     assert "opencode" in chatlog_ingest._PATH_PARSERS
     for fmt in chatlog_ingest._PATH_PARSERS:
-        assert fmt in chatlog_ingest.PARSERS, (
-            f"_PATH_PARSERS names '{fmt}', which is not a registered format"
-        )
+        assert fmt in chatlog_ingest.PARSERS, f"_PATH_PARSERS names '{fmt}', which is not a registered format"
 
 
 def test_the_opencode_reader_prefers_sqlite_but_honours_an_explicit_legacy_path(tmp_path):
@@ -360,20 +367,35 @@ def test_the_opencode_reader_prefers_sqlite_but_honours_an_explicit_legacy_path(
     part_dir = root / "storage" / "part" / "msg_1"
     msg_dir.mkdir(parents=True)
     part_dir.mkdir(parents=True)
-    (msg_dir / "msg_1.json").write_text(_json.dumps({
-        "id": "msg_1", "sessionID": "ses_legacy", "role": "user",
-        "time": {"created": 1767237681693},
-        "model": {"providerID": "xai", "modelID": "grok-3-mini"},
-    }), encoding="utf-8")
-    (part_dir / "prt_1.json").write_text(_json.dumps({
-        "id": "prt_1", "messageID": "msg_1", "type": "text",
-        "text": "legacy turn",
-    }), encoding="utf-8")
+    (msg_dir / "msg_1.json").write_text(
+        _json.dumps(
+            {
+                "id": "msg_1",
+                "sessionID": "ses_legacy",
+                "role": "user",
+                "time": {"created": 1767237681693},
+                "model": {"providerID": "xai", "modelID": "grok-3-mini"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (part_dir / "prt_1.json").write_text(
+        _json.dumps(
+            {
+                "id": "prt_1",
+                "messageID": "msg_1",
+                "type": "text",
+                "text": "legacy turn",
+            }
+        ),
+        encoding="utf-8",
+    )
     # ⚠ A REAL DATABASE WITH A DIFFERENT SESSION IN IT. An unopenable stub
     # would make this test pass for the wrong reason: the probe would fail to
     # read it and fall through to the legacy tree even when the hijack bug is
     # present. Planting the bug must actually flip this test.
     import sqlite3 as _sq
+
     con = _sq.connect(root / "opencode.db")
     con.executescript(
         "CREATE TABLE session (id TEXT, time_created INTEGER, time_updated INTEGER);"
@@ -382,17 +404,18 @@ def test_the_opencode_reader_prefers_sqlite_but_honours_an_explicit_legacy_path(
         " time_created INTEGER, data TEXT);"
     )
     con.execute("INSERT INTO session VALUES ('ses_sqlite', 1, 2)")
-    con.execute("INSERT INTO message VALUES ('m9','ses_sqlite',1,?)",
-                (_json.dumps({"role": "user", "time": {"created": 1767237681693}}),))
-    con.execute("INSERT INTO part VALUES ('p9','m9','ses_sqlite',1,?)",
-                (_json.dumps({"type": "text", "text": "sqlite turn"}),))
+    con.execute(
+        "INSERT INTO message VALUES ('m9','ses_sqlite',1,?)",
+        (_json.dumps({"role": "user", "time": {"created": 1767237681693}}),),
+    )
+    con.execute(
+        "INSERT INTO part VALUES ('p9','m9','ses_sqlite',1,?)", (_json.dumps({"type": "text", "text": "sqlite turn"}),)
+    )
     con.commit()
     con.close()
 
     items, session = chatlog_ingest._parse_opencode(str(msg_dir))
-    assert session == "ses_legacy", (
-        "an explicit legacy path was overridden by the sibling database"
-    )
+    assert session == "ses_legacy", "an explicit legacy path was overridden by the sibling database"
     assert [i["content"] for i in items] == ["legacy turn"]
 
 
@@ -404,27 +427,31 @@ def test_the_opencode_model_field_is_read_from_both_shapes():
     shape attributes half the turns to 'unknown'.
     """
     user = chatlog_ingest._opencode_item(
-        {"role": "user", "model": {"providerID": "xai", "modelID": "grok-3-mini"}},
-        "m1", "s1", ["hi"], 1767237681693)
+        {"role": "user", "model": {"providerID": "xai", "modelID": "grok-3-mini"}}, "m1", "s1", ["hi"], 1767237681693
+    )
     asst = chatlog_ingest._opencode_item(
-        {"role": "assistant", "providerID": "xai", "modelID": "grok-3-mini-fast",
-         "tokens": {"input": 12, "output": 34}},
-        "m2", "s1", ["hello"], 1767237681702)
+        {
+            "role": "assistant",
+            "providerID": "xai",
+            "modelID": "grok-3-mini-fast",
+            "tokens": {"input": 12, "output": 34},
+        },
+        "m2",
+        "s1",
+        ["hello"],
+        1767237681702,
+    )
 
     assert user["model_id"] == "grok-3-mini" and user["provider"] == "xai"
     assert asst["model_id"] == "grok-3-mini-fast" and asst["provider"] == "xai"
     assert (asst["tokens_in"], asst["tokens_out"]) == (12, 34)
-    assert user["timestamp"].startswith("2026-"), (
-        "epoch MILLISECONDS were treated as seconds"
-    )
+    assert user["timestamp"].startswith("2026-"), "epoch MILLISECONDS were treated as seconds"
 
 
 def test_an_opencode_turn_with_no_text_part_is_skipped():
     """Tool-only and errored turns carry no conversation."""
-    assert chatlog_ingest._opencode_item(
-        {"role": "assistant", "modelID": "m"}, "m1", "s1", [], 0) is None
-    assert chatlog_ingest._opencode_item(
-        {"role": "assistant", "modelID": "m"}, "m1", "s1", ["  "], 0) is None
+    assert chatlog_ingest._opencode_item({"role": "assistant", "modelID": "m"}, "m1", "s1", [], 0) is None
+    assert chatlog_ingest._opencode_item({"role": "assistant", "modelID": "m"}, "m1", "s1", ["  "], 0) is None
 
 
 def test_an_unknown_opencode_provider_is_normalised():
@@ -438,17 +465,16 @@ def test_an_unknown_opencode_provider_is_normalised():
     """
 
     routed = chatlog_ingest._opencode_item(
-        {"role": "user", "providerID": "opencode", "modelID": "qwen3.6-plus-free"},
-        "m1", "s1", ["hi"], 1767237681693)
+        {"role": "user", "providerID": "opencode", "modelID": "qwen3.6-plus-free"}, "m1", "s1", ["hi"], 1767237681693
+    )
     assert routed["provider"] == "other", (
-        f"unmapped provider {routed['provider']!r} would be rejected by the "
-        f"chatlog schema"
+        f"unmapped provider {routed['provider']!r} would be rejected by the chatlog schema"
     )
     assert routed["model_id"] == "qwen3.6-plus-free", "the model must survive"
 
     vendor = chatlog_ingest._opencode_item(
-        {"role": "user", "providerID": "xai", "modelID": "grok-3-mini"},
-        "m2", "s1", ["hi"], 1767237681693)
+        {"role": "user", "providerID": "xai", "modelID": "grok-3-mini"}, "m2", "s1", ["hi"], 1767237681693
+    )
     assert vendor["provider"] == "xai", "a real vendor must not be flattened"
 
 
@@ -460,14 +486,15 @@ def test_every_new_parser_emits_a_writable_provider(fmt):
     from chatlog_config import VALID_PROVIDERS
 
     samples = {
-        "aider": lambda: chatlog_ingest._parse_aider(
-            "# aider chat started at 2026-01-11 11:00:00\n#### q\n\na\n")[0],
+        "aider": lambda: chatlog_ingest._parse_aider("# aider chat started at 2026-01-11 11:00:00\n#### q\n\na\n")[0],
         "openclaw": lambda: chatlog_ingest._parse_openclaw(
-            '{"type":"session","sessionId":"s"}\n'
-            '{"id":"m","type":"message","message":{"role":"user","content":"q"}}\n')[0],
-        "opencode": lambda: [chatlog_ingest._opencode_item(
-            {"role": "user", "providerID": "some-new-router", "modelID": "m"},
-            "m1", "s1", ["q"], 1767237681693)],
+            '{"type":"session","sessionId":"s"}\n{"id":"m","type":"message","message":{"role":"user","content":"q"}}\n'
+        )[0],
+        "opencode": lambda: [
+            chatlog_ingest._opencode_item(
+                {"role": "user", "providerID": "some-new-router", "modelID": "m"}, "m1", "s1", ["q"], 1767237681693
+            )
+        ],
     }
     for item in samples[fmt]():
         assert item["provider"] in VALID_PROVIDERS, (
@@ -478,10 +505,7 @@ def test_every_new_parser_emits_a_writable_provider(fmt):
 
 # ── the hooks must invoke flags that exist ───────────────────────────────────
 
-_HOOK_SCRIPTS = sorted(
-    p for p in os.listdir(_HOOKS)
-    if p.endswith((".sh", ".ps1")) and not p.startswith("_")
-)
+_HOOK_SCRIPTS = sorted(p for p in os.listdir(_HOOKS) if p.endswith((".sh", ".ps1")) and not p.startswith("_"))
 
 
 @pytest.mark.parametrize("script", _HOOK_SCRIPTS)
@@ -504,8 +528,7 @@ def test_a_hook_only_passes_ingest_flags_that_exist(script):
         text = fh.read()
     # Only the lines that actually invoke ingest: a script also passes flags to
     # python, to its own CLI, and mentions others in comments.
-    invocations = [ln for ln in text.splitlines()
-                   if "chatlog_ingest.py" in ln and not ln.lstrip().startswith("#")]
+    invocations = [ln for ln in text.splitlines() if "chatlog_ingest.py" in ln and not ln.lstrip().startswith("#")]
     if not invocations:
         _assert_delegates_to_a_checked_py_hook(script, text)
         return
@@ -514,7 +537,7 @@ def test_a_hook_only_passes_ingest_flags_that_exist(script):
         known = set(re.findall(r'add_argument\(\s*"(--[a-z0-9-]+)"', fh.read()))
     assert known, "could not determine chatlog_ingest's accepted flags"
 
-    used = {f for ln in invocations for f in re.findall(r'(--[a-z0-9-]{2,})', ln)}
+    used = {f for ln in invocations for f in re.findall(r"(--[a-z0-9-]{2,})", ln)}
     unknown = sorted(f for f in used if f not in known)
     assert not unknown, (
         f"{script} passes chatlog_ingest flag(s) it does not accept: "
@@ -528,16 +551,14 @@ def test_a_hook_passes_a_format_that_exists(script):
     """`--format <x>` must name a registered parser."""
     with open(os.path.join(_HOOKS, script), encoding="utf-8") as fh:
         text = fh.read()
-    invocations = [ln for ln in text.splitlines()
-                   if "chatlog_ingest.py" in ln and not ln.lstrip().startswith("#")]
+    invocations = [ln for ln in text.splitlines() if "chatlog_ingest.py" in ln and not ln.lstrip().startswith("#")]
     if not invocations:
         _assert_delegates_to_a_checked_py_hook(script, text)
         return
     for ln in invocations:
-        for fmt in re.findall(r'--format\s+([a-z0-9-]+)', ln):
+        for fmt in re.findall(r"--format\s+([a-z0-9-]+)", ln):
             assert fmt in chatlog_ingest.PARSERS, (
-                f"{script} passes --format {fmt}, which argparse rejects "
-                f"(known: {sorted(chatlog_ingest.PARSERS)})"
+                f"{script} passes --format {fmt}, which argparse rejects (known: {sorted(chatlog_ingest.PARSERS)})"
             )
 
 
@@ -547,7 +568,8 @@ def _assert_delegates_to_a_checked_py_hook(script: str, text: str) -> None:
     targets = re.findall(r"hooks[/\\]chatlog[/\\]([a-z_]+\.py)", text)
     assert targets and all(t in _PY_HOOKS for t in targets), (
         f"observed: {script} neither calls chatlog_ingest nor delegates to a checked .py "
-        f"hook (found {targets}). inspect: bin/hooks/chatlog/{script}")
+        f"hook (found {targets}). inspect: bin/hooks/chatlog/{script}"
+    )
 
 
 _PY_HOOKS = sorted(p for p in os.listdir(_HOOKS) if p.endswith(".py") and not p.startswith("_"))
@@ -561,22 +583,31 @@ def _py_hook_ingest_args(path: str) -> tuple[list[str], str | None]:
     with open(path, encoding="utf-8") as fh:
         src = fh.read()
     tree = ast.parse(src)
-    consts = {n.targets[0].id: n.value.value for n in tree.body
-              if isinstance(n, ast.Assign) and len(n.targets) == 1
-              and isinstance(n.targets[0], ast.Name) and isinstance(n.value, ast.Constant)}
+    consts = {
+        n.targets[0].id: n.value.value
+        for n in tree.body
+        if isinstance(n, ast.Assign)
+        and len(n.targets) == 1
+        and isinstance(n.targets[0], ast.Name)
+        and isinstance(n.value, ast.Constant)
+    }
     flags: list[str] = []
     fmt = None
     for n in ast.walk(tree):
-        if isinstance(n, ast.List) and any(isinstance(e, ast.Constant) and e.value == "--format"
-                                           for e in n.elts):
-            vals = [e.value if isinstance(e, ast.Constant) else
-                    consts.get(e.id) if isinstance(e, ast.Name) else None for e in n.elts]
+        if isinstance(n, ast.List) and any(isinstance(e, ast.Constant) and e.value == "--format" for e in n.elts):
+            vals = [
+                e.value if isinstance(e, ast.Constant) else consts.get(e.id) if isinstance(e, ast.Name) else None
+                for e in n.elts
+            ]
             flags += [v for v in vals if isinstance(v, str) and v.startswith("--")]
             fmt = vals[vals.index("--format") + 1]
     for n in ast.walk(tree):
         if isinstance(n, ast.AugAssign) and isinstance(n.value, ast.List):
-            flags += [e.value for e in n.value.elts if isinstance(e, ast.Constant)
-                      and isinstance(e.value, str) and e.value.startswith("--")]
+            flags += [
+                e.value
+                for e in n.value.elts
+                if isinstance(e, ast.Constant) and isinstance(e.value, str) and e.value.startswith("--")
+            ]
     return flags, fmt
 
 
@@ -594,7 +625,8 @@ def test_a_py_hook_passes_only_real_ingest_args(hook):
     unknown = sorted(set(flags) - known)
     assert not unknown, f"observed: {hook} passes {unknown}, which chatlog_ingest rejects. inspect: {hook}"
     assert fmt in chatlog_ingest.PARSERS, (
-        f"observed: {hook} passes --format {fmt!r}; known {sorted(chatlog_ingest.PARSERS)}. inspect: {hook}")
+        f"observed: {hook} passes --format {fmt!r}; known {sorted(chatlog_ingest.PARSERS)}. inspect: {hook}"
+    )
 
 
 def test_the_opencode_store_is_located_portably(monkeypatch, tmp_path):
@@ -615,21 +647,15 @@ def test_the_opencode_store_is_located_portably(monkeypatch, tmp_path):
     override = tmp_path / "elsewhere"
     override.mkdir()
     monkeypatch.setenv("OPENCODE_DATA_DIR", str(override))
-    assert chatlog_ingest.opencode_store_candidates() == [override], (
-        "OPENCODE_DATA_DIR did not take precedence"
-    )
+    assert chatlog_ingest.opencode_store_candidates() == [override], "OPENCODE_DATA_DIR did not take precedence"
 
 
 def test_the_hooks_do_not_derive_their_own_opencode_path():
     """Both wrappers must defer to the single owner, not re-implement it."""
     for name in ("opencode_session_end.sh", "opencode_session_end.ps1"):
         with open(os.path.join(_HOOKS, name), encoding="utf-8") as fh:
-            body = "\n".join(ln for ln in fh.read().splitlines()
-                             if not ln.lstrip().startswith("#"))
+            body = "\n".join(ln for ln in fh.read().splitlines() if not ln.lstrip().startswith("#"))
         assert ".local/share" not in body and ".local\\share" not in body, (
-            f"{name} hardcodes the XDG path again — that is one OS's "
-            f"convention baked into a hook that runs on three"
+            f"{name} hardcodes the XDG path again — that is one OS's convention baked into a hook that runs on three"
         )
-        assert "--transcript-path auto" in body, (
-            f"{name} no longer defers store discovery to chatlog_ingest"
-        )
+        assert "--transcript-path auto" in body, f"{name} no longer defers store discovery to chatlog_ingest"

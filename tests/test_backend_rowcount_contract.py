@@ -8,6 +8,7 @@ reads 0 there and every such caller would misreport. The contract is owned by
 StorageBackend.connection() (base.py) and checked here for every shipped
 backend, so a new backend fails this test instead of 40 call sites.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -24,15 +25,19 @@ def test_an_update_to_the_same_value_counts_the_matched_row(each_backend):
             cur.execute(
                 "INSERT INTO synchronized_secrets (service_name, encrypted_value, version, "
                 f"origin_device, updated_at) VALUES ({p}, {p}, {p}, {p}, {p})",
-                (service, "same", 1, "test", "2026-01-01T00:00:00Z"))
+                (service, "same", 1, "test", "2026-01-01T00:00:00Z"),
+            )
             conn.commit()
 
-            cur.execute(f"UPDATE synchronized_secrets SET encrypted_value = {p} "
-                        f"WHERE service_name = {p}", ("same", service))
+            cur.execute(
+                f"UPDATE synchronized_secrets SET encrypted_value = {p} WHERE service_name = {p}", ("same", service)
+            )
             assert cur.rowcount == 1, f"{each_backend.name}: unchanged UPDATE reported {cur.rowcount}"
 
-            cur.execute(f"UPDATE synchronized_secrets SET encrypted_value = {p} "
-                        f"WHERE service_name = {p}", ("x", service + "_ABSENT"))
+            cur.execute(
+                f"UPDATE synchronized_secrets SET encrypted_value = {p} WHERE service_name = {p}",
+                ("x", service + "_ABSENT"),
+            )
             assert cur.rowcount == 0, f"{each_backend.name}: UPDATE of no row reported {cur.rowcount}"
             conn.commit()
         finally:

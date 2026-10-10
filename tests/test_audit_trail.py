@@ -19,11 +19,7 @@ def test_cryptographic_audit_trail():
             assert verify_audit_trail() is True
 
             # 2. Log first entry (Genesis)
-            h1 = write_audit_entry(
-                action="memory_delete",
-                target_id="uuid-1",
-                metadata={"hard": True}
-            )
+            h1 = write_audit_entry(action="memory_delete", target_id="uuid-1", metadata={"hard": True})
             assert os.path.exists(audit_path)
 
             # Read and verify first entry
@@ -40,11 +36,7 @@ def test_cryptographic_audit_trail():
             assert verify_audit_trail() is True
 
             # 3. Log second entry (should link to h1)
-            h2 = write_audit_entry(
-                action="gdpr_forget",
-                target_id="user-123",
-                metadata={"items_affected": 5}
-            )
+            h2 = write_audit_entry(action="gdpr_forget", target_id="user-123", metadata={"items_affected": 5})
 
             with open(audit_path, encoding="utf-8") as f:
                 lines = f.readlines()

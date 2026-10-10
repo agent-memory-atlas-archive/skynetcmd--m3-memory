@@ -2,6 +2,7 @@
 review). Deterministic + hermetic: the integration tests use a tmp agent DB and
 run in dry_run mode so they never touch the embedder or the live store.
 """
+
 from __future__ import annotations
 
 import os
@@ -18,75 +19,107 @@ from files_memory import entity_coalesce as ec  # noqa: E402
 
 
 # ── Pure-function units (no DB, no embedder) ─────────────────────────────────
-@pytest.mark.parametrize("name", [
-    "$0.25", "$13 to $26", "%APPDATA%", "$M3_BRIDGE_PATH", "#bug-reports",
-    "'SEARCH:'", "35 minutes", "9d884ed8", "status", "result", "COALESCE",
-    "database", "",
-])
+@pytest.mark.parametrize(
+    "name",
+    [
+        "$0.25",
+        "$13 to $26",
+        "%APPDATA%",
+        "$M3_BRIDGE_PATH",
+        "#bug-reports",
+        "'SEARCH:'",
+        "35 minutes",
+        "9d884ed8",
+        "status",
+        "result",
+        "COALESCE",
+        "database",
+        "",
+    ],
+)
 def test_is_noise_flags_non_entities(name):
     assert ec._is_noise(name) is True
 
 
-@pytest.mark.parametrize("name", [
-    "SQLite", "enrichment_groups", "Project Oxidation", "ChromaDB",
-    "memory_search", "BGE-M3",
-])
+@pytest.mark.parametrize(
+    "name",
+    [
+        "SQLite",
+        "enrichment_groups",
+        "Project Oxidation",
+        "ChromaDB",
+        "memory_search",
+        "BGE-M3",
+    ],
+)
 def test_is_noise_keeps_real_entities(name):
     assert ec._is_noise(name) is False
 
 
-@pytest.mark.parametrize("a,b", [
-    ("content_hash", "_content_hash"),
-    ("predicates", "_PREDICATES"),
-    ("routed_impl", "_routed_impl"),
-    ("foo", "__foo"),
-])
+@pytest.mark.parametrize(
+    "a,b",
+    [
+        ("content_hash", "_content_hash"),
+        ("predicates", "_PREDICATES"),
+        ("routed_impl", "_routed_impl"),
+        ("foo", "__foo"),
+    ],
+)
 def test_underscore_collision_demotes_helper_vs_value(a, b):
     # leading-underscore difference = private helper vs public value = different
     assert ec._underscore_collision(a, b) is True
 
 
-@pytest.mark.parametrize("a,b", [
-    ("memory item", "memory items"),     # singular/plural -> legit merge
-    ("agent prompt", "agent prompts"),
-    ("SQLite database", "SQLite databases"),
-    ("foo", "foo"),                       # identical -> not a "collision"
-    ("foo", "bar"),                       # unrelated
-])
+@pytest.mark.parametrize(
+    "a,b",
+    [
+        ("memory item", "memory items"),  # singular/plural -> legit merge
+        ("agent prompt", "agent prompts"),
+        ("SQLite database", "SQLite databases"),
+        ("foo", "foo"),  # identical -> not a "collision"
+        ("foo", "bar"),  # unrelated
+    ],
+)
 def test_underscore_collision_allows_real_variants(a, b):
     assert ec._underscore_collision(a, b) is False
 
 
-@pytest.mark.parametrize("a,b", [
-    ("run-config-k20", "run-config-k30"),  # trailing-number config (live false merge)
-    ("gpt-4", "gpt-5"),
-    ("baseline-1", "baseline-2"),
-    ("v1", "v2"),
-    ("phase 3", "phase 4"),
-    ("qwen3-embedding-0.6b", "qwen3-embedding-1.5b"),
-])
+@pytest.mark.parametrize(
+    "a,b",
+    [
+        ("run-config-k20", "run-config-k30"),  # trailing-number config (live false merge)
+        ("gpt-4", "gpt-5"),
+        ("baseline-1", "baseline-2"),
+        ("v1", "v2"),
+        ("phase 3", "phase 4"),
+        ("qwen3-embedding-0.6b", "qwen3-embedding-1.5b"),
+    ],
+)
 def test_numeric_suffix_collision_demotes_distinct_configs(a, b):
     # differ only by a numeric/version token = distinct config/version = different
     assert ec._numeric_suffix_collision(a, b) is True
 
 
-@pytest.mark.parametrize("a,b", [
-    ("entity row", "entity rows"),        # singular/plural -> legit merge
-    ("MCP server", "MCP servers"),
-    ("memory/migrations", "memory/migrations/"),  # trailing slash -> legit merge
-    ("small models", "small model"),
-    ("qwen3-embedding-0.6b", "qwen3-embedding:0.6b"),  # same number, separator differs
-    ("content_hash", "_content_hash"),    # underscore guard's job, not this one
-    ("alpha-v2", "beta-v3"),              # word ALSO differs -> not purely numeric
-    ("foo", "foo"),                       # identical
-])
+@pytest.mark.parametrize(
+    "a,b",
+    [
+        ("entity row", "entity rows"),  # singular/plural -> legit merge
+        ("MCP server", "MCP servers"),
+        ("memory/migrations", "memory/migrations/"),  # trailing slash -> legit merge
+        ("small models", "small model"),
+        ("qwen3-embedding-0.6b", "qwen3-embedding:0.6b"),  # same number, separator differs
+        ("content_hash", "_content_hash"),  # underscore guard's job, not this one
+        ("alpha-v2", "beta-v3"),  # word ALSO differs -> not purely numeric
+        ("foo", "foo"),  # identical
+    ],
+)
 def test_numeric_suffix_collision_allows_real_variants(a, b):
     assert ec._numeric_suffix_collision(a, b) is False
 
 
 def test_block_key_first_token_normalized():
     assert ec._block_key("Data Warehouse") == "data"
-    assert ec._block_key("data warehouse") == "data"      # same block, word-order
+    assert ec._block_key("data warehouse") == "data"  # same block, word-order
     assert ec._block_key("enrichment_groups") == "enrichment"
     assert ec._block_key("") == ""
 
@@ -161,8 +194,8 @@ def tmp_entity_db(tmp_path, monkeypatch):
         ("e7", "SQLite", "protocol", "{}"),
     ]
     conn.executemany(
-        "INSERT INTO entities(id, canonical_name, entity_type, attributes_json) "
-        "VALUES (?,?,?,?)", rows,
+        "INSERT INTO entities(id, canonical_name, entity_type, attributes_json) VALUES (?,?,?,?)",
+        rows,
     )
     conn.commit()
     conn.close()
@@ -214,8 +247,7 @@ def test_bulk_review_records_decisions(tmp_entity_db):
     cands = ec.list_coalesce_candidates(reviewed=False, limit=99)
     assert cands, "expected at least one candidate"
     res = ec.review_coalesce_candidates(
-        [{"uuid": cands[0]["uuid"], "action": "merge"},
-         {"uuid": "nonexistent", "action": "reject"}],
+        [{"uuid": cands[0]["uuid"], "action": "merge"}, {"uuid": "nonexistent", "action": "reject"}],
         note="unit test",
     )
     assert res["updated"] == 1
@@ -243,8 +275,7 @@ def test_apply_creates_reversible_overlay_then_unapply_restores(tmp_entity_db):
     # detect -> the 'small models'/'small model' pair lands in the merge band
     ec.coalesce_detect(dry_run=False, max_pairs=50)
     # explicit db_path satisfies the mutation guard AND exercises isolation
-    res = ec.apply_coalescence(include_auto_merge=True, dry_run=False,
-                               db_path=os.environ["M3_MEMORY_DB"])
+    res = ec.apply_coalescence(include_auto_merge=True, dry_run=False, db_path=os.environ["M3_MEMORY_DB"])
     assert res["applied"] >= 1
     cid = res["clusters_touched"][0]
 
@@ -262,9 +293,7 @@ def test_apply_creates_reversible_overlay_then_unapply_restores(tmp_entity_db):
     assert rev["reverted_members"] >= 1
     conn = sqlite3.connect(os.environ["M3_MEMORY_DB"], timeout=30)
     assert conn.execute("SELECT count(*) FROM entities WHERE cluster_id=?", (cid,)).fetchone()[0] == 0
-    assert conn.execute(
-        "SELECT count(*) FROM entity_relationships WHERE predicate='same_as'"
-    ).fetchone()[0] == 0
+    assert conn.execute("SELECT count(*) FROM entity_relationships WHERE predicate='same_as'").fetchone()[0] == 0
     assert conn.execute("SELECT count(*) FROM entities").fetchone()[0] == 7  # still all there
     conn.close()
 
@@ -283,7 +312,8 @@ def test_unapply_tombstones_and_strips_alias_and_blocks_auto_remerge(tmp_entity_
     rep_alias_rows = conn.execute(
         "SELECT json_extract(r.attributes_json,'$.aliases') "
         "FROM entity_relationships er JOIN entities r ON r.id = er.to_entity "
-        "WHERE er.predicate='same_as'").fetchall()
+        "WHERE er.predicate='same_as'"
+    ).fetchall()
     cand_uuid = conn.execute(
         "SELECT uuid FROM entity_coalesce_candidates WHERE review_action='merge' LIMIT 1"
     ).fetchone()[0]
@@ -296,9 +326,9 @@ def test_unapply_tombstones_and_strips_alias_and_blocks_auto_remerge(tmp_entity_
 
     conn = sqlite3.connect(db, timeout=30)
     # (1) candidate tombstoned -> NOT 'merge', so auto-merge filter skips it
-    action = conn.execute(
-        "SELECT review_action FROM entity_coalesce_candidates WHERE uuid=?", (cand_uuid,)
-    ).fetchone()[0]
+    action = conn.execute("SELECT review_action FROM entity_coalesce_candidates WHERE uuid=?", (cand_uuid,)).fetchone()[
+        0
+    ]
     assert action == "unapplied"
     # (2) no stale alias left anywhere
     leftover = conn.execute(
@@ -311,8 +341,7 @@ def test_unapply_tombstones_and_strips_alias_and_blocks_auto_remerge(tmp_entity_
     # (3a) auto-merge does NOT resurrect the tombstoned cluster
     again = ec.apply_coalescence(include_auto_merge=True, dry_run=False, db_path=db)
     conn = sqlite3.connect(db, timeout=30)
-    sa = conn.execute(
-        "SELECT count(*) FROM entity_relationships WHERE predicate='same_as'").fetchone()[0]
+    sa = conn.execute("SELECT count(*) FROM entity_relationships WHERE predicate='same_as'").fetchone()[0]
     conn.close()
     assert again["applied"] == 0 and sa == 0, "auto-merge must not re-merge an unapplied cluster"
 
@@ -320,8 +349,7 @@ def test_unapply_tombstones_and_strips_alias_and_blocks_auto_remerge(tmp_entity_
     redo = ec.apply_coalescence(candidate_uuids=[cand_uuid], dry_run=False, db_path=db)
     assert redo["applied"] == 1
     conn = sqlite3.connect(db, timeout=30)
-    sa2 = conn.execute(
-        "SELECT count(*) FROM entity_relationships WHERE predicate='same_as'").fetchone()[0]
+    sa2 = conn.execute("SELECT count(*) FROM entity_relationships WHERE predicate='same_as'").fetchone()[0]
     conn.close()
     assert sa2 == 1
 

@@ -15,6 +15,7 @@ seam reports nothing -- the failures surface far from the cause.
 These tests pin the invariant so a future reordering fails HERE, loudly, with
 one message, instead of as 96 mystery TypeErrors somewhere else.
 """
+
 from __future__ import annotations
 
 import os
@@ -46,8 +47,7 @@ def test_it_survives_importing_the_submodule_afterwards():
     import memory.backends.dialect  # noqa: F401 - the side effect IS the test
 
     assert callable(backends.dialect), (
-        "importing memory.backends.dialect rebound the package attribute to "
-        "the submodule -- the accessor was shadowed"
+        "importing memory.backends.dialect rebound the package attribute to the submodule -- the accessor was shadowed"
     )
 
 
@@ -56,9 +56,7 @@ def test_the_accessor_actually_resolves_a_dialect():
     from memory.backends import dialect
 
     d = dialect()
-    assert hasattr(d, "param"), (
-        f"dialect() returned {d!r}, which is not a Dialect"
-    )
+    assert hasattr(d, "param"), f"dialect() returned {d!r}, which is not a Dialect"
     assert callable(d.param), "the resolved dialect has no param() method"
 
 

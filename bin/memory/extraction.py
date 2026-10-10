@@ -4,6 +4,7 @@ Allows configuring local/remote LLMs, rule-based extractors, or custom scripts
 to automatically extract structured entities and relationships from raw text,
 fully integrating with m3-memory's entity-graph CRUD and bitemporal structures.
 """
+
 from __future__ import annotations
 
 import abc
@@ -112,9 +113,15 @@ class RuleBasedExtractor(BaseExtractor):
         # 1. Known technologies/skills mapped to 'topic' or 'technology'
         extracted_names = set()
         tech_words = [
-            ("Rust", "topic"), ("Python", "topic"), ("C\\+\\+", "topic"),
-            ("SQLite", "topic"), ("Postgres", "topic"), ("ChromaDB", "topic"),
-            ("workflow", "topic"), ("FIPS", "topic"), ("cryptography", "topic")
+            ("Rust", "topic"),
+            ("Python", "topic"),
+            ("C\\+\\+", "topic"),
+            ("SQLite", "topic"),
+            ("Postgres", "topic"),
+            ("ChromaDB", "topic"),
+            ("workflow", "topic"),
+            ("FIPS", "topic"),
+            ("cryptography", "topic"),
         ]
         for tech, etype in tech_words:
             if etype in active_types:
@@ -122,13 +129,15 @@ class RuleBasedExtractor(BaseExtractor):
                 for tm in tmatches:
                     name = tm.group(1)
                     if name not in extracted_names:
-                        entities.append({
-                            "canonical_name": name,
-                            "entity_type": etype,
-                            "mention_text": name,
-                            "mention_offset": tm.start(),
-                            "confidence": 0.80
-                        })
+                        entities.append(
+                            {
+                                "canonical_name": name,
+                                "entity_type": etype,
+                                "mention_text": name,
+                                "mention_offset": tm.start(),
+                                "confidence": 0.80,
+                            }
+                        )
                         extracted_names.add(name)
 
         # 2. Capitalized words (Person, Place, Organization candidate)
@@ -145,19 +154,27 @@ class RuleBasedExtractor(BaseExtractor):
 
             # Classify based on heuristics or active vocab defaults
             etype = "person"
-            if any(term in name.lower() for term in ("corp", "inc", "ltd", "google", "microsoft", "amazon", "github", "apple")):
+            if any(
+                term in name.lower()
+                for term in ("corp", "inc", "ltd", "google", "microsoft", "amazon", "github", "apple")
+            ):
                 etype = "organization"
-            elif any(term in name.lower() for term in ("city", "roanoke", "enclave", "valley", "mount", "lake", "ocean", "river")):
+            elif any(
+                term in name.lower()
+                for term in ("city", "roanoke", "enclave", "valley", "mount", "lake", "ocean", "river")
+            ):
                 etype = "place"
 
             if etype in active_types and name not in extracted_names:
-                entities.append({
-                    "canonical_name": name,
-                    "entity_type": etype,
-                    "mention_text": name,
-                    "mention_offset": offset,
-                    "confidence": 0.70
-                })
+                entities.append(
+                    {
+                        "canonical_name": name,
+                        "entity_type": etype,
+                        "mention_text": name,
+                        "mention_offset": offset,
+                        "confidence": 0.70,
+                    }
+                )
                 extracted_names.add(name)
 
         # 3. Simple regex-based relationship predicates matching active predicates
@@ -173,31 +190,35 @@ class RuleBasedExtractor(BaseExtractor):
                 p = re.escape(person)
                 pl = re.escape(place)
                 # match if they appear close or in a clear connection
-                if re.search(p + r".{0,100}?(?:lives\s+in|moved\s+to|located\s+in|resides\s+in).{0,100}?" + pl, text, re.IGNORECASE) or \
-                   re.search(pl + r".{0,100}?(?:lives\s+in|moved\s+to|located\s+in|resides\s+in).{0,100}?" + p, text, re.IGNORECASE):
+                if re.search(
+                    p + r".{0,100}?(?:lives\s+in|moved\s+to|located\s+in|resides\s+in).{0,100}?" + pl,
+                    text,
+                    re.IGNORECASE,
+                ) or re.search(
+                    pl + r".{0,100}?(?:lives\s+in|moved\s+to|located\s+in|resides\s+in).{0,100}?" + p,
+                    text,
+                    re.IGNORECASE,
+                ):
                     pred = "located_in"
                     if pred in active_predicates:
-                        relationships.append({
-                            "from_entity": person,
-                            "to_entity": place,
-                            "predicate": pred,
-                            "confidence": 0.75
-                        })
+                        relationships.append(
+                            {"from_entity": person, "to_entity": place, "predicate": pred, "confidence": 0.75}
+                        )
 
             # check works at (allowing intermediate words or overall context)
             for org in org_nodes:
                 p = re.escape(person)
                 o = re.escape(org)
-                if re.search(p + r".{0,100}?(?:works\s+at|employed\s+by|joined|hired\s+by).{0,100}?" + o, text, re.IGNORECASE) or \
-                   re.search(o + r".{0,100}?(?:works\s+at|employed\s+by|joined|hired\s+by).{0,100}?" + p, text, re.IGNORECASE):
+                if re.search(
+                    p + r".{0,100}?(?:works\s+at|employed\s+by|joined|hired\s+by).{0,100}?" + o, text, re.IGNORECASE
+                ) or re.search(
+                    o + r".{0,100}?(?:works\s+at|employed\s+by|joined|hired\s+by).{0,100}?" + p, text, re.IGNORECASE
+                ):
                     pred = "works_at"
                     if pred in active_predicates:
-                        relationships.append({
-                            "from_entity": person,
-                            "to_entity": org,
-                            "predicate": pred,
-                            "confidence": 0.80
-                        })
+                        relationships.append(
+                            {"from_entity": person, "to_entity": org, "predicate": pred, "confidence": 0.80}
+                        )
 
             # check learning / knows technology (allowing intermediate pronouns like "He is learning...")
             for tech in tech_nodes:
@@ -205,16 +226,20 @@ class RuleBasedExtractor(BaseExtractor):
                 t = re.escape(tech)
                 # Matches "John Doe... learning Rust" or "John Doe... [pronoun] is learning Rust"
                 # Since tech words appear in the text, we check for presence of learning/skills verbs
-                if re.search(p + r".{0,150}?(?:learning|knows|uses|programming|skills\s+in|writes).{0,100}?" + t, text, re.IGNORECASE) or \
-                   re.search(r"\b(?:he|she|they)\b.{0,50}?(?:learning|knows|uses|programming|skills\s+in|writes).{0,100}?" + t, text, re.IGNORECASE):
+                if re.search(
+                    p + r".{0,150}?(?:learning|knows|uses|programming|skills\s+in|writes).{0,100}?" + t,
+                    text,
+                    re.IGNORECASE,
+                ) or re.search(
+                    r"\b(?:he|she|they)\b.{0,50}?(?:learning|knows|uses|programming|skills\s+in|writes).{0,100}?" + t,
+                    text,
+                    re.IGNORECASE,
+                ):
                     pred = "prefers"
                     if pred in active_predicates:
-                        relationships.append({
-                            "from_entity": person,
-                            "to_entity": tech,
-                            "predicate": pred,
-                            "confidence": 0.75
-                        })
+                        relationships.append(
+                            {"from_entity": person, "to_entity": tech, "predicate": pred, "confidence": 0.75}
+                        )
 
         return {"entities": entities, "relationships": relationships}
 
@@ -292,11 +317,7 @@ Text to process:
         lmstudio_url = self.url or os.environ.get("M3_EMBED_URL") or "http://localhost:1234"
 
         # Instantiate unified client
-        cli = unified_ai.UnifiedAI(
-            gemini_key=gemini_key,
-            claude_key=claude_key,
-            lmstudio_url=lmstudio_url
-        )
+        cli = unified_ai.UnifiedAI(gemini_key=gemini_key, claude_key=claude_key, lmstudio_url=lmstudio_url)
 
         try:
             # Resolve model and provider via llm_failover if not explicitly locked down
@@ -320,9 +341,9 @@ Text to process:
                     model=mod,
                     messages=[
                         {"role": "system", "content": "You are a precise JSON-only extractor backend."},
-                        {"role": "user", "content": prompt}
+                        {"role": "user", "content": prompt},
                     ],
-                    temperature=0.0
+                    temperature=0.0,
                 )
             )
 
@@ -350,6 +371,7 @@ Text to process:
 def httpx_async_client() -> Any:
     """Get stock httpx AsyncClient."""
     import httpx
+
     return httpx.AsyncClient()
 
 
@@ -429,12 +451,14 @@ def get_configured_extractor() -> BaseExtractor:
 
     # Build and return the designated extractor subclass
     if etype in ("local_llm", "remote_llm", "llm", "gemini", "claude", "lmstudio"):
-        return LLMExtractor({
-            "type": "gemini" if etype == "gemini" else ("claude" if etype == "claude" else "lmstudio"),
-            "model": model,
-            "url": url,
-            "prompt": prompt
-        })
+        return LLMExtractor(
+            {
+                "type": "gemini" if etype == "gemini" else ("claude" if etype == "claude" else "lmstudio"),
+                "model": model,
+                "url": url,
+                "prompt": prompt,
+            }
+        )
     elif etype == "custom_script" and script:
         return CustomScriptExtractor(script, func)
     else:
@@ -471,13 +495,15 @@ async def extract_entities_impl(text: str) -> str:
             etype = (ent.get("entity_type") or ent.get("type") or "").strip().lower()
             if not cname or etype not in active_types:
                 continue
-            cleaned_entities.append({
-                "canonical_name": cname,
-                "entity_type": etype,
-                "mention_text": (ent.get("mention_text") or cname).strip(),
-                "mention_offset": int(ent.get("mention_offset") or 0),
-                "confidence": float(ent.get("confidence") or 0.85)
-            })
+            cleaned_entities.append(
+                {
+                    "canonical_name": cname,
+                    "entity_type": etype,
+                    "mention_text": (ent.get("mention_text") or cname).strip(),
+                    "mention_offset": int(ent.get("mention_offset") or 0),
+                    "confidence": float(ent.get("confidence") or 0.85),
+                }
+            )
 
         cleaned_relationships = []
         for rel in res["relationships"]:
@@ -486,12 +512,14 @@ async def extract_entities_impl(text: str) -> str:
             pred = canonicalize_relationship(rel.get("predicate") or rel.get("type") or "")
             if not from_ent or not to_ent or pred not in active_predicates:
                 continue
-            cleaned_relationships.append({
-                "from_entity": from_ent,
-                "to_entity": to_ent,
-                "predicate": pred,
-                "confidence": float(rel.get("confidence") or 0.85)
-            })
+            cleaned_relationships.append(
+                {
+                    "from_entity": from_ent,
+                    "to_entity": to_ent,
+                    "predicate": pred,
+                    "confidence": float(rel.get("confidence") or 0.85),
+                }
+            )
 
         return json.dumps({"entities": cleaned_entities, "relationships": cleaned_relationships})
     except Exception as e:

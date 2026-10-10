@@ -5,6 +5,7 @@ Verifies that bulk path actually invokes database operations and produces
 equivalent memory_items rows to the single path, with proper enrichment,
 variant handling, contradiction detection, and conversation emitters.
 """
+
 import asyncio
 import json
 import os
@@ -20,7 +21,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(BASE_DIR, "bin"))
 
 if is_windows():
-    sys.stdout.reconfigure(encoding='utf-8')  # type: ignore[union-attr]
+    sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
 
 # ── Schema Definition ──────────────────────────────────────────────────────────
 SQLITE_SCHEMA = """
@@ -147,10 +148,11 @@ async def test_1_structural_parity() -> bool:
         async def mock_auto_title(content, title, force=False):
             return title or "[AUTO] Generated"
 
-        with patch("memory_core._maybe_auto_title", side_effect=mock_auto_title), \
-             patch("memory_core._maybe_auto_entities", return_value=[]), \
-             patch("memory_core._augment_embed_text_with_anchors", return_value=""):
-
+        with (
+            patch("memory_core._maybe_auto_title", side_effect=mock_auto_title),
+            patch("memory_core._maybe_auto_entities", return_value=[]),
+            patch("memory_core._augment_embed_text_with_anchors", return_value=""),
+        ):
             ids = await memory_write_bulk_impl(
                 items=items,
                 enrich=True,
@@ -176,6 +178,7 @@ async def test_1_structural_parity() -> bool:
 
     finally:
         from m3_sdk import _cleanup
+
         _cleanup()
         if os.path.exists(db_path):
             try:
@@ -192,29 +195,42 @@ async def test_2_variant_isolation() -> bool:
     os.environ["M3_DATABASE"] = db_path
     try:
         from memory_core import memory_write_bulk_impl
+
         items_a = [
             {"type": "note", "content": "Item 1", "embed": False},
             {"type": "note", "content": "Item 2", "embed": False},
         ]
-        with patch("memory_core._maybe_auto_title", return_value=""), \
-             patch("memory_core._maybe_auto_entities", return_value=[]), \
-             patch("memory_core._augment_embed_text_with_anchors", return_value=""):
-            await memory_write_bulk_impl(items=items_a, variant="v_a", enrich=False, check_contradictions=False, emit_conversation=False)
+        with (
+            patch("memory_core._maybe_auto_title", return_value=""),
+            patch("memory_core._maybe_auto_entities", return_value=[]),
+            patch("memory_core._augment_embed_text_with_anchors", return_value=""),
+        ):
+            await memory_write_bulk_impl(
+                items=items_a, variant="v_a", enrich=False, check_contradictions=False, emit_conversation=False
+            )
 
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         rows_a = conn.execute("SELECT variant FROM memory_items ORDER BY created_at LIMIT 2").fetchall()
         conn.close()
-        check("Both rows have variant='v_a'", len(rows_a) == 2 and all(r["variant"] == "v_a" for r in rows_a), f"got {[r['variant'] for r in rows_a]}")
+        check(
+            "Both rows have variant='v_a'",
+            len(rows_a) == 2 and all(r["variant"] == "v_a" for r in rows_a),
+            f"got {[r['variant'] for r in rows_a]}",
+        )
 
         items_b = [
             {"type": "note", "content": "Item 3", "embed": False},
             {"type": "note", "content": "Item 4", "variant": "v_b", "embed": False},
         ]
-        with patch("memory_core._maybe_auto_title", return_value=""), \
-             patch("memory_core._maybe_auto_entities", return_value=[]), \
-             patch("memory_core._augment_embed_text_with_anchors", return_value=""):
-            await memory_write_bulk_impl(items=items_b, variant="v_a", enrich=False, check_contradictions=False, emit_conversation=False)
+        with (
+            patch("memory_core._maybe_auto_title", return_value=""),
+            patch("memory_core._maybe_auto_entities", return_value=[]),
+            patch("memory_core._augment_embed_text_with_anchors", return_value=""),
+        ):
+            await memory_write_bulk_impl(
+                items=items_b, variant="v_a", enrich=False, check_contradictions=False, emit_conversation=False
+            )
 
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
@@ -225,6 +241,7 @@ async def test_2_variant_isolation() -> bool:
             check("Row 4 overrides with v_b", rows_b[1]["variant"] == "v_b", f"got {rows_b[1]['variant']}")
     finally:
         from m3_sdk import _cleanup
+
         _cleanup()
         if os.path.exists(db_path):
             try:
@@ -241,25 +258,35 @@ async def test_3_enrich_override_vs_env() -> bool:
     os.environ["M3_DATABASE"] = db_path
     try:
         from memory_core import memory_write_bulk_impl
+
         items = [{"type": "note", "content": "Test content", "title": "", "embed": False}]
         mock_auto = AsyncMock(return_value="[ENRICHED]")
-        with patch("memory_core._maybe_auto_title", mock_auto), \
-             patch("memory_core._maybe_auto_entities", return_value=[]), \
-             patch("memory_core._augment_embed_text_with_anchors", return_value=""):
+        with (
+            patch("memory_core._maybe_auto_title", mock_auto),
+            patch("memory_core._maybe_auto_entities", return_value=[]),
+            patch("memory_core._augment_embed_text_with_anchors", return_value=""),
+        ):
             await memory_write_bulk_impl(items=items, enrich=True, check_contradictions=False, emit_conversation=False)
         check("enrich=True: _maybe_auto_title called", mock_auto.called)
-        check("enrich=True: called with force=True",
-              mock_auto.call_args[1].get("force") is True if mock_auto.call_args else False)
+        check(
+            "enrich=True: called with force=True",
+            mock_auto.call_args[1].get("force") is True if mock_auto.call_args else False,
+        )
 
         mock_auto.reset_mock()
         items_b = [{"type": "note", "content": "Test 2", "title": "", "embed": False}]
-        with patch("memory_core._maybe_auto_title", mock_auto), \
-             patch("memory_core._maybe_auto_entities", return_value=[]), \
-             patch("memory_core._augment_embed_text_with_anchors", return_value=""):
-            await memory_write_bulk_impl(items=items_b, enrich=False, check_contradictions=False, emit_conversation=False)
+        with (
+            patch("memory_core._maybe_auto_title", mock_auto),
+            patch("memory_core._maybe_auto_entities", return_value=[]),
+            patch("memory_core._augment_embed_text_with_anchors", return_value=""),
+        ):
+            await memory_write_bulk_impl(
+                items=items_b, enrich=False, check_contradictions=False, emit_conversation=False
+            )
         check("enrich=False: _maybe_auto_title NOT called", not mock_auto.called)
     finally:
         from m3_sdk import _cleanup
+
         _cleanup()
         if os.path.exists(db_path):
             try:
@@ -276,29 +303,41 @@ async def test_4_contradiction_default_off() -> bool:
     os.environ["M3_DATABASE"] = db_path
     try:
         from memory_core import memory_write_bulk_impl
+
         items = [
             {"type": "fact", "content": "Fact A", "embed": False},
             {"type": "fact", "content": "Fact B", "embed": False},
         ]
         mock_contra = AsyncMock(return_value=([], []))
-        with patch("memory_core._maybe_auto_title", return_value=""), \
-             patch("memory_core._maybe_auto_entities", return_value=[]), \
-             patch("memory_core._augment_embed_text_with_anchors", return_value=""), \
-             patch("memory_core._check_contradictions", mock_contra):
+        with (
+            patch("memory_core._maybe_auto_title", return_value=""),
+            patch("memory_core._maybe_auto_entities", return_value=[]),
+            patch("memory_core._augment_embed_text_with_anchors", return_value=""),
+            patch("memory_core._check_contradictions", mock_contra),
+        ):
             await memory_write_bulk_impl(items=items, check_contradictions=None, enrich=False, emit_conversation=False)
-        check("check_contradictions=None: NOT called (bulk default)", not mock_contra.called, f"calls={mock_contra.call_count}")
+        check(
+            "check_contradictions=None: NOT called (bulk default)",
+            not mock_contra.called,
+            f"calls={mock_contra.call_count}",
+        )
 
         mock_contra.reset_mock()
         items_b = [{"type": "fact", "content": "Fact C", "embed": True}]
-        with patch("memory_core._maybe_auto_title", return_value=""), \
-             patch("memory_core._maybe_auto_entities", return_value=[]), \
-             patch("memory_core._augment_embed_text_with_anchors", return_value="text"), \
-             patch("memory_core._embed_many", return_value=[([0.1]*384, "fake-model")]), \
-             patch("memory_core._check_contradictions", mock_contra):
-            await memory_write_bulk_impl(items=items_b, check_contradictions=True, enrich=False, emit_conversation=False)
+        with (
+            patch("memory_core._maybe_auto_title", return_value=""),
+            patch("memory_core._maybe_auto_entities", return_value=[]),
+            patch("memory_core._augment_embed_text_with_anchors", return_value="text"),
+            patch("memory_core._embed_many", return_value=[([0.1] * 384, "fake-model")]),
+            patch("memory_core._check_contradictions", mock_contra),
+        ):
+            await memory_write_bulk_impl(
+                items=items_b, check_contradictions=True, enrich=False, emit_conversation=False
+            )
         check("check_contradictions=True: enabled (can be called)", True, f"calls={mock_contra.call_count}")
     finally:
         from m3_sdk import _cleanup
+
         _cleanup()
         if os.path.exists(db_path):
             try:
@@ -315,40 +354,101 @@ async def test_5_conversation_emitters() -> bool:
     os.environ["M3_DATABASE"] = db_path
     try:
         from memory_core import memory_write_bulk_impl
+
         conv_id = "conv-test-123"
         now = datetime.now(UTC).isoformat()
         items = [
-            {"type": "message", "title": "user", "content": "Hello", "conversation_id": conv_id, "valid_from": now, "embed": False, "variant": "__test__"},
-            {"type": "message", "title": "assistant", "content": "Hi there", "conversation_id": conv_id, "valid_from": now, "embed": False, "variant": "__test__"},
-            {"type": "message", "title": "user", "content": "How are you?", "conversation_id": conv_id, "valid_from": now, "embed": False, "variant": "__test__"},
+            {
+                "type": "message",
+                "title": "user",
+                "content": "Hello",
+                "conversation_id": conv_id,
+                "valid_from": now,
+                "embed": False,
+                "variant": "__test__",
+            },
+            {
+                "type": "message",
+                "title": "assistant",
+                "content": "Hi there",
+                "conversation_id": conv_id,
+                "valid_from": now,
+                "embed": False,
+                "variant": "__test__",
+            },
+            {
+                "type": "message",
+                "title": "user",
+                "content": "How are you?",
+                "conversation_id": conv_id,
+                "valid_from": now,
+                "embed": False,
+                "variant": "__test__",
+            },
         ]
-        mock_event = AsyncMock(); mock_window = AsyncMock(); mock_gist = AsyncMock()
-        with patch("memory_core._maybe_auto_title", return_value=""), \
-             patch("memory_core._maybe_auto_entities", return_value=[]), \
-             patch("memory_core._augment_embed_text_with_anchors", return_value=""), \
-             patch("memory_core._maybe_emit_event_rows", mock_event), \
-             patch("memory_core._maybe_emit_window_chunk", mock_window), \
-             patch("memory_core._maybe_emit_gist_row", mock_gist), \
-             patch("memory_core.INGEST_EVENT_ROWS", True), \
-             patch("memory_core.INGEST_WINDOW_CHUNKS", True), \
-             patch("memory_core.INGEST_GIST_ROWS", True):
+        mock_event = AsyncMock()
+        mock_window = AsyncMock()
+        mock_gist = AsyncMock()
+        with (
+            patch("memory_core._maybe_auto_title", return_value=""),
+            patch("memory_core._maybe_auto_entities", return_value=[]),
+            patch("memory_core._augment_embed_text_with_anchors", return_value=""),
+            patch("memory_core._maybe_emit_event_rows", mock_event),
+            patch("memory_core._maybe_emit_window_chunk", mock_window),
+            patch("memory_core._maybe_emit_gist_row", mock_gist),
+            patch("memory_core.INGEST_EVENT_ROWS", True),
+            patch("memory_core.INGEST_WINDOW_CHUNKS", True),
+            patch("memory_core.INGEST_GIST_ROWS", True),
+        ):
             await memory_write_bulk_impl(items=items, emit_conversation=None, enrich=False, check_contradictions=False)
-        check("emit_conversation=None: event_rows called per message", mock_event.call_count == 3, f"calls={mock_event.call_count}")
-        check("emit_conversation=None: window_chunk called once per conversation", mock_window.call_count == 1, f"calls={mock_window.call_count}")
-        check("emit_conversation=None: gist_row called once per conversation", mock_gist.call_count == 1, f"calls={mock_gist.call_count}")
+        check(
+            "emit_conversation=None: event_rows called per message",
+            mock_event.call_count == 3,
+            f"calls={mock_event.call_count}",
+        )
+        check(
+            "emit_conversation=None: window_chunk called once per conversation",
+            mock_window.call_count == 1,
+            f"calls={mock_window.call_count}",
+        )
+        check(
+            "emit_conversation=None: gist_row called once per conversation",
+            mock_gist.call_count == 1,
+            f"calls={mock_gist.call_count}",
+        )
 
-        mock_event.reset_mock(); mock_window.reset_mock(); mock_gist.reset_mock()
-        items_b = [{"type": "message", "title": "user", "content": "Another message", "conversation_id": "conv-2", "valid_from": now, "embed": False, "variant": "__test__"}]
-        with patch("memory_core._maybe_auto_title", return_value=""), \
-             patch("memory_core._maybe_auto_entities", return_value=[]), \
-             patch("memory_core._augment_embed_text_with_anchors", return_value=""), \
-             patch("memory_core._maybe_emit_event_rows", mock_event), \
-             patch("memory_core._maybe_emit_window_chunk", mock_window), \
-             patch("memory_core._maybe_emit_gist_row", mock_gist):
-            await memory_write_bulk_impl(items=items_b, emit_conversation=False, enrich=False, check_contradictions=False)
-        check("emit_conversation=False: emitters NOT called", not (mock_event.called or mock_window.called or mock_gist.called))
+        mock_event.reset_mock()
+        mock_window.reset_mock()
+        mock_gist.reset_mock()
+        items_b = [
+            {
+                "type": "message",
+                "title": "user",
+                "content": "Another message",
+                "conversation_id": "conv-2",
+                "valid_from": now,
+                "embed": False,
+                "variant": "__test__",
+            }
+        ]
+        with (
+            patch("memory_core._maybe_auto_title", return_value=""),
+            patch("memory_core._maybe_auto_entities", return_value=[]),
+            patch("memory_core._augment_embed_text_with_anchors", return_value=""),
+            patch("memory_core._maybe_emit_event_rows", mock_event),
+            patch("memory_core._maybe_emit_window_chunk", mock_window),
+            patch("memory_core._maybe_emit_gist_row", mock_gist),
+        ):
+            await memory_write_bulk_impl(
+                items=items_b, emit_conversation=False, enrich=False, check_contradictions=False
+            )
+        check(
+            "emit_conversation=False: emitters NOT called",
+            not (mock_event.called or mock_window.called or mock_gist.called),
+        )
     finally:
         from m3_sdk import _cleanup
+
         _cleanup()
         if os.path.exists(db_path):
             try:
@@ -369,16 +469,18 @@ async def run_all_tests() -> bool:
     except Exception as e:
         print(f"\nTest suite error: {e}")
         import traceback
+
         traceback.print_exc()
         return False
     passed = sum(1 for s, _, _ in results if s == PASS)
     failed = sum(1 for s, _, _ in results if s == FAIL)
     skipped = sum(1 for s, _, _ in results if s == SKIP)
-    print(f"\n{'='*62}\n  RESULTS:  {passed} passed  |  {failed} failed  |  {skipped} skipped\n{'='*62}")
+    print(f"\n{'=' * 62}\n  RESULTS:  {passed} passed  |  {failed} failed  |  {skipped} skipped\n{'=' * 62}")
     if failed:
         print("\nFailed tests:")
         for s, name, detail in results:
-            if s == FAIL: print(f"  {FAIL}  {name}" + (f": {detail}" if detail else ""))
+            if s == FAIL:
+                print(f"  {FAIL}  {name}" + (f": {detail}" if detail else ""))
     return failed == 0
 
 

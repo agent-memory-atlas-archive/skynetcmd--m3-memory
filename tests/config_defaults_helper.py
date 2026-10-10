@@ -6,6 +6,7 @@ interpreter with only the measured env names removed (the rest, e.g. the
 sandbox's M3_LIB_DIR on a FIPS-mode box, must stay or the import fails for an
 unrelated reason) and returns {registry key: today's value}.
 """
+
 from __future__ import annotations
 
 import json

@@ -5,6 +5,7 @@ embedder headline in shared mode, a green tick for a stopped embed server,
 child output outside its section, an outdated config.json version labelled
 installed — trains readers to ignore doctor.
 """
+
 from __future__ import annotations
 
 import json
@@ -72,8 +73,7 @@ def test_a_stale_config_version_is_not_called_installed(monkeypatch, capsys, tmp
 
     bridge = tmp_path / "memory_bridge.py"
     bridge.write_text("", encoding="utf-8")
-    monkeypatch.setattr(installer, "load_config", lambda: {
-        "version": "2026.8.19.2", "bridge_path": str(bridge)})
+    monkeypatch.setattr(installer, "load_config", lambda: {"version": "2026.8.19.2", "bridge_path": str(bridge)})
     monkeypatch.setattr(installer, "find_bridge", lambda: bridge)
     assert __version__ != "2026.8.19.2"
     try:

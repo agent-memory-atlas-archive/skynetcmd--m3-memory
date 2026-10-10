@@ -11,6 +11,7 @@ on a worker thread when a loop is already running on THIS thread.
 These run the whole call inside a worker thread and use a `result(timeout=...)` so
 a regression DEADLOCKS the test (TimeoutError) instead of hanging the suite.
 """
+
 import asyncio
 import concurrent.futures
 import sys
@@ -26,6 +27,7 @@ from files_memory import embed as E  # noqa: E402
 def _patch(monkeypatch, model="fake"):
     async def _fake_embed_many(texts):
         return [([0.1, 0.2, 0.3], model) for _ in texts]
+
     # embed_texts does `from memory.embed import _embed_many` at call time, so
     # patch the attribute on whatever `sys.modules['memory.embed']` currently is.
     # The string target re-resolves the module at patch time — robust to other

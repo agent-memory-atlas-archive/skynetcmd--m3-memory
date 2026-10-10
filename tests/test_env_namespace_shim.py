@@ -9,6 +9,7 @@ Also guards the real user-facing win: a documented M3_-prefixed knob
 (M3_TITLE_MATCH_BOOST) now takes effect, where before the code read only the
 bare name and silently ignored the documented one.
 """
+
 from __future__ import annotations
 
 import sys
@@ -55,6 +56,7 @@ def test_default_when_neither_set(monkeypatch):
 
 def test_deprecation_warned_once(monkeypatch, caplog):
     import logging
+
     monkeypatch.delenv("M3_FOO", raising=False)
     monkeypatch.setenv("FOO", "old")
     with caplog.at_level(logging.WARNING, logger="M3_SDK"):

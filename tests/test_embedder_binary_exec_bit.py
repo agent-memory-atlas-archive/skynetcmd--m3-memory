@@ -24,6 +24,7 @@ Windows reports "added the exec bit" while the mode stays 0644. Measured, and
 it is exactly the sort of green-for-the-wrong-reason this file exists to
 prevent, so the mode assertions are POSIX-only.
 """
+
 from __future__ import annotations
 
 import os
@@ -69,7 +70,7 @@ def test_existing_permissions_are_preserved(tmp_path):
     """
     binary = tmp_path / "m3-embed-server"
     binary.write_text("#!/bin/sh\n")
-    os.chmod(binary, 0o600)          # private, non-executable
+    os.chmod(binary, 0o600)  # private, non-executable
 
     _ensure_executable(binary)
 
@@ -185,9 +186,7 @@ def test_repair_dry_run_changes_nothing(tmp_path):
     res = repair_exec_bit(binary, dry_run=True)
     assert res["status"] == "skipped"
     assert "would chmod" in res["detail"]
-    assert exec_bit_status(binary)["state"] == "not-executable", (
-        "dry_run repaired the file anyway"
-    )
+    assert exec_bit_status(binary)["state"] == "not-executable", "dry_run repaired the file anyway"
 
 
 def test_repair_never_prompts_for_a_password():
@@ -201,6 +200,5 @@ def test_repair_never_prompts_for_a_password():
 
     src = inspect.getsource(embedder_admin.repair_exec_bit)
     assert '"sudo", "-n"' in src, (
-        "the escalation lost its non-interactive flag — doctor --fix can now "
-        "block on a password prompt"
+        "the escalation lost its non-interactive flag — doctor --fix can now block on a password prompt"
     )

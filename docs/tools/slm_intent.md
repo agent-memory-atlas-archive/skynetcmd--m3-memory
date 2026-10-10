@@ -1,8 +1,8 @@
 ---
 tool: bin/slm_intent.py
-sha1: d43906e36fff
-mtime_utc: 2026-10-10T05:54:26.444200+00:00
-generated_utc: 2026-10-10T05:56:58.962431+00:00
+sha1: 4a8c3b30b62d
+mtime_utc: 2026-10-10T21:05:16.549903+00:00
+generated_utc: 2026-10-10T21:05:29.960601+00:00
 private: false
 ---
 
@@ -97,9 +97,9 @@ _(no argparse arguments detected)_
 
 **http**
 
-- `httpx.AsyncClient()` (line 556)
-- `httpx.AsyncClient()` (line 613)
-- `httpx.AsyncClient()` (line 663)
+- `httpx.AsyncClient()` (line 572)
+- `httpx.AsyncClient()` (line 629)
+- `httpx.AsyncClient()` (line 679)
 
 
 ---

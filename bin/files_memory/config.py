@@ -8,6 +8,7 @@ Why the indirection: `memory.config` is the boundary at which env vars are
 read at import time. Keeping FILES_DB_PATH there means every reader sees a
 consistent value and there's a single grep target for "where is files.db?".
 """
+
 from __future__ import annotations
 
 import os
@@ -51,6 +52,7 @@ def files_table(name: str) -> str:
     is correct whichever backend is active.
     """
     from memory.backends import dialect as _dialect
+
     return _dialect().qualified_table(name, schema=FILES_SCHEMA)
 
 
@@ -124,6 +126,7 @@ EXTRACT_MIN_LEAF_CHARS: int = int(os.environ.get("M3_FILES_EXTRACT_MIN_LEAF_CHAR
 # Promotion default scope when --scope not passed. See plan §14 Q3.
 PROMOTION_DEFAULT_SCOPE: str = os.environ.get("M3_FILES_PROMOTION_SCOPE", "user")
 
+
 # Core memory.db path for cross-store operations (entity link + promotion).
 #
 # IMPORTANT: this must point at the CORE memory store (agent_memory.db), NOT at
@@ -141,6 +144,7 @@ def memory_db_path() -> str:
     if explicit:
         return canonical_path(expand_user(explicit))
     from m3_sdk import _default_db_path
+
     return _default_db_path()
 
 
@@ -155,73 +159,77 @@ MEMORY_DB_PATH: str | None = os.environ.get("M3_MEMORY_DB")
 # Built-in directory ignore list, applied unconditionally. These are
 # directories that almost never contain ingestable content; including them
 # would multiply walk time and pollute search.
-BUILTIN_DIR_IGNORES: frozenset[str] = frozenset({
-    ".git",
-    ".hg",
-    ".svn",
-    ".venv",
-    "venv",
-    "venv_gpu",
-    "__pycache__",
-    "node_modules",
-    "target",
-    "build",
-    "dist",
-    ".mypy_cache",
-    ".pytest_cache",
-    ".ruff_cache",
-    ".tox",
-    ".idea",
-    ".vscode",
-    ".DS_Store",
-    "_archived_flat_files_2026-05-09",
-    "to_be_deleted",
-})
+BUILTIN_DIR_IGNORES: frozenset[str] = frozenset(
+    {
+        ".git",
+        ".hg",
+        ".svn",
+        ".venv",
+        "venv",
+        "venv_gpu",
+        "__pycache__",
+        "node_modules",
+        "target",
+        "build",
+        "dist",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".tox",
+        ".idea",
+        ".vscode",
+        ".DS_Store",
+        "_archived_flat_files_2026-05-09",
+        "to_be_deleted",
+    }
+)
 
 # File-extension ignore (binary blobs, lockfiles, etc.).
-BUILTIN_EXT_IGNORES: frozenset[str] = frozenset({
-    ".lock",
-    ".pyc",
-    ".pyo",
-    ".so",
-    ".dll",
-    ".dylib",
-    ".o",
-    ".a",
-    ".class",
-    ".jar",
-    ".exe",
-    ".bin",
-    ".zip",
-    ".tar",
-    ".gz",
-    ".bz2",
-    ".7z",
-    ".rar",
-    ".jpg",
-    ".jpeg",
-    ".png",
-    ".gif",
-    ".bmp",
-    ".tiff",
-    ".webp",
-    ".ico",
-    ".svg",
-    ".mp3",
-    ".mp4",
-    ".wav",
-    ".flac",
-    ".ogg",
-    ".avi",
-    ".mov",
-    ".mkv",
-    ".webm",
-    ".woff",
-    ".woff2",
-    ".ttf",
-    ".otf",
-    ".eot",
-})
+BUILTIN_EXT_IGNORES: frozenset[str] = frozenset(
+    {
+        ".lock",
+        ".pyc",
+        ".pyo",
+        ".so",
+        ".dll",
+        ".dylib",
+        ".o",
+        ".a",
+        ".class",
+        ".jar",
+        ".exe",
+        ".bin",
+        ".zip",
+        ".tar",
+        ".gz",
+        ".bz2",
+        ".7z",
+        ".rar",
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".gif",
+        ".bmp",
+        ".tiff",
+        ".webp",
+        ".ico",
+        ".svg",
+        ".mp3",
+        ".mp4",
+        ".wav",
+        ".flac",
+        ".ogg",
+        ".avi",
+        ".mov",
+        ".mkv",
+        ".webm",
+        ".woff",
+        ".woff2",
+        ".ttf",
+        ".otf",
+        ".eot",
+    }
+)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -272,6 +280,7 @@ def llm_auth_headers() -> dict[str, str]:
     """
     try:
         from auth_utils import get_api_key  # canonical resolver (see m3_sdk.get_secret)
+
         token = (get_api_key("LM_API_TOKEN") or "").strip()
     except Exception:  # noqa: BLE001 — resolver import failure -> fall back to env
         token = (os.environ.get("LM_API_TOKEN") or "").strip()

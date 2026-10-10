@@ -33,6 +33,7 @@ Domain assignment is derived from the tool name prefix — see
 tools land in the right domain automatically as long as they follow the
 existing naming convention.
 """
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -47,37 +48,32 @@ _DOMAIN_PREFIXES: list[tuple[str, str]] = [
     # System-diagnostic tools — separate from admin (which is GDPR /
     # notifications) so users grouping "what's wrong with
     # my install" can load just this bucket.
-    ("search_profile",      "diagnostics"),
-    ("memory_doctor",       "diagnostics"),
-    ("embedder_status",     "diagnostics"),
-    ("chatlog_status",      "diagnostics"),
-    ("files_health",        "diagnostics"),
-
+    ("search_profile", "diagnostics"),
+    ("memory_doctor", "diagnostics"),
+    ("embedder_status", "diagnostics"),
+    ("chatlog_status", "diagnostics"),
+    ("files_health", "diagnostics"),
     # Core domain catch-alls (first prefix match wins)
-    ("memory",              "memory"),
-    ("curate_memory",       "memory"),
-
-    ("curate_chatlog",      "chatlog"),
-    ("chatlog",             "chatlog"),
-
-    ("files",               "files"),
-    ("entity",              "entity"),
-    ("agent",               "agent"),
-    ("task",                "tasks"),
-    ("conversation",        "conversations"),
-
+    ("memory", "memory"),
+    ("curate_memory", "memory"),
+    ("curate_chatlog", "chatlog"),
+    ("chatlog", "chatlog"),
+    ("files", "files"),
+    ("entity", "entity"),
+    ("agent", "agent"),
+    ("task", "tasks"),
+    ("conversation", "conversations"),
     # dispatcher / meta tools (like tools_*, cross-cutting) — route to admin
-    ("m3_call",             "admin"),
-    ("m3_index",            "admin"),
+    ("m3_call", "admin"),
+    ("m3_index", "admin"),
     ("m3_help_capabilities", "admin"),
-
     # cross-cutting / system tools
-    ("notify",              "admin"),
-    ("notifications",       "admin"),
-    ("enrich",              "admin"),
-    ("extract",             "admin"),
-    ("gdpr",                "admin"),
-    ("embedder",            "diagnostics"),
+    ("notify", "admin"),
+    ("notifications", "admin"),
+    ("enrich", "admin"),
+    ("extract", "admin"),
+    ("gdpr", "admin"),
+    ("embedder", "diagnostics"),
 ]
 
 
@@ -129,45 +125,47 @@ _DOMAIN_PREFIXES: list[tuple[str, str]] = [
 # as_records has landed for that tool. These counts also come from ONE machine's
 # transcripts and skew toward its workload (heavy memory writes, heavy
 # notification polling); a different fleet would shift the top 6.
-ESSENTIAL_TOOL_NAMES: frozenset[str] = frozenset({
-    # The measured top 6 by direct calls (495 of 527 observed).
-    "memory_write",        # 259 calls
-    "memory_search",       # 101 calls
-    "chatlog_search",      #  57 calls
-    "memory_supersede",    #  44 calls
-    "chatlog_status",      #  20 calls
-    "memory_get",          #  14 calls
-    # files_search is here on PRINCIPLE, not on measured use (0 direct calls).
-    # m3 has THREE primary stores — memory, chatlog, files — and the README
-    # promises search for each in the always-on set; test_lazy_tool_loading.py
-    # ::test_essentials_include_search_for_each_primary_store pins that promise.
-    # Dropping it saved 283 tokens (0.14% of a 200K window) and broke a
-    # documented guarantee, which is the wrong trade. Its zero count is also
-    # suspect rather than conclusive: measure_tool_usage.py warns that zero
-    # calls can mean the RETURN SHAPE forces a Bash fallback, and the files
-    # store is genuinely populated here (20 documents, 2 ingest runs).
-    "files_search",
-    # Dispatcher: reaches the other 109 tools by name with no domain load.
-    # Its own direct-call count reads 0 only because measure_tool_usage.py
-    # attributes the delegated tool, not the wrapper -- 95 calls flowed
-    # through it across 79 wrappers.
-    "m3_call",
-})
+ESSENTIAL_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        # The measured top 6 by direct calls (495 of 527 observed).
+        "memory_write",  # 259 calls
+        "memory_search",  # 101 calls
+        "chatlog_search",  #  57 calls
+        "memory_supersede",  #  44 calls
+        "chatlog_status",  #  20 calls
+        "memory_get",  #  14 calls
+        # files_search is here on PRINCIPLE, not on measured use (0 direct calls).
+        # m3 has THREE primary stores — memory, chatlog, files — and the README
+        # promises search for each in the always-on set; test_lazy_tool_loading.py
+        # ::test_essentials_include_search_for_each_primary_store pins that promise.
+        # Dropping it saved 283 tokens (0.14% of a 200K window) and broke a
+        # documented guarantee, which is the wrong trade. Its zero count is also
+        # suspect rather than conclusive: measure_tool_usage.py warns that zero
+        # calls can mean the RETURN SHAPE forces a Bash fallback, and the files
+        # store is genuinely populated here (20 documents, 2 ingest runs).
+        "files_search",
+        # Dispatcher: reaches the other 109 tools by name with no domain load.
+        # Its own direct-call count reads 0 only because measure_tool_usage.py
+        # attributes the delegated tool, not the wrapper -- 95 calls flowed
+        # through it across 79 wrappers.
+        "m3_call",
+    }
+)
 
 
 # Human-readable one-liner per domain, used by `tools_list_domains` so the
 # agent knows what each domain is for without expanding it first. Keep these
 # short — they're paid at session start.
 DOMAIN_DESCRIPTIONS: dict[str, str] = {
-    "memory":        "Curated long-term memory: write/search/graph/dedup/retention.",
-    "chatlog":       "Captured agent-conversation turns with promotion + cost reports.",
-    "files":         "Directory ingestion, file-level supersession, hybrid search over docs.",
-    "entity":        "Knowledge-graph entities — search, fetch, list mentions.",
-    "agent":         "Multi-agent registration, heartbeat, presence.",
-    "tasks":         "Task creation, assignment, tree, results.",
+    "memory": "Curated long-term memory: write/search/graph/dedup/retention.",
+    "chatlog": "Captured agent-conversation turns with promotion + cost reports.",
+    "files": "Directory ingestion, file-level supersession, hybrid search over docs.",
+    "entity": "Knowledge-graph entities — search, fetch, list mentions.",
+    "agent": "Multi-agent registration, heartbeat, presence.",
+    "tasks": "Task creation, assignment, tree, results.",
     "conversations": "Conversation start/append/search/summarize.",
-    "admin":         "Notifications, enrichment, GDPR.",
-    "diagnostics":   "Self-service health probes: embedder_status, memory_doctor (run when search hangs or embeds look wrong), search_profile (where a search spends its time).",
+    "admin": "Notifications, enrichment, GDPR.",
+    "diagnostics": "Self-service health probes: embedder_status, memory_doctor (run when search hangs or embeds look wrong), search_profile (where a search spends its time).",
 }
 
 

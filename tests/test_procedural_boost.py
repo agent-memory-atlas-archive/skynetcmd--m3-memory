@@ -10,6 +10,7 @@ embeddings (query embedder stubbed for determinism). The SLM classifier gate is
 left OFF, so intent is only ever what the caller passes — this stays hermetic
 (no model call) and the auto-classification hook is a no-op.
 """
+
 from __future__ import annotations
 
 import os
@@ -34,6 +35,7 @@ def _skip_migrations(monkeypatch):
 
 def _full_db(db_path):
     from conftest import create_full_main_schema
+
     create_full_main_schema(db_path)
 
 
@@ -46,11 +48,11 @@ def _vec(primary: float, dim: int):
 
 def _seed(conn, mid, content, vec, typ, *, importance=0.5):
     from memory.config import EMBED_MODEL
+
     conn.execute(
         "INSERT INTO memory_items (id, type, title, content, source, change_agent, "
         "created_at, importance, is_deleted) VALUES (?,?,?,?,?,?,?,?,0)",
-        (mid, typ, content[:20], content, "agent", "claude",
-         "2026-01-01T00:00:00Z", importance),
+        (mid, typ, content[:20], content, "agent", "claude", "2026-01-01T00:00:00Z", importance),
     )
     conn.execute(
         "INSERT INTO memory_embeddings (memory_id, embedding, embed_model, dim) VALUES (?,?,?,?)",
@@ -83,9 +85,7 @@ def _patch(monkeypatch, db_path, qvec):
 
 
 async def _scores(mc, **kw):
-    res = await mc.memory_search_scored_impl(
-        query="how do I deploy", k=5, mmr=False, search_mode="semantic", **kw
-    )
+    res = await mc.memory_search_scored_impl(query="how do I deploy", k=5, mmr=False, search_mode="semantic", **kw)
     out = {}
     for r in res:
         if isinstance(r, tuple):
@@ -102,6 +102,7 @@ async def test_no_procedural_intent_is_byte_identical(monkeypatch, tmp_path):
     'procedural' intent. (Compares the exact same row across two runs, so any
     length/title component cancels.)"""
     from memory.config import EMBED_DIM
+
     db = tmp_path / "t.db"
     _full_db(db)
     qv = _vec(1.0, EMBED_DIM)
@@ -110,25 +111,25 @@ async def test_no_procedural_intent_is_byte_identical(monkeypatch, tmp_path):
         conn.commit()
 
     import memory.config as cfg
+
     monkeypatch.setattr(cfg, "INTENT_ROUTING", True)
     import memory.search as srch
+
     monkeypatch.setattr(srch, "INTENT_PROCEDURAL_BOOST", 0.5)
     mc = _patch(monkeypatch, db, qv)
 
     async def _proc_score(**kw):
-        res = await mc.memory_search_scored_impl(
-            query="how do I deploy", k=5, mmr=False, search_mode="semantic", **kw)
+        res = await mc.memory_search_scored_impl(query="how do I deploy", k=5, mmr=False, search_mode="semantic", **kw)
         for r in res:
             item = r[1] if isinstance(r, tuple) else r
             if item["id"] == "proc":
                 return r[0] if isinstance(r, tuple) else None
         return None
 
-    base = await _proc_score()                         # no intent
+    base = await _proc_score()  # no intent
     other = await _proc_score(intent_hint="user-fact")  # non-procedural intent
     assert base is not None and other is not None
-    assert base == pytest.approx(other), (
-        "a non-procedural intent must not change a procedure row's score")
+    assert base == pytest.approx(other), "a non-procedural intent must not change a procedure row's score"
 
 
 @pytest.mark.asyncio
@@ -136,6 +137,7 @@ async def test_procedural_intent_boosts_procedure_row(monkeypatch, tmp_path):
     """With intent='procedural' + routing on, the `procedure` row outranks an
     equally-relevant `note`."""
     from memory.config import EMBED_DIM
+
     db = tmp_path / "t.db"
     _full_db(db)
     qv = _vec(1.0, EMBED_DIM)
@@ -145,20 +147,24 @@ async def test_procedural_intent_boosts_procedure_row(monkeypatch, tmp_path):
         conn.commit()
 
     import memory.config as cfg
+
     monkeypatch.setattr(cfg, "INTENT_ROUTING", True)
     monkeypatch.setattr(cfg, "INTENT_PROCEDURAL_BOOST", 0.5)  # exaggerate for a clear gap
     # search.py binds INTENT_PROCEDURAL_BOOST at import; patch the bound name too.
     import memory.search as srch
+
     monkeypatch.setattr(srch, "INTENT_PROCEDURAL_BOOST", 0.5)
     mc = _patch(monkeypatch, db, qv)
 
     res = await mc.memory_search_scored_impl(
-        query="how do I deploy", k=5, mmr=False, search_mode="semantic",
+        query="how do I deploy",
+        k=5,
+        mmr=False,
+        search_mode="semantic",
         intent_hint="procedural",
     )
     ids = [(r[1]["id"] if isinstance(r, tuple) else r["id"]) for r in res]
-    assert ids and ids[0] == "proc", (
-        f"procedural intent should rank the procedure first; got {ids}")
+    assert ids and ids[0] == "proc", f"procedural intent should rank the procedure first; got {ids}"
 
 
 @pytest.mark.asyncio
@@ -166,6 +172,7 @@ async def test_procedural_intent_ignores_non_procedure_types(monkeypatch, tmp_pa
     """The boost keys on type=='procedure' only — a `note` never gets it even
     under a procedural intent."""
     from memory.config import EMBED_DIM
+
     db = tmp_path / "t.db"
     _full_db(db)
     qv = _vec(1.0, EMBED_DIM)
@@ -175,13 +182,18 @@ async def test_procedural_intent_ignores_non_procedure_types(monkeypatch, tmp_pa
         conn.commit()
 
     import memory.config as cfg
+
     monkeypatch.setattr(cfg, "INTENT_ROUTING", True)
     import memory.search as srch
+
     monkeypatch.setattr(srch, "INTENT_PROCEDURAL_BOOST", 0.5)
     mc = _patch(monkeypatch, db, qv)
 
     res = await mc.memory_search_scored_impl(
-        query="how do I deploy", k=5, mmr=False, search_mode="semantic",
+        query="how do I deploy",
+        k=5,
+        mmr=False,
+        search_mode="semantic",
         intent_hint="procedural",
     )
     ids = [(r[1]["id"] if isinstance(r, tuple) else r["id"]) for r in res]

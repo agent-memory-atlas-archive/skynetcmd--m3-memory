@@ -3,6 +3,7 @@
 Covers discovery/ordering/validation and the DSN forbidden-host guard, which run
 without a cluster (the live apply/revert contract is in test_migrate_pg_live.py).
 """
+
 from __future__ import annotations
 
 import re

@@ -58,6 +58,7 @@ from .m3client import M3Client
 # thread-scoped list is bounded by that thread's own history and is not capped.
 _UNSCOPED_LIST_CAP = 1000
 
+
 # ── schema (integration-owned, self-healed on first use) ─────────────────────
 # Two tables, both parameterized-only. Checkpoints are keyed by the LangGraph
 # triple; writes hang off a checkpoint by (task_id, idx). BLOB columns hold the
@@ -185,8 +186,16 @@ class M3Saver(BaseCheckpointSaver):
         self._ensure_schema()
         self._client._run(
             self._put_async(
-                thread_id, ns, ckpt_id, parent_id, user_id,
-                c_type, m_type, c_blob, m_blob, checkpoint["ts"],
+                thread_id,
+                ns,
+                ckpt_id,
+                parent_id,
+                user_id,
+                c_type,
+                m_type,
+                c_blob,
+                m_blob,
+                checkpoint["ts"],
             )
         )
         return {
@@ -197,29 +206,30 @@ class M3Saver(BaseCheckpointSaver):
             }
         }
 
-    async def _put_async(self, thread_id, ns, ckpt_id, parent_id, user_id,
-                         c_type, m_type, c_blob, m_blob, created_at) -> None:
+    async def _put_async(
+        self, thread_id, ns, ckpt_id, parent_id, user_id, c_type, m_type, c_blob, m_blob, created_at
+    ) -> None:
         from memory.db import _db
 
         d = _dialect()
         upsert = d.on_conflict_update(
             "(thread_id, checkpoint_ns, checkpoint_id)",
-            ["parent_id", "user_id", "type", "metadata_type", "checkpoint", "metadata", "created_at"])
+            ["parent_id", "user_id", "type", "metadata_type", "checkpoint", "metadata", "created_at"],
+        )
         with _db() as db:
             db.execute(
                 "INSERT INTO m3_lg_checkpoints "
                 "(thread_id, checkpoint_ns, checkpoint_id, parent_id, user_id, "
                 " type, metadata_type, checkpoint, metadata, created_at) "
                 f"VALUES ({d.placeholder(10)}) {upsert}",
-                (thread_id, ns, ckpt_id, parent_id, user_id,
-                 c_type, m_type, c_blob, m_blob, created_at),
+                (thread_id, ns, ckpt_id, parent_id, user_id, c_type, m_type, c_blob, m_blob, created_at),
             )
 
     @override
     async def aput(self, config, checkpoint, metadata, new_versions) -> RunnableConfig:
-        return cast("RunnableConfig", await self._client._run_async(
-            lambda: self._aput_on_loop(config, checkpoint, metadata)
-        ))
+        return cast(
+            "RunnableConfig", await self._client._run_async(lambda: self._aput_on_loop(config, checkpoint, metadata))
+        )
 
     async def _aput_on_loop(self, config, checkpoint, metadata) -> RunnableConfig:
         conf = _cfg(config)
@@ -230,12 +240,18 @@ class M3Saver(BaseCheckpointSaver):
         m_type, m_blob = self._dump(dict(metadata))
         await self._ensure_schema_async()
         await self._put_async(
-            thread_id, ns, ckpt_id, conf.get("checkpoint_id"),
-            conf.get("user_id", "") or "", c_type, m_type, c_blob, m_blob,
+            thread_id,
+            ns,
+            ckpt_id,
+            conf.get("checkpoint_id"),
+            conf.get("user_id", "") or "",
+            c_type,
+            m_type,
+            c_blob,
+            m_blob,
             checkpoint["ts"],
         )
-        return {"configurable": {"thread_id": thread_id,
-                                 "checkpoint_ns": ns, "checkpoint_id": ckpt_id}}
+        return {"configurable": {"thread_id": thread_id, "checkpoint_ns": ns, "checkpoint_id": ckpt_id}}
 
     # ── PUT_WRITES: pending writes for a task, idempotent by (task_id, idx) ────
     @override
@@ -270,7 +286,8 @@ class M3Saver(BaseCheckpointSaver):
 
         d = _dialect()
         upsert = d.on_conflict_update(
-            "(thread_id, checkpoint_ns, checkpoint_id, task_id, idx)", ["channel", "type", "blob"])
+            "(thread_id, checkpoint_ns, checkpoint_id, task_id, idx)", ["channel", "type", "blob"]
+        )
         with _db() as db:
             db.executemany(
                 "INSERT INTO m3_lg_writes "
@@ -283,8 +300,11 @@ class M3Saver(BaseCheckpointSaver):
     async def aput_writes(self, config, writes, task_id, task_path: str = "") -> None:
         conf = _cfg(config)
         rows = self._writes_rows(
-            conf["thread_id"], conf.get("checkpoint_ns", ""),
-            conf["checkpoint_id"], task_id, writes,
+            conf["thread_id"],
+            conf.get("checkpoint_ns", ""),
+            conf["checkpoint_id"],
+            task_id,
+            writes,
         )
         await self._client._run_async(lambda: self._aput_writes_on_loop(rows))
 
@@ -300,19 +320,13 @@ class M3Saver(BaseCheckpointSaver):
 
     @override
     async def aget_tuple(self, config: RunnableConfig) -> CheckpointTuple | None:
-        return cast("CheckpointTuple | None", await self._client._run_async(
-            lambda: self._get_tuple_on_loop(config)
-        ))
+        return cast("CheckpointTuple | None", await self._client._run_async(lambda: self._get_tuple_on_loop(config)))
 
-    async def _get_tuple_on_loop(
-        self, config: RunnableConfig
-    ) -> CheckpointTuple | None:
+    async def _get_tuple_on_loop(self, config: RunnableConfig) -> CheckpointTuple | None:
         await self._ensure_schema_async()
         return await self._get_tuple_async(config)
 
-    async def _get_tuple_async(
-        self, config: RunnableConfig
-    ) -> CheckpointTuple | None:
+    async def _get_tuple_async(self, config: RunnableConfig) -> CheckpointTuple | None:
         from memory.db import _db
 
         conf = _cfg(config)
@@ -343,9 +357,7 @@ class M3Saver(BaseCheckpointSaver):
             row = db.execute(sql, params).fetchone()
             if row is None:
                 return None
-            writes = self._load_writes(
-                db, row["thread_id"], row["checkpoint_ns"], row["checkpoint_id"]
-            )
+            writes = self._load_writes(db, row["thread_id"], row["checkpoint_ns"], row["checkpoint_id"])
         return self._row_to_tuple(row, writes)
 
     def _load_writes(self, db, thread_id, ns, ckpt_id) -> list[tuple]:
@@ -356,26 +368,27 @@ class M3Saver(BaseCheckpointSaver):
             "ORDER BY task_id, idx",
             (thread_id, ns, ckpt_id),
         )
-        return [
-            (w["task_id"], w["channel"], self._load(w["type"], w["blob"]))
-            for w in cur.fetchall()
-        ]
+        return [(w["task_id"], w["channel"], self._load(w["type"], w["blob"])) for w in cur.fetchall()]
 
     def _row_to_tuple(self, row, pending_writes) -> CheckpointTuple:
         checkpoint = self._load(row["type"], row["checkpoint"])
         metadata = self._load(row["metadata_type"], row["metadata"])
-        base_conf: RunnableConfig = {"configurable": {
-            "thread_id": row["thread_id"],
-            "checkpoint_ns": row["checkpoint_ns"],
-            "checkpoint_id": row["checkpoint_id"],
-        }}
-        parent_conf: RunnableConfig | None = None
-        if row["parent_id"]:
-            parent_conf = {"configurable": {
+        base_conf: RunnableConfig = {
+            "configurable": {
                 "thread_id": row["thread_id"],
                 "checkpoint_ns": row["checkpoint_ns"],
-                "checkpoint_id": row["parent_id"],
-            }}
+                "checkpoint_id": row["checkpoint_id"],
+            }
+        }
+        parent_conf: RunnableConfig | None = None
+        if row["parent_id"]:
+            parent_conf = {
+                "configurable": {
+                    "thread_id": row["thread_id"],
+                    "checkpoint_ns": row["checkpoint_ns"],
+                    "checkpoint_id": row["parent_id"],
+                }
+            }
         return CheckpointTuple(
             config=base_conf,
             checkpoint=checkpoint,
@@ -395,9 +408,7 @@ class M3Saver(BaseCheckpointSaver):
         limit: int | None = None,
     ) -> Iterator[CheckpointTuple]:
         self._ensure_schema()
-        rows = self._client._run(
-            self._list_async(config, filter, before, limit)
-        )
+        rows = self._client._run(self._list_async(config, filter, before, limit))
         yield from rows
 
     @override
@@ -409,9 +420,7 @@ class M3Saver(BaseCheckpointSaver):
         before: RunnableConfig | None = None,
         limit: int | None = None,
     ) -> AsyncIterator[CheckpointTuple]:
-        rows = await self._client._run_async(
-            lambda: self._alist_on_loop(config, filter, before, limit)
-        )
+        rows = await self._client._run_async(lambda: self._alist_on_loop(config, filter, before, limit))
         for r in rows:
             yield r
 
@@ -420,7 +429,11 @@ class M3Saver(BaseCheckpointSaver):
         return await self._list_async(config, filter, before, limit)
 
     async def _list_async(
-        self, config, filter, before, limit,
+        self,
+        config,
+        filter,
+        before,
+        limit,
     ) -> builtins.list[CheckpointTuple]:
         from memory.db import _db
 
@@ -442,8 +455,7 @@ class M3Saver(BaseCheckpointSaver):
             if b_id:
                 # newest-first, so "before X" = created strictly earlier than X.
                 where.append(
-                    "created_at < (SELECT created_at FROM m3_lg_checkpoints "
-                    f"WHERE checkpoint_id = {_p} LIMIT 1)"
+                    f"created_at < (SELECT created_at FROM m3_lg_checkpoints WHERE checkpoint_id = {_p} LIMIT 1)"
                 )
                 params.append(b_id)
         clause = (" WHERE " + " AND ".join(where)) if where else ""
@@ -475,9 +487,7 @@ class M3Saver(BaseCheckpointSaver):
                 md = self._load(row["metadata_type"], row["metadata"])
                 if filter and not all(md.get(k) == v for k, v in filter.items()):
                     continue
-                writes = self._load_writes(
-                    db, row["thread_id"], row["checkpoint_ns"], row["checkpoint_id"]
-                )
+                writes = self._load_writes(db, row["thread_id"], row["checkpoint_ns"], row["checkpoint_id"])
                 out.append(self._row_to_tuple(row, writes))
         return out
 
@@ -489,9 +499,7 @@ class M3Saver(BaseCheckpointSaver):
 
     @override
     async def adelete_thread(self, thread_id: str) -> None:
-        await self._client._run_async(
-            lambda: self._adelete_thread_on_loop(thread_id)
-        )
+        await self._client._run_async(lambda: self._adelete_thread_on_loop(thread_id))
 
     async def _adelete_thread_on_loop(self, thread_id: str) -> None:
         await self._ensure_schema_async()
@@ -503,6 +511,4 @@ class M3Saver(BaseCheckpointSaver):
         _p = _dialect().param()
         with _db() as db:
             db.execute(f"DELETE FROM m3_lg_writes WHERE thread_id = {_p}", (thread_id,))
-            db.execute(
-                f"DELETE FROM m3_lg_checkpoints WHERE thread_id = {_p}", (thread_id,)
-            )
+            db.execute(f"DELETE FROM m3_lg_checkpoints WHERE thread_id = {_p}", (thread_id,))

@@ -4,6 +4,7 @@ DB resolution, dry-run, _ensure_migration_025 idempotence.
 Network is mocked or skipped where possible. Tests that need an actual
 DB schema use a minimum-schema fixture similar to test_observer.py.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -46,6 +47,7 @@ def stub_db(tmp_path, monkeypatch):
 
 def test_resolve_db_explicit_path_wins(tmp_path, monkeypatch):
     import m3_enrich
+
     target = tmp_path / "explicit.db"
     target.write_text("placeholder", encoding="utf-8")
     monkeypatch.setenv("M3_DATABASE", "/fake/missing/path.db")
@@ -55,6 +57,7 @@ def test_resolve_db_explicit_path_wins(tmp_path, monkeypatch):
 
 def test_resolve_db_env_fallback(tmp_path, monkeypatch):
     import m3_enrich
+
     target = tmp_path / "from_env.db"
     target.write_text("x", encoding="utf-8")
     monkeypatch.setenv("M3_DATABASE", str(target))
@@ -64,6 +67,7 @@ def test_resolve_db_env_fallback(tmp_path, monkeypatch):
 
 def test_resolve_db_returns_none_when_missing(tmp_path, monkeypatch):
     import m3_enrich
+
     monkeypatch.delenv("M3_DATABASE", raising=False)
     monkeypatch.delenv("M3_CHATLOG_DATABASE", raising=False)
     out = m3_enrich._resolve_db("/no/such/path.db", "M3_DATABASE", "agent_memory.db")
@@ -74,9 +78,12 @@ def test_build_type_allowlist_default():
     import argparse
 
     import m3_enrich
+
     args = argparse.Namespace(
-        include_summaries=False, include_notes=False,
-        include_types=None, only_use_types=None,
+        include_summaries=False,
+        include_notes=False,
+        include_types=None,
+        only_use_types=None,
     )
     out = m3_enrich._build_type_allowlist(args)
     assert out == ("message", "conversation", "chat_log")
@@ -86,9 +93,12 @@ def test_build_type_allowlist_with_summaries_and_notes():
     import argparse
 
     import m3_enrich
+
     args = argparse.Namespace(
-        include_summaries=True, include_notes=True,
-        include_types=None, only_use_types=None,
+        include_summaries=True,
+        include_notes=True,
+        include_types=None,
+        only_use_types=None,
     )
     out = m3_enrich._build_type_allowlist(args)
     assert "summary" in out
@@ -101,9 +111,12 @@ def test_build_type_allowlist_extra_types():
     import argparse
 
     import m3_enrich
+
     args = argparse.Namespace(
-        include_summaries=False, include_notes=False,
-        include_types="decision,plan,fact", only_use_types=None,
+        include_summaries=False,
+        include_notes=False,
+        include_types="decision,plan,fact",
+        only_use_types=None,
     )
     out = m3_enrich._build_type_allowlist(args)
     # Adds the requested types ...
@@ -121,6 +134,7 @@ def test_resolve_default_types_per_db():
     import argparse
 
     import m3_enrich
+
     core_args = argparse.Namespace(core_only=True, chatlog_only=False)
     chat_args = argparse.Namespace(core_only=False, chatlog_only=True)
     none_args = argparse.Namespace(core_only=False, chatlog_only=False)
@@ -136,10 +150,14 @@ def test_build_type_allowlist_core_default_includes_decision_plan():
     import argparse
 
     import m3_enrich
+
     args = argparse.Namespace(
-        core_only=True, chatlog_only=False,
-        include_summaries=False, include_notes=False,
-        include_types=None, only_use_types=None,
+        core_only=True,
+        chatlog_only=False,
+        include_summaries=False,
+        include_notes=False,
+        include_types=None,
+        only_use_types=None,
     )
     out = m3_enrich._build_type_allowlist(args)
     for t in ("summary", "note", "decision", "plan", "knowledge", "fact", "preference"):
@@ -151,10 +169,14 @@ def test_build_type_allowlist_include_types_extends_core_default():
     import argparse
 
     import m3_enrich
+
     args = argparse.Namespace(
-        core_only=True, chatlog_only=False,
-        include_summaries=False, include_notes=False,
-        include_types="reference,project", only_use_types=None,
+        core_only=True,
+        chatlog_only=False,
+        include_summaries=False,
+        include_notes=False,
+        include_types="reference,project",
+        only_use_types=None,
     )
     out = m3_enrich._build_type_allowlist(args)
     # Added types present.
@@ -170,10 +192,14 @@ def test_build_type_allowlist_only_use_types_replaces_default():
     import argparse
 
     import m3_enrich
+
     args = argparse.Namespace(
-        core_only=True, chatlog_only=False,
-        include_summaries=False, include_notes=False,
-        include_types=None, only_use_types="decision,plan",
+        core_only=True,
+        chatlog_only=False,
+        include_summaries=False,
+        include_notes=False,
+        include_types=None,
+        only_use_types="decision,plan",
     )
     out = m3_enrich._build_type_allowlist(args)
     assert set(out) == {"decision", "plan"}
@@ -184,10 +210,14 @@ def test_build_type_allowlist_only_use_types_with_include_summaries():
     import argparse
 
     import m3_enrich
+
     args = argparse.Namespace(
-        core_only=False, chatlog_only=False,
-        include_summaries=True, include_notes=False,
-        include_types=None, only_use_types="decision",
+        core_only=False,
+        chatlog_only=False,
+        include_summaries=True,
+        include_notes=False,
+        include_types=None,
+        only_use_types="decision",
     )
     out = m3_enrich._build_type_allowlist(args)
     assert set(out) == {"decision", "summary"}
@@ -198,17 +228,22 @@ def test_build_type_allowlist_skips_observation_in_extra_types():
     import argparse
 
     import m3_enrich
+
     args = argparse.Namespace(
-        include_summaries=False, include_notes=False,
-        include_types="observation,decision", only_use_types=None,
+        include_summaries=False,
+        include_notes=False,
+        include_types="observation,decision",
+        only_use_types=None,
     )
     out = m3_enrich._build_type_allowlist(args)
     assert "observation" not in out
     assert "decision" in out
     # And via --only-use-types.
     args2 = argparse.Namespace(
-        include_summaries=False, include_notes=False,
-        include_types=None, only_use_types="observation,decision",
+        include_summaries=False,
+        include_notes=False,
+        include_types=None,
+        only_use_types="observation,decision",
     )
     out2 = m3_enrich._build_type_allowlist(args2)
     assert "observation" not in out2
@@ -218,8 +253,10 @@ def test_build_type_allowlist_skips_observation_in_extra_types():
 def test_load_profile_with_path_resolves_explicit_yaml(tmp_path, monkeypatch):
     """--profile-path beats --profile."""
     import m3_enrich
+
     yaml_path = tmp_path / "custom_profile.yaml"
-    yaml_path.write_text("""\
+    yaml_path.write_text(
+        """\
 url: http://localhost:0/v1
 model: test-model
 api_key_service: TEST_TOKEN
@@ -231,7 +268,9 @@ timeout_s: 1.0
 max_tokens: 512
 system: |
   test system prompt
-""", encoding="utf-8")
+""",
+        encoding="utf-8",
+    )
     out = m3_enrich._load_profile_with_path(name="enrich_local_qwen", path=str(yaml_path))
     assert out.name == "custom_profile"
     assert out.model == "test-model"
@@ -239,6 +278,7 @@ system: |
 
 def test_load_profile_with_path_aborts_on_missing(tmp_path):
     import m3_enrich
+
     with pytest.raises(SystemExit) as exc:
         m3_enrich._load_profile_with_path(name=None, path="/no/such/profile.yaml")
     # sys.exit("...") puts the message in exc.value.code (a string)
@@ -249,6 +289,7 @@ def test_load_profile_falls_back_to_named_profile(monkeypatch):
     """When --profile-path is None, _load_profile_with_path uses --profile."""
     import m3_enrich
     import slm_intent
+
     out = m3_enrich._load_profile_with_path(name="enrich_local_qwen", path=None)
     assert out.name == "enrich_local_qwen"
     # The enrich_local_qwen profile is intentionally MODEL-AGNOSTIC (model: "" →
@@ -261,6 +302,7 @@ def test_load_profile_falls_back_to_named_profile(monkeypatch):
 
 def test_load_profile_aborts_on_unknown_name():
     import m3_enrich
+
     with pytest.raises(SystemExit) as exc:
         m3_enrich._load_profile_with_path(name="enrich_does_not_exist", path=None)
     assert "not found" in str(exc.value.code).lower()
@@ -270,13 +312,10 @@ def test_ensure_migration_025_creates_queues(stub_db, monkeypatch):
     """_ensure_migration_025 should create observation_queue + reflector_queue
     on a DB that lacks them. Idempotent on second call."""
     import m3_enrich
+
     m3_enrich._ensure_migration_025(stub_db)
     conn = sqlite3.connect(str(stub_db))
-    tables = {
-        r[0] for r in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()
-    }
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
     assert "observation_queue" in tables
     assert "reflector_queue" in tables
     # Run again — should be a no-op (idempotent).
@@ -288,6 +327,7 @@ def test_ensure_migration_025_creates_observation_queue_if_missing(tmp_path, mon
     """Chatlog DBs lack observation_queue by default; the helper must
     add it lazily so the enrich drain path doesn't crash."""
     import m3_enrich
+
     db_path = tmp_path / "no_obs_queue.db"
     conn = sqlite3.connect(str(db_path))
     # Minimum schema EXCEPT observation_queue. memory_items needs the
@@ -304,11 +344,7 @@ def test_ensure_migration_025_creates_observation_queue_if_missing(tmp_path, mon
     conn.close()
     m3_enrich._ensure_migration_025(db_path)
     conn = sqlite3.connect(str(db_path))
-    tables = {
-        r[0] for r in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()
-    }
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
     assert "observation_queue" in tables
     conn.close()
 
@@ -317,21 +353,26 @@ def test_query_eligible_groups_groups_by_conversation_id(stub_db):
     """Verify that rows with the same conversation_id collapse into one
     group, and that --limit caps at the conversation level."""
     import m3_enrich
+
     conn = sqlite3.connect(str(stub_db))
     rows = [
         # conv-1 → 3 turns
-        ("t1", "message", None, "User went to Paris.",
-         '{"turn_index":0}', "conv-1", "alice", "2024-01-01T00:00:00Z"),
-        ("t2", "message", None, "Trip was great.",
-         '{"turn_index":1}', "conv-1", "alice", "2024-01-01T00:00:01Z"),
-        ("t3", "message", None, "Going back next year.",
-         '{"turn_index":2}', "conv-1", "alice", "2024-01-01T00:00:02Z"),
+        ("t1", "message", None, "User went to Paris.", '{"turn_index":0}', "conv-1", "alice", "2024-01-01T00:00:00Z"),
+        ("t2", "message", None, "Trip was great.", '{"turn_index":1}', "conv-1", "alice", "2024-01-01T00:00:01Z"),
+        ("t3", "message", None, "Going back next year.", '{"turn_index":2}', "conv-1", "alice", "2024-01-01T00:00:02Z"),
         # conv-2 → 1 turn
-        ("t4", "message", None, "User loves spicy food.",
-         '{"turn_index":0}', "conv-2", "alice", "2024-01-02T00:00:00Z"),
+        (
+            "t4",
+            "message",
+            None,
+            "User loves spicy food.",
+            '{"turn_index":0}',
+            "conv-2",
+            "alice",
+            "2024-01-02T00:00:00Z",
+        ),
         # conv-3 → 1 turn (will be filtered: type='note' not in default allowlist)
-        ("t5", "note", None, "User note.",
-         '{}', "conv-3", "alice", "2024-01-03T00:00:00Z"),
+        ("t5", "note", None, "User note.", "{}", "conv-3", "alice", "2024-01-03T00:00:00Z"),
     ]
     for row in rows:
         conn.execute(
@@ -343,7 +384,9 @@ def test_query_eligible_groups_groups_by_conversation_id(stub_db):
     conn.close()
 
     groups = m3_enrich._query_eligible_groups(
-        stub_db, type_allowlist=("message", "conversation", "chat_log"), limit=None,
+        stub_db,
+        type_allowlist=("message", "conversation", "chat_log"),
+        limit=None,
     )
     # Should get 2 conversation groups (note row excluded by type allowlist)
     assert len(groups) == 2
@@ -355,18 +398,20 @@ def test_query_eligible_groups_groups_by_conversation_id(stub_db):
 def test_query_eligible_groups_respects_limit(stub_db):
     """--limit caps groups, not rows."""
     import m3_enrich
+
     conn = sqlite3.connect(str(stub_db))
     for i in range(5):
         conn.execute(
             "INSERT INTO memory_items (id, type, content, conversation_id, user_id, "
             "metadata_json, created_at) VALUES (?,?,?,?,?,?,?)",
-            (f"row-{i}", "message", f"content {i}", f"conv-{i}", "alice",
-             '{"turn_index":0}', "2024-01-01T00:00:00Z"),
+            (f"row-{i}", "message", f"content {i}", f"conv-{i}", "alice", '{"turn_index":0}', "2024-01-01T00:00:00Z"),
         )
     conn.commit()
     conn.close()
     groups = m3_enrich._query_eligible_groups(
-        stub_db, type_allowlist=("message",), limit=3,
+        stub_db,
+        type_allowlist=("message",),
+        limit=3,
     )
     assert len(groups) == 3
 
@@ -378,18 +423,32 @@ def test_estimate_cost_wall_known_models():
     from slm_intent import Profile
 
     haiku = Profile(
-        name="t", url="x", model="claude-haiku-4-5", system="x",
-        labels=("o",), fallback="o", temperature=0, timeout_s=1.0,
-        api_key_service="x", backend="anthropic",
+        name="t",
+        url="x",
+        model="claude-haiku-4-5",
+        system="x",
+        labels=("o",),
+        fallback="o",
+        temperature=0,
+        timeout_s=1.0,
+        api_key_service="x",
+        backend="anthropic",
     )
     cost, wall = m3_enrich._estimate_cost_wall(haiku, n_groups=1000)
     assert "$" in cost
     assert "min" in wall
 
     qwen = Profile(
-        name="t", url="x", model="qwen/qwen3-8b", system="x",
-        labels=("o",), fallback="o", temperature=0, timeout_s=1.0,
-        api_key_service="x", backend="anthropic",
+        name="t",
+        url="x",
+        model="qwen/qwen3-8b",
+        system="x",
+        labels=("o",),
+        fallback="o",
+        temperature=0,
+        timeout_s=1.0,
+        api_key_service="x",
+        backend="anthropic",
     )
     cost, wall = m3_enrich._estimate_cost_wall(qwen, n_groups=1000)
     assert "local" in cost.lower()
@@ -402,12 +461,15 @@ def test_observation_enqueue_idempotent(stub_db, monkeypatch):
     """observation_enqueue_impl uses INSERT OR IGNORE on conversation_id —
     re-enqueueing the same conversation should be a no-op."""
     import sqlite3
+
     monkeypatch.setenv("M3_DATABASE", str(stub_db))
     # Migrate to add observation_queue / reflector_queue tables.
     import m3_enrich
+
     m3_enrich._ensure_migration_025(stub_db)
 
     import memory_core as mc
+
     r1 = mc.observation_enqueue_impl("conv-debounce-test", user_id="alice")
     r2 = mc.observation_enqueue_impl("conv-debounce-test", user_id="alice")
     r3 = mc.observation_enqueue_impl("conv-debounce-test", user_id="bob")
@@ -420,8 +482,7 @@ def test_observation_enqueue_idempotent(stub_db, monkeypatch):
 
     conn = sqlite3.connect(str(stub_db))
     rows = conn.execute(
-        "SELECT id, conversation_id, user_id FROM observation_queue "
-        "WHERE conversation_id='conv-debounce-test'"
+        "SELECT id, conversation_id, user_id FROM observation_queue WHERE conversation_id='conv-debounce-test'"
     ).fetchall()
     conn.close()
     # Exactly ONE row despite three calls — this is the debounce guarantee.
@@ -445,6 +506,7 @@ def test_drain_queue_mode_handles_empty_queue(stub_db, monkeypatch, capsys):
     # SLM call never fires because the queue is empty.
     monkeypatch.setenv("LM_API_TOKEN", "test-stub-token")
     import m3_enrich
+
     m3_enrich._ensure_migration_025(stub_db)
 
     args = argparse.Namespace(
@@ -487,6 +549,7 @@ def test_chatlog_ingest_auto_enrich_gated_by_env(monkeypatch):
     end-to-end test the full ingest pipeline here, but we can verify the
     truthy-check by inspecting the source — as a defensive sanity check."""
     import importlib
+
     spec = importlib.util.find_spec("chatlog_ingest")
     assert spec is not None, "chatlog_ingest must be importable for E1"
     src = Path(spec.origin).read_text(encoding="utf-8")
@@ -573,9 +636,7 @@ def test_migration_025_still_applies_to_a_core_store(tmp_path):
 
     core = tmp_path / "agent_memory.db"
     conn = sqlite3.connect(str(core))
-    conn.execute(
-        "CREATE TABLE memory_items (id TEXT, type TEXT, user_id TEXT, valid_from TEXT)"
-    )
+    conn.execute("CREATE TABLE memory_items (id TEXT, type TEXT, user_id TEXT, valid_from TEXT)")
     conn.commit()
     conn.close()
 

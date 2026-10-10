@@ -16,6 +16,7 @@ import unicodedata
 
 logger = logging.getLogger(__name__)
 
+
 # ── String Sanitization ──────────────────────────────────────────────────────
 def sanitize(text: str) -> str:
     """
@@ -26,13 +27,15 @@ def sanitize(text: str) -> str:
     if not text:
         return ""
     # NFKC normalization handles compatibility characters
-    normalized = unicodedata.normalize('NFKC', text)
+    normalized = unicodedata.normalize("NFKC", text)
     # Remove control characters but keep common whitespace and all valid printables
     return "".join(ch for ch in normalized if unicodedata.category(ch)[0] != "C" or ch in "\n\r\t")
+
 
 # ── numpy (optional) ─────────────────────────────────────────────────────────
 try:
     import numpy as _np
+
     HAS_NUMPY = True
 except ImportError:
     _np = None  # type: ignore[assignment]  # optional dependency: every use is gated on HAS_NUMPY
@@ -79,10 +82,7 @@ def unpack_many(blobs, dim: int | None = None):
         return _np.frombuffer(b"".join(blobs), dtype=_np.float32).reshape(len(blobs), dim)
     # Ragged / None-bearing fallback — return per-row lists; callers that need
     # an array can vstack with zero-fill themselves.
-    return [
-        list(struct.unpack(f"{len(b) // 4}f", b)) if b else [0.0] * dim
-        for b in blobs
-    ]
+    return [list(struct.unpack(f"{len(b) // 4}f", b)) if b else [0.0] * dim for b in blobs]
 
 
 # ── Cosine similarity ────────────────────────────────────────────────────────
@@ -162,7 +162,7 @@ def parse_model_size(model_id: str) -> float:
         'qwen2.5-0.5b'  → 0.5
         'nomic-embed-*' → 0.1 (embedding models treated as smallest)
     """
-    match = re.search(r'(\d+(?:\.\d+)?)[bB]', model_id.lower())
+    match = re.search(r"(\d+(?:\.\d+)?)[bB]", model_id.lower())
     if match:
         return float(match.group(1))
     if any(k in model_id.lower() for k in ("embed", "nomic", "jina", "bge", "e5", "gte", "minilm")):
@@ -176,14 +176,22 @@ def parse_model_size_with_id(model_id: str) -> tuple[float, str]:
 
 
 # ── Change-agent inference ───────────────────────────────────────────────────
-VALID_CHANGE_AGENTS = frozenset({
-    "claude", "gemini", "aider", "openclaw", "deepseek", "grok",
-    "manual", "system", "unknown",
-})
+VALID_CHANGE_AGENTS = frozenset(
+    {
+        "claude",
+        "gemini",
+        "aider",
+        "openclaw",
+        "deepseek",
+        "grok",
+        "manual",
+        "system",
+        "unknown",
+    }
+)
 
 
-def infer_change_agent(agent_id: str = "", model_id: str = "",
-                       default: str = "unknown") -> str:
+def infer_change_agent(agent_id: str = "", model_id: str = "", default: str = "unknown") -> str:
     """Infer the change_agent platform from agent_id and model_id hints."""
     combined = f"{agent_id} {model_id}".lower()
     if any(k in combined for k in ("claude", "sonnet", "opus", "haiku", "anthropic")):

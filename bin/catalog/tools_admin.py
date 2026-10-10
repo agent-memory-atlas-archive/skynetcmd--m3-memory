@@ -4,6 +4,7 @@ Split out of mcp_tool_catalog.py's flat TOOLS list. Entries copied verbatim
 (name, description, parameters, impl, validators, flags unchanged). Domain
 assignment per tool_domains.domain_of_tool().
 """
+
 from __future__ import annotations
 
 from .dispatch import m3_call_impl, m3_index_impl
@@ -40,8 +41,7 @@ TOOLS: list[ToolSpec] = [
         name="tools_load_domain",
         description=(
             "Register a tool domain's full surface for the current MCP session. "
-            "Use when you need tools beyond the essentials ("
-            + ", ".join(sorted(_ESSENTIAL_TOOL_NAMES)) + "). "
+            "Use when you need tools beyond the essentials (" + ", ".join(sorted(_ESSENTIAL_TOOL_NAMES)) + "). "
             "Valid domains: memory, chatlog, files, entity, agent, tasks, "
             "conversations, diagnostics, admin."
         ),
@@ -79,7 +79,11 @@ TOOLS: list[ToolSpec] = [
                     "type": "string",
                     "description": "Optional keyword search term to filter tools.",
                 },
-                "as_records": {"type": "boolean", "description": "Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged.", "default": False},
+                "as_records": {
+                    "type": "boolean",
+                    "description": "Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged.",
+                    "default": False,
+                },
             },
             "required": [],
         },
@@ -132,10 +136,18 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "tool":    {"type": "string", "description": "Catalog tool name (see m3_index).", "default": ""},
-                "args":    {"type": "object", "description": "Arguments object for the target tool.", "default": {}},
-                "batch":   {"type": "array", "description": "List of {tool, args} for one-round-trip batch dispatch.", "default": None},
-                "dry_run": {"type": "boolean", "description": "Validate + gate-check only; do not execute.", "default": False},
+                "tool": {"type": "string", "description": "Catalog tool name (see m3_index).", "default": ""},
+                "args": {"type": "object", "description": "Arguments object for the target tool.", "default": {}},
+                "batch": {
+                    "type": "array",
+                    "description": "List of {tool, args} for one-round-trip batch dispatch.",
+                    "default": None,
+                },
+                "dry_run": {
+                    "type": "boolean",
+                    "description": "Validate + gate-check only; do not execute.",
+                    "default": False,
+                },
             },
             "required": [],
         },
@@ -197,9 +209,17 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "dry_run":           {"type": "boolean", "default": True, "description": "If true, report count + ETA without executing; if false, execute enrichment."},
-                "limit":             {"type": "integer", "default": 0, "description": "Max items to enrich (0 = no limit)."},
-                "allowed_variants":  {"type": "array", "default": [], "description": "Variant names to include in enrichment (if empty, use default)."},
+                "dry_run": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "If true, report count + ETA without executing; if false, execute enrichment.",
+                },
+                "limit": {"type": "integer", "default": 0, "description": "Max items to enrich (0 = no limit)."},
+                "allowed_variants": {
+                    "type": "array",
+                    "default": [],
+                    "description": "Variant names to include in enrichment (if empty, use default).",
+                },
             },
             "required": [],
         },
@@ -216,20 +236,21 @@ TOOLS: list[ToolSpec] = [
             "type": "object",
             "properties": {
                 "agent_id": {"type": "string", "description": "Recipient agent id."},
-                "kind":     {"type": "string", "description": "Notification kind/type."},
-                "payload":  {"type": "object", "description": "Free-form notification data.", "default": {}},
+                "kind": {"type": "string", "description": "Notification kind/type."},
+                "payload": {"type": "object", "description": "Free-form notification data.", "default": {}},
                 "from_agent": {
-                    "type": "string", "default": "",
-                    "description": "Return address: which agent sent this. Stamped "
-                                   "into the payload as `_from.agent`.",
+                    "type": "string",
+                    "default": "",
+                    "description": "Return address: which agent sent this. Stamped into the payload as `_from.agent`.",
                 },
                 "from_session": {
-                    "type": "string", "default": "",
+                    "type": "string",
+                    "default": "",
                     "description": "Return address: WHICH SESSION of from_agent sent "
-                                   "this. N concurrent sessions of one agent type share "
-                                   "a single agent_id, so without this a reply reaches "
-                                   "whichever sister polls first. Stamped as "
-                                   "`_from.session`. A disambiguator, not a credential.",
+                    "this. N concurrent sessions of one agent type share "
+                    "a single agent_id, so without this a reply reaches "
+                    "whichever sister polls first. Stamped as "
+                    "`_from.session`. A disambiguator, not a credential.",
                 },
             },
             "required": ["agent_id", "kind"],
@@ -246,10 +267,14 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "agent_id":    {"type": "string", "description": "Recipient agent id."},
+                "agent_id": {"type": "string", "description": "Recipient agent id."},
                 "unread_only": {"type": "boolean", "description": "Show only unread notifications.", "default": True},
-                "limit":       {"type": "integer", "description": "Max notifications to return.", "default": 20},
-                "as_records": {"type": "boolean", "description": "Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged.", "default": False},
+                "limit": {"type": "integer", "description": "Max notifications to return.", "default": 20},
+                "as_records": {
+                    "type": "boolean",
+                    "description": "Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged.",
+                    "default": False,
+                },
             },
             "required": ["agent_id"],
         },
@@ -344,9 +369,17 @@ TOOLS: list[ToolSpec] = [
         parameters={
             "type": "object",
             "properties": {
-                "dry_run":           {"type": "boolean", "default": True, "description": "If true, report count + ETA without executing; if false, execute extraction."},
-                "limit":             {"type": "integer", "default": 0, "description": "Max items to extract (0 = no limit)."},
-                "allowed_variants":  {"type": "array", "default": [], "description": "Variant names to include in extraction (if empty, use default)."},
+                "dry_run": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "If true, report count + ETA without executing; if false, execute extraction.",
+                },
+                "limit": {"type": "integer", "default": 0, "description": "Max items to extract (0 = no limit)."},
+                "allowed_variants": {
+                    "type": "array",
+                    "default": [],
+                    "description": "Variant names to include in extraction (if empty, use default).",
+                },
             },
             "required": [],
         },

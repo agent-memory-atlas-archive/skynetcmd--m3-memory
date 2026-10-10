@@ -28,22 +28,18 @@ def test_parse_model_size():
     assert llm_failover.parse_model_size("nomic-embed-text-500m") == 0.5
     assert llm_failover.parse_model_size("no-size-here") == 0.0
 
+
 @pytest.mark.asyncio
 async def test_get_best_embed_success():
     """Test successful embedding model discovery."""
     mock_client = AsyncMock()
-    mock_resp = MagicMock() # MagicMock for sync methods like raise_for_status
+    mock_resp = MagicMock()  # MagicMock for sync methods like raise_for_status
     mock_resp.status_code = 200
 
     # httpx response.json() is NOT a coroutine, but we mocked it as one
     # if we used AsyncMock. We need to be careful.
     # In llm_failover.py it's called as: data = response.json() (sync)
-    mock_resp.json.return_value = {
-        "data": [
-            {"id": "llama-3-8b"},
-            {"id": "nomic-embed-text-v1.5"}
-        ]
-    }
+    mock_resp.json.return_value = {"data": [{"id": "llama-3-8b"}, {"id": "nomic-embed-text-v1.5"}]}
     mock_client.get.return_value = mock_resp
 
     with patch("llm_failover.LLM_ENDPOINTS", ["http://localhost:1234/v1"]):
@@ -77,13 +73,7 @@ async def test_get_best_llm_size_sorting():
     mock_client = AsyncMock()
     mock_resp = MagicMock()
     mock_resp.status_code = 200
-    mock_resp.json.return_value = {
-        "data": [
-            {"id": "llama-3-8b"},
-            {"id": "deepseek-r1-70b"},
-            {"id": "phi-3-3b"}
-        ]
-    }
+    mock_resp.json.return_value = {"data": [{"id": "llama-3-8b"}, {"id": "deepseek-r1-70b"}, {"id": "phi-3-3b"}]}
     mock_client.get.return_value = mock_resp
 
     with patch("llm_failover.LLM_ENDPOINTS", ["http://localhost:1234/v1"]):

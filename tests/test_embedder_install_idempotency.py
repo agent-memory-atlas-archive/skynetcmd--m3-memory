@@ -19,6 +19,7 @@ originals (hence the .10 fixes at the bottom of this file):
      so only fresh installs ever became sovereign, and deleting the third-party
      copy broke install while a good model sat unused.
 """
+
 from __future__ import annotations
 
 import sys
@@ -35,11 +36,15 @@ from m3_memory import embedder_admin as ea  # noqa: E402
 
 # ── 2. OS-correct failure advice ─────────────────────────────────────────────
 
-@pytest.mark.parametrize("platform,expected,forbidden", [
-    ("win32", "Administrator", ("crontab", "nohup", "systemd")),
-    ("darwin", "launchd", ("crontab", "Administrator terminal")),
-    ("linux", "systemd", ("Administrator terminal",)),
-])
+
+@pytest.mark.parametrize(
+    "platform,expected,forbidden",
+    [
+        ("win32", "Administrator", ("crontab", "nohup", "systemd")),
+        ("darwin", "launchd", ("crontab", "Administrator terminal")),
+        ("linux", "systemd", ("Administrator terminal",)),
+    ],
+)
 def test_install_failure_hint_is_os_correct(platform, expected, forbidden):
     """m3 supports 3 OSes; the recovery advice must match the one you're on.
 
@@ -55,6 +60,7 @@ def test_install_failure_hint_is_os_correct(platform, expected, forbidden):
 
 
 # ── 1. install is idempotent when the service already exists ─────────────────
+
 
 def _fake_binary(tmp_path: Path) -> Path:
     binary = tmp_path / "m3-embed-server.exe"
@@ -77,7 +83,8 @@ def test_service_reports_installed_parses_status(tmp_path, monkeypatch):
         ("not installed\n", False),
     ]:
         monkeypatch.setattr(
-            ea.subprocess, "run",
+            ea.subprocess,
+            "run",
             lambda *a, _o=stdout, **k: SimpleNamespace(stdout=_o, stderr="", returncode=0),
         )
         assert ea._service_reports_installed(binary, gguf) is expected, stdout
@@ -86,12 +93,12 @@ def test_service_reports_installed_parses_status(tmp_path, monkeypatch):
 def test_service_reports_installed_survives_a_crash(tmp_path, monkeypatch):
     """A probe that can't run must return False, never raise into setup (§3)."""
     binary = _fake_binary(tmp_path)
-    monkeypatch.setattr(ea.subprocess, "run",
-                        mock.Mock(side_effect=OSError("boom")))
+    monkeypatch.setattr(ea.subprocess, "run", mock.Mock(side_effect=OSError("boom")))
     assert ea._service_reports_installed(binary, tmp_path / "m.gguf") is False
 
 
 # ── 3. stale-binary detection after an upgrade ───────────────────────────────
+
 
 def test_stale_when_process_predates_its_binary(tmp_path, monkeypatch):
     """A process started BEFORE its binary's mtime is running the old image.
@@ -102,11 +109,13 @@ def test_stale_when_process_predates_its_binary(tmp_path, monkeypatch):
     binary = _fake_binary(tmp_path)
     bin_mtime = binary.stat().st_mtime
 
-    fake_proc = SimpleNamespace(info={
-        "name": "m3-embed-server",
-        "exe": str(binary),
-        "create_time": bin_mtime - 3600,   # started an hour before the upgrade
-    })
+    fake_proc = SimpleNamespace(
+        info={
+            "name": "m3-embed-server",
+            "exe": str(binary),
+            "create_time": bin_mtime - 3600,  # started an hour before the upgrade
+        }
+    )
     fake_psutil = SimpleNamespace(
         process_iter=lambda attrs=None: [fake_proc],
         Error=Exception,
@@ -118,25 +127,28 @@ def test_stale_when_process_predates_its_binary(tmp_path, monkeypatch):
 def test_not_stale_when_process_started_after_its_binary(tmp_path, monkeypatch):
     """A freshly-restarted service must NOT be flagged — no needless bounce."""
     binary = _fake_binary(tmp_path)
-    fake_proc = SimpleNamespace(info={
-        "name": "m3-embed-server",
-        "exe": str(binary),
-        "create_time": binary.stat().st_mtime + 60,
-    })
-    monkeypatch.setitem(sys.modules, "psutil", SimpleNamespace(
-        process_iter=lambda attrs=None: [fake_proc], Error=Exception))
+    fake_proc = SimpleNamespace(
+        info={
+            "name": "m3-embed-server",
+            "exe": str(binary),
+            "create_time": binary.stat().st_mtime + 60,
+        }
+    )
+    monkeypatch.setitem(
+        sys.modules, "psutil", SimpleNamespace(process_iter=lambda attrs=None: [fake_proc], Error=Exception)
+    )
     assert ea._service_binary_is_stale(binary) is False
 
 
 def test_not_stale_when_no_matching_process(tmp_path, monkeypatch):
     """Nothing running -> not stale (don't guess)."""
     binary = _fake_binary(tmp_path)
-    monkeypatch.setitem(sys.modules, "psutil", SimpleNamespace(
-        process_iter=lambda attrs=None: [], Error=Exception))
+    monkeypatch.setitem(sys.modules, "psutil", SimpleNamespace(process_iter=lambda attrs=None: [], Error=Exception))
     assert ea._service_binary_is_stale(binary) is False
 
 
 # ── 4. m3's own model dir ────────────────────────────────────────────────────
+
 
 def test_models_root_precedence(monkeypatch):
     """M3_MODELS_ROOT > M3_MEMORY_ROOT/models > ~/.m3/models — matching the
@@ -161,6 +173,7 @@ def test_m3_models_dir_probed_before_third_party(monkeypatch, tmp_path):
     import importlib
 
     import memory.embed as embed
+
     importlib.reload(embed)
 
     own = tmp_path / "bge-m3-Q4_K_M.gguf"
@@ -182,7 +195,7 @@ def test_invalid_gguf_is_rejected(tmp_path, monkeypatch):
     assert _is_valid_gguf(html) is False
 
     truncated = tmp_path / "short.gguf"
-    truncated.write_bytes(b"GGUF" + b"\x00" * 1000)   # right magic, wrong size
+    truncated.write_bytes(b"GGUF" + b"\x00" * 1000)  # right magic, wrong size
     assert _is_valid_gguf(truncated) is False
 
 
@@ -194,6 +207,7 @@ def test_fetch_is_opt_out_via_env(monkeypatch):
 
 
 # ── quiesce progress spinner ─────────────────────────────────────────────────
+
 
 def test_quiesce_spinner_redraws_one_line(monkeypatch, capsys):
     """The 30s quiesce wait must show motion, and must redraw ONE line with \r
@@ -230,8 +244,7 @@ def test_quiesce_spinner_disabled_without_a_console(monkeypatch):
 
 
 def _proc(*, name="m3-embed-server", exe=None, create_time=0.0):
-    return SimpleNamespace(info={
-        "name": name, "exe": exe, "create_time": create_time})
+    return SimpleNamespace(info={"name": name, "exe": exe, "create_time": create_time})
 
 
 def _fake_psutil(procs):
@@ -240,6 +253,7 @@ def _fake_psutil(procs):
 
 # ── 5. staleness detection when `exe` is unreadable (Windows service) ────────
 
+
 def test_stale_detected_when_exe_is_unreadable(tmp_path, monkeypatch):
     """The real 2026-07-27 miss: a LocalSystem service queried unelevated
     reports exe='' (WMI ExecutablePath is blank too). Matching only on the
@@ -247,9 +261,11 @@ def test_stale_detected_when_exe_is_unreadable(tmp_path, monkeypatch):
     and the restart never fired. `create_time` IS readable — fall back to name.
     """
     binary = _fake_binary(tmp_path)
-    monkeypatch.setitem(sys.modules, "psutil", _fake_psutil([
-        _proc(name="m3-embed-server.exe", exe=None,
-              create_time=binary.stat().st_mtime - 3600)]))
+    monkeypatch.setitem(
+        sys.modules,
+        "psutil",
+        _fake_psutil([_proc(name="m3-embed-server.exe", exe=None, create_time=binary.stat().st_mtime - 3600)]),
+    )
     assert ea._service_binary_is_stale(binary) is True
 
 
@@ -257,9 +273,11 @@ def test_name_fallback_still_respects_the_grace_window(tmp_path, monkeypatch):
     """A freshly restarted service with an unreadable path is NOT stale —
     the fallback must not turn into 'always restart'."""
     binary = _fake_binary(tmp_path)
-    monkeypatch.setitem(sys.modules, "psutil", _fake_psutil([
-        _proc(name="m3-embed-server.exe", exe=None,
-              create_time=binary.stat().st_mtime + 60)]))
+    monkeypatch.setitem(
+        sys.modules,
+        "psutil",
+        _fake_psutil([_proc(name="m3-embed-server.exe", exe=None, create_time=binary.stat().st_mtime + 60)]),
+    )
     assert ea._service_binary_is_stale(binary) is False
 
 
@@ -271,23 +289,32 @@ def test_readable_exe_that_does_not_match_is_not_stale(tmp_path, monkeypatch):
     other = tmp_path / "other" / "m3-embed-server.exe"
     other.parent.mkdir()
     other.write_bytes(b"\x00")
-    monkeypatch.setitem(sys.modules, "psutil", _fake_psutil([
-        _proc(name="m3-embed-server.exe", exe=str(other),
-              create_time=binary.stat().st_mtime - 3600)]))
+    monkeypatch.setitem(
+        sys.modules,
+        "psutil",
+        _fake_psutil([_proc(name="m3-embed-server.exe", exe=str(other), create_time=binary.stat().st_mtime - 3600)]),
+    )
     assert ea._service_binary_is_stale(binary) is False
 
 
 def test_unrelated_process_with_blank_exe_is_ignored(tmp_path, monkeypatch):
     """Blank exe must not make every nameless process a match."""
     binary = _fake_binary(tmp_path)
-    monkeypatch.setitem(sys.modules, "psutil", _fake_psutil([
-        _proc(name="chrome.exe", exe=None,
-              create_time=binary.stat().st_mtime - 3600),
-        _proc(name="", exe=None, create_time=0.0)]))
+    monkeypatch.setitem(
+        sys.modules,
+        "psutil",
+        _fake_psutil(
+            [
+                _proc(name="chrome.exe", exe=None, create_time=binary.stat().st_mtime - 3600),
+                _proc(name="", exe=None, create_time=0.0),
+            ]
+        ),
+    )
     assert ea._service_binary_is_stale(binary) is False
 
 
 # ── 6. sovereignty migration off a third-party configured path ───────────────
+
 
 def _plausible_gguf(path: Path) -> Path:
     """Write a file that passes _is_valid_gguf: right magic bytes AND a size
@@ -314,21 +341,27 @@ def sovereign(tmp_path, monkeypatch):
     monkeypatch.delenv("M3_MEMORY_ROOT", raising=False)
     monkeypatch.delenv("M3_EMBED_GGUF_AUTODETECT", raising=False)
     own = _plausible_gguf(models / "bge-m3-Q4_K_M.gguf")
-    return SimpleNamespace(models=models, config=config, own=own,
-                           cfg=config / ".embed_config.json")
+    return SimpleNamespace(models=models, config=config, own=own, cfg=config / ".embed_config.json")
 
 
 def _write_cfg(sov, gguf_path):
     import json
-    sov.cfg.write_text(json.dumps({
-        "disable_inproc_embedder": True,
-        "fallback_url": "http://127.0.0.1:8082",
-        "gguf_path": str(gguf_path),
-    }), encoding="utf-8")
+
+    sov.cfg.write_text(
+        json.dumps(
+            {
+                "disable_inproc_embedder": True,
+                "fallback_url": "http://127.0.0.1:8082",
+                "gguf_path": str(gguf_path),
+            }
+        ),
+        encoding="utf-8",
+    )
 
 
 def _read_cfg(sov):
     import json
+
     return json.loads(sov.cfg.read_text(encoding="utf-8"))
 
 
@@ -414,8 +447,7 @@ def test_migration_survives_an_unwritable_config(sovereign, tmp_path, monkeypatc
     third.parent.mkdir()
     third.write_bytes(b"GGUF" + b"\x00" * 64)
     _write_cfg(sovereign, third)
-    monkeypatch.setattr(Path, "replace",
-                        mock.Mock(side_effect=OSError("read-only")))
+    monkeypatch.setattr(Path, "replace", mock.Mock(side_effect=OSError("read-only")))
     assert ea._find_bundled_gguf() == sovereign.own
 
 
@@ -424,8 +456,7 @@ def test_wait_for_quiesce_survives_a_raising_tick(monkeypatch):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bin"))
     import m3_halt
 
-    monkeypatch.setattr(m3_halt, "list_blocking_db_writers",
-                        lambda root=None: [])
+    monkeypatch.setattr(m3_halt, "list_blocking_db_writers", lambda root=None: [])
     # Empty registry returns before any tick; the guard is exercised by the
     # non-empty path below.
     calls = {"n": 0}
@@ -435,8 +466,7 @@ def test_wait_for_quiesce_survives_a_raising_tick(monkeypatch):
         raise RuntimeError("renderer exploded")
 
     seq = [[SimpleNamespace(role="x", pid=1)], []]
-    monkeypatch.setattr(m3_halt, "list_blocking_db_writers",
-                        lambda root=None: seq.pop(0) if seq else [])
+    monkeypatch.setattr(m3_halt, "list_blocking_db_writers", lambda root=None: seq.pop(0) if seq else [])
     result = m3_halt.wait_for_quiesce(timeout=5.0, poll=0.01, on_tick=_boom)
     assert result.ok is True
     assert calls["n"] >= 1, "on_tick was never invoked"
@@ -444,11 +474,15 @@ def test_wait_for_quiesce_survives_a_raising_tick(monkeypatch):
 
 # ── 7. `start` against an already-running service ───────────────────────────
 
-@pytest.mark.parametrize("platform,expected,forbidden", [
-    ("win32", "sc.exe start", ("systemd", "nohup", "crontab")),
-    ("darwin", "launchd", ("systemd", "sc.exe")),
-    ("linux", "systemd", ("sc.exe", "launchd")),
-])
+
+@pytest.mark.parametrize(
+    "platform,expected,forbidden",
+    [
+        ("win32", "sc.exe start", ("systemd", "nohup", "crontab")),
+        ("darwin", "launchd", ("systemd", "sc.exe")),
+        ("linux", "systemd", ("sc.exe", "launchd")),
+    ],
+)
 def test_start_failure_hint_is_os_correct(platform, expected, forbidden):
     """The start-failure advice offered systemd/`nohup` on every platform —
     including Windows, where the embedder is an SCM service and neither exists.
@@ -470,7 +504,8 @@ def test_already_running_is_not_reported_as_a_start_failure(tmp_path, monkeypatc
     gguf.write_bytes(b"GGUF" + b"\x00" * 64)
 
     monkeypatch.setattr(
-        ea.subprocess, "run",
+        ea.subprocess,
+        "run",
         lambda *a, **k: SimpleNamespace(stdout="running\n", stderr="", returncode=0),
     )
     assert ea._service_reports_running(binary, gguf) is True
@@ -481,7 +516,8 @@ def test_service_reports_running_is_false_when_stopped(tmp_path, monkeypatch):
     point is evidence, not optimism."""
     binary = _fake_binary(tmp_path)
     monkeypatch.setattr(
-        ea.subprocess, "run",
+        ea.subprocess,
+        "run",
         lambda *a, **k: SimpleNamespace(stdout="stopped\n", stderr="", returncode=0),
     )
     assert ea._service_reports_running(binary, tmp_path / "m.gguf") is False

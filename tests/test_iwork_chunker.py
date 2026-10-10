@@ -8,6 +8,7 @@ the optional `[iwork]` extra is installed — so the common path costs nothing.
 These tests build a real bundle rather than mocking the reader: the preview path
 is the one every user hits, and mocking it would test the mock.
 """
+
 from __future__ import annotations
 
 import os
@@ -25,7 +26,8 @@ from files_memory import chunkers, identity  # noqa: E402
 from files_memory.chunkers import iwork as iwork_chunker  # noqa: E402
 
 pytestmark = pytest.mark.skipif(
-    not iwork_chunker.available, reason=skip_reason("dep", "neither pypdf nor keynote-parser installed"))
+    not iwork_chunker.available, reason=skip_reason("dep", "neither pypdf nor keynote-parser installed")
+)
 
 
 def _preview_pdf(lines_per_page):
@@ -42,12 +44,8 @@ def _preview_pdf(lines_per_page):
     kids: list[int] = []
     num = 4  # 1=Catalog, 2=Pages, 3=Font
     for lines in lines_per_page:
-        stream = "BT /F1 12 Tf 72 720 Td " + " ".join(
-            f"({line}) Tj 0 -18 Td" for line in lines) + " ET"
-        objects[num] = (
-            f"<< /Length {len(stream)} >>" + "\n" +
-            "stream" + "\n" + stream + "\n" + "endstream"
-        )
+        stream = "BT /F1 12 Tf 72 720 Td " + " ".join(f"({line}) Tj 0 -18 Td" for line in lines) + " ET"
+        objects[num] = f"<< /Length {len(stream)} >>" + "\n" + "stream" + "\n" + stream + "\n" + "endstream"
         contents = num
         num += 1
         objects[num] = (
@@ -59,9 +57,7 @@ def _preview_pdf(lines_per_page):
         num += 1
 
     objects[1] = "<< /Type /Catalog /Pages 2 0 R >>"
-    objects[2] = ("<< /Type /Pages /Kids ["
-                  + " ".join(f"{k} 0 R" for k in kids)
-                  + f"] /Count {len(kids)} >>")
+    objects[2] = "<< /Type /Pages /Kids [" + " ".join(f"{k} 0 R" for k in kids) + f"] /Count {len(kids)} >>"
     objects[3] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"
 
     nl = chr(10)
@@ -73,13 +69,25 @@ def _preview_pdf(lines_per_page):
         buf.write((f"{n} 0 obj" + nl + objects[n] + nl + "endobj" + nl).encode())
     xref = buf.tell()
     highest = max(objects)
-    buf.write(("xref" + nl + f"0 {highest + 1}" + nl
-               + "0000000000 65535 f " + nl).encode())
+    buf.write(("xref" + nl + f"0 {highest + 1}" + nl + "0000000000 65535 f " + nl).encode())
     for n in range(1, highest + 1):
         buf.write((f"{offsets.get(n, 0):010d} 00000 n " + nl).encode())
-    buf.write((("trailer" + nl + f"<< /Size {highest + 1} /Root 1 0 R >>" + nl
-                + "startxref" + nl + f"{xref}" + nl + "%%EOF" + nl)).encode())
+    buf.write(
+        (
+            "trailer"
+            + nl
+            + f"<< /Size {highest + 1} /Root 1 0 R >>"
+            + nl
+            + "startxref"
+            + nl
+            + f"{xref}"
+            + nl
+            + "%%EOF"
+            + nl
+        ).encode()
+    )
     return buf.getvalue()
+
 
 def _bundle(tmp_path, name="doc.pages", *, preview=None, extra=None):
     """Write an iWork-shaped ZIP bundle."""
@@ -160,5 +168,4 @@ def test_all_three_apple_formats_route_here(ext):
     """Pages, Keynote and Numbers share one container and one chunker."""
     assert identity.FILETYPE_BY_EXT.get(ext) == "iwork"
     mod = chunkers.get_chunker("iwork")
-    assert mod.__name__.endswith(".iwork"), (
-        f"{ext} resolved to {mod.__name__} — it would be ingested as raw bytes")
+    assert mod.__name__.endswith(".iwork"), f"{ext} resolved to {mod.__name__} — it would be ingested as raw bytes"

@@ -5,6 +5,7 @@ The Rust server drops unknown [embed] keys silently (serde without
 deny_unknown_fields), so the generator may emit only the server's own fields,
 and every value must read back exactly.
 """
+
 from __future__ import annotations
 
 import re
@@ -31,8 +32,10 @@ def _settings(tmp_path, text=None, environ=None):
 def test_values_round_trip_through_toml(tmp_path):
     from m3_core.config import embed_file
 
-    s = _settings(tmp_path, '[embed]\ngguf = \'C:\\models\\bge "m3".gguf\'\nctx = 4096\n'
-                            '[embed.server]\nhost = "0.0.0.0"\nport = 9100\n')
+    s = _settings(
+        tmp_path,
+        '[embed]\ngguf = \'C:\\models\\bge "m3".gguf\'\nctx = 4096\n[embed.server]\nhost = "0.0.0.0"\nport = 9100\n',
+    )
     values = embed_file.server_values(s)
     parsed = tomllib.loads(embed_file.render(values))["embed"]
     assert parsed == {k: v for k, v in values.items() if v is not None}

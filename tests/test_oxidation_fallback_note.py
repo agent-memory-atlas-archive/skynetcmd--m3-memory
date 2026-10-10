@@ -9,6 +9,7 @@ Contract (project memory 2026-06-27):
     NEVER be asserted as a specific fact. A test may assert the HEDGE is
     present; it must not pin the number as truth.
 """
+
 from __future__ import annotations
 
 import sys
@@ -20,6 +21,7 @@ from conftest import simulate_os
 from m3_memory import rust_core_install as rci  # noqa: E402
 
 # ── the canonical relative figure ──────────────────────────────────────────────
+
 
 def test_speedup_constant_is_10_85x():
     """The one authoritative figure tests may assert."""
@@ -72,10 +74,12 @@ def test_note_indent_is_applied():
 
 # ── tier probe (I3) ────────────────────────────────────────────────────────────
 
+
 def test_active_embedder_tier_no_wheel(monkeypatch):
     """With m3_core_rs absent, the probe reports the pure-Python fallback and
     names the ~10-85x figure — never claims native is active."""
     import builtins
+
     real_import = builtins.__import__
 
     def fake_import(name, *a, **k):
@@ -94,8 +98,9 @@ def test_active_embedder_tier_no_wheel(monkeypatch):
 def test_active_embedder_tier_with_wheel(monkeypatch):
     """A stub m3_core_rs exposing EmbeddedEmbedder is reported as native/active."""
     import types
+
     stub = types.ModuleType("m3_core_rs")
-    stub.EmbeddedEmbedder = object          # presence is what matters
+    stub.EmbeddedEmbedder = object  # presence is what matters
     stub.__version__ = "3.6.27"
     stub.embed_backend_label = lambda: "cpu"
     monkeypatch.setitem(sys.modules, "m3_core_rs", stub)
@@ -112,7 +117,8 @@ def test_active_embedder_tier_wheel_without_embedded_feature(monkeypatch):
     """A wheel built WITHOUT the embedded feature (no EmbeddedEmbedder) is not
     treated as the active hot path."""
     import types
-    stub = types.ModuleType("m3_core_rs")          # no EmbeddedEmbedder attr
+
+    stub = types.ModuleType("m3_core_rs")  # no EmbeddedEmbedder attr
     stub.__version__ = "3.6.27"
     monkeypatch.setitem(sys.modules, "m3_core_rs", stub)
 
@@ -123,6 +129,7 @@ def test_active_embedder_tier_wheel_without_embedded_feature(monkeypatch):
 
 # ── privilege-probe footguns: must be safe & non-crashing everywhere ────────────
 
+
 def test_can_sudo_false_when_no_sudo_binary(monkeypatch):
     """_can_sudo must NOT crash when `sudo` is absent (Windows, minimal Unix) —
     it returns False instead of raising FileNotFoundError."""
@@ -130,6 +137,7 @@ def test_can_sudo_false_when_no_sudo_binary(monkeypatch):
 
     def _boom(*a, **k):  # would be the FileNotFoundError path
         raise OSError("No such file or directory: 'sudo'")
+
     monkeypatch.setattr(rci.subprocess, "run", _boom)
     assert rci._can_sudo() is False
 
@@ -150,10 +158,18 @@ def test_in_privileged_group_false_on_windows(monkeypatch):
 # and prescribes a toolchain the host does not need. §3: a warning that fires
 # when nothing is wrong trains people to ignore the one that matters.
 
+
 def _fake_tier(monkeypatch, *, native, backend=None, version=None):
-    monkeypatch.setattr(rci, "active_embedder_tier", lambda: {
-        "native": native, "backend": backend, "version": version, "summary": "",
-    })
+    monkeypatch.setattr(
+        rci,
+        "active_embedder_tier",
+        lambda: {
+            "native": native,
+            "backend": backend,
+            "version": version,
+            "summary": "",
+        },
+    )
 
 
 def test_outcome_note_reports_the_loaded_core_when_one_is_live(monkeypatch):
@@ -182,8 +198,7 @@ def test_outcome_note_never_claims_a_slowdown_that_is_not_happening(monkeypatch)
     """The pure-Python copy must NOT appear while a native core is serving."""
     _fake_tier(monkeypatch, native=True, backend="cuda", version="3.9.8")
     note = rci.native_core_outcome_note().lower()
-    for lie in ("pure-python", "not employed", "http fallback",
-                rci.OXIDATION_SPEEDUP_X.lower()):
+    for lie in ("pure-python", "not employed", "http fallback", rci.OXIDATION_SPEEDUP_X.lower()):
         assert lie not in note, f"false alarm: note still claims {lie!r}"
 
 

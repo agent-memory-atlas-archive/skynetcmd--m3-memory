@@ -5,6 +5,7 @@ that memory_delete_bulk delivers (memory 4090f663). Without these, an agent
 that wants to add 50 LINK edges or update retention on 178 rows has to loop
 the single-id variant, which adds ~2 sec of LLM round-trip latency per call.
 """
+
 from __future__ import annotations
 
 import json
@@ -79,6 +80,7 @@ def scratch_db(monkeypatch, tmp_path):
     monkeypatch.setenv("M3_DATABASE", str(db_path))
     # Force a re-resolve of the cached db path in memory_core.
     import memory_core
+
     if hasattr(memory_core, "_initialized_dbs"):
         memory_core._initialized_dbs.clear()
 
@@ -90,11 +92,14 @@ def scratch_db(monkeypatch, tmp_path):
 
 def test_link_bulk_creates_valid_links(scratch_db):
     import memory_core
+
     a, b, c = scratch_db["ids"]
-    r = memory_core.memory_link_bulk_impl([
-        {"from_id": a, "to_id": b, "relationship_type": "related"},
-        {"from_id": b, "to_id": c, "relationship_type": "supports"},
-    ])
+    r = memory_core.memory_link_bulk_impl(
+        [
+            {"from_id": a, "to_id": b, "relationship_type": "related"},
+            {"from_id": b, "to_id": c, "relationship_type": "supports"},
+        ]
+    )
     assert len(r["created"]) == 2
     assert r["skipped_missing"] == []
     assert r["skipped_duplicate"] == []
@@ -107,11 +112,14 @@ def test_link_bulk_creates_valid_links(scratch_db):
 
 def test_link_bulk_skips_missing_target(scratch_db):
     import memory_core
+
     a = scratch_db["ids"][0]
     bogus = "00000000-0000-0000-0000-000000000000"
-    r = memory_core.memory_link_bulk_impl([
-        {"from_id": a, "to_id": bogus, "relationship_type": "related"},
-    ])
+    r = memory_core.memory_link_bulk_impl(
+        [
+            {"from_id": a, "to_id": bogus, "relationship_type": "related"},
+        ]
+    )
     assert r["created"] == []
     assert len(r["skipped_missing"]) == 1
     assert bogus in r["skipped_missing"][0]["missing"]
@@ -119,6 +127,7 @@ def test_link_bulk_skips_missing_target(scratch_db):
 
 def test_link_bulk_skips_duplicates(scratch_db):
     import memory_core
+
     a, b, _ = scratch_db["ids"]
     # First call creates one.
     memory_core.memory_link_bulk_impl([{"from_id": a, "to_id": b}])
@@ -133,21 +142,27 @@ def test_link_bulk_dedupes_input(scratch_db):
     """Same (from, to, rel) appearing twice in the input list collapses
     to one DB row + one `created` entry."""
     import memory_core
+
     a, b, _ = scratch_db["ids"]
-    r = memory_core.memory_link_bulk_impl([
-        {"from_id": a, "to_id": b, "relationship_type": "related"},
-        {"from_id": a, "to_id": b, "relationship_type": "related"},
-    ])
+    r = memory_core.memory_link_bulk_impl(
+        [
+            {"from_id": a, "to_id": b, "relationship_type": "related"},
+            {"from_id": a, "to_id": b, "relationship_type": "related"},
+        ]
+    )
     assert len(r["created"]) == 1
     assert r["total"] == 1, "input dedupe should reflect in `total`"
 
 
 def test_link_bulk_invalid_relationship_type_surfaces(scratch_db):
     import memory_core
+
     a, b, _ = scratch_db["ids"]
-    r = memory_core.memory_link_bulk_impl([
-        {"from_id": a, "to_id": b, "relationship_type": "definitely-not-real"},
-    ])
+    r = memory_core.memory_link_bulk_impl(
+        [
+            {"from_id": a, "to_id": b, "relationship_type": "definitely-not-real"},
+        ]
+    )
     assert r["created"] == []
     assert len(r["skipped_missing"]) == 1
     assert "invalid relationship_type" in r["skipped_missing"][0]["reason"]
@@ -158,11 +173,14 @@ def test_link_bulk_invalid_relationship_type_surfaces(scratch_db):
 
 def test_update_bulk_sets_importance(scratch_db):
     import memory_core
+
     ids = scratch_db["ids"]
-    r = memory_core.memory_update_bulk_impl([
-        {"id": ids[0], "importance": 0.9},
-        {"id": ids[1], "importance": 0.1},
-    ])
+    r = memory_core.memory_update_bulk_impl(
+        [
+            {"id": ids[0], "importance": 0.9},
+            {"id": ids[1], "importance": 0.1},
+        ]
+    )
     assert sorted(r["succeeded"]) == sorted([ids[0], ids[1]])
     assert r["not_found"] == []
     assert r["no_change"] == []
@@ -175,10 +193,13 @@ def test_update_bulk_sets_importance(scratch_db):
 
 def test_update_bulk_handles_missing_id(scratch_db):
     import memory_core
+
     bogus = "00000000-0000-0000-0000-000000000000"
-    r = memory_core.memory_update_bulk_impl([
-        {"id": bogus, "importance": 0.5},
-    ])
+    r = memory_core.memory_update_bulk_impl(
+        [
+            {"id": bogus, "importance": 0.5},
+        ]
+    )
     assert r["not_found"] == [bogus]
     assert r["succeeded"] == []
 
@@ -186,10 +207,13 @@ def test_update_bulk_handles_missing_id(scratch_db):
 def test_update_bulk_no_change_when_all_fields_empty(scratch_db):
     """An update with `id` only (no fields to change) reports no_change."""
     import memory_core
+
     ids = scratch_db["ids"]
-    r = memory_core.memory_update_bulk_impl([
-        {"id": ids[0]},  # no fields → no change
-    ])
+    r = memory_core.memory_update_bulk_impl(
+        [
+            {"id": ids[0]},  # no fields → no change
+        ]
+    )
     assert r["no_change"] == [ids[0]]
     assert r["succeeded"] == []
 
@@ -198,11 +222,14 @@ def test_update_bulk_dedupes_on_id_last_wins(scratch_db):
     """Two entries for the same id: last one wins (matches memory_update
     looped semantics if you called it twice — final state == last call)."""
     import memory_core
+
     ids = scratch_db["ids"]
-    r = memory_core.memory_update_bulk_impl([
-        {"id": ids[0], "importance": 0.3},
-        {"id": ids[0], "importance": 0.7},
-    ])
+    r = memory_core.memory_update_bulk_impl(
+        [
+            {"id": ids[0], "importance": 0.3},
+            {"id": ids[0], "importance": 0.7},
+        ]
+    )
     assert r["total"] == 1
     assert ids[0] in r["succeeded"]
     conn = sqlite3.connect(scratch_db["path"])
@@ -212,11 +239,14 @@ def test_update_bulk_dedupes_on_id_last_wins(scratch_db):
 
 def test_update_bulk_metadata_string_accepted(scratch_db):
     import memory_core
+
     ids = scratch_db["ids"]
     md = json.dumps({"foo": "bar"})
-    r = memory_core.memory_update_bulk_impl([
-        {"id": ids[0], "metadata": md},
-    ])
+    r = memory_core.memory_update_bulk_impl(
+        [
+            {"id": ids[0], "metadata": md},
+        ]
+    )
     assert ids[0] in r["succeeded"]
     conn = sqlite3.connect(scratch_db["path"])
     val = conn.execute("SELECT metadata_json FROM memory_items WHERE id=?", (ids[0],)).fetchone()[0]
@@ -227,10 +257,13 @@ def test_update_bulk_metadata_dict_is_json_encoded(scratch_db):
     """If a caller passes metadata as a dict (Python-side), the impl JSON-
     encodes before writing — matches memory_update_impl behavior."""
     import memory_core
+
     ids = scratch_db["ids"]
-    r = memory_core.memory_update_bulk_impl([
-        {"id": ids[0], "metadata": {"foo": "baz"}},
-    ])
+    r = memory_core.memory_update_bulk_impl(
+        [
+            {"id": ids[0], "metadata": {"foo": "baz"}},
+        ]
+    )
     assert ids[0] in r["succeeded"]
     conn = sqlite3.connect(scratch_db["path"])
     val = conn.execute("SELECT metadata_json FROM memory_items WHERE id=?", (ids[0],)).fetchone()[0]
@@ -242,6 +275,7 @@ def test_update_bulk_metadata_dict_is_json_encoded(scratch_db):
 
 def test_both_tools_registered_in_catalog():
     import mcp_tool_catalog
+
     names = {t.name for t in mcp_tool_catalog.TOOLS}
     assert "memory_link_bulk" in names
     assert "memory_update_bulk" in names
@@ -251,6 +285,7 @@ def test_bulk_tools_have_required_args_declared():
     """Schema misconfig would let the agent call with no args and the impl
     would dispatch with an empty list — catch it at the schema level."""
     import mcp_tool_catalog
+
     by_name = {t.name: t for t in mcp_tool_catalog.TOOLS}
     assert "links" in by_name["memory_link_bulk"].parameters.get("required", [])
     assert "updates" in by_name["memory_update_bulk"].parameters.get("required", [])

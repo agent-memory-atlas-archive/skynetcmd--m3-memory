@@ -10,6 +10,7 @@ only; a value is never printed (§10).
 
 Exit codes: 0 = shown; 2 = the configuration is invalid (problems printed).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -38,23 +39,44 @@ def _secrets() -> list[dict]:
     out = []
     for key in sorted((k for k in REGISTRY if k.klass is KeyClass.SECRET), key=lambda k: k.name):
         r = explain_named_secret(key.name)
-        out.append({"name": key.name, "set": bool(r.value), "source": r.source,
-                    "bootstrap": key.bootstrap, "errors": list(r.errors)})
+        out.append(
+            {
+                "name": key.name,
+                "set": bool(r.value),
+                "source": r.source,
+                "bootstrap": key.bootstrap,
+                "errors": list(r.errors),
+            }
+        )
     return out
 
 
 def show(settings: Settings, *, origin: bool, as_json: bool) -> str:
-    rows: list[dict[str, Any]] = [{"key": name, "value": r.value if not hasattr(r.value, "__fspath__") else str(r.value),
-             "origin": r.origin, "shadowed": list(r.shadowed)}
-            for name, r in sorted(settings.resolved.items())]
+    rows: list[dict[str, Any]] = [
+        {
+            "key": name,
+            "value": r.value if not hasattr(r.value, "__fspath__") else str(r.value),
+            "origin": r.origin,
+            "shadowed": list(r.shadowed),
+        }
+        for name, r in sorted(settings.resolved.items())
+    ]
     secrets = _secrets()
     if as_json:
-        return json.dumps({"file": str(settings.location.file), "locator": settings.location.tier,
-                           "file_exists": settings.identity is not None, "settings": rows,
-                           "secrets": secrets, "legacy_env_in_use": settings.legacy_env_in_use(),
-                           "ignored_env": settings.shadowed_env(),
-                           "retired_env_set": list(settings.retired_env),
-                           "warnings": list(settings.warnings)}, indent=2)
+        return json.dumps(
+            {
+                "file": str(settings.location.file),
+                "locator": settings.location.tier,
+                "file_exists": settings.identity is not None,
+                "settings": rows,
+                "secrets": secrets,
+                "legacy_env_in_use": settings.legacy_env_in_use(),
+                "ignored_env": settings.shadowed_env(),
+                "retired_env_set": list(settings.retired_env),
+                "warnings": list(settings.warnings),
+            },
+            indent=2,
+        )
     exists = "" if settings.identity is not None else "  (absent: every key takes its default)"
     lines = [f"# {settings.location.file}{exists}", f"# located by {settings.location.tier}", ""]
     width = max((len(r["key"]) for r in rows), default=0)
@@ -79,16 +101,25 @@ def show(settings: Settings, *, origin: bool, as_json: bool) -> str:
             state += f" ({'; '.join(s['errors'])})"
         lines.append(f"{s['name']:<{swidth}}  {state}" + ("    # bootstrap" if s["bootstrap"] and origin else ""))
     if settings.legacy_env_in_use():
-        lines += ["", "# honoured from legacy environment names until N+3; move them into the file:",
-                  *(f"#   {n}" for n in settings.legacy_env_in_use())]
+        lines += [
+            "",
+            "# honoured from legacy environment names until N+3; move them into the file:",
+            *(f"#   {n}" for n in settings.legacy_env_in_use()),
+        ]
     if settings.shadowed_env():
-        lines += ["", "# ignored environment names (the file sets these keys):",
-                  *(f"#   {n}" for n in settings.shadowed_env())]
+        lines += [
+            "",
+            "# ignored environment names (the file sets these keys):",
+            *(f"#   {n}" for n in settings.shadowed_env()),
+        ]
     if settings.retired_env:
         from m3_core.config.keys import RETIRED
 
-        lines += ["", "# set, but have NO effect (retired settings; unset them):",
-                  *(f"#   {n}: {RETIRED[n]}" for n in settings.retired_env)]
+        lines += [
+            "",
+            "# set, but have NO effect (retired settings; unset them):",
+            *(f"#   {n}: {RETIRED[n]}" for n in settings.retired_env),
+        ]
     lines += [f"# warning: {w}" for w in settings.warnings]
     return "\n".join(lines)
 

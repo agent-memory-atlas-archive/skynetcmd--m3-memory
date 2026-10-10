@@ -6,6 +6,7 @@ INSERT but handed the raw "" to the contradiction scan, which then filtered
 `mi.variant = ''`: no untagged row can match, so every MCP write skipped
 contradiction and supersede detection while a Python caller (variant=None) got it.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -37,16 +38,16 @@ def test_a_contradicting_write_supersedes_the_old_fact(monkeypatch, variant):
 
     async def write(content, v):
         return await mc.memory_write_impl(
-            type="fact", content=content, title="server port", agent_id="agent-a",
-            variant=v, auto_classify=False)
+            type="fact", content=content, title="server port", agent_id="agent-a", variant=v, auto_classify=False
+        )
 
     old_id = _id_of(asyncio.run(write("the server listens on 8080", None)))
     asyncio.run(write("the server listens on 9090", variant))
 
     with sqlite3.connect(resolve_db_path(None)) as raw:
         edges = raw.execute(
-            "SELECT COUNT(*) FROM memory_relationships WHERE to_id = ? AND relationship_type = 'supersedes'",
-            (old_id,)).fetchone()[0]
+            "SELECT COUNT(*) FROM memory_relationships WHERE to_id = ? AND relationship_type = 'supersedes'", (old_id,)
+        ).fetchone()[0]
     assert edges == 1, f"variant={variant!r}: the contradicting write did not supersede {old_id}"
 
 

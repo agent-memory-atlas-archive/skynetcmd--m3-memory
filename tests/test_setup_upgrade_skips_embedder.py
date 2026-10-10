@@ -6,6 +6,7 @@ Project Oxidation native wheel?" — noise, since the decision was already made.
 _gather_plan now detects active_embedder_tier()["native"] and keeps the embedder
 without prompting. The LLM-endpoint probe is unaffected.
 """
+
 import argparse
 import sys
 from pathlib import Path
@@ -20,6 +21,7 @@ def _load_wizard(monkeypatch):
     if str(ROOT) not in sys.path:
         sys.path.insert(0, str(ROOT))
     from m3_memory import setup_wizard  # noqa: PLC0415
+
     return setup_wizard
 
 
@@ -27,11 +29,21 @@ def _make_args():
     # Interactive path: non_interactive=False so _gather_plan runs the prompts.
     # Include every attribute _gather_plan reads so no AttributeError short-circuits.
     return argparse.Namespace(
-        endpoint=None, capture_mode=None, install_gpu_embedder=False,
-        no_native_wheel=False, allow_native_source_build=False,
-        decouple_roots=False, config_root=None, engine_root=None,
-        yes=False, non_interactive=False, cognitive_loop=False, agents=None,
-        fips_mode=False, fips_strict=False, install_wolfssl=False,
+        endpoint=None,
+        capture_mode=None,
+        install_gpu_embedder=False,
+        no_native_wheel=False,
+        allow_native_source_build=False,
+        decouple_roots=False,
+        config_root=None,
+        engine_root=None,
+        yes=False,
+        non_interactive=False,
+        cognitive_loop=False,
+        agents=None,
+        fips_mode=False,
+        fips_strict=False,
+        install_wolfssl=False,
         no_governor_migration=False,
     )
 
@@ -77,20 +89,16 @@ def _embedder_asked(asked):
     # robustly — "tier-1", "native ... wheel", or "oxidation".
     def _hit(q):
         ql = q.lower()
-        return ("oxidation" in ql or "tier-1" in ql or "tier 1" in ql
-                or ("native" in ql and "wheel" in ql))
+        return "oxidation" in ql or "tier-1" in ql or "tier 1" in ql or ("native" in ql and "wheel" in ql)
+
     return any(_hit(q) for q in asked)
 
 
 def test_upgrade_skips_embedder_prompt(monkeypatch):
     asked = _run_gather(monkeypatch, native=True)
-    assert not _embedder_asked(asked), (
-        "embedder prompt should be skipped when the native wheel is already installed"
-    )
+    assert not _embedder_asked(asked), "embedder prompt should be skipped when the native wheel is already installed"
 
 
 def test_fresh_install_asks_embedder_prompt(monkeypatch):
     asked = _run_gather(monkeypatch, native=False)
-    assert _embedder_asked(asked), (
-        "embedder prompt should be shown on a fresh install (no native wheel yet)"
-    )
+    assert _embedder_asked(asked), "embedder prompt should be shown on a fresh install (no native wheel yet)"

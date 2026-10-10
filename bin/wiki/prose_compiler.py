@@ -18,6 +18,7 @@ compile.py can store it as a memory (deduped by content hash) and pin
 which — combined with the explicit `--recompile-all` flag — makes a prompt change
 an intentional, explained mass-supersede rather than silent churn.
 """
+
 from __future__ import annotations
 
 import os
@@ -81,21 +82,19 @@ _SYSTEM = (
 @dataclass
 class ProseCompilerConfig:
     url: str = "http://127.0.0.1:1234/v1/chat/completions"
-    model: str = ""            # empty → let the server pick its loaded model
+    model: str = ""  # empty → let the server pick its loaded model
     api_key_service: str = "LM_API_TOKEN"
-    timeout_s: float = 60.0    # a full page is longer than a lede → more headroom
+    timeout_s: float = 60.0  # a full page is longer than a lede → more headroom
     temperature: float = 0.2
-    max_tokens: int = 1200     # a compiled page, not a 2-3 sentence lede
-    max_members: int = 40      # cap prompt size; note the truncation if it bites
-    snippet_chars: int = 500   # per-member content included in the prompt
+    max_tokens: int = 1200  # a compiled page, not a 2-3 sentence lede
+    max_members: int = 40  # cap prompt size; note the truncation if it bites
+    snippet_chars: int = 500  # per-member content included in the prompt
 
     @classmethod
     def from_env(cls) -> ProseCompilerConfig:
         return cls(
-            url=os.environ.get("M3_WIKI_COMPILE_URL",
-                               os.environ.get("M3_WIKI_SYNTH_URL", cls.url)),
-            model=os.environ.get("M3_WIKI_COMPILE_MODEL",
-                                 os.environ.get("M3_WIKI_SYNTH_MODEL", cls.model)),
+            url=os.environ.get("M3_WIKI_COMPILE_URL", os.environ.get("M3_WIKI_SYNTH_URL", cls.url)),
+            model=os.environ.get("M3_WIKI_COMPILE_MODEL", os.environ.get("M3_WIKI_SYNTH_MODEL", cls.model)),
             timeout_s=float(os.environ.get("M3_WIKI_COMPILE_TIMEOUT", cls.timeout_s)),
         )
 
@@ -114,11 +113,11 @@ def _user_prompt(cluster: Cluster, cfg: ProseCompilerConfig) -> str:
     # quietly treat training data as a source. Paraphrased from the field's
     # context-tagging convention, adapted to our per-note format.
     lines = [f"Topic: {topic}", "", "===== SOURCE NOTES (compile ONLY from these) ====="]
-    shown = srcs[:cfg.max_members]
+    shown = srcs[: cfg.max_members]
     for m in shown:
         body = (m.content or "").strip().replace("\r\n", "\n")
         if len(body) > cfg.snippet_chars:
-            body = body[:cfg.snippet_chars] + "…"
+            body = body[: cfg.snippet_chars] + "…"
         title = m.display_title
         lines.append(f"- [{title}] {body}")
     dropped = len(srcs) - len(shown)
@@ -163,6 +162,7 @@ def _call_model(cfg: ProseCompilerConfig, user_prompt: str) -> str | None:
     # files_memory.extract), gated to the local runtimes that honor it.
     try:
         from llm_failover import suppresses_thinking_via_effort
+
         if suppresses_thinking_via_effort(cfg.url):
             payload["reasoning_effort"] = "none"
     except Exception:  # noqa: BLE001
@@ -184,8 +184,10 @@ def _resolve_key(service: str) -> str | None:
         return None
     try:
         import sys
+
         sys.path.insert(0, str(Path(__file__).absolute().parents[1]))
         from auth_utils import get_api_key
+
         return get_api_key(service)
     except Exception:
         return None

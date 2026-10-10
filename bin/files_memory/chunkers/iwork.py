@@ -26,6 +26,7 @@ document model, so it can differ in ordering for complex multi-column layouts
 and will not carry spreadsheet formulas. Stated so nobody reads a .numbers
 extraction as authoritative cell data.
 """
+
 from __future__ import annotations
 
 import logging
@@ -75,8 +76,7 @@ def chunk(path: str, text: str | None = None) -> Iterator[Leaf]:
     """Yield one Leaf per preview page, or one per IWA component."""
     if not available:
         logger.warning(
-            "iwork chunker unavailable (needs pypdf, or keynote-parser for the "
-            "full path); falling back for %s", path
+            "iwork chunker unavailable (needs pypdf, or keynote-parser for the full path); falling back for %s", path
         )
         return
 
@@ -94,7 +94,8 @@ def chunk(path: str, text: str | None = None) -> Iterator[Leaf]:
         logger.warning(
             "cannot read %s. observed: not a valid ZIP container. "
             "possible: a pre-2013 iWork document (old binary format), or a "
-            "corrupt file. inspect: re-save it from a current iWork app.", path
+            "corrupt file. inspect: re-save it from a current iWork app.",
+            path,
         )
         return
     except OSError as e:
@@ -146,8 +147,7 @@ def _from_preview(zf: zipfile.ZipFile, preview: str, path: str) -> Iterator[Leaf
 
 def _from_iwa(zf: zipfile.ZipFile, path: str) -> Iterator[Leaf]:
     """Extract text from the IWA payload (full fidelity, heavier deps)."""
-    iwa_names = sorted(n for n in zf.namelist()
-                       if n.startswith("Index/") and n.endswith(".iwa"))
+    iwa_names = sorted(n for n in zf.namelist() if n.startswith("Index/") and n.endswith(".iwa"))
     cursor = 0
     idx = 0
     for name in iwa_names:

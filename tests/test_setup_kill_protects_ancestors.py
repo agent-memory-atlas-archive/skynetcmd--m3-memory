@@ -16,6 +16,7 @@ The wizard's own second kill path never got the same guard. This is
 cross-platform: POSIX kills via os.kill, where killing an ancestor is equally
 fatal — not a Windows-only hazard.
 """
+
 from __future__ import annotations
 
 import os
@@ -90,8 +91,10 @@ def test_still_kills_a_genuine_stranger(killed, monkeypatch):
 
 def test_ancestor_lookup_failure_still_protects_self(killed, monkeypatch):
     """A broken m3_halt must degrade to {self, parent}, never to 'kill anything'."""
+
     def boom():
         raise RuntimeError("payload unavailable")
+
     monkeypatch.setattr(sw, "_import_m3_halt", boom)
 
     sw._kill_stuck_writers([_Proc(os.getpid())])
@@ -123,6 +126,7 @@ def test_is_own_ancestor_agrees_with_the_guard(monkeypatch):
 
 
 # ── the short-circuit: an ancestor must never reach a retry branch ───────────
+
 
 def test_ancestor_aborts_the_quiesce_instead_of_looping(monkeypatch, capsys):
     """An unkillable ancestor must abort ONCE, not spin.
@@ -176,21 +180,17 @@ def test_ancestor_aborts_the_quiesce_instead_of_looping(monkeypatch, capsys):
             return _Result()
 
     monkeypatch.setattr(sw, "_import_m3_halt", lambda: _Halt())
-    monkeypatch.setattr(sw, "_stop_supervised_services", lambda: None)   # real services
+    monkeypatch.setattr(sw, "_stop_supervised_services", lambda: None)  # real services
     monkeypatch.setattr(sw, "_is_own_ancestor", lambda pid: pid == 777777)
     monkeypatch.setattr(sw, "_quiesce_tick", lambda args: None)
     monkeypatch.setattr(sw, "_quiesce_tick_done", lambda args: None)
-    monkeypatch.setattr(sw, "_kill_stuck_writers",
-                        lambda *a, **k: pytest.fail("reached the kill branch"))
-    monkeypatch.setattr(sw, "_surface_elevated_kill_help",
-                        lambda *a, **k: pytest.fail("blamed privilege"))
+    monkeypatch.setattr(sw, "_kill_stuck_writers", lambda *a, **k: pytest.fail("reached the kill branch"))
+    monkeypatch.setattr(sw, "_surface_elevated_kill_help", lambda *a, **k: pytest.fail("blamed privilege"))
 
-    args = argparse.Namespace(non_interactive=True, force_quiesce=True,
-                              force_kill_mcp=False, gui_child=False,
-                              quiesce_timeout=1.0)
-    assert sw._quiesce_db_writers(args) is False, (
-        "an unkillable ancestor must abort the quiesce, not report success"
+    args = argparse.Namespace(
+        non_interactive=True, force_quiesce=True, force_kill_mcp=False, gui_child=False, quiesce_timeout=1.0
     )
+    assert sw._quiesce_db_writers(args) is False, "an unkillable ancestor must abort the quiesce, not report success"
     blob = "".join(capsys.readouterr())
     assert "own parent process" in blob
     assert "no privilege level or retry can stop it" in blob

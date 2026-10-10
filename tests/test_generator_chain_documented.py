@@ -8,6 +8,7 @@ count claim lives in more places than the drift checker knows about.
 The doc listing them is prose, so it can go stale the moment a sixth generator
 lands. This test makes the list load-bearing.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -49,6 +50,4 @@ def test_no_undocumented_generator_has_appeared():
         n for n in found if "tool" in n or "capability" in n or "features" in n
     }
     undocumented = sorted(n for n in in_scope if n not in doc)
-    assert not undocumented, (
-        f"new generator(s) {undocumented} are not in the pre-push chain doc"
-    )
+    assert not undocumented, f"new generator(s) {undocumented} are not in the pre-push chain doc"

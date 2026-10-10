@@ -13,6 +13,7 @@ statement count is asserted.
 Skips cleanly without a reachable cluster. DSN from M3_PRIMARY_PG_URL/M3_PG_URL
 (never PG_URL -- that is the warehouse var).
 """
+
 from __future__ import annotations
 
 import sys
@@ -42,10 +43,7 @@ def pg(pg_url):
     table = f"t_bulk_{uuid.uuid4().hex[:8]}"
     with backend.connection() as conn:
         cur = conn.cursor()
-        cur.execute(
-            f"CREATE TABLE {table} "
-            "(id TEXT PRIMARY KEY, val TEXT, updated_at TEXT)"
-        )
+        cur.execute(f"CREATE TABLE {table} (id TEXT PRIMARY KEY, val TEXT, updated_at TEXT)")
         conn.commit()
     try:
         yield backend, table
@@ -69,9 +67,12 @@ def test_insert_and_conflict_update(pg):
     backend, table = pg
     with backend.connection() as conn:
         n = backend.bulk_upsert(
-            conn, table, _COLS,
+            conn,
+            table,
+            _COLS,
             [("a", "v1", "2026-01-01"), ("b", "v1", "2026-01-01")],
-            conflict_target="(id)", update_columns=["val", "updated_at"],
+            conflict_target="(id)",
+            update_columns=["val", "updated_at"],
         )
         conn.commit()
     assert n == 2
@@ -79,8 +80,12 @@ def test_insert_and_conflict_update(pg):
 
     with backend.connection() as conn:
         backend.bulk_upsert(
-            conn, table, _COLS, [("a", "v2", "2026-02-02")],
-            conflict_target="(id)", update_columns=["val", "updated_at"],
+            conn,
+            table,
+            _COLS,
+            [("a", "v2", "2026-02-02")],
+            conflict_target="(id)",
+            update_columns=["val", "updated_at"],
         )
         conn.commit()
     assert _rows(backend, table) == {"a": "v2", "b": "v1"}
@@ -93,20 +98,23 @@ def test_guard_rejects_older_accepts_newer(pg):
     disagree, sync moves different rows depending on the backend.
     """
     backend, table = pg
-    guard = (
-        f"WHERE {table}.updated_at IS NULL "
-        f"OR EXCLUDED.updated_at > {table}.updated_at"
-    )
+    guard = f"WHERE {table}.updated_at IS NULL OR EXCLUDED.updated_at > {table}.updated_at"
     with backend.connection() as conn:
         backend.bulk_upsert(
-            conn, table, _COLS,
+            conn,
+            table,
+            _COLS,
             [("a", "keep", "2026-01-01"), ("b", "keep", "2026-01-01")],
-            conflict_target="(id)", update_columns=["val", "updated_at"],
+            conflict_target="(id)",
+            update_columns=["val", "updated_at"],
         )
         backend.bulk_upsert(
-            conn, table, _COLS,
+            conn,
+            table,
+            _COLS,
             [("a", "OLDER", "2025-01-01"), ("b", "NEWER", "2026-06-06")],
-            conflict_target="(id)", update_columns=["val", "updated_at"],
+            conflict_target="(id)",
+            update_columns=["val", "updated_at"],
             guard_sql=guard,
         )
         conn.commit()
@@ -123,11 +131,23 @@ def test_lowercase_excluded_also_accepted(pg):
     backend, table = pg
     guard = f"WHERE excluded.updated_at > {table}.updated_at"
     with backend.connection() as conn:
-        backend.bulk_upsert(conn, table, _COLS, [("a", "first", "2026-01-01")],
-                            conflict_target="(id)", update_columns=["val", "updated_at"])
-        backend.bulk_upsert(conn, table, _COLS, [("a", "second", "2026-05-05")],
-                            conflict_target="(id)", update_columns=["val", "updated_at"],
-                            guard_sql=guard)
+        backend.bulk_upsert(
+            conn,
+            table,
+            _COLS,
+            [("a", "first", "2026-01-01")],
+            conflict_target="(id)",
+            update_columns=["val", "updated_at"],
+        )
+        backend.bulk_upsert(
+            conn,
+            table,
+            _COLS,
+            [("a", "second", "2026-05-05")],
+            conflict_target="(id)",
+            update_columns=["val", "updated_at"],
+            guard_sql=guard,
+        )
         conn.commit()
     assert _rows(backend, table) == {"a": "second"}
 
@@ -136,9 +156,7 @@ def test_empty_rows_is_a_noop(pg):
     """`VALUES ()` is a syntax error; an empty batch must not reach the server."""
     backend, table = pg
     with backend.connection() as conn:
-        assert backend.bulk_upsert(
-            conn, table, _COLS, [], conflict_target="(id)", update_columns=["val"]
-        ) == 0
+        assert backend.bulk_upsert(conn, table, _COLS, [], conflict_target="(id)", update_columns=["val"]) == 0
         conn.commit()
     assert _rows(backend, table) == {}
 
@@ -155,8 +173,7 @@ def test_batches_beyond_one_page(pg):
     n_rows = postgres_backend._UPSERT_PAGE_SIZE * 2 + 7
     rows = [(f"id{i}", f"v{i}", "2026-01-01") for i in range(n_rows)]
     with backend.connection() as conn:
-        sent = backend.bulk_upsert(conn, table, _COLS, rows,
-                                   conflict_target="(id)", update_columns=["val"])
+        sent = backend.bulk_upsert(conn, table, _COLS, rows, conflict_target="(id)", update_columns=["val"])
         conn.commit()
     assert sent == n_rows
     with backend.connection() as conn:
@@ -195,8 +212,7 @@ def test_bulk_upsert_sends_one_statement_per_page(pg):
         saved = raw.cursor_factory
         raw.cursor_factory = _CountingCursor
         try:
-            backend.bulk_upsert(conn, table, _COLS, rows,
-                                conflict_target="(id)", update_columns=["val"])
+            backend.bulk_upsert(conn, table, _COLS, rows, conflict_target="(id)", update_columns=["val"])
         finally:
             raw.cursor_factory = saved  # a pooled connection outlives the test
 
