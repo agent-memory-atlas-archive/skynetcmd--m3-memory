@@ -15,7 +15,7 @@ bytes, not text. So this store owns two **dedicated tables** in the m3 engine DB
 the chatlog schema (§4 "just works") — no m3 migration coupling, no ToolSpec.
 
 Faithful to the tenets:
-  * §8 Affinity — ALL SQLite work rides the ONE shared m3client loop-thread
+  * §8 Affinity — ALL store work rides the ONE shared m3client loop-thread
     (``_run``/``_run_async``), so the connection pool stays thread-consistent;
     the async ``aput``/``aget_tuple``/… never block LangGraph's own loop.
   * §2.5 Topology — checkpoints live in the ENGINE (main) DB. We pin
@@ -62,8 +62,11 @@ _UNSCOPED_LIST_CAP = 1000
 # Two tables, both parameterized-only. Checkpoints are keyed by the LangGraph
 # triple; writes hang off a checkpoint by (task_id, idx). BLOB columns hold the
 # serde output verbatim.
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS m3_lg_checkpoints (
+def _schema(d) -> list[str]:
+    """The integration's two tables, in the active backend's DDL."""
+    blob = d.blob_type()
+    return [
+        f"""CREATE TABLE IF NOT EXISTS m3_lg_checkpoints (
     thread_id      TEXT NOT NULL,
     checkpoint_ns  TEXT NOT NULL DEFAULT '',
     checkpoint_id  TEXT NOT NULL,
@@ -71,15 +74,14 @@ CREATE TABLE IF NOT EXISTS m3_lg_checkpoints (
     user_id        TEXT NOT NULL DEFAULT '',
     type           TEXT,
     metadata_type  TEXT,
-    checkpoint     BLOB NOT NULL,
-    metadata       BLOB NOT NULL,
+    checkpoint     {blob} NOT NULL,
+    metadata       {blob} NOT NULL,
     created_at     TEXT NOT NULL,
     PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id)
-);
-CREATE INDEX IF NOT EXISTS ix_m3_lg_ckpt_thread
-    ON m3_lg_checkpoints (thread_id, checkpoint_ns, created_at DESC);
-
-CREATE TABLE IF NOT EXISTS m3_lg_writes (
+)""",
+        """CREATE INDEX IF NOT EXISTS ix_m3_lg_ckpt_thread
+    ON m3_lg_checkpoints (thread_id, checkpoint_ns, created_at DESC)""",
+        f"""CREATE TABLE IF NOT EXISTS m3_lg_writes (
     thread_id      TEXT NOT NULL,
     checkpoint_ns  TEXT NOT NULL DEFAULT '',
     checkpoint_id  TEXT NOT NULL,
@@ -87,10 +89,16 @@ CREATE TABLE IF NOT EXISTS m3_lg_writes (
     idx            INTEGER NOT NULL,
     channel        TEXT NOT NULL,
     type           TEXT,
-    blob           BLOB NOT NULL,
+    blob           {blob} NOT NULL,
     PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id, task_id, idx)
-);
-"""
+)""",
+    ]
+
+
+def _dialect():
+    from memory.backends import dialect
+
+    return dialect()
 
 
 def _cfg(config: RunnableConfig | None) -> dict:
@@ -98,7 +106,7 @@ def _cfg(config: RunnableConfig | None) -> dict:
 
 
 class M3Saver(BaseCheckpointSaver):
-    """A LangGraph ``BaseCheckpointSaver`` backed by m3's engine SQLite DB.
+    """A LangGraph ``BaseCheckpointSaver`` backed by m3's active main store.
 
     Wire it into a graph exactly like any checkpointer::
 
@@ -124,14 +132,11 @@ class M3Saver(BaseCheckpointSaver):
         self._healed = True
 
     async def _ensure_schema_async(self) -> None:
-        from m3_core.paths import require_sqlite_backend
         from memory.db import _db
 
-        # SQLite by contract: BLOB columns, executescript, INSERT OR REPLACE.
-        # Refuse on another backend rather than fail on the first statement.
-        require_sqlite_backend("M3Saver (LangGraph checkpointer)")
         with _db() as db:
-            db.executescript(_SCHEMA)
+            for stmt in _schema(_dialect()):
+                db.execute(stmt)
 
     # ── version scheme (opaque monotonic string, like the sqlite saver) ───────
     @override
@@ -196,12 +201,16 @@ class M3Saver(BaseCheckpointSaver):
                          c_type, m_type, c_blob, m_blob, created_at) -> None:
         from memory.db import _db
 
+        d = _dialect()
+        upsert = d.on_conflict_update(
+            "(thread_id, checkpoint_ns, checkpoint_id)",
+            ["parent_id", "user_id", "type", "metadata_type", "checkpoint", "metadata", "created_at"])
         with _db() as db:
             db.execute(
-                "INSERT OR REPLACE INTO m3_lg_checkpoints "
+                "INSERT INTO m3_lg_checkpoints "
                 "(thread_id, checkpoint_ns, checkpoint_id, parent_id, user_id, "
                 " type, metadata_type, checkpoint, metadata, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                f"VALUES ({d.placeholder(10)}) {upsert}",
                 (thread_id, ns, ckpt_id, parent_id, user_id,
                  c_type, m_type, c_blob, m_blob, created_at),
             )
@@ -259,11 +268,14 @@ class M3Saver(BaseCheckpointSaver):
     async def _put_writes_async(self, rows: list[tuple]) -> None:
         from memory.db import _db
 
+        d = _dialect()
+        upsert = d.on_conflict_update(
+            "(thread_id, checkpoint_ns, checkpoint_id, task_id, idx)", ["channel", "type", "blob"])
         with _db() as db:
             db.executemany(
-                "INSERT OR REPLACE INTO m3_lg_writes "
+                "INSERT INTO m3_lg_writes "
                 "(thread_id, checkpoint_ns, checkpoint_id, task_id, idx, "
-                " channel, type, blob) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                f" channel, type, blob) VALUES ({d.placeholder(8)}) {upsert}",
                 rows,
             )
 
@@ -311,13 +323,14 @@ class M3Saver(BaseCheckpointSaver):
         ckpt_id = get_checkpoint_id(config)
         user_id = conf.get("user_id")
 
-        where = ["thread_id = ?", "checkpoint_ns = ?"]
+        _p = _dialect().param()
+        where = [f"thread_id = {_p}", f"checkpoint_ns = {_p}"]
         params: list[Any] = [thread_id, ns]
         if ckpt_id:
-            where.append("checkpoint_id = ?")
+            where.append(f"checkpoint_id = {_p}")
             params.append(ckpt_id)
         if user_id:  # §7: scope to the user's threads when supplied
-            where.append("user_id = ?")
+            where.append(f"user_id = {_p}")
             params.append(user_id)
         sql = (
             "SELECT thread_id, checkpoint_ns, checkpoint_id, parent_id, type, "
@@ -336,9 +349,10 @@ class M3Saver(BaseCheckpointSaver):
         return self._row_to_tuple(row, writes)
 
     def _load_writes(self, db, thread_id, ns, ckpt_id) -> list[tuple]:
+        _p = _dialect().param()
         cur = db.execute(
             "SELECT task_id, channel, type, blob FROM m3_lg_writes "
-            "WHERE thread_id = ? AND checkpoint_ns = ? AND checkpoint_id = ? "
+            f"WHERE thread_id = {_p} AND checkpoint_ns = {_p} AND checkpoint_id = {_p} "
             "ORDER BY task_id, idx",
             (thread_id, ns, ckpt_id),
         )
@@ -411,16 +425,17 @@ class M3Saver(BaseCheckpointSaver):
         from memory.db import _db
 
         conf = _cfg(config)  # _cfg tolerates None
+        _p = _dialect().param()
         where: list[str] = []
         params: list[Any] = []
         if conf.get("thread_id"):
-            where.append("thread_id = ?")
+            where.append(f"thread_id = {_p}")
             params.append(conf["thread_id"])
         if conf.get("checkpoint_ns") is not None and "checkpoint_ns" in conf:
-            where.append("checkpoint_ns = ?")
+            where.append(f"checkpoint_ns = {_p}")
             params.append(conf["checkpoint_ns"])
         if conf.get("user_id"):
-            where.append("user_id = ?")
+            where.append(f"user_id = {_p}")
             params.append(conf["user_id"])
         if before is not None:
             b_id = get_checkpoint_id(before)
@@ -428,7 +443,7 @@ class M3Saver(BaseCheckpointSaver):
                 # newest-first, so "before X" = created strictly earlier than X.
                 where.append(
                     "created_at < (SELECT created_at FROM m3_lg_checkpoints "
-                    "WHERE checkpoint_id = ? LIMIT 1)"
+                    f"WHERE checkpoint_id = {_p} LIMIT 1)"
                 )
                 params.append(b_id)
         clause = (" WHERE " + " AND ".join(where)) if where else ""
@@ -449,7 +464,7 @@ class M3Saver(BaseCheckpointSaver):
         if eff_limit is None and not conf.get("thread_id"):
             eff_limit = _UNSCOPED_LIST_CAP
         if eff_limit is not None:
-            sql += " LIMIT ?"
+            sql += f" LIMIT {_p}"
             params.append(int(eff_limit))
 
         out: list[CheckpointTuple] = []
@@ -485,8 +500,9 @@ class M3Saver(BaseCheckpointSaver):
     async def _delete_thread_async(self, thread_id: str) -> None:
         from memory.db import _db
 
+        _p = _dialect().param()
         with _db() as db:
-            db.execute("DELETE FROM m3_lg_writes WHERE thread_id = ?", (thread_id,))
+            db.execute(f"DELETE FROM m3_lg_writes WHERE thread_id = {_p}", (thread_id,))
             db.execute(
-                "DELETE FROM m3_lg_checkpoints WHERE thread_id = ?", (thread_id,)
+                f"DELETE FROM m3_lg_checkpoints WHERE thread_id = {_p}", (thread_id,)
             )

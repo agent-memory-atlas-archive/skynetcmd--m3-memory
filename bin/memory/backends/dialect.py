@@ -91,6 +91,12 @@ class Dialect:
         """
         raise NotImplementedError("subclass must implement compile_keyword_query()")
 
+    def blob_type(self) -> str:
+        """The column type for raw bytes in DDL: SQLite ``BLOB``, PostgreSQL
+        ``BYTEA``. Values bind as Python bytes on both; PostgreSQL reads them
+        back as ``memoryview``, so a reader normalizes with ``bytes(...)``."""
+        raise NotImplementedError("subclass must implement blob_type()")
+
     def insert_or_ignore(self) -> str:
         """The INSERT verb+suffix for "insert, skip on PK/unique conflict".
 

@@ -516,6 +516,9 @@ class PostgresDialect(Dialect):
 
         return _compile_tsquery(query, mode)
 
+    def blob_type(self) -> str:
+        return "BYTEA"
+
     def insert_or_ignore(self) -> str:
         # postgres has no verb form — the arbiter goes in a trailing clause.
         return "INSERT INTO"

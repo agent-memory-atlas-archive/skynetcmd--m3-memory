@@ -54,6 +54,9 @@ class SqliteDialect(Dialect):
 
         return _compile_fts_query(query, mode)
 
+    def blob_type(self) -> str:
+        return "BLOB"
+
     def insert_or_ignore(self) -> str:
         return "INSERT OR IGNORE INTO"
 
