@@ -16,6 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from conftest import simulate_os
 from m3_memory import rust_core_install as rci  # noqa: E402
 
 # ── the canonical relative figure ──────────────────────────────────────────────
@@ -136,7 +137,7 @@ def test_can_sudo_false_when_no_sudo_binary(monkeypatch):
 def test_in_privileged_group_false_on_windows(monkeypatch):
     """_in_privileged_group is sudo/wheel-specific — always False on Windows,
     and never tries to import the Unix-only `grp` module there."""
-    monkeypatch.setattr(rci.sys, "platform", "win32")
+    simulate_os(monkeypatch, "Windows")
     assert rci._in_privileged_group() is False
 
 

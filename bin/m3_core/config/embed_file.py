@@ -16,8 +16,9 @@ languages cannot share the function.
 from __future__ import annotations
 
 import os
-import sys
 from pathlib import Path
+
+from m3_core.seams import is_macos, is_windows
 
 from .keys_embed import EMBED
 from .registry import Key
@@ -61,9 +62,9 @@ def render(values: dict[str, object]) -> str:
 
 def server_config_path() -> Path:
     """Mirror of m3-embed-server's default_config_path() (config.rs:113-124)."""
-    if sys.platform == "win32":
+    if is_windows():
         return Path(os.environ.get("PROGRAMDATA") or "C:\\ProgramData") / "m3-embed-server" / "config.toml"
-    if sys.platform == "darwin":
+    if is_macos():
         return Path.home() / "Library" / "Application Support" / "m3-embed-server" / "config.toml"
     base = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
     return Path(base) / "m3-embed-server" / "config.toml"

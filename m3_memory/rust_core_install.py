@@ -28,6 +28,7 @@ import sys
 from dataclasses import dataclass
 from datetime import UTC
 
+from m3_memory._platform import is_windows
 from m3_memory._platform import os_name as _os_name
 from m3_memory._pyver import wheel_python_tag
 
@@ -424,7 +425,7 @@ def _nvidia_driver_present() -> bool:
     """True when the NVIDIA driver library loads (libcuda.so.1 / nvcuda.dll)."""
     import ctypes
 
-    lib = "nvcuda.dll" if sys.platform == "win32" else "libcuda.so.1"
+    lib = "nvcuda.dll" if is_windows() else "libcuda.so.1"
     try:
         ctypes.CDLL(lib)
     except OSError:
@@ -589,7 +590,7 @@ def _can_sudo() -> bool:
     return False rather than letting the missing-binary exception escape into
     the install path.
     """
-    if sys.platform == "win32" or not shutil.which("sudo"):
+    if is_windows() or not shutil.which("sudo"):
         return False
     try:
         return subprocess.run(
@@ -610,7 +611,7 @@ def _in_privileged_group() -> bool:
     blindly, so a real failure inside the lookup isn't silently swallowed as
     "not privileged".
     """
-    if sys.platform == "win32":
+    if is_windows():
         return False
     try:
         import grp  # Unix-only; guarded by the platform check above.

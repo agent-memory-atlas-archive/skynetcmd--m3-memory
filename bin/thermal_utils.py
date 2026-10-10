@@ -3,6 +3,8 @@ import os
 import subprocess
 import sys
 
+from m3_core.seams import is_windows, os_name
+
 logger = logging.getLogger("thermal_utils")
 
 # --- TTL cache + unsupported-probe latch (added 2026-08-29) -------------------
@@ -35,7 +37,7 @@ except Exception:  # pragma: no cover - fallback if _task_runtime unavailable
     def no_window_kwargs() -> dict:
         # getattr, not subprocess.CREATE_NO_WINDOW: the attribute only exists on
         # Windows, so a direct reference fails mypy on the Linux CI runner.
-        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if is_windows() else 0
         return {"creationflags": flags} if flags else {}
 
 def get_thermal_status() -> str:
@@ -58,7 +60,7 @@ def get_thermal_status() -> str:
 
     # "Nominal" from a platform whose probes all failed means "unknown", not
     # "measured cool". Latch it so the spawn happens once, not every cycle.
-    if result == "Nominal" and sys.platform == "win32" and not _probe_succeeded():
+    if result == "Nominal" and is_windows() and not _probe_succeeded():
         _PROBE_UNSUPPORTED = True
         logger.debug("thermal probe unsupported on this host; disabling further probes")
 
@@ -83,7 +85,7 @@ def _probe_thermal_status() -> str:
     _PROBE_OK["ok"] = False
     # sys.platform, not platform.system(): the latter can hang on a WMI query
     # on Python 3.14 / Windows, and thermal checks run on a warm path.
-    system = {"darwin": "Darwin", "win32": "Windows"}.get(sys.platform, "Linux")
+    system = os_name()
 
     if system == "Darwin":
         # macOS: Use 'sysctl' for thermal pressure

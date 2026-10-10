@@ -39,6 +39,8 @@ import shlex
 import subprocess
 import sys
 
+from m3_core.seams import is_macos, is_windows
+
 # defusedxml hardens the parser against XXE / billion-laughs / quadratic-blowup.
 # task_xml comes from `schtasks /query /xml` (external process output), which the
 # security scanner treats as untrusted — so parse it defensively. Drop-in for
@@ -311,9 +313,9 @@ def find_dangling(m3_memory_root: str) -> list[dict]:
     single job are recorded (missing=["query-error"|"parse-error"]) rather than
     aborting the whole probe.
     """
-    if sys.platform == "win32":
+    if is_windows():
         return _dangling_windows(m3_memory_root)
-    if sys.platform == "darwin":
+    if is_macos():
         return _dangling_darwin(m3_memory_root)
     return _dangling_linux(m3_memory_root)  # linux / other posix
 

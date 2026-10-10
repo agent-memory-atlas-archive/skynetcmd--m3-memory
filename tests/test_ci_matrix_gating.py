@@ -17,7 +17,9 @@ import os
 
 import pytest
 
-yaml = pytest.importorskip("yaml", reason="pyyaml needed to parse the workflow")
+from conftest import skip_reason
+
+yaml = pytest.importorskip("yaml", reason=skip_reason("dep", "pyyaml needed to parse the workflow"))
 
 _CI = os.path.join(os.path.dirname(__file__), "..", ".github", "workflows", "ci.yml")
 

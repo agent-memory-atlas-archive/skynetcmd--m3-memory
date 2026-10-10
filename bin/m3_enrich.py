@@ -41,6 +41,7 @@ from pathlib import Path
 
 from m3_core.aio import gather_or_cancel
 from m3_core.runtime import utc_iso
+from m3_core.seams import is_windows
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 _MAIN_BIN = REPO_ROOT / "bin"
@@ -1007,7 +1008,7 @@ async def _main_async(args) -> int:
             # CREATE_NO_WINDOW: enrichment runs unattended (ObservationDrain task);
             # a bare python.exe child would flash a console window. getattr keeps
             # the reference valid on non-Windows (0 = default, no-op).
-            _nw_flags = getattr(_sp, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+            _nw_flags = getattr(_sp, "CREATE_NO_WINDOW", 0) if is_windows() else 0
             _sp.run(cmd, check=False, creationflags=_nw_flags)  # noqa: ASYNC221 — the report runs after all enrichment work has finished
         except Exception as e:
             print(f"[m3-enrich] (report generation failed: {type(e).__name__}: {e})", flush=True)

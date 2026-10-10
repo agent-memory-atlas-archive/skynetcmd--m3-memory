@@ -15,12 +15,14 @@ import sys
 
 import pytest
 
+from conftest import skip_reason
+
 _REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 for _p in (_REPO, os.path.join(_REPO, "bin")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-pytest.importorskip("pydantic_ai", reason="requires `pip install pydantic-ai`")
+pytest.importorskip("pydantic_ai", reason=skip_reason("dep", "requires `pip install pydantic-ai`"))
 
 
 def _run(agent, prompt, **kw):

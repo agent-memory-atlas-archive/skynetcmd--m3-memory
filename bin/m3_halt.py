@@ -58,6 +58,7 @@ from m3_core.registry_payload import (  # noqa: F401
     parse_payload,
 )
 from m3_core.runtime import iso_local_timestamp
+from m3_core.seams import is_windows
 
 logger = logging.getLogger(__name__)
 
@@ -449,7 +450,7 @@ def elevated_kill_commands(pids: list[int]) -> list[str]:
     if not pids:
         return []
     joined = " ".join(str(p) for p in pids)
-    if os.name == "nt":
+    if is_windows():
         # /T also stops child processes; run from an elevated (Run as administrator) shell.
         return [f"taskkill /F /T {' '.join(f'/PID {p}' for p in pids)}"]
     # POSIX (Linux + macOS): polite TERM first, then KILL if still alive.
@@ -492,7 +493,7 @@ def _is_venv_launcher_stub(proc) -> bool:
     Verified 2026-07-25 on Windows; a no-op on macOS/Linux, where venv bin/python
     is a symlink and exec'ing it replaces the process rather than spawning one.
     """
-    if os.name != "nt":
+    if not is_windows():
         return False
     try:
         import psutil
@@ -671,7 +672,7 @@ def kill_stale_daemons(
                 entry["killed"] = True  # already gone → the desired end state
                 results.append(entry)
                 continue
-            if os.name == "nt":
+            if is_windows():
                 import subprocess
 
                 # taskkill is console-subsystem: flashes a window without the
@@ -1079,7 +1080,7 @@ def _os_lock_exclusive_nb(fd: int) -> tuple[bool, Exception | None]:
     The kernel releases the lock automatically when this fd is closed or the
     process dies — so there is nothing stale to clean up.
     """
-    if os.name == "nt":
+    if is_windows():
         # Windows only. msvcrt has no POSIX stub, so a type checker running on
         # Linux (CI is ubuntu) flags locking/LK_* as missing — but this branch
         # never runs there. Suppress the platform-stub false positive (§12c).
@@ -1119,7 +1120,7 @@ def _os_unlock(fd: int) -> None:
     """Release the OS advisory lock on ``fd`` (best-effort; the OS also releases
     on close/death, so a failure here is not fatal)."""
     try:
-        if os.name == "nt":
+        if is_windows():
             import msvcrt  # Windows only (see above)
             try:
                 msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)  # type: ignore[attr-defined, unused-ignore]
@@ -1497,7 +1498,7 @@ def _steal_lock(owner: ProcInfo | None, path: Path) -> None:
     _log_lock_event("stolen", owner.role, None,
                     victim_pid=owner.pid, by_pid=os.getpid())
     try:
-        if os.name == "nt":
+        if is_windows():
             import subprocess
 
             # taskkill is console-subsystem: flashes a window without the flag.

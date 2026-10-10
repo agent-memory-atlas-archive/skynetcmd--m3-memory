@@ -14,6 +14,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import skip_reason
+
 _ROOT = Path(__file__).resolve().parent.parent
 _TOLERANCE = 0.02  # 2%: room for a description edit, not for a regression
 
@@ -24,8 +26,8 @@ def measured():
     import measure_tool_tokens as mt
 
     if not mt.METHOD.startswith("tiktoken"):
-        pytest.skip("tiktoken is not installed: the published figures are cl100k_base "
-                    "tokens and the 4-chars approximation would compare different units")
+        pytest.skip(skip_reason("dep", "tiktoken is not installed: the published figures are cl100k_base "
+                    "tokens and the 4-chars approximation would compare different units"))
     return mt.measure()
 
 

@@ -20,6 +20,8 @@ import sys
 import textwrap
 from pathlib import Path
 
+from m3_core.seams import is_windows
+
 # ── Locate DB ────────────────────────────────────────────────────────────────
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT   = SCRIPT_DIR.parent
@@ -49,7 +51,7 @@ SEP2 = "═" * COLS
 def _ansi(code: str) -> str:
     if not sys.stdout.isatty() and not os.environ.get("FORCE_COLOR"):
         return ""
-    if sys.platform == "win32" and not os.environ.get("WT_SESSION") and not os.environ.get("ANSICON"):
+    if is_windows() and not os.environ.get("WT_SESSION") and not os.environ.get("ANSICON"):
         return ""
     return f"\033[{code}m"
 

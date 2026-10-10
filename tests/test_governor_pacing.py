@@ -15,6 +15,8 @@ import sys
 
 import pytest
 
+from conftest import skip_reason
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
 # (load, elapsed_since_interaction) probe points covering every branch +
@@ -78,8 +80,8 @@ def _has_native_governor() -> bool:
 
 @pytest.mark.skipif(
     not _has_native_governor(),
-    reason="native m3_core_rs.Governor not installed in this interpreter; "
-           "parity is covered by the Rust crate's own tests/parity.rs",
+    reason=skip_reason("dep", "native m3_core_rs.Governor not installed in this interpreter; "
+           "parity is covered by the Rust crate's own tests/parity.rs"),
 )
 def test_native_matches_python_fallback():
     """Native and Python paths must return identical dicts for every probe."""

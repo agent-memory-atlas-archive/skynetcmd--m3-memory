@@ -21,7 +21,9 @@ import uuid
 
 import pytest
 
-pytest.importorskip("langchain_core", reason="needs the [langchain] extra")
+from conftest import skip_reason
+
+pytest.importorskip("langchain_core", reason=skip_reason("dep", "needs the [langchain] extra"))
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage  # noqa: E402
 

@@ -16,6 +16,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import skip_reason
+
 _BIN = Path(__file__).resolve().parent.parent / "bin"
 
 _CHILD = """
@@ -59,7 +61,7 @@ def test_wolfcrypt_backend_matches_the_standard_answers_and_exits_cleanly():
         capture_output=True, text=True, env=_env(), timeout=60)
     lib = probe.stdout.strip()
     if not lib:
-        pytest.skip("wolfSSL is not installed on this host")
+        pytest.skip(skip_reason("env", "wolfSSL is not installed on this host"))
     r = _run(_env(M3_FIPS_MODE="1", M3_WOLFSSL_LIB=lib))
     assert r.returncode == 0, (
         f"FIPS-mode child exited {r.returncode}; stderr: {r.stderr[-600:]}")

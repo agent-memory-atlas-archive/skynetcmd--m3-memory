@@ -12,11 +12,12 @@ write it (§3).
 """
 from __future__ import annotations
 
-import sys
 from collections.abc import Mapping
 from pathlib import Path
 
 import tomlkit
+
+from m3_core.seams import is_windows
 
 from .keys import REGISTRY
 from .loader import SCHEMA_VERSION, Location, show_key, validate_text
@@ -58,7 +59,7 @@ def set_values(location: Location, values: Mapping[Key, ConfigValue | None], *,
     path = location.file
     path.parent.mkdir(parents=True, exist_ok=True)
     with file_lock(str(path) + ".lock", purpose="m3_config.toml"):
-        if sys.platform == "win32" and not path.exists():
+        if is_windows() and not path.exists():
             _check_new_file_would_be_private(path.parent)
         old = path.read_text(encoding="utf-8") if path.is_file() else ""
         doc = tomlkit.parse(old) if old else _new_document()

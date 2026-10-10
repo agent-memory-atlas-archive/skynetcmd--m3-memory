@@ -19,10 +19,12 @@ import sys
 
 import pytest
 
+from conftest import skip_reason
+
 _BIN = pathlib.Path(__file__).resolve().parents[1] / "bin"
 sys.path.insert(0, str(_BIN))
 
-pytest.importorskip("fastapi", reason="dashboard needs the [dashboard] extra")
+pytest.importorskip("fastapi", reason=skip_reason("dep", "dashboard needs the [dashboard] extra"))
 
 import m3_http_auth as A  # noqa: E402
 

@@ -24,6 +24,8 @@ import sys
 
 import pytest
 
+from conftest import skip_reason
+
 _HERE = os.path.dirname(__file__)
 _BIN = os.path.normpath(os.path.join(_HERE, "..", "bin"))
 if _BIN not in sys.path:
@@ -161,7 +163,7 @@ def test_verifier_is_quiet_on_real_tasks_and_loud_on_a_missing_one():
         if ln.startswith("TaskName:") and "AgentOS_" in ln
     ]
     if not names:
-        pytest.skip("no AgentOS_* tasks registered on this box")
+        pytest.skip(skip_reason("env", "no AgentOS_* tasks registered on this box"))
     for name in names[:3]:
         assert isch._verify_task_registered(name) is None, (
             f"{name} is registered but failed verification — this would false-alarm "

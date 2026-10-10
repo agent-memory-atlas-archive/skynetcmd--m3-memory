@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import pytest
 
+from conftest import simulate_os
 from m3_memory import setup_wizard, touchid
 
 
@@ -63,7 +64,7 @@ def test_enable_does_not_claim_success_the_file_does_not_show(mac, monkeypatch):
 
 
 def test_setup_offers_only_at_the_mac_and_remembers_a_no(mac, monkeypatch):
-    monkeypatch.setattr(setup_wizard.sys, "platform", "darwin")
+    simulate_os(monkeypatch, "Darwin")
     monkeypatch.setattr(setup_wizard, "_stdin_is_interactive", lambda: True)
     monkeypatch.setenv("M3_CONFIG_ROOT", str(mac / "config"))
     asked = []

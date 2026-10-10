@@ -13,6 +13,7 @@ import sys
 
 import pytest
 
+from conftest import simulate_os
 from m3_memory import elevate, setup_wizard
 
 
@@ -41,7 +42,7 @@ def _fake_elevated(monkeypatch, codes: dict, outputs: dict):
                 fh.write(text)
         return type("R", (), {"returncode": 0})()
     monkeypatch.setattr(elevate.subprocess, "run", fake_run)
-    monkeypatch.setattr(elevate.sys, "platform", "win32")
+    simulate_os(monkeypatch, "Windows")
 
 
 def test_run_reports_each_step_with_its_output(monkeypatch):
@@ -56,7 +57,7 @@ def test_run_reports_each_step_with_its_output(monkeypatch):
 def test_a_declined_prompt_means_nothing_ran(monkeypatch):
     b = elevate.ElevationBatch()
     b.add("repair", ["py", "s.py", "--repair"])
-    monkeypatch.setattr(elevate.sys, "platform", "win32")
+    simulate_os(monkeypatch, "Windows")
     monkeypatch.setattr(elevate.subprocess, "run",
                         lambda *a, **k: type("R", (), {"returncode": 1})())  # no results file
     assert b.run() is None

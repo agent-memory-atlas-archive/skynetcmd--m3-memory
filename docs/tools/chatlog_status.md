@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_status.py
-sha1: 83c2a1f2302c
-mtime_utc: 2026-10-10T05:24:19.370000+00:00
-generated_utc: 2026-10-10T05:28:10.306166+00:00
+sha1: fa722cb68353
+mtime_utc: 2026-10-10T06:50:41.192631+00:00
+generated_utc: 2026-10-10T06:50:41.826013+00:00
 private: false
 ---
 
@@ -23,7 +23,7 @@ Cold call <50ms (no full table scans).
 
 ## Entry points
 
-- `def main()` (line 1102)
+- `def main()` (line 1103)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -56,14 +56,14 @@ Cold call <50ms (no full table scans).
 
 **subprocess**
 
-- `subprocess.run()  → `cmd`` (line 836)
+- `subprocess.run()  → `cmd`` (line 837)
 
 **sqlite**
 
-- `sqlite3.connect()  → `chatlog_db`` (line 139)
-- `sqlite3.connect()  → `files_db`` (line 207)
-- `sqlite3.connect()  → `main_db`` (line 125)
-- `sqlite3.connect()  → `uri`` (line 305)
+- `sqlite3.connect()  → `chatlog_db`` (line 140)
+- `sqlite3.connect()  → `files_db`` (line 208)
+- `sqlite3.connect()  → `main_db`` (line 126)
+- `sqlite3.connect()  → `uri`` (line 306)
 
 
 ---
@@ -75,6 +75,7 @@ Cold call <50ms (no full table scans).
 - `files_memory.db (_db)`
 - `files_memory.db (_is_postgres)`
 - `m3_core.paths (seam_backend)`
+- `m3_core.seams (is_windows)`
 - `memory (doctor)`
 - `memory.backends (resolve_backend_name)`
 - `memory.backends.sqlite_backend (SqliteDialect)`

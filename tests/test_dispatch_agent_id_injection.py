@@ -23,6 +23,8 @@ import sys
 
 import pytest
 
+from conftest import skip_reason
+
 _BIN = pathlib.Path(__file__).resolve().parent.parent / "bin"
 if str(_BIN) not in sys.path:
     sys.path.insert(0, str(_BIN))
@@ -36,7 +38,7 @@ _POLL = [s for s in TOOLS if s.name == "notifications_poll"]
 @pytest.fixture(scope="module")
 def poll_spec():
     if not _POLL:
-        pytest.skip("notifications_poll not in the catalog")
+        pytest.skip(skip_reason("na", "notifications_poll not in the catalog"))
     return _POLL[0]
 
 

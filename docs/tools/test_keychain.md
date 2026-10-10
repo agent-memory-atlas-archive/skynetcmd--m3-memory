@@ -1,8 +1,8 @@
 ---
 tool: bin/test_keychain.py
-sha1: 4523edd761f5
-mtime_utc: 2026-07-02T01:21:24.721357+00:00
-generated_utc: 2026-07-03T20:00:03.988432+00:00
+sha1: 1ec7d4184e10
+mtime_utc: 2026-10-10T06:49:09.067844+00:00
+generated_utc: 2026-10-10T06:49:17.107141+00:00
 private: false
 ---
 
@@ -46,7 +46,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
-_(only stdlib)_
+- `m3_core.seams (is_windows)`
 
 ---
 

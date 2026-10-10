@@ -26,6 +26,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from m3_core.seams import is_windows
+
 # Import config module from same directory
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from chatlog_config import (
@@ -131,7 +133,7 @@ def get_hook_path_for_agent(agent: str) -> tuple[str, str, str]:
 def show_hook_wiring_instructions(agent: str, hook_spec: HookSpec) -> None:
     """Print instructions for wiring up a hook for the given agent."""
     sh_path, ps1_path, desc = get_hook_path_for_agent(agent)
-    is_windows = sys.platform == "win32"
+    on_windows = is_windows()
     print(f"\n  {agent} ({desc}):")
     if agent in LIBRARY_HOST_AGENTS:
         print("    - Nothing to wire: call m3's chatlog write API from your application.")
@@ -140,7 +142,7 @@ def show_hook_wiring_instructions(agent: str, hook_spec: HookSpec) -> None:
     elif agent in ("gemini-cli", "antigravity-cli"):
         config_file = "~/.gemini/antigravity-cli/settings.json" if agent == "antigravity-cli" else "~/.gemini/settings.json"
         print(f"    - Register the hook in {config_file} (see docs/CHATLOG.md for snippet)")
-        if is_windows:
+        if on_windows:
             print(f"    - Command: powershell -NoProfile -ExecutionPolicy Bypass -File {ps1_path}")
         else:
             print(f"    - Command: /bin/sh {sh_path}")
@@ -323,7 +325,7 @@ def _root_env_prefix() -> str:
     with no symptom but a stalled last_write_at. Mirrors
     generate_configs._hook_env_prefix; see its docstring for why dropping the
     pins on Windows is safe rather than a downgrade."""
-    if os.name == "nt":
+    if is_windows():
         return ""
     try:
         from m3_sdk import get_m3_config_root, get_m3_engine_root
@@ -428,7 +430,7 @@ def apply_gemini_settings() -> tuple[bool, str]:
     # Same split-brain pin as the Claude hook: the onExit hook inherits Gemini's
     # process env, not the MCP server env block.
     prefix = _root_env_prefix()
-    if sys.platform == "win32":
+    if is_windows():
         hook_cmd = f"{prefix}powershell -NoProfile -ExecutionPolicy Bypass -File {ps1}"
     else:
         hook_cmd = f"{prefix}/bin/sh {sh}"
@@ -521,8 +523,8 @@ def show_claude_code_settings_snippet(config: ChatlogConfig) -> None:
     sh = os.path.join(BASE_DIR, "bin", "hooks", "chatlog",
                       "claude_code_precompact.sh").replace("\\", "/")
     # Emit the snippet that matches the current OS; show the alternate below.
-    is_windows = sys.platform == "win32"
-    if is_windows:
+    on_windows = is_windows()
+    if on_windows:
         hook_cmd = f"powershell -NoProfile -ExecutionPolicy Bypass -File {ps1}"
         alt_label, alt_cmd = "macOS/Linux", f"/bin/sh {sh}"
     else:

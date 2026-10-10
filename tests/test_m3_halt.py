@@ -292,7 +292,7 @@ def test_kill_stale_daemons_kills_live_writer_windows(root, monkeypatch):
     monkeypatch.setattr(m3_halt, "list_all_db_writers", lambda engine_root=None: [
         m3_halt.ProcInfo(pid=victim, role="cognitive-loop", started_at="",
                          engine_root=root, path=_native_path)])
-    monkeypatch.setattr(m3_halt.os, "name", "nt")
+    simulate_os(monkeypatch, "Windows")
     # alive on the first probe, dead after the kill runs
     state = {"alive": True}
     monkeypatch.setattr(m3_halt, "_pid_is_alive", lambda pid: state["alive"])
@@ -325,7 +325,7 @@ def test_kill_stale_daemons_reports_stuck_writer(root, monkeypatch):
     monkeypatch.setattr(m3_halt, "list_all_db_writers", lambda engine_root=None: [
         m3_halt.ProcInfo(pid=victim, role="dashboard", started_at="",
                          engine_root=root, path=_native_path)])
-    monkeypatch.setattr(m3_halt.os, "name", "nt")
+    simulate_os(monkeypatch, "Windows")
     monkeypatch.setattr(m3_halt, "_pid_is_alive", lambda pid: True)  # never dies
 
     class _CP:
@@ -348,14 +348,14 @@ def test_kill_stale_daemons_empty_when_nothing_running(root, monkeypatch):
 
 # ── elevated-kill help commands (cross-OS) ─────────────────────────────────────
 def test_elevated_kill_commands_windows(monkeypatch):
-    monkeypatch.setattr(m3_halt.os, "name", "nt")
+    simulate_os(monkeypatch, "Windows")
     cmds = m3_halt.elevated_kill_commands([111, 222])
     assert len(cmds) == 1
     assert "taskkill" in cmds[0] and "/PID 111" in cmds[0] and "/PID 222" in cmds[0]
 
 
 def test_elevated_kill_commands_posix(monkeypatch):
-    monkeypatch.setattr(m3_halt.os, "name", "posix")
+    simulate_os(monkeypatch, "Linux")
     cmds = m3_halt.elevated_kill_commands([111, 222])
     # sudo kill (TERM) then a kill -9 escalation line — same on Linux and macOS
     assert any(c.startswith("sudo kill 111 222") for c in cmds)
@@ -363,7 +363,7 @@ def test_elevated_kill_commands_posix(monkeypatch):
 
 
 def test_elevated_kill_commands_empty_and_filtered(monkeypatch):
-    monkeypatch.setattr(m3_halt.os, "name", "posix")
+    simulate_os(monkeypatch, "Linux")
     assert m3_halt.elevated_kill_commands([]) == []
     assert m3_halt.elevated_kill_commands([0, -5]) == []
 
@@ -507,6 +507,8 @@ def test_list_reaps_reused_pid_entry(root):
 import subprocess as _subprocess  # noqa: E402
 import textwrap as _textwrap  # noqa: E402
 import time as _time  # noqa: E402
+
+from conftest import simulate_os
 
 # A tiny holder program: acquire the lock for `role` under `engine_root`, print a
 # ready line, then hold for `hold_s` seconds. Run as a real separate process so
@@ -698,7 +700,7 @@ def test_a_refused_kill_does_not_wait_out_the_timeout(root, monkeypatch):
     monkeypatch.setattr(m3_halt, "list_all_db_writers", lambda engine_root=None: [
         m3_halt.ProcInfo(pid=4244, role="embed-server(elevated?)", started_at="",
                          engine_root=root, path=Path())])
-    monkeypatch.setattr(m3_halt.os, "name", "nt")
+    simulate_os(monkeypatch, "Windows")
     monkeypatch.setattr(m3_halt, "_pid_is_alive", lambda pid: True)
 
     class _CP:

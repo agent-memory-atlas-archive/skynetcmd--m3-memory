@@ -19,6 +19,8 @@ import uuid
 
 import pytest
 
+from conftest import skip_reason
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
 pytestmark = pytest.mark.requires_pg
@@ -299,7 +301,7 @@ class TestSearchPathLive:
         # ensure the warehouse memory_items is absent in this DB path
         cur.execute("SELECT to_regclass('m3_warehouse.memory_items')")
         if cur.fetchone()[0] is not None:
-            pytest.skip("m3_warehouse.memory_items exists in this test DB")
+            pytest.skip(skip_reason("db", "m3_warehouse.memory_items exists in this test DB"))
         conn.autocommit = False
         schema = pg_sync._set_warehouse_search_path(conn)
         assert schema == "public"
@@ -356,7 +358,7 @@ class TestFdwCrossDatabaseLive:
         cur.execute("SELECT 1 FROM pg_available_extensions WHERE name='postgres_fdw'")
         if cur.fetchone() is None:
             conn.close()
-            pytest.skip("postgres_fdw not available")
+            pytest.skip(skip_reason("db", "postgres_fdw not available"))
         cur.execute("CREATE EXTENSION IF NOT EXISTS postgres_fdw")
         # Build the m3_warehouse tables locally so IMPORT FOREIGN SCHEMA (which
         # points the FDW back at THIS same db via dsn) finds them.
@@ -378,7 +380,7 @@ class TestFdwCrossDatabaseLive:
                 assert c.fetchone()[0] >= 1   # read warehouse via FDW
             conn.rollback()
         except F.FdwUnavailable as e:
-            pytest.skip(f"FDW self-wiring not supported here: {e}")
+            pytest.skip(skip_reason("db", f"FDW self-wiring not supported here: {e}"))
         finally:
             _end_tx(conn)
             conn.autocommit = True

@@ -13,13 +13,15 @@ import sys
 
 import pytest
 
+from conftest import skip_reason
+
 _BIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "bin"))
 sys.path.insert(0, _BIN)
 
 from files_memory.chunkers import html as html_chunker  # noqa: E402
 
 pytestmark = pytest.mark.skipif(
-    not html_chunker.available, reason="beautifulsoup4 not installed")
+    not html_chunker.available, reason=skip_reason("dep", "beautifulsoup4 not installed"))
 
 
 def _write(tmp_path, body: str, name: str = "doc.html") -> str:

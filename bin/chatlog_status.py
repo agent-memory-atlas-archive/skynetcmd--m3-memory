@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 import chatlog_config
+from m3_core.seams import is_windows
 
 # The non-empty-content predicate comes from the backend seam so it has exactly
 # one definition (DESIGN_PHILOSOPHIES §10a: duplicated predicate logic is the
@@ -732,7 +733,7 @@ def _get_keypress(timeout: float) -> str | None:
 
     start_time = time.time()
 
-    if sys.platform == "win32":
+    if is_windows():
         import msvcrt
         while time.time() - start_time < timeout:
             if msvcrt.kbhit():
@@ -785,7 +786,7 @@ def _wait_for_any_key() -> None:
     """Wait for any keypress. Supports Windows and Unix."""
     import sys
     import time
-    if sys.platform == "win32":
+    if is_windows():
         import msvcrt
         while msvcrt.kbhit():
             msvcrt.getch()

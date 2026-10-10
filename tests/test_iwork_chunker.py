@@ -16,6 +16,8 @@ import zipfile
 
 import pytest
 
+from conftest import skip_reason
+
 _BIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "bin"))
 sys.path.insert(0, _BIN)
 
@@ -23,7 +25,7 @@ from files_memory import chunkers, identity  # noqa: E402
 from files_memory.chunkers import iwork as iwork_chunker  # noqa: E402
 
 pytestmark = pytest.mark.skipif(
-    not iwork_chunker.available, reason="neither pypdf nor keynote-parser installed")
+    not iwork_chunker.available, reason=skip_reason("dep", "neither pypdf nor keynote-parser installed"))
 
 
 def _preview_pdf(lines_per_page):

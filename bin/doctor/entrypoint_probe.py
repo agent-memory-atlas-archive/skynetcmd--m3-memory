@@ -38,6 +38,8 @@ import os
 import subprocess
 import sys
 
+from m3_core.seams import is_windows
+
 # Console scripts m3 declares. `m3` is the primary CLI; `mcp-memory` is the
 # backwards-compat MCP entrypoint some client configs still launch directly, so
 # a stale copy of it is just as damaging as a stale `m3`.
@@ -150,7 +152,7 @@ def _which_all(name: str) -> list[str]:
     """
     found: list[str] = []
     exts = [""]
-    if os.name == "nt":
+    if is_windows():
         exts = [e for e in os.environ.get("PATHEXT", ".EXE").split(os.pathsep) if e]
     for directory in os.environ.get("PATH", "").split(os.pathsep):
         if not directory:

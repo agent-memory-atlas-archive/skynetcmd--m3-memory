@@ -27,6 +27,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import skip_reason
+
 _SH = Path(__file__).resolve().parents[1] / "install.sh"
 
 
@@ -96,7 +98,7 @@ def test_defaults_are_declared_as_opt_out_shaped():
 # 2026-10-01. Gate on the PLATFORM, which is the real precondition.
 _POSIX_ONLY = pytest.mark.skipif(
     os.name == "nt" or shutil.which("bash") is None,
-    reason="install.sh is the POSIX installer; Windows uses docs/install_windows.md",
+    reason=skip_reason("os", "install.sh is the POSIX installer; Windows uses docs/install_windows.md"),
 )
 
 

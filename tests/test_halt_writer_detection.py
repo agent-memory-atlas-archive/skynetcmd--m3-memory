@@ -19,6 +19,8 @@ import sys
 
 import pytest
 
+from conftest import simulate_os
+
 BIN = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bin")
 if BIN not in sys.path:
     sys.path.insert(0, BIN)
@@ -155,7 +157,7 @@ class _FakeProc:
 
 
 def test_venv_stub_is_identified_on_windows(halt, monkeypatch):
-    monkeypatch.setattr(os, "name", "nt")
+    simulate_os(monkeypatch, "Windows")
     monkeypatch.setattr(os, "sep", "\\")
     stub = _FakeProc(r"C:\Users\u\pipx\venvs\m3-memory\Scripts\pythonw.exe",
                      [_FakeProc(r"C:\Python314\pythonw.exe")])
@@ -163,7 +165,7 @@ def test_venv_stub_is_identified_on_windows(halt, monkeypatch):
 
 
 def test_real_interpreter_is_not_a_stub(halt, monkeypatch):
-    monkeypatch.setattr(os, "name", "nt")
+    simulate_os(monkeypatch, "Windows")
     monkeypatch.setattr(os, "sep", "\\")
     real = _FakeProc(r"C:\Python314\pythonw.exe", [])
     assert halt._is_venv_launcher_stub(real) is False
@@ -172,7 +174,7 @@ def test_real_interpreter_is_not_a_stub(halt, monkeypatch):
 def test_stub_without_a_child_is_not_skipped(halt, monkeypatch):
     """A Scripts/ exe with no child is a lone worker, not a redirector. Fail
     SAFE: counting it is the conservative choice."""
-    monkeypatch.setattr(os, "name", "nt")
+    simulate_os(monkeypatch, "Windows")
     monkeypatch.setattr(os, "sep", "\\")
     lone = _FakeProc(r"C:\Users\u\pipx\venvs\m3-memory\Scripts\pythonw.exe", [])
     assert halt._is_venv_launcher_stub(lone) is False
@@ -181,6 +183,6 @@ def test_stub_without_a_child_is_not_skipped(halt, monkeypatch):
 def test_stub_detection_is_a_noop_off_windows(halt, monkeypatch):
     """macOS/Linux venv bin/python is a symlink -- exec replaces the process, so
     there is no stub pair to filter."""
-    monkeypatch.setattr(os, "name", "posix")
+    simulate_os(monkeypatch, "Linux")
     stub = _FakeProc("/home/u/.venv/bin/python", [_FakeProc("/usr/bin/python3")])
     assert halt._is_venv_launcher_stub(stub) is False

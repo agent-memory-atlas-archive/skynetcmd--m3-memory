@@ -39,6 +39,8 @@ import sys
 
 import pytest
 
+from conftest import skip_reason
+
 _ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
 _BIN = os.path.join(_ROOT, "bin")
 if _BIN not in sys.path:
@@ -199,7 +201,7 @@ def test_core_columns_are_in_every_bootstrap_schema():
     ]
     for path in schemas:
         if not os.path.exists(path):
-            pytest.skip("schema not present in this checkout: " + path)
+            pytest.skip(skip_reason("na", "schema not present in this checkout: " + path))
         with open(path, encoding="utf-8") as fh:
             sql = fh.read()
         m = re.search(r"CREATE TABLE (?:IF NOT EXISTS )?memory_items\s*\((.*?)\n\);",

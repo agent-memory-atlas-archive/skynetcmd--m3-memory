@@ -15,6 +15,8 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path, PurePath
 
+from m3_core.seams import is_windows
+
 type Pid = int
 
 # Max difference (seconds) between a recorded and a live create_time for the
@@ -36,7 +38,7 @@ def pid_is_alive(pid: Pid) -> bool:
     """
     if pid <= 0:
         return False
-    if os.name == "nt":
+    if is_windows():
         import ctypes
 
         PROCESS_QUERY_LIMITED_INFORMATION = 0x1000

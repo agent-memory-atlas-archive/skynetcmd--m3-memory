@@ -1,8 +1,8 @@
 ---
 tool: bin/test_fips_integrity.py
-sha1: 717e90cf19c4
-mtime_utc: 2026-06-28T00:23:00.088593+00:00
-generated_utc: 2026-06-28T01:23:04.137549+00:00
+sha1: fad32e422875
+mtime_utc: 2026-10-10T06:49:09.067844+00:00
+generated_utc: 2026-10-10T06:49:17.105830+00:00
 private: false
 ---
 
@@ -54,6 +54,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `cryptography.hazmat.primitives.ciphers.aead (AESGCM)`
 - `cryptography.hazmat.primitives.kdf.pbkdf2 (PBKDF2HMAC)`
 - `ctypes`
+- `m3_core.seams (is_windows)`
 - `ssl`
 - `unittest`
 

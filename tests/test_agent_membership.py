@@ -17,6 +17,8 @@ import uuid
 
 import pytest
 
+from conftest import skip_reason
+
 _BIN = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "bin"))
 if _BIN not in sys.path:
     sys.path.insert(0, _BIN)
@@ -104,7 +106,7 @@ def test_stale_with_reused_pid_has_left(agent):
     me = os.getpid()
     ct = proc_create_time(me)
     if ct is None:
-        pytest.skip("psutil unavailable: create_time unreadable")
+        pytest.skip(skip_reason("dep", "psutil unavailable: create_time unreadable"))
     _set(agent, last_seen=_ANCIENT, node_id=node_id(), pid=me, pid_create_time=ct - 10)
     assert _membership(agent)[0] == "left"
 

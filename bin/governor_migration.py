@@ -41,7 +41,8 @@ from __future__ import annotations
 
 import os
 import subprocess
-import sys
+
+from m3_core.seams import is_macos, is_windows
 
 # Task names that the governor can take over — ONLY tasks the cognitive loop
 # actually runs as a pass. Removing a task here deletes its scheduler entry, so a
@@ -87,9 +88,9 @@ NOT_MIGRATABLE = (
 
 def _os_name() -> str:
     """Constant-time OS branch (no WMI; matches install_schedules._os_name)."""
-    if os.name == "nt":
+    if is_windows():
         return "Windows"
-    if sys.platform == "darwin":
+    if is_macos():
         return "Darwin"
     return "Linux"
 

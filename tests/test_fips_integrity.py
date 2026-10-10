@@ -20,6 +20,8 @@ import textwrap
 
 import pytest
 
+from conftest import simulate_os
+
 _BIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "bin"))
 sys.path.insert(0, _BIN)
 
@@ -553,8 +555,7 @@ class TestSecureWolfsslDiscovery:
         """macOS regression: the build helper installs libwolfssl.dylib to
         ~/.m3/lib, so the loader MUST check .dylib there (not only .so)."""
         cp = _reload_provider(monkeypatch, backend="DEFAULT")
-        monkeypatch.setattr(cp.os, "name", "posix")
-        monkeypatch.setattr(cp.sys, "platform", "darwin")
+        simulate_os(monkeypatch, "Darwin")
         m3lib = cp._m3_lib_dir()
         cands = cp._trusted_wolfssl_candidates()
         assert os.path.join(m3lib, "libwolfssl.dylib") in cands
@@ -562,14 +563,13 @@ class TestSecureWolfsslDiscovery:
 
     def test_windows_uses_dll(self, monkeypatch):
         cp = _reload_provider(monkeypatch, backend="DEFAULT")
-        monkeypatch.setattr(cp.os, "name", "nt")
+        simulate_os(monkeypatch, "Windows")
         cands = cp._trusted_wolfssl_candidates()
         assert all(c.endswith("wolfssl.dll") for c in cands), cands
 
     def test_linux_uses_so_only(self, monkeypatch):
         cp = _reload_provider(monkeypatch, backend="DEFAULT")
-        monkeypatch.setattr(cp.os, "name", "posix")
-        monkeypatch.setattr(cp.sys, "platform", "linux")
+        simulate_os(monkeypatch, "Linux")
         cands = cp._trusted_wolfssl_candidates()
         assert all(c.endswith("libwolfssl.so") for c in cands), cands
 
@@ -599,8 +599,7 @@ class TestSecureWolfsslDiscovery:
         cp = _reload_provider(monkeypatch, backend="DEFAULT")
         monkeypatch.delenv("M3_WOLFSSL_LIB", raising=False)
         monkeypatch.setenv("M3_LIB_DIR", str(tmp_path))
-        monkeypatch.setattr(cp.os, "name", "posix")
-        monkeypatch.setattr(cp.sys, "platform", "linux")
+        simulate_os(monkeypatch, "Linux")
 
         cands = cp._trusted_wolfssl_candidates()
         from_pin = [c for c in cands if os.path.dirname(c) == str(tmp_path)]

@@ -18,6 +18,8 @@ import sys
 
 import pytest
 
+from conftest import skip_reason
+
 _BIN = pathlib.Path(__file__).resolve().parent.parent / "bin"
 _SPEC = importlib.util.spec_from_file_location("m3_upgrade", _BIN / "m3_upgrade.py")
 assert _SPEC and _SPEC.loader
@@ -165,7 +167,7 @@ def test_user_site_detection_survives_a_symlinked_home(tmp_path, monkeypatch):
     try:
         link.symlink_to(real, target_is_directory=True)
     except (OSError, NotImplementedError):
-        pytest.skip("symlinks not permitted in this environment")
+        pytest.skip(skip_reason("os", "symlinks not permitted in this environment"))
 
     import site as _site
 

@@ -17,11 +17,12 @@ from datetime import datetime
 
 import psutil
 import requests
+from m3_core.seams import is_linux, is_macos, is_windows
 
 # ── Platform detection ────────────────────────────────────────────────────────
-IS_WIN   = sys.platform == "win32"
-IS_MAC   = sys.platform == "darwin"
-IS_LINUX = sys.platform.startswith("linux")
+IS_WIN   = is_windows()
+IS_MAC   = is_macos()
+IS_LINUX = is_linux()
 
 # ── UTF-8 stdout (Windows terminals default to cp1252) ────────────────────────
 if IS_WIN:
@@ -55,7 +56,7 @@ except ImportError:  # pragma: no cover - standalone/partial checkout
     def no_window_kwargs() -> dict:
         """Fallback mirroring `_task_runtime.no_window_kwargs`."""
         import subprocess as _sp
-        flags = getattr(_sp, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+        flags = getattr(_sp, "CREATE_NO_WINDOW", 0) if is_windows() else 0
         return {"creationflags": flags} if flags else {}
 
 try:

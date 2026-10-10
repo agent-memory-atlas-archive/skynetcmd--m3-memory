@@ -20,7 +20,9 @@ from __future__ import annotations
 
 import pytest
 
-pytest.importorskip("langgraph", reason="needs the [langchain] extra")
+from conftest import skip_reason
+
+pytest.importorskip("langgraph", reason=skip_reason("dep", "needs the [langchain] extra"))
 
 from m3_memory.langchain import M3Store  # noqa: E402
 

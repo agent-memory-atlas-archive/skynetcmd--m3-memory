@@ -29,6 +29,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import skip_reason
+
 _BIN = Path(__file__).resolve().parent.parent / "bin"
 if str(_BIN) not in sys.path:
     sys.path.insert(0, str(_BIN))
@@ -88,10 +90,10 @@ def test_impl_requires_nothing_the_spec_calls_optional(name, spec):
     optional. An agent that honors the contract gets a TypeError."""
     fn = _resolve(spec.impl)
     if fn is None:
-        pytest.skip(f"{name}: impl not resolvable")
+        pytest.skip(skip_reason("na", f"{name}: impl not resolvable"))
     impl_req = _impl_required(fn)
     if impl_req is None:
-        pytest.skip(f"{name}: impl accepts **kwargs")
+        pytest.skip(skip_reason("na", f"{name}: impl accepts **kwargs"))
     spec_req = set((spec.parameters or {}).get("required", []))
     extra = impl_req - spec_req - _INJECTED
     assert not extra, (
@@ -108,13 +110,13 @@ def test_spec_advertises_nothing_the_impl_cannot_accept(name, spec):
     An agent that passes it gets a TypeError from a tool that advertised it."""
     fn = _resolve(spec.impl)
     if fn is None:
-        pytest.skip(f"{name}: impl not resolvable")
+        pytest.skip(skip_reason("na", f"{name}: impl not resolvable"))
     try:
         sig = inspect.signature(fn)
     except (TypeError, ValueError):
-        pytest.skip(f"{name}: signature not introspectable")
+        pytest.skip(skip_reason("na", f"{name}: signature not introspectable"))
     if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()):
-        pytest.skip(f"{name}: impl accepts **kwargs")
+        pytest.skip(skip_reason("na", f"{name}: impl accepts **kwargs"))
     declared = (set((spec.parameters or {}).get("properties", {}))
                 - _INJECTED - _VALIDATOR_CONSUMED)
     accepted = set(sig.parameters)

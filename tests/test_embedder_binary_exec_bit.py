@@ -32,6 +32,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import skip_reason
+
 _ROOT = Path(__file__).resolve().parents[1]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
@@ -154,7 +156,7 @@ def test_status_is_ok_on_windows_without_pretending(tmp_path):
     rather than implying something was verified.
     """
     if os.name != "nt":
-        pytest.skip("Windows-specific")
+        pytest.skip(skip_reason("os", "Windows-specific"))
     st = exec_bit_status(tmp_path / "anything")
     assert st["state"] == "ok"
     assert "no exec bit" in st["detail"].lower()

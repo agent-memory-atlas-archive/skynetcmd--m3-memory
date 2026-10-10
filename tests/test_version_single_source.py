@@ -28,6 +28,8 @@ import tempfile
 
 import pytest
 
+from conftest import skip_reason
+
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -66,7 +68,7 @@ def test_version_is_the_same_from_any_working_directory():
             # package is importable from outside the checkout; without an
             # install there is no second reader to disagree with. Skip rather
             # than fail, so a real divergence stays visible where it can occur.
-            pytest.skip("m3_memory is not installed in this interpreter")
+            pytest.skip(skip_reason("dep", "m3_memory is not installed in this interpreter"))
         assert proc.returncode == 0, f"{label}: {proc.stderr[-300:]}"
         seen[label] = proc.stdout.strip()
     # An installed distribution that is simply an OLDER RELEASE than the working
@@ -75,8 +77,8 @@ def test_version_is_the_same_from_any_working_directory():
     # disagreeing while the install is current, so compare only then.
     if seen["checkout"] != seen["neutral"] and seen["checkout"] == _pyproject_version():
         pytest.skip(
-            f"installed distribution ({seen['neutral']}) is older than the "
-            f"checkout ({seen['checkout']}); reinstall to compare"
+            skip_reason("na", f"installed distribution ({seen['neutral']}) is older than the "
+            f"checkout ({seen['checkout']}); reinstall to compare")
         )
     assert seen["checkout"] == seen["neutral"], (
         f"version depends on the working directory: {seen} — a *.egg-info or "
@@ -97,15 +99,15 @@ def test_doctor_agrees_with_the_package():
     import m3_memory
     installed = ep._installed_version()
     if installed is None:
-        pytest.skip("no installed distribution to compare against")
+        pytest.skip(skip_reason("na", "no installed distribution to compare against"))
     # The doctor deliberately resolves from a NEUTRAL cwd (the installed
     # distribution) while the package reads the checkout's pyproject.toml. When
     # the local install is simply an older release than the working tree, that
     # is expected drift, not the two-sources-of-truth bug this guards.
     if installed != m3_memory.__version__ and _pyproject_version() == m3_memory.__version__:
         pytest.skip(
-            f"installed distribution ({installed}) is older than the checkout "
-            f"({m3_memory.__version__}); reinstall to compare"
+            skip_reason("na", f"installed distribution ({installed}) is older than the checkout "
+            f"({m3_memory.__version__}); reinstall to compare")
         )
     assert installed == m3_memory.__version__, (
         f"doctor says {ep._installed_version()!r}, package says "

@@ -27,7 +27,6 @@ PAYLOAD dir (REPO_ROOT/memory), which a `pipx upgrade` wipes out from under a
 running task; (2) the old check-then-write was NOT atomic, so two simultaneous
 fires (Boot+Logon) could both pass — a double secret_rotator / sync_all, etc.
 """
-
 import datetime
 import logging
 import os
@@ -35,6 +34,8 @@ import pathlib
 import subprocess
 import sys
 import time
+
+from m3_core.seams import is_windows
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -69,7 +70,7 @@ def no_window_kwargs() -> dict:
     installer subprocess would have gone silent and a failing `pip install`
     would have printed only "[ERROR] Command failed" with the reason gone.
     """
-    if sys.platform == "win32":
+    if is_windows():
         return {"creationflags": subprocess.CREATE_NO_WINDOW}
     return {}
 

@@ -48,6 +48,8 @@ import sys
 
 import pytest
 
+from conftest import skip_reason
+
 # conftest.py already puts bin/ on sys.path; belt-and-suspenders for isolation.
 _HERE = os.path.dirname(__file__)
 _BIN = os.path.normpath(os.path.join(_HERE, "..", "bin"))
@@ -114,8 +116,8 @@ def _require_spec() -> mcp_tool_catalog.ToolSpec:
     green. Once the spec lands they run for real."""
     spec = mcp_tool_catalog.get_tool(_SCORED)
     if spec is None:
-        pytest.skip(f"{_SCORED} ToolSpec not added yet (see "
-                    "test_memory_search_scored_is_catalogued)")
+        pytest.skip(skip_reason("na", f"{_SCORED} ToolSpec not added yet (see "
+                    "test_memory_search_scored_is_catalogued)"))
     return spec
 
 

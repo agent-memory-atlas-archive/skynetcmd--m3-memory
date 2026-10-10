@@ -61,12 +61,12 @@ dot/norm sums in f32. float32 has ~7 significant decimal digits; over a
 far above 1e-9. Demanding 1e-9 would be a false failure caused purely by
 float32 representation, not by an implementation divergence.
 """
-
-
 import pytest
 
-m3_core_rs = pytest.importorskip("m3_core_rs")
-np = pytest.importorskip("numpy")
+from conftest import skip_reason
+
+m3_core_rs = pytest.importorskip("m3_core_rs", reason=skip_reason("dep", f"{'m3_core_rs'} not installed"))
+np = pytest.importorskip("numpy", reason=skip_reason("dep", f"{'numpy'} not installed"))
 
 # conftest.py puts bin/ on sys.path.
 from embedding_utils import batch_cosine as py_batch_cosine

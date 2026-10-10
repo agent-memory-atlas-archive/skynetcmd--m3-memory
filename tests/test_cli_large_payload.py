@@ -20,6 +20,8 @@ import subprocess
 import sys
 import tempfile
 
+from conftest import skip_reason
+
 _ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
 
 
@@ -72,7 +74,7 @@ def test_the_ceiling_is_the_shell_not_the_platform():
     import pytest
 
     if sys.platform != "win32":
-        pytest.skip("cmd.exe ceiling is Windows-specific")
+        pytest.skip(skip_reason("os", "cmd.exe ceiling is Windows-specific"))
 
     # Run THIS checkout's CLI via the test interpreter, never `m3` from PATH:
     # on a dev box that is the installed payload (a different version than the

@@ -25,6 +25,8 @@ import re
 import subprocess
 import sys
 
+from conftest import skip_reason
+
 # conftest.py already puts bin/ on sys.path. Belt-and-suspenders so this
 # file is also importable in isolation:
 _HERE = os.path.dirname(__file__)
@@ -274,7 +276,7 @@ def test_every_doc_quoting_a_tool_count_is_gated():
         ).stdout.split()
     except Exception as exc:  # noqa: BLE001 — not a git checkout / no git
         import pytest
-        pytest.skip(f"cannot enumerate tracked docs: {exc}")
+        pytest.skip(skip_reason("na", f"cannot enumerate tracked docs: {exc}"))
 
     gated = {os.path.normcase(os.path.abspath(p)) for p in _DOC_FILES}
     ungated: list[str] = []

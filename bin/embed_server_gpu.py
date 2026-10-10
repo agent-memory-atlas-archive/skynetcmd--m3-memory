@@ -21,6 +21,7 @@ import numpy as np
 import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
+from m3_core.seams import is_windows
 from m3_sdk import getenv_compat
 from pydantic import BaseModel, Field
 
@@ -187,7 +188,7 @@ def main():
                 # group above; on POSIX use terminate() (SIGTERM). A bare
                 # signal.CTRL_BREAK_EVENT reference AttributeErrors off Windows (§1).
                 _brk = getattr(signal, "CTRL_BREAK_EVENT", None)
-                if os.name == "nt" and _brk is not None:
+                if is_windows() and _brk is not None:
                     os.kill(llama_process.pid, _brk)
                 else:
                     llama_process.terminate()

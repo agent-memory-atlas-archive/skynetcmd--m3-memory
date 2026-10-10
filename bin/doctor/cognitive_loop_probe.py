@@ -22,6 +22,8 @@ import os
 import subprocess
 import sys
 
+from m3_core.seams import is_linux, is_macos, is_windows
+
 # Fixed install destinations — mirror install_schedules.py / schedule_probe.py so
 # "where the loop lives" is single-sourced across the three files that care.
 _LAUNCHD_LABEL = "com.m3memory.cognitiveloop"
@@ -36,7 +38,7 @@ def _installed_active() -> tuple[bool, bool | None, str]:
     """(installed, active, backend_label). ``active`` is True/False when the OS
     can tell us (launchd loaded / systemd active / schtask present+enabled), or
     None when it cannot. Never raises — a missing tool yields (False, None, …)."""
-    if sys.platform == "darwin":
+    if is_macos():
         dest = os.path.expanduser(_LAUNCHD_PLIST)
         if not os.path.exists(dest):
             return False, None, "launchd"
@@ -45,7 +47,7 @@ def _installed_active() -> tuple[bool, bool | None, str]:
             return True, (_LAUNCHD_LABEL in (loaded.stdout or "")), "launchd"
         except Exception:  # noqa: BLE001 — probe never crashes the doctor
             return True, None, "launchd"
-    if sys.platform.startswith("linux"):
+    if is_linux():
         dest = os.path.expanduser(_SYSTEMD_PATH)
         if not os.path.exists(dest):
             return False, None, "systemd --user"
@@ -57,7 +59,7 @@ def _installed_active() -> tuple[bool, bool | None, str]:
             return True, ((active.stdout or "").strip() == "active"), "systemd --user"
         except Exception:  # noqa: BLE001
             return True, None, "systemd --user"
-    if sys.platform == "win32":
+    if is_windows():
         try:
             proc = subprocess.run(
                 ["schtasks", "/Query", "/TN", _WINDOWS_TASK],
@@ -109,7 +111,7 @@ def _process_running() -> bool | None:
         pass  # fall through to the platform CLIs below
 
     try:
-        if sys.platform == "win32":
+        if is_windows():
             # No psutil: tasklist cannot match on the script arg, so we cannot
             # tell. Unknown, never a false "down".
             return None

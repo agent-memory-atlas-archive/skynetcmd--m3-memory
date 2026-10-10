@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any
 
 from m3_core.runtime import utc_iso
+from m3_core.seams import is_windows
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("chatlog_ingest")
@@ -315,7 +316,7 @@ def _make_agent_id(host_agent: str) -> str:
     # (git-bash / WSL -> platform.node() returns mixed case, e.g. "HostPc") would
     # otherwise fork the agent_id away from the canonical "HOSTPC". Normalize on
     # Windows only; leave case-significant POSIX hostnames untouched.
-    if os.name == "nt":
+    if is_windows():
         host = host.upper()
     return f"{host_agent}:{user}@{host}"
 

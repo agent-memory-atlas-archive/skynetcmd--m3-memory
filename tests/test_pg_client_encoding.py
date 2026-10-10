@@ -22,6 +22,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import skip_reason
+
 _ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_ROOT))
 sys.path.insert(0, str(_ROOT / "bin"))
@@ -32,8 +34,8 @@ sys.path.insert(0, str(_ROOT / "bin"))
 # own guard because the pool class under test is psycopg2's.
 pytestmark = pytest.mark.requires_memory_core
 
-psycopg2 = pytest.importorskip("psycopg2", reason="the pool constructor is psycopg2's")
-pytest.importorskip("psycopg2.pool")
+psycopg2 = pytest.importorskip("psycopg2", reason=skip_reason("db", "the pool constructor is psycopg2's"))
+pytest.importorskip("psycopg2.pool", reason=skip_reason("dep", f"{'psycopg2.pool'} not installed"))
 
 
 class _FakePool:

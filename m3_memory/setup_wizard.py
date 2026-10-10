@@ -25,6 +25,8 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from m3_memory._platform import is_macos, is_windows
+
 from ._platform import hidden_window_kwargs as _hidden_window_kwargs
 from ._platform import python_exe as _python_exe
 
@@ -927,7 +929,7 @@ def _quiesce_db_writers(args: argparse.Namespace) -> bool:
     # The dashboard does not pause for HALT, and launchd/systemd restart a
     # killed daemon mid-install; stopping them here avoids the timeout and the
     # kill prompt. Setup's later steps start them again.
-    if sys.platform != "win32":
+    if not is_windows():
         _stop_supervised_services()
     else:
         _stop_scheduled_daemons_windows(halt)
@@ -1015,7 +1017,7 @@ def _quiesce_db_writers(args: argparse.Namespace) -> bool:
         # Windows; on a POSIX GUI child we stay unelevated and fall through to the
         # "run this elevated yourself" help (a native macOS GUI-auth path via
         # osascript is a separate future addition).
-        gui_can_elevate = gui and sys.platform == "win32"
+        gui_can_elevate = gui and is_windows()
         if args.non_interactive:
             if force:
                 # GUI runs are non-interactive-with-a-human: on Windows, allow the
@@ -1111,7 +1113,7 @@ def _surface_elevated_kill_help(halt, stuck) -> None:
         cmds = []
     if not cmds:  # fallback if the helper is unavailable (older m3_halt)
         pids = " ".join(str(p.pid) for p in stuck)
-        cmds = ([f"taskkill /F /T {pids}"] if sys.platform == "win32"
+        cmds = ([f"taskkill /F /T {pids}"] if is_windows()
                 else [f"sudo kill {pids}"])
     for c in cmds:
         print(f"      {c}")
@@ -1227,7 +1229,7 @@ _ELEVATION = None
 def _on_windows() -> bool:
     """One place to ask; tests replace this instead of sys.platform, which the
     test harness restores before each test body runs."""
-    return sys.platform == "win32"
+    return is_windows()
 
 
 def _begin_elevation_batch(*, gui: bool = False) -> None:
@@ -1294,7 +1296,7 @@ def _flush_elevation(*, gui: bool = False) -> None:
 def _offer_touchid_sudo() -> None:
     """macOS: offer once to let sudo accept Touch ID. Only to someone at the
     Mac; a "no" is remembered so later setups do not ask again."""
-    if sys.platform != "darwin" or not _stdin_is_interactive():
+    if not is_macos() or not _stdin_is_interactive():
         return
     try:
         from m3_memory import touchid
@@ -1415,7 +1417,7 @@ def _retry_elevated(action, *, what: str, max_attempts: int = 5) -> bool:
     """
     # Name the mechanism the user will actually see. This helper is also reached
     # from the POSIX kill path, where the prompt is sudo, not a UAC dialog.
-    _how = ("approve the Windows UAC dialog" if sys.platform == "win32"
+    _how = ("approve the Windows UAC dialog" if is_windows()
             else "enter your sudo password")
     for attempt in range(1, max_attempts + 1):
         _say(f"  Requesting administrator access ({_how})"
@@ -1536,7 +1538,7 @@ def _kill_stuck_writers(stuck, *, allow_sudo: bool = False) -> bool:
     (inline password prompt); Windows uses PowerShell ``Start-Process -Verb RunAs``
     (UAC consent dialog) — Windows has no inline sudo. Never set headless (both
     prompt the user; sudo would hang, UAC is pointless with no one to consent)."""
-    is_win = sys.platform == "win32"
+    is_win = is_windows()
     killer = _kill_process_windows if is_win else _kill_process_posix
     elevate = _runas_kill_windows if is_win else _sudo_kill_posix
     how = "UAC" if is_win else "sudo"
@@ -1695,7 +1697,7 @@ def _step_preflight(plan: SetupPlan, args: argparse.Namespace) -> bool:
     # On Windows, pip install -e cannot overwrite mcp-memory.exe if a
     # process is using it. Detect + offer to kill (interactive) or warn
     # (non-interactive).
-    if sys.platform == "win32":
+    if is_windows():
         running = _find_running_mcp_memory_processes()
         if running:
             _warn(f"  {len(running)} mcp-memory.exe process(es) running: {running}")
@@ -1930,7 +1932,7 @@ def _record_llm_switch(var: str, val: str) -> None:
 
 def _find_running_mcp_memory_processes() -> list[int]:
     """Return PIDs of any running mcp-memory.exe processes. Windows only."""
-    if sys.platform != "win32":
+    if not is_windows():
         return []
     try:
         out = subprocess.run(
@@ -2105,7 +2107,7 @@ def _step_install_m3(plan: SetupPlan) -> bool:
         # upgraded host's unit pointing at the previous payload's paths. On
         # Windows registering a boot task needs elevation; `m3 schedules repair`
         # owns that there.
-        if plan.cognitive_loop and sys.platform != "win32":
+        if plan.cognitive_loop and not is_windows():
             _reregister_cognitive_loop()
         return True
 
@@ -2201,12 +2203,12 @@ def _step_cpu_sovereign_embedder() -> bool:
         _say(f"  you want it. (reason: {e})")
         print()
         print("  To add the always-on CPU embedder later, follow the steps for your OS:")
-        if sys.platform == "win32":
+        if is_windows():
             print("    Windows — the embedder registers as a Windows Service, which")
             print("    needs Administrator rights. Open an *Administrator* terminal and run:")
             print("        m3 embedder install-gpu   # installs the binary first")
             print("        m3 embedder install       # registers the service")
-        elif sys.platform == "darwin":
+        elif is_macos():
             print("    macOS — the embedder installs as a launchd user agent (no sudo).")
             print("    If the binary is missing, install it first, then retry:")
             print("        m3 embedder install-gpu")
@@ -2450,7 +2452,7 @@ def _register_embed_server_task(*, non_interactive: bool = False) -> None:
     # Rust binary absent. On macOS/Linux the Python server's launchd/systemd unit
     # is installed with the cognitive loop (install_schedules
     # install_unix_embed_server); the schtasks fallback below is Windows-only.
-    if sys.platform != "win32":
+    if not is_windows():
         print("    Rust m3-embed-server not present. The Python embed-server unit")
         print("    is installed with the cognitive loop; to add it on its own:")
         print("        m3 schedules add cognitive-loop")
@@ -2544,7 +2546,7 @@ def _verify_and_report_schedules(script: str, *, non_interactive: bool) -> None:
     # Name the CLI command, not the script path: a user who has to copy an
     # absolute path into a payload directory will not find it again later.
     print("            m3 schedules repair")
-    if sys.platform == "win32":
+    if is_windows():
         print("        (Windows: boot-triggered tasks need an ADMIN shell.)")
         elevated = _offer_elevated_schedule_repair(script, non_interactive=non_interactive)
         if elevated is None:
@@ -2869,7 +2871,7 @@ def _opencode_config_paths() -> list[Path]:
     """Candidate opencode.json locations. On Windows OpenCode may live under
     %APPDATA% OR ~/.config (the XDG-style path some installs use), so heal both."""
     paths = [Path.home() / ".config" / "opencode" / "opencode.json"]
-    if sys.platform == "win32":
+    if is_windows():
         appdata = os.environ.get("APPDATA")
         if appdata:
             paths.insert(0, Path(appdata) / "opencode" / "opencode.json")

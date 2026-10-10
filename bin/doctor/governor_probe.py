@@ -18,6 +18,8 @@ import logging
 import os
 import sys
 
+from m3_core.seams import is_windows
+
 logger = logging.getLogger("memory.doctor.governor_probe")
 
 
@@ -69,7 +71,7 @@ def run(brief: bool = False) -> int:
             # in a window they did not expect), so the admin console appears to
             # hang. `--yes` is the honest recommendation for a command we are
             # ALREADY telling them to run elevated and unattended.
-            if sys.platform == "win32":
+            if is_windows():
                 print(f"⚠️  governor: NAG ({len(eligible)} legacy task(s); run "
                       "`m3 governor migrate --yes` from an ELEVATED shell)")
             else:
@@ -96,13 +98,13 @@ def run(brief: bool = False) -> int:
     print("             embedding / maintenance can fire mid-session and contend for")
     print("             CPU/GPU/WAL — exactly what the governor exists to prevent.")
     print()
-    if sys.platform == "win32":
+    if is_windows():
         print("  fix      : run the migration FROM AN ELEVATED (Administrator) shell —")
         print("             deleting scheduled tasks needs admin rights; a normal shell")
         print("             fails with 'Access is denied':")
     else:
         print("  fix      : run the migration (may need sudo / the task owner to remove):")
-    if sys.platform == "win32":
+    if is_windows():
         # --yes on purpose: the elevated shell is a separate window, and a bare
         # migrate stops at a [Y/n] prompt there — the console appears to hang.
         print("               m3 governor migrate --yes")

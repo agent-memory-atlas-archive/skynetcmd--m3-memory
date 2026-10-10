@@ -27,6 +27,8 @@ import sys
 import time
 from pathlib import Path
 
+from m3_memory._platform import is_macos, is_windows
+
 # Exit code for "the service is REGISTERED but is not running". Distinct from 1
 # (no binary) and 2 (no model) because both the remedy and the SEVERITY differ:
 # those two mean the optional tier-2 server was never installed and tier-1 covers
@@ -267,7 +269,7 @@ def _server_binary() -> Path | None:
     try:
         import m3_core_rs
         wheel_dir = Path(m3_core_rs.__file__).parent
-        exe_name = "m3-embed-server.exe" if sys.platform == "win32" else "m3-embed-server"
+        exe_name = "m3-embed-server.exe" if is_windows() else "m3-embed-server"
         for candidate in (
             wheel_dir / exe_name,
             wheel_dir / "bin" / exe_name,
@@ -339,7 +341,7 @@ def exec_bit_status(binary: str | os.PathLike[str] | None = None) -> dict:
     `os.chmod` ignores 0o111, so any check would be vacuously green. Say 'ok'
     and mean it, rather than implying something was verified.
     """
-    if os.name == "nt":
+    if is_windows():
         return {"state": "ok", "detail": "Windows has no exec bit"}
     try:
         binary = binary or _server_binary()
@@ -614,9 +616,9 @@ def _port_holder_hint(port: int) -> str:
     psutil.net_connections() needs root on macOS — so hand the operator the one
     command that works on their platform rather than guessing or staying silent.
     """
-    if sys.platform == "win32":
+    if is_windows():
         return f"    netstat -ano | findstr :{port}"
-    if sys.platform == "darwin":
+    if is_macos():
         return f"    lsof -nP -iTCP:{port} -sTCP:LISTEN"
     return f"    ss -lptn 'sport = :{port}'   (or: lsof -nP -iTCP:{port} -sTCP:LISTEN)"
 
@@ -676,14 +678,14 @@ def stale_embed_servers() -> list[dict]:
 
 def restart_embed_service_hint() -> str:
     """The command that restarts the embed service on this OS."""
-    if sys.platform == "win32":
+    if is_windows():
         return "m3 doctor --fix   (at a console; approve the administrator prompt)"
     return "m3 embedder stop && m3 embedder start"
 
 
 def _is_windows() -> bool:
     """Platform seam for restart_stale_embed_service (tests patch this)."""
-    return sys.platform == "win32"
+    return is_windows()
 
 
 def restart_stale_embed_service(*, allow_elevation: bool) -> dict:
@@ -814,14 +816,14 @@ def _start_failure_hint(gguf: Path) -> str:
     defect the install hint had; fixed here for the start path too, because m3
     supports 3 OSes and wrong advice is worse than none.
     """
-    if sys.platform == "win32":
+    if is_windows():
         return (
             "  Start it via the Windows Service manager:\n"
             "    m3 embedder start          (or: sc.exe start m3-embed-server)\n"
             "  Check what SCM currently thinks:  m3 embedder status\n"
             "  If it will not start, an Administrator terminal may be required."
         )
-    if sys.platform == "darwin":
+    if is_macos():
         return (
             "  If the launchd user domain is unavailable (SSH with no GUI login),\n"
             "  run the server directly instead:\n"
@@ -837,14 +839,14 @@ def _install_failure_hint(gguf: Path) -> str:
     """OS-correct recovery advice. The previous text printed systemd/nohup/
     crontab unconditionally — none of which exist on Windows, where the
     embedder registers as a Windows Service instead."""
-    if sys.platform == "win32":
+    if is_windows():
         return (
             "  Registering the Windows Service needs Administrator rights.\n"
             "  Open an *Administrator* terminal and run:\n"
             "    m3 embedder install\n"
             "  Check what SCM currently thinks:  m3 embedder status"
         )
-    if sys.platform == "darwin":
+    if is_macos():
         return (
             "  This usually means the launchd user domain is unavailable (SSH session\n"
             "  with no GUI login). Run the server directly instead:\n"
@@ -1178,7 +1180,7 @@ def cmd_install_gpu(args: argparse.Namespace) -> int:
 def _print_stop_proc_hint(script_name: str) -> None:
     """Print the platform-appropriate one-liner to find + stop a python process
     running `script_name`, so a user isn't left guessing how to 'restart the loop'."""
-    if sys.platform == "win32":
+    if is_windows():
         print("         Find + stop it (PowerShell):")
         print("           Get-CimInstance Win32_Process | ? { $_.CommandLine -like "
               f"'*{script_name}*' }} | ForEach {{ Stop-Process -Id $_.ProcessId -Force }}")
@@ -1373,7 +1375,7 @@ def cmd_shared(args: argparse.Namespace) -> int:
     print("\nThe config is read at process START, so already-running m3 processes")
     print("keep their OWN embedder until restarted. Do these THREE steps:\n")
     print(f"  1. Start the shared server (the SOLE GPU embedder, on {url}):")
-    if sys.platform == "win32":
+    if is_windows():
         print("       Installed as the AgentOS_EmbedServer scheduled task by:")
         print("           python bin/install_schedules.py --repair")
         print("       ^ run from an ELEVATED (Administrator) shell — the ONSTART")

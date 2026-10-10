@@ -41,6 +41,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import skip_reason
+
 _BIN = Path(__file__).resolve().parents[1] / "bin"
 sys.path.insert(0, str(_BIN))
 
@@ -78,8 +80,8 @@ def pg_backend(monkeypatch, pg_url):
             cur.fetchone()
     except Exception as exc:  # noqa: BLE001
         pytest.skip(
-            "target Postgres has no reachable synchronized_secrets table "
-            f"(not an m3 primary store -- a warehouse/mirror will do this): {exc}"
+            skip_reason("db", "target Postgres has no reachable synchronized_secrets table "
+            f"(not an m3 primary store -- a warehouse/mirror will do this): {exc}")
         )
     return auth_utils
 
@@ -109,7 +111,7 @@ def test_probe_sees_a_row_written_through_the_seam(pg_backend):
     try:
         set_api_key(service, "not-a-real-token-value-0123456789abcd")
     except ValueError as exc:  # no AGENT_OS_MASTER_KEY on this box
-        pytest.skip(f"vault writes need a master key: {exc}")
+        pytest.skip(skip_reason("env", f"vault writes need a master key: {exc}"))
 
     try:
         assert A._vault_row_exists(service) is True
@@ -131,7 +133,7 @@ def test_undecryptable_row_is_distinguished_from_missing(pg_backend, monkeypatch
     try:
         set_api_key(service, "not-a-real-token-value-0123456789abcd")
     except ValueError as exc:
-        pytest.skip(f"vault writes need a master key: {exc}")
+        pytest.skip(skip_reason("env", f"vault writes need a master key: {exc}"))
 
     try:
         import m3_sdk

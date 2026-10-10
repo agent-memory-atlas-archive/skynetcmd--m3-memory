@@ -13,6 +13,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import skip_reason
+
 _RUST_CONFIG = Path(__file__).resolve().parents[2] / "m3-core-rs" / "crates" / "m3-embed-server" / "src" / "config.rs"
 
 
@@ -60,7 +62,7 @@ def test_out_of_range_values_never_reach_the_server(tmp_path):
         _settings(tmp_path, "[embed.server]\nport = 70000\n")
 
 
-@pytest.mark.skipif(not _RUST_CONFIG.is_file(), reason="m3-core-rs checkout not beside this repo")
+@pytest.mark.skipif(not _RUST_CONFIG.is_file(), reason=skip_reason("dep", "m3-core-rs checkout not beside this repo"))
 def test_the_field_list_is_the_rust_structs():
     from m3_core.config import embed_file
 

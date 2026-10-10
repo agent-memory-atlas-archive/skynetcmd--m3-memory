@@ -1,8 +1,8 @@
 ---
 tool: bin/install_wolfssl.py
-sha1: 253e5f685f6d
-mtime_utc: 2026-10-09T22:26:02.114426+00:00
-generated_utc: 2026-10-09T22:26:08.179993+00:00
+sha1: 39a9c1178197
+mtime_utc: 2026-10-10T06:49:09.046424+00:00
+generated_utc: 2026-10-10T06:49:16.735708+00:00
 private: false
 ---
 
@@ -49,7 +49,7 @@ Prerequisites: git, plus a C toolchain —
 
 ## Entry points
 
-- `def main()` (line 412)
+- `def main()` (line 414)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -83,15 +83,15 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.Popen()  → `cmd`` (line 158)
-- `subprocess.run()  → `cmd`` (line 80)
+- `subprocess.Popen()  → `cmd`` (line 160)
+- `subprocess.run()  → `cmd`` (line 82)
 
 
 ---
 
 ## Notable external imports
 
-_(only stdlib)_
+- `m3_core.seams (is_macos, is_windows)`
 
 ---
 

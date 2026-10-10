@@ -12,6 +12,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Literal, overload, override
 
+from m3_core.seams import is_windows
+
 logger = logging.getLogger("M3_SDK")
 
 # ── Deprecated env-var compatibility shim ─────────────────────────────────────
@@ -370,7 +372,7 @@ def resolve_venv_python() -> str:
     # __file__ is bin/m3_core/paths.py; three dirnames reach the repo root, the
     # same base the original bin/m3_sdk.py computed with two dirnames.
     base = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    if sys.platform == "win32":
+    if is_windows():
         return os.path.join(base, ".venv", "Scripts", "python.exe")
     return os.path.join(base, ".venv", "bin", "python")
 
@@ -570,7 +572,7 @@ def node_id() -> str:
             or os.environ.get("HOSTNAME")
             or platform.node()
             or "unknown")
-    return host.upper() if os.name == "nt" else host
+    return host.upper() if is_windows() else host
 
 
 def dispatch_store_mode() -> str:

@@ -27,6 +27,8 @@ import sys
 
 import pytest
 
+from conftest import skip_reason
+
 _HERE = os.path.dirname(__file__)
 _ROOT = os.path.normpath(os.path.join(_HERE, ".."))
 if _ROOT not in sys.path:
@@ -108,11 +110,11 @@ def test_a_registered_mcp_interpreter_can_serve_stdio():
 
     cfg = pathlib.Path.home() / ".claude.json"
     if not cfg.exists():
-        pytest.skip("no ~/.claude.json on this machine")
+        pytest.skip(skip_reason("env", "no ~/.claude.json on this machine"))
     try:
         data = json.loads(cfg.read_text(encoding="utf-8"))
     except Exception:
-        pytest.skip("~/.claude.json is not readable JSON")
+        pytest.skip(skip_reason("env", "~/.claude.json is not readable JSON"))
 
     interpreters = set()
 
@@ -132,7 +134,7 @@ def test_a_registered_mcp_interpreter_can_serve_stdio():
 
     walk(data)
     if not interpreters:
-        pytest.skip("no python-based MCP servers registered here")
+        pytest.skip(skip_reason("env", "no python-based MCP servers registered here"))
 
     for exe in sorted(interpreters):
         if not os.path.isfile(exe):

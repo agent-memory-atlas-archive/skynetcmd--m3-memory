@@ -33,6 +33,8 @@ import os
 import sys
 from typing import Any
 
+from m3_core.seams import is_windows
+
 _BIN = os.path.dirname(os.path.abspath(__file__))
 if _BIN not in sys.path:
     sys.path.insert(0, _BIN)
@@ -395,7 +397,7 @@ def _process_one_db(db_path: str, args) -> int:
         from _task_runtime import no_window_kwargs as _nwk
         _nw = _nwk()
     except Exception:
-        _f = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+        _f = getattr(subprocess, "CREATE_NO_WINDOW", 0) if is_windows() else 0
         _nw = {"creationflags": _f} if _f else {}
     rc = subprocess.call(cmd, **_nw)
     if rc != 0:

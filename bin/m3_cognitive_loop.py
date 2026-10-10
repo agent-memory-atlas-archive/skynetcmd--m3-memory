@@ -16,7 +16,6 @@ Usage:
 When M3_AUTO_ENRICH is ON, this replaces the need for separate cron jobs
 for m3_enrich and m3_entities.
 """
-
 import argparse
 import asyncio
 import atexit
@@ -29,6 +28,8 @@ import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+
+from m3_core.seams import is_windows
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 _BIN = REPO_ROOT / "bin"
@@ -2031,7 +2032,7 @@ def main():
     args = parser.parse_args()
 
     if args.background:
-        if sys.platform == "win32":
+        if is_windows():
             daemonize_windows(args)
         else:
             daemonize_unix()

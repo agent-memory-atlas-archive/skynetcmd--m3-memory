@@ -1,8 +1,8 @@
 ---
 tool: bin/pg_setup.py
-sha1: fd84f57d323a
-mtime_utc: 2026-10-09T02:24:13.632428+00:00
-generated_utc: 2026-10-09T02:27:13.142725+00:00
+sha1: 9ce5d31020f5
+mtime_utc: 2026-10-10T06:50:41.184999+00:00
+generated_utc: 2026-10-10T06:50:42.360696+00:00
 private: false
 ---
 
@@ -47,6 +47,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
+- `m3_core.seams (is_windows)`
 - `m3_core.secret_store (PgRole, resolve_pg_dsn)`
 - `psycopg2`
 

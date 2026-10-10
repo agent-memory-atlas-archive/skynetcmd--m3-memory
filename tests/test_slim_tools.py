@@ -23,6 +23,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import skip_reason
+
 _BIN = Path(__file__).resolve().parent.parent / "bin"
 if str(_BIN) not in sys.path:
     sys.path.insert(0, str(_BIN))
@@ -112,7 +114,7 @@ def test_description_names_the_omitted_parameters(full_name):
     slim_props = set((slim.parameters or {}).get("properties", {}))
     omitted = full_props - slim_props - _UNIVERSAL
     if not omitted:
-        pytest.skip(f"{full_name} omits nothing")
+        pytest.skip(skip_reason("na", f"{full_name} omits nothing"))
     named = [p for p in omitted if p in slim.description]
     assert named, (
         f"{full_name}_slim omits {sorted(omitted)} but names none of them in "

@@ -23,6 +23,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import skip_reason
+
 _ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -34,7 +36,7 @@ def _run(cmd: list[str], cwd: Path) -> str:
 
 
 @pytest.mark.skipif(shutil.which("claude") is None,
-                    reason="claude binary not on PATH — plugin validator unavailable")
+                    reason=skip_reason("env", "claude binary not on PATH — plugin validator unavailable"))
 def test_claude_plugin_validates():
     """`claude plugin validate .` must report success for m3's .claude-plugin.
 
@@ -46,7 +48,7 @@ def test_claude_plugin_validates():
 
 
 @pytest.mark.skipif(shutil.which("agy") is None,
-                    reason="agy binary not on PATH — Antigravity validator unavailable")
+                    reason=skip_reason("env", "agy binary not on PATH — Antigravity validator unavailable"))
 def test_antigravity_plugin_validates():
     """`agy plugin validate .antigravity-plugin` must report [ok] with no error."""
     plugin_dir = _ROOT / ".antigravity-plugin"
@@ -58,7 +60,7 @@ def test_antigravity_plugin_validates():
 
 
 @pytest.mark.skipif(shutil.which("claude") is None,
-                    reason="claude binary not on PATH")
+                    reason=skip_reason("env", "claude binary not on PATH"))
 def test_claude_marketplace_validates():
     """The marketplace manifest itself must validate (users add it via
     `/plugin marketplace add skynetcmd/m3-memory`)."""

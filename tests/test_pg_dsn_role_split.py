@@ -16,6 +16,8 @@ sys.path.insert(0, str(_BIN))
 
 from m3_core import paths as _paths  # noqa: E402
 
+from conftest import simulate_os
+
 
 @pytest.fixture(autouse=True)
 def _clear_pg_env(monkeypatch):
@@ -126,7 +128,7 @@ class TestInstallerMultiLocationScan:
         )
         monkeypatch.setattr(I.Path, "home", staticmethod(lambda: home))
         # Isolate from the host's real Windows registry so the count is deterministic.
-        monkeypatch.setattr(I.sys, "platform", "linux")
+        simulate_os(monkeypatch, "Linux")
 
         locs = I._find_deprecated_pg_url_locations()
         # ALL THREE surfaced — not just the first found.
@@ -152,7 +154,7 @@ class TestInstallerMultiLocationScan:
         monkeypatch.chdir(tmp_path)
         # Neutralize the Windows registry branch so this "clean" case doesn't pick
         # up a real HKCU PG_URL on the test machine (isolate the unit under test).
-        monkeypatch.setattr(I.sys, "platform", "linux")
+        simulate_os(monkeypatch, "Linux")
 
         assert I._find_deprecated_pg_url_locations() == []
         I._assert_no_deprecated_pg_url_anywhere()  # must not raise
@@ -168,7 +170,7 @@ class TestInstallerMultiLocationScan:
         home.mkdir()
         monkeypatch.setattr(I.Path, "home", staticmethod(lambda: home))
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setattr(I.sys, "platform", "win32")
+        simulate_os(monkeypatch, "Windows")
 
         # Fake winreg: PG_URL present at HKCU\Environment, absent at HKLM.
         store = {("HKCU", r"Environment"): {"PG_URL": ("postgresql://reg/legacy", 1)}}
@@ -194,7 +196,7 @@ class TestInstallerMultiLocationScan:
         )
         monkeypatch.setattr(I.Path, "home", staticmethod(lambda: home))
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setattr(I.sys, "platform", "linux")  # isolate from host registry
+        simulate_os(monkeypatch, "Linux")  # isolate from host registry
 
         assert I._find_deprecated_pg_url_locations() == []
 
@@ -346,7 +348,7 @@ class TestRegistryEnvMigration:
     def _wire(self, monkeypatch, store):
         from m3_memory import installer as I
 
-        monkeypatch.setattr(I.sys, "platform", "win32")
+        simulate_os(monkeypatch, "Windows")
         monkeypatch.setitem(__import__("sys").modules, "winreg",
                             _make_fake_winreg(store))
         # avoid a real WM_SETTINGCHANGE broadcast in the test
@@ -414,6 +416,6 @@ class TestRegistryEnvMigration:
 
     def test_noop_on_non_windows(self, monkeypatch):
         from m3_memory import installer as I
-        monkeypatch.setattr(I.sys, "platform", "linux")
+        simulate_os(monkeypatch, "Linux")
         assert I._migrate_registry_env_names(apply=True) == []
         assert I._scan_registry_env_deprecations({"PG_URL": "M3_CDW_PG_URL"}) == []

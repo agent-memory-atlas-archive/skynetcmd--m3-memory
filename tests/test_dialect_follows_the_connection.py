@@ -23,6 +23,8 @@ import sys
 
 import pytest
 
+from conftest import skip_reason
+
 _HERE = os.path.dirname(__file__)
 _BIN = os.path.normpath(os.path.join(_HERE, "..", "bin"))
 if _BIN not in sys.path:
@@ -88,7 +90,7 @@ def test_an_unknown_driver_falls_back_rather_than_raising():
 
 @pytest.mark.skipif(
     not os.environ.get("M3_PRIMARY_PG_URL"),
-    reason="no PostgreSQL URL configured",
+    reason=skip_reason("db", "no PostgreSQL URL configured"),
 )
 def test_a_real_postgres_cursor_gets_the_postgres_param(monkeypatch):
     """The other half: the detector must actually DISCRIMINATE. Without this,
@@ -105,7 +107,7 @@ def test_a_real_postgres_cursor_gets_the_postgres_param(monkeypatch):
         except ImportError:
             continue
     if driver is None:
-        pytest.skip("neither psycopg nor psycopg2 is installed")
+        pytest.skip(skip_reason("db", "neither psycopg nor psycopg2 is installed"))
 
     monkeypatch.setenv("M3_DB_BACKEND", "sqlite")  # global says the opposite
     conn = driver.connect(os.environ["M3_PRIMARY_PG_URL"], connect_timeout=10)

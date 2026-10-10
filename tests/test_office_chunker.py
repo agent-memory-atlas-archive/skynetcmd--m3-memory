@@ -13,6 +13,8 @@ import sys
 
 import pytest
 
+from conftest import skip_reason
+
 _BIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "bin"))
 sys.path.insert(0, _BIN)
 
@@ -20,9 +22,9 @@ from files_memory import chunkers, identity  # noqa: E402
 from files_memory.chunkers import office as office_chunker  # noqa: E402
 
 pytestmark = pytest.mark.skipif(
-    not office_chunker.available, reason="sharepoint-to-text not installed")
+    not office_chunker.available, reason=skip_reason("dep", "sharepoint-to-text not installed"))
 
-docx = pytest.importorskip("docx", reason="python-docx needed to BUILD fixtures")
+docx = pytest.importorskip("docx", reason=skip_reason("dep", "python-docx needed to BUILD fixtures"))
 
 
 def _docx(tmp_path, sections):

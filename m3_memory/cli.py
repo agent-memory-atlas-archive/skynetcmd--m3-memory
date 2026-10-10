@@ -20,6 +20,8 @@ import sys
 from pathlib import Path  # noqa: F401 - used in _auto_install return-type comment
 from typing import override
 
+from m3_memory._platform import is_windows
+
 
 def _ensure_utf8() -> None:
     """Guarantee the whole m3 process tree runs in Python UTF-8 mode.
@@ -73,7 +75,7 @@ def _ensure_utf8() -> None:
     # errors, destructive-gate refusals, impl failures) to 0. That violates §3
     # ("fail loud, never silent"). So on Windows we run the re-exec'd command as
     # a real subprocess and propagate its exit code explicitly.
-    if os.name == "nt":
+    if is_windows():
         import subprocess
         try:
             completed = subprocess.run(new_argv)
@@ -421,7 +423,7 @@ def _cmd_stop(args: argparse.Namespace) -> int:
     # killing them alone lets systemd/launchd start them again.
     services: list = []
     keep_roles: list = []
-    if sys.platform != "win32":
+    if not is_windows():
         try:
             import install_schedules  # type: ignore[unused-ignore]
             # The Rust embed server stays up (see keeps_rust_embed_server).
@@ -694,7 +696,7 @@ def _cmd_schedules(args: argparse.Namespace) -> int:
     # letting the child fail and print a command to paste into another shell.
     # A missed UAC dialog re-asks; declining falls through to the unelevated run
     # so nothing becomes unreachable just because elevation was refused.
-    if sys.platform == "win32" and sub in ("repair", "add", "remove"):
+    if is_windows() and sub in ("repair", "add", "remove"):
         script = _resolve_bin_script("install_schedules.py")
         if script and _elevate_schedules_windows(str(script), argv, sub):
             return 0
@@ -1267,7 +1269,7 @@ def _cmd_chatlog(args: argparse.Namespace) -> int:
         if bridge is None:
             print(file=sys.stdout)  # empty — caller should treat as no-op
             return 1
-        if sys.platform == "win32":
+        if is_windows():
             script = bridge.parent / "hooks" / "chatlog" / "claude_code_precompact.ps1"
         else:
             script = bridge.parent / "hooks" / "chatlog" / "claude_code_precompact.sh"

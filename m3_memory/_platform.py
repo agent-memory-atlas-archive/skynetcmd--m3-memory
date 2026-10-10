@@ -13,25 +13,51 @@ Windows/Linux/Darwin comparison.
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
+
+# The sys.platform value that names each supported OS. sys.platform is the ONE
+# knob this module reads to tell OSes apart, so it is also the one a test turns to
+# present another OS (tests/conftest.py simulate_os). Not os.name: pathlib picks
+# WindowsPath/PosixPath from os.name, so patching it breaks every later Path().
+# On a real system the two always agree (win32 <-> nt).
+PLATFORM_OF: dict[str, str] = {"Windows": "win32", "Darwin": "darwin", "Linux": "linux"}
+
+_UNSUPPORTED_WARNED = False
 
 
 def os_name() -> str:
     """Return 'Windows', 'Darwin', or 'Linux' without touching WMI.
 
-    Drop-in for ``platform.system()`` in OS-branch comparisons. Derived from
-    ``os.name`` (nt/posix) and ``sys.platform`` (win32/darwin/linux*).
+    Drop-in for ``platform.system()`` in OS-branch comparisons. An OS outside the
+    support contract (FreeBSD, ...) is answered 'Linux', the nearest POSIX family,
+    as before, but no longer silently: it warns once.
     """
-    if os.name == "nt":
+    if is_windows():
         return "Windows"
-    if sys.platform == "darwin":
+    if is_macos():
         return "Darwin"
+    if not is_linux():
+        global _UNSUPPORTED_WARNED
+        if not _UNSUPPORTED_WARNED:
+            _UNSUPPORTED_WARNED = True
+            logging.getLogger("m3_memory.platform").warning(
+                "unsupported OS; observed: sys.platform=%r, treated as Linux. m3 supports "
+                "Windows, macOS and Linux. inspect: m3_memory/_platform.py", sys.platform)
     return "Linux"
 
 
 def is_windows() -> bool:
-    return os.name == "nt"
+    return sys.platform == "win32"
+
+
+def is_macos() -> bool:
+    return sys.platform == "darwin"
+
+
+def is_linux() -> bool:
+    return sys.platform.startswith("linux")
 
 
 def is_apple_silicon() -> bool:

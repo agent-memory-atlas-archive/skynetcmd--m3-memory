@@ -56,6 +56,8 @@ from contextlib import asynccontextmanager
 from datetime import UTC
 from typing import Any, override
 
+from m3_core.seams import is_windows
+
 
 # ── Crash visibility, installed BEFORE any heavy import ───────────────────────
 #
@@ -3059,7 +3061,7 @@ def _dashboard_pids_by_cmdline() -> set[int]:
     me = os.getpid()
     pids: set[int] = set()
     try:
-        if sys.platform == "win32":
+        if is_windows():
             import subprocess
 
             from _task_runtime import no_window_kwargs
@@ -3104,7 +3106,7 @@ def _kill_pid(pid: int) -> bool:
     """Terminate a pid cross-platform (taskkill /F on Windows, SIGTERM on POSIX)."""
     import subprocess
     try:
-        if sys.platform == "win32":
+        if is_windows():
             from _task_runtime import no_window_kwargs
             subprocess.run(["taskkill", "/F", "/PID", str(pid)],  # noqa: S603,S607
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -3185,7 +3187,7 @@ def _spawn_detached(host: str, port: int) -> int:
     env["M3_DASHBOARD_HOST"] = host
     env["M3_DASHBOARD_PORT"] = str(port)
     script = os.path.abspath(__file__)
-    if sys.platform == "win32":
+    if is_windows():
         # pythonw.exe (GUI subsystem) = the OS never allocates a console → no
         # window, no flash. CREATE_NO_WINDOW belts-and-braces the no-console
         # guarantee; DETACHED_PROCESS lets the child outlive this process/terminal.

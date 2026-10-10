@@ -12,6 +12,8 @@ import sys
 
 import pytest
 
+from conftest import simulate_os
+
 BIN = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bin")
 if BIN not in sys.path:
     sys.path.insert(0, BIN)
@@ -97,7 +99,7 @@ def test_missing_root_pins_are_caught(probe, wire, tmp_path, monkeypatch):
     POSIX only — the inline `VAR=val` prefix is POSIX shell syntax. See
     test_posix_prefix_on_windows_is_the_finding for the inverted Windows rule.
     """
-    monkeypatch.setattr(probe.os, "name", "posix")
+    simulate_os(monkeypatch, "Linux")
     py = _make(tmp_path, "venv/Scripts/python.exe")
     sc = _make(tmp_path, "venv/Lib/site-packages/m3_memory/bin/hooks/chatlog/cc.py")
     wire({"PreCompact": f"{py} {sc}"})  # no set M3_ENGINE_ROOT/M3_CONFIG_ROOT
@@ -116,7 +118,7 @@ def test_unpinned_roots_is_not_a_finding_on_windows(probe, wire, tmp_path, monke
     `--fix-hooks` to reinstate the very thing that breaks capture — the probe
     causing the outage it exists to detect (§5).
     """
-    monkeypatch.setattr(probe.os, "name", "nt")
+    simulate_os(monkeypatch, "Windows")
     py = _make(tmp_path, "venv/Scripts/python.exe")
     sc = _make(tmp_path, "venv/Lib/site-packages/m3_memory/bin/hooks/chatlog/cc.py")
     wire({"PreCompact": f"{py} {sc}"})
@@ -133,7 +135,7 @@ def test_posix_prefix_on_windows_is_the_finding(probe, wire, tmp_path, monkeypat
     silently dead with only a stalled last_write_at as evidence. This is the
     check that would have caught it on day one.
     """
-    monkeypatch.setattr(probe.os, "name", "nt")
+    simulate_os(monkeypatch, "Windows")
     py = _make(tmp_path, "venv/Scripts/python.exe")
     sc = _make(tmp_path, "venv/Lib/site-packages/m3_memory/bin/hooks/chatlog/cc.py")
     wire({"PreCompact": f"M3_ENGINE_ROOT=C:/x/engine M3_CONFIG_ROOT=C:/x/config {py} {sc}"})

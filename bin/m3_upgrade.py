@@ -56,6 +56,8 @@ import subprocess  # nosec B404 - orchestrates known package managers, never a s
 import sys
 import time
 
+from m3_core.seams import is_windows
+
 # How m3_memory got onto this machine. The upgrade command differs per method.
 PIPX = "pipx"
 PIP = "pip"
@@ -75,7 +77,7 @@ def find_m3_launcher() -> str | None:
     if found:
         return found
     here = pathlib.Path(sys.executable).parent
-    for name in ("m3.exe", "m3") if sys.platform == "win32" else ("m3",):
+    for name in ("m3.exe", "m3") if is_windows() else ("m3",):
         candidate = here / name
         if candidate.is_file():
             return str(candidate)
@@ -335,7 +337,7 @@ def locked_launchers(scripts_dir: pathlib.Path, names: list[str]) -> list[pathli
     then fails on the held file, leaving m3 uninstalled. Probing with the same
     rename pip performs measures exactly that condition.
     """
-    if os.name != "nt":
+    if not is_windows():
         return []
     locked = []
     for name in names:
@@ -445,7 +447,7 @@ def interactive_console() -> bool:
             return False
     except (AttributeError, ValueError):
         return False
-    if os.name != "nt":
+    if not is_windows():
         return True
     import ctypes
     from ctypes import wintypes

@@ -1,8 +1,8 @@
 ---
 tool: bin/auth_utils.py
-sha1: ef274d0ac721
-mtime_utc: 2026-10-10T05:54:26.011266+00:00
-generated_utc: 2026-10-10T05:56:57.944517+00:00
+sha1: 38613e5babf9
+mtime_utc: 2026-10-10T06:50:41.182154+00:00
+generated_utc: 2026-10-10T06:50:41.726365+00:00
 private: false
 ---
 
@@ -62,6 +62,7 @@ _(no argparse arguments detected)_
 - `cryptography.fernet (Fernet)`
 - `keyring`
 - `m3_core.errors (log_swallowed)`
+- `m3_core.seams (is_macos, is_windows, os_name)`
 - `m3_core.secret_store (SecretsFileError)`
 - `m3_core.secret_store (explain_named_secret)`
 - `m3_core.secret_store (get_secret)`

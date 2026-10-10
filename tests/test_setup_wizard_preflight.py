@@ -24,6 +24,7 @@ from unittest import mock
 
 import pytest
 
+from conftest import simulate_os, skip_reason
 from m3_memory import setup_wizard
 
 # The real preflight stop, captured before the autouse stub below replaces it.
@@ -146,14 +147,14 @@ def test_find_running_parses_csv_pids(monkeypatch):
 def test_find_running_returns_empty_on_non_windows(monkeypatch):
     """On Unix the scan short-circuits to an empty list (rename-in-place
     means a running binary doesn't block reinstall — no scan needed)."""
-    monkeypatch.setattr(sys, "platform", "linux")
+    simulate_os(monkeypatch, "Linux")
     assert setup_wizard._find_running_mcp_memory_processes() == []
 
 
 def test_find_running_handles_subprocess_error(monkeypatch):
     """Tasklist crash or timeout returns [], doesn't raise."""
     if sys.platform != "win32":
-        pytest.skip("error-handling path only fires when tasklist would be invoked")
+        pytest.skip(skip_reason("na", "error-handling path only fires when tasklist would be invoked"))
 
     def boom(*a, **kw):
         raise subprocess.TimeoutExpired("tasklist", 10)
@@ -525,7 +526,7 @@ def test_present_payload_still_reregisters_the_loop(monkeypatch, platform, enabl
     monkeypatch.setattr(installer, "find_bridge", lambda: "/payload/bin/memory_bridge.py")
     monkeypatch.setattr(installer, "_register_cognitive_loop_task",
                         lambda: calls.append(1) or True)
-    monkeypatch.setattr(setup_wizard.sys, "platform", platform)
+    monkeypatch.setattr(sys, "platform", platform)
     plan = setup_wizard.SetupPlan()
     plan.cognitive_loop = enabled
     assert setup_wizard._step_install_m3(plan) is True
@@ -545,7 +546,7 @@ def test_persist_embed_gguf_writes_zshrc(monkeypatch, tmp_path):
 
     monkeypatch.setattr(Path, "home", lambda: home)
     monkeypatch.setenv("SHELL", "/bin/zsh")
-    monkeypatch.setattr(sys, "platform", "darwin")  # not win32
+    simulate_os(monkeypatch, "Darwin")  # not win32
 
     setup_wizard._persist_embed_gguf("/path/to/bge-m3.gguf", non_interactive=True)
 
@@ -568,7 +569,7 @@ def test_persist_embed_gguf_idempotent(monkeypatch, tmp_path):
 
     monkeypatch.setattr(Path, "home", lambda: home)
     monkeypatch.setenv("SHELL", "/bin/zsh")
-    monkeypatch.setattr(sys, "platform", "darwin")
+    simulate_os(monkeypatch, "Darwin")
 
     setup_wizard._persist_embed_gguf("/new/path.gguf", non_interactive=True)
 
@@ -595,7 +596,7 @@ def test_persist_embed_gguf_patches_claude_settings(monkeypatch, tmp_path):
 
     monkeypatch.setattr(Path, "home", lambda: home)
     monkeypatch.setenv("SHELL", "/bin/zsh")
-    monkeypatch.setattr(sys, "platform", "darwin")
+    simulate_os(monkeypatch, "Darwin")
 
     setup_wizard._persist_embed_gguf("/path/to/bge-m3.gguf", non_interactive=True)
 
@@ -620,7 +621,7 @@ def test_persist_embed_gguf_skips_settings_without_memory_entry(monkeypatch, tmp
 
     monkeypatch.setattr(Path, "home", lambda: home)
     monkeypatch.setenv("SHELL", "/bin/zsh")
-    monkeypatch.setattr(sys, "platform", "darwin")
+    simulate_os(monkeypatch, "Darwin")
 
     setup_wizard._persist_embed_gguf("/path/to/bge-m3.gguf", non_interactive=True)
 
@@ -635,7 +636,7 @@ def test_persist_embed_gguf_uses_setx_on_windows(monkeypatch, tmp_path):
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setattr(Path, "home", lambda: home)
-    monkeypatch.setattr(sys, "platform", "win32")
+    simulate_os(monkeypatch, "Windows")
 
     captured: list = []
 
@@ -679,7 +680,7 @@ def test_persist_embed_gguf_patches_mcp_settings_on_windows(monkeypatch, tmp_pat
     }), encoding="utf-8")
 
     monkeypatch.setattr(Path, "home", lambda: home)
-    monkeypatch.setattr(sys, "platform", "win32")
+    simulate_os(monkeypatch, "Windows")
     # Stub setx so the shell-env step doesn't try to execute a real binary.
     monkeypatch.setattr(subprocess, "run",
                         lambda *a, **kw: mock.Mock(returncode=0, stdout="", stderr=""))
@@ -697,7 +698,7 @@ def test_persist_embed_gguf_setx_failure_is_non_fatal(monkeypatch, tmp_path):
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setattr(Path, "home", lambda: home)
-    monkeypatch.setattr(sys, "platform", "win32")
+    simulate_os(monkeypatch, "Windows")
 
     def boom(*a, **kw):
         raise OSError("setx not found")
@@ -1059,7 +1060,7 @@ def test_interactive_kill_retries_with_sudo(monkeypatch, capsys):
     sudo_calls = []
     monkeypatch.setattr(setup_wizard, "_sudo_kill_posix",
                         lambda pid: sudo_calls.append(pid) or True)
-    monkeypatch.setattr(setup_wizard.sys, "platform", "linux")
+    simulate_os(monkeypatch, "Linux")
 
     assert setup_wizard._quiesce_db_writers(_q_args(non_interactive=False)) is True
     assert sudo_calls == [777]  # sudo was attempted for the refused pid
@@ -1089,7 +1090,7 @@ def test_interactive_kill_retries_with_runas_on_windows(monkeypatch):
     fake = _FakeHalt(live=list(stuck), quiesce_results=[_R(False, stuck), _R(True)])
     monkeypatch.setattr(setup_wizard, "_import_m3_halt", lambda: fake)
     monkeypatch.setattr(setup_wizard, "_ask_choice", lambda *a, **k: "kill")
-    monkeypatch.setattr(setup_wizard.sys, "platform", "win32")
+    simulate_os(monkeypatch, "Windows")
     monkeypatch.setattr(setup_wizard, "_kill_process_windows", lambda pid: False)
     runas_calls = []
     monkeypatch.setattr(setup_wizard, "_runas_kill_windows",
@@ -1148,7 +1149,7 @@ def test_quiesce_registers_atexit_clear(monkeypatch):
 def test_offer_elevated_repair_noop_off_windows(monkeypatch):
     """Linux/macOS register user-level services (no privilege) — so the elevation
     offer is a no-op there; it must NEVER prompt or try to elevate."""
-    monkeypatch.setattr(setup_wizard.sys, "platform", "linux")
+    simulate_os(monkeypatch, "Linux")
     asked = []
     monkeypatch.setattr(setup_wizard, "_ask_yes_no", lambda *a, **k: asked.append(1) or True)
     assert setup_wizard._offer_elevated_schedule_repair("x", non_interactive=False) is False
@@ -1157,7 +1158,7 @@ def test_offer_elevated_repair_noop_off_windows(monkeypatch):
 
 def test_offer_elevated_repair_noop_non_interactive(monkeypatch):
     """Non-interactive never elevates (UAC is a GUI prompt with no one to consent)."""
-    monkeypatch.setattr(setup_wizard.sys, "platform", "win32")
+    simulate_os(monkeypatch, "Windows")
     ran = []
     monkeypatch.setattr(setup_wizard, "_runas_schedule_repair_windows", lambda s: ran.append(s) or True)
     assert setup_wizard._offer_elevated_schedule_repair("x", non_interactive=True) is False
@@ -1166,7 +1167,7 @@ def test_offer_elevated_repair_noop_non_interactive(monkeypatch):
 
 def test_offer_elevated_repair_runs_on_yes(monkeypatch):
     """Interactive Windows, user says yes -> UAC repair runs; success -> True."""
-    monkeypatch.setattr(setup_wizard.sys, "platform", "win32")
+    simulate_os(monkeypatch, "Windows")
     # "Interactive" now means a real console, not the caller's non_interactive
     # flag — pytest's stdin is not a tty, so state the premise explicitly.
     monkeypatch.setattr(setup_wizard, "_stdin_is_interactive", lambda: True)
@@ -1181,7 +1182,7 @@ def test_offer_elevated_repair_runs_on_yes(monkeypatch):
 
 def test_offer_elevated_repair_declined(monkeypatch):
     """User declines the prompt -> no elevation, returns False (falls back to banner)."""
-    monkeypatch.setattr(setup_wizard.sys, "platform", "win32")
+    simulate_os(monkeypatch, "Windows")
     monkeypatch.setattr(setup_wizard, "_ask_yes_no", lambda *a, **k: False)
     ran = []
     monkeypatch.setattr(setup_wizard, "_runas_schedule_repair_windows", lambda s: ran.append(s) or True)
@@ -1211,7 +1212,7 @@ class TestGuiChildElevation:
     without a terminal yes/no prompt."""
 
     def test_headless_noninteractive_skips_uac(self, monkeypatch):
-        monkeypatch.setattr(sys, "platform", "win32")
+        simulate_os(monkeypatch, "Windows")
         called = {"runas": False}
         monkeypatch.setattr(setup_wizard, "_runas_delete_tasks_windows",
                             lambda names: called.__setitem__("runas", True) or True)
@@ -1221,7 +1222,7 @@ class TestGuiChildElevation:
         assert called["runas"] is False  # never attempted headless
 
     def test_gui_child_attempts_uac_without_prompt(self, monkeypatch):
-        monkeypatch.setattr(sys, "platform", "win32")
+        simulate_os(monkeypatch, "Windows")
         called = {"runas": False, "asked": False}
         monkeypatch.setattr(setup_wizard, "_runas_delete_tasks_windows",
                             lambda names: called.__setitem__("runas", True) or True)
@@ -1234,7 +1235,7 @@ class TestGuiChildElevation:
         assert called["asked"] is False  # no terminal prompt (can't, in a GUI child)
 
     def test_terminal_interactive_asks_first(self, monkeypatch):
-        monkeypatch.setattr(sys, "platform", "win32")
+        simulate_os(monkeypatch, "Windows")
         called = {"runas": False, "asked": False}
         monkeypatch.setattr(setup_wizard, "_runas_delete_tasks_windows",
                             lambda names: called.__setitem__("runas", True) or True)
@@ -1247,7 +1248,7 @@ class TestGuiChildElevation:
         assert called["runas"] is True
 
     def test_non_windows_never_elevates(self, monkeypatch):
-        monkeypatch.setattr(sys, "platform", "linux")
+        simulate_os(monkeypatch, "Linux")
         out = setup_wizard._offer_elevated_task_delete(
             ["AgentOS_Maintenance"], non_interactive=True, gui=True)
         assert out is False
@@ -1277,14 +1278,14 @@ class TestGuiChildElevationMacOS:
 
     def test_task_delete_is_noop_on_macos_even_with_gui(self, monkeypatch):
         # _offer_elevated_task_delete is Windows-only by construction.
-        monkeypatch.setattr(sys, "platform", "darwin")
+        simulate_os(monkeypatch, "Darwin")
         assert setup_wizard._offer_elevated_task_delete(
             ["AgentOS_Maintenance"], non_interactive=True, gui=True) is False
 
     def test_kill_stuck_writers_does_not_sudo_when_allow_sudo_false(self, monkeypatch):
         # The GUI path passes allow_sudo = (gui and win32); on macOS that's False,
         # so a refused kill must NOT escalate to _sudo_kill_posix (would prompt).
-        monkeypatch.setattr(sys, "platform", "darwin")
+        simulate_os(monkeypatch, "Darwin")
         sudo_called = {"n": 0}
         monkeypatch.setattr(setup_wizard, "_kill_process_posix", lambda pid: False)
         monkeypatch.setattr(setup_wizard, "_sudo_kill_posix",

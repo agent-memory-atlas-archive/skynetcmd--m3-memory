@@ -14,6 +14,8 @@ from unittest.mock import patch
 
 import pytest
 
+from conftest import simulate_os
+
 # The real host platform, captured at import time BEFORE the autouse
 # _isolate_home fixture fakes sys.platform="linux". A few tests need the true
 # value to exercise cross-platform code paths honestly.
@@ -34,7 +36,7 @@ def _isolate_home(monkeypatch, tmp_path):
     # var and force sys.platform off win32 so the host machine's real HKCU PG_URL
     # (if any) can't trip the guard. HOME already points at tmp_path (no profiles).
     monkeypatch.delenv("PG_URL", raising=False)
-    monkeypatch.setattr(sys, "platform", "linux")
+    simulate_os(monkeypatch, "Linux")
     # Reload the installer module so any module-level paths re-resolve against
     # the new HOME. (There aren't any today, but cheap insurance.)
     if "m3_memory.installer" in sys.modules:
@@ -831,7 +833,7 @@ class TestDbBackendSelection:
         fake = types.SimpleNamespace(HKEY_CURRENT_USER="HKCU", HKEY_LOCAL_MACHINE="HKLM",
                                      OpenKey=open_key, QueryValueEx=query)
         monkeypatch.setitem(sys.modules, "winreg", fake)
-        monkeypatch.setattr(inst.sys, "platform", "win32")
+        simulate_os(monkeypatch, "Windows")
         unchecked: list[str] = []
         assert inst._scan_registry_env_deprecations({"M3_PG_URL": ""}, unchecked) == []
         assert len(unchecked) == 1 and "Machine" in unchecked[0] and "access denied" in unchecked[0]

@@ -18,6 +18,8 @@ if _BIN not in sys.path:
 
 from doctor import shared_embedder_probe as P  # noqa: E402
 
+from conftest import simulate_os
+
 
 @pytest.fixture(autouse=True)
 def _clear_embed_env(monkeypatch):
@@ -133,7 +135,7 @@ def test_unix_no_keepalive_points_at_rust_not_windows_task(monkeypatch, cfg_root
     # On Unix with no Rust binary, the probe must NOT claim a scheduled-task
     # fallback (schtasks is Windows-only). The --fix path points at the Rust
     # systemd/launchd service instead of pretending to register a task (§1 3-OS).
-    monkeypatch.setattr(P.sys, "platform", "linux")
+    simulate_os(monkeypatch, "Linux")
     _write_shared_config(cfg_root)
     _patch(monkeypatch, health="ok", rust=False, task=None)
     rc = P.run(brief=False, fix=True)
@@ -145,7 +147,7 @@ def test_unix_no_keepalive_points_at_rust_not_windows_task(monkeypatch, cfg_root
 
 
 def test_fix_register_task_refuses_on_unix(monkeypatch, capsys):
-    monkeypatch.setattr(P.sys, "platform", "darwin")
+    simulate_os(monkeypatch, "Darwin")
     assert P._fix_register_task() is False
     out = capsys.readouterr().out
     assert "m3 embedder install" in out
@@ -231,7 +233,7 @@ def test_manual_only_verbose_prints_removal_command(monkeypatch, cfg_root, capsy
     # claim "the fix prints the exact command".
     _write_shared_config(cfg_root)
     _patch(monkeypatch, health="ok", rust=True)
-    monkeypatch.setattr(P.sys, "platform", "darwin")
+    simulate_os(monkeypatch, "Darwin")
     rc_file = no_env_leak / ".zshrc"
     rc_file.write_text('export M3_EMBED_GGUF="/models/bge-m3.gguf"\n')
     monkeypatch.setenv("M3_EMBED_GGUF", "/models/bge-m3.gguf")
@@ -246,7 +248,7 @@ def test_manual_only_verbose_prints_removal_command(monkeypatch, cfg_root, capsy
 def test_manual_only_verbose_prints_windows_command(monkeypatch, cfg_root, capsys, no_env_leak):
     _write_shared_config(cfg_root)
     _patch(monkeypatch, health="ok", rust=True)
-    monkeypatch.setattr(P.sys, "platform", "win32")
+    simulate_os(monkeypatch, "Windows")
     monkeypatch.setattr(P, "_windows_user_env_has", lambda var: True)
     rc = P.run(brief=False, fix=False)
     out = capsys.readouterr().out

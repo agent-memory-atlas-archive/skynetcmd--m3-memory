@@ -1,11 +1,11 @@
 import logging
 import os
-import sys
 import time
 from pathlib import Path
 from typing import Any
 
 from m3_core.paths import get_m3_config_root
+from m3_core.seams import is_linux, is_macos, is_windows
 
 logger = logging.getLogger("M3_SDK")
 
@@ -165,7 +165,7 @@ def _no_window() -> dict:
     import subprocess as _sp
     # getattr, not _sp.CREATE_NO_WINDOW: the attribute only exists on Windows, so
     # a direct reference fails mypy on the Linux CI runner.
-    flags = getattr(_sp, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+    flags = getattr(_sp, "CREATE_NO_WINDOW", 0) if is_windows() else 0
     return {"creationflags": flags} if flags else {}
 
 
@@ -189,7 +189,7 @@ def _gpu_util_windows_counter() -> float | None:
     """Windows AMD/Intel/NVIDIA via the '\\GPU Engine(*)\\Utilization Percentage'
     perf counter (covers Vulkan/D3D on any vendor). Sums per-engine usage,
     capped at 100. None = unavailable / not Windows."""
-    if os.name != "nt":
+    if not is_windows():
         return None
     import subprocess
     try:
@@ -217,7 +217,7 @@ def _gpu_util_windows_counter() -> float | None:
 def _gpu_util_macos_ioreg() -> float | None:
     """macOS (Apple Silicon Metal / AMD eGPU) via ioreg IOAccelerator
     'Device Utilization %' — no sudo. None = unavailable / not macOS."""
-    if sys.platform != "darwin":
+    if not is_macos():
         return None
     import re as _re
     import subprocess
@@ -238,7 +238,7 @@ def _gpu_util_macos_ioreg() -> float | None:
 def _gpu_util_linux_sysfs() -> float | None:
     """Linux AMD (amdgpu, incl. Vulkan/ROCm) via
     /sys/class/drm/card*/device/gpu_busy_percent. None = unavailable / no file."""
-    if not sys.platform.startswith("linux"):
+    if not is_linux():
         return None
     import glob
     vals = []

@@ -13,10 +13,12 @@ from pathlib import Path
 
 import pytest
 
+from conftest import skip_reason
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bin"))
 
-pytest.importorskip("fastapi", reason="dashboard needs the [web] extra")
-starlette_testclient = pytest.importorskip("starlette.testclient")
+pytest.importorskip("fastapi", reason=skip_reason("dep", "dashboard needs the [web] extra"))
+starlette_testclient = pytest.importorskip("starlette.testclient", reason=skip_reason("dep", f"{'starlette.testclient'} not installed"))
 
 
 def _seed_db(tmp_path) -> str:

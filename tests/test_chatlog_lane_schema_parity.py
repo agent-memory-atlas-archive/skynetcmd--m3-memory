@@ -30,6 +30,8 @@ import sqlite3
 
 import pytest
 
+from conftest import skip_reason
+
 _ROOT = pathlib.Path(__file__).resolve().parents[1]
 _MAIN = _ROOT / "memory" / "migrations"
 _CHAT = _ROOT / "memory" / "chatlog_migrations"
@@ -75,7 +77,7 @@ def test_shared_tables_have_the_same_columns_in_both_lanes(table):
     chat_cols = _columns_after_lane(_CHAT, table)
 
     if not main_cols or not chat_cols:
-        pytest.skip(f"{table} not constructible from one of the lanes in isolation")
+        pytest.skip(skip_reason("na", f"{table} not constructible from one of the lanes in isolation"))
 
     missing_in_chat = main_cols - chat_cols
     missing_in_main = chat_cols - main_cols
@@ -115,7 +117,7 @@ def test_the_parity_guard_can_actually_fail():
     main_cols = _columns_after_lane(_MAIN, "memory_embeddings")
     chat_cols = _columns_after_lane(_CHAT, "memory_embeddings")
     if not main_cols or not chat_cols:
-        pytest.skip("lanes not constructible in isolation")
+        pytest.skip(skip_reason("na", "lanes not constructible in isolation"))
 
     # Simulate the exact 2026-09-12 state: chatlog lane without vector_kind.
     degraded = chat_cols - {"vector_kind"}

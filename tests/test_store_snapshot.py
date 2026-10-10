@@ -13,6 +13,8 @@ import uuid
 
 import pytest
 
+from conftest import skip_reason
+
 BIN = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bin")
 if BIN not in sys.path:
     sys.path.insert(0, BIN)
@@ -221,9 +223,9 @@ def pg_schema_backend():
 
     dsn = pg_dsn()
     if not dsn:
-        pytest.skip("no PostgreSQL DSN")
+        pytest.skip(skip_reason("db", "no PostgreSQL DSN"))
     if not _pg_tools_present():
-        pytest.skip("pg_dump/pg_restore not installed")
+        pytest.skip(skip_reason("db", "pg_dump/pg_restore not installed"))
     import psycopg2
 
     schema = "snap_" + uuid.uuid4().hex[:10]
@@ -283,7 +285,7 @@ def test_pg_password_never_reaches_the_command_line(pg_schema_backend, tmp_path,
     b, _, scoped = pg_schema_backend
     password = parse_dsn(scoped).get("password")
     if not password:
-        pytest.skip("DSN has no password to leak")
+        pytest.skip(skip_reason("na", "DSN has no password to leak"))
     real = type(b)._run_pg_dump
     seen = {}
 

@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Any
 
 from m3_memory._platform import hidden_window_kwargs as _hidden_window_kwargs
+from m3_memory._platform import is_macos, is_windows
 from m3_memory._platform import os_name as _os_name
 from m3_memory._platform import python_exe as _python_exe
 from m3_memory.install.fs import (  # noqa: F401  (re-exported facade surface — see cli.py / test_installer.py importers)
@@ -577,11 +578,11 @@ def _cline_config_path() -> Path:
     Always returns a path (the standard per-OS location) so Cline can be a plain,
     unconditional host entry like the others; whether Cline is actually installed
     is decided by _register_cline_mcp / the file-exists check at scan time."""
-    if sys.platform == "win32":
+    if is_windows():
         # %APPDATA% is the norm; fall back to its default if the env var is unset.
         base = os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming")
         code_user = Path(base) / "Code" / "User"
-    elif sys.platform == "darwin":
+    elif is_macos():
         code_user = Path.home() / "Library" / "Application Support" / "Code" / "User"
     else:
         code_user = Path.home() / ".config" / "Code" / "User"
@@ -864,7 +865,7 @@ def _register_dashboard_task(skip_if_exists: bool = False,
     itself a no-op off win32, so this stays correct on all three OSes.
     """
     try:
-        if skip_if_exists and sys.platform == "win32":
+        if skip_if_exists and is_windows():
             # A 0 exit from schtasks /Query means the task exists → leave it.
             q = subprocess.run(
                 ["schtasks", "/Query", "/TN", "AgentOS_Dashboard"],
@@ -2064,7 +2065,7 @@ def _opencode_source_paths() -> list[Path]:
     Windows). Mirrors setup_wizard._opencode_config_paths / doctor's probe so the
     three agree on where OpenCode's config actually lives."""
     paths = [Path.home() / ".config" / "opencode" / "opencode.json"]
-    if sys.platform == "win32":
+    if is_windows():
         appdata = os.environ.get("APPDATA")
         if appdata:
             paths.append(Path(appdata) / "opencode" / "opencode.json")
@@ -2251,7 +2252,7 @@ def _scan_registry_env_deprecations(names: dict[str, str],
     scope. Each record: {scope, label, subkey, hive_name, old, new, writable}.
     Non-Windows → []. Read-only; never raises. A scope it could not read is
     named in ``unchecked`` when the caller passes a list."""
-    if sys.platform != "win32" or not names:
+    if not is_windows() or not names:
         return []
     skipped = unchecked if unchecked is not None else []
     hits: list[dict] = []
@@ -2489,7 +2490,7 @@ def _broadcast_env_change() -> None:
     """Ask running processes to reload the environment after a registry env write
     (Windows broadcasts WM_SETTINGCHANGE with 'Environment'). Best-effort — the
     change is already persisted; this only nudges live shells. Never raises."""
-    if sys.platform != "win32":
+    if not is_windows():
         return
     try:
         import ctypes

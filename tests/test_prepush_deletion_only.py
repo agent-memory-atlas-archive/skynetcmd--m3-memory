@@ -13,6 +13,8 @@ import subprocess
 
 import pytest
 
+from conftest import skip_reason
+
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
 _HOOK = _ROOT / ".githooks" / "pre-push"
 _ZERO = "0" * 40
@@ -38,7 +40,7 @@ def _git_bash() -> str | None:
 
 
 _BASH = _git_bash()
-pytestmark = pytest.mark.skipif(_BASH is None, reason="git's bash not found")
+pytestmark = pytest.mark.skipif(_BASH is None, reason=skip_reason("env", "git's bash not found"))
 
 
 def _run_hook(stdin: str) -> subprocess.CompletedProcess:

@@ -2,14 +2,15 @@
 
 If Rust and Python diverge on ANY input, that's a finding to document, not hide.
 """
-
 import importlib
 import os
 import sys
 
 import pytest
 
-pytest.importorskip("m3_core_rs")
+from conftest import skip_reason
+
+pytest.importorskip("m3_core_rs", reason=skip_reason("dep", f"{'m3_core_rs'} not installed"))
 import m3_core_rs  # noqa: E402
 
 _BIN = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bin")

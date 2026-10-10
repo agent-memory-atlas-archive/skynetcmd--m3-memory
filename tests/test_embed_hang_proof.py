@@ -251,6 +251,7 @@ def test_installer_scrub_is_m3_only_and_idempotent():
 def test_doctor_detects_and_fixes_env_leak(monkeypatch):
     from doctor import shared_embedder_probe as p
     monkeypatch.delenv("M3_EMBED_GGUF", raising=False)
+    monkeypatch.setattr(p, "_windows_user_env_has", lambda var: False)  # not the real registry
     tmp = tempfile.mkdtemp()
     path = _write_settings_with_leak(tmp)
     monkeypatch.setattr(p, "_known_agent_settings", lambda: [("Test", path)])
@@ -267,6 +268,7 @@ def test_doctor_detects_process_env_leak(monkeypatch):
     from doctor import shared_embedder_probe as p
     monkeypatch.setenv("M3_EMBED_GGUF", "/m/bge.gguf")
     monkeypatch.setattr(p, "_known_agent_settings", lambda: [])
+    monkeypatch.setattr(p, "_windows_user_env_has", lambda var: False)  # not the real registry
     hits = p._detect_inproc_env_leak()
     assert any("process env" in h for h in hits)
 

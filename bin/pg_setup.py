@@ -1,8 +1,8 @@
 import logging
-import os
 import sys
 
 import psycopg2
+from m3_core.seams import is_windows
 
 logging.basicConfig(level=logging.INFO, format='%(name)s: [%(levelname)s] %(message)s')
 logger = logging.getLogger("pg_setup")
@@ -19,7 +19,7 @@ def _get_pg_url() -> str:
     url = resolve_pg_dsn(PgRole.WAREHOUSE)
     if url:
         return url
-    python_cmd = "python" if os.name == "nt" else "python3"
+    python_cmd = "python" if is_windows() else "python3"
     logger.error(f"Data-warehouse DSN not found. Set M3_CDW_PG_URL env var or store it via: {python_cmd} -c \"from auth_utils import set_api_key; set_api_key('PG_URL', 'postgresql://USERNAME:REPLACE_WITH_YOUR_PASSWORD@host:5432/db')\"")
     sys.exit(1)
 

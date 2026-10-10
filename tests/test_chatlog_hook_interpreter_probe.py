@@ -25,6 +25,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import skip_reason
+
 HOOK_DIR = os.path.join(os.path.dirname(__file__), "..", "bin", "hooks", "chatlog")
 HOOK_MODULES = [
     "claude_code_precompact",
@@ -56,12 +58,12 @@ def stub_venv(tmp_path_factory):
     venv.create(root, with_pip=False, system_site_packages=False)
     py = _venv_python(root)
     if py is None:
-        pytest.skip("could not create a stub venv on this platform")
+        pytest.skip(skip_reason("os", "could not create a stub venv on this platform"))
     # Sanity: the stub must genuinely lack httpx, or the test proves nothing.
     rc = subprocess.run([str(py), "-c", "import httpx"],
                         capture_output=True).returncode
     if rc == 0:
-        pytest.skip("stub venv unexpectedly has httpx; cannot test the guard")
+        pytest.skip(skip_reason("na", "stub venv unexpectedly has httpx; cannot test the guard"))
     return root
 
 
@@ -138,7 +140,7 @@ def test_scheduled_task_interpreter_rejects_a_dependency_less_venv(tmp_path):
     exe = "python.exe" if os.name == "nt" else "python"
     stub = root / ".venv" / scripts / exe
     if not stub.exists():
-        pytest.skip("could not create a stub venv on this platform")
+        pytest.skip(skip_reason("os", "could not create a stub venv on this platform"))
 
     # No skip when the probe approves the stub: that IS the defect. The suite
     # runs from the repo root, whose m3_memory/ a cwd-inheriting probe imported,

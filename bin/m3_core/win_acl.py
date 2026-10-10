@@ -15,9 +15,10 @@ import contextlib
 import ctypes
 import os
 import re
-import sys
 import tempfile
 from collections.abc import Iterator
+
+from m3_core.seams import is_windows
 
 _SE_FILE_OBJECT = 1
 _OWNER_SECURITY_INFORMATION = 0x1
@@ -38,7 +39,7 @@ class AclError(OSError):
 def _api():
     """advapi32 + kernel32 with every signature declared: ctypes defaults
     arguments to a C int, which truncates a 64-bit HANDLE or pointer."""
-    if sys.platform != "win32":
+    if not is_windows():
         raise AclError("win_acl is Windows-only")
     from ctypes import wintypes  # lazy: the pure parser below is imported on every OS
 
@@ -63,7 +64,7 @@ def _api():
 
 
 def current_user_sid() -> str:
-    if sys.platform != "win32":  # inline, so mypy on Linux/macOS skips the Windows-only body
+    if not is_windows():  # inline, so mypy on Linux/macOS skips the Windows-only body
         raise AclError("win_acl is Windows-only")
     from ctypes import wintypes
 
@@ -92,7 +93,7 @@ def current_user_sid() -> str:
 
 def file_sddl(path: str) -> str:
     """The owner and DACL of ``path`` as an SDDL string."""
-    if sys.platform != "win32":  # inline, so mypy on Linux/macOS skips the Windows-only body
+    if not is_windows():  # inline, so mypy on Linux/macOS skips the Windows-only body
         raise AclError("win_acl is Windows-only")
     from ctypes import wintypes
 

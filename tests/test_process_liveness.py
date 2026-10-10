@@ -15,6 +15,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import simulate_os, skip_reason
+
 _BIN = Path(__file__).resolve().parent.parent / "bin"
 if str(_BIN) not in sys.path:
     sys.path.insert(0, str(_BIN))
@@ -45,6 +47,7 @@ def _fake_posix(monkeypatch, exc):
     def kill(pid, sig):
         raise exc
     monkeypatch.setattr(process, "os", types.SimpleNamespace(name="posix", kill=kill))
+    simulate_os(monkeypatch, "Linux")  # the branch is chosen by the OS seam
 
 
 @pytest.mark.parametrize("exc, expected", [
@@ -63,7 +66,7 @@ def test_posix_branch_contract_on_every_os(monkeypatch, exc, expected):
 def test_live_owner_matches_own_create_time():
     ct = process.proc_create_time(os.getpid())
     if ct is None:
-        pytest.skip("psutil unavailable: create_time unreadable")
+        pytest.skip(skip_reason("dep", "psutil unavailable: create_time unreadable"))
     assert process.pid_is_live_owner(os.getpid(), ct) is True
 
 
@@ -71,7 +74,7 @@ def test_live_owner_rejects_a_reused_pid():
     """Same live PID, different recorded create_time = a different process."""
     ct = process.proc_create_time(os.getpid())
     if ct is None:
-        pytest.skip("psutil unavailable: create_time unreadable")
+        pytest.skip(skip_reason("dep", "psutil unavailable: create_time unreadable"))
     assert process.pid_is_live_owner(os.getpid(), ct - 10.0) is False
 
 
@@ -185,12 +188,12 @@ def _run_child(via_m3_shell: bool) -> str:
 
 
 def test_agent_client_is_the_nearest_non_m3_ancestor():
-    pytest.importorskip("psutil")
+    pytest.importorskip("psutil", reason=skip_reason("dep", f"{'psutil'} not installed"))
     assert _run_child(via_m3_shell=False) == str(os.getpid())
 
 
 def test_agent_client_skips_a_shell_that_launches_m3():
-    pytest.importorskip("psutil")
+    pytest.importorskip("psutil", reason=skip_reason("dep", f"{'psutil'} not installed"))
     assert _run_child(via_m3_shell=True) == str(os.getpid())
 
 

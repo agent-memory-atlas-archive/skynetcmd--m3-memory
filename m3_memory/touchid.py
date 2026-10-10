@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import os
 import subprocess  # nosec B404 - fixed argv lists, no shell
-import sys
+
+from m3_memory._platform import is_macos
 
 SUDO_LOCAL = "/etc/pam.d/sudo_local"
 TEMPLATE = "/etc/pam.d/sudo_local.template"
@@ -19,7 +20,7 @@ LINE = "auth       sufficient     pam_tid.so"
 
 
 def _is_mac() -> bool:
-    return sys.platform == "darwin"
+    return is_macos()
 
 
 def _active_tid_line(text: str) -> bool:

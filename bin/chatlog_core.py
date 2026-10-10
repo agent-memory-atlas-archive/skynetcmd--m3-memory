@@ -33,6 +33,7 @@ from typing import Any
 
 import chatlog_config
 import chatlog_redaction
+from m3_core.seams import is_windows
 from memory_core import _sanitize_fts
 
 logger = logging.getLogger("chatlog_core")
@@ -1335,7 +1336,7 @@ def _install_sigterm_handler() -> None:
         def _handler(signum, frame):
             _final_drain_sync()
             sys.exit(0)
-        if sys.platform != "win32":
+        if not is_windows():
             signal.signal(signal.SIGTERM, _handler)
     except (ValueError, OSError):
         # Signals can only be set from the main thread of the main interpreter

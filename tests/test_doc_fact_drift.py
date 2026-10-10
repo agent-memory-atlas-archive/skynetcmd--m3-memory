@@ -23,6 +23,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import skip_reason
+
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "bin"))
 
@@ -180,9 +182,9 @@ def _collected_test_count() -> int:
     m = re.search(r"(\d+) tests? collected", proc.stdout)
     if not m:  # pragma: no cover - collection itself is broken; other tests say so
         pytest.skip(
-            "could not parse pytest collection output "
+            skip_reason("na", "could not parse pytest collection output "
             f"(child exit {proc.returncode}); stderr tail: "
-            f"{proc.stderr.strip()[-300:]!r}"
+            f"{proc.stderr.strip()[-300:]!r}")
         )
     if proc.returncode != 0:
         # Visible and attributed, but NOT via `warnings.warn`: this project sets

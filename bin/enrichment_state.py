@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import socket
 import sqlite3
 import subprocess
@@ -30,6 +29,8 @@ import uuid
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import cast
+
+from m3_core.seams import is_windows
 
 # ── Tunables ───────────────────────────────────────────────────────────────
 DEFAULT_MAX_ATTEMPTS = 3
@@ -107,7 +108,7 @@ def _git_sha() -> str:
             ["git", "rev-parse", "HEAD"],
             capture_output=True, text=True, timeout=2,
             # git is a console app on Windows — flash-free background call.
-            creationflags=(getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0),
+            creationflags=(getattr(subprocess, "CREATE_NO_WINDOW", 0) if is_windows() else 0),
         )
         if out.returncode == 0:
             return out.stdout.strip()

@@ -28,6 +28,8 @@ import sys
 
 import pytest
 
+from conftest import skip_reason
+
 _BIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "bin"))
 sys.path.insert(0, _BIN)
 
@@ -81,7 +83,7 @@ def test_structured_formats_reach_their_own_chunker(ext, filetype):
         f"{ext} no longer maps to {filetype}")
     mod = chunkers.get_chunker(filetype)
     if not getattr(chunkers.CHUNKER_REGISTRY[filetype], "available", True):
-        pytest.skip(f"{filetype} chunker deps not installed in this environment")
+        pytest.skip(skip_reason("dep", f"{filetype} chunker deps not installed in this environment"))
     assert mod.__name__.endswith(f".{filetype}"), (
         f"{ext} ({filetype}) resolved to {mod.__name__}, not the {filetype} "
         f"chunker -- it would be ingested as raw text"

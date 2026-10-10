@@ -18,6 +18,8 @@ import os
 
 import pytest
 
+from conftest import skip_reason
+
 # Warehouse-shaped env vars. A test must never see any of them resolve.
 _WAREHOUSE_VARS = (
     "M3_CDW_PG_URL",
@@ -60,7 +62,7 @@ def test_no_test_dsn_points_at_the_warehouse(var):
 
     dsn = os.environ.get(var, "")
     if not dsn:
-        pytest.skip(f"{var} not set — PG tests will self-skip")
+        pytest.skip(skip_reason("na", f"{var} not set — PG tests will self-skip"))
 
     host = urlparse(dsn).hostname or ""
     if not host or not re.fullmatch(r"[0-9.]+", host):

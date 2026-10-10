@@ -584,6 +584,7 @@ markers = [
     "requires_macos: runs only on macOS",
     "requires_linux: runs only on Linux",
     "requires_apple_silicon: runs only on Apple Silicon macOS",
+    "requires_python(major, minor): needs that Python or newer, asked of the version seam (m3_memory/_pyver.py)",
 ]
 # Warnings are ERRORS by default: a NEW, un-reviewed warning fails the suite, so it
 # can't slip in unnoticed. Every `ignore` below is a REVIEWED exception with its

@@ -1,13 +1,15 @@
 import os
 import sys
 
+from m3_core.seams import is_windows
+
 # Ensure bin is in path
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(BASE_DIR, "bin"))
 
 from auth_utils import get_api_key
 
-if sys.platform == "win32":
+if is_windows():
     sys.stdout.reconfigure(encoding='utf-8')  # type: ignore[union-attr]
 
 def test_key(service):

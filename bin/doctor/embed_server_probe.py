@@ -11,11 +11,12 @@ import logging
 import os
 import shutil
 import subprocess
-import sys
+
+from m3_core.seams import is_windows
 
 logger = logging.getLogger("memory.doctor.embed_server_probe")
 
-BINARY_NAME = "m3-embed-server.exe" if sys.platform == "win32" else "m3-embed-server"
+BINARY_NAME = "m3-embed-server.exe" if is_windows() else "m3-embed-server"
 _HEALTH_PORT = 8082  # the port shared_embedder_probe also checks
 TIMEOUT_SECS = 30
 

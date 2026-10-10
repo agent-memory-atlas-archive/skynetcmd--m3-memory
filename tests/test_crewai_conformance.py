@@ -19,6 +19,8 @@ import sys
 
 import pytest
 
+from conftest import skip_reason
+
 # Put bin/ on path (some m3 modules import lazily inside the backend). Harmless if
 # already there via conftest.
 _REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -26,7 +28,7 @@ for _p in (_REPO, os.path.join(_REPO, "bin")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-crewai = pytest.importorskip("crewai", reason="requires `pip install crewai`")
+crewai = pytest.importorskip("crewai", reason=skip_reason("dep", "requires `pip install crewai`"))
 
 # crewai 1.15.25 builds its records with datetime.utcnow (e.g. a pydantic
 # default_factory on crewai.memory.types.MemoryRecord). pydantic-core is compiled,

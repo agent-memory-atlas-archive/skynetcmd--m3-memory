@@ -19,7 +19,7 @@ _SEAM = _ROOT / "m3_memory" / "_platform.py"
 # Current floor. Lower this as sites move into the seam; never raise it.
 # 2026-10-10: 187 -> 180 (mission control and the Apple-Silicon checks moved).
 # 2026-10-10: 180 -> 178 (install_schedules asks the seam).
-_BUDGET = 178
+_BUDGET = 20
 
 
 def _sites(roots=("bin", "m3_memory"), base: Path = _ROOT) -> tuple[list[str], list[str]]:

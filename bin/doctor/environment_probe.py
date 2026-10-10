@@ -49,6 +49,8 @@ import re
 import shutil
 import time
 
+from m3_core.seams import is_windows
+
 # The installer marks its own settings.json entries by this substring appearing
 # anywhere in the serialized entry (see chatlog_init._chatlog_entry_present).
 # Detection and repair must use the SAME ownership test, or repair will either
@@ -248,7 +250,7 @@ def check() -> dict:
         # precise inversion of this probe's job (§5: does it actually work).
         # The roots still agree on Windows via .chatlog_config.json's db_path and
         # the shared ~/.m3 defaults.
-        if event in CAPTURE_EVENTS and os.name != "nt":
+        if event in CAPTURE_EVENTS and not is_windows():
             missing = [v for v in REQUIRED_ROOT_PINS if v not in command]
             if missing:
                 findings.append({
@@ -258,7 +260,7 @@ def check() -> dict:
                               "only on restart, so turns can be written to a "
                               "different engine root than the server reads",
                 })
-        elif event in CAPTURE_EVENTS and os.name == "nt":
+        elif event in CAPTURE_EVENTS and is_windows():
             # Windows: the FATAL shape is the opposite — a POSIX prefix present.
             # A command whose first token carries an `=` is one cmd.exe cannot
             # run, so capture really is dead. This is the check that would have

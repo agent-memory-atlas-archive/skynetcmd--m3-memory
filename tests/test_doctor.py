@@ -7,7 +7,7 @@ import sys
 
 import pytest
 
-from conftest import embed_backend_reachable
+from conftest import embed_backend_reachable, skip_reason
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
@@ -259,9 +259,9 @@ async def test_doctor_cold_cascade_slo(monkeypatch):
 
 @pytest.mark.skipif(
     not embed_backend_reachable(),
-    reason="warm-cascade <3s SLO requires a reachable embedder; with no backend "
+    reason=skip_reason("env", "warm-cascade <3s SLO requires a reachable embedder; with no backend "
            "(e.g. CI) every probe waits out its full retry/backoff and the warm "
-           "call can't beat 3s — an environment limit, not a regression.",
+           "call can't beat 3s — an environment limit, not a regression."),
 )
 @pytest.mark.asyncio
 async def test_doctor_warm_cascade_slo():
@@ -455,7 +455,7 @@ async def test_doctor_fix_mode():
 
 
 @pytest.mark.skipif(__import__("sqlite3").sqlite_version_info < (3, 44, 0),
-                    reason="content comparison needs SQLite 3.44+")
+                    reason=skip_reason("db", "content comparison needs SQLite 3.44+"))
 def test_fts_check_spots_an_index_out_of_step_with_its_content(tmp_path):
     """doctor --fix rebuilds the FTS5 index only when it no longer matches the
     content; the check must catch a desync that the plain integrity-check misses."""

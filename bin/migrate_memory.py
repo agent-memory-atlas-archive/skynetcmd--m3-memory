@@ -39,6 +39,8 @@ import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+from m3_core.seams import is_windows
+
 sys.path.insert(0, os.path.dirname(__file__))
 from m3_sdk import get_m3_config_root, get_m3_engine_root, get_m3_root
 
@@ -236,7 +238,7 @@ def targets(selected: str = "all") -> list[MigrationTarget]:
 
             # Case-insensitive comparison on Windows for path equality
             is_same_file = False
-            if sys.platform == "win32":
+            if is_windows():
                 is_same_file = chatlog_path.lower() == main_path.lower()
             else:
                 is_same_file = chatlog_path == main_path

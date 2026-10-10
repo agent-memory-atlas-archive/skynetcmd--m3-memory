@@ -21,6 +21,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import skip_reason
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import conftest as ct  # noqa: E402
@@ -69,7 +71,7 @@ def test_it_reports_the_resolved_backend(monkeypatch):
     """The decisive field: what the seam actually resolves to."""
     sel = sys.modules.get("memory.backends.selector")
     if sel is None:
-        pytest.skip("selector not imported in this session; nothing to read")
+        pytest.skip(skip_reason("na", "selector not imported in this session; nothing to read"))
     monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
     msg = ct._backend_diagnosis(_Item("requires_pg"), _Call(exc=_sqlite_error()))
     assert "'sqlite'" in msg and "NOT postgres" in msg

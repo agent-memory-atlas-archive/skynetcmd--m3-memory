@@ -24,6 +24,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import skip_reason
+
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "bin"))
 
@@ -199,7 +201,7 @@ def test_verify_warns_on_crashed_only_keepalive(tmp_path, capsys,
     import shutil
     import subprocess
     if shutil.which("plutil") is None:
-        pytest.skip("plutil is macOS-only; the KeepAlive-value check is Darwin-gated")
+        pytest.skip(skip_reason("os", "plutil is macOS-only; the KeepAlive-value check is Darwin-gated"))
     r = subprocess.run(["plutil", "-extract", "KeepAlive", "raw", "-o", "-",
                         str(dest)], capture_output=True, text=True)
     warned = r.returncode != 0 or (r.stdout or "").strip() != "true"

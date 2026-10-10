@@ -31,6 +31,8 @@ import urllib.request
 from typing import Any
 from urllib.parse import urlparse
 
+from m3_core.seams import is_windows
+
 _PORT = 8082
 _DEFAULT_URL = f"http://127.0.0.1:{_PORT}"
 _TASK = "AgentOS_EmbedServer"
@@ -114,7 +116,7 @@ def _windows_user_env_has(var: str) -> bool:
     """True if `var` is set in the Windows *User* environment (persists across
     shells / MCP restarts), read from the registry so it reflects the persisted
     value, not just this process's inherited copy."""
-    if sys.platform != "win32":
+    if not is_windows():
         return False
     try:
         import winreg
@@ -143,7 +145,7 @@ def _manual_removal_command() -> list[str]:
     Localized to file:line where we can find it. Returned as printable lines so
     BOTH --verbose and --fix render identical guidance (single source of truth)."""
     lines: list[str] = []
-    if sys.platform == "win32":
+    if is_windows():
         lines.append("Remove it from the Windows User environment (persists across shells):")
         lines.append("  PowerShell:  [Environment]::SetEnvironmentVariable('M3_EMBED_GGUF', $null, 'User')")
         lines.append("Then open a NEW terminal and restart the MCP client.")
@@ -274,7 +276,7 @@ def _payload_bin() -> str:
 def _task_registered_ok() -> bool | None:
     """True/False if the keep-alive task matches spec; None on non-Windows (no
     embed-server service unit exists on Unix yet — reported honestly, not faked)."""
-    if sys.platform != "win32":
+    if not is_windows():
         return None
     try:
         sys.path.insert(0, _payload_bin())
@@ -419,7 +421,7 @@ def _fix_start_server() -> bool:
     try:
         kwargs: dict[str, Any] = {}
         exe = sys.executable
-        if sys.platform == "win32":
+        if is_windows():
             # pythonw.exe (GUI subsystem) = the OS never allocates a console, so
             # there is no window and no flash. DETACHED_PROCESS alone does NOT
             # suppress one: it detaches the child from THIS console but still
@@ -454,7 +456,7 @@ def _fix_register_task() -> bool:
     # cross-boot keep-alive is the Rust m3-embed-server OS service; there is no
     # launchd/systemd unit for the Python server, so don't pretend to register
     # one (§1 3-OS, §3 never-silent) — point at the Rust install instead.
-    if sys.platform != "win32":
+    if not is_windows():
         print("  [fix] no scheduled-task fallback on this OS — install the Rust")
         print("        sovereign embedder to get a systemd/launchd keep-alive:")
         print("            m3 embedder install-gpu && m3 embedder install")
@@ -496,7 +498,7 @@ def _offer_elevated_repair(script: str) -> bool:
     m3_memory package being importable (a payload-only checkout has bin/ without
     it), so an ImportError degrades to the printed banner rather than crashing
     the doctor (§3)."""
-    if sys.platform != "win32":
+    if not is_windows():
         return False
     try:
         from m3_memory.setup_wizard import _offer_elevated_schedule_repair

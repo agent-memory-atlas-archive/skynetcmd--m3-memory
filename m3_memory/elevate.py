@@ -15,8 +15,9 @@ from __future__ import annotations
 import json
 import os
 import subprocess  # nosec B404 - fixed argv lists, no shell
-import sys
 import tempfile
+
+from m3_memory._platform import is_windows
 
 
 def _ps_quote(s: str) -> str:
@@ -80,7 +81,7 @@ class ElevationBatch:
         """
         if not self.actions:
             return {}
-        if sys.platform != "win32":
+        if not is_windows():
             return None
         import time
         expires = int(time.time()) + timeout

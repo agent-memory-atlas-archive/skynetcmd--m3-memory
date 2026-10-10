@@ -27,12 +27,14 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from m3_core.seams import is_windows
+
 VAR = "M3_AUTO_ENRICH"
 TRUE_VALUES = {"1", "true", "yes", "on"}
 
 
 def _is_windows() -> bool:
-    return sys.platform == "win32"
+    return is_windows()
 
 
 # --- Windows persistence ---------------------------------------------------

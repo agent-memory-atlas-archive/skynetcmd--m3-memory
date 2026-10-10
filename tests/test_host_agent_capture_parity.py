@@ -28,6 +28,8 @@ import sys
 
 import pytest
 
+from conftest import skip_reason
+
 _ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
 _BIN = os.path.join(_ROOT, "bin")
 _HOOKS = os.path.join(_BIN, "hooks", "chatlog")
@@ -507,7 +509,7 @@ def test_a_hook_only_passes_ingest_flags_that_exist(script):
     invocations = [ln for ln in text.splitlines()
                    if "chatlog_ingest.py" in ln and not ln.lstrip().startswith("#")]
     if not invocations:
-        pytest.skip("does not invoke chatlog_ingest directly")
+        pytest.skip(skip_reason("na", "does not invoke chatlog_ingest directly"))
 
     with open(os.path.join(_BIN, "chatlog_ingest.py"), encoding="utf-8") as fh:
         known = set(re.findall(r'add_argument\(\s*"(--[a-z0-9-]+)"', fh.read()))
@@ -530,7 +532,7 @@ def test_a_hook_passes_a_format_that_exists(script):
     invocations = [ln for ln in text.splitlines()
                    if "chatlog_ingest.py" in ln and not ln.lstrip().startswith("#")]
     if not invocations:
-        pytest.skip("does not invoke chatlog_ingest directly")
+        pytest.skip(skip_reason("na", "does not invoke chatlog_ingest directly"))
     for ln in invocations:
         for fmt in re.findall(r'--format\s+([a-z0-9-]+)', ln):
             assert fmt in chatlog_ingest.PARSERS, (

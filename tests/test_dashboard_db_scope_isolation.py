@@ -30,10 +30,12 @@ import sys
 
 import pytest
 
+from conftest import skip_reason
+
 _BIN = pathlib.Path(__file__).resolve().parents[1] / "bin"
 sys.path.insert(0, str(_BIN))
 
-pytest.importorskip("fastapi", reason="dashboard needs the [dashboard] extra")
+pytest.importorskip("fastapi", reason=skip_reason("dep", "dashboard needs the [dashboard] extra"))
 
 from m3_core.paths import active_database, resolve_db_path  # noqa: E402
 

@@ -9,6 +9,8 @@ from __future__ import annotations
 import os
 import sys
 
+from m3_memory._platform import is_windows
+
 # Set by `m3 upgrade` on the setup it runs (and inherited by setup's children):
 # the upgrade verifies and summarizes, so they report only changes and problems.
 # An environment variable rather than a flag: an upgrade can install an OLDER
@@ -30,7 +32,7 @@ def console_has_person() -> bool:
             return False
     except (AttributeError, ValueError):
         return False
-    if os.name != "nt":
+    if not is_windows():
         return True
     import ctypes
     from ctypes import wintypes

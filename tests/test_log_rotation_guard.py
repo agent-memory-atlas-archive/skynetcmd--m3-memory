@@ -21,6 +21,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import skip_reason
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BIN = REPO_ROOT / "bin"
 sys.path.insert(0, str(BIN))
@@ -228,7 +230,7 @@ def test_posix_units_still_pass_a_log_file(unit):
     """If a unit stops passing --log-file the rotation guard above is moot."""
     path = BIN / unit
     if not path.exists():
-        pytest.skip(f"{unit} not present")
+        pytest.skip(skip_reason("env", f"{unit} not present"))
     assert "--log-file" in path.read_text(encoding="utf-8"), (
         f"{unit} no longer passes --log-file; the rotation path it exercises "
         f"is dead — update this guard deliberately, don't delete it."

@@ -6,7 +6,7 @@ Runs one iteration of the dashboard and validates all subsystems.
 import pathlib
 import sys
 
-from m3_memory._platform import os_name
+from m3_core.seams import os_name
 
 # UTF-8 stdout on Windows
 if os_name() == "Windows":  # WMI-safe (m3_memory._platform)

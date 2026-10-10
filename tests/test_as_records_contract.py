@@ -29,6 +29,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import skip_reason
+
 _BIN = Path(__file__).resolve().parent.parent / "bin"
 if str(_BIN) not in sys.path:
     sys.path.insert(0, str(_BIN))
@@ -114,9 +116,9 @@ def test_impl_accepts_what_the_spec_advertises(name):
     try:
         sig = inspect.signature(fn)
     except (TypeError, ValueError):
-        pytest.skip(f"{name}: impl signature not introspectable")
+        pytest.skip(skip_reason("na", f"{name}: impl signature not introspectable"))
     if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()):
-        pytest.skip(f"{name}: impl still behind a **kwargs wrapper")
+        pytest.skip(skip_reason("na", f"{name}: impl still behind a **kwargs wrapper"))
     assert "as_records" in sig.parameters, (
         f"{name}'s ToolSpec advertises as_records but its impl does not accept "
         f"it -- an agent that passes it gets a TypeError from a tool that said "
@@ -194,7 +196,7 @@ def test_as_records_true_returns_parseable_json(name):
     try:
         out = _call(spec, **kwargs)
     except Exception as e:  # noqa: BLE001
-        pytest.skip(f"{name} not callable in this environment: {type(e).__name__}: {e}")
+        pytest.skip(skip_reason("na", f"{name} not callable in this environment: {type(e).__name__}: {e}"))
     assert isinstance(out, str), "as_records changes the CONTENT, not the return type"
     data = json.loads(out)  # must not raise
     assert isinstance(data, dict)
@@ -220,7 +222,7 @@ def test_default_is_not_json(name):
     try:
         out = _call(spec, **kwargs)
     except Exception as e:  # noqa: BLE001
-        pytest.skip(f"{name} not callable: {type(e).__name__}: {e}")
+        pytest.skip(skip_reason("na", f"{name} not callable: {type(e).__name__}: {e}"))
     assert not out.lstrip().startswith("{"), (
         f"{name} returned JSON by default -- every existing caller parses the "
         f"display string"
@@ -299,7 +301,7 @@ def test_a_list_shaped_tool_can_emit_records(name):
     import mcp_tool_catalog as _cat
 
     if name in _NOT_A_COLLECTION:
-        pytest.skip(f"{name}: {_NOT_A_COLLECTION[name]}")
+        pytest.skip(skip_reason("na", f"{name}: {_NOT_A_COLLECTION[name]}"))
 
     spec = {t.name: t for t in _cat.TOOLS}[name]
     props = (spec.parameters or {}).get("properties", {}) or {}

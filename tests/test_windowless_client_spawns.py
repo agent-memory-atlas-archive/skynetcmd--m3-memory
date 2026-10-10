@@ -35,6 +35,8 @@ import sys
 
 import pytest
 
+from conftest import skip_reason
+
 _HERE = os.path.dirname(__file__)
 _BIN = os.path.normpath(os.path.join(_HERE, "..", "bin"))
 if _BIN not in sys.path:
@@ -112,7 +114,7 @@ def test_pythonw_really_can_write_to_a_captured_pipe():
 
     pyw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
     if not os.path.isfile(pyw):
-        pytest.skip("no pythonw.exe beside this interpreter")
+        pytest.skip(skip_reason("os", "no pythonw.exe beside this interpreter"))
 
     r = subprocess.run(
         [pyw, "-c", "import sys; sys.stdout.write('OK'); sys.stdout.flush()"],

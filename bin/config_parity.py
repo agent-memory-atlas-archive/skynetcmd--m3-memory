@@ -48,6 +48,8 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+from m3_core.seams import is_windows
+
 _BIN = Path(__file__).resolve().parent
 if str(_BIN) not in sys.path:
     sys.path.insert(0, str(_BIN))
@@ -117,7 +119,7 @@ def _keyring_get() -> tuple[bool, str | None]:
 def _read_key_file(p: Path) -> str | None:
     if not p.is_file():
         return None
-    if sys.platform != "win32":  # sys.platform, not os.name: mypy narrows only on it
+    if not is_windows():  # sys.platform, not os.name: mypy narrows only on it
         mode = p.stat().st_mode & 0o777
         if mode & 0o077 or p.stat().st_uid != os.getuid():
             raise ParityError(f"{p} is mode {oct(mode)} (or not yours); the key must be user-only. "

@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_core.py
-sha1: 32099f24205e
-mtime_utc: 2026-10-10T05:38:20.325320+00:00
-generated_utc: 2026-10-10T05:42:31.137716+00:00
+sha1: 099e835edad1
+mtime_utc: 2026-10-10T06:50:41.198643+00:00
+generated_utc: 2026-10-10T06:50:41.773453+00:00
 private: false
 ---
 
@@ -71,6 +71,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `atexit`
 - `m3_core.atomic_io (atomic_write)`
 - `m3_core.runtime (utc_iso)`
+- `m3_core.seams (is_windows)`
 - `m3_core.search_modes (normalize_chatlog_search_mode)`
 - `memory.backends (active_backend)`
 - `memory.backends (active_backend, chatlog_table)`

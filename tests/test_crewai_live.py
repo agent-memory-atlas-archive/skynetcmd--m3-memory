@@ -19,12 +19,14 @@ import sys
 
 import pytest
 
+from conftest import skip_reason
+
 _REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 for _p in (_REPO, os.path.join(_REPO, "bin")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-crewai = pytest.importorskip("crewai", reason="requires `pip install crewai` (Python <3.14)")
+crewai = pytest.importorskip("crewai", reason=skip_reason("dep", "requires `pip install crewai` (Python <3.14)"))
 
 # crewai 1.15.25 builds its records with datetime.utcnow (e.g. a pydantic
 # default_factory on crewai.memory.types.MemoryRecord). pydantic-core is compiled,

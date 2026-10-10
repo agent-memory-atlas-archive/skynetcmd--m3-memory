@@ -3,13 +3,13 @@
 crypto_provider.py — Abstraction layer for FIPS-ready cryptography.
 Supports standard Python crypto and wolfSSL/wolfCrypt backends.
 """
-
 import ctypes
 import hashlib
 import logging
 import os
-import sys
 import weakref
+
+from m3_core.seams import is_macos, is_windows
 
 logger = logging.getLogger("m3-crypto")
 
@@ -193,9 +193,9 @@ def _trusted_wolfssl_candidates() -> "list[str]":
     # produces and installs); we ALSO accept .so there since a Linux-style build
     # or a Homebrew formula may produce it. Windows: wolfssl.dll.
     lib_names: tuple[str, ...]
-    if os.name == "nt":
+    if is_windows():
         lib_names = ("wolfssl.dll",)
-    elif sys.platform == "darwin":
+    elif is_macos():
         lib_names = ("libwolfssl.dylib", "libwolfssl.so")
     else:
         lib_names = ("libwolfssl.so",)
@@ -210,7 +210,7 @@ def _trusted_wolfssl_candidates() -> "list[str]":
     for nm in lib_names:
         candidates.append(os.path.join(m3lib, nm))
     # 3. Trusted system locations (admin/root-only writable).
-    if os.name == "nt":
+    if is_windows():
         sysroot = os.environ.get("SystemRoot", r"C:\Windows")
         candidates.append(os.path.join(sysroot, "System32", "wolfssl.dll"))
     else:
@@ -363,7 +363,7 @@ class CryptoProvider:
             try:
                 # winmode=0 on Windows prevents the default flags from re-adding
                 # the application/PATH search directories around the absolute path.
-                if os.name == "nt":
+                if is_windows():
                     self._libwolf = ctypes.CDLL(self._lib_path, winmode=0)
                 else:
                     self._libwolf = ctypes.CDLL(self._lib_path)

@@ -19,6 +19,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
 from doctor import schedule_probe  # noqa: E402
 
+from conftest import simulate_os
+
 _NS = "http://schemas.microsoft.com/windows/2004/02/mit/task"
 
 
@@ -64,7 +66,7 @@ def test_win_parse_no_exec_returns_none():
 
 
 def _win_env(monkeypatch, names, xml_for, exists):
-    monkeypatch.setattr(schedule_probe.sys, "platform", "win32")
+    simulate_os(monkeypatch, "Windows")
     monkeypatch.setattr(schedule_probe, "_expected_task_names", lambda root: names)
     monkeypatch.setattr(schedule_probe, "_query_task_xml", xml_for)
     monkeypatch.setattr(schedule_probe.os.path, "exists", exists)
@@ -117,7 +119,7 @@ def _write_plist(path, interpreter, script):
 
 
 def _darwin_env(monkeypatch, plist_path):
-    monkeypatch.setattr(schedule_probe.sys, "platform", "darwin")
+    simulate_os(monkeypatch, "Darwin")
     monkeypatch.setattr(schedule_probe, "_LAUNCHD_PLIST", plist_path)
     monkeypatch.setattr(schedule_probe, "_read_crontab", lambda: None)  # isolate plist
 
@@ -158,7 +160,7 @@ _UNIT_TMPL = (
 
 
 def _linux_env(monkeypatch, unit_path):
-    monkeypatch.setattr(schedule_probe.sys, "platform", "linux")
+    simulate_os(monkeypatch, "Linux")
     monkeypatch.setattr(schedule_probe, "_SYSTEMD_UNIT", unit_path)
     monkeypatch.setattr(schedule_probe, "_read_crontab", lambda: None)  # isolate unit
 
@@ -273,7 +275,7 @@ def test_run_never_raises_when_find_dangling_throws(monkeypatch, capsys):
 
 
 def test_run_reports_backend_label(monkeypatch, capsys):
-    monkeypatch.setattr(schedule_probe.sys, "platform", "linux")
+    simulate_os(monkeypatch, "Linux")
     monkeypatch.setattr(schedule_probe, "find_dangling", lambda root: [])
     schedule_probe.run()
     assert "systemd" in capsys.readouterr().out

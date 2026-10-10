@@ -28,7 +28,7 @@ import sys
 import threading
 from dataclasses import dataclass
 
-from m3_memory._platform import is_apple_silicon
+from m3_memory._platform import is_apple_silicon, is_macos, is_windows
 
 
 def gui_available() -> tuple[bool, str]:
@@ -206,7 +206,7 @@ def _apply_platform_tooltips() -> None:
     on Windows/Linux); saying the true thing for the running machine beats a
     vague generic (DESIGN_PHILOSOPHIES §3 never-silent, §5 effectiveness).
     Runs at import; a no-op on platforms without a specific note."""
-    if sys.platform == "darwin":
+    if is_macos():
         apple_silicon = is_apple_silicon()
         accel = ("Metal on Apple Silicon (~10–50× faster embeds than the "
                  "pure-Python path)" if apple_silicon
@@ -430,7 +430,7 @@ def run_gui() -> int:
     state["no_governor_migration"] = tk.BooleanVar(value=False)  # default: DO migrate
     _check_with_info(misc_box, "Do NOT migrate legacy scheduled tasks to the governor",
                      "no_governor_migration", state["no_governor_migration"])
-    if sys.platform == "win32":
+    if is_windows():
         state["force_kill_mcp"] = tk.BooleanVar(value=True)  # default ON
         _check_with_info(misc_box, "Force-kill a running mcp-memory.exe before install",
                          "force_kill_mcp", state["force_kill_mcp"])

@@ -27,6 +27,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from conftest import skip_reason
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
 import m3_memory.setup_wizard as sw  # noqa: E402
@@ -228,7 +230,7 @@ def test_echoed_argv_carries_no_secrets(wired, capsys):
     try:
         keys = set(real().keys())
     except Exception:  # pragma: no cover — env resolution is environment-specific
-        pytest.skip("_canonical_memory_env unavailable in this environment")
+        pytest.skip(skip_reason("dep", "_canonical_memory_env unavailable in this environment"))
     leaky = {k for k in keys if any(t in k.upper() for t in ("TOKEN", "SECRET", "KEY", "PASS"))}
     assert not leaky, f"canonical env now carries secret-shaped keys: {sorted(leaky)}"
 

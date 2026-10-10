@@ -27,6 +27,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import skip_reason
+
 REPO = Path(__file__).resolve().parents[1]
 _BLOCK = re.compile(r"```mermaid\n(.*?)```", re.DOTALL)
 
@@ -140,7 +142,7 @@ def _render(cli: list[str], src: Path, cfg: Path) -> tuple[bool, subprocess.Comp
             capture_output=True, text=True, timeout=180,
         )
     except (subprocess.TimeoutExpired, OSError) as exc:
-        pytest.skip(f"mermaid-cli unusable: {exc}")
+        pytest.skip(skip_reason("env", f"mermaid-cli unusable: {exc}"))
     return (out.exists() and out.stat().st_size > 0), proc
 
 
@@ -149,10 +151,10 @@ def test_every_mermaid_block_renders() -> None:
     """Authoritative check: hand each block to the real Mermaid parser."""
     cli = _mermaid_cli()
     if cli is None:
-        pytest.skip(f"no mmdc installed (npm i -g @mermaid-js/mermaid-cli@{MERMAID_CLI_VERSION}); "
-                    f"the npx download fallback is off unless {_NPX_OPT_IN}=1")
+        pytest.skip(skip_reason("env", f"no mmdc installed (npm i -g @mermaid-js/mermaid-cli@{MERMAID_CLI_VERSION}); "
+                    f"the npx download fallback is off unless {_NPX_OPT_IN}=1"))
     if os.environ.get("M3_SKIP_MERMAID_RENDER") == "1":
-        pytest.skip("M3_SKIP_MERMAID_RENDER=1")
+        pytest.skip(skip_reason("na", "M3_SKIP_MERMAID_RENDER=1"))
 
     failures = []
     with tempfile.TemporaryDirectory() as td:
@@ -181,9 +183,9 @@ def test_every_mermaid_block_renders() -> None:
         ok, proc = _render(cli, canary, cfg)
         if not ok:
             err = (proc.stderr or proc.stdout or "").strip().splitlines()
-            pytest.skip("mermaid-cli cannot render a known-good diagram, so this "
+            pytest.skip(skip_reason("env", "mermaid-cli cannot render a known-good diagram, so this "
                         "environment cannot judge ours: "
-                        + (err[-1][:200] if err else "no output and no error"))
+                        + (err[-1][:200] if err else "no output and no error")))
 
         for path, idx, body in _blocks():
             src = tmp / f"{Path(path).stem}_{idx}.mmd"

@@ -31,6 +31,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
+from m3_core.seams import is_macos, is_windows
+
 SECRETS_FILE_NAME = "m3_secrets.toml"
 _NAME = re.compile(r"[A-Za-z0-9_-]+")
 
@@ -78,7 +80,7 @@ def _check_private_windows(p: Path, *, what: str, fix: str) -> None:
 
 
 def _check_private(p: Path) -> None:
-    if sys.platform == "win32":
+    if is_windows():
         _check_private_windows(p, what=str(p), fix=f"icacls \"{p}\" /inheritance:r /grant:r \"%USERNAME%:F\"")
         return
     st = p.stat()
@@ -323,7 +325,7 @@ def _keyring_serves_daemons() -> bool:
     2026-10-08), so a read-back from the installer's own session proves nothing
     for them: the secrets file is the store there.
     """
-    return sys.platform in ("win32", "darwin")
+    return is_windows() or is_macos()
 
 
 def store_pg_dsn(role: PgRole, dsn: str) -> DsnStored:
@@ -371,7 +373,7 @@ def set_secret(name: str, value: str) -> Path:
     _check_names(p, {name: value})  # refuse before writing a file that could not be read back
     with file_lock(str(p) + ".lock", purpose="secrets file"):
         table = read_secrets()  # an existing file is checked here
-        if sys.platform == "win32" and not p.exists():
+        if is_windows() and not p.exists():
             _check_new_file_would_be_private(p.parent)
         table[name] = value
         atomic_write(p, _render(table))

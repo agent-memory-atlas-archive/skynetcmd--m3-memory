@@ -16,6 +16,8 @@ import keyring
 import keyring.backend
 import pytest
 
+from conftest import simulate_os
+
 
 class _Backend(keyring.backend.KeyringBackend):
     priority = 1  # type: ignore[assignment]
@@ -55,7 +57,7 @@ def test_a_windows_keyring_miss_runs_no_subprocess(monkeypatch, backend):
     backend(lambda s, u: None)
     calls = []
     monkeypatch.setattr(auth_utils.subprocess, "run", lambda *a, **k: calls.append(a))
-    monkeypatch.setattr(auth_utils.sys, "platform", "win32")
+    simulate_os(monkeypatch, "Windows")
     assert auth_utils._keyring_tier("SOME_TOKEN") == (None, None)
     assert calls == [], f"spawned {calls}"
 
@@ -67,7 +69,7 @@ def test_a_crashing_keyring_is_reported_not_read_as_unset(monkeypatch, backend):
         raise RuntimeError("credential manager unavailable")
 
     backend(boom)
-    monkeypatch.setattr(auth_utils.sys, "platform", "win32")
+    simulate_os(monkeypatch, "Windows")
     val, err = auth_utils._keyring_tier("SOME_TOKEN")
     assert val is None and err and "credential manager unavailable" in err, err
 

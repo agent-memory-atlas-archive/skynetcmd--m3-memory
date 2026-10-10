@@ -5,6 +5,8 @@ import posixpath
 import shutil
 import sys
 
+from m3_core.seams import is_windows
+
 
 def _is_abs_any(p: str) -> bool:
     """True when `p` is absolute under EITHER path convention.
@@ -48,7 +50,7 @@ def _resolve_python_cmd(m3_repo_root: str) -> str:
          every generated bridge/hook died ModuleNotFound.)
       3. Bare PATH python only as a last resort.
     """
-    if os.name == "nt":
+    if is_windows():
         venv_py = os.path.join(m3_repo_root, ".venv", "Scripts", "python.exe")
     else:
         venv_py = os.path.join(m3_repo_root, ".venv", "bin", "python")
@@ -56,7 +58,7 @@ def _resolve_python_cmd(m3_repo_root: str) -> str:
         return _windowless(venv_py).replace("\\", "/")
     if sys.executable and _is_abs_any(sys.executable) and os.path.exists(sys.executable):
         return _windowless(sys.executable).replace("\\", "/")
-    return "python" if os.name == "nt" else (
+    return "python" if is_windows() else (
         "python3" if shutil.which("python3") else "python"
     )
 
@@ -77,7 +79,7 @@ def _is_windows() -> bool:
     (2026-09-13). Mirrors ``m3_memory._platform.is_windows`` for the same
     reason.
     """
-    return os.name == "nt"
+    return is_windows()
 
 
 def _windowless(interpreter: str) -> str:
@@ -134,7 +136,7 @@ def _hook_env_prefix(engine_root: str, config_root: str) -> str:
     child process inherits, including hooks) rather than rely on a per-command
     prefix the shell cannot parse.
     """
-    if os.name == "nt":
+    if is_windows():
         return ""
     return f"M3_ENGINE_ROOT={engine_root} M3_CONFIG_ROOT={config_root} "
 

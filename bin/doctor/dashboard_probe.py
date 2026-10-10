@@ -38,6 +38,8 @@ import subprocess
 import sys
 import time
 
+from m3_core.seams import is_windows
+
 _DEFAULT_HOST = "127.0.0.1"
 _DEFAULT_PORT = 8088
 
@@ -78,7 +80,7 @@ def _port_serving(host: str, port: int, timeout: float = 2.0) -> bool:
 def _kill(pid: int) -> bool:
     """Terminate a wedged dashboard process. Best-effort, cross-platform."""
     try:
-        if sys.platform == "win32":
+        if is_windows():
             subprocess.run(  # noqa: S603 — fixed argv
                 ["taskkill", "/F", "/PID", str(pid)],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,

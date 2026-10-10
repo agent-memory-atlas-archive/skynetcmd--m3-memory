@@ -1,8 +1,8 @@
 ---
 tool: bin/enrichment_state.py
-sha1: 61f317a37d15
-mtime_utc: 2026-10-09T22:19:56.128923+00:00
-generated_utc: 2026-10-09T22:23:32.927024+00:00
+sha1: 52d62ea54fbe
+mtime_utc: 2026-10-10T06:49:09.040920+00:00
+generated_utc: 2026-10-10T06:49:16.639450+00:00
 private: false
 ---
 
@@ -59,7 +59,7 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `['git', 'rev-parse', 'HEAD']`` (line 106)
+- `subprocess.run()  → `['git', 'rev-parse', 'HEAD']`` (line 107)
 
 
 ---
@@ -67,6 +67,7 @@ _(none detected)_
 ## Notable external imports
 
 - `m3_core.runtime (utc_iso)`
+- `m3_core.seams (is_windows)`
 - `memory.backends (dialect)`
 
 ---

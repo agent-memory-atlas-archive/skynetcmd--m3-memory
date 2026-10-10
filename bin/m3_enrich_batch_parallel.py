@@ -45,6 +45,7 @@ from datetime import datetime
 from pathlib import Path
 
 from m3_core.aio import gather_or_cancel
+from m3_core.seams import is_windows
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -124,7 +125,7 @@ async def _launch_worker_with_offset(
     # m3_autoenrich, the cognitive-loop daemonize). Without it, each parallel
     # worker pops a visible window on an interactive desktop.
     _flags = 0
-    if os.name == "nt":
+    if is_windows():
         _flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) | getattr(
             subprocess, "CREATE_NO_WINDOW", 0
         )
@@ -182,7 +183,7 @@ async def _run_async(args) -> int:
         print(f"    tail -F {log_dir / (base + f'_worker{i+1}.log')}")
     print()
     print("  To kill all workers:")
-    if os.name == "nt":
+    if is_windows():
         pids = ",".join(str(p.pid) for p in procs)
         print(f"    powershell -Command \"Stop-Process -Id {pids} -Force\"")
     else:

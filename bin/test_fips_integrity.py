@@ -2,7 +2,6 @@
 """
 test_fips_integrity.py — Validation suite for FIPS-ready crypto abstraction.
 """
-
 import base64
 import ctypes
 import hashlib
@@ -10,6 +9,8 @@ import os
 import sys
 import unittest
 from pathlib import Path
+
+from m3_core.seams import is_windows
 
 
 # Mock CDLL if real wolfSSL library is missing but requested
@@ -110,7 +111,7 @@ class MockLibWolf:
 
 if os.environ.get("M3_CRYPTO_BACKEND") == "WOLFSSL" or os.environ.get("M3_FIPS_MODE") == "1":
     try:
-        lib_name = "libwolfssl.so" if os.name != "nt" else "wolfssl.dll"
+        lib_name = "libwolfssl.so" if not is_windows() else "wolfssl.dll"
         ctypes.CDLL(lib_name)
     except OSError:
         print("--- Real wolfSSL library not found. Applying MockLibWolf for unit test parity. ---")

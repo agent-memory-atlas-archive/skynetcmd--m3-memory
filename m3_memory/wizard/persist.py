@@ -13,8 +13,9 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import sys
 from pathlib import Path
+
+from m3_memory._platform import is_windows
 
 from .ui import _ok, _warn
 
@@ -33,7 +34,7 @@ def _wizard_mod():
 def _persist_embed_gguf_shell(gguf_path: str, *, non_interactive: bool) -> None:
     """Persist M3_EMBED_GGUF for new shell sessions (per-platform mechanism)."""
     sw = _wizard_mod()
-    if sys.platform == "win32":
+    if is_windows():
         # Windows: setx writes to HKCU\Environment. Persists across reboot;
         # new cmd / PowerShell sessions see it. The current process and
         # other already-open shells are unaffected (by design).
@@ -43,19 +44,15 @@ def _persist_embed_gguf_shell(gguf_path: str, *, non_interactive: bool) -> None:
         ):
             _warn(f"    skipped — set it later: setx M3_EMBED_GGUF \"{gguf_path}\"")
             return
-        try:
-            result = subprocess.run(
-                ["setx", "M3_EMBED_GGUF", gguf_path],
-                capture_output=True, text=True, timeout=10,
-            )
-        except (subprocess.TimeoutExpired, OSError) as e:
-            _warn(f"    setx failed ({e}); set it later: setx M3_EMBED_GGUF \"{gguf_path}\"")
-            return
-        if result.returncode == 0:
-            _ok("    persisted M3_EMBED_GGUF via setx (new shells will see it)")
-        else:
-            stderr = (result.stderr or result.stdout or "").strip()
-            _warn(f"    setx exited {result.returncode}: {stderr}")
+        # The one owner of User-scope env writes (hidden window, idempotent,
+        # WM_SETTINGCHANGE broadcast; never raises).
+        from m3_memory.installer import _write_user_registry_env
+
+        for msg in _write_user_registry_env({"M3_EMBED_GGUF": gguf_path}):
+            if msg.startswith("[!]"):
+                _warn(f"    {msg}; set it later: setx M3_EMBED_GGUF \"{gguf_path}\"")
+            else:
+                _ok(f"    {msg}")
         return
 
     # Unix: append `export M3_EMBED_GGUF=...` to the appropriate shell rc.
@@ -92,7 +89,7 @@ def _persist_embed_gguf_shell(gguf_path: str, *, non_interactive: bool) -> None:
 def shell_rc_has(name: str, value: str) -> bool:
     """Whether the user's shell rc exports name=value as its LAST assignment of
     name (POSIX only). Commented-out lines do not count."""
-    if os.name == "nt":
+    if is_windows():
         return False
     try:
         rc = _pick_unix_shell_rc()
@@ -182,7 +179,7 @@ def _persist_embed_gguf_mcp(gguf_path: str) -> None:
 def _persist_env_var_shell(name: str, value: str, *, non_interactive: bool) -> None:
     """Persist <name>=<value> for new shell sessions (per-platform)."""
     sw = _wizard_mod()
-    if sys.platform == "win32":
+    if is_windows():
         if not non_interactive and not sw._ask_yes_no(
             f"  Persist {name} to your Windows user environment (setx)?", default=True
         ):

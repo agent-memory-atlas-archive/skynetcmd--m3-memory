@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_enrich_batch_parallel.py
-sha1: c048d75ec442
-mtime_utc: 2026-10-09T21:48:31.862813+00:00
-generated_utc: 2026-10-09T21:48:38.544084+00:00
+sha1: 52c3093745b0
+mtime_utc: 2026-10-10T06:50:41.232630+00:00
+generated_utc: 2026-10-10T06:50:42.160107+00:00
 private: false
 ---
 
@@ -48,7 +48,7 @@ logs/<base>_worker<N>_<ts>.log. PIDs are reported up front for kill-by-PID.
 
 ## Entry points
 
-- `def main()` (line 196)
+- `def main()` (line 197)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -94,7 +94,7 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.Popen()  → `cmd`` (line 131)
+- `subprocess.Popen()  → `cmd`` (line 132)
 
 
 ---
@@ -102,6 +102,7 @@ _(none detected)_
 ## Notable external imports
 
 - `m3_core.aio (gather_or_cancel)`
+- `m3_core.seams (is_windows)`
 - `shlex`
 
 ---

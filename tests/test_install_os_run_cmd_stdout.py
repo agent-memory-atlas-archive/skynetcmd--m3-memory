@@ -2,13 +2,14 @@ import sys
 
 import pytest
 
+from conftest import skip_reason
 from install_os import run_cmd
 
 
 def test_run_cmd_preserves_stdout_on_windows(capsys):
     """CREATE_NO_WINDOW suppresses inherited stdout. STARTUPINFO/SW_HIDE does not."""
     if sys.platform != "win32":
-        pytest.skip("Test is Windows-specific")
+        pytest.skip(skip_reason("os", "Test is Windows-specific"))
 
     # We test this by actually running a real subprocess (python -c "print('hello')")
     # and ensuring the output reaches capsys (which captures the parent's stdout).

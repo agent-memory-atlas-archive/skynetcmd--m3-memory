@@ -21,10 +21,12 @@ from pathlib import Path
 
 import pytest
 
+from conftest import skip_reason
+
 _ROOT = Path(__file__).resolve().parent.parent
 _SCRIPT = _ROOT / "scan_repo_v7.py"
 
-pytestmark = pytest.mark.skipif(not _SCRIPT.is_file(), reason="scan_repo_v7.py absent")
+pytestmark = pytest.mark.skipif(not _SCRIPT.is_file(), reason=skip_reason("na", "scan_repo_v7.py absent"))
 
 
 def _load():
@@ -132,7 +134,7 @@ def test_plain_run_on_a_deficient_host_refuses_end_to_end():
     """The whole point, through the CLI: no scan, no upload, exit 3."""
     mod = _load()
     if not mod.missing_scanners():
-        pytest.skip("this host has every scanner; nothing to refuse")
+        pytest.skip(skip_reason("env", "this host has every scanner; nothing to refuse"))
     r = subprocess.run([sys.executable, str(_SCRIPT), str(_ROOT)],
                        capture_output=True, text=True, timeout=180)
     assert r.returncode == 3, f"expected refusal (3), got {r.returncode}"

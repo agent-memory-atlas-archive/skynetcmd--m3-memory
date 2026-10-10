@@ -1,8 +1,8 @@
 ---
 tool: bin/install_schedules.py
-sha1: 8780566ce2cc
-mtime_utc: 2026-10-10T05:02:39.431670+00:00
-generated_utc: 2026-10-10T05:03:20.256144+00:00
+sha1: d491ad458b6c
+mtime_utc: 2026-10-10T06:49:09.044920+00:00
+generated_utc: 2026-10-10T06:49:16.729458+00:00
 private: false
 ---
 
@@ -18,7 +18,7 @@ Uses project virtual environment paths and ensures log directories exist.
 
 ## Entry points
 
-- `def main()` (line 2614)
+- `def main()` (line 2615)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -55,7 +55,6 @@ Uses project virtual environment paths and ensures log directories exist.
 - `governor_migration (cognitive_loop_installed)`
 - `m3_halt (base_role)`
 - `m3_halt (holds_store)`
-- `m3_memory._platform (os_name)`
 - `m3_sdk (ensure_governor_config)`
 - `m3_sdk (get_m3_engine_root)`
 - `m3_sdk (kill_stale_daemons)`
@@ -66,7 +65,7 @@ Uses project virtual environment paths and ensures log directories exist.
 
 **subprocess**
 
-- `subprocess.run()  → `*args`` (line 19)
+- `subprocess.run()  → `*args`` (line 20)
 
 
 ---
@@ -76,6 +75,8 @@ Uses project virtual environment paths and ensures log directories exist.
 - `html`
 - `m3_core.autonomy (ensure_autonomy_config)`
 - `m3_core.paths (get_m3_logs_root)`
+- `m3_core.seams (is_macos, is_windows)`
+- `m3_core.seams (os_name)`
 - `memory.backends (dialect)`
 - `memory.orchestration (_db)`
 - `memory.orchestration (agent_list_impl)`

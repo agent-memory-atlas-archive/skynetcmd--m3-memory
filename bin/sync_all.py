@@ -25,9 +25,10 @@ import socket
 import subprocess
 import sys
 
+from m3_core.seams import is_windows, os_name
 from m3_sdk import getenv_compat
 
-IS_WIN = sys.platform == "win32"
+IS_WIN = is_windows()
 
 # Subprocess timeout for pg_sync.py. First-run full syncs can take several
 # minutes; delta syncs are much faster. Override with M3_PG_SYNC_TIMEOUT (seconds).
@@ -474,7 +475,7 @@ def main():
         os.environ["M3_DATABASE"] = args.database
 
     # sys.platform, not platform.system() (WMI-hang risk on Py3.14/Windows).
-    _os = {"darwin": "Darwin", "win32": "Windows"}.get(sys.platform, "Linux")
+    _os = os_name()
     log.info(f"=== sync_all starting [{_os}] ===")
 
     target = warehouse_target()

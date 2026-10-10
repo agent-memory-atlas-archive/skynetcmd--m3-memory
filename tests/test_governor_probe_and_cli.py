@@ -14,6 +14,8 @@ import governor_cli  # noqa: E402
 import governor_migration as gm  # noqa: E402
 from doctor import governor_probe  # noqa: E402
 
+from conftest import simulate_os
+
 
 def test_probe_ok_when_no_tasks(monkeypatch, capsys):
     monkeypatch.setattr(
@@ -50,7 +52,7 @@ def test_probe_brief_nag_mentions_elevation_on_windows(monkeypatch, capsys):
         gm, "detect_scheduled_tasks",
         lambda: {"eligible": ["AgentOS_HourlySync"], "not_migratable_present": []},
     )
-    monkeypatch.setattr(governor_probe.sys, "platform", "win32")
+    simulate_os(monkeypatch, "Windows")
     governor_probe.run(brief=True)
     out = capsys.readouterr().out
     assert "NAG" in out
@@ -63,7 +65,7 @@ def test_probe_brief_nag_no_elevation_note_on_unix(monkeypatch, capsys):
         gm, "detect_scheduled_tasks",
         lambda: {"eligible": ["AgentOS_HourlySync"], "not_migratable_present": []},
     )
-    monkeypatch.setattr(governor_probe.sys, "platform", "linux")
+    simulate_os(monkeypatch, "Linux")
     governor_probe.run(brief=True)
     out = capsys.readouterr().out
     assert "NAG" in out
@@ -86,7 +88,7 @@ def test_migrate_warns_about_elevation_before_prompt_on_windows(monkeypatch, cap
         gm, "privileged_removal_commands",
         lambda names: [f'schtasks /Delete /TN "{n}" /F' for n in names],
     )
-    monkeypatch.setattr(governor_cli.sys, "platform", "win32")
+    simulate_os(monkeypatch, "Windows")
     rc = governor_cli.cmd_migrate(yes=True)
     out = capsys.readouterr().out
     assert "ELEVATED" in out            # up-front notice

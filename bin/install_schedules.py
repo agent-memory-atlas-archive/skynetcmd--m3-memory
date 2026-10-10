@@ -4,13 +4,14 @@ M3 Memory: Cross-Platform Schedule Installer.
 Automatically configures crontab (macOS/Linux) or schtasks (Windows).
 Uses project virtual environment paths and ensures log directories exist.
 """
-
 import argparse
 import html
 import os
 import pathlib
 import re
 import subprocess
+
+from m3_core.seams import is_macos, is_windows
 
 
 def _run(*args, **kwargs):
@@ -38,7 +39,7 @@ from datetime import UTC
 
 # The OS seam (WMI-safe; platform.system() hangs on Py3.14/Windows). This
 # module runs under `m3 schedules` / the installer, where m3_memory imports.
-from m3_memory._platform import os_name as _os_name  # noqa: E402
+from m3_core.seams import os_name as _os_name  # noqa: E402
 
 
 def _safe_print(msg: str) -> None:
@@ -1002,7 +1003,7 @@ def _interpreter_has_deps(candidate: str) -> bool:
             capture_output=True, timeout=10,
             cwd=os.path.dirname(os.path.abspath(probe)),
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
-            if os.name == "nt" else 0,
+            if is_windows() else 0,
         ).returncode == 0
     except Exception:  # noqa: BLE001 — an unusable probe is an unusable interpreter
         return False
@@ -1790,9 +1791,9 @@ def _resolve_service(entry: "str | tuple | None") -> "str | None":
 
 def _platform_key() -> str:
     """'win' | 'darwin' | 'linux' for _ROLE_TO_SERVICE lookups."""
-    if sys.platform == "win32":
+    if is_windows():
         return "win"
-    if sys.platform == "darwin":
+    if is_macos():
         return "darwin"
     return "linux"
 

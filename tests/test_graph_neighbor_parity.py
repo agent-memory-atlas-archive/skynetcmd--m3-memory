@@ -18,6 +18,8 @@ import sys
 
 import pytest
 
+from conftest import skip_reason
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
 from memory import graph as graph_mod  # noqa: E402
@@ -102,7 +104,7 @@ SHAPES = [
 def test_rust_python_parity(monkeypatch, edges, seeds, depth):
     rs = _rust_ext()
     if rs is None:
-        pytest.skip("m3_core_rs not installed — nothing to compare against")
+        pytest.skip(skip_reason("dep", "m3_core_rs not installed — nothing to compare against"))
 
     # Python reference: force the fallback path.
     conn1 = _make_db(edges)
@@ -125,7 +127,7 @@ def test_rust_python_parity(monkeypatch, edges, seeds, depth):
 def test_seeds_excluded_and_depth_clamped(monkeypatch):
     rs = _rust_ext()
     if rs is None:
-        pytest.skip("m3_core_rs not installed")
+        pytest.skip(skip_reason("dep", "m3_core_rs not installed"))
     edges = [("1", "2"), ("2", "3"), ("3", "4"), ("4", "5"), ("5", "6")]
     conn = _make_db(edges)
     _patch_db(monkeypatch, conn)

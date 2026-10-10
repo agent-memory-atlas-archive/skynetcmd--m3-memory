@@ -6,8 +6,7 @@ functions, so it's safe to live in a submodule.
 """
 from __future__ import annotations
 
-import os
-import sys
+from m3_memory._platform import is_macos, is_windows
 
 from .ui import _ok, _warn
 
@@ -177,8 +176,8 @@ def _brief_summary(plan, governor_result: dict | None, verified: bool) -> None:
 def _os_name_for_summary() -> str:
     """Thin OS branch for summary phrasing (avoids importing governor_migration
     just for the OS check)."""
-    if os.name == "nt":
+    if is_windows():
         return "Windows"
-    if sys.platform == "darwin":
+    if is_macos():
         return "Darwin"
     return "Linux"

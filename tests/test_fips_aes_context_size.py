@@ -24,6 +24,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import skip_reason
+
 _PROVIDER = Path(__file__).resolve().parent.parent / "bin" / "crypto_provider.py"
 
 
@@ -69,7 +71,7 @@ def test_fips_process_exits_cleanly():
     """
     lib = Path.home() / ".m3" / "lib" / "wolfssl.dll"
     if not lib.is_file():
-        pytest.skip("wolfSSL not installed on this host")
+        pytest.skip(skip_reason("env", "wolfSSL not installed on this host"))
 
     code = (
         f"import sys; sys.path.insert(0, {str(_PROVIDER.parent)!r});"

@@ -8,6 +8,7 @@ from types import FrameType
 from typing import Any
 
 from crypto_provider import provider as crypto
+from m3_core.seams import is_macos, is_windows, os_name
 from m3_sdk import getenv_compat
 
 # --- Global Sync ---
@@ -16,7 +17,6 @@ import platform
 import queue
 import re
 import subprocess
-import sys
 import time
 import unicodedata
 from datetime import UTC, datetime
@@ -251,7 +251,7 @@ def get_master_key() -> str | None:
     except Exception:
         pass
 
-    if sys.platform == "darwin":
+    if is_macos():
         try:
             result = subprocess.run(
                 ["security", "find-generic-password", "-s", "AGENT_OS_MASTER_KEY", "-w"],
@@ -373,7 +373,7 @@ def _get_device_salt() -> bytes:
         # latter triggers a WMI query (platform._wmi_query) that can hang
         # indefinitely. os.name == "nt" is a constant — no WMI, no stall —
         # and chmod is a POSIX concern anyway.
-        if os.name != "nt":
+        if not is_windows():
             os.chmod(salt_path, 0o600)
     except Exception as e:
         logger.warning(
@@ -502,7 +502,7 @@ def _keyring_tier(service: str) -> tuple[str | None, str | None]:
     # Derive the OS name from sys.platform, not platform.system(): the latter
     # can hang on a WMI query on Python 3.14 / Windows. This runs on every
     # secret read, so it must not stall.
-    system = {"darwin": "Darwin", "win32": "Windows"}.get(sys.platform, "Linux")
+    system = os_name()
     val, error = _keyring_read("system", service)
     if val:
         return val, None

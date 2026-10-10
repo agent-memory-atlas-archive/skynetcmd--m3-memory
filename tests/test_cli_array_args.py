@@ -18,6 +18,7 @@ import argparse
 
 import pytest
 
+from conftest import skip_reason
 from m3_memory.cli import _CommaSplitAppend
 
 GROUPS = ["api_keys", "bearer_tokens", "jwt", "aws_keys", "github_tokens"]
@@ -77,14 +78,14 @@ def test_single_value_is_still_a_list():
 def test_array_tools_are_registered_with_the_split_action():
     """Guard the WIRING: a future refactor must not drop the action and
     silently reintroduce character-splitting."""
-    pytest.importorskip("mcp_tool_catalog")
+    pytest.importorskip("mcp_tool_catalog", reason=skip_reason("dep", f"{'mcp_tool_catalog'} not installed"))
     import mcp_tool_catalog as cat
 
     from m3_memory.cli import _spec_is_complex
 
     spec = next((t for t in cat.TOOLS if t.name == "chatlog_set_redaction"), None)
     if spec is None:
-        pytest.skip("chatlog_set_redaction not in this catalog build")
+        pytest.skip(skip_reason("na", "chatlog_set_redaction not in this catalog build"))
     assert not _spec_is_complex(spec), \
         "flat-flag tool became complex; array handling moved to --json"
     assert spec.parameters["properties"]["patterns"]["type"] == "array"

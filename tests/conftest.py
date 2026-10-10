@@ -55,6 +55,24 @@ _BIN_DIR = _os.path.join(_os.path.dirname(_os.path.dirname(__file__)), "bin")
 if _BIN_DIR not in sys.path:
     sys.path.insert(0, _BIN_DIR)
 
+# A bin/ script a test spawns (`[sys.executable, "bin/x.py"]`) imports m3_memory
+# for the version/OS seams. Point every child at THIS checkout's package: without
+# it a child fails on an interpreter that lacks m3_memory, or silently imports a
+# different installed version than the one under test.
+_REPO_ROOT = _os.path.dirname(_BIN_DIR)
+_os.environ["PYTHONPATH"] = _os.pathsep.join(
+    p for p in (_REPO_ROOT, _os.environ.get("PYTHONPATH", "")) if p)
+
+
+def simulate_os(monkeypatch, name: str) -> None:
+    """Present OS ``name`` ('Windows' | 'Darwin' | 'Linux') to code that asks the
+    OS seam, by turning the one knob the seam reads (m3_memory._platform.PLATFORM_OF).
+    Call it in the test BODY: conftest restores the real platform at each report
+    phase, so a fixture's patch is gone before the body runs."""
+    from m3_memory._platform import PLATFORM_OF
+
+    monkeypatch.setattr(sys, "platform", PLATFORM_OF[name])
+
 
 def embed_backend_reachable() -> bool:
     """True iff a tier-2 embedding backend answers a TCP connect quickly.
@@ -234,22 +252,42 @@ def _memory_core_importable() -> bool:
     return True
 
 
-# Marker -> probe. A marked test is skipped (with the given reason) when its
-# probe returns False. One place; adding a capability is one row.
+# Every skip names the dimension that caused it, so a run reports WHY tests did
+# not run and a skip that names none stands out (pytest_terminal_summary below):
+#   os     - the test needs a real facility of another OS (OS seam)
+#   python - the test needs another interpreter version (version seam)
+#   db     - the test needs another database backend or engine version (DB seam)
+#   dep    - an optional package / native wheel / model file is not installed
+#   env    - an external service (embedder, LLM, network) is not reachable
+#   na     - the case does not apply here (nothing to compare, a path not taken).
+#            The suspect kind: a skip that should have been an assertion hides
+#            here, so the report lists every one for review.
+SKIP_DIMENSIONS = ("os", "python", "db", "dep", "env", "na")
+
+
+def skip_reason(dimension: str, text: str) -> str:
+    """The reason string for a skip: ``pytest.skip(skip_reason("dep", "no numpy"))``."""
+    if dimension not in SKIP_DIMENSIONS:
+        raise ValueError(f"skip dimension {dimension!r} is not one of {SKIP_DIMENSIONS}")
+    return f"[{dimension}] {text}"
+
+
+# Marker -> (probe, dimension, reason). A marked test is skipped when its probe
+# returns False. One place; adding a capability is one row.
 _CAPABILITY_PROBES = {
-    "requires_pg": (_pg_reachable,
+    "requires_pg": (_pg_reachable, "db",
                     "no reachable PostgreSQL (set M3_PRIMARY_PG_URL to a throwaway cluster)"),
-    "requires_embedder": (embed_backend_reachable,
+    "requires_embedder": (embed_backend_reachable, "env",
                           "no reachable embedder (M3_EMBED_FALLBACK_URL, default :8082)"),
-    "requires_native": (_native_wheel_present,
+    "requires_native": (_native_wheel_present, "dep",
                         "m3_core_rs native wheel not installed"),
-    "requires_gguf": (lambda: gguf_path() is not None,
+    "requires_gguf": (lambda: gguf_path() is not None, "dep",
                       "no GGUF model (set M3_TEST_GGUF)"),
-    "requires_files_db": (_files_db_present,
+    "requires_files_db": (_files_db_present, "dep",
                           "shipped files_database.db absent"),
-    "requires_llm": (_llm_chat_reachable,
+    "requires_llm": (_llm_chat_reachable, "env",
                      "no reachable local chat model (set M3_WIKI_DRIFT_URL / load a model in LM Studio)"),
-    "requires_memory_core": (_memory_core_importable,
+    "requires_memory_core": (_memory_core_importable, "dep",
                              "memory_core / memory.search are not importable here (a "
                              "transitive ML dep such as torch is absent or broken in this "
                              "environment — see _memory_core_importable)"),
@@ -258,17 +296,34 @@ _CAPABILITY_PROBES = {
 
 # OS markers ask the OS seam (m3_memory/_platform.py), as code does, instead of
 # each test testing sys.platform / os.name itself. Not `integration`: an OS is
-# not an external service, so these tests stay in the hermetic lane.
+# not an external service, so these tests stay in the hermetic lane. They are for
+# a test that needs the REAL facility (file modes, the registry, launchd); a test
+# of OS-branch LOGIC should run everywhere with simulate_os instead of skipping.
 def _os_probes() -> dict:
-    from m3_memory._platform import is_apple_silicon, is_windows, os_name
+    from m3_memory._platform import is_apple_silicon, is_linux, is_macos, is_windows
 
     return {
         "requires_windows": (is_windows, "Windows only"),
-        "requires_posix": (lambda: not is_windows(), "POSIX only (macOS / Linux)"),
-        "requires_macos": (lambda: os_name() == "Darwin", "macOS only"),
-        "requires_linux": (lambda: os_name() == "Linux", "Linux only"),
+        "requires_posix": (lambda: is_macos() or is_linux(), "POSIX only (macOS / Linux)"),
+        "requires_macos": (is_macos, "macOS only"),
+        "requires_linux": (is_linux, "Linux only"),
         "requires_apple_silicon": (is_apple_silicon, "Apple Silicon only"),
     }
+
+
+def _python_skip(item) -> str | None:
+    """``@pytest.mark.requires_python(3, 13)``: needs that interpreter or newer,
+    asked of the version seam (m3_memory/_pyver.py)."""
+    m = item.get_closest_marker("requires_python")
+    if m is None:
+        return None
+    from m3_memory._pyver import PY
+
+    need = tuple(m.args)
+    if PY >= need:
+        return None
+    return skip_reason("python", f"needs Python {'.'.join(map(str, need))}+, "
+                                 f"running {PY[0]}.{PY[1]}")
 
 
 def pytest_collection_modifyitems(config, items):
@@ -280,7 +335,10 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         for m, (probe, reason) in os_probes.items():
             if m in item.keywords and not probe():
-                item.add_marker(pytest.mark.skip(reason=reason))
+                item.add_marker(pytest.mark.skip(reason=skip_reason("os", reason)))
+        py_reason = _python_skip(item)
+        if py_reason:
+            item.add_marker(pytest.mark.skip(reason=py_reason))
     cache: dict[str, bool] = {}
 
     def _ok(marker: str) -> bool:
@@ -295,7 +353,62 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(pytest.mark.integration)
         for m in capability_marks:
             if not _ok(m):
-                item.add_marker(pytest.mark.skip(reason=_CAPABILITY_PROBES[m][1]))
+                _probe, dim, reason = _CAPABILITY_PROBES[m]
+                item.add_marker(pytest.mark.skip(reason=skip_reason(dim, reason)))
+
+
+# ── skip report: what did not run, by dimension ──────────────────────────────
+_SKIPS: list[tuple[str, str]] = []  # (nodeid, reason)
+
+
+def _skip_dimension(reason: str) -> str | None:
+    if reason.startswith("[") and "]" in reason:
+        dim = reason[1:reason.index("]")]
+        if dim in SKIP_DIMENSIONS:
+            return dim
+    return None
+
+
+def pytest_runtest_logreport(report):
+    if report.skipped and isinstance(report.longrepr, tuple):
+        reason = str(report.longrepr[2])
+        _SKIPS.append((report.nodeid, reason.removeprefix("Skipped: ")))
+
+
+def pytest_terminal_summary(terminalreporter, exitstatus, config):
+    if not _SKIPS:
+        return
+    by_dim: dict[str, int] = {}
+    unclassified: list[tuple[str, str]] = []
+    for nodeid, reason in _SKIPS:
+        dim = _skip_dimension(reason)
+        if dim is None:
+            unclassified.append((nodeid, reason))
+        else:
+            by_dim[dim] = by_dim.get(dim, 0) + 1
+    tr = terminalreporter
+    tr.section("skipped tests by dimension")
+    for dim in SKIP_DIMENSIONS:
+        if by_dim.get(dim):
+            tr.write_line(f"  {dim:<7} {by_dim[dim]:>5}")
+    na = [(n, r) for n, r in _SKIPS if _skip_dimension(r) == "na"]
+    for nodeid, reason in na[:25]:
+        tr.write_line(f"    na: {nodeid}: {reason[:120]}")
+    if unclassified:
+        tr.write_line(f"  UNCLASSIFIED {len(unclassified)}: these skips name no dimension, so "
+                      "nothing says they were skipped for a real reason. inspect: use "
+                      "conftest.skip_reason(dimension, text) or a requires_* marker", yellow=True)
+        for nodeid, reason in unclassified[:25]:
+            tr.write_line(f"    {nodeid}: {reason[:120]}")
+        if len(unclassified) > 25:
+            tr.write_line(f"    ... and {len(unclassified) - 25} more")
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """M3_STRICT_SKIPS=1 fails a run that has an unclassified skip."""
+    if _os.environ.get("M3_STRICT_SKIPS") == "1" and exitstatus == 0 and any(
+            _skip_dimension(r) is None for _n, r in _SKIPS):
+        session.exitstatus = 1
 
 
 @pytest.fixture
@@ -364,6 +477,16 @@ def each_backend(request, monkeypatch):
 
 _REAL_OS_NAME = _os.name
 _REAL_SYS_PLATFORM = sys.platform
+
+
+def _real_is_windows() -> bool:
+    from m3_memory._platform import is_windows
+
+    return is_windows()
+
+
+# Read once at import, before any test simulates another OS.
+_ON_WINDOWS = _real_is_windows()
 
 
 @pytest.hookimpl(hookwrapper=True, tryfirst=True)
@@ -630,6 +753,53 @@ def _isolated_shell_rc(monkeypatch, tmp_path):
 
         monkeypatch.setattr(persist, "_pick_unix_shell_rc", _pick)
     yield
+
+
+def _user_env_snapshot() -> dict | None:
+    """HKCU\\Environment as {name: (value, type)}; None off Windows."""
+    if not _ON_WINDOWS:
+        return None
+    import winreg
+
+    out = {}
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as key:
+        i = 0
+        while True:
+            try:
+                name, value, kind = winreg.EnumValue(key, i)
+            except OSError:
+                break
+            out[name] = (value, kind)
+            i += 1
+    return out
+
+
+@pytest.fixture(autouse=True)
+def _real_user_env_untouched():
+    """Fail the test that changes the developer's REAL Windows user environment
+    (HKCU\\Environment, what `setx` writes), and put it back. On 2026-10-10 a
+    test that simulated macOS reached the Windows branch, ran a real `setx`, and
+    left M3_EMBED_GGUF=/path/to/bge-m3.gguf in every process started after it.
+    POSIX shell rc files are redirected by _isolated_shell_rc."""
+    before = _user_env_snapshot()
+    yield
+    if before is None:
+        return
+    after = _user_env_snapshot()
+    if after == before:
+        return
+    import winreg
+
+    changed = sorted(n for n in before.keys() | after.keys() if before.get(n) != after.get(n))
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment", 0, winreg.KEY_SET_VALUE) as key:
+        for name in changed:
+            if name in before:
+                winreg.SetValueEx(key, name, 0, before[name][1], before[name][0])
+            else:
+                winreg.DeleteValue(key, name)
+    pytest.fail(f"observed: this test changed the real Windows user environment: {changed} "
+                "(restored). inspect: stub the writer (installer._write_user_registry_env) in the "
+                "test, or simulate the OS with conftest.simulate_os", pytrace=False)
 
 
 @pytest.fixture(autouse=True)

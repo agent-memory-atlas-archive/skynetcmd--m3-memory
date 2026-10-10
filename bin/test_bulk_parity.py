@@ -5,7 +5,6 @@ Verifies that bulk path actually invokes database operations and produces
 equivalent memory_items rows to the single path, with proper enrichment,
 variant handling, contradiction detection, and conversation emitters.
 """
-
 import asyncio
 import json
 import os
@@ -15,10 +14,12 @@ import tempfile
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 
+from m3_core.seams import is_windows
+
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(BASE_DIR, "bin"))
 
-if sys.platform == "win32":
+if is_windows():
     sys.stdout.reconfigure(encoding='utf-8')  # type: ignore[union-attr]
 
 # ── Schema Definition ──────────────────────────────────────────────────────────

@@ -47,6 +47,8 @@ import sys
 import tempfile
 import time
 
+from m3_core.seams import is_macos, is_windows
+
 WOLFSSL_REPO = "https://github.com/wolfSSL/wolfssl.git"
 # Default to a known release tag rather than a moving HEAD, for reproducibility.
 # wolfSSL's release tags are suffixed "-stable" (e.g. v5.9.2-stable) — verified
@@ -276,7 +278,7 @@ def _check_prereqs() -> tuple[str, list[str]]:
     'cmake', or '' if nothing usable is present."""
     if not _which("git"):
         return "", ["git"]
-    if os.name == "nt":
+    if is_windows():
         # Windows: cmake + a VS generator is the realistic path.
         missing = [t for t in ("cmake",) if not _which(t)]
         return ("cmake" if not missing else ""), missing
@@ -346,7 +348,7 @@ def _build_autotools(src: str) -> str:
 def _is_shared_lib(fn: str) -> bool:
     """True if `fn` is a wolfSSL shared-library filename, including the VERSIONED
     forms a Linux/macOS build produces (libwolfssl.so.45.0.0, libwolfssl.45.dylib)."""
-    if os.name == "nt":
+    if is_windows():
         return fn == "wolfssl.dll"
     if fn == "libwolfssl.so" or fn.startswith("libwolfssl.so."):
         return True
@@ -391,7 +393,7 @@ def _build_cmake(src: str) -> str:
     use_ninja = bool(_which("ninja"))
     if use_ninja:
         gen_args = ["-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release"]
-    elif os.name == "nt":
+    elif is_windows():
         gen_args = ["-G", "Visual Studio 17 2022", "-A", "x64"]
         # MSBuild has no step counter, so no bar — but still quiet the console:
         # minimal verbosity + errors-only logger. The C4820/C5045/C4711 wall
@@ -420,7 +422,7 @@ def main(argv: list[str] | None = None) -> int:
     build_system, missing = _check_prereqs()
     if not build_system:
         _say("ERROR: missing build prerequisites: " + ", ".join(missing))
-        if sys.platform == "darwin":
+        if is_macos():
             _print_macos_prereq_help()
         else:
             _say("  Linux/Debian:  sudo apt install git autoconf automake libtool make gcc")
@@ -431,8 +433,8 @@ def main(argv: list[str] | None = None) -> int:
 
     dest_dir = args.dest or _m3_lib_dir()
     os.makedirs(dest_dir, exist_ok=True)
-    lib_filename = "wolfssl.dll" if os.name == "nt" else (
-        "libwolfssl.dylib" if sys.platform == "darwin" else "libwolfssl.so")
+    lib_filename = "wolfssl.dll" if is_windows() else (
+        "libwolfssl.dylib" if is_macos() else "libwolfssl.so")
     dest_path = os.path.join(dest_dir, lib_filename)
 
     work = tempfile.mkdtemp(prefix="m3-wolfssl-")
@@ -451,7 +453,7 @@ def main(argv: list[str] | None = None) -> int:
         _say(f"SHA-256:  {digest}")
         _say("This is the OPEN-SOURCE (non-FIPS) build — works with M3_FIPS_MODE=1.")
         _say("To self-pin your trusted build (recommended):")
-        if os.name == "nt":
+        if is_windows():
             _say(f'  setx M3_WOLFSSL_SHA256 {digest}')
         else:
             _say(f"  export M3_WOLFSSL_SHA256={digest}")

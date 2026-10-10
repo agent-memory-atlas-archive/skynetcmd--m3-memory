@@ -12,9 +12,11 @@ from pathlib import Path
 
 import pytest
 
+from conftest import skip_reason
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bin"))
 
-pytest.importorskip("fastapi", reason="dashboard needs the [dashboard] extra")
+pytest.importorskip("fastapi", reason=skip_reason("dep", "dashboard needs the [dashboard] extra"))
 
 
 def test_fmt_dual_time_local_and_zulu():

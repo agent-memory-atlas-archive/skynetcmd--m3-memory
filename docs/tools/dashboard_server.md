@@ -1,8 +1,8 @@
 ---
 tool: bin/dashboard_server.py
-sha1: 51d25b679e13
-mtime_utc: 2026-10-09T22:01:09.488440+00:00
-generated_utc: 2026-10-09T22:03:20.962902+00:00
+sha1: b45b9b3a6ac8
+mtime_utc: 2026-10-10T06:49:09.037916+00:00
+generated_utc: 2026-10-10T06:49:16.603775+00:00
 private: false
 ---
 
@@ -105,11 +105,11 @@ you intend to launch the server with (typically ``.venv``).
 
 **subprocess**
 
-- `subprocess.Popen()  → `[exe, script, '--foreground']`` (line 3194)
-- `subprocess.Popen()  → `[sys.executable, script, '--foreground']`` (line 3204)
-- `subprocess.Popen()  → `cmd`` (line 2859)
-- `subprocess.run()  → `['powershell', '-NoProfile', '-Command', ps]`` (line 3074)
-- `subprocess.run()  → `['taskkill', '/F', '/PID', str(pid)]`` (line 3109)
+- `subprocess.Popen()  → `[exe, script, '--foreground']`` (line 3196)
+- `subprocess.Popen()  → `[sys.executable, script, '--foreground']`` (line 3206)
+- `subprocess.Popen()  → `cmd`` (line 2861)
+- `subprocess.run()  → `['powershell', '-NoProfile', '-Command', ps]`` (line 3076)
+- `subprocess.run()  → `['taskkill', '/F', '/PID', str(pid)]`` (line 3111)
 
 
 ---
@@ -131,6 +131,7 @@ you intend to launch the server with (typically ``.venv``).
 - `files_memory.search (files_search)`
 - `html`
 - `m3_core.paths (get_m3_engine_root)`
+- `m3_core.seams (is_windows)`
 - `memory.backends (active_backend)`
 - `memory.config (FILES_DB_PATH)`
 - `memory.db (_db)`

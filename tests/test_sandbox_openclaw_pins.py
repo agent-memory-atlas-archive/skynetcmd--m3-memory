@@ -22,6 +22,8 @@ import re
 
 import pytest
 
+from conftest import skip_reason
+
 _SANDBOX = os.path.join(os.path.dirname(__file__), "..", "examples", "sandbox-openclaw")
 _DOCKERFILE = os.path.join(_SANDBOX, "Dockerfile")
 _CONFIG = os.path.join(_SANDBOX, "config", "openclaw.json")
@@ -116,7 +118,7 @@ def test_sandbox_tool_filter_matches_the_bridge_startup_set():
         import memory_bridge
         import tool_domains
     except Exception as e:  # pragma: no cover — payload must be importable
-        pytest.skip(f"payload not importable: {e}")
+        pytest.skip(skip_reason("dep", f"payload not importable: {e}"))
 
     meta = set(memory_bridge._META_TOOLS)
     expected = sorted({

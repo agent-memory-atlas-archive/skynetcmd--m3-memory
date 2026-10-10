@@ -13,9 +13,11 @@ import sys
 
 import pytest
 
+from conftest import skip_reason
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
-pytest.importorskip("m3_core_rs")
+pytest.importorskip("m3_core_rs", reason=skip_reason("dep", f"{'m3_core_rs'} not installed"))
 import m3_core_rs  # noqa: E402
 
 from memory import fts as ftsmod  # noqa: E402

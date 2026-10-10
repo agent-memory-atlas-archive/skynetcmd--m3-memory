@@ -1,8 +1,8 @@
 ---
 tool: bin/governor_cli.py
-sha1: 8e3ff45d2912
-mtime_utc: 2026-08-12T04:21:26.807046+00:00
-generated_utc: 2026-08-12T04:29:40.243587+00:00
+sha1: 7836e9cd8c4e
+mtime_utc: 2026-10-10T06:49:09.042920+00:00
+generated_utc: 2026-10-10T06:49:16.678134+00:00
 private: false
 ---
 
@@ -27,7 +27,7 @@ removal failed (so scripts can detect a no-op-due-to-permission).
 
 ## Entry points
 
-- `def main()` (line 133)
+- `def main()` (line 135)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -60,7 +60,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
-_(only stdlib)_
+- `m3_core.seams (is_windows)`
 
 ---
 
