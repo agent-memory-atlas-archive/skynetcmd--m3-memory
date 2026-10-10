@@ -1,8 +1,8 @@
 ---
 tool: bin/embed_backfill.py
-sha1: 684f5073e9dd
-mtime_utc: 2026-10-09T23:22:04.347241+00:00
-generated_utc: 2026-10-09T23:24:13.818065+00:00
+sha1: 1e7194c8a7b7
+mtime_utc: 2026-10-10T08:47:05.592430+00:00
+generated_utc: 2026-10-10T08:49:55.017211+00:00
 private: false
 ---
 

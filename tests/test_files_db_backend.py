@@ -36,7 +36,7 @@ def sqlite_files(tmp_path, monkeypatch):
     monkeypatch.delenv("M3_PRIMARY_PG_URL", raising=False)
     monkeypatch.delenv("M3_PG_URL", raising=False)
     # The backend selector caches the active backend; a prior PG test may have left
-    # it on postgres. Reset so _is_postgres() sees the sqlite env set above —
+    # it on postgres. Reset so _files_store_is_a_schema() sees the sqlite env set above —
     # otherwise the migration runner emits PG-qualified `files.` names against a
     # SQLite connection (test-pollution OperationalError, hit 2026-07-24).
     from memory.backends import selector

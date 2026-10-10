@@ -199,7 +199,7 @@ def _bound_db(db_path):
             yield conn
 
 
-def _safe_db(value: str | None) -> str:
+def _db_for_display(value: str | None) -> str:
     """Render a DB location for a LOG line without leaking a password.
 
     `M3_DATABASE` is contractually a SQLite file path, but a misconfigured
@@ -274,7 +274,7 @@ def _sweep_binding(db_path):
         # whoever reads the log rather than by this branch guessing.
         _log(
             f"NOTE: seam unavailable ({type(e).__name__}: {e}); "
-            f"observed: routing the sweep of {_safe_db(str(db_path))} by "
+            f"observed: routing the sweep of {_db_for_display(str(db_path))} by "
             f"M3_DATABASE instead "
             f"of active_database(). expected for a standalone run without the "
             f"payload on sys.path. "
@@ -528,9 +528,9 @@ async def _run_sweep(args: argparse.Namespace, counters: Counters) -> int:
             if _observed != str(args.db):
                 _log(
                     f"WARNING: M3_DATABASE changed during the sweep. "
-                    f"observed: {_safe_db(_observed)}, "
-                    f"expected {_safe_db(str(args.db))}; "
-                    f"restoring to {_safe_db(_prev_db_env)}. "
+                    f"observed: {_db_for_display(_observed)}, "
+                    f"expected {_db_for_display(str(args.db))}; "
+                    f"restoring to {_db_for_display(_prev_db_env)}. "
                     f"possible: a callee set the env var directly instead of "
                     f"using active_database(); such a write outlives this call "
                     f"and steers later resolve_db_path(None) at the wrong "

@@ -24,7 +24,7 @@ import re
 import sqlite3
 from pathlib import Path
 
-from .db import _is_postgres
+from .db import _files_store_is_a_schema
 
 logger = logging.getLogger("files_memory.migrate")
 
@@ -67,7 +67,7 @@ def _schema_versions_ref() -> str:
 
 
 def _migrations_dir() -> Path:
-    return _PG_DIR if _is_postgres() else _SQLITE_DIR
+    return _PG_DIR if _files_store_is_a_schema() else _SQLITE_DIR
 
 
 def discover_up_migrations(directory: Path | None = None) -> list[tuple[int, Path]]:
@@ -92,7 +92,7 @@ def _ensure_versions_table(conn) -> None:
     On SQLite there is no schema namespace and this is a plain CREATE TABLE.
     """
     from .config import FILES_SCHEMA
-    if _is_postgres():
+    if _files_store_is_a_schema():
         conn.execute(f"CREATE SCHEMA IF NOT EXISTS {FILES_SCHEMA}")
     ref = _schema_versions_ref()
     conn.execute(
@@ -123,7 +123,7 @@ def run_pending(conn) -> list[int]:
     on PG it is the compat wrapper (execute handles multi-statement)."""
     from memory.backends import dialect as _dialect
     _p = _dialect().param()
-    _is_pg = _is_postgres()
+    _is_pg = _files_store_is_a_schema()
 
     _ensure_versions_table(conn)
     done = _applied_versions(conn)

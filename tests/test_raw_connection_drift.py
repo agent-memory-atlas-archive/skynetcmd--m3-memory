@@ -156,7 +156,7 @@ _EXEMPT = {
         "PG. Its own comment records that this routing is what keeps the files "
         "corpus VISIBLE on PG (it previously rendered memory-only there).",
     "bin/files_memory/db.py":
-        "Owns that branch: _is_postgres() routes to the seam on PG and to the "
+        "Owns that branch: _files_store_is_a_schema() routes to the seam on PG and to the "
         "local sidecar only on SQLite.",
     "bin/files_memory/entities.py":
         "Default path goes through the seam (both backends); the raw connect is "

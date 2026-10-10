@@ -613,7 +613,8 @@ class SqliteBackend:
         if isinstance(exc, sqlite3.OperationalError):
             msg = str(exc).lower()
             return any(s in msg for s in ("syntax error", "no such column",
-                                          "no such function", "unrecognized token"))
+                                          "no such function", "unrecognized token",
+                                          "attempt to write a readonly database"))
         return False
 
     def placeholder(self, n: int = 1) -> str:

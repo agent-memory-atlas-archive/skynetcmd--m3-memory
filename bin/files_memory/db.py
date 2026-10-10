@@ -28,14 +28,14 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from m3_core.paths import canonical_path, current_store
-
-from . import config
-
 # NOTE: schema.SCHEMA_V1/2/3 are no longer applied here — the schema now lives in
 # numbered migrations (files_memory/migrations/, run by files_memory.migrate). The
 # blobs remain in schema.py as the historical source those migrations were
 # generated from (byte-identical); do not re-introduce executescript(SCHEMA_*).
+from m3_core.errors import log_swallowed  # noqa: E402
+from m3_core.paths import canonical_path, current_store
+
+from . import config
 
 logger = logging.getLogger("files_memory.db")
 
@@ -88,9 +88,13 @@ def _resolve_path(path: str | None) -> str:
     return config.FILES_DB_PATH
 
 
-def _is_postgres() -> bool:
-    """True when the active m3 backend is NOT sqlite (the files store then lives
-    in the `files` schema of the primary PG database, not a separate file).
+def _files_store_is_a_schema() -> bool:
+    """True when the files store is a SCHEMA of the primary database (any server
+    backend: the `files` schema), False when it is a separate SQLite FILE.
+
+    Named for the capability callers branch on. It was `_is_postgres`, which
+    read as a PostgreSQL identity test while answering True for any non-SQLite
+    backend.
 
     The one owner (files_memory.migrate imports it). A backend that cannot be
     resolved raises: answering False sent a PostgreSQL install's files store to
@@ -115,27 +119,23 @@ def readonly_probe(sql: str, params: tuple = (), *, db_path: str | None = None) 
         schema of the primary DB; probe via the primary pool WITHOUT running the
         files-schema migration, tolerating a missing table.
     Any error (no store, locked, unknown backend) → [] (safe no-op)."""
+    # Through the seam: backend.open_readonly is read-only on every backend
+    # (SQLite opens the files FILE mode=ro; a server backend sets its pooled
+    # session read-only and runs no files-schema migration). Every failure still
+    # returns [] (a probe must not take its caller down), but via log_swallowed:
+    # a missing store/table is a quiet "no work", a DEFECT is a WARNING.
+    path = None
     try:
-        if _is_postgres():
-            from memory.db import _db as _seam_db  # primary pool; no files-schema init
-            try:
-                with _seam_db() as conn:
-                    return list(conn.execute(sql, params).fetchall())
-            except Exception:  # noqa: BLE001 — missing files schema/table → no rows
-                return []
-        path = _resolve_path(db_path)
-        if not path or not os.path.exists(path):
-            return []
-        conn = sqlite3.connect(path)  # file exists → opens, never creates; SELECT-only
-        try:
-            return list(conn.execute(sql, params).fetchall())
-        except sqlite3.OperationalError:  # table not created yet
-            return []
-        finally:
-            conn.close()
-    except Exception:  # noqa: BLE001 — resolution/backend error → safe no-op
-        return []
+        from memory.backends import active_backend
 
+        path = _resolve_path(db_path)
+        if not _files_store_is_a_schema() and (not path or not os.path.exists(path)):
+            return []  # no store FILE: opening even read-only would be an error, not data
+        with active_backend().open_readonly(str(path or "")) as conn:
+            return list(conn.execute(sql, params).fetchall())
+    except Exception as e:  # noqa: BLE001 — no store/table, or a defect (classified)
+        log_swallowed(logger, e, "files probe failed (store %s): %s", path, e)
+        return []
 
 def _new_connection(db_path: str) -> sqlite3.Connection:
     """Open a fresh SQLite connection to the separate files DB file.
@@ -183,7 +183,7 @@ def init_db(path: str | None = None) -> None:
     primary database (a single DSN; qualified names, no search_path).
     Idempotent — the migration runner skips versions already in schema_versions.
     """
-    is_pg = _is_postgres()
+    is_pg = _files_store_is_a_schema()
     key = _init_key(path, is_pg)
     with _init_lock:
         if key in _initialized_dbs:
@@ -231,7 +231,7 @@ def _db(path: str | None = None) -> Iterator[sqlite3.Connection]:
     `path` is a SQLite file path; it is meaningless on PG and IGNORED there.
     """
     init_db(path)
-    if _is_postgres():
+    if _files_store_is_a_schema():
         # The seam's _db() already applies commit-on-clean-exit / rollback-on-error
         # and returns the connection to the pool. We just yield through it.
         from memory.db import _db as _seam_db
@@ -278,7 +278,7 @@ def integrity_check(path: str | None = None) -> dict:
     # SQLite-only: PRAGMA integrity_check + the FTS5 sync check have no PG analogue
     # (PG has its own integrity guarantees; FTS lands in Phase 2). Report a clean
     # skip on PG rather than run SQLite-specific SQL against the wrong backend.
-    if _is_postgres():
+    if _files_store_is_a_schema():
         out["skipped"] = "integrity_check is SQLite-only (PG has no PRAGMA/FTS5)"
         return out
     db_path = _resolve_path(path)
@@ -322,7 +322,7 @@ def rebuild_fts(path: str | None = None) -> None:
     (Phase 2) that self-maintains via a generated column, so there is nothing to
     rebuild — this is a clean no-op there."""
     init_db(path)
-    if _is_postgres():
+    if _files_store_is_a_schema():
         logger.debug("files_memory: rebuild_fts skipped (no FTS5 on PostgreSQL)")
         return
     db_path = _resolve_path(path)
