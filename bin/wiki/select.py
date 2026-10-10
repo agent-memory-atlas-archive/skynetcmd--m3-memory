@@ -94,12 +94,10 @@ def _self_ref_names() -> frozenset[str]:
     is a code-resolved FILE, not an env var (§3: headless launchers inherit no
     shell env). Malformed/absent → the default. Cached per config path."""
     import json as _json
-    import os as _os
     from pathlib import Path
-    root = (_os.environ.get("M3_CONFIG_ROOT")
-            or (str(Path(_os.environ["M3_MEMORY_ROOT"]) / "config")
-                if _os.environ.get("M3_MEMORY_ROOT") else None)
-            or str(Path.home() / ".m3" / "config"))
+
+    from m3_core.paths import get_m3_config_root  # the one owner
+    root = get_m3_config_root()
     path = str(Path(root) / _SELF_REF_CONFIG_BASENAME)
     names = set(_DEFAULT_SELF_REF_NAMES)
     try:

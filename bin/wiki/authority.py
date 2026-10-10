@@ -26,7 +26,6 @@ Malformed / absent → the default set (fail safe, and warned once).
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 # The shipping default: only 'canonical' renders as body prose. Everything else
@@ -46,13 +45,10 @@ def _config_root() -> str:
     A code-resolved config FILE, not an env var per policy (§3): headless
     launchers inherit no shell env, so the policy must live at a fixed path.
     """
-    root = os.environ.get("M3_CONFIG_ROOT")
-    if root:
-        return root
-    mem_root = os.environ.get("M3_MEMORY_ROOT")
-    if mem_root:
-        return str(Path(mem_root) / "config")
-    return str(Path.home() / ".m3" / "config")
+    # The one owner; this copy had drifted from it (it skipped _abs_root).
+    from m3_core.paths import get_m3_config_root
+
+    return get_m3_config_root()
 
 
 def body_authorities() -> frozenset[str]:

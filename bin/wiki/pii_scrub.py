@@ -27,7 +27,6 @@ is best-effort-but-applied.
 """
 from __future__ import annotations
 
-import os
 import re
 from pathlib import Path
 
@@ -60,13 +59,10 @@ _CONFIG_BASENAME = ".wiki_pii.json"
 
 
 def _config_root() -> str:
-    root = os.environ.get("M3_CONFIG_ROOT")
-    if root:
-        return root
-    mem = os.environ.get("M3_MEMORY_ROOT")
-    if mem:
-        return str(Path(mem) / "config")
-    return str(Path.home() / ".m3" / "config")
+    # The one owner; this copy had drifted from it (it skipped _abs_root).
+    from m3_core.paths import get_m3_config_root
+
+    return get_m3_config_root()
 
 
 def _self_names() -> tuple[str, ...]:
