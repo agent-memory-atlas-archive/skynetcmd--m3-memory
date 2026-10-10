@@ -762,6 +762,36 @@ def _isolated_shell_rc(monkeypatch, tmp_path):
     yield
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _session_tempdir(tmp_path_factory):
+    """Route every temp file the suite makes into pytest's own basetemp.
+
+    43 bare `tempfile.mkdtemp()` calls in tests/ (and helpers, and child
+    processes) were never cleaned up: 3,142 m3 test dirs had piled up in the
+    MacBook's $TMPDIR and 234,545 `tmp*` entries in SkyPC's %TEMP%, about 35 per
+    run of five files. Pointing `tempfile` and the children's TMPDIR/TEMP/TMP here
+    bounds it: pytest keeps only its last 3 basetemps, so a leak (or a killed
+    run) is reclaimed automatically instead of accumulating forever.
+    """
+    import tempfile as _tf
+
+    root = str(tmp_path_factory.mktemp("tempfile", numbered=False))
+    saved_dir = _tf.tempdir
+    saved_env = {k: _os.environ.get(k) for k in ("TMPDIR", "TEMP", "TMP")}
+    _tf.tempdir = root
+    for k in saved_env:
+        _os.environ[k] = root
+    try:
+        yield root
+    finally:
+        _tf.tempdir = saved_dir
+        for k, v in saved_env.items():
+            if v is None:
+                _os.environ.pop(k, None)
+            else:
+                _os.environ[k] = v
+
+
 def _user_env_snapshot() -> dict | None:
     """HKCU\\Environment as {name: (value, type)}; None off Windows."""
     if not _ON_WINDOWS:
