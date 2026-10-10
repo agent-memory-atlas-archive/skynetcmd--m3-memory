@@ -299,6 +299,21 @@ def _vault_has_secrets() -> bool:
         return False
 
 
+def device_salt_path() -> str:
+    """Where the device salt file is: the config root's ``.agent_os_salt``, or
+    the legacy root's when only that one exists. THE owner: the salt reader and
+    M3Context's salt-cohesion check both ask here (the check imported a
+    ``get_salt_path`` that never existed, so it never ran)."""
+    from m3_sdk import get_m3_config_root, get_m3_root
+
+    salt_path = os.path.join(get_m3_config_root(), ".agent_os_salt")
+    if not os.path.exists(salt_path):
+        legacy_path = os.path.join(get_m3_root(), ".agent_os_salt")
+        if os.path.exists(legacy_path):
+            return legacy_path
+    return salt_path
+
+
 def _get_device_salt() -> bytes:
     """
     Retrieves a persistent 16-byte salt for PBKDF2 from a local file.
@@ -334,14 +349,7 @@ def _get_device_salt() -> bytes:
                 "inspect: verify the value matches /^[0-9a-fA-F]{32}$/ (exactly 32 hex chars = 16 bytes)."
             )
 
-    from m3_sdk import get_m3_config_root, get_m3_root
-    # Check config root first, fallback to legacy root
-    config_root = get_m3_config_root()
-    salt_path = os.path.join(config_root, ".agent_os_salt")
-    if not os.path.exists(salt_path):
-        legacy_path = os.path.join(get_m3_root(), ".agent_os_salt")
-        if os.path.exists(legacy_path):
-            salt_path = legacy_path
+    salt_path = device_salt_path()
 
     if os.path.exists(salt_path):
         try:

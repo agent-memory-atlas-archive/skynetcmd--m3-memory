@@ -15,12 +15,7 @@ TREES = (ROOT / "bin", ROOT / "m3_memory")
 
 # Known stale imports, each with its reason and owner. An entry that stops
 # matching fails the test, so this list can only shrink.
-KNOWN: dict[str, str] = {
-    "bin/m3_core/context.py imports 'get_salt_path' from auth_utils":
-        "auth_utils never defined it, so M3Context._verify_cohesion has returned at its "
-        "ImportError guard since it was written. Enabling it is a decision (it raises at "
-        "construction and is SQLite-only), not a rename fix: m3 task 444532a9",
-}
+KNOWN: dict[str, str] = {}
 
 
 def _module_file(dotted: str) -> Path | None:

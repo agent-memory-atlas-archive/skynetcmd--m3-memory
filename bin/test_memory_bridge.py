@@ -862,7 +862,8 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
         sys.executable, "-c", "import memory_core; print(memory_core.SEARCH_ROW_CAP)",
         cwd=os.path.join(BASE_DIR, "bin"), env={**os.environ, "M3_SEARCH_ROW_CAP": "999"},
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-    out, err = await asyncio.wait_for(probe.communicate(), timeout=120)
+    async with asyncio.timeout(120):
+        out, err = await probe.communicate()
     lines = out.decode(errors="replace").strip().splitlines()
     check("SEARCH_ROW_CAP configurable", lines[-1:] == ["999"],
           (lines[-1] if lines else err.decode(errors="replace"))[-120:])

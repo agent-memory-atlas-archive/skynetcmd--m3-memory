@@ -122,24 +122,25 @@ def _db():
     # once we route to the seam, the connection and the caller's work run OUTSIDE
     # the guard — a real backend error must propagate, never be swallowed into a
     # silent fall-through to the wrong store.
+    # Only ImportError falls through to the SQLite path (the bootstrap case). A
+    # seam that REFUSES its configuration (PostgreSQL with no DSN) propagates:
+    # this caught Exception until 2026-10-10, so such an install silently read
+    # and wrote a local SQLite file -- the same defect fixed in seam_backend.
     _use_seam = False
     _backend = None
     try:
         from memory.backends import active_backend as _ab
-
+    except ImportError:
+        _ab = None
+    if _ab is not None:
         _backend = _ab()
-        _use_seam = _backend.name != "sqlite"
-    except Exception:
-        if os.environ.get("M3_DEBUG"):
-            import traceback
-
-            traceback.print_exc()
-        _use_seam = False
+        _use_seam = not _backend.stores_databases_as_files
 
     if _use_seam:
         # The backend's connection() applies its own commit/rollback discipline
         # (see StorageBackend.connection); we only yield through it. Errors propagate.
         with _backend.connection() as conn:
+            _cohesion_once(conn, _backend)
             yield conn
         return
 
@@ -154,6 +155,20 @@ def _db():
         except Exception:
             conn.rollback()
             raise
+
+
+_COHESION_CHECKED: set = set()
+
+
+def _cohesion_once(conn, backend) -> None:
+    """Salt cohesion for a server backend, once per process per backend (the
+    SQLite path runs it when its pool is built)."""
+    key = id(backend)
+    if key in _COHESION_CHECKED:
+        return
+    _COHESION_CHECKED.add(key)
+    from m3_core.context import verify_salt_cohesion
+    verify_salt_cohesion(conn, f"the {backend.name} store")
 
 
 @contextmanager

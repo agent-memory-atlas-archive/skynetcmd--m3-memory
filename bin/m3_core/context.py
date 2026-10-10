@@ -271,56 +271,9 @@ class M3Context:
         }
 
     def _verify_cohesion(self):
-        """Verifies the cohesion between the configuration salt and the database.
-
-        Creates the `m3_system_cohesion` metadata table if it does not exist, and
-        stores or re-verifies the SHA-256 hash of the active encryption salt.
-        """
-        try:
-            from auth_utils import get_salt_path
-        except ImportError:
-            return
-
-        salt_path = get_salt_path()
-        if not salt_path or not os.path.exists(salt_path):
-            return
-
-        try:
-            with Path(salt_path).open("rb") as f:
-                salt_bytes = f.read()
-            from crypto_provider import get_sha256  # the FIPS boundary: this hashes secret material
-            salt_hash = get_sha256(salt_bytes)
-        except Exception as e:
-            logger.warning(f"Failed to read/hash salt for cohesion check: {e}")
-            return
-
+        """Salt cohesion for this context's SQLite store (see verify_salt_cohesion)."""
         with self.get_sqlite_conn() as conn:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS m3_system_cohesion (
-                    key TEXT PRIMARY KEY,
-                    value TEXT,
-                    verified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-            conn.commit()
-
-            row = conn.execute("SELECT value FROM m3_system_cohesion WHERE key = 'salt_hash'").fetchone()
-            if row:
-                stored_hash = row[0]
-                if stored_hash != salt_hash:
-                    raise RuntimeError(
-                        f"CRITICAL COHESION ERROR: Active configuration salt mismatch with stored database hash!\n"
-                        f"Stored Hash: {stored_hash}\n"
-                        f"Active Hash: {salt_hash}\n"
-                        f"This database was previously encrypted with a different salt. Decoupled path mismatch detected.\n"
-                        f"Please reconcile your config and engine folders or env overrides (M3_CONFIG_ROOT / M3_ENGINE_ROOT)."
-                    )
-            else:
-                conn.execute(
-                    "INSERT INTO m3_system_cohesion (key, value) VALUES ('salt_hash', ?)",
-                    (salt_hash,)
-                )
-                conn.commit()
+            verify_salt_cohesion(conn, f"the SQLite store {self.db_path}")
 
 
     def _check_circuit(self, service: str) -> bool:
@@ -847,6 +800,53 @@ def _ensure_dispatch_schema(conn) -> None:
             "read-only. "
             "inspect: memory/dispatch_migrations/001_bootstrap.up.sql"
         )
+
+
+def verify_salt_cohesion(conn, where: str) -> None:
+    """Check the device salt against the hash recorded in the store, on any backend.
+
+    Secrets in a store are encrypted under the device salt; a store opened with a
+    different salt (relocated config root, restored backup, M3_CONFIG_ROOT /
+    M3_ENGINE_ROOT pointing at different machines) cannot decrypt them. The
+    first check records the salt's hash; a later mismatch is a WARNING with
+    observed/inspect, not an exception: m3 keeps starting and the operator is
+    told (user decision 2026-10-10; the check had never run, because it
+    imported a get_salt_path that did not exist). Best-effort: a failure to
+    read the salt or the table is logged and never blocks the caller.
+    """
+    import logging
+
+    log = logging.getLogger(__name__)
+    try:
+        from auth_utils import device_salt_path
+    except ImportError:  # bootstrap without bin/ on sys.path: no salt to compare
+        return
+    salt_path = device_salt_path()
+    if not os.path.exists(salt_path):
+        return  # fresh install: the salt is minted on first secret use
+    try:
+        from crypto_provider import get_sha256  # the FIPS boundary: this hashes secret material
+
+        salt_hash = get_sha256(Path(salt_path).read_bytes())
+        from memory.backends.dialect import dialect_for_connection
+
+        p = dialect_for_connection(conn).param()
+        conn.execute("CREATE TABLE IF NOT EXISTS m3_system_cohesion ("
+                     "key TEXT PRIMARY KEY, value TEXT, verified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+        row = conn.execute(f"SELECT value FROM m3_system_cohesion WHERE key = {p}", ("salt_hash",)).fetchone()
+        if row is None:
+            conn.execute(f"INSERT INTO m3_system_cohesion (key, value) VALUES ({p}, {p})", ("salt_hash", salt_hash))
+        elif row[0] != salt_hash:
+            log.warning(
+                "salt cohesion: the device salt does not match the one %s was first used with; "
+                "its encrypted secrets will not decrypt. observed: stored hash %s..., active hash %s... "
+                "(salt file %s). inspect: M3_CONFIG_ROOT and M3_ENGINE_ROOT point at the same machine's "
+                "config and engine; restore the matching .agent_os_salt; m3 doctor",
+                where, str(row[0])[:12], salt_hash[:12], salt_path)
+        conn.commit()
+    except Exception as e:  # noqa: BLE001 — best-effort by contract; reported, never raised
+        from m3_core.errors import log_swallowed
+        log_swallowed(log, e, "salt cohesion check skipped for %s: %s", where, e)
 
 
 class _PooledHandle:

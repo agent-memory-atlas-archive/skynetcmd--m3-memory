@@ -1,8 +1,8 @@
 ---
 tool: bin/test_memory_bridge.py
-sha1: 362963145f9d
-mtime_utc: 2026-10-10T17:29:16.814567+00:00
-generated_utc: 2026-10-10T17:34:53.654856+00:00
+sha1: e5ba6948acbb
+mtime_utc: 2026-10-10T20:00:51.371438+00:00
+generated_utc: 2026-10-10T20:01:06.521824+00:00
 private: false
 ---
 
@@ -23,7 +23,7 @@ embedding model is not loaded in LM Studio.
 ## Entry points
 
 - `async def run()` (line 158)
-- `async def main()` (line 1221)
+- `async def main()` (line 1222)
 - `if __name__ == "__main__"` guard
 
 ---

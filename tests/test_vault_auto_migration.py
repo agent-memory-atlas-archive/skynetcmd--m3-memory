@@ -28,6 +28,21 @@ def auth(monkeypatch, each_backend):
     return auth_utils
 
 
+@pytest.fixture(autouse=True)
+def _remove_probe_rows(each_backend):
+    """The PG test store persists, and a leftover vault row is not inert: the
+    salt guard reads any synchronized_secrets row as "the vault holds secrets"
+    and refuses to mint a salt, which failed test_serve_auth_pg_live
+    (2026-10-10). Remove this file's probe rows after every test."""
+    yield
+    from memory.backends import active_backend, dialect
+
+    with active_backend().connection() as conn:
+        conn.execute(f"DELETE FROM synchronized_secrets WHERE service_name LIKE {dialect().param()}",
+                     ("M3_R3_PROBE_%",))
+        conn.commit()
+
+
 def _put_raw(auth, service, encrypted):
     from memory.backends import active_backend, dialect
 
