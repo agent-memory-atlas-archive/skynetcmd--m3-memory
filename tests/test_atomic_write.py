@@ -84,12 +84,18 @@ def test_persistent_permission_error_surfaces(tmp_path, monkeypatch):
     assert _leftovers(tmp_path) == []
 
 
-# os.replace calls that MOVE an existing file rather than publish a new write.
+# os.replace / Path.replace calls that MOVE an existing file rather than publish a new write.
 _MOVES = {
     ("bin/chatlog_embed_sweeper.py", "spill_path"): "moves a spill file into quarantine",
     ("bin/m3_halt.py", "p"): "rotates a log file to its .1 backup",
     ("bin/memory/backends/postgres_backend.py", "partial"): "publishes a finished backup copy",
     ("bin/sqlite_snapshot.py", "partial"): "publishes a finished snapshot copy",
+    # Found when the scan learned pathlib's Path.replace (pathlib phase 1):
+    ("bin/_task_runtime.py", "log_path"): "rotates a log file to its .1 backup",
+    ("bin/memory/model_fetch.py", "part"): "publishes a finished, validated download",
+    ("m3_memory/embedder_admin.py", "tmp"): (
+        "NOT a move: a hand-rolled temp-then-replace config WRITE that should use "
+        "atomic_write; listed so the guard runs, to be converted (m3_memory phase)"),
 }
 
 
@@ -106,12 +112,21 @@ def test_no_hand_rolled_temp_then_replace():
             if p.name.startswith(("bench_", "benchmark_")) or "__pycache__" in p.parts or rel == "bin/m3_core/atomic_io.py":
                 continue
             for n in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
-                if (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "replace"
-                        and isinstance(n.func.value, ast.Name) and n.func.value.id == "os" and n.args):
-                    src = n.args[0]
-                    while isinstance(src, ast.Call) and src.args:  # str(p) -> p
-                        src = src.args[0]
-                    found.add((rel, ast.unparse(src)))
+                if not (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                        and n.func.attr == "replace"):
+                    continue
+                if isinstance(n.func.value, ast.Name) and n.func.value.id == "os" and n.args:
+                    src = n.args[0]                     # os.replace(src, dst)
+                elif len(n.args) == 1 and not n.keywords:
+                    # Path(src).replace(dst) / p.replace(dst): pathlib's move.
+                    # str/bytes .replace always take 2+ arguments, so one
+                    # argument means a filesystem replace.
+                    src = n.func.value
+                else:
+                    continue
+                while isinstance(src, ast.Call) and src.args:  # str(p) / Path(p) -> p
+                    src = src.args[0]
+                found.add((rel, ast.unparse(src)))
     assert found == set(_MOVES), (
         f"new os.replace (use atomic_write for writes): {sorted(found - set(_MOVES))}; "
         f"stale allowlist entries: {sorted(set(_MOVES) - found)}")
