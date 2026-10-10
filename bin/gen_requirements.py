@@ -69,8 +69,12 @@ def render(*, upgrade: bool) -> str:
         work = Path(tmp) / "requirements.txt"
         if OUT.exists() and not upgrade:
             shutil.copyfile(OUT, work)
+        # --no-config: resolve as a plain installer would. [tool.uv]'s
+        # override-dependencies exist for the uv lock's extras; applied here
+        # they let requirements.txt pin a set pip refuses (fastmcp 4 + mcp 1.x
+        # did, 2026-10-10: docs/DEPENDENCY_NOTES.md).
         cmd = [uv, "pip", "compile", str(PYPROJECT), "--universal", "--no-header",
-               "--quiet", "--output-file", str(work)]
+               "--quiet", "--no-config", "--output-file", str(work)]
         for g in GROUPS:
             cmd += ["--group", g]
         if upgrade:

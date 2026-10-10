@@ -1,14 +1,30 @@
 # Dependency notes
 
-Why each pin is what it is. These notes lived as comments in `requirements.txt`;
-that file is now generated from `uv.lock` (`python bin/gen_requirements.py`), so
-the reasoning moved here, unchanged. Declarations live in `pyproject.toml`.
+Why each pin is what it is. Declarations live in `pyproject.toml`;
+`requirements.txt` is generated from them (`python bin/gen_requirements.py`,
+resolved as a plain installer would, without uv's overrides) and `uv.lock` is
+uv's lock of the same declarations plus the extras.
+
+## Version-limit policy
+
+Every limit is a decision, and every decision states its reason here or in a
+comment on the requirement (tests/test_dependency_limits_documented.py).
+
+- **Floor (`>=`)**: the oldest version m3 is known to work with, usually raised
+  for a fix or CVE named in the package's section below. A floor is not a limit.
+- **Default ceiling: below the floor's next major (`>=X.y,<X+1`; `<1` for a 0.x
+  floor).** A major release may change the API; m3 adopts one deliberately, after
+  the suite and the lane matrix are green on it, by raising the ceiling in its own
+  change. This one rule is the reason for every ceiling of that exact shape, so
+  those need no per-package note.
+- **Anything else needs its own reason**: an exact pin (`==`, `~=`), an exclusion
+  (`!=`), or a ceiling narrower or wider than the next major. Each has a section
+  below or a comment naming the package on the requirement.
 
 ## Overview
 
 M3 Memory — Unified Dependencies
 Install: pip install -r requirements.txt
-Versions pinned to major.minor.* for supply-chain safety (2026-04-16)
 
 RUNTIME DEPENDENCY (not Python): M3 needs an OpenAI-compatible LLM server
 running locally for embeddings and optional enrichment features.
@@ -22,18 +38,25 @@ across Ollama, LM Studio, llama.cpp --server, vLLM, and LocalAI.
 
 ## Core Engine & MCP
 
-### `fastmcp` (`fastmcp>=4.1,<5`)
+### `fastmcp` (`fastmcp>=3.4.7,<4`)
 
-**Raised to 4.x on 2026-10-10 (user decision).** m3 does not import the
-standalone `fastmcp` package today: its MCP server is `mcp.server.fastmcp`,
-bundled in `mcp` (measured: importing m3's MCP seam never loads `fastmcp`). The
-dependency is kept on purpose, to adopt FastMCP features where they simplify m3
-(tracked as an m3 to-do). FastMCP 4.1.0 resolves with `mcp>=1.30,<2` (it does
-not force mcp 2), and over 3.4.8 it adds httpx2, httpcore2, truststore and
-mcp-types (plus httpx2-jsfetch on emscripten only). On Python 3.15 only, it pulls
-beartype 0.23.0rc2, a release candidate, because no stable beartype supports
-3.15 yet. The `mcp <2` ceiling below is unchanged and is decided with the mcp 2
-evaluation.
+**Held below 4 (user decision, 2026-10-10).** fastmcp 4.x requires `mcp>=2,<3`
+(through `fastmcp-slim[client]`), and m3 ships `mcp>=1.30,<2`, so with 4.x in core
+a resolving installer cannot install m3 at all. That shipped unnoticed for one
+unpushed commit: uv resolved it only because `[tool.uv]` overrides mcp (for the
+crewai extra), and the local venv was filled by `uv pip sync`, which installs
+pins without resolving. The lane matrix's `pip install -r requirements.txt`
+caught it. Measured: `fastmcp>=3.4.7,<4` with `mcp>=1.30,<2` resolves (3.4.8).
+
+m3 does not import the standalone `fastmcp` package: its MCP server is
+`mcp.server.fastmcp`, bundled in `mcp` (importing m3's MCP seam never loads
+`fastmcp`). The dependency is kept on purpose, to adopt FastMCP features where
+they simplify m3 (an m3 to-do). **fastmcp 4 comes with the mcp 2 raise below**,
+which is a pin change plus a CI matrix entry; raise the two together.
+
+`requirements.txt` generation checks that the core dependencies resolve WITHOUT
+the uv overrides (bin/gen_requirements.py), so an override can never again mask a
+conflict in what `pip install m3-memory` installs.
 
 ⚠ mcp <2 and fastmcp <4 are a CONSERVATIVE DEFAULT, not a hard incompatibility.
 The code runs on BOTH majors: bin/mcp_compat.py owns the differences, and the
