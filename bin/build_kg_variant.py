@@ -15,12 +15,14 @@ Usage:
         --source-variant LME-ingestion \
         --target-variant LME-kg-dense \
         --top-n 8 --sim-threshold 0.70
+
+Every backend: SQLite takes --database (default: the active store); PostgreSQL
+uses the configured database and refuses a path.
 """
 from __future__ import annotations
 
 import argparse
 import os
-import sqlite3
 import struct
 import sys
 import time
@@ -28,19 +30,15 @@ import uuid
 from datetime import UTC, datetime
 
 import numpy as np
-from m3_sdk import getenv_compat
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from m3_sdk import add_database_arg, resolve_db_path
-from sqlite_pragmas import apply_pragmas, profile_for_db
-
-# AGENT_DB env var is kept as a deprecated alias; new code should prefer
-# M3_DATABASE or the --database CLI flag.
-_AGENT_DB_LEGACY = getenv_compat("M3_AGENT_DB", "AGENT_DB")
-DB_PATH = _AGENT_DB_LEGACY or resolve_db_path(None)
+from m3_core.context import pointed_store_connection  # noqa: E402
+from m3_core.paths import resolve_cli_store, seam_dialect  # noqa: E402
+from m3_sdk import add_database_arg, getenv_compat  # noqa: E402
 
 
-def _unpack(blob: bytes) -> np.ndarray:
+def _unpack(blob) -> np.ndarray:
+    blob = bytes(blob)  # PostgreSQL BYTEA arrives as a memoryview
     n = len(blob) // 4
     return np.array(struct.unpack(f"{n}f", blob), dtype=np.float32)
 
@@ -49,12 +47,14 @@ def log(msg: str) -> None:
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
-def copy_items_and_embeddings(db: sqlite3.Connection, source: str, target: str) -> dict[str, str]:
+def copy_items_and_embeddings(db, source: str, target: str) -> dict[str, str]:
     """Duplicate items and embeddings from source variant to target variant with new IDs.
     Returns old_id -> new_id mapping."""
     log(f"copying items from variant={source!r} to variant={target!r}")
     # Ensure target is empty
-    existing = db.execute("SELECT COUNT(*) FROM memory_items WHERE variant = ?", (target,)).fetchone()[0]
+    d = seam_dialect()
+    p = d.param()
+    existing = db.execute(f"SELECT COUNT(*) FROM memory_items WHERE variant = {p}", (target,)).fetchone()[0]
     if existing:
         raise SystemExit(f"target variant {target!r} already has {existing} items — aborting. Use --wipe-target to clear.")
 
@@ -63,7 +63,7 @@ def copy_items_and_embeddings(db: sqlite3.Connection, source: str, target: str) 
         "change_agent, importance, source, origin_device, is_deleted, expires_at, "
         "decay_rate, created_at, updated_at, last_accessed_at, access_count, user_id, "
         "scope, valid_from, valid_to, content_hash, read_at, conversation_id, "
-        "refresh_on, refresh_reason FROM memory_items WHERE variant = ? AND is_deleted = 0",
+        f"refresh_on, refresh_reason FROM memory_items WHERE variant = {p} AND is_deleted = 0",
         (source,),
     ).fetchall()
     log(f"  {len(rows)} source items to copy")
@@ -85,7 +85,7 @@ def copy_items_and_embeddings(db: sqlite3.Connection, source: str, target: str) 
         "expires_at, decay_rate, created_at, updated_at, last_accessed_at, "
         "access_count, user_id, scope, valid_from, valid_to, content_hash, read_at, "
         "conversation_id, refresh_on, refresh_reason, variant) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        f"VALUES ({d.placeholder(28)})",
         batch,
     )
     db.commit()
@@ -96,7 +96,7 @@ def copy_items_and_embeddings(db: sqlite3.Connection, source: str, target: str) 
     for old_id, new_id in id_map.items():
         er = db.execute(
             "SELECT embedding, embed_model, dim, content_hash FROM memory_embeddings "
-            "WHERE memory_id = ? LIMIT 1",
+            f"WHERE memory_id = {p} LIMIT 1",
             (old_id,),
         ).fetchone()
         if er is None:
@@ -104,7 +104,7 @@ def copy_items_and_embeddings(db: sqlite3.Connection, source: str, target: str) 
         emb_batch.append((str(uuid.uuid4()), new_id, er[0], er[1], er[2], now, er[3]))
     db.executemany(
         "INSERT INTO memory_embeddings (id, memory_id, embedding, embed_model, dim, created_at, content_hash) "
-        "VALUES (?,?,?,?,?,?,?)",
+        f"VALUES ({d.placeholder(7)})",
         emb_batch,
     )
     db.commit()
@@ -112,14 +112,15 @@ def copy_items_and_embeddings(db: sqlite3.Connection, source: str, target: str) 
     return id_map
 
 
-def build_kg_edges(db: sqlite3.Connection, variant: str, top_n: int, sim_threshold: float) -> int:
+def build_kg_edges(db, variant: str, top_n: int, sim_threshold: float) -> int:
     """For each item in variant, find top-N similar items above threshold and insert
     `related` edges into memory_relationships."""
     log(f"building KG edges for variant={variant!r} (top_n={top_n}, threshold={sim_threshold})")
+    d = seam_dialect()
     rows = db.execute(
         "SELECT mi.id, me.embedding FROM memory_items mi "
         "JOIN memory_embeddings me ON mi.id = me.memory_id "
-        "WHERE mi.variant = ? AND mi.is_deleted = 0",
+        f"WHERE mi.variant = {d.param()} AND mi.is_deleted = 0",
         (variant,),
     ).fetchall()
     log(f"  {len(rows)} items with embeddings")
@@ -164,7 +165,7 @@ def build_kg_edges(db: sqlite3.Connection, variant: str, top_n: int, sim_thresho
         if edges:
             db.executemany(
                 "INSERT INTO memory_relationships (id, from_id, to_id, relationship_type, created_at) "
-                "VALUES (?,?,?,?,?)",
+                f"VALUES ({d.placeholder(5)})",
                 edges,
             )
             db.commit()
@@ -190,38 +191,33 @@ def main():
     add_database_arg(p)
     args = p.parse_args()
 
-    # --store (selected while parsing) outranks the legacy AGENT_DB alias as it
-    # outranks M3_DATABASE (D3); DB_PATH was resolved at import, before it.
-    db_path = resolve_db_path(args.database) if args.database or args.store else DB_PATH
-    from m3_core.paths import require_sqlite_backend
-    require_sqlite_backend("build_kg_variant")
-    # A WRITABLE connection: this copies items and writes edges, and
-    # open_readonly is read-only (mode=ro), so it could never commit.
-    from m3_sdk import M3Context
-    _cm = M3Context.for_db(str(db_path)).get_sqlite_conn()
-    db = _cm.__enter__()
+    # Order: --database > --store (selected while parsing) > the deprecated
+    # AGENT_DB alias > M3_DATABASE > engine default. Resolved here, after
+    # parsing; an import-time constant could not see --store.
+    explicit = args.database or (None if args.store else getenv_compat("M3_AGENT_DB", "AGENT_DB"))
     try:
-        db.row_factory = sqlite3.Row
-    except Exception:  # noqa: BLE001 — non-SQLite connection
-        pass
-    # Centralised pragma stack — applies wal_autocheckpoint + journal_size_limit
-    # to bound WAL growth on bulk-insert workloads.  profile_for_db() selects
-    # "production" for the main memory DB, "bench" for bench-named DBs.
-    apply_pragmas(db, profile_for_db(db_path))
+        db_path = resolve_cli_store(explicit, "--database")
+    except ValueError as e:
+        raise SystemExit(f"ERROR: {e}") from None
+    with pointed_store_connection(db_path) as db:
+        _build(db, args)
 
+
+def _build(db, args) -> None:
+    p = seam_dialect().param()
     if args.wipe_target:
         log(f"wiping existing target variant {args.target_variant!r}")
         # Delete edges referencing items in target variant
         db.execute(
             "DELETE FROM memory_relationships WHERE from_id IN "
-            "(SELECT id FROM memory_items WHERE variant = ?) OR to_id IN "
-            "(SELECT id FROM memory_items WHERE variant = ?)",
+            f"(SELECT id FROM memory_items WHERE variant = {p}) OR to_id IN "
+            f"(SELECT id FROM memory_items WHERE variant = {p})",
             (args.target_variant, args.target_variant),
         )
         db.execute("DELETE FROM memory_embeddings WHERE memory_id IN "
-                   "(SELECT id FROM memory_items WHERE variant = ?)",
+                   f"(SELECT id FROM memory_items WHERE variant = {p})",
                    (args.target_variant,))
-        db.execute("DELETE FROM memory_items WHERE variant = ?", (args.target_variant,))
+        db.execute(f"DELETE FROM memory_items WHERE variant = {p}", (args.target_variant,))
         db.commit()
 
     copy_items_and_embeddings(db, args.source_variant, args.target_variant)
@@ -229,7 +225,7 @@ def main():
 
     # Summary
     n_items = db.execute(
-        "SELECT COUNT(*) FROM memory_items WHERE variant = ?", (args.target_variant,)
+        f"SELECT COUNT(*) FROM memory_items WHERE variant = {p}", (args.target_variant,)
     ).fetchone()[0]
     log(f"SUMMARY: variant={args.target_variant} items={n_items} edges={n_edges}")
 

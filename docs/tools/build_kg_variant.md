@@ -1,8 +1,8 @@
 ---
 tool: bin/build_kg_variant.py
-sha1: c1c80ca444fa
-mtime_utc: 2026-10-10T08:35:05.296896+00:00
-generated_utc: 2026-10-10T08:38:21.466969+00:00
+sha1: 6b029d60d0ca
+mtime_utc: 2026-10-10T16:50:49.966686+00:00
+generated_utc: 2026-10-10T16:50:50.314845+00:00
 private: false
 ---
 
@@ -21,11 +21,14 @@ Usage:
 
     python bin/build_kg_variant.py         --source-variant LME-ingestion         --target-variant LME-kg-dense         --top-n 8 --sim-threshold 0.70
 
+Every backend: SQLite takes --database (default: the active store); PostgreSQL
+uses the configured database and refuses a path.
+
 ---
 
 ## Entry points
 
-- `def main()` (line 182)
+- `def main()` (line 183)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -52,10 +55,7 @@ _(none detected)_
 
 ## Calls INTO this repo (intra-repo imports)
 
-- `m3_sdk (M3Context)`
-- `m3_sdk (add_database_arg, resolve_db_path)`
-- `m3_sdk (getenv_compat)`
-- `sqlite_pragmas (apply_pragmas, profile_for_db)`
+- `m3_sdk (add_database_arg, getenv_compat)`
 
 ---
 
@@ -67,7 +67,8 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
-- `m3_core.paths (require_sqlite_backend)`
+- `m3_core.context (pointed_store_connection)`
+- `m3_core.paths (resolve_cli_store, seam_dialect)`
 - `numpy`
 
 ---
