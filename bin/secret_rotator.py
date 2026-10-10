@@ -40,10 +40,8 @@ def rotate_secrets(dry_run: bool = False):
             # 1. Fetch current secret for backup
             old_secret = ctx.get_secret(key_name)
             if old_secret and not dry_run:
-                # Store backup in a dedicated table (ensure schema exists)
+                # Store backup in a dedicated table (migrations 052 / pg_061 own it)
                 with active_database(ctx.db_path), seam_backend().connection() as conn:
-                    conn.execute("CREATE TABLE IF NOT EXISTS secret_backups "
-                                 "(service_name TEXT, encrypted_value TEXT, rotated_at TEXT)")
                     # Get the encrypted blob directly from the source table
                     row = conn.execute(
                         f"SELECT encrypted_value FROM synchronized_secrets WHERE service_name = {_p}",
