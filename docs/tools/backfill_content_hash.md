@@ -1,8 +1,8 @@
 ---
 tool: bin/backfill_content_hash.py
-sha1: ceb62ec53bb5
-mtime_utc: 2026-10-09T22:01:09.465557+00:00
-generated_utc: 2026-10-09T22:03:20.707260+00:00
+sha1: 9a5ebeb6417a
+mtime_utc: 2026-10-10T15:14:15.355400+00:00
+generated_utc: 2026-10-10T16:43:52.890053+00:00
 private: false
 ---
 
@@ -24,8 +24,13 @@ memory_core._content_hash would produce at write time) and UPDATEs the
 embedding row in place.
 
 Idempotent — re-running picks up only rows still NULL. Safe to run
-alongside live writers (single-row UPDATEs commit per batch in WAL
-mode; no schema change).
+alongside live writers (UPDATEs commit per batch; no schema change).
+
+Every backend. On SQLite --db picks the file (the chatlog is its own file;
+--target chatlog defaults to it). On PostgreSQL both stores are tables of the
+one configured database: --target picks memory_* or chat_log_*, and --db is
+refused. A PostgreSQL store migrated from an old SQLite one carries the NULL
+hashes as copied, so the repair is needed there too.
 
 Scope decision:
   - For chat_log / message rows, the embed text is the raw content
@@ -61,7 +66,7 @@ Usage:
 
 ## Entry points
 
-- `def main()` (line 328)
+- `def main()` (line 317)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -70,7 +75,8 @@ Usage:
 
 | Flag(s) | Help | Default | Default behavior | Type/Action | Impact when set |
 |---|---|---|---|---|---|
-| `--db` | f'Target DB. Default: $M3_DATABASE or {DEFAULT_DB}' | `Path(os.environ.get('M3_DATABASE', str(DEFAULT_DB)))` |  | Path |  |
+| `--db` | Target SQLite DB (default: the active store, or the chatlog store with --target chatlog). Not used on PostgreSQL. | None |  | str |  |
+| `--target` | Which store's embeddings to backfill. On PostgreSQL this picks memory_* or chat_log_* in the one database. | `core` |  | str |  |
 | `--type` | f"Memory type to include. Repeatable. Defaults to {' + '.join(DEFAULT_TYPES)} (raw-content hashing is safe for these). For other types, pass --type explicitly with --augment-anchors so the hash matches what _embed_many would compute." | None |  | append |  |
 | `--all-types` | Backfill rows of any type (no type filter). Pair with --augment-anchors so hashes match what memory_write_impl would have computed at write time. Note: rows whose metadata.temporal_anchors predates current schema will get a hash that doesn't match new writes — strictly an improvement on NULL (cache miss → cache hit on identical future text) but may not deduplicate against older inline-written embeddings of the same text. | `False` |  | store_true |  |
 | `--variant` | Filter to memory_items.variant. Repeatable for OR. | `[]` |  | append |  |
@@ -91,34 +97,30 @@ Usage:
 
 ## Calls INTO this repo (intra-repo imports)
 
+- `chatlog_config (chatlog_db_path)`
 - `memory_core`
-- `sqlite_pragmas (apply_pragmas, profile_for_db)`
 
 ---
 
 ## Calls OUT (external side-channels)
 
-**sqlite**
-
-- `sqlite3.connect()  → `str(args.db)`` (line 195)
-- `sqlite3.connect()  → `str(args.db)`` (line 198)
-- `sqlite3.connect()  → `str(db_path)`` (line 166)
-- `sqlite3.connect()  → `str(db_path)`` (line 88)
-
+_(no subprocess / http / sqlite calls detected)_
 
 ---
 
 ## Notable external imports
 
-- `m3_core.paths (require_sqlite_backend)`
+- `m3_core.context (pointed_store_connection)`
+- `m3_core.errors (is_defect)`
+- `m3_core.paths (resolve_cli_store, seam_backend, seam_dialect)`
 - `m3_core.runtime (utc_iso)`
-- `memory.backends.sqlite_backend (SqliteDialect)`
+- `memory.backends.dialect (chatlog_table)`
 
 ---
 
 ## File dependencies (repo paths referenced)
 
-- `agent_memory.db`
+_(none detected)_
 
 ---
 

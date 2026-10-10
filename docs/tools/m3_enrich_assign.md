@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_enrich_assign.py
-sha1: 72c4e8c6d146
-mtime_utc: 2026-10-10T14:35:19.692003+00:00
-generated_utc: 2026-10-10T14:35:24.804023+00:00
+sha1: ec53e443e127
+mtime_utc: 2026-10-10T15:13:04.208473+00:00
+generated_utc: 2026-10-10T15:13:47.254700+00:00
 private: false
 ---
 
@@ -45,7 +45,7 @@ override.
 
 ## Entry points
 
-- `def main()` (line 42)
+- `def main()` (line 43)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -86,7 +86,8 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
-- `m3_core.paths (active_database, resolve_cli_store, seam_backend, seam_dialect)`
+- `m3_core.context (pointed_store_connection)`
+- `m3_core.paths (resolve_cli_store, seam_dialect)`
 
 ---
 

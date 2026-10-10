@@ -14,8 +14,13 @@ memory_core._content_hash would produce at write time) and UPDATEs the
 embedding row in place.
 
 Idempotent — re-running picks up only rows still NULL. Safe to run
-alongside live writers (single-row UPDATEs commit per batch in WAL
-mode; no schema change).
+alongside live writers (UPDATEs commit per batch; no schema change).
+
+Every backend. On SQLite --db picks the file (the chatlog is its own file;
+--target chatlog defaults to it). On PostgreSQL both stores are tables of the
+one configured database: --target picks memory_* or chat_log_*, and --db is
+refused. A PostgreSQL store migrated from an old SQLite one carries the NULL
+hashes as copied, so the repair is needed there too.
 
 Scope decision:
   - For chat_log / message rows, the embed text is the raw content
@@ -51,67 +56,47 @@ from __future__ import annotations
 
 import argparse
 import os
-import sqlite3
 import sys
 import time
 from pathlib import Path
 
+from m3_core.context import pointed_store_connection
+from m3_core.errors import is_defect
+from m3_core.paths import resolve_cli_store, seam_backend, seam_dialect
 from m3_core.runtime import utc_iso
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BIN_DIR = REPO_ROOT / "bin"
-DEFAULT_DB = REPO_ROOT / "memory" / "agent_memory.db"
-
-sys.path.insert(0, str(REPO_ROOT / "bin"))
-from sqlite_pragmas import apply_pragmas, profile_for_db
-
-# The non-empty-content predicate comes from the backend seam so it has exactly
-# one definition (DESIGN_PHILOSOPHIES §10a: duplicated predicate logic is the
-# defect independent of correctness). This module still opens SQLite by path
-# (Finding L), so the SQLite dialect is resolved here.
-try:  # pragma: no cover - import shim for standalone execution
-    from memory.backends.sqlite_backend import SqliteDialect as _SqliteDialect
-    _has_content = _SqliteDialect(backend="sqlite", param_style="qmark").has_content
-except Exception:  # pragma: no cover
-    def _has_content(column: str) -> str:
-        return f"LENGTH(TRIM(COALESCE({column}, ''))) > 0"
 
 
 DEFAULT_TYPES = ("chat_log", "message")
 DEFAULT_BATCH_SIZE = 1000
 
 
-def _verify_schema(db_path: Path) -> None:
-    """Confirm memory_items + memory_embeddings exist with required columns."""
-    if not db_path.exists():
-        raise FileNotFoundError(f"DB not found: {db_path}")
-    conn = sqlite3.connect(str(db_path), timeout=10.0)
-    try:
-        for tbl in ("memory_items", "memory_embeddings"):
-            row = conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-                (tbl,),
-            ).fetchone()
-            if not row:
-                raise RuntimeError(
-                    f"Table {tbl!r} not found in {db_path}. "
-                    f"Run migrate_memory.py up first."
-                )
-        me_cols = {r[1] for r in conn.execute("PRAGMA table_info(memory_embeddings)")}
-        if "content_hash" not in me_cols:
-            raise RuntimeError(
-                f"memory_embeddings.content_hash missing from {db_path}. "
-                f"Schema is too old; run migrate_memory.py up."
-            )
-        mi_cols = {r[1] for r in conn.execute("PRAGMA table_info(memory_items)")}
-        for col in ("id", "content", "type"):
-            if col not in mi_cols:
-                raise RuntimeError(
-                    f"memory_items.{col} missing from {db_path}. "
-                    f"Schema is too old; run migrate_memory.py up."
-                )
-    finally:
-        conn.close()
+def _tables(args: argparse.Namespace) -> tuple[str, str]:
+    """(items, embeddings) for --target, through the seam's chatlog naming."""
+    if args.target == "chatlog":
+        from memory.backends.dialect import chatlog_table
+        return chatlog_table("items"), chatlog_table("embeddings")
+    return "memory_items", "memory_embeddings"
+
+
+def _verify_schema(conn, args: argparse.Namespace) -> None:
+    """Confirm the items + embeddings tables exist with the required columns."""
+    d = seam_dialect()
+    items, embeddings = _tables(args)
+    where = args.db or seam_backend().name
+    for tbl, required in ((items, ("id", "content", "type")), (embeddings, ("content_hash",))):
+        sql, params = d.table_exists(tbl)
+        if conn.execute(sql, params).fetchone() is None:
+            raise RuntimeError(f"observed: table {tbl!r} not found in {where}. "
+                               f"inspect: run the migrations (migrate_memory.py / migrate_pg.py)")
+        sql, params = d.columns_of(tbl)
+        cols = {r[0] for r in conn.execute(sql, params).fetchall()}
+        for col in required:
+            if col not in cols:
+                raise RuntimeError(f"observed: {tbl}.{col} missing from {where}. "
+                                   f"inspect: the schema is too old; run the migrations")
 
 
 def _build_select(args: argparse.Namespace, after_id: str | None) -> tuple[str, list]:
@@ -121,60 +106,58 @@ def _build_select(args: argparse.Namespace, after_id: str | None) -> tuple[str, 
     variant / user_id while reading the source content for hashing.
     Returns rows of (embedding_id, memory_id, content, metadata_json).
     """
+    d = seam_dialect()
+    p = d.param()
+    items, embeddings = _tables(args)
     where = [
         "me.content_hash IS NULL",
         "COALESCE(mi.is_deleted, 0) = 0",
-        _has_content("mi.content"),
+        d.has_content("mi.content"),
     ]
     params: list = []
 
     if after_id is not None:
-        where.append("me.id > ?")
+        where.append(f"me.id > {p}")
         params.append(after_id)
     if args.type:
-        placeholders = ",".join("?" * len(args.type))
-        where.append(f"mi.type IN ({placeholders})")
+        where.append(f"mi.type IN ({d.placeholder(len(args.type))})")
         params.extend(args.type)
     if args.variant:
-        placeholders = ",".join("?" * len(args.variant))
-        where.append(f"mi.variant IN ({placeholders})")
+        where.append(f"mi.variant IN ({d.placeholder(len(args.variant))})")
         params.extend(args.variant)
     if args.user_id:
-        where.append("COALESCE(mi.user_id, '') = ?")
+        where.append(f"COALESCE(mi.user_id, '') = {p}")
         params.append(args.user_id)
     if args.id_prefix:
-        where.append("me.id LIKE ?")
+        where.append(f"me.id LIKE {p}")
         params.append(f"{args.id_prefix.lower()}%")
 
     sql = f"""
         SELECT me.id, me.memory_id, mi.content, mi.metadata_json
-        FROM memory_embeddings me
-        JOIN memory_items mi ON mi.id = me.memory_id
+        FROM {embeddings} me
+        JOIN {items} mi ON mi.id = me.memory_id
         WHERE {' AND '.join(where)}
         ORDER BY me.id
-        LIMIT ?
+        LIMIT {p}
     """
     return sql, params
 
 
-def _count_pending(db_path: Path, args: argparse.Namespace) -> int:
+def _count_pending(conn, args: argparse.Namespace) -> int:
     sql, params = _build_select(args, after_id=None)
     count_sql = sql.replace(
         "SELECT me.id, me.memory_id, mi.content, mi.metadata_json",
         "SELECT COUNT(*)",
     ).split("ORDER BY")[0]
-    conn = sqlite3.connect(str(db_path), timeout=30.0)
-    try:
-        return conn.execute(count_sql, params).fetchone()[0]
-    finally:
-        conn.close()
+    return conn.execute(count_sql, params).fetchone()[0]
 
 
-def _run_backfill(args: argparse.Namespace) -> dict:
-    """Run the backfill loop. Returns counters dict."""
+def _run_backfill(conn, args: argparse.Namespace) -> dict:
+    """Run the backfill loop on ``conn``. Returns counters dict."""
     # Late import: memory_core's _content_hash + _augment_embed_text_with_anchors
-    # need M3_DATABASE set BEFORE import.
-    os.environ["M3_DATABASE"] = str(args.db)
+    # need M3_DATABASE set BEFORE import (SQLite only: it names a file).
+    if args.db:
+        os.environ["M3_DATABASE"] = str(args.db)
     if str(BIN_DIR) not in sys.path:
         sys.path.insert(0, str(BIN_DIR))
     import memory_core as mc  # noqa: E402
@@ -190,76 +173,71 @@ def _run_backfill(args: argparse.Namespace) -> dict:
     after_id: str | None = None
     started = time.monotonic()
 
-    # Open with separate read/write connections via the same DB path.
-    # WAL mode allows concurrent reads while we update.
-    write_conn = sqlite3.connect(str(args.db), timeout=30.0)
-    # Centralised pragma stack — "production" profile for this backfill writer.
-    apply_pragmas(write_conn, profile_for_db(args.db))
-    read_conn = sqlite3.connect(str(args.db), timeout=30.0)
+    # One connection: each batch is fully fetched before it is written.
+    _, embeddings = _tables(args)
+    update_sql = f"UPDATE {embeddings} SET content_hash = {seam_dialect().param()} WHERE id = {seam_dialect().param()}"
+    while True:
+        if args.limit and counters["updated"] >= args.limit:
+            break
 
-    try:
-        while True:
-            if args.limit and counters["updated"] >= args.limit:
-                break
+        sql, params = _build_select(args, after_id=after_id)
+        params_with_limit = [*params, fetch_size]
+        rows = conn.execute(sql, params_with_limit).fetchall()
+        counters["scanned"] += len(rows)
 
-            sql, params = _build_select(args, after_id=after_id)
-            params_with_limit = [*params, fetch_size]
-            rows = read_conn.execute(sql, params_with_limit).fetchall()
-            counters["scanned"] += len(rows)
+        if not rows:
+            break
 
-            if not rows:
-                break
+        after_id = rows[-1][0]  # advance cursor
 
-            after_id = rows[-1][0]  # advance cursor
+        updates: list[tuple[str, str]] = []
+        for embedding_id, memory_id, content, metadata_json in rows:
+            base_text = (content or "").strip()
+            if not base_text:
+                counters["skipped_empty"] += 1
+                continue
+            if args.augment_anchors:
+                embed_text = mc._augment_embed_text_with_anchors(
+                    base_text, metadata_json
+                )
+            else:
+                embed_text = base_text
+            hash_value = mc._content_hash(embed_text)
+            updates.append((hash_value, embedding_id))
 
-            updates: list[tuple[str, str]] = []
-            for embedding_id, memory_id, content, metadata_json in rows:
-                base_text = (content or "").strip()
-                if not base_text:
-                    counters["skipped_empty"] += 1
-                    continue
-                if args.augment_anchors:
-                    embed_text = mc._augment_embed_text_with_anchors(
-                        base_text, metadata_json
-                    )
-                else:
-                    embed_text = base_text
-                hash_value = mc._content_hash(embed_text)
-                updates.append((hash_value, embedding_id))
+        if not updates:
+            continue
 
-            if not updates:
+        if args.dry_run:
+            counters["updated"] += len(updates)
+        else:
+            try:
+                conn.executemany(update_sql, updates)
+                conn.commit()
+                counters["updated"] += len(updates)
+            except Exception as e:  # noqa: BLE001 — classified below
+                # Roll back first: on PostgreSQL a failed statement aborts
+                # the transaction and every later batch would fail with it.
+                conn.rollback()
+                if is_defect(e):
+                    raise  # a wrong query fails every batch; stop loudly
+                counters["errors"] += 1
+                print(f"  WRITE_FAIL: observed: {type(e).__name__}: {e}. "
+                      f"inspect: a locked or busy store; this batch is skipped, "
+                      f"re-run to retry it", file=sys.stderr)
+                # Don't abort; cursor advanced, next batch tries different rows
                 continue
 
-            if args.dry_run:
-                counters["updated"] += len(updates)
-            else:
-                try:
-                    write_conn.executemany(
-                        "UPDATE memory_embeddings SET content_hash = ? WHERE id = ?",
-                        updates,
-                    )
-                    write_conn.commit()
-                    counters["updated"] += len(updates)
-                except sqlite3.Error as e:
-                    counters["errors"] += 1
-                    print(f"  WRITE_FAIL: {type(e).__name__}: {e}", file=sys.stderr)
-                    # Don't abort; cursor advanced, next batch tries different rows
-                    continue
-
-            elapsed = time.monotonic() - started
-            rate = counters["updated"] / max(elapsed, 1e-3)
-            ts = utc_iso()
-            print(
-                f"[{ts}] scanned={counters['scanned']} "
-                f"updated={counters['updated']} "
-                f"skipped_empty={counters['skipped_empty']} "
-                f"errors={counters['errors']} "
-                f"rate={rate:.0f}/s"
-            )
-
-    finally:
-        read_conn.close()
-        write_conn.close()
+        elapsed = time.monotonic() - started
+        rate = counters["updated"] / max(elapsed, 1e-3)
+        ts = utc_iso()
+        print(
+            f"[{ts}] scanned={counters['scanned']} "
+            f"updated={counters['updated']} "
+            f"skipped_empty={counters['skipped_empty']} "
+            f"errors={counters['errors']} "
+            f"rate={rate:.0f}/s"
+        )
 
     return counters
 
@@ -271,9 +249,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
 
     sel = ap.add_argument_group("selection")
-    sel.add_argument("--db", type=Path,
-                     default=Path(os.environ.get("M3_DATABASE", str(DEFAULT_DB))),
-                     help=f"Target DB. Default: $M3_DATABASE or {DEFAULT_DB}")
+    sel.add_argument("--db", default=None,
+                     help="Target SQLite DB (default: the active store, or the chatlog "
+                          "store with --target chatlog). Not used on PostgreSQL.")
+    sel.add_argument("--target", choices=("core", "chatlog"), default="core",
+                     help="Which store's embeddings to backfill. On PostgreSQL this picks "
+                          "memory_* or chat_log_* in the one database.")
     sel.add_argument("--type", action="append", default=None,
                      help=f"Memory type to include. Repeatable. "
                           f"Defaults to {' + '.join(DEFAULT_TYPES)} (raw-content "
@@ -325,19 +306,35 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return args
 
 
-def main(argv: list[str] | None = None) -> int:
-    from m3_core.paths import require_sqlite_backend
-    require_sqlite_backend("backfill_content_hash")  # opens SQLite files directly; refuse on PostgreSQL
-    args = _parse_args(argv)
-
+def _chatlog_default() -> str | None:
     try:
-        _verify_schema(args.db)
-    except (FileNotFoundError, RuntimeError) as e:
+        from chatlog_config import chatlog_db_path
+    except ImportError:  # bootstrap: no chatlog layer
+        return None
+    return chatlog_db_path()
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(argv)
+    try:
+        args.db = resolve_cli_store(
+            args.db, "--db", default=_chatlog_default() if args.target == "chatlog" else None)
+    except ValueError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 2
+    with pointed_store_connection(args.db) as conn:
+        return _main(conn, args)
+
+
+def _main(conn, args: argparse.Namespace) -> int:
+    try:
+        _verify_schema(conn, args)
+    except RuntimeError as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 2
 
-    pending = _count_pending(args.db, args)
-    print(f"DB:        {args.db}")
+    pending = _count_pending(conn, args)
+    print(f"DB:        {args.db or seam_backend().name} (target {args.target})")
     print(f"Pending:   {pending}")
     print("Filters:")
     print(f"  type:        {args.type}")
@@ -357,7 +354,7 @@ def main(argv: list[str] | None = None) -> int:
         print("No NULL-content_hash rows match; nothing to do.")
         return 0
 
-    counters = _run_backfill(args)
+    counters = _run_backfill(conn, args)
     print()
     print("=" * 64)
     print("  backfill_content_hash COMPLETE")

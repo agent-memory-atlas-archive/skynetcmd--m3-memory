@@ -1,8 +1,8 @@
 ---
 tool: bin/migrate_entity_vocab.py
-sha1: 5c5134d162c6
-mtime_utc: 2026-10-10T15:00:12.488887+00:00
-generated_utc: 2026-10-10T15:00:38.812304+00:00
+sha1: ffa9486b3635
+mtime_utc: 2026-10-10T15:07:57.462826+00:00
+generated_utc: 2026-10-10T15:13:47.419323+00:00
 private: false
 ---
 
@@ -58,7 +58,7 @@ PostgreSQL the configured database is used and --database is refused.
 
 ## Entry points
 
-- `def main()` (line 172)
+- `def main()` (line 173)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -92,7 +92,8 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
-- `m3_core.paths (active_database, resolve_cli_store, seam_backend, seam_dialect)`
+- `m3_core.context (pointed_store_connection)`
+- `m3_core.paths (resolve_cli_store, seam_backend, seam_dialect)`
 
 ---
 

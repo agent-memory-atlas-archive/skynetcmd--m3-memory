@@ -849,6 +849,47 @@ def _ensure_dispatch_schema(conn) -> None:
         )
 
 
+@contextmanager
+def pointed_store_connection(db_path: str | None) -> Iterator[Any]:
+    """A read/write connection to the store a maintenance tool was POINTED at.
+
+    File backend: exactly the named file, through its context's pool (pragma
+    stack, reuse). Deliberately NOT ``active_database(path)`` + memory.db._db():
+    resolve_db_path ranks M3_DATABASE above the active_database ContextVar, so
+    with M3_DATABASE set (the usual case) _db() opened the MAIN store instead of
+    the path, and its first touch ran the migration chain there (measured
+    2026-10-10: the pointed file untouched, the main store migrated to v051).
+    A tool pointed at one file must read and write that file, and must not
+    migrate anything. Server backend: the active backend's pooled connection;
+    ``db_path`` is not used.
+
+    Commits on a clean exit and rolls back on an exception, on both backends:
+    the bare pool hands a connection back as it is, so a missed commit would
+    leave an open transaction for its next user. ``active_database`` keeps any
+    nested seam call pointed at the same store.
+
+    THE owner: embed_backfill carried this as a private helper; the
+    maintenance tools ported to PostgreSQL on 2026-10-10 use it.
+    """
+    from m3_core.paths import active_database, store_is_a_file
+
+    if not store_is_a_file():
+        from memory.backends import active_backend
+
+        with active_backend().connection() as conn:
+            yield conn
+        return
+    if not db_path:
+        raise ValueError("observed: no SQLite path for the store this tool targets. "
+                         "inspect: the tool's database flag / resolve_cli_store()")
+    with active_database(db_path), M3Context.for_db(db_path).get_sqlite_conn() as conn:
+        try:
+            yield conn
+        except BaseException:
+            conn.rollback()
+            raise
+        conn.commit()
+
 
 def _cleanup():
     with _CONTEXTS_LOCK:

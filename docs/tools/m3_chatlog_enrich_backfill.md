@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_chatlog_enrich_backfill.py
-sha1: 36af0df6ee99
-mtime_utc: 2026-10-10T14:57:48.806974+00:00
-generated_utc: 2026-10-10T14:57:57.186596+00:00
+sha1: 6d7989a503ca
+mtime_utc: 2026-10-10T15:07:57.463339+00:00
+generated_utc: 2026-10-10T15:13:47.216080+00:00
 private: false
 ---
 
@@ -31,7 +31,7 @@ configured database and the path flags are refused.
 
 ## Entry points
 
-- `def main()` (line 122)
+- `def main()` (line 123)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -70,7 +70,8 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
-- `m3_core.paths (active_database, resolve_cli_store, seam_backend, seam_dialect)`
+- `m3_core.context (pointed_store_connection)`
+- `m3_core.paths (resolve_cli_store, seam_backend, seam_dialect)`
 - `memory.backends.dialect (Dialect)`
 - `memory.backends.dialect (chatlog_table)`
 

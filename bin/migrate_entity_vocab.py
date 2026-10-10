@@ -48,7 +48,8 @@ from __future__ import annotations
 import argparse
 import sys
 
-from m3_core.paths import active_database, resolve_cli_store, seam_backend, seam_dialect
+from m3_core.context import pointed_store_connection
+from m3_core.paths import resolve_cli_store, seam_backend, seam_dialect
 
 ENTITY_TYPE_RENAMES = {
     "concept": "legacy_concept",
@@ -123,7 +124,7 @@ def migrate(db_path: str | None, dry_run: bool = False) -> int:
     print(f"    mode: {'DRY-RUN (no writes)' if dry_run else 'WRITE'}")
     print()
 
-    with active_database(db_path), seam_backend().connection() as con:
+    with pointed_store_connection(db_path) as con:
         # Schema sanity: refuse to migrate if the entity tables aren't there.
         if not _has_table(con, "entities") or not _has_table(con, "entity_relationships"):
             print("This DB does not have entity_graph tables (migration 024).")

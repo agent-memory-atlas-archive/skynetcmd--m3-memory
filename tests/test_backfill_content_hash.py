@@ -111,9 +111,33 @@ def _make_args(db_path: Path, **overrides) -> argparse.Namespace:
         "batch_size": 10,
         "augment_anchors": False,
         "dry_run": False,
+        "target": "core",
     }
     base.update(overrides)
     return argparse.Namespace(**base)
+
+
+# The tool works on a connection to the store it was pointed at (any backend);
+# these SQLite fixtures hand it their file through the same primitive.
+def _verify(db_path: Path) -> None:
+    import backfill_content_hash as bf
+    from m3_core.context import pointed_store_connection
+    with pointed_store_connection(str(db_path)) as conn:
+        bf._verify_schema(conn, _make_args(db_path))
+
+
+def _count(db_path: Path, args: argparse.Namespace) -> int:
+    import backfill_content_hash as bf
+    from m3_core.context import pointed_store_connection
+    with pointed_store_connection(str(db_path)) as conn:
+        return bf._count_pending(conn, args)
+
+
+def _run(args: argparse.Namespace) -> dict:
+    import backfill_content_hash as bf
+    from m3_core.context import pointed_store_connection
+    with pointed_store_connection(str(args.db)) as conn:
+        return bf._run_backfill(conn, args)
 
 
 @pytest.fixture
@@ -125,22 +149,20 @@ def db(tmp_path):
 
 # ── Schema sanity ────────────────────────────────────────────────────────
 
-def test_schema_missing_db(tmp_path):
+def test_schema_missing_db(tmp_path, capsys):
     import backfill_content_hash as bf
-    with pytest.raises(FileNotFoundError):
-        bf._verify_schema(tmp_path / "nope.db")
+    assert bf.main(["--db", str(tmp_path / "nope.db")]) == 2
+    assert "observed: no SQLite DB at" in capsys.readouterr().err
 
 
 def test_schema_missing_table(tmp_path):
-    import backfill_content_hash as bf
     p = tmp_path / "bare.db"
     sqlite3.connect(str(p)).close()
     with pytest.raises(RuntimeError, match="memory_items"):
-        bf._verify_schema(p)
+        _verify(p)
 
 
 def test_schema_missing_content_hash_column(tmp_path):
-    import backfill_content_hash as bf
     p = tmp_path / "old.db"
     conn = sqlite3.connect(str(p))
     conn.executescript("""
@@ -152,19 +174,17 @@ def test_schema_missing_content_hash_column(tmp_path):
     """)
     conn.close()
     with pytest.raises(RuntimeError, match="content_hash missing"):
-        bf._verify_schema(p)
+        _verify(p)
 
 
 def test_schema_minimal_ok(db):
-    import backfill_content_hash as bf
-    bf._verify_schema(db)  # should not raise
+    _verify(db)  # should not raise
 
 
 # ── Candidate query ──────────────────────────────────────────────────────
 
 def test_count_filters_null_only(db):
     """Already-populated rows should NOT show up as pending."""
-    import backfill_content_hash as bf
     _seed(db, [
         {"id": "row-A", "content": "alpha", "type": "message"},
         {"id": "row-B", "content": "beta",  "type": "message"},
@@ -173,11 +193,10 @@ def test_count_filters_null_only(db):
         {"id": "e-B", "memory_id": "row-B", "content_hash": "preexisting"}, # already set
     ])
     args = _make_args(db)
-    assert bf._count_pending(db, args) == 1
+    assert _count(db, args) == 1
 
 
 def test_count_filters_soft_deleted(db):
-    import backfill_content_hash as bf
     _seed(db, [
         {"id": "row-A", "content": "a", "type": "message", "is_deleted": 0},
         {"id": "row-B", "content": "b", "type": "message", "is_deleted": 1},
@@ -186,11 +205,10 @@ def test_count_filters_soft_deleted(db):
         {"id": "e-B", "memory_id": "row-B", "content_hash": None},
     ])
     args = _make_args(db)
-    assert bf._count_pending(db, args) == 1
+    assert _count(db, args) == 1
 
 
 def test_count_filters_empty_content(db):
-    import backfill_content_hash as bf
     _seed(db, [
         {"id": "row-A", "content": "alpha",  "type": "message"},
         {"id": "row-B", "content": "",       "type": "message"},
@@ -201,11 +219,10 @@ def test_count_filters_empty_content(db):
         {"id": "e-C", "memory_id": "row-C", "content_hash": None},
     ])
     args = _make_args(db)
-    assert bf._count_pending(db, args) == 1
+    assert _count(db, args) == 1
 
 
 def test_count_type_filter(db):
-    import backfill_content_hash as bf
     _seed(db, [
         {"id": "row-A", "content": "a", "type": "message"},
         {"id": "row-B", "content": "b", "type": "summary"},
@@ -214,15 +231,14 @@ def test_count_type_filter(db):
         {"id": "e-B", "memory_id": "row-B", "content_hash": None},
     ])
     args = _make_args(db, type=["message"])
-    assert bf._count_pending(db, args) == 1
+    assert _count(db, args) == 1
     args = _make_args(db, type=["summary"])
-    assert bf._count_pending(db, args) == 1
+    assert _count(db, args) == 1
     args = _make_args(db, type=["message", "summary"])
-    assert bf._count_pending(db, args) == 2
+    assert _count(db, args) == 2
 
 
 def test_count_id_prefix(db):
-    import backfill_content_hash as bf
     _seed(db, [
         {"id": "mi-A", "content": "a", "type": "message"},
         {"id": "mi-B", "content": "b", "type": "message"},
@@ -231,14 +247,13 @@ def test_count_id_prefix(db):
         {"id": "xyz-2", "memory_id": "mi-B", "content_hash": None},
     ])
     args = _make_args(db, id_prefix="abc")
-    assert bf._count_pending(db, args) == 1
+    assert _count(db, args) == 1
 
 
 # ── Hash correctness — bit-for-bit match with memory_core ─────────────────
 
 def test_hash_matches_memory_core(db):
     """The hash we write must match what memory_core._content_hash would compute."""
-    import backfill_content_hash as bf
     os.environ["M3_DATABASE"] = str(db)
     sys.path.insert(0, str(REPO / "bin"))
     import memory_core as mc
@@ -249,7 +264,7 @@ def test_hash_matches_memory_core(db):
         {"id": "e-A", "memory_id": "row-A", "content_hash": None},
     ])
     args = _make_args(db)
-    bf._run_backfill(args)
+    _run(args)
 
     expected_hash = mc._content_hash("User said hello")
     conn = sqlite3.connect(str(db))
@@ -263,7 +278,6 @@ def test_hash_matches_memory_core(db):
 # ── Real run — UPDATEs land ──────────────────────────────────────────────
 
 def test_run_updates_pending_rows(db):
-    import backfill_content_hash as bf
     _seed(db, [
         {"id": "row-A", "content": "alpha", "type": "message"},
         {"id": "row-B", "content": "beta",  "type": "message"},
@@ -272,7 +286,7 @@ def test_run_updates_pending_rows(db):
         {"id": "e-B", "memory_id": "row-B", "content_hash": None},
     ])
     args = _make_args(db)
-    counters = bf._run_backfill(args)
+    counters = _run(args)
     assert counters["updated"] == 2
     assert counters["scanned"] == 2
 
@@ -286,7 +300,6 @@ def test_run_updates_pending_rows(db):
 
 def test_run_skips_already_populated(db):
     """Pre-existing content_hash values must not be overwritten."""
-    import backfill_content_hash as bf
     _seed(db, [
         {"id": "row-A", "content": "alpha", "type": "message"},
         {"id": "row-B", "content": "beta",  "type": "message"},
@@ -295,7 +308,7 @@ def test_run_skips_already_populated(db):
         {"id": "e-B", "memory_id": "row-B", "content_hash": None},
     ])
     args = _make_args(db)
-    counters = bf._run_backfill(args)
+    counters = _run(args)
     assert counters["updated"] == 1
 
     conn = sqlite3.connect(str(db))
@@ -309,7 +322,6 @@ def test_run_skips_already_populated(db):
 
 def test_run_skips_empty_content(db):
     """Empty/whitespace content rows are filtered out at SELECT time."""
-    import backfill_content_hash as bf
     _seed(db, [
         {"id": "row-A", "content": "alpha", "type": "message"},
         {"id": "row-B", "content": "",       "type": "message"},
@@ -318,7 +330,7 @@ def test_run_skips_empty_content(db):
         {"id": "e-B", "memory_id": "row-B", "content_hash": None},
     ])
     args = _make_args(db)
-    counters = bf._run_backfill(args)
+    counters = _run(args)
     # Empty-content row never reached _run_backfill (filtered at SELECT)
     assert counters["scanned"] == 1
     assert counters["updated"] == 1
@@ -328,14 +340,13 @@ def test_run_skips_empty_content(db):
 # ── Dry-run ──────────────────────────────────────────────────────────────
 
 def test_dry_run_counts_without_writing(db):
-    import backfill_content_hash as bf
     _seed(db, [
         {"id": "row-A", "content": "alpha", "type": "message"},
     ], [
         {"id": "e-A", "memory_id": "row-A", "content_hash": None},
     ])
     args = _make_args(db, dry_run=True)
-    counters = bf._run_backfill(args)
+    counters = _run(args)
     assert counters["updated"] == 1  # would have updated 1
 
     conn = sqlite3.connect(str(db))
@@ -347,19 +358,18 @@ def test_dry_run_counts_without_writing(db):
 # ── Idempotency — second run is a no-op ──────────────────────────────────
 
 def test_idempotent_rerun(db):
-    import backfill_content_hash as bf
     _seed(db, [
         {"id": "row-A", "content": "alpha", "type": "message"},
     ], [
         {"id": "e-A", "memory_id": "row-A", "content_hash": None},
     ])
     args = _make_args(db)
-    c1 = bf._run_backfill(args)
+    c1 = _run(args)
     assert c1["updated"] == 1
 
     # Second run should find 0 pending
-    assert bf._count_pending(db, args) == 0
-    c2 = bf._run_backfill(args)
+    assert _count(db, args) == 0
+    c2 = _run(args)
     assert c2["updated"] == 0
     assert c2["scanned"] == 0
 
@@ -395,7 +405,6 @@ def test_parse_args_all_types_conflicts_with_type():
 
 def test_count_all_types_returns_every_pending_row(db):
     """With --all-types, the type filter is skipped — all rows match."""
-    import backfill_content_hash as bf
     _seed(db, [
         {"id": "row-A", "content": "a", "type": "message"},
         {"id": "row-B", "content": "b", "type": "summary"},
@@ -408,4 +417,4 @@ def test_count_all_types_returns_every_pending_row(db):
         {"id": "e-D", "memory_id": "row-D", "content_hash": None},
     ])
     args = _make_args(db, type=[])  # mimics --all-types
-    assert bf._count_pending(db, args) == 4
+    assert _count(db, args) == 4

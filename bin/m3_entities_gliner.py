@@ -56,7 +56,8 @@ if str(_BIN) not in sys.path:
     sys.path.insert(0, str(_BIN))
 
 import memory_core as mc  # noqa: E402
-from m3_core.paths import active_database, resolve_cli_store, seam_backend  # noqa: E402
+from m3_core.context import pointed_store_connection
+from m3_core.paths import resolve_cli_store, seam_backend  # noqa: E402
 
 # GLiNER's published 7-label vocab (person, place, organization, event, concept, object, date).
 GLINER_LABELS: list[str] = [
@@ -221,7 +222,7 @@ def _select_rows(
     _d = _dialect_fn()
     # '__none__' = IS NULL, a name = exact, omitted = every variant.
     variant_clause, variant_params = _d.scope_predicates(table_alias="mi", variant=source_variant or "")
-    with active_database(db_path), seam_backend().connection() as conn:
+    with pointed_store_connection(db_path) as conn:
         if recovery_pass:
             # Recovery pass: only rows currently absent from memory_item_entities.
             extraction_clause = (

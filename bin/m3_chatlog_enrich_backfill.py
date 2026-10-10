@@ -21,7 +21,8 @@ from __future__ import annotations
 import argparse
 import sys
 
-from m3_core.paths import active_database, resolve_cli_store, seam_backend, seam_dialect
+from m3_core.context import pointed_store_connection
+from m3_core.paths import resolve_cli_store, seam_backend, seam_dialect
 
 # Date bounds go through the shared seam normalizer: a bare YYYY-MM-DD compared
 # against an ISO-TEXT timestamp column is lexicographically wrong (an `until`
@@ -186,7 +187,7 @@ def main() -> int:
             return 0
 
     d = seam_dialect()
-    with active_database(main_db), seam_backend().connection() as con:
+    with pointed_store_connection(main_db) as con:
         _ensure_observation_queue(con)
         cur = con.cursor()
         # Lock now, not at the first write: the SELECT above chose these

@@ -93,8 +93,6 @@ _EXEMPT = {
         "Creates and versions the schema the seam later assumes.",
     "bin/split_chatlog_from_core.py":
         "One-time topology split: copies between two physical SQLite files.",
-    "bin/backfill_content_hash.py":
-        "Schema-era backfill that runs as part of migration.",
     "bin/setup_memory.py":
         "Bootstraps the store from nothing; there is no seam to route through "
         "until it has run.",

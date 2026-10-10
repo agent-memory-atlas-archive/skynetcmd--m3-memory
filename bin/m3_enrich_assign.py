@@ -36,7 +36,8 @@ from __future__ import annotations
 import argparse
 import sys
 
-from m3_core.paths import active_database, resolve_cli_store, seam_backend, seam_dialect
+from m3_core.context import pointed_store_connection
+from m3_core.paths import resolve_cli_store, seam_dialect
 
 
 def main() -> int:
@@ -70,7 +71,7 @@ def main() -> int:
     except ValueError as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 2
-    with active_database(db_path), seam_backend().connection() as conn:
+    with pointed_store_connection(db_path) as conn:
         return _assign(conn, args, db_path)
 
 

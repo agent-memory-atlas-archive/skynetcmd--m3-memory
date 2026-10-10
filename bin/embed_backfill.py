@@ -161,15 +161,9 @@ def _bound_db(db_path):
     On a backend that is not file-per-database there is one pooled store and
     `db_path` does not select it; the backend's own connection is used.
     """
-    if not store_is_a_file():
-        from memory.db import _db
-        with _db() as conn:
-            yield conn
-        return
     try:
-        from m3_core.context import M3Context
-        from m3_sdk import active_database
-    except Exception:  # pragma: no cover - standalone fallback
+        from m3_core.context import pointed_store_connection
+    except ImportError:  # pragma: no cover - standalone fallback
         conn = sqlite3.connect(str(db_path), timeout=30.0)
         try:
             conn.execute("PRAGMA busy_timeout=30000")
@@ -177,17 +171,10 @@ def _bound_db(db_path):
         finally:
             conn.close()
         return
-    # Deliberately NOT memory.db._db(): that calls _lazy_init(), which runs
-    # schema creation and backfills on first touch of a path. This sweeper is
-    # READ-ONLY over an arbitrary --db and must never mutate the schema of a
-    # database it was merely pointed at — a caller sweeping a bench workspace or
-    # a colleague's export would silently have it migrated. Going through the
-    # context's own pool gives the pragma stack and connection reuse WITHOUT the
-    # write-path side effects. `active_database` keeps any nested seam call
-    # (the write callback's mc._db()) pointed at the same store.
-    with active_database(str(db_path)):
-        with M3Context.for_db(str(db_path)).get_sqlite_conn() as conn:
-            yield conn
+    # Never memory.db._db(): its first touch of a path migrates the database
+    # this sweeper was merely pointed at (see pointed_store_connection).
+    with pointed_store_connection(str(db_path) if store_is_a_file() else None) as conn:
+        yield conn
 
 
 def _db_for_display(value: str | None) -> str:

@@ -101,7 +101,6 @@ def test_chatlog_status_main_count_na_on_postgres(monkeypatch):
 # Tools that open SQLite files directly and have no PostgreSQL path. Each must
 # refuse at the top of main(), before it parses arguments or opens anything.
 _SQLITE_ONLY_MAINS = [
-    "backfill_content_hash",
     "split_chatlog_from_core",
     "migrate_memory",
 ]

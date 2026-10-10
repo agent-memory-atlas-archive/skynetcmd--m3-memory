@@ -11,6 +11,8 @@ import uuid
 
 import pytest
 
+from conftest import skip_reason
+
 _COLS = ("source_variant", "target_variant", "group_key", "user_id", "db_path",
          "turn_count", "source_content_hash", "status", "content_size_k")
 
@@ -84,6 +86,27 @@ def test_a_routed_worker_claims_only_its_rows(each_backend, groups, monkeypatch)
         unrouted = eligible_for_resume(conn, source_variant=src, target_variant=tgt)
     assert [g for _id, g, _u in grok] == ["g0"], f"observed: {grok!r} on {each_backend.name}"
     assert sorted(g for _id, g, _u in unrouted) == ["g0", "g1", "g2"]
+
+
+def test_explicit_db_wins_over_m3_database(each_backend, groups, monkeypatch, tmp_path):
+    """--db must name the store acted on even when M3_DATABASE points elsewhere
+    (the seam ranks that env above active_database, which once sent this tool's
+    UPDATE to the main store)."""
+    if not each_backend.stores_databases_as_files:
+        pytest.skip(skip_reason("db", "only a file backend has a --db to honour"))
+    import sqlite3
+
+    from m3_sdk import resolve_db_path
+
+    target = resolve_db_path(None)
+    decoy = tmp_path / "decoy.db"
+    sqlite3.connect(decoy).close()
+    monkeypatch.setenv("M3_DATABASE", str(decoy))
+    src, tgt = groups
+    assert _assign(monkeypatch, "--db", target, "--source-variant", src, "--target-variant", tgt,
+                   "--max-size-k", "7", "--send-to", "grok") == 0
+    monkeypatch.setenv("M3_DATABASE", target)
+    assert _routes(each_backend, src)["g0"] == "grok", "observed: the update did not reach --db"
 
 
 def test_db_on_a_server_backend_is_refused(each_backend, monkeypatch, capsys):
