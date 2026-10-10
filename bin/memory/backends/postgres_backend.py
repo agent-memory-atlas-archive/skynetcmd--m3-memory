@@ -1234,19 +1234,16 @@ class PostgresBackend:
 
     def schema_version(self) -> int | None:
         """MAX(version) from schema_versions, or None if the table is absent."""
-        try:
-            with self.connection() as conn:
-                cur = conn.cursor()
-                cur.execute(
-                    "SELECT to_regclass('public.schema_versions')"
-                )
-                if cur.fetchone()[0] is None:
-                    return None
-                cur.execute("SELECT MAX(version) FROM schema_versions")
-                row = cur.fetchone()
-                return int(row[0]) if row and row[0] is not None else None
-        except Exception:
-            return None
+        with self.connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT to_regclass('public.schema_versions')"
+            )
+            if cur.fetchone()[0] is None:
+                return None
+            cur.execute("SELECT MAX(version) FROM schema_versions")
+            row = cur.fetchone()
+            return int(row[0]) if row and row[0] is not None else None
 
     def keyword_search(
         self,

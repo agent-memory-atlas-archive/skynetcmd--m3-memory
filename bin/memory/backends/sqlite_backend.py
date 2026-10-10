@@ -450,20 +450,17 @@ class SqliteBackend:
         Answering about a different database than the caller addressed is the
         silent-wrong-store bug the pinning exists to prevent.
         """
-        try:
-            with self.connection() as conn:
-                row = conn.execute(
-                    "SELECT name FROM sqlite_master "
-                    "WHERE type='table' AND name='schema_versions'"
-                ).fetchone()
-                if row is None:
-                    return None
-                vrow = conn.execute(
-                    "SELECT MAX(version) FROM schema_versions"
-                ).fetchone()
-                return int(vrow[0]) if vrow and vrow[0] is not None else None
-        except Exception:
-            return None
+        with self.connection() as conn:
+            row = conn.execute(
+                "SELECT name FROM sqlite_master "
+                "WHERE type='table' AND name='schema_versions'"
+            ).fetchone()
+            if row is None:
+                return None
+            vrow = conn.execute(
+                "SELECT MAX(version) FROM schema_versions"
+            ).fetchone()
+            return int(vrow[0]) if vrow and vrow[0] is not None else None
 
     def capabilities(self) -> Capabilities:
         """Probe optional accelerators; baseline (FTS5 + Rust cosine) always holds.

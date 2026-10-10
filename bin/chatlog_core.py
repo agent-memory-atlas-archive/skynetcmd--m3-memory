@@ -155,6 +155,9 @@ def _redaction_dict(spec) -> dict:
 # Validation
 # ---------------------------------------------------------------------------
 
+_HOST_AGENTS_WARNED = False
+
+
 def _valid_host_agents() -> frozenset[str]:
     """Allowed host_agent values: the built-in floor (VALID_HOST_AGENTS) UNION
     any host registered in the chatlog config's ``host_agents`` map.
@@ -168,7 +171,13 @@ def _valid_host_agents() -> frozenset[str]:
         cfg = chatlog_config.resolve_config()
         extra = set(getattr(cfg, "host_agents", {}) or {})
         return VALID_HOST_AGENTS | extra
-    except Exception:
+    except Exception as e:  # noqa: BLE001 — the built-ins stand; warned once
+        global _HOST_AGENTS_WARNED
+        if not _HOST_AGENTS_WARNED:
+            _HOST_AGENTS_WARNED = True
+            logger.warning(f"chatlog host_agents config unreadable; observed: "
+                           f"{type(e).__name__}: {e}; only the built-in host agents are "
+                           "accepted. inspect: m3 chatlog status")
         return VALID_HOST_AGENTS
 
 

@@ -22,7 +22,6 @@ MIRROR SELECTION (verified 2026-07-27, not assumed):
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -47,19 +46,10 @@ _SIZE_TOLERANCE = 0.02
 
 
 def m3_models_dir() -> Path:
-    """m3's own model directory, via the canonical resolver."""
-    try:
-        from m3_core.paths import get_m3_models_root
+    """m3's own model directory: m3_core.paths.get_m3_models_root, the one owner."""
+    from m3_core.paths import get_m3_models_root
 
-        return Path(get_m3_models_root())
-    except Exception:
-        root = os.environ.get("M3_MODELS_ROOT")
-        if root:
-            return Path(root).expanduser()
-        mem = os.environ.get("M3_MEMORY_ROOT")
-        if mem:
-            return Path(mem).expanduser() / "models"
-        return Path.home() / ".m3" / "models"
+    return Path(get_m3_models_root())
 
 
 def _is_valid_gguf(path: Path) -> bool:

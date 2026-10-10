@@ -623,15 +623,23 @@ def memory_history_impl(memory_id: str, limit: int = 20, as_records: bool = Fals
 # ──────────────────────────────────────────────────────────────────────────────
 # Gate cache
 # ──────────────────────────────────────────────────────────────────────────────
+_GATE_QUERY_WARNED: set[str] = set()
+
+
 def _gate_count_query(query: str) -> int:
-    """Run a COUNT(*) query against the active SQLite DB. Returns 0 on error."""
+    """Run a COUNT(*) query against the active DB. Returns 0 on error, which
+    turns its gate off, so the first failure of each query is warned."""
     try:
         with _db() as db:
             row = db.execute(query).fetchone()
             if row is None:
                 return 0
             return int(row[0])
-    except Exception:
+    except Exception as e:  # noqa: BLE001 — the gate stays off; warned once per query
+        if query not in _GATE_QUERY_WARNED:
+            _GATE_QUERY_WARNED.add(query)
+            logger.warning(f"gate count failed, gate treated as off; observed: "
+                           f"{type(e).__name__}: {e}. query: {query[:120]}")
         return 0
 
 

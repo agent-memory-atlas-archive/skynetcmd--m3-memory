@@ -618,6 +618,11 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
             import sqlite3 as _sq
             conn = _sq.connect(f"file:{path}?mode=ro", uri=True, timeout=2.0)
             try:
+                # An uninitialised store has nothing to backfill; only a store
+                # that HAS the table but cannot be counted is an error.
+                if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' "
+                                "AND name='memory_items'").fetchone() is None:
+                    return 0
                 row = conn.execute(
                     "SELECT COUNT(*) FROM memory_items mi "
                     "LEFT JOIN memory_embeddings me ON mi.id = me.memory_id "
@@ -628,7 +633,11 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
                 return int(row[0]) if row else 0
             finally:
                 conn.close()
-        except Exception:
+        except Exception as e:  # noqa: BLE001 — recorded in the report, not counted as 0
+            import os as _os
+            _record("embed_backfill_count", "error",
+                    f"could not count missing embeddings in {_os.path.basename(path)}; "
+                    f"observed: {type(e).__name__}: {e}")
             return 0
 
     _missing_by_store = {p: _count_missing(p) for p in _embed_stores}

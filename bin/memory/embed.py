@@ -561,25 +561,12 @@ def _sample_is_unit(vecs) -> bool:
 
 
 def _m3_models_dir():
-    """m3's own model dir, via the canonical resolver. Falls back to the
-    documented default if m3_core isn't importable (this helper runs from the
-    setup wizard and the installed payload alike)."""
+    """m3's own model dir: m3_core.paths.get_m3_models_root, the one owner."""
     from pathlib import Path
 
-    try:
-        from m3_core.paths import get_m3_models_root
+    from m3_core.paths import get_m3_models_root
 
-        return Path(get_m3_models_root())
-    except Exception:
-        import os
-
-        root = os.environ.get("M3_MODELS_ROOT")
-        if root:
-            return Path(root).expanduser()
-        mem = os.environ.get("M3_MEMORY_ROOT")
-        if mem:
-            return Path(mem).expanduser() / "models"
-        return Path.home() / ".m3" / "models"
+    return Path(get_m3_models_root())
 
 
 def discover_bge_m3_gguf(budget_s: float = _EMBED_GGUF_WALK_BUDGET_S) -> str | None:
@@ -787,7 +774,25 @@ def _get_embedded_embedder():
 # Per-call embed-failure sentinels (returned by _post_once, NOT shared state).
 # Distinct objects so a chunk's outcome can't leak into a concurrent chunk's.
 _EMBED_TRANSIENT = object()   # retryable: timeout / 5xx / 413 / 429
-_EMBED_PERMANENT = object()   # non-retryable 4xx: don't retry or bisect
+_EMBED_PERMANENT = object()   # non-retryable: don't retry or bisect
+
+
+def _classify_bulk_post_error(e: BaseException):
+    """_EMBED_TRANSIENT, or (_EMBED_PERMANENT, message), for a failed bulk POST.
+
+    Only what retrying or bisecting can fix is transient: network trouble, and
+    5xx / 413 / 429. Everything else (another 4xx, a body that is not the
+    embeddings shape, a bug while reading it) is permanent and keeps its message;
+    it used to be called transient with the message dropped, so a bug was
+    retried as if the network had blipped and its cause never logged."""
+    if isinstance(e, _httpx.HTTPStatusError):
+        code = e.response.status_code
+        if 400 <= code < 500 and code not in (413, 429):
+            return (_EMBED_PERMANENT, f"HTTP {code}: {e.response.text[:300]}")
+        return _EMBED_TRANSIENT
+    if isinstance(e, _httpx.TransportError):
+        return _EMBED_TRANSIENT
+    return (_EMBED_PERMANENT, f"unexpected failure: {type(e).__name__}: {e}")
 
 
 class ContextLengthExceeded(EmbedError):
@@ -1940,17 +1945,8 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
                 # store mis-aligned vectors.
                 return _EMBED_TRANSIENT
             return ordered
-        except _httpx.HTTPStatusError as e:
-            code = e.response.status_code
-            msg = f"HTTP {code}: {e.response.text[:300]}"
-            # 4xx = the request is wrong and won't succeed on retry — EXCEPT 413
-            # (payload too large) and 429 (rate limit), where a smaller batch /
-            # a wait genuinely helps. Everything else is permanent.
-            if 400 <= code < 500 and code not in (413, 429):
-                return (_EMBED_PERMANENT, msg)
-            return _EMBED_TRANSIENT
-        except Exception:
-            return _EMBED_TRANSIENT
+        except Exception as e:  # noqa: BLE001 — classified; never escapes the bulk path
+            return _classify_bulk_post_error(e)
 
     async def _post_chunk(chunk_texts: list[str]) -> list[list[float] | None]:
         async with _EMBED_BULK_SEM:

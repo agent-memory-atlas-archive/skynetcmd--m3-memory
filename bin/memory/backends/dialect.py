@@ -19,6 +19,7 @@ names are trusted, caller-supplied identifiers, never end-user input.
 from __future__ import annotations
 
 import json as _json
+import logging
 import re as _re
 from dataclasses import dataclass
 from datetime import date as _date
@@ -26,6 +27,17 @@ from datetime import timedelta as _timedelta
 from typing import Literal
 
 from .base import BackendName
+
+_logger = logging.getLogger("memory.backends.dialect")
+_MALFORMED_JSON_WARNED = False
+
+
+def _warn_malformed_json(e: Exception) -> None:
+    global _MALFORMED_JSON_WARNED
+    if not _MALFORMED_JSON_WARNED:
+        _MALFORMED_JSON_WARNED = True
+        _logger.warning(f"a JSON metadata column could not be read and was treated as empty; "
+                        f"observed: {type(e).__name__}: {e}. Later occurrences are not logged.")
 
 _BARE_DATE_RE = _re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
@@ -734,7 +746,9 @@ class Dialect:
         writing their own str-or-dict shim: a call-site helper is the same
         defect in smaller form, because the next author copy-pastes it.
 
-        Fails SAFE, never loud: ``None`` / empty / malformed all yield ``{}``.
+        Fails SAFE: ``None`` / empty / malformed all yield ``{}``, never an
+        exception. Malformed data is logged once per process, so corruption is
+        visible without one bad row flooding the log.
         A caller gating on a field (e.g. rendering only ``authority ==
         "canonical"``) then treats unparseable metadata as "not authoritative"
         rather than crashing a whole batch render on one bad row.
@@ -750,12 +764,14 @@ class Dialect:
         if isinstance(value, (bytes, bytearray)):
             try:
                 value = value.decode("utf-8")
-            except Exception:
+            except Exception as e:  # noqa: BLE001 — fail safe by contract; warned once
+                _warn_malformed_json(e)
                 return {}
         if isinstance(value, str):
             try:
                 parsed = _json.loads(value)
-            except Exception:
+            except Exception as e:  # noqa: BLE001 — fail safe by contract; warned once
+                _warn_malformed_json(e)
                 return {}
             return parsed if isinstance(parsed, dict) else {}
         return {}

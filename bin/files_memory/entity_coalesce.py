@@ -602,7 +602,9 @@ def _pick_representative(mem, eid_a, eid_b, _p="?"):
                     f"SELECT count(*) FROM {_files_table('fact_entity_refs')} "
                     f"WHERE entity_uuid={_fp}", (eid,)
                 ).fetchone()[0]
-        except Exception:
+        except Exception as e:  # noqa: BLE001 — 0 refs assumed; warned
+            logger.warning(f"entity ref count unavailable; observed: {eid}: "
+                           f"{type(e).__name__}: {e}; assuming 0 refs")
             return 0
     a = mem.execute(f"SELECT id, canonical_name, entity_type FROM entities WHERE id={_p}", (eid_a,)).fetchone()
     b = mem.execute(f"SELECT id, canonical_name, entity_type FROM entities WHERE id={_p}", (eid_b,)).fetchone()
