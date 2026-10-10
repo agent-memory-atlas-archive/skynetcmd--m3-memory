@@ -22,12 +22,13 @@ Design constraints (DESIGN_PHILOSOPHIES):
 """
 from __future__ import annotations
 
-import platform
 import queue
 import subprocess
 import sys
 import threading
 from dataclasses import dataclass
+
+from m3_memory._platform import is_apple_silicon
 
 
 def gui_available() -> tuple[bool, str]:
@@ -206,7 +207,7 @@ def _apply_platform_tooltips() -> None:
     vague generic (DESIGN_PHILOSOPHIES §3 never-silent, §5 effectiveness).
     Runs at import; a no-op on platforms without a specific note."""
     if sys.platform == "darwin":
-        apple_silicon = platform.machine() == "arm64"
+        apple_silicon = is_apple_silicon()
         accel = ("Metal on Apple Silicon (~10–50× faster embeds than the "
                  "pure-Python path)" if apple_silicon
                  else "CPU only — Intel Macs have no Metal wheel")
@@ -398,7 +399,7 @@ def run_gui() -> int:
 
     # ── Embedder (left) ───────────────────────────────────────────────────────
     emb_title = ("Embedder (native Metal wheel ON by default)"
-                 if sys.platform == "darwin" and platform.machine() == "arm64"
+                 if is_apple_silicon()
                  else "Embedder (native wheel ON by default)")
     emb_box = ttk.LabelFrame(left, text=emb_title, padding=8)
     emb_box.pack(fill="x", pady=4)

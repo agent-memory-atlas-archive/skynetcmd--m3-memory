@@ -34,6 +34,16 @@ def is_windows() -> bool:
     return os.name == "nt"
 
 
+def is_apple_silicon() -> bool:
+    """macOS on arm64. platform.machine() is only consulted on Darwin, where it
+    reads uname() directly (the WMI hang is Windows-only)."""
+    if sys.platform != "darwin":
+        return False
+    import platform
+
+    return platform.machine() == "arm64"
+
+
 def hidden_window_kwargs() -> dict:
     """subprocess kwargs that hide the child's console window on Windows while
     KEEPING its stdout/stderr. No-op off Windows, so call sites stay portable.

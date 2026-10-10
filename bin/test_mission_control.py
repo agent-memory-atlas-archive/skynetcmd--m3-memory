@@ -4,11 +4,12 @@ test_mission_control.py — Single-pass smoke test for mission_control.py.
 Runs one iteration of the dashboard and validates all subsystems.
 """
 import pathlib
-import platform
 import sys
 
+from m3_memory._platform import os_name
+
 # UTF-8 stdout on Windows
-if platform.system() == "Windows":
+if os_name() == "Windows":  # WMI-safe (m3_memory._platform)
     try:
         sys.stdout.reconfigure(encoding="utf-8")
         sys.stderr.reconfigure(encoding="utf-8")
@@ -63,15 +64,15 @@ def check(cond, label, detail=""):
 
 print("=" * 60, flush=True)
 print("  Mission Control — Cross-Platform Smoke Test", flush=True)
-print(f"  Platform: {platform.system()} {platform.release()}", flush=True)
+print(f"  Platform: {os_name()}", flush=True)
 print("=" * 60, flush=True)
 
 # ── 1: Platform flags ─────────────────────────────────────────────────────────
 print("\n-- 1: Platform detection --", flush=True)
 flags = [IS_WIN, IS_MAC, IS_LINUX]
 check(sum(flags) == 1,  "exactly one platform flag is True", str(flags))
-check(platform.system() == ("Windows" if IS_WIN else "Darwin" if IS_MAC else "Linux"),
-      "platform flag matches platform.system()")
+check(os_name() == ("Windows" if IS_WIN else "Darwin" if IS_MAC else "Linux"),
+      "platform flag matches the OS seam")
 
 # ── 2: Paths ──────────────────────────────────────────────────────────────────
 print("\n-- 2: Paths --", flush=True)
