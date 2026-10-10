@@ -85,7 +85,6 @@ INLINE_ALLOWED = {
     "bin/migrate_entity_vocab.py": "calls require_sqlite_backend",
     "bin/migrate_memory.py": "calls require_sqlite_backend",
     "bin/build_kg_variant.py": "calls require_sqlite_backend",
-    "bin/secret_rotator.py": "calls require_sqlite_backend",
     "m3_memory/integrations/langchain/checkpoint.py": "M3Saver calls require_sqlite_backend (BLOB, executescript)",
     "m3_memory/install/sections.py": "_sqlite_store_stats runs only under live == 'sqlite'",
     "bin/chatlog_ingest.py": "reads a host app's own SQLite file (OpenCode part/session tables)",
@@ -93,7 +92,6 @@ INLINE_ALLOWED = {
     # SQLite pool users: get_sqlite_conn() is SQLite whatever the backend. Whether
     # these should reach the active backend is a separate audit (m3 task), not a
     # placeholder fix; listed so the ratchet counts only seam connections.
-    "bin/audit_trail.py": "writes through ctx.get_sqlite_conn() (the SQLite pool)",
     "bin/m3_entities_gliner.py": "calls require_sqlite_backend (opens SQLite files directly)",
     "bin/memory/search_routing.py": "the SQLite fused candidate builder: FTS5 + sqlite-vec, SQLITE-ONLY BY CONSTRUCTION (its docstring); where_sql comes from the seam",
     "bin/m3_core/context.py": "owns the SQLite pool; its cohesion check runs on it",

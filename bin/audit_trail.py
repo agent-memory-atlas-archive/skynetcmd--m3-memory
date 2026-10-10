@@ -124,19 +124,24 @@ def log_event(ctx, category: str, detail_a: str,
     Categories: 'thought'/'activity' → activity_logs; 'decision' → project_decisions.
     Unknown categories fall through to activity_logs for safety.
     """
+    # Through the seam, so the events land in the live store on every backend
+    # (PostgreSQL carries both tables since pg_052); it used the SQLite pool,
+    # which writes a stale local file on any other backend.
+    from m3_core.paths import active_database, seam_backend, seam_dialect
+
     now = utc_iso()
-    with ctx.get_sqlite_conn() as conn:
-        cur = conn.cursor()
+    marks = seam_dialect().placeholder(4)
+    with active_database(ctx.db_path), seam_backend().connection() as conn:
         if category == "decision":
-            cur.execute(
+            conn.execute(
                 "INSERT INTO project_decisions (project, decision, rationale, timestamp) "
-                "VALUES (?, ?, ?, ?)",
+                f"VALUES ({marks})",
                 (detail_c or "default", detail_a, detail_b, now),
             )
         else:
-            cur.execute(
+            conn.execute(
                 "INSERT INTO activity_logs (timestamp, query, response, model_used) "
-                "VALUES (?, ?, ?, ?)",
+                f"VALUES ({marks})",
                 (now, detail_a, detail_b, detail_c or category),
             )
         conn.commit()

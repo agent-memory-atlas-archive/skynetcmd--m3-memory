@@ -2,7 +2,6 @@
 import logging
 import os
 import secrets
-import sqlite3
 import string
 import sys
 from datetime import UTC, datetime
@@ -28,10 +27,10 @@ def generate_secure_token(length: int = 64) -> str:
 
 def rotate_secrets(dry_run: bool = False):
     logger.info(f"Starting automated secret rotation {'(DRY RUN)' if dry_run else ''}...")
-    # Backs up and rewrites the vault through the SQLite pool: on another backend
-    # the live vault is elsewhere, so rotating here would desync it. Refuse.
-    from m3_core.paths import require_sqlite_backend
-    require_sqlite_backend("secret_rotator")
+    # The vault and its backups go through the seam, so rotation reads and
+    # writes the live store on every backend (set_api_key already does).
+    from m3_core.paths import active_database, seam_backend, seam_dialect
+    _p = seam_dialect().param()
     ctx = M3Context.for_db(None)
 
     for key_name in ROTATION_TARGETS:
@@ -42,13 +41,18 @@ def rotate_secrets(dry_run: bool = False):
             old_secret = ctx.get_secret(key_name)
             if old_secret and not dry_run:
                 # Store backup in a dedicated table (ensure schema exists)
-                conn: sqlite3.Connection
-                with ctx.get_sqlite_conn() as conn:
-                    conn.execute("CREATE TABLE IF NOT EXISTS secret_backups (service_name TEXT, encrypted_value TEXT, rotated_at TEXT)")
+                with active_database(ctx.db_path), seam_backend().connection() as conn:
+                    conn.execute("CREATE TABLE IF NOT EXISTS secret_backups "
+                                 "(service_name TEXT, encrypted_value TEXT, rotated_at TEXT)")
                     # Get the encrypted blob directly from the source table
-                    row: sqlite3.Row | None = conn.execute("SELECT encrypted_value FROM synchronized_secrets WHERE service_name = ?", (key_name,)).fetchone()
+                    row = conn.execute(
+                        f"SELECT encrypted_value FROM synchronized_secrets WHERE service_name = {_p}",
+                        (key_name,)).fetchone()
                     if row:
-                        conn.execute("INSERT INTO secret_backups VALUES (?, ?, ?)", (key_name, row[0], datetime.now(UTC).isoformat()))
+                        conn.execute(
+                            "INSERT INTO secret_backups (service_name, encrypted_value, rotated_at) "
+                            f"VALUES ({_p}, {_p}, {_p})",
+                            (key_name, row[0], datetime.now(UTC).isoformat()))
                         conn.commit()
                         logger.info(f"Backup created for {key_name}.")
 
@@ -59,7 +63,7 @@ def rotate_secrets(dry_run: bool = False):
                 logger.info(f"[DRY RUN] Would rotate {key_name} to new {len(new_secret)} char token.")
                 continue
 
-            # 3. Store securely in the local SQLite vault
+            # 3. Store securely in the vault (the active backend's)
             set_api_key(key_name, new_secret)
 
             # 4. Log the rotation event
@@ -71,7 +75,9 @@ def rotate_secrets(dry_run: bool = False):
             logger.info(f"Successfully rotated and vaulted {key_name}.")
 
         except Exception as e:
-            logger.error(f"Failed to rotate {key_name}: {e}")
+            logger.error(f"Failed to rotate {key_name}; observed: {type(e).__name__}: {e}. "
+                         "inspect: the vault (synchronized_secrets) and the master key; "
+                         "re-run with --dry-run to check")
             if not dry_run:
                 ctx.log_event(
                     category="security_error",
