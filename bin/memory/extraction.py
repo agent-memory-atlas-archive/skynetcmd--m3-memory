@@ -17,7 +17,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Any, override
+from typing import Any, cast, override
 
 # Ensure bin/ is on path for unified_ai and llm_failover imports
 _HERE = str(Path(__file__).absolute().parent)
@@ -358,7 +358,7 @@ Text to process:
                 scrubbed = "\n".join(lines).strip()
 
             parsed = json.loads(scrubbed)
-            return parsed
+            return cast("dict", parsed)
 
         except Exception as e:
             logger.warning(f"LLM entity extraction failed, falling back to rule-based: {e}")

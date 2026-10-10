@@ -23,7 +23,7 @@ import json
 import time
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 import httpx
 from unified_ai import _is_gemini_endpoint
@@ -197,7 +197,7 @@ class AnthropicBatchRunner:
         bid = data.get("id")
         if not bid:
             raise RuntimeError(f"anthropic batch submit returned no id: {data}")
-        return bid
+        return cast("str", bid)
 
     async def poll(self, batch_id: str, *, client: httpx.AsyncClient) -> BatchStatus:
         r = await client.get(f"{self._base}/{batch_id}", headers=self._headers(), timeout=30.0)
@@ -382,7 +382,7 @@ class GeminiBatchRunner:
         bid = data.get("name") or (data.get("metadata") or {}).get("name")
         if not bid:
             raise RuntimeError(f"gemini batch submit returned no name: {data}")
-        return bid
+        return cast("str", bid)
 
     async def poll(self, batch_id: str, *, client: httpx.AsyncClient) -> BatchStatus:
         # See note on x-goog-api-key in submit() — same rationale here.

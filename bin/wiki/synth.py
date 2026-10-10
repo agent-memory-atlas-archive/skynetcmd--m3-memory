@@ -24,6 +24,7 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 from .cluster import Cluster
 
@@ -96,7 +97,7 @@ def _read_cache(path: str | None) -> str | None:
         return None
     try:
         with Path(path).open(encoding="utf-8") as f:
-            return json.load(f).get("lede")
+            return cast("str | None", json.load(f).get("lede"))
     except Exception:
         return None
 

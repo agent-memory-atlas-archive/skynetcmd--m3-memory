@@ -12,6 +12,7 @@ import logging
 import os
 import shutil
 import subprocess
+from typing import cast
 
 from m3_core.seams import is_windows
 
@@ -60,7 +61,7 @@ def _port_answers(timeout: float = 2.0) -> bool:
         with urllib.request.urlopen(  # nosec B310 — fixed loopback URL
             f"http://127.0.0.1:{_HEALTH_PORT}/health", timeout=timeout
         ) as r:
-            return 200 <= r.status < 300
+            return cast("bool", 200 <= r.status < 300)
     except Exception:  # noqa: BLE001
         return False
 

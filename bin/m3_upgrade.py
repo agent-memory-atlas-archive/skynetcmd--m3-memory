@@ -57,6 +57,7 @@ import subprocess  # nosec B404 - orchestrates known package managers, never a s
 import sys
 import time
 from collections.abc import Sequence
+from typing import TextIO
 
 from m3_core.seams import is_windows
 
@@ -527,7 +528,7 @@ def explain_locked(locked: list[pathlib.Path], owner_python: str, user_flags: Se
 class _Tee:
     """Write to the console and to a log file (the hand-off window's record)."""
 
-    def __init__(self, stream, path: str) -> None:
+    def __init__(self, stream: TextIO, path: str) -> None:
         self._stream = stream
         self._log = open(path, "a", encoding="utf-8")  # noqa: SIM115 - lives for the run
 

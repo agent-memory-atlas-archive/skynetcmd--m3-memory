@@ -17,7 +17,7 @@ import sqlite3
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import chatlog_config
 
@@ -81,7 +81,7 @@ def _load_state_file() -> dict[str, Any]:
         return {}
     try:
         with open(state_path, encoding="utf-8") as f:
-            return json.load(f)
+            return cast("dict[str, Any]", json.load(f))
     except (OSError, json.JSONDecodeError):
         return {}
 

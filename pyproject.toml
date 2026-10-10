@@ -515,15 +515,14 @@ warn_unused_ignores = true
 # its 5 findings), plus narrowing across an await that sibling tasks invalidate.
 enable_error_code = ["explicit-override", "possibly-undefined", "truthy-bool", "unused-awaitable",
                      "ignore-without-code"]
+# No Any leaks out of a typed signature: a function returns what it declares.
+# Closed 2026-10-10 for m3_memory (34 casts) and bin/ (17 annotations fixed at
+# the source, 97 typing.cast where mypy cannot see through: json, DB rows, the
+# Rust core, HTTP, dynamic dispatch); behaviour-identical. ignore_errors modules
+# stay exempt.
+warn_return_any = true
 
 # ── Per-module overrides ──────────────────────────────────────────────────────
-
-# The installed package returns only what it declares: no Any leaking out of a
-# typed signature (mypy ratchet, 2026-10-10; 34 sites closed with typing.cast,
-# behaviour-identical). bin/ follows when its count reaches 0.
-[[tool.mypy.overrides]]
-module = ["m3_memory", "m3_memory.*"]
-warn_return_any = true
 
 # memory_bridge.py exposes every tool from mcp_tool_catalog at import time via
 # `globals()[name] = fn`. Mypy can't see these, so any module that imports a

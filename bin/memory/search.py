@@ -31,6 +31,7 @@ import re
 import sqlite3
 import threading
 from collections.abc import Callable
+from typing import cast
 
 from m3_sdk import resolve_db_path
 
@@ -2368,7 +2369,7 @@ async def memory_search_routed_impl(
         except Exception as e:  # pragma: no cover - additive leg must never break search
             log_swallowed(logger, e, f"bypass_surface union failed (non-fatal): {e}")
 
-    return final_hits
+    return cast("list", final_hits)
 
 
 async def _maybe_expand_routed(

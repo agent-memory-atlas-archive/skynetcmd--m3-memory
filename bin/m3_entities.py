@@ -52,6 +52,7 @@ import time
 from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
 
 from m3_core.aio import gather_or_cancel
 
@@ -193,8 +194,8 @@ def _load_vocab(path: Path | None) -> tuple[frozenset[str], frozenset[str]]:
     defer to memory_core.load_entity_vocab(None) which honors
     M3_ENTITY_VOCAB_YAML / falls back to entity_graph_default.yaml."""
     if path is None:
-        return mc.load_entity_vocab(None)
-    return mc.load_entity_vocab(str(path))
+        return cast("tuple[frozenset[str], frozenset[str]]", mc.load_entity_vocab(None))
+    return cast("tuple[frozenset[str], frozenset[str]]", mc.load_entity_vocab(str(path)))
 
 
 async def _discover_loaded_model_async(client: httpx.AsyncClient, url: str, token: str | None) -> str | None:
@@ -954,7 +955,7 @@ async def _run_db(
                 try:
 
                     async def _passthrough(_text: str) -> dict:
-                        return out
+                        return cast("dict", out)
 
                     await mc._run_entity_extractor(
                         memory_id,

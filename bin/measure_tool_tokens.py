@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+from typing import cast
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(BASE_DIR, "bin"))
@@ -126,7 +127,7 @@ def main() -> int:
 
     # Schemas are OpenAI function-calling shape: {"type":"function","function":{"name":…}}.
     def _name(t: dict) -> str:
-        return t.get("function", {}).get("name") or t.get("name", "")
+        return cast("str", t.get("function", {}).get("name") or t.get("name", ""))
 
     by_name = {_name(t): t for t in full if _name(t)}
 

@@ -15,7 +15,7 @@ import asyncio
 import json
 import os
 from contextlib import AbstractContextManager
-from typing import Any
+from typing import Any, cast
 
 from m3_sdk import active_database, destructive_tools_allowed
 
@@ -69,7 +69,7 @@ def _pop_database(args: dict, tool: str) -> str | None:
     elif backend != "sqlite":
         cause = f"`database` names a SQLite file, and the {backend} backend addresses its configured store regardless"
     else:
-        return db
+        return cast("str | None", db)
     raise ValueError(
         f"{tool}: `database` would be ignored. observed: database={db!r}, "
         f"M3_DB_BACKEND={backend}. cause: {cause}, so the call would run "

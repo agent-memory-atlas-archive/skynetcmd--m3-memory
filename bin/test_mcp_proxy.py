@@ -20,6 +20,7 @@ import os
 import sqlite3
 import subprocess
 import sys
+from typing import cast
 
 import httpx
 
@@ -66,7 +67,7 @@ async def _chat(model: str, messages: list, max_tokens: int = 512) -> dict:
             json={"model": model, "messages": messages, "max_tokens": max_tokens},
         )
         r.raise_for_status()
-        return r.json()
+        return cast("dict", r.json())
 
 
 def _activity_count() -> int:
@@ -74,7 +75,7 @@ def _activity_count() -> int:
         conn = sqlite3.connect(DB_PATH)
         count = conn.execute("SELECT COUNT(*) FROM activity_logs").fetchone()[0]
         conn.close()
-        return count
+        return cast("int", count)
     except Exception:
         return -1
 

@@ -60,6 +60,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import cast
 
 from m3_core.context import pointed_store_connection
 from m3_core.errors import is_defect
@@ -154,7 +155,7 @@ def _count_pending(conn, args: argparse.Namespace) -> int:
         "SELECT me.id, me.memory_id, mi.content, mi.metadata_json",
         "SELECT COUNT(*)",
     ).split("ORDER BY")[0]
-    return conn.execute(count_sql, params).fetchone()[0]
+    return cast("int", conn.execute(count_sql, params).fetchone()[0])
 
 
 def _run_backfill(conn, args: argparse.Namespace) -> dict:

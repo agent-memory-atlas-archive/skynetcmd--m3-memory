@@ -61,6 +61,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import cast
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -137,7 +138,7 @@ def _run_probe(python: str, bin_dir: str, engine: str, config: str, k: int = 8) 
     if not line:
         tail = (proc.stderr or proc.stdout or "").strip().splitlines()[-4:]
         return {"__error__": "no output: " + " / ".join(t[:120] for t in tail)}
-    return json.loads(line)
+    return cast("dict", json.loads(line))
 
 
 def _reference_build() -> tuple[str, str, str] | None:

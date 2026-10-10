@@ -29,6 +29,7 @@ import argparse
 import asyncio
 import os
 import sys
+from typing import cast
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -91,7 +92,7 @@ async def _run(apply: bool, threshold: int, stale_days: int, max_procedures: int
         max_procedures=max_procedures,
         dry_run=dry_run,
     )
-    return prefix + out
+    return cast("str", prefix + out)
 
 
 def main() -> int:

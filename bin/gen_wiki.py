@@ -22,7 +22,7 @@ import sqlite3
 import sys
 from collections.abc import Callable
 from contextlib import AbstractContextManager
-from typing import Any
+from typing import Any, cast
 
 # Make bin/ importable (mirrors consolidate_beliefs.py et al.).
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -534,7 +534,7 @@ def _resolve_exclude(args) -> str | None:
     """Caller regex > built-in default > None (only when explicitly disabled)."""
     explicit = getattr(args, "exclude", None)
     if explicit:
-        return explicit
+        return cast("str | None", explicit)
     if getattr(args, "no_default_exclude", False):
         return None
     return _DEFAULT_EXCLUDE
@@ -570,7 +570,7 @@ def main(argv: list[str] | None = None) -> int:
     if not getattr(args, "cmd", None):
         # Default to generate for a bare invocation.
         args = parser.parse_args(["generate"] + (argv or []))
-    return args.func(args)
+    return cast("int", args.func(args))
 
 
 if __name__ == "__main__":

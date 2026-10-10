@@ -129,7 +129,7 @@ def _git_sha() -> str:
             **no_window_kwargs(),
         )
         if out.returncode == 0:
-            return out.stdout.strip()
+            return cast("str", out.stdout.strip())
     except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
     return ""

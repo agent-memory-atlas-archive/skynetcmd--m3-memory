@@ -32,6 +32,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from typing import cast
 
 WAREHOUSE_SCHEMA = "m3_warehouse"
 
@@ -79,7 +80,7 @@ def _row_count(cur, schema: str, table: str) -> int | None:
     if not _table_exists(cur, schema, table):
         return None
     cur.execute(f"SELECT count(*) FROM {schema}.{table}")
-    return cur.fetchone()[0]
+    return cast("int | None", cur.fetchone()[0])
 
 
 def _shared_columns(cur, table: str) -> list[str]:

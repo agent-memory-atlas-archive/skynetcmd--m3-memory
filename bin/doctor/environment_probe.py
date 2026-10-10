@@ -49,6 +49,7 @@ import os
 import re
 import shutil
 import time
+from typing import cast
 
 from m3_core.seams import is_windows
 
@@ -112,7 +113,7 @@ def _load_settings() -> dict | None:
     """
     try:
         with open(_claude_settings_path(), encoding="utf-8") as fh:
-            return json.load(fh)
+            return cast("dict | None", json.load(fh))
     except Exception:  # noqa: BLE001 — absent or malformed both mean "unknown"
         return None
 

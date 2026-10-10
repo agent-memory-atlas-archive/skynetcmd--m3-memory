@@ -11,6 +11,7 @@ import os
 import pathlib
 import re
 import subprocess
+from typing import cast
 
 from m3_core.seams import is_macos, is_windows
 
@@ -1002,7 +1003,8 @@ def _interpreter_has_deps(candidate: str) -> bool:
     # a scheduled task does not inherit. Measured 2026-10-08: a dependency-less
     # venv passed this probe whenever the cwd held m3_memory/.
     try:
-        return (
+        return cast(
+            "bool",
             _run(
                 [probe, "-E", "-c", "import m3_memory"],
                 capture_output=True,
@@ -1010,7 +1012,7 @@ def _interpreter_has_deps(candidate: str) -> bool:
                 cwd=os.path.dirname(os.path.abspath(probe)),
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if is_windows() else 0,
             ).returncode
-            == 0
+            == 0,
         )
     except Exception:  # noqa: BLE001 — an unusable probe is an unusable interpreter
         return False
@@ -1825,8 +1827,8 @@ def _resolve_service(entry: "str | tuple | None") -> "str | None":
         return entry
     for name in entry:
         if _service_exists(name):
-            return name
-    return entry[0]
+            return cast("str | None", name)
+    return cast("str | None", entry[0])
 
 
 def _platform_key() -> str:
@@ -1863,7 +1865,7 @@ def _service_exists(name: str) -> bool:
     if key == "darwin":
         # launchctl list <label> exits non-zero when the label is not loaded.
         try:
-            return _run(["launchctl", "list", name], capture_output=True, text=True).returncode == 0
+            return cast("bool", _run(["launchctl", "list", name], capture_output=True, text=True).returncode == 0)
         except Exception:  # noqa: BLE001 — probe failure must not block a start
             return True
     if key != "linux":
@@ -1876,7 +1878,7 @@ def _service_exists(name: str) -> bool:
         )
     except Exception:  # noqa: BLE001 — probe failure must not block a start
         return True
-    return probe.stdout.strip() != "not-found"
+    return cast("bool", probe.stdout.strip() != "not-found")
 
 
 def _restart_command(name: str) -> list:
@@ -2580,7 +2582,7 @@ def _verify_unix_cognitive_loop() -> bool:
 
 def _windows_task_registered(name: str) -> bool:
     try:
-        return _run(["schtasks", "/Query", "/TN", name], capture_output=True, text=True).returncode == 0
+        return cast("bool", _run(["schtasks", "/Query", "/TN", name], capture_output=True, text=True).returncode == 0)
     except (OSError, subprocess.SubprocessError):
         return True  # unknown: let the full verify report it
 

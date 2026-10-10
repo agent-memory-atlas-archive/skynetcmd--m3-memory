@@ -13,6 +13,8 @@ graph clean and circular-import-free.
 
 from __future__ import annotations
 
+from typing import cast
+
 from crypto_provider import get_sha256 as _sha256_hex_py
 from embedding_utils import (
     HAS_NUMPY as _HAS_NUMPY,
@@ -162,14 +164,14 @@ def _batch_cosine(query, matrix) -> list[float]:
     if config.m3_core_rs is not None:
         q_dim = len(query)
         if all(len(v) == q_dim for v in matrix):
-            return config.m3_core_rs.cosine_batch(query, matrix)
+            return cast("list[float]", config.m3_core_rs.cosine_batch(query, matrix))
     return _batch_cosine_py(query, matrix)
 
 
 def _cosine(v1: list[float], v2: list[float]) -> float:
     """Cosine similarity. Routes through the Rust core when available."""
     if config.m3_core_rs is not None and len(v1) == len(v2):
-        return config.m3_core_rs.cosine(v1, v2)
+        return cast("float", config.m3_core_rs.cosine(v1, v2))
     from embedding_utils import cosine
 
     return cosine(v1, v2)
@@ -187,7 +189,7 @@ def _cosine_batch_packed(query, blobs, dim: int) -> list[float]:
         return []
     if config.m3_core_rs is not None:
         try:
-            return config.m3_core_rs.cosine_batch_packed(query, blobs, dim)
+            return cast("list[float]", config.m3_core_rs.cosine_batch_packed(query, blobs, dim))
         except Exception as e:  # noqa: BLE001 — fall back rather than fail retrieval
             log_swallowed(logger, e, f"cosine_batch_packed Rust path failed, falling back: {e}")
     matrix = _unpack_many(blobs, dim=dim)
@@ -220,7 +222,7 @@ def _cosine_batch_maxpool_packed(anchors, blobs, dim: int) -> list[float]:
 
             anchor_buf = b"".join(struct.pack(f"{len(a)}f", *a) for a in anchors)
             cand_buf = b"".join(blobs)
-            return rs.cosine_batch_maxpool_packed(anchor_buf, cand_buf, dim)
+            return cast("list[float]", rs.cosine_batch_maxpool_packed(anchor_buf, cand_buf, dim))
         except Exception as e:  # noqa: BLE001 — fall back rather than fail retrieval
             log_swallowed(logger, e, f"cosine_batch_maxpool_packed Rust path failed, falling back: {e}")
     # Pure-Python / fallback: unpack candidates once, max cosine over anchors per candidate.

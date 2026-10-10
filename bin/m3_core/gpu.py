@@ -2,7 +2,7 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 from m3_core.paths import get_m3_config_root
 from m3_core.seams import is_linux, is_macos, is_windows
@@ -123,7 +123,14 @@ def _gpu_probe_disabled(now: float | None = None) -> bool:
 # `backend` pins the first probe that returned a reading so we don't re-try dead
 # ones every cycle; `misses` trips the whole probe off after every backend has
 # failed enough times (circuit breaker — §6: don't keep paying for a dead call).
-_gpu_probe_cache: dict[str, Any] = {"ts": 0.0, "util": 0.0, "backend": None, "misses": 0}
+class _GpuProbeCache(TypedDict):
+    ts: float
+    util: float
+    backend: str | None
+    misses: int
+
+
+_gpu_probe_cache: _GpuProbeCache = {"ts": 0.0, "util": 0.0, "backend": None, "misses": 0}
 _GPU_PROBE_MAX_MISSES = 3
 
 
@@ -302,7 +309,7 @@ def probe_gpu_util(now: float | None = None) -> float:
         except Exception:
             val = None  # transient (timeout/parse) — try the next backend
         if val is not None:
-            _gpu_probe_cache.update(util=max(0.0, min(100.0, val)), backend=name, misses=0)
+            _gpu_probe_cache.update({"util": max(0.0, min(100.0, val)), "backend": name, "misses": 0})
             return _gpu_probe_cache["util"]
 
     # Nothing answered this round. If a backend was pinned but just failed, it may

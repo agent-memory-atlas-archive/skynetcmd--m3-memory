@@ -5,7 +5,10 @@ import logging
 import os
 import threading
 from types import FrameType
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from cryptography.fernet import Fernet
 
 from crypto_provider import provider as crypto
 from m3_core.seams import is_macos, is_windows, os_name
@@ -268,7 +271,7 @@ def get_master_key() -> str | None:
                 timeout=5,
                 **no_window_kwargs(),
             )
-            return result.stdout.strip()
+            return cast("str | None", result.stdout.strip())
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             pass
 
@@ -425,7 +428,7 @@ def _derive_raw_key(master_key: str, iterations: int = _PBKDF2_ITERATIONS) -> by
     return provider.pbkdf2_sha256(master_key.encode("utf-8"), salt, iterations, 32)
 
 
-def _get_fernet(master_key: str, iterations: int = _PBKDF2_ITERATIONS):
+def _get_fernet(master_key: str, iterations: int = _PBKDF2_ITERATIONS) -> Fernet:
     """
     Derives a Fernet encryption object from the master key (legacy decrypt path).
     Uses a per-device salt for protection against rainbow tables.

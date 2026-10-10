@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import UTC, datetime
+from typing import cast
 
 from . import confidence as _conf
 
@@ -125,7 +126,7 @@ def record_corroboration(
             f"VALUES ({_d.placeholder(6)}) {_suffix}".rstrip(),
             (str(uuid.uuid4()), memory_id, source_kind, source_ref, _conf.clamp_trust(trust_at_write), float(delta)),
         )
-        return cur.rowcount > 0
+        return cast("bool", cur.rowcount > 0)
     except Exception as e:  # noqa: BLE001 — pre-036 DB has no ledger
         if _is_missing(e):
             return False

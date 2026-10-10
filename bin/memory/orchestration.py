@@ -29,6 +29,7 @@ import logging
 import uuid
 from contextlib import contextmanager
 from datetime import UTC, datetime
+from typing import cast
 
 from m3_core.paths import node_id
 
@@ -53,7 +54,7 @@ TERMINAL_TASK_STATES = frozenset({"completed", "failed", "cancelled"})
 VALID_AGENT_STATUSES = frozenset({"active", "idle", "offline"})
 
 
-def _validate_task_transition(prev: str, new: str):
+def _validate_task_transition(prev: str, new: str) -> str | None:
     """Validates task state transitions. Returns None if valid, error string if invalid."""
     if new not in VALID_TASK_STATES:
         return f"Error: invalid task state '{new}'. Valid: {', '.join(sorted(VALID_TASK_STATES))}"
@@ -114,7 +115,7 @@ def _touch(db, agent_id: str, *, client=_OWN_CLIENT) -> int:
         f"WHERE agent_id = {p}",
         (node_id(), socket.gethostname(), pid, create_time, agent_id),
     )
-    return cur.rowcount
+    return cast("int", cur.rowcount)
 
 
 def _membership(row, here: str) -> tuple[str, str]:

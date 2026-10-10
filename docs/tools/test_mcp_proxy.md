@@ -1,8 +1,8 @@
 ---
 tool: bin/test_mcp_proxy.py
-sha1: 7a120136adc2
-mtime_utc: 2026-10-10T21:05:16.622919+00:00
-generated_utc: 2026-10-10T21:05:29.992898+00:00
+sha1: cf5d95ed6d51
+mtime_utc: 2026-10-10T23:43:02.128746+00:00
+generated_utc: 2026-10-10T23:43:52.020561+00:00
 private: false
 ---
 
@@ -28,7 +28,7 @@ Usage:
 
 ## Entry points
 
-- `async def main()` (line 245)
+- `async def main()` (line 246)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -55,17 +55,17 @@ _(no argparse arguments detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `['security', 'find-generic-password', '-s', 'ANTHROPIC_API_KEY', '-w']`` (line 181)
-- `subprocess.run()  → `cmd`` (line 216)
+- `subprocess.run()  → `['security', 'find-generic-password', '-s', 'ANTHROPIC_API_KEY', '-w']`` (line 182)
+- `subprocess.run()  → `cmd`` (line 217)
 
 **http**
 
-- `httpx.AsyncClient()` (line 63)
-- `httpx.AsyncClient()` (line 86)
+- `httpx.AsyncClient()` (line 64)
+- `httpx.AsyncClient()` (line 87)
 
 **sqlite**
 
-- `sqlite3.connect()  → `DB_PATH`` (line 74)
+- `sqlite3.connect()  → `DB_PATH`` (line 75)
 
 
 ---

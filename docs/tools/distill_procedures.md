@@ -1,8 +1,8 @@
 ---
 tool: bin/distill_procedures.py
-sha1: 55a72585969c
-mtime_utc: 2026-10-10T21:05:17.254888+00:00
-generated_utc: 2026-10-10T21:05:29.485009+00:00
+sha1: 63bee5a94683
+mtime_utc: 2026-10-10T23:43:02.151929+00:00
+generated_utc: 2026-10-10T23:43:51.510499+00:00
 private: false
 ---
 
@@ -37,7 +37,7 @@ Usage:
 
 ## Entry points
 
-- `def main()` (line 97)
+- `def main()` (line 98)
 - `if __name__ == "__main__"` guard
 
 ---

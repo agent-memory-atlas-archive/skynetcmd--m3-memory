@@ -1,8 +1,8 @@
 ---
 tool: bin/pg_sync.py
-sha1: f2e51dfa5f50
-mtime_utc: 2026-10-10T21:05:16.705450+00:00
-generated_utc: 2026-10-10T21:05:29.904219+00:00
+sha1: b0d8d823880f
+mtime_utc: 2026-10-10T23:43:02.181989+00:00
+generated_utc: 2026-10-10T23:43:51.932856+00:00
 private: false
 ---
 

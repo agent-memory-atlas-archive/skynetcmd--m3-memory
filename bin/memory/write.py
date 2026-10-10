@@ -8,6 +8,7 @@ import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
 
 from embedding_utils import (
     infer_change_agent as _infer_change_agent_util,
@@ -584,7 +585,7 @@ async def memory_write_impl(
                     try:
 
                         def _embed_one(s: str = sub) -> list[float]:
-                            return _direct_embedder.embed([s])[0]
+                            return cast("list[float]", _direct_embedder.embed([s])[0])
 
                         sv = await asyncio.to_thread(_embed_one)
                         if sv:
@@ -940,7 +941,7 @@ async def memory_supersede_impl(
     if not write_result.startswith("Created:"):
         # memory_write_impl returns "Error: ..." on a rejected write — propagate
         # it verbatim; the old memory has not been modified.
-        return write_result
+        return cast("str", write_result)
     # memory_write_impl's success string is "Created: <uuid>[ (superseded ...)]".
     # Extract the uuid defensively rather than trusting the exact format: if the
     # token isn't UUID-shaped the contract changed underneath us — fail loudly

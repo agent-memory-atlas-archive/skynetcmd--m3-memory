@@ -32,7 +32,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from typing import Any
+from typing import Any, cast
 
 from m3_core.paths import store_is_a_file
 from m3_core.seams import is_windows
@@ -240,7 +240,7 @@ def _backup(db_path: str) -> str:
 
     snap = snapshot_stores([db_path], _backup_dir(), label="pre-reembed")[0]
     print(f"verified: {snap.verified}")
-    return snap.path
+    return cast("str", snap.path)
 
 
 def main(argv=None) -> int:

@@ -4,7 +4,7 @@ import sys
 import time
 from datetime import UTC, datetime
 from os import PathLike
-from typing import IO, Literal, Union
+from typing import IO, Literal, Union, cast
 
 from m3_core.paths import getenv_compat
 
@@ -137,7 +137,7 @@ class StructuredLogger:
     """Renders structured log lines as `event | k=v | k=v` for grep-friendly output."""
 
     def format(self, event: str, *args, **kwargs) -> str:
-        return format_log(event, *args, **kwargs)
+        return cast("str", format_log(event, *args, **kwargs))
 
     def log(self, event: str, *args, **kwargs) -> None:
         """Helper to format and print a structured log line to stderr."""

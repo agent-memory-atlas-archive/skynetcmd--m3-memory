@@ -38,7 +38,7 @@ import hashlib
 import json
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Protocol, cast
 
 from .cluster import Cluster
 from .synth import _cluster_hash
@@ -158,7 +158,7 @@ def min_member_confidence(cluster: Cluster) -> float:
     vals = [m.confidence for m in source_members(cluster) if m.confidence is not None]
     if not vals:
         return _NO_MEMBER_CONFIDENCE
-    return min(vals)
+    return cast("float", min(vals))
 
 
 def prose_hash(prose: str) -> str:
@@ -279,7 +279,7 @@ def _find_prompt_by_title(title: str, *, _lookup=None) -> str | None:
     no backend branch.
     """
     if _lookup is not None:  # test seam
-        return _lookup(title)
+        return cast("str | None", _lookup(title))
     try:
         from memory.backends import dialect
         from memory.db import _db
@@ -298,9 +298,9 @@ def _find_prompt_by_title(title: str, *, _lookup=None) -> str | None:
         return None
     # Row may be a tuple or a name-access row depending on backend/factory.
     try:
-        return row["id"]
+        return cast("str | None", row["id"])
     except (KeyError, IndexError, TypeError):
-        return row[0]
+        return cast("str | None", row[0])
 
 
 async def compile_cluster(
@@ -490,12 +490,12 @@ def _admit(clusters, edges, gate, stats: CompileStats) -> list:
     """
     clusters = list(clusters)
     if edges is None:
-        return clusters
+        return cast("list", clusters)
     from . import admission
 
     gate = gate or admission.load_gate()
     if not gate.enabled:
-        return clusters
+        return cast("list", clusters)
     admitted = []
     for c in clusters:
         if len(c.members) < 2:

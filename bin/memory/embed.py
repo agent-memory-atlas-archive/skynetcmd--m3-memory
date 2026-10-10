@@ -25,6 +25,7 @@ import re
 import threading
 from itertools import batched
 from threading import Lock as _ThreadLock
+from typing import cast
 
 import httpx as _httpx
 from embedding_utils import unpack as _unpack
@@ -975,7 +976,7 @@ async def _embedded_bulk_with_subdivide(embedded, texts: list[str]) -> list[list
     oversized row IN-PROCESS instead of cascading the whole batch to HTTP."""
 
     def _embed_list(items: list[str]) -> list[list[float]]:
-        return embedded.embed(items)
+        return cast("list[list[float]]", embedded.embed(items))
 
     results: list[list[float] | None] = []
     for text in texts:

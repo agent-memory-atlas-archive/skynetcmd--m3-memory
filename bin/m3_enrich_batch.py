@@ -60,6 +60,7 @@ import time
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
 
 from m3_core.aio import gather_or_cancel
 
@@ -204,7 +205,7 @@ def _reap_stale_runs(state_conn, *, stale_after_minutes: int = 360) -> int:
         (_utcnow_iso(), cutoff),
     )
     state_conn.commit()
-    return cur.rowcount
+    return cast("int", cur.rowcount)
 
 
 def _record_run_started(
@@ -275,7 +276,7 @@ def _read_run_notes(state_conn, run_id: str) -> dict:
     if not row or not row[0]:
         return {}
     try:
-        return json.loads(row[0])
+        return cast("dict", json.loads(row[0]))
     except (TypeError, ValueError):
         return {}
 

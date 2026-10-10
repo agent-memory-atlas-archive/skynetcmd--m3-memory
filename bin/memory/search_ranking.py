@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date, datetime
+from typing import cast
 
 from m3_core.errors import log_swallowed
 
@@ -194,16 +195,19 @@ def _hybrid_score_batch(
         return []
     if config.m3_core_rs is not None:
         try:
-            return config.m3_core_rs.hybrid_score_batch(
-                [float(v) for v in vector_scores],
-                [float(v) for v in bm25_scores],
-                [int(v) for v in content_lens],
-                [float(v) for v in importances],
-                [float(v) for v in title_overlaps],
-                float(vector_weight),
-                float(importance_weight),
-                float(title_match_boost),
-                int(max(1, short_turn_threshold)),
+            return cast(
+                "list[float]",
+                config.m3_core_rs.hybrid_score_batch(
+                    [float(v) for v in vector_scores],
+                    [float(v) for v in bm25_scores],
+                    [int(v) for v in content_lens],
+                    [float(v) for v in importances],
+                    [float(v) for v in title_overlaps],
+                    float(vector_weight),
+                    float(importance_weight),
+                    float(title_match_boost),
+                    int(max(1, short_turn_threshold)),
+                ),
             )
         except Exception as e:  # noqa: BLE001
             log_swallowed(logger, e, f"hybrid_score_batch Rust path failed, falling back: {e}")
@@ -224,7 +228,7 @@ def _hybrid_score_batch(
         # `.tolist()` genuinely produces one -- so this is stub precision, not a
         # defect.
         scores = raw * penalty + title_match_boost * tit + importance_weight * imp
-        return scores.tolist()
+        return cast("list[float]", scores.tolist())
     # Pure-Python fallback
     stt = float(max(1, short_turn_threshold))
     out = []
@@ -261,9 +265,12 @@ def _recency_bonus_ranks(valid_froms, bias: float) -> list[float]:
         return [0.0] * n
     if config.m3_core_rs is not None:
         try:
-            return config.m3_core_rs.recency_bonus_ranks(
-                [(v or None) for v in valid_froms],
-                float(bias),
+            return cast(
+                "list[float]",
+                config.m3_core_rs.recency_bonus_ranks(
+                    [(v or None) for v in valid_froms],
+                    float(bias),
+                ),
             )
         except Exception as e:  # noqa: BLE001
             log_swallowed(logger, e, f"recency_bonus_ranks Rust path failed, falling back: {e}")

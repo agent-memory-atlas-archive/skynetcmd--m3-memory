@@ -51,6 +51,7 @@ import uuid
 from dataclasses import dataclass
 from itertools import batched
 from pathlib import Path
+from typing import cast
 
 import yaml
 
@@ -298,7 +299,7 @@ def _token_jaccard(a: str, b: str) -> float:
     Tries m3_core_rs.token_jaccard first (Rust), falls back to pure-Python.
     """
     if _config.m3_core_rs is not None and hasattr(_config.m3_core_rs, "token_jaccard"):
-        return _config.m3_core_rs.token_jaccard(a, b)
+        return cast("float", _config.m3_core_rs.token_jaccard(a, b))
 
     ta = {t for t in _TOKEN_PUNCT_RE.sub(" ", a.lower()).split() if t}
     tb = {t for t in _TOKEN_PUNCT_RE.sub(" ", b.lower()).split() if t}
@@ -445,7 +446,7 @@ def _resolve_entity(canonical_name: str, entity_type: str, db) -> str | None:
         (canonical_name, entity_type),
     ).fetchone()
     if row:
-        return row["id"]
+        return cast("str | None", row["id"])
 
     # Tier 2: fuzzy token-Jaccard within same entity_type
     candidates = db.execute(
@@ -460,7 +461,8 @@ def _resolve_entity(canonical_name: str, entity_type: str, db) -> str | None:
     if _config.m3_core_rs is not None and hasattr(_config.m3_core_rs, "token_jaccard_batch"):
         names = [c["canonical_name"] for c in candidates]
         scores = _config.m3_core_rs.token_jaccard_batch(canonical_name, names)
-        best_score, best_id = 0.0, None
+        best_score = 0.0
+        best_id: str | None = None
         for i, s in enumerate(scores):
             if s > best_score:
                 best_score, best_id = s, candidates[i]["id"]
@@ -468,7 +470,8 @@ def _resolve_entity(canonical_name: str, entity_type: str, db) -> str | None:
             return best_id
     else:
         # Python fallback: sequential loop.
-        best_score, best_id = 0.0, None
+        best_score = 0.0
+        best_id = None
         for c in candidates:
             s = _token_jaccard(canonical_name, c["canonical_name"])
             if s > best_score:

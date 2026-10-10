@@ -19,7 +19,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import override
+from typing import cast, override
 
 from .loader import LoadedFile, show_key
 from .registry import ConfigValue, ConfigValueError, Key, KeyClass, Registry
@@ -68,7 +68,7 @@ NO_DOTENV = DotEnv()
 
 def _from_env(key: Key, name: str, raw: str, where: str = "environment") -> ConfigValue:
     try:
-        return key.coerce_env_value(raw)
+        return cast("ConfigValue", key.coerce_env_value(raw))
     except ConfigValueError as e:
         # The value is shown: config, never a secret (secrets resolve elsewhere).
         fix = f"{name} (fix or unset it)" if where == "environment" else f"{name} in {where} (fix or remove the line)"

@@ -37,6 +37,7 @@ import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
+from typing import cast
 
 GH_API = "https://api.github.com"
 PYPISTATS_API = "https://pypistats.org/api/packages"
@@ -63,7 +64,7 @@ def _get_json(url: str, headers: dict | None = None, timeout: int = 30) -> dict:
     if not url.startswith("https://"):
         raise ValueError(f"refusing non-https URL: {url}")
     with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310
-        return json.load(resp)
+        return cast("dict", json.load(resp))
 
 
 def _shields_endpoint(label: str, message: str, color: str) -> dict:

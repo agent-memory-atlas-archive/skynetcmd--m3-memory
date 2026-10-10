@@ -56,7 +56,7 @@ import os
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlparse
 
 import httpx
@@ -458,7 +458,7 @@ async def _call_model(
         await _raise_if_unavailable(client, token, local, e)
         raise
     data = resp.json()
-    return data["choices"][0]["message"]["content"]
+    return cast("str", data["choices"][0]["message"]["content"])
 
 
 async def _raise_if_unavailable(

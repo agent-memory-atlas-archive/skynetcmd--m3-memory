@@ -290,7 +290,7 @@ def run(db_path: str, args) -> dict:
             return _run_sweep(conn, db_path, args, now_ts, S, _d, _p, _tbl, False)
 
 
-def _run_sweep(conn, db_path, args, now_ts, S, _d, _p, _tbl, _is_sqlite) -> dict:
+def _run_sweep(conn, db_path, args, now_ts, S: dict, _d, _p, _tbl, _is_sqlite) -> dict:
     # §10 DB hygiene: tune the connection (WAL autocheckpoint, journal_size_limit,
     # mmap/cache) so an --apply run doesn't bloat the chatlog WAL. Best-effort —
     # a missing helper or odd path must not abort a prune. SQLite-only pragmas.

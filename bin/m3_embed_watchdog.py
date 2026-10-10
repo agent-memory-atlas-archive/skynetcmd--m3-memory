@@ -60,6 +60,7 @@ import urllib.parse
 import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
 
 _BIN = Path(__file__).resolve().parent
 if str(_BIN) not in sys.path:
@@ -193,7 +194,7 @@ def server_healthy(url: str) -> bool:
             url + "/health",  # nosec B310
             timeout=_HEALTH_TIMEOUT_S,
         ) as r:
-            return 200 <= r.status < 300
+            return cast("bool", 200 <= r.status < 300)
     except (urllib.error.URLError, OSError, ValueError):
         return False
 

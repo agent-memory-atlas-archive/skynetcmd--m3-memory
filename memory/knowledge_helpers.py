@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import sys
+from typing import cast
 
 # Ensure bin is in the path to import from memory_bridge
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -39,7 +40,9 @@ def add_knowledge(
         asyncio.get_running_loop()
         return "Error: add_knowledge called from running event loop. Use async version."
     except RuntimeError:
-        return asyncio.run(memory_write(type=item_type, content=content, title=title, metadata=final_metadata))
+        return cast(
+            "str", asyncio.run(memory_write(type=item_type, content=content, title=title, metadata=final_metadata))
+        )
 
 
 def update_knowledge(
@@ -55,10 +58,13 @@ def update_knowledge(
         asyncio.get_running_loop()
         return "Error: update_knowledge called from running event loop. Use async version."
     except RuntimeError:
-        return asyncio.run(
-            memory_update(
-                id=item_id, content=content, title=title, metadata=metadata, importance=importance, reembed=reembed
-            )
+        return cast(
+            "str",
+            asyncio.run(
+                memory_update(
+                    id=item_id, content=content, title=title, metadata=metadata, importance=importance, reembed=reembed
+                )
+            ),
         )
 
 
@@ -68,7 +74,7 @@ def search_knowledge(query: str, k: int = 8, type_filter: str = "") -> str:
         asyncio.get_running_loop()
         return "Error: search_knowledge called from running event loop."
     except RuntimeError:
-        return asyncio.run(memory_search(query=query, k=k, type_filter=type_filter))
+        return cast("str", asyncio.run(memory_search(query=query, k=k, type_filter=type_filter)))
 
 
 def get_all_types() -> list[str]:
@@ -145,4 +151,4 @@ def list_knowledge(limit: int = 50, type_filter: str = "") -> list[dict]:
 def delete_knowledge(item_id: str, hard: bool = False) -> str:
     """Deletes a knowledge item by ID."""
     # memory_delete is synchronous in memory_bridge.py
-    return memory_delete(item_id, hard=hard)
+    return cast("str", memory_delete(item_id, hard=hard))

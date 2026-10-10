@@ -22,7 +22,7 @@ the parsed provider-native JSON.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlparse
 
 import httpx
@@ -107,7 +107,7 @@ class UnifiedAI:
     # ------------------------------------------------------------------
     def chat(self, provider: str, model: str, messages: list[dict], **kwargs) -> str:
         """Return only the assistant's text content."""
-        return self.chat_raw(provider, model, messages, **kwargs)["content"]
+        return cast("str", self.chat_raw(provider, model, messages, **kwargs)["content"])
 
     def chat_raw(self, provider: str, model: str, messages: list[dict], **kwargs) -> dict[str, Any]:
         """Return {'content': str, 'usage': dict, 'raw': dict}."""

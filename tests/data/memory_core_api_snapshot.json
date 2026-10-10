@@ -1185,7 +1185,7 @@
     },
     "_validate_task_transition": {
       "kind": "function",
-      "signature": "(prev: 'str', new: 'str')",
+      "signature": "(prev: 'str', new: 'str') -> 'str | None'",
       "value_repr": null
     },
     "agent_get_impl": {

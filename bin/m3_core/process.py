@@ -15,6 +15,7 @@ import os
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path, PurePath
+from typing import cast
 
 from m3_core.seams import is_windows
 
@@ -48,7 +49,7 @@ def pid_is_alive(pid: Pid) -> bool:
         kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined, unused-ignore]
         handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
         if not handle:
-            return ctypes.get_last_error() == ERROR_ACCESS_DENIED  # type: ignore[attr-defined, unused-ignore]
+            return cast("bool", ctypes.get_last_error() == ERROR_ACCESS_DENIED)  # type: ignore[attr-defined, unused-ignore]
         try:
             exit_code = ctypes.c_ulong()
             if kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):

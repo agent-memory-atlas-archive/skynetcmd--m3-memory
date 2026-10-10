@@ -366,7 +366,7 @@ def _cluster_size(mem, cid, _p):
     return mem.execute(f"SELECT count(*) FROM entities WHERE cluster_id={_p}", (cid,)).fetchone()[0]
 
 
-def coalesce_detect(*, corpus=None, max_pairs=MAX_PAIRS, dry_run=False, db_path=None):
+def coalesce_detect(*, corpus=None, max_pairs=MAX_PAIRS, dry_run=False, db_path=None) -> dict:
     """v1 batch pass: quarantine noise + detect coalescing candidates into the
     review queue. Writes ONLY quarantine flags + candidate rows + the embedding
     cache (no merges, no auto-apply). Returns structured counts (§3).
@@ -498,7 +498,7 @@ def coalesce_detect(*, corpus=None, max_pairs=MAX_PAIRS, dry_run=False, db_path=
     return out
 
 
-def list_coalesce_candidates(*, reviewed=False, limit=100, min_cosine=None):
+def list_coalesce_candidates(*, reviewed=False, limit=100, min_cosine=None) -> list[dict]:
     """List coalescing candidate pairs (structured rows, §3). reviewed: None=both,
     False=unreviewed, True=reviewed."""
     _p = _route_dialect(None).param()
@@ -539,7 +539,7 @@ def list_coalesce_candidates(*, reviewed=False, limit=100, min_cosine=None):
     ]
 
 
-def review_coalesce_candidates(reviews, *, note=""):
+def review_coalesce_candidates(reviews, *, note="") -> dict:
     """BULK review (§3 — take a LIST). Each item {uuid, action}; action in
     merge|related|reject|defer. v1 RECORDS the decision only — no overlay
     applied (that is v2). Empty list -> {updated:0}."""
@@ -670,7 +670,7 @@ def _pick_representative(mem, eid_a, eid_b, _p):
 
 def apply_coalescence(
     *, candidate_uuids=None, include_auto_merge=False, resolution_run=None, dry_run=False, db_path=None, confirm=False
-):
+) -> dict:
     """Apply the reversible same_as/cluster overlay for coalescing candidates.
 
     Sources (union): explicit candidate_uuids that are reviewed merge OR (if

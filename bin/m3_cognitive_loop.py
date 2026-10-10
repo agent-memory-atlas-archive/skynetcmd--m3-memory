@@ -29,6 +29,7 @@ import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
 
 from m3_core.seams import is_windows
 
@@ -425,7 +426,7 @@ def _probe_core(db_path: str | None, sql: str, params: tuple = ()) -> list:
     import memory_core as mc
 
     with mc._db() as db:
-        return db.execute(sql, params).fetchall()
+        return cast("list", db.execute(sql, params).fetchall())
 
 
 def _conn_for_pass(db_path: str | None):

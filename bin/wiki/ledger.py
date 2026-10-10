@@ -36,7 +36,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from typing import Any
+from typing import Any, cast
 
 _log = logging.getLogger("m3.wiki.ledger")
 
@@ -170,9 +170,9 @@ def latest_completed_run(db, dialect) -> str | None:
     if not row:
         return None
     try:
-        return row["id"]
+        return cast("str | None", row["id"])
     except (KeyError, IndexError, TypeError):
-        return row[0]
+        return cast("str | None", row[0])
 
 
 def frozen_membership(db, dialect, run_id: str) -> dict[str, dict]:

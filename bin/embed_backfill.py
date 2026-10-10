@@ -57,6 +57,7 @@ import sys
 import time
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
+from typing import cast
 
 from m3_core.paths import deprecated_alias, store_is_a_file
 from m3_core.runtime import utc_iso
@@ -433,7 +434,7 @@ def _count_pending(db_path: Path, args: argparse.Namespace) -> int:
     # Strip ORDER BY + LIMIT (we don't pass a LIMIT param for count)
     count_sql = count_sql.split("ORDER BY")[0]
     with _bound_db(db_path) as conn:
-        return conn.execute(count_sql, params).fetchone()[0]
+        return cast("int", conn.execute(count_sql, params).fetchone()[0])
 
 
 def count_oversize_excluded(db_path: Path, args: argparse.Namespace) -> int:
@@ -461,7 +462,7 @@ def count_oversize_excluded(db_path: Path, args: argparse.Namespace) -> int:
     """
     try:
         with _bound_db(db_path) as conn:
-            return conn.execute(sql, (int(max_row_bytes),)).fetchone()[0]
+            return cast("int", conn.execute(sql, (int(max_row_bytes),)).fetchone()[0])
     except Exception:  # noqa: BLE001 — informational count; never fail the sweep
         return 0
 
@@ -578,7 +579,7 @@ async def _run_sweep_inner(args: argparse.Namespace, counters: Counters) -> int:
     else:
 
         def transform(text: str, metadata) -> str:
-            return mc._augment_embed_text_with_anchors(text, metadata)
+            return cast("str", mc._augment_embed_text_with_anchors(text, metadata))
 
     # Drive the loop.
     #

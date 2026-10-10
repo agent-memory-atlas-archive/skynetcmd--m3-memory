@@ -50,6 +50,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from itertools import batched
 from pathlib import Path
+from typing import cast
 
 REPO = Path(__file__).resolve().parent.parent
 _BIN = REPO / "bin"
@@ -302,9 +303,9 @@ def _gliner_predict_batch(model, texts: list[str], cfg: _Cfg) -> list[list[dict]
     expose a batch API (older releases only ship `predict_entities`).
     """
     if hasattr(model, "batch_predict_entities"):
-        return model.batch_predict_entities(texts, GLINER_LABELS, threshold=cfg.threshold)
+        return cast("list[list[dict]]", model.batch_predict_entities(texts, GLINER_LABELS, threshold=cfg.threshold))
     if hasattr(model, "predict_entities_batch"):
-        return model.predict_entities_batch(texts, GLINER_LABELS, threshold=cfg.threshold)
+        return cast("list[list[dict]]", model.predict_entities_batch(texts, GLINER_LABELS, threshold=cfg.threshold))
     return [model.predict_entities(t, GLINER_LABELS, threshold=cfg.threshold) for t in texts]
 
 
@@ -371,7 +372,7 @@ async def _process_batch(
         counters["entities_emitted"] += n_ents
 
         async def _passthrough(_text: str, _out=extractor_out) -> dict:
-            return _out
+            return cast("dict", _out)
 
         try:
             await mc._run_entity_extractor(mid, text, _passthrough)

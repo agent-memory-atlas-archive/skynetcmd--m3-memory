@@ -10,7 +10,7 @@ from collections import OrderedDict
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import httpx
 from sqlite_pragmas import apply_pragmas, profile_for_db
@@ -287,7 +287,7 @@ class M3Context:
                     if not state or not hasattr(state, "check"):
                         state = m3_core_rs.NativeCircuitBreaker(3, 60)
                         _CIRCUITS[service] = state
-                    return state.check()
+                    return cast("bool", state.check())
             except Exception:  # noqa: BLE001 — optional Rust circuit breaker; the Python breaker below decides
                 pass
 

@@ -40,7 +40,7 @@ import os
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, cast
 
 from llm_failover import apply_thinking_suppression
 
@@ -372,7 +372,7 @@ class ModelDerivabilityJudge:
         try:
             r = httpx.post(self.cfg.url, json=payload, headers=headers, timeout=self.cfg.timeout_s)
             r.raise_for_status()
-            return r.json()["choices"][0]["message"]["content"]
+            return cast("str | None", r.json()["choices"][0]["message"]["content"])
         except Exception:
             return None
 

@@ -13,6 +13,7 @@ import math
 import re
 import struct
 import unicodedata
+from typing import cast
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +103,7 @@ def cosine(a: list[float], b: list[float]) -> float:
     return dot / (mag_a * mag_b) if (mag_a and mag_b) else 0.0
 
 
-def batch_cosine(query, matrix):
+def batch_cosine(query, matrix) -> list[float]:
     """
     Cosine similarity of one query vector against a list / 2-D array of vectors.
 
@@ -126,7 +127,7 @@ def batch_cosine(query, matrix):
         m_norms = _np.linalg.norm(m, axis=1)
         # Avoid div-by-zero without branching
         m_norms = _np.where(m_norms == 0, 1e-10, m_norms)
-        return (m @ q / (m_norms * q_norm)).tolist()
+        return cast("list[float]", (m @ q / (m_norms * q_norm)).tolist())
     # list / tuple path (legacy)
     if not matrix:
         return []

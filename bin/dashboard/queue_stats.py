@@ -15,6 +15,8 @@ not a guess. Drain ETA = queue_len / recent_rate (assumes the recent rate holds
 
 from __future__ import annotations
 
+from typing import cast
+
 # Time windows (minutes) the dashboard reports throughput over.
 WINDOWS_MIN = (1, 10, 30, 60)
 
@@ -103,7 +105,7 @@ def _dialect():
 
 def _ph(n: int = 1) -> str:
     """`n` positional placeholders in the active backend's style (?, or %s)."""
-    return _dialect().placeholder(n)
+    return cast("str", _dialect().placeholder(n))
 
 
 def _table_exists(conn, name: str) -> bool:
@@ -183,7 +185,7 @@ def _entity_backlog_count(conn) -> int:
             f"AND mi.type IN ({type_ph}) AND mi.type NOT IN ({skip_ph}) "
             "AND mi.id NOT IN (SELECT DISTINCT memory_id FROM memory_item_entities)" + done_clause
         )
-        return conn.execute(sql, (*DEFAULT_TYPES, *SKIP)).fetchone()[0]
+        return cast("int", conn.execute(sql, (*DEFAULT_TYPES, *SKIP)).fetchone()[0])
     except Exception:  # noqa: BLE001 — best-effort
         return 0
 
@@ -194,8 +196,8 @@ def _count(conn, table: str, where: str = "") -> int:
     table = _safe_ident(table, _ALLOWED_TABLES, "table")
     if where:
         where = _safe_ident(where, _ALLOWED_QUEUE_WHERE, "queue-where")
-        return conn.execute(f"SELECT COUNT(*) FROM {table} WHERE {where}").fetchone()[0]
-    return conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+        return cast("int", conn.execute(f"SELECT COUNT(*) FROM {table} WHERE {where}").fetchone()[0])
+    return cast("int", conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
 
 
 def _produced_in_window(conn, table: str, ts_col: str, where: str, minutes: int) -> int:
@@ -210,7 +212,7 @@ def _produced_in_window(conn, table: str, ts_col: str, where: str, minutes: int)
     if where:
         clause += f" AND {_safe_ident(where, _ALLOWED_WHERE, 'where-clause')}"
     sql = f"SELECT COUNT(*) FROM {table} WHERE {clause}"
-    return conn.execute(sql, (int(minutes),)).fetchone()[0]
+    return cast("int", conn.execute(sql, (int(minutes),)).fetchone()[0])
 
 
 def _entity_memories_processed(conn, minutes: int) -> int:
@@ -230,7 +232,7 @@ def _entity_memories_processed(conn, minutes: int) -> int:
             "JOIN entities e ON e.id = me.entity_id "
             f"WHERE e.created_at > {_d.now_minus_minutes(_d.placeholder())}"
         )
-        return conn.execute(sql, (int(minutes),)).fetchone()[0]
+        return cast("int", conn.execute(sql, (int(minutes),)).fetchone()[0])
     except Exception:  # noqa: BLE001 — best-effort
         return 0
 

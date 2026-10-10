@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 import os
 from datetime import UTC
+from typing import cast
 
 PLUGIN_KEY = "m3@skynetcmd"
 
@@ -51,7 +52,7 @@ def _installed_version() -> str | None:
         return None
     recs = d.get("plugins", {}).get(PLUGIN_KEY)
     if isinstance(recs, list) and recs:
-        return recs[0].get("version")
+        return cast("str | None", recs[0].get("version"))
     if isinstance(recs, dict):
         return recs.get("version")
     return None
@@ -62,7 +63,7 @@ def _enabled() -> bool | None:
     d = _read_json(os.path.join(_claude_dir(), "settings.json"))
     if not isinstance(d, dict):
         return None
-    return d.get("enabledPlugins", {}).get(PLUGIN_KEY)
+    return cast("bool | None", d.get("enabledPlugins", {}).get(PLUGIN_KEY))
 
 
 def _latest_cached_version() -> str | None:

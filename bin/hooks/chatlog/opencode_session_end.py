@@ -152,7 +152,7 @@ def _extract_last_json_object(output: str):
     return None
 
 
-def run_ingest(py: str, ingest: Path, extra_args: list) -> tuple:
+def run_ingest(py: str, ingest: Path, extra_args: list) -> tuple[int, int, int, str | None, int]:
     """Run ingest, return (written, skipped, failed, error, returncode)."""
     try:
         # CREATE_NO_WINDOW: this hook fires in the background at session end; a

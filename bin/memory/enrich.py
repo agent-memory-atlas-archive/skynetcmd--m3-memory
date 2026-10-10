@@ -6,6 +6,7 @@ import logging
 import os
 import uuid
 from datetime import UTC, datetime
+from typing import cast
 
 from llm_failover import apply_thinking_suppression, get_best_llm, get_smallest_llm
 from m3_sdk import M3Context, resolve_db_path
@@ -157,7 +158,7 @@ async def _auto_classify(content: str, title: str) -> str:
         m_type = resp.json()["choices"][0]["message"]["content"].strip().lower()
         if m_type in valid_types:
             _CLASSIFY_CACHE[c_hash] = m_type
-            return m_type
+            return cast("str", m_type)
     except Exception as e:
         log_swallowed(logger, e, f"Auto-classification failed: {e}")
         from llm_failover import clear_failover_caches

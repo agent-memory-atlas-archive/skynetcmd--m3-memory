@@ -222,7 +222,7 @@ _EMBED_NEG_TTL: float = float(os.environ.get("M3_EMBED_DISCOVERY_NEG_TTL", "60")
 # Sync discovery cache, keyed by ENDPOINT (not process-global): sync callers
 # resolve their own endpoint first, so a model picked for another endpoint
 # would be the wrong answer. See discover_model_sync.
-_SYNC_MODEL_CACHE: dict = {}
+_SYNC_MODEL_CACHE: dict[str, str] = {}
 
 
 def clear_failover_caches() -> None:

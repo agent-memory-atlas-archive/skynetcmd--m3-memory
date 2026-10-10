@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
+from typing import cast
 
 logger = logging.getLogger("pg_fdw_sync")
 
@@ -259,7 +260,7 @@ def _upsert(
         f"ON CONFLICT ({pk}) DO UPDATE SET {set_clause}{conflict_guard}"
     )
     pg_cur.execute(sql, params)
-    return pg_cur.rowcount
+    return cast("int", pg_cur.rowcount)
 
 
 def sync_pg_to_pg(primary_conn, warehouse_dsn: str, get_wm, set_wm, dry_run: bool = False) -> dict:

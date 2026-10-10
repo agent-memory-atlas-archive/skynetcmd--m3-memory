@@ -31,6 +31,7 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
+from typing import cast
 
 # ── absolute-path abstraction ────────────────────────────────────────────────
 # Windows (C:\Users\name\..., C:/Users/name/...) and POSIX (/home/name/...,
@@ -42,11 +43,11 @@ _POSIX_HOME = re.compile(r"/(?:home|Users)/[^\s/]+/(?:[^\s/]+/)*([^\s/]+)")
 
 
 def _basename_win(m: re.Match) -> str:
-    return m.group(1)
+    return cast("str", m.group(1))
 
 
 def _basename_posix(m: re.Match) -> str:
-    return m.group(1)
+    return cast("str", m.group(1))
 
 
 # ── username / hostname placeholders ─────────────────────────────────────────

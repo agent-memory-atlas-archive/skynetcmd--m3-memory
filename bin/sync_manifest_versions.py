@@ -33,6 +33,7 @@ import re
 import sys
 import tomllib
 from pathlib import Path
+from typing import cast
 
 _ROOT = Path(__file__).resolve().parent.parent
 
@@ -68,7 +69,7 @@ _M3_VERSION_RE = re.compile(r"v?(?P<v>20\d\d\.\d{1,2}\.\d{1,2}\.\d+)")
 
 def _pyproject_version() -> str:
     with open(_ROOT / "pyproject.toml", "rb") as fh:
-        return tomllib.load(fh)["project"]["version"]
+        return cast("str", tomllib.load(fh)["project"]["version"])
 
 
 def _minor_series(version: str) -> str:

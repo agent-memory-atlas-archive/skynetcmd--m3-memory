@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 import re
 from functools import lru_cache
+from typing import cast
 
 from m3_core.errors import log_swallowed
 
@@ -71,7 +72,7 @@ def _sanitize_fts(query: str, max_len: int = 500) -> str:
     # falling back to Python for days (see DESIGN §3, fail loud not silent).
     if _rs is not None and hasattr(_rs, "sanitize_fts"):
         try:
-            return _rs.sanitize_fts(query, max_len)
+            return cast("str", _rs.sanitize_fts(query, max_len))
         except Exception as e:  # noqa: BLE001 — an FFI hiccup falls back to Python
             log_swallowed(_log, e, "m3_core_rs.sanitize_fts failed; using Python: %s", e)
     return _sanitize_fts_py(query, max_len)

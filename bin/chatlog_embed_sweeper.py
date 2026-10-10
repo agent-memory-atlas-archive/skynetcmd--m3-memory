@@ -20,6 +20,7 @@ import time
 import uuid
 from datetime import UTC, datetime
 from glob import glob
+from typing import cast
 
 from m3_sdk import getenv_compat
 
@@ -499,7 +500,7 @@ def load_state() -> dict:
         }
     try:
         with open(state_path, encoding="utf-8") as f:
-            return json.load(f)
+            return cast("dict", json.load(f))
     except (OSError, json.JSONDecodeError) as e:
         logger.warning("Failed to load state file: %s", e)
         return {

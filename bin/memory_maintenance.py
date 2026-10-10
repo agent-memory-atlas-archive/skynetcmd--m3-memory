@@ -6,6 +6,7 @@ import sqlite3
 import uuid
 from datetime import UTC, datetime, timedelta
 from itertools import batched
+from typing import cast
 
 DEFAULT_PROTECTED_TYPES = ("preference", "user_fact", "task", "plan")
 
@@ -2082,7 +2083,7 @@ async def _distill_call_model(prompt: str) -> "str | None":
             data = resp.json()
             if not data.get("choices"):
                 return None
-            return data["choices"][0]["message"]["content"]
+            return cast("str | None", data["choices"][0]["message"]["content"])
         except Exception as e:  # noqa: BLE001
             logger.warning(f"distill llm call failed: {type(e).__name__}: {e}")
             return None

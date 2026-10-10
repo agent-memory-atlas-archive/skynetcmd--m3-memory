@@ -39,6 +39,7 @@ import sqlite3
 import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import cast
 
 from m3_core.seams import is_windows
 
@@ -338,7 +339,7 @@ def prompt_backup_dir(assume_yes: bool) -> str:
     cfg = load_config()
     saved = cfg.get("backup_dir")
     if saved and os.path.isdir(saved):
-        return saved
+        return cast("str", saved)
 
     default = get_m3_backups_root()
 

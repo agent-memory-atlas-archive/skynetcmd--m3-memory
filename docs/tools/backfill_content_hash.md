@@ -1,8 +1,8 @@
 ---
 tool: bin/backfill_content_hash.py
-sha1: bbdd89a9afbd
-mtime_utc: 2026-10-10T21:05:16.673434+00:00
-generated_utc: 2026-10-10T21:05:29.283359+00:00
+sha1: 7f9144ac70df
+mtime_utc: 2026-10-10T23:43:02.150929+00:00
+generated_utc: 2026-10-10T23:43:51.320211+00:00
 private: false
 ---
 
@@ -66,7 +66,7 @@ Usage:
 
 ## Entry points
 
-- `def main()` (line 350)
+- `def main()` (line 351)
 - `if __name__ == "__main__"` guard
 
 ---

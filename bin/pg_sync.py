@@ -76,7 +76,7 @@ import pathlib
 import sqlite3
 from contextlib import contextmanager as _contextmanager
 from datetime import UTC, datetime
-from typing import Any, override
+from typing import Any, cast, override
 
 import yaml
 from m3_sdk import M3Context, resolve_db_path
@@ -112,7 +112,7 @@ def _load_manifest(manifest_path: str) -> dict[str, Any]:
 
     # Build table lookup
     data["_table_map"] = {t["name"]: t for t in data["tables"]}
-    return data
+    return cast("dict[str, Any]", data)
 
 
 def _infer_manifest_path(db_path: str) -> str:
@@ -1137,7 +1137,7 @@ def _local_backend():
 
 def _local_param() -> str:
     try:
-        return _local_dialect().param()
+        return cast("str", _local_dialect().param())
     except ImportError:  # bootstrap: seam not importable yet
         return "?"
 
