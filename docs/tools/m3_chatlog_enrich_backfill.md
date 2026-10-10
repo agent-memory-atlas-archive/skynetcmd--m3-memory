@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_chatlog_enrich_backfill.py
-sha1: 5c16f405fba3
-mtime_utc: 2026-10-04T20:11:50.964342+00:00
-generated_utc: 2026-10-04T20:12:03.828353+00:00
+sha1: 36af0df6ee99
+mtime_utc: 2026-10-10T14:57:48.806974+00:00
+generated_utc: 2026-10-10T14:57:57.186596+00:00
 private: false
 ---
 
@@ -17,19 +17,21 @@ conversation_id, and INSERTs one row per conversation into `observation_queue`
 of the main DB. Order is reverse-chronological (newest conversations first),
 so when the periodic drain runs it processes the most recent material first.
 
-Idempotent: uses `INSERT OR IGNORE`, so re-running won't duplicate enqueued
-work for conversations still in the queue. Conversations already drained out
+Idempotent: the dialect's insert-or-ignore, so re-running won't duplicate
+enqueued work for conversations still in the queue. Conversations already drained out
 of the queue WILL be re-enqueued — use `--skip-already-enriched` to also
 exclude conversations that already produced observations under the configured
 target variant.
 
-Cross-platform: only depends on Python stdlib + sqlite3.
+Every backend: on SQLite the chatlog is its own file (--chatlog-db) and the
+queue is in the main file (--main-db); on PostgreSQL both are tables of the one
+configured database and the path flags are refused.
 
 ---
 
 ## Entry points
 
-- `def main()` (line 116)
+- `def main()` (line 122)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -38,8 +40,8 @@ Cross-platform: only depends on Python stdlib + sqlite3.
 
 | Flag(s) | Help | Default | Default behavior | Type/Action | Impact when set |
 |---|---|---|---|---|---|
-| `--main-db` | f'Main DB path (default: {DEFAULT_MAIN_DB})' | `str(DEFAULT_MAIN_DB)` |  | str |  |
-| `--chatlog-db` | f'Chatlog DB path (default: {DEFAULT_CHATLOG_DB})' | `str(DEFAULT_CHATLOG_DB)` |  | str |  |
+| `--main-db` | Main SQLite DB (default: the active store). Not used on PostgreSQL. | None |  | str |  |
+| `--chatlog-db` | Chatlog SQLite DB (default: the configured chatlog store). Not used on PostgreSQL. | None |  | str |  |
 | `--since` | Only enqueue conversations with rows since this ISO timestamp (e.g. 2026-04-01). | None |  | str |  |
 | `--skip-already-enriched` | Skip conversation_ids already present under this variant in memory_items. | None |  | str |  |
 | `--limit` | Cap how many conversations to enqueue. | None |  | int |  |
@@ -56,7 +58,7 @@ _(none detected)_
 
 ## Calls INTO this repo (intra-repo imports)
 
-_(none detected)_
+- `chatlog_config (chatlog_db_path)`
 
 ---
 
@@ -68,16 +70,15 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
-- `m3_core.paths (require_sqlite_backend)`
-- `m3_core.paths (seam_backend, seam_dialect)`
+- `m3_core.paths (active_database, resolve_cli_store, seam_backend, seam_dialect)`
 - `memory.backends.dialect (Dialect)`
+- `memory.backends.dialect (chatlog_table)`
 
 ---
 
 ## File dependencies (repo paths referenced)
 
-- `agent_chatlog.db`
-- `agent_memory.db`
+_(none detected)_
 
 ---
 

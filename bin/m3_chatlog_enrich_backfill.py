@@ -6,22 +6,22 @@ conversation_id, and INSERTs one row per conversation into `observation_queue`
 of the main DB. Order is reverse-chronological (newest conversations first),
 so when the periodic drain runs it processes the most recent material first.
 
-Idempotent: uses `INSERT OR IGNORE`, so re-running won't duplicate enqueued
-work for conversations still in the queue. Conversations already drained out
+Idempotent: the dialect's insert-or-ignore, so re-running won't duplicate
+enqueued work for conversations still in the queue. Conversations already drained out
 of the queue WILL be re-enqueued — use `--skip-already-enriched` to also
 exclude conversations that already produced observations under the configured
 target variant.
 
-Cross-platform: only depends on Python stdlib + sqlite3.
+Every backend: on SQLite the chatlog is its own file (--chatlog-db) and the
+queue is in the main file (--main-db); on PostgreSQL both are tables of the one
+configured database and the path flags are refused.
 """
 from __future__ import annotations
 
 import argparse
-import sqlite3
 import sys
-from pathlib import Path
 
-from m3_core.paths import seam_backend, seam_dialect
+from m3_core.paths import active_database, resolve_cli_store, seam_backend, seam_dialect
 
 # Date bounds go through the shared seam normalizer: a bare YYYY-MM-DD compared
 # against an ISO-TEXT timestamp column is lexicographically wrong (an `until`
@@ -30,7 +30,7 @@ try:  # pragma: no cover - import shim for standalone execution
     from memory.backends.dialect import Dialect as _Dialect
     _normalize_date_bound = _Dialect.normalize_date_bound
     _date_bound_op = _Dialect.date_bound_op
-except Exception:  # pragma: no cover
+except ImportError:  # pragma: no cover - bootstrap: no memory package
     import re as _re_db
     from datetime import date as _d_db
     from datetime import timedelta as _td_db
@@ -49,25 +49,19 @@ except Exception:  # pragma: no cover
         return ">=" if side == "since" else "<"
 
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_MAIN_DB = REPO_ROOT / "memory" / "agent_memory.db"
-DEFAULT_CHATLOG_DB = REPO_ROOT / "memory" / "agent_chatlog.db"
-
-
-def _ensure_observation_queue(con: sqlite3.Connection) -> None:
+def _ensure_observation_queue(con) -> None:
     """Verify the queue table exists; we don't create it (migrations own that).
     """
-    row = con.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='observation_queue'"
-    ).fetchone()
-    if not row:
+    sql, params = seam_dialect().table_exists("observation_queue")
+    if con.execute(sql, params).fetchone() is None:
         raise SystemExit(
-            "main DB has no observation_queue table. Run migrations first."
+            "observed: the main store has no observation_queue table. "
+            "inspect: run the migrations (m3 setup, or bin/migrate_memory.py / bin/migrate_pg.py)"
         )
 
 
 def _conversations_reverse_chrono(
-    chatlog_db: Path,
+    chatlog_db: str | None,
     since: str | None,
 ) -> list[tuple[str, str, str]]:
     """Return (conversation_id, user_id, last_seen) tuples, newest first.
@@ -75,21 +69,24 @@ def _conversations_reverse_chrono(
     Reads `memory_items` rows where `type='chat_log'`, grouped by
     conversation_id, ordered by most-recent turn timestamp descending.
     """
-    with seam_backend().open_readonly(str(chatlog_db)) as con:
+    from memory.backends.dialect import chatlog_table
+
+    items = chatlog_table("items")
+    with seam_backend().open_readonly(str(chatlog_db or "")) as con:
         params: list[object] = []
         where = (
             "WHERE type='chat_log' "
             "AND conversation_id IS NOT NULL AND conversation_id != ''"
         )
         if since:
-            where += f" AND created_at {_date_bound_op('since')} ?"
+            where += f" AND created_at {_date_bound_op('since')} {seam_dialect().param()}"
             params.append(_normalize_date_bound(since, "since"))
         cur = con.execute(
             f"""
             SELECT conversation_id,
                    COALESCE(MAX(user_id), '') AS user_id,
                    MAX(created_at) AS last_seen
-            FROM memory_items
+            FROM {items}
             {where}
             GROUP BY conversation_id
             ORDER BY last_seen DESC
@@ -100,11 +97,11 @@ def _conversations_reverse_chrono(
 
 
 def _already_enriched(
-    main_db: Path,
+    main_db: str | None,
     target_variant: str,
 ) -> set[str]:
     """Return conversation_ids that already have observations under variant."""
-    with seam_backend().open_readonly(str(main_db)) as con:
+    with seam_backend().open_readonly(str(main_db or "")) as con:
         cur = con.execute(
             "SELECT DISTINCT conversation_id FROM memory_items "
             f"WHERE variant={seam_dialect().param()} AND conversation_id IS NOT NULL",
@@ -113,17 +110,25 @@ def _already_enriched(
         return {r[0] for r in cur.fetchall() if r[0]}
 
 
+def _chatlog_default() -> str | None:
+    """The configured chatlog store's path on SQLite (its own resolver)."""
+    try:
+        from chatlog_config import chatlog_db_path
+    except ImportError:  # bootstrap: no chatlog layer; fall back to the main store
+        return None
+    return chatlog_db_path()
+
+
 def main() -> int:
-    from m3_core.paths import require_sqlite_backend
-    require_sqlite_backend("m3_chatlog_enrich_backfill")  # reads SQLite files by path
     parser = argparse.ArgumentParser(
         description="Enqueue chatlog conversations into observation_queue, "
                     "newest first.",
     )
-    parser.add_argument("--main-db", default=str(DEFAULT_MAIN_DB),
-                        help=f"Main DB path (default: {DEFAULT_MAIN_DB})")
-    parser.add_argument("--chatlog-db", default=str(DEFAULT_CHATLOG_DB),
-                        help=f"Chatlog DB path (default: {DEFAULT_CHATLOG_DB})")
+    parser.add_argument("--main-db", default=None,
+                        help="Main SQLite DB (default: the active store). Not used on PostgreSQL.")
+    parser.add_argument("--chatlog-db", default=None,
+                        help="Chatlog SQLite DB (default: the configured chatlog store). "
+                             "Not used on PostgreSQL.")
     parser.add_argument("--since", default=None,
                         help="Only enqueue conversations with rows since this "
                              "ISO timestamp (e.g. 2026-04-01).")
@@ -139,13 +144,11 @@ def main() -> int:
                         help="Skip the confirmation prompt.")
     args = parser.parse_args()
 
-    main_db = Path(args.main_db)
-    chatlog_db = Path(args.chatlog_db)
-    if not main_db.exists():
-        print(f"error: main DB not found: {main_db}", file=sys.stderr)
-        return 1
-    if not chatlog_db.exists():
-        print(f"error: chatlog DB not found: {chatlog_db}", file=sys.stderr)
+    try:
+        main_db = resolve_cli_store(args.main_db, "--main-db")
+        chatlog_db = resolve_cli_store(args.chatlog_db, "--chatlog-db", default=_chatlog_default())
+    except ValueError as e:
+        print(f"error: {e}", file=sys.stderr)
         return 1
 
     convos = _conversations_reverse_chrono(chatlog_db, args.since)
@@ -174,8 +177,8 @@ def main() -> int:
 
     if not args.yes:
         try:
-            resp = input(f"\nINSERT OR IGNORE {len(candidates)} rows into "
-                         f"{main_db}::observation_queue ? [y/N]: ").strip().lower()
+            resp = input(f"\nenqueue {len(candidates)} rows into "
+                         f"{main_db or seam_backend().name}::observation_queue ? [y/N]: ").strip().lower()
         except EOFError:
             resp = ""
         if resp not in ("y", "yes"):
@@ -183,7 +186,7 @@ def main() -> int:
             return 0
 
     d = seam_dialect()
-    with seam_backend().connection() as con:
+    with active_database(main_db), seam_backend().connection() as con:
         _ensure_observation_queue(con)
         cur = con.cursor()
         # Lock now, not at the first write: the SELECT above chose these
@@ -203,7 +206,7 @@ def main() -> int:
         for cid, uid, _ts in candidates:
             cur.execute(sql, (cid, uid))
             rowcount += cur.rowcount
-        cur.execute("COMMIT")
+        con.commit()
         print(f"\nenqueued {rowcount} new rows "
               f"({len(candidates) - rowcount} were already in the queue).")
 

@@ -105,7 +105,6 @@ _SQLITE_ONLY_MAINS = [
     "migrate_entity_vocab",
     "split_chatlog_from_core",
     "migrate_memory",
-    "m3_chatlog_enrich_backfill",
 ]
 
 
