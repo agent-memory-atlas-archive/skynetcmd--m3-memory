@@ -59,10 +59,10 @@ def _resolve_files_location() -> str:
     caller guards file-size probes on ``.endswith('.db')``.
     """
     try:
-        from files_memory.db import _is_postgres as _files_is_pg
+        from files_memory.db import _files_store_is_a_schema as _files_is_pg
         if _files_is_pg():
             return "postgres://<primary>/files (schema)"
-    except Exception:
+    except ImportError:  # no files layer: the sidecar file path below
         pass
     try:
         from memory.config import FILES_DB_PATH as CONFIG_FILES_DB_PATH
@@ -178,9 +178,9 @@ def _get_row_counts(config: chatlog_config.ChatlogConfig) -> dict[str, Any]:
         # files seam and qualify names via files_table(), else PG reports 0 leaves
         # on a real corpus.
         try:
-            from files_memory.db import _is_postgres as _files_is_pg
+            from files_memory.db import _files_store_is_a_schema as _files_is_pg
             _pg_files = _files_is_pg()
-        except Exception:
+        except ImportError:  # no files layer: the sidecar file path below
             _pg_files = False
 
         if _pg_files:
@@ -290,7 +290,7 @@ def _recent_write_count(config: chatlog_config.ChatlogConfig,
             # test_recent_write_count_query_error_returns_unknown_not_zero).
             # NOT 0: a 0 here reads as "capture is down" on a healthy PG store.
             return -1
-    except Exception:  # noqa: BLE001 — no seam (bootstrap) => SQLite
+    except ImportError:  # no seam (bootstrap) => SQLite
         pass
 
     queried_ok = False
@@ -734,7 +734,8 @@ def _get_keypress(timeout: float) -> str | None:
     start_time = time.time()
 
     if is_windows():
-        import msvcrt
+        import msvcrt as _msvcrt
+        msvcrt: Any = _msvcrt  # Any alias: typeshed has msvcrt's API only for win32 (see installer.py).
         while time.time() - start_time < timeout:
             if msvcrt.kbhit():
                 try:
@@ -787,7 +788,8 @@ def _wait_for_any_key() -> None:
     import sys
     import time
     if is_windows():
-        import msvcrt
+        import msvcrt as _msvcrt
+        msvcrt: Any = _msvcrt  # Any alias: typeshed has msvcrt's API only for win32 (see installer.py).
         while msvcrt.kbhit():
             msvcrt.getch()
         while not msvcrt.kbhit():

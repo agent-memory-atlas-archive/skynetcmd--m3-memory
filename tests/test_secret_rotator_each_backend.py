@@ -9,18 +9,42 @@ from __future__ import annotations
 
 import uuid
 
+import pytest
 
-def test_rotation_backs_up_and_logs_in_the_live_store(each_backend, monkeypatch):
-    import secret_rotator as sr
-    from m3_core.context import M3Context
+
+@pytest.fixture
+def vault_row(each_backend):
+    """One synchronized_secrets row, removed afterwards with its backup.
+
+    The PG test store persists across runs and tests, and a leftover row is not
+    inert: auth_utils' salt guard reads any synchronized_secrets row as "the
+    vault holds secrets" and refuses to mint a salt, which failed
+    test_serve_auth_pg_live in the next file (2026-10-10).
+    """
     from memory.backends import dialect
 
-    key = f"ROT_PROBE_{uuid.uuid4().hex[:8]}"  # the PG test store persists across runs
+    key = f"ROT_PROBE_{uuid.uuid4().hex[:8]}"
     p = dialect().param()
     with each_backend.connection() as conn:
         conn.execute(f"INSERT INTO synchronized_secrets (service_name, encrypted_value) VALUES ({p}, {p})",
                      (key, "old-cipher"))
         conn.commit()
+    try:
+        yield key
+    finally:
+        with each_backend.connection() as conn:
+            for table in ("synchronized_secrets", "secret_backups"):
+                conn.execute(f"DELETE FROM {table} WHERE service_name = {p}", (key,))
+            conn.commit()
+
+
+def test_rotation_backs_up_and_logs_in_the_live_store(each_backend, vault_row, monkeypatch):
+    import secret_rotator as sr
+    from m3_core.context import M3Context
+    from memory.backends import dialect
+
+    key = vault_row
+    p = dialect().param()
 
     written: dict = {}
     monkeypatch.setattr(sr, "ROTATION_TARGETS", [key])

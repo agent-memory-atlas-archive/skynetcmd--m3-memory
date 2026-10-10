@@ -86,6 +86,12 @@ class ElevationBatch:
         import time
         expires = int(time.time()) + timeout
         tmp = _workdir()
+        try:
+            return self._run_in(tmp, timeout, expires)
+        finally:
+            _remove_workdir(tmp)
+
+    def _run_in(self, tmp: str, timeout: int, expires: int) -> dict[str, dict] | None:
         script = os.path.join(tmp, "actions.ps1")
         results = os.path.join(tmp, "results.json")
         with open(script, "w", encoding="utf-8-sig", newline="") as fh:
@@ -113,9 +119,24 @@ class ElevationBatch:
             return out
         except (OSError, ValueError):
             return None  # declined, or the elevated process never got that far
-        finally:
-            import shutil
-            shutil.rmtree(tmp, ignore_errors=True)
+
+
+def _remove_workdir(path: str) -> None:
+    """Remove a batch workdir, saying so when it cannot.
+
+    ``ignore_errors=True`` dropped every failure, and an elevated process's
+    files are owned by Administrators, so whole batches (scripts and results)
+    were left in %TEMP% without a word."""
+    import logging
+    import shutil
+
+    def _report(_fn, p, exc):
+        logging.getLogger(__name__).warning(
+            "elevation workdir not fully removed. observed: %s: %s. "
+            "inspect: an elevated process owns it; delete %s from an elevated shell",
+            type(exc).__name__, p, path)
+
+    shutil.rmtree(path, onexc=_report)
 
 
 def _workdir() -> str:

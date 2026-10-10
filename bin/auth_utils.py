@@ -189,7 +189,9 @@ def _backend():
     bootstrap working; the shim implements only open_readonly, and only for
     SQLite, because that is the sole situation in which the seam is absent --
     a PostgreSQL install always has the seam on sys.path by the time secrets
-    are read.
+    are read. Only ImportError falls back: a seam that refuses its
+    configuration (PostgreSQL with no DSN) propagates, and the vault readers
+    report it, rather than reading a local file that is not the live vault.
     """
     # Same re-entrancy hazard as _dialect_param: the backend calls get_secret()
     # while being constructed, so asking for the backend here would deadlock on
@@ -199,7 +201,7 @@ def _backend():
         try:
             from memory.backends import active_backend
             return active_backend()
-        except Exception:  # noqa: BLE001 — bootstrap: seam not importable yet
+        except ImportError:  # bootstrap: seam not importable yet
             pass
 
     import sqlite3 as _sq
@@ -234,7 +236,7 @@ def _dialect_param() -> str:
     try:
         from memory.backends import dialect
         return dialect().param()
-    except Exception:  # noqa: BLE001 — bootstrap: seam not importable yet
+    except ImportError:  # bootstrap: seam not importable yet
         return "?"
 
 
@@ -354,9 +356,13 @@ def _get_device_salt() -> bytes:
     # encrypted with the old one. If the vault already has secrets, a fresh
     # salt would orphan them — fail loud with an actionable message instead.
     if _vault_has_secrets():
+        from m3_core.paths import resolve_backend_name, store_is_a_file
+
+        # On a server backend the vault is a table in that database; a file path here sends the reader to a file that is not the vault.
+        vault = _vault_db_path() if store_is_a_file() else f"(the {resolve_backend_name()} store)"
         raise SaltMissingError(
             f"Device salt is missing but the vault already holds encrypted secrets; refusing to mint a new salt. "
-            f"observed: salt file not found at {salt_path}, no M3_AGENT_OS_SALT_HEX env set, and vault {_vault_db_path()} contains encrypted_secrets rows. "
+            f"observed: salt file not found at {salt_path}, no M3_AGENT_OS_SALT_HEX env set, and vault {vault} contains synchronized_secrets rows. "
             "possible: the salt file was deleted, the config/engine root was relocated without preserving .agent_os_salt, a backup restore was incomplete, or the file system is corrupted. "
             "inspect: (1) check if .agent_os_salt exists in the config root or legacy root (get_m3_root() / get_m3_config_root()); (2) restore from backup if available; (3) if salt is unrecoverable and secrets can be re-entered, clear synchronized_secrets with `DELETE FROM synchronized_secrets` and retry — a fresh salt will mint automatically."
         )

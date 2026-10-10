@@ -43,7 +43,7 @@ def _dialect():
     try:
         from memory.backends import dialect  # type: ignore
         return dialect()
-    except Exception:  # noqa: BLE001 — bootstrap: seam not importable yet
+    except ImportError:  # bootstrap: seam not importable yet
         class _SqliteParams:
             @staticmethod
             def param() -> str:

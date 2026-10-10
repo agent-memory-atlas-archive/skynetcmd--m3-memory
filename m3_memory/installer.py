@@ -2258,10 +2258,11 @@ def _scan_registry_env_deprecations(names: dict[str, str],
     skipped = unchecked if unchecked is not None else []
     hits: list[dict] = []
     try:
-        import winreg  # noqa: PLC0415 — Windows-only, lazy
+        import winreg as _winreg  # noqa: PLC0415 — Windows-only, lazy
     except Exception as e:  # noqa: BLE001
         skipped.append(f"the Windows registry (winreg: {e})")
         return hits
+    winreg: Any = _winreg  # Any alias: see the rationale in _migrate_registry_env_names
     for hive_name, subkey, scope, writable in _WIN_ENV_REG_SCOPES:
         hive = getattr(winreg, hive_name)
         try:
@@ -2499,7 +2500,8 @@ def _broadcast_env_change() -> None:
         HWND_BROADCAST = 0xFFFF
         WM_SETTINGCHANGE = 0x1A
         SMTO_ABORTIFHUNG = 0x0002
-        ctypes.windll.user32.SendMessageTimeoutW(
+        _ct: Any = ctypes  # Any alias: typeshed has ctypes.windll only for win32
+        _ct.windll.user32.SendMessageTimeoutW(
             HWND_BROADCAST, WM_SETTINGCHANGE, 0, "Environment",
             SMTO_ABORTIFHUNG, 5000, ctypes.byref(ctypes.c_ulong()),
         )

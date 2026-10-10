@@ -207,9 +207,9 @@ def _has_column(conn, dialect, table: str, col: str) -> bool:
 
 def run_sweep(db_path: str, *, apply: bool, batch_size: int = 1000) -> dict:
     """Walk all chat_log rows, apply decay decisions, return a summary."""
-    from memory.backends import active_backend
+    from m3_core.paths import store_is_a_file
     # Only a file-per-database backend has a file to find.
-    if active_backend().name == "sqlite" and not os.path.exists(db_path):
+    if store_is_a_file() and not os.path.exists(db_path):
         return {"error": f"DB not found: {db_path}"}
 
     now_ts = time.time()

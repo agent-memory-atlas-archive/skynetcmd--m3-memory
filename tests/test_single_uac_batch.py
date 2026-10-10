@@ -155,14 +155,21 @@ def test_stale_detection_compares_process_start_with_core_install(monkeypatch, t
 
 
 @pytest.mark.requires_windows  # Windows ACLs
-def test_the_batch_workdir_names_the_user_so_elevated_results_are_readable():
+def test_the_batch_workdir_names_the_user_so_elevated_results_are_readable(monkeypatch):
     """mkdtemp's Python 3.13+ ACL is OWNER RIGHTS + SYSTEM + Administrators: a
     file the ELEVATED process writes there is owned by Administrators and the
-    caller cannot read results.json, so an approved batch read as declined."""
+    caller cannot read results.json, so an approved batch read as declined.
+
+    Runs against the REAL %TEMP%: the suite's redirected tempdir sits under
+    pytest's 0o700 basetemp, whose ACL is the very one this guards against."""
     import getpass
     import shutil
     import subprocess
+    import tempfile
 
+    import conftest
+
+    monkeypatch.setattr(tempfile, "tempdir", conftest.REAL_TEMPDIR)
     d = elevate._workdir()
     try:
         out = subprocess.run(["icacls", d], capture_output=True, text=True).stdout

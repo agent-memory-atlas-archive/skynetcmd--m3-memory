@@ -185,6 +185,13 @@ class StorageBackend(Protocol):
     """
 
     name: BackendName
+    # True when each database is a file the caller names (SQLite): a missing
+    # file means a missing store, and a path selects the store. False when one
+    # server database holds every store (PostgreSQL): paths mean nothing and
+    # the backend's own DSN locates it. Structural, so not a connect-time probe
+    # in `Capabilities`. Ask `m3_core.paths.store_is_a_file()`, which also
+    # answers during bootstrap.
+    stores_databases_as_files: bool
 
     def capabilities(self) -> Capabilities:
         """Return the capabilities discovered for this backend's connection."""

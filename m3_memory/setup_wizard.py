@@ -1669,9 +1669,11 @@ def _step_preflight(plan: SetupPlan, args: argparse.Namespace) -> bool:
     # user is already in a position to act on it.
     from types import ModuleType
 
-    _ep: ModuleType | None
     try:
-        from doctor import entrypoint_probe as _ep
+        import importlib
+
+        # By name: mypy checking m3_memory/ cannot see bin/'s doctor package.
+        _ep: ModuleType | None = importlib.import_module("doctor.entrypoint_probe")
     except Exception:  # noqa: BLE001 — probe unavailable (payload not staged yet)
         _ep = None
     if _ep is not None:

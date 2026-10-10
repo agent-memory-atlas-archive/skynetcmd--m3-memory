@@ -1663,11 +1663,21 @@ def _cmd_tool_dispatch(args: argparse.Namespace) -> int:
     _missing = [p for p in (spec.parameters.get("required") or [])
                 if tool_args.get(p) is None and p != "database"]
     if _missing:
-        print(
-            f"Error: {tool} requires {', '.join('--' + m for m in _missing)} "
-            f"— pass the flag, or include the key in --json / --json-file.",
-            file=sys.stderr,
-        )
+        # A complex tool registers no per-argument flags (they take --json
+        # only), so naming `--created_by` there sent the user to a flag that
+        # argparse then rejected as unrecognized.
+        if _spec_is_complex(spec):
+            print(
+                f"Error: {tool} requires {', '.join(repr(m) for m in _missing)} "
+                f"— this tool takes its arguments only as --json / --json-file; include the key there.",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"Error: {tool} requires {', '.join('--' + m for m in _missing)} "
+                f"— pass the flag, or include the key in --json / --json-file.",
+                file=sys.stderr,
+            )
         return 2
 
     for routing in _cat.ROUTING_ARGS:  # --database / --store: the dispatcher owns them

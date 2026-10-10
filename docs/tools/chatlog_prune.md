@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_prune.py
-sha1: 8bfac1fdbf98
-mtime_utc: 2026-10-09T23:19:58.834356+00:00
-generated_utc: 2026-10-09T23:24:13.676096+00:00
+sha1: 79b0bd9ff064
+mtime_utc: 2026-10-10T13:31:00.810365+00:00
+generated_utc: 2026-10-10T13:31:15.932410+00:00
 private: false
 ---
 
@@ -93,7 +93,7 @@ _(none detected)_
 
 ## Notable external imports
 
-- `memory.backends (active_backend)`
+- `m3_core.paths (store_is_a_file)`
 - `memory.backends (active_backend, chatlog_table)`
 
 ---

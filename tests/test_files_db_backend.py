@@ -133,6 +133,10 @@ def pg_files(monkeypatch, pg_url):
     yield fdb
     c = psycopg2.connect(pg_url); c.autocommit = True
     c.cursor().execute("DROP SCHEMA IF EXISTS files CASCADE"); c.close()
+    # The schema is gone, so init_db's "already migrated" memo is now false;
+    # left in place, the next init_db() on PostgreSQL skipped migration and every
+    # files query in a later test found no table (test_files_readonly_probe).
+    fdb._initialized_dbs.clear()
 
 
 @pg

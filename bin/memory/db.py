@@ -299,7 +299,7 @@ def _ensure_sync_tables(db_path: str | None = None) -> None:
         from memory.backends import resolve_backend_name
         if resolve_backend_name() != "sqlite":
             return
-    except Exception:  # noqa: BLE001 — no seam yet (bootstrap) => SQLite
+    except ImportError:  # no seam yet (bootstrap) => SQLite
         pass
     try:
         migration_script = str(Path(config.BASE_DIR) / "bin" / "migrate_memory.py")

@@ -33,6 +33,7 @@ import os
 import sys
 from typing import Any
 
+from m3_core.paths import store_is_a_file
 from m3_core.seams import is_windows
 
 _BIN = os.path.dirname(os.path.abspath(__file__))
@@ -130,20 +131,6 @@ def _scan(db_path: str):
     return out
 
 
-def _is_file_backend() -> bool:
-    """True when the active backend stores one DB per file (SQLite today).
-
-    Keyed on ``!= "sqlite"`` like memory/db.py::_db, NOT on ``== "postgres"``,
-    so a future SQL backend (MariaDB) routes through the pooled seam rather than
-    silently falling into the file path and touching the wrong store.
-    """
-    try:
-        from memory.backends import active_backend
-        return active_backend().name == "sqlite"
-    except Exception:  # noqa: BLE001 — no backend layer means the legacy file path
-        return True
-
-
 def _embeddings_table() -> str:
     """The CORE store's embeddings table — ``memory_embeddings`` on every backend.
 
@@ -181,7 +168,7 @@ def _delete_doomed(db_path: str, doomed) -> int:
     # (PG today, MariaDB later) routes through the pooled seam. One local
     # decision drives both the connection and the commit below, so they cannot
     # disagree.
-    is_file = _is_file_backend()
+    is_file = store_is_a_file()
     # Either a closing(sqlite3.Connection) or the backend's connection() CM —
     # both are context managers yielding a DB-API connection. Annotated Any so
     # the second branch isn't narrowed to the first's type (same treatment as
@@ -273,7 +260,7 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     if args.all_dbs:
-        if not _is_file_backend():
+        if not store_is_a_file():
             print("error: --all-dbs is a file-backend convenience (per-file stores). "
                   "On a pooled backend run once per logical store instead.")
             return 1
@@ -306,7 +293,7 @@ def _process_one_db(db_path: str, args) -> int:
     non-kept families + backfill. Shared by the single-DB and --all-dbs paths."""
     # Only a file backend has a path to check; on a pooled store db_path is a
     # label, not a file, and this guard would abort every run.
-    if _is_file_backend() and not os.path.exists(db_path):
+    if store_is_a_file() and not os.path.exists(db_path):
         print(f"error: no such DB: {db_path}")
         return 1
 

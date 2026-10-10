@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_init.py
-sha1: 7d0c346dc0aa
-mtime_utc: 2026-10-10T06:49:09.031892+00:00
-generated_utc: 2026-10-10T06:49:16.482104+00:00
+sha1: 5bba43eb0447
+mtime_utc: 2026-10-10T13:31:00.808824+00:00
+generated_utc: 2026-10-10T13:31:15.926659+00:00
 private: false
 ---
 
@@ -80,7 +80,7 @@ path equality.
 
 ## Notable external imports
 
-- `m3_core.paths (resolve_backend_name)`
+- `m3_core.paths (store_is_a_file)`
 - `m3_core.seams (is_windows)`
 
 ---

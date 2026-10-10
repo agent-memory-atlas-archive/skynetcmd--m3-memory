@@ -226,7 +226,7 @@ def test_pooled_backend_uses_the_seam_not_a_file_handle(tmp_path, monkeypatch):
         def dialect(self):
             return _Dialect()
 
-    monkeypatch.setattr(reembed_space, "_is_file_backend", lambda: False)
+    monkeypatch.setattr(reembed_space, "store_is_a_file", lambda: False)
     # Import HERE, not at module level, and patch the module OBJECT rather than
     # a dotted string. `memory/__init__.py` imports its submodules eagerly but
     # NOT `backends`, and every `memory.backends` import in the codebase is
@@ -263,7 +263,7 @@ def test_file_backend_honours_the_db_path(tmp_path, monkeypatch):
     other_dir = tmp_path / "other"
     other_dir.mkdir()
     other = _store(other_dir, MIXED)
-    monkeypatch.setattr(reembed_space, "_is_file_backend", lambda: True)
+    monkeypatch.setattr(reembed_space, "store_is_a_file", lambda: True)
     reembed_space._delete_doomed(db, [("default", "qwen3-embedding:0.6b",
                                        "qwen3-embedding", 1024, 7)])
     assert _count(db) == 100, "target file must lose exactly its stale rows"

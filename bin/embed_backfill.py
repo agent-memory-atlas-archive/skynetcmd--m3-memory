@@ -57,7 +57,7 @@ import time
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
 
-from m3_core.paths import deprecated_alias
+from m3_core.paths import deprecated_alias, store_is_a_file
 from m3_core.runtime import utc_iso
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -126,21 +126,6 @@ def _sql():
         return _StandaloneSqliteDialect()
 
 
-def _stores_are_files() -> bool:
-    """True when the active backend stores each database as a file (SQLite).
-
-    Without the memory package (standalone), the backend NAME still comes from
-    the environment via m3_core.paths; assuming SQLite there swept a PostgreSQL
-    install's stale local file instead of the live store, without a word."""
-    try:
-        from memory.backends import active_backend
-        return active_backend().name == "sqlite"
-    except ImportError:  # pragma: no cover - standalone: no memory package
-        from m3_core.paths import resolve_backend_name
-
-        return resolve_backend_name() == "sqlite"
-
-
 def _tables(args: argparse.Namespace) -> tuple[str, str]:
     """(items, embeddings) table names for the store being swept.
 
@@ -176,7 +161,7 @@ def _bound_db(db_path):
     On a backend that is not file-per-database there is one pooled store and
     `db_path` does not select it; the backend's own connection is used.
     """
-    if not _stores_are_files():
+    if not store_is_a_file():
         from memory.db import _db
         with _db() as conn:
             yield conn
@@ -617,7 +602,7 @@ async def _run_sweep_inner(args: argparse.Namespace, counters: Counters) -> int:
     # would target the MAIN db while reads came from the swept one. ContextVars
     # propagate across `await` within a task, so this covers the whole drive.
     # Not needed on a backend with one pooled store: mc._db() reaches it anyway.
-    with (_sweep_binding(args.db) if _stores_are_files() else nullcontext()):
+    with (_sweep_binding(args.db) if store_is_a_file() else nullcontext()):
         await run_embed_loop(
             fetch_candidates=_fetch,
             write_embedding=_write,
@@ -798,7 +783,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # Plan
     pending = _count_pending(args.db, args)
-    print(f"DB:       {args.db}" if _stores_are_files() else f"Target:   {args.target} (one database)")
+    print(f"DB:       {args.db}" if store_is_a_file() else f"Target:   {args.target} (one database)")
     print(f"Pending:  {pending}")
     print("Filters:")
     if args.variant:    print(f"  variant: {args.variant}")

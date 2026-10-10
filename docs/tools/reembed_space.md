@@ -1,8 +1,8 @@
 ---
 tool: bin/reembed_space.py
-sha1: 6b8f4b89888b
-mtime_utc: 2026-10-10T06:49:09.062334+00:00
-generated_utc: 2026-10-10T06:49:17.035530+00:00
+sha1: d62537225820
+mtime_utc: 2026-10-10T13:31:00.808824+00:00
+generated_utc: 2026-10-10T13:31:16.478458+00:00
 private: false
 ---
 
@@ -41,7 +41,7 @@ relationships are untouched; only the vector is dropped and regenerated.
 
 ## Entry points
 
-- `def main()` (line 253)
+- `def main()` (line 240)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -77,11 +77,11 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.call()  → `cmd`` (line 402)
+- `subprocess.call()  → `cmd`` (line 389)
 
 **sqlite**
 
-- `sqlite3.connect()  → `db_path`` (line 192)
+- `sqlite3.connect()  → `db_path`` (line 179)
 
 
 ---
@@ -92,6 +92,7 @@ _(none detected)_
 - `m3_core.paths (get_m3_backups_root)`
 - `m3_core.paths (resolve_engine_file)`
 - `m3_core.paths (snapshot_stores)`
+- `m3_core.paths (store_is_a_file)`
 - `m3_core.seams (is_windows)`
 - `memory.backends (active_backend)`
 

@@ -756,6 +756,12 @@ def _isolated_shell_rc(monkeypatch, tmp_path):
     yield
 
 
+# The OS temp directory as it was before _session_tempdir redirected it. A test
+# whose subject is that directory's own properties (its inherited ACL) needs the
+# real one: pytest creates basetemp 0o700, so a child of it inherits a different ACL.
+REAL_TEMPDIR: str | None = None
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _session_tempdir(tmp_path_factory):
     """Route every temp file the suite makes into pytest's own basetemp.
@@ -769,6 +775,8 @@ def _session_tempdir(tmp_path_factory):
     """
     import tempfile as _tf
 
+    global REAL_TEMPDIR
+    REAL_TEMPDIR = _tf.gettempdir()
     root = str(tmp_path_factory.mktemp("tempfile", numbered=False))
     saved_dir = _tf.tempdir
     saved_env = {k: _os.environ.get(k) for k in ("TMPDIR", "TEMP", "TMP")}

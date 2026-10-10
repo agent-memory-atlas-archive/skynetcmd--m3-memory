@@ -1,8 +1,8 @@
 ---
 tool: bin/dashboard_server.py
-sha1: b45b9b3a6ac8
-mtime_utc: 2026-10-10T06:49:09.037916+00:00
-generated_utc: 2026-10-10T06:49:16.603775+00:00
+sha1: 4b2710453508
+mtime_utc: 2026-10-10T14:08:30.141486+00:00
+generated_utc: 2026-10-10T14:09:48.625026+00:00
 private: false
 ---
 
@@ -127,11 +127,11 @@ you intend to launch the server with (typically ``.venv``).
 - `fastapi.responses (FileResponse, HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse)`
 - `files_memory.config (files_table)`
 - `files_memory.db (_db)`
-- `files_memory.db (_is_postgres)`
+- `files_memory.db (_files_store_is_a_schema)`
 - `files_memory.search (files_search)`
 - `html`
 - `m3_core.paths (get_m3_engine_root)`
-- `m3_core.seams (is_windows)`
+- `m3_core.seams (detached_spawn_kwargs, is_windows)`
 - `memory.backends (active_backend)`
 - `memory.config (FILES_DB_PATH)`
 - `memory.db (_db)`

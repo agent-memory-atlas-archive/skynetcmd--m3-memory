@@ -56,7 +56,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC
 from typing import Any, override
 
-from m3_core.seams import is_windows
+from m3_core.seams import detached_spawn_kwargs, is_windows
 
 
 # ── Crash visibility, installed BEFORE any heavy import ───────────────────────
@@ -1641,7 +1641,7 @@ async def get_stats(request: Request):
     # schema-qualified name (bare-identifier only), so guard by catching the
     # undefined-object error instead.
     try:
-        from files_memory.db import _is_postgres as _files_is_pg
+        from files_memory.db import _files_store_is_a_schema as _files_is_pg
         if _files_is_pg():
             from files_memory.config import files_table
             from files_memory.db import _db as _files_seam
@@ -3196,7 +3196,7 @@ def _spawn_detached(host: str, port: int) -> int:
         subprocess.Popen(  # noqa: S603
             [exe, script, "--foreground"], env=env,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL,
-            creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
+            **detached_spawn_kwargs(),
         )
     else:
         # POSIX has no console window; start_new_session detaches from the

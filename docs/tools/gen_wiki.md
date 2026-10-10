@@ -1,8 +1,8 @@
 ---
 tool: bin/gen_wiki.py
-sha1: 854b3273863c
-mtime_utc: 2026-10-09T23:52:06.239907+00:00
-generated_utc: 2026-10-09T23:53:44.980067+00:00
+sha1: 77d5991fcc5d
+mtime_utc: 2026-10-10T14:01:11.994206+00:00
+generated_utc: 2026-10-10T14:09:48.691470+00:00
 private: false
 ---
 
@@ -82,7 +82,7 @@ _(none detected)_
 - `files_memory.config (FILES_DB_PATH)`
 - `files_memory.config (memory_db_path)`
 - `files_memory.db (_db)`
-- `files_memory.db (_is_postgres)`
+- `files_memory.db (_files_store_is_a_schema)`
 - `m3_core.paths (get_m3_engine_root)`
 - `memory.backends.selector (active_backend)`
 - `memory.db (_db)`

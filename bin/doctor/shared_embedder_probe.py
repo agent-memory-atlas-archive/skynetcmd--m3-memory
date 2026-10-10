@@ -31,7 +31,7 @@ import urllib.request
 from typing import Any
 from urllib.parse import urlparse
 
-from m3_core.seams import is_windows, user_env_get
+from m3_core.seams import detached_spawn_kwargs, is_windows, user_env_get
 
 _PORT = 8082
 _DEFAULT_URL = f"http://127.0.0.1:{_PORT}"
@@ -420,16 +420,11 @@ def _fix_start_server() -> bool:
             # on the user's desktop for as long as the embed server ran — and
             # closing it killed their embedder. Observed 2026-08-10.
             #
-            # CREATE_NO_WINDOW belts-and-braces the guarantee. Same pattern as
-            # dashboard_server._daemonize, which got this right.
+            # The no-window detach flags come from the OS seam.
             pyw = sys.executable.replace("python.exe", "pythonw.exe")
             if os.path.exists(pyw):
                 exe = pyw
-            kwargs["creationflags"] = (
-                subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS
-            )
-        else:
-            kwargs["start_new_session"] = True
+        kwargs.update(detached_spawn_kwargs())
         subprocess.Popen(  # noqa: S603 — fixed argv, our own script
             [exe, script, "--port", str(_PORT)],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **kwargs,

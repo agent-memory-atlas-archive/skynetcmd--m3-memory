@@ -255,9 +255,9 @@ def _chatlog_is_sqlite_file() -> bool:
     On PostgreSQL the chatlog is tables in the primary database, created by the
     server schema; migrate_memory (SQLite-only) refuses there by design.
     """
-    from m3_core.paths import resolve_backend_name
+    from m3_core.paths import store_is_a_file
 
-    return resolve_backend_name() == "sqlite"
+    return store_is_a_file()
 
 
 def run_migrations() -> bool:

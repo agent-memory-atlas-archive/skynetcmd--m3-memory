@@ -516,7 +516,7 @@ class M3Context:
             from memory.backends import active_backend as _ab
 
             _backend = _ab()
-        except Exception:  # noqa: BLE001 -- no seam yet (bootstrap) => SQLite
+        except ImportError:  # no seam yet (bootstrap) => SQLite
             _backend = None
         if _backend is not None and _backend.name != "sqlite":
             with _backend.connection() as conn:

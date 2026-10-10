@@ -36,6 +36,13 @@ class AclError(OSError):
     """The DACL could not be read: the caller cannot claim the file is private."""
 
 
+def _last_error() -> int:
+    """The calling thread's last Win32 error. Reached through getattr because
+    typeshed defines ctypes.get_last_error only for win32, and the seam call
+    guarding these bodies cannot narrow the platform for mypy."""
+    return int(getattr(ctypes, "get_last_error")())
+
+
 def _api():
     """advapi32 + kernel32 with every signature declared: ctypes defaults
     arguments to a C int, which truncates a 64-bit HANDLE or pointer."""
@@ -64,7 +71,7 @@ def _api():
 
 
 def current_user_sid() -> str:
-    if not is_windows():  # inline, so mypy on Linux/macOS skips the Windows-only body
+    if not is_windows():
         raise AclError("win_acl is Windows-only")
     from ctypes import wintypes
 
@@ -72,17 +79,17 @@ def current_user_sid() -> str:
     k32.GetCurrentProcess.restype = wintypes.HANDLE
     token = wintypes.HANDLE()
     if not adv.OpenProcessToken(k32.GetCurrentProcess(), _TOKEN_QUERY, ctypes.byref(token)):
-        raise AclError(f"OpenProcessToken failed (winerror {ctypes.get_last_error()})")
+        raise AclError(f"OpenProcessToken failed (winerror {_last_error()})")
     try:
         size = wintypes.DWORD()
         adv.GetTokenInformation(token, _TOKEN_USER, None, 0, ctypes.byref(size))
         buf = ctypes.create_string_buffer(size.value)
         if not adv.GetTokenInformation(token, _TOKEN_USER, buf, size, ctypes.byref(size)):
-            raise AclError(f"GetTokenInformation failed (winerror {ctypes.get_last_error()})")
+            raise AclError(f"GetTokenInformation failed (winerror {_last_error()})")
         psid = ctypes.cast(buf, ctypes.POINTER(ctypes.c_void_p))[0]  # TOKEN_USER.User.Sid
         out = wintypes.LPWSTR()
         if not adv.ConvertSidToStringSidW(ctypes.c_void_p(psid), ctypes.byref(out)):
-            raise AclError(f"ConvertSidToStringSidW failed (winerror {ctypes.get_last_error()})")
+            raise AclError(f"ConvertSidToStringSidW failed (winerror {_last_error()})")
         try:
             return str(out.value)
         finally:
@@ -93,7 +100,7 @@ def current_user_sid() -> str:
 
 def file_sddl(path: str) -> str:
     """The owner and DACL of ``path`` as an SDDL string."""
-    if not is_windows():  # inline, so mypy on Linux/macOS skips the Windows-only body
+    if not is_windows():
         raise AclError("win_acl is Windows-only")
     from ctypes import wintypes
 
@@ -110,7 +117,7 @@ def file_sddl(path: str) -> str:
         if not adv.ConvertSecurityDescriptorToStringSecurityDescriptorW(
                 psd, _SDDL_REVISION_1, info, ctypes.byref(out), None):
             raise AclError(f"ConvertSecurityDescriptorToStringSecurityDescriptorW failed "
-                           f"(winerror {ctypes.get_last_error()})")
+                           f"(winerror {_last_error()})")
         try:
             return str(out.value)
         finally:

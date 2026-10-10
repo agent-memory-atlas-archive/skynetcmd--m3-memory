@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_decay.py
-sha1: a77a82e440f9
-mtime_utc: 2026-10-08T22:11:14.490601+00:00
-generated_utc: 2026-10-08T22:11:47.704947+00:00
+sha1: 199969b84b57
+mtime_utc: 2026-10-10T13:31:00.810365+00:00
+generated_utc: 2026-10-10T13:31:15.901655+00:00
 private: false
 ---
 
@@ -121,7 +121,7 @@ ephemeral regime entirely.
 
 ## Notable external imports
 
-- `memory.backends (active_backend)`
+- `m3_core.paths (store_is_a_file)`
 - `memory.backends (active_backend, chatlog_table)`
 
 ---

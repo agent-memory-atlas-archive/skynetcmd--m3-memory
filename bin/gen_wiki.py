@@ -117,8 +117,8 @@ def _build_vault(args: argparse.Namespace, out_dir: str) -> dict[str, str]:
     from contextlib import closing as _closing
 
     try:
-        from files_memory.db import _is_postgres as _files_is_pg
-    except Exception:
+        from files_memory.db import _files_store_is_a_schema as _files_is_pg
+    except ImportError:  # no files layer: the sidecar file path
         _files_is_pg = lambda: False  # noqa: E731
 
     _memory_seam: Callable[[], AbstractContextManager[Any]] | None

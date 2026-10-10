@@ -968,40 +968,78 @@ def seam_backend():
     ``if backend ==`` ladders entirely.
 
     The fallback exists because several of these scripts run during installer
-    bootstrap, before the seam is importable. It is only ever reached on
-    SQLite — a PostgreSQL install has the seam on sys.path long before any of
-    this runs — so a SQLite-shaped shim is the correct degradation, not a
-    second implementation of the seam.
+    bootstrap, before the seam is importable. Only ImportError reaches it: a
+    PostgreSQL install has the seam on sys.path long before any of this runs,
+    so a SQLite-shaped shim is the correct degradation, not a second
+    implementation of the seam. Any other error is the seam refusing a bad
+    configuration and propagates (§3). This caught ``Exception`` until
+    2026-10-10, so PostgreSQL selected with no DSN, which the backend refuses
+    with "Will not silently fall back to SQLite", got the SQLite shim instead.
     """
     try:
         from memory.backends import active_backend
-        return active_backend()
-    except Exception:  # noqa: BLE001 — bootstrap: seam not importable yet
-        import sqlite3 as _sq
-        from contextlib import contextmanager
+    except ImportError:  # bootstrap: seam not importable yet
+        backend = resolve_backend_name()
+        if backend == "sqlite":
+            return _sqlite_bootstrap_shim()
+        raise RuntimeError(
+            f"observed: M3_DB_BACKEND={backend} but the memory package is not "
+            f"importable, and only SQLite can be opened without it. "
+            f"inspect: put the m3 payload's bin/ on sys.path, or run m3 setup"
+        ) from None
+    return active_backend()
 
-        class _SqliteOnlyShim:
-            name = "sqlite"
 
-            @staticmethod
-            @contextmanager
-            def open_readonly(db_path: str):
-                c = _sq.connect(f"file:{db_path}?mode=ro", uri=True, timeout=30)
-                try:
-                    yield c
-                finally:
-                    c.close()
+def _sqlite_bootstrap_shim():
+    """seam_backend()'s stand-in when the memory package cannot be imported."""
+    import sqlite3 as _sq
 
-            @staticmethod
-            @contextmanager
-            def connection(db_path: str | None = None):
-                c = _sq.connect(str(db_path or resolve_db_path(None)), timeout=30)
-                try:
-                    yield c
-                finally:
-                    c.close()
+    class _SqliteOnlyShim:
+        name = "sqlite"
+        stores_databases_as_files = True
 
-        return _SqliteOnlyShim()
+        @staticmethod
+        @contextmanager
+        def open_readonly(db_path: str):
+            c = _sq.connect(f"file:{db_path}?mode=ro", uri=True, timeout=30)
+            try:
+                yield c
+            finally:
+                c.close()
+
+        @staticmethod
+        @contextmanager
+        def connection(db_path: str | None = None):
+            c = _sq.connect(str(db_path or resolve_db_path(None)), timeout=30)
+            try:
+                yield c
+            finally:
+                c.close()
+
+    return _SqliteOnlyShim()
+
+
+def store_is_a_file() -> bool:
+    """True when the active backend keeps each database as a file the caller
+    names (SQLite), so a path selects the store and a missing file is a missing
+    store. False when one server database holds every store (PostgreSQL).
+
+    THE single owner of this question (DESIGN_PHILOSOPHIES §10a). Five tools
+    each answered it themselves with three different fallbacks; one of them
+    (reembed_space) returned True on ANY error, so a misconfigured PostgreSQL
+    install fell into the SQLite file path silently.
+
+    The answer is the backend's ``stores_databases_as_files``. Without the
+    memory package (bootstrap, standalone) no backend object exists, so the
+    configured NAME decides: SQLite is the only file backend that can be
+    opened then. Only ImportError falls back; any other error from the seam is
+    a configuration fault and propagates (§3).
+    """
+    try:
+        from memory.backends import active_backend
+    except ImportError:
+        return resolve_backend_name() == "sqlite"
+    return bool(active_backend().stores_databases_as_files)
 
 
 # The backend names M3_DB_BACKEND may select. `memory.backends.selector` and
@@ -1099,18 +1137,25 @@ def seam_dialect():
     """
     try:
         from memory.backends import dialect
-        return dialect()
-    except Exception:  # noqa: BLE001 — bootstrap: seam not importable yet
-        class _SqliteParams:
-            @staticmethod
-            def param() -> str:
-                return "?"
+    except ImportError:  # bootstrap: seam not importable yet
+        backend = resolve_backend_name()
+        if backend == "sqlite":
+            class _SqliteParams:
+                @staticmethod
+                def param() -> str:
+                    return "?"
 
-            @staticmethod
-            def placeholder(n: int = 1) -> str:
-                return ", ".join("?" * n)
+                @staticmethod
+                def placeholder(n: int = 1) -> str:
+                    return ", ".join("?" * n)
 
-        return _SqliteParams()
+            return _SqliteParams()
+        raise RuntimeError(
+            f"observed: M3_DB_BACKEND={backend} but the memory package is not "
+            f"importable, and only SQLite placeholders are known without it. "
+            f"inspect: put the m3 payload's bin/ on sys.path, or run m3 setup"
+        ) from None
+    return dialect()
 
 
 class _StoreAction(argparse.Action):

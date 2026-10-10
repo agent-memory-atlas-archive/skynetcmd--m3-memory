@@ -516,9 +516,11 @@ class PostgresDialect(Dialect):
 
         return _compile_tsquery(query, mode)
 
+    @override
     def blob_type(self) -> str:
         return "BYTEA"
 
+    @override
     def insert_or_ignore(self) -> str:
         # postgres has no verb form — the arbiter goes in a trailing clause.
         return "INSERT INTO"
@@ -852,6 +854,7 @@ class PostgresBackend:
     """Pooled PostgreSQL adapter satisfying the `StorageBackend` seam."""
 
     name: BackendName = "postgres"
+    stores_databases_as_files = False
 
     @classmethod
     def from_store(cls, store) -> PostgresBackend:

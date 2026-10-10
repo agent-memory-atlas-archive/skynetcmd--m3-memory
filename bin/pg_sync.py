@@ -1040,7 +1040,7 @@ def _local_dialect():
     try:
         from memory.backends import dialect
         return dialect()
-    except Exception:  # noqa: BLE001 — bootstrap: seam not importable yet
+    except ImportError:  # bootstrap: seam not importable yet
         from memory.backends.dialect import dialect_for
         return dialect_for("sqlite")
 
@@ -1063,7 +1063,7 @@ def _local_backend():
 def _local_param() -> str:
     try:
         return _local_dialect().param()
-    except Exception:  # noqa: BLE001 — bootstrap: seam not importable yet
+    except ImportError:  # bootstrap: seam not importable yet
         return "?"
 
 
@@ -1097,7 +1097,7 @@ def _param_of(cur) -> str:
     try:
         from memory.backends.dialect import dialect_for_connection
         return dialect_for_connection(cur).param()
-    except Exception:  # noqa: BLE001 — bootstrap: seam not importable yet
+    except ImportError:  # bootstrap: seam not importable yet
         return _LOCAL_PARAM
 
 

@@ -54,9 +54,11 @@ class SqliteDialect(Dialect):
 
         return _compile_fts_query(query, mode)
 
+    @override
     def blob_type(self) -> str:
         return "BLOB"
 
+    @override
     def insert_or_ignore(self) -> str:
         return "INSERT OR IGNORE INTO"
 
@@ -446,6 +448,7 @@ class SqliteBackend:
     """
 
     name: BackendName = "sqlite"
+    stores_databases_as_files = True
 
     def __init__(self, db_path: str | None = None) -> None:
         self._db_path = db_path

@@ -38,7 +38,10 @@ _SPAWN_ATTRS = {"run", "Popen", "call", "check_call", "check_output"}
 
 # Kwarg / splat names that satisfy the no-window requirement.
 _NOWINDOW_KWARG = "creationflags"
-_NOWINDOW_HELPERS = {"no_window_kwargs", "_no_window", "_nw"}
+# The OS seam's primitives count too: detached_spawn_kwargs carries
+# CREATE_NO_WINDOW on Windows; hidden_window_kwargs hides via STARTUPINFO.
+_NOWINDOW_HELPERS = {"no_window_kwargs", "_no_window", "_nw",
+                     "detached_spawn_kwargs", "hidden_window_kwargs"}
 
 
 def _unattended_files() -> list[str]:

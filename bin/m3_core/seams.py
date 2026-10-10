@@ -26,6 +26,7 @@ if _ilu.find_spec("m3_memory") is None:
 
 from m3_memory._platform import (  # noqa: E402
     PLATFORM_OF,
+    detached_spawn_kwargs,
     hidden_window_kwargs,
     is_apple_silicon,
     is_linux,
@@ -39,7 +40,7 @@ from m3_memory._platform import (  # noqa: E402
 from m3_memory._pyver import PY, event_loop_timer_slack, wheel_python_tag  # noqa: E402
 
 __all__ = [
-    "PLATFORM_OF", "PY", "event_loop_timer_slack", "hidden_window_kwargs", "is_apple_silicon",
+    "PLATFORM_OF", "PY", "detached_spawn_kwargs", "event_loop_timer_slack", "hidden_window_kwargs", "is_apple_silicon",
     "is_linux", "is_macos", "is_windows", "os_name", "python_exe", "user_env_get",
     "user_env_snapshot", "wheel_python_tag",
 ]

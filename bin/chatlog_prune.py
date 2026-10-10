@@ -217,9 +217,9 @@ def role_from_title_sql(d) -> tuple[str, tuple]:
 
 
 def run(db_path: str, args) -> dict:
-    from memory.backends import active_backend
+    from m3_core.paths import store_is_a_file
     # Only a file-per-database backend has a file to find.
-    if active_backend().name == "sqlite" and not os.path.exists(db_path):
+    if store_is_a_file() and not os.path.exists(db_path):
         return {"error": f"DB not found: {db_path}"}
     now_ts = time.time()
     S: dict[str, Any] = {

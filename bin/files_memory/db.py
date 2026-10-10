@@ -99,8 +99,8 @@ def _files_store_is_a_schema() -> bool:
     The one owner (files_memory.migrate imports it). A backend that cannot be
     resolved raises: answering False sent a PostgreSQL install's files store to
     a separate SQLite file without a word."""
-    from memory.backends import active_backend
-    return active_backend().name != "sqlite"
+    from m3_core.paths import store_is_a_file
+    return not store_is_a_file()
 
 
 def readonly_probe(sql: str, params: tuple = (), *, db_path: str | None = None) -> list:

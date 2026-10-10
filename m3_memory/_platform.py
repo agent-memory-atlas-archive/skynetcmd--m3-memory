@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from types import ModuleType
 
 # The sys.platform value that names each supported OS. sys.platform is the ONE
 # knob this module reads to tell OSes apart, so it is also the one a test turns to
@@ -30,7 +31,9 @@ _UNSUPPORTED_WARNED = False
 # HKCU\Environment, what `setx` writes). Bound at import: a test that later
 # installs a fake `winreg` in sys.modules cannot redirect these readers.
 try:
-    import winreg as _winreg
+    import winreg as _winreg_module
+
+    _winreg: ModuleType | None = _winreg_module
 except ImportError:  # POSIX: no such store (shell rc files are text, not this)
     _winreg = None
 
@@ -140,15 +143,39 @@ def hidden_window_kwargs() -> dict:
     """
     import subprocess
 
-    # The capability, not the OS identity: STARTUPINFO exists only where a
-    # console window does, so a simulated Windows on POSIX gets {} as well.
-    if not hasattr(subprocess, "STARTUPINFO"):
-        return {}
+    # The capability decides: STARTUPINFO exists only where a console window
+    # does, so a simulated Windows on POSIX gets {} as well. The literal
+    # sys.platform test is what lets mypy skip this body when it checks for
+    # Linux/macOS (typeshed defines these names only for win32); this seam is
+    # the one place allowed to spell it.
+    if sys.platform == "win32" and hasattr(subprocess, "STARTUPINFO"):
+        si = subprocess.STARTUPINFO()
+        si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        si.wShowWindow = subprocess.SW_HIDE
+        return {"startupinfo": si}
+    return {}
 
-    si = subprocess.STARTUPINFO()
-    si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-    si.wShowWindow = subprocess.SW_HIDE
-    return {"startupinfo": si}
+
+def detached_spawn_kwargs() -> dict:
+    """Popen kwargs for a BACKGROUND child that outlives this process and never
+    shows a console window.
+
+        subprocess.Popen([...], stdout=DEVNULL, stderr=DEVNULL, **detached_spawn_kwargs())
+
+    Windows: ``CREATE_NO_WINDOW | DETACHED_PROCESS``. DETACHED_PROCESS alone
+    still lets the OS give a console-subsystem python.exe its own window; a
+    stray one sat on a desktop for as long as the embed server ran, and closing
+    it killed the embedder (2026-08-10). POSIX: ``start_new_session``, which
+    detaches from the controlling terminal. Output is not kept: for a child
+    whose output matters, see :func:`hidden_window_kwargs`.
+
+    The dashboard daemon and doctor's embed-server fix each carried this pair.
+    """
+    import subprocess
+
+    if sys.platform == "win32" and hasattr(subprocess, "CREATE_NO_WINDOW"):
+        return {"creationflags": subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS}
+    return {"start_new_session": True}
 
 
 def python_exe(windowless: bool = False) -> str:

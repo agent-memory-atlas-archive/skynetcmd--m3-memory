@@ -128,6 +128,15 @@ def test_a_genuinely_missing_required_arg_still_fails_loudly():
     )
 
 
+def test_a_json_only_tool_does_not_name_a_flag_it_lacks():
+    """task_create is complex (it registers no per-argument flags); the message
+    said `pass --created_by`, which argparse then rejected as unrecognized."""
+    r = _run(["tasks", "task_create", "--json", json.dumps({"title": "t"}), "--dry-run"])
+    assert r.returncode != 0
+    assert "'created_by'" in r.stderr and "--created_by" not in r.stderr, (
+        f"observed: {r.stderr[-300:]}. inspect: the required-arg message in m3_memory/cli.py")
+
+
 def test_the_error_names_both_routes():
     """The message must say a pipe is an option, or users will not find it."""
     r = _run(["memory", "memory_search", "--k", "1"])
