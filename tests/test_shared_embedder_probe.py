@@ -24,9 +24,17 @@ def _clear_embed_env(monkeypatch):
     """Keep these verdict tests hermetic (§3): the probe's model cross-check reads
     M3_EMBED_MODEL, and a developer shell may export the shared-embedder pins
     (M3_EMBED_URL/M3_EMBED_MODEL). Clear them so the config the test writes — not
-    the ambient environment — decides the outcome."""
-    for var in ("M3_EMBED_MODEL", "M3_EMBED_URL"):
+    the ambient environment — decides the outcome.
+
+    The same goes for the M3_EMBED_GGUF leak detector's inputs: the process var,
+    the Windows User-env registry key and every agent's real settings file. A
+    developer who exports M3_EMBED_GGUF (or a script that set it at import) made
+    every healthy verdict here fail. Tests that exercise the detector set their
+    own inputs on top of this clean baseline."""
+    for var in ("M3_EMBED_MODEL", "M3_EMBED_URL", "M3_EMBED_GGUF"):
         monkeypatch.delenv(var, raising=False)
+    monkeypatch.setattr(P, "_windows_user_env_has", lambda var: False)
+    monkeypatch.setattr(P, "_known_agent_settings", lambda: [])
 
 
 @pytest.fixture
