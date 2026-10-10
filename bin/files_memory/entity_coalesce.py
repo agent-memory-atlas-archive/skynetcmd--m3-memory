@@ -249,7 +249,7 @@ def _embed_tier_info(model_seen: str | None) -> dict:
 
 
 # ── Stage 0: prune -> quarantine (reversible flag, never delete) ─────────────
-def _quarantine_noise(mem: sqlite3.Connection, run_id: str, dry_run: bool, _p: str = "?") -> dict:
+def _quarantine_noise(mem: sqlite3.Connection, run_id: str, dry_run: bool, _p: str) -> dict:
     """Tag provisional entities that are clearly not entities (deny-list +
     noise regex). Reversible: sets coalesce_state='quarantined'; never deletes.
     ``_p`` is the route placeholder."""
@@ -319,7 +319,7 @@ def _prime_embeddings(mem, items, dry_run, _d):
     return n, model_seen
 
 
-def _cached_embedding(mem, eid, _p="?"):
+def _cached_embedding(mem, eid, _p):
     """Read-only: (packed, dim) from the cache, or (None, 0). Used in the
     pairwise loop — never embeds (priming already did). ``_p`` is the route
     placeholder."""
@@ -329,7 +329,7 @@ def _cached_embedding(mem, eid, _p="?"):
     return (row[0], row[1]) if row else (None, 0)
 
 
-def _cluster_size(mem, cid, _p="?"):
+def _cluster_size(mem, cid, _p):
     if not cid:
         return 1
     return mem.execute(
@@ -585,7 +585,7 @@ def _entity_alias_remove(mem, entity_id, alias, _d, _p):
     )
 
 
-def _pick_representative(mem, eid_a, eid_b, _p="?"):
+def _pick_representative(mem, eid_a, eid_b, _p):
     """Deterministic canonical pick (NOT the LLM's name — lesson #3): higher
     files.db ref-degree wins; tie -> longer (more complete) name; tie -> lower id.
     ``_p`` is the route placeholder."""

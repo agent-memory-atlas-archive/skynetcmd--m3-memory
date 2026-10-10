@@ -128,3 +128,27 @@ def test_inline_allowlist_has_no_stale_entries():
              if not (_ROOT / rel).exists()
              or not _inline_qmarks(ast.parse((_ROOT / rel).read_text(encoding="utf-8")))]
     assert not stale, f"remove from INLINE_ALLOWED: {stale}"
+
+
+def test_no_parameter_defaults_to_a_placeholder_literal():
+    """A `_p="?"` default hands SQLite syntax to any caller that forgets the
+    argument, and PostgreSQL then fails. The dialect renders the bind; a helper
+    that needs one takes it with no default, so an omission is a TypeError."""
+    hits = []
+    for top in ("bin", "m3_memory"):
+        for p in (_ROOT / top).rglob("*.py"):
+            rel = p.relative_to(_ROOT).as_posix()
+            if (p.name.startswith(("bench_", "benchmark_")) or "__pycache__" in p.parts
+                    or rel.startswith("bin/memory/backends/") or rel in ALLOWED or rel in INLINE_ALLOWED):
+                continue
+            for fn in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
+                if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    continue
+                a = fn.args
+                pos = list(zip([x.arg for x in a.args][len(a.args) - len(a.defaults):], a.defaults, strict=True))
+                kw = [(k.arg, d) for k, d in zip(a.kwonlyargs, a.kw_defaults, strict=True) if d is not None]
+                for name, d in pos + kw:
+                    if isinstance(d, ast.Constant) and d.value in ("?", "%s"):
+                        hits.append(f"{rel}:{fn.lineno} {fn.name}({name}={d.value!r})")
+    assert not hits, ("observed: a parameter defaults to a bind placeholder: " + ", ".join(hits)
+                      + ". inspect: take it with no default, or call dialect().param()")
