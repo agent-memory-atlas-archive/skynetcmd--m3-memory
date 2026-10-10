@@ -22,7 +22,18 @@ across Ollama, LM Studio, llama.cpp --server, vLLM, and LocalAI.
 
 ## Core Engine & MCP
 
-### `fastmcp` (`fastmcp>=3.4.7,<4`)
+### `fastmcp` (`fastmcp>=4.1,<5`)
+
+**Raised to 4.x on 2026-10-10 (user decision).** m3 does not import the
+standalone `fastmcp` package today: its MCP server is `mcp.server.fastmcp`,
+bundled in `mcp` (measured: importing m3's MCP seam never loads `fastmcp`). The
+dependency is kept on purpose, to adopt FastMCP features where they simplify m3
+(tracked as an m3 to-do). FastMCP 4.1.0 resolves with `mcp>=1.30,<2` (it does
+not force mcp 2), and over 3.4.8 it adds httpx2, httpcore2, truststore and
+mcp-types (plus httpx2-jsfetch on emscripten only). On Python 3.15 only, it pulls
+beartype 0.23.0rc2, a release candidate, because no stable beartype supports
+3.15 yet. The `mcp <2` ceiling below is unchanged and is decided with the mcp 2
+evaluation.
 
 ⚠ mcp <2 and fastmcp <4 are a CONSERVATIVE DEFAULT, not a hard incompatibility.
 The code runs on BOTH majors: bin/mcp_compat.py owns the differences, and the

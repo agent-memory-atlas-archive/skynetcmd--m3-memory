@@ -3,64 +3,64 @@ revision = 3
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.15' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
     "python_full_version >= '3.15' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version == '3.13.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version < '3.13' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version == '3.13.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version < '3.13' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
     "python_full_version >= '3.15' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
-    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
     "python_full_version >= '3.15' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version >= '3.15' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version >= '3.15' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version >= '3.15' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version >= '3.15' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version >= '3.15' and sys_platform == 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version >= '3.15' and sys_platform != 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version >= '3.15' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version >= '3.15' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version >= '3.15' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version >= '3.15' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version >= '3.15' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version >= '3.15' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version >= '3.15' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version >= '3.15' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
     "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.13.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.13.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.13.*' and sys_platform == 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.13.*' and sys_platform != 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.13.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.13.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version < '3.13' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version < '3.13' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
     "python_full_version < '3.14' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
     "python_full_version < '3.14' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
-    "python_full_version >= '3.15' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
-    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
-    "python_full_version >= '3.15' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
-    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
     "python_full_version < '3.14' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
     "python_full_version < '3.14' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
-    "python_full_version >= '3.15' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version >= '3.15' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
     "python_full_version < '3.14' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
     "python_full_version < '3.14' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version >= '3.15' and sys_platform == 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version >= '3.15' and sys_platform != 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version == '3.13.*' and sys_platform == 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
     "python_full_version < '3.13' and sys_platform == 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version == '3.13.*' and sys_platform != 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
     "python_full_version < '3.13' and sys_platform != 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version >= '3.15' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
-    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
-    "python_full_version >= '3.15' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
-    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
     "python_full_version < '3.14' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
     "python_full_version < '3.14' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
-    "python_full_version >= '3.15' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
-    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
-    "python_full_version >= '3.15' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
-    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
     "python_full_version < '3.14' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
     "python_full_version < '3.14' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
-    "python_full_version >= '3.15' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version >= '3.15' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
     "python_full_version < '3.14' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
     "python_full_version < '3.14' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version >= '3.15' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version >= '3.15' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version == '3.13.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
     "python_full_version < '3.13' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version == '3.13.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
     "python_full_version < '3.13' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
 ]
 conflicts = [[
@@ -412,9 +412,66 @@ wheels = [
 name = "beartype"
 version = "0.22.9"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.13.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.13.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.13.*' and sys_platform == 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.13.*' and sys_platform != 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.13.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.13.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version < '3.13' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version < '3.13' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version < '3.14' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version < '3.14' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version < '3.14' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version < '3.14' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version < '3.14' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version < '3.14' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version < '3.13' and sys_platform == 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version < '3.13' and sys_platform != 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version < '3.14' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version < '3.14' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version < '3.14' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version < '3.14' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version < '3.14' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version < '3.14' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version < '3.13' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version < '3.13' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+]
 sdist = { url = "https://files.pythonhosted.org/packages/c7/94/1009e248bbfbab11397abca7193bea6626806be9a327d399810d523a07cb/beartype-0.22.9.tar.gz", hash = "sha256:8f82b54aa723a2848a56008d18875f91c1db02c32ef6a62319a002e3e25a975f", size = 1608866, upload-time = "2025-12-13T06:50:30.72Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/71/cc/18245721fa7747065ab478316c7fea7c74777d07f37ae60db2e84f8172e8/beartype-0.22.9-py3-none-any.whl", hash = "sha256:d16c9bbc61ea14637596c5f6fbff2ee99cbe3573e46a716401734ef50c3060c2", size = 1333658, upload-time = "2025-12-13T06:50:28.266Z" },
+]
+
+[[package]]
+name = "beartype"
+version = "0.23.0rc2"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.15' and sys_platform == 'win32'",
+    "python_full_version >= '3.15' and sys_platform != 'win32'",
+]
+sdist = { url = "https://files.pythonhosted.org/packages/2d/58/a4ac1ef919ce13a20c35ed3312b727e56a52029a1921e8f0e91cc52ef2cd/beartype-0.23.0rc2.tar.gz", hash = "sha256:d589e5c6cf1859e4cf355db52ddcd08e2eca98784d7d73dc5f4491f423f94ee5", size = 1974911, upload-time = "2026-09-26T03:23:22.586Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/05/70/1e82c75d1869d71cd1d027497af76c755fde89afbdfd3215c10d677095c0/beartype-0.23.0rc2-py3-none-any.whl", hash = "sha256:fffbb5aa86562b034038f2c90da71cac463247374c89981c937685f47a75223c", size = 1578057, upload-time = "2026-09-26T03:23:20.504Z" },
 ]
 
 [[package]]
@@ -1288,21 +1345,22 @@ wheels = [
 
 [[package]]
 name = "fastmcp"
-version = "3.4.8"
+version = "4.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fastmcp-slim", extra = ["client", "server"] },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/98/c4/619e45ae90ed11ae0931be463faa7c58328bf9b6078aa7ad51b9e6e061cc/fastmcp-3.4.8.tar.gz", hash = "sha256:46012c42b84e054f159c90da7b7587cc320a60538ebcd1466a5475432776361d", size = 28858445, upload-time = "2026-10-04T16:55:41.577Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c3/c4/fe4e24af2cb03f4701f45634873d87557c2b5d283d287412345345ad0ede/fastmcp-4.1.0.tar.gz", hash = "sha256:7a8bf4e58cc6c2f3a8552b5a7a17ba1e4682b6fd4cafb7f461920a66dbd2499f", size = 42686511, upload-time = "2026-10-08T22:57:05.652Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/19/5a/2272a1111fd2efd171bd703ab6a6c91ea17b212fe10dfef37e55a57139b8/fastmcp-3.4.8-py3-none-any.whl", hash = "sha256:ab4e8abe6c9d50b110f367e8c29f82b90c1478ac9180be61af10354f84f0ad8c", size = 8018, upload-time = "2026-10-04T16:55:39.249Z" },
+    { url = "https://files.pythonhosted.org/packages/5c/81/77610de5d79187455ec4a4eafdc17942365f1bc4e5850633e50159e9afdc/fastmcp-4.1.0-py3-none-any.whl", hash = "sha256:cf19fd603315b48ef1829c8579431e77793feafdcbed51f0dc5607af10a24e9b", size = 8154, upload-time = "2026-10-08T22:57:02.531Z" },
 ]
 
 [[package]]
 name = "fastmcp-slim"
-version = "3.4.8"
+version = "4.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "mcp-types" },
     { name = "platformdirs" },
     { name = "pydantic", extra = ["email"] },
     { name = "pydantic-settings" },
@@ -1310,16 +1368,17 @@ dependencies = [
     { name = "rich" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/fd/bf/50f82988f76704c472a2a6e5059018193c1a1eda6985a511d3fbf8c3cb7b/fastmcp_slim-3.4.8.tar.gz", hash = "sha256:dbd165ba40cb3267ce8a4385b5ea43231dbda19a7b80da1e04d95608ef5152e0", size = 608639, upload-time = "2026-10-04T16:55:19.434Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b8/88/85aafec43ec9940a360d75f2d8e9517eda01ac38b8b1610b0e9e125d61d3/fastmcp_slim-4.1.0.tar.gz", hash = "sha256:390b2b430195e0cdd0327aff80fe5dceb862b2421baf71de6d4eec92f80f99f8", size = 734647, upload-time = "2026-10-08T22:56:40.642Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f1/59/2dcee23ff81cdcc4b4fcc581c6677da4da09a3abdba82305ae554bfd3fcd/fastmcp_slim-3.4.8-py3-none-any.whl", hash = "sha256:e72c6b74e90c5dcdc8f58087fbdf213636d8b5d339384a498de1c5df6fc037a7", size = 784136, upload-time = "2026-10-04T16:55:17.915Z" },
+    { url = "https://files.pythonhosted.org/packages/54/6a/d61e1541f4c65872146a576c1379f6f32013fd8c636bcaf0f8e70a04e533/fastmcp_slim-4.1.0-py3-none-any.whl", hash = "sha256:6edb48a78e508ef5ac691bf2a68f3e5000403773655d859eceea1068b894df4a", size = 911585, upload-time = "2026-10-08T22:56:39.136Z" },
 ]
 
 [package.optional-dependencies]
 client = [
     { name = "authlib" },
+    { name = "beartype", version = "0.23.0rc2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.15' or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-test') or (extra == 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner') or (extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-test')" },
     { name = "exceptiongroup" },
-    { name = "httpx" },
+    { name = "httpx2" },
     { name = "mcp" },
     { name = "opentelemetry-api" },
     { name = "py-key-value-aio", extra = ["filetree", "keyring", "memory"] },
@@ -1327,10 +1386,11 @@ client = [
 ]
 server = [
     { name = "authlib" },
+    { name = "beartype", version = "0.23.0rc2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.15' or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-test') or (extra == 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner') or (extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-test')" },
     { name = "cyclopts" },
     { name = "exceptiongroup" },
     { name = "griffelib" },
-    { name = "httpx" },
+    { name = "httpx2" },
     { name = "joserfc" },
     { name = "jsonref" },
     { name = "jsonschema-path" },
@@ -2048,7 +2108,7 @@ name = "jinja2"
 version = "3.1.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "markupsafe" },
+    { name = "markupsafe", marker = "extra == 'extra-9-m3-memory-crewai' or extra == 'extra-9-m3-memory-embed-server' or extra == 'extra-9-m3-memory-entity-ner' or (extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/df/bf/f7da0350254c0ed7c72f3e33cef02e048281fec7ecec5f032d4aac52226b/jinja2-3.1.6.tar.gz", hash = "sha256:0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d", size = 245115, upload-time = "2025-03-05T20:05:02.478Z" }
 wheels = [
@@ -2712,7 +2772,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.141.1,<1" },
     { name = "fastapi", marker = "extra == 'dashboard'", specifier = ">=0.141.1,<1" },
     { name = "fastapi", marker = "extra == 'web'", specifier = ">=0.141.1,<1" },
-    { name = "fastmcp", specifier = ">=3.4.7,<4" },
+    { name = "fastmcp", specifier = ">=4.1,<5" },
     { name = "fpdf2", specifier = ">=2.8.8,<3" },
     { name = "gliner", marker = "extra == 'entity-ner'", specifier = ">=0.2.26" },
     { name = "httpx", extras = ["http2"], specifier = ">=0.28.1,<1" },
@@ -2957,6 +3017,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ba/93/0142dc84a666daf8ad51a34268f34c12fd6fda4f3810c4be2504eecc8212/mcp-1.30.0.tar.gz", hash = "sha256:445414625fce5c295faa505bb11bacece661ab6f4028d57c935db57820b7a3e4", size = 680511, upload-time = "2026-09-07T14:34:15.845Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f5/f4/e58bc33317c92a0203664daaf00bf6f41166cc0149e5d6870a03f7cd004a/mcp-1.30.0-py3-none-any.whl", hash = "sha256:666edb5009503e1047c9d60346a756f94b261f05cc2625f23d41c728ffc484d0", size = 234581, upload-time = "2026-09-07T14:34:14.266Z" },
+]
+
+[[package]]
+name = "mcp-types"
+version = "2.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9e/2d/7c251e34207f6c51000312fc8839111ac45cfe02023f90b44e7f1051dd8e/mcp_types-2.3.0.tar.gz", hash = "sha256:d1e46549edb35ee19a94940fcee6d1addd7e589ab7ea92dda83f5d84781fc362", size = 65898, upload-time = "2026-10-02T22:06:57.863Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ce/48/32583066b155bb5d4507e7887dc88ee23118cc4de8e2a12870c49719e2a8/mcp_types-2.3.0-py3-none-any.whl", hash = "sha256:968efdbdaedfab06adae40d378a34395f1090c5921d4be3c9cde283aaf76d91d", size = 69108, upload-time = "2026-10-02T22:06:54.099Z" },
 ]
 
 [[package]]
@@ -4419,7 +4492,8 @@ name = "py-key-value-aio"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "beartype" },
+    { name = "beartype", version = "0.22.9", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.15' or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-test') or (extra == 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner') or (extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-test')" },
+    { name = "beartype", version = "0.23.0rc2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.15' or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-test') or (extra == 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner') or (extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-test')" },
     { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/ca/99/c346e3474853801ec5ecf4c3ee60cfc6060327ebc31424df4e346620dde4/py_key_value_aio-0.4.6.tar.gz", hash = "sha256:267c03c3e24cb99d3097612f8a5cfd8e11785c6a2975e272db0e303ea1850bfd", size = 112876, upload-time = "2026-09-18T15:29:52.002Z" }
@@ -4860,7 +4934,7 @@ name = "pyobjc-framework-cocoa"
 version = "12.2.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pyobjc-core" },
+    { name = "pyobjc-core", marker = "sys_platform != 'win32' or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-test') or (extra == 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner') or (extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-test')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/75/76/49c6da2c6a831020b4854ba20079d5a1030474bffc776b7b73c2eeff8c15/pyobjc_framework_cocoa-12.2.2.tar.gz", hash = "sha256:c96c0ef69a71afbbb0e6a7d594b455c5fe47d62e0db376ee7a2b4b828c16ace9", size = 3132831, upload-time = "2026-08-11T19:44:02.288Z" }
 wheels = [
@@ -4878,8 +4952,8 @@ name = "pyobjc-framework-corewlan"
 version = "12.2.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pyobjc-core" },
-    { name = "pyobjc-framework-cocoa" },
+    { name = "pyobjc-core", marker = "sys_platform != 'win32' or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-test') or (extra == 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner') or (extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-test')" },
+    { name = "pyobjc-framework-cocoa", marker = "sys_platform != 'win32' or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-test') or (extra == 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner') or (extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-test')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/f1/47/3baa89404149b4304abee8ab1cac73e988ad0a9ac5888b1ba85287b71fec/pyobjc_framework_corewlan-12.2.2.tar.gz", hash = "sha256:e222436cf22cec13666a37a552027df13fa1878b33d36b707971d47c51aa149d", size = 35755, upload-time = "2026-08-11T19:44:18.011Z" }
 wheels = [
@@ -5606,7 +5680,7 @@ name = "scipy"
 version = "1.18.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "numpy" },
+    { name = "numpy", marker = "extra == 'extra-9-m3-memory-embed-server' or extra == 'group-9-m3-memory-dev' or extra == 'group-9-m3-memory-test'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/7e/74/66de6258867beb2ef08f35f9f2ac017a52cacd5081714d239ff1a442d458/scipy-1.18.1.tar.gz", hash = "sha256:52c4b7422442aba924d03ad4019852b08a92e64ea187b933135687bfe2747307", size = 30781235, upload-time = "2026-08-21T23:28:50.599Z" }
 wheels = [
@@ -5677,8 +5751,8 @@ name = "secretstorage"
 version = "3.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cryptography" },
-    { name = "jeepney" },
+    { name = "cryptography", marker = "sys_platform != 'win32' or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-test') or (extra == 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner') or (extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-test')" },
+    { name = "jeepney", marker = "sys_platform != 'win32' or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-test') or (extra == 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner') or (extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-test')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/1c/03/e834bcd866f2f8a49a85eaff47340affa3bfa391ee9912a952a1faa68c7b/secretstorage-3.5.0.tar.gz", hash = "sha256:f04b8e4689cbce351744d5537bf6b1329c6fc68f91fa666f60a380edddcd11be", size = 19884, upload-time = "2025-11-23T19:02:53.191Z" }
 wheels = [
@@ -5866,7 +5940,7 @@ name = "sympy"
 version = "1.14.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "mpmath" },
+    { name = "mpmath", marker = "extra == 'extra-9-m3-memory-embed-server' or extra == 'extra-9-m3-memory-entity-ner' or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-test')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/83/d3/803453b36afefb7c2bb238361cd4ae6125a569b4db67cd9e79846ba2d68c/sympy-1.14.0.tar.gz", hash = "sha256:d3d3fe8df1e5a0b42f0e7bdf50541697dbe7d23746e894990c030e2b05e72517", size = 7793921, upload-time = "2025-04-27T18:05:01.611Z" }
 wheels = [
@@ -5976,18 +6050,18 @@ source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cuda-bindings", marker = "(python_full_version < '3.15' and sys_platform == 'linux' and extra == 'extra-9-m3-memory-embed-server') or (python_full_version < '3.15' and sys_platform == 'linux' and extra == 'extra-9-m3-memory-entity-ner') or (python_full_version >= '3.15' and extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-dev') or (python_full_version >= '3.15' and extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-test') or (python_full_version >= '3.15' and extra == 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner') or (python_full_version >= '3.15' and extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev') or (python_full_version >= '3.15' and extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-test') or (python_full_version < '3.15' and extra == 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev') or (python_full_version < '3.15' and extra == 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-test') or (sys_platform != 'linux' and extra == 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner') or (sys_platform != 'linux' and extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev') or (sys_platform != 'linux' and extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-test') or (sys_platform != 'linux' and extra == 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev') or (sys_platform != 'linux' and extra == 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-test') or (sys_platform != 'linux' and extra == 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra == 'group-9-m3-memory-dev') or (sys_platform != 'linux' and extra == 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra == 'group-9-m3-memory-test')" },
     { name = "cuda-toolkit", extra = ["cublas", "cudart", "cufft", "cufile", "cupti", "curand", "cusolver", "cusparse", "nvjitlink", "nvrtc", "nvtx"], marker = "(sys_platform == 'linux' and extra == 'extra-9-m3-memory-embed-server') or (sys_platform == 'linux' and extra == 'extra-9-m3-memory-entity-ner') or (sys_platform != 'linux' and extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-dev') or (sys_platform != 'linux' and extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-test') or (extra == 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner') or (extra == 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra == 'group-9-m3-memory-test') or (extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev') or (extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-test') or (extra == 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-test')" },
-    { name = "filelock" },
-    { name = "fsspec" },
-    { name = "jinja2" },
-    { name = "networkx" },
+    { name = "filelock", marker = "extra == 'extra-9-m3-memory-embed-server' or extra == 'extra-9-m3-memory-entity-ner' or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-test')" },
+    { name = "fsspec", marker = "extra == 'extra-9-m3-memory-embed-server' or extra == 'extra-9-m3-memory-entity-ner' or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-test')" },
+    { name = "jinja2", marker = "extra == 'extra-9-m3-memory-embed-server' or extra == 'extra-9-m3-memory-entity-ner' or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-test')" },
+    { name = "networkx", marker = "extra == 'extra-9-m3-memory-embed-server' or extra == 'extra-9-m3-memory-entity-ner' or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-test')" },
     { name = "nvidia-cudnn-cu13", marker = "(sys_platform == 'linux' and extra == 'extra-9-m3-memory-embed-server') or (sys_platform == 'linux' and extra == 'extra-9-m3-memory-entity-ner') or (sys_platform != 'linux' and extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-dev') or (sys_platform != 'linux' and extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-test') or (extra == 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner') or (extra == 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra == 'group-9-m3-memory-test') or (extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev') or (extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-test') or (extra == 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-test')" },
     { name = "nvidia-cusparselt-cu13", marker = "(sys_platform == 'linux' and extra == 'extra-9-m3-memory-embed-server') or (sys_platform == 'linux' and extra == 'extra-9-m3-memory-entity-ner') or (sys_platform != 'linux' and extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-dev') or (sys_platform != 'linux' and extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-test') or (extra == 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner') or (extra == 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra == 'group-9-m3-memory-test') or (extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev') or (extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-test') or (extra == 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-test')" },
     { name = "nvidia-nccl-cu13", marker = "(sys_platform == 'linux' and extra == 'extra-9-m3-memory-embed-server') or (sys_platform == 'linux' and extra == 'extra-9-m3-memory-entity-ner') or (sys_platform != 'linux' and extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-dev') or (sys_platform != 'linux' and extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-test') or (extra == 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner') or (extra == 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra == 'group-9-m3-memory-test') or (extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev') or (extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-test') or (extra == 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-test')" },
     { name = "nvidia-nvshmem-cu13", marker = "(sys_platform == 'linux' and extra == 'extra-9-m3-memory-embed-server') or (sys_platform == 'linux' and extra == 'extra-9-m3-memory-entity-ner') or (sys_platform != 'linux' and extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-dev') or (sys_platform != 'linux' and extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-test') or (extra == 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner') or (extra == 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra == 'group-9-m3-memory-test') or (extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev') or (extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-test') or (extra == 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-test')" },
-    { name = "setuptools" },
-    { name = "sympy" },
+    { name = "setuptools", marker = "extra == 'extra-9-m3-memory-embed-server' or extra == 'extra-9-m3-memory-entity-ner' or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-test')" },
+    { name = "sympy", marker = "extra == 'extra-9-m3-memory-embed-server' or extra == 'extra-9-m3-memory-entity-ner' or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-test')" },
     { name = "triton", marker = "(python_full_version < '3.15' and sys_platform == 'linux' and extra == 'extra-9-m3-memory-embed-server') or (python_full_version < '3.15' and sys_platform == 'linux' and extra == 'extra-9-m3-memory-entity-ner') or (python_full_version >= '3.15' and extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-dev') or (python_full_version >= '3.15' and extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-test') or (python_full_version >= '3.15' and extra == 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner') or (python_full_version >= '3.15' and extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev') or (python_full_version >= '3.15' and extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-test') or (python_full_version < '3.15' and extra == 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev') or (python_full_version < '3.15' and extra == 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-test') or (sys_platform != 'linux' and extra == 'extra-9-m3-memory-embed-server' and extra == 'extra-9-m3-memory-entity-ner') or (sys_platform != 'linux' and extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev') or (sys_platform != 'linux' and extra == 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-test') or (sys_platform != 'linux' and extra == 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev') or (sys_platform != 'linux' and extra == 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-test') or (sys_platform != 'linux' and extra == 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra == 'group-9-m3-memory-dev') or (sys_platform != 'linux' and extra == 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra == 'group-9-m3-memory-test')" },
-    { name = "typing-extensions" },
+    { name = "typing-extensions", marker = "extra == 'extra-9-m3-memory-embed-server' or extra == 'extra-9-m3-memory-entity-ner' or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-dev') or (extra == 'extra-9-m3-memory-crewai' and extra == 'group-9-m3-memory-test')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/4b/3c/379349820e9a6e713826de3d0b88f07728541bdcabe2a3afd128871cdc4b/torch-2.14.1-cp312-cp312-macosx_14_0_arm64.whl", hash = "sha256:420dbf314c180ee4b86e9bc00aee5746a7d6e5bacdd7df925af671ed393f0b2e", size = 127307099, upload-time = "2026-09-30T17:44:10.421Z" },
@@ -6026,12 +6100,12 @@ version = "5.16.1"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
     "python_full_version >= '3.15' and sys_platform == 'win32'",
-    "python_full_version == '3.14.*' and sys_platform == 'win32'",
     "python_full_version >= '3.15' and sys_platform != 'win32'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32'",
     "python_full_version == '3.14.*' and sys_platform != 'win32'",
     "python_full_version == '3.13.*' and sys_platform == 'win32'",
-    "python_full_version < '3.13' and sys_platform == 'win32'",
     "python_full_version == '3.13.*' and sys_platform != 'win32'",
+    "python_full_version < '3.13' and sys_platform == 'win32'",
     "python_full_version < '3.13' and sys_platform != 'win32'",
 ]
 dependencies = [
@@ -6056,60 +6130,60 @@ version = "5.19.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
     "python_full_version >= '3.15' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
-    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
     "python_full_version >= '3.15' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version >= '3.15' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version >= '3.15' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version >= '3.15' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version >= '3.15' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version >= '3.15' and sys_platform == 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version >= '3.15' and sys_platform != 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version >= '3.15' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version >= '3.15' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version >= '3.15' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version >= '3.15' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version >= '3.15' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version >= '3.15' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
     "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.13.*' and sys_platform == 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
+    "python_full_version == '3.13.*' and sys_platform != 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
     "python_full_version < '3.14' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
     "python_full_version < '3.14' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
-    "python_full_version >= '3.15' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
-    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
-    "python_full_version >= '3.15' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
-    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
     "python_full_version < '3.14' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
     "python_full_version < '3.14' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
-    "python_full_version >= '3.15' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version >= '3.15' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
     "python_full_version < '3.14' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
     "python_full_version < '3.14' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version >= '3.15' and sys_platform == 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version >= '3.15' and sys_platform != 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version == '3.13.*' and sys_platform == 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
     "python_full_version < '3.13' and sys_platform == 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version == '3.13.*' and sys_platform != 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
     "python_full_version < '3.13' and sys_platform != 'win32' and extra == 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version >= '3.15' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
-    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
-    "python_full_version >= '3.15' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
-    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
     "python_full_version < '3.14' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
     "python_full_version < '3.14' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
-    "python_full_version >= '3.15' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
-    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
-    "python_full_version >= '3.15' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
-    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
     "python_full_version < '3.14' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
     "python_full_version < '3.14' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra != 'group-9-m3-memory-dev' and extra == 'group-9-m3-memory-test'",
-    "python_full_version >= '3.15' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version == '3.14.*' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version >= '3.15' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
-    "python_full_version == '3.14.*' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
     "python_full_version < '3.14' and sys_platform == 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
     "python_full_version < '3.14' and sys_platform != 'win32' and extra != 'extra-9-m3-memory-crewai' and extra != 'extra-9-m3-memory-embed-server' and extra != 'extra-9-m3-memory-entity-ner' and extra == 'group-9-m3-memory-dev' and extra != 'group-9-m3-memory-test'",
 ]
 dependencies = [
-    { name = "huggingface-hub" },
-    { name = "numpy" },
-    { name = "packaging" },
-    { name = "pyyaml" },
-    { name = "regex" },
-    { name = "safetensors" },
-    { name = "tokenizers" },
-    { name = "tqdm" },
-    { name = "typer" },
+    { name = "huggingface-hub", marker = "extra == 'extra-9-m3-memory-embed-server' or extra == 'group-9-m3-memory-dev' or extra == 'group-9-m3-memory-test'" },
+    { name = "numpy", marker = "extra == 'extra-9-m3-memory-embed-server' or extra == 'group-9-m3-memory-dev' or extra == 'group-9-m3-memory-test'" },
+    { name = "packaging", marker = "extra == 'extra-9-m3-memory-embed-server' or extra == 'group-9-m3-memory-dev' or extra == 'group-9-m3-memory-test'" },
+    { name = "pyyaml", marker = "extra == 'extra-9-m3-memory-embed-server' or extra == 'group-9-m3-memory-dev' or extra == 'group-9-m3-memory-test'" },
+    { name = "regex", marker = "extra == 'extra-9-m3-memory-embed-server' or extra == 'group-9-m3-memory-dev' or extra == 'group-9-m3-memory-test'" },
+    { name = "safetensors", marker = "extra == 'extra-9-m3-memory-embed-server' or extra == 'group-9-m3-memory-dev' or extra == 'group-9-m3-memory-test'" },
+    { name = "tokenizers", marker = "extra == 'extra-9-m3-memory-embed-server' or extra == 'group-9-m3-memory-dev' or extra == 'group-9-m3-memory-test'" },
+    { name = "tqdm", marker = "extra == 'extra-9-m3-memory-embed-server' or extra == 'group-9-m3-memory-dev' or extra == 'group-9-m3-memory-test'" },
+    { name = "typer", marker = "extra == 'extra-9-m3-memory-embed-server' or extra == 'group-9-m3-memory-dev' or extra == 'group-9-m3-memory-test'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/65/4c/70012ed0795235fb6bd7806fafd4a1842f03e49ebbfa3bb9580e451948ce/transformers-5.19.0.tar.gz", hash = "sha256:87f38dd25e4521151b97e94520ac457f44a0ae8a8358a5b112daff6c64a822d6", size = 10032022, upload-time = "2026-10-06T16:39:00.229Z" }
 wheels = [
