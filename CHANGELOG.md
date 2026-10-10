@@ -19,6 +19,315 @@ the policy is forward-going only.
 
 ## [Unreleased]
 
+### Fixed
+
+- **PostgreSQL: features that failed, several of them silently, now work.**
+  Memory history diffs, the single-text embedding cache, conversation window
+  and gist summaries, conversation search pairing, the bulk embedding cache
+  (every bulk write re-embedded), `m3_enrich` group lookup, the LangChain store,
+  client and chatlog delete, `chatlog_strip_framing_backfill`, `re_embed_all`,
+  knowledge-base browse, the enrich report, files and chatlog full-text search,
+  and secret rotation with its audit trail. `m3 doctor` lists the core, chat and
+  files stores on PostgreSQL as it does on SQLite.
+  **Affected:** PostgreSQL installs · **Action:** none ·
+  **Data status:** window and gist summaries that earlier versions failed to
+  create are not back-filled.
+
+- **PostgreSQL: JSON metadata is read correctly.** `agent_get` failed,
+  `memory_inbox` showed every sender as "?", and
+  `chatlog_strip_framing_backfill --apply` and the GLiNER conversation
+  allowlist crashed. `memory_get` returns `metadata_json` as JSON text, as on
+  SQLite.
+  **Affected:** PostgreSQL installs · **Action:** a client that read
+  `memory_get`'s `metadata_json` as an object on PostgreSQL now receives a JSON
+  string · **Data status:** none.
+
+- **Memories written through the MCP server get contradiction detection,
+  enrichment and entity extraction.** The MCP default `variant=""` made all
+  three skip the memory.
+  **Affected:** all installs, writes through MCP · **Action:** none ·
+  **Data status:** memories written through MCP by earlier versions are not
+  re-processed.
+
+- **`conversation_summarize` works;** every call raised `NameError`.
+  **Affected:** all installs · **Action:** none · **Data status:** none.
+
+- **`memory_link` refuses an unknown relationship type,** as well as a link to
+  a memory that does not exist, and reports a duplicate as "Link already
+  exists". `explain=True` explains exact-match results and results found
+  without a query vector, which printed nothing.
+  **Affected:** all installs · **Action:** none · **Data status:** links with
+  an unlisted relationship type created by earlier versions are kept.
+
+- **`search_mode="keyword"` returns lexical results;** it returned nothing. An
+  unknown mode is now an error, and `chatlog_search` refuses `vector` and
+  `semantic`, which it accepted and ignored.
+  **Affected:** all installs · **Action:** use `hybrid`, `semantic` or
+  `keyword` (`chatlog_search`: `keyword`) · **Data status:** none.
+
+- **`memory_search` leaves out scratchpad memories unless
+  `include_scratchpad=true`,** as its schema always said; it returned them on
+  every search.
+  **Affected:** all installs · **Action:** pass `include_scratchpad=true` to
+  keep them in results · **Data status:** none.
+
+- **MCP tool calls honour `timeout` and the per-tool time budgets,** as the CLI
+  and `m3_call` already did.
+  **Affected:** MCP clients · **Action:** none · **Data status:** none.
+
+- **LangChain client: a search made just before the process exits records its
+  access,** so `memory_grade` accepts feedback for it, and shutdown no longer
+  leaves a pending task behind.
+  **Affected:** the LangChain integration · **Action:** none ·
+  **Data status:** access times that earlier versions dropped at exit are not
+  recovered.
+
+- **Tools given an explicit database act on that database.**
+  `m3_enrich_assign`, `migrate_entity_vocab` and `m3_chatlog_enrich_backfill`
+  with `--db` / `--main-db` acted on the `M3_DATABASE` store when that variable
+  was set.
+  **Affected:** those tools run with an explicit database while `M3_DATABASE`
+  was set · **Action:** if you did, check the `M3_DATABASE` store for those
+  changes · **Data status:** changes from such runs are in the `M3_DATABASE`
+  store.
+
+- **Calls that pass `database=` read that database.** Chatlog search, promote
+  and the cost report read the default store, and files promotion started
+  inside a running event loop wrote to the default store.
+  **Affected:** those calls with `database=`; files promotion from async code ·
+  **Action:** none · **Data status:** files promotions made from async code by
+  earlier versions may be in the default store.
+
+- **Legacy vault secrets are readable again** and are re-encrypted on first
+  read; they resolved to nothing.
+  **Affected:** installs with secrets stored in the older vault format ·
+  **Action:** none · **Data status:** legacy secrets are re-encrypted in place
+  on first read.
+
+- **The device-salt consistency check runs** on every backend and warns on a
+  mismatch; it never ran.
+  **Affected:** all installs · **Action:** if m3 warns about a salt mismatch,
+  follow the `inspect:` pointer in the message · **Data status:** none.
+
+- **SLM profiles without `api_key_service` work.** `m3_enrich`,
+  `run_observer`, `run_reflector`, `m3_entities` and `m3_enrich_batch` crashed
+  with `TypeError`.
+  **Affected:** SLM profiles that omit `api_key_service` · **Action:** none ·
+  **Data status:** none.
+
+- **Batch work no longer loses items.** A batch result shorter than its input
+  is an error instead of dropping the remainder, `promote_pipeline` reports a
+  short judge reply as that batch's error, a failed bulk embed or write cancels
+  its sibling tasks, and the bulk embed path retries only network errors and
+  HTTP 5xx/413/429. A failed entity-vector commit is no longer reported as rows
+  written.
+  **Affected:** all installs · **Action:** none · **Data status:** none.
+
+- **`enrichment_runs` start and finish times carry seconds.**
+  `m3_enrich_batch` and `release_orphan_claims` wrote hours and minutes
+  followed by microseconds.
+  **Affected:** `m3_enrich_batch` users · **Action:** none ·
+  **Data status:** rows written by earlier versions keep the malformed times.
+
+- **The notification waiter wakes on every new notification.** On SQLite a
+  write that left the file size unchanged within one clock tick could go
+  unseen, and after a restart a leftover reader could end the new run.
+  **Affected:** agents using `m3_notification_waiter` · **Action:** none ·
+  **Data status:** none.
+
+- **Configuration and state files are written atomically with a unique
+  temporary file,** so two writers cannot overwrite each other's file, and a
+  failed write of `.migrate_config.json` no longer loses the remembered backup
+  directory. JSON written this way has LF line endings on Windows too.
+  `.log_config.json` is created where the governor config is.
+  **Affected:** all installs · **Action:** none · **Data status:** none.
+
+- **Setup and upgrade:** a home directory containing a quote or ending in a
+  backslash no longer breaks the PostgreSQL schema step, and interpreter checks
+  no longer import m3 from the current directory (a bare venv could be approved
+  for scheduled tasks, and a removed m3 reported as installed).
+  **Affected:** all platforms · **Action:** none · **Data status:** none.
+
+- **Library integrations get no chatlog hook.** For LangChain, `m3 chat init`
+  stored and told you to source a hook script that does not exist.
+  **Affected:** LangChain chatlog users · **Action:** none ·
+  **Data status:** none.
+
+- **Agent client detection skips venv launchers,** including uv-made venvs and
+  the Windows `Scripts\python.exe` redirector, so the agent's own process is
+  reported.
+  **Affected:** venv and pipx installs · **Action:** none ·
+  **Data status:** none.
+
+- **PostgreSQL warehouse sync falls back correctly** when its fast path cannot
+  be imported; it failed with `UnboundLocalError`.
+  **Affected:** PostgreSQL warehouse sync · **Action:** none ·
+  **Data status:** none.
+
+### Security
+
+- **PostgreSQL: a keyword-form DSN (`host=... dbname=...`) no longer puts its
+  password into store identities and snapshot names.** The whole DSN was read
+  as the database name, which also hid the warehouse from the same-database
+  guard, missed forbidden hosts in a multi-host DSN, and skipped warehouse sync.
+  **Affected:** PostgreSQL with a keyword-form DSN · **Action:** rename or
+  delete store snapshots whose names contain the password ·
+  **Data status:** snapshot names created by earlier versions may contain the
+  DSN password.
+
+- **PostgreSQL: scored search applies the conversation, variant and
+  agent-isolation filters.** That path ignored them and could return another
+  conversation's or agent's rows.
+  **Affected:** PostgreSQL; searches filtered by conversation, variant or
+  requesting agent · **Action:** none · **Data status:** none.
+
+- **The installer stores the primary PostgreSQL DSN in the OS keyring or the
+  secrets file,** not in a plaintext environment variable, and `m3 doctor`
+  names plaintext copies left behind.
+  **Affected:** PostgreSQL installs · **Action:** remove the plaintext copies
+  `m3 doctor` names · **Data status:** none.
+
+- **Archive extraction applies Python's tarfile data filter** after m3's own
+  path checks: setuid/setgid and group/other write bits are cleared and archive
+  ownership is dropped.
+  **Affected:** installs and upgrades that unpack an archive · **Action:** none ·
+  **Data status:** none.
+
+- **FIPS mode: security hashes use the FIPS crypto provider** — the native-core
+  wheel check, secret HMACs, the vault-salt fingerprint and the PostgreSQL
+  store id.
+  **Affected:** installs running in FIPS mode · **Action:** none ·
+  **Data status:** none.
+
+- **Windows: the secrets file's access list is checked before writing and on
+  read,** and a Credential Manager probe that reported any name as stored was
+  removed.
+  **Affected:** Windows · **Action:** none · **Data status:** none.
+
+### Changed
+
+- **The `database` argument is refused where it would be ignored:** on a
+  non-SQLite backend and on every files tool, where the call used to run against
+  the default store.
+  **Affected:** callers passing `database` there · **Action:** use the `store`
+  argument (see Added) or drop `database` · **Data status:** none.
+
+- **Failures that were silent are reported.** A swallowed programming error or
+  malformed query logs a WARNING; an unresolvable files backend and an
+  unreadable migration ledger raise instead of answering SQLite and "nothing
+  applied"; a missing or malformed named entity vocabulary warns; `m3 doctor`
+  reports schema versions from the table the migrator writes (it always showed
+  none) and says when it could not count a store.
+  **Affected:** all installs · **Action:** read new warnings; each carries
+  `observed:` and `inspect:` · **Data status:** none.
+
+- **SQLite-only tools say so on another backend:** `migrate_memory` and
+  `split_chatlog_from_core` refuse PostgreSQL.
+  **Affected:** PostgreSQL installs · **Action:** none · **Data status:** none.
+
+- **Tool schemas are smaller:** the universal `database`, `store` and `timeout`
+  arguments carry short descriptions and no schema default, cutting the eager
+  schema from about 40,800 to 29,100 tokens.
+  **Affected:** MCP clients · **Action:** none · **Data status:** none.
+
+- **`memory_write_bulk`'s `*_concurrency` arguments warn** when set, since the
+  process-wide settings `memory.fact_enrich_concurrency` and
+  `entity.extract_concurrency` govern.
+  **Affected:** callers passing those arguments · **Action:** set the settings
+  instead · **Data status:** none.
+
+- **Dependencies:** `tomlkit` is a new core dependency, and `pydantic` and
+  `starlette`, which m3 imports directly, are declared. The `entity-ner` extra
+  adds `packaging`, cannot be installed together with `embed-server`, and the
+  GLiNER loader warns when `transformers` is older than m3 supports.
+  **Affected:** all installs; `entity-ner` users · **Action:** none; install
+  `entity-ner` and `embed-server` in separate environments ·
+  **Data status:** none.
+
+- **The `crewai` extra installs with uv and an `mcp` override;** plain pip
+  cannot resolve it (crewai pins `mcp<1.29`, m3 requires `mcp>=1.30`). The
+  README gives the command.
+  **Affected:** CrewAI users · **Action:** install as the README shows ·
+  **Data status:** none.
+
+### Added
+
+- **`m3_config.toml`: one file for every setting,** in the config root, with
+  `m3 config show [--origin] [--json] [--config FILE]` to print each value and
+  where it came from. Environment variables keep working and take precedence
+  for the keys marked *env override*. Reference: `docs/CONFIG_REFERENCE.md`.
+  **Affected:** all installs · **Action:** none · **Data status:** none.
+
+- **Named stores.** `[stores.<name>]` in `m3_config.toml` defines a store (core
+  plus files; on SQLite the files half is `<stem>.files.db` beside it). Select
+  one per call with the `store` tool argument, or per process with `--store` on
+  the CLI and on scripts that take a database. `store` together with `database`
+  is refused, as is an unknown store.
+  **Affected:** all installs · **Action:** none · **Data status:** a new
+  PostgreSQL store's schema is created when it is first selected.
+
+- **A user-only secrets file** (`m3_secrets.toml` in the config root, or
+  `[secrets].file`) is consulted after the OS keyring and before the vault. m3
+  refuses a file that other users can read or that another user owns, and a
+  name it does not know.
+  **Affected:** all installs, mainly machines without a keyring ·
+  **Action:** none · **Data status:** none.
+
+- **PostgreSQL support** for `M3Saver` (LangGraph checkpointer),
+  `m3_entities_gliner`, `m3_enrich_stage`, `m3_enrich_assign` (migration
+  `pg_060` adds routed enrichment claims), `m3_enrich_batch`,
+  `m3_chatlog_enrich_backfill`, `migrate_entity_vocab`, `backfill_content_hash`,
+  `build_kg_variant` and `ai_mechanic`. Their SQLite path arguments are refused
+  on PostgreSQL.
+  **Affected:** PostgreSQL installs · **Action:** none · **Data status:** none.
+
+- **`search_profile` tool:** per-stage timing of one real search.
+  **Affected:** all installs · **Action:** none · **Data status:** none.
+
+- **`agent_list` reports each agent's membership** — member (active within
+  24 hours), idle (client still running) or left — derived from recorded
+  activity.
+  **Affected:** multi-agent setups · **Action:** none ·
+  **Data status:** migrations `051` / `pg_059` add the activity columns.
+
+### Deprecated
+
+- **Legacy environment names for settings** keep working for now and log a
+  warning; `m3 config show --origin` shows which name supplied a value.
+  `LLAMA_SERVER_EXE` and `GGUF_MODEL_PATH` are now `M3_LLAMA_SERVER_EXE` and
+  `M3_GGUF_MODEL_PATH`.
+  **Affected:** installs configured through environment variables ·
+  **Action:** move settings to `m3_config.toml` or the current names ·
+  **Data status:** none.
+
+- **Renamed CLI options:** `embed_backfill --store core|chatlog` is
+  `--target`, and `search_differential --store PATH` is `--engine-root`; the
+  old spellings still work.
+  **Affected:** scripts using those options · **Action:** switch to the new
+  names · **Data status:** none.
+
+- **The vault as a source for the primary PostgreSQL DSN** warns on every use.
+  **Affected:** PostgreSQL installs whose DSN is in the vault ·
+  **Action:** store it in the keyring or the secrets file · **Data status:** none.
+
+- **The `m3-memory[dev]` extra** is an alias of the `dev` dependency group and
+  will be removed in the next release.
+  **Affected:** contributors · **Action:** `uv sync --group dev` (or
+  `pip install --group dev` with pip 25.1+) · **Data status:** none.
+
+### Removed
+
+- **Settings that had no effect are retired;** `m3 config show` lists any that
+  are still set: `CHATLOG_MODE`, `M3_CLOUD_MINIMIZATION_LEVEL`,
+  `M3_CONFIDENCE_MODEL`, `M3_ENTITY_COALESCE_MAX_PAIRS`, `M3_FILES_CORPUS`,
+  `M3_FILES_DB_PROMPT_ON_FIRST_USE`, `M3_FILES_DEDUP_LEAF_LIMIT`,
+  `M3_FILES_DEDUP_MAX_PAIRS`, `M3_FILES_DEDUP_THRESHOLD`,
+  `M3_FILES_DEFAULT_SCOPE`, `M3_FILES_EXTRACT_CONCURRENCY`,
+  `M3_FILES_EXTRACT_MAX_ATTEMPTS`, `M3_FILES_PROMO_SUGGEST_THRESHOLD`,
+  `M3_TRUST_AUTOTUNE`.
+  **Affected:** installs that set them · **Action:** unset them ·
+  **Data status:** none.
+
 ## [2026.10.7.1] — 2026-10-07 — upgrades that say only what you need to do
 
 ### Fixed
