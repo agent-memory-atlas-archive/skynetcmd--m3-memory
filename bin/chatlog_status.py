@@ -20,7 +20,6 @@ from pathlib import Path
 from typing import Any
 
 import chatlog_config
-from m3_core.seams import is_windows
 
 # The non-empty-content predicate comes from the backend seam so it has exactly
 # one definition (DESIGN_PHILOSOPHIES §10a: duplicated predicate logic is the
@@ -727,95 +726,15 @@ def _get_last_turns(main_db: str) -> list[dict[str, str]]:
 
 
 def _get_keypress(timeout: float) -> str | None:
-    """Read a keypress within timeout. Supports Windows and Unix."""
-    import sys
-    import time
-
-    start_time = time.time()
-
-    if is_windows():
-        import msvcrt as _msvcrt
-        msvcrt: Any = _msvcrt  # Any alias: typeshed has msvcrt's API only for win32 (see installer.py).
-        while time.time() - start_time < timeout:
-            if msvcrt.kbhit():
-                try:
-                    ch = msvcrt.getch()
-                    if isinstance(ch, bytes):
-                        val = ch.decode("utf-8", errors="ignore").lower()
-                        if val:
-                            return val
-                    else:
-                        val = str(ch).lower()
-                        if val:
-                            return val
-                except Exception:
-                    pass
-            time.sleep(0.05)
-        return None
-    else:
-        import select
-        import termios
-        import tty
-
-        fd = sys.stdin.fileno()
-        if not os.isatty(fd):
-            time.sleep(timeout)
-            return None
-
-        old_settings = termios.tcgetattr(fd)
-        try:
-            tty.setraw(fd)
-            while time.time() - start_time < timeout:
-                rem = timeout - (time.time() - start_time)
-                step = min(0.05, max(0.01, rem))
-                rlist, _, _ = select.select([sys.stdin], [], [], step)
-                if rlist:
-                    ch = sys.stdin.read(1)
-                    return ch.lower()
-        except Exception:
-            time.sleep(timeout)
-            return None
-        finally:
-            try:
-                termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-            except Exception:
-                pass
-        return None
+    """Read a keypress within timeout (the OS seam owns the console dialects)."""
+    from m3_core.seams import read_key
+    return read_key(timeout)
 
 
 def _wait_for_any_key() -> None:
-    """Wait for any keypress. Supports Windows and Unix."""
-    import sys
-    import time
-    if is_windows():
-        import msvcrt as _msvcrt
-        msvcrt: Any = _msvcrt  # Any alias: typeshed has msvcrt's API only for win32 (see installer.py).
-        while msvcrt.kbhit():
-            msvcrt.getch()
-        while not msvcrt.kbhit():
-            time.sleep(0.05)
-        msvcrt.getch()
-    else:
-        import select
-        import termios
-        import tty
-        fd = sys.stdin.fileno()
-        if not os.isatty(fd):
-            time.sleep(2.0)
-            return
-        termios.tcflush(sys.stdin, termios.TCIFLUSH)
-        old_settings = termios.tcgetattr(fd)
-        try:
-            tty.setraw(fd)
-            select.select([sys.stdin], [], [])
-            sys.stdin.read(1)
-        except Exception:
-            time.sleep(2.0)
-        finally:
-            try:
-                termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-            except Exception:
-                pass
+    """Wait for any keypress (the OS seam owns the console dialects)."""
+    from m3_core.seams import wait_for_any_key
+    wait_for_any_key()
 
 
 def _run_subprocess_interactive(cmd: list[str]) -> None:

@@ -21,7 +21,7 @@ import numpy as np
 import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
-from m3_core.seams import is_windows
+from m3_core.seams import is_windows, new_process_group_kwargs
 from m3_sdk import getenv_compat
 from pydantic import BaseModel, Field
 
@@ -138,14 +138,9 @@ def start_llama_server():
     ]
 
     logger.info(f"Starting llama-server: {' '.join(cmd)}")
-    # CREATE_NEW_PROCESS_GROUP is Windows-only; getattr keeps this importable and
-    # runnable on macOS/Linux (LLAMA_SERVER_EXE is env-overridable to a POSIX
-    # llama-server), where a bare attribute reference would AttributeError (§1).
-    _popen_kwargs = {}
-    _flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-    if _flags:
-        _popen_kwargs["creationflags"] = _flags
-    llama_process = subprocess.Popen(cmd, **_popen_kwargs)
+    # Its own process group on Windows (the OS seam owns the flag; {} on POSIX,
+    # where LLAMA_SERVER_EXE can name a POSIX llama-server).
+    llama_process = subprocess.Popen(cmd, **new_process_group_kwargs())
 
     # Wait for server to be ready
     max_retries = 30

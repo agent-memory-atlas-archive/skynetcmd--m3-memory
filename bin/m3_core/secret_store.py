@@ -31,7 +31,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
-from m3_core.seams import is_macos, is_windows
+from m3_core.seams import current_uid, is_macos, is_windows
 
 SECRETS_FILE_NAME = "m3_secrets.toml"
 _NAME = re.compile(r"[A-Za-z0-9_-]+")
@@ -87,9 +87,10 @@ def _check_private(p: Path) -> None:
     mode = st.st_mode & 0o777
     if mode & 0o077:
         raise SecretsFileError(f"{p} is mode {oct(mode)}; a secrets file must be user-only. Fix: chmod 600 {p}")
-    if st.st_uid != os.getuid():
+    uid = current_uid()
+    if uid is not None and st.st_uid != uid:
         raise SecretsFileError(
-            f"{p} is owned by uid {st.st_uid}, not you ({os.getuid()}); refusing to read it. "
+            f"{p} is owned by uid {st.st_uid}, not you ({uid}); refusing to read it. "
             f"Fix: if you created it, `chown $(id -u) {p}` as that owner or root; otherwise remove it."
         )
 

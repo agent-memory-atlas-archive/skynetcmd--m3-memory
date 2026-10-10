@@ -1,8 +1,8 @@
 ---
 tool: bin/enrichment_state.py
-sha1: 8b35e6334429
-mtime_utc: 2026-10-10T16:56:19.067116+00:00
-generated_utc: 2026-10-10T17:06:36.919502+00:00
+sha1: 70386963b6fa
+mtime_utc: 2026-10-10T20:01:56.945856+00:00
+generated_utc: 2026-10-10T20:18:03.475542+00:00
 private: false
 ---
 
@@ -51,7 +51,7 @@ _(none detected)_
 
 ## Calls INTO this repo (intra-repo imports)
 
-_(none detected)_
+- `_task_runtime (no_window_kwargs)`
 
 ---
 
@@ -68,7 +68,6 @@ _(none detected)_
 
 - `m3_core.context (open_pointed_store)`
 - `m3_core.runtime (utc_iso)`
-- `m3_core.seams (is_windows)`
 - `memory.backends (dialect)`
 
 ---

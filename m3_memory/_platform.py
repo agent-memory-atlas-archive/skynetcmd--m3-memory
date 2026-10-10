@@ -159,6 +159,32 @@ def hidden_window_kwargs() -> dict:
     return {"startupinfo": si}
 
 
+def current_uid() -> int | None:
+    """This process's real user id where the OS has POSIX uids, else None.
+
+    The capability decides (``os.getuid`` exists only off Windows). Owner checks
+    on user-only files compare against this; on Windows they use ACLs instead.
+    """
+    getuid = getattr(os, "getuid", None)
+    return getuid() if getuid is not None else None
+
+
+def new_process_group_kwargs() -> dict:
+    """Popen kwargs that start the child in its own process group, so a console
+    Ctrl+C aimed at this process does not also reach it.
+
+    Windows: ``CREATE_NEW_PROCESS_GROUP``. POSIX: ``{}`` (unchanged behaviour:
+    the embed server's llama-server child has always shared the group there).
+    The capability decides, as for the other window/process flags.
+    """
+    import subprocess
+
+    if hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP"):
+        sp: Any = subprocess
+        return {"creationflags": sp.CREATE_NEW_PROCESS_GROUP}
+    return {}
+
+
 def detached_spawn_kwargs() -> dict:
     """Popen kwargs for a BACKGROUND child that outlives this process and never
     shows a console window.
@@ -266,3 +292,118 @@ def python_exe(windowless: bool = False) -> str:
             if os.path.isfile(cand):
                 return cand
     return exe
+
+
+# ── Console keys (the live status screen) ────────────────────────────────────
+# Windows reads the console through msvcrt; POSIX puts the tty in raw mode and
+# selects on stdin. The capability decides (msvcrt imports only where it
+# exists), not the OS name, and failures are logged at DEBUG: an interactive
+# key read that fails falls back to waiting, exactly as before.
+def _msvcrt() -> Any | None:
+    try:
+        import msvcrt
+    except ImportError:
+        return None
+    return msvcrt  # Any: typeshed defines msvcrt's API only for win32
+
+
+def read_key(timeout: float) -> str | None:
+    """A keypress within ``timeout`` seconds, lower-cased, or None."""
+    import time
+
+    start_time = time.time()
+    ms = _msvcrt()
+    if ms is not None:
+        while time.time() - start_time < timeout:
+            if ms.kbhit():
+                try:
+                    ch = ms.getch()
+                    val = (ch.decode("utf-8", errors="ignore") if isinstance(ch, bytes) else str(ch)).lower()
+                    if val:
+                        return val
+                except Exception as e:  # noqa: BLE001 — one unreadable key; keep waiting
+                    logging.getLogger("m3_memory.platform").debug("read_key: getch failed: %s", e)
+            time.sleep(0.05)
+        return None
+
+    fd = _stdin_tty_fd()
+    if fd is None:
+        time.sleep(timeout)
+        return None
+    import select
+    import termios as _termios
+    import tty as _tty
+
+    termios: Any = _termios  # Any: typeshed defines these only off win32
+    tty: Any = _tty
+    old_settings = termios.tcgetattr(fd)
+    try:
+        tty.setraw(fd)
+        while time.time() - start_time < timeout:
+            rem = timeout - (time.time() - start_time)
+            rlist, _, _ = select.select([sys.stdin], [], [], min(0.05, max(0.01, rem)))
+            if rlist:
+                return sys.stdin.read(1).lower()
+    except Exception as e:  # noqa: BLE001 — no raw tty: behave as a timeout
+        logging.getLogger("m3_memory.platform").debug("read_key: raw read failed: %s", e)
+        time.sleep(timeout)
+        return None
+    finally:
+        _restore_tty(fd, old_settings)
+    return None
+
+
+def wait_for_any_key() -> None:
+    """Block until any key is pressed (a short sleep when stdin is not a tty)."""
+    import time
+
+    ms = _msvcrt()
+    if ms is not None:
+        while ms.kbhit():
+            ms.getch()
+        while not ms.kbhit():
+            time.sleep(0.05)
+        ms.getch()
+        return
+
+    fd = _stdin_tty_fd()
+    if fd is None:
+        time.sleep(2.0)
+        return
+    import select
+    import termios as _termios
+    import tty as _tty
+
+    termios: Any = _termios  # Any: typeshed defines these only off win32
+    tty: Any = _tty
+    termios.tcflush(sys.stdin, termios.TCIFLUSH)
+    old_settings = termios.tcgetattr(fd)
+    try:
+        tty.setraw(fd)
+        select.select([sys.stdin], [], [])
+        sys.stdin.read(1)
+    except Exception as e:  # noqa: BLE001 — no raw tty: a short pause instead
+        logging.getLogger("m3_memory.platform").debug("wait_for_any_key: raw read failed: %s", e)
+        time.sleep(2.0)
+    finally:
+        _restore_tty(fd, old_settings)
+
+
+def _stdin_tty_fd() -> int | None:
+    """stdin's descriptor when it is a terminal; None when it is not one, or
+    has no descriptor at all (a pipe, a captured or redirected stream)."""
+    try:
+        fd = sys.stdin.fileno()
+    except (AttributeError, OSError, ValueError):  # io.UnsupportedOperation is both
+        return None
+    return fd if os.isatty(fd) else None
+
+
+def _restore_tty(fd: int, settings: Any) -> None:
+    import termios as _termios
+
+    termios: Any = _termios  # Any: typeshed defines these only off win32
+    try:
+        termios.tcsetattr(fd, termios.TCSADRAIN, settings)
+    except Exception as e:  # noqa: BLE001 — the terminal may already be gone
+        logging.getLogger("m3_memory.platform").debug("tty restore failed: %s", e)

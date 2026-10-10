@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_status.py
-sha1: 0fd1e5977f94
-mtime_utc: 2026-10-10T14:08:55.066887+00:00
-generated_utc: 2026-10-10T14:09:48.522927+00:00
+sha1: 6b5ddaab441f
+mtime_utc: 2026-10-10T20:02:36.177381+00:00
+generated_utc: 2026-10-10T20:18:03.343494+00:00
 private: false
 ---
 
@@ -23,7 +23,7 @@ Cold call <50ms (no full table scans).
 
 ## Entry points
 
-- `def main()` (line 1105)
+- `def main()` (line 1024)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -56,14 +56,14 @@ Cold call <50ms (no full table scans).
 
 **subprocess**
 
-- `subprocess.run()  → `cmd`` (line 839)
+- `subprocess.run()  → `cmd`` (line 758)
 
 **sqlite**
 
-- `sqlite3.connect()  → `chatlog_db`` (line 140)
-- `sqlite3.connect()  → `files_db`` (line 208)
-- `sqlite3.connect()  → `main_db`` (line 126)
-- `sqlite3.connect()  → `uri`` (line 306)
+- `sqlite3.connect()  → `chatlog_db`` (line 139)
+- `sqlite3.connect()  → `files_db`` (line 207)
+- `sqlite3.connect()  → `main_db`` (line 125)
+- `sqlite3.connect()  → `uri`` (line 305)
 
 
 ---
@@ -75,15 +75,12 @@ Cold call <50ms (no full table scans).
 - `files_memory.db (_db)`
 - `files_memory.db (_files_store_is_a_schema)`
 - `m3_core.paths (seam_backend)`
-- `m3_core.seams (is_windows)`
+- `m3_core.seams (read_key)`
+- `m3_core.seams (wait_for_any_key)`
 - `memory (doctor)`
 - `memory.backends (resolve_backend_name)`
 - `memory.backends.sqlite_backend (SqliteDialect)`
 - `memory.config (FILES_DB_PATH)`
-- `msvcrt`
-- `select`
-- `termios`
-- `tty`
 
 ---
 

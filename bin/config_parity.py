@@ -48,7 +48,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from m3_core.seams import is_windows
+from m3_core.seams import current_uid
 
 _BIN = Path(__file__).resolve().parent
 if str(_BIN) not in sys.path:
@@ -119,9 +119,10 @@ def _keyring_get() -> tuple[bool, str | None]:
 def _read_key_file(p: Path) -> str | None:
     if not p.is_file():
         return None
-    if not is_windows():  # sys.platform, not os.name: mypy narrows only on it
+    uid = current_uid()
+    if uid is not None:  # POSIX ownership; Windows protects the key with ACLs
         mode = p.stat().st_mode & 0o777
-        if mode & 0o077 or p.stat().st_uid != os.getuid():
+        if mode & 0o077 or p.stat().st_uid != uid:
             raise ParityError(f"{p} is mode {oct(mode)} (or not yours); the key must be user-only. "
                               f"Fix with: chmod 600 {p}")
     return p.read_text(encoding="utf-8").strip()

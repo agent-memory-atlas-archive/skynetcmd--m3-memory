@@ -32,7 +32,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import cast
 
-from m3_core.seams import is_windows
+from _task_runtime import no_window_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +122,7 @@ def _git_sha() -> str:
             ["git", "rev-parse", "HEAD"],
             capture_output=True, text=True, timeout=2,
             # git is a console app on Windows — flash-free background call.
-            creationflags=(getattr(subprocess, "CREATE_NO_WINDOW", 0) if is_windows() else 0),
+            **no_window_kwargs(),
         )
         if out.returncode == 0:
             return out.stdout.strip()

@@ -27,6 +27,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import UTC
+from typing import Any
 
 from m3_memory._platform import is_windows
 from m3_memory._platform import os_name as _os_name
@@ -614,7 +615,9 @@ def _in_privileged_group() -> bool:
     if is_windows():
         return False
     try:
-        import grp  # Unix-only; guarded by the platform check above.
+        import grp as _grp  # Unix-only; guarded by the platform check above.
+
+        grp: Any = _grp  # Any: typeshed defines grp's API only off win32
     except ImportError:
         return False
     user = os.environ.get("USER") or os.environ.get("LOGNAME") or ""
