@@ -143,13 +143,11 @@ def _fts_query_sqlite(conn, query, limit, current_only, corpus_id, filetype,
 def _fts_query_pg(conn, query, limit, current_only, corpus_id, filetype,
                   corpora, _d) -> list[tuple[str, float]]:
     """PostgreSQL tsvector arm. Matches leaves.search_vector @@ to_tsquery and
-    ranks with ts_rank (already higher=better). Reuses the core query compiler
-    (_compile_tsquery) so query terms normalize identically to the FTS5 path."""
-    from memory.fts import _compile_tsquery
-
+    ranks with ts_rank (already higher=better). The dialect compiles the query,
+    so terms normalize identically to the FTS5 path."""
     from .config import files_table
 
-    tsquery, ok = _compile_tsquery(query, "fts5")
+    tsquery, ok = _d.compile_keyword_query(query, "fts5")
     if not ok or not tsquery:
         return []
     _p = _d.param()

@@ -158,3 +158,20 @@ def test_m3_core_seams_reexports_the_seams_unchanged():
     defs = [n.name for n in ast.parse((_ROOT / "bin" / "m3_core" / "seams.py").read_text(encoding="utf-8")).body
             if isinstance(n, (ast.FunctionDef, ast.ClassDef))]
     assert not defs, f"m3_core.seams defines logic of its own: {defs}"
+
+
+def test_business_logic_asks_the_dialect_to_compile_keyword_queries():
+    """FTS5 vs tsquery syntax is the database seam's (Dialect.compile_keyword_query).
+    memory.fts re-exports the compilers for old importers; nothing else names them."""
+    owners = {"bin/memory/fts.py", "bin/memory_core.py"}
+    hits = []
+    for p in sorted((_ROOT / "bin").rglob("*.py")) + sorted((_ROOT / "m3_memory").rglob("*.py")):
+        rel = p.relative_to(_ROOT).as_posix()
+        if "__pycache__" in p.parts or rel in owners or rel.startswith("bin/memory/backends/"):
+            continue
+        for n in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
+            if isinstance(n, ast.ImportFrom) and any(
+                    a.name in ("_compile_fts_query", "_compile_tsquery") for a in n.names):
+                hits.append(f"{rel}:{n.lineno}")
+    assert not hits, ("observed: business logic imports a keyword compiler: " + ", ".join(hits)
+                      + ". inspect: call dialect().compile_keyword_query(query, mode)")

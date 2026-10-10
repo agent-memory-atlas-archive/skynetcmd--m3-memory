@@ -694,8 +694,11 @@ async def memory_search_scored_impl(
     # inside a branch makes the name a function LOCAL for the WHOLE body, so any
     # later branch that also used it raised UnboundLocalError when the first
     # branch didn't run. Binding here is what makes that class of bug
-    # impossible, so it must stay even at one caller.
-    from memory.fts import _compile_fts_query
+    # impossible, so it must stay even at one caller. Bound to the SQLite
+    # dialect's primitive: the caller is the SQLite FTS5 cascade.
+    from memory.backends.dialect import dialect_for
+
+    _compile_fts_query = dialect_for("sqlite").compile_keyword_query
 
     # Best-effort: callback resolution + test-shim rebinding. Any failure
     # here just leaves the floor bindings above in place.
