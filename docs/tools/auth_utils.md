@@ -1,8 +1,8 @@
 ---
 tool: bin/auth_utils.py
-sha1: 36246d9cd30c
-mtime_utc: 2026-10-10T21:05:16.664435+00:00
-generated_utc: 2026-10-10T21:05:29.274943+00:00
+sha1: 75f5bfa65122
+mtime_utc: 2026-10-10T21:15:53.535447+00:00
+generated_utc: 2026-10-10T21:16:09.460320+00:00
 private: false
 ---
 

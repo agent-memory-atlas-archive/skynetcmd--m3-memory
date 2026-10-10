@@ -1,8 +1,8 @@
 ---
 tool: bin/migrate_warehouse_to_schema.py
-sha1: 4d013257c870
-mtime_utc: 2026-10-10T21:05:16.635924+00:00
-generated_utc: 2026-10-10T21:05:29.871312+00:00
+sha1: d93cce6022bb
+mtime_utc: 2026-10-10T21:15:53.487275+00:00
+generated_utc: 2026-10-10T21:16:10.045119+00:00
 private: false
 ---
 
@@ -41,7 +41,7 @@ Exit codes: 0 = success (or clean dry-run), 1 = error / verification failed.
 
 ## Entry points
 
-- `def main()` (line 172)
+- `def main()` (line 173)
 - `if __name__ == "__main__"` guard
 
 ---

@@ -144,7 +144,8 @@ def _apply(cur, plan: dict, warehouse_ddl_path: str | None, drop_public: bool) -
     if not _table_exists(cur, WAREHOUSE_SCHEMA, table):
         raise RuntimeError(
             f"{WAREHOUSE_SCHEMA}.{table} does not exist and could not be created "
-            f"(apply pg_warehouse_chatlog_v1.sql first)."
+            f"(apply pg_warehouse_chatlog_v1.sql first). "
+            f"observed: no {WAREHOUSE_SCHEMA}.{table} after the create. inspect: the warehouse role's CREATE rights"
         )
 
     cols = _shared_columns(cur, table)

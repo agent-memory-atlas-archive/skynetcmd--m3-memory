@@ -740,7 +740,11 @@ def set_api_key(service: str, value: str):
     """
     master_key = get_master_key()
     if not master_key:
-        raise ValueError("AGENT_OS_MASTER_KEY not found in OS keyring. Cannot encrypt secret.")
+        raise ValueError(
+            "AGENT_OS_MASTER_KEY not found in OS keyring. Cannot encrypt secret. "
+            "observed: no AGENT_OS_MASTER_KEY in the keyring or the environment. "
+            "inspect: `python -m keyring set system AGENT_OS_MASTER_KEY`, or m3 setup"
+        )
 
     encrypted_value = _encrypt_value(value, master_key)
     origin_device = (

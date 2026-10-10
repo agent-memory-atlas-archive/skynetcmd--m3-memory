@@ -1851,7 +1851,8 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
         v_ = _order_embeddings(data_, len(chunk_texts))
         if v_ is None:
             raise RuntimeError(
-                f"CPU fallback response for {len(chunk_texts)} inputs could not be aligned (bad/missing index or count)"
+                f"CPU fallback response for {len(chunk_texts)} inputs could not be aligned (bad/missing index or count). "
+                f"observed: the response did not carry one index per input. inspect: the CPU fallback embed server"
             )
         return v_
 

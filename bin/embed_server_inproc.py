@@ -361,7 +361,10 @@ def _coerce_texts(inp: str | list[str]) -> list[str]:
     if len(texts) > _MAX_BATCH:
         # Fail loud, don't silently truncate (§3): a truncated batch would drop
         # vectors and the caller would never know.
-        raise ValueError(f"batch of {len(texts)} exceeds max {_MAX_BATCH} (M3_EMBED_SERVER_MAX_BATCH)")
+        raise ValueError(
+            f"batch of {len(texts)} exceeds max {_MAX_BATCH} (M3_EMBED_SERVER_MAX_BATCH). "
+            f"observed: {len(texts)} inputs. inspect: the caller's batch size, or M3_EMBED_SERVER_MAX_BATCH"
+        )
     return texts
 
 

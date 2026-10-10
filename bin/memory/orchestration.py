@@ -416,7 +416,8 @@ def require_agent_id(agent_id: str, tool: str) -> str:
             f"that the inbox is empty. An LLM-facing caller (m3_call) cannot "
             f"address an arbitrary agent; use the CLI (`m3 admin {tool} "
             f"--agent_id <id>`) or an entry point that sets "
-            f"allow_caller_agent_id."
+            f"allow_caller_agent_id. "
+            f"observed: an empty agent_id for {tool}. inspect: the entry point's allow_caller_agent_id"
         )
     return agent_id
 

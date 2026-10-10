@@ -1,8 +1,8 @@
 ---
 tool: bin/embed_server_inproc.py
-sha1: 3e9235c96092
-mtime_utc: 2026-10-10T21:05:17.307419+00:00
-generated_utc: 2026-10-10T21:05:29.503533+00:00
+sha1: 5da6d117f07c
+mtime_utc: 2026-10-10T21:15:53.541943+00:00
+generated_utc: 2026-10-10T21:16:09.677862+00:00
 private: false
 ---
 
@@ -51,7 +51,7 @@ Model: M3_EMBED_GGUF env, else auto-detected (discover_bge_m3_gguf).
 
 ## Entry points
 
-- `def main()` (line 534)
+- `def main()` (line 537)
 - `if __name__ == "__main__"` guard
 
 ---

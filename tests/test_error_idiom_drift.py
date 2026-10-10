@@ -66,7 +66,8 @@ _ROOT = pathlib.Path(__file__).resolve().parents[1]
 # multi-line unlabelled messages, and the ruff format sweep moved its count
 # without changing a message. The AST count is identical before and after
 # formatting (measured per file).
-_BUDGET = 27
+# 2026-10-10: 27 -> 0, every flagged message labelled (test doubles exempt).
+_BUDGET = 0
 
 _SKIP_DIRS = {
     "build",  # packaging copy of the tree
@@ -84,6 +85,8 @@ _EXEMPT: dict[str, str] = {
     # _validate_role() validates an argument that becomes a filename; the
     # message already names the observed value and the allowed set.
     "bin/m3_halt.py": "argument validation, not a diagnostic",
+    # A test double raising what a missing library would; not an operator message.
+    "bin/test_fips_integrity.py": "a test double (Mock CDLL), not a diagnostic",
 }
 
 # A raise/exit whose MESSAGE mentions a knob, an endpoint, or a failure verb,

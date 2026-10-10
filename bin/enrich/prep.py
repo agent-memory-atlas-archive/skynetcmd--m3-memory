@@ -60,7 +60,7 @@ def _load_profile_with_path(name: str | None, path: str | None) -> Profile:
     if path:
         pth = Path(path).expanduser().resolve()
         if not pth.exists():
-            sys.exit(f"ERROR: profile path not found: {pth}")
+            sys.exit(f"ERROR: profile path not found: {pth}. observed: no file at that path. inspect: --profile-path")
         # Reuse slm_intent's parser, which validates required keys.
         return _parse_profile(pth.stem, pth)
     invalidate_profile_cache()
@@ -69,7 +69,8 @@ def _load_profile_with_path(name: str | None, path: str | None) -> Profile:
         sys.exit(
             f"ERROR: profile {name!r} not found in config/slm/. "
             f"Use --profile-path /full/path.yaml, or copy "
-            f"config/slm/enrich_custom_stub.yaml to make your own."
+            f"config/slm/enrich_custom_stub.yaml to make your own. "
+            f"observed: no config/slm/{name}.yaml. inspect: --profile / --profile-path"
         )
     return prof
 

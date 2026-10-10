@@ -304,7 +304,8 @@ def assert_no_deprecated_pg_url_on_install() -> None:
             f"renamed: use {new} for the data-warehouse (pg_sync) DSN, or "
             f"M3_PRIMARY_PG_URL for a PostgreSQL PRIMARY store. Unset {old} and "
             f"set the correct one, then re-run. (See CHANGELOG: 'PG_URL split by "
-            f"role'.) Refusing to install/upgrade with an ambiguous {old} set."
+            f"role'.) Refusing to install/upgrade with an ambiguous {old} set. "
+            f"observed: {old} is set. inspect: {old}, {new}, M3_PRIMARY_PG_URL"
         )
 
 
@@ -1100,7 +1101,8 @@ def resolve_backend_name() -> str:
     if raw not in SELECTABLE_BACKENDS:
         raise ValueError(
             f"M3_DB_BACKEND={raw!r} is not recognized; expected one of {SELECTABLE_BACKENDS}. "
-            f"Unset it to use the default 'sqlite'."
+            f"Unset it to use the default 'sqlite'. "
+            f"observed: M3_DB_BACKEND={raw!r}. inspect: M3_DB_BACKEND (or the legacy DB_BACKEND)"
         )
     return raw
 

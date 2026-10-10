@@ -677,7 +677,8 @@ class M3Context:
             raise RuntimeError(
                 "Data-warehouse DSN not found. Set M3_CDW_PG_URL (or store PG_URL "
                 "in the keychain). NOTE: M3_PG_URL is the PRIMARY-store var and is "
-                "no longer read here."
+                "no longer read here. "
+                "observed: M3_CDW_PG_URL unset and no PG_URL in the keychain. inspect: M3_CDW_PG_URL"
             )
         last_exc = None
         for attempt in range(2):

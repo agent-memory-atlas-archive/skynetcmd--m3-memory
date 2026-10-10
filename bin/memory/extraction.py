@@ -394,7 +394,9 @@ class CustomScriptExtractor(BaseExtractor):
 
             spec = importlib.util.spec_from_file_location("custom_extractor_mod", str(path))
             if spec is None or spec.loader is None:
-                raise ValueError(f"Could not load spec for {path}")
+                raise ValueError(
+                    f"Could not load spec for {path}. observed: importlib returned no loader. inspect: {path}"
+                )
 
             mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(mod)

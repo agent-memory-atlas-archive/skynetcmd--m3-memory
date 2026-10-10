@@ -40,7 +40,10 @@ def file_lock(lock_path: str, *, purpose: str):
                 lock = m3_core_rs.NativeMigrationLock(lock_path)
                 acquired = lock.acquire(120)
                 if not acquired:
-                    raise RuntimeError(f"Could not acquire native {purpose} lock at {lock_path} within 120 seconds.")
+                    raise RuntimeError(
+                        f"Could not acquire native {purpose} lock at {lock_path} within 120 seconds. "
+                        f"observed: the lock stayed held for 120 s. inspect: the process holding {lock_path}"
+                    )
                 try:
                     yield
                 finally:
@@ -80,7 +83,8 @@ def file_lock(lock_path: str, *, purpose: str):
         raise RuntimeError(
             f"Could not acquire {purpose} lock at {lock_path} within 120 seconds. "
             f"Another process holding it may be hung. If you are sure none is running, "
-            f"delete the lock file manually: {lock_path}"
+            f"delete the lock file manually: {lock_path}. "
+            f"observed: the lock stayed held for 120 s. inspect: the process holding {lock_path}"
         )
 
     try:

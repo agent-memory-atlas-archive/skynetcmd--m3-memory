@@ -324,7 +324,8 @@ def _verify_schema(db_path: Path, store: str = "core") -> None:
         for tbl, cols in required.items():
             if conn.execute(*d.table_exists(tbl)).fetchone() is None:
                 raise RuntimeError(
-                    f"Table {tbl!r} not found in {db_path}. Run `python bin/migrate_memory.py --db {db_path} up` first."
+                    f"Table {tbl!r} not found in {db_path}. Run `python bin/migrate_memory.py --db {db_path} up` first. "
+                    f"observed: no {tbl} table. inspect: the --db path, and its migrations"
                 )
             have = {r[0] for r in conn.execute(*d.columns_of(tbl)).fetchall()}
             for col in cols:

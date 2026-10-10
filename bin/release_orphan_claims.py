@@ -72,7 +72,7 @@ def main() -> int:
 
     db = Path(args.db).resolve()
     if not db.exists():
-        sys.exit(f"ERROR: db not found: {db}")
+        sys.exit(f"ERROR: db not found: {db}. observed: no file at that path. inspect: --db / M3_DATABASE")
 
     # Route through the storage seam so this reads/writes the LIVE core store on
     # both backends (on PG-primary a raw sqlite3.connect would hit a stale file).

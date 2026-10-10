@@ -820,7 +820,10 @@ async def _main_async(args) -> int:
         if chatlog_db:
             db_targets.append(("chatlog", chatlog_db))
     if not db_targets:
-        sys.exit("ERROR: no DBs found to enrich. Set M3_DATABASE / M3_CHATLOG_DATABASE or use --core-db/--chatlog-db.")
+        sys.exit(
+            "ERROR: no DBs found to enrich. Set M3_DATABASE / M3_CHATLOG_DATABASE or use --core-db/--chatlog-db. "
+            "observed: no core or chatlog store resolved. inspect: M3_DATABASE, M3_CHATLOG_DATABASE, --core-db"
+        )
 
     # Build dry-run plan first (cheap; useful as both preview AND the
     # source of truth for cost/wall estimates we print at the end).

@@ -968,7 +968,10 @@ class PostgresBackend:
             minconn = int(getenv_compat("M3_PG_POOL_MIN", "", str(_DEFAULT_MINCONN)) or _DEFAULT_MINCONN)
             maxconn = int(getenv_compat("M3_PG_POOL_MAX", "", str(_DEFAULT_MAXCONN)) or _DEFAULT_MAXCONN)
             if maxconn < minconn:
-                raise ValueError(f"M3_PG_POOL_MAX ({maxconn}) < M3_PG_POOL_MIN ({minconn})")
+                raise ValueError(
+                    f"M3_PG_POOL_MAX ({maxconn}) < M3_PG_POOL_MIN ({minconn}). "
+                    f"observed: max {maxconn}, min {minconn}. inspect: M3_PG_POOL_MAX, M3_PG_POOL_MIN"
+                )
             # Pin the CLIENT encoding instead of inheriting the server's.
             # psycopg2 adopts the server encoding, so against a SQL_ASCII
             # cluster every non-ASCII character m3 writes raises
