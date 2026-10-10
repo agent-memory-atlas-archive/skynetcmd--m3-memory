@@ -97,7 +97,7 @@ def test_link_supplies_id_pk_on_pg(pg):
     uid = f"link-{uuid.uuid4().hex[:8]}"
     a, b = _new(uid, title="A"), _new(uid, title="B")
     assert "Linked" in MC.memory_link_impl(a, b, "related")
-    assert "Linked" in MC.memory_link_impl(a, b, "related")   # idempotent, no dup/raise
+    assert "Link already exists" in MC.memory_link_impl(a, b, "related")   # idempotent, no dup/raise
     # Exactly one edge row exists for the pair.
     from memory.backends import dialect
     from memory.db import _db

@@ -1412,26 +1412,9 @@ def memory_link_bulk_impl(links, relationship_type: str = "related"):
 
 
 def _memory_link_inner(from_id: str, to_id: str, relationship_type: str, db) -> str:
-    from memory.backends import dialect as _dialect
-    _d = _dialect()
-    _p = _d.param()
-    # Verify both items exist
-    for mid in (from_id, to_id):
-        if not db.execute(f"SELECT id FROM memory_items WHERE id = {_p}", (mid,)).fetchone():
-            return f"Error: memory {mid} not found"
-    # Check for duplicate link
-    existing = db.execute(
-        f"SELECT id FROM memory_relationships WHERE from_id = {_p} AND to_id = {_p} AND relationship_type = {_p}",
-        (from_id, to_id, relationship_type)
-    ).fetchone()
-    if existing:
-        return f"Link already exists: {existing['id']}"
-    rid = str(uuid.uuid4())
-    db.execute(
-        f"INSERT INTO memory_relationships (id, from_id, to_id, relationship_type, created_at) VALUES ({_d.placeholder(5)})",
-        (rid, from_id, to_id, relationship_type, datetime.now(UTC).isoformat())
-    )
-    return f"Linked: {from_id} --[{relationship_type}]--> {to_id} (id: {rid})"
+    """The validated single link, on a caller's connection. memory_link_impl is
+    the owner (it regained this function's checks, 2026-10-10)."""
+    return memory_link_impl(from_id, to_id, relationship_type, db=db)
 
 
 

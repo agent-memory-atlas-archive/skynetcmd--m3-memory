@@ -433,6 +433,22 @@ def _mc_callable(mc, name: str, default):
     return val if callable(val) else default
 
 
+def _explain_unscored(hits, explain: bool, source: str) -> None:
+    """Give rows that skipped scoring an explanation when one was asked for.
+
+    The exact-substring short-circuit and the no-query-vector fallback return
+    before the hybrid scorer runs, so they carry no _explanation, and an
+    explain=True search (memory_suggest) printed nothing about why a row came
+    back: the explanation was dropped without a word (§3). The formatter renders
+    a non-hybrid explanation as its ``Source:``.
+    """
+    if not explain:
+        return
+    for _score, item in hits:
+        if isinstance(item, dict) and "_explanation" not in item:
+            item["_explanation"] = {"source": source, "reason": source}
+
+
 def _fts_only_results(query, search_mode, k, user_id, scope, extra_columns,
                       row_filter: dict | None = None):
     """Bm25-ranked FTS keyword results, in the memory_search_scored_impl row shape.
@@ -858,6 +874,7 @@ async def memory_search_scored_impl(
                     # `last_accessed_at` authorises `memory_grade`, so grading
                     # the result of a precise search always failed as stale.
                     _hits = exact_hits[:k]
+                    _explain_unscored(_hits, explain, "exact substring match (keyword short-circuit, no vector scoring)")
                     _stamp_retrieved(_hits)
                     return _hits
                 if exact_hits:
@@ -873,6 +890,7 @@ async def memory_search_scored_impl(
                     # optimisation this short-circuit exists for -- skipping an
                     # EMBED -- is preserved for the >= k case above, which is
                     # the only case where it could ever have answered in full.
+                    _explain_unscored(exact_hits, explain, "exact substring match (keyword short-circuit, no vector scoring)")
                     _sc_exact = exact_hits
                     logger.info(
                         "FTS Short-Circuit found %d exact match(es) for %r, "
@@ -940,6 +958,7 @@ async def memory_search_scored_impl(
         # Third early return, same reason as the short-circuit above: this path
         # answers in full when the embedder is down, so without stamping here a
         # degraded-mode search would return memories that can never be graded.
+        _explain_unscored(fts_fallback, explain, "keyword fallback: no query vector (embedder unavailable)")
         _stamp_retrieved(fts_fallback)
         return fts_fallback
     # The embeddings join is dim-filtered (me.dim = ? below) and the query is

@@ -216,18 +216,38 @@ def memory_link_impl(from_id: str, to_id: str, relationship_type: str = "related
     # DO-NOTHINGs regardless of the new id.
     import uuid as _uuid
     from contextlib import nullcontext
+
+    # Validation and the duplicate report were memory_core._memory_link_inner's;
+    # the Phase 7/8 move into this module (34ea99a1) dropped them, so the tool
+    # accepted any type and answered a no-op as "Linked". Restored here, the owner.
+    # Internal callers may also write the internal types (distills_from); the
+    # memory_link tool's schema enum offers an agent only the public set.
+    from catalog.spec import INTERNAL_RELATIONSHIP_TYPES, VALID_RELATIONSHIP_TYPES
+    if relationship_type not in VALID_RELATIONSHIP_TYPES | INTERNAL_RELATIONSHIP_TYPES:
+        return (f"Error: invalid relationship_type. observed: {relationship_type!r}. "
+                f"inspect: one of {sorted(VALID_RELATIONSHIP_TYPES)} (catalog.spec)")
+    _p = _d.param()
+    rid = str(_uuid.uuid4())
     # A caller-supplied connection is used AS IS: the caller's own context owns
     # commit/rollback. Routing it through `_db(db)` only worked under test fakes
     # that accept an `existing` argument; the canonical `_db()` takes none, so
     # every production `db=` caller (distillation, consolidation) raised
     # TypeError after its memory write had already landed.
     with (nullcontext(db) if db is not None else _db()) as db_conn:
-        db_conn.execute(
+        for mid in (from_id, to_id):
+            if not db_conn.execute(f"SELECT 1 FROM memory_items WHERE id = {_p}", (mid,)).fetchone():
+                return f"Error: memory not found. observed: {mid}. inspect: memory_get {mid}"
+        cur = db_conn.execute(
             f"{_ins} memory_relationships (id, from_id, to_id, relationship_type) "
             f"VALUES ({_d.placeholder(4)}) {_suffix}".rstrip(),
-            (str(_uuid.uuid4()), from_id, to_id, relationship_type)
+            (rid, from_id, to_id, relationship_type)
         )
-    return f"Linked {from_id} --[{relationship_type}]--> {to_id}"
+        if cur.rowcount == 0:  # the (from, to, type) arbiter: already linked
+            row = db_conn.execute(
+                f"SELECT id FROM memory_relationships WHERE from_id = {_p} AND to_id = {_p} "
+                f"AND relationship_type = {_p}", (from_id, to_id, relationship_type)).fetchone()
+            return f"Link already exists: {row[0] if row else '?'}"
+    return f"Linked: {from_id} --[{relationship_type}]--> {to_id} (id: {rid})"
 
 async def memory_write_impl(
 type, content, title="", metadata="{}", agent_id="", model_id="", change_agent="", importance=0.5, source="agent", embed=True, user_id="", scope="agent", valid_from="", valid_to="", auto_classify=False, conversation_id="", refresh_on="", refresh_reason="", variant=None, embed_text=None, confidence: float = -1.0, fact_enricher: Callable[[str], Awaitable[list[dict]]] | None = None, fact_enricher_variant_allowlist: set[str] | None = None, entity_extractor: Callable[[str], Awaitable[dict]] | None = None, entity_extractor_variant_allowlist: set[str] | None = None, check_contradictions: bool = True):

@@ -156,7 +156,6 @@ def cleanup():
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
 async def run(lm_online: bool, jina_loaded: bool) -> bool:
-    import memory_core
     from memory_bridge import (
         VALID_MEMORY_TYPES,
         _content_hash,
@@ -856,13 +855,17 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
 
     # ── 37: Configurable Constants ───────────────────────────────────────
     print("\n── 37: Configurable Constants ──────────────────────────────────")
-    import importlib
-    os.environ["SEARCH_ROW_CAP"] = "999"
-    importlib.reload(memory_core)
-    check("SEARCH_ROW_CAP configurable", memory_core.SEARCH_ROW_CAP == 999)
-    # Restore
-    os.environ["SEARCH_ROW_CAP"] = "500"
-    importlib.reload(memory_core)
+    # Settings are read once, at import (memory.config._setting: "restart
+    # required"), so configurability is checked in a fresh process, through the
+    # canonical name. Re-importing in this process tested the pre-2D.1 contract.
+    probe = await asyncio.create_subprocess_exec(
+        sys.executable, "-c", "import memory_core; print(memory_core.SEARCH_ROW_CAP)",
+        cwd=os.path.join(BASE_DIR, "bin"), env={**os.environ, "M3_SEARCH_ROW_CAP": "999"},
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    out, err = await asyncio.wait_for(probe.communicate(), timeout=120)
+    lines = out.decode(errors="replace").strip().splitlines()
+    check("SEARCH_ROW_CAP configurable", lines[-1:] == ["999"],
+          (lines[-1] if lines else err.decode(errors="replace"))[-120:])
 
     # ── 38: Portable Export/Import ───────────────────────────────────────
     print("\n── 38: Portable Export/Import ──────────────────────────────────")
@@ -888,7 +891,11 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
     # ── 39: memory_suggest ───────────────────────────────────────────────
     print("\n── 39: memory_suggest ──────────────────────────────────────────")
     suggest_res = await memory_suggest(query="Export Test Content")
-    check("suggest returns breakdown", "Breakdown:" in suggest_res and "vector=" in suggest_res)
+    # A scored row explains itself as a Breakdown; one that skipped scoring (the
+    # exact-substring short-circuit, or no query vector) names its Source. It
+    # printed nothing for the latter until 2026-10-10.
+    check("suggest explains every result",
+          "Breakdown:" in suggest_res or "Source:" in suggest_res, suggest_res[:160])
 
     # ── 40: memory_consolidate ───────────────────────────────────────────
     print("\n── 40: memory_consolidate ──────────────────────────────────────")
@@ -912,8 +919,17 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
         auto_res = await memory_write(type="auto", content="There is a bug in the login screen where the password field doesn't mask characters.", title="Login bug", agent_id=AGENT)
         auto_id = auto_res.split("Created: ")[1].split()[0]
 
+        # Zero-lag write path (2026-07-03): the row is stored as type='auto' and
+        # the cognitive loop's classification pass sets the real type off the
+        # write path. Check both halves of that contract, not the old inline one.
+        check("auto write deferred as type='auto'", json.loads(memory_get(auto_id))["type"] == "auto")
+        from types import SimpleNamespace
+
+        from m3_cognitive_loop import run_classify_pass
+        await run_classify_pass(SimpleNamespace(database=DB_PATH, limit_per_pass=50))
         item_data = json.loads(memory_get(auto_id))
-        check("auto-classify assigned a type", item_data["type"] != "auto" and item_data["type"] in VALID_MEMORY_TYPES)
+        check("auto-classify assigned a type", item_data["type"] != "auto" and item_data["type"] in VALID_MEMORY_TYPES,
+              f"type={item_data['type']!r} after the classification pass")
         print(f"   Classified as: {item_data['type']}")
     else:
         skip("LLM Auto-Classification", "local LLM offline")

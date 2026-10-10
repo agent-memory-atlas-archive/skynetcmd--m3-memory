@@ -1,8 +1,8 @@
 ---
 tool: bin/test_memory_bridge.py
-sha1: 8142ffad12d0
-mtime_utc: 2026-10-10T17:06:18.030308+00:00
-generated_utc: 2026-10-10T17:06:38.042918+00:00
+sha1: 362963145f9d
+mtime_utc: 2026-10-10T17:29:16.814567+00:00
+generated_utc: 2026-10-10T17:34:53.654856+00:00
 private: false
 ---
 
@@ -23,7 +23,7 @@ embedding model is not loaded in LM Studio.
 ## Entry points
 
 - `async def run()` (line 158)
-- `async def main()` (line 1205)
+- `async def main()` (line 1221)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -38,17 +38,16 @@ _(no argparse arguments detected)_
 
 - `COMPUTERNAME`
 - `HOSTNAME`
-- `SEARCH_ROW_CAP`
 
 ---
 
 ## Calls INTO this repo (intra-repo imports)
 
 - `auth_utils (get_api_key)`
+- `m3_cognitive_loop (run_classify_pass)`
 - `m3_sdk (getenv_compat)`
 - `m3_sdk (resolve_db_path)`
 - `memory_bridge (VALID_MEMORY_TYPES, _content_hash, _ensure_sync_tables, agent_get, agent_heartbeat, agent_list, agent_offline, agent_register, conversation_append, conversation_messages, conversation_search, conversation_start, conversation_summarize, gdpr_export, gdpr_forget, memory_consolidate, memory_cost_report, memory_delete, memory_export, memory_get, memory_graph, memory_handoff, memory_history, memory_import, memory_inbox, memory_inbox_ack, memory_link, memory_maintenance, memory_search, memory_set_retention, memory_suggest, memory_update, memory_verify, memory_write, notifications_ack, notifications_ack_all, notifications_poll, notify, task_assign, task_create, task_get, task_list, task_set_result, task_tree, task_update)`
-- `memory_core`
 
 ---
 
@@ -64,11 +63,11 @@ _(no argparse arguments detected)_
 ## Notable external imports
 
 - `httpx`
-- `importlib`
 - `m3_core.context (open_pointed_store)`
 - `m3_core.paths (seam_backend, seam_dialect, store_is_a_file)`
 - `memory.db (_db)`
 - `platform`
+- `types (SimpleNamespace)`
 
 ---
 

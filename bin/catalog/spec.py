@@ -75,6 +75,13 @@ VALID_RELATIONSHIP_TYPES = frozenset({
     "related", "supports", "contradicts", "extends", "supersedes", "references",
     "message", "consolidates", "handoff", "precedes", "follows",
 })
+# Edge types m3 writes itself but does not offer an agent: they can appear in
+# memory_graph, and memory_link_impl accepts them from internal callers, while
+# the memory_link tool's enum (VALID_RELATIONSHIP_TYPES) refuses them
+# (docs/AGENT_INSTRUCTIONS.md, docs/TECHNICAL_DETAILS.md).
+INTERNAL_RELATIONSHIP_TYPES = frozenset({
+    "distills_from",  # procedure distillation (memory_maintenance)
+})
 
 # Canonical UUID shape (8-4-4-4-12 hex). Mutating tools (supersede/delete)
 # require a full UUID, not the 8-char prefix that memory_get accepts for reads

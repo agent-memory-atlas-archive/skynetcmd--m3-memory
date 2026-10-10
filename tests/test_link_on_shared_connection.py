@@ -29,6 +29,8 @@ def test_link_with_a_shared_connection_uses_it(tmp_path, monkeypatch):
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
     try:
+        for mid in ("a" * 8, "b" * 8):  # memory_link_impl refuses a dangling edge
+            conn.execute("INSERT INTO memory_items (id, type, content) VALUES (?, 'note', 'x')", (mid,))
         out = W.memory_link_impl("a" * 8, "b" * 8, "distills_from", db=conn)
         conn.commit()
         assert out.startswith("Linked"), out
