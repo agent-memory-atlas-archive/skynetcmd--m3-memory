@@ -26,6 +26,7 @@ verifiable directly, and that is what is pinned here.
 
 from __future__ import annotations
 
+import ast
 import inspect
 import os
 import sys
@@ -116,10 +117,17 @@ def test_every_path_resolves_columns_through_one_owner():
     particular column is in it (§10a).
     """
     src = inspect.getsource(S)
-    # The SET LITERAL specifically -- a caller passing a couple of column names
-    # (line ~2470) or a docstring listing them is not a second allowlist. Anchor
-    # on the pair that only the allowlist definition contains.
-    copies = src.count('"corroboration_count", "contradiction_count",')
+    # A collection LITERAL holding both names, read from the AST -- a docstring
+    # listing them is not a second allowlist. The first version counted the
+    # text '"corroboration_count", "contradiction_count",' and read 0 once ruff
+    # format put one element per line (2026-10-10).
+    pair = {"corroboration_count", "contradiction_count"}
+    copies = sum(
+        1
+        for node in ast.walk(ast.parse(src))
+        if isinstance(node, (ast.Set, ast.List, ast.Tuple))
+        and pair <= {e.value for e in node.elts if isinstance(e, ast.Constant)}
+    )
     assert copies == 1, (
         f"the extra-column allowlist appears {copies} times — import "
         f"_resolve_extra_columns instead of writing a second copy"

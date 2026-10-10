@@ -53,6 +53,9 @@ _ALLOWED = {
     "files_memory/schema.py",
 }
 
+# Keyword arguments whose plain-string value is CLI prose, not a query.
+_PROSE_KWARGS = frozenset({"help", "description", "epilog"})
+
 _RULES = [
     (
         "byte_length",
@@ -134,6 +137,15 @@ def _prose_lines(src: str) -> set[int]:
 
     out: set[int] = set()
     for node in ast.walk(tree):
+        # argparse prose: a plain string passed as help=/description=/epilog=
+        # is never SQL. `help="Only rows with created_at >= this ISO timestamp."`
+        # matched date_bound once ruff format joined `--since` onto that line
+        # (2026-10-10). Plain constants only -- an f-string keyword still scans.
+        if isinstance(node, ast.keyword) and node.arg in _PROSE_KWARGS:
+            val = node.value
+            if isinstance(val, ast.Constant) and isinstance(val.value, str):
+                out.update(range(node.lineno, getattr(node, "end_lineno", node.lineno) + 1))
+            continue
         if not isinstance(node, ast.Expr):
             continue
         val = node.value
@@ -209,6 +221,14 @@ class TestSqlDialectDrift(unittest.TestCase):
         by_name = {n: p for n, p, _ in _RULES}
         for name, sample in cases:
             self.assertRegex(sample, by_name[name], f"{name} pattern went blind")
+
+    def test_cli_prose_is_skipped_and_sql_is_not(self):
+        """help= text is prose; the same words in a query on the next line are not."""
+        src = (
+            'p.add_argument("--since", default="", help="Only rows with created_at >= this ISO timestamp.")\n'
+            'if since: clauses.append(f"mi.created_at>={since}")\n'
+        )
+        self.assertEqual(_prose_lines(src), {1}, "argparse help= is not treated as prose")
 
 
 if __name__ == "__main__":

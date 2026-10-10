@@ -13,6 +13,7 @@ ambient path. Both halves of that trap are pinned below.
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import pathlib
 import sys
@@ -124,10 +125,18 @@ def test_detection_does_not_import_m3_memory():
 
     On Windows that is a file-locking failure, not a theoretical one.
     """
-    src = (_BIN / "m3_upgrade.py").read_text(encoding="utf-8")
-    assert "import m3_memory" not in src.replace('"import m3_memory,pathlib;"', ""), (
-        "m3_upgrade.py must not import m3_memory at module scope"
-    )
+    # Import statements read from the AST, so the probe a subprocess runs
+    # ("import m3_memory,pathlib;...") is a string and never counts. The first
+    # version subtracted that string's exact text, and broke when ruff format
+    # joined its implicit concatenation (2026-10-10).
+    tree = ast.parse((_BIN / "m3_upgrade.py").read_text(encoding="utf-8"))
+    imported = [
+        f"line {node.lineno}"
+        for node in ast.walk(tree)
+        if (isinstance(node, ast.Import) and any(a.name.split(".")[0] == "m3_memory" for a in node.names))
+        or (isinstance(node, ast.ImportFrom) and (node.module or "").split(".")[0] == "m3_memory")
+    ]
+    assert not imported, f"m3_upgrade.py imports m3_memory: {imported}"
 
 
 def test_sibling_interpreter_probe_is_isolated():
