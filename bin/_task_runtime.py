@@ -35,8 +35,6 @@ import subprocess
 import sys
 import time
 
-from m3_core.seams import is_windows
-
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 
@@ -70,9 +68,11 @@ def no_window_kwargs() -> dict:
     installer subprocess would have gone silent and a failing `pip install`
     would have printed only "[ERROR] Command failed" with the reason gone.
     """
-    if is_windows():
-        return {"creationflags": subprocess.CREATE_NO_WINDOW}
-    return {}
+    # The capability, not the OS identity: the flag exists only where a console
+    # window does. Also keeps a test that simulates Windows on POSIX off an
+    # attribute this interpreter does not have (DESIGN_PHILOSOPHIES §10a rule 3).
+    flag = getattr(subprocess, "CREATE_NO_WINDOW", None)
+    return {"creationflags": flag} if flag is not None else {}
 
 # Module-level guard so a double call (e.g. re-import) is a no-op rather than
 # stacking redirects / handlers.

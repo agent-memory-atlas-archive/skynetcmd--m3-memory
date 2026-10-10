@@ -98,9 +98,12 @@ def hidden_window_kwargs() -> dict:
     CPU, every parent exited), each parked on a prompt behind a window nobody
     asked for.
     """
-    if sys.platform != "win32":
-        return {}
     import subprocess
+
+    # The capability, not the OS identity: STARTUPINFO exists only where a
+    # console window does, so a simulated Windows on POSIX gets {} as well.
+    if not hasattr(subprocess, "STARTUPINFO"):
+        return {}
 
     si = subprocess.STARTUPINFO()
     si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
