@@ -113,7 +113,7 @@ def test_missing_payload_reports_and_fails(monkeypatch, capsys):
     assert "m3_halt.py not found" in capsys.readouterr().err
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="service managers are macOS/Linux")
+@pytest.mark.requires_posix  # service managers are macOS/Linux
 def test_supervised_services_are_stopped_through_the_manager(fake_halt, capsys):
     fake_halt.sched.stopped = ["m3-cognitive-loop.service"]
     fake_halt.results = []
@@ -198,7 +198,7 @@ def test_quiet_still_reports_what_it_stopped_and_failures(fake_halt, capsys):
     assert "could NOT stop mcp (pid 3)" in cap.err
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="service managers are macOS/Linux")
+@pytest.mark.requires_posix  # service managers are macOS/Linux
 def test_a_registered_rust_embed_server_is_left_running(fake_halt):
     """It holds no store and its binary is not part of the m3 payload; stopping
     it only cut agents off from embeddings for the length of an upgrade."""
@@ -236,7 +236,7 @@ def test_quiet_with_nothing_running_prints_nothing(fake_halt, capsys):
     assert capsys.readouterr().out == ""
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="service managers are macOS/Linux")
+@pytest.mark.requires_posix  # service managers are macOS/Linux
 @pytest.mark.parametrize("from_upgrade", [True, False])
 def test_services_are_one_line_under_the_upgrade(fake_halt, capsys, monkeypatch, from_upgrade):
     fake_halt.sched.stopped = ["m3-cognitive-loop.service", "m3-dashboard.service"]

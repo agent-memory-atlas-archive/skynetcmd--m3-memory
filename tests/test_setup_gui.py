@@ -8,7 +8,6 @@ must stay correct, and the selector's no-loop guard is the safety-critical part.
 from __future__ import annotations
 
 import argparse
-import sys
 
 import pytest
 
@@ -144,7 +143,7 @@ def test_doctor_status_classifier_ignores_plain_lines():
     assert _doctor_line_status("") is None
 
 
-@pytest.mark.skipif(sys.platform != "darwin", reason="macOS embedder wording")
+@pytest.mark.requires_macos  # macOS embedder wording
 def test_macos_embedder_tooltips_name_metal_and_xcode():
     # On macOS the embedder tooltips must name the REAL back-end/prereqs so the
     # user isn't guessing (DESIGN_PHILOSOPHIES §3, §5). _apply_platform_tooltips

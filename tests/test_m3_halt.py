@@ -666,7 +666,7 @@ def test_kill_stale_daemons_spares_daemons_started_after_the_cutoff(monkeypatch)
     assert [r["pid"] for r in out] == [1001]
 
 
-@pytest.mark.skipif(sys.platform != "win32", reason="Windows OpenProcess semantics")
+@pytest.mark.requires_windows  # Windows OpenProcess semantics
 def test_a_process_we_may_not_open_is_still_alive():
     """OpenProcess on an elevated or SYSTEM process fails with ACCESS_DENIED.
     Reading that as "gone" let m3 stop report an elevated embed server as

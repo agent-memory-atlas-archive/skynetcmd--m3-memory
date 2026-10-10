@@ -60,7 +60,7 @@ def test_no_hardcoded_aes_buffer_sizes_remain():
     )
 
 
-@pytest.mark.skipif(sys.platform != "win32", reason="wolfSSL is installed at ~/.m3/lib on this host only")
+@pytest.mark.requires_windows  # wolfSSL is installed at ~/.m3/lib on this host only
 def test_fips_process_exits_cleanly():
     """End-to-end: a FIPS-mode process must exit 0.
 

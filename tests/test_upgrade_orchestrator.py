@@ -354,7 +354,7 @@ def test_other_holders_get_the_close_them_remedy(tmp_path, monkeypatch, capsys):
     assert "run the upgrade through Python" not in out
 
 
-@pytest.mark.skipif(sys.platform != "win32", reason="Windows file-locking semantics")
+@pytest.mark.requires_windows  # Windows file-locking semantics
 def test_an_open_launcher_is_reported_locked_and_left_intact(tmp_path):
     scripts, _pkg = _pip_install(tmp_path)
     with open(scripts / "m3.exe", "rb"):

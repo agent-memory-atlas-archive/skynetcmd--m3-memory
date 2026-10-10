@@ -8,7 +8,6 @@ from __future__ import annotations
 import os
 import stat
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -120,7 +119,7 @@ def test_a_key_from_another_registry_is_refused(tmp_path):
         set_values(_loc(tmp_path), {rogue: True})
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="POSIX mode bits")
+@pytest.mark.requires_posix  # POSIX mode bits
 def test_a_new_file_is_user_only(tmp_path):
     from m3_core.config.writer import set_values
 
@@ -129,7 +128,7 @@ def test_a_new_file_is_user_only(tmp_path):
     assert stat.S_IMODE(os.stat(loc.file).st_mode) == 0o600
 
 
-@pytest.mark.skipif(sys.platform != "win32", reason="Windows DACLs")
+@pytest.mark.requires_windows  # Windows DACLs
 def test_a_new_file_in_a_shared_directory_is_refused(tmp_path):
     from m3_core.config import Location
     from m3_core.config.writer import ConfigWriteError, set_values

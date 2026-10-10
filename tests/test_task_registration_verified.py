@@ -31,9 +31,7 @@ if _BIN not in sys.path:
 
 import install_schedules as isch  # noqa: E402
 
-_WINDOWS_ONLY = pytest.mark.skipif(
-    sys.platform != "win32", reason="schtasks is Windows-only"
-)
+_WINDOWS_ONLY = pytest.mark.requires_windows  # schtasks is Windows-only
 
 
 def test_the_success_path_verifies_rather_than_trusting_rc_zero():

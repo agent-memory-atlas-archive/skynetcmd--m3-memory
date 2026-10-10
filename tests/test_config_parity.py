@@ -136,7 +136,7 @@ def test_missing_baseline_is_not_a_pass(keyed, tmp_path):
     assert not (tmp_path / "absent.json").exists(), "check must never seed a baseline"
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="POSIX mode bits")
+@pytest.mark.requires_posix  # POSIX mode bits
 def test_group_readable_key_file_is_refused(keyed, tmp_path):
     import config_parity as cp
 

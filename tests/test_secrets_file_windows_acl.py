@@ -7,11 +7,10 @@ there would be readable by others, and a read refuses such a file.
 from __future__ import annotations
 
 import subprocess
-import sys
 
 import pytest
 
-windows_only = pytest.mark.skipif(sys.platform != "win32", reason="Windows DACLs")
+windows_only = pytest.mark.requires_windows  # Windows DACLs
 
 USER = "S-1-5-21-1-2-3-1001"
 

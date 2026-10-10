@@ -64,6 +64,23 @@ def test_the_budget_is_not_stale():
         f"OS checks outside the seam are down to {len(checks)}; lower _BUDGET to lock it in")
 
 
+# Tests follow the seam too: an OS-specific test carries an OS marker
+# (requires_windows / requires_posix / requires_macos / requires_linux /
+# requires_apple_silicon, probed through the seam in conftest) or asks the seam.
+# 70 checks at adoption; 25 single-comparison skipifs became markers.
+_TESTS_BUDGET = 45
+
+
+def test_os_checks_in_tests_do_not_grow():
+    checks, banned = _sites(("tests",))
+    assert not banned, f"platform.* in tests (WMI hang): {banned}"
+    assert len(checks) <= _TESTS_BUDGET, (
+        f"OS checks in tests rose from {_TESTS_BUDGET} to {len(checks)}; use an OS marker "
+        "(@pytest.mark.requires_windows, ...) or the OS seam instead")
+    assert len(checks) == _TESTS_BUDGET, (
+        f"OS checks in tests are down to {len(checks)}; lower _TESTS_BUDGET to lock it in")
+
+
 def test_the_gate_sees_each_form(tmp_path):
     (tmp_path / "bin").mkdir()
     (tmp_path / "bin" / "m.py").write_text(

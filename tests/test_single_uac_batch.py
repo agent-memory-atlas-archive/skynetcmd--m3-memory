@@ -153,7 +153,7 @@ def test_stale_detection_compares_process_start_with_core_install(monkeypatch, t
     assert [s["pid"] for s in embedder_admin.stale_embed_servers()] == [1]
 
 
-@pytest.mark.skipif(sys.platform != "win32", reason="Windows ACLs")
+@pytest.mark.requires_windows  # Windows ACLs
 def test_the_batch_workdir_names_the_user_so_elevated_results_are_readable():
     """mkdtemp's Python 3.13+ ACL is OWNER RIGHTS + SYSTEM + Administrators: a
     file the ELEVATED process writes there is owned by Administrators and the
@@ -180,7 +180,7 @@ def test_an_expired_prompt_runs_nothing():
     assert script.index("expired = 1") < first_action, "expiry check must come first"
 
 
-@pytest.mark.skipif(sys.platform != "win32", reason="evaluates the PowerShell condition")
+@pytest.mark.requires_windows  # evaluates the PowerShell condition
 @pytest.mark.parametrize("offset, expired", [(300, False), (-300, True)])
 def test_the_expiry_condition_holds_in_powershell(offset, expired):
     """Evaluate the rendered condition itself, unelevated. The first version

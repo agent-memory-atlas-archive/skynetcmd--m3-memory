@@ -256,11 +256,31 @@ _CAPABILITY_PROBES = {
 }
 
 
+# OS markers ask the OS seam (m3_memory/_platform.py), as code does, instead of
+# each test testing sys.platform / os.name itself. Not `integration`: an OS is
+# not an external service, so these tests stay in the hermetic lane.
+def _os_probes() -> dict:
+    from m3_memory._platform import is_apple_silicon, is_windows, os_name
+
+    return {
+        "requires_windows": (is_windows, "Windows only"),
+        "requires_posix": (lambda: not is_windows(), "POSIX only (macOS / Linux)"),
+        "requires_macos": (lambda: os_name() == "Darwin", "macOS only"),
+        "requires_linux": (lambda: os_name() == "Linux", "Linux only"),
+        "requires_apple_silicon": (is_apple_silicon, "Apple Silicon only"),
+    }
+
+
 def pytest_collection_modifyitems(config, items):
     """Auto-skip capability-marked tests whose resource is absent, and give every
     requires_* test the `integration` umbrella marker so `-m "not integration"`
     selects the hermetic lane in one expression. Probes are memoized per session
     so a marker used by 50 tests probes the cluster once, not 50 times."""
+    os_probes = _os_probes()
+    for item in items:
+        for m, (probe, reason) in os_probes.items():
+            if m in item.keywords and not probe():
+                item.add_marker(pytest.mark.skip(reason=reason))
     cache: dict[str, bool] = {}
 
     def _ok(marker: str) -> bool:

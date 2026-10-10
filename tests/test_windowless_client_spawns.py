@@ -101,7 +101,7 @@ def test_a_non_python_command_is_not_rewritten(win_scripts):
     assert gc._windowless(f"{win_scripts}/node.exe").endswith("node.exe")
 
 
-@pytest.mark.skipif(os.name != "nt", reason="Windows-only behaviour")
+@pytest.mark.requires_windows  # Windows-only behaviour
 def test_pythonw_really_can_write_to_a_captured_pipe():
     """THE premise the won't-fix rested on, tested rather than assumed.
 

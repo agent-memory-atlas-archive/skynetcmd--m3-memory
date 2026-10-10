@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import logging
-import sys
 
 import pytest
 
@@ -41,7 +40,7 @@ def test_keyring_beats_the_file(auth, monkeypatch):
     assert auth.get_api_key("OPENCLAW_GATEWAY_TOKEN") == "from-keyring"
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="POSIX mode bits")
+@pytest.mark.requires_posix  # POSIX mode bits
 def test_unsafe_file_is_reported_not_silently_skipped(auth, caplog):
     import os
 

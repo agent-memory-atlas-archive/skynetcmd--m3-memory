@@ -121,10 +121,7 @@ def test_discover_priority_lmstudio_wins_over_models_dir(monkeypatch, tmp_path):
 # ────────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.skipif(
-    sys.platform != "win32",
-    reason="tasklist-based scan is Windows-only by design",
-)
+@pytest.mark.requires_windows  # tasklist-based scan is Windows-only by design
 def test_find_running_returns_empty_list_on_no_matches(monkeypatch):
     """tasklist returns 'INFO: No tasks…' when nothing matches the filter."""
     fake_result = mock.Mock()
@@ -133,10 +130,7 @@ def test_find_running_returns_empty_list_on_no_matches(monkeypatch):
     assert setup_wizard._find_running_mcp_memory_processes() == []
 
 
-@pytest.mark.skipif(
-    sys.platform != "win32",
-    reason="tasklist-based scan is Windows-only by design",
-)
+@pytest.mark.requires_windows  # tasklist-based scan is Windows-only by design
 def test_find_running_parses_csv_pids(monkeypatch):
     """CSV-format tasklist output is parsed into a list of integer PIDs."""
     fake_result = mock.Mock()
@@ -1486,7 +1480,7 @@ def test_gguf_question_is_skipped_when_already_configured(monkeypatch, tmp_path)
     assert setup_wizard._shared_gguf_is(str(tmp_path / "other.gguf")) is False
 
 
-@pytest.mark.skipif(os.name == "nt", reason="shell rc files are POSIX")
+@pytest.mark.requires_posix  # shell rc files are POSIX
 def test_persist_skips_the_question_when_the_rc_already_has_it(monkeypatch, tmp_path):
     from m3_memory.wizard import persist
 

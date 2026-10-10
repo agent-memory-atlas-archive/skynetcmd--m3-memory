@@ -555,6 +555,12 @@ markers = [
     "requires_files_db: needs the shipped files_database.db present",
     "requires_memory_core: needs `import memory_core` to succeed (guards a broken transitive ML dep)",
     "requires_llm: needs a reachable local chat model (M3_WIKI_DRIFT_URL / LM Studio) for the citation-drift judge",
+    # OS markers: probed through the OS seam (m3_memory/_platform.py); hermetic, not integration.
+    "requires_windows: runs only on Windows",
+    "requires_posix: runs only on macOS / Linux",
+    "requires_macos: runs only on macOS",
+    "requires_linux: runs only on Linux",
+    "requires_apple_silicon: runs only on Apple Silicon macOS",
 ]
 # Warnings are ERRORS by default: a NEW, un-reviewed warning fails the suite, so it
 # can't slip in unnoticed. Every `ignore` below is a REVIEWED exception with its

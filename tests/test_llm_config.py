@@ -2,7 +2,6 @@
 import argparse
 import json
 import logging
-import os
 import sys
 from pathlib import Path
 
@@ -100,7 +99,7 @@ def test_setup_writes_nothing_when_only_the_default_is_reachable(config_root, mo
     assert not (config_root / llm_config.LLM_CONFIG_NAME).exists()
 
 
-@pytest.mark.skipif(os.name == "nt", reason="shell rc files are POSIX")
+@pytest.mark.requires_posix  # shell rc files are POSIX
 @pytest.mark.parametrize("text, expected", [
     ('export M3_ENABLE_OLLAMA_FAILOVER="1"\n', True),
     ("export M3_ENABLE_OLLAMA_FAILOVER=1  # m3\n", True),

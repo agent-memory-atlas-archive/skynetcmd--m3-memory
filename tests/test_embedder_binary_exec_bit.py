@@ -38,11 +38,7 @@ if str(_ROOT) not in sys.path:
 
 from m3_memory.embedder_admin import _ensure_executable  # noqa: E402
 
-_posix_only = pytest.mark.skipif(
-    os.name == "nt",
-    reason="Windows has no exec bit: os.access(X_OK) is always True and "
-           "os.chmod ignores 0o111, so the assertion cannot fail here",
-)
+_posix_only = pytest.mark.requires_posix  # Windows has no exec bit: os.access(X_OK) is always True and os.chmod ignores 0o111, so the assertion cannot fail here
 
 
 @_posix_only

@@ -149,7 +149,7 @@ def test_import_leaves_path_unchanged():
     assert os.environ.get("PATH") == before
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="scanner dirs are POSIX paths")
+@pytest.mark.requires_posix  # scanner dirs are POSIX paths
 def test_scanner_path_is_appended_not_substituted(monkeypatch):
     import os
     monkeypatch.setenv("PATH", "/opt/homebrew/bin:/usr/bin")

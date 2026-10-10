@@ -112,7 +112,7 @@ def test_headless_run_never_blocks_on_a_dialog():
     assert not ask.called, "headless run prompted for consent"
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="POSIX-only path")
+@pytest.mark.requires_posix  # POSIX-only path
 def test_posix_never_offers_uac():
     """Linux/macOS register user-level units — no privilege, so no prompt."""
     assert setup_wizard._offer_elevated_schedule_repair(
