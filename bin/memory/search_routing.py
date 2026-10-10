@@ -15,11 +15,15 @@ from __future__ import annotations
 
 import json
 import logging
-import sqlite3
 
 from m3_core.errors import log_swallowed
 
 from . import config
+
+# The sqlite-vec capability probe is the SQLite backend's (the database seam);
+# re-exported for the search path. Explicit `as` form: a ruff F401 fix must
+# not strip it.
+from .backends.sqlite_backend import _detect_sqlite_vec as _detect_sqlite_vec
 from .db import _db
 from .fts import _EVENT_PROPER_NOUN, _TEMPORAL_QUERY_RE, _TEMPORAL_ROUTER_RE
 
@@ -300,16 +304,6 @@ def is_temporal_query(query: str) -> bool:
         return False
     return bool(_TEMPORAL_ROUTER_RE.search(query))
 
-
-def _detect_sqlite_vec(db) -> bool:
-    """Return True if the sqlite-vec extension functions are available on the connection."""
-    if not isinstance(db, sqlite3.Connection):
-        return False
-    try:
-        db.execute("SELECT vec_version()")
-        return True
-    except Exception:  # noqa: BLE001 — capability probe; absent means the portable path
-        return False
 
 
 # ──────────────────────────────────────────────────────────────────────────────

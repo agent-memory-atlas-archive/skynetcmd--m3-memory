@@ -35,7 +35,6 @@ _DB_SEAM_ALLOWED_MEMORY = {
     # The two below are dialect-specific and belong INSIDE the seam; listed so
     # moving them is a visible to-do rather than a silent allowance.
     "memory.fts": "FTS5 / tsquery compilers (to move into the dialects)",
-    "memory.search_routing": "_detect_sqlite_vec, a capability probe (to move into sqlite_backend)",
 }
 
 

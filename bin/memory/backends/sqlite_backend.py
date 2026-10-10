@@ -400,6 +400,21 @@ class SqliteDialect(Dialect):
 SQLITE = SqliteDialect()
 
 
+def _detect_sqlite_vec(db: object) -> bool:
+    """True if the sqlite-vec extension functions are available on the connection:
+    the one owner of this SQLite capability probe (memory.search_routing
+    re-exports it for the search path)."""
+    import sqlite3
+
+    if not isinstance(db, sqlite3.Connection):
+        return False
+    try:
+        db.execute("SELECT vec_version()")
+        return True
+    except Exception:  # noqa: BLE001 — capability probe; absent means the portable path
+        return False
+
+
 @register_backend("sqlite", dialect=SQLITE)
 class SqliteBackend:
     """Adapter exposing the current SQLite path through the `StorageBackend` seam.
@@ -490,15 +505,10 @@ class SqliteBackend:
         """True iff sqlite-vec is loadable on ``conn``. Probes the GIVEN connection
         (never opens a new one), so a caller that already holds a conn — e.g.
         ``vector_search`` — checks against the same session without touching global
-        pool state. Reuses ``search_routing``'s canonical ``vec_version()`` probe.
-        Never raises: any failure means "no accelerator", the always-correct floor.
+        pool state. Never raises: any failure means "no accelerator", the
+        always-correct floor.
         """
-        try:
-            from ..search_routing import _detect_sqlite_vec
-
-            return bool(_detect_sqlite_vec(conn))
-        except Exception:  # noqa: BLE001 — capability probe; absent means the portable path
-            return False
+        return _detect_sqlite_vec(conn)
 
     @classmethod
     def from_store(cls, store) -> SqliteBackend:
