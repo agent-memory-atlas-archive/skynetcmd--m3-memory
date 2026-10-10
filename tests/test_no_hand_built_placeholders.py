@@ -23,16 +23,16 @@ _ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 ALLOWED = {
     # The SQLite dialect renders the token: the owner.
-    "bin/memory/backends/sqlite_backend.py": "SqliteDialect.placeholder, the owner",
+    "bin/memory/backends/sqlite_backend.py": "INHERENT: SqliteDialect renders `?`; it is the owner of the token",
     # Payload-less SQLite fallback for seam_dialect() (installer bootstrap).
-    "bin/m3_core/paths.py": "seam_dialect's SQLite fallback when memory.backends is absent",
+    "bin/m3_core/paths.py": "INHERENT: bootstrap fallback when the memory package is absent; SQLite is then the only backend",
     # Standalone end-to-end script that opens the SQLite file with sqlite3.connect.
-    "bin/test_memory_bridge.py": "sqlite3.connect on a SQLite file by construction",
+    "bin/test_memory_bridge.py": "PARITY GAP: the end-to-end bridge script exercises SQLite only (m3 parity task)",
     # SQLite by contract: refuse to run on another backend.
-    "bin/backfill_content_hash.py": "calls require_sqlite_backend",
-    "bin/m3_enrich_batch.py": "calls require_sqlite_backend",
+    "bin/backfill_content_hash.py": "PARITY GAP: content_hash backfill refuses PostgreSQL (m3 parity task; verify PG need)",
+    "bin/m3_enrich_batch.py": "PARITY GAP: batch-API enrichment refuses PostgreSQL (m3 parity task)",
     # Fallback dialect used only when the payload is absent (SQLite); see its docstring.
-    "bin/embed_backfill.py": "payload-less SQLite fallback dialect",
+    "bin/embed_backfill.py": "INHERENT: payload-less bootstrap fallback dialect; SQLite only exists then",
     # The query around it is SQLite SQL (json_extract), so PostgreSQL fails loud
     # on the whole statement; porting it is a query port, not a placeholder fix.
 }
@@ -80,21 +80,21 @@ def test_allowlist_has_no_stale_entries():
 # INLINE_ALLOWED lists the files that write one legitimately, each with its reason
 # (ALLOWED's files are exempt too). Docstrings do not count.
 INLINE_ALLOWED = {
-    "bin/m3_enrich_stage.py": "documented SQLite-only module (sqlite3.Connection; enrich gated to SQLite)",
-    "bin/m3_enrich_assign.py": "calls require_sqlite_backend",
-    "bin/migrate_entity_vocab.py": "calls require_sqlite_backend",
-    "bin/migrate_memory.py": "calls require_sqlite_backend",
-    "bin/build_kg_variant.py": "calls require_sqlite_backend",
-    "m3_memory/integrations/langchain/checkpoint.py": "M3Saver calls require_sqlite_backend (BLOB, executescript)",
-    "m3_memory/install/sections.py": "_sqlite_store_stats runs only under live == 'sqlite'",
-    "bin/chatlog_ingest.py": "reads a host app's own SQLite file (OpenCode part/session tables)",
-    "bin/chatlog_embed_sweeper.py": "embedding half runs only under the SQLite backend (resolve_backend_name gate)",
+    "bin/m3_enrich_stage.py": "PARITY GAP: enrichment queue stages are SQLite-only (m3 parity task)",
+    "bin/m3_enrich_assign.py": "PARITY GAP: send_to assignment refuses PostgreSQL (m3 parity task)",
+    "bin/migrate_entity_vocab.py": "PARITY GAP: v1->v2 vocabulary rename refuses PostgreSQL (m3 parity task; verify PG need)",
+    "bin/migrate_memory.py": "INHERENT: the SQLite migrator; PostgreSQL's is migrate_pg with the same schema_versions contract",
+    "bin/build_kg_variant.py": "PARITY GAP: KG-variant builder refuses PostgreSQL (m3 parity task)",
+    "m3_memory/integrations/langchain/checkpoint.py": "PARITY GAP: the LangGraph checkpointer (M3Saver) refuses PostgreSQL (m3 parity task)",
+    "m3_memory/install/sections.py": "PARITY GAP: the installer shows store stats for SQLite only (m3 parity task)",
+    "bin/chatlog_ingest.py": "INHERENT: reads OpenCode's own SQLite store (a host app's file, not m3's)",
+    "bin/chatlog_embed_sweeper.py": "INHERENT here: on PostgreSQL the cognitive loop's embed pass sweeps both stores (embed_backfill --target chatlog), verified 2026-10-10",
     # SQLite pool users: get_sqlite_conn() is SQLite whatever the backend. Whether
     # these should reach the active backend is a separate audit (m3 task), not a
     # placeholder fix; listed so the ratchet counts only seam connections.
-    "bin/m3_entities_gliner.py": "calls require_sqlite_backend (opens SQLite files directly)",
-    "bin/memory/search_routing.py": "the SQLite fused candidate builder: FTS5 + sqlite-vec, SQLITE-ONLY BY CONSTRUCTION (its docstring); where_sql comes from the seam",
-    "bin/m3_core/context.py": "owns the SQLite pool; its cohesion check runs on it",
+    "bin/m3_entities_gliner.py": "PARITY GAP: GLiNER entity extraction refuses PostgreSQL (m3 parity task)",
+    "bin/memory/search_routing.py": "INHERENT: the SQLite fused FTS5 + sqlite-vec builder; PostgreSQL's sibling is search_pg",
+    "bin/m3_core/context.py": "INHERENT: owns the SQLite pool (which refuses other backends)",
 }
 _INLINE_SQL = re.compile(r"\b(SELECT|INSERT|UPDATE|DELETE|WHERE|VALUES)\b", re.IGNORECASE)
 _INLINE_QMARK = re.compile(r"(=|<|>|\(|,|\bIN|\bLIKE|\bLIMIT|\bOFFSET|\bMATCH|\bGLOB)\s*\?")
@@ -156,3 +156,19 @@ def test_no_parameter_defaults_to_a_placeholder_literal():
                         hits.append(f"{rel}:{fn.lineno} {fn.name}({name}={d.value!r})")
     assert not hits, ("observed: a parameter defaults to a bind placeholder: " + ", ".join(hits)
                       + ". inspect: take it with no default, or call dialect().param()")
+
+
+# Functional parity (user rule, 2026-10-10): a SQLite-only path is allowed only
+# when the limitation is VERIFIED inherent; anything else is a parity gap to port.
+_PARITY_GAP_BUDGET = 10
+
+
+def test_every_exemption_is_inherent_or_a_named_parity_gap():
+    vague = [f"{k}: {v}" for k, v in {**ALLOWED, **INLINE_ALLOWED}.items()
+             if not v.startswith(("INHERENT", "PARITY GAP"))]
+    assert not vague, ("observed: an exemption that neither proves the limit inherent nor names "
+                       "the parity gap: " + "; ".join(vague)
+                       + ". inspect: prefix INHERENT: <verification> or PARITY GAP: <what PostgreSQL loses>")
+    gaps = sum(1 for v in {**ALLOWED, **INLINE_ALLOWED}.values() if v.startswith("PARITY GAP"))
+    assert gaps <= _PARITY_GAP_BUDGET, f"observed: {gaps} parity gaps (budget {_PARITY_GAP_BUDGET}); a new one needs a port, not an entry"
+    assert gaps == _PARITY_GAP_BUDGET, f"observed: {gaps} parity gaps; lower _PARITY_GAP_BUDGET to lock in the port"
