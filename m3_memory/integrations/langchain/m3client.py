@@ -43,7 +43,7 @@ from __future__ import annotations
 import asyncio
 import atexit
 import threading
-from collections.abc import Awaitable, Callable, Coroutine
+from collections.abc import Callable, Coroutine
 from concurrent.futures import Future
 from contextlib import nullcontext as _nullcontext
 from typing import Any, ClassVar, cast
@@ -190,12 +190,17 @@ class M3Client:
             # useful to report to and nothing left to salvage.
             pass
 
-    def _run(self, coro: Awaitable[Any]) -> Any:
+    def _run(self, coro: Coroutine[Any, Any, Any]) -> Any:
         """Run a coroutine on the shared loop from a sync caller and block."""
-        fut: Future = asyncio.run_coroutine_threadsafe(
-            coro,
-            self._loop,  # type: ignore[arg-type]
-        )
+        loop = self._loop
+        if loop is None:
+            coro.close()  # never awaited; close it so Python does not warn
+            raise RuntimeError(
+                "M3Client: the shared event loop is not running. "
+                "observed: no loop (shut down, or never started). "
+                "inspect: create the client before use, and do not call it after interpreter shutdown"
+            )
+        fut: Future = asyncio.run_coroutine_threadsafe(coro, loop)
         return fut.result(timeout=self._timeout)
 
     async def _run_async(self, coro_factory: Callable[[], Coroutine[Any, Any, Any]]) -> Any:
@@ -406,7 +411,7 @@ class M3Client:
         return cast("list[dict]", self._run(self._list_by_user_async(user_id, scope=scope, limit=limit)))
 
     # ── seam 3: direct impl call (bench-only bulk write; §11) ─────────────────
-    def _call_impl(self, fn: Callable[..., Awaitable[Any]], *fn_args: Any, **fn_kwargs: Any) -> Any:
+    def _call_impl(self, fn: Callable[..., Coroutine[Any, Any, Any]], *fn_args: Any, **fn_kwargs: Any) -> Any:
         """Call an m3 impl coroutine DIRECTLY on the shared loop.
 
         m3's own normal in-process pattern (124:1 vs the MCP-boundary
