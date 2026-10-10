@@ -112,3 +112,19 @@ def test_classifying_imports_nothing(each_backend, monkeypatch):
         assert is_defect(TimeoutError()) is False
     finally:
         monkeypatch.setattr(builtins, "__import__", real_import)
+
+
+def test_a_write_through_a_read_only_connection_is_a_defect(each_backend):
+    """Parity: SQLite says "attempt to write a readonly database", PostgreSQL
+    raises read_only_sql_transaction; both are a caller writing where it must not."""
+    from m3_sdk import resolve_db_path
+
+    with each_backend.connection() as conn:
+        conn.execute("SELECT 1").fetchone()
+    err = None
+    try:
+        with each_backend.open_readonly(str(resolve_db_path(None))) as conn:
+            conn.execute("CREATE TABLE ro_defect_probe (id INTEGER)")
+    except Exception as e:  # noqa: BLE001 -- the error is the test subject
+        err = e
+    assert err is not None and each_backend.is_query_defect(err), (each_backend.name, err)

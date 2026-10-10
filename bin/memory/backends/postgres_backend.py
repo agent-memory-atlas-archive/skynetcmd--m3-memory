@@ -1063,9 +1063,12 @@ class PostgresBackend:
         import sys
 
         pg = sys.modules.get("psycopg2")
-        if pg is None or not isinstance(exc, pg.ProgrammingError):
+        if pg is None or not isinstance(exc, pg.Error):
             return False
-        return getattr(exc, "pgcode", None) != "42P01"
+        code = getattr(exc, "pgcode", None)
+        if code == "25006":  # read_only_sql_transaction: a write through open_readonly,
+            return True      # as SQLite's "attempt to write a readonly database"
+        return isinstance(exc, pg.ProgrammingError) and code != "42P01"
 
     def placeholder(self, n: int = 1) -> str:
         """Positional binds for psycopg: ``placeholder(3) -> "%s, %s, %s"``."""
