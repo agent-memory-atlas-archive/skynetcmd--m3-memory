@@ -43,6 +43,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import skip_reason
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bin"))
 
 from memory.backends.postgres_backend import PostgresDialect  # noqa: E402
@@ -430,11 +432,11 @@ class TestSweepExpiredLeasesPostgresLive(unittest.TestCase):
         try:
             import psycopg  # noqa: F401
         except ImportError:  # pragma: no cover
-            raise unittest.SkipTest("psycopg not installed") from None
+            raise unittest.SkipTest(skip_reason("dep", "psycopg not installed")) from None
         from conftest import pg_dsn
         cls.url = pg_dsn()
         if not cls.url:  # requires_pg should already have skipped us
-            raise unittest.SkipTest("no throwaway PostgreSQL DSN configured")
+            raise unittest.SkipTest(skip_reason("db", "no throwaway PostgreSQL DSN configured"))
 
     def setUp(self):
         import psycopg

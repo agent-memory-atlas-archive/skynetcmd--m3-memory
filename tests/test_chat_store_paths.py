@@ -26,6 +26,8 @@ import pathlib
 import sys
 import unittest
 
+from conftest import skip_reason
+
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "bin"))
 
 import chatlog_config as C  # noqa: E402
@@ -154,7 +156,7 @@ class TestEnvPollutionCollapsesStores(unittest.TestCase):
         main = os.path.abspath(C._main_path_from_env() or C.MAIN_DB_PATH)
         chat = os.path.abspath(C.chatlog_db_path())
         if main == chat:
-            self.skipTest("unified topology: one store, nothing to collapse")
+            self.skipTest(skip_reason("na", "unified topology: one store, nothing to collapse"))
 
         os.environ["M3_DATABASE"] = main
         C.invalidate_cache()

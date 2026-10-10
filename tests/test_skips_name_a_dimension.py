@@ -14,14 +14,28 @@ _TESTS = pathlib.Path(__file__).resolve().parent
 _SKIPS = {"pytest.skip", "pytest.importorskip", "pytest.mark.skipif", "pytest.mark.skip"}
 
 
+# unittest's spellings too: self.skipTest(reason), raise unittest.SkipTest(reason),
+# @unittest.skip(reason) / skipIf(cond, reason) / skipUnless(cond, reason).
+_UNITTEST_FIRST_ARG = {"unittest.SkipTest", "unittest.skip"}
+_UNITTEST_SECOND_ARG = {"unittest.skipIf", "unittest.skipUnless"}
+
+
 def _untagged(tree: ast.AST) -> list[int]:
     out = []
     for n in ast.walk(tree):
-        if not (isinstance(n, ast.Call) and ast.unparse(n.func) in _SKIPS):
+        if not isinstance(n, ast.Call):
             continue
-        reason = next((kw.value for kw in n.keywords if kw.arg in ("reason", "msg")), None)
-        if reason is None and ast.unparse(n.func) in ("pytest.skip", "pytest.mark.skip") and n.args:
-            reason = n.args[0]
+        fn = ast.unparse(n.func)
+        if fn in _SKIPS:
+            reason = next((kw.value for kw in n.keywords if kw.arg in ("reason", "msg")), None)
+            if reason is None and fn in ("pytest.skip", "pytest.mark.skip") and n.args:
+                reason = n.args[0]
+        elif fn.endswith(".skipTest") or fn in _UNITTEST_FIRST_ARG:
+            reason = n.args[0] if n.args else None
+        elif fn in _UNITTEST_SECOND_ARG:
+            reason = n.args[1] if len(n.args) > 1 else None
+        else:
+            continue
         if not (isinstance(reason, ast.Call) and ast.unparse(reason.func) == "skip_reason"):
             out.append(n.lineno)
     return out

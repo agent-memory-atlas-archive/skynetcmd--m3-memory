@@ -6,6 +6,8 @@ import os
 import sys
 import unittest
 
+from conftest import skip_reason
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
 
@@ -96,7 +98,7 @@ class SubdivideDenseChunkTests(unittest.TestCase):
         text = "p" * 30000
         subs = self.mc._subdivide_dense_chunk(text, observed_tokens=12000)
         if len(subs) < 2:
-            self.skipTest("too few sub-chunks to verify overlap")
+            self.skipTest(skip_reason("na", "too few sub-chunks to verify overlap"))
         # We can't know positions from the strings alone (all 'p'), but we
         # can verify by checking total chars > len(text) (overlap implies
         # double-coverage of some chars).

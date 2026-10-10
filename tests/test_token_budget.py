@@ -30,6 +30,8 @@ import pathlib
 import sys
 import unittest
 
+from conftest import skip_reason
+
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "bin"))
 
 from memory import tokens as T  # noqa: E402
@@ -200,7 +202,7 @@ os._exit(0)  # precaution: skip finalization, where sentencepiece has faulted
 """
 
 
-@unittest.skipUnless(_HAVE_TOKENIZER, "transformers not installed")
+@unittest.skipUnless(_HAVE_TOKENIZER, skip_reason("dep", "transformers not installed"))
 class TestAgainstRealTokenizer(unittest.TestCase):
     """Ground truth. The content types here are exactly the ones that broke the
     legacy char/byte guards -- JSON and UUID lists are DENSER per character than
@@ -222,7 +224,7 @@ class TestAgainstRealTokenizer(unittest.TestCase):
                 f"tokenizer child exited {r.returncode}; stderr tail:\n{r.stderr[-2000:]}")
         out = json.loads(r.stdout)
         if "skip" in out:
-            raise unittest.SkipTest(out["skip"])
+            raise unittest.SkipTest(skip_reason("dep", out["skip"]))
         cls.lens = out["lens"]
         cls.special_overhead = out["special_overhead"]
 

@@ -36,6 +36,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import skip_reason
+
 _BIN = str(Path(__file__).resolve().parents[1] / "bin")
 if _BIN not in sys.path:
     sys.path.insert(0, _BIN)
@@ -173,7 +175,7 @@ class TestNoEmbeddedButUnfindableRows(unittest.TestCase):
         try:
             from memory.backends import active_backend
         except Exception as exc:  # pragma: no cover - seam unavailable
-            self.skipTest(f"seam not importable: {exc}")
+            self.skipTest(skip_reason("dep", f"seam not importable: {exc}"))
 
         import os
 
@@ -182,7 +184,8 @@ class TestNoEmbeddedButUnfindableRows(unittest.TestCase):
         )
         path = os.path.join(root, "agent_memory.db")
         if not os.path.isfile(path):
-            self.skipTest(f"no local engine store at {path}")
+            self.skipTest(skip_reason("env", f"no local engine store at {path} (the test sandbox "
+                                  "redirects M3_ENGINE_ROOT; `m3 doctor` runs this check live)"))
         return active_backend(), path
 
     def test_every_embedded_memory_has_a_default_vector(self):
@@ -200,7 +203,7 @@ class TestNoEmbeddedButUnfindableRows(unittest.TestCase):
             with backend.open_readonly(str(path)) as conn:
                 rows = unfindable_memories(conn, dialect(), limit=20)
         except Exception as exc:  # pragma: no cover - no store / no table yet
-            self.skipTest(f"store not queryable: {exc}")
+            self.skipTest(skip_reason("env", f"store not queryable: {exc}"))
 
         self.assertEqual(
             [], list(rows),

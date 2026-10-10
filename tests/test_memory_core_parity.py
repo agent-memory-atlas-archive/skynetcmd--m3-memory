@@ -33,6 +33,8 @@ import sys
 import unittest
 from pathlib import Path
 
+from conftest import skip_reason
+
 BIN_DIR = Path(__file__).resolve().parents[1] / "bin"
 sys.path.insert(0, str(BIN_DIR))
 
@@ -453,13 +455,18 @@ class MemoryCoreParityTests(unittest.TestCase):
                 "M3_MIGRATION_REFRESH_SNAPSHOT=1 and commit the result."
             )
 
-        if not SNAPSHOT_PATH.exists() or refresh:
+        if not SNAPSHOT_PATH.exists() and not refresh:
+            # A missing snapshot is a failure, never a silent re-baseline: the
+            # snapshot IS the parity contract.
+            self.fail(f"observed: the API-parity snapshot {SNAPSHOT_PATH} is missing. "
+                      "inspect: restore it from git, or set M3_MIGRATION_REFRESH_SNAPSHOT=1 "
+                      "to write a new one deliberately")
+        if refresh:
             SNAPSHOT_PATH.parent.mkdir(parents=True, exist_ok=True)
             SNAPSHOT_PATH.write_text(json.dumps(current, indent=2, sort_keys=True))
-            self.skipTest(
-                f"Snapshot written to {SNAPSHOT_PATH}. Re-run without "
-                "M3_MIGRATION_REFRESH_SNAPSHOT to enforce parity."
-            )
+            self.skipTest(skip_reason(
+                "na", f"snapshot refreshed at {SNAPSHOT_PATH}; re-run without "
+                "M3_MIGRATION_REFRESH_SNAPSHOT to enforce parity"))
 
         saved = json.loads(SNAPSHOT_PATH.read_text())
 
