@@ -60,6 +60,8 @@ jobs:
       run: mypy bin/ --ignore-missing-imports
     - name: Run Mypy on the installed package
       run: mypy m3_memory/ --ignore-missing-imports
+    - name: Declared vs imported dependencies (deptry)
+      run: python bin/check_deps.py
 
   security:
     name: Security scan (Bandit + pip-audit on core deps)

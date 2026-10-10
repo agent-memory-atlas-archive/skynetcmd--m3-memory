@@ -2,7 +2,7 @@
 # The project's dependencies + dependency groups lint, test, resolved
 # for every supported platform and Python. Declarations: pyproject.toml.
 # Pin notes: docs/DEPENDENCY_NOTES.md.
-# declarations sha256: 17dd2f1a0dd74718b5518363c9afc8a1e677714284fe4df461f7d076bde67749
+# declarations sha256: 77db6c8c32296b7fcfa23c924dbe149e9efb190c0ccf8d9004d21ff13c8e562b
 aiofile==3.12.3
     # via py-key-value-aio
 annotated-doc==0.0.5
@@ -51,10 +51,12 @@ charset-normalizer==3.5.2
     #   sharepoint-to-text
 click==8.5.0
     # via
+    #   deptry
     #   huggingface-hub
     #   uvicorn
 colorama==0.4.6 ; sys_platform == 'win32'
     # via
+    #   deptry
     #   pytest
     #   tqdm
     #   typer
@@ -72,6 +74,8 @@ defusedxml==0.7.1
     #   m3-memory (pyproject.toml)
     #   fpdf2
     #   sharepoint-to-text
+deptry==0.25.1
+    # via m3-memory (pyproject.toml:lint)
 dnspython==2.9.0
     # via email-validator
 docstring-parser==0.18.0
@@ -212,9 +216,11 @@ opentelemetry-api==1.45.1
     #   fastmcp-slim
 packaging==26.3
     # via
+    #   deptry
     #   fastmcp-slim
     #   huggingface-hub
     #   pytest
+    #   requirements-parser
     #   transformers
 pathable==0.6.0
     # via jsonschema-path
@@ -317,6 +323,8 @@ regex==2026.9.29
     # via transformers
 requests==2.34.2
     # via m3-memory (pyproject.toml)
+requirements-parser==0.13.1
+    # via deptry
 rich==15.0.0
     # via
     #   cyclopts
@@ -358,6 +366,8 @@ starlette==1.7.0
     #   sse-starlette
 tokenizers==0.23.3
     # via transformers
+tomli==2.5.0 ; python_full_version < '3.15'
+    # via deptry
 tomlkit==0.15.1
     # via m3-memory (pyproject.toml)
 tqdm==4.70.1
