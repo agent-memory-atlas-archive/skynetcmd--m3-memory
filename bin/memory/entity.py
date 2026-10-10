@@ -119,7 +119,8 @@ def _load_entity_vectors(db, entity_ids: list[str]) -> dict[str, list[float]]:
             try:
                 out[eid] = _unpack(blob)
             except Exception as le:  # noqa: BLE001 — logged; the caller carries on
-                logger.warning(f"stored entity vector unreadable; observed: {eid} ({type(le).__name__}: {le}); it is re-embedded when next needed")
+                logger.warning(f"stored entity vector unreadable; observed: {eid} ({type(le).__name__}: {le}); it is re-embedded when next needed. "
+                               "inspect: entity_get on that id")
                 continue
     return out
 
@@ -184,7 +185,7 @@ def flush_entity_vectors(db, buffered: list[tuple[str, list[float], str | None]]
     except Exception as e:  # noqa: BLE001 — best-effort by contract; the loss is logged
         logger.warning(f"entity vector flush failed; observed: {len(buffered)} rows not "
                        f"written ({type(e).__name__}: {e}); each is re-embedded the next "
-                       "time that entity is a resolution candidate")
+                       "time that entity is a resolution candidate. inspect: m3 doctor")
     return written
 
 
@@ -387,7 +388,7 @@ def load_entity_vocab(yaml_path: str | Path | None = None) -> tuple[frozenset[st
             data = yaml.safe_load(f) or {}
     except Exception as e:  # noqa: BLE001 — falls back, and says so
         logger.warning(f"entity vocabulary unreadable; observed: {path}: {type(e).__name__}: {e}; "
-                       "using the built-in vocabulary")
+                       "using the built-in vocabulary. inspect: M3_ENTITY_VOCAB_YAML or that file")
         return _DEFAULT_VALID_ENTITY_TYPES, _DEFAULT_VALID_ENTITY_PREDICATES
 
     types = data.get("entity_types") or []

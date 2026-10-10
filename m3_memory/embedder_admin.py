@@ -391,7 +391,8 @@ def repair_exec_bit(binary: Path | None = None, dry_run: bool = False) -> dict:
     path = status.get("path")
     if not path:
         return {"status": "failed",
-                "detail": "observed: exec_bit_status reported not-executable without a path"}
+                "detail": "observed: exec_bit_status reported not-executable without a path. "
+                          "inspect: exec_bit_status's return contract"}
     if dry_run:
         return {"status": "skipped",
                 "detail": f"dry_run=True; would chmod +x {path}"}

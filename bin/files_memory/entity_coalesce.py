@@ -604,7 +604,7 @@ def _pick_representative(mem, eid_a, eid_b, _p="?"):
                 ).fetchone()[0]
         except Exception as e:  # noqa: BLE001 — 0 refs assumed; warned
             logger.warning(f"entity ref count unavailable; observed: {eid}: "
-                           f"{type(e).__name__}: {e}; assuming 0 refs")
+                           f"{type(e).__name__}: {e}; assuming 0 refs. inspect: m3 doctor (files store)")
             return 0
     a = mem.execute(f"SELECT id, canonical_name, entity_type FROM entities WHERE id={_p}", (eid_a,)).fetchone()
     b = mem.execute(f"SELECT id, canonical_name, entity_type FROM entities WHERE id={_p}", (eid_b,)).fetchone()

@@ -91,7 +91,8 @@ def main() -> int:
     try:
         text = render(upgrade=args.upgrade)
     except subprocess.CalledProcessError as e:
-        sys.exit(f"gen_requirements: uv pip compile failed; observed: {e.stderr.strip()[-800:]}")
+        sys.exit(f"gen_requirements: uv pip compile failed; observed: {e.stderr.strip()[-800:]} "
+                 "inspect: uv pip compile pyproject.toml --universal --group lint --group test")
     OUT.write_bytes(text.encode("utf-8"))
     print(f"wrote {OUT.name} ({text.count(chr(10))} lines)")
     return 0

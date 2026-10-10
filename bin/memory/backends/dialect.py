@@ -37,7 +37,8 @@ def _warn_malformed_json(e: Exception) -> None:
     if not _MALFORMED_JSON_WARNED:
         _MALFORMED_JSON_WARNED = True
         _logger.warning(f"a JSON metadata column could not be read and was treated as empty; "
-                        f"observed: {type(e).__name__}: {e}. Later occurrences are not logged.")
+                        f"observed: {type(e).__name__}: {e}. Later occurrences are not logged. "
+                        "inspect: m3 doctor (metadata_json integrity)")
 
 _BARE_DATE_RE = _re.compile(r"^\d{4}-\d{2}-\d{2}$")
 

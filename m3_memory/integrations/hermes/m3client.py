@@ -104,7 +104,8 @@ class M3Client:
         # in place (pops 'database', filters keys).
         loop = self._loop
         if loop is None:
-            raise RuntimeError("M3Client: no event loop; observed: _ensure_loop() did not start one")
+            raise RuntimeError("M3Client: no event loop; observed: _ensure_loop() did not start one. "
+                           "inspect: M3Client._ensure_loop")
         fut: Future = asyncio.run_coroutine_threadsafe(
             cat.execute_tool_structured(spec, dict(args), self._agent_id),
             loop,

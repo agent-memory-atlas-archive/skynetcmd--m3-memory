@@ -1476,7 +1476,8 @@ def acquire_or_exit(
     # RUNNABLE — ACQUIRED/REENTRANT hold the OS lock; CONFIG/LOCK_ERROR degraded.
     if res.lock is None:  # ACQUIRED/REENTRANT hold the lock; CONFIG/LOCK_ERROR degraded
         raise RuntimeError(f"{role}: lock status {res.status.value} carried no lock; "
-                           "observed: a runnable status without an InstanceLock")
+                           "observed: a runnable status without an InstanceLock. "
+                           "inspect: InstanceLock.acquire's status contract")
     return res.lock
 
 

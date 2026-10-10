@@ -419,7 +419,8 @@ class M3Context:
     async def request_with_retry(self, method: str, url: str, retries: int = 3, **kwargs):
         """Resilient HTTP requests with exponential backoff and Circuit Breaker."""
         if retries < 1:
-            raise ValueError(f"request_with_retry: retries must be >= 1; observed: {retries}")
+            raise ValueError(f"request_with_retry: retries must be >= 1; observed: {retries}. "
+                             "inspect: the caller passing retries")
         service = url.split("//")[-1].split("/")[0]
 
         if not self._check_circuit(service):

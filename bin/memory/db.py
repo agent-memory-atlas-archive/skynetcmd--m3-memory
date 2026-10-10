@@ -638,7 +638,7 @@ def _gate_count_query(query: str) -> int:
         if query not in _GATE_QUERY_WARNED:
             _GATE_QUERY_WARNED.add(query)
             logger.warning(f"gate count failed, gate treated as off; observed: "
-                           f"{type(e).__name__}: {e}. query: {query[:120]}")
+                           f"{type(e).__name__}: {e}. query: {query[:120]}. inspect: m3 doctor")
         return 0
 
 

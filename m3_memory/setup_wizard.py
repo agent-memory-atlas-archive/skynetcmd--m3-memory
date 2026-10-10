@@ -4045,7 +4045,8 @@ def run_setup(args: argparse.Namespace) -> int:
     if plan.decouple_roots:
         if plan.config_root is None or plan.engine_root is None:
             _warn("decoupled roots requested but not both resolved; observed: "
-                  f"config_root={plan.config_root!r}, engine_root={plan.engine_root!r}")
+                  f"config_root={plan.config_root!r}, engine_root={plan.engine_root!r}. "
+                  "inspect: the wizard's root step (both roots must be chosen)")
             return 1
         os.environ["M3_CONFIG_ROOT"] = plan.config_root
         os.environ["M3_ENGINE_ROOT"] = plan.engine_root

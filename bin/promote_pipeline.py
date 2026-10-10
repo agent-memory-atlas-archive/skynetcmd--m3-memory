@@ -25,7 +25,8 @@ from m3_sdk import get_secret, getenv_compat
 _cp_path = os.path.join(os.path.dirname(__file__), "chatlog_prune.py")
 _cp_spec = importlib.util.spec_from_file_location("cp", _cp_path)
 if _cp_spec is None or _cp_spec.loader is None:
-    raise ImportError(f"cannot load chatlog_prune; observed: no import spec for {_cp_path}")
+    raise ImportError(f"cannot load chatlog_prune; observed: no import spec for {_cp_path}. "
+                      "inspect: that bin/chatlog_prune.py exists beside this script")
 cp = importlib.util.module_from_spec(_cp_spec)
 _cp_spec.loader.exec_module(cp)
 

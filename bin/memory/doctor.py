@@ -234,12 +234,14 @@ def _probe_db() -> dict[str, Any]:
                     row = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
                     res["schema_migrations"] = int(row[0]) if row else 0
             except Exception as le:  # noqa: BLE001 — logged; the caller carries on
-                logger.warning(f"doctor: schema version count failed; observed: {type(le).__name__}: {le}")
+                logger.warning(f"doctor: schema version count failed; observed: {type(le).__name__}: {le}. "
+                               "inspect: python bin/migrate_memory.py status")
             try:
                 row = conn.execute("SELECT COUNT(*) FROM memory_items").fetchone()
                 res["memory_items_count"] = int(row[0]) if row else 0
             except Exception as le:  # noqa: BLE001 — logged; the caller carries on
-                logger.warning(f"doctor: memory_items count failed; observed: {type(le).__name__}: {le}")
+                logger.warning(f"doctor: memory_items count failed; observed: {type(le).__name__}: {le}. "
+                               "inspect: python bin/migrate_memory.py status")
             res["status"] = "online"
     except Exception as e:
         res["error"] = f"{type(e).__name__}: {e}"
@@ -615,9 +617,12 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
             conn = _sq.connect(f"file:{path}?mode=ro", uri=True, timeout=2.0)
             try:
                 # An uninitialised store has nothing to backfill; only a store
-                # that HAS the table but cannot be counted is an error.
-                if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' "
-                                "AND name='memory_items'").fetchone() is None:
+                # that HAS the table but cannot be counted is an error. This
+                # whole repair is SQLite-file only (gated at the top), so the
+                # probe is the SQLite dialect's, not the active backend's.
+                from memory.backends.dialect import dialect_for
+
+                if conn.execute(*dialect_for("sqlite").table_exists("memory_items")).fetchone() is None:
                     return 0
                 row = conn.execute(
                     "SELECT COUNT(*) FROM memory_items mi "
@@ -632,7 +637,8 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
         except Exception as e:  # noqa: BLE001 — recorded in the report, not counted as 0
             _record("embed_backfill_count", "error",
                     f"could not count missing embeddings in {Path(path).name}; "
-                    f"observed: {type(e).__name__}: {e}")
+                    f"observed: {type(e).__name__}: {e}. "
+                    f"inspect: python bin/embed_backfill.py --db {path} --limit 1")
             return 0
 
     _missing_by_store = {p: _count_missing(p) for p in _embed_stores}

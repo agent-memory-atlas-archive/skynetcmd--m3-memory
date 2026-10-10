@@ -107,7 +107,8 @@ class SlugBook:
         source is, before rendering)."""
         slug = self._by_owner.get(owner_id)
         if slug is None:
-            raise KeyError(f"no slug assigned; observed: owner {owner_id!r}")
+            raise KeyError(f"no slug assigned; observed: owner {owner_id!r}. "
+                           "inspect: SlugBook.assign for this owner")
         return slug
 
 
