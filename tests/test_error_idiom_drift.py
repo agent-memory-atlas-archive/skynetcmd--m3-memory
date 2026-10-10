@@ -49,6 +49,7 @@ reviewable edit rather than a silent new copy.
 
 from __future__ import annotations
 
+import ast
 import pathlib
 import re
 import unittest
@@ -60,7 +61,12 @@ _ROOT = pathlib.Path(__file__).resolve().parents[1]
 # server/backend subsystems.
 # 2026-10-09: 17 -> 13, crypto_provider's copied FIPS-boundary check became one
 # labelled helper.
-_BUDGET = 12
+# 2026-10-10: re-measured, 12 -> 27. NOT a loosening: the scanner now reads each
+# message from the AST. The raw-text regex (400-char window) missed 15
+# multi-line unlabelled messages, and the ruff format sweep moved its count
+# without changing a message. The AST count is identical before and after
+# formatting (measured per file).
+_BUDGET = 27
 
 _SKIP_DIRS = {
     "build",  # packaging copy of the tree
@@ -80,35 +86,82 @@ _EXEMPT: dict[str, str] = {
     "bin/m3_halt.py": "argument validation, not a diagnostic",
 }
 
-# A raise/exit whose text mentions a knob, an endpoint, or a failure verb —
+# A raise/exit whose MESSAGE mentions a knob, an endpoint, or a failure verb,
 # i.e. something the operator would have to go and look at.
 _DIAGNOSTIC = re.compile(
-    r'(raise\s+(?:ValueError|RuntimeError|OSError)\(|sys\.exit\()f?"[^"]*'
     r"(M3_[A-Z_]+|http://|https://|unreachable|failed to|could not"
     r"|timeout|refused|not found)",
     re.IGNORECASE,
 )
-
 _LABEL = re.compile(r"observed:|possible:|cause:|inspect:")
-
-# How far past the match to look for a label — long enough to cover an
-# implicit-concatenation message spanning several source lines.
-_WINDOW = 400
+_RAISED = {"ValueError", "RuntimeError", "OSError"}
 
 
-def _unlabelled_sites() -> list[str]:
+def _literal_text(node: ast.AST) -> str | None:
+    """The literal text of a message: constants, f-string literal parts (each
+    placeholder as {}), and + concatenations. None when it is not a literal.
+
+    Read from the AST, so a message the formatter splits across lines reads the
+    same as one on a single line. The first version scanned raw text with a
+    400-character window, and the one-commit ruff format sweep moved its count
+    from 12 to 14 without changing a single message (2026-10-10).
+    """
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.JoinedStr):
+        return "".join(v.value if isinstance(v, ast.Constant) else "{}" for v in node.values)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left, right = _literal_text(node.left), _literal_text(node.right)
+        return None if left is None or right is None else left + right
+    return None
+
+
+def _diagnostic_messages(tree: ast.AST):
+    """(lineno, message) for each raise of a diagnostic exception type and each
+    sys.exit(...) whose first argument is a literal message."""
+    for node in ast.walk(tree):
+        call = None
+        if isinstance(node, ast.Raise) and isinstance(node.exc, ast.Call):
+            fn = node.exc.func
+            if isinstance(fn, ast.Name) and fn.id in _RAISED:
+                call = node.exc
+        elif isinstance(node, ast.Call):
+            fn = node.func
+            if (
+                isinstance(fn, ast.Attribute)
+                and fn.attr == "exit"
+                and isinstance(fn.value, ast.Name)
+                and fn.value.id == "sys"
+            ):
+                call = node
+        if call is not None and call.args:
+            text = _literal_text(call.args[0])
+            if text is not None:
+                yield call.lineno, text
+
+
+def _classify(text: str) -> str | None:
+    """'labelled' / 'unlabelled' for a diagnostic message, None for others."""
+    if not _DIAGNOSTIC.search(text):
+        return None
+    return "labelled" if _LABEL.search(text) else "unlabelled"
+
+
+def _unlabelled_sites(root: pathlib.Path = _ROOT) -> list[str]:
     found: list[str] = []
-    for path in (_ROOT / "bin").rglob("*.py"):
+    for path in (root / "bin").rglob("*.py"):
         if any(part in _SKIP_DIRS for part in path.parts):
             continue
-        rel = path.relative_to(_ROOT).as_posix()
+        rel = path.relative_to(root).as_posix()
         if rel in _EXEMPT:
             continue
-        text = path.read_text(encoding="utf-8", errors="replace")
-        for match in _DIAGNOSTIC.finditer(text):
-            if not _LABEL.search(text[match.start() : match.start() + _WINDOW]):
-                line = text[: match.start()].count("\n") + 1
-                found.append(f"{rel}:{line}")
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
+        except SyntaxError:
+            continue
+        for lineno, text in _diagnostic_messages(tree):
+            if _classify(text) == "unlabelled":
+                found.append(f"{rel}:{lineno}")
     return sorted(found)
 
 
@@ -141,24 +194,26 @@ class ErrorIdiomDriftTest(unittest.TestCase):
         )
 
     def test_the_guard_actually_matches(self):
-        """Self-check: the patterns must match a real message of each kind.
+        """Self-check: the scanner must classify a real message of each kind,
+        and a message split across lines exactly as the same message on one.
 
         A drift guard blind to the shape it polices passes forever while the
         thing it guards rots.
         """
-        diagnostic = (
-            'raise RuntimeError(f"embed failed. observed: {n} failed batch(es). inspect: M3_EMBED_FALLBACK_URL")'
-        )
-        self.assertTrue(_DIAGNOSTIC.search(diagnostic), "pattern misses a diagnostic")
-        self.assertTrue(_LABEL.search(diagnostic), "label pattern misses observed:")
 
-        unlabelled = 'sys.exit("could not reach the server at http://127.0.0.1:8082")'
-        self.assertTrue(_DIAGNOSTIC.search(unlabelled), "pattern misses an exit")
-        self.assertFalse(_LABEL.search(unlabelled), "label pattern false-positives")
+        def kinds(src: str) -> list[str | None]:
+            return [_classify(t) for _l, t in _diagnostic_messages(ast.parse(src))]
 
+        labelled = 'raise RuntimeError(f"embed failed. observed: {n} failed batch(es). inspect: M3_EMBED_FALLBACK_URL")'
+        self.assertEqual(kinds(labelled), ["labelled"], "misses a labelled diagnostic")
+        unlabelled = 'import sys\nsys.exit("could not reach the server at http://127.0.0.1:8082")'
+        self.assertEqual(kinds(unlabelled), ["unlabelled"], "misses an unlabelled exit")
+        split = 'raise RuntimeError(\n    "could not reach the server. "\n    "observed: refused"\n)'
+        self.assertEqual(kinds(split), ["labelled"], "a split message reads differently")
         contract = 'raise ValueError("conversation_id is required")'
-        self.assertIsNone(
-            _DIAGNOSTIC.search(contract),
+        self.assertEqual(
+            kinds(contract),
+            [None],
             "contract violations must stay OUT of scope — see the module "
             "docstring; flagging them pushes authors toward noise",
         )
