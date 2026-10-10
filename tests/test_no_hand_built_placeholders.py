@@ -84,7 +84,6 @@ INLINE_ALLOWED = {
     # these should reach the active backend is a separate audit (m3 task), not a
     # placeholder fix; listed so the ratchet counts only seam connections.
     "bin/memory/search_routing.py": "INHERENT: the SQLite fused FTS5 + sqlite-vec builder; PostgreSQL's sibling is search_pg",
-    "bin/m3_core/context.py": "INHERENT: owns the SQLite pool (which refuses other backends)",
 }
 _INLINE_SQL = re.compile(r"\b(SELECT|INSERT|UPDATE|DELETE|WHERE|VALUES)\b", re.IGNORECASE)
 _INLINE_QMARK = re.compile(r"(=|<|>|\(|,|\bIN|\bLIKE|\bLIMIT|\bOFFSET|\bMATCH|\bGLOB)\s*\?")

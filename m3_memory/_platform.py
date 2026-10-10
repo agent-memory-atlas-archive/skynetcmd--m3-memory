@@ -321,7 +321,7 @@ def read_key(timeout: float) -> str | None:
                     val = (ch.decode("utf-8", errors="ignore") if isinstance(ch, bytes) else str(ch)).lower()
                     if val:
                         return val
-                except Exception as e:  # noqa: BLE001 — one unreadable key; keep waiting
+                except (OSError, UnicodeError) as e:  # one unreadable key; keep waiting
                     logging.getLogger("m3_memory.platform").debug("read_key: getch failed: %s", e)
             time.sleep(0.05)
         return None
@@ -344,7 +344,7 @@ def read_key(timeout: float) -> str | None:
             rlist, _, _ = select.select([sys.stdin], [], [], min(0.05, max(0.01, rem)))
             if rlist:
                 return sys.stdin.read(1).lower()
-    except Exception as e:  # noqa: BLE001 — no raw tty: behave as a timeout
+    except (OSError, ValueError, termios.error) as e:  # no raw tty: behave as a timeout
         logging.getLogger("m3_memory.platform").debug("read_key: raw read failed: %s", e)
         time.sleep(timeout)
         return None
@@ -382,7 +382,7 @@ def wait_for_any_key() -> None:
         tty.setraw(fd)
         select.select([sys.stdin], [], [])
         sys.stdin.read(1)
-    except Exception as e:  # noqa: BLE001 — no raw tty: a short pause instead
+    except (OSError, ValueError, termios.error) as e:  # no raw tty: a short pause instead
         logging.getLogger("m3_memory.platform").debug("wait_for_any_key: raw read failed: %s", e)
         time.sleep(2.0)
     finally:
@@ -405,5 +405,5 @@ def _restore_tty(fd: int, settings: Any) -> None:
     termios: Any = _termios  # Any: typeshed defines these only off win32
     try:
         termios.tcsetattr(fd, termios.TCSADRAIN, settings)
-    except Exception as e:  # noqa: BLE001 — the terminal may already be gone
+    except (OSError, ValueError, termios.error) as e:  # the terminal may already be gone
         logging.getLogger("m3_memory.platform").debug("tty restore failed: %s", e)
