@@ -58,7 +58,7 @@ def find_sidecar(path: str) -> Path | None:
     `paper.pdf.txt.m3meta.json`.
     """
     sidecar = Path(str(path) + SIDECAR_SUFFIX)
-    return sidecar if sidecar.is_file() else None
+    return sidecar if os.path.isfile(sidecar) else None
 
 
 def load_sidecar(path: str) -> dict | None:

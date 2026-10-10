@@ -211,7 +211,7 @@ def is_venv_redirector(name: str, cmdline: list[str], below: list[str] | None) -
 def _is_venv_interpreter(exe: str) -> bool:
     """Is ``exe`` a venv's own interpreter (<venv>/Scripts|bin/python, pyvenv.cfg in <venv>)?"""
     try:
-        return (Path(exe).parent.parent / "pyvenv.cfg").is_file()
+        return os.path.isfile(Path(exe).parent.parent / "pyvenv.cfg")
     except OSError:
         return False
 

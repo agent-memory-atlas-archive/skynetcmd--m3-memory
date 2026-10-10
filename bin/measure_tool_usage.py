@@ -284,7 +284,7 @@ def main() -> int:
     ap.add_argument("--json", action="store_true", help="emit JSON")
     args = ap.parse_args()
 
-    if not args.transcripts.is_dir():
+    if not os.path.isdir(args.transcripts):
         print(f"error: no transcript directory at {args.transcripts}", file=sys.stderr)
         return 2
 

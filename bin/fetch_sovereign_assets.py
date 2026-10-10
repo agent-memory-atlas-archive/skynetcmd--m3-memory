@@ -65,7 +65,7 @@ def main():
     # 1. Download Binaries
     for name, url in ASSETS["bin"].items():
         dest = ASSETS_DIR / "bin" / name
-        if not dest.exists():
+        if not os.path.exists(dest):
             print(f"Fetching binary: {name}")
             try:
                 download_file(url, dest)
@@ -79,7 +79,7 @@ def main():
     # 2. Download Models
     for name, url in ASSETS["models"].items():
         dest = ASSETS_DIR / "models" / name
-        if not dest.exists():
+        if not os.path.exists(dest):
             print(f"Fetching model: {name}")
             try:
                 download_file(url, dest)

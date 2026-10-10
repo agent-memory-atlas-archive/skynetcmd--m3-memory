@@ -51,8 +51,9 @@ def test_the_gate_sees_a_version_check(tmp_path):
 # Path.exists()/is_file()/is_dir() raise PermissionError on 3.12/3.13 where
 # os.path's return False (see m3_memory/_pyver.py). Existing calls predate the
 # finding, so this ratchets: the count may only fall.
-# 2026-10-10: 255 at the finding; 22 in bin/memory + bin/wiki converted -> 233.
-_PATH_PROBE_BUDGET = 226
+# 2026-10-10: 255 at the finding; 22 in bin/memory + bin/wiki converted -> 233;
+# the remaining 226 in bin/ and m3_memory/ converted -> 0, so it is now a ban.
+_PATH_PROBE_BUDGET = 0
 
 
 def _path_probes(roots=("bin", "m3_memory"), base: Path = _ROOT) -> list[str]:

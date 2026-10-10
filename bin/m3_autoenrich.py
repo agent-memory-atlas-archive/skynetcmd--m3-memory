@@ -21,6 +21,7 @@ way the result is consistent regardless of which shell launched this script.
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import shutil
 import subprocess
@@ -82,7 +83,7 @@ def _env_file_path() -> Path:
 
 def _read_unix() -> str | None:
     p = _env_file_path()
-    if not p.exists():
+    if not os.path.exists(p):
         return None
     pattern = re.compile(rf"^\s*export\s+{VAR}\s*=\s*(.+?)\s*$")
     for line in p.read_text(encoding="utf-8").splitlines():
@@ -95,7 +96,7 @@ def _read_unix() -> str | None:
 def _write_unix(value: str | None) -> None:
     p = _env_file_path()
     p.parent.mkdir(parents=True, exist_ok=True)
-    existing = p.read_text(encoding="utf-8").splitlines() if p.exists() else []
+    existing = p.read_text(encoding="utf-8").splitlines() if os.path.exists(p) else []
     pattern = re.compile(rf"^\s*export\s+{VAR}\s*=")
     cleaned = [ln for ln in existing if not pattern.match(ln)]
     if value is not None:
@@ -179,7 +180,7 @@ def main() -> int:
 
     if not _is_windows() and target_on:
         env_file = _env_file_path()
-        if env_file.exists():
+        if os.path.exists(env_file):
             print(f"\nnote: persistent value lives in {env_file}")
             print("to make it visible in new shells, add this to your shell rc once:")
             print(f"  {_shell_rc_hint()}")

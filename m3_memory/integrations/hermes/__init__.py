@@ -50,7 +50,7 @@ def _load_config() -> dict:
     }
 
     config_path = get_hermes_home() / "m3.json"
-    if config_path.exists():
+    if os.path.exists(config_path):
         try:
             file_cfg = json.loads(config_path.read_text(encoding="utf-8"))
             config.update({k: v for k, v in file_cfg.items() if v is not None and v != ""})
@@ -152,7 +152,7 @@ class M3MemoryProvider(MemoryProvider):
 
         config_path = Path(hermes_home) / "m3.json"
         existing = {}
-        if config_path.exists():
+        if os.path.exists(config_path):
             try:
                 existing = _json.loads(config_path.read_text())
             except Exception:

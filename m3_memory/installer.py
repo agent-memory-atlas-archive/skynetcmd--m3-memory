@@ -96,7 +96,7 @@ def _is_installed_payload(root: Path) -> bool:
 def load_config() -> dict:
     """Return the saved config, or an empty dict if none exists or is malformed."""
     path = config_file()
-    if not path.is_file():
+    if not os.path.isfile(path):
         return {}
     try:
         return cast("dict", json.loads(path.read_text(encoding="utf-8")))
@@ -123,7 +123,7 @@ def _developer_bridge() -> Path | None:
     here = Path(__file__).resolve()
     for parent in here.parents:
         candidate = parent / "bin" / "memory_bridge.py"
-        if candidate.is_file():
+        if os.path.isfile(candidate):
             return candidate
     return None
 
@@ -139,7 +139,7 @@ def _payload_dir(component: str, env_var: str, must_contain: str | None = None) 
     """
 
     def _ok(base: Path) -> bool:
-        return base.is_dir() and (must_contain is None or (base / must_contain).exists())
+        return os.path.isdir(base) and (must_contain is None or os.path.exists(base / must_contain))
 
     env = os.environ.get(env_var)
     if env:
@@ -235,7 +235,7 @@ def _download_tarball(tag: str, dest: Path) -> None:
         with tarfile.open(archive, "r:gz") as tf:
             tf.extractall(tmp, filter=_safe_tar_filter(tmp))  # nosec B202 - filter blocks tarslip
         # Find the single top-level dir extracted.
-        top_level = [p for p in tmp.iterdir() if p.is_dir() and p.name.startswith("m3-memory-")]
+        top_level = [p for p in tmp.iterdir() if os.path.isdir(p) and p.name.startswith("m3-memory-")]
         if len(top_level) != 1:
             raise RuntimeError(f"unexpected tarball layout (top-level dirs: {top_level})")
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -323,7 +323,7 @@ def _canonical_memory_env() -> dict:
     embed = os.environ.get("M3_EMBED_GGUF")
     if not embed:
         cand = Path.home() / ".lmstudio" / "models" / "deepsweet" / "bge-m3-GGUF-Q4_K_M" / "bge-m3-GGUF-Q4_K_M.gguf"
-        if cand.is_file():
+        if os.path.isfile(cand):
             embed = str(cand)
     try:
         from m3_memory.embedder_admin import seed_shared_config
@@ -367,7 +367,7 @@ def _path_is_stale(value: object) -> bool:
     looks_like_path = ("/" in value) or ("\\" in value) or value.endswith(".py")
     if not looks_like_path:
         return False
-    return not Path(value).expanduser().exists()
+    return not os.path.exists(Path(value).expanduser())
 
 
 def _memory_entry_needs_repoint(entry: object) -> bool:
@@ -412,7 +412,7 @@ def _heal_agent_settings(settings_file: Path, *, force: bool = False, create_if_
     a fresh ``m3 setup`` is meant to wire. The ``doctor --fix`` sweep leaves it
     False so it only ever repoints configs that already exist.
     """
-    if not settings_file.is_file():
+    if not os.path.isfile(settings_file):
         if not create_if_absent:
             return None
         data: dict = {}
@@ -457,7 +457,7 @@ def _heal_agent_settings(settings_file: Path, *, force: bool = False, create_if_
 
     # Back up before any rewrite so the prior config is always restorable.
     # Skip when the file didn't exist (create_if_absent path) — nothing to save.
-    if settings_file.is_file():
+    if os.path.isfile(settings_file):
         bak = settings_file.with_suffix(settings_file.suffix + ".m3bak")
         try:
             bak.write_text(settings_file.read_text(encoding="utf-8"), encoding="utf-8")
@@ -514,7 +514,7 @@ def _repoint_stale_chatlog_hooks(data: dict) -> int:
                     script_name = norm.rsplit("hooks/chatlog/", 1)[1]
                     new_tok = f"{chatlog_dir}/{script_name}"
                     # Only rewrite when the current target is stale (dead path).
-                    if norm != new_tok and not Path(tok).expanduser().exists():
+                    if norm != new_tok and not os.path.exists(Path(tok).expanduser()):
                         tokens[i] = new_tok
                         changed = True
                 if changed:
@@ -534,7 +534,7 @@ def _register_gemini_mcp() -> str | None:
     gemini_bin = shutil.which("gemini")
     if not gemini_bin:
         npm_candidate = Path.home() / ".npm-global" / "bin" / "gemini"
-        if not npm_candidate.exists() and not (Path.home() / ".gemini").is_dir():
+        if not os.path.exists(npm_candidate) and not os.path.isdir(Path.home() / ".gemini"):
             return None
 
     settings_dir = Path.home() / ".gemini"
@@ -555,7 +555,11 @@ def _register_antigravity_mcp() -> str | None:
         candidate = Path.home() / ".local" / "bin" / "agy"
         appdata = os.environ.get("LOCALAPPDATA")
         win_candidate = Path(appdata) / "agy" / "bin" / "agy.exe" if appdata else None
-        if not candidate.exists() and not (win_candidate and win_candidate.exists()) and not settings_dir.is_dir():
+        if (
+            not os.path.exists(candidate)
+            and not (win_candidate and os.path.exists(win_candidate))
+            and not os.path.isdir(settings_dir)
+        ):
             return None
 
     settings_dir.mkdir(parents=True, exist_ok=True)
@@ -579,7 +583,7 @@ def _register_cursor_mcp() -> str | None:
     NOTE: Cursor caps ~40 active tools across all MCP servers; m3 exposes 100+ but
     lazy-loads (a small essential set + on-demand domains via tools_load_domain),
     so the default surface stays under the ceiling."""
-    if not (Path.home() / ".cursor").is_dir():
+    if not os.path.isdir(Path.home() / ".cursor"):
         return None
     cfg = _cursor_config_path()
     cfg.parent.mkdir(parents=True, exist_ok=True)
@@ -613,7 +617,7 @@ def _register_cline_mcp() -> str | None:
     # Only wire Cline if the extension's globalStorage dir already exists — its
     # parent (…/saoudrizwan.claude-dev) is created by Cline on first run. Creating
     # it ourselves would leave a stray dir on boxes that don't have Cline.
-    if not cfg.parent.parent.is_dir():
+    if not os.path.isdir(cfg.parent.parent):
         return None
     cfg.parent.mkdir(parents=True, exist_ok=True)
     return _heal_agent_settings(cfg, create_if_absent=True)
@@ -632,13 +636,13 @@ def _fix_npm_global_path() -> str | None:
     if _os_name() == "Windows":
         return None
     npm_bin = Path.home() / ".npm-global" / "bin"
-    if not npm_bin.exists():
+    if not os.path.exists(npm_bin):
         return None
 
     profile = Path.home() / ".profile"
     marker = 'export PATH="$HOME/.npm-global/bin:$PATH"'
     existing = ""
-    if profile.is_file():
+    if os.path.isfile(profile):
         try:
             existing = profile.read_text(encoding="utf-8")
         except OSError:
@@ -721,7 +725,7 @@ def _install_schedules_script() -> Path | None:
     if not bd:
         return None
     script = bd / "install_schedules.py"
-    return script if script.exists() else None
+    return script if os.path.exists(script) else None
 
 
 def _register_cognitive_loop_task() -> bool:
@@ -1046,7 +1050,7 @@ def _run_chatlog_init(bridge: Path, capture_mode: str) -> str | None:
         return "[=] chatlog hooks skipped (capture-mode=none)"
 
     chatlog_init = bridge.parent / "chatlog_init.py"
-    if not chatlog_init.is_file():
+    if not os.path.isfile(chatlog_init):
         return f"[!] chatlog_init.py missing under {bridge.parent}; skipping hook wiring"
 
     cmd = [_python_exe(), str(chatlog_init), "--non-interactive"]
@@ -1062,7 +1066,7 @@ def _run_chatlog_init(bridge: Path, capture_mode: str) -> str | None:
         cmd += ["--capture-mode", capture_mode]
     if has_apply_claude:
         cmd.append("--apply-claude")
-    gemini_present = shutil.which("gemini") or (Path.home() / ".npm-global" / "bin" / "gemini").exists()
+    gemini_present = shutil.which("gemini") or os.path.exists(Path.home() / ".npm-global" / "bin" / "gemini")
     if has_apply_gemini and gemini_present:
         cmd.append("--apply-gemini")
 
@@ -1112,7 +1116,7 @@ def _run_main_migrations(bridge: Path, db_backend: str = "sqlite") -> str | None
         return None
 
     migrate_script = bridge.parent / "migrate_memory.py"
-    if not migrate_script.is_file():
+    if not os.path.isfile(migrate_script):
         return f"[!] migrate_memory.py missing under {bridge.parent}; skipping main DB init"
 
     cmd = [_python_exe(), str(migrate_script), "up", "--yes", "--target", "main"]
@@ -1363,7 +1367,7 @@ def _append_env_to_profile(pairs: dict[str, str]) -> str:
     """
     profile = Path.home() / ".profile"
     existing = ""
-    if profile.is_file():
+    if os.path.isfile(profile):
         try:
             existing = profile.read_text(encoding="utf-8")
         except OSError:
@@ -1440,7 +1444,7 @@ def _run_os_install(bridge: Path, interactive: bool = True) -> str | None:
         install_script = bin_d.parent / "install_os.py"
     else:
         install_script = bridge.parent.parent / "install_os.py"
-    if not install_script.is_file():
+    if not os.path.isfile(install_script):
         return None
 
     # Run using the same python we're currently in.
@@ -1777,7 +1781,7 @@ def install_m3(
     payload_root = Path(__file__).resolve().parent
     if _is_installed_payload(payload_root) and not force:
         bridge = payload_root / "bin" / "memory_bridge.py"
-        if bridge.is_file():
+        if os.path.isfile(bridge):
             print(
                 "  Installed payload detected — no clone needed.\n"
                 f"    payload: {payload_root}\n"
@@ -1807,7 +1811,7 @@ def install_m3(
     # would discard captured turns and force a re-init. Stash anything that
     # looks like user data, wipe the code tree, then restore.
     preserved_dir: Path | None = None
-    if repo_path.exists():
+    if os.path.exists(repo_path):
         if not force:
             # The payload is already present; without --force there is nothing to
             # RE-FETCH. But if an explicit extra was requested and configured
@@ -1833,13 +1837,13 @@ def install_m3(
                 f"  (installed at {repo_path}) Your memories and chatlog are preserved either way."
             )
         memory_dir = repo_path / "memory"
-        if memory_dir.is_dir():
+        if os.path.isdir(memory_dir):
             preserved_dir = Path(tempfile.mkdtemp(prefix="m3-preserve-"))
             for item in memory_dir.iterdir():
                 # Keep .db / .json (chatlog config + state) / .jsonl (cursor).
                 # The migrations/ subdir ships with the repo and will be
                 # restored by the new clone, so we don't preserve it.
-                if not (item.is_file() and item.suffix in (".db", ".json", ".jsonl")):
+                if not (os.path.isfile(item) and item.suffix in (".db", ".json", ".jsonl")):
                     continue
                 dst = preserved_dir / item.name
                 if item.suffix == ".db":
@@ -1864,7 +1868,7 @@ def install_m3(
     if packaged is not None and not force:
         print("[install-m3] payload already present (packaged in the wheel); skipping fetch.")
         bridge = packaged / "memory_bridge.py"
-        if not bridge.is_file():
+        if not os.path.isfile(bridge):
             raise RuntimeError(
                 f"payload bin_dir exists but {bridge} not found. This is unexpected; check your installation."
             )
@@ -1887,7 +1891,7 @@ def install_m3(
             print("  falling back to GitHub tarball")
             _download_tarball(tag, repo_path)
         bridge = repo_path / "bin" / "memory_bridge.py"
-        if not bridge.is_file():
+        if not os.path.isfile(bridge):
             raise RuntimeError(
                 f"fetched repo but {bridge} not found. This usually means the "
                 f"tag {tag!r} doesn't exist on GitHub yet. Check "
@@ -1927,7 +1931,7 @@ def uninstall_m3(yes: bool = False) -> None:
     cfg = load_config()
     repo_path = Path(cfg.get("repo_path", str(default_repo_path())))
 
-    if not cfg and not repo_path.exists():
+    if not cfg and not os.path.exists(repo_path):
         print("nothing to uninstall (no config, no repo).")
         return
 
@@ -1940,10 +1944,10 @@ def uninstall_m3(yes: bool = False) -> None:
             print("aborted.")
             return
 
-    if repo_path.exists():
+    if os.path.exists(repo_path):
         shutil.rmtree(repo_path, ignore_errors=True)
         print(f"  removed {repo_path}")
-    if config_file().is_file():
+    if os.path.isfile(config_file()):
         config_file().unlink()
         print(f"  removed {config_file()}")
 
@@ -1965,7 +1969,7 @@ def status_summary() -> dict:
     }
     # 1. Is the payload installed/resolvable?
     bridge = find_bridge()
-    out["installed"] = bool(bridge and bridge.is_file())
+    out["installed"] = bool(bridge and os.path.isfile(bridge))
 
     cfg = load_config()
     # 2. Memory count (main DB), best-effort.
@@ -2065,7 +2069,7 @@ def _scan_agent_configs() -> list[tuple[str, Path, bool]]:
     """
     out = []
     for label, path in _known_agent_settings():
-        if not path.is_file():
+        if not os.path.isfile(path):
             continue
         try:
             data = json.loads(path.read_text(encoding="utf-8")) or {}
@@ -2128,7 +2132,7 @@ def _duplicate_mcp_registration() -> dict[str, dict[str, list[Path]]]:
     for client, sources in _client_config_sources().items():
         seen: dict[str, list[Path]] = {}
         for path in sources:
-            if not path.is_file():
+            if not os.path.isfile(path):
                 continue
             try:
                 data = json.loads(path.read_text(encoding="utf-8")) or {}
@@ -2226,7 +2230,7 @@ def _env_names_in_config(names, unchecked: list[str] | None = None) -> dict[Path
             seen_files.add(path)
 
     for path in seen_files:
-        if not path.is_file():
+        if not os.path.isfile(path):
             continue
         try:
             data = json.loads(path.read_text(encoding="utf-8")) or {}
@@ -2241,7 +2245,7 @@ def _env_names_in_config(names, unchecked: list[str] | None = None) -> dict[Path
             out[path] = found
 
     dotenv = Path.cwd() / ".env"
-    if dotenv.is_file():
+    if os.path.isfile(dotenv):
         try:
             found = set()
             for line in dotenv.read_text(encoding="utf-8").splitlines():
@@ -2377,7 +2381,7 @@ def _find_env_var_locations(
     for rc in (".zshenv", ".zshrc", ".zprofile", ".bashrc", ".bash_profile", ".bash_login", ".profile"):
         f = home / rc
         try:
-            if f.is_file() and _shell_assigns(f.read_text(encoding="utf-8", errors="ignore"), name):
+            if os.path.isfile(f) and _shell_assigns(f.read_text(encoding="utf-8", errors="ignore"), name):
                 locations.add(str(f))
         except OSError as e:
             skipped.append(f"{f} ({type(e).__name__}: {e})")
@@ -2609,7 +2613,7 @@ def _scrub_embed_gguf_from_settings(path: Path, *, apply: bool) -> list[str]:
     clean file yields no actions. Backs up to <file>.bak before writing.
     Raises on I/O or parse error (caller handles)."""
     actions: list[str] = []
-    if not path.exists():
+    if not os.path.exists(path):
         return actions
     original = path.read_text(encoding="utf-8")
     data = json.loads(original) or {}
@@ -2857,7 +2861,7 @@ def _heal_config_bridge_path(*, apply: bool) -> list[str]:
     leave the record alone and stay quiet.
     """
     packaged = Path(__file__).resolve().parent / "bin" / "memory_bridge.py"
-    if not packaged.is_file():
+    if not os.path.isfile(packaged):
         return []  # not a packaged install — nothing to record
     resolved = find_bridge()
     if not resolved or Path(resolved).resolve() != packaged:
@@ -2942,7 +2946,7 @@ def doctor(fix: bool = False, brief: bool = False) -> int:
         _duplicate_registration_section()
         _deprecated_env_config_section()
         bridge = find_bridge()
-        if bridge and bridge.is_file():
+        if bridge and os.path.isfile(bridge):
             print("[OK] memory bridge found")  # its path: `m3 doctor --verbose`
             return 0
         print("[X] no bridge found. Run `mcp-memory install-m3` to fetch the system.")
@@ -3029,7 +3033,7 @@ def doctor(fix: bool = False, brief: bool = False) -> int:
 
     print()
     bridge = find_bridge()
-    if bridge and bridge.is_file():
+    if bridge and os.path.isfile(bridge):
         print(f"[OK] resolved bridge: {bridge}")
         return 0
     print("[X] no bridge found. Run `mcp-memory install-m3` to fetch the system.")

@@ -239,10 +239,10 @@ def _rotate_if_oversized(log_path: pathlib.Path) -> None:
     if cap <= 0:
         return  # explicitly disabled
     try:
-        if not log_path.exists() or log_path.stat().st_size < cap:
+        if not os.path.exists(log_path) or log_path.stat().st_size < cap:
             return
         prev = log_path.with_suffix(log_path.suffix + ".1")
-        if prev.exists():
+        if os.path.exists(prev):
             prev.unlink()
         log_path.replace(prev)
     except OSError as e:

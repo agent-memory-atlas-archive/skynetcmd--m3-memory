@@ -147,7 +147,7 @@ async def _launch_worker_with_offset(
 
 async def _run_async(args) -> int:
     in_path = Path(args.source_conv_list).resolve()
-    if not in_path.exists():
+    if not os.path.exists(in_path):
         sys.exit(
             f"ERROR: --source-conv-list not found. "
             f"observed: {in_path} does not exist. "

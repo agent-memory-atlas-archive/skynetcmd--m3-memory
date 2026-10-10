@@ -144,13 +144,13 @@ def _reference_build() -> tuple[str, str, str] | None:
     """(label, python, bin_dir) for a known-good m3, or None."""
     py = os.environ.get("M3_DIFF_REF_PYTHON")
     bin_dir = os.environ.get("M3_DIFF_REF_BIN")
-    if py and bin_dir and Path(bin_dir).is_dir():
+    if py and bin_dir and os.path.isdir(Path(bin_dir)):
         return ("env-specified", py, bin_dir)
 
     rev = os.environ.get("M3_DIFF_REF_REV")
     if rev:
         wt = Path(tempfile.gettempdir()) / f"m3-diff-{re.sub(r'[^A-Za-z0-9_.-]', '_', rev)}"
-        if not wt.exists():
+        if not os.path.exists(wt):
             rc = subprocess.run(
                 ["git", "worktree", "add", "-q", "--detach", str(wt), rev],
                 cwd=REPO,
@@ -160,26 +160,26 @@ def _reference_build() -> tuple[str, str, str] | None:
             )
             if rc.returncode != 0:
                 return None
-        if (wt / "bin" / "memory_core.py").exists():
+        if os.path.exists(wt / "bin" / "memory_core.py"):
             return (f"worktree@{rev}", sys.executable, str(wt / "bin"))
     # The pipx install, run with ITS OWN interpreter so its dependencies
     # resolve. Importing it with the dev interpreter does not work: the package
     # lives under m3_memory/ and its internal imports are bare (`import
     # memory_core`), which only resolve with its bin/ on sys.path.
     venv_py = Path.home() / "pipx" / "venvs" / "m3-memory" / "Scripts" / "python.exe"
-    if not venv_py.exists():
+    if not os.path.exists(venv_py):
         venv_py = Path.home() / ".local" / "pipx" / "venvs" / "m3-memory" / "bin" / "python"
-    if venv_py.exists():
+    if os.path.exists(venv_py):
         # Locate it on disk. Asking the interpreter to `import m3_memory`
         # resolved to the DEV tree whenever the repo was reachable, which would
         # have made the "reference" build a copy of the tree under test -- a
         # test that always passes.
         for libdir in ("Lib/site-packages", "lib/site-packages"):
             cand = venv_py.parent.parent / libdir / "m3_memory" / "bin"
-            if (cand / "memory_core.py").exists():
+            if os.path.exists(cand / "memory_core.py"):
                 return ("pipx-installed", str(venv_py), str(cand))
         for cand in (venv_py.parent.parent / "lib").glob("python*/site-packages/m3_memory/bin"):
-            if (cand / "memory_core.py").exists():
+            if os.path.exists(cand / "memory_core.py"):
                 return ("pipx-installed", str(venv_py), str(cand))
 
     return None
@@ -288,9 +288,9 @@ def main() -> int:
     tmp = None
     if args.engine_root:
         root = Path(args.engine_root)
-        if not (root / "agent_memory.db").exists() and (root / "engine" / "agent_memory.db").exists():
+        if not os.path.exists(root / "agent_memory.db") and os.path.exists(root / "engine" / "agent_memory.db"):
             root = root / "engine"
-        if not (root / "agent_memory.db").exists():
+        if not os.path.exists(root / "agent_memory.db"):
             print(f"no agent_memory.db under {args.engine_root}")
             return 2
         engine, config = str(root), str(root.parent / "config")

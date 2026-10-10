@@ -80,7 +80,7 @@ def find_m3_launcher() -> str | None:
     here = pathlib.Path(sys.executable).parent
     for name in ("m3.exe", "m3") if is_windows() else ("m3",):
         candidate = here / name
-        if candidate.is_file():
+        if os.path.isfile(candidate):
             return str(candidate)
     return None
 
@@ -115,7 +115,7 @@ def find_m3_package(exe: str) -> pathlib.Path | None:
                 venv / "Lib" / "site-packages" / "m3_memory",  # Windows
                 *(venv.glob("lib/python*/site-packages/m3_memory")),  # POSIX
             ):
-                if sp.exists():
+                if os.path.exists(sp):
                     return sp
     except (OSError, subprocess.TimeoutExpired):
         pass
@@ -126,7 +126,7 @@ def find_m3_package(exe: str) -> pathlib.Path | None:
     resolved_dir = pathlib.Path(exe).resolve().parent
     for cand in ("python.exe", "python3.exe", "python", "python3"):
         py = resolved_dir / cand
-        if not py.exists():
+        if not os.path.exists(py):
             continue
         try:
             out = subprocess.run(  # nosec B603 - argv list, interpreter inside the venv
@@ -174,7 +174,7 @@ def cognitive_loop_installed(exe: str) -> bool | None:
     # Inline rather than governor_migration.cognitive_loop_installed(): this runs
     # against the payload being REPLACED, which may predate that function.
     for bd in (pkg / "bin", pkg.parent / "bin"):
-        if (bd / "governor_migration.py").is_file():
+        if os.path.isfile(bd / "governor_migration.py"):
             code = (
                 f"import sys; sys.path.insert(0, {str(bd)!r});"
                 "import governor_migration as gm;"
@@ -225,7 +225,7 @@ def detect_install_method(pkg_dir: pathlib.Path | None) -> tuple[str, str]:
     # pipx venvs carry a metadata file at the venv root; site-packages sits a few
     # levels below it (Lib/site-packages on Windows, lib/pythonX.Y/... on POSIX).
     for parent in list(pkg_dir.parents)[:5]:
-        if (parent / "pipx_metadata.json").exists():
+        if os.path.exists(parent / "pipx_metadata.json"):
             return PIPX, f"pipx_metadata.json found at {parent}"
 
     # A --user install lands under the per-user site directory.
@@ -260,7 +260,7 @@ def pipx_source(pkg_dir: pathlib.Path | None) -> str | None:
         return None
     for parent in list(pkg_dir.parents)[:5]:
         meta = parent / "pipx_metadata.json"
-        if meta.exists():
+        if os.path.exists(meta):
             try:
                 with open(meta, encoding="utf-8") as f:
                     spec = (json.load(f).get("main_package") or {}).get("package_or_url")
@@ -342,7 +342,7 @@ def locked_launchers(scripts_dir: pathlib.Path, names: list[str]) -> list[pathli
     locked = []
     for name in names:
         exe = scripts_dir / f"{name}.exe"
-        if not exe.is_file():
+        if not os.path.isfile(exe):
             continue
         probe = exe.with_name(exe.name + ".m3-upgrade-probe")
         try:
@@ -836,7 +836,7 @@ def main(argv: list[str] | None = None) -> int:
         for parent in list(pkg.parents)[:5]:
             for cand in ("Scripts/python.exe", "bin/python3", "bin/python"):
                 candidate = parent / cand
-                if candidate.exists():
+                if os.path.exists(candidate):
                     owner_python = str(candidate)
                     break
             if owner_python != sys.executable:

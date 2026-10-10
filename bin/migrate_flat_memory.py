@@ -223,17 +223,17 @@ def _parse_frontmatter(text: str) -> tuple[dict, str]:
 
 
 def iter_claude_items(project_slug: str | None) -> Iterable[SourceItem]:
-    if not CLAUDE_PROJECTS_ROOT.exists():
+    if not os.path.exists(CLAUDE_PROJECTS_ROOT):
         log.info("claude: no projects root at %s", CLAUDE_PROJECTS_ROOT)
         return
     if project_slug:
         project_dirs = [CLAUDE_PROJECTS_ROOT / project_slug]
     else:
-        project_dirs = [d for d in CLAUDE_PROJECTS_ROOT.iterdir() if d.is_dir()]
+        project_dirs = [d for d in CLAUDE_PROJECTS_ROOT.iterdir() if os.path.isdir(d)]
 
     for proj in project_dirs:
         mem_dir = proj / "memory"
-        if not mem_dir.is_dir():
+        if not os.path.isdir(mem_dir):
             continue
         _assert_safe_path(mem_dir)
         for md in sorted(mem_dir.glob("*.md")):
@@ -273,7 +273,7 @@ def iter_claude_items(project_slug: str | None) -> Iterable[SourceItem]:
 
 # ── Gemini CLI reader ──────────────────────────────────────────────────────────
 def iter_gemini_items() -> Iterable[SourceItem]:
-    if not GEMINI_GLOBAL_MD.exists():
+    if not os.path.exists(GEMINI_GLOBAL_MD):
         log.info("gemini: no file at %s", GEMINI_GLOBAL_MD)
         return
     _assert_safe_path(GEMINI_GLOBAL_MD)
@@ -342,7 +342,7 @@ def iter_gemini_items() -> Iterable[SourceItem]:
 
 # ── Openclaw reader (read-only SQLite) ─────────────────────────────────────────
 def iter_openclaw_items() -> Iterable[SourceItem]:
-    if not OPENCLAW_DB.exists():
+    if not os.path.exists(OPENCLAW_DB):
         log.info("openclaw: no db at %s", OPENCLAW_DB)
         return
     _assert_safe_path(OPENCLAW_DB)
@@ -408,7 +408,7 @@ RULES_CANDIDATES = [
 
 def iter_rules_items() -> Iterable[SourceItem]:
     for path, kind in RULES_CANDIDATES:
-        if not path.exists():
+        if not os.path.exists(path):
             continue
         try:
             _assert_safe_path(path)

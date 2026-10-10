@@ -51,7 +51,7 @@ PY = (
 # Prefer a Windows-specific requirements file if one exists, else fall back to the
 # common requirements.txt (the windows variant is optional and may be absent).
 _req_win = BASE / "requirements-windows.txt"
-REQS = _req_win if (IS_WIN and _req_win.exists()) else BASE / "requirements.txt"
+REQS = _req_win if (IS_WIN and os.path.exists(_req_win)) else BASE / "requirements.txt"
 # Bootstrap honors --database (positional for simplicity) and M3_DATABASE env.
 # Called before m3_sdk is importable in a fresh checkout, so resolution is
 # kept self-contained rather than delegated to resolve_db_path.
@@ -87,7 +87,7 @@ def _nested_venv_path() -> "pathlib.Path | None":
     except Exception:  # noqa: BLE001
         return None
     nested = pkg / ".venv"
-    return nested if nested.is_dir() else None
+    return nested if os.path.isdir(nested) else None
 
 
 def remove_stale_nested_venv(dry_run: bool = False) -> "str | None":
@@ -139,7 +139,7 @@ if _INSTALLED:
     _swept = remove_stale_nested_venv()
     if _swept:
         log(_swept)
-elif not PY.exists():
+elif not os.path.exists(PY):
     log(f"Creating virtual environment at {VENV} ...")
     run(sys.executable, "-m", "venv", str(VENV))
 else:
@@ -151,7 +151,7 @@ else:
 #      whose freshly created venv is empty, needs this.
 if _INSTALLED:
     log("Installed layout; dependencies come from the wheel — skipping pip.")
-elif not REQS.exists():
+elif not os.path.exists(REQS):
     log(f"WARNING: {REQS} not found; skipping dependency install.")
 else:
     log("Upgrading pip ...")
@@ -177,7 +177,7 @@ def _mig_key(p):
 
 
 conn = sqlite3.connect(str(DB))
-if MIGS.exists():
+if os.path.exists(MIGS):
     forward = [p for p in MIGS.glob("*.sql") if not p.name.endswith(".down.sql")]
     for sql_file in sorted(forward, key=_mig_key):
         log(f"  Applying {sql_file.name} ...")
@@ -215,7 +215,7 @@ config = {
 #    no duplicate or conflicting lines), backing up first and prompting before
 #    writing. Prefer this over the manual paste below.
 claude_dir = pathlib.Path(os.path.expanduser("~")) / ".claude"
-if claude_dir.is_dir():
+if os.path.isdir(claude_dir):
     log("")
     log("Detected a Claude Code install (~/.claude).")
     log("RECOMMENDED (safe, re-runnable): auto-install m3 hooks + statusLine + MCP")

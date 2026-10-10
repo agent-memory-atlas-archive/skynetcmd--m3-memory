@@ -107,7 +107,7 @@ def _migrate_embed_config_gguf(new: Path, *, previous: Path) -> None:
 
         path = Path(_embed_config_path())
         data: dict = {}
-        if path.is_file():
+        if os.path.isfile(path):
             data = json.loads(path.read_text(encoding="utf-8")) or {}
         if (data.get("gguf_path") or "").strip() == str(new):
             return
@@ -140,7 +140,7 @@ def _find_bundled_gguf() -> Path | None:
           (developer case: `pip install -e .` from a clone)
     """
     env_path = os.environ.get("M3_EMBED_GGUF")
-    if env_path and Path(env_path).is_file():
+    if env_path and os.path.isfile(Path(env_path)):
         return Path(env_path)
 
     # 1b. The SHARED embedder config. Setup's GGUF auto-discovery finds any
@@ -181,9 +181,9 @@ def _find_bundled_gguf() -> Path | None:
         if os.environ.get("M3_EMBED_GGUF_AUTODETECT", "1") == "0":
             raise RuntimeError("autodetect disabled")
         cfg = Path(_embed_config_path())
-        if cfg.is_file():
+        if os.path.isfile(cfg):
             raw = (json.loads(cfg.read_text(encoding="utf-8")).get("gguf_path") or "").strip()
-            if raw and Path(raw).is_file():
+            if raw and os.path.isfile(Path(raw)):
                 configured = Path(raw)
                 if _is_sovereign_path(configured):
                     return configured
@@ -222,7 +222,7 @@ def _find_bundled_gguf() -> Path | None:
         assets = assets_dir()
         if assets:
             candidate = assets / "models" / BGE_M3_FILENAME
-            if candidate.is_file():
+            if os.path.isfile(candidate):
                 return candidate
     except Exception:
         pass
@@ -231,7 +231,7 @@ def _find_bundled_gguf() -> Path | None:
     here = Path(__file__).resolve()
     for parent in (here.parent, *here.parents):
         candidate = parent / "_assets" / "models" / BGE_M3_FILENAME
-        if candidate.is_file():
+        if os.path.isfile(candidate):
             return candidate
 
     return None
@@ -267,7 +267,7 @@ def _server_binary() -> Path | None:
       3. PATH lookup for `m3-embed-server`
     """
     env_bin = os.environ.get("M3_EMBED_SERVER_BIN")
-    if env_bin and Path(env_bin).is_file():
+    if env_bin and os.path.isfile(Path(env_bin)):
         return Path(env_bin)
 
     try:
@@ -280,7 +280,7 @@ def _server_binary() -> Path | None:
             wheel_dir / "bin" / exe_name,
             wheel_dir.parent / exe_name,
         ):
-            if candidate.is_file():
+            if os.path.isfile(candidate):
                 return candidate
     except ImportError:
         pass
@@ -1253,7 +1253,7 @@ def _service_defined_on_disk() -> bool:
 
     here = Path(__file__).resolve().parent
     for bin_dir in (here / "bin", here.parent / "bin"):
-        if not (bin_dir / "install_schedules.py").is_file():
+        if not os.path.isfile(bin_dir / "install_schedules.py"):
             continue
         if str(bin_dir) not in sys.path:
             sys.path.insert(0, str(bin_dir))
@@ -1277,7 +1277,7 @@ def _import_model_fetch(name: str):
 
     here = Path(__file__).resolve().parent
     for bin_dir in (here / "bin", here.parent / "bin"):
-        if not (bin_dir / "memory" / "model_fetch.py").is_file():
+        if not os.path.isfile(bin_dir / "memory" / "model_fetch.py"):
             continue
         if str(bin_dir) not in sys.path:
             sys.path.insert(0, str(bin_dir))

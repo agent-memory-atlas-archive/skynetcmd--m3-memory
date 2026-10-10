@@ -1054,7 +1054,7 @@ async def _main_async(args: argparse.Namespace) -> int:
         vocab_path = Path(os.environ["M3_ENTITY_VOCAB_YAML"])
     else:
         vocab_path = DEFAULT_VOCAB_YAML
-    if not vocab_path.exists():
+    if not os.path.exists(vocab_path):
         sys.exit(
             f"ERROR: vocab YAML not found. "
             f"observed: {vocab_path} does not exist. "
@@ -1086,11 +1086,11 @@ async def _main_async(args: argparse.Namespace) -> int:
             if args.core_db
             else Path(os.environ.get("M3_DATABASE") or (REPO_ROOT / "memory" / "agent_memory.db"))
         )
-        if core_db.exists():
+        if os.path.exists(core_db):
             db_targets.append(("core", core_db))
     if not args.core_only:
         chatlog_db = Path(args.chatlog_db) if args.chatlog_db else (REPO_ROOT / "memory" / "agent_chatlog.db")
-        if chatlog_db.exists():
+        if os.path.exists(chatlog_db):
             db_targets.append(("chatlog", chatlog_db))
     if not db_targets:
         sys.exit(
@@ -1115,7 +1115,7 @@ async def _main_async(args: argparse.Namespace) -> int:
     conv_set: set[str] | None = None
     if getattr(args, "source_conv_list", None):
         conv_path = Path(args.source_conv_list)
-        if not conv_path.exists():
+        if not os.path.exists(conv_path):
             sys.exit(
                 f"ERROR: --source-conv-list path not found. "
                 f"observed: {conv_path} does not exist. "

@@ -89,7 +89,7 @@ def _example_dir() -> Path:
     pkg_dir = Path(__file__).resolve().parent
     repo_root = pkg_dir.parent
     local_example = repo_root / "examples" / "multi-agent-team"
-    if local_example.exists():
+    if os.path.exists(local_example):
         return local_example
 
     from m3_memory.installer import examples_dir
@@ -107,7 +107,7 @@ def _add_orchestrator_to_path() -> None:
 
 
 def cmd_init(path: Path) -> int:
-    if path.exists():
+    if os.path.exists(path):
         print(f"refusing to overwrite existing {path}", file=sys.stderr)
         return 1
     path.write_text(MINIMAL_TEMPLATE, encoding="utf-8")
@@ -117,7 +117,7 @@ def cmd_init(path: Path) -> int:
 
 
 def cmd_check(path: Path) -> int:
-    if not path.exists():
+    if not os.path.exists(path):
         print(f"team file not found: {path}", file=sys.stderr)
         return 1
 
@@ -191,13 +191,13 @@ def cmd_check(path: Path) -> int:
 
 
 def cmd_run(path: Path) -> int:
-    if not path.exists():
+    if not os.path.exists(path):
         print(f"team file not found: {path}", file=sys.stderr)
         print("hint: run `m3-team init` to create a starter file", file=sys.stderr)
         return 1
 
     example_dir = _example_dir()
-    if not (example_dir / "orchestrator.py").exists():
+    if not os.path.exists(example_dir / "orchestrator.py"):
         print(
             f"orchestrator.py not found at {example_dir}\n"
             "If you installed m3-memory via pip, clone the repo and run from there:\n"

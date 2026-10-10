@@ -1,8 +1,8 @@
 ---
 tool: bin/setup_hooks.py
-sha1: 8915a1e35e61
-mtime_utc: 2026-10-10T21:05:16.525376+00:00
-generated_utc: 2026-10-10T21:05:29.946011+00:00
+sha1: 9a636de27443
+mtime_utc: 2026-10-10T22:34:37.116729+00:00
+generated_utc: 2026-10-10T22:35:15.497391+00:00
 private: false
 ---
 
@@ -25,7 +25,7 @@ under Git-for-Windows' bundled bash, which `git push` invokes automatically).
 
 ## Entry points
 
-- `def main()` (line 23)
+- `def main()` (line 24)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -52,7 +52,7 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `['git', 'config', 'core.hooksPath', '.githooks']`` (line 28)
+- `subprocess.run()  → `['git', 'config', 'core.hooksPath', '.githooks']`` (line 29)
 
 
 ---

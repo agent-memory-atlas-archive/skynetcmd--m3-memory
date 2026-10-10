@@ -1,8 +1,8 @@
 ---
 tool: bin/release_orphan_claims.py
-sha1: f86d043d5347
-mtime_utc: 2026-10-10T21:15:53.487275+00:00
-generated_utc: 2026-10-10T21:16:10.093302+00:00
+sha1: 02690557b14c
+mtime_utc: 2026-10-10T22:34:50.018387+00:00
+generated_utc: 2026-10-10T22:35:15.470234+00:00
 private: false
 ---
 
@@ -47,7 +47,7 @@ Usage:
 
 ## Entry points
 
-- `def main()` (line 47)
+- `def main()` (line 48)
 - `if __name__ == "__main__"` guard
 
 ---

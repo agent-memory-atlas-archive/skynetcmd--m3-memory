@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import os
 import re
 import subprocess
 from datetime import UTC, datetime
@@ -392,17 +393,17 @@ def _repo_module_set() -> set[str]:
     """
     mods: set[str] = set()
     for d in SOURCE_DIRS:
-        if d.is_dir():
+        if os.path.isdir(d):
             for p in list(d.glob("*.py")) + list(d.glob("*.sh")):
                 mods.add(p.stem)
     for d in RECURSIVE_SOURCE_DIRS:
-        if d.is_dir():
+        if os.path.isdir(d):
             for p in list(d.rglob("*.py")) + list(d.rglob("*.sh")):
                 if "__pycache__" in p.parts:
                     continue
                 mods.add(p.stem)
     for pkg_dir in BASE_DIR.iterdir():
-        if pkg_dir.is_dir() and (pkg_dir / "__init__.py").exists():
+        if os.path.isdir(pkg_dir) and os.path.exists(pkg_dir / "__init__.py"):
             mods.add(pkg_dir.name)
     # Known project-internal packages (kept small and explicit).
     mods.update(
@@ -542,7 +543,7 @@ _SHA1_RE = re.compile(r"^sha1:\s*(\S+)\s*$", re.MULTILINE)
 
 
 def _read_front_field(path: Path, field_re: re.Pattern[str]) -> str | None:
-    if not path.exists():
+    if not os.path.exists(path):
         return None
     try:
         text = path.read_text(encoding="utf-8")
@@ -558,7 +559,7 @@ def _body_without_volatile_fields(path: Path, mtime_placeholder: str, gen_placeh
     non-content metadata that might shift between runs (e.g. filesystem
     touches that bump mtime without changing sha1). Returns None if missing.
     """
-    if not path.exists():
+    if not os.path.exists(path):
         return None
     try:
         text = path.read_text(encoding="utf-8")
@@ -585,7 +586,7 @@ def parse_existing_flag_overrides(path: Path) -> dict[tuple[str, int], tuple[str
     later adds one, the source wins. Returns empty dict if file doesn't
     exist, lacks the flag table, or the table is malformed.
     """
-    if not path.exists():
+    if not os.path.exists(path):
         return {}
     try:
         text = path.read_text(encoding="utf-8")
@@ -873,12 +874,12 @@ def main() -> None:
 
     sources: list[Path] = []
     for d in SOURCE_DIRS:
-        if d.is_dir():
+        if os.path.isdir(d):
             sources.extend(sorted(list(d.glob("*.py")) + list(d.glob("*.sh"))))
     # Recursive dirs (e.g. benchmarks/) have harness subfolders — walk them
     # but skip __pycache__ and site-packages-like trees.
     for d in RECURSIVE_SOURCE_DIRS:
-        if not d.is_dir():
+        if not os.path.isdir(d):
             continue
         for p in sorted(list(d.rglob("*.py")) + list(d.rglob("*.sh"))):
             if "__pycache__" in p.parts:
@@ -887,7 +888,7 @@ def main() -> None:
     # Explicit root-level files (no glob — avoids accidentally picking up
     # throwaway scripts that land at the root during development).
     for p in ROOT_FILES:
-        if p.is_file():
+        if os.path.isfile(p):
             sources.append(p)
 
     for src in sources:
@@ -1027,7 +1028,7 @@ def main() -> None:
         # exists, marked Private) but no public .md is written, and any stale one
         # left from before this guard is removed so a regen self-heals the leak.
         if private:
-            if out_path.exists():
+            if os.path.exists(out_path):
                 out_path.unlink()
                 print(f"removed private tool doc {out_path.relative_to(BASE_DIR)}")
             index_entries.append((rel, doc.split("\n", 1)[0] or "(no docstring)", private))
@@ -1068,7 +1069,7 @@ def main() -> None:
     idx_path = OUT_DIR / "INDEX.md"
     now_stamp = datetime.now(UTC).isoformat()
     stamp = now_stamp
-    if idx_path.exists():
+    if os.path.exists(idx_path):
         # Compare the committed INDEX against the new body with BOTH timestamps
         # normalized to the placeholder — if they match, the only change would be
         # the stamp, so reuse the prior one (a true no-op regen).

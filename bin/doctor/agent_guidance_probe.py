@@ -84,7 +84,7 @@ def check() -> list[dict]:
     findings: list[dict] = []
     for path in _home_files():
         try:
-            if not path.is_file():
+            if not os.path.isfile(path):
                 continue
             text = path.read_text(encoding="utf-8", errors="replace").lower()
         except Exception:  # noqa: BLE001 — unreadable file is not our problem

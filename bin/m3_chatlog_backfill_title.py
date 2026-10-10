@@ -56,13 +56,13 @@ DEFAULT_USELESS_TITLES = (
 def _resolve_db(arg_path: str | None, env_var: str, default_name: str) -> Path | None:
     if arg_path:
         p = Path(arg_path).expanduser().resolve()
-        return p if p.exists() else None
+        return p if os.path.exists(p) else None
     env_val = os.environ.get(env_var)
     if env_val:
         p = Path(env_val).expanduser().resolve()
-        return p if p.exists() else None
+        return p if os.path.exists(p) else None
     p = REPO_ROOT / "memory" / default_name
-    return p if p.exists() else None
+    return p if os.path.exists(p) else None
 
 
 def _derive_title(content: str, max_chars: int = 100) -> str:

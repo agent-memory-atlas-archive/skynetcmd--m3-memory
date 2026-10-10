@@ -62,7 +62,7 @@ def _resolve_python() -> str:
     failed silently). Fall back to the .venv guess only if sys.executable is
     somehow unavailable."""
     exe = sys.executable
-    if exe and pathlib.Path(exe).exists():
+    if exe and os.path.exists(pathlib.Path(exe)):
         return exe
     guess = BASE / ".venv" / ("Scripts/python.exe" if IS_WIN else "bin/python")
     return str(guess)
@@ -185,7 +185,7 @@ def is_reachable(host: str, port: int = 5432, timeout: float = 3.0) -> bool:
 
 def run_pg_sync_for_db(db_path: pathlib.Path, dry_run: bool) -> bool | None:
     """Run pg_sync.py --db <path> for one database. Returns True on success."""
-    if not db_path.exists():
+    if not os.path.exists(db_path):
         log.info(f"  skipping {db_path} — not present on this peer")
         return True  # not an error; this peer just doesn't have that DB
 

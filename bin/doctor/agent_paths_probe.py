@@ -35,7 +35,7 @@ def _path_dead(value: object) -> bool:
         return False
     if not (("/" in value) or ("\\" in value) or value.endswith(".py")):
         return False
-    return not Path(os.path.expandvars(os.path.expanduser(value))).exists()
+    return not os.path.exists(Path(os.path.expandvars(os.path.expanduser(value))))
 
 
 def _scan_mcpservers_hosts() -> list[tuple[str, str, bool]]:
@@ -61,7 +61,7 @@ def _opencode_configs() -> list[Path]:
     appdata = os.environ.get("APPDATA")
     if appdata:
         paths.append(Path(appdata) / "opencode" / "opencode.json")
-    return [p for p in paths if p.is_file()]
+    return [p for p in paths if os.path.isfile(p)]
 
 
 def _scan_opencode() -> list[tuple[str, str, bool]]:
@@ -96,7 +96,7 @@ def _scan_hermes() -> list[tuple[str, str, bool]]:
     ]
     seen = set()
     for root in roots:
-        if not root.exists():
+        if not os.path.exists(root):
             continue
         for pth in glob.glob(str(root / "**" / "m3-memory-bin.pth"), recursive=True):
             if pth in seen:
@@ -166,7 +166,7 @@ def _scan_stale_payload() -> list[tuple[str, str]]:
         return os.path.realpath(script).replace("\\", "/").startswith(payload_real)
 
     settings_path = Path.home() / ".claude" / "settings.json"
-    if not settings_path.is_file():
+    if not os.path.isfile(settings_path):
         return []
     try:
         data = json.loads(settings_path.read_text(encoding="utf-8")) or {}
@@ -237,7 +237,7 @@ def _remediate() -> bool:
         # Back up the user's settings.json first (their non-m3 hooks live there
         # too) — same discipline as the --fix-hooks environment repair.
         settings = Path.home() / ".claude" / "settings.json"
-        if settings.is_file():
+        if os.path.isfile(settings):
             bak = settings.with_name(f"settings.json.m3bak-{time.strftime('%Y%m%d-%H%M%S')}")
             shutil.copy2(settings, bak)
             print(f"  [fix] backed up settings.json -> {bak}")

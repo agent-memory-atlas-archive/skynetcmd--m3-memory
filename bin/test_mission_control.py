@@ -4,6 +4,7 @@ test_mission_control.py — Single-pass smoke test for mission_control.py.
 Runs one iteration of the dashboard and validates all subsystems.
 """
 
+import os
 import pathlib
 import sys
 
@@ -80,9 +81,9 @@ check(os_name() == ("Windows" if IS_WIN else "Darwin" if IS_MAC else "Linux"), "
 
 # ── 2: Paths ──────────────────────────────────────────────────────────────────
 print("\n-- 2: Paths --", flush=True)
-check(BASE.exists(), "BASE dir exists", str(BASE))
-check(DB_PATH.parent.exists(), "memory dir exists", str(DB_PATH.parent))
-if DB_PATH.exists():
+check(os.path.exists(BASE), "BASE dir exists", str(BASE))
+check(os.path.exists(DB_PATH.parent), "memory dir exists", str(DB_PATH.parent))
+if os.path.exists(DB_PATH):
     ok("agent_memory.db found")
 else:
     skip("agent_memory.db not found", "run setup_memory.py first")
@@ -174,7 +175,7 @@ ok(f"Chip: {chip}")
 ok(f"RAM:  {mem}")
 ok(f"GPU:  {gpu_info or '(not detected)'}")
 
-if DB_PATH.exists():
+if os.path.exists(DB_PATH):
     focus, logs = get_latest_activity()
     check(isinstance(focus, str), "get_latest_activity focus is str")
     check(isinstance(logs, list), "get_latest_activity logs is list")

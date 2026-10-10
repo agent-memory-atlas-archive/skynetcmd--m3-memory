@@ -34,7 +34,7 @@ def get_size_mb(path):
     elif os.path.isdir(path):
         total = 0
         for p in Path(path).rglob("*"):
-            if p.is_file():
+            if os.path.isfile(p):
                 total += p.stat().st_size
         return total / (1024 * 1024)
     return 0

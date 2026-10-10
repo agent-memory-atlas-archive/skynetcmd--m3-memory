@@ -144,7 +144,7 @@ def _keyring_get() -> tuple[bool, str | None]:
 
 
 def _read_key_file(p: Path) -> str | None:
-    if not p.is_file():
+    if not os.path.isfile(p):
         return None
     uid = current_uid()
     if uid is not None:  # POSIX ownership; Windows protects the key with ACLs
@@ -401,7 +401,7 @@ def main(argv: list[str] | None = None) -> int:
             atomic_write(path, json.dumps(capture(args.context), indent=2, sort_keys=True) + "\n")
             print(f"captured {path}")
             return 0
-        if not path.is_file():
+        if not os.path.isfile(path):
             raise ParityError(f"no baseline at {path}; capture one first. A missing baseline is not a pass.")
         baseline = json.loads(path.read_text(encoding="utf-8"))
         intended = set(json.loads(Path(args.intended).read_text(encoding="utf-8"))) if args.intended else set()

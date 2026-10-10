@@ -286,7 +286,7 @@ def _lockfile_guard(path: Path | None):
     if path is None:
         yield
         return
-    if path.exists():
+    if os.path.exists(path):
         # Read pid + start time to give actionable error
         try:
             content = path.read_text(encoding="utf-8").strip()

@@ -13,6 +13,7 @@ write it (§3).
 
 from __future__ import annotations
 
+import os
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -60,9 +61,9 @@ def set_values(location: Location, values: Mapping[Key, ConfigValue | None], *, 
     path = location.file
     path.parent.mkdir(parents=True, exist_ok=True)
     with file_lock(str(path) + ".lock", purpose="m3_config.toml"):
-        if is_windows() and not path.exists():
+        if is_windows() and not os.path.exists(path):
             _check_new_file_would_be_private(path.parent)
-        old = path.read_text(encoding="utf-8") if path.is_file() else ""
+        old = path.read_text(encoding="utf-8") if os.path.isfile(path) else ""
         doc = tomlkit.parse(old) if old else _new_document()
         for key, value in values.items():
             _apply(doc, key, value)

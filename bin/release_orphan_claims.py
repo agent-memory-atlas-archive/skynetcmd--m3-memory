@@ -36,6 +36,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -71,7 +72,7 @@ def main() -> int:
         sys.exit("ERROR: --run-id, --older-than, and --all are mutually exclusive")
 
     db = Path(args.db).resolve()
-    if not db.exists():
+    if not os.path.exists(db):
         sys.exit(f"ERROR: db not found: {db}. observed: no file at that path. inspect: --db / M3_DATABASE")
 
     # Route through the storage seam so this reads/writes the LIVE core store on

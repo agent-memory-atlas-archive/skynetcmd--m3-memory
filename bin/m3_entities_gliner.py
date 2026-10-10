@@ -280,7 +280,7 @@ def _load_conv_allowlist(path: str | None) -> set[str] | None:
     if not path:
         return None
     p = Path(path)
-    if not p.exists():
+    if not os.path.exists(p):
         print(f"[gliner] WARN: conv allowlist {p} not found; ignoring", flush=True)
         return None
     raw = p.read_text(encoding="utf-8").strip()

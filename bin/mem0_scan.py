@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -253,9 +254,9 @@ def scan_file(path: Path) -> FileReport:
 
 def iter_py_files(paths: list[Path]):
     for p in paths:
-        if p.is_file() and p.suffix == ".py":
+        if os.path.isfile(p) and p.suffix == ".py":
             yield p
-        elif p.is_dir():
+        elif os.path.isdir(p):
             for f in p.rglob("*.py"):
                 if any(part in SKIP_DIRS for part in f.parts):
                     continue

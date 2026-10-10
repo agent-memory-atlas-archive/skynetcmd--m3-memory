@@ -35,11 +35,11 @@ def _resolve_db(arg_path: str | None, env_var: str, default_name: str) -> Path |
     """
     if arg_path:
         p = Path(arg_path).expanduser().resolve()
-        return p if p.exists() else None
+        return p if os.path.exists(p) else None
     env_val = os.environ.get(env_var)
     if env_val:
         p = Path(env_val).expanduser().resolve()
-        return p if p.exists() else None
+        return p if os.path.exists(p) else None
     # Resolve through the engine-root seam, which also honours the legacy
     # <repo>/memory/ location for pre-Homecoming installs. Hardcoding REPO_ROOT
     # here made the default depend on the CALLER'S CHECKOUT: from a scheduled
@@ -49,7 +49,7 @@ def _resolve_db(arg_path: str | None, env_var: str, default_name: str) -> Path |
     # table at all — the drain would silently work an empty queue and report
     # success while the real 316 MB store went untouched.
     p = Path(resolve_engine_file(default_name))
-    return p if p.exists() else None
+    return p if os.path.exists(p) else None
 
 
 def _load_profile_with_path(name: str | None, path: str | None) -> Profile:
@@ -59,7 +59,7 @@ def _load_profile_with_path(name: str | None, path: str | None) -> Profile:
     """
     if path:
         pth = Path(path).expanduser().resolve()
-        if not pth.exists():
+        if not os.path.exists(pth):
             sys.exit(f"ERROR: profile path not found: {pth}. observed: no file at that path. inspect: --profile-path")
         # Reuse slm_intent's parser, which validates required keys.
         return _parse_profile(pth.stem, pth)
@@ -122,7 +122,7 @@ def _ensure_migration_025(db_path: Path) -> None:
                 )
                 return
             up_path = REPO_ROOT / "memory" / "migrations" / "025_observation_queue.up.sql"
-            if up_path.exists():
+            if os.path.exists(up_path):
                 conn.executescript(up_path.read_text(encoding="utf-8"))
                 conn.commit()
                 print(f"[m3-enrich] applied migration 025 to {db_path.name}", flush=True)

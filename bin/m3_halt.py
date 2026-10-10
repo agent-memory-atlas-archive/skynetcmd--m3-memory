@@ -217,11 +217,11 @@ def list_live_processes(engine_root: str | None = None) -> list[ProcInfo]:
     empty list when nothing is registered — never None (§3).
     """
     pdir = _pid_dir(engine_root)
-    if not pdir.is_dir():
+    if not os.path.isdir(pdir):
         return []
     live: list[ProcInfo] = []
     for entry in pdir.iterdir():
-        if not entry.is_file():
+        if not os.path.isfile(entry):
             continue
         try:
             data = json.loads(entry.read_text(encoding="utf-8"))
@@ -978,7 +978,7 @@ def _log_lock_event(event: str, role: str, engine_root: str | None, **fields) ->
         p.parent.mkdir(parents=True, exist_ok=True)
         # Rotate if too big (cheap stat; only acts at the threshold).
         try:
-            if p.exists() and p.stat().st_size > _LOCK_EVENTS_MAX_BYTES:
+            if os.path.exists(p) and p.stat().st_size > _LOCK_EVENTS_MAX_BYTES:
                 backup = p.with_suffix(p.suffix + ".1")
                 os.replace(str(p), str(backup))  # atomic; drops the older .1
         except OSError:

@@ -98,7 +98,7 @@ def _resolve_chatlog_db(cfg: dict) -> Path | None:
         from m3_sdk import get_m3_engine_root
 
         eng_db = Path(get_m3_engine_root()) / "agent_chatlog.db"
-        if eng_db.is_file():
+        if os.path.isfile(eng_db):
             return eng_db
     except Exception:  # noqa: BLE001 — fall through to the legacy paths below
         pass
@@ -116,7 +116,7 @@ def _resolve_chatlog_db(cfg: dict) -> Path | None:
     dev = _inst._developer_bridge()
     if dev:
         candidate = dev.parent.parent / "memory" / "agent_chatlog.db"
-        if candidate.exists():
+        if os.path.exists(candidate):
             return candidate
     return None
 
@@ -129,7 +129,7 @@ def _chatlog_db_stats(db_path: Path) -> dict:
     clone is incomplete.
     """
     out = {"ok": False, "rows": 0, "last_at": "", "error": ""}
-    if not db_path.is_file():
+    if not os.path.isfile(db_path):
         out["error"] = "file not found"
         return out
     try:
@@ -465,10 +465,10 @@ def _roots_section() -> None:
 
     # Engine DBs presence — the thing users actually care about.
     eng = Path(eng_root)
-    dbs = sorted(p.name for p in eng.glob("*.db")) if eng.is_dir() else []
+    dbs = sorted(p.name for p in eng.glob("*.db")) if os.path.isdir(eng) else []
     if dbs:
         print(f"  engine DBs present:       {', '.join(dbs)}")
-    elif eng.is_dir():
+    elif os.path.isdir(eng):
         print("  engine DBs present:       (none yet — no captures/migrations written)")
     else:
         print("  engine DBs present:       (engine root does not exist yet)")

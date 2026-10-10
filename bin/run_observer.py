@@ -48,7 +48,7 @@ _MAIN_BIN = REPO_ROOT / "bin"
 if str(_MAIN_BIN) not in sys.path:
     sys.path.insert(0, str(_MAIN_BIN))
 _BENCH_BIN = REPO_ROOT.parent / "m3-memory-bench" / "bin"
-if _BENCH_BIN.exists() and str(_BENCH_BIN) not in sys.path:
+if os.path.exists(_BENCH_BIN) and str(_BENCH_BIN) not in sys.path:
     sys.path.append(str(_BENCH_BIN))
 
 import httpx  # noqa: E402

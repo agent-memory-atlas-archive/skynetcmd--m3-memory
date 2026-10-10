@@ -98,7 +98,7 @@ def _check_stop_flag() -> str | None:
     the file is empty). Caller is responsible for actually stopping; this
     function is read-only.
     """
-    if not STOP_FLAG_PATH.exists():
+    if not os.path.exists(STOP_FLAG_PATH):
         return None
     try:
         text = STOP_FLAG_PATH.read_text(encoding="utf-8", errors="replace")

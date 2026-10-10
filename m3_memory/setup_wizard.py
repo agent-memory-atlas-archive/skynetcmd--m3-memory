@@ -88,7 +88,7 @@ def _bin_dir() -> Path:
     """
     here = Path(__file__).resolve().parent  # .../m3_memory
     for cand in (here / "bin", here.parent / "bin"):
-        if (cand / "install_schedules.py").is_file():
+        if os.path.isfile(cand / "install_schedules.py"):
             return cand
     return here.parent / "bin"  # legacy default
 
@@ -175,12 +175,12 @@ def _detect_agents() -> AgentTargets:
     """Probe PATH (and well-known fallback locations) for each agent CLI."""
     claude = bool(shutil.which("claude"))
     # Gemini may be installed via npm-global and not on PATH yet.
-    gemini = bool(shutil.which("gemini") or (Path.home() / ".npm-global" / "bin" / "gemini").exists())
+    gemini = bool(shutil.which("gemini") or os.path.exists(Path.home() / ".npm-global" / "bin" / "gemini"))
     # Antigravity CLI (agy)
     antigravity = bool(
         shutil.which("agy")
-        or (Path.home() / ".local" / "bin" / "agy").exists()
-        or (Path.home() / ".gemini" / "antigravity-cli").is_dir()
+        or os.path.exists(Path.home() / ".local" / "bin" / "agy")
+        or os.path.isdir(Path.home() / ".gemini" / "antigravity-cli")
     )
     opencode = bool(shutil.which("opencode"))
     # OpenClaw speaks MCP natively since 2026.3.22, so detection drives DIRECT
@@ -189,8 +189,8 @@ def _detect_agents() -> AgentTargets:
     # dir, or the gateway token env var from a prior setup.
     openclaw = bool(
         shutil.which("openclaw")
-        or (Path.home() / ".npm-global" / "bin" / "openclaw").exists()
-        or (Path.home() / ".openclaw").is_dir()
+        or os.path.exists(Path.home() / ".npm-global" / "bin" / "openclaw")
+        or os.path.isdir(Path.home() / ".openclaw")
         or os.environ.get("OPENCLAW_GATEWAY_TOKEN")
     )
     # Hermes Agent uses a file-based plugin (not MCP wiring): detection drives
@@ -201,11 +201,11 @@ def _detect_agents() -> AgentTargets:
     # them by the SAME presence signal those registrars gate on, so the wizard's
     # displayed detection matches what actually gets wired: Cursor -> ~/.cursor
     # exists; Cline -> its VS Code extension globalStorage dir exists.
-    cursor = (Path.home() / ".cursor").is_dir()
+    cursor = os.path.isdir(Path.home() / ".cursor")
     try:
         from m3_memory.installer import _cline_config_path
 
-        cline = _cline_config_path().parent.parent.is_dir()
+        cline = os.path.isdir(_cline_config_path().parent.parent)
     except Exception:
         cline = False
     return AgentTargets(
@@ -253,7 +253,7 @@ def _find_hermes_plugins_dir() -> Path | None:
     for root in roots:
         for pm in (root / "plugins" / "memory", root / "hermes-agent" / "plugins" / "memory"):
             try:
-                if pm.is_dir():
+                if os.path.isdir(pm):
                     return pm
             except OSError:
                 continue
@@ -270,7 +270,7 @@ def _find_m3_hermes_plugin_src() -> Path | None:
     import hermes-agent modules and are not imported in-place.
     """
     src = Path(__file__).resolve().parent / "integrations" / "hermes"
-    if (src / "__init__.py").exists():
+    if os.path.exists(src / "__init__.py"):
         return src
     return None
 
@@ -2140,7 +2140,7 @@ def _discover_bge_m3_gguf() -> str | None:
             home / ".local" / "share" / "llama.cpp",
         ]
         for d in candidate_dirs:
-            if not d.is_dir():
+            if not os.path.isdir(d):
                 continue
             for path in d.rglob("*.gguf"):
                 name = path.name.lower()
@@ -2887,7 +2887,7 @@ def _disable_claude_plugin_server() -> None:
     """
     settings_path = Path(os.path.expanduser("~")) / ".claude" / "settings.json"
     try:
-        if settings_path.is_file():
+        if os.path.isfile(settings_path):
             with open(settings_path, encoding="utf-8") as fh:
                 live = json.load(fh)
         else:
@@ -2927,7 +2927,7 @@ def _wire_claude_hooks(capture_mode: str) -> bool:
 
         bin_dir = _bin_dir()
         chatlog_init = Path(bin_dir) / "chatlog_init.py"
-        if not chatlog_init.is_file():
+        if not os.path.isfile(chatlog_init):
             _warn("chatlog_init.py not found; skipping Claude hook wiring")
             return False
         proc = subprocess.run(
@@ -2972,7 +2972,7 @@ def _opencode_entry_is_stale(entry: object) -> bool:
     parts = cmd if isinstance(cmd, list) else [cmd]
     for p in parts:
         if isinstance(p, str) and (("/" in p) or ("\\" in p) or p.endswith(".py")):
-            if not Path(os.path.expandvars(os.path.expanduser(p))).exists():
+            if not os.path.exists(Path(os.path.expandvars(os.path.expanduser(p)))):
                 return True
     return False
 
@@ -2999,7 +2999,7 @@ def _wire_opencode() -> bool:
     canonical = {"type": "local", "command": ["m3"], "enabled": True}
     healed_any = False
     for cfg_path in _opencode_config_paths():
-        if not cfg_path.is_file():
+        if not os.path.isfile(cfg_path):
             continue
         try:
             existing = json.loads(cfg_path.read_text(encoding="utf-8")) or {}
@@ -3268,7 +3268,7 @@ def _wire_openclaw() -> bool:
     # measured 2026-09-18.)
     exe = shutil.which("openclaw")
     if not exe:
-        leftover = (Path.home() / ".openclaw").is_dir()
+        leftover = os.path.isdir(Path.home() / ".openclaw")
         if _called_by_upgrade():
             # Same state on every upgrade; `m3 setup` gives the full guidance.
             _warn(
@@ -3394,7 +3394,7 @@ def _hermes_plugin_is_current(src: Path, dst: Path) -> bool:
     """
     for fname in _HERMES_PLUGIN_FILES:
         s, d = src / fname, dst / fname
-        if not d.is_file():
+        if not os.path.isfile(d):
             return False
         try:
             if s.read_bytes() != d.read_bytes():
@@ -3430,7 +3430,7 @@ def _wire_hermes(*, non_interactive: bool = False) -> bool:
         return False
 
     dst = dst_parent / "m3"
-    existed = dst.exists()
+    existed = os.path.exists(dst)
     if existed:
         # Already up to date -> leave it, exactly like OpenCode's "already wired".
         if _hermes_plugin_is_current(src, dst):
@@ -3440,7 +3440,7 @@ def _wire_hermes(*, non_interactive: bool = False) -> bool:
         # upgrade is recoverable (mirrors OpenCode's .m3bak on rewrite).
         bak = dst.with_name("m3.m3bak")
         try:
-            if bak.exists():
+            if os.path.exists(bak):
                 _shutil.rmtree(bak)
             _shutil.move(str(dst), str(bak))
         except OSError as e:

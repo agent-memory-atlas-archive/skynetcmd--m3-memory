@@ -330,7 +330,7 @@ def main() -> int:
     if not (args.run_id or args.variant):
         ap.error("must pass --run-id or --variant")
 
-    if not Path(args.db).exists():
+    if not os.path.exists(Path(args.db)):
         print(f"ERROR: db not found: {args.db}", file=sys.stderr)
         return 1
 

@@ -100,7 +100,7 @@ def read_secrets() -> dict[str, str]:
     """All secrets in the file; {} when there is no file. Raises SecretsFileError
     for a file that exists but is unsafe or malformed (never silently empty)."""
     p = secrets_file_path()
-    if not p.is_file():
+    if not os.path.isfile(p):
         return {}
     _check_private(p)
     try:
@@ -379,7 +379,7 @@ def set_secret(name: str, value: str) -> Path:
     _check_names(p, {name: value})  # refuse before writing a file that could not be read back
     with file_lock(str(p) + ".lock", purpose="secrets file"):
         table = read_secrets()  # an existing file is checked here
-        if is_windows() and not p.exists():
+        if is_windows() and not os.path.exists(p):
             _check_new_file_would_be_private(p.parent)
         table[name] = value
         atomic_write(p, _render(table))

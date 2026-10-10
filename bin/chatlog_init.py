@@ -413,7 +413,7 @@ def apply_gemini_settings() -> tuple[bool, str]:
     settings_path.parent.mkdir(parents=True, exist_ok=True)
 
     existing: dict = {}
-    if settings_path.is_file():
+    if os.path.isfile(settings_path):
         try:
             existing = json.loads(settings_path.read_text(encoding="utf-8")) or {}
         except json.JSONDecodeError as e:
@@ -488,7 +488,7 @@ def apply_gemini_settings() -> tuple[bool, str]:
     if not actions:
         return False, f"no change — Gemini already wired for m3-memory in {settings_path}"
 
-    if settings_path.is_file():
+    if os.path.isfile(settings_path):
         stamp = datetime.now().strftime("%Y%m%dT%H%M%SZ")
         backup = settings_path.with_suffix(f".json.bak.{stamp}")
         backup.write_text(settings_path.read_text(encoding="utf-8"), encoding="utf-8")

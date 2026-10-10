@@ -534,7 +534,7 @@ def _cmd_upgrade(args: argparse.Namespace) -> int:
 
     bd = bin_dir()
     script = (bd / "m3_upgrade.py") if bd else None
-    if script is None or not script.is_file():
+    if script is None or not os.path.isfile(script):
         print(
             f"Error: the upgrade helper is missing from this install "
             f"(looked in {bd or 'no resolvable bin/ directory'}). Reinstall "
@@ -1059,7 +1059,7 @@ def _resolve_bin_script(name: str) -> "Path | None":
     if bridge is None:
         return None
     candidate = bridge.parent / name
-    return candidate if candidate.is_file() else None
+    return candidate if os.path.isfile(candidate) else None
 
 
 def _run_bin_script(script_name: str, argv: list) -> int:
@@ -1303,7 +1303,7 @@ def _cmd_chatlog(args: argparse.Namespace) -> int:
             script = bridge.parent / "hooks" / "chatlog" / "claude_code_precompact.ps1"
         else:
             script = bridge.parent / "hooks" / "chatlog" / "claude_code_precompact.sh"
-        if not script.is_file():
+        if not os.path.isfile(script):
             return 1
         print(str(script))
         return 0

@@ -72,7 +72,7 @@ def _current_version() -> str:
 
 def _load_state() -> dict:
     p = _state_path()
-    if not p.is_file():
+    if not os.path.isfile(p):
         return {}
     try:
         return json.loads(p.read_text(encoding="utf-8")) or {}

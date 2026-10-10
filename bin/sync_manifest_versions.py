@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import tomllib
@@ -83,7 +84,7 @@ def _sync_pypi_badge(target: str, *, check: bool) -> str | None:
     version three times (title, shadow text, foreground text); all must match or
     the badge renders one value and announces another to screen readers.
     """
-    if not _PYPI_BADGE.is_file():
+    if not os.path.isfile(_PYPI_BADGE):
         return f"{_PYPI_BADGE.relative_to(_ROOT)}: missing"
     text = _PYPI_BADGE.read_text(encoding="utf-8")
     stale = sorted({m.group("v") for m in _M3_VERSION_RE.finditer(text)} - {target})
@@ -104,7 +105,7 @@ def _sync_security_supported(target: str, *, check: bool) -> str | None:
     history (what is still receiving fixes), and rewriting those would change a
     security claim rather than refresh one.
     """
-    if not _SECURITY_MD.is_file():
+    if not os.path.isfile(_SECURITY_MD):
         return f"{_SECURITY_MD.relative_to(_ROOT)}: missing"
     text = _SECURITY_MD.read_text(encoding="utf-8")
     want = _minor_series(target)
@@ -127,7 +128,7 @@ _ROADMAP_MD = _ROOT / "docs" / "ROADMAP.md"
 def _sync_roadmap_current(target: str, *, check: bool) -> str | None:
     """Keep ROADMAP.md's "Current version" line on the released version. It was
     hand-maintained and named 2026.10.6.0 after 2026.10.7.0 had shipped."""
-    if not _ROADMAP_MD.is_file():
+    if not os.path.isfile(_ROADMAP_MD):
         return f"{_ROADMAP_MD.relative_to(_ROOT)}: missing"
     text = _ROADMAP_MD.read_text(encoding="utf-8")
     m = re.compile(r"Current version: \*\*v([^*\s]+)\*\*").search(text)
@@ -177,7 +178,7 @@ def main() -> int:
     wrote: list[str] = []
 
     for path in _MANIFESTS:
-        if not path.is_file():
+        if not os.path.isfile(path):
             print(f"[!] missing manifest: {path}", file=sys.stderr)
             drifted.append(str(path))
             continue

@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -70,7 +71,7 @@ def render(*, upgrade: bool) -> str:
         # uv reads the pins to keep from, and writes its result to, the
         # --output-file. Work on a copy so a failed run leaves OUT untouched.
         work = Path(tmp) / "requirements.txt"
-        if OUT.exists() and not upgrade:
+        if os.path.exists(OUT) and not upgrade:
             shutil.copyfile(OUT, work)
         # --no-config: resolve as a plain installer would. [tool.uv]'s
         # override-dependencies exist for the uv lock's extras; applied here

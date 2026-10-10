@@ -1,8 +1,8 @@
 ---
 tool: bin/fetch_sovereign_assets.py
-sha1: 0a6501a5bf6b
-mtime_utc: 2026-10-10T21:05:17.181244+00:00
-generated_utc: 2026-10-10T21:05:29.518365+00:00
+sha1: 52b8bd61df60
+mtime_utc: 2026-10-10T22:34:36.836269+00:00
+generated_utc: 2026-10-10T22:35:15.067395+00:00
 private: false
 ---
 

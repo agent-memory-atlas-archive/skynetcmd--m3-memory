@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from collections import defaultdict
 from itertools import batched
@@ -19,7 +20,7 @@ def _load_conv_list(path: Path) -> set[str]:
 
     Returns a deduplicated set; raises SystemExit on malformed input.
     """
-    if not path.exists():
+    if not os.path.exists(path):
         sys.exit(
             f"ERROR: --source-conv-list path not found. "
             f"observed: {path}. "

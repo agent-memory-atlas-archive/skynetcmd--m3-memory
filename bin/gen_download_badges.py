@@ -100,7 +100,7 @@ def _write_badge_svg(path: Path, label: str, message: str, color: str, logo: str
         if b"<svg" not in svg[:200]:
             print(f"[svg] {path.name}: unexpected response, not overwriting", file=sys.stderr)
             return False
-        old = path.read_bytes() if path.exists() else b""
+        old = path.read_bytes() if os.path.exists(path) else b""
         if old != svg:
             path.write_bytes(svg)
             return True
@@ -156,7 +156,7 @@ def accumulate_clone_total(history_path: Path, fresh_days: list[tuple[str, int]]
     the latest reported value (the same day can appear in two overlapping windows).
     """
     history: dict[str, int] = {}
-    if history_path.exists():
+    if os.path.exists(history_path):
         try:
             history = {str(k): int(v) for k, v in json.loads(history_path.read_text("utf-8")).items()}
         except (json.JSONDecodeError, ValueError, TypeError):
@@ -176,7 +176,7 @@ def accumulate_clone_total(history_path: Path, fresh_days: list[tuple[str, int]]
 def _write_json(path: Path, obj: dict) -> bool:
     """Write pretty JSON; return True if the file content changed."""
     new = json.dumps(obj, indent=2) + "\n"
-    old = path.read_text("utf-8") if path.exists() else None
+    old = path.read_text("utf-8") if os.path.exists(path) else None
     if new == old:
         return False
     path.parent.mkdir(parents=True, exist_ok=True)

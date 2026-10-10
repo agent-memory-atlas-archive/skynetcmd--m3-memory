@@ -65,7 +65,7 @@ def _persist_embed_gguf_shell(gguf_path: str, *, non_interactive: bool) -> None:
         return
 
     try:
-        existing = rc_path.read_text(encoding="utf-8") if rc_path.exists() else ""
+        existing = rc_path.read_text(encoding="utf-8") if os.path.exists(rc_path) else ""
     except OSError as e:
         _warn(f"    could not read {rc_path} ({e}); skipping shell rc persistence")
         return
@@ -90,7 +90,7 @@ def shell_rc_has(name: str, value: str) -> bool:
         return False
     try:
         rc = _pick_unix_shell_rc()
-        text = rc.read_text(encoding="utf-8") if rc.exists() else ""
+        text = rc.read_text(encoding="utf-8") if os.path.exists(rc) else ""
     except OSError:
         return False
     prefix = f"export {name}="
@@ -124,7 +124,7 @@ def _pick_unix_shell_rc() -> Path:
     if "bash" in shell:
         return home / ".bashrc"
     for candidate in (home / ".zshrc", home / ".bashrc", home / ".bash_profile", home / ".profile"):
-        if candidate.exists():
+        if os.path.exists(candidate):
             return candidate
     return home / ".zshrc"
 
@@ -144,7 +144,7 @@ def _persist_embed_gguf_mcp(gguf_path: str) -> None:
         ("Claude Code", Path.home() / ".claude" / "settings.json"),
         ("Gemini CLI", Path.home() / ".gemini" / "settings.json"),
     ):
-        if not settings_path.is_file():
+        if not os.path.isfile(settings_path):
             continue
         try:
             cfg = json.loads(settings_path.read_text(encoding="utf-8")) or {}
@@ -221,7 +221,7 @@ def _persist_env_var_mcp(name: str, value: str) -> None:
         ("Claude Code", Path.home() / ".claude" / "settings.json"),
         ("Gemini CLI", Path.home() / ".gemini" / "settings.json"),
     ):
-        if not settings_path.is_file():
+        if not os.path.isfile(settings_path):
             continue
         try:
             cfg = json.loads(settings_path.read_text(encoding="utf-8")) or {}

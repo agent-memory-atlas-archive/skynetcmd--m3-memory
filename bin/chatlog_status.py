@@ -373,7 +373,7 @@ def _config_drift(config: chatlog_config.ChatlogConfig) -> list[tuple[str, Any, 
     """
     try:
         path = Path(chatlog_config.CONFIG_PATH)
-        if not path.is_file():
+        if not os.path.isfile(path):
             return []
         disk = json.loads(path.read_text(encoding="utf-8")).get("redaction", {})
         if not isinstance(disk, dict):

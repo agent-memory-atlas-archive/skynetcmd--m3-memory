@@ -573,7 +573,7 @@ def opencode_store_candidates() -> list[Path]:
     appdata = os.environ.get("LOCALAPPDATA")
     if appdata:
         cands.append(Path(appdata) / "opencode")
-    return [c for c in cands if c.exists()]
+    return [c for c in cands if os.path.exists(c)]
 
 
 def _opencode_item(msg: dict, msg_id: str, session_id: str, texts: list, created) -> dict | None:
@@ -725,11 +725,11 @@ def _parse_opencode(transcript_path: str) -> tuple[list[dict], str | None]:
     # storage/message/<session>/ returned the SQLITE session instead, silently
     # capturing a different conversation than the one asked for. Only look for
     # the database when the caller did NOT name a legacy tree.
-    is_legacy_tree = given.is_dir() and given.parent.name == "message"
+    is_legacy_tree = os.path.isdir(given) and given.parent.name == "message"
     if not is_legacy_tree:
         for cand in (given, given / "opencode.db", given.parent / "opencode.db"):
             try:
-                if cand.is_file() and cand.suffix == ".db":
+                if os.path.isfile(cand) and cand.suffix == ".db":
                     items, sid = _parse_opencode_sqlite(cand)
                     if items or sid:
                         return items, sid
@@ -737,9 +737,9 @@ def _parse_opencode(transcript_path: str) -> tuple[list[dict], str | None]:
                 continue
 
     msg_dir = given
-    if msg_dir.is_file():
+    if os.path.isfile(msg_dir):
         msg_dir = msg_dir.parent
-    if not msg_dir.is_dir():
+    if not os.path.isdir(msg_dir):
         return [], None
 
     part_root = msg_dir.parent.parent / "part"
@@ -756,7 +756,7 @@ def _parse_opencode(transcript_path: str) -> tuple[list[dict], str | None]:
 
         texts: list[str] = []
         part_dir = part_root / str(msg.get("id", ""))
-        if part_dir.is_dir():
+        if os.path.isdir(part_dir):
             for part_file in sorted(part_dir.glob("*.json")):
                 try:
                     part = json.loads(part_file.read_text(encoding="utf-8", errors="replace"))

@@ -184,7 +184,7 @@ def invalidate_cache() -> None:
 def _find_profile_file(name: str) -> Path | None:
     for d in _profile_search_dirs():
         candidate = d / f"{name}.yaml"
-        if candidate.is_file():
+        if os.path.isfile(candidate):
             return candidate
     return None
 
@@ -716,7 +716,7 @@ def list_profiles() -> dict[str, Path]:
     """
     found: dict[str, Path] = {}
     for d in _profile_search_dirs():
-        if not d.is_dir():
+        if not os.path.isdir(d):
             continue
         for p in sorted(d.glob("*.yaml")):
             name = p.stem
@@ -731,7 +731,7 @@ def _selftest() -> None:
     print(f"M3_SLM_PROFILE:    {_default_profile_name()}")
     print("search dirs:")
     for d in _profile_search_dirs():
-        exists = "[OK]  " if d.is_dir() else "[none]"
+        exists = "[OK]  " if os.path.isdir(d) else "[none]"
         print(f"  {exists} {d}")
     print("profiles found:")
     profs = list_profiles()

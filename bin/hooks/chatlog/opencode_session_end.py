@@ -61,7 +61,7 @@ def find_python(repo: Path) -> str:
         repo / ".venv" / "Scripts" / "python.exe",
         repo / ".venv" / "bin" / "python",
     ]:
-        if candidate.exists() and usable_interpreter(candidate):
+        if os.path.exists(candidate) and usable_interpreter(candidate):
             return str(candidate)
     return sys.executable
 
@@ -211,7 +211,7 @@ def main() -> int:
 
     repo = find_repo_root()
     ingest = repo / "bin" / "chatlog_ingest.py"
-    if not ingest.exists():
+    if not os.path.exists(ingest):
         reason = f"chatlog_ingest.py not found under {repo} — set M3_HOME"
         fallback = write_fallback(transcript, session_id, AGENT, event_name, variant, reason)
         scream(reason, fallback, AGENT, event_name)

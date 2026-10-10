@@ -8,6 +8,7 @@ injecting a bottom_toolbar that mirrors the Claude Code statusline:
 """
 
 import json
+import os
 import socket
 import subprocess
 import sys
@@ -76,7 +77,7 @@ def _mcp_count() -> int:
             Path.home() / ".claude" / "settings.json",
         ]
         for p in paths:
-            if p.exists():
+            if os.path.exists(p):
                 settings = json.loads(p.read_text())
                 return len(settings.get("mcpServers", {}))
         return 0
