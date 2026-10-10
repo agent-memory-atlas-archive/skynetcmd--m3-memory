@@ -367,6 +367,17 @@ def _is_public(name: str) -> bool:
     return True
 
 
+def _defined_by_m3(obj) -> bool:
+    """Is obj defined in m3's own code (a module under bin/), not re-exported
+    from the standard library or a third-party package?"""
+    mod = getattr(obj, "__module__", None)
+    if not isinstance(mod, str):
+        return False
+    top = mod.split(".", 1)[0]
+    bin_dir = Path(__file__).resolve().parents[1] / "bin"
+    return (bin_dir / f"{top}.py").is_file() or (bin_dir / top).is_dir()
+
+
 def _build_snapshot():
     """Import memory_core and walk its FULL public surface. Returns a JSON-safe dict.
 
@@ -403,7 +414,11 @@ def _build_snapshot():
             continue
         symbols[name] = {
             "kind": _classify_symbol(obj),
-            "signature": _capture_signature(obj),
+            # A re-exported stdlib/third-party callable's signature belongs to
+            # the interpreter or library, not to m3's API: itertools.batched is
+            # (iterable, n) on 3.12 and (iterable, n, *, strict=False) on 3.13+,
+            # so a snapshot taken on one Python failed every lane on the other.
+            "signature": _capture_signature(obj) if _defined_by_m3(obj) else None,
             "value_repr": _capture_value(obj),
         }
     return {

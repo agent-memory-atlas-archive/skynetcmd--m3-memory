@@ -1234,7 +1234,7 @@
     },
     "batched": {
       "kind": "class",
-      "signature": "(iterable, n, *, strict=False)",
+      "signature": null,
       "value_repr": null
     },
     "compute_bitemporal_diffs_impl": {
