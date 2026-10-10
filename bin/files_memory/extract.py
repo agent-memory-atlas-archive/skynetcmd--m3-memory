@@ -346,7 +346,7 @@ def extract_facts_for_leaf(
     leaf_uuid: str,
     leaf_text: str,
     *,
-    leaf_division_type: str = "",  # reserved: planned prompt hint for `window` leaves (m3 3e8f0b21)
+    leaf_division_type: str = "",  # reserved: planned prompt hint for `window` leaves (m3 3e8f0b21; bin/check_unreferenced.py RESERVED)
     file_summary: str | None = None,
     max_tokens: int = 1024,
 ) -> ExtractionResult:

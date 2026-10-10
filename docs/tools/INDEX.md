@@ -1,6 +1,6 @@
 # Tool inventory index
 
-_Generated 2026-10-10T05:28:19.008693+00:00._
+_Generated 2026-10-10T08:45:11.047372+00:00._
 
 Re-run `python bin/gen_tool_inventory.py` after changing any tool.
 Entries whose `sha1` no longer matches the live file need re-validation.
@@ -32,10 +32,10 @@ Entries whose `sha1` no longer matches the live file need re-validation.
 | [bin/chatlog_strip_framing_backfill.py](chatlog_strip_framing_backfill.md) | chatlog_strip_framing_backfill.py — one-off backfill that removes harness |  |
 | [bin/chatlog_timing.py](chatlog_timing.md) | Per-turn wall-clock timing from the chatlog — who spent the time, objectively. |  |
 | [bin/check_control_chars.py](check_control_chars.md) | Detect stray control characters in text files — the PowerShell backtick trap. |  |
-| [bin/check_dead_code.py](check_dead_code.md) | Check for dead code with vulture: the one owner of the invocation. |  |
 | [bin/check_deps.py](check_deps.md) | Check declared vs imported dependencies with deptry: the one owner of the invocation. |  |
 | [bin/check_env_access.py](check_env_access.md) | Inventory every process-environment access in m3's production code (plan Step 2A.1). |  |
 | [bin/check_tool_catalog_drift.py](check_tool_catalog_drift.md) | Single source of truth for the tool-catalog pre-push drift gate. |  |
+| [bin/check_unreferenced.py](check_unreferenced.md) | Check that every unreferenced symbol is either removed or DECLARED. |  |
 | [bin/cleanup_logs.sh](cleanup_logs_sh.md) | (no docstring) |  |
 | [bin/cli_kb_browse.py](cli_kb_browse.md) | cli_kb_browse.py — Browse knowledge base entries in rank (importance) order. |  |
 | [bin/cli_knowledge.py](cli_knowledge.md) | (no docstring) |  |
