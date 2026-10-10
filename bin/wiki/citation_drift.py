@@ -32,6 +32,7 @@ import hashlib
 import json
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Protocol
 
 # Same provenance relations the blast-radius walk uses: a synthesis was compiled
@@ -374,7 +375,7 @@ class ModelDriftJudge:
             return None
         try:
             import sys
-            sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            sys.path.insert(0, str(Path(__file__).absolute().parents[1]))
             from auth_utils import get_api_key
             return get_api_key(service)
         except Exception:
@@ -384,14 +385,14 @@ class ModelDriftJudge:
     def _cache_path(self, digest: str) -> str | None:
         if not self.cfg.cache_dir:
             return None
-        return os.path.join(self.cfg.cache_dir, f"drift_{digest}.json")
+        return str(Path(self.cfg.cache_dir) / f"drift_{digest}.json")
 
     def _read_cache(self, digest: str) -> tuple[bool, str] | None:
         path = self._cache_path(digest)
-        if not path or not os.path.isfile(path):
+        if not path or not Path(path).is_file():
             return None
         try:
-            with open(path, encoding="utf-8") as f:
+            with Path(path).open(encoding="utf-8") as f:
                 obj = json.load(f)
             d = obj.get("drifted")
             if isinstance(d, bool):
@@ -405,8 +406,8 @@ class ModelDriftJudge:
         if not path:
             return
         try:
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            with open(path, "w", encoding="utf-8", newline="\n") as f:
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+            with Path(path).open("w", encoding="utf-8", newline="\n") as f:
                 json.dump({"hash": digest, "drifted": drifted, "reason": reason},
                           f, ensure_ascii=False, indent=2)
         except Exception:

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 from .cluster import Cluster
 
@@ -183,7 +184,7 @@ def _resolve_key(service: str) -> str | None:
         return None
     try:
         import sys
-        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        sys.path.insert(0, str(Path(__file__).absolute().parents[1]))
         from auth_utils import get_api_key
         return get_api_key(service)
     except Exception:

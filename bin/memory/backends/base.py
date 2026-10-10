@@ -136,17 +136,21 @@ def snapshot_target(dest_dir: str, stem: str, label: str, ext: str) -> str:
     Refuses a ``label`` that could escape ``dest_dir`` and refuses to reuse an
     existing name — a snapshot never overwrites an earlier one.
     """
-    import os
     from datetime import datetime
+    from pathlib import Path
 
     if not _LABEL_RE.fullmatch(label or ""):
         raise SnapshotError(f"snapshot label must match [A-Za-z0-9._-]+; got {label!r}")
-    os.makedirs(dest_dir, exist_ok=True)
+    if not dest_dir:
+        # os.makedirs("") raised; Path("").mkdir() would silently mean the cwd.
+        raise FileNotFoundError(2, "snapshot destination directory is empty", dest_dir)
+    dest = Path(dest_dir)
+    dest.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    path = os.path.join(dest_dir, f"{stem}.{label}.{stamp}{ext}")
-    if os.path.exists(path) or os.path.exists(path + ".partial"):
+    path = dest / f"{stem}.{label}.{stamp}{ext}"
+    if path.exists() or Path(f"{path}.partial").exists():
         raise SnapshotError(f"snapshot target already exists: {path}")
-    return path
+    return str(path)
 
 
 @dataclass(frozen=True, slots=True)

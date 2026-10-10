@@ -438,7 +438,10 @@ select = ["E", "F", "W", "I", "UP",
           # strip 601 reasoned `noqa: BLE001` markers).
           "C4", "FURB", "PERF", "RET501", "RET502", "RET503", "RET506",
           "RUF005", "RUF010", "RUF015", "RUF021", "RUF022", "RUF023", "RUF043",
-          "RUF046", "RUF051", "RUF059", "RUF102"]
+          "RUF046", "RUF051", "RUF059", "RUF102",
+          # pathlib (2D.M, phased): enforced only where converted; see the
+          # negated per-file-ignores entry below, which shrinks phase by phase.
+          "PTH"]
 # E501: long lines handled by editor wrap, not blocker for this codebase.
 # E402: many bin/ entrypoints do sys.path setup or lazy imports deliberately
 #   before importing project modules — buried imports are intentional.
@@ -461,6 +464,9 @@ ignore = ["E501", "E402", "E701", "E702", "E741", "PERF401", "PERF403"]
 # `[x for x in xs if ...][0]` fails with IndexError when nothing matched, which
 # names the problem; next(...) would raise StopIteration (RUF015).
 "tests/**" = ["RUF012", "ASYNC230", "RUF015"]
+# pathlib phases: PTH is ignored everywhere EXCEPT the converted groups.
+# Phase 1 (2026-10-09): bin/memory, bin/wiki. Add the next group to the braces.
+"!{bin/memory/**,bin/wiki/**}" = ["PTH"]
 
 [tool.mypy]
 python_version = "3.12"

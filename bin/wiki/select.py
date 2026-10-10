@@ -95,15 +95,16 @@ def _self_ref_names() -> frozenset[str]:
     shell env). Malformed/absent → the default. Cached per config path."""
     import json as _json
     import os as _os
+    from pathlib import Path
     root = (_os.environ.get("M3_CONFIG_ROOT")
-            or (_os.path.join(_os.environ["M3_MEMORY_ROOT"], "config")
+            or (str(Path(_os.environ["M3_MEMORY_ROOT"]) / "config")
                 if _os.environ.get("M3_MEMORY_ROOT") else None)
-            or _os.path.join(_os.path.expanduser("~"), ".m3", "config"))
-    path = _os.path.join(root, _SELF_REF_CONFIG_BASENAME)
+            or str(Path.home() / ".m3" / "config"))
+    path = str(Path(root) / _SELF_REF_CONFIG_BASENAME)
     names = set(_DEFAULT_SELF_REF_NAMES)
     try:
-        if _os.path.isfile(path):
-            with open(path, encoding="utf-8") as fh:
+        if Path(path).is_file():
+            with Path(path).open(encoding="utf-8") as fh:
                 extra = _json.load(fh).get("self_entities")
             if isinstance(extra, list):
                 names.update(str(x) for x in extra)

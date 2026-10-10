@@ -37,6 +37,7 @@ import time
 import uuid
 from contextlib import contextmanager
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from embedding_utils import infer_change_agent as _infer_change_agent_util
@@ -300,14 +301,14 @@ def _ensure_sync_tables(db_path: str | None = None) -> None:
     except Exception:  # noqa: BLE001 — no seam yet (bootstrap) => SQLite
         pass
     try:
-        migration_script = os.path.join(config.BASE_DIR, "bin", "migrate_memory.py")
+        migration_script = str(Path(config.BASE_DIR) / "bin" / "migrate_memory.py")
 
         # Detect chatlog context via schema fingerprint.
         active = db_path or resolve_db_path(None)
         target_flag: list[str] = []
         target_kind = "main"
         try:
-            sys.path.insert(0, os.path.join(config.BASE_DIR, "bin"))
+            sys.path.insert(0, str(Path(config.BASE_DIR) / "bin"))
             from migrate_memory import _classify_db
             if _classify_db(active) == "chatlog":
                 target_flag = ["--target", "chatlog"]
@@ -318,14 +319,12 @@ def _ensure_sync_tables(db_path: str | None = None) -> None:
         # Fast path: compare DB's applied version vs. the highest .up.sql file
         # number for the resolved target. If equal, no migrations to apply.
         try:
-            mig_dir = os.path.join(
-                config.BASE_DIR, "memory",
-                "chatlog_migrations" if target_kind == "chatlog" else "migrations",
-            )
+            mig_dir = Path(config.BASE_DIR) / "memory" / (
+                "chatlog_migrations" if target_kind == "chatlog" else "migrations")
             file_versions = []
             pattern = re.compile(r"^(\d+)_.*\.up\.sql$")
-            for fn in os.listdir(mig_dir):
-                m = pattern.match(fn)
+            for entry in mig_dir.iterdir():
+                m = pattern.match(entry.name)
                 if m:
                     file_versions.append(int(m.group(1)))
             latest_on_disk = max(file_versions) if file_versions else -1
@@ -381,7 +380,7 @@ def _ensure_sync_tables(db_path: str | None = None) -> None:
             from _task_runtime import no_window_kwargs
             _nw = no_window_kwargs()
         except ImportError:
-            _bin_dir = os.path.join(config.BASE_DIR, "bin")
+            _bin_dir = str(Path(config.BASE_DIR) / "bin")
             if _bin_dir not in sys.path:
                 sys.path.insert(0, _bin_dir)
             try:

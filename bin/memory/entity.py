@@ -383,7 +383,7 @@ def load_entity_vocab(yaml_path: str | Path | None = None) -> tuple[frozenset[st
         return _DEFAULT_VALID_ENTITY_TYPES, _DEFAULT_VALID_ENTITY_PREDICATES
 
     try:
-        with open(path, encoding="utf-8") as f:
+        with Path(path).open(encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
     except Exception as e:  # noqa: BLE001 — falls back, and says so
         logger.warning(f"entity vocabulary unreadable; observed: {path}: {type(e).__name__}: {e}; "

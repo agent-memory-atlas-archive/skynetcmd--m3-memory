@@ -19,8 +19,8 @@ from pathlib import Path
 from typing import Any, override
 
 # Ensure bin/ is on path for unified_ai and llm_failover imports
-_HERE = os.path.dirname(os.path.abspath(__file__))
-_BIN = os.path.dirname(_HERE)
+_HERE = str(Path(__file__).absolute().parent)
+_BIN = str(Path(_HERE).parent)
 if _BIN not in sys.path:
     sys.path.insert(0, _BIN)
 
@@ -414,7 +414,7 @@ def get_configured_extractor() -> BaseExtractor:
     cfg_file = Path(_config._M3_CONFIG_ROOT) / "extraction.json"
     if cfg_file.exists() and etype == "rule_based" and not model and not url:
         try:
-            with open(cfg_file, encoding="utf-8") as f:
+            with cfg_file.open(encoding="utf-8") as f:
                 data = json.load(f) or {}
             backend_cfg = data.get("extraction_backend", {})
             if backend_cfg:

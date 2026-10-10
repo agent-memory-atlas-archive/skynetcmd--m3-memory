@@ -30,6 +30,7 @@ import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, override
 
 from m3_sdk import getenv_compat
@@ -402,11 +403,11 @@ def _pg_tool(name: str) -> str:
 
     explicit = os.environ.get(_PG_TOOL_ENV[name])
     if explicit:
-        if os.path.isfile(explicit):
-            return os.path.abspath(explicit)
+        if Path(explicit).is_file():
+            return str(Path(explicit).absolute())
         raise SnapshotError(f"{_PG_TOOL_ENV[name]}={explicit!r} is not a file.")
     if name == "pg_restore" and os.environ.get("M3_PG_DUMP"):
-        sibling = shutil.which("pg_restore", path=os.path.dirname(os.environ["M3_PG_DUMP"]))
+        sibling = shutil.which("pg_restore", path=str(Path(os.environ["M3_PG_DUMP"]).parent))
         if sibling:
             return sibling
     found = shutil.which(name)
@@ -453,10 +454,7 @@ def _tail(text: str | bytes, n: int = 400) -> str:
 
 
 def _remove_file(path: str) -> None:
-    try:
-        os.remove(path)
-    except FileNotFoundError:
-        pass
+    Path(path).unlink(missing_ok=True)
 
 
 def _archive_row_counts(pg_restore: str, archive: str, schema: str) -> dict[str, int]:
@@ -893,14 +891,10 @@ class PostgresBackend:
         with self._lock:
             if self._schema_ready:
                 return
-            import os
-
             from memory import config as _cfg
 
-            sql_path = os.path.join(
-                _cfg.BASE_DIR, "memory", "migrations", "postgres", "pg_primary_v1.sql"
-            )
-            if not os.path.exists(sql_path):
+            sql_path = Path(_cfg.BASE_DIR) / "memory" / "migrations" / "postgres" / "pg_primary_v1.sql"
+            if not sql_path.exists():
                 raise RuntimeError(
                     f"observed: PostgreSQL schema file not found at {sql_path}. "
                     f"possible: an incomplete install, a packaging error, or a "
@@ -909,8 +903,7 @@ class PostgresBackend:
                     f"reinstall with `pip install m3-memory` if the file is missing. "
                     f"Cannot initialize the PostgreSQL primary schema."
                 )
-            with open(sql_path, encoding="utf-8") as f:
-                schema_sql = f.read()
+            schema_sql = sql_path.read_text(encoding="utf-8")
             conn = pool.getconn()
             try:
                 cur = conn.cursor()
@@ -1224,7 +1217,7 @@ class PostgresBackend:
         if diffs:
             _remove_file(partial)
             raise SnapshotError(f"archive did not verify: row-count mismatch in {diffs[:10]}")
-        os.replace(partial, dst)
+        Path(partial).replace(dst)
         return Snapshot(
             path=dst,
             store=self.store_identity(),

@@ -31,15 +31,15 @@ def _logo_src() -> str:
     Falls back to the raw.githubusercontent.com URL if the packaged PNG isn't found.
     """
     import base64
-    import os
-    here = os.path.dirname(os.path.abspath(__file__))
+    from pathlib import Path
+    here = Path(__file__).absolute().parent
     candidates = [
-        os.path.join(here, "..", "..", "docs", "m3_logo_icon.png"),  # dev tree (bin/wiki -> ../../docs)
-        os.path.join(here, "..", "docs", "m3_logo_icon.png"),        # installed (m3_memory/docs vs bin/wiki)
+        here.parents[1] / "docs" / "m3_logo_icon.png",  # dev tree (bin/wiki -> ../../docs)
+        here.parent / "docs" / "m3_logo_icon.png",      # installed (m3_memory/docs vs bin/wiki)
     ]
     for path in candidates:
         try:
-            with open(os.path.abspath(path), "rb") as f:
+            with path.open("rb") as f:
                 b64 = base64.b64encode(f.read()).decode("ascii")
             return f"data:image/png;base64,{b64}"
         except OSError:

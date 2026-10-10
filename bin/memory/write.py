@@ -7,6 +7,7 @@ import os
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
+from pathlib import Path
 
 from embedding_utils import (
     infer_change_agent as _infer_change_agent_util,
@@ -1547,12 +1548,13 @@ async def _check_contradictions(
 
 def _read_memory_file(p: str) -> tuple[str | None, str | None]:
     """Read a memory_write_from_file payload: (content, None) or (None, error)."""
-    if not os.path.exists(p):
+    q = Path(p)
+    if not q.exists():
         return None, f"Error: file not found: {p}"
-    if not os.path.isfile(p):
+    if not q.is_file():
         return None, f"Error: not a file: {p}"
     try:
-        size = os.path.getsize(p)
+        size = q.stat().st_size
     except OSError as e:
         return None, f"Error: cannot stat file: {type(e).__name__}: {e}"
     # Defense-in-depth size check — memory_write_impl will also enforce
@@ -1561,7 +1563,7 @@ def _read_memory_file(p: str) -> tuple[str | None, str | None]:
     if size > 200_000:
         return None, f"Error: file too large ({size} bytes; max 200000 for memory_write_from_file)"
     try:
-        with open(p, encoding="utf-8") as f:
+        with q.open(encoding="utf-8") as f:
             return f.read(), None
     except (OSError, UnicodeDecodeError) as e:
         return None, f"Error: cannot read file: {type(e).__name__}: {e}"
@@ -1616,7 +1618,13 @@ async def memory_write_from_file_impl(
     if not path:
         return "Error: path is required"
     # Disk I/O on a worker thread: this runs inside the MCP server's event loop.
-    p = os.path.abspath(os.path.expanduser(path))
+    try:
+        expanded = Path(path).expanduser()
+    except RuntimeError:
+        # No resolvable home: os.path.expanduser left the path unchanged, and
+        # this tool must answer with an error string, never raise.
+        expanded = Path(path)
+    p = str(expanded.absolute())
     content, error = await asyncio.to_thread(_read_memory_file, p)
     if error is not None:
         return error
@@ -1650,7 +1658,7 @@ async def memory_write_from_file_impl(
     # file in place so the caller can inspect it.
     if delete_after_read and isinstance(result, str) and result.startswith("Created:"):
         try:
-            os.unlink(p)
+            Path(p).unlink()
         except OSError as e:
             # Non-fatal — the row landed; we just couldn't clean up the temp.
             logger.warning(f"memory_write_from_file: row written but file unlink failed: {e}")

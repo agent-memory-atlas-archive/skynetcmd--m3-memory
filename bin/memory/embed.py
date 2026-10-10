@@ -326,12 +326,14 @@ def _read_embed_config() -> tuple[dict, bool]:
     needs to distinguish "config says use inproc" from "no config at all", which
     a bare {} could not express."""
     try:
+        from pathlib import Path
+
         from m3_core.paths import get_m3_config_root
-        path = os.path.join(get_m3_config_root(), ".embed_config.json")
-        if not os.path.exists(path):
+        path = Path(get_m3_config_root()) / ".embed_config.json"
+        if not path.exists():
             return {}, False
         import json as _json
-        with open(path, encoding="utf-8") as f:
+        with path.open(encoding="utf-8") as f:
             return (_json.load(f) or {}), True
     except Exception as e:  # noqa: BLE001 — never let a bad config break embedding
         logger.warning(

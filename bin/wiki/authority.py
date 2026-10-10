@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 
 # The shipping default: only 'canonical' renders as body prose. Everything else
 # (provisional, pending, draft, unknown) renders behind a marker until promoted.
@@ -50,20 +51,20 @@ def _config_root() -> str:
         return root
     mem_root = os.environ.get("M3_MEMORY_ROOT")
     if mem_root:
-        return os.path.join(mem_root, "config")
-    return os.path.join(os.path.expanduser("~"), ".m3", "config")
+        return str(Path(mem_root) / "config")
+    return str(Path.home() / ".m3" / "config")
 
 
 def body_authorities() -> frozenset[str]:
     """The set of authority values that render as body prose. Config-overridable;
     defaults to {'canonical'}. Read once per config path, then cached."""
-    path = os.path.join(_config_root(), _CONFIG_BASENAME)
+    path = str(Path(_config_root()) / _CONFIG_BASENAME)
     if path in _CACHE:
         return _CACHE[path]
     result = _DEFAULT_BODY_AUTHORITIES
-    if os.path.isfile(path):
+    if Path(path).is_file():
         try:
-            with open(path, encoding="utf-8") as f:
+            with Path(path).open(encoding="utf-8") as f:
                 data = json.load(f)
             vals = data.get("body_authorities")
             if isinstance(vals, list) and all(isinstance(v, str) for v in vals) and vals:

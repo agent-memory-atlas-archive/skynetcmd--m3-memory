@@ -22,6 +22,7 @@ import hashlib
 import json
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 from .cluster import Cluster
 
@@ -86,14 +87,14 @@ def _cluster_hash(c: Cluster, model: str) -> str:
 def _cache_path(cfg: SynthConfig, digest: str) -> str | None:
     if not cfg.cache_dir:
         return None
-    return os.path.join(cfg.cache_dir, f"{digest}.json")
+    return str(Path(cfg.cache_dir) / f"{digest}.json")
 
 
 def _read_cache(path: str | None) -> str | None:
-    if not path or not os.path.isfile(path):
+    if not path or not Path(path).is_file():
         return None
     try:
-        with open(path, encoding="utf-8") as f:
+        with Path(path).open(encoding="utf-8") as f:
             return json.load(f).get("lede")
     except Exception:
         return None
@@ -103,8 +104,8 @@ def _write_cache(path: str | None, digest: str, lede: str) -> None:
     if not path:
         return
     try:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8", newline="\n") as f:
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        with Path(path).open("w", encoding="utf-8", newline="\n") as f:
             json.dump({"hash": digest, "lede": lede}, f, ensure_ascii=False, indent=2)
     except Exception:
         pass  # a cache write failure must never break generation
@@ -169,7 +170,7 @@ def _resolve_key(service: str) -> str | None:
         return None
     try:
         import sys
-        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        sys.path.insert(0, str(Path(__file__).absolute().parents[1]))
         from auth_utils import get_api_key
         return get_api_key(service)
     except Exception:

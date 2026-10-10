@@ -28,6 +28,7 @@ import http.client
 import logging
 import os
 import time
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
@@ -99,7 +100,7 @@ def _probe_tier1() -> dict[str, Any]:
             pass
     res["gguf_path"] = gguf or None
     if gguf:
-        res["gguf_exists"] = os.path.exists(gguf)
+        res["gguf_exists"] = Path(gguf).exists()
     # Tier-1 configured-ness is determined by the GGUF, NOT by whether the native
     # extension imports. With no GGUF (or a missing one), tier-1 is a deliberate
     # skip — 'not-configured' — regardless of m3_core_rs. Decide this FIRST: a
@@ -398,23 +399,25 @@ def _resolve_embed_stores(main_db: Any) -> list[str]:
     """
     import os as _os
 
+    # abspath, not Path.absolute(): these strings de-duplicate the stores below,
+    # and only abspath collapses ".." so two spellings of one file stay one.
     paths: list[str] = []
     if main_db:
-        paths.append(_os.path.abspath(str(main_db)))
+        paths.append(_os.path.abspath(str(main_db)))  # noqa: PTH100 — identity string; see above
     try:
         import chatlog_config
         chat = chatlog_config._path_from_env()
         if not chat:
             chat = chatlog_config._build_from_dict(chatlog_config._load_file()).db_path
         if chat:
-            paths.append(_os.path.abspath(str(chat)))
+            paths.append(_os.path.abspath(str(chat)))  # noqa: PTH100 — identity string; see above
     except Exception:  # noqa: BLE001 — chatlog is optional; never break repair
         pass
 
     seen: set[str] = set()
     out: list[str] = []
     for p in paths:
-        if p not in seen and _os.path.exists(p):
+        if p not in seen and Path(p).exists():
             seen.add(p)
             out.append(p)
     return out
@@ -425,11 +428,7 @@ def _embed_backfill_script() -> str:
     dirname(dirname(__file__)) is already bin/ and the script sits right there. A
     stray extra "bin" segment used to yield a nonexistent bin/bin/embed_backfill.py
     that failed with a cryptic "can't open file"."""
-    import os
-    return os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "embed_backfill.py",
-    )
+    return str(Path(__file__).absolute().parents[1] / "embed_backfill.py")
 
 
 def _fts5_index_matches_content(db_path: str) -> bool:
@@ -537,10 +536,7 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
                 import os as _os
                 env = _os.environ.copy()
                 env["M3_DATABASE"] = str(db_path)
-                mig_script = _os.path.join(
-                    _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
-                    "migrate_memory.py"
-                )
+                mig_script = str(Path(__file__).absolute().parents[1] / "migrate_memory.py")
                 # On a worker thread: this runs inside the MCP server's event
                 # loop, and up to 300s of migration would stall every other call.
                 result = await asyncio.to_thread(
@@ -634,9 +630,8 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
             finally:
                 conn.close()
         except Exception as e:  # noqa: BLE001 — recorded in the report, not counted as 0
-            import os as _os
             _record("embed_backfill_count", "error",
-                    f"could not count missing embeddings in {_os.path.basename(path)}; "
+                    f"could not count missing embeddings in {Path(path).name}; "
                     f"observed: {type(e).__name__}: {e}")
             return 0
 
@@ -646,9 +641,8 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
     # Name the store in every message. "2 items missing embeddings" against an
     # unnamed DB is what made the earlier no-op so hard to spot.
     def _breakdown() -> str:
-        import os as _os
         return ", ".join(
-            f"{_os.path.basename(p)}={n}"
+            f"{Path(p).name}={n}"
             for p, n in _missing_by_store.items() if n > 0
         )
 
@@ -689,14 +683,14 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
                         timeout=120,
                     )
                     if result.returncode == 0:
-                        _ok.append(f"{_os.path.basename(_store)}={_n}")
+                        _ok.append(f"{Path(_store).name}={_n}")
                     else:
                         _err.append(
-                            f"{_os.path.basename(_store)}: "
+                            f"{Path(_store).name}: "
                             f"{result.stderr.strip()[:150]}"
                         )
                 except Exception as e:
-                    _err.append(f"{_os.path.basename(_store)}: {e}")
+                    _err.append(f"{Path(_store).name}: {e}")
 
             if _ok and not _err:
                 _record(
@@ -711,11 +705,10 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
             else:
                 _record("embed_backfill", "error", "; ".join(_err))
     else:
-        import os as _os
         _record(
             "embed_backfill", "skipped",
             "no items missing embeddings in "
-            + ", ".join(_os.path.basename(p) for p in _embed_stores),
+            + ", ".join(Path(p).name for p in _embed_stores),
         )
 
     # ── Action 4: Cohesion table rebuild ──────────────────────────────────────

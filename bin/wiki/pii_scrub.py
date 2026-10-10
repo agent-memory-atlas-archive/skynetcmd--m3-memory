@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import os
 import re
+from pathlib import Path
 
 # ── absolute-path abstraction ────────────────────────────────────────────────
 # Windows (C:\Users\name\..., C:/Users/name/...) and POSIX (/home/name/...,
@@ -64,8 +65,8 @@ def _config_root() -> str:
         return root
     mem = os.environ.get("M3_MEMORY_ROOT")
     if mem:
-        return os.path.join(mem, "config")
-    return os.path.join(os.path.expanduser("~"), ".m3", "config")
+        return str(Path(mem) / "config")
+    return str(Path.home() / ".m3" / "config")
 
 
 def _self_names() -> tuple[str, ...]:
@@ -74,10 +75,10 @@ def _self_names() -> tuple[str, ...]:
     file, not an env var (§3: headless launchers inherit no shell env)."""
     import json
     names: set[str] = set(_DEFAULT_SELF_NAMES)
-    path = os.path.join(_config_root(), _CONFIG_BASENAME)
+    path = Path(_config_root()) / _CONFIG_BASENAME
     try:
-        if os.path.isfile(path):
-            with open(path, encoding="utf-8") as f:
+        if path.is_file():
+            with path.open(encoding="utf-8") as f:
                 extra = json.load(f).get("names")
             if isinstance(extra, list):
                 names.update(str(x) for x in extra if x)

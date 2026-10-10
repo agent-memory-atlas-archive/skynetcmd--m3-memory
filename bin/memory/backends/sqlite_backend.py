@@ -274,18 +274,18 @@ class SqliteDialect(Dialect):
         same-value UPDATE writes no frame, so an unchanged token there is
         correct.) Reads only; opens no connection and creates nothing.
         """
-        import os
+        from pathlib import Path
 
         def _stat(path: str) -> tuple:
             try:
-                st = os.stat(path)
+                st = Path(path).stat()
             except FileNotFoundError:
                 return ()
             return (st.st_ino, st.st_mtime_ns, st.st_size)
 
         def _read(path: str, start: int, end: int) -> bytes:
             try:
-                with open(path, "rb") as f:
+                with Path(path).open("rb") as f:
                     f.seek(start)
                     return f.read(end - start)
             except FileNotFoundError:
@@ -365,12 +365,12 @@ class SqliteDialect(Dialect):
         # VACUUM rewrites the file to reclaim free pages. It needs a fresh
         # connection OUTSIDE any open transaction (VACUUM cannot run inside one)
         # and the *active* path — hence sqlite_path from the caller, not a constant.
-        import os
         import sqlite3
+        from pathlib import Path
         if not sqlite_path:
             return "VACUUM skipped: no active SQLite path supplied"
         try:
-            db_size = os.path.getsize(sqlite_path)
+            db_size = Path(sqlite_path).stat().st_size
         except OSError as e:
             return f"VACUUM skipped: {e}"
         # Size-gated (#46): a multi-hundred-MB VACUUM can hang for minutes.
@@ -708,12 +708,12 @@ class SqliteBackend:
 
     def snapshot(self, dest_dir: str, *, label: str) -> Snapshot:
         """WAL-safe verified copy via `bin/sqlite_snapshot.py` (the one owner)."""
-        import os
+        from pathlib import Path
 
         from sqlite_snapshot import SqliteSnapshotError, snapshot_sqlite
 
         src = self._store_path()
-        stem, ext = os.path.splitext(os.path.basename(src))
+        stem, ext = Path(src).stem, Path(src).suffix
         dst = snapshot_target(dest_dir, stem, label, ext or ".db")
         try:
             counts = snapshot_sqlite(src, dst)

@@ -68,7 +68,7 @@ def _is_valid_gguf(path: Path) -> bool:
         logger.debug("GGUF size %d outside expected window", size)
         return False
     try:
-        with open(path, "rb") as fh:
+        with Path(path).open("rb") as fh:
             return fh.read(4) == b"GGUF"
     except OSError:
         return False
@@ -120,7 +120,7 @@ def fetch_bge_m3(dest_dir: Path | None = None, *, quiet: bool = False) -> Path |
                 total = int(resp.headers.get("content-length", 0))
                 written = 0
                 bar = _progress_bar(total, quiet)
-                with open(part, "wb") as fh:
+                with Path(part).open("wb") as fh:
                     for chunk in resp.iter_content(chunk_size=1 << 20):
                         if not chunk:
                             continue

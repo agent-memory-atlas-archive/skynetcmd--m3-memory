@@ -41,6 +41,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass, replace
+from pathlib import Path
 
 # ── edge classification: what the gate is ALLOWED to read ────────────────────
 #
@@ -189,21 +190,21 @@ def _config_root() -> str:
         return root
     mem_root = os.environ.get("M3_MEMORY_ROOT")
     if mem_root:
-        return os.path.join(mem_root, "config")
-    return os.path.join(os.path.expanduser("~"), ".m3", "config")
+        return str(Path(mem_root) / "config")
+    return str(Path.home() / ".m3" / "config")
 
 
 def load_gate() -> AdmissionGate:
     """The active admission gate. Config-overridable; defaults to the reference
     calibration. Read once per config path, then cached. Any config problem falls
     back to the default and warns once — a bad config never breaks generation."""
-    path = os.path.join(_config_root(), _CONFIG_BASENAME)
+    path = str(Path(_config_root()) / _CONFIG_BASENAME)
     if path in _CACHE:
         return _CACHE[path]
     gate = _DEFAULT_GATE
-    if os.path.isfile(path):
+    if Path(path).is_file():
         try:
-            with open(path, encoding="utf-8") as f:
+            with Path(path).open(encoding="utf-8") as f:
                 data = json.load(f)
             thresholds: dict[str, float] = {}
             for k in ("min_provenance", "min_backbone_ratio", "min_kas"):
