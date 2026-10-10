@@ -126,13 +126,19 @@ def _sql():
         return _StandaloneSqliteDialect()
 
 
-def _is_sqlite() -> bool:
-    """True when the active backend stores each database as a file."""
+def _stores_are_files() -> bool:
+    """True when the active backend stores each database as a file (SQLite).
+
+    Without the memory package (standalone), the backend NAME still comes from
+    the environment via m3_core.paths; assuming SQLite there swept a PostgreSQL
+    install's stale local file instead of the live store, without a word."""
     try:
         from memory.backends import active_backend
         return active_backend().name == "sqlite"
-    except Exception:  # pragma: no cover - standalone fallback
-        return True
+    except ImportError:  # pragma: no cover - standalone: no memory package
+        from m3_core.paths import resolve_backend_name
+
+        return resolve_backend_name() == "sqlite"
 
 
 def _tables(args: argparse.Namespace) -> tuple[str, str]:
@@ -170,7 +176,7 @@ def _bound_db(db_path):
     On a backend that is not file-per-database there is one pooled store and
     `db_path` does not select it; the backend's own connection is used.
     """
-    if not _is_sqlite():
+    if not _stores_are_files():
         from memory.db import _db
         with _db() as conn:
             yield conn
@@ -611,7 +617,7 @@ async def _run_sweep_inner(args: argparse.Namespace, counters: Counters) -> int:
     # would target the MAIN db while reads came from the swept one. ContextVars
     # propagate across `await` within a task, so this covers the whole drive.
     # Not needed on a backend with one pooled store: mc._db() reaches it anyway.
-    with (_sweep_binding(args.db) if _is_sqlite() else nullcontext()):
+    with (_sweep_binding(args.db) if _stores_are_files() else nullcontext()):
         await run_embed_loop(
             fetch_candidates=_fetch,
             write_embedding=_write,
@@ -792,7 +798,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # Plan
     pending = _count_pending(args.db, args)
-    print(f"DB:       {args.db}" if _is_sqlite() else f"Target:   {args.target} (one database)")
+    print(f"DB:       {args.db}" if _stores_are_files() else f"Target:   {args.target} (one database)")
     print(f"Pending:  {pending}")
     print("Filters:")
     if args.variant:    print(f"  variant: {args.variant}")
