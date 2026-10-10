@@ -59,7 +59,7 @@ _ROOT = pathlib.Path(__file__).resolve().parents[1]
 # server/backend subsystems.
 # 2026-10-09: 17 -> 13, crypto_provider's copied FIPS-boundary check became one
 # labelled helper.
-_BUDGET = 13
+_BUDGET = 12
 
 _SKIP_DIRS = {
     "build",            # packaging copy of the tree
