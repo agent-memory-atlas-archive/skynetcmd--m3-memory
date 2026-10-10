@@ -56,6 +56,7 @@ import shutil
 import subprocess  # nosec B404 - orchestrates known package managers, never a shell
 import sys
 import time
+from collections.abc import Sequence
 
 from m3_core.seams import is_windows
 
@@ -497,7 +498,7 @@ def hand_off_to_new_window(owner_python: str, argv: list[str], pids: list[int]) 
     return log
 
 
-def explain_locked(locked: list[pathlib.Path], owner_python: str, user_flags: list[str] | None = None) -> None:
+def explain_locked(locked: list[pathlib.Path], owner_python: str, user_flags: Sequence[str] | None = None) -> None:
     print("\nCannot upgrade now: Windows keeps these m3 programs locked while they")
     print("run, and replacing them would remove m3 and then fail:")
     for p in locked:

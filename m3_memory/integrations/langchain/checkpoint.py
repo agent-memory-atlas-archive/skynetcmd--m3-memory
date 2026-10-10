@@ -156,7 +156,7 @@ class M3Saver(BaseCheckpointSaver):
     # ── serialization helpers ─────────────────────────────────────────────────
     def _dump(self, obj: Any) -> tuple[str, bytes]:
         """serde → (type, bytes). LangGraph's serde returns (type, bytes)."""
-        return self.serde.dumps_typed(obj)
+        return cast("tuple[str, bytes]", self.serde.dumps_typed(obj))
 
     def _load(self, type_: str | None, blob: Any) -> Any:
         return self.serde.loads_typed((type_ or "", bytes(blob)))

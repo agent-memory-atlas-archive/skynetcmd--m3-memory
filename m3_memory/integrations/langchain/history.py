@@ -162,7 +162,7 @@ class M3ChatMessageHistory(BaseChatMessageHistory):
 
     @property
     @override
-    def messages(self) -> list[BaseMessage]:  # type: ignore[override]
+    def messages(self) -> list[BaseMessage]:
         """The recent window, oldest→newest (LangChain message-history order).
 
         A read-only property is the idiomatic ``BaseChatMessageHistory``

@@ -295,6 +295,22 @@ Tracks the setuptools floor below. The old <82 cap mirrored torch 2.11's
 
 ## Build Tools
 
+### `twine` (`twine>=6.2.0,<7`)
+
+HELD BELOW 7 on 2026-10-10. twine 7.0.0 requires `packaging>=26.1`, and
+langchain-core 0.3.86 (the newest 0.3.x, which the `langchain` extra caps to)
+requires `packaging<26`. uv.lock resolves the dev group and the extras together,
+so twine 7 can only be locked by backtracking langchain-core to 0.3.76. That
+release is merely uncapped, not known to work with packaging 26. The runtime
+integration wins over a dev tool.
+
+Releases are unaffected: `publish.yml` installs twine unpinned in its own
+environment, and twine 7.0.0 `check --strict` passes on m3's sdist and wheel
+(measured 2026-10-10).
+
+Lift when langchain-core relaxes its packaging cap, or when the `langchain`
+extra moves to langchain-core 1.x.
+
 ### `setuptools` (`setuptools>=84.0.0`)
 
 setuptools>=77 for the SPDX `license = "Apache-2.0"` form.

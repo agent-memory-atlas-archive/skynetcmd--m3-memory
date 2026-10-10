@@ -337,15 +337,15 @@ pydantic-ai = [
 dev = [
     "pytest>=9.0.3,<10",
     "pytest-asyncio>=1.4.0,<2",
-    "ruff==0.16.10",
+    "ruff==0.17.0",
     "deptry==0.25.1",
     "vulture==2.16",
-    "mypy>=1.20.2,<2",
+    "mypy>=2.4.0,<3",
     "types-requests>=2.33.0.20260906",
     "types-setuptools>=84.0.0",
     "types-PyYAML>=6.0.0",
     "twine>=6.2.0,<7",
-    "build>=1.4.4,<2",
+    "build>=1.6.1,<2",
 ]
 
 # uv resolves every extra into uv.lock. crewai pins mcp<1.29, narrower than
@@ -376,10 +376,10 @@ conflicts = [
 # is: docs/DEPENDENCY_NOTES.md.
 [dependency-groups]
 lint = [
-    "ruff==0.16.10",  # exact: a ruff release can add rules and turn CI red with no code change
+    "ruff==0.17.0",  # exact: a ruff release can add rules and turn CI red with no code change
     "deptry==0.25.1",  # exact, for the same reason; bin/check_deps.py runs it
     "vulture==2.16",  # exact, for the same reason; bin/check_unreferenced.py runs it
-    "mypy>=1.20.2,<2",
+    "mypy>=2.4.0,<3",
     "types-requests>=2.33.0.20260906",
     "types-setuptools>=84.0.0",
     "types-PyYAML>=6.0.0",
@@ -397,7 +397,7 @@ test = [
 ]
 release = [
     "twine>=6.2.0,<7",
-    "build>=1.4.4,<2",
+    "build>=1.6.1,<2",
 ]
 dev = [
     {include-group = "lint"},
