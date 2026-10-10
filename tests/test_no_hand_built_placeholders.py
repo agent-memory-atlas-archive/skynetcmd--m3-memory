@@ -80,7 +80,6 @@ def test_allowlist_has_no_stale_entries():
 INLINE_ALLOWED = {
     "bin/migrate_memory.py": "INHERENT: the SQLite migrator; PostgreSQL's is migrate_pg with the same schema_versions contract",
     "bin/build_kg_variant.py": "PARITY GAP: KG-variant builder refuses PostgreSQL (m3 parity task)",
-    "m3_memory/install/sections.py": "PARITY GAP: the installer shows store stats for SQLite only (m3 parity task)",
     "bin/chatlog_ingest.py": "INHERENT: reads OpenCode's own SQLite store (a host app's file, not m3's)",
     "bin/chatlog_embed_sweeper.py": "INHERENT here: on PostgreSQL the cognitive loop's embed pass sweeps both stores (embed_backfill --target chatlog), verified 2026-10-10",
     # SQLite pool users: get_sqlite_conn() is SQLite whatever the backend. Whether
@@ -153,7 +152,7 @@ def test_no_parameter_defaults_to_a_placeholder_literal():
 
 # Functional parity (user rule, 2026-10-10): a SQLite-only path is allowed only
 # when the limitation is VERIFIED inherent; anything else is a parity gap to port.
-_PARITY_GAP_BUDGET = 3
+_PARITY_GAP_BUDGET = 2
 
 
 def test_every_exemption_is_inherent_or_a_named_parity_gap():

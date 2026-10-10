@@ -1188,10 +1188,16 @@ class Dialect:
         Postgres: ``SELECT 1 WHERE to_regclass(%s) IS NOT NULL`` (schema-qualified
         name resolved against the search_path). ``table`` is a trusted identifier,
         bound as a parameter on both backends.
+
+        ``table`` may be ``schema.table``, the form :meth:`qualified_table`
+        returns for a separate logical store (the files store is ``files.leaves``
+        on PostgreSQL); every part must be an identifier. On SQLite
+        qualified_table yields the bare name, so a dotted name never arrives.
         """
         # Validation single-sourced here; subclass supplies the backend probe.
-        if not table.isidentifier():
-            raise ValueError(f"table name must be a bare identifier: {table!r}")
+        parts = table.split(".")
+        if len(parts) > 2 or not all(p.isidentifier() for p in parts):
+            raise ValueError(f"table name must be an identifier or schema.identifier: {table!r}")
         return self._table_exists_query(table)
 
     def _table_exists_query(self, table: str) -> tuple[str, tuple]:

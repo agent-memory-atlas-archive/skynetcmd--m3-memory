@@ -150,6 +150,34 @@ def _chatlog_db_stats(db_path: Path) -> dict:
     return out
 
 
+def _chatlog_server_stats() -> tuple[str, dict] | None:
+    """(table, stats) when the chatlog is tables in a server database, else None.
+
+    On a file backend the chatlog is a SQLite file and _chatlog_db_stats reads
+    it; resolving a file path on PostgreSQL found nothing and the section said
+    "db not yet created (no captures written)" on a healthy install.
+    """
+    try:
+        from m3_core.paths import seam_backend, store_is_a_file
+        from memory.backends.dialect import chatlog_table
+    except ImportError:  # stripped payload: the file-only report below
+        return None
+    if store_is_a_file():
+        return None
+    table = chatlog_table("items")
+    out = {"ok": False, "rows": 0, "last_at": "", "error": ""}
+    try:
+        with seam_backend().open_readonly("") as conn:
+            row = conn.execute(
+                f"SELECT COUNT(*), MAX(created_at) FROM {table} "
+                "WHERE type IN ('chat_log', 'message')"
+            ).fetchone()
+        out.update(ok=True, rows=row[0] or 0, last_at=str(row[1] or ""))
+    except Exception as e:  # noqa: BLE001 — doctor reports it; never raises
+        out["error"] = f"{type(e).__name__}: {e}"
+    return table, out
+
+
 def _read_json(path: Path) -> dict | None:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -197,8 +225,16 @@ def _chatlog_section(cfg: dict) -> int:
     print()
     print("chatlog subsystem:")
 
-    db_path = _resolve_chatlog_db(cfg)
-    if db_path is None:
+    pg_chat = _chatlog_server_stats()
+    if pg_chat is not None:
+        table, stats = pg_chat
+        print(f"  store:                   {table} (in the primary database)")
+        if stats["ok"]:
+            print(f"  captured rows:           {stats['rows']}")
+            print(f"  last capture at:         {stats['last_at'] or '(never)'}")
+        else:
+            print(f"  status:                  unreadable ({stats['error']})")
+    elif (db_path := _resolve_chatlog_db(cfg)) is None:
         print("  db_path:                 (unresolved — install-m3 not run yet)")
     else:
         print(f"  db_path:                 {db_path}")
@@ -484,6 +520,36 @@ def _fmt_dual_time(value: object) -> str:
             f"({utc.strftime('%Y-%m-%dT%H:%M:%SZ')})")
 
 
+def _rows_fn(conn):
+    """A ``(sql, params) -> rows`` callable over a connection with ``.execute``
+    (sqlite3, the seam's compat connections) or a bare DB-API one (psycopg2)."""
+    if hasattr(conn, "execute"):
+        return lambda sql, params=(): conn.execute(sql, params).fetchall()
+    cur = conn.cursor()
+
+    def rows(sql, params=()):
+        cur.execute(sql, params)
+        return cur.fetchall()
+    return rows
+
+
+def _table_stats(rows, dialect, table: str, *, items: bool) -> dict | None:
+    """{rows, last_updated} for one store table, or None when it is absent.
+
+    ``items``: a memory_items-shaped table (live rows, last update); else a plain
+    count. Names come from the seam (chatlog_table_for, qualified_table), so the
+    same call reports a SQLite file's table or a PostgreSQL schema's.
+    """
+    sql, params = dialect.table_exists(table)
+    if not rows(sql, params):
+        return None
+    if items:
+        n = rows(f"SELECT COUNT(*) FROM {table} WHERE COALESCE(is_deleted,0)=0")[0][0]
+        last = rows(f"SELECT MAX(COALESCE(updated_at, created_at)) FROM {table}")[0][0]
+        return {"rows": n, "last_updated": last}
+    return {"rows": rows(f"SELECT COUNT(*) FROM {table}")[0][0], "last_updated": None}
+
+
 def _sqlite_store_stats(db_path: str) -> dict | None:
     """(rows, last_updated) for a SQLite store file, or None if absent/unreadable.
 
@@ -500,23 +566,12 @@ def _sqlite_store_stats(db_path: str) -> dict | None:
     except sqlite3.Error:
         return None
     try:
-        def _has(t: str) -> bool:
-            return conn.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (t,)
-            ).fetchone() is not None
+        from memory.backends.dialect import dialect_for
 
-        rows = 0
-        last = None
-        if _has("memory_items"):
-            rows = conn.execute(
-                "SELECT COUNT(*) FROM memory_items WHERE COALESCE(is_deleted,0)=0"
-            ).fetchone()[0]
-            last = conn.execute(
-                "SELECT MAX(COALESCE(updated_at, created_at)) FROM memory_items"
-            ).fetchone()[0]
-        elif _has("leaves"):  # files DB
-            rows = conn.execute("SELECT COUNT(*) FROM leaves").fetchone()[0]
-        return {"rows": rows, "last_updated": last}
+        d, rows = dialect_for("sqlite"), _rows_fn(conn)
+        return (_table_stats(rows, d, "memory_items", items=True)
+                or _table_stats(rows, d, "leaves", items=False)  # files DB
+                or {"rows": 0, "last_updated": None})
     except sqlite3.Error:
         return None
     finally:
@@ -713,19 +768,31 @@ def _backend_section(cfg: dict) -> None:
             dbname, host, schema = cur.fetchone()
         except Exception:  # noqa: BLE001 — older PG / restricted role
             dbname = host = schema = None
-        cur.execute("SELECT COUNT(*) FROM memory_items WHERE COALESCE(is_deleted,0)=0")
-        n = cur.fetchone()[0]
-        try:
-            cur.execute("SELECT MAX(COALESCE(updated_at, created_at)) FROM memory_items")
-            last_at: str | None = cur.fetchone()[0]
-        except Exception:  # noqa: BLE001
-            last_at = None
+        # Every store is a set of tables in this one database. Report the same
+        # three the SQLite panel lists, named through the seam.
+        from memory.backends.dialect import chatlog_table_for, dialect_for
+
+        d = dialect_for("postgres")
+        rows = _rows_fn(conn)
+        store_stats = [
+            ("core", "memory_items", _table_stats(rows, d, "memory_items", items=True)),
+            ("chat", chatlog_table_for("items", "postgres"),
+             _table_stats(rows, d, chatlog_table_for("items", "postgres"), items=True)),
+            ("files", d.qualified_table("leaves", schema="files"),
+             _table_stats(rows, d, d.qualified_table("leaves", schema="files"), items=False)),
+        ]
         conn.close()
         if dbname:
             print(f"  identity:                 db={dbname} host={host or 'local'} schema={schema or 'public'}")
         print("  reachable:                yes")
-        print(f"  memory_items:             {n}   last updated: "
-              f"{_fmt_dual_time(last_at) if last_at else '—'}")
+        print("  stores (PostgreSQL tables):")
+        for label, table, st in store_stats:
+            if st is None:
+                print(f"    {label:<6} {table}  (absent)")
+                continue
+            last = _fmt_dual_time(st["last_updated"]) if st["last_updated"] else "—"
+            print(f"    {label:<6} {table}")
+            print(f"           rows: {st['rows']}   last updated: {last}")
     except Exception as e:  # noqa: BLE001 — connection / auth / undefined-table
         detail = _re.sub(r"(://[^:/@]+:)[^@/]+(@)", r"\1***\2", str(e).strip())
         print(f"  reachable:                NO — {detail}")
