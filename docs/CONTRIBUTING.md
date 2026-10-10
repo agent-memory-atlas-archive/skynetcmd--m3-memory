@@ -28,6 +28,18 @@ source .venv/bin/activate          # macOS/Linux
 pip install -r requirements.txt
 ```
 
+`requirements.txt` is generated: the project's dependencies plus the `lint` and
+`test` dependency groups, pinned exactly so every machine tests the same set.
+Dependencies are declared in `pyproject.toml` only. After changing them:
+
+```bash
+uv lock                          # refresh uv.lock (for `uv sync --group dev`)
+python bin/gen_requirements.py   # refresh requirements.txt
+```
+
+`tests/test_dependency_sources.py` fails if either is forgotten. Why each pin is
+what it is: `docs/DEPENDENCY_NOTES.md`.
+
 ### 3. Validate Your Setup
 
 ```bash

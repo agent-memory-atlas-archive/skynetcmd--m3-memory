@@ -1,6 +1,6 @@
 # Tool inventory index
 
-_Generated 2026-10-09T04:16:15.718825+00:00._
+_Generated 2026-10-10T00:11:32.670956+00:00._
 
 Re-run `python bin/gen_tool_inventory.py` after changing any tool.
 Entries whose `sha1` no longer matches the live file need re-validation.
@@ -57,6 +57,7 @@ Entries whose `sha1` no longer matches the live file need re-validation.
 | [bin/gen_download_badges.py](gen_download_badges.md) | Generate download-count badge data (PyPI + GitHub) for the README. |  |
 | [bin/gen_features_json.py](gen_features_json.md) | gen_features_json.py — generate docs/features.json (machine-readable capabilities). |  |
 | [bin/gen_mcp_inventory.py](gen_mcp_inventory.md) | gen_mcp_inventory.py — Generates docs/MCP_TOOLS.md from mcp_tool_catalog and mcp_proxy. |  |
+| [bin/gen_requirements.py](gen_requirements.md) | Generate requirements.txt: the lane install set, resolved and pinned. |  |
 | [bin/gen_star_history.py](gen_star_history.md) | Generate docs/star-history.svg from the GitHub stargazers API. |  |
 | [bin/gen_tool_manifest.py](gen_tool_manifest.md) | Generate a machine-readable tool-catalog manifest at docs/tools/MCP_CATALOG.json. |  |
 | [bin/gen_wiki.py](gen_wiki.md) | gen_wiki.py — compile a browsable wiki from core memories + the files corpus. |  |

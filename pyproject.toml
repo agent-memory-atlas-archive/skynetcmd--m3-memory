@@ -320,17 +320,75 @@ pydantic-ai = [
 # opt-OUT). m3-memory still runs fully on the pure-Python path without it --
 # results-equivalent, just slower -- and M3_CORE_RS_DISABLE forces that path
 # even when the wheel is installed.
+#
+# DEPRECATED alias of the `dev` dependency group below (PEP 735); removed in the
+# next release. Use `uv sync --group dev` (or `pip install --group dev` with pip
+# >= 25.1). tests/test_dependency_sources.py holds it equal to the group.
 dev = [
     "pytest>=9.0.3,<10",
     "pytest-asyncio>=1.4.0,<2",
-    "ruff==0.16.10",  # exact: a ruff release can add rules and turn CI red with no code change
+    "ruff==0.16.10",
     "mypy>=1.20.2,<2",
     "types-requests>=2.33.0.20260906",
-    # Capped <82 to track the setuptools<82 cap (torch 2.11 pins setuptools<82).
-    "types-setuptools>=77.0.0,<82",
+    "types-setuptools>=84.0.0",
     "types-PyYAML>=6.0.0",
     "twine>=6.2.0,<7",
     "build>=1.4.4,<2",
+]
+
+# uv resolves every extra into uv.lock. crewai pins mcp<1.29, narrower than
+# its need (see the crewai extra above); this is the same override the CI
+# test-extras job installs it with. It changes uv's resolution only: what
+# `pip install m3-memory` installs is unaffected.
+[tool.uv]
+override-dependencies = ["mcp>=1.30.0,<2"]
+# Every gliner release (entity-ner) requires transformers<5.17; embed-server
+# requires transformers>=5.17 (the CVE floor in docs/DEPENDENCY_NOTES.md). The
+# two extras cannot be installed together; uv resolves each separately.
+#
+# crewai (via chromadb, lancedb and instructor) caps pydantic. Resolved
+# together, the lock pinned pydantic 2.12.5 for every install while
+# `pip install m3-memory` gets 2.14, so the lanes would have tested an older
+# pydantic than users run. crewai is tested on its own (the CI extras job).
+conflicts = [
+    [{extra = "embed-server"}, {extra = "entity-ner"}],
+    [{group = "test"}, {extra = "entity-ner"}],
+    [{group = "dev"}, {extra = "entity-ner"}],
+    [{group = "test"}, {extra = "crewai"}],
+    [{group = "dev"}, {extra = "crewai"}],
+]
+
+# Tooling and test-only packages (PEP 735): never installed by `pip install
+# m3-memory`. requirements.txt is generated from uv.lock for the project plus
+# `lint` and `test` (python bin/gen_requirements.py). Why each pin is what it
+# is: docs/DEPENDENCY_NOTES.md.
+[dependency-groups]
+lint = [
+    "ruff==0.16.10",  # exact: a ruff release can add rules and turn CI red with no code change
+    "mypy>=1.20.2,<2",
+    "types-requests>=2.33.0.20260906",
+    "types-setuptools>=84.0.0",
+    "types-PyYAML>=6.0.0",
+]
+test = [
+    "pytest>=9.0.3,<10",
+    "pytest-asyncio>=1.4.0,<2",
+    # Exercised by the suite although optional for users: the PostgreSQL lanes
+    # (postgres extra), scipy and transformers (embed-server extra; transformers
+    # backs the real-tokenizer tests, see the notes), and the setuptools CVE floor.
+    "psycopg[binary]>=3.3.5,<4",
+    "scipy>=1.18.1,<2",
+    "transformers>=5.17.0,<6",
+    "setuptools>=84.0.0",
+]
+release = [
+    "twine>=6.2.0,<7",
+    "build>=1.4.4,<2",
+]
+dev = [
+    {include-group = "lint"},
+    {include-group = "test"},
+    {include-group = "release"},
 ]
 
 [project.scripts]

@@ -1,273 +1,413 @@
-# M3 Memory — Unified Dependencies
-# Install: pip install -r requirements.txt
-# Versions pinned to major.minor.* for supply-chain safety (2026-04-16)
-#
-# RUNTIME DEPENDENCY (not Python): M3 needs an OpenAI-compatible LLM server
-# running locally for embeddings and optional enrichment features.
-#   Required: an embedding model (e.g. qwen3-embedding:0.6b via Ollama).
-#   Optional: a small chat model (0.5B-1B instruct, e.g. qwen2.5:0.5b or
-#     llama3.2:1b) for auto-classification, summarization, and consolidation.
-#     These features are no-ops if no chat model is loaded.
-# See QUICKSTART.md and ENVIRONMENT_VARIABLES.md for runtime recommendations
-# across Ollama, LM Studio, llama.cpp --server, vLLM, and LocalAI.
-
-# --- Core Engine & MCP ---
-# ⚠ mcp <2 and fastmcp <4 are a CONSERVATIVE DEFAULT, not a hard incompatibility.
-# The code runs on BOTH majors: bin/mcp_compat.py owns the differences, and the
-# full suite is green on each (mcp 1.30.0: 4980 passed; mcp 2.2.0: 4545 passed,
-# measured 2026-09-17).
-#
-# What 2.x actually changed, and where it is handled:
-#   * FastMCP renamed to MCPServer          -> mcp_compat resolves the import
-#   * Settings lost host/port/streamable_http_path
-#                                            -> mcp_compat.run_http passes them
-#                                               to run() instead
-#   * Settings lost transport_security       -> mcp_compat.{set,get}_transport_
-#                                               security + http_app(). SECURITY-
-#                                               RELEVANT: building the ASGI app
-#                                               without passing it leaves DNS-
-#                                               rebinding protection silently OFF.
-# The auth surface (AccessToken, AuthSettings, TransportSecuritySettings) and
-# tool()/run()/add_tool()/remove_tool()/list_tools() were unchanged.
-#
-# The ceiling stays because 2.x is not yet the version this project ships and
-# tests in CI -- keeping the shipped surface to one known-good major. Raising it
-# is now a pin change plus a CI matrix entry, NOT a code migration. Anything
-# importing an mcp server class outside mcp_compat is caught by
-# tests/test_serve_auth.py::TestMcpImportSeam.
-fastmcp>=3.4.7,<4
-mcp>=1.30.0,<2
-
-# --- Network & HTTP ---
-httpx[http2]>=0.28.1,<1
-h2>=4.4.1,<5
-requests>=2.34.2,<3
-urllib3>=2.8.0,<3  # 2.7.0 fixes PYSEC-2026-141/142
-
-# --- Database & Storage ---
-psycopg2-binary>=2.9.13,<3
-psycopg[binary]>=3.3.5,<4
-sqlglot>=30.18.0,<31
-
-# --- Security & Auth ---
-cryptography>=50.0.1,<51
-keyring>=25.7.0,<26
-# Hardened XML parsing (XXE / entity-expansion defense) for
-# bin/doctor/schedule_probe.py, which parses `schtasks` XML output.
-#
-# ⚠ Declared in pyproject's base dependencies with the note "was only
-# transitively present (via fpdf2) — pinned directly so the safe path is
-# guaranteed on a fresh install", but it was MISSING here. This file is the
-# documented install path (`pip install -r requirements.txt`) and is what CI
-# installs, so that guarantee did not hold on either: defusedxml arrived only
-# because fpdf2 happens to require it. A security dep reached by luck is not
-# pinned. Keep both files in agreement.
-defusedxml>=0.7.1,<1
-
-# --- System & Thermal ---
-psutil>=7.2.2,<8
-pyobjc-framework-CoreWLAN; sys_platform == 'darwin'
-
-# --- Intelligence & Vector ---
-# CAP LIFTED 2026-09-17. It read: numpy 2.5.0's bundled stub uses the PEP 695
-# `type` statement, which mypy rejects when targeting python_version 3.11, and
-# named its own trigger -- "lift once we drop 3.11 support". The floor is now
-# 3.12 (pyproject requires-python and [tool.mypy] python_version), where PEP 695
-# is valid syntax.
-#
-# Verified rather than assumed: a clean venv with numpy 2.5.3 runs mypy over
-# bin/ at --python-version 3.12 with ZERO errors across all 281 source files.
-#
-# That run did surface three real typing errors in memory/search_ranking.py --
-# 2.5's stubs type ndarray precisely enough that mypy narrowed a name shared by
-# the numpy and pure-Python branches. Runtime was always correct on both paths;
-# the branches now bind separate names. Fixed in the same change.
-numpy>=2.5.3
-scipy>=1.18.1,<2
-tqdm>=4.70.1,<5
-# Fast fuzzy string matching for entity coalescing (token-order-aware, ~3-4x
-# faster than stdlib difflib). Clean MIT leaf wheel, no transitive deps. The
-# entity-coalesce pass falls back to difflib if absent, so this is a perf/quality
-# dep, not a hard requirement.
-rapidfuzz>=3.14.6,<4
-# Topic clustering for the Memory Wiki (bin/wiki/cluster.py, `m3 wiki generate`).
-# Imported directly, no optional extra and no in-tree fallback — the pure-Python
-# clustering path was retired 2026-07-24 when the wiki became core.
-#
-# ⚠ Declared in pyproject's base dependencies but MISSING here, so on this
-# install path it arrived only as a TORCH transitive (`torch` requires
-# `networkx>=2.5.1`). Measured 2026-09-21: installing requirements.txt without
-# torch fails 14 wiki test files at collection with
-# `ModuleNotFoundError: No module named 'networkx'`. A core dep must not depend
-# on an optional ML stack to be present. Keep both files in agreement.
-networkx>=3.6.1,<4
-
-# --- Embedding Server ---
-# ⚠ `sentence-transformers` and `torch` are NOT here. They are declared in
-# pyproject.toml under the `embed-server` EXTRA, which is where they belong:
-# nothing in m3's core or its test suite imports either one. `bin/embed_server.py`
-# does, but it is a standalone service that no test imports, and the reranker in
-# `memory/search.py` imports `sentence_transformers` lazily and raises a named,
-# actionable error when it is absent.
-#
-# Pinning them here made this file demand ~2 GB of ML wheels to run a suite that
-# never touches them, and made CI's Python 3.15 lane die at dependency
-# resolution -- torch publishes no cp315 wheel -- so that lane tested torch's
-# release schedule rather than m3. `pip install m3-memory` was never affected;
-# the published package's 24 core dependencies have never included torch.
-#
-# To work on the embed server or the reranker:
-#     pip install -r requirements.txt "m3-memory[embed-server]"
-#
-# ⚠ Removing `sentence-transformers` also removes torch TRANSITIVELY (it
-# requires `torch>=2.2`), so the two only come out together. Re-adding either one
-# re-adds the 3.15 blocker.
-#
-# `transformers` stays. It was previously described as transitive via
-# sentence-transformers/peft; with those gone it is a DIRECT dependency, and a
-# deliberate one: `tests/test_token_budget.py::TestAgainstRealTokenizer` imports
-# it for ground-truth token counts against the bge-m3 tokenizer, and 4 tests pass
-# there today. It is guarded by `skipUnless`, so dropping it would not fail the
-# suite -- it would silently convert real coverage into a permanent skip (§3: a
-# check nobody sees reads as coverage while providing none). It also declares no
-# torch dependency of its own and supports >=3.10, so it installs on 3.15.
-#
-# FLOOR RAISED TO 5.17.0 on 2026-09-17, clearing four of the five CVEs that the
-# previous `<5` ceiling forced us to accept:
-#   - PYSEC-2026-2288 (Trainer torch.load RCE)          fixed 5.0.0
-#   - PYSEC-2026-2289 (config.json _attn_implementation) fixed 5.3.0
-#   - PYSEC-2026-2290 (LightGlue model load RCE)         fixed 5.5.0
-#   - PYSEC-2026-3929 (save_pretrained path traversal)   fixed 5.10.0
-#
-# WHY THE OLD CEILING IS GONE. It said: "transformers 5.x removed
-# `is_torch_fx_available`, which FlagEmbedding imports". Re-checked 2026-09-17
-# and the premise no longer holds:
-#   * the symbol IS removed in 5.x (verified on 5.1.0), but
-#   * FlagEmbedding is NOT a dependency of m3 -- it appears in no requirements
-#     file, is imported by no module under bin/ or m3_memory/, and is not
-#     installed. It survived only in this comment.
-#   * m3 never imports transformers DIRECTLY at all. Its entire surface is
-#     sentence-transformers' SentenceTransformer (embed_server.py:117) and
-#     CrossEncoder (memory/search.py:292), plus GLiNER, none of which touch the
-#     removed symbol.
-#   * sentence-transformers itself declares `transformers<6.0.0,>=4.41.0` -- it
-#     never wanted <5.
-# Verified in clean venvs: both 5.10.4 and 5.17.0 install and import both m3
-# surfaces cleanly.
-#
-# ONE CVE REMAINS and is ACCEPTED:
-#   - PYSEC-2025-217 (X-CLIP checkpoint-conversion RCE) -- NO fixed version
-#     exists at any release. Requires converting an attacker-supplied X-CLIP
-#     checkpoint; m3 has no conversion path and only runs embedding inference on
-#     its own configured model.
-transformers>=5.17.0,<6
-
-# torch was pinned `>=2.14.0,<3` here until 2026-09-22; see the note under
-# "Embedding Server" above for why it moved to the `embed-server` extra.
-#
-# ⚠ KEEP THE SETUPTOOLS FLOOR BELOW WHERE IT IS. The reason it could be raised
-# was torch: 2.11 declared `setuptools<82`, which forced a ceiling here and with
-# it CVE-2026-59890; torch 2.14 declares `setuptools>=77.0.3` with no upper
-# bound, which is what unblocked the fix. That history is why the floor exists,
-# and it does not depend on torch being installed -- do not "simplify" it away
-# now that the pin is gone.
-
-# REMOVED 2026-09-17 (unused, verified):
-#   pywin32 -- no module imports win32api/win32con/pythoncom/etc. The many
-#     `win32` hits in the tree are `sys.platform == "win32"` string compares,
-#     not the package. keyring (the plausible consumer) declares
-#     pywin32-ctypes, a DIFFERENT package it installs itself: verified in a
-#     clean venv that `pip install keyring` yields pywin32-ctypes only and
-#     WinVaultKeyring still resolves as the active backend.
-
-# --- Utilities ---
-python-dotenv>=1.2.3,<2
-# m3_config.toml writer; exact pin by user decision U11 (2026-10-09).
-tomlkit==0.15.1
-PyYAML>=6.0.3,<7
-fpdf2>=2.8.8,<3
-# fpdf2 declares `Pillow!=9.2.*,>=8.3.2` — a 2021 floor. Resolved to its LOWEST
-# satisfying version that is Pillow 9.5.0, carrying 37 known CVEs (osv-scanner
-# 2.4.0 against this file, 2026-09-30; the finding is attributed to this file
-# with no Pillow line in it, because osv resolves transitively). `pip install`
-# takes the newest and is unaffected, so this guards the constrained-resolver
-# and stale-lockfile cases rather than the common one.
-#
-# Nothing in m3 imports PIL. Pinned for the same reason as defusedxml above: a
-# security-relevant version that is correct only by luck is not pinned. Kept in
-# agreement with pyproject's base dependencies.
-pillow>=12.3.0
-# PDF ingestion backend for bin/files_memory/chunkers/pdf.py. UNDECLARED until
-# 2026-09-17: the chunker probes PyMuPDF then pypdf and sets available=False if
-# neither is importable, so on a clean install PDFs fell back to the TEXT
-# chunker -- binary-ish extracted junk instead of pages. It only worked here
-# because unstructured-client happens to pull pypdf transitively, which is not
-# a dependency m3 controls.
-#
-# pypdf (pure Python) is the declared floor; PyMuPDF is an OPTIONAL faster
-# path the chunker prefers when present, left undeclared because it ships
-# native wheels and an AGPL licence -- not something to force on every user.
-pypdf>=6.19.0,<7
-# Binary document ingestion for bin/files_memory/chunkers/office.py:
-# .docx .doc .pptx .ppt .xlsx .xls .rtf .epub .odt .odp .ods (35 MIME types).
-#
-# ONE library rather than six. The per-format set would be python-docx +
-# python-pptx + openpyxl + xlrd + striprtf + ebooklib -- which still leaves the
-# LEGACY binaries (.doc/.xls/.ppt) without a trustworthy pure-Python parser, and
-# drags ebooklib's AGPL-3.0 licence into a distributed tool. sharepoint2text is
-# Apache-2.0, covers the legacy formats, and ships zip-bomb / path-traversal /
-# encrypted-file handling this chunker would otherwise write itself.
-#
-# Heavier 'unified' options were rejected on footprint and privacy: docling
-# pulls torch and fetches model weights from HuggingFace at first run (runtime
-# network dependency); unstructured has 116 core deps and caps at <3.14;
-# markitdown pulls onnxruntime just to sniff file types.
-sharepoint-to-text>=2.0.0,<3
-# HTML ingestion: bin/files_memory/chunkers/html.py. Parsed with bs4 +
-# stdlib html.parser (no lxml/html5lib). Was declared but unimported until
-# 2026-09-17 -- .html/.htm resolved to filetype "html" with no registered
-# chunker, so HTML fell through to the text chunker and raw markup entered
-# the store as prose.
-beautifulsoup4>=4.15.0,<5
-argparse>=1.4.0,<2
-
-# --- MCP Proxy & API ---
-fastapi>=0.141.1,<1
-uvicorn>=0.53.0,<1
-
-# --- Development & Testing ---
-pytest>=9.0.3,<10
-pytest-asyncio>=1.4.0,<2
+# GENERATED by `python bin/gen_requirements.py`; do not edit.
+# The project's dependencies + dependency groups lint, test, resolved
+# for every supported platform and Python. Declarations: pyproject.toml.
+# Pin notes: docs/DEPENDENCY_NOTES.md.
+# declarations sha256: 2d33a168073a04a4c4158f2297e30734552b001a70ae51e67af2288bf42cfc88
+aiofile==3.12.3
+    # via py-key-value-aio
+annotated-doc==0.0.5
+    # via
+    #   fastapi
+    #   typer
+annotated-types==0.8.0
+    # via pydantic
+anyio==4.15.1
+    # via
+    #   httpx
+    #   httpx2
+    #   mcp
+    #   py-key-value-aio
+    #   sse-starlette
+    #   starlette
+    #   watchfiles
+attrs==26.1.0
+    # via
+    #   cyclopts
+    #   jsonschema
+    #   jsonschema-path
+    #   referencing
+authlib==1.8.0
+    # via fastmcp-slim
+beartype==0.22.9
+    # via py-key-value-aio
+beautifulsoup4==4.15.0
+    # via m3-memory (pyproject.toml)
+cachetools==7.2.1
+    # via py-key-value-aio
+caio==0.12.9
+    # via aiofile
+certifi==2026.7.22
+    # via
+    #   httpcore
+    #   httpx
+    #   requests
+cffi==2.1.1 ; platform_python_implementation != 'PyPy'
+    # via cryptography
+charset-normalizer==3.5.2
+    # via
+    #   requests
+    #   sharepoint-to-text
+click==8.5.0
+    # via
+    #   huggingface-hub
+    #   uvicorn
+colorama==0.4.6 ; sys_platform == 'win32'
+    # via
+    #   pytest
+    #   tqdm
+    #   typer
+cryptography==50.0.2
+    # via
+    #   m3-memory (pyproject.toml)
+    #   authlib
+    #   joserfc
+    #   pyjwt
+    #   secretstorage
+cyclopts==5.2.0
+    # via fastmcp-slim
+defusedxml==0.7.1
+    # via
+    #   m3-memory (pyproject.toml)
+    #   fpdf2
+    #   sharepoint-to-text
+dnspython==2.9.0
+    # via email-validator
+docstring-parser==0.18.0
+    # via cyclopts
+email-validator==2.3.0
+    # via pydantic
+et-xmlfile==2.0.0
+    # via openpyxl
+exceptiongroup==1.3.1
+    # via fastmcp-slim
+fastapi==0.143.0
+    # via m3-memory (pyproject.toml)
+fastmcp==3.4.8
+    # via m3-memory (pyproject.toml)
+fastmcp-slim==3.4.8
+    # via fastmcp
+filelock==4.1.0
+    # via huggingface-hub
+fonttools==4.66.1
+    # via fpdf2
+fpdf2==2.8.9
+    # via m3-memory (pyproject.toml)
+fsspec==2026.9.0
+    # via huggingface-hub
+griffelib==2.3.2
+    # via fastmcp-slim
+h11==0.16.0
+    # via
+    #   httpcore
+    #   httpcore2
+    #   uvicorn
+h2==4.4.1
+    # via httpx
+hf-xet==1.7.0 ; platform_machine == 'AMD64' or platform_machine == 'ARM64' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'arm64' or platform_machine == 'x86_64'
+    # via huggingface-hub
+hpack==4.2.0
+    # via h2
+httpcore==1.0.9
+    # via httpx
+httpcore2==2.13.1 ; sys_platform != 'emscripten'
+    # via httpx2
+httpx==0.28.1
+    # via
+    #   m3-memory (pyproject.toml)
+    #   fastmcp-slim
+    #   mcp
+httpx-sse==0.4.3
+    # via mcp
+httpx2==2.13.1
+    # via huggingface-hub
+httpx2-jsfetch==1.0 ; sys_platform == 'emscripten'
+    # via httpx2
+huggingface-hub==2.2.0
+    # via
+    #   tokenizers
+    #   transformers
+hyperframe==6.1.0
+    # via h2
+idna==3.20
+    # via
+    #   anyio
+    #   email-validator
+    #   httpx
+    #   httpx2
+    #   requests
+iniconfig==2.3.1
+    # via pytest
+jaraco-classes==3.4.0
+    # via keyring
+jaraco-context==6.1.2
+    # via keyring
+jaraco-functools==4.6.0
+    # via keyring
+jeepney==0.9.0 ; sys_platform == 'linux'
+    # via
+    #   keyring
+    #   secretstorage
+joserfc==1.7.5
+    # via
+    #   authlib
+    #   fastmcp-slim
+jsonref==1.1.0
+    # via fastmcp-slim
+jsonschema==4.26.0
+    # via mcp
+jsonschema-path==0.5.0
+    # via fastmcp-slim
+jsonschema-specifications==2025.9.1
+    # via jsonschema
+keyring==25.7.0
+    # via
+    #   m3-memory (pyproject.toml)
+    #   py-key-value-aio
+librt==0.16.0 ; platform_python_implementation != 'PyPy'
+    # via mypy
+mail-parser==4.8.0
+    # via sharepoint-to-text
+markdown-it-py==4.2.0
+    # via rich
+mcp==1.30.0
+    # via
+    #   --override (workspace)
+    #   m3-memory (pyproject.toml)
+    #   fastmcp-slim
+mdurl==0.1.2
+    # via markdown-it-py
+more-itertools==11.1.0
+    # via
+    #   jaraco-classes
+    #   jaraco-functools
+msg-parser==1.2.0
+    # via sharepoint-to-text
+mypy==1.20.2
+    # via m3-memory (pyproject.toml:lint)
+mypy-extensions==1.1.0
+    # via mypy
+networkx==3.7
+    # via m3-memory (pyproject.toml)
+numpy==2.5.3
+    # via
+    #   m3-memory (pyproject.toml)
+    #   scipy
+    #   transformers
+olefile==0.47
+    # via
+    #   msg-parser
+    #   sharepoint-to-text
+openapi-pydantic==0.6.0
+    # via fastmcp-slim
+openpyxl==3.1.5
+    # via sharepoint-to-text
+opentelemetry-api==1.45.1
+    # via
+    #   fastapi
+    #   fastmcp-slim
+packaging==26.3
+    # via
+    #   fastmcp-slim
+    #   huggingface-hub
+    #   pytest
+    #   transformers
+pathable==0.6.0
+    # via jsonschema-path
+pathspec==1.1.1
+    # via mypy
+pillow==12.3.0
+    # via
+    #   m3-memory (pyproject.toml)
+    #   fpdf2
+platformdirs==4.12.4
+    # via fastmcp-slim
+pluggy==1.6.0
+    # via pytest
+psutil==7.2.2
+    # via m3-memory (pyproject.toml)
+psycopg==3.3.6
+    # via m3-memory (pyproject.toml:test)
+psycopg-binary==3.3.6 ; implementation_name != 'pypy'
+    # via psycopg
+psycopg2-binary==2.9.13
+    # via m3-memory (pyproject.toml)
+py-key-value-aio==0.4.6
+    # via fastmcp-slim
+pycparser==3.11 ; implementation_name != 'PyPy' and platform_python_implementation != 'PyPy'
+    # via cffi
+pycryptodome==3.24.0
+    # via sharepoint-to-text
+pydantic==2.14.0
+    # via
+    #   fastapi
+    #   fastmcp-slim
+    #   mcp
+    #   openapi-pydantic
+    #   pydantic-settings
+pydantic-core==2.50.0
+    # via pydantic
+pydantic-settings==2.15.0
+    # via
+    #   fastmcp-slim
+    #   mcp
+pygments==2.21.0
+    # via
+    #   pytest
+    #   rich
+    #   rich-rst
+pyjwt==2.15.1
+    # via mcp
+pyobjc-core==12.2.2 ; sys_platform == 'darwin'
+    # via
+    #   pyobjc-framework-cocoa
+    #   pyobjc-framework-corewlan
+pyobjc-framework-cocoa==12.2.2 ; sys_platform == 'darwin'
+    # via pyobjc-framework-corewlan
+pyobjc-framework-corewlan==12.2.2 ; sys_platform == 'darwin'
+    # via m3-memory (pyproject.toml)
+pypdf==6.20.0
+    # via
+    #   m3-memory (pyproject.toml)
+    #   sharepoint-to-text
+pyperclip==1.11.0
+    # via fastmcp-slim
+pytest==9.1.1
+    # via
+    #   m3-memory (pyproject.toml:test)
+    #   pytest-asyncio
+pytest-asyncio==1.4.0
+    # via m3-memory (pyproject.toml:test)
+python-dotenv==1.2.4
+    # via
+    #   m3-memory (pyproject.toml)
+    #   fastmcp-slim
+    #   pydantic-settings
+python-multipart==0.0.32
+    # via
+    #   fastmcp-slim
+    #   mcp
+pywin32==312 ; sys_platform == 'win32'
+    # via mcp
+pywin32-ctypes==0.2.3 ; sys_platform == 'win32'
+    # via keyring
+pyxlsb==1.0.10
+    # via sharepoint-to-text
+pyyaml==6.0.3
+    # via
+    #   m3-memory (pyproject.toml)
+    #   fastmcp-slim
+    #   huggingface-hub
+    #   jsonschema-path
+    #   transformers
+rapidfuzz==3.14.6
+    # via m3-memory (pyproject.toml)
+referencing==0.37.0
+    # via
+    #   jsonschema
+    #   jsonschema-path
+    #   jsonschema-specifications
+regex==2026.9.29
+    # via transformers
+requests==2.34.2
+    # via m3-memory (pyproject.toml)
+rich==15.0.0
+    # via
+    #   cyclopts
+    #   fastmcp-slim
+    #   rich-rst
+    #   typer
+rich-rst==2.2.0
+    # via cyclopts
+rpds-py==2026.9.1
+    # via
+    #   jsonschema
+    #   referencing
 ruff==0.16.10
-mypy>=1.20.2,<2
-types-requests>=2.33.0.20260906
-# Tracks the setuptools floor below. The old <82 cap mirrored torch 2.11's
-# `setuptools<82`; torch 2.14 dropped that constraint entirely.
-types-setuptools>=84.0.0
-
-# --- Build Tools ---
-# setuptools>=77 for the SPDX `license = "Apache-2.0"` form.
-# (Also pinned in pyproject.toml build-system.requires for isolated builds.)
-#
-# FLOOR RAISED TO 83.0.0 on 2026-09-17, clearing CVE-2026-59890 /
-# PYSEC-2026-3447. FileList matched MANIFEST.in exclude/prune globs without
-# Unicode normalization, so on macOS APFS/HFS+ an NFD filename could bypass an
-# NFC exclusion and get packed into an sdist.
-#
-# The previous `<82` ceiling existed ONLY to stay inside torch 2.11's declared
-# `setuptools<82`, and that comment named its own revisit trigger: "revisit when
-# torch's setuptools<82 pin lifts". It has. Verified 2026-09-17: torch 2.14.0
-# declares `setuptools>=77.0.3` with NO upper bound, and a clean venv resolves
-# torch 2.14.0 + setuptools 84.0.0 + transformers 5.17.0 together with
-# `pip check` reporting no broken requirements.
-#
-# Worth recording WHY torch capped it at all: torch imports setuptools in
-# exactly two modules -- utils/cpp_extension.py (compiling custom C++/CUDA ops)
-# and a dynamo backend registry. m3 uses neither; it only runs inference. So the
-# cap was never a constraint on m3's runtime, only on torch's build tooling.
-#
-# This CVE was invisible until 2026-09-12: the DefectDojo pipeline's pip-audit
-# ran `find | head -1` and audited examples/mac-agent/requirements.txt ONLY, so
-# the root manifest was never scanned. Fixed in scan_repo.py (audits all three;
-# 261 packages, was ~8). See m3 memory 1c6429ef.
-setuptools>=84.0.0
+    # via m3-memory (pyproject.toml:lint)
+safetensors==0.8.0
+    # via transformers
+scipy==1.18.1
+    # via m3-memory (pyproject.toml:test)
+secretstorage==3.5.0 ; sys_platform == 'linux'
+    # via keyring
+setuptools==84.0.0
+    # via m3-memory (pyproject.toml:test)
+sharepoint-to-text==2.0.1
+    # via m3-memory (pyproject.toml)
+shellingham==1.5.4
+    # via typer
+soupsieve==2.10
+    # via beautifulsoup4
+sqlglot==30.22.0
+    # via m3-memory (pyproject.toml)
+sse-starlette==3.5.0
+    # via mcp
+starlette==1.7.0
+    # via
+    #   fastapi
+    #   fastmcp-slim
+    #   mcp
+    #   sse-starlette
+tokenizers==0.23.3
+    # via transformers
+tomlkit==0.15.1
+    # via m3-memory (pyproject.toml)
+tqdm==4.70.1
+    # via
+    #   m3-memory (pyproject.toml)
+    #   huggingface-hub
+    #   transformers
+transformers==5.19.0
+    # via m3-memory (pyproject.toml:test)
+truststore==0.10.4 ; sys_platform != 'emscripten'
+    # via
+    #   httpcore2
+    #   httpx2
+typer==0.27.3
+    # via transformers
+types-pyyaml==6.0.12.20260906
+    # via m3-memory (pyproject.toml:lint)
+types-requests==2.33.0.20261006
+    # via m3-memory (pyproject.toml:lint)
+types-setuptools==84.0.0.20261006
+    # via m3-memory (pyproject.toml:lint)
+typing-extensions==4.16.0
+    # via
+    #   anyio
+    #   beautifulsoup4
+    #   fastapi
+    #   fastmcp-slim
+    #   huggingface-hub
+    #   mcp
+    #   mypy
+    #   opentelemetry-api
+    #   py-key-value-aio
+    #   pydantic
+    #   pydantic-core
+    #   typing-inspection
+typing-inspection==0.4.4
+    # via
+    #   fastapi
+    #   mcp
+    #   pydantic
+    #   pydantic-settings
+tzdata==2026.5 ; sys_platform == 'win32'
+    # via psycopg
+uncalled-for==0.4.1
+    # via fastmcp-slim
+urllib3==2.8.0
+    # via
+    #   m3-memory (pyproject.toml)
+    #   requests
+    #   types-requests
+uvicorn==0.54.0
+    # via
+    #   m3-memory (pyproject.toml)
+    #   fastmcp-slim
+    #   mcp
+watchfiles==1.3.0
+    # via fastmcp-slim
+websockets==17.2
+    # via fastmcp-slim
+xlrd==2.0.2
+    # via sharepoint-to-text

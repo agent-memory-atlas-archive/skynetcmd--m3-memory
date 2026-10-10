@@ -1,0 +1,289 @@
+# Dependency notes
+
+Why each pin is what it is. These notes lived as comments in `requirements.txt`;
+that file is now generated from `uv.lock` (`python bin/gen_requirements.py`), so
+the reasoning moved here, unchanged. Declarations live in `pyproject.toml`.
+
+## Overview
+
+M3 Memory — Unified Dependencies
+Install: pip install -r requirements.txt
+Versions pinned to major.minor.* for supply-chain safety (2026-04-16)
+
+RUNTIME DEPENDENCY (not Python): M3 needs an OpenAI-compatible LLM server
+running locally for embeddings and optional enrichment features.
+  Required: an embedding model (e.g. qwen3-embedding:0.6b via Ollama).
+  Optional: a small chat model (0.5B-1B instruct, e.g. qwen2.5:0.5b or
+    llama3.2:1b) for auto-classification, summarization, and consolidation.
+    These features are no-ops if no chat model is loaded.
+See QUICKSTART.md and ENVIRONMENT_VARIABLES.md for runtime recommendations
+across Ollama, LM Studio, llama.cpp --server, vLLM, and LocalAI.
+
+
+## Core Engine & MCP
+
+### `fastmcp` (`fastmcp>=3.4.7,<4`)
+
+⚠ mcp <2 and fastmcp <4 are a CONSERVATIVE DEFAULT, not a hard incompatibility.
+The code runs on BOTH majors: bin/mcp_compat.py owns the differences, and the
+full suite is green on each (mcp 1.30.0: 4980 passed; mcp 2.2.0: 4545 passed,
+measured 2026-09-17).
+
+What 2.x actually changed, and where it is handled:
+  * FastMCP renamed to MCPServer          -> mcp_compat resolves the import
+  * Settings lost host/port/streamable_http_path
+                                           -> mcp_compat.run_http passes them
+                                              to run() instead
+  * Settings lost transport_security       -> mcp_compat.{set,get}_transport_
+                                              security + http_app(). SECURITY-
+                                              RELEVANT: building the ASGI app
+                                              without passing it leaves DNS-
+                                              rebinding protection silently OFF.
+The auth surface (AccessToken, AuthSettings, TransportSecuritySettings) and
+tool()/run()/add_tool()/remove_tool()/list_tools() were unchanged.
+
+The ceiling stays because 2.x is not yet the version this project ships and
+tests in CI -- keeping the shipped surface to one known-good major. Raising it
+is now a pin change plus a CI matrix entry, NOT a code migration. Anything
+importing an mcp server class outside mcp_compat is caught by
+tests/test_serve_auth.py::TestMcpImportSeam.
+
+## Network & HTTP
+
+### `urllib3` (`urllib3>=2.8.0,<3`)
+
+2.7.0 fixes PYSEC-2026-141/142
+
+## Database & Storage
+
+## Security & Auth
+
+### `defusedxml` (`defusedxml>=0.7.1,<1`)
+
+Hardened XML parsing (XXE / entity-expansion defense) for
+bin/doctor/schedule_probe.py, which parses `schtasks` XML output.
+
+⚠ Declared in pyproject's base dependencies with the note "was only
+transitively present (via fpdf2) — pinned directly so the safe path is
+guaranteed on a fresh install", but it was MISSING here. This file is the
+documented install path (`pip install -r requirements.txt`) and is what CI
+installs, so that guarantee did not hold on either: defusedxml arrived only
+because fpdf2 happens to require it. A security dep reached by luck is not
+pinned. Keep both files in agreement.
+
+## System & Thermal
+
+## Intelligence & Vector
+
+### `numpy` (`numpy>=2.5.3`)
+
+CAP LIFTED 2026-09-17. It read: numpy 2.5.0's bundled stub uses the PEP 695
+`type` statement, which mypy rejects when targeting python_version 3.11, and
+named its own trigger -- "lift once we drop 3.11 support". The floor is now
+3.12 (pyproject requires-python and [tool.mypy] python_version), where PEP 695
+is valid syntax.
+
+Verified rather than assumed: a clean venv with numpy 2.5.3 runs mypy over
+bin/ at --python-version 3.12 with ZERO errors across all 281 source files.
+
+That run did surface three real typing errors in memory/search_ranking.py --
+2.5's stubs type ndarray precisely enough that mypy narrowed a name shared by
+the numpy and pure-Python branches. Runtime was always correct on both paths;
+the branches now bind separate names. Fixed in the same change.
+
+### `rapidfuzz` (`rapidfuzz>=3.14.6,<4`)
+
+Fast fuzzy string matching for entity coalescing (token-order-aware, ~3-4x
+faster than stdlib difflib). Clean MIT leaf wheel, no transitive deps. The
+entity-coalesce pass falls back to difflib if absent, so this is a perf/quality
+dep, not a hard requirement.
+
+### `networkx` (`networkx>=3.6.1,<4`)
+
+Topic clustering for the Memory Wiki (bin/wiki/cluster.py, `m3 wiki generate`).
+Imported directly, no optional extra and no in-tree fallback — the pure-Python
+clustering path was retired 2026-07-24 when the wiki became core.
+
+⚠ Declared in pyproject's base dependencies but MISSING here, so on this
+install path it arrived only as a TORCH transitive (`torch` requires
+`networkx>=2.5.1`). Measured 2026-09-21: installing requirements.txt without
+torch fails 14 wiki test files at collection with
+`ModuleNotFoundError: No module named 'networkx'`. A core dep must not depend
+on an optional ML stack to be present. Keep both files in agreement.
+
+## Embedding Server
+
+### `transformers` (`transformers>=5.17.0,<6`)
+
+⚠ `sentence-transformers` and `torch` are NOT here. They are declared in
+pyproject.toml under the `embed-server` EXTRA, which is where they belong:
+nothing in m3's core or its test suite imports either one. `bin/embed_server.py`
+does, but it is a standalone service that no test imports, and the reranker in
+`memory/search.py` imports `sentence_transformers` lazily and raises a named,
+actionable error when it is absent.
+
+Pinning them here made this file demand ~2 GB of ML wheels to run a suite that
+never touches them, and made CI's Python 3.15 lane die at dependency
+resolution -- torch publishes no cp315 wheel -- so that lane tested torch's
+release schedule rather than m3. `pip install m3-memory` was never affected;
+the published package's 24 core dependencies have never included torch.
+
+To work on the embed server or the reranker:
+    pip install -r requirements.txt "m3-memory[embed-server]"
+
+⚠ Removing `sentence-transformers` also removes torch TRANSITIVELY (it
+requires `torch>=2.2`), so the two only come out together. Re-adding either one
+re-adds the 3.15 blocker.
+
+`transformers` stays. It was previously described as transitive via
+sentence-transformers/peft; with those gone it is a DIRECT dependency, and a
+deliberate one: `tests/test_token_budget.py::TestAgainstRealTokenizer` imports
+it for ground-truth token counts against the bge-m3 tokenizer, and 4 tests pass
+there today. It is guarded by `skipUnless`, so dropping it would not fail the
+suite -- it would silently convert real coverage into a permanent skip (§3: a
+check nobody sees reads as coverage while providing none). It also declares no
+torch dependency of its own and supports >=3.10, so it installs on 3.15.
+
+FLOOR RAISED TO 5.17.0 on 2026-09-17, clearing four of the five CVEs that the
+previous `<5` ceiling forced us to accept:
+  - PYSEC-2026-2288 (Trainer torch.load RCE)          fixed 5.0.0
+  - PYSEC-2026-2289 (config.json _attn_implementation) fixed 5.3.0
+  - PYSEC-2026-2290 (LightGlue model load RCE)         fixed 5.5.0
+  - PYSEC-2026-3929 (save_pretrained path traversal)   fixed 5.10.0
+
+WHY THE OLD CEILING IS GONE. It said: "transformers 5.x removed
+`is_torch_fx_available`, which FlagEmbedding imports". Re-checked 2026-09-17
+and the premise no longer holds:
+  * the symbol IS removed in 5.x (verified on 5.1.0), but
+  * FlagEmbedding is NOT a dependency of m3 -- it appears in no requirements
+    file, is imported by no module under bin/ or m3_memory/, and is not
+    installed. It survived only in this comment.
+  * m3 never imports transformers DIRECTLY at all. Its entire surface is
+    sentence-transformers' SentenceTransformer (embed_server.py:117) and
+    CrossEncoder (memory/search.py:292), plus GLiNER, none of which touch the
+    removed symbol.
+  * sentence-transformers itself declares `transformers<6.0.0,>=4.41.0` -- it
+    never wanted <5.
+Verified in clean venvs: both 5.10.4 and 5.17.0 install and import both m3
+surfaces cleanly.
+
+ONE CVE REMAINS and is ACCEPTED:
+  - PYSEC-2025-217 (X-CLIP checkpoint-conversion RCE) -- NO fixed version
+    exists at any release. Requires converting an attacker-supplied X-CLIP
+    checkpoint; m3 has no conversion path and only runs embedding inference on
+    its own configured model.
+
+## Utilities
+
+### `python-dotenv` (`python-dotenv>=1.2.3,<2`)
+
+torch was pinned `>=2.14.0,<3` here until 2026-09-22; see the note under
+"Embedding Server" above for why it moved to the `embed-server` extra.
+
+⚠ KEEP THE SETUPTOOLS FLOOR BELOW WHERE IT IS. The reason it could be raised
+was torch: 2.11 declared `setuptools<82`, which forced a ceiling here and with
+it CVE-2026-59890; torch 2.14 declares `setuptools>=77.0.3` with no upper
+bound, which is what unblocked the fix. That history is why the floor exists,
+and it does not depend on torch being installed -- do not "simplify" it away
+now that the pin is gone.
+
+REMOVED 2026-09-17 (unused, verified):
+  pywin32 -- no module imports win32api/win32con/pythoncom/etc. The many
+    `win32` hits in the tree are `sys.platform == "win32"` string compares,
+    not the package. keyring (the plausible consumer) declares
+    pywin32-ctypes, a DIFFERENT package it installs itself: verified in a
+    clean venv that `pip install keyring` yields pywin32-ctypes only and
+    WinVaultKeyring still resolves as the active backend.
+
+### `tomlkit` (`tomlkit==0.15.1`)
+
+m3_config.toml writer; exact pin by user decision U11 (2026-10-09).
+
+### `pillow` (`pillow>=12.3.0`)
+
+fpdf2 declares `Pillow!=9.2.*,>=8.3.2` — a 2021 floor. Resolved to its LOWEST
+satisfying version that is Pillow 9.5.0, carrying 37 known CVEs (osv-scanner
+2.4.0 against this file, 2026-09-30; the finding is attributed to this file
+with no Pillow line in it, because osv resolves transitively). `pip install`
+takes the newest and is unaffected, so this guards the constrained-resolver
+and stale-lockfile cases rather than the common one.
+
+Nothing in m3 imports PIL. Pinned for the same reason as defusedxml above: a
+security-relevant version that is correct only by luck is not pinned. Kept in
+agreement with pyproject's base dependencies.
+
+### `pypdf` (`pypdf>=6.19.0,<7`)
+
+PDF ingestion backend for bin/files_memory/chunkers/pdf.py. UNDECLARED until
+2026-09-17: the chunker probes PyMuPDF then pypdf and sets available=False if
+neither is importable, so on a clean install PDFs fell back to the TEXT
+chunker -- binary-ish extracted junk instead of pages. It only worked here
+because unstructured-client happens to pull pypdf transitively, which is not
+a dependency m3 controls.
+
+pypdf (pure Python) is the declared floor; PyMuPDF is an OPTIONAL faster
+path the chunker prefers when present, left undeclared because it ships
+native wheels and an AGPL licence -- not something to force on every user.
+
+### `sharepoint-to-text` (`sharepoint-to-text>=2.0.0,<3`)
+
+Binary document ingestion for bin/files_memory/chunkers/office.py:
+.docx .doc .pptx .ppt .xlsx .xls .rtf .epub .odt .odp .ods (35 MIME types).
+
+ONE library rather than six. The per-format set would be python-docx +
+python-pptx + openpyxl + xlrd + striprtf + ebooklib -- which still leaves the
+LEGACY binaries (.doc/.xls/.ppt) without a trustworthy pure-Python parser, and
+drags ebooklib's AGPL-3.0 licence into a distributed tool. sharepoint2text is
+Apache-2.0, covers the legacy formats, and ships zip-bomb / path-traversal /
+encrypted-file handling this chunker would otherwise write itself.
+
+Heavier 'unified' options were rejected on footprint and privacy: docling
+pulls torch and fetches model weights from HuggingFace at first run (runtime
+network dependency); unstructured has 116 core deps and caps at <3.14;
+markitdown pulls onnxruntime just to sniff file types.
+
+### `beautifulsoup4` (`beautifulsoup4>=4.15.0,<5`)
+
+HTML ingestion: bin/files_memory/chunkers/html.py. Parsed with bs4 +
+stdlib html.parser (no lxml/html5lib). Was declared but unimported until
+2026-09-17 -- .html/.htm resolved to filetype "html" with no registered
+chunker, so HTML fell through to the text chunker and raw markup entered
+the store as prose.
+
+## MCP Proxy & API
+
+## Development & Testing
+
+### `types-setuptools` (`types-setuptools>=84.0.0`)
+
+Tracks the setuptools floor below. The old <82 cap mirrored torch 2.11's
+`setuptools<82`; torch 2.14 dropped that constraint entirely.
+
+## Build Tools
+
+### `setuptools` (`setuptools>=84.0.0`)
+
+setuptools>=77 for the SPDX `license = "Apache-2.0"` form.
+(Also pinned in pyproject.toml build-system.requires for isolated builds.)
+
+FLOOR RAISED TO 83.0.0 on 2026-09-17, clearing CVE-2026-59890 /
+PYSEC-2026-3447. FileList matched MANIFEST.in exclude/prune globs without
+Unicode normalization, so on macOS APFS/HFS+ an NFD filename could bypass an
+NFC exclusion and get packed into an sdist.
+
+The previous `<82` ceiling existed ONLY to stay inside torch 2.11's declared
+`setuptools<82`, and that comment named its own revisit trigger: "revisit when
+torch's setuptools<82 pin lifts". It has. Verified 2026-09-17: torch 2.14.0
+declares `setuptools>=77.0.3` with NO upper bound, and a clean venv resolves
+torch 2.14.0 + setuptools 84.0.0 + transformers 5.17.0 together with
+`pip check` reporting no broken requirements.
+
+Worth recording WHY torch capped it at all: torch imports setuptools in
+exactly two modules -- utils/cpp_extension.py (compiling custom C++/CUDA ops)
+and a dynamo backend registry. m3 uses neither; it only runs inference. So the
+cap was never a constraint on m3's runtime, only on torch's build tooling.
+
+This CVE was invisible until 2026-09-12: the DefectDojo pipeline's pip-audit
+ran `find | head -1` and audited examples/mac-agent/requirements.txt ONLY, so
+the root manifest was never scanned. Fixed in scan_repo.py (audits all three;
+261 packages, was ~8). See m3 memory 1c6429ef.

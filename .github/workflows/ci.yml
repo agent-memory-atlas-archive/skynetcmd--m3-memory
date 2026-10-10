@@ -55,8 +55,7 @@ jobs:
         cache: 'pip'
     - name: Install dependencies
       run: |
-        pip install -r requirements.txt
-        pip install types-PyYAML
+        pip install -r requirements.txt  # includes the lint group (mypy stubs)
     - name: Run Mypy
       run: mypy bin/ --ignore-missing-imports
     - name: Run Mypy on the installed package
