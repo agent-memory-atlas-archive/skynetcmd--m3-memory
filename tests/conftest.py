@@ -376,18 +376,11 @@ def pytest_collection_modifyitems(config, items):
 _SKIPS: list[tuple[str, str]] = []  # (nodeid, reason)
 
 
-# pytest.importorskip's own reason. It is a missing dependency by definition,
-# so the one owner classifies it here rather than 27 call sites passing reason=.
-_IMPORTORSKIP_PREFIX = "could not import "
-
-
 def _skip_dimension(reason: str) -> str | None:
     if reason.startswith("[") and "]" in reason:
         dim = reason[1 : reason.index("]")]
         if dim in SKIP_DIMENSIONS:
             return dim
-    if reason.startswith(_IMPORTORSKIP_PREFIX):
-        return "dep"
     return None
 
 

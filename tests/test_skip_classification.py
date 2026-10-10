@@ -16,10 +16,10 @@ from conftest import SKIP_DIMENSIONS, _skip_dimension, skip_reason
 
 
 def _importorskip_reason() -> str:
-    # pytest's own message, produced live: if pytest rewords it, this test sees
-    # the new text rather than a copy of the old one.
+    # The reason an importorskip actually reports at runtime, produced live
+    # with the reason= every call site passes (test_skips_name_a_dimension).
     try:
-        pytest.importorskip("m3_no_such_module_for_skip_classification")
+        pytest.importorskip("m3_no_such_module_for_skip_classification", reason=skip_reason("dep", "no such module"))
     except pytest.skip.Exception as e:
         return str(e.msg)
     raise AssertionError("importorskip did not skip on a missing module")
@@ -30,12 +30,15 @@ def test_skip_reason_round_trips_every_dimension():
         assert _skip_dimension(skip_reason(dim, "x")) == dim
 
 
-def test_importorskip_is_a_dependency_skip():
+def test_importorskip_reason_survives_to_the_report():
     assert _skip_dimension(_importorskip_reason()) == "dep"
 
 
 def test_bare_text_is_unclassified():
+    # pytest's default importorskip text included: test_skips_name_a_dimension
+    # rejects it statically, and the strict hook must agree at runtime.
     assert _skip_dimension("no reachable PostgreSQL") is None
+    assert _skip_dimension("could not import 'x': No module named 'x'") is None
     assert _skip_dimension("[nope] unknown dimension") is None
 
 
