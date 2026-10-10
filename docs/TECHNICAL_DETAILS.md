@@ -383,7 +383,7 @@ Always-on: when `metadata.temporal_anchors` is supplied, resolved ISO dates are 
 
 ### Test Suite (`tests/`)
 
-6,000+ collected tests from 4,400+ test functions across 470+ files (parametrised cases expand the total) across all feature categories — memory CRUD, search, contradictions, GDPR, sync, maintenance, orchestration, refresh lifecycle, multi-agent handoffs, tasks, and notifications. The suite runs with `filterwarnings=error`, so a new warning fails the build. Representative categories:
+6,200+ collected tests (6,600+ with the native core) from 4,600+ test functions across 510+ files (parametrised cases expand the total) across all feature categories — memory CRUD, search, contradictions, GDPR, sync, maintenance, orchestration, refresh lifecycle, multi-agent handoffs, tasks, and notifications. The suite runs with `filterwarnings=error`, so a new warning fails the build. Representative categories:
 
 | Category | Tests | What's Verified |
 |----------|-------|----------------|
