@@ -861,8 +861,8 @@ into the same shape:
 
 1. **Pick a stage name** — lowercase snake_case. Add it to
    `bin/m3_enrich_stage.py` `KNOWN_STAGES`.
-2. **Reuse a queue table** — migration 026 added a `stage` column to
-   both queues, so a new stage can ride on `observation_queue` (raw
+2. **Reuse a queue table** — migration 026 (PostgreSQL: `pg_044`) added a
+   `stage` column to both queues, so a new stage can ride on `observation_queue` (raw
    text in) or `reflector_queue` (already-extracted observations in)
    without another migration.
 3. **Write a drainer** — pop work via

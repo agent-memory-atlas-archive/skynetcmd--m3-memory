@@ -26,14 +26,16 @@ Public API:
     fail(table, queue_id, error_message, db) -> None
     queue_depth(table, stage, db) -> int
 
-`db` is an open sqlite3.Connection; callers manage their own
-connection lifecycle (matches how memory_core._db() is used today).
+`db` is an open connection on either backend (memory_core._db() or a
+backend's connection()); callers manage its lifecycle. SQL is rendered by the
+dialect of the connection handed in, so a caller holding a SQLite file while
+the process is configured for PostgreSQL still gets SQLite syntax.
 """
 from __future__ import annotations
 
-import sqlite3
 from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import Any
 
 # Stage name registry. Adding a new stage = add a constant here so
 # greps find every call site.
@@ -66,10 +68,18 @@ class QueueRow:
     stage: str
 
 
+def _dialect(db: Any):
+    from memory.backends.dialect import dialect_for_connection
+
+    return dialect_for_connection(db)
+
+
 def _validate_table(table: str) -> None:
+    # The name is interpolated into SQL, so this allowlist is also the injection guard.
     if table not in QUEUE_TABLES:
         raise ValueError(
-            f"unknown queue table {table!r}; expected one of {sorted(QUEUE_TABLES)}"
+            f"unknown queue table. observed: {table!r}. "
+            f"inspect: expected one of {sorted(QUEUE_TABLES)} (m3_enrich_stage.QUEUE_TABLES)"
         )
 
 
@@ -77,28 +87,29 @@ def pop_batch(
     table: str,
     stage: str,
     limit: int,
-    db: sqlite3.Connection,
+    db: Any,
 ) -> list[QueueRow]:
     """Claim up to `limit` rows from `table` for the given `stage`.
 
     Ordered by (attempts ASC, enqueued_at ASC) so retries of failed
     rows are interleaved with fresh work. This is *not* a locking
-    pop — concurrent drainers will race. SQLite's per-process write
-    lock plus the row-level DELETE-on-ack means the worst case is
-    duplicate work, not data loss. Add SELECT...FOR UPDATE semantics
+    pop — concurrent drainers will race. The row-level DELETE-on-ack
+    means the worst case is duplicate work, not data loss, on either
+    backend. Add SELECT...FOR UPDATE semantics
     if/when we move to a multi-process drainer.
 
     Migration 026 added the `stage` column with a backfilled default,
     so this is safe to call against pre-026 schemas after migrate-up.
     """
     _validate_table(table)
+    p = _dialect(db).param()
     rows = db.execute(
         f"""
         SELECT id, conversation_id, COALESCE(user_id, ''), attempts, stage
         FROM {table}
-        WHERE attempts < ? AND stage = ?
+        WHERE attempts < {p} AND stage = {p}
         ORDER BY attempts ASC, enqueued_at ASC
-        LIMIT ?
+        LIMIT {p}
         """,
         (MAX_ATTEMPTS, stage, limit),
     ).fetchall()
@@ -114,14 +125,14 @@ def pop_batch(
     ]
 
 
-def ack(table: str, queue_id: int, db: sqlite3.Connection) -> None:
+def ack(table: str, queue_id: int, db: Any) -> None:
     """Mark a row complete by deleting it.
 
     No tombstone is kept; the downstream type='observation' /
     supersedes-edge rows in memory_items are the durable record.
     """
     _validate_table(table)
-    db.execute(f"DELETE FROM {table} WHERE id = ?", (queue_id,))
+    db.execute(f"DELETE FROM {table} WHERE id = {_dialect(db).param()}", (queue_id,))
     db.commit()
 
 
@@ -129,24 +140,20 @@ def fail(
     table: str,
     queue_id: int,
     error_message: str,
-    db: sqlite3.Connection,
+    db: Any,
 ) -> None:
     """Increment attempts + record last_error. Row stays in queue
     until attempts hits MAX_ATTEMPTS, after which pop_batch skips it."""
-    # PORTABILITY BOUNDARY: this whole module is SQLite-only by design — `db` is
-    # typed sqlite3.Connection and the enrich subsystem short-circuits on any
-    # non-SQLite backend (enrich/prep.py returns early when active_backend().name
-    # != "sqlite"). The literal `?` binds and strftime()/'now' below are therefore
-    # safe here. If enrich is ever un-gated for PostgreSQL, convert every query in
-    # this file to the seam (dialect.param()/now()), not just this one.
     _validate_table(table)
+    d = _dialect(db)
+    p = d.param()
     db.execute(
         f"""
         UPDATE {table}
         SET attempts = attempts + 1,
-            last_error = ?,
-            last_attempt_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')
-        WHERE id = ?
+            last_error = {p},
+            last_attempt_at = {d.now()}
+        WHERE id = {p}
         """,
         (str(error_message)[:500], queue_id),
     )
@@ -156,12 +163,13 @@ def fail(
 def queue_depth(
     table: str,
     stage: str,
-    db: sqlite3.Connection,
+    db: Any,
 ) -> int:
     """Count rows still eligible for draining (attempts under cap)."""
     _validate_table(table)
+    p = _dialect(db).param()
     row = db.execute(
-        f"SELECT COUNT(*) FROM {table} WHERE attempts < ? AND stage = ?",
+        f"SELECT COUNT(*) FROM {table} WHERE attempts < {p} AND stage = {p}",
         (MAX_ATTEMPTS, stage),
     ).fetchone()
     return int(row[0]) if row else 0

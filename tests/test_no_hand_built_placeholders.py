@@ -80,7 +80,6 @@ def test_allowlist_has_no_stale_entries():
 # INLINE_ALLOWED lists the files that write one legitimately, each with its reason
 # (ALLOWED's files are exempt too). Docstrings do not count.
 INLINE_ALLOWED = {
-    "bin/m3_enrich_stage.py": "PARITY GAP: enrichment queue stages are SQLite-only (m3 parity task)",
     "bin/m3_enrich_assign.py": "PARITY GAP: send_to assignment refuses PostgreSQL (m3 parity task)",
     "bin/migrate_entity_vocab.py": "PARITY GAP: v1->v2 vocabulary rename refuses PostgreSQL (m3 parity task; verify PG need)",
     "bin/migrate_memory.py": "INHERENT: the SQLite migrator; PostgreSQL's is migrate_pg with the same schema_versions contract",
@@ -158,7 +157,7 @@ def test_no_parameter_defaults_to_a_placeholder_literal():
 
 # Functional parity (user rule, 2026-10-10): a SQLite-only path is allowed only
 # when the limitation is VERIFIED inherent; anything else is a parity gap to port.
-_PARITY_GAP_BUDGET = 8
+_PARITY_GAP_BUDGET = 7
 
 
 def test_every_exemption_is_inherent_or_a_named_parity_gap():
