@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import ast
 import pathlib
+import re
 
 _ROOT = pathlib.Path(__file__).resolve().parents[1]
 
@@ -74,3 +75,35 @@ def test_allowlist_has_no_stale_entries():
         if not p.exists() or not _qmark_lists(ast.parse(p.read_text(encoding="utf-8"))):
             stale.append(rel)
     assert not stale, f"remove from ALLOWED: {stale}"
+
+
+# A '?' written into SQL text is the same defect as a hand-built list. Too many
+# remain to forbid outright (measured 2026-10-10), so this ratchets: the count
+# may only fall, and must be lowered when it does. Docstrings do not count.
+_INLINE_SQL = re.compile(r"\b(SELECT|INSERT|UPDATE|DELETE|WHERE|VALUES)\b", re.IGNORECASE)
+_INLINE_QMARK = re.compile(r"(=|<|>|\(|,|\bIN|\bLIKE|\bLIMIT|\bOFFSET)\s*\?")
+_INLINE_BUDGET = 59
+
+
+def _inline_qmarks(tree: ast.AST) -> list[int]:
+    docstrings = {id(n.value) for n in ast.walk(tree)
+                  if isinstance(n, ast.Expr) and isinstance(n.value, ast.Constant)}
+    return [n.lineno for n in ast.walk(tree)
+            if isinstance(n, ast.Constant) and isinstance(n.value, str) and id(n) not in docstrings
+            and _INLINE_SQL.search(n.value) and _INLINE_QMARK.search(n.value)]
+
+
+def test_inline_qmark_placeholders_ratchet_down():
+    hits = []
+    for top in ("bin", "m3_memory"):
+        for p in (_ROOT / top).rglob("*.py"):
+            rel = p.relative_to(_ROOT).as_posix()
+            if p.name.startswith(("bench_", "benchmark_")) or "__pycache__" in p.parts or rel in ALLOWED:
+                continue
+            hits += [f"{rel}:{ln}" for ln in _inline_qmarks(ast.parse(p.read_text(encoding="utf-8")))]
+    assert len(hits) <= _INLINE_BUDGET, (
+        f"observed: {len(hits)} SQL literals with an inline '?' (budget {_INLINE_BUDGET}). "
+        f"inspect: render the bind with dialect().param(); new ones: {hits[:20]}")
+    assert len(hits) == _INLINE_BUDGET, (
+        f"observed: {len(hits)} inline '?' literals, below the budget of {_INLINE_BUDGET}. "
+        "inspect: lower _INLINE_BUDGET to the new count")
