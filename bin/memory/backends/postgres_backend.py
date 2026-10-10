@@ -403,7 +403,7 @@ def _pg_tool(name: str) -> str:
 
     explicit = os.environ.get(_PG_TOOL_ENV[name])
     if explicit:
-        if Path(explicit).is_file():
+        if os.path.isfile(Path(explicit)):
             return str(Path(explicit).absolute())
         raise SnapshotError(f"{_PG_TOOL_ENV[name]}={explicit!r} is not a file.")
     if name == "pg_restore" and os.environ.get("M3_PG_DUMP"):
@@ -894,7 +894,7 @@ class PostgresBackend:
             from memory import config as _cfg
 
             sql_path = Path(_cfg.BASE_DIR) / "memory" / "migrations" / "postgres" / "pg_primary_v1.sql"
-            if not sql_path.exists():
+            if not os.path.exists(sql_path):
                 raise RuntimeError(
                     f"observed: PostgreSQL schema file not found at {sql_path}. "
                     f"possible: an incomplete install, a packaging error, or a "

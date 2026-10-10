@@ -27,6 +27,7 @@ is best-effort-but-applied.
 """
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
@@ -73,7 +74,7 @@ def _self_names() -> tuple[str, ...]:
     names: set[str] = set(_DEFAULT_SELF_NAMES)
     path = Path(_config_root()) / _CONFIG_BASENAME
     try:
-        if path.is_file():
+        if os.path.isfile(path):
             with path.open(encoding="utf-8") as f:
                 extra = json.load(f).get("names")
             if isinstance(extra, list):

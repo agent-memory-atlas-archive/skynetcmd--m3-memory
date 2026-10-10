@@ -39,6 +39,7 @@ not an overfit to one page.
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -198,7 +199,7 @@ def load_gate() -> AdmissionGate:
     if path in _CACHE:
         return _CACHE[path]
     gate = _DEFAULT_GATE
-    if Path(path).is_file():
+    if os.path.isfile(Path(path)):
         try:
             with Path(path).open(encoding="utf-8") as f:
                 data = json.load(f)

@@ -34,6 +34,7 @@ upstream. This is what lets a search caller be identical on both backends.
 """
 from __future__ import annotations
 
+import os
 import re
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
@@ -148,7 +149,7 @@ def snapshot_target(dest_dir: str, stem: str, label: str, ext: str) -> str:
     dest.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     path = dest / f"{stem}.{label}.{stamp}{ext}"
-    if path.exists() or Path(f"{path}.partial").exists():
+    if os.path.exists(path) or os.path.exists(Path(f"{path}.partial")):
         raise SnapshotError(f"snapshot target already exists: {path}")
     return str(path)
 

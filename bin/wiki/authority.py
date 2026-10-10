@@ -26,6 +26,7 @@ Malformed / absent → the default set (fail safe, and warned once).
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 # The shipping default: only 'canonical' renders as body prose. Everything else
@@ -58,7 +59,7 @@ def body_authorities() -> frozenset[str]:
     if path in _CACHE:
         return _CACHE[path]
     result = _DEFAULT_BODY_AUTHORITIES
-    if Path(path).is_file():
+    if os.path.isfile(Path(path)):
         try:
             with Path(path).open(encoding="utf-8") as f:
                 data = json.load(f)

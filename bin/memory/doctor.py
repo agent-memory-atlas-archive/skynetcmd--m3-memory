@@ -100,7 +100,7 @@ def _probe_tier1() -> dict[str, Any]:
             pass
     res["gguf_path"] = gguf or None
     if gguf:
-        res["gguf_exists"] = Path(gguf).exists()
+        res["gguf_exists"] = os.path.exists(Path(gguf))
     # Tier-1 configured-ness is determined by the GGUF, NOT by whether the native
     # extension imports. With no GGUF (or a missing one), tier-1 is a deliberate
     # skip — 'not-configured' — regardless of m3_core_rs. Decide this FIRST: a
@@ -419,7 +419,7 @@ def _resolve_embed_stores(main_db: Any) -> list[str]:
     seen: set[str] = set()
     out: list[str] = []
     for p in paths:
-        if p not in seen and Path(p).exists():
+        if p not in seen and os.path.exists(Path(p)):
             seen.add(p)
             out.append(p)
     return out

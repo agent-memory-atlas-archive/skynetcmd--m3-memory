@@ -330,7 +330,7 @@ def _read_embed_config() -> tuple[dict, bool]:
 
         from m3_core.paths import get_m3_config_root
         path = Path(get_m3_config_root()) / ".embed_config.json"
-        if not path.exists():
+        if not os.path.exists(path):
             return {}, False
         import json as _json
         with path.open(encoding="utf-8") as f:
@@ -603,7 +603,7 @@ def discover_bge_m3_gguf(budget_s: float = _EMBED_GGUF_WALK_BUDGET_S) -> str | N
     deadline = time.monotonic() + max(0.1, budget_s)
     for d in candidate_dirs:
         try:
-            if not d.is_dir():
+            if not os.path.isdir(d):
                 continue
             base_depth = len(d.parts)
             for path in d.rglob("*.gguf"):
@@ -649,14 +649,14 @@ def _discover_ollama_bge_m3(deadline: float) -> str | None:
     root_env = os.environ.get("OLLAMA_MODELS", "").strip()
     root = Path(root_env) if root_env else Path.home() / ".ollama" / "models"
     manifests = root / "manifests"
-    if not manifests.is_dir():
+    if not os.path.isdir(manifests):
         return None
     try:
         for mf in manifests.rglob("*"):
             if time.monotonic() > deadline:
                 logger.debug("bge-m3 GGUF auto-detect: walk budget exceeded (ollama)")
                 return None
-            if not mf.is_file():
+            if not os.path.isfile(mf):
                 continue
             # The model name is the PATH (…/library/bge-m3/latest), not the file.
             name = "/".join(mf.parts[-3:]).lower()
@@ -677,7 +677,7 @@ def _discover_ollama_bge_m3(deadline: float) -> str | None:
                     continue
                 digest = str(layer.get("digest", "")).replace(":", "-")
                 blob = root / "blobs" / digest
-                if blob.is_file():
+                if os.path.isfile(blob):
                     return str(blob)
     except OSError:
         return None

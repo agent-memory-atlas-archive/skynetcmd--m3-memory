@@ -412,7 +412,7 @@ def get_configured_extractor() -> BaseExtractor:
 
     # Look for config file fallback (~/.m3/config/extraction.json)
     cfg_file = Path(_config._M3_CONFIG_ROOT) / "extraction.json"
-    if cfg_file.exists() and etype == "rule_based" and not model and not url:
+    if os.path.exists(cfg_file) and etype == "rule_based" and not model and not url:
         try:
             with cfg_file.open(encoding="utf-8") as f:
                 data = json.load(f) or {}

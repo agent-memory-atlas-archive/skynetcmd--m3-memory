@@ -35,6 +35,7 @@ time — no direct sqlite3/psycopg, no new query.
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -391,7 +392,7 @@ class ModelDerivabilityJudge:
 
     def _read_cache(self, digest: str) -> tuple[bool, str] | None:
         path = self._cache_path(digest)
-        if not path or not Path(path).is_file():
+        if not path or not os.path.isfile(Path(path)):
             return None
         try:
             with Path(path).open(encoding="utf-8") as f:

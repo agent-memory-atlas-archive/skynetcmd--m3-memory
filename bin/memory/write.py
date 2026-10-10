@@ -1549,9 +1549,9 @@ async def _check_contradictions(
 def _read_memory_file(p: str) -> tuple[str | None, str | None]:
     """Read a memory_write_from_file payload: (content, None) or (None, error)."""
     q = Path(p)
-    if not q.exists():
+    if not os.path.exists(q):
         return None, f"Error: file not found: {p}"
-    if not q.is_file():
+    if not os.path.isfile(q):
         return None, f"Error: not a file: {p}"
     try:
         size = q.stat().st_size

@@ -91,7 +91,7 @@ def _cache_path(cfg: SynthConfig, digest: str) -> str | None:
 
 
 def _read_cache(path: str | None) -> str | None:
-    if not path or not Path(path).is_file():
+    if not path or not os.path.isfile(Path(path)):
         return None
     try:
         with Path(path).open(encoding="utf-8") as f:

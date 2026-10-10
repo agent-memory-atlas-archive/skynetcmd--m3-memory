@@ -375,7 +375,7 @@ def load_entity_vocab(yaml_path: str | Path | None = None) -> tuple[frozenset[st
     else:
         path = DEFAULT_ENTITY_VOCAB_YAML
     explicit = yaml_path is not None or bool(_ENV_ENTITY_VOCAB_YAML)
-    if not path.exists():
+    if not os.path.exists(path):
         # The shipped default may be absent; a file the caller or
         # M3_ENTITY_VOCAB_YAML named is a configuration the user expects applied.
         if explicit:

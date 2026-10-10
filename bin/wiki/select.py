@@ -12,6 +12,7 @@ The "core set" is m3's three overlapping notions of a canonical memory:
 """
 from __future__ import annotations
 
+import os
 import re
 import sqlite3
 from dataclasses import dataclass, field
@@ -101,7 +102,7 @@ def _self_ref_names() -> frozenset[str]:
     path = str(Path(root) / _SELF_REF_CONFIG_BASENAME)
     names = set(_DEFAULT_SELF_REF_NAMES)
     try:
-        if Path(path).is_file():
+        if os.path.isfile(Path(path)):
             with Path(path).open(encoding="utf-8") as fh:
                 extra = _json.load(fh).get("self_entities")
             if isinstance(extra, list):

@@ -18,6 +18,11 @@ them:
     uses only the names.
   * zero-arg super() fails in a slots=True dataclass before 3.14; m3's slotted
     dataclasses do not call it.
+  * pathlib's Path.exists()/is_file()/is_dir() RAISE PermissionError on 3.12 and
+    3.13 when a parent directory cannot be traversed (POSIX); 3.14 returns False.
+    Measured 2026-10-10 on Linux 3.12.13 / 3.13.15 / 3.14.5. os.path.exists /
+    isfile / isdir return False on every version, so m3 uses those
+    (tests/test_python_version_seam.py ratchets the Path forms down).
 """
 from __future__ import annotations
 
