@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import asyncio
 import atexit
+import sys
 import threading
 from collections.abc import Callable, Coroutine
 from concurrent.futures import Future
@@ -56,6 +57,15 @@ from typing import Any, ClassVar, cast
 
 _BIN_ON_PATH = False
 _BIN_LOCK = threading.Lock()
+
+
+async def _cancel_other_tasks() -> None:
+    """Cancel every task on the running loop except this one, and wait for them."""
+    me = asyncio.current_task()
+    tasks = [t for t in asyncio.all_tasks() if t is not me]
+    for t in tasks:
+        t.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
 
 
 def _ensure_bin_on_path() -> None:
@@ -175,9 +185,22 @@ class M3Client:
                 # Drain async generators and the default executor ON the loop
                 # (that `asyncio_0` ThreadPoolExecutor worker is the loop's own
                 # default executor and outlives the loop otherwise).
-                for factory in (loop.shutdown_asyncgens, loop.shutdown_default_executor):
+                # Cancel the loop's remaining tasks first, as asyncio.run does.
+                # The access-stamp flusher lives here; stopping the loop under
+                # it destroyed a pending task.
+                for factory in (_cancel_other_tasks, loop.shutdown_asyncgens, loop.shutdown_default_executor):
                     try:
                         asyncio.run_coroutine_threadsafe(factory(), loop).result(timeout=5)
+                    except Exception:
+                        pass
+                # Then write the stamps that flusher had not reached: a
+                # search-then-exit process otherwise never sets
+                # last_accessed_at, so memory_grade's window never opens. Same
+                # drain as the CLI's. Only if m3 was loaded; exit imports nothing.
+                db = sys.modules.get("memory.db")
+                if db is not None:
+                    try:
+                        db.flush_access_stamps_now()
                     except Exception:
                         pass
                 loop.call_soon_threadsafe(loop.stop)

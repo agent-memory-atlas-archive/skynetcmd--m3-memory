@@ -146,3 +146,34 @@ def test_shutdown_also_drains_the_loops_default_executor():
         time.sleep(0.05)
     leftover = [t.name for t in threading.enumerate() if t.name.startswith("asyncio_")]
     assert not leftover, f"default-executor worker(s) survived shutdown: {leftover}"
+
+
+def test_shutdown_drains_access_stamps_and_ends_the_flusher(monkeypatch):
+    """Stamps queued just before exit are written, and the flusher task ends.
+
+    Access stamps are batched by a 0.25 s task on this loop. Stopping the loop
+    before the next tick dropped the queued ids (so `last_accessed_at` never
+    moved and `memory_grade`'s window never opened for a search-then-exit
+    process) and destroyed the still-pending task, which asyncio reports as
+    "Task was destroyed but it is pending". The CLI drains for the same reason
+    (m3_memory/cli.py, flush_access_stamps_now).
+    """
+    import importlib
+
+    M3Client()  # puts bin/ on sys.path and starts the loop
+    db = importlib.import_module("memory.db")
+    written: list[str] = []
+    monkeypatch.setattr(db, "_flush_access_batch", lambda batch: written.extend(batch) or len(batch))
+    loop = M3Client._loop
+    assert loop is not None
+
+    async def _queue():
+        db._enqueue_access_stamps(["stamp-before-exit"])
+        return db._access_flusher_task
+
+    task = asyncio.run_coroutine_threadsafe(_queue(), loop).result(timeout=10)
+    M3Client._shutdown_loop()  # well inside the 0.25 s tick
+
+    assert written == ["stamp-before-exit"], "a stamp queued before exit was dropped"
+    assert not db._access_pending
+    assert task is not None and task.done(), "the flusher task was left pending on a closed loop"
