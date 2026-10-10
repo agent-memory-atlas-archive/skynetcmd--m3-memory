@@ -31,37 +31,24 @@ the v2 / updated-m3 names. Existing rows under the old names would fail
 validation on re-write until this script renames them. Reads remain fine
 since validation only fires on the write path.
 
-DBs that may need this migration: any SQLite DB with the entity_graph
-tables (migration 024) that was extracted under the v1 default vocab or
-the pre-2026-05-03 m3 vocab. Chatlog DBs without entity_relationships
-tables are skipped at the schema-check.
+DBs that may need this migration: any store with the entity_graph tables
+(migration 024) extracted under the v1 default vocab or the pre-2026-05-03 m3
+vocab -- including a PostgreSQL store migrated from such a SQLite one, since
+rows are copied as they are. Stores without entity_relationships are skipped
+at the schema check.
 
 Usage:
-    python bin/migrate_entity_vocab.py --database <path/to/your.db>
-    python bin/migrate_entity_vocab.py --database <path/to/your.db> --dry-run
+    python bin/migrate_entity_vocab.py [--database <path/to/your.db>] [--dry-run]
 
-The default DB resolution order (M3_DATABASE env > --database flag > default
-agent_memory.db) follows the same convention as other m3-memory scripts.
+On SQLite --database selects the file (default: the active store); on
+PostgreSQL the configured database is used and --database is refused.
 """
 from __future__ import annotations
 
 import argparse
-import os
-import sqlite3
 import sys
-from collections.abc import Callable
-from pathlib import Path
 
-from m3_core.paths import seam_dialect
-
-REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT / "bin"))
-_resolve_db_path: Callable[[str | None], str] | None
-try:
-    from m3_sdk import resolve_db_path as _rdp
-    _resolve_db_path = _rdp
-except ImportError:
-    _resolve_db_path = None
+from m3_core.paths import active_database, resolve_cli_store, seam_backend, seam_dialect
 
 ENTITY_TYPE_RENAMES = {
     "concept": "legacy_concept",
@@ -74,39 +61,31 @@ PREDICATE_RENAMES = {
 }
 
 
-def _connect(db_path: str) -> sqlite3.Connection:
-    if not Path(db_path).exists():
-        sys.exit(f"ERROR: database not found: {db_path}")
-    return sqlite3.connect(db_path, timeout=60, isolation_level=None)
+def _has_table(con, name: str) -> bool:
+    sql, params = seam_dialect().table_exists(name)
+    return con.execute(sql, params).fetchone() is not None
 
 
-def _has_table(con: sqlite3.Connection, name: str) -> bool:
-    row = con.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (name,)
-    ).fetchone()
-    return row is not None
-
-
-def _audit_before(con: sqlite3.Connection) -> dict:
+def _audit_before(con) -> dict:
     """Snapshot per-old-name row counts before migration."""
     counts: dict = {"entities": {}, "predicates": {}}
     if _has_table(con, "entities"):
         for old in ENTITY_TYPE_RENAMES:
             n = con.execute(
-                "SELECT COUNT(*) FROM entities WHERE entity_type = ?", (old,)
+                f"SELECT COUNT(*) FROM entities WHERE entity_type = {seam_dialect().param()}", (old,)
             ).fetchone()[0]
             counts["entities"][old] = n
     if _has_table(con, "entity_relationships"):
         for old in PREDICATE_RENAMES:
             n = con.execute(
-                "SELECT COUNT(*) FROM entity_relationships WHERE predicate = ?",
+                f"SELECT COUNT(*) FROM entity_relationships WHERE predicate = {seam_dialect().param()}",
                 (old,),
             ).fetchone()[0]
             counts["predicates"][old] = n
     return counts
 
 
-def _audit_after(con: sqlite3.Connection) -> dict:
+def _audit_after(con) -> dict:
     """Snapshot per-new-name row counts after migration. Includes the totals
     for the destination predicate names (mentions, supersedes) so we can show
     how many of each are migrated v1 rows vs. native v2 rows."""
@@ -114,13 +93,13 @@ def _audit_after(con: sqlite3.Connection) -> dict:
     if _has_table(con, "entities"):
         for new in ENTITY_TYPE_RENAMES.values():
             n = con.execute(
-                "SELECT COUNT(*) FROM entities WHERE entity_type = ?", (new,)
+                f"SELECT COUNT(*) FROM entities WHERE entity_type = {seam_dialect().param()}", (new,)
             ).fetchone()[0]
             counts["entities"][new] = n
     if _has_table(con, "entity_relationships"):
         for new in set(PREDICATE_RENAMES.values()):
             n = con.execute(
-                "SELECT COUNT(*) FROM entity_relationships WHERE predicate = ?",
+                f"SELECT COUNT(*) FROM entity_relationships WHERE predicate = {seam_dialect().param()}",
                 (new,),
             ).fetchone()[0]
             counts["predicates"][new] = n
@@ -139,13 +118,12 @@ def _print_counts(label: str, counts: dict) -> None:
         print("    (no relevant rows)")
 
 
-def migrate(db_path: str, dry_run: bool = False) -> int:
-    print(f"=== migrate_entity_vocab on {db_path} ===")
+def migrate(db_path: str | None, dry_run: bool = False) -> int:
+    print(f"=== migrate_entity_vocab on {db_path or seam_backend().name} ===")
     print(f"    mode: {'DRY-RUN (no writes)' if dry_run else 'WRITE'}")
     print()
 
-    con = _connect(db_path)
-    try:
+    with active_database(db_path), seam_backend().connection() as con:
         # Schema sanity: refuse to migrate if the entity tables aren't there.
         if not _has_table(con, "entities") or not _has_table(con, "entity_relationships"):
             print("This DB does not have entity_graph tables (migration 024).")
@@ -167,19 +145,21 @@ def migrate(db_path: str, dry_run: bool = False) -> int:
             print(f"DRY-RUN: would migrate {total_to_migrate:,} rows total.")
             return 0
 
-        seam_dialect().begin_immediate(con)
+        d = seam_dialect()
+        p = d.param()
+        d.begin_immediate(con)
         for old, new in ENTITY_TYPE_RENAMES.items():
             con.execute(
-                "UPDATE entities SET entity_type = ?, updated_at = "
-                "strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE entity_type = ?",
+                f"UPDATE entities SET entity_type = {p}, updated_at = {d.now()} "
+                f"WHERE entity_type = {p}",
                 (new, old),
             )
         for old, new in PREDICATE_RENAMES.items():
             con.execute(
-                "UPDATE entity_relationships SET predicate = ? WHERE predicate = ?",
+                f"UPDATE entity_relationships SET predicate = {p} WHERE predicate = {p}",
                 (new, old),
             )
-        con.execute("COMMIT")
+        con.commit()
 
         after = _audit_after(con)
         print()
@@ -187,21 +167,15 @@ def migrate(db_path: str, dry_run: bool = False) -> int:
         print()
         print(f"Migrated {total_to_migrate:,} rows.")
         return 0
-    finally:
-        con.close()
 
 
 def main() -> int:
-    from m3_core.paths import require_sqlite_backend
-    require_sqlite_backend("migrate_entity_vocab")  # opens SQLite files directly; refuse on PostgreSQL
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--database",
         type=str,
-        default=os.environ.get("M3_DATABASE")
-        or str(REPO_ROOT / "memory" / "agent_memory.db"),
-        help="Path to the SQLite DB to migrate. Default: M3_DATABASE env "
-        "or memory/agent_memory.db.",
+        default=None,
+        help="SQLite DB to migrate (default: the active store). Not used on PostgreSQL.",
     )
     parser.add_argument(
         "--dry-run",
@@ -210,9 +184,11 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    db_path = (
-        _resolve_db_path(args.database) if _resolve_db_path is not None else os.path.abspath(args.database)
-    )
+    try:
+        db_path = resolve_cli_store(args.database, "--database")
+    except ValueError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 2
     return migrate(db_path, dry_run=args.dry_run)
 
 

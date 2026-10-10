@@ -102,7 +102,6 @@ def test_chatlog_status_main_count_na_on_postgres(monkeypatch):
 # refuse at the top of main(), before it parses arguments or opens anything.
 _SQLITE_ONLY_MAINS = [
     "backfill_content_hash",
-    "migrate_entity_vocab",
     "split_chatlog_from_core",
     "migrate_memory",
 ]

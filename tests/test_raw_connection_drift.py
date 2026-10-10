@@ -98,9 +98,6 @@ _EXEMPT = {
     "bin/setup_memory.py":
         "Bootstraps the store from nothing; there is no seam to route through "
         "until it has run.",
-    "bin/migrate_entity_vocab.py":
-        "One-shot vocabulary migration over the SQLite migration chain; exits "
-        "if the file is absent.",
     "bin/migrate_flat_memory.py":
         "One-way ETL from an EXTERNAL SQLite DB (OpenClaw), opened "
         "?mode=ro&immutable=1. A foreign file, not m3's store.",

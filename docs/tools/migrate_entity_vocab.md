@@ -1,8 +1,8 @@
 ---
 tool: bin/migrate_entity_vocab.py
-sha1: b3a040008daf
-mtime_utc: 2026-10-09T23:51:56.710244+00:00
-generated_utc: 2026-10-09T23:53:45.268057+00:00
+sha1: 5c5134d162c6
+mtime_utc: 2026-10-10T15:00:12.488887+00:00
+generated_utc: 2026-10-10T15:00:38.812304+00:00
 private: false
 ---
 
@@ -42,23 +42,23 @@ the v2 / updated-m3 names. Existing rows under the old names would fail
 validation on re-write until this script renames them. Reads remain fine
 since validation only fires on the write path.
 
-DBs that may need this migration: any SQLite DB with the entity_graph
-tables (migration 024) that was extracted under the v1 default vocab or
-the pre-2026-05-03 m3 vocab. Chatlog DBs without entity_relationships
-tables are skipped at the schema-check.
+DBs that may need this migration: any store with the entity_graph tables
+(migration 024) extracted under the v1 default vocab or the pre-2026-05-03 m3
+vocab -- including a PostgreSQL store migrated from such a SQLite one, since
+rows are copied as they are. Stores without entity_relationships are skipped
+at the schema check.
 
 Usage:
-    python bin/migrate_entity_vocab.py --database <path/to/your.db>
-    python bin/migrate_entity_vocab.py --database <path/to/your.db> --dry-run
+    python bin/migrate_entity_vocab.py [--database <path/to/your.db>] [--dry-run]
 
-The default DB resolution order (M3_DATABASE env > --database flag > default
-agent_memory.db) follows the same convention as other m3-memory scripts.
+On SQLite --database selects the file (default: the active store); on
+PostgreSQL the configured database is used and --database is refused.
 
 ---
 
 ## Entry points
 
-- `def main()` (line 194)
+- `def main()` (line 172)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -67,42 +67,38 @@ agent_memory.db) follows the same convention as other m3-memory scripts.
 
 | Flag(s) | Help | Default | Default behavior | Type/Action | Impact when set |
 |---|---|---|---|---|---|
-| `--database` | Path to the SQLite DB to migrate. Default: M3_DATABASE env or memory/agent_memory.db. | `os.environ.get('M3_DATABASE') or str(REPO_ROOT / 'memory' / 'agent_memory.db')` |  | str |  |
+| `--database` | SQLite DB to migrate (default: the active store). Not used on PostgreSQL. | None |  | str |  |
 | `--dry-run` | Audit row counts, print the plan, write nothing. | `False` |  | store_true |  |
 
 ---
 
 ## Environment variables read
 
-- `M3_DATABASE`
+_(none detected)_
 
 ---
 
 ## Calls INTO this repo (intra-repo imports)
 
-- `m3_sdk (resolve_db_path)`
+_(none detected)_
 
 ---
 
 ## Calls OUT (external side-channels)
 
-**sqlite**
-
-- `sqlite3.connect()  → `db_path`` (line 80)
-
+_(no subprocess / http / sqlite calls detected)_
 
 ---
 
 ## Notable external imports
 
-- `m3_core.paths (require_sqlite_backend)`
-- `m3_core.paths (seam_dialect)`
+- `m3_core.paths (active_database, resolve_cli_store, seam_backend, seam_dialect)`
 
 ---
 
 ## File dependencies (repo paths referenced)
 
-- `agent_memory.db`
+_(none detected)_
 
 ---
 
