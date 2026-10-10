@@ -4,6 +4,7 @@ import base64
 import logging
 import os
 import threading
+from types import FrameType
 from typing import Any
 
 from crypto_provider import provider as crypto
@@ -170,7 +171,7 @@ def _seam_is_being_built() -> bool:
     """
     import sys as _sys
 
-    f = _sys._getframe(1)
+    f: FrameType | None = _sys._getframe(1)
     while f is not None:
         g = f.f_globals.get("__name__", "")
         if g.startswith("memory.backends"):
@@ -238,7 +239,7 @@ def _dialect_param() -> str:
 
 def get_master_key() -> str | None:
     """Retrieves the AGENT_OS_MASTER_KEY from the native OS keyring or environment."""
-    val = os.getenv("AGENT_OS_MASTER_KEY", "").strip()
+    val: str | None = os.getenv("AGENT_OS_MASTER_KEY", "").strip()
     if val:
         return val
 

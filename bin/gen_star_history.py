@@ -61,7 +61,7 @@ def _parse_next(link_header: str | None) -> str | None:
 def fetch_starred_at(repo: str, token: str) -> list[datetime]:
     """All stargazer timestamps, oldest first. Paginates the whole history."""
     times: list[datetime] = []
-    url = f"{API}/repos/{repo}/stargazers?per_page=100"
+    url: str | None = f"{API}/repos/{repo}/stargazers?per_page=100"
     while url:
         body, headers = _get(url, token)
         for row in body:

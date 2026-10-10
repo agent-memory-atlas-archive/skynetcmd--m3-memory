@@ -59,7 +59,8 @@ def test_mapping() -> None:
        "merge_value reconstructs value")
 
     print("mapping.parse_get — JSON string / not-found sentinel")
-    _c(mapping.parse_get('{"id":"a","content":"c"}')["content"] == "c",
+    got = mapping.parse_get('{"id":"a","content":"c"}')
+    _c(got is not None and got["content"] == "c",
        "JSON string parsed")
     _c(mapping.parse_get("Error: not found") is None, "not-found -> None")
     _c(mapping.parse_get(None) is None, "None -> None")

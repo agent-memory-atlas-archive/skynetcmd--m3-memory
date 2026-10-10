@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_entities.py
-sha1: cfa4c37cdefe
-mtime_utc: 2026-10-09T22:00:46.720857+00:00
-generated_utc: 2026-10-09T22:03:21.256208+00:00
+sha1: e04c9ece34c6
+mtime_utc: 2026-10-09T23:55:26.509068+00:00
+generated_utc: 2026-10-10T00:12:43.651406+00:00
 private: false
 ---
 
@@ -51,7 +51,7 @@ Override via --entity-vocab-yaml or M3_ENTITY_VOCAB_YAML.
 
 ## Entry points
 
-- `def main()` (line 1187)
+- `def main()` (line 1190)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -108,7 +108,7 @@ Override via --entity-vocab-yaml or M3_ENTITY_VOCAB_YAML.
 **http**
 
 - `httpx.AsyncClient()` (line 630)
-- `httpx.AsyncClient()` (line 808)
+- `httpx.AsyncClient()` (line 809)
 
 
 ---

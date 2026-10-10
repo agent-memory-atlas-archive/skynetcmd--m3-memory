@@ -438,8 +438,9 @@ def _supervise_postgres(args) -> int:
 
         if child_failed:
             try:
-                p.stdin.write("stop\n")
-                p.stdin.flush()
+                if p.stdin is not None:
+                    p.stdin.write("stop\n")
+                    p.stdin.flush()
             except Exception:
                 pass
 

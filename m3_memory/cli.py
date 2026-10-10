@@ -1092,7 +1092,11 @@ def _cmd_enrich_pending(args: argparse.Namespace) -> int:
     import sys
 
     # Import here to avoid dependency issues if memory_core is not yet installed
-    sys.path.insert(0, str(_resolve_bin_script("memory_core.py").parent))
+    core = _resolve_bin_script("memory_core.py")
+    if core is None:
+        print("Error: memory_core.py not found. Run `mcp-memory install-m3`.", file=sys.stderr)
+        return 1
+    sys.path.insert(0, str(core.parent))
     import memory_core
 
     limit = args.limit or 0
@@ -1169,7 +1173,11 @@ def _cmd_extract_pending(args: argparse.Namespace) -> int:
     import sys
 
     # Import here to avoid dependency issues if memory_core is not yet installed
-    sys.path.insert(0, str(_resolve_bin_script("memory_core.py").parent))
+    core = _resolve_bin_script("memory_core.py")
+    if core is None:
+        print("Error: memory_core.py not found. Run `mcp-memory install-m3`.", file=sys.stderr)
+        return 1
+    sys.path.insert(0, str(core.parent))
     import memory_core
 
     limit = args.limit or 0
@@ -1271,17 +1279,17 @@ def _cmd_chatlog(args: argparse.Namespace) -> int:
     if sub == "doctor":
         # `doctor` = status + nonzero exit if the subsystem reports warnings.
         # Implemented inline so we can inspect the JSON output without forking.
-        script = _resolve_bin_script("chatlog_status.py")
-        if script is None:
+        status_script = _resolve_bin_script("chatlog_status.py")
+        if status_script is None:
             print("Error: chatlog_status.py not found. Run `mcp-memory install-m3`.", file=sys.stderr)
             return 1
         import json as _json
         import runpy
-        bin_dir = str(script.parent)
+        bin_dir = str(status_script.parent)
         if bin_dir not in sys.path:
             sys.path.insert(0, bin_dir)
         # Call the impl directly for clean JSON, bypassing the CLI formatter.
-        mod = runpy.run_path(str(script), run_name="_chatlog_status_mod")
+        mod = runpy.run_path(str(status_script), run_name="_chatlog_status_mod")
         data = _json.loads(mod["chatlog_status_impl"]())
         warnings = data.get("warnings") or []
         # Reuse the human-readable table formatter for output.
@@ -1602,6 +1610,9 @@ def _cmd_tool_dispatch(args: argparse.Namespace) -> int:
             except Exception as e:
                 print(f"Error: failed to read --json-file: {e}", file=sys.stderr)
                 return 2
+        if raw is None:
+            print("Error: no JSON arguments were read.", file=sys.stderr)
+            return 2
         try:
             tool_args = _json.loads(raw)
         except (ValueError, _json.JSONDecodeError) as e:

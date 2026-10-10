@@ -26,7 +26,7 @@ from embedding_utils import (
 if _HAS_NUMPY:
     import numpy as _np
 else:
-    _np = None
+    _np = None  # type: ignore[assignment]  # optional dependency: every use is gated on _HAS_NUMPY
 
 from . import config
 

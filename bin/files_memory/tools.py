@@ -44,13 +44,13 @@ def _serialize_ingest_result(r: IngestResult) -> dict:
         "embeds_avoided": r.embeds_avoided,
         "facts_carried": r.facts_carried,
         "walk": {
-            "files_seen": r.walk_stats.files_seen if r.walk_stats else 0,
-            "files_yielded": r.walk_stats.files_yielded if r.walk_stats else 0,
-            "skipped_ext": r.walk_stats.skipped_ext if r.walk_stats else 0,
-            "skipped_binary": r.walk_stats.skipped_binary if r.walk_stats else 0,
-            "skipped_size": r.walk_stats.skipped_size if r.walk_stats else 0,
-            "skipped_gitignore": r.walk_stats.skipped_gitignore if r.walk_stats else 0,
-            "skipped_glob": r.walk_stats.skipped_glob if r.walk_stats else 0,
+            "files_seen": r.walk_stats.files_seen if r.walk_stats is not None else 0,
+            "files_yielded": r.walk_stats.files_yielded if r.walk_stats is not None else 0,
+            "skipped_ext": r.walk_stats.skipped_ext if r.walk_stats is not None else 0,
+            "skipped_binary": r.walk_stats.skipped_binary if r.walk_stats is not None else 0,
+            "skipped_size": r.walk_stats.skipped_size if r.walk_stats is not None else 0,
+            "skipped_gitignore": r.walk_stats.skipped_gitignore if r.walk_stats is not None else 0,
+            "skipped_glob": r.walk_stats.skipped_glob if r.walk_stats is not None else 0,
         } if r.walk_stats else {},
         "failures": r.failures[:50],   # cap the response payload
     }
@@ -1181,7 +1181,7 @@ def main() -> int:
 
     # The CLI dispatch below binds `r` to whatever the chosen *_impl returns;
     # some return a dict, others a list of dicts. Declare the union up front.
-    r: dict | list
+    r: dict | list | None
     match args.cmd:
         case 'ingest':
             r = files_ingest_impl(

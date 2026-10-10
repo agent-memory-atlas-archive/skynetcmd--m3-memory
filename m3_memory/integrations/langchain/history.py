@@ -147,7 +147,8 @@ class M3ChatMessageHistory(BaseChatMessageHistory):
         rows = mapping.parse_chatlog_search(raw)  # JSON string → list[dict]
 
         def _key(r: dict):
-            md = r.get("metadata") if isinstance(r.get("metadata"), dict) else {}
+            meta = r.get("metadata")
+            md = meta if isinstance(meta, dict) else {}
             ti = md.get("turn_index")
             # (has_index, turn_index_or_0, created_at) — indexed rows first, in
             # order; unindexed rows fall back to created_at, appended after.
@@ -198,7 +199,8 @@ class M3ChatMessageHistory(BaseChatMessageHistory):
         rows = self._fetch_rows()
         max_ti = -1
         for r in rows:
-            md = r.get("metadata") if isinstance(r.get("metadata"), dict) else {}
+            meta = r.get("metadata")
+            md = meta if isinstance(meta, dict) else {}
             ti = md.get("turn_index")
             if ti is not None and int(ti) > max_ti:
                 max_ti = int(ti)

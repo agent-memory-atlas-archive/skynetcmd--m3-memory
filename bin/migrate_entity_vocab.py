@@ -49,16 +49,19 @@ import argparse
 import os
 import sqlite3
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 from m3_core.paths import seam_dialect
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "bin"))
+_resolve_db_path: Callable[[str | None], str] | None
 try:
-    from m3_sdk import resolve_db_path
+    from m3_sdk import resolve_db_path as _rdp
+    _resolve_db_path = _rdp
 except ImportError:
-    resolve_db_path = None
+    _resolve_db_path = None
 
 ENTITY_TYPE_RENAMES = {
     "concept": "legacy_concept",
@@ -208,7 +211,7 @@ def main() -> int:
     args = parser.parse_args()
 
     db_path = (
-        resolve_db_path(args.database) if resolve_db_path else os.path.abspath(args.database)
+        _resolve_db_path(args.database) if _resolve_db_path is not None else os.path.abspath(args.database)
     )
     return migrate(db_path, dry_run=args.dry_run)
 

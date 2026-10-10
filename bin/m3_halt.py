@@ -1474,7 +1474,10 @@ def acquire_or_exit(
               f"exiting.", flush=True)
         sys.exit(res.status.exit_code)  # 5 or 6
     # RUNNABLE — ACQUIRED/REENTRANT hold the OS lock; CONFIG/LOCK_ERROR degraded.
-    return res.lock  # always set for these statuses
+    if res.lock is None:  # ACQUIRED/REENTRANT hold the lock; CONFIG/LOCK_ERROR degraded
+        raise RuntimeError(f"{role}: lock status {res.status.value} carried no lock; "
+                           "observed: a runnable status without an InstanceLock")
+    return res.lock
 
 
 def _steal_lock(owner: ProcInfo | None, path: Path, our_fd: int) -> None:

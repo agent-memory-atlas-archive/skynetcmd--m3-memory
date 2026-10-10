@@ -104,8 +104,8 @@ _MC_CALLBACK_NAMES = (
 # runs; they exist so static analysis sees the names defined at module scope.
 # Typed as Callable (the runtime binding is always a function) so callers
 # are not flagged as calling None.
-_track_cost: Callable[..., object] = None
-_record_history: Callable[..., object] = None
+_track_cost: Callable[..., object] = None  # type: ignore[assignment]  # None until _resolve_mc_callbacks() binds it
+_record_history: Callable[..., object] = None  # type: ignore[assignment]  # None until _resolve_mc_callbacks() binds it
 
 def _resolve_mc_callbacks() -> None:
     global _MC_CALLBACKS_BOUND

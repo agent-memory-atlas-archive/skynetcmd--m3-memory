@@ -115,7 +115,8 @@ def _order_embeddings(data: list[dict], n_inputs: int) -> list[list[float]] | No
     if len(data) != n_inputs:
         return None
     seen = [d.get("index") for d in data]
-    if any(ix is None for ix in seen) or sorted(seen) != list(range(n_inputs)):
+    indices = [ix for ix in seen if ix is not None]
+    if len(indices) != len(seen) or sorted(indices) != list(range(n_inputs)):
         return None  # missing / duplicate / out-of-range index -> not alignable
     ordered = sorted(data, key=lambda d: d["index"])
     return [d["embedding"] for d in ordered]

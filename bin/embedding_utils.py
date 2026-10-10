@@ -35,7 +35,7 @@ try:
     import numpy as _np
     HAS_NUMPY = True
 except ImportError:
-    _np = None
+    _np = None  # type: ignore[assignment]  # optional dependency: every use is gated on HAS_NUMPY
     HAS_NUMPY = False
 
 

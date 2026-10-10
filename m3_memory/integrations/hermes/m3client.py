@@ -102,9 +102,12 @@ class M3Client:
             raise ValueError(f"unknown m3 tool: {name}")
         # Hand each call its own args dict — execute_tool_structured mutates it
         # in place (pops 'database', filters keys).
+        loop = self._loop
+        if loop is None:
+            raise RuntimeError("M3Client: no event loop; observed: _ensure_loop() did not start one")
         fut: Future = asyncio.run_coroutine_threadsafe(
             cat.execute_tool_structured(spec, dict(args), self._agent_id),
-            self._loop,
+            loop,
         )
         return fut.result(timeout=self._timeout)
 

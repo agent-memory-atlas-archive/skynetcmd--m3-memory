@@ -1,8 +1,8 @@
 ---
 tool: bin/slm_intent.py
-sha1: 1cd48faeca6e
-mtime_utc: 2026-10-09T22:44:20.141296+00:00
-generated_utc: 2026-10-09T22:52:34.091001+00:00
+sha1: 81cc36a34c01
+mtime_utc: 2026-10-09T23:53:17.911095+00:00
+generated_utc: 2026-10-09T23:53:45.387338+00:00
 private: false
 ---
 

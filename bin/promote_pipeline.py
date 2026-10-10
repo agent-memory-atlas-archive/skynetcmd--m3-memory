@@ -22,9 +22,12 @@ from itertools import batched
 
 from m3_sdk import get_secret, getenv_compat
 
-cp = importlib.util.module_from_spec(
-    s := importlib.util.spec_from_file_location("cp", os.path.join(os.path.dirname(__file__), "chatlog_prune.py")))
-s.loader.exec_module(cp)
+_cp_path = os.path.join(os.path.dirname(__file__), "chatlog_prune.py")
+_cp_spec = importlib.util.spec_from_file_location("cp", _cp_path)
+if _cp_spec is None or _cp_spec.loader is None:
+    raise ImportError(f"cannot load chatlog_prune; observed: no import spec for {_cp_path}")
+cp = importlib.util.module_from_spec(_cp_spec)
+_cp_spec.loader.exec_module(cp)
 
 # ── Tightened signals (strict; precision over recall) ─────────────────────────
 T_DECISION = re.compile(r"\b(we (decided|chose|went with|will use)|decision:|"

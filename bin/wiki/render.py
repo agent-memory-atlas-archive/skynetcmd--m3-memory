@@ -102,6 +102,14 @@ class SlugBook:
     def get(self, owner_id: str) -> str | None:
         return self._by_owner.get(owner_id)
 
+    def require(self, owner_id: str) -> str:
+        """The slug of an owner that was assigned one (every topic cluster and
+        source is, before rendering)."""
+        slug = self._by_owner.get(owner_id)
+        if slug is None:
+            raise KeyError(f"no slug assigned; observed: owner {owner_id!r}")
+        return slug
+
 
 class LinkResolver:
     """Resolves a page reference to a link, in one of two link formats.
@@ -222,7 +230,7 @@ def render_pages(
     # Map memory id -> topic slug (for links + backlinks + evidence).
     mem_to_topic: dict[str, str] = {}
     for c in topic_clusters:
-        slug = topic_slugs.get(c.key)
+        slug = topic_slugs.require(c.key)
         for m in c.members:
             mem_to_topic[m.id] = slug
 
@@ -233,10 +241,10 @@ def render_pages(
     if orphan_members:
         links.register("orphans", "topics/orphans.md", "Orphans")
     for c in topic_clusters:
-        slug = topic_slugs.get(c.key)
+        slug = topic_slugs.require(c.key)
         links.register(slug, f"topics/{slug}.md", c.members[0].display_title)
     for fn in files.files:
-        slug = source_slugs.get(fn.uuid)
+        slug = source_slugs.require(fn.uuid)
         links.register(slug, f"sources/{slug}.md", fn.filename)
 
     # Map a memory's TITLE-slug to the topic page that contains it, so a
@@ -247,7 +255,7 @@ def render_pages(
     # deterministic because clusters and members are already ordered.
     slug_by_ref: dict[str, str] = {}
     for c in topic_clusters:
-        tslug = topic_slugs.get(c.key)
+        tslug = topic_slugs.require(c.key)
         for m in c.members:
             key = slugify(m.display_title).lower()
             if key and key not in slug_by_ref:
@@ -255,7 +263,7 @@ def render_pages(
     # A memory may also be referenced by the slug it was SAVED under (m3 titles
     # like "runbook-wsl-postgres-..." are already slugs).
     for c in topic_clusters:
-        tslug = topic_slugs.get(c.key)
+        tslug = topic_slugs.require(c.key)
         for m in c.members:
             t = (m.title or "").strip().lower()
             if t and t not in slug_by_ref:
@@ -277,7 +285,7 @@ def render_pages(
     pages: dict[str, str] = {}
 
     for c in topic_clusters:
-        slug = topic_slugs.get(c.key)
+        slug = topic_slugs.require(c.key)
         pages[f"topics/{slug}.md"] = _render_topic(
             c, edges, mem_to_topic, promo_by_mem, backlinks, files, links,
             ledes.get(c.key),
@@ -288,7 +296,7 @@ def render_pages(
         pages["topics/orphans.md"] = _render_orphans(orphan_members, promo_by_mem, files, links)
 
     for fn in files.files:
-        slug = source_slugs.get(fn.uuid)
+        slug = source_slugs.require(fn.uuid)
         pages[f"sources/{slug}.md"] = _render_source(fn, promotions, mem_to_topic, links)
 
     pages["index.md"] = _render_index(topic_clusters, topic_slugs, files, source_slugs, links,
@@ -744,7 +752,7 @@ def _render_index(topic_clusters, topic_slugs, files, source_slugs, links, has_o
     total_mem = sum(len(c.members) for c in topic_clusters)
 
     def topic_line(c: Cluster) -> str:
-        slug = topic_slugs.get(c.key)
+        slug = topic_slugs.require(c.key)
         pin = " 📌" if _pin_count(c) else ""
         return f"- {links.link(slug, SELF, c.members[0].display_title)}{pin} " \
                f"({len(c.members)} memories)"

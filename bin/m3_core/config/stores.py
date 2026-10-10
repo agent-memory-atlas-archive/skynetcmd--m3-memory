@@ -86,7 +86,7 @@ def parse_stores(table: object, problem) -> dict[str, StoreRef]:
             problem(where, f"must be a table, found {type(spec).__name__}")
             continue
         backend = spec.get("backend")
-        if backend not in SELECTABLE_BACKENDS:
+        if not isinstance(backend, str) or backend not in SELECTABLE_BACKENDS:
             problem(f"{where}.backend", f"{backend!r} is not one of {', '.join(SELECTABLE_BACKENDS)}")
             continue
         allowed = {"backend", *LOCATOR_KEYS[backend]}

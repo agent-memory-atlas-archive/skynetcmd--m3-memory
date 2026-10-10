@@ -114,18 +114,18 @@ def run(brief: bool = False) -> int:
     # Informational: current holder per known service role.
     print("  current holders:")
     for role in _SERVICE_ROLES:
-        rec = latest.get(role)
-        if rec is None:
+        held = latest.get(role)
+        if held is None:
             print(f"    - {role:14} : (no events)")
-        elif rec.get("event") == "acquired":
+        elif held.get("event") == "acquired":
             loc = ""
-            if rec.get("host") and rec.get("port"):
-                loc = f" → {rec['host']}:{rec['port']}"
-            print(f"    - {role:14} : held by pid {rec.get('pid')}{loc}")
-        elif rec.get("event") == "released":
-            print(f"    - {role:14} : free (last released by pid {rec.get('pid')})")
+            if held.get("host") and held.get("port"):
+                loc = f" → {held['host']}:{held['port']}"
+            print(f"    - {role:14} : held by pid {held.get('pid')}{loc}")
+        elif held.get("event") == "released":
+            print(f"    - {role:14} : free (last released by pid {held.get('pid')})")
         else:
-            print(f"    - {role:14} : {rec.get('event')}")
+            print(f"    - {role:14} : {held.get('event')}")
 
     if not degraded and not flapping:
         print("  status   : OK — no degraded or flapping locks.")

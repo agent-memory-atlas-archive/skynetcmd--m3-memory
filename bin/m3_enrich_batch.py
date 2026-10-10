@@ -1095,7 +1095,8 @@ async def _run_async(args) -> int:
                               flush=True)
                 print(f"[batch] slice {slice_idx+1} done: groups_ingested="
                       f"{ingested_in_slice}", flush=True)
-                _record_batch_ingested(state_conn, enrich_run_id, batch_id=batch_id)
+                if enrich_run_id is not None:
+                    _record_batch_ingested(state_conn, enrich_run_id, batch_id=batch_id)
         except Exception as e:  # noqa: BLE001
             consumer_failure["err"] = e
         finally:
@@ -1194,7 +1195,8 @@ async def _run_async(args) -> int:
                 (enrich_run_id,),
             )
             state_conn.commit()
-            _record_run_finished(state_conn, enrich_run_id,
+            if enrich_run_id is not None:
+                _record_run_finished(state_conn, enrich_run_id,
                 status="aborted", n_success=n_success, n_failed=n_failed,
                 n_empty=n_empty, total_cost_usd=total_cost,
                 abort_reason=f"budget_cap_${budget:.2f}",
@@ -1218,7 +1220,8 @@ async def _run_async(args) -> int:
                 n_failed += 1
 
     # Finalize
-    _record_run_finished(state_conn, enrich_run_id,
+    if enrich_run_id is not None:
+        _record_run_finished(state_conn, enrich_run_id,
         status="completed", n_success=n_success, n_failed=n_failed, n_empty=n_empty,
         total_cost_usd=total_cost, abort_reason=None,
         batch_id=",".join(batch_ids))

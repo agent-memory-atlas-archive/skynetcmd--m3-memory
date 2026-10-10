@@ -318,7 +318,7 @@ def localize_endpoint(url: str, backend: str, *, prefer_native: bool = False) ->
         from llm_failover import LLM_ENDPOINTS, first_usable_endpoint_cached, is_lmstudio_url
         # Skip an endpoint already KNOWN unable to answer (cache only — this is
         # sync and must not block); fall back to configured order when all are.
-        base = first_usable_endpoint_cached() or (LLM_ENDPOINTS or [None])[0]
+        base = first_usable_endpoint_cached() or (LLM_ENDPOINTS[0] if LLM_ENDPOINTS else None)
     except Exception:  # noqa: BLE001 — advisory; keep the profile's own url
         return url, backend
     if not base:
@@ -551,7 +551,7 @@ async def extract_entities(
 
     owns_client = client is None
     try:
-        if owns_client:
+        if client is None:
             client = httpx.AsyncClient(timeout=prof.timeout_s)
         raw = await _call_model(prof, text, client)
     except (httpx.HTTPError, KeyError, json.JSONDecodeError, TimeoutError) as e:
@@ -608,7 +608,7 @@ async def extract_text(
 
     owns_client = client is None
     try:
-        if owns_client:
+        if client is None:
             client = httpx.AsyncClient(timeout=prof.timeout_s)
         raw = await _call_model(prof, text, client)
     except (httpx.HTTPError, KeyError, json.JSONDecodeError, TimeoutError) as e:
@@ -658,7 +658,7 @@ async def classify_intent(
 
     owns_client = client is None
     try:
-        if owns_client:
+        if client is None:
             client = httpx.AsyncClient(timeout=prof.timeout_s)
         raw = await _call_model(prof, query, client)
     except (httpx.HTTPError, KeyError, json.JSONDecodeError, TimeoutError) as e:
@@ -690,8 +690,8 @@ def profile_secret_names() -> tuple[set[str], list[str]]:
     return names, unreadable
 
 
-def list_profiles() -> dict[str, Path | None]:
-    """Return a {name: path-or-None} map of profiles discoverable on this host.
+def list_profiles() -> dict[str, Path]:
+    """Return a {name: path} map of profiles discoverable on this host.
 
     Useful for operators — ``python -m slm_intent`` prints this. Resolves
     every .yaml in every search dir; collisions resolve to the first-dir

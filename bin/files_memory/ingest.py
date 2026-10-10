@@ -24,6 +24,7 @@ import platform
 import socket
 import time
 import uuid as _uuid
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from . import config
@@ -383,6 +384,7 @@ def ingest_one_file(
         # Used below to skip re-embedding unchanged leaves.
         from .carry_forward import CarryForwardStats, LeafDiff, compute_leaf_diffs
         carry_stats = CarryForwardStats()
+        leaf_diffs: Sequence[LeafDiff | None]
         if prior:
             leaf_diffs = compute_leaf_diffs(conn, prior["uuid"], leaves)
         else:

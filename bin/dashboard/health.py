@@ -153,7 +153,7 @@ def _verdict(inference: dict | None = None, pipeline: dict | None = None) -> dic
             except (TypeError, ValueError):
                 continue
         if backlogged:
-            remedy = inference.get("remedy", "")
+            remedy = (inference or {}).get("remedy", "")
             if inf_status == "down":
                 inference_stall = True  # red — definitely stuck
                 why = "unreachable"

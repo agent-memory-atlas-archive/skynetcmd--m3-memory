@@ -514,7 +514,7 @@ def _feedback_window_minutes(now: float | None = None) -> int:
         if mtime != _fb_window_cache["mtime"]:
             _fb_window_cache["mtime"] = mtime
             val = None
-            if mtime is not None:
+            if mtime is not None and path:
                 try:
                     import json as _json
                     with open(path, encoding="utf-8") as f:
@@ -532,6 +532,8 @@ def _feedback_window_minutes(now: float | None = None) -> int:
     val = _fb_window_cache["minutes"]
     if val is None:
         val = os.environ.get("M3_FEEDBACK_WINDOW_MINUTES")
+    if val is None:
+        return _FEEDBACK_WINDOW_MINUTES_DEFAULT
     try:
         return _clamp_feedback_window(int(val))
     except (TypeError, ValueError):

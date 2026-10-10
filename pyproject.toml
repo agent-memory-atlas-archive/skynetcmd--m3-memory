@@ -463,9 +463,8 @@ python_version = "3.12"
 ignore_missing_imports = true
 # Match the codebase's pre-PEP 484 style: `def f(x: str = None)` means Optional.
 implicit_optional = true
-# False positives from narrowing around None checks are noisy in legacy code
-# that still leans on runtime checks rather than type guards.
-strict_optional = false
+# None is a value of its own: an Optional reaching a non-Optional use is an error.
+strict_optional = true
 # An ignore that suppresses nothing is reported, so ignores cannot pile up
 # after the error they covered is fixed. One needed on only some platforms
 # carries `unused-ignore` among its codes (mypy's own idiom); the

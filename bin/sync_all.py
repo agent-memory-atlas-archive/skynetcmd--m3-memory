@@ -174,7 +174,7 @@ def is_reachable(host: str, port: int = 5432, timeout: float = 3.0) -> bool:
 
 # ── pg_sync runner ────────────────────────────────────────────────────────────
 
-def run_pg_sync_for_db(db_path: pathlib.Path, dry_run: bool) -> bool:
+def run_pg_sync_for_db(db_path: pathlib.Path, dry_run: bool) -> bool | None:
     """Run pg_sync.py --db <path> for one database. Returns True on success."""
     if not db_path.exists():
         log.info(f"  skipping {db_path} — not present on this peer")
@@ -407,7 +407,7 @@ def _local_backend_name() -> str:
         return "sqlite"
 
 
-def run_pg_sync(dry_run: bool) -> bool:
+def run_pg_sync(dry_run: bool) -> bool | None:
     """Run the warehouse sync. On a PostgreSQL primary, prefer the postgres_fdw
     fast-path; otherwise (or if it's unavailable) run the generic pg_sync.py
     bridge for each configured database. Returns True if all succeed."""

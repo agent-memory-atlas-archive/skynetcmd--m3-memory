@@ -808,6 +808,8 @@ def main() -> None:
             external: list[str] = []
             external_calls = {}
         else:
+            if tree is None:  # parsed above for every non-shell file
+                raise RuntimeError(f"no AST for {src.name}; observed: a .py file was not parsed")
             doc = extract_docstring(tree)
             argparse_args = extract_argparse(tree)
             env_vars = extract_env_vars(source)

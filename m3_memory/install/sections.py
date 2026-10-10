@@ -717,15 +717,15 @@ def _backend_section(cfg: dict) -> None:
         n = cur.fetchone()[0]
         try:
             cur.execute("SELECT MAX(COALESCE(updated_at, created_at)) FROM memory_items")
-            last = cur.fetchone()[0]
+            last_at: str | None = cur.fetchone()[0]
         except Exception:  # noqa: BLE001
-            last = None
+            last_at = None
         conn.close()
         if dbname:
             print(f"  identity:                 db={dbname} host={host or 'local'} schema={schema or 'public'}")
         print("  reachable:                yes")
         print(f"  memory_items:             {n}   last updated: "
-              f"{_fmt_dual_time(last) if last else '—'}")
+              f"{_fmt_dual_time(last_at) if last_at else '—'}")
     except Exception as e:  # noqa: BLE001 — connection / auth / undefined-table
         detail = _re.sub(r"(://[^:/@]+:)[^@/]+(@)", r"\1***\2", str(e).strip())
         print(f"  reachable:                NO — {detail}")

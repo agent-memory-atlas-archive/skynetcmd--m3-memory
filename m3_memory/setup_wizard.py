@@ -1665,6 +1665,9 @@ def _step_preflight(plan: SetupPlan, args: argparse.Namespace) -> bool:
     # implementation that can drift. Surfaced at SETUP time because that is when
     # a second install is most likely to have just been created, and when the
     # user is already in a position to act on it.
+    from types import ModuleType
+
+    _ep: ModuleType | None
     try:
         from doctor import entrypoint_probe as _ep
     except Exception:  # noqa: BLE001 — probe unavailable (payload not staged yet)
@@ -2813,8 +2816,8 @@ def _wire_claude_hooks(capture_mode: str) -> bool:
     try:
         from m3_memory._platform import hidden_window_kwargs, python_exe
         bin_dir = _bin_dir()
-        chatlog_init = Path(bin_dir) / "chatlog_init.py" if bin_dir else None
-        if not chatlog_init or not chatlog_init.is_file():
+        chatlog_init = Path(bin_dir) / "chatlog_init.py"
+        if not chatlog_init.is_file():
             _warn("chatlog_init.py not found; skipping Claude hook wiring")
             return False
         proc = subprocess.run(
@@ -4040,6 +4043,10 @@ def run_setup(args: argparse.Namespace) -> int:
 
     # Set decoupled paths in environment so child commands inherit them.
     if plan.decouple_roots:
+        if plan.config_root is None or plan.engine_root is None:
+            _warn("decoupled roots requested but not both resolved; observed: "
+                  f"config_root={plan.config_root!r}, engine_root={plan.engine_root!r}")
+            return 1
         os.environ["M3_CONFIG_ROOT"] = plan.config_root
         os.environ["M3_ENGINE_ROOT"] = plan.engine_root
         os.makedirs(plan.config_root, exist_ok=True)

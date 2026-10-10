@@ -372,13 +372,13 @@ def files_staleness_review(
                 except OSError as e:
                     logger.debug("rename: hash failed for %s: %s", n.path, e)
                     continue
-                m = missing_by_sha.get(sha)
-                if m is None or m.file_node_uuid in seen_missing:
+                hit = missing_by_sha.get(sha)
+                if hit is None or hit.file_node_uuid in seen_missing:
                     continue
-                seen_missing.add(m.file_node_uuid)
+                seen_missing.add(hit.file_node_uuid)
                 report.rename_candidates.append(RenameCandidate(
-                    missing_file_node_uuid=m.file_node_uuid,
-                    missing_path=m.path,
+                    missing_file_node_uuid=hit.file_node_uuid,
+                    missing_path=hit.path,
                     new_path=n.path,
                     content_sha256=sha,
                     confidence="exact_sha",

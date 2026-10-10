@@ -1,8 +1,8 @@
 ---
 tool: bin/gen_wiki.py
-sha1: fef2e9d1bd65
-mtime_utc: 2026-07-26T23:40:17.996572+00:00
-generated_utc: 2026-08-31T03:18:26.676214+00:00
+sha1: 854b3273863c
+mtime_utc: 2026-10-09T23:52:06.239907+00:00
+generated_utc: 2026-10-09T23:53:44.980067+00:00
 private: false
 ---
 
@@ -28,7 +28,7 @@ is a base dependency of m3-memory (no optional extra required).
 
 ## Entry points
 
-- `def main()` (line 487)
+- `def main()` (line 492)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -72,7 +72,7 @@ _(none detected)_
 
 **sqlite**
 
-- `sqlite3.connect()  → `uri`` (line 64)
+- `sqlite3.connect()  → `uri`` (line 67)
 
 
 ---

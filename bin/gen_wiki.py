@@ -19,6 +19,9 @@ import argparse
 import os
 import sqlite3
 import sys
+from collections.abc import Callable
+from contextlib import AbstractContextManager
+from typing import Any
 
 # Make bin/ importable (mirrors consolidate_beliefs.py et al.).
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -118,9 +121,11 @@ def _build_vault(args: argparse.Namespace, out_dir: str) -> dict[str, str]:
     except Exception:
         _files_is_pg = lambda: False  # noqa: E731
 
+    _memory_seam: Callable[[], AbstractContextManager[Any]] | None
     try:
-        from memory.db import _db as _memory_seam
-    except Exception:
+        from memory.db import _db as _mdb
+        _memory_seam = _mdb
+    except Exception:  # noqa: BLE001 — no seam: the legacy sidecar path below
         _memory_seam = None
 
     with ExitStack() as stack:

@@ -201,7 +201,9 @@ def _write_state(d: dict) -> None:
 
 def recently_restarted(state: dict) -> bool:
     last = state.get("last_restart_ts")
-    return bool(last) and (time.time() - float(last)) < _MIN_RESTART_GAP_S
+    if not last:
+        return False
+    return (time.time() - float(last)) < _MIN_RESTART_GAP_S
 
 
 def _restart_backend() -> tuple[list[list[str]], str]:

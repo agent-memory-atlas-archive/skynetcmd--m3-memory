@@ -10,7 +10,7 @@ import sqlite3
 import sys
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Literal, override
+from typing import Literal, overload, override
 
 logger = logging.getLogger("M3_SDK")
 
@@ -137,6 +137,10 @@ _DEPRECATED_ENV_SEEN: dict[str, str] = {}
 _DEPRECATED_ENV_WARNED: set[str] = set()
 
 
+@overload
+def getenv_compat(new_name: str, old_name: str, default: str) -> str: ...
+@overload
+def getenv_compat(new_name: str, old_name: str, default: None = None) -> str | None: ...
 def getenv_compat(new_name: str, old_name: str, default: str | None = None) -> str | None:
     """Resolve an env var during the M3_* namespacing migration.
 
@@ -747,13 +751,14 @@ def _default_db_path() -> str:
         return os.path.join(get_m3_engine_root(), "agent_memory.db")
 
     engine_db = os.path.join(get_m3_engine_root(), "agent_memory.db")
-    if os.getenv("M3_MEMORY_ROOT"):
+    mem_root = os.getenv("M3_MEMORY_ROOT")
+    if mem_root:
         if _db_is_populated(engine_db):
             return engine_db
         # Derived engine DB is missing/empty. Prefer a populated legacy memory/
         # DB under the same root before falling back to the empty engine path.
         legacy_under_root = os.path.join(
-            os.path.abspath(os.path.expanduser(os.getenv("M3_MEMORY_ROOT"))),
+            os.path.abspath(os.path.expanduser(mem_root)),
             "memory", "agent_memory.db",
         )
         if _db_is_populated(legacy_under_root):

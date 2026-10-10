@@ -1,8 +1,8 @@
 ---
 tool: bin/auth_utils.py
-sha1: fd93f075bf80
-mtime_utc: 2026-10-09T23:47:18.200795+00:00
-generated_utc: 2026-10-09T23:47:23.017642+00:00
+sha1: cc2c040ae626
+mtime_utc: 2026-10-09T23:55:26.509068+00:00
+generated_utc: 2026-10-10T00:12:43.101524+00:00
 private: false
 ---
 
@@ -49,9 +49,9 @@ _(no argparse arguments detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `['security', 'find-generic-password', '-s', 'AGENT_OS_MASTER_KEY', '-w']`` (line 254)
-- `subprocess.run()  → `['security', 'find-generic-password', '-s', service, '-w']`` (line 512)
-- `subprocess.run()` (line 530)
+- `subprocess.run()  → `['security', 'find-generic-password', '-s', 'AGENT_OS_MASTER_KEY', '-w']`` (line 255)
+- `subprocess.run()  → `['security', 'find-generic-password', '-s', service, '-w']`` (line 513)
+- `subprocess.run()` (line 531)
 
 
 ---
@@ -67,6 +67,7 @@ _(no argparse arguments detected)_
 - `memory.backends (active_backend)`
 - `memory.backends (dialect)`
 - `platform`
+- `types (FrameType)`
 - `unicodedata`
 
 ---

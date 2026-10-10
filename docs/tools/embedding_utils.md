@@ -1,8 +1,8 @@
 ---
 tool: bin/embedding_utils.py
-sha1: 505bab72a73f
-mtime_utc: 2026-10-09T23:19:58.825608+00:00
-generated_utc: 2026-10-09T23:24:13.836411+00:00
+sha1: 540004da11a7
+mtime_utc: 2026-10-09T23:48:29.286359+00:00
+generated_utc: 2026-10-09T23:53:44.946312+00:00
 private: false
 ---
 

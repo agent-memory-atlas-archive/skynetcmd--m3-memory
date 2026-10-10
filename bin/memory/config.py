@@ -48,6 +48,8 @@ def _set_by_file_or_canonical_env(name: str) -> bool:
     from m3_core.config.resolve import ORIGIN_DEFAULT
 
     key = _REGISTRY.get(name)
+    if key is None:
+        raise KeyError(f"not a registered setting; observed: {name!r}. inspect: m3_core/config/keys*.py")
     got = _settings.current().resolved[key.name]
     if got.origin == ORIGIN_DEFAULT:
         return False

@@ -1319,7 +1319,7 @@ def _legacy_plaintext_dsn_notes() -> list[str]:
     return notes
 
 
-def _append_env_to_profile(pairs: dict[str, str]) -> str | None:
+def _append_env_to_profile(pairs: dict[str, str]) -> str:
     """Append `export NAME=VALUE` lines to the shell profile, idempotently.
 
     Mirrors ``_fix_npm_global_path``'s append pattern. Before writing, scans the
@@ -1818,9 +1818,10 @@ def install_m3(
 
     # Guard: if the bin payload is packaged in the wheel and not forced,
     # skip the network fetch. The post-install setup still runs.
-    if bin_dir() is not None and not force:
+    packaged = bin_dir()
+    if packaged is not None and not force:
         print("[install-m3] payload already present (packaged in the wheel); skipping fetch.")
-        bridge = bin_dir() / "memory_bridge.py"
+        bridge = packaged / "memory_bridge.py"
         if not bridge.is_file():
             raise RuntimeError(
                 f"payload bin_dir exists but {bridge} not found. This is unexpected; "

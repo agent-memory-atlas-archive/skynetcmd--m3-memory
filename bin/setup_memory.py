@@ -42,7 +42,7 @@ _INSTALLED = _is_installed_layout(str(BASE))  # delegate takes a str, not a Path
 VENV   = None if _INSTALLED else BASE / ".venv"
 # (PIP was defined here and never used; dropped rather than set to None, which
 # would hand a later caller a NoneType error instead of a NameError naming it.)
-PY = (pathlib.Path(sys.executable) if _INSTALLED
+PY = (pathlib.Path(sys.executable) if VENV is None  # VENV is None exactly when installed
       else VENV / ("Scripts/python.exe" if IS_WIN else "bin/python"))
 # Prefer a Windows-specific requirements file if one exists, else fall back to the
 # common requirements.txt (the windows variant is optional and may be absent).

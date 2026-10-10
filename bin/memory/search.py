@@ -171,9 +171,9 @@ _MC_CALLBACKS_BOUND = False
 # runs; they exist so static analysis sees the names defined at module scope.
 # Typed as Callable (the runtime binding is always a function) so callers
 # are not flagged as calling None.
-_prefer_observations_gate: Callable[..., object] = None
-_two_stage_observations_gate: Callable[..., object] = None
-_track_cost: Callable[..., object] = None
+_prefer_observations_gate: Callable[..., object] = None  # type: ignore[assignment]  # None until _resolve_mc_callbacks() binds it
+_two_stage_observations_gate: Callable[..., object] = None  # type: ignore[assignment]  # None until _resolve_mc_callbacks() binds it
+_track_cost: Callable[..., object] = None  # type: ignore[assignment]  # None until _resolve_mc_callbacks() binds it
 
 
 def _resolve_mc_callbacks() -> None:
@@ -2079,7 +2079,8 @@ async def memory_search_routed_impl(
             )
 
     # Sharp-branch post-process trim (only when AUTO routing is active and sharp branch fired)
-    if auto_route and auto_metadata and auto_metadata.get("auto_branch") == "sharp":
+    if (auto_route and auto_metadata and resolved is not None
+            and auto_metadata.get("auto_branch") == "sharp"):
         final_hits = _apply_sharp_trim(
             final_hits,
             threshold_ratio=resolved["auto_sharp_threshold_ratio"],

@@ -196,6 +196,8 @@ def _vec_query(conn: sqlite3.Connection, query: str, limit: int,
     if not vecs or vecs[0][0] is None:
         return []
     qvec, qmodel = vecs[0]
+    if qvec is None:  # checked just above; restated for the type
+        return []
 
     from memory.backends import dialect as _dialect
 

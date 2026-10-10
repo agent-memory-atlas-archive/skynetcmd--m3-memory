@@ -18,6 +18,7 @@ import json
 import os
 import sqlite3
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 WINDOW_MIN = 15
@@ -40,22 +41,24 @@ def _resolve_db() -> str:
     # bin/hooks/chatlog/this_file.py -> repo root is parents[3]. M3_HOME (if set)
     # only helps LOCATE the bin/ dir to import m3_sdk; it does NOT decide the DB.
     repo = Path(os.environ.get("M3_HOME") or Path(__file__).resolve().parents[3])
+    engine_root_fn: Callable[[], str] | None = None
     try:
         sys.path.insert(0, str(repo / "bin"))
         from m3_sdk import get_m3_engine_root, resolve_db_path
+        engine_root_fn = get_m3_engine_root
         p = resolve_db_path(None)
         if p:
             return os.path.abspath(p)
     except Exception:  # noqa: BLE001 — fall back to path heuristics
-        get_m3_engine_root = None
+        engine_root_fn = None
     env = os.environ.get("M3_DB_PATH")
     if env:
         return os.path.abspath(env)
     # Prefer the canonical engine root (matches the server) over the repo-relative
     # guess, which is a frozen pre-Homecoming copy on migrated installs.
-    if get_m3_engine_root is not None:
+    if engine_root_fn is not None:
         try:
-            return os.path.abspath(os.path.join(get_m3_engine_root(), "agent_memory.db"))
+            return os.path.abspath(os.path.join(engine_root_fn(), "agent_memory.db"))
         except Exception:  # noqa: BLE001
             pass
     engine_root = os.environ.get("M3_ENGINE_ROOT")

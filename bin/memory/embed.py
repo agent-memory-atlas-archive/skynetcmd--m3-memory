@@ -1479,7 +1479,7 @@ async def _embed(text: str) -> tuple[list[float] | None, str]:
                         )
 
                     # 2. Keyring credentials resolution
-                    token = None
+                    cloud_token = None
                     if config.M3_CLOUD_AUTH_TOKEN_KEYRING:
                         try:
                             if ":" in config.M3_CLOUD_AUTH_TOKEN_KEYRING:
@@ -1488,18 +1488,18 @@ async def _embed(text: str) -> tuple[list[float] | None, str]:
                                 service = "m3_memory"
                                 username = config.M3_CLOUD_AUTH_TOKEN_KEYRING
                             from auth_utils import safe_keyring_get_password
-                            token = safe_keyring_get_password(service, username)
+                            cloud_token = safe_keyring_get_password(service, username)
                         except Exception as keyring_err:
                             logger.warning(f"Keyring lookup for cloud token failed: {keyring_err}")
 
-                    if not token:
-                        token = os.environ.get("M3_CLOUD_AUTH_TOKEN")
+                    if not cloud_token:
+                        cloud_token = os.environ.get("M3_CLOUD_AUTH_TOKEN")
 
                     # 3. HTTP Call to Cloud Enclave
                     client = _get_embed_client()
                     headers = {}
-                    if token:
-                        headers["Authorization"] = f"Bearer {token}"
+                    if cloud_token:
+                        headers["Authorization"] = f"Bearer {cloud_token}"
 
                     url = config.M3_CLOUD_ENCLAVE_URL.rstrip("/")
                     post_url = _embeddings_post_url(url)
@@ -1591,7 +1591,7 @@ async def embed_for_search(
 
 
 async def _embed_many_cloud_fallback(
-    out: list[tuple[list[float] | None, str]],
+    out: list[tuple[list[float] | None, str] | None],
     miss_indices: list[int],
     texts: list[str],
 ) -> None:
@@ -1599,7 +1599,7 @@ async def _embed_many_cloud_fallback(
     if not (config.M3_ALLOW_CLOUD_FALLBACK and config.M3_CLOUD_ENCLAVE_URL):
         return
 
-    cloud_indices = [idx for idx in miss_indices if out[idx] is None or out[idx][0] is None]
+    cloud_indices = [idx for idx in miss_indices if (r := out[idx]) is None or r[0] is None]
     if not cloud_indices:
         return
 
@@ -1681,6 +1681,13 @@ async def _embed_many_cloud_fallback(
         if _CLOUD_BREAKER is not None:
             _CLOUD_BREAKER.record_failure()
         logger.error(f"Tier 4 Cloud Enclave bulk failed: {e}. Routing payloads back to local fallback.")
+
+
+def _filled(out: list[tuple[list[float] | None, str] | None],
+            model: str) -> list[tuple[list[float] | None, str]]:
+    """_embed_many's result: every slot a (vector-or-None, model) pair, never a
+    bare None, the same rule as its oversized-input branch."""
+    return [r if r is not None else (None, model) for r in out]
 
 
 async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
@@ -1766,7 +1773,7 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
             miss_texts.append(t)
 
     if not miss_texts:
-        return out
+        return _filled(out, cache_model)
 
     if embedded is not None:
         try:
@@ -1778,7 +1785,7 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
                                       _EMBED_GGUF_MODEL_TAG, "tier1-embedded-bulk")
             if not kept_local:
                 _record_embed_backend(_embedded_label(), len(miss_texts))
-                return out
+                return _filled(out, cache_model)
             miss_indices = [miss_indices[j] for j in kept_local]
             miss_texts = [miss_texts[j] for j in kept_local]
         except Exception as e:
@@ -1801,7 +1808,7 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
                         still_missing_local.append(j)
                 if not still_missing_local:
                     _record_embed_backend(_embedded_label(), len(miss_texts))
-                    return out
+                    return _filled(out, cache_model)
                 # Narrow the cascade to ONLY the rows tier 1 couldn't embed.
                 miss_indices = [miss_indices[j] for j in still_missing_local]
                 miss_texts = [miss_texts[j] for j in still_missing_local]
@@ -1861,7 +1868,7 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
                                   config.EMBED_FALLBACK_MODEL_TAG, "tier2-cpu-http-bulk")
         if not kept_local:
             _record_embed_backend("cpu-http-fallback", len(miss_texts))
-            return out
+            return _filled(out, cache_model)
         miss_indices = [miss_indices[j] for j in kept_local]
         miss_texts = [miss_texts[j] for j in kept_local]
     except Exception as e:
@@ -1881,7 +1888,7 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
             still_missing_local = list(still_local)
             if not still_missing_local:
                 _record_embed_backend("cpu-http-fallback", len(miss_texts))
-                return out
+                return _filled(out, cache_model)
             miss_indices = [miss_indices[j] for j in still_missing_local]
             miss_texts = [miss_texts[j] for j in still_missing_local]
             logger.warning(
@@ -1905,7 +1912,7 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
             for i in miss_indices:
                 out[i] = (None, config.EMBED_MODEL)
             await _embed_many_cloud_fallback(out, miss_indices, texts)
-            return out
+            return _filled(out, cache_model)
         base_url, model = result
 
     # _post_once returns a PER-CALL result — never shared mutable state. Each
@@ -2012,7 +2019,7 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
         _record_embed_backend("http-primary", _primary_served)
 
     await _embed_many_cloud_fallback(out, miss_indices, texts)
-    return out
+    return _filled(out, cache_model)
 
 
 # ──────────────────────────────────────────────────────────────────────────────

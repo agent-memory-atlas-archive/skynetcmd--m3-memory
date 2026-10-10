@@ -941,7 +941,7 @@ def main(argv: list[str] | None = None) -> int:
     # in "Done." with the old version still installed.
     new_version = None if dry else installed_version(find_m3_package(m3) or pkg)
     unchanged = (not dry and old_version is not None and new_version == old_version)
-    local_source = bool(spec) and not source_is_pypi(spec) and not args.from_pypi
+    local_source = bool(spec and not source_is_pypi(spec)) and not args.from_pypi
     latest = pypi_latest() if unchanged and not local_source else None
     if (should_retry_uncached(unchanged=unchanged, local_source=local_source,
                               latest=latest, installed=old_version)

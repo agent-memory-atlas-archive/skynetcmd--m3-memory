@@ -667,7 +667,7 @@ async def _run_db(
     # Make sure entity-graph code-path is enabled in this process.
     os.environ.setdefault("M3_ENABLE_ENTITY_GRAPH", "1")
 
-    def _enqueue_failure(memory_id: str, err: Exception) -> None:
+    def _enqueue_failure(memory_id: str, err: Exception | None) -> None:
         """Record a failed turn in entity_extraction_queue so it is visibly
         resumable instead of silently dropped — recovered by the existing
         extract_pending / dead-letter machinery.
@@ -694,7 +694,8 @@ async def _run_db(
                            last_error      = excluded.last_error,
                            last_attempt_at = excluded.last_attempt_at,
                            status          = 'failed'""",
-                    (memory_id, f"{type(err).__name__}: {err}"[:500]),
+                    (memory_id, (f"{type(err).__name__}: {err}" if err is not None
+                                 else "the extractor returned no result")[:500]),
                 )
                 qc.commit()
         except Exception:
@@ -874,7 +875,9 @@ async def _run_db(
                 if out is None:
                     counters["failed"] += 1
                     _enqueue_failure(memory_id, last_err)
-                    print(f"[m3-entities] FAIL {memory_id[:8]}: {type(last_err).__name__}: {last_err} (queued)", flush=True)
+                    why = (f"{type(last_err).__name__}: {last_err}" if last_err is not None
+                           else "the extractor returned no result")
+                    print(f"[m3-entities] FAIL {memory_id[:8]}: {why} (queued)", flush=True)
                     return
                 ents = out.get("entities", [])
                 rels = out.get("relationships", [])

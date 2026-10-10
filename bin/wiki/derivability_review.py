@@ -130,7 +130,7 @@ def _newest_erased_at(metadata: dict) -> str | None:
     recs = review.get("erasure_records")
     if not isinstance(recs, list) or not recs:
         return None
-    stamps = [r.get("erased_at") for r in recs if isinstance(r, dict) and r.get("erased_at")]
+    stamps = [s for r in recs if isinstance(r, dict) and (s := r.get("erased_at"))]
     return max(stamps) if stamps else None
 
 
