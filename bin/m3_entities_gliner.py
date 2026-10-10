@@ -260,11 +260,9 @@ def _select_rows(
         if conv_allowlist is not None:
             cid = conversation_id or ""
             if not cid:
-                try:
-                    md = json.loads(metadata_json or "{}")
-                    cid = md.get("conversation_id", "") or ""
-                except (ValueError, AttributeError):  # malformed or non-object metadata: no conversation
-                    cid = ""
+                # JSONB on PostgreSQL arrives as a dict; the seam normalizes
+                # either shape and fails safe to {} (no conversation) when malformed.
+                cid = _d.json_column_to_dict(metadata_json).get("conversation_id", "") or ""
             if cid not in conv_allowlist:
                 continue
         out.append((mid, text))

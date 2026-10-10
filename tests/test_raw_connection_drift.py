@@ -101,8 +101,6 @@ _EXEMPT = {
         "?mode=ro&immutable=1. A foreign file, not m3's store.",
 
     # --- Self-test harnesses that must NOT share the app's pool. ---
-    "bin/test_memory_bridge.py":
-        "Bridge self-test: deliberately isolates from the live pool.",
     "bin/test_bulk_parity.py":
         "Parity harness comparing raw vs seam results — needs the raw side.",
     "bin/setup_test_db.py":
@@ -117,10 +115,6 @@ _EXEMPT = {
         "SQLite arm of `if backend.name == \"sqlite\"`; PG uses the pooled path.",
     "bin/chatlog_prune.py":
         "SQLite arm of an explicit backend branch; dialect drives the SQL.",
-    "bin/enrichment_state.py":
-        "open_state_conn, the one owner of the enrichment state handle: a "
-        "dedicated SQLite connection held for a run (PG: one pooled connection). "
-        "m3_enrich and m3_enrich_batch each carried this until 2026-10-10.",
     "bin/curator_apply.py":
         "SQLite arm of an explicit branch; its docstring records the stale-file "
         "write on PG that this branch FIXED.",

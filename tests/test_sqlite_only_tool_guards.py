@@ -69,7 +69,7 @@ def test_m3_entities_not_gated_on_postgres(monkeypatch):
 
 
 def test_m3_enrich_not_gated_on_postgres(monkeypatch):
-    """m3_enrich was ported to PG (mc._db() reads, seam writes, _PgStateConn
+    """m3_enrich was ported to PG (mc._db() reads, seam writes, pooled state handle
     state machine, tables from pg_040/041/042). It must NOT raise the
     require_sqlite_backend RuntimeError. A bogus profile exits early (SystemExit).
     (Full DB + state-machine behavior is in test_m3_enrich_pg_live.py.)"""

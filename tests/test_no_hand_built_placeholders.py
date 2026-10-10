@@ -27,7 +27,6 @@ ALLOWED = {
     # Payload-less SQLite fallback for seam_dialect() (installer bootstrap).
     "bin/m3_core/paths.py": "INHERENT: bootstrap fallback when the memory package is absent; SQLite is then the only backend",
     # Standalone end-to-end script that opens the SQLite file with sqlite3.connect.
-    "bin/test_memory_bridge.py": "PARITY GAP: the end-to-end bridge script exercises SQLite only (m3 parity task)",
     # SQLite by contract: refuse to run on another backend.
     # Fallback dialect used only when the payload is absent (SQLite); see its docstring.
     "bin/embed_backfill.py": "INHERENT: payload-less bootstrap fallback dialect; SQLite only exists then",
@@ -151,7 +150,7 @@ def test_no_parameter_defaults_to_a_placeholder_literal():
 
 # Functional parity (user rule, 2026-10-10): a SQLite-only path is allowed only
 # when the limitation is VERIFIED inherent; anything else is a parity gap to port.
-_PARITY_GAP_BUDGET = 1
+_PARITY_GAP_BUDGET = 0
 
 
 def test_every_exemption_is_inherent_or_a_named_parity_gap():

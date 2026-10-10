@@ -849,6 +849,76 @@ def _ensure_dispatch_schema(conn) -> None:
         )
 
 
+class _PooledHandle:
+    """One pooled server-backend connection held as a plain handle:
+    ``.execute(sql, params)`` returns a cursor, ``.commit()``/``.rollback()``
+    work, and ``.close()`` returns it to the pool (not a hard close)."""
+
+    def __init__(self, backend) -> None:
+        self._pool = backend._ensure_pool()
+        self._raw = self._pool.getconn()
+
+    def execute(self, sql, params=()):
+        from memory.backends.postgres_backend import _make_compat_cursor_factory
+        cur = self._raw.cursor(cursor_factory=_make_compat_cursor_factory())
+        cur.execute(sql, params)
+        return cur
+
+    def commit(self):
+        return self._raw.commit()
+
+    def rollback(self):
+        return self._raw.rollback()
+
+    def close(self):
+        try:
+            self._raw.rollback()  # drop any open txn before returning to pool
+        except Exception as e:  # noqa: BLE001 — still return it; say so
+            import logging
+
+            from m3_core.errors import log_swallowed
+            log_swallowed(logging.getLogger(__name__), e,
+                          "pooled handle: rollback before release failed: %s", e)
+        self._pool.putconn(self._raw)
+
+    def __getattr__(self, name):
+        return getattr(self._raw, name)
+
+
+def open_pointed_store(db_path: str | None, *, profile: str | None = None) -> Any:
+    """A closeable handle to the store a tool was POINTED at, for a body that
+    cannot be one ``with`` block (a run that opens, works across awaits and
+    tasks, and calls ``.close()``).
+
+    File backend: a sqlite3 connection to exactly ``db_path`` (no _lazy_init,
+    so nothing is migrated) with the pragma stack (``profile``, default chosen
+    by the file's name). Server backend: one pooled connection; ``db_path`` is
+    not used. The caller commits; ``.close()`` releases.
+
+    Not :func:`pointed_store_connection` held open: that binds the
+    active_database ContextVar, whose token cannot be reset from another
+    asyncio context ("was created in a different Context", measured on
+    bin/test_memory_bridge.py 2026-10-10). THE owner: enrichment_state carried
+    this as its state connection.
+    """
+    from m3_core.paths import store_is_a_file
+
+    if not store_is_a_file():
+        from memory.backends import active_backend
+        return _PooledHandle(active_backend())
+    if not db_path:
+        raise ValueError("observed: no SQLite path for the store this tool targets. "
+                         "inspect: the tool's database flag / resolve_cli_store()")
+    # sqlite3.connect CREATES a missing file, so a wrong path would become an
+    # empty store that then fails on its first table, far from the cause.
+    if not os.path.exists(db_path):
+        raise ValueError(f"observed: no SQLite DB at {db_path}. "
+                         f"inspect: the tool's database flag, M3_DATABASE, or M3_ENGINE_ROOT")
+    conn = sqlite3.connect(str(db_path), timeout=30.0)
+    apply_pragmas(conn, profile or profile_for_db(db_path))
+    return conn
+
+
 @contextmanager
 def pointed_store_connection(db_path: str | None) -> Iterator[Any]:
     """A read/write connection to the store a maintenance tool was POINTED at.

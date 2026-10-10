@@ -107,10 +107,9 @@ def backfill(
                 continue
 
             # --- apply: update content + provenance metadata --------------------
-            try:
-                meta = json.loads(r["metadata_json"]) if r["metadata_json"] else {}
-            except json.JSONDecodeError:
-                meta = {}
+            # JSONB on PostgreSQL arrives as a dict; json.loads raised TypeError
+            # there (only JSONDecodeError was caught), crashing --apply.
+            meta = dialect().json_column_to_dict(r["metadata_json"])
             # Record the pre-strip hash ONCE, so a re-run does not clobber the
             # true original with an already-stripped one.
             if not meta.get("harness_framing_stripped"):

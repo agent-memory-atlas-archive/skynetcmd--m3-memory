@@ -871,6 +871,11 @@ class Dialect:
                                         re-dumping would double-encode it)
           - anything else            -> ``json.dumps(value)`` (numbers, bools)
 
+        The same string is the portable OUTPUT form: a tool that emits a fetched
+        row (memory_get) passes the JSON column through this, so a client gets
+        the JSON text SQLite always returned rather than a nested object on a
+        JSON-typed backend.
+
         Note this does NOT substitute :meth:`empty_json_default` — an empty/blank
         metadata still needs that backend-specific default (``''`` vs ``'{}'``)
         because ``None`` here means SQL NULL, not "empty object". Normalize blanks

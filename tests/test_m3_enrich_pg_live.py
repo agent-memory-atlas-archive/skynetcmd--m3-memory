@@ -1,8 +1,8 @@
 """Live-PG test for m3_enrich's ported DB paths (de-gated for PostgreSQL).
 
 Skips cleanly without a reachable cluster. Exercises the durable enrichment state
-machine end to end on PG through enrichment_state.open_state_conn (the _PgStateConn
-pooled adapter) — start_run, enroll_group (RETURNING id), claim_group
+machine end to end on PG through enrichment_state.open_state_conn (a pooled
+handle) — start_run, enroll_group (RETURNING id), claim_group
 (attempts+1), mark_success (partial_failure_chunks/content_size_k), end_run,
 run_total_cost_usd — plus the reflector read (HAVING COUNT(*), json_extract). The
 extractor/reflector LLM paths are unchanged and not exercised.
@@ -73,7 +73,7 @@ def test_open_state_conn_returns_pg_adapter(pg):
 
     sc = es.open_state_conn(Path("ignored_on_pg"))
     try:
-        assert type(sc).__name__ == "_PgStateConn"
+        assert type(sc).__name__ == "_PooledHandle"
         # execute returns a cursor; commit/rollback exist
         cur = sc.execute("SELECT 1")
         assert cur.fetchone()[0] == 1

@@ -773,6 +773,17 @@ async def memory_suggest_impl(query: str, k: int = 5, variant: str = "__none__")
     """Returns which memories would be retrieved for a query and explains why."""
     return await memory_search_impl(query, k=k, explain=True, variant=variant)
 
+def _row_out(row) -> dict:
+    """A memory_items row as memory_get emits it, identical on every backend:
+    metadata_json is JSON TEXT (what SQLite stores), not the nested object a
+    JSON-typed backend's driver returns. Clients json.loads that field."""
+    from memory.backends import dialect as _dialect
+    out = dict(row)
+    if "metadata_json" in out:
+        out["metadata_json"] = _dialect().json_bind_value(out["metadata_json"])
+    return out
+
+
 def memory_get_impl(id):
     # Accept either a 36-char UUID (existing path) or an 8-char prefix
     # (resume-guides and conversations routinely cite memories by their
@@ -790,7 +801,7 @@ def memory_get_impl(id):
             row = db.execute(f"SELECT * FROM memory_items WHERE id = {_p}", (ident,)).fetchone()
             if not row:
                 return "Error: not found"
-        return json.dumps(dict(row), indent=2, default=str)
+        return json.dumps(_row_out(row), indent=2, default=str)
     if len(ident) == 8:
         with _db() as db:
             rows = db.execute(
@@ -802,7 +813,7 @@ def memory_get_impl(id):
             if len(rows) > 1:
                 ids = ", ".join(r["id"] for r in rows)
                 return f"Error: ambiguous prefix '{ident}': matches {ids}"
-        return json.dumps(dict(rows[0]), indent=2, default=str)
+        return json.dumps(_row_out(rows[0]), indent=2, default=str)
     return "Error: id must be 36-char UUID or 8-char prefix"
 
 def memory_verify_impl(memory_id: str) -> str:
@@ -1547,12 +1558,11 @@ def memory_inbox_impl(agent_id: str, unread_only: bool = True, limit: int = 20,
     lines = [f"Inbox for {agent_id} ({len(rows)} {'unread' if unread_only else 'total'}):"]
     for row in rows:
         # Parse from_agent from metadata_json
-        from_agent = "?"
-        try:
-            meta = json.loads(row["metadata_json"] or "{}")
-            from_agent = meta.get("from_agent", "?")
-        except Exception:  # noqa: BLE001 — malformed metadata; from_agent stays '?'
-            pass
+        # metadata_json is JSONB on PostgreSQL (a dict): a bare json.loads raised
+        # TypeError, swallowed here, so every line read from=? there. The seam
+        # normalizes either shape and fails safe to {} on malformed data.
+        from memory.backends import dialect as _dialect
+        from_agent = _dialect().json_column_to_dict(row["metadata_json"]).get("from_agent", "?")
 
         # Truncate task (content) to 60 chars
         task_truncated = (row["content"] or "")[:60]

@@ -1,8 +1,8 @@
 ---
 tool: bin/enrichment_state.py
-sha1: adce96c7891d
-mtime_utc: 2026-10-10T14:55:05.437031+00:00
-generated_utc: 2026-10-10T14:55:28.067387+00:00
+sha1: 8b35e6334429
+mtime_utc: 2026-10-10T16:56:19.067116+00:00
+generated_utc: 2026-10-10T17:06:36.919502+00:00
 private: false
 ---
 
@@ -51,7 +51,7 @@ _(none detected)_
 
 ## Calls INTO this repo (intra-repo imports)
 
-- `sqlite_pragmas (apply_pragmas)`
+_(none detected)_
 
 ---
 
@@ -59,24 +59,17 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `['git', 'rev-parse', 'HEAD']`` (line 177)
-
-**sqlite**
-
-- `sqlite3.connect()  → `str(db_path)`` (line 153)
+- `subprocess.run()  → `['git', 'rev-parse', 'HEAD']`` (line 121)
 
 
 ---
 
 ## Notable external imports
 
-- `m3_core.errors (log_swallowed)`
-- `m3_core.paths (store_is_a_file)`
+- `m3_core.context (open_pointed_store)`
 - `m3_core.runtime (utc_iso)`
 - `m3_core.seams (is_windows)`
-- `memory.backends (active_backend)`
 - `memory.backends (dialect)`
-- `memory.backends.postgres_backend (_make_compat_cursor_factory)`
 
 ---
 

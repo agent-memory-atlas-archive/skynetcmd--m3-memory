@@ -263,8 +263,10 @@ def agent_get_impl(agent_id: str) -> str:
     if not row:
         return f"Error: agent '{agent_id}' not found"
 
-    caps = json.loads(row["capabilities"] or "[]")
-    meta = json.loads(row["metadata_json"] or "{}")
+    caps = json.loads(row["capabilities"] or "[]")  # TEXT on every backend
+    # metadata_json is JSONB on PostgreSQL: the driver returns a dict, and a bare
+    # json.loads raised TypeError, so agent_get failed there outright.
+    meta = dialect().json_column_to_dict(row["metadata_json"])
 
     _keys = row.keys()
     lines = [

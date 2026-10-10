@@ -1,8 +1,8 @@
 ---
 tool: bin/test_memory_bridge.py
-sha1: e6db6c0fbbd0
-mtime_utc: 2026-07-19T03:04:59.640251+00:00
-generated_utc: 2026-07-19T19:29:23.002479+00:00
+sha1: 8142ffad12d0
+mtime_utc: 2026-10-10T17:06:18.030308+00:00
+generated_utc: 2026-10-10T17:06:38.042918+00:00
 private: false
 ---
 
@@ -22,8 +22,8 @@ embedding model is not loaded in LM Studio.
 
 ## Entry points
 
-- `async def run()` (line 134)
-- `async def main()` (line 1179)
+- `async def run()` (line 158)
+- `async def main()` (line 1205)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -56,33 +56,7 @@ _(no argparse arguments detected)_
 
 **http**
 
-- `httpx.AsyncClient()` (line 66)
-
-**sqlite**
-
-- `sqlite3.connect()  → `DB_PATH`` (line 1002)
-- `sqlite3.connect()  → `DB_PATH`` (line 1065)
-- `sqlite3.connect()  → `DB_PATH`` (line 108)
-- `sqlite3.connect()  → `DB_PATH`` (line 1083)
-- `sqlite3.connect()  → `DB_PATH`` (line 1092)
-- `sqlite3.connect()  → `DB_PATH`` (line 1153)
-- `sqlite3.connect()  → `DB_PATH`` (line 201)
-- `sqlite3.connect()  → `DB_PATH`` (line 243)
-- `sqlite3.connect()  → `DB_PATH`` (line 250)
-- `sqlite3.connect()  → `DB_PATH`` (line 439)
-- `sqlite3.connect()  → `DB_PATH`` (line 456)
-- `sqlite3.connect()  → `DB_PATH`` (line 576)
-- `sqlite3.connect()  → `DB_PATH`` (line 619)
-- `sqlite3.connect()  → `DB_PATH`` (line 628)
-- `sqlite3.connect()  → `DB_PATH`` (line 649)
-- `sqlite3.connect()  → `DB_PATH`` (line 669)
-- `sqlite3.connect()  → `DB_PATH`` (line 721)
-- `sqlite3.connect()  → `DB_PATH`` (line 754)
-- `sqlite3.connect()  → `DB_PATH`` (line 792)
-- `sqlite3.connect()  → `DB_PATH`` (line 819)
-- `sqlite3.connect()  → `DB_PATH`` (line 922)
-- `sqlite3.connect()  → `DB_PATH`` (line 966)
-- `sqlite3.connect()  → `DB_PATH`` (line 97)
+- `httpx.AsyncClient()` (line 90)
 
 
 ---
@@ -91,6 +65,9 @@ _(no argparse arguments detected)_
 
 - `httpx`
 - `importlib`
+- `m3_core.context (open_pointed_store)`
+- `m3_core.paths (seam_backend, seam_dialect, store_is_a_file)`
+- `memory.db (_db)`
 - `platform`
 
 ---
