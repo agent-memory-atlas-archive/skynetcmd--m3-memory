@@ -17,6 +17,7 @@ import logging
 import os
 import sys
 from types import ModuleType
+from typing import Any
 
 # The sys.platform value that names each supported OS. sys.platform is the ONE
 # knob this module reads to tell OSes apart, so it is also the one a test turns to
@@ -143,17 +144,19 @@ def hidden_window_kwargs() -> dict:
     """
     import subprocess
 
-    # The capability decides: STARTUPINFO exists only where a console window
-    # does, so a simulated Windows on POSIX gets {} as well. The literal
-    # sys.platform test is what lets mypy skip this body when it checks for
-    # Linux/macOS (typeshed defines these names only for win32); this seam is
-    # the one place allowed to spell it.
-    if sys.platform == "win32" and hasattr(subprocess, "STARTUPINFO"):
-        si = subprocess.STARTUPINFO()
-        si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        si.wShowWindow = subprocess.SW_HIDE
-        return {"startupinfo": si}
-    return {}
+    # The capability decides, never the OS name: STARTUPINFO exists only where a
+    # console window does, so a simulated Windows on POSIX gets {} as well, and
+    # tests/test_window_flags_capability.py provides it on POSIX and expects the
+    # flags. (A sys.platform test added for mypy broke that contract on the
+    # POSIX lanes, 2026-10-10.) The Any alias is the codebase's convention for
+    # names typeshed defines only for win32 (installer._migrate_registry_env_names).
+    if not hasattr(subprocess, "STARTUPINFO"):
+        return {}
+    sp: Any = subprocess
+    si = sp.STARTUPINFO()
+    si.dwFlags |= sp.STARTF_USESHOWWINDOW
+    si.wShowWindow = sp.SW_HIDE
+    return {"startupinfo": si}
 
 
 def detached_spawn_kwargs() -> dict:
@@ -173,8 +176,9 @@ def detached_spawn_kwargs() -> dict:
     """
     import subprocess
 
-    if sys.platform == "win32" and hasattr(subprocess, "CREATE_NO_WINDOW"):
-        return {"creationflags": subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS}
+    if hasattr(subprocess, "CREATE_NO_WINDOW"):  # the capability, as above
+        sp: Any = subprocess
+        return {"creationflags": sp.CREATE_NO_WINDOW | sp.DETACHED_PROCESS}
     return {"start_new_session": True}
 
 

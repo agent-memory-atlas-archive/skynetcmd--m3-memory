@@ -45,7 +45,7 @@ def test_the_gate_sees_a_version_check(tmp_path):
 # os.path's return False (see m3_memory/_pyver.py). Existing calls predate the
 # finding, so this ratchets: the count may only fall.
 # 2026-10-10: 255 at the finding; 22 in bin/memory + bin/wiki converted -> 233.
-_PATH_PROBE_BUDGET = 233
+_PATH_PROBE_BUDGET = 226
 
 
 def _path_probes(roots=("bin", "m3_memory"), base: Path = _ROOT) -> list[str]:
