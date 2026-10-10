@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_entities_gliner.py
-sha1: 1caa9c04e6d2
-mtime_utc: 2026-10-09T22:44:20.135294+00:00
-generated_utc: 2026-10-09T22:52:33.852319+00:00
+sha1: b102eec0bff0
+mtime_utc: 2026-10-10T00:33:23.504710+00:00
+generated_utc: 2026-10-10T00:33:24.263276+00:00
 private: false
 ---
 
@@ -24,6 +24,9 @@ Recommended config (urchade/gliner_large-v2.1):
 
 Optional dependency: requires the `entity-ner` extra
     pip install 'm3-memory[entity-ner]'    # pulls gliner + torch
+It cannot be combined with the `embed-server` extra: every gliner release
+requires transformers<5.17, below the floor m3 sets for its own ML stack
+(docs/DEPENDENCY_NOTES.md). The loader warns when that is the case.
 Core runs fully without it; `bin/m3_entities.py` is the no-extra-deps extractor.
 
 Reuses `memory_core._run_entity_extractor` for the write path so:
@@ -48,7 +51,7 @@ Env vars (all optional):
 
 ## Entry points
 
-- `def main()` (line 491)
+- `def main()` (line 540)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -99,9 +102,12 @@ _(no subprocess / http / sqlite calls detected)_
 ## Notable external imports
 
 - `gliner (GLiNER)`
+- `importlib (metadata)`
 - `m3_core.gpu (torch_device)`
 - `m3_core.paths (require_sqlite_backend)`
 - `memory.backends (dialect)`
+- `packaging.requirements (Requirement)`
+- `packaging.version (Version)`
 
 ---
 

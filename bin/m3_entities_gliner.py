@@ -13,6 +13,9 @@ Recommended config (urchade/gliner_large-v2.1):
 
 Optional dependency: requires the `entity-ner` extra
     pip install 'm3-memory[entity-ner]'    # pulls gliner + torch
+It cannot be combined with the `embed-server` extra: every gliner release
+requires transformers<5.17, below the floor m3 sets for its own ML stack
+(docs/DEPENDENCY_NOTES.md). The loader warns when that is the case.
 Core runs fully without it; `bin/m3_entities.py` is the no-extra-deps extractor.
 
 Reuses `memory_core._run_entity_extractor` for the write path so:
@@ -104,6 +107,51 @@ def _resolve_cfg(args: argparse.Namespace) -> _Cfg:
     )
 
 
+def _transformers_floor():
+    """The transformers floor m3 sets for its own ML stack (the embed-server
+    extra's requirement, read from the installed package metadata so pyproject
+    stays the one source), or None when it cannot be read (a dev checkout)."""
+    from importlib import metadata
+
+    from packaging.requirements import Requirement
+    from packaging.version import Version
+
+    try:
+        reqs = metadata.requires("m3-memory") or []
+    except metadata.PackageNotFoundError:
+        return None
+    for raw in reqs:
+        r = Requirement(raw)
+        if r.name.lower() == "transformers" and r.marker is not None \
+                and r.marker.evaluate({"extra": "embed-server"}):
+            floors = [Version(s.version) for s in r.specifier if s.operator == ">="]
+            return max(floors) if floors else None
+    return None
+
+
+def _warn_if_below_transformers_floor() -> None:
+    """gliner caps transformers below m3's floor, which clears published CVEs
+    (docs/DEPENDENCY_NOTES.md). Say so, every run, rather than let the extra
+    quietly install an older transformers."""
+    from importlib import metadata
+
+    from packaging.version import Version
+
+    floor = _transformers_floor()
+    if floor is None:
+        return
+    try:
+        installed = Version(metadata.version("transformers"))
+    except metadata.PackageNotFoundError:
+        return
+    if installed < floor:
+        print(f"[gliner] WARNING: observed: transformers {installed} is below m3's floor "
+              f"{floor}, which clears published CVEs. gliner requires the older "
+              "version, so the entity-ner extra cannot have it. inspect: "
+              "docs/DEPENDENCY_NOTES.md (transformers); run GLiNER only on trusted "
+              "models and data.", flush=True)
+
+
 def _load_gliner(cfg: _Cfg):
     """Import + load the GLiNER model. Falls back to CPU if CUDA unavailable.
 
@@ -123,6 +171,7 @@ def _load_gliner(cfg: _Cfg):
             flush=True,
         )
         sys.exit(2)
+    _warn_if_below_transformers_floor()
     model = GLiNER.from_pretrained(cfg.model_id)
     if cfg.device == "cuda":
         # Default/'cuda' means "best GPU available": cuda > mps (Apple Metal) > cpu.

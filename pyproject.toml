@@ -254,6 +254,10 @@ embed-server = [
 # Local zero-shot NER for bin/m3_entities_gliner.py — a fast on-device
 # alternative to the LLM-based entity extractor. Optional by design: core runs
 # fully without it (bin/m3_entities.py needs no extra deps). Pulls torch.
+# CANNOT be installed together with embed-server: every gliner release
+# requires transformers<5.17, below the floor embed-server sets (it clears
+# published CVEs; docs/DEPENDENCY_NOTES.md). bin/m3_entities_gliner.py warns
+# when transformers is below that floor. Declared to uv as a conflict below.
 entity-ner = ["gliner>=0.2.26"]
 # Native SQLite vector search via the sqlite-vec extension. The loader at
 # bin/sqlite_pragmas.py loads it opportunistically (sqlite_vec.load(conn)) and

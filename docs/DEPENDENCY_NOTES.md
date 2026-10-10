@@ -287,3 +287,16 @@ This CVE was invisible until 2026-09-12: the DefectDojo pipeline's pip-audit
 ran `find | head -1` and audited examples/mac-agent/requirements.txt ONLY, so
 the root manifest was never scanned. Fixed in scan_repo.py (audits all three;
 261 packages, was ~8). See m3 memory 1c6429ef.
+
+## Entity NER (optional extra)
+
+### `gliner` (`entity-ner` extra)
+
+Measured 2026-10-09: every gliner release requires an older transformers
+(0.2.26: <5.2.0; 0.2.27: <5.7.0; 0.2.28: <5.14.0; 0.2.29 and later: <5.17.0).
+m3's own floor is transformers>=5.17.0 (see `transformers` above: it clears the
+CVEs listed there). So `entity-ner` and `embed-server` cannot be installed
+together, and an `entity-ner` install runs a transformers below that floor.
+`bin/m3_entities_gliner.py` warns on every run when that is the case, and
+pyproject declares the two extras (and the test groups) as conflicting to uv.
+Until gliner widens its range: run GLiNER only on trusted models and data.
