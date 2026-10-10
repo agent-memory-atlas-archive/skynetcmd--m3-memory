@@ -36,16 +36,9 @@ import tempfile
 import time
 from datetime import UTC
 
-
-def _os_name() -> str:
-    """WMI-safe OS name. Replaces platform.system(), which hangs on a WMI query
-    on Py3.14/Windows. os.name/sys.platform are constants — no WMI, same OS
-    branching ('Windows'/'Darwin'/'Linux')."""
-    if os.name == "nt":
-        return "Windows"
-    if sys.platform == "darwin":
-        return "Darwin"
-    return "Linux"
+# The OS seam (WMI-safe; platform.system() hangs on Py3.14/Windows). This
+# module runs under `m3 schedules` / the installer, where m3_memory imports.
+from m3_memory._platform import os_name as _os_name  # noqa: E402
 
 
 def _safe_print(msg: str) -> None:

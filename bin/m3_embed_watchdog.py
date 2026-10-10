@@ -87,7 +87,13 @@ _MIN_RESTART_GAP_S = 600
 
 def _os_name() -> str:
     """WMI-safe OS name — platform.system() hangs on a WMI query on
-    Py3.14/Windows. Same idiom as install_schedules._os_name()."""
+    Py3.14/Windows.
+
+    Deliberately a COPY of m3_memory._platform.os_name, the seam's one
+    exemption: a watchdog is the repair path and must run when the package it
+    watches is half-upgraded or broken, so it cannot depend on importing it.
+    tests/test_os_seam_watchdog_parity.py holds the copy to the seam.
+    """
     if os.name == "nt":
         return "Windows"
     if sys.platform == "darwin":

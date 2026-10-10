@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_embed_watchdog.py
-sha1: 60597af5f82a
-mtime_utc: 2026-10-09T23:55:12.140145+00:00
-generated_utc: 2026-10-10T00:12:43.577011+00:00
+sha1: 554bbed52537
+mtime_utc: 2026-10-10T05:02:39.384692+00:00
+generated_utc: 2026-10-10T05:03:20.308266+00:00
 private: false
 ---
 
@@ -62,7 +62,7 @@ DESIGN (§1 three-OS, §3 fail-loud/never-silent, §4 cheap, §10a one owner)
 
 ## Entry points
 
-- `def main()` (line 273)
+- `def main()` (line 279)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -91,7 +91,7 @@ _(no argparse arguments detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `cmd`` (line 247)
+- `subprocess.run()  → `cmd`` (line 253)
 
 
 ---
