@@ -89,3 +89,26 @@ def test_log_swallowed_levels(each_backend, caplog):
                       "probe code": logging.WARNING}
     warn = next(r.getMessage() for r in caplog.records if r.levelno == logging.WARNING)
     assert "observed:" in warn and "inspect:" in warn
+
+
+def test_classifying_imports_nothing(each_backend, monkeypatch):
+    """is_defect runs inside except handlers on any thread; an import there raced
+    the main thread's re-import of memory.backends and deadlocked."""
+    import builtins
+
+    from m3_core.errors import is_defect
+
+    err = _error_from(each_backend, "SELEC 1")
+    real_import = builtins.__import__
+
+    def _no_import(name, *a, **kw):
+        if name.split(".")[0] in ("memory", "m3_core", "m3_memory"):
+            raise AssertionError(f"observed: is_defect imported {name!r}. inspect: m3_core/errors.py")
+        return real_import(name, *a, **kw)
+
+    monkeypatch.setattr(builtins, "__import__", _no_import)
+    try:
+        assert is_defect(err) is True
+        assert is_defect(TimeoutError()) is False
+    finally:
+        monkeypatch.setattr(builtins, "__import__", real_import)

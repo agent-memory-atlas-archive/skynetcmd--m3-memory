@@ -110,6 +110,14 @@ def _default_peer(name: str, factory: type[StorageBackend]) -> list[StorageBacke
     return [default]
 
 
+def loaded_backends() -> tuple[StorageBackend, ...]:
+    """The backends already instantiated in this process. Never imports or
+    creates one, so it is safe from any thread, including an except handler
+    (m3_core.errors.is_defect): an import there raced the main thread's re-import
+    of memory.backends and deadlocked on its module lock (2026-10-10)."""
+    return tuple(_backends.values())
+
+
 def dialect() -> Dialect:
     """The SQL :class:`Dialect` for the ACTIVE backend (cached singleton).
 

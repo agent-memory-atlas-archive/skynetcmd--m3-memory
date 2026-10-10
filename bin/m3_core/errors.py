@@ -17,6 +17,7 @@ a driver error the active backend calls a wrong query
 from __future__ import annotations
 
 import logging
+import sys
 
 _CODE_DEFECTS: tuple[type[BaseException], ...] = (TypeError, AttributeError, NameError)
 
@@ -24,12 +25,17 @@ _CODE_DEFECTS: tuple[type[BaseException], ...] = (TypeError, AttributeError, Nam
 def is_defect(exc: BaseException) -> bool:
     if isinstance(exc, _CODE_DEFECTS):
         return True
+    # No imports here: this runs inside except handlers on any thread, and an
+    # import raced the main thread's re-import of memory.backends (a module-lock
+    # deadlock, 2026-10-10). A driver error can only come from a backend that
+    # already exists, so the instantiated ones are enough.
+    selector = sys.modules.get("memory.backends.selector")
+    if selector is None:
+        return False
     try:
-        from memory.backends import active_backend
-
-        return bool(active_backend().is_query_defect(exc))
-    except Exception:  # noqa: BLE001 -- classifying inside an except block must not raise;
-        return False   # without a resolvable backend there is no driver error to classify
+        return any(b.is_query_defect(exc) for b in selector.loaded_backends())
+    except Exception:  # noqa: BLE001 -- classifying inside an except block must not raise
+        return False
 
 
 def log_swallowed(logger: logging.Logger, exc: BaseException, msg: str, *args: object) -> None:
