@@ -1,7 +1,7 @@
 """Live-PG test for m3_enrich's ported DB paths (de-gated for PostgreSQL).
 
 Skips cleanly without a reachable cluster. Exercises the durable enrichment state
-machine end to end on PG through m3_enrich._open_state_conn (the _PgStateConn
+machine end to end on PG through enrichment_state.open_state_conn (the _PgStateConn
 pooled adapter) — start_run, enroll_group (RETURNING id), claim_group
 (attempts+1), mark_success (partial_failure_chunks/content_size_k), end_run,
 run_total_cost_usd — plus the reflector read (HAVING COUNT(*), json_extract). The
@@ -69,9 +69,9 @@ def pg(monkeypatch):
 
 
 def test_open_state_conn_returns_pg_adapter(pg):
-    import m3_enrich
+    import enrichment_state as es
 
-    sc = m3_enrich._open_state_conn(Path("ignored_on_pg"))
+    sc = es.open_state_conn(Path("ignored_on_pg"))
     try:
         assert type(sc).__name__ == "_PgStateConn"
         # execute returns a cursor; commit/rollback exist
@@ -83,10 +83,9 @@ def test_open_state_conn_returns_pg_adapter(pg):
 
 def test_enrichment_state_machine_on_pg(pg):
     import enrichment_state as es
-    import m3_enrich
 
     sv, tv = f"sv-{uuid.uuid4().hex[:6]}", "tv"
-    sc = m3_enrich._open_state_conn(Path("ignored_on_pg"))
+    sc = es.open_state_conn(Path("ignored_on_pg"))
     try:
         assert es.has_state_tables(sc)
         rid = es.start_run(

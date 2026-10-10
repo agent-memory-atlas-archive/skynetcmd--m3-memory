@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_enrich_batch.py
-sha1: 02ae39ee6589
-mtime_utc: 2026-10-10T00:01:34.762799+00:00
-generated_utc: 2026-10-10T00:12:43.621119+00:00
+sha1: fb586917d9fa
+mtime_utc: 2026-10-10T14:55:19.391119+00:00
+generated_utc: 2026-10-10T14:55:28.243025+00:00
 private: false
 ---
 
@@ -63,7 +63,7 @@ Status:  Phase E worker. Pairs with batch_runner.py (provider abstraction).
 
 ## Entry points
 
-- `def main()` (line 1243)
+- `def main()` (line 1241)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -75,7 +75,7 @@ Status:  Phase E worker. Pairs with batch_runner.py (provider abstraction).
 | `--profile` | profile name from config/slm/<name>.yaml. Supported backends: anthropic, openai (Gemini OAI shim only). | — |  | str |  |
 | `--profile-path` | Override profile YAML path. Default: config/slm/<profile>.yaml | None |  | str |  |
 | `--core` | Process the core memory DB. | `False` |  | store_true |  |
-| `--core-db` | Path to the SQLite DB. | — |  | str |  |
+| `--core-db` | SQLite DB path (default: the active store). Not used on PostgreSQL. | None |  | str |  |
 | `--source-variant` |  | None |  | str |  |
 | `--target-variant` | Required for new runs; ignored for --resume-run (target_variant is read from the existing run row). | None |  | str |  |
 | `--resume-run` | Resume an existing enrichment_runs row by id. Skips enumeration + claim + submit; goes straight to poll and ingest for any batches in notes.batches that are not yet ingested. Re-derives group_meta from rows still in_progress under this run_id. The remaining args (--profile, --core-db, --source-variant) must match the original run. | None |  | str |  |
@@ -122,12 +122,8 @@ Status:  Phase E worker. Pairs with batch_runner.py (provider abstraction).
 
 **http**
 
-- `httpx.AsyncClient()` (line 1107)
-- `httpx.AsyncClient()` (line 641)
-
-**sqlite**
-
-- `sqlite3.connect()  → `db_path`` (line 167)
+- `httpx.AsyncClient()` (line 1105)
+- `httpx.AsyncClient()` (line 638)
 
 
 ---
@@ -136,8 +132,9 @@ Status:  Phase E worker. Pairs with batch_runner.py (provider abstraction).
 
 - `httpx`
 - `m3_core.aio (gather_or_cancel)`
-- `m3_core.paths (require_sqlite_backend)`
+- `m3_core.paths (resolve_cli_store)`
 - `m3_core.runtime (utc_iso)`
+- `memory.backends.dialect (dialect_for_connection)`
 
 ---
 

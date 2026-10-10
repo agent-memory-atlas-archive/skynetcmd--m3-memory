@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_enrich.py
-sha1: 87d014445158
-mtime_utc: 2026-10-10T06:50:41.228738+00:00
-generated_utc: 2026-10-10T06:50:42.135549+00:00
+sha1: 0436cb3f4d18
+mtime_utc: 2026-10-10T14:36:44.718693+00:00
+generated_utc: 2026-10-10T14:55:28.222669+00:00
 private: false
 ---
 
@@ -45,7 +45,7 @@ Status: Phase D user-facing CLI. Pairs with bin/run_observer.py + bin/run_reflec
 
 ## Entry points
 
-- `def main()` (line 1018)
+- `def main()` (line 964)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -124,17 +124,13 @@ Status: Phase D user-facing CLI. Pairs with bin/run_observer.py + bin/run_reflec
 - `run_observer`
 - `run_reflector`
 - `slm_intent (Profile)`
-- `sqlite_pragmas (apply_pragmas)`
 - `unified_ai (async_client_for_profile)`
 
 ---
 
 ## Calls OUT (external side-channels)
 
-**sqlite**
-
-- `sqlite3.connect()  → `str(db_path)`` (line 186)
-
+_(no subprocess / http / sqlite calls detected)_
 
 ---
 
@@ -152,7 +148,6 @@ Status: Phase D user-facing CLI. Pairs with bin/run_observer.py + bin/run_reflec
 - `m3_core.seams (is_windows)`
 - `memory.backends (active_backend)`
 - `memory.backends (dialect)`
-- `memory.backends.postgres_backend (_make_compat_cursor_factory)`
 
 ---
 

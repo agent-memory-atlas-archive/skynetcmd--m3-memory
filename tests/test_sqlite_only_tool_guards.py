@@ -103,7 +103,6 @@ def test_chatlog_status_main_count_na_on_postgres(monkeypatch):
 _SQLITE_ONLY_MAINS = [
     "backfill_content_hash",
     "migrate_entity_vocab",
-    "m3_enrich_batch",
     "split_chatlog_from_core",
     "migrate_memory",
     "m3_chatlog_enrich_backfill",

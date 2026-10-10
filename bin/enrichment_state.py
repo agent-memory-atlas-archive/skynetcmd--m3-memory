@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
+import os
 import socket
 import sqlite3
 import subprocess
@@ -28,9 +30,13 @@ import sys
 import uuid
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import cast
 
+from m3_core.errors import log_swallowed
 from m3_core.seams import is_windows
+
+logger = logging.getLogger(__name__)
 
 # ── Tunables ───────────────────────────────────────────────────────────────
 DEFAULT_MAX_ATTEMPTS = 3
@@ -86,6 +92,70 @@ def compute_content_size_k(turns: Sequence[tuple]) -> int:
     if total <= 0:
         return 1
     return max(1, (total + 1023) // 1024)
+
+
+# ── The state connection ───────────────────────────────────────────────────
+class _PgStateConn:
+    """A long-lived PG state connection mirroring the SQLite single-connection
+    model the functions below expect: `.execute(sql, params)` returns a cursor,
+    `.commit()`/`.rollback()` work, and `.close()` returns the connection to the
+    pool (not a hard close). All state writes for a run funnel through ONE such
+    connection, serialized exactly as the SQLite path serializes on its single
+    connection."""
+
+    def __init__(self, backend) -> None:
+        self._pool = backend._ensure_pool()
+        self._raw = self._pool.getconn()
+
+    def execute(self, sql, params=()):
+        from memory.backends.postgres_backend import _make_compat_cursor_factory
+        cur = self._raw.cursor(cursor_factory=_make_compat_cursor_factory())
+        cur.execute(sql, params)
+        return cur
+
+    def commit(self):
+        return self._raw.commit()
+
+    def rollback(self):
+        return self._raw.rollback()
+
+    def close(self):
+        try:
+            self._raw.rollback()  # drop any open txn before returning to pool
+        except Exception as e:  # noqa: BLE001 — still return it; say so
+            log_swallowed(logger, e, "enrichment state connection: rollback before release failed: %s", e)
+        self._pool.putconn(self._raw)
+
+    def __getattr__(self, name):
+        return getattr(self._raw, name)
+
+
+def open_state_conn(db_path: Path | str | None):
+    """The enrichment-state connection for the active backend, held for a run.
+
+    File backend: a sqlite3 connection to ``db_path`` with the production pragma
+    stack. Server backend: one pooled connection (``db_path`` is not used).
+    ``.close()`` releases it. m3_enrich and m3_enrich_batch each carried this.
+    """
+    from m3_core.paths import store_is_a_file
+
+    if store_is_a_file():
+        if not db_path:
+            raise ValueError("observed: no SQLite path for the enrichment state store. "
+                             "inspect: the caller's --core-db / resolve_cli_store()")
+        # sqlite3.connect CREATES a missing file, so a wrong path would become an
+        # empty store that then fails on its first table, far from the cause.
+        if not os.path.exists(db_path):
+            raise ValueError(f"observed: no SQLite DB at {db_path}. "
+                             f"inspect: --core-db, M3_DATABASE, or M3_ENGINE_ROOT")
+        from sqlite_pragmas import apply_pragmas
+
+        c = sqlite3.connect(str(db_path), timeout=30.0)
+        apply_pragmas(c, "production")
+        return c
+    from memory.backends import active_backend
+
+    return _PgStateConn(active_backend())
 
 
 # ── Schema verification ────────────────────────────────────────────────────

@@ -162,11 +162,17 @@ def _build_chunks_for_group(
 
 # ── DB helpers ────────────────────────────────────────────────────────────
 
-def _open_state_conn(db_path: Path):
-    import sqlite3
-    conn = sqlite3.connect(db_path, timeout=30)
-    conn.execute("PRAGMA busy_timeout=30000")
-    return conn
+def _p(conn) -> str:
+    """The bind placeholder for the connection actually held."""
+    from memory.backends.dialect import dialect_for_connection
+
+    return dialect_for_connection(conn).param()
+
+
+def _ph(conn, n: int) -> str:
+    from memory.backends.dialect import dialect_for_connection
+
+    return dialect_for_connection(conn).placeholder(n)
 
 
 def _reap_stale_runs(state_conn, *, stale_after_minutes: int = 360) -> int:
@@ -183,21 +189,22 @@ def _reap_stale_runs(state_conn, *, stale_after_minutes: int = 360) -> int:
     from datetime import timedelta
     cutoff = (datetime.now(UTC) - timedelta(minutes=stale_after_minutes)).strftime(
         "%Y-%m-%dT%H:%M:%SZ")
+    p = _p(state_conn)
     cur = state_conn.execute(
-        """UPDATE enrichment_runs
-           SET finished_at = ?,
+        f"""UPDATE enrichment_runs
+           SET finished_at = {p},
                status = 'aborted',
                abort_reason = COALESCE(abort_reason, 'stale_run_reaped')
            WHERE finished_at IS NULL
              AND status = 'running'
-             AND started_at < ?""",
+             AND started_at < {p}""",
         (_utcnow_iso(), cutoff),
     )
     state_conn.commit()
     return cur.rowcount
 
 
-def _record_run_started(state_conn, *, profile, db_path: Path, source_variant: str,
+def _record_run_started(state_conn, *, profile, db_path: Path | None, source_variant: str,
                         target_variant: str, batch_id: str, n_groups: int,
                         slice_size: int, argv: list[str]) -> str:
     """Insert a new enrichment_runs row with structured notes for resume.
@@ -219,14 +226,14 @@ def _record_run_started(state_conn, *, profile, db_path: Path, source_variant: s
         "batches": [{"slice_idx": 0, "batch_id": batch_id, "ingested": False}],
     })
     state_conn.execute(
-        """
+        f"""
         INSERT INTO enrichment_runs(id, started_at, profile, model, source_variant, target_variant,
             db_path, concurrency, launch_argv, host, git_sha, status, n_pending, n_success, n_failed,
             n_empty, n_dead_letter, total_cost_usd, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, 0, ?)
+        VALUES ({_ph(state_conn, 12)}, 0, 0, 0, 0, 0, 0, {_p(state_conn)})
         """,
         (run_id, _utcnow_iso(), getattr(profile, "name", "?"), profile.model,
-         source_variant, target_variant, str(db_path), 0,
+         source_variant, target_variant, str(db_path) if db_path is not None else "(server store)", 0,
          json.dumps(argv), os.environ.get("COMPUTERNAME", "?"), "",
          "running", notes),
     )
@@ -237,7 +244,7 @@ def _record_run_started(state_conn, *, profile, db_path: Path, source_variant: s
 def _read_run_notes(state_conn, run_id: str) -> dict:
     """Load notes JSON from enrichment_runs row. Returns {} if missing/malformed."""
     row = state_conn.execute(
-        "SELECT notes FROM enrichment_runs WHERE id=?", (run_id,),
+        f"SELECT notes FROM enrichment_runs WHERE id={_p(state_conn)}", (run_id,),
     ).fetchone()
     if not row or not row[0]:
         return {}
@@ -250,7 +257,7 @@ def _read_run_notes(state_conn, run_id: str) -> dict:
 def _write_run_notes(state_conn, run_id: str, notes: dict) -> None:
     """Persist notes back to enrichment_runs."""
     state_conn.execute(
-        "UPDATE enrichment_runs SET notes=? WHERE id=?",
+        f"UPDATE enrichment_runs SET notes={_p(state_conn)} WHERE id={_p(state_conn)}",
         (json.dumps(notes), run_id),
     )
     state_conn.commit()
@@ -289,12 +296,13 @@ def _record_run_finished(state_conn, run_id: str, *, status: str,
     if batch_id:
         notes["batch_id_legacy"] = batch_id
     notes["finished_status"] = status
+    p = _p(state_conn)
     state_conn.execute(
-        """
+        f"""
         UPDATE enrichment_runs
-        SET finished_at=?, status=?, n_success=?, n_failed=?, n_empty=?,
-            total_cost_usd=?, abort_reason=?, notes=?
-        WHERE id=?
+        SET finished_at={p}, status={p}, n_success={p}, n_failed={p}, n_empty={p},
+            total_cost_usd={p}, abort_reason={p}, notes={p}
+        WHERE id={p}
         """,
         (_utcnow_iso(), status, n_success, n_failed, n_empty,
          total_cost_usd, abort_reason, json.dumps(notes), run_id),
@@ -307,7 +315,7 @@ def _record_run_finished(state_conn, run_id: str, *, status: str,
 async def _ingest_one_group(
     *, group_id: int, conv_id: str, user_id: str, turns: list,
     chunk_results: list,  # list of BatchResult, ordered by chunk_idx
-    target_variant: str, state_conn, db_path: Path,
+    target_variant: str, state_conn, db_path: Path | None,
     cost_per_in: float, cost_per_out: float,
 ) -> dict:
     """Parse all chunk results for one group, write observations,
@@ -383,18 +391,7 @@ async def _ingest_one_group(
     # Lift source session_id from the first turn's metadata so observations
     # can be traced back to the LongMemEval session. Required for SHR scoring
     # (memory 914843f8, 2026-05-05); mirrors run_observer.process_conversation.
-    source_session_id = ""
-    for t in turns:
-        meta = t[5] if len(t) > 5 else None
-        if meta:
-            try:
-                m = json.loads(meta)
-                sid = m.get("session_id")
-                if sid:
-                    source_session_id = str(sid)
-                    break
-            except Exception:
-                pass
+    source_session_id, _ = observer.session_identity(turns)
     sem = asyncio.Semaphore(8)
     async def _write_one(obs: dict) -> bool:
         nonlocal n_chunk_failed, last_err
@@ -447,7 +444,7 @@ async def _ingest_one_group(
 
 async def _poll_fetch_ingest_one_batch(
     runner, batch_id: str, *, client: httpx.AsyncClient,
-    group_meta: dict, target_variant: str, state_conn, db_path: Path,
+    group_meta: dict, target_variant: str, state_conn, db_path: Path | None,
     cost_per_in: float, cost_per_out: float,
     poll_interval_s: float, max_wait_s: float,
     label: str = "batch",
@@ -541,7 +538,7 @@ async def _poll_fetch_ingest_one_batch(
     return n_success, n_empty, n_failed, cost_added
 
 
-async def _resume_run(args, *, profile, token: str, db_path: Path) -> int:
+async def _resume_run(args, *, profile, token: str, db_path: Path | None) -> int:
     """Resume an existing run row by id. Reads notes.batches; for each batch
     not yet ingested, polls + fetches + ingests. Re-derives group_meta from
     rows still in_progress under this run_id.
@@ -551,7 +548,7 @@ async def _resume_run(args, *, profile, token: str, db_path: Path) -> int:
     """
     from batch_runner import make_runner
 
-    state_conn = _open_state_conn(db_path)
+    state_conn = estate.open_state_conn(db_path)
     n_reaped = _reap_stale_runs(state_conn, stale_after_minutes=360)
     if n_reaped:
         print(f"[batch] reaped {n_reaped} stale 'running' enrichment_runs rows",
@@ -559,8 +556,8 @@ async def _resume_run(args, *, profile, token: str, db_path: Path) -> int:
 
     run_id = args.resume_run
     row = state_conn.execute(
-        """SELECT id, status, source_variant, target_variant, profile, model
-           FROM enrichment_runs WHERE id=?""",
+        f"""SELECT id, status, source_variant, target_variant, profile, model
+           FROM enrichment_runs WHERE id={_p(state_conn)}""",
         (run_id,),
     ).fetchone()
     if row is None:
@@ -602,9 +599,9 @@ async def _resume_run(args, *, profile, token: str, db_path: Path) -> int:
     # Re-derive group_meta from rows still in_progress under this run_id.
     # This skips groups that were ingested in a prior worker invocation.
     rows = state_conn.execute(
-        """SELECT id, user_id, group_key
+        f"""SELECT id, user_id, group_key
            FROM enrichment_groups
-           WHERE enrich_run_id=? AND status='in_progress'""",
+           WHERE enrich_run_id={_p(state_conn)} AND status='in_progress'""",
         (run_id,),
     ).fetchall()
     if not rows:
@@ -669,7 +666,7 @@ async def _resume_run(args, *, profile, token: str, db_path: Path) -> int:
         # Catch groups that had no result in any batch
         for gid_str, (gid, uid, conv_id, turns) in group_meta.items():
             r2 = state_conn.execute(
-                "SELECT status FROM enrichment_groups WHERE id=?", (int(gid_str),),
+                f"SELECT status FROM enrichment_groups WHERE id={_p(state_conn)}", (int(gid_str),),
             ).fetchone()
             if r2 and r2[0] == "in_progress":
                 estate.mark_failed(
@@ -730,14 +727,15 @@ async def _run_async(args) -> int:
                  f"observed: {profile.api_key_service} service returned no token. "
                  f"inspect: vault (m3 admin store_secret), M3_VAULT_ADDR, or env var {profile.api_key_service}.")
 
-    db_path = Path(args.core_db).resolve()
-    if not db_path.exists():
-        sys.exit(f"ERROR: --core-db not found. "
-                 f"observed: resolved to {db_path}. "
-                 f"inspect: --core-db argument or M3_DATABASE env var.")
-
-    # Set M3_DATABASE so memory_core.write picks the right DB
-    os.environ["M3_DATABASE"] = str(db_path)
+    from m3_core.paths import resolve_cli_store
+    try:
+        store = resolve_cli_store(args.core_db, "--core-db")
+    except ValueError as e:
+        sys.exit(f"ERROR: {e}")
+    db_path = Path(store) if store else None
+    if db_path is not None:
+        # Set M3_DATABASE so memory_core.write picks the right DB
+        os.environ["M3_DATABASE"] = str(db_path)
 
     # Pin the embedder endpoint if --embed-url / M3_EMBED_URL was given.
     # Default behavior (without override) sends ingest embeds through
@@ -795,7 +793,7 @@ async def _run_async(args) -> int:
     print(f"[batch] enumerated {len(groups)} candidate groups", flush=True)
 
     # Open state conn, claim groups, build batch requests
-    state_conn = _open_state_conn(db_path)
+    state_conn = estate.open_state_conn(db_path)
     # One-time cleanup pass for crashed-worker ghost rows in enrichment_runs.
     # Cosmetic — keeps audit queries clean. Threshold is 6h (well above any
     # legitimate run wallclock).
@@ -809,7 +807,7 @@ async def _run_async(args) -> int:
 
     # Resolve group_id by (uid, conv_id)
     rows = state_conn.execute(
-        "SELECT id, user_id, group_key FROM enrichment_groups WHERE source_variant = ?",
+        f"SELECT id, user_id, group_key FROM enrichment_groups WHERE source_variant = {_p(state_conn)}",
         (args.source_variant,),
     ).fetchall()
     gid_by_key = {(r[1], r[2]): r[0] for r in rows}
@@ -857,8 +855,8 @@ async def _run_async(args) -> int:
         print("[batch] --dry-run: would submit; not calling Anthropic. Releasing claims.",
               flush=True)
         # Roll back claims
-        ph = ",".join("?" * len(group_meta))
-        gids = list(group_meta.keys())
+        gids = [int(g) for g in group_meta]
+        ph = _ph(state_conn, len(gids)) if gids else ""
         if gids:
             state_conn.execute(
                 f"UPDATE enrichment_groups SET status='pending', claim_token=NULL, "
@@ -981,8 +979,8 @@ async def _run_async(args) -> int:
                         argv=sys.argv,
                     )
                     state_conn.execute(
-                        "UPDATE enrichment_groups SET enrich_run_id=? "
-                        "WHERE enrich_run_id=? AND status='in_progress'",
+                        f"UPDATE enrichment_groups SET enrich_run_id={_p(state_conn)} "
+                        f"WHERE enrich_run_id={_p(state_conn)} AND status='in_progress'",
                         (enrich_run_id, enrich_run_id_placeholder),
                     )
                     state_conn.commit()
@@ -1156,7 +1154,7 @@ async def _run_async(args) -> int:
             ids_to_release = [enrich_run_id_placeholder]
             if enrich_run_id:
                 ids_to_release.append(enrich_run_id)
-            ph = ",".join("?" * len(ids_to_release))
+            ph = _ph(state_conn, len(ids_to_release))
             state_conn.execute(
                 f"UPDATE enrichment_groups SET status='pending', claim_token=NULL, "
                 f"claimed_at=NULL, enrich_run_id=NULL "
@@ -1191,7 +1189,7 @@ async def _run_async(args) -> int:
             state_conn.execute(
                 "UPDATE enrichment_groups SET status='pending', "
                 "claim_token=NULL, claimed_at=NULL "
-                "WHERE enrich_run_id=? AND status='in_progress'",
+                f"WHERE enrich_run_id={_p(state_conn)} AND status='in_progress'",
                 (enrich_run_id,),
             )
             state_conn.commit()
@@ -1209,7 +1207,7 @@ async def _run_async(args) -> int:
         # defensive).
         for gid_str, (gid, uid, conv_id, turns) in group_meta.items():
             row = state_conn.execute(
-                "SELECT status FROM enrichment_groups WHERE id=?", (int(gid_str),),
+                f"SELECT status FROM enrichment_groups WHERE id={_p(state_conn)}", (int(gid_str),),
             ).fetchone()
             if row and row[0] == "in_progress":
                 estate.mark_failed(
@@ -1241,8 +1239,6 @@ async def _run_async(args) -> int:
 
 
 def main() -> int:
-    from m3_core.paths import require_sqlite_backend
-    require_sqlite_backend("m3_enrich_batch")  # opens SQLite files directly; refuse on PostgreSQL
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--profile", required=True,
@@ -1251,7 +1247,8 @@ def main() -> int:
     ap.add_argument("--profile-path", default=None,
                     help="Override profile YAML path. Default: config/slm/<profile>.yaml")
     ap.add_argument("--core", action="store_true", help="Process the core memory DB.")
-    ap.add_argument("--core-db", required=True, help="Path to the SQLite DB.")
+    ap.add_argument("--core-db", default=None,
+                    help="SQLite DB path (default: the active store). Not used on PostgreSQL.")
     ap.add_argument("--source-variant", default=None)
     ap.add_argument("--target-variant", default=None,
                     help="Required for new runs; ignored for --resume-run "

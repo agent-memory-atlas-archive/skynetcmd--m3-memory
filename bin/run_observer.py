@@ -455,6 +455,36 @@ def _chunk_turns(turns: list[tuple], max_chunk_chars: int) -> list[list[tuple]]:
     return chunks
 
 
+def session_identity(turns) -> tuple[str, str]:
+    """(session_id, session_date) lifted from the source turns' metadata, or
+    ("", "unknown"). turns are (id, content, role, turn_index, created_at,
+    metadata_json, ...).
+
+    metadata_json comes back as str on SQLite but an already-parsed dict on
+    PostgreSQL/JSONB, so a bare json.loads() raised TypeError there and, inside
+    a broad except, silently dropped session_id: observations became invisible
+    to the SHR metric. The seam's json_column_to_dict() normalizes either shape.
+    THE owner: m3_enrich_batch carried a copy that kept the json.loads() bug
+    after this one was fixed (2026-10-10).
+    """
+    from memory.backends import dialect as _dialect
+
+    d = _dialect()
+    session_id, session_date = "", "unknown"
+    for t in turns:
+        meta = t[5] if len(t) > 5 else None
+        if not meta:
+            continue
+        m = d.json_column_to_dict(meta)
+        if not session_id and m.get("session_id"):
+            session_id = str(m["session_id"])
+        if m.get("session_date") and session_date == "unknown":
+            session_date = str(m["session_date"]).split(" ")[0].replace("/", "-")
+        if session_id and session_date != "unknown":
+            break
+    return session_id, session_date
+
+
 async def process_conversation(
     conversation_id: str,
     user_id: str,
@@ -498,27 +528,7 @@ async def process_conversation(
     # identifier) without a separate DB lookup. Bench SHR scoring requires
     # metadata.session_id on observation rows; without it observation hits are
     # invisible to the metric (memory 914843f8, 2026-05-05).
-    session_date = "unknown"
-    source_session_id = ""
-    # metadata_json comes back as str on SQLite but an already-parsed dict on
-    # PostgreSQL/JSONB — a bare json.loads() raises TypeError on PG (swallowed
-    # below), silently dropping session_id so observations become invisible to
-    # the SHR metric (the failure the comment above warns about). Route through
-    # the seam's json_column_to_dict(), which normalizes either shape.
-    from memory.backends import dialect as _dialect
-    _d = _dialect()
-    for t in turns:
-        meta = t[5] if len(t) > 5 else None
-        if meta:
-            m = _d.json_column_to_dict(meta)
-            if not source_session_id:
-                sid = m.get("session_id")
-                if sid:
-                    source_session_id = str(sid)
-            if m.get("session_date") and session_date == "unknown":
-                session_date = str(m["session_date"]).split(" ")[0].replace("/", "-")
-            if source_session_id and session_date != "unknown":
-                break
+    source_session_id, session_date = session_identity(turns)
     if session_date == "unknown" and turns:
         # last-resort: use created_at first 10 chars (ISO date prefix)
         ca = turns[0][4] if len(turns[0]) > 4 and turns[0][4] else None

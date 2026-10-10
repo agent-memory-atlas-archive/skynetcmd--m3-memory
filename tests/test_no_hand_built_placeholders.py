@@ -30,7 +30,6 @@ ALLOWED = {
     "bin/test_memory_bridge.py": "PARITY GAP: the end-to-end bridge script exercises SQLite only (m3 parity task)",
     # SQLite by contract: refuse to run on another backend.
     "bin/backfill_content_hash.py": "PARITY GAP: content_hash backfill refuses PostgreSQL (m3 parity task; verify PG need)",
-    "bin/m3_enrich_batch.py": "PARITY GAP: batch-API enrichment refuses PostgreSQL (m3 parity task)",
     # Fallback dialect used only when the payload is absent (SQLite); see its docstring.
     "bin/embed_backfill.py": "INHERENT: payload-less bootstrap fallback dialect; SQLite only exists then",
     # The query around it is SQLite SQL (json_extract), so PostgreSQL fails loud
@@ -156,7 +155,7 @@ def test_no_parameter_defaults_to_a_placeholder_literal():
 
 # Functional parity (user rule, 2026-10-10): a SQLite-only path is allowed only
 # when the limitation is VERIFIED inherent; anything else is a parity gap to port.
-_PARITY_GAP_BUDGET = 6
+_PARITY_GAP_BUDGET = 5
 
 
 def test_every_exemption_is_inherent_or_a_named_parity_gap():

@@ -80,7 +80,6 @@ from m3_core.paths import scoped_db_env, snapshot_stores  # noqa: E402
 from slm_intent import (  # noqa: E402
     Profile,
 )
-from sqlite_pragmas import apply_pragmas  # noqa: E402
 
 # ── Defaults ────────────────────────────────────────────────────────────────
 DEFAULT_PROFILE = os.environ.get("M3_ENRICH_PROFILE", "enrich_local_qwen")
@@ -134,59 +133,6 @@ async def _smoke_profile(profile: Profile) -> None:
 
 
 
-
-
-class _PgStateConn:
-    """A long-lived PG state connection mirroring the SQLite single-connection
-    model estate.* expects: `.execute(sql, params)` returns a cursor,
-    `.commit()`/`.rollback()` work, and `.close()` returns the connection to the
-    pool (not a hard close). All estate.* writes for a run funnel through ONE such
-    connection, serialized exactly as the SQLite path serializes on its single
-    connection — safe because the enrichment loop already routes every state write
-    through this one handle."""
-
-    def __init__(self, backend) -> None:
-        self._pool = backend._ensure_pool()
-        self._raw = self._pool.getconn()
-
-    def execute(self, sql, params=()):
-        from memory.backends.postgres_backend import _make_compat_cursor_factory
-        cur = self._raw.cursor(cursor_factory=_make_compat_cursor_factory())
-        cur.execute(sql, params)
-        return cur
-
-    def commit(self):
-        return self._raw.commit()
-
-    def rollback(self):
-        return self._raw.rollback()
-
-    def close(self):
-        try:
-            self._raw.rollback()  # drop any open txn before returning to pool
-        except Exception:
-            pass
-        self._pool.putconn(self._raw)
-
-    def __getattr__(self, name):
-        return getattr(self._raw, name)
-
-
-def _open_state_conn(db_path: Path):
-    """Open the enrichment-state connection for the active backend.
-
-    SQLite: a direct sqlite3 connection to db_path with the production pragma
-    stack (unchanged). PostgreSQL: a pooled connection wrapped as _PgStateConn
-    (apply_pragmas is SQLite-only and skipped). Held for the run; `.close()`
-    releases it."""
-    from memory.backends import active_backend
-    _backend = active_backend()
-    if _backend.name == "sqlite":
-        import sqlite3
-        c = sqlite3.connect(str(db_path), timeout=30.0)
-        apply_pragmas(c, "production")
-        return c
-    return _PgStateConn(_backend)
 
 
 async def _run_db(
@@ -282,7 +228,7 @@ async def _run_db(
             print("[m3-enrich] --track-state requires --source-variant; skipping state.", flush=True)
             track_state = False
         else:
-            state_conn = _open_state_conn(db_path)
+            state_conn = estate.open_state_conn(db_path)
             if not estate.has_state_tables(state_conn):
                 state_conn.close()
                 sys.exit(
@@ -728,8 +674,8 @@ async def _main_async(args) -> int:
     # Backend-agnostic: enrichment reads via a db_path-honoring connection on
     # SQLite / mc._db() on PG, writes via the seam, and the durable state machine
     # (enrichment_state.py) is dialected with a backend-appropriate state
-    # connection (_open_state_conn: sqlite3+pragmas on SQLite, a pooled
-    # _PgStateConn on PG). The state tables come from pg_040/041/042 on PG. Works
+    # connection (estate.open_state_conn: sqlite3+pragmas on SQLite, a pooled
+    # connection on PG). The state tables come from pg_040/041/042 on PG. Works
     # on both backends. (Previously gated SQLite-only for its raw sqlite3 writes;
     # those were moved onto the seam and verified on PG, so the gate was removed.)
     profile = _load_profile_with_path(args.profile, args.profile_path)
@@ -883,7 +829,7 @@ async def _main_async(args) -> int:
         # run_id per DB simplifies aggregation and budget reporting.
         per_db_run_id: str | None = None
         if args.track_state:
-            _sc = _open_state_conn(db_path)
+            _sc = estate.open_state_conn(db_path)
             if not estate.has_state_tables(_sc):
                 _sc.close()
                 sys.exit(
@@ -934,7 +880,7 @@ async def _main_async(args) -> int:
 
         # Close out the run record with final counts.
         if args.track_state and per_db_run_id:
-            _sc = _open_state_conn(db_path)
+            _sc = estate.open_state_conn(db_path)
             run_status = "aborted" if abort_reason else "completed"
             estate.end_run(
                 _sc, per_db_run_id,

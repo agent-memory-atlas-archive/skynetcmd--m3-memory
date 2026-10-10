@@ -51,7 +51,7 @@ def _load_conv_list(path: Path) -> set[str]:
 
 
 def _query_eligible_groups(
-    db_path: Path,
+    db_path: Path | str | None,
     type_allowlist: tuple[str, ...],
     limit: int | None,
     source_variant: str | None = None,
@@ -81,7 +81,7 @@ def _query_eligible_groups(
     # path, including the exceptions the old bare conn.close() would have leaked.
     from contextlib import ExitStack
     _stack = ExitStack()
-    conn = _stack.enter_context(seam_backend().open_readonly(str(db_path)))
+    conn = _stack.enter_context(seam_backend().open_readonly(str(db_path or "")))
     placeholders = _d.placeholder(len(type_allowlist))
     # JSON field reads through the dialect: SQLite json_extract, PostgreSQL ->>.
     # turn_index is numeric (COALESCE with 0), so it reads as an integer.

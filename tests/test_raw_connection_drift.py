@@ -122,8 +122,10 @@ _EXEMPT = {
         "SQLite arm of `if backend.name == \"sqlite\"`; PG uses the pooled path.",
     "bin/chatlog_prune.py":
         "SQLite arm of an explicit backend branch; dialect drives the SQL.",
-    "bin/m3_enrich.py":
-        "SQLite arm of `if _backend.name == \"sqlite\"`.",
+    "bin/enrichment_state.py":
+        "open_state_conn, the one owner of the enrichment state handle: a "
+        "dedicated SQLite connection held for a run (PG: one pooled connection). "
+        "m3_enrich and m3_enrich_batch each carried this until 2026-10-10.",
     "bin/curator_apply.py":
         "SQLite arm of an explicit branch; its docstring records the stale-file "
         "write on PG that this branch FIXED.",
@@ -188,13 +190,6 @@ _EXEMPT = {
     "bin/chatlog_embed_sweeper.py":
         "Sweeps a SQLite chatlog FILE by path; the PG chatlog is swept through "
         "the seam by the cognitive loop's embed pass (see the branch above it).",
-    "bin/m3_enrich_assign.py":
-        "CLI helper over an explicit --db SQLite file; applies the shared "
-        "pragma stack and exits if the file is absent.",
-    "bin/m3_enrich_batch.py":
-        "Enrich state handle held across a long batch body with four existing "
-        "close() sites; converting needs the call-site rework tracked with the "
-        "remaining L3 writers.",
 
     # --- Must never fail on a seam import error. ---
     "bin/auth_utils.py":
