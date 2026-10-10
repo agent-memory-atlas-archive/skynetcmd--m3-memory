@@ -9,6 +9,8 @@ import time
 import pytest
 from m3_core.monitoring import MonitoringBusy, StageMap, c_target, stage_timing
 
+from m3_memory._pyver import event_loop_timer_slack
+
 
 def inner():
     time.sleep(0.02)
@@ -46,7 +48,11 @@ def test_concurrent_invocations_of_one_coroutine_are_timed_apart():
         assert asyncio.run(main()) == [1, 2]
     s = r.stages["slow"]
     assert s.calls == 2
-    assert s.max_s >= 0.06 and s.wall_s >= 0.09, "a suspension ended a stage early"
+    # A timer can fire up to one clock tick early (15.6 ms on Windows before 3.13):
+    # the version seam says how much. A suspension that ENDED the stage would
+    # still read near zero, far below this floor.
+    slack = event_loop_timer_slack()
+    assert s.max_s >= 0.06 - slack and s.wall_s >= 0.09 - 2 * slack, "a suspension ended a stage early"
 
 
 def test_an_exception_counts_as_an_error_and_closes_the_stage():

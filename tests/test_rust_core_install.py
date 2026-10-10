@@ -14,6 +14,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from m3_memory import rust_core_install as rci  # noqa: E402
+from m3_memory._pyver import wheel_python_tag  # noqa: E402
 
 # Real function captured before the autouse fixture can patch it, so the unit
 # tests that exercise is_rust_core_current itself call the genuine impl.
@@ -361,7 +362,7 @@ def test_github_release_finds_and_installs_matching_asset(monkeypatch):
     """Picks the m3_core_rs_<os>_<backend>-<ver>-<py>-*.whl that matches
     the current Python and pip-installs the downloaded file.
     """
-    py_tag = f"cp{sys.version_info.major}{sys.version_info.minor}"
+    py_tag = wheel_python_tag()
     ver = rci.M3_CORE_RS_VERSION
     matching_name = f"m3_core_rs_macos_metal-{ver}-{py_tag}-{py_tag}-macosx_11_0_arm64.whl"
     fake_wheel = b"PK\x03\x04" + b"fake wheel" * 100  # ZIP-ish header so it looks plausible
@@ -426,7 +427,7 @@ def test_github_release_404_returns_nonzero(monkeypatch):
 def test_github_release_no_matching_asset_returns_nonzero(monkeypatch):
     """API succeeds but no asset starts with the expected prefix."""
     import urllib.request as _ur
-    py_tag = f"cp{sys.version_info.major}{sys.version_info.minor}"
+    py_tag = wheel_python_tag()
     payload = _gh_release_payload([
         f"m3_core_rs_linux_cpu-{rci.M3_CORE_RS_VERSION}-{py_tag}-{py_tag}-manylinux2014.whl",
         # No macos_metal asset
@@ -686,7 +687,7 @@ def _wire_release(monkeypatch, payload, sums_text, wheel_bodies):
 
 
 def _metal_target():
-    py_tag = f"cp{sys.version_info.major}{sys.version_info.minor}"
+    py_tag = wheel_python_tag()
     name = f"m3_core_rs_macos_metal-{rci.M3_CORE_RS_VERSION}-{py_tag}-{py_tag}-macosx_11_0_arm64.whl"
     return rci.BackendChoice("macos", "metal", "test"), name
 

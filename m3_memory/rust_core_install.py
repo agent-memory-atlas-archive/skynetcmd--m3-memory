@@ -29,6 +29,7 @@ from dataclasses import dataclass
 from datetime import UTC
 
 from m3_memory._platform import os_name as _os_name
+from m3_memory._pyver import wheel_python_tag
 
 # Release this m3-memory build expects. Bump in lockstep with the m3-core-rs
 # release. The wheel VERSION and the GitHub release TAG are independent: the tag
@@ -1087,7 +1088,7 @@ def install_from_github_release(
     import urllib.error
     import urllib.request
 
-    py_tag = f"cp{sys.version_info.major}{sys.version_info.minor}"
+    py_tag = wheel_python_tag()
     asset_prefix = f"m3_core_rs_{choice.os_tok}_{choice.backend}-{version}-{py_tag}-"
 
     print(f"[rust-core] looking for GitHub Release asset matching "
