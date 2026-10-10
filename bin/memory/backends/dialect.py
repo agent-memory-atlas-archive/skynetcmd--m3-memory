@@ -82,6 +82,15 @@ class Dialect:
         return "?" if self.param_style == "qmark" else "%s"
 
     # -- upsert --------------------------------------------------------------
+    def compile_keyword_query(self, query: str, mode: str) -> tuple[str, bool]:
+        """A raw user query as this backend's keyword-match syntax, ``(text, ok)``.
+
+        SQLite: an FTS5 MATCH string; PostgreSQL: a ``to_tsquery`` string. Both
+        sanitize identically (memory.backends.keyword), so terms normalize the
+        same way on every backend. ``ok`` False = no matchable tokens.
+        """
+        raise NotImplementedError("subclass must implement compile_keyword_query()")
+
     def insert_or_ignore(self) -> str:
         """The INSERT verb+suffix for "insert, skip on PK/unique conflict".
 

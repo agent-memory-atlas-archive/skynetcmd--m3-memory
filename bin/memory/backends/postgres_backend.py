@@ -511,6 +511,11 @@ class PostgresDialect(Dialect):
     param_style: ParamStyle = "format"
 
     @override
+    def compile_keyword_query(self, query: str, mode: str) -> tuple[str, bool]:
+        from .keyword import _compile_tsquery
+
+        return _compile_tsquery(query, mode)
+
     def insert_or_ignore(self) -> str:
         # postgres has no verb form — the arbiter goes in a trailing clause.
         return "INSERT INTO"
@@ -1277,7 +1282,7 @@ class PostgresBackend:
         """
         if not table.isidentifier():
             raise ValueError(f"table must be a bare identifier: {table!r}")
-        from ..fts import _compile_tsquery
+        _compile_tsquery = self.dialect().compile_keyword_query
 
         tsquery, ok = _compile_tsquery(query, "fts5")
         if not ok or not tsquery:
@@ -1329,7 +1334,7 @@ class PostgresBackend:
         """
         if not table.isidentifier():
             raise ValueError(f"table must be a bare identifier: {table!r}")
-        from ..fts import _compile_tsquery
+        _compile_tsquery = self.dialect().compile_keyword_query
 
         tsquery, ok = _compile_tsquery(query, search_mode)
         if not ok or not tsquery:

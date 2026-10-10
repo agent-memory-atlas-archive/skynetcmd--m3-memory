@@ -49,6 +49,11 @@ class SqliteDialect(Dialect):
     param_style: ParamStyle = "qmark"
 
     @override
+    def compile_keyword_query(self, query: str, mode: str) -> tuple[str, bool]:
+        from .keyword import _compile_fts_query
+
+        return _compile_fts_query(query, mode)
+
     def insert_or_ignore(self) -> str:
         return "INSERT OR IGNORE INTO"
 
@@ -776,7 +781,7 @@ class SqliteBackend:
         ``table`` argument.)
         """
         del table  # SQLite: same names, right file via conn — parameter unused
-        from ..fts import _compile_fts_query
+        _compile_fts_query = self.dialect().compile_keyword_query
 
         fts_query, ok = _compile_fts_query(query, "fts5")
         if not ok or not fts_query:
@@ -835,7 +840,7 @@ class SqliteBackend:
         :class:`KeywordHit`).
         """
         del table  # SQLite: same names, right file via conn (see keyword_search)
-        from ..fts import _compile_fts_query
+        _compile_fts_query = self.dialect().compile_keyword_query
 
         fts_query, ok = _compile_fts_query(query, search_mode)
         if not ok or not fts_query:

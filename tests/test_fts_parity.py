@@ -40,40 +40,11 @@ INPUTS = [
 MODES = ["fts5", "hybrid", "semantic", "exact", ""]
 
 
-def _py_sanitize(query, max_len=500):
-    """The pure-Python _sanitize_fts body, regardless of m3_core_rs presence.
-
-    Mirrors the two-pass fts.py body: operator words removed, then every
-    non-word/non-space character replaced with a space (FTS5-MATCH allowlist).
-    """
-    if len(query) > max_len:
-        query = query[:max_len]
-    query = ftsmod._FTS_OPERATORS.sub(" ", query)
-    query = ftsmod._FTS_NON_TERM.sub(" ", query)
-    return query.strip()
-
-
-def _py_compile(query, mode):
-    """The pure-Python _compile_fts_query body (mirrors fts.py fallback)."""
-    is_exact_query = (query.startswith('"') and query.endswith('"')) or (
-        query.startswith("'") and query.endswith("'")
-    )
-    if is_exact_query:
-        inner = query[1:-1].replace('"', '""')
-        return f'"{inner}"', True
-    clean = _py_sanitize(query)
-    clean = ftsmod._sanitize_for_searchable(clean)
-    if not clean.strip():
-        return "", False
-    clean = clean.strip()
-    if mode == "fts5":
-        toks = [t for t in clean.split() if t]
-        if len(toks) > 1:
-            return " OR ".join(toks), True
-        return (f"{clean}*" if clean.isalnum() else clean), True
-    if " " not in clean and clean.isalnum():
-        return f"{clean}*", True
-    return clean, True
+# The pure-Python REFERENCE bodies, called directly (not a copy kept here: a
+# copy drifts from the real fallback silently, and with the Rust core installed
+# the public functions dispatch to Rust, so comparing them to Rust is Rust vs Rust).
+_py_sanitize = ftsmod._sanitize_fts_py
+_py_compile = ftsmod._compile_fts_query_py
 
 
 @pytest.mark.parametrize("q", INPUTS)
