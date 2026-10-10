@@ -36,7 +36,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from ..langchain.m3client import M3Client
 from . import mapping
@@ -513,7 +513,7 @@ class M3StorageBackend:
 def _import_param() -> str:
     from memory.backends import dialect
 
-    return dialect().param()
+    return cast("str", dialect().param())
 
 
 def _parse_written_id(raw: Any) -> str | None:
@@ -538,7 +538,7 @@ def _deleted_count(raw: Any, *, fallback: int) -> int:
     if isinstance(raw, dict):
         for k in ("deleted", "count", "n"):
             if isinstance(raw.get(k), int):
-                return raw[k]
+                return cast("int", raw[k])
     if isinstance(raw, int):
         return raw
     return fallback

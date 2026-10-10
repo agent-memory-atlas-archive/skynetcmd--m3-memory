@@ -28,7 +28,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from datetime import UTC, datetime
-from typing import Any, override
+from typing import Any, cast, override
 
 # Hard dependency on langgraph — this module is imported LAZILY by the package
 # __init__ so a missing dep fails loud with an install hint (§3), never here.
@@ -105,13 +105,13 @@ class M3Store(BaseStore):
         back with ``_run_async`` so the caller's loop is never blocked.
         """
         op_list = list(ops)
-        return await self._client._run_async(lambda: self._abatch_on_loop(op_list))
+        return cast("list[Any]", await self._client._run_async(lambda: self._abatch_on_loop(op_list)))
 
     @override
     def batch(self, ops: Iterable[Op]) -> list[Any]:
         """Sync bridge over the same loop-thread work (§8)."""
         op_list = list(ops)
-        return self._client._run(self._abatch_on_loop(op_list))
+        return cast("list[Any]", self._client._run(self._abatch_on_loop(op_list)))
 
     async def _abatch_on_loop(self, ops: list[Op]) -> list[Any]:
         """The real batch body — runs ENTIRELY on the m3client loop-thread.

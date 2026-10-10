@@ -27,7 +27,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import UTC
-from typing import Any
+from typing import Any, cast
 
 from m3_memory._platform import is_windows
 from m3_memory._platform import os_name as _os_name
@@ -361,7 +361,7 @@ def is_rust_core_current() -> bool:
     try:
         return _parse_version(cur) >= _parse_version(M3_CORE_RS_VERSION)
     except Exception:  # noqa: BLE001 — unparseable → don't skip, reinstall
-        return cur == M3_CORE_RS_VERSION
+        return cast("bool", cur == M3_CORE_RS_VERSION)
 
 
 @dataclass(frozen=True, slots=True)

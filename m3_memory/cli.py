@@ -18,7 +18,7 @@ import argparse
 import os
 import sys
 from pathlib import Path  # noqa: F401 - used in _auto_install return-type comment
-from typing import override
+from typing import cast, override
 
 from m3_memory._platform import is_windows
 
@@ -736,7 +736,7 @@ def _elevate_schedules_windows(script: str, argv: list, sub: str) -> bool:
         r = res.get(label, {"rc": -1, "output": ""})
         if r["output"]:
             print(r["output"])
-        return r["rc"] == 0
+        return cast("bool", r["rc"] == 0)
 
     return _retry_elevated(_run, what=f"elevated `m3 schedules {sub}`")
 
@@ -1315,7 +1315,7 @@ def _cmd_embedder(args: argparse.Namespace) -> int:
               file=sys.stderr)
         return 2
     # Each subcommand registered its own func= via embedder_admin.add_arguments.
-    return args.func(args)
+    return cast("int", args.func(args))
 
 
 # ── Generated tool subcommands: `m3 <domain> <tool>` ─────────────────────────

@@ -23,7 +23,7 @@ import logging
 import os
 import threading
 import time
-from typing import Any
+from typing import Any, cast
 
 from agent.memory_provider import MemoryProvider
 from tools.registry import tool_error
@@ -298,7 +298,7 @@ class M3MemoryProvider(MemoryProvider):
         try:
             client = self._get_client()
         except Exception as e:
-            return tool_error(str(e))
+            return cast("str", tool_error(str(e)))
 
         if tool_name == "m3_profile":
             try:
@@ -310,12 +310,12 @@ class M3MemoryProvider(MemoryProvider):
                 return json.dumps({"result": "\n".join(lines), "count": len(lines)})
             except Exception as e:
                 self._record_failure()
-                return tool_error(f"Failed to fetch profile: {e}")
+                return cast("str", tool_error(f"Failed to fetch profile: {e}"))
 
         elif tool_name == "m3_search":
             query = args.get("query", "")
             if not query:
-                return tool_error("Missing required parameter: query")
+                return cast("str", tool_error("Missing required parameter: query"))
             top_k = min(int(args.get("top_k", 10)), 50)
             try:
                 results = client.search(query=query, user_id=self._user_id, top_k=top_k)
@@ -327,21 +327,21 @@ class M3MemoryProvider(MemoryProvider):
                 return json.dumps({"results": items, "count": len(items)})
             except Exception as e:
                 self._record_failure()
-                return tool_error(f"Search failed: {e}")
+                return cast("str", tool_error(f"Search failed: {e}"))
 
         elif tool_name == "m3_conclude":
             conclusion = args.get("conclusion", "")
             if not conclusion:
-                return tool_error("Missing required parameter: conclusion")
+                return cast("str", tool_error("Missing required parameter: conclusion"))
             try:
                 client.conclude(content=conclusion, user_id=self._user_id)
                 self._record_success()
                 return json.dumps({"result": "Fact stored."})
             except Exception as e:
                 self._record_failure()
-                return tool_error(f"Failed to store: {e}")
+                return cast("str", tool_error(f"Failed to store: {e}"))
 
-        return tool_error(f"Unknown tool: {tool_name}")
+        return cast("str", tool_error(f"Unknown tool: {tool_name}"))
 
     def shutdown(self) -> None:
         for t in (self._prefetch_thread, self._sync_thread):

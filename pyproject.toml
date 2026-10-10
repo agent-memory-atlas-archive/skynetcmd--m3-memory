@@ -518,6 +518,13 @@ enable_error_code = ["explicit-override", "possibly-undefined", "truthy-bool", "
 
 # ── Per-module overrides ──────────────────────────────────────────────────────
 
+# The installed package returns only what it declares: no Any leaking out of a
+# typed signature (mypy ratchet, 2026-10-10; 34 sites closed with typing.cast,
+# behaviour-identical). bin/ follows when its count reaches 0.
+[[tool.mypy.overrides]]
+module = ["m3_memory", "m3_memory.*"]
+warn_return_any = true
+
 # memory_bridge.py exposes every tool from mcp_tool_catalog at import time via
 # `globals()[name] = fn`. Mypy can't see these, so any module that imports a
 # tool-shaped name from memory_bridge will light up with attr-defined errors

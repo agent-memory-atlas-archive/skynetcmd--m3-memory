@@ -26,6 +26,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import cast
 
 from m3_memory._platform import is_macos, is_windows
 
@@ -204,7 +205,7 @@ def _find_bundled_gguf() -> Path | None:
                 # seed_shared_config's job, not a resolver's side effect.
                 if configured is not None and Path(found) != configured:
                     _migrate_embed_config_gguf(found, previous=configured)
-                return found
+                return cast("Path | None", found)
         except Exception:  # noqa: BLE001 — advisory; fall through
             pass
 
@@ -937,7 +938,7 @@ def _offer_model_download() -> Path | None:
     except (EOFError, KeyboardInterrupt, ValueError):
         pass  # no console: fall through and fetch (the default outcome)
 
-    return fetch_bge_m3()
+    return cast("Path | None", fetch_bge_m3())
 
 
 # ── subcommands ───────────────────────────────────────────────────────────────

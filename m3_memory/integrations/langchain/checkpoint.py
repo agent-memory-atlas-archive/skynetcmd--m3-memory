@@ -38,7 +38,7 @@ from collections.abc import AsyncIterator, Iterator, Sequence
 # `List` (capitalized) is used for return annotations INSIDE this class because
 # the class defines a method named ``list`` that shadows the builtin ``list`` in
 # class scope — ``list[CheckpointTuple]`` would resolve to ``M3Saver.list[...]``.
-from typing import Any, override
+from typing import Any, cast, override
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import (
@@ -217,9 +217,9 @@ class M3Saver(BaseCheckpointSaver):
 
     @override
     async def aput(self, config, checkpoint, metadata, new_versions) -> RunnableConfig:
-        return await self._client._run_async(
+        return cast("RunnableConfig", await self._client._run_async(
             lambda: self._aput_on_loop(config, checkpoint, metadata)
-        )
+        ))
 
     async def _aput_on_loop(self, config, checkpoint, metadata) -> RunnableConfig:
         conf = _cfg(config)
@@ -296,13 +296,13 @@ class M3Saver(BaseCheckpointSaver):
     @override
     def get_tuple(self, config: RunnableConfig) -> CheckpointTuple | None:
         self._ensure_schema()
-        return self._client._run(self._get_tuple_async(config))
+        return cast("CheckpointTuple | None", self._client._run(self._get_tuple_async(config)))
 
     @override
     async def aget_tuple(self, config: RunnableConfig) -> CheckpointTuple | None:
-        return await self._client._run_async(
+        return cast("CheckpointTuple | None", await self._client._run_async(
             lambda: self._get_tuple_on_loop(config)
-        )
+        ))
 
     async def _get_tuple_on_loop(
         self, config: RunnableConfig

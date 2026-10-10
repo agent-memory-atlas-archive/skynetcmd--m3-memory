@@ -14,7 +14,7 @@ leaking across tenants. One ``M3Deps`` per user/session.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 # The agent_id stamped on writes this adapter makes (mirrors "crewai"/"langchain").
 _AGENT_ID = "pydantic-ai"
@@ -133,7 +133,7 @@ def _deleted_any(raw: Any) -> bool:
     if isinstance(raw, dict):
         for key in ("deleted", "count", "n"):
             if isinstance(raw.get(key), int):
-                return raw[key] > 0
+                return cast("bool", raw[key] > 0)
     if isinstance(raw, int):
         return raw > 0
     # A non-error string reply means it ran; treat as success.

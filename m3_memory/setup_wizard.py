@@ -24,6 +24,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import cast
 
 from m3_memory._platform import is_macos, is_windows
 
@@ -99,7 +100,7 @@ def _env_compat(new_name: str, old_name: str, default: str | None = None) -> str
     try:
         sys.path.insert(0, str(_bin_dir()))
         from m3_core.paths import getenv_compat
-        return getenv_compat(new_name, old_name, default)
+        return cast("str | None", getenv_compat(new_name, old_name, default))
     except Exception:  # noqa: BLE001 — resolver unreachable: degrade, never break setup
         val = os.environ.get(new_name)
         if val is not None:
@@ -717,7 +718,7 @@ def _detect_governor_eligible_tasks() -> list[str]:
     try:
         sys.path.insert(0, str(_bin_dir()))
         import governor_migration
-        return governor_migration.detect_scheduled_tasks().get("eligible", [])
+        return cast("list[str]", governor_migration.detect_scheduled_tasks().get("eligible", []))
     except Exception:
         return []
 
@@ -732,7 +733,7 @@ def _cognitive_loop_installed() -> bool | None:
     try:
         sys.path.insert(0, str(_bin_dir()))
         import governor_migration
-        return governor_migration.cognitive_loop_installed()
+        return cast("bool | None", governor_migration.cognitive_loop_installed())
     except Exception:  # noqa: BLE001
         return None
 
@@ -2041,7 +2042,7 @@ def _discover_bge_m3_gguf() -> str | None:
     try:
         sys.path.insert(0, str(_bin_dir()))
         from memory.embed import discover_bge_m3_gguf as _discover
-        return _discover()
+        return cast("str | None", _discover())
     except Exception:  # noqa: BLE001 — keep setup resilient if bin/ isn't importable
         home = Path.home()
         # Mirror of memory.embed.discover_bge_m3_gguf's list (that helper is the
@@ -2579,7 +2580,7 @@ def _existing_wolfssl() -> str | None:
         if _bin not in sys.path:
             sys.path.insert(0, _bin)
         from crypto_provider import _resolve_wolfssl_path
-        return _resolve_wolfssl_path()
+        return cast("str | None", _resolve_wolfssl_path())
     except Exception:  # noqa: BLE001 -- detection is advisory; absent == unknown
         return None
 

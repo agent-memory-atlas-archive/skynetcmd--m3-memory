@@ -18,6 +18,7 @@ import json
 import os
 import sqlite3
 from pathlib import Path
+from typing import cast
 
 from m3_memory._platform import os_name as _os_name
 
@@ -180,7 +181,7 @@ def _chatlog_server_stats() -> tuple[str, dict] | None:
 
 def _read_json(path: Path) -> dict | None:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return cast("dict | None", json.loads(path.read_text(encoding="utf-8")))
     except (OSError, json.JSONDecodeError):
         return None
 

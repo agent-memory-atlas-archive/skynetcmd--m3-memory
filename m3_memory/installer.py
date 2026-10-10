@@ -27,7 +27,7 @@ import tempfile
 import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from m3_memory._platform import hidden_window_kwargs as _hidden_window_kwargs
 from m3_memory._platform import is_macos, is_windows
@@ -98,7 +98,7 @@ def load_config() -> dict:
     if not path.is_file():
         return {}
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return cast("dict", json.loads(path.read_text(encoding="utf-8")))
     except (OSError, json.JSONDecodeError):
         return {}
 
@@ -1578,7 +1578,7 @@ def _detect_cdw_target() -> str | None:
     # 1. Explicit warehouse IP/host (sync_all.py uses these).
     host = getenv_compat("M3_POSTGRES_SERVER", "POSTGRES_SERVER") or getenv_compat("M3_SYNC_TARGET_IP", "SYNC_TARGET_IP")
     if host:
-        return host.strip()
+        return cast("str | None", host.strip())
 
     # 2. Warehouse DSN (M3_CDW_PG_URL > PG_URL) — from env, or the encrypted
     #    vault. Parse out ONLY the host. This is the WAREHOUSE host, not the
@@ -1588,7 +1588,7 @@ def _detect_cdw_target() -> str | None:
     if pg_url:
         try:
             from urllib.parse import urlparse
-            return urlparse(pg_url).hostname  # host only — drops user:pass
+            return cast("str | None", urlparse(pg_url).hostname)  # host only — drops user:pass
         except Exception:  # noqa: BLE001
             return "your configured PostgreSQL warehouse"
     return None
@@ -1605,7 +1605,7 @@ def _primary_backend_name() -> str:
         _sys.path.insert(0, str(bin_dir() or ""))
         from memory.backends import resolve_backend_name
 
-        return resolve_backend_name()
+        return cast("str", resolve_backend_name())
     except Exception:  # noqa: BLE001
         return "sqlite"
 
@@ -2242,7 +2242,7 @@ def _all_env_renames() -> dict[str, str]:
         _sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bin"))
         from m3_core.paths import all_env_renames
 
-        return all_env_renames()
+        return cast("dict[str, str]", all_env_renames())
     except Exception:  # noqa: BLE001
         return {}
 

@@ -46,7 +46,7 @@ import threading
 from collections.abc import Awaitable, Callable, Coroutine
 from concurrent.futures import Future
 from contextlib import nullcontext as _nullcontext
-from typing import Any, ClassVar
+from typing import Any, ClassVar, cast
 
 # NOTE: mcp_tool_catalog / catalog.dispatch / memory_core are imported LAZILY
 # inside the call methods, NOT at module top. They pull a heavy dependency chain
@@ -305,11 +305,11 @@ class M3Client:
                 )
                 n = cur.rowcount
                 conn.commit()
-        return n
+        return cast("int", n)
 
     def _delete_chatlog_rows(self, ids: list) -> int:
         """Sync bridge over :meth:`_delete_chatlog_rows_async`."""
-        return self._run(self._delete_chatlog_rows_async(ids))
+        return cast("int", self._run(self._delete_chatlog_rows_async(ids)))
 
     # ── seam 2: canonical passthrough (.call escape hatch, gated) ─────────────
     async def _dispatch(self, name: str, args: dict) -> Any:
@@ -403,7 +403,7 @@ class M3Client:
     def list_by_user(self, user_id: str, *, scope: str = "user",
                      limit: int = 1000) -> list[dict]:
         """Sync bridge over :meth:`_list_by_user_async`."""
-        return self._run(self._list_by_user_async(user_id, scope=scope, limit=limit))
+        return cast("list[dict]", self._run(self._list_by_user_async(user_id, scope=scope, limit=limit)))
 
     # ── seam 3: direct impl call (bench-only bulk write; §11) ─────────────────
     def _call_impl(self, fn: Callable[..., Awaitable[Any]], *fn_args: Any, **fn_kwargs: Any) -> Any:
