@@ -1,8 +1,8 @@
 ---
 tool: bin/ai_mechanic.py
-sha1: b7d8d5a179dc
-mtime_utc: 2026-10-04T08:36:30.196358+00:00
-generated_utc: 2026-10-09T07:40:59.166371+00:00
+sha1: 15f47d2888b5
+mtime_utc: 2026-10-10T16:52:23.463741+00:00
+generated_utc: 2026-10-10T16:52:52.567725+00:00
 private: false
 ---
 
@@ -16,6 +16,7 @@ _(no module docstring — update the source file.)_
 
 ## Entry points
 
+- `def main()` (line 84)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -38,28 +39,28 @@ _(none detected)_
 
 ## Calls INTO this repo (intra-repo imports)
 
-- `m3_sdk (add_database_arg, resolve_db_path)`
+- `m3_sdk (add_database_arg)`
+- `migrate_memory (MIGRATIONS_DIR)`
+- `migrate_pg (_PG_MIGRATIONS_DIR)`
 
 ---
 
 ## Calls OUT (external side-channels)
 
-**sqlite**
-
-- `sqlite3.connect()  → `db_path`` (line 18)
-
+_(no subprocess / http / sqlite calls detected)_
 
 ---
 
 ## Notable external imports
 
-- `m3_core.paths (require_sqlite_backend)`
+- `m3_core.context (pointed_store_connection)`
+- `m3_core.paths (resolve_cli_store, seam_backend, store_is_a_file)`
 
 ---
 
 ## File dependencies (repo paths referenced)
 
-_(none detected)_
+- `.down.sql`
 
 ---
 

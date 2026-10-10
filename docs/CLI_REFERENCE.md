@@ -107,7 +107,7 @@ M3_DATABASE=memory/_test.db python bin/test_memory_bridge.py
 | Script | Purpose | Extra DB-related flags |
 | --- | --- | --- |
 | `bin/bench_memory.py` | Write/search/dedup micro-benchmarks | — |
-| `bin/ai_mechanic.py` | DESTRUCTIVE schema repair | `--database` is **required** (no default); also requires `--force` |
+| `bin/ai_mechanic.py` | DESTRUCTIVE schema repair (recreates from the migrations) | SQLite: `--database` is **required** (no default); PostgreSQL: the configured database. Always requires `--force` |
 | `bin/augment_memory.py` | Post-ingest augmentation: adjacent-turn linking + SLM-based title enrichment | `link-adjacent` / `enrich-titles` / `all` subcommands; entity-enrichment requires `M3_SLM_CLASSIFIER=1` ([SLM_INTENT.md](SLM_INTENT.md)) |
 | `bin/build_kg_variant.py` | Build KG-enriched variant from a source variant | Honors legacy `AGENT_DB` env var as an alias |
 | `bin/chatlog_init.py` | Interactive chatlog setup | `--db-path PATH` sets the chatlog DB in the saved config |

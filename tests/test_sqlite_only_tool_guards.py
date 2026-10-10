@@ -156,8 +156,10 @@ def test_sqlite_only_tool_passes_the_guard_on_sqlite(tool, monkeypatch):
         mod.main(["--help"]) if tool == "backfill_content_hash" else mod.main()
 
 
-def test_ai_mechanic_refuses_on_postgres(tmp_path):
-    """Its guard sits in the __main__ block, so run it as the operator would."""
+def test_ai_mechanic_refuses_a_sqlite_path_on_postgres(tmp_path):
+    """ai_mechanic runs on PostgreSQL now (tests/test_ai_mechanic_each_backend.py),
+    but a --database there names a file that is not the store: run it as the
+    operator would and check it is refused, loudly, and creates nothing."""
     import os
     import subprocess
     import sys
@@ -169,7 +171,7 @@ def test_ai_mechanic_refuses_on_postgres(tmp_path):
     r = subprocess.run([sys.executable, script, "--database", str(db), "--force"],
                        env=env, capture_output=True, text=True, timeout=120)
     assert r.returncode != 0
-    assert "SQLite-only" in r.stderr
+    assert "observed: --database names a SQLite file" in r.stderr
     assert not db.exists(), "no SQLite file may be created"
 
 

@@ -179,9 +179,6 @@ _EXEMPT = {
         "One site: the documented pure-Python fallback for running this sweeper "
         "standalone, without the payload on sys.path. Every query path goes "
         "through _bound_db()/active_database().",
-    "bin/ai_mechanic.py":
-        "Schema REPAIR: DROP TABLE / CREATE TABLE to rebuild a corrupted "
-        "SQLite store. Bootstrap class, like migrate_memory.",
     "bin/chatlog_embed_sweeper.py":
         "Sweeps a SQLite chatlog FILE by path; the PG chatlog is swept through "
         "the seam by the cognitive loop's embed pass (see the branch above it).",
