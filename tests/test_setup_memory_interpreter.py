@@ -16,6 +16,7 @@ on a crash, which is how the first draft of this fix fooled its own check.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -55,7 +56,9 @@ def test_installed_layout_reuses_running_interpreter(tmp_path):
     assert not (root / ".venv").exists(), "created a nested venv inside site-packages"
     assert "Installed layout detected" in r.stderr
     # It must use the interpreter that launched it, not a constructed path.
-    assert sys.executable in r.stderr
+    # Compare normalised: the child's sys.executable collapses a `..` that ours
+    # may carry (a run as `repo/../venv/bin/python` failed on 2026-10-11).
+    assert os.path.normpath(sys.executable) in r.stderr or sys.executable in r.stderr
     # And it must not try to pip-install into a wheel-managed environment.
     assert "Installing dependencies" not in r.stderr
 
