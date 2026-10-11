@@ -232,10 +232,18 @@ def test_test_count_claims_are_in_band() -> None:
             re.MULTILINE,
         )
     )
-    pat = re.compile(r"([\d,]{3,})\+?\s*(?:collected )?tests?\b")
+    # A page may quote both sizes: "N+ collected tests (M+ with the native core)".
+    # The native core adds tests, so compare the figure for the core THIS run
+    # has: checking the pure figure against a native-lane count failed every
+    # native lane once the suite grew by 500 (2026-10-11).
+    import importlib.util
+
+    native = importlib.util.find_spec("m3_core_rs") is not None
+    pat = re.compile(r"([\d,]{3,})\+?\s*(?:collected )?tests?\b(?:\s*\(([\d,]{3,})\+? with the native core\))?")
     problems = []
     for path in [REPO / "README.md", *sorted((REPO / "docs").glob("*.md"))]:
-        for raw in pat.findall(path.read_text(encoding="utf-8")):
+        for raw_pure, raw_native in pat.findall(path.read_text(encoding="utf-8")):
+            raw = raw_native if (native and raw_native) else raw_pure
             claimed = int(raw.replace(",", ""))
             if claimed < 100:  # "41 end-to-end tests" and friends: not the suite
                 continue
