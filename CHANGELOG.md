@@ -272,6 +272,11 @@ the policy is forward-going only.
 
 ### Added
 
+- **`notifications_peek` reads an inbox without side effects.** It returns
+  what `notifications_poll` returns but records no heartbeat and reclaims no
+  leases, so checking another agent's inbox no longer marks that agent alive.
+  **Affected:** multi-agent setups · **Action:** none · **Data status:** none.
+
 - **Memories written while no embedder is reachable are now checked for
   contradictions.** The check runs when the background embedding backfill gives
   them a vector, so an older memory they contradict is superseded then rather

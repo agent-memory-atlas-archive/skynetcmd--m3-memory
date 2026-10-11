@@ -409,8 +409,8 @@ Only 10 schemas register at startup (~3,875 tokens). That set is chosen by measu
 | Gating Mode | Registered Tools | Tokens in Schema | % of 200K Window |
 | :--- | :---: | :---: | :---: |
 | **Lazy (Default)** | **10** | **~3,875** | **1.9%** |
-| Typical Active Session (+`memory` +`admin`) | 60 | ~17,952 | 9.0% |
-| Eager Mode (`M3_TOOLS_LAZY=0`) | 119 | ~29,201 | 14.6% |
+| Typical Active Session (+`memory` +`admin`) | 61 | ~18,156 | 9.1% |
+| Eager Mode (`M3_TOOLS_LAZY=0`) | 120 | ~29,405 | 14.7% |
 
 > 🛠️ *Note: If your client does not support dynamic tool registration, set the environment variable `M3_TOOLS_LAZY=0` to register all tools eagerly.*
 

@@ -609,6 +609,7 @@ These work identically regardless of which model is on either side:
 | `memory_inbox_ack(memory_id)` | Acknowledge after processing. |
 | `notify(agent_id, kind, payload)` | Push a structured event to another agent. |
 | `notifications_poll(agent_id, unread_only, limit)` | Pull unacked notifications (including `refresh_due` from maintenance). |
+| `notifications_peek(agent_id, unread_only, limit)` | Same read, no side effects: no heartbeat, no lease sweep. Use it to check another agent's inbox. |
 | `notifications_ack(notification_id)` | Dismiss ONE notification, by id, after addressing it. Prefer this. |
 | `notifications_ack_all(agent_id)` | Bulk-dismiss. ⚠ Races with arrival — see the warning below. |
 | `task_create` / `task_assign` / `task_update` / `task_delete` / `task_set_result` / `task_get` / `task_list` / `task_tree` | Shared task graph across the fleet — any agent can read or update. |

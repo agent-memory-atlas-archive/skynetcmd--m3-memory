@@ -1012,13 +1012,35 @@ def notifications_poll_impl(agent_id: str, unread_only: bool = True, limit: int 
     share a rendering.
     """
     require_agent_id(agent_id, "notifications_poll")
+    return _read_notifications(agent_id, unread_only, limit, as_records, record_liveness=True)
 
-    # Opportunistic sweep, BEFORE this function opens its own connection scope.
-    # Every poller reclaims lapsed leases, so the sweeper is exactly as
-    # available as polling and needs no separate process to keep alive. Must
-    # not move inside the `with _db()` below: sweep commits internally, and on
-    # SQLite that would hold the one write lock across the reads that follow.
-    sweep_leases_opportunistically()
+
+def notifications_peek_impl(agent_id: str, unread_only: bool = True, limit: int = 20, as_records: bool = False) -> str:
+    """Read an inbox WITHOUT writing anything: no heartbeat, no receipt, no sweep.
+
+    `notifications_poll` heartbeats the polled id, so checking a PEER's inbox
+    (did my handoff land? is it still unread?) stamped that peer alive -- a faked
+    liveness signal that a reclaim decision downstream would trust. Peek is the
+    same read through the same owner, with every write left out: the lease sweep
+    is skipped too, because it reclaims and dead-letters rows. Receipt is never
+    stamped by either tool (`notifications_mark_received` owns that).
+
+    The id guard is unchanged: an LLM-facing caller still reads only its own
+    inbox (catalog `inject_agent_id`), so this grants no new read authority.
+    """
+    require_agent_id(agent_id, "notifications_peek")
+    return _read_notifications(agent_id, unread_only, limit, as_records, record_liveness=False)
+
+
+def _read_notifications(agent_id: str, unread_only: bool, limit: int, as_records: bool, *, record_liveness: bool) -> str:
+    """The one inbox reader behind poll (record_liveness) and peek (read-only)."""
+    if record_liveness:
+        # Opportunistic sweep, BEFORE this function opens its own connection scope.
+        # Every poller reclaims lapsed leases, so the sweeper is exactly as
+        # available as polling and needs no separate process to keep alive. Must
+        # not move inside the `with _db()` below: sweep commits internally, and on
+        # SQLite that would hold the one write lock across the reads that follow.
+        sweep_leases_opportunistically()
 
     _d = dialect()
     p = _d.param()
@@ -1063,7 +1085,7 @@ def notifications_poll_impl(agent_id: str, unread_only: bool = True, limit: int 
         # microseconds and a +00:00 offset where the DB writes ...Z.
         # node_id rides the heartbeat so the fleet's TOPOLOGY ages out exactly
         # as liveness does; _touch owns that and the client-process stamp.
-        heartbeat_seen = bool(_touch(db, agent_id))
+        heartbeat_seen = bool(_touch(db, agent_id)) if record_liveness else False
 
     # The heartbeat above belongs to the MAIN store (the agents table lives
     # there); the mail does not. Reading it must span every notification store
@@ -1081,15 +1103,16 @@ def notifications_poll_impl(agent_id: str, unread_only: bool = True, limit: int 
     # mail is genuinely returned -- but it must not be SILENT. An agent that
     # believes it is heartbeating while invisible to every liveness check is a
     # §3 false negative on the one signal a reclaim decision depends on.
-    _unreg = (
-        ""
-        if heartbeat_seen
-        else (
+    if not record_liveness:
+        _unreg = "\n  (peek: read-only, no heartbeat or receipt recorded)"
+    elif heartbeat_seen:
+        _unreg = ""
+    else:
+        _unreg = (
             f"\n  NOTE: {agent_id} is not registered, so this poll recorded no "
             f"heartbeat and the agent is invisible to liveness checks. "
             f"Call agent_register to fix."
         )
-    )
 
     if not rows:
         return records.emit(

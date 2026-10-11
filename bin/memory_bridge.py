@@ -302,7 +302,7 @@ def _register_initial_tools():
     95.4% of observed direct calls. files_search is the one exception, kept on
     principle to preserve search for all three primary stores. See the
     rationale block above ESSENTIAL_TOOL_NAMES.
-    Eager mode: every ToolSpec — 119 tools, 29,201 tokens (14.6% of 200K),
+    Eager mode: every ToolSpec — 120 tools, 29,405 tokens (14.7% of 200K),
     the pre-2026-05 behavior, restored with M3_TOOLS_LAZY=0.
 
     Re-derive both figures with `python bin/measure_tool_tokens.py`; the

@@ -285,6 +285,29 @@ TOOLS: list[ToolSpec] = [
         inject_agent_id=True,
     ),
     ToolSpec(
+        name="notifications_peek",
+        description="Read notifications like notifications_poll, but write nothing: no heartbeat, no receipt, no lease sweep.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "agent_id": {"type": "string", "description": "Recipient agent id."},
+                "unread_only": {"type": "boolean", "description": "Show only unread notifications.", "default": True},
+                "limit": {"type": "integer", "description": "Max notifications to return.", "default": 20},
+                "as_records": {
+                    "type": "boolean",
+                    "description": "Return structured records (JSON) instead of the display string. Default false keeps the human-readable output unchanged.",
+                    "default": False,
+                },
+            },
+            "required": ["agent_id"],
+        },
+        impl=memory_core.notifications_peek_impl,
+        is_async=False,
+        validators=(),
+        default_allowed=True,
+        inject_agent_id=True,
+    ),
+    ToolSpec(
         name="notifications_ack",
         description="Mark one notification as read.",
         parameters={

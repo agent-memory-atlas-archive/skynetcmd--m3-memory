@@ -204,7 +204,10 @@ def test_the_poll_predicate_has_exactly_one_owner():
     import inspect
     import textwrap
 
-    src = textwrap.dedent(inspect.getsource(notifications_poll_impl))
+    # poll and peek share one reader, `_read_notifications`; the predicate lives there.
+    from memory.orchestration import _read_notifications
+
+    src = textwrap.dedent(inspect.getsource(_read_notifications))
 
     # CODE only. A guard that greps raw source cannot tell an inlined predicate
     # from a comment explaining why inlining is wrong -- and the impl now

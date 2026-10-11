@@ -92,6 +92,7 @@ def get_category_map():
         "agent_offline": "Agent Registry & Notifications",
         "notify": "Agent Registry & Notifications",
         "notifications_poll": "Agent Registry & Notifications",
+        "notifications_peek": "Agent Registry & Notifications",
         "notifications_ack": "Agent Registry & Notifications",
         "notifications_ack_all": "Agent Registry & Notifications",
         "notifications_mark_received": "Agent Registry & Notifications",
@@ -332,7 +333,7 @@ def main():
     # 115 = 126 - the 11 PROTOCOL_TOOLS/DEBUG_TOOLS the mcp_proxy served from
     # custom_tool_bridge and debug_agent_bridge, both deleted 2026-09-17 (never
     # part of m3).
-    EXPECTED_TOOL_COUNT = 119  # + search_profile (2026-10-09)
+    EXPECTED_TOOL_COUNT = 120  # + notifications_peek (2026-10-11)
     if len(all_tools) != EXPECTED_TOOL_COUNT:
         import sys
 
