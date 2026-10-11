@@ -55,6 +55,12 @@ def test_a_sqlite_cursor_gets_the_sqlite_param(sqlite_conn):
 def test_the_global_env_var_cannot_override_a_real_connection(backend, sqlite_conn, monkeypatch):
     """THE regression. A SQLite cursor gets `?` no matter what M3_DB_BACKEND
     says -- including a bogus value, which must not make it guess."""
+    # Load the `memory` package (and its config) BEFORE the bogus value is set.
+    # After an earlier test purged the namespace, the first dialect lookup
+    # re-imports the package, and its config load rightly raises on a malformed
+    # M3_DB_BACKEND (R-loud): that is config loading, not the dialect choice
+    # this test is about (order-dependent failure, m3 683b250b).
+    dialect_for_connection(sqlite_conn.cursor())
     monkeypatch.setenv("M3_DB_BACKEND", backend)
     assert dialect_for_connection(sqlite_conn.cursor()).param() == "?", (
         f"M3_DB_BACKEND={backend!r} leaked into a SQLite connection's dialect; "
