@@ -533,11 +533,25 @@ async def _run_sweep_inner(args: argparse.Namespace, counters: Counters) -> int:
     # Pulls candidates from args.db using _build_query. The helper passes
     # us the high-water mark (after_id) and a fetch size; we just plug
     # them into the existing SQL builder.
+    # Rows whose write deferred its contradiction check (memory.write's
+    # CONTRADICTION_CHECK_KEY): noted as they are fetched, checked after their
+    # vector is written. Core store only: the chatlog's rows are never checked.
+    from memory.write import contradiction_check_owed, run_deferred_contradiction_check
+
+    items_table, _ = _tables(args)
+    check_core = items_table == "memory_items"
+    owed: set[str] = set()
+    written: set[str] = set()
+
     def _fetch(after_id, limit):
         sql, params = _build_query(args, after_id=after_id)
         params_with_limit = [*params, limit]
         with _bound_db(args.db) as conn:
-            return conn.execute(sql, params_with_limit).fetchall()
+            rows = conn.execute(sql, params_with_limit).fetchall()
+        if check_core:
+            # Positional, like embed_sweep_lib: a row is (id, content, title, metadata_json).
+            owed.update(r[0] for r in rows if contradiction_check_owed(r[3]))
+        return rows
 
     # ── Write callback ────────────────────────────────────────────────
     # Persists one embedding row. Uses mc._db() so writes funnel through
@@ -568,6 +582,7 @@ async def _run_sweep_inner(args: argparse.Namespace, counters: Counters) -> int:
                 ),
             )
             if cur.rowcount > 0:
+                written.add(mid)
                 return True
             return False
 
@@ -610,6 +625,13 @@ async def _run_sweep_inner(args: argparse.Namespace, counters: Counters) -> int:
             limit=args.limit,
             log=_log,
         )
+        due = sorted(owed & written)
+        if due and not args.dry_run:
+            superseded = 0
+            for mid in due:
+                got = await run_deferred_contradiction_check(mid)
+                superseded += len(got or [])
+            _log(f"deferred contradiction checks: {len(due)} run, {superseded} memories superseded")
     return 0
 
 

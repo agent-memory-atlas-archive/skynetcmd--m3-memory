@@ -252,6 +252,15 @@ the policy is forward-going only.
 
 ### Added
 
+- **Memories written while no embedder is reachable are now checked for
+  contradictions.** The check runs when the background embedding backfill gives
+  them a vector, so an older memory they contradict is superseded then rather
+  than staying active alongside them. Writes that turned the check off, and
+  older rows, are not checked.
+  **Affected:** installs whose embedder is sometimes unavailable · **Action:**
+  none · **Data status:** memories written by earlier versions while the
+  embedder was down are not re-checked.
+
 - **`memory_supersede` can retire a memory into an existing one.** Pass
   `replacement_id` (a full id) instead of `content`: the old memory is closed and
   linked to the existing one, and nothing new is created. Use it to clean up

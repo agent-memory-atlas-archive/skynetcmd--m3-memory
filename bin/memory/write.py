@@ -495,8 +495,8 @@ async def memory_write_impl(
     # (tier-2 30s read timeout + tier-3 3-retry + 30s semaphore, per chunk) into
     # a zero-lag write. Correctly-configured installs hit the fast path and are
     # unchanged. Contradiction check below is `if vec`-gated, so it skips on the
-    # deferred path -- and embed_backfill.py does NOT run it later: a deferred
-    # write is never contradiction-checked. Known gap; not yet addressed.
+    # deferred path; the row is flagged instead (CONTRADICTION_CHECK_KEY) and
+    # embed_backfill.py runs the check once the vector exists.
     _embed_deferred = False
     # Call via the module (not the value-bound import) so tests monkeypatching
     # memory.embed.fast_embedder_available take effect, matching the dynamic-lookup
@@ -709,30 +709,15 @@ async def memory_write_impl(
     # Honor the operator-configurable exclusion set (the bulk path already does,
     # at the p["type"] gate below) instead of a hardcoded tuple, so a configured
     # exclusion isn't silently ignored on the singleton hot path (§5).
-    if check_contradictions and vec and type not in CONTRADICTION_TYPE_EXCLUSIONS:
-        superseded_ids, related_candidates = await _check_contradictions(
-            item_id,
-            content,
-            title,
-            vec,
-            type,
-            agent_id,
-            variant=variant,
-            user_id=user_id,
-        )
-        # Auto-link top related (non-contradictory) memory. Gated by
-        # M3_AUTO_RELATED_LINK (default ON for back-compat). Disable in any
-        # deployment where you want only explicit `memory_link` calls or where
-        # edge curation is handled by an offline tool.
-        if AUTO_RELATED_LINK and related_candidates and not superseded_ids:
-            best_id, best_score = related_candidates[0]
-            try:
-                memory_link_impl(item_id, best_id, "related")
-                logger.debug(f"Auto-linked {item_id} -> {best_id} (score={best_score:.3f})")
-            except Exception as le:  # noqa: BLE001 — logged; the caller carries on
-                logger.warning(
-                    f"auto-link failed; observed: {item_id} -> {best_id} not linked ({type(le).__name__}: {le}). inspect: memory_link on those ids"
-                )
+    if check_contradictions and type not in CONTRADICTION_TYPE_EXCLUSIONS:
+        if vec:
+            superseded_ids = await _contradiction_pass(item_id, content, title, vec, type, agent_id, variant, user_id)
+        else:
+            # No vector yet (embedding deferred, or every embed call failed): the
+            # check is owed, not skipped. embed_backfill runs it once the vector
+            # exists. A missing vector alone cannot say this: opted-out writes
+            # and legacy rows lack vectors too, and must not be checked.
+            _flag_contradiction_check_deferred(item_id)
 
     # Opt-in ingestion emitters. Each one is gated off by default and fails
     # open — errors are logged but never propagate to the caller. They only
@@ -755,6 +740,146 @@ async def memory_write_impl(
     if superseded_ids:
         result += f" (superseded {len(superseded_ids)} conflicting memories: {', '.join(superseded_ids[:3])})"
     return result
+
+
+# metadata_json key marking a contradiction check that is OWED: the write asked
+# for it but had no vector yet. embed_backfill runs it after embedding the row
+# and clears the key. A row without a vector is not enough to tell: writes that
+# opted out (check_contradictions=False) and legacy rows lack vectors too.
+CONTRADICTION_CHECK_KEY = "contradiction_check"
+_CHECK_DEFERRED = "deferred"
+
+
+def contradiction_check_owed(metadata_json: object) -> bool:
+    """True when a row's metadata says its contradiction check was deferred. Takes
+    the column as fetched: a str on SQLite, an already-parsed dict on PostgreSQL."""
+    from memory.backends import dialect
+
+    return dialect().json_column_to_dict(metadata_json).get(CONTRADICTION_CHECK_KEY) == _CHECK_DEFERRED
+
+
+def _set_check_flag(item_id: str, owed: bool) -> None:
+    """Add or remove the deferred-check key in the row's metadata_json (read-modify-write
+    through the dialect's JSON read/bind pair, so no backend-specific JSON SQL)."""
+    from memory.backends import dialect
+
+    d = dialect()
+    p = d.param()
+    with _db() as db:
+        row = db.execute(f"SELECT metadata_json FROM memory_items WHERE id = {p}", (item_id,)).fetchone()
+        if row is None:
+            return
+        raw = row["metadata_json"]
+        meta: dict | None = d.json_column_to_dict(raw)
+        # json_column_to_dict fails safe to {}: tell a real empty object from
+        # unreadable metadata, which must not be overwritten.
+        if not meta and raw not in (None, "", b"", "{}", {}):
+            meta = None
+        if meta is None:
+            logger.warning(
+                "deferred contradiction check: metadata_json of %s is not a JSON object; "
+                "observed: flag not %s. inspect: memory_get %s",
+                item_id,
+                "set" if owed else "cleared",
+                item_id,
+            )
+            return
+        if owed:
+            meta[CONTRADICTION_CHECK_KEY] = _CHECK_DEFERRED
+        elif meta.pop(CONTRADICTION_CHECK_KEY, None) is None:
+            return
+        db.execute(f"UPDATE memory_items SET metadata_json = {p} WHERE id = {p}", (d.json_bind_value(meta), item_id))
+
+
+def _flag_contradiction_check_deferred(item_id: str) -> None:
+    _set_check_flag(item_id, True)
+
+
+async def _contradiction_pass(
+    item_id: str,
+    content: str,
+    title: str,
+    vec: list[float],
+    type: str,
+    agent_id: str,
+    variant: str | None,
+    user_id: str,
+) -> list[str]:
+    """The write path's contradiction check plus auto-link, one owner for the
+    inline write and the deferred (backfill) run. Returns the superseded ids."""
+    superseded_ids, related_candidates = await _check_contradictions(
+        item_id,
+        content,
+        title,
+        vec,
+        type,
+        agent_id,
+        variant=variant,
+        user_id=user_id,
+    )
+    # Auto-link top related (non-contradictory) memory. Gated by
+    # M3_AUTO_RELATED_LINK (default ON for back-compat). Disable in any
+    # deployment where you want only explicit `memory_link` calls or where
+    # edge curation is handled by an offline tool.
+    if AUTO_RELATED_LINK and related_candidates and not superseded_ids:
+        best_id, best_score = related_candidates[0]
+        try:
+            memory_link_impl(item_id, best_id, "related")
+            logger.debug(f"Auto-linked {item_id} -> {best_id} (score={best_score:.3f})")
+        except Exception as le:  # noqa: BLE001 — logged; the caller carries on
+            # le.__class__, not type(le): the `type` parameter (the memory type)
+            # shadows the builtin here, and calling it raised inside this handler.
+            logger.warning(
+                f"auto-link failed; observed: {item_id} -> {best_id} not linked ({le.__class__.__name__}: {le}). inspect: memory_link on those ids"
+            )
+    return cast("list[str]", superseded_ids)
+
+
+async def run_deferred_contradiction_check(item_id: str) -> list[str] | None:
+    """Run the contradiction check a write deferred, now that the row has a vector.
+
+    Returns the superseded ids (possibly empty) when the check ran, or None when
+    it did not: no flag, row deleted, or still no vector (the flag then stays, so
+    the next backfill tries again). The flag is cleared after a run, so a second
+    call is a no-op.
+    """
+    from memory.backends import dialect
+
+    p = dialect().param()
+    with _db() as db:
+        row = db.execute(
+            f"SELECT content, title, type, agent_id, variant, user_id, metadata_json, is_deleted "
+            f"FROM memory_items WHERE id = {p}",
+            (item_id,),
+        ).fetchone()
+        if row is None or not contradiction_check_owed(row["metadata_json"]):
+            return None
+        vrow = db.execute(
+            f"SELECT embedding FROM memory_embeddings WHERE memory_id = {p} "
+            "ORDER BY CASE WHEN vector_kind = 'default' THEN 0 ELSE 1 END LIMIT 1",
+            (item_id,),
+        ).fetchone()
+    if row["is_deleted"]:
+        _set_check_flag(item_id, False)
+        return None
+    if vrow is None:
+        return None
+    superseded: list[str] = []
+    if row["type"] not in CONTRADICTION_TYPE_EXCLUSIONS:
+        superseded = await _contradiction_pass(
+            item_id,
+            row["content"] or "",
+            row["title"] or "",
+            _unpack(vrow["embedding"]),
+            row["type"],
+            row["agent_id"] or "",
+            row["variant"],
+            row["user_id"] or "",
+        )
+    _set_check_flag(item_id, False)
+    if superseded:
+        logger.info(f"deferred contradiction check for {item_id} superseded {len(superseded)}: {superseded[:3]}")
+    return superseded
 
 
 def _mark_superseded(

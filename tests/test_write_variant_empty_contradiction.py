@@ -30,8 +30,8 @@ def test_a_contradicting_write_supersedes_the_old_fact(monkeypatch, variant):
 
     # memory.write binds _embed from memory.embed at import: patch THAT binding
     # (patching memory_core._embed reaches the live embedder instead). Embed
-    # inline: with no fast tier the vector is deferred, and a deferred write is
-    # never contradiction-checked.
+    # inline: with no fast tier the vector is deferred, and a deferred write's
+    # contradiction check waits for embed_backfill, after this test ends.
     monkeypatch.setattr(wr, "_embed", fake_embed)
     monkeypatch.setattr(wr, "_get_embedded_embedder", lambda: None)
     monkeypatch.setattr(emb, "fast_embedder_available", lambda: True)
