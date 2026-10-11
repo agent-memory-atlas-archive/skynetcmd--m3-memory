@@ -42,6 +42,18 @@ def test_the_release_version_has_a_section():
     )
 
 
+def test_no_impact_footer_is_stranded_after_a_rule():
+    """A footer belongs to the bullet above it. One placed after the section's
+    `---` rule still passes the impact-header test (a rule is not a heading)
+    but reads as attached to nothing; ten sections shipped that way."""
+    lines = (REPO / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()
+    stranded = [n + 1 for n in range(1, len(lines)) if lines[n - 1] == "---" and lines[n].startswith("  **Affected:**")]
+    assert not stranded, (
+        f"observed: an impact footer directly after a `---` rule at line(s) {stranded}. "
+        "inspect: move it up onto the last bullet of its section"
+    )
+
+
 def test_the_guard_sees_a_duplicate(tmp_path):
     """Self-check: the heading reader counts a repeated version."""
     text = "## [Unreleased]\n## [1.0.1] — a\n## [1.0.0] — b\n## [1.0.0] — c\n"

@@ -1628,9 +1628,9 @@ the policy is forward-going only.
   **Affected:** anyone reading enrich, crypto/auth or server/backend diagnostics · **Action:** none · **Data status:** none — error wording only.
 - Four advisories in the Rust core's transitive dependencies (`rustls`, `h2`,
   `crossbeam-epoch`, `anyhow`).
+  **Affected:** all installs carrying the Rust core · **Action:** upgrade · **Data status:** none.
 
 ---
-  **Affected:** all installs carrying the Rust core · **Action:** upgrade · **Data status:** none.
 
 ## [2026.9.14.4] — 2026-09-14 — the message lease is enforced on read and on ack
 
@@ -1663,9 +1663,9 @@ the policy is forward-going only.
 - `docs/ROADMAP_DISPATCHER.md` records the dispatch design: constraints, store
   separation, the pointer pattern, retention, webhook delivery, and the physical
   mapping across backends.
+  **Affected:** readers · **Action:** none · **Data status:** none — documentation.
 
 ---
-  **Affected:** readers · **Action:** none · **Data status:** none — documentation.
 ## [2026.9.14.3] — 2026-09-14 — a healthy scheduled task no longer reads as broken
 
 ### Fixed
@@ -1677,9 +1677,9 @@ the policy is forward-going only.
 ### Added
 - Tests for the Windows dual `:8082` embed-server registration guard, which keeps
   `AgentOS_EmbedServer` from being registered beside the Rust SCM service.
+  **Affected:** developers running the suite · **Action:** none · **Data status:** none — test coverage.
 
 ---
-  **Affected:** developers running the suite · **Action:** none · **Data status:** none — test coverage.
 ## [2026.9.14.2] - 2026-09-14
 
 ### Added
@@ -1721,9 +1721,9 @@ the policy is forward-going only.
 - Scheduler and hardware subprocess calls are bounded by a timeout. Reads
   degrade to their existing "unknown" answer, writes report failure, and an
   uninstall leaves a unit file in place when it cannot unload it.
+  **Affected:** installs where those subprocesses can hang · **Action:** none · **Data status:** none — reads degrade to their existing "unknown" answer and writes report failure; note an uninstall may leave a unit file in place.
 
 ---
-  **Affected:** installs where those subprocesses can hang · **Action:** none · **Data status:** none — reads degrade to their existing "unknown" answer and writes report failure; note an uninstall may leave a unit file in place.
 ## [2026.9.14.1] — 2026-09-14 — Smaller startup surface, structured returns
 
 ### Added
@@ -1762,9 +1762,9 @@ the policy is forward-going only.
   added `--check-only` and `--force-partial-upload`.
   **Affected:** the project's own security pipeline; not user installs · **Action:** none · **Data status:** none — a partial scan can no longer upload as if complete.
 - Notification payloads stored double-encoded are decoded on read.
+  **Affected:** installs holding double-encoded notification payloads · **Action:** upgrade · **Data status:** no loss — the stored rows are intact and are now decoded on read.
 
 ---
-  **Affected:** installs holding double-encoded notification payloads · **Action:** upgrade · **Data status:** no loss — the stored rows are intact and are now decoded on read.
 
 ## [2026.9.13.2] — 2026-09-13 — notifications carry a return address
 
@@ -2105,9 +2105,9 @@ indistinguishable from one that is blind.
   **Affected:** the mac-agent example only · **Action:** none · **Data status:** none.
 - **Multi-agent notification delivery documented with measured numbers**
   (#157).
+  **Affected:** readers · **Action:** none · **Data status:** none — documentation.
 
 ---
-  **Affected:** readers · **Action:** none · **Data status:** none — documentation.
 ## [2026.9.11.1] — 2026-09-12 — upgrading, and the handoffs that were silently dropping
 
 One new tool, three silent-failure fixes, and the docs correction that
@@ -2184,9 +2184,9 @@ prompted all of it. No search or memory-behaviour change.
 - Lint and type checking pass repo-wide again, which matters more than it
   sounds: both gate the test jobs, so the test matrix had been reporting
   *skipped* rather than passing on every pull request.
+  **Affected:** the project's own CI · **Action:** none · **Data status:** none — but both gate the test jobs, so the matrix had been reporting *skipped* rather than passing.
 
 ---
-  **Affected:** the project's own CI · **Action:** none · **Data status:** none — but both gate the test jobs, so the matrix had been reporting *skipped* rather than passing.
 ## [2026.9.11.0] — 2026-09-11 — the installer builds one environment, not two
 
 One install fix and the CI hygiene needed to prove it. No search, API, or
@@ -2250,9 +2250,9 @@ behaviour change.
   defect lived in module-level control flow that importing a helper would never
   reach, and they assert the exit code first: an "assert no nested venv" check
   passes on a crash, which fooled an earlier draft of this fix.
+  **Affected:** developers · **Action:** none · **Data status:** none — eleven tests pinning interpreter resolution under both layouts.
 
 ---
-  **Affected:** developers · **Action:** none · **Data status:** none — eleven tests pinning interpreter resolution under both layouts.
 ## [2026.9.10.2] — 2026-09-11 — the install papercuts
 
 Three install/config fixes, all found by running a real upgrade rather than a
@@ -2288,10 +2288,10 @@ test. No search, API, or behaviour change.
   reads like a live registration. The healer now skips Claude and *reports* an
   entry a prior version left, naming the command that prunes it. Every other
   host is untouched: Gemini, OpenCode, Cursor and Cline do read that key.
+  **Affected:** Claude Code users running both `--fix` and `--fix-hooks` · **Action:** run `m3 doctor --fix --fix-hooks` to converge · **Data status:** none — host config churn only; Claude Code does not read `mcpServers` from `settings.json`.
 
 
 ---
-  **Affected:** Claude Code users running both `--fix` and `--fix-hooks` · **Action:** run `m3 doctor --fix --fix-hooks` to converge · **Data status:** none — host config churn only; Claude Code does not read `mcpServers` from `settings.json`.
 ## [2026.9.10.1] — 2026-09-11 — the search that answered with fewer rows than you asked for
 
 ### ⚠ Behaviour change
@@ -2376,9 +2376,9 @@ test. No search, API, or behaviour change.
   Reported by [@fuzengjie](https://github.com/fuzengjie) in
   [#141](https://github.com/skynetcmd/m3-memory/issues/141), with clear repro
   steps and screenshots that pinned it to the DB switcher immediately.
+  **Affected:** dashboard users switching the selector to the chat-log store · **Action:** none · **Data status:** none — two panels errored.
 
 ---
-  **Affected:** dashboard users switching the selector to the chat-log store · **Action:** none · **Data status:** none — two panels errored.
 ## [2026.9.10.0] — 2026-09-10 — the sync that reported success while moving nothing
 
 ### ⚠ Breaking

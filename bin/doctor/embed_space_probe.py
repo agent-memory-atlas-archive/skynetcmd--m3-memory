@@ -147,7 +147,13 @@ def _report_unfindable() -> None:
     )
     for mid, n in orphans[:5]:
         print(f"      {mid}  ({n} chars)")
-    print("    fix: re-embed those rows (`m3 embedder backfill --force`, or rewrite the memory).")
+    # Only a NEW write labels its first window 'default' (memory_write_impl);
+    # backfill skips these rows (they have embeddings) and memory_update's
+    # re-embed rewrites existing rows in place, so neither repairs them.
+    print(
+        "    fix: write each memory again with memory_write, then delete the old one. "
+        "`m3 embedder backfill` and memory_update's re-embed do not repair these rows."
+    )
 
 
 def run(brief: bool = False) -> int:
