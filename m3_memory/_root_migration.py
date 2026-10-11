@@ -37,7 +37,10 @@ def migrate_memory_root(old_root=None, new_root=None, config_root=None):
 
       audit_trail.log.jsonl   appended into the new file (old lines first)
       config.json             copied unless the new root already has one
-      version_state.json, .env, backups/   copied unless present
+      version_state.json, .env              copied unless present
+      backups/                left where it is: nothing reads it (backups go to
+                              <engine root>/backups), and copying it doubled
+                              74 GB on a real box (2026-10-11)
       .agent_os_salt          copied to the CONFIG root if it lacks one: the vault
                               cannot be decrypted without it
       repo/                   left where it is (config.json keeps pointing at it)
@@ -80,7 +83,7 @@ def migrate_memory_root(old_root=None, new_root=None, config_root=None):
                 report["moved"].append("audit_trail.log.jsonl (merged)")
             except Exception as e:  # noqa: BLE001
                 report["failed"].append(f"audit_trail.log.jsonl: {e}")
-        for name in ("config.json", "version_state.json", ".env", "backups"):
+        for name in ("config.json", "version_state.json", ".env"):
             _copy(name)
         cfg.mkdir(parents=True, exist_ok=True)
         _copy(".agent_os_salt", dst_dir=cfg)

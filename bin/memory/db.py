@@ -42,6 +42,7 @@ from pathlib import Path
 from typing import Any
 
 from embedding_utils import infer_change_agent as _infer_change_agent_util
+from m3_core.config import env as _m3env
 from m3_core.config import settings as _m3cfg
 from m3_core.errors import log_swallowed
 from m3_sdk import M3Context, migration_lock, resolve_db_path
@@ -147,8 +148,7 @@ def _db():
         return
 
     active_ctx = _current_ctx_local()
-    if os.environ.get("M3_DEBUG"):
-        print(f"DEBUG DB PATH: {active_ctx.db_path}")
+    _m3env.debug(f"DB PATH: {active_ctx.db_path}")
     _lazy_init(active_ctx.db_path)
     with active_ctx.get_sqlite_conn() as conn:
         try:

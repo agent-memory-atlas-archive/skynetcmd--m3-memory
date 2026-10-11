@@ -175,8 +175,8 @@ def _looks_generated(text: str) -> bool:
 
 
 def _computed_count() -> int:
-    """The number the docs quote: non-meta catalog tools."""
-    return len([t for t in mcp_tool_catalog.TOOLS if not t.name.startswith("tools_")])
+    """The number the docs quote: non-meta MCP tools (CLI-only commands excluded, U8)."""
+    return len([t for t in mcp_tool_catalog.MCP_TOOLS if not t.name.startswith("tools_")])
 
 
 def test_manifest_count_matches_catalog():

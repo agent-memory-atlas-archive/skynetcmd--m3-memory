@@ -292,7 +292,7 @@ def generate_markdown(all_tools, counts=None):
 def main():
     # 1. Catalog tools
     catalog_tools = []
-    for t in mcp_tool_catalog.TOOLS:
+    for t in mcp_tool_catalog.MCP_TOOLS:  # CLI-only commands are not MCP tools (U8)
         catalog_tools.append(
             {"name": t.name, "description": t.description, "parameters": t.parameters, "source": "mcp_tool_catalog.py"}
         )
@@ -333,7 +333,7 @@ def main():
     # 115 = 126 - the 11 PROTOCOL_TOOLS/DEBUG_TOOLS the mcp_proxy served from
     # custom_tool_bridge and debug_agent_bridge, both deleted 2026-09-17 (never
     # part of m3).
-    EXPECTED_TOOL_COUNT = 120  # + notifications_peek (2026-10-11)
+    EXPECTED_TOOL_COUNT = 119  # + notifications_peek, - chatlog_set_redaction (CLI-only, U8) (2026-10-11)
     if len(all_tools) != EXPECTED_TOOL_COUNT:
         import sys
 

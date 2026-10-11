@@ -462,7 +462,7 @@ def _compute_warnings(
             # `--enabled true`, which argparse rejects outright with
             # "unrecognized arguments: true". A fix line that does not run is
             # worse than none -- it reads as authoritative and fails.
-            " -> fix: m3 chat chatlog_set_redaction --enabled"
+            " -> fix: m3 chat chatlog_set_redaction --enabled --yes"
             " ; retro-clean existing rows with m3 chat chatlog_rescrub"
             # _as_count, not the raw value: on a PostgreSQL primary the count
             # is the display STRING "n/a (primary store is PostgreSQL)" (see

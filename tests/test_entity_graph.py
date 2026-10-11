@@ -408,7 +408,7 @@ async def test_verbatim_first_on_extractor_exception(monkeypatch, tmp_path):
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
     monkeypatch.setenv("M3_DATABASE", str(db_path))
-    monkeypatch.setenv("M3_ENABLE_ENTITY_GRAPH", "true")
+    # memory.entity_graph is on by default (registry); nothing to set.
 
     async def failing_extractor(content: str) -> dict:
         raise RuntimeError("Extractor boom")
@@ -452,7 +452,7 @@ async def test_variant_skip_default(monkeypatch, tmp_path):
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
     monkeypatch.setenv("M3_DATABASE", str(db_path))
-    monkeypatch.setenv("M3_ENABLE_ENTITY_GRAPH", "true")
+    # memory.entity_graph is on by default (registry); nothing to set.
 
     extractor_calls = []
 
@@ -492,7 +492,7 @@ async def test_variant_allowlist_override(monkeypatch, tmp_path):
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
     monkeypatch.setenv("M3_DATABASE", str(db_path))
-    monkeypatch.setenv("M3_ENABLE_ENTITY_GRAPH", "true")
+    # memory.entity_graph is on by default (registry); nothing to set.
 
     extractor_calls = []
 
@@ -540,7 +540,7 @@ async def test_resolution_exact_reuses_entity_id(monkeypatch, tmp_path):
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
     monkeypatch.setenv("M3_DATABASE", str(db_path))
-    monkeypatch.setenv("M3_ENABLE_ENTITY_GRAPH", "true")
+    # memory.entity_graph is on by default (registry); nothing to set.
 
     call_count = [0]
 
@@ -913,7 +913,7 @@ async def test_fact_enriched_rows_skipped(monkeypatch, tmp_path):
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
     monkeypatch.setenv("M3_DATABASE", str(db_path))
-    monkeypatch.setenv("M3_ENABLE_ENTITY_GRAPH", "true")
+    # memory.entity_graph is on by default (registry); nothing to set.
     monkeypatch.setattr(memory_core, "ENABLE_ENTITY_GRAPH", True)
 
     extractor_calls = []
@@ -1409,7 +1409,7 @@ async def test_extractor_retries_transient_failure(monkeypatch, tmp_path):
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
     monkeypatch.setenv("M3_DATABASE", str(db_path))
-    monkeypatch.setenv("M3_ENABLE_ENTITY_GRAPH", "true")
+    # memory.entity_graph is on by default (registry); nothing to set.
 
     call_count = [0]
 
@@ -1474,7 +1474,7 @@ async def test_extractor_idempotent_on_reextraction(monkeypatch, tmp_path):
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
     monkeypatch.setenv("M3_DATABASE", str(db_path))
-    monkeypatch.setenv("M3_ENABLE_ENTITY_GRAPH", "true")
+    # memory.entity_graph is on by default (registry); nothing to set.
 
     async def stub_extractor(content: str) -> dict:
         return {
@@ -1558,7 +1558,7 @@ async def test_extractor_validates_invalid_entity_type(monkeypatch, tmp_path, ca
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
     monkeypatch.setenv("M3_DATABASE", str(db_path))
-    monkeypatch.setenv("M3_ENABLE_ENTITY_GRAPH", "true")
+    # memory.entity_graph is on by default (registry); nothing to set.
 
     async def bad_type_extractor(content: str) -> dict:
         return {
@@ -1607,7 +1607,7 @@ async def test_extractor_validates_invalid_predicate(monkeypatch, tmp_path, capl
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
     monkeypatch.setenv("M3_DATABASE", str(db_path))
-    monkeypatch.setenv("M3_ENABLE_ENTITY_GRAPH", "true")
+    # memory.entity_graph is on by default (registry); nothing to set.
 
     async def bad_predicate_extractor(content: str) -> dict:
         return {
@@ -1652,7 +1652,7 @@ async def test_bitemporal_valid_from_inherits_from_source(monkeypatch, tmp_path)
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
     monkeypatch.setenv("M3_DATABASE", str(db_path))
-    monkeypatch.setenv("M3_ENABLE_ENTITY_GRAPH", "true")
+    # memory.entity_graph is on by default (registry); nothing to set.
 
     source_valid_from = "2024-01-01T00:00:00Z"
 
@@ -1698,7 +1698,7 @@ async def test_extractor_respects_vocabulary_override(monkeypatch, tmp_path):
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
     monkeypatch.setenv("M3_DATABASE", str(db_path))
-    monkeypatch.setenv("M3_ENABLE_ENTITY_GRAPH", "true")
+    # memory.entity_graph is on by default (registry); nothing to set.
 
     async def custom_extractor(content: str) -> dict:
         return {
@@ -1741,7 +1741,7 @@ async def test_max_attempts_excludes_poisoned_items(monkeypatch, tmp_path):
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
     monkeypatch.setenv("M3_DATABASE", str(db_path))
-    monkeypatch.setenv("M3_ENABLE_ENTITY_GRAPH", "true")
+    # memory.entity_graph is on by default (registry); nothing to set.
     # Override MAX_ATTEMPTS to 2 for this test
     monkeypatch.setenv("M3_ENTITY_EXTRACTOR_MAX_ATTEMPTS", "2")
     monkeypatch.setattr(memory_core, "ENTITY_EXTRACT_MAX_ATTEMPTS", 2)

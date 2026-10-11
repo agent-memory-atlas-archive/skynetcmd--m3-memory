@@ -1,8 +1,8 @@
 ---
 tool: bin/llm_failover.py
-sha1: b61a23eaf08d
-mtime_utc: 2026-10-11T18:06:28.839741+00:00
-generated_utc: 2026-10-11T18:07:53.892051+00:00
+sha1: 90564c8ab4bb
+mtime_utc: 2026-10-11T22:04:07.494090+00:00
+generated_utc: 2026-10-11T22:04:50.223267+00:00
 private: false
 ---
 
@@ -32,7 +32,7 @@ _(no argparse arguments detected)_
 
 ## Environment variables read
 
-- `LM_API_TOKEN`
+_(none detected)_
 
 ---
 
@@ -47,7 +47,7 @@ _(no argparse arguments detected)_
 
 **http**
 
-- `httpx.get()  → `f"{endpoint.rstrip('/')}/models"`` (line 337)
+- `httpx.get()  → `f"{endpoint.rstrip('/')}/models"`` (line 338)
 
 
 ---

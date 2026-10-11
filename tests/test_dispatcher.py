@@ -51,7 +51,7 @@ def test_m3_index_returns_all_non_excluded_tools():
     assert "count" in data and "tools" in data
     names = {t["name"] for t in data["tools"]}
 
-    expected = {s.name for s in mcp_tool_catalog.TOOLS if s.name not in mcp_tool_catalog._DISPATCH_EXCLUDE}
+    expected = {s.name for s in mcp_tool_catalog.MCP_TOOLS if s.name not in mcp_tool_catalog._DISPATCH_EXCLUDE}
     assert names == expected, f"m3_index drift: extra={sorted(names - expected)}, missing={sorted(expected - names)}"
     assert data["count"] == len(data["tools"])
 

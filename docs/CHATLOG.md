@@ -373,23 +373,16 @@ python bin/chatlog_init.py
 # Answer "yes" to "Enable redaction?"
 ```
 
-Option B: After the fact (via MCP tool or CLI):
+Option B: After the fact, with the CLI. It is a CLI command only, not an MCP
+tool: it writes your config, and MCP clients do not change config.
 
 ```bash
-m3 chat chatlog_set_redaction --enabled \
-  --patterns api_keys,bearer_tokens,jwt,github_tokens
+m3 chat chatlog_set_redaction --enabled --yes \
+  --patterns api_keys bearer_tokens jwt github_tokens
 ```
 
-Or use the MCP tool:
-
-```python
-chatlog_set_redaction(
-    enabled=True,
-    patterns=["api_keys", "bearer_tokens", "jwt", "aws_keys", "github_tokens"],
-    redact_pii=False,  # Separate toggle for PII (emails, SSNs, etc.)
-    store_original_hash=True  # Keep SHA-256 of pre-scrub content
-)
-```
+`--no-redact_pii` / `--redact_pii` toggle PII (emails, SSNs, etc.) separately, and
+`--store_original_hash` keeps a SHA-256 of the pre-scrub content.
 
 ### Pattern Groups
 
@@ -679,15 +672,15 @@ The DBs and config remain intact for future re-enablement.
 Adjust the redaction config:
 
 ```bash
-m3 chat chatlog_set_redaction --enabled \
-  --patterns api_keys,github_tokens \
+m3 chat chatlog_set_redaction --enabled --yes \
+  --patterns api_keys github_tokens \
   --no-redact_pii
 ```
 
 Or toggle off:
 
 ```bash
-m3 chat chatlog_set_redaction --no-enabled
+m3 chat chatlog_set_redaction --no-enabled --yes
 ```
 
 Existing redacted content is not un-redacted (hashes are stored for audit). To change policy retroactively, use `m3 chat chatlog_rescrub`.

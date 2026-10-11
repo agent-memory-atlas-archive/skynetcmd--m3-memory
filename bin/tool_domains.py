@@ -2,7 +2,7 @@
 
 Problem this solves
 -------------------
-m3 ships 118 tools in `mcp_tool_catalog.TOOLS`. Their JSON schemas serialize
+m3 ships 100+ MCP tools (`mcp_tool_catalog.MCP_TOOLS`). Their JSON schemas serialize
 to ~30,700 tokens on the MCP wire. Paid up-front at session init, that is
 ~15 % of a 200K context window spent on schemas the agent may never touch —
 for every client (Claude Code, Gemini CLI, OpenCode, OpenClaw, claude.ai

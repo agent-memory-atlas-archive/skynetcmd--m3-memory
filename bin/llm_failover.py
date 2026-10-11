@@ -278,8 +278,9 @@ def _default_lm_token() -> "str | None":
         from auth_utils import get_api_key  # lazy: auth_utils vault reads route via M3Context
 
         return get_api_key("LM_API_TOKEN")
-    except Exception:  # noqa: BLE001 — resolver failure -> env fallback
-        return os.environ.get("LM_API_TOKEN")
+    except Exception as e:  # noqa: BLE001 — the resolver reads env first; failing, it is reported
+        logger.warning("LM_API_TOKEN: the secret resolver failed (%s); sending no token", e)
+        return None
 
 
 def discover_model_sync(

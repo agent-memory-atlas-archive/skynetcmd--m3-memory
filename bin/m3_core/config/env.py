@@ -15,6 +15,21 @@ def environ() -> Mapping[str, str]:
     return os.environ
 
 
+def debug_enabled() -> bool:
+    """``M3_DEBUG`` set and not blank: the diagnostic switch (CONFIG_DESIGN §2, read
+    path 3), read before any config loads. The one reader; there were seven."""
+    return bool((os.environ.get("M3_DEBUG") or "").strip())
+
+
+def debug(msg: str) -> None:
+    """A diagnostic line when ``M3_DEBUG`` is set, on STDERR: stdout is a tool's
+    result channel, and a debug ``print`` there corrupts piped JSON."""
+    if debug_enabled():
+        import sys
+
+        print(f"DEBUG {msg}", file=sys.stderr, flush=True)
+
+
 def secret_env_names() -> frozenset[str]:
     """Every env name a secret-class key answers to: what ``child_env(drop=...)``
     strips for a non-m3 child, so an env secret override never leaks into pip,

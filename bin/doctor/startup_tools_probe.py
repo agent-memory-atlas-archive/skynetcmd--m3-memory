@@ -58,7 +58,7 @@ def run(brief: bool = False) -> int:
     try:
         import mcp_tool_catalog
 
-        catalog_names = {t.name for t in mcp_tool_catalog.TOOLS}
+        catalog_names = {t.name for t in mcp_tool_catalog.MCP_TOOLS}
     except Exception as e:  # noqa: BLE001 — report, don't mask
         print(f"[startup-tools] could not load the catalog to validate names: {e}")
         catalog_names = set()

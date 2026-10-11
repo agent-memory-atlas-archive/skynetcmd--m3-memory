@@ -6,7 +6,6 @@ Listens on port 9876. Returns JSON at /status with interface and LM Studio info.
 
 import http.server
 import json
-import os
 import subprocess
 import urllib.error
 import urllib.request
@@ -47,8 +46,11 @@ def get_lm_token() -> str:
         from m3_sdk import get_secret
 
         return get_secret("LM_API_TOKEN") or ""
-    except Exception:  # noqa: BLE001 — resolver import failure -> env fallback
-        return os.environ.get("LM_API_TOKEN") or os.environ.get("LM_STUDIO_API_KEY") or ""
+    except Exception as e:  # noqa: BLE001 — the resolver reads env first; failing, it is reported
+        import logging
+
+        logging.getLogger(__name__).warning("LM_API_TOKEN: the secret resolver failed (%s); sending no token", e)
+        return ""
 
 
 def check_lm_studio():

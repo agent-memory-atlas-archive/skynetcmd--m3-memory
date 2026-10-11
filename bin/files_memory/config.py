@@ -279,6 +279,9 @@ def llm_auth_headers() -> dict[str, str]:
         from auth_utils import get_api_key  # canonical resolver (see m3_sdk.get_secret)
 
         token = (get_api_key("LM_API_TOKEN") or "").strip()
-    except Exception:  # noqa: BLE001 — resolver import failure -> fall back to env
-        token = (os.environ.get("LM_API_TOKEN") or "").strip()
+    except Exception as e:  # noqa: BLE001 — the resolver reads env first; failing, it is reported
+        import logging
+
+        logging.getLogger(__name__).warning("LM_API_TOKEN: the secret resolver failed (%s); sending no token", e)
+        token = ""
     return {"Authorization": f"Bearer {token}"} if token else {}

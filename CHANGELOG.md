@@ -293,9 +293,20 @@ the policy is forward-going only.
 
 ### Changed
 
+- **`chatlog_set_redaction` is a CLI command only.** It writes your config, and
+  MCP clients no longer get it: run `m3 chat chatlog_set_redaction --yes`. The
+  MCP catalog lists one tool fewer.
+  **Affected:** agents that called `chatlog_set_redaction` over MCP · **Action:**
+  use the CLI command · **Data status:** none.
+
+- **`M3_DEBUG` output goes to stderr.** The SQL and database-path lines it
+  enables were printed to stdout, mixed into a tool's results.
+  **Affected:** users who set `M3_DEBUG` · **Action:** read the lines from stderr
+  · **Data status:** none.
+
 - **m3's own state moves from `~/.m3-memory` to `~/.m3`.** `m3 setup`, and
-  `m3 doctor --fix`, copy the audit trail, `config.json`, version state, `.env`,
-  backups and the vault salt into `~/.m3` (the salt into the config root), then
+  `m3 doctor --fix`, copy the audit trail, `config.json`, version state, `.env`
+  and the vault salt into `~/.m3` (the salt into the config root), then
   switch to it. The old directory is kept, with a `MOVED.txt`; databases still in
   `~/.m3-memory/memory/` keep being found. Until the copy has run, m3 keeps using
   `~/.m3-memory`; `m3 doctor` says when it has not. A pinned `M3_MEMORY_ROOT` is

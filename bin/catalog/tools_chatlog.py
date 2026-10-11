@@ -231,7 +231,8 @@ TOOLS: list[ToolSpec] = [
         impl=chatlog_core.chatlog_set_redaction_impl,
         is_async=False,
         validators=(),
-        default_allowed=True,
+        default_allowed=False,  # writes the user's config
+        mcp=False,  # U8 (m3 dcc9f87d): a CLI command only; MCP stays read-only for config
         inject_agent_id=False,
     ),
     ToolSpec(

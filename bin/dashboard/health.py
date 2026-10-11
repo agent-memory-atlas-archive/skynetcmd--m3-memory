@@ -280,9 +280,15 @@ def _llm_token() -> str:
         from auth_utils import get_api_key
 
         return get_api_key("LM_API_TOKEN") or "lm-studio"
-    except Exception:  # noqa: BLE001 — never let key resolution break the panel
-        # Last-ditch: honor the raw env var directly, else the LM Studio default.
-        return os.environ.get("LM_API_TOKEN", "").strip() or "lm-studio"
+    except Exception as e:  # noqa: BLE001 — never let key resolution break the panel
+        # The resolver reads env first, so a raw env read here could only repeat
+        # a miss; report the failure and use the LM Studio default.
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "LM_API_TOKEN: the secret resolver failed (%s); using the LM Studio default", e
+        )
+        return "lm-studio"
 
 
 _CLOUD_HOST_HINTS = (

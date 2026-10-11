@@ -61,7 +61,7 @@ def mcp_schema_tokens(names: list[str]) -> int:
     """
     import mcp_tool_catalog
 
-    by_name = {t.name: t for t in mcp_tool_catalog.TOOLS}
+    by_name = {t.name: t for t in mcp_tool_catalog.MCP_TOOLS}
     total = 0
     for n in names:
         spec = by_name.get(n)

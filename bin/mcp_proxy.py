@@ -281,7 +281,7 @@ def catalog_schemas(include_destructive: bool) -> tuple[list[dict], dict]:
 
     schemas: list[dict] = []
     by_name: dict = {}
-    for spec in cat.TOOLS:
+    for spec in cat.MCP_TOOLS:
         if not include_destructive and not spec.default_allowed:
             continue
         by_name[spec.name] = spec

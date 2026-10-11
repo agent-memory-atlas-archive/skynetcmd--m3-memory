@@ -64,7 +64,7 @@ def list_domains() -> str:
     import mcp_tool_catalog
     from tool_domains import DOMAIN_DESCRIPTIONS, group_by_domain
 
-    all_names = [t.name for t in mcp_tool_catalog.TOOLS]
+    all_names = [t.name for t in mcp_tool_catalog.MCP_TOOLS]
     grouped = group_by_domain(all_names)
 
     out = {
@@ -104,7 +104,7 @@ def help_capabilities(domain: str = "", query: str = "", as_records: bool = Fals
         )
 
     matched_tools = []
-    for spec in mcp_tool_catalog.TOOLS:
+    for spec in mcp_tool_catalog.MCP_TOOLS:
         td = domain_of_tool(spec.name)
         if domain and td != domain:
             continue

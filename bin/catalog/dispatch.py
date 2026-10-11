@@ -344,6 +344,13 @@ async def _dispatch_one(tool: str, args: dict, *, dry_run: bool) -> Any:
             "tool": tool,
             "hint": "Meta/dispatcher tools cannot be called through m3_call.",
         }
+    if not spec.mcp:
+        return {
+            "ok": False,
+            "error": "cli_only",
+            "tool": tool,
+            "hint": f"A CLI command, not an MCP tool (it writes config): run `m3 <domain> {tool}`.",
+        }
     if not destructive_allowed and not spec.default_allowed:
         return {
             "ok": False,
@@ -405,7 +412,7 @@ def m3_index_impl(domain: str = "") -> str:
     import tool_domains
 
     rows = []
-    for t in mcp_tool_catalog.TOOLS:
+    for t in mcp_tool_catalog.MCP_TOOLS:
         if t.name in _DISPATCH_EXCLUDE:
             continue
         d = tool_domains.domain_of_tool(t.name)

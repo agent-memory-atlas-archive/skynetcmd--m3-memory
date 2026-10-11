@@ -54,7 +54,8 @@ def test_state_is_copied_the_old_root_is_kept(home):
     _migrate(home)
     new, old = home / ".m3", home / ".m3-memory"
     assert (new / "config.json").read_text(encoding="utf-8") == '{"repo_path": "x"}'
-    assert (new / "backups" / "b1.db").read_bytes() == b"db"
+    assert not (new / "backups").exists(), "old backups are not copied: nothing reads them there"
+    assert (old / "backups" / "b1.db").read_bytes() == b"db", "they stay in the old root"
     assert (home / ".m3" / "config" / ".agent_os_salt").read_bytes() == b"salt", (
         "the vault salt must reach the config root"
     )

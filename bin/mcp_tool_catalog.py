@@ -251,3 +251,8 @@ def _inject_database_arg() -> None:
 _inject_database_arg()
 
 _BY_NAME: dict[str, ToolSpec] = {t.name: t for t in TOOLS}
+
+# What any MCP surface may offer (direct server, proxy, m3_call, the catalog and
+# its generated docs): TOOLS minus CLI-only commands (ToolSpec.mcp=False, U8). The
+# CLI keeps every tool.
+MCP_TOOLS: list[ToolSpec] = [t for t in TOOLS if t.mcp]

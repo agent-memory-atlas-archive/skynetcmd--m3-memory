@@ -26,7 +26,6 @@ import asyncio
 import contextvars
 import json
 import logging
-import os
 import re
 import sqlite3
 import threading
@@ -129,6 +128,7 @@ logger = logging.getLogger("memory.search")
 # search"), name)` — continues to find these names as attributes of this
 # module. Do NOT remove even though this module no longer calls them itself.
 # ──────────────────────────────────────────────────────────────────────────────
+from m3_core.config import env as _m3env
 from m3_core.config import settings as _m3cfg
 from m3_core.errors import log_swallowed
 
@@ -1194,9 +1194,8 @@ async def memory_search_scored_impl(
                         row_limit=sql_row_limit,
                         extra_columns=list(extra_columns),
                     )
-            except Exception as exc:
-                if os.environ.get("M3_DEBUG"):
-                    print(f"DEBUG PG fetch error: {exc}")
+            except Exception as exc:  # noqa: BLE001 — falls back to the next tier; a defect is reported
+                log_swallowed(logger, exc, "PG candidate fetch failed (%s); falling back", exc)
                 return (_RECURSE if search_mode != "fts5" else _EMPTY), False
         # The block below is the SQLite fused candidate fetch (FTS5 + sqlite-vec +
         # ?-style SQL). It is SQLite-ONLY — guard explicitly so a future backend
@@ -1218,9 +1217,7 @@ async def memory_search_scored_impl(
                         where_sql=where_sql,
                         extra_sql=extra_sql,
                     )
-                    if os.environ.get("M3_DEBUG"):
-                        _lbl = "sqlite-vec" if _has_vec else "standard"
-                        print(f"DEBUG SQL (semantic {_lbl}):\n{sql}")
+                    _m3env.debug(f"SQL (semantic {'sqlite-vec' if _has_vec else 'standard'}):\n{sql}")
                     if _has_vec:
                         import struct
 
@@ -1228,8 +1225,7 @@ async def memory_search_scored_impl(
                         _rows = db.execute(sql, (q_blob, *params)).fetchall()
                     else:
                         _rows = db.execute(sql, params).fetchall()
-                    if os.environ.get("M3_DEBUG"):
-                        print(f"DEBUG SQL HITS (semantic): {len(_rows)}")
+                    _m3env.debug(f"SQL HITS (semantic): {len(_rows)}")
                     return _rows, _has_vec
 
                 fts_query, ok = _compile_fts_query(query, search_mode)
@@ -1243,9 +1239,7 @@ async def memory_search_scored_impl(
                     extra_sql=extra_sql,
                     row_limit=sql_row_limit,
                 )
-                if os.environ.get("M3_DEBUG"):
-                    _lbl = "sqlite-vec" if _has_vec else "standard"
-                    print(f"DEBUG SQL (hybrid {_lbl}):\n{sql}")
+                _m3env.debug(f"SQL (hybrid {'sqlite-vec' if _has_vec else 'standard'}):\n{sql}")
                 # Parameter ORDER follows the SQL, and the hybrid SQL now
                 # opens with a `WITH ranked AS (... MATCH ?)` pre-filter, so the
                 # FTS query binds FIRST -- ahead of the vector blob and the
@@ -1260,14 +1254,12 @@ async def memory_search_scored_impl(
                 else:
                     _rows = db.execute(sql, (fts_query, *params)).fetchall()
 
-                if os.environ.get("M3_DEBUG"):
-                    print(f"DEBUG SQL HITS (hybrid): {len(_rows)}")
+                _m3env.debug(f"SQL HITS (hybrid): {len(_rows)}")
                 if not _rows and search_mode != "fts5":
                     return _RECURSE, _has_vec
                 return _rows, _has_vec
         except sqlite3.OperationalError as e:
-            if os.environ.get("M3_DEBUG"):
-                print(f"DEBUG SQL ERROR: {e}")
+            _m3env.debug(f"SQL ERROR: {e}")
             return (_RECURSE if search_mode != "fts5" else _EMPTY), False
 
     rows, has_vec = await asyncio.to_thread(_fetch_candidates)

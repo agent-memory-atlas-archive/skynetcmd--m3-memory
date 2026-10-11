@@ -110,8 +110,9 @@ def get_api_token() -> str | None:
         from m3_sdk import get_secret
 
         return get_secret("LM_API_TOKEN")
-    except Exception:  # noqa: BLE001 — resolver import failure -> env fallback
-        return os.getenv("LM_API_TOKEN") or os.getenv("LM_STUDIO_API_KEY")
+    except Exception as e:  # noqa: BLE001 — the resolver reads env first; failing, it is reported
+        logger.warning("LM_API_TOKEN: the secret resolver failed (%s); sending no token", e)
+        return None
 
 
 API_TOKEN = None

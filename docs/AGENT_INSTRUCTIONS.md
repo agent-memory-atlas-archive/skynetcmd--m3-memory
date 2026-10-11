@@ -529,11 +529,12 @@ m3 chatlog status
 m3 <group> --help          # exact argument names for that group
 ```
 
-Every tool in the catalog is reachable both ways. Verified: 114 of the 118
-catalog tools have a CLI subcommand; the only four without one are `m3_call`,
-`m3_index`, `tools_list_domains` and `tools_load_domain` — the MCP meta-tools,
-which exist *to work around MCP startup gating* and have nothing to do on a CLI
-where no tool is gated in the first place.
+Almost every tool is reachable both ways. Every catalog tool has a CLI
+subcommand except four: `m3_call`, `m3_index`, `tools_list_domains` and
+`tools_load_domain` — the MCP meta-tools, which exist *to work around MCP startup
+gating* and have nothing to do on a CLI where no tool is gated in the first place.
+And one command is CLI-only, not an MCP tool: `chatlog_set_redaction`, because it
+writes your config and MCP stays read-only for config.
 
 Two things to know:
 

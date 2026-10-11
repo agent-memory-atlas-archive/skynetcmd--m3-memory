@@ -310,7 +310,7 @@ def _register_initial_tools():
     counts here are a snapshot and the script is the source of truth;
     tests/test_tool_token_budget.py fails when they drift from it.
     """
-    for spec in mcp_tool_catalog.TOOLS:
+    for spec in mcp_tool_catalog.MCP_TOOLS:
         if not _LAZY_MODE:
             _register_one(spec)
             continue
@@ -334,7 +334,7 @@ def _register_domain_callback(domain: str) -> dict:
     """
     newly_registered: list[str] = []
     schemas: list[dict] = []
-    for spec in mcp_tool_catalog.TOOLS:
+    for spec in mcp_tool_catalog.MCP_TOOLS:
         if tool_domains.domain_of_tool(spec.name) != domain:
             continue
         if _register_one(spec):
@@ -419,7 +419,7 @@ if __name__ == "__main__":
     if _LAZY_MODE:
         logger.info(
             f"Lazy mode: registered {len(_REGISTERED)} essentials+meta tools at startup "
-            f"(out of {len(mcp_tool_catalog.TOOLS)} total). "
+            f"(out of {len(mcp_tool_catalog.MCP_TOOLS)} total). "
             f"Use `tools_load_domain` to expose more. Set M3_TOOLS_LAZY=0 to disable."
         )
     else:
