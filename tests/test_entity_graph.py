@@ -23,6 +23,7 @@ monkeypatch.setattr; env vars via monkeypatch.setenv.
 from __future__ import annotations
 
 import asyncio
+import importlib
 import os
 import sqlite3
 import sys
@@ -55,7 +56,7 @@ def _skip_migrations_for_template_db(monkeypatch):
     """
     monkeypatch.setenv("M3_SKIP_MIGRATIONS", "1")
     try:
-        import memory.embed as _me_embed
+        _me_embed = importlib.import_module("memory.embed")
 
         _me_embed._ENTITY_NAME_EMBED_CACHE.clear()
         yield
@@ -705,8 +706,8 @@ async def test_resolution_cosine_stores_and_reuses_candidate_vectors(monkeypatch
     actually calls) and clears the name-embed cache so the stub is always hit —
     see test_entity_resolution_tuning.py for why memory_core._embed isn't enough.
     """
-    import memory.embed as me_embed
-    import memory.entity as me
+    me_embed = importlib.import_module("memory.embed")
+    me = importlib.import_module("memory.entity")
 
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
@@ -779,8 +780,8 @@ async def test_store_once_deferred_buffer_flush(monkeypatch, tmp_path):
     Verifies: nothing is written to entity_embeddings during the deferred phase,
     and the flush writes exactly the buffered rows.
     """
-    import memory.embed as me_embed
-    import memory.entity as me
+    me_embed = importlib.import_module("memory.embed")
+    me = importlib.import_module("memory.entity")
 
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
@@ -836,7 +837,7 @@ async def test_prime_entity_name_cache_batches(monkeypatch):
     are cache reads (no per-name _embed). This is what cuts the GLiNER extractor's
     ~90%-embed batch cost. Verifies: one batched call, cache populated, already-
     cached names skipped."""
-    import memory.embed as me_embed
+    me_embed = importlib.import_module("memory.embed")
 
     me_embed._ENTITY_NAME_EMBED_CACHE.clear()
 

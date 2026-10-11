@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import importlib
 import sys
 import uuid
 from pathlib import Path
@@ -132,7 +133,8 @@ def test_checkpoint_wal_is_noop_on_pg(pg):
 
 def test_classify_pass_updates_on_pg(pg, monkeypatch):
     import m3_cognitive_loop as L
-    import memory.enrich as _enrich
+
+    _enrich = importlib.import_module("memory.enrich")
 
     async def _fake_classify(content, title):
         return "note"

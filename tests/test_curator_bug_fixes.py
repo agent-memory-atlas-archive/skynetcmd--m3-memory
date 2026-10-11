@@ -11,6 +11,7 @@ Bug 2: `memory_dedup` emitted self-pairs where `a == b` with score=1.0 when
 
 from __future__ import annotations
 
+import importlib
 import os
 import sys
 
@@ -35,7 +36,7 @@ def test_scored_impl_has_floor_bindings_before_callback_resolution():
     """
     import ast
 
-    import memory.search as ms
+    ms = importlib.import_module("memory.search")
 
     with open(ms.__file__, encoding="utf-8") as _f:
         src = _f.read()
@@ -87,7 +88,7 @@ def test_callback_resolution_is_wrapped_in_try_except():
     site must catch and continue, falling through to the floor bindings."""
     import ast
 
-    import memory.search as ms
+    ms = importlib.import_module("memory.search")
 
     with open(ms.__file__, encoding="utf-8") as _f:
         src = _f.read()

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import os
 import sys
 import uuid
@@ -115,7 +116,7 @@ async def test_tier4_fallback_triggered_with_redaction(monkeypatch):
     # cloud client is never reached. (Diagnosed via a CI assertion: the patched
     # getter was never called.) Setting the globals to None forces every tier
     # open so the cascade flows through the mocked client to tier 4.
-    import memory.embed as _me
+    _me = importlib.import_module("memory.embed")
 
     for _bk in ("_EMBEDDED_BREAKER", "_CPU_FALLBACK_BREAKER", "_PRIMARY_BREAKER", "_CLOUD_BREAKER"):
         monkeypatch.setattr(_me, _bk, None)

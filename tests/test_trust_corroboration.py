@@ -8,6 +8,7 @@ test_confidence_math.py; here we test the DB wiring and the write-path behavior.
 
 from __future__ import annotations
 
+import importlib
 import os
 import sqlite3
 import sys
@@ -128,7 +129,7 @@ async def test_corroboration_on_strengthens_existing(monkeypatch, tmp_path):
     """
     from contextlib import contextmanager
 
-    import memory.config as cfg
+    cfg = importlib.import_module("memory.config")
 
     db = tmp_path / "t.db"
     _full_db(db)
@@ -162,7 +163,7 @@ async def test_corroboration_on_strengthens_existing(monkeypatch, tmp_path):
             conn.close()
 
     # _check_contradictions calls _db() inside write.py's module namespace.
-    import memory.write as wmod
+    wmod = importlib.import_module("memory.write")
 
     monkeypatch.setattr(wmod, "_db", fake_db)
 
@@ -195,7 +196,7 @@ async def test_corroboration_on_strengthens_existing(monkeypatch, tmp_path):
 async def test_corroboration_absence_tolerant_pre_036(monkeypatch, tmp_path):
     """With the ledger table dropped (pre-036), corroboration silently no-ops and
     the write still succeeds."""
-    import memory.config as cfg
+    cfg = importlib.import_module("memory.config")
 
     db = tmp_path / "t.db"
     _full_db(db)

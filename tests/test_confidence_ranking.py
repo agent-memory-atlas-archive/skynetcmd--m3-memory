@@ -11,6 +11,7 @@ embeddings (query embedder stubbed for determinism).
 
 from __future__ import annotations
 
+import importlib
 import os
 import sqlite3
 import sys
@@ -113,7 +114,7 @@ async def test_flag_off_ranking_ignores_confidence(monkeypatch, tmp_path):
         conn.commit()
 
     monkeypatch.delenv("M3_CONFIDENCE_RANKING", raising=False)
-    import memory.config as cfg
+    cfg = importlib.import_module("memory.config")
 
     monkeypatch.setattr(cfg, "CONFIDENCE_RANKING", False)
     mc = _patch(monkeypatch, db, qv)
@@ -140,7 +141,7 @@ async def test_flag_on_confidence_breaks_ties(monkeypatch, tmp_path):
         _seed(conn, "hiconf", "alpha fact two", qv, confidence=0.99)
         conn.commit()
 
-    import memory.config as cfg
+    cfg = importlib.import_module("memory.config")
 
     monkeypatch.setattr(cfg, "CONFIDENCE_RANKING", True)
     monkeypatch.setattr(cfg, "CONFIDENCE_WEIGHT", 0.5)  # exaggerate for a clear gap
@@ -164,7 +165,7 @@ async def test_flag_on_null_confidence_falls_back_to_importance(monkeypatch, tmp
         _seed(conn, "lowconf", "alpha fact two", qv, confidence=0.1, importance=0.1)
         conn.commit()
 
-    import memory.config as cfg
+    cfg = importlib.import_module("memory.config")
 
     monkeypatch.setattr(cfg, "CONFIDENCE_RANKING", True)
     monkeypatch.setattr(cfg, "CONFIDENCE_WEIGHT", 0.5)

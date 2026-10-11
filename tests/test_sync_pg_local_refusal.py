@@ -15,6 +15,7 @@ FDW module are stubbed; nothing here touches a live cluster.
 
 from __future__ import annotations
 
+import importlib
 import pathlib
 import sys
 
@@ -84,7 +85,7 @@ class TestGenericBridgeRefusesNonSqliteLocal:
         is unavailable (installer bootstrap, partial install) rather than
         breaking a user whose backend simply could not be read.
         """
-        import memory.backends as backends
+        backends = importlib.import_module("memory.backends")
 
         def _boom():
             raise RuntimeError("seam unavailable")
@@ -119,7 +120,7 @@ class TestFdwUsesThePrimaryNotTheWarehouse:
 
     def test_missing_primary_dsn_falls_back_rather_than_guessing(self, monkeypatch):
         """No primary DSN must NOT silently fall back to the warehouse DSN."""
-        import memory.backends as backends
+        backends = importlib.import_module("memory.backends")
         from m3_core import paths
 
         monkeypatch.setattr(backends, "active_backend", lambda: type("B", (), {"name": "postgres"})())
@@ -136,7 +137,7 @@ class TestFdwUsesThePrimaryNotTheWarehouse:
         Returning None here would fall through to the generic bridge and mask a
         setup error that silently syncs a store with itself; the run must fail.
         """
-        import memory.backends as backends
+        backends = importlib.import_module("memory.backends")
         from m3_core import paths
         from memory.backends import postgres_backend as pgb
 

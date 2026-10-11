@@ -27,7 +27,7 @@ def _reload_config(monkeypatch, env: dict):
         monkeypatch.delenv(var, raising=False)
     for k, v in env.items():
         monkeypatch.setenv(k, v)
-    import memory.config as c
+    c = importlib.import_module("memory.config")
 
     importlib.reload(c)
     return c

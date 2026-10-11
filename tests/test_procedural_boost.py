@@ -13,6 +13,7 @@ left OFF, so intent is only ever what the caller passes — this stays hermetic
 
 from __future__ import annotations
 
+import importlib
 import os
 import sqlite3
 import sys
@@ -110,10 +111,10 @@ async def test_no_procedural_intent_is_byte_identical(monkeypatch, tmp_path):
         _seed(conn, "proc", "deploy the service via the runbook", qv, "procedure")
         conn.commit()
 
-    import memory.config as cfg
+    cfg = importlib.import_module("memory.config")
 
     monkeypatch.setattr(cfg, "INTENT_ROUTING", True)
-    import memory.search as srch
+    srch = importlib.import_module("memory.search")
 
     monkeypatch.setattr(srch, "INTENT_PROCEDURAL_BOOST", 0.5)
     mc = _patch(monkeypatch, db, qv)
@@ -146,12 +147,12 @@ async def test_procedural_intent_boosts_procedure_row(monkeypatch, tmp_path):
         _seed(conn, "note", "a loose note about deploying", qv, "note")
         conn.commit()
 
-    import memory.config as cfg
+    cfg = importlib.import_module("memory.config")
 
     monkeypatch.setattr(cfg, "INTENT_ROUTING", True)
     monkeypatch.setattr(cfg, "INTENT_PROCEDURAL_BOOST", 0.5)  # exaggerate for a clear gap
     # search.py binds INTENT_PROCEDURAL_BOOST at import; patch the bound name too.
-    import memory.search as srch
+    srch = importlib.import_module("memory.search")
 
     monkeypatch.setattr(srch, "INTENT_PROCEDURAL_BOOST", 0.5)
     mc = _patch(monkeypatch, db, qv)
@@ -181,10 +182,10 @@ async def test_procedural_intent_ignores_non_procedure_types(monkeypatch, tmp_pa
         _seed(conn, "note_lo", "a minor deploy note", qv, "note", importance=0.1)
         conn.commit()
 
-    import memory.config as cfg
+    cfg = importlib.import_module("memory.config")
 
     monkeypatch.setattr(cfg, "INTENT_ROUTING", True)
-    import memory.search as srch
+    srch = importlib.import_module("memory.search")
 
     monkeypatch.setattr(srch, "INTENT_PROCEDURAL_BOOST", 0.5)
     mc = _patch(monkeypatch, db, qv)

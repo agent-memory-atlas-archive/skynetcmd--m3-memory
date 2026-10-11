@@ -6,6 +6,7 @@ whether the driver hands back TEXT (SQLite) or an already-parsed dict
 (Postgres JSONB / MariaDB JSON).
 """
 
+import importlib
 import os
 import sqlite3
 import sys
@@ -272,7 +273,7 @@ def test_files_table_helper_resolves_per_backend(monkeypatch):
     assert files_table("leaves") == "leaves"
 
     # Point the seam at the postgres dialect and re-resolve -> qualified.
-    import memory.backends as _backends
+    _backends = importlib.import_module("memory.backends")
 
     monkeypatch.setattr(_backends, "dialect", lambda: POSTGRES)
     assert files_table("leaves") == "files.leaves"

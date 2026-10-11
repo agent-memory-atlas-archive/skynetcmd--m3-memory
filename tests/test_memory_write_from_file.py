@@ -15,6 +15,7 @@ in the schema.
 """
 
 import asyncio
+import importlib
 import os
 import sqlite3
 import sys
@@ -237,7 +238,7 @@ def test_file_is_read_off_the_event_loop_thread(isolated_db, monkeypatch):
     other call. The read must happen on a worker thread."""
     import threading
 
-    import memory.write as write_mod
+    write_mod = importlib.import_module("memory.write")
     from memory_core import memory_write_from_file_impl
 
     real = write_mod._read_memory_file

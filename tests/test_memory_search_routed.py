@@ -9,6 +9,7 @@ Tests cover:
 
 from __future__ import annotations
 
+import importlib
 import os
 import sys
 
@@ -1293,7 +1294,7 @@ def test_elbow_quality_gating_floor(monkeypatch):
 def test_get_reranker_concurrent_loads_once(monkeypatch):
     import threading as _threading
 
-    import memory.search as S
+    S = importlib.import_module("memory.search")
 
     # Reset the module cache so the load actually happens under the test.
     monkeypatch.setattr(S, "_RERANKER_MODEL", None)

@@ -9,6 +9,7 @@ boundary to reset the WAL. It must (a) actually shrink a bloated WAL, and
 (b) never raise (fail-safe — a bad path / busy DB must not crash the loop).
 """
 
+import importlib
 import os
 import sqlite3
 import sys
@@ -83,7 +84,7 @@ def test_checkpoint_noop_on_non_sqlite_backend(monkeypatch, tmp_path):
     test_cognitive_loop_consolidate fail when run in the same batch)."""
     import types
 
-    import memory.backends as real_backends  # the real module; restored on teardown
+    real_backends = importlib.import_module("memory.backends")  # the real module; restored on teardown
 
     db = str(tmp_path / "agent_memory.db")
     holder = _make_wal_db(db, rows=200)

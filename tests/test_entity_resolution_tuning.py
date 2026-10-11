@@ -5,6 +5,7 @@ and different levels of naming drift.
 
 from __future__ import annotations
 
+import importlib
 import os
 import sqlite3
 import sys
@@ -104,7 +105,7 @@ async def test_cosine_threshold_resolution_tuning(monkeypatch, tmp_path):
         vec, _model = await stub_embed(name)
         return vec
 
-    import memory.embed as me_embed
+    me_embed = importlib.import_module("memory.embed")
 
     monkeypatch.setattr(me, "_embed_canonical_cached", stub_canonical)
     monkeypatch.setattr(me_embed, "_embed_canonical_cached", stub_canonical)

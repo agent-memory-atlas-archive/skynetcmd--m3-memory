@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 import os
 import sys
 
@@ -141,7 +142,7 @@ async def test_tier1_not_configured_when_no_gguf(monkeypatch):
     under test. Shared-mode reporting has its own coverage in
     test_doctor_shared_embedder.py."""
     monkeypatch.setenv("M3_EMBED_GGUF_AUTODETECT", "0")
-    import memory.embed as _emb
+    _emb = importlib.import_module("memory.embed")
 
     monkeypatch.setattr(_emb, "_INPROC_ALLOWED", True, raising=False)
     monkeypatch.setattr(_emb, "_EMBED_CFG", {}, raising=False)
@@ -220,7 +221,7 @@ async def test_doctor_cold_cascade_slo(monkeypatch):
         if mod.startswith("memory."):
             del sys.modules[mod]
 
-    import memory.doctor as d
+    d = importlib.import_module("memory.doctor")
 
     # Time each probe as the gather runs it. The cold floor is the roundtrip
     # probe waiting out the hung tier-2 (~4s on a dev box), so any fixed wall
@@ -383,7 +384,7 @@ async def test_doctor_probes_run_concurrently(monkeypatch):
     sequential, so it never guarded this."""
     import time
 
-    import memory.doctor as d
+    d = importlib.import_module("memory.doctor")
 
     # Each probe's REAL result, captured once; the timed run replays it after a
     # fixed 1s, so the timing depends only on how the probes are scheduled — not
@@ -479,7 +480,7 @@ def test_fts_check_spots_an_index_out_of_step_with_its_content(tmp_path):
     content; the check must catch a desync that the plain integrity-check misses."""
     import sqlite3
 
-    import memory.doctor as d
+    d = importlib.import_module("memory.doctor")
 
     db = tmp_path / "m.db"
     c = sqlite3.connect(db)
@@ -501,7 +502,7 @@ def test_fts_check_spots_an_index_out_of_step_with_its_content(tmp_path):
 def test_fts_check_answers_rebuild_on_old_sqlite(monkeypatch, tmp_path):
     import sqlite3
 
-    import memory.doctor as d
+    d = importlib.import_module("memory.doctor")
 
     monkeypatch.setattr(sqlite3, "sqlite_version_info", (3, 37, 2))
     assert d._fts5_index_matches_content(str(tmp_path / "none.db")) is False

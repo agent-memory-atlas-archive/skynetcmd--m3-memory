@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import contextlib
 import gc
+import importlib
 import sys
 from pathlib import Path
 from types import FunctionType, ModuleType
@@ -126,7 +127,7 @@ def test_backend_factory_for_shares_the_adoption(backend, monkeypatch):
 
 def test_the_dialect_accessor_is_untouched_by_all_of_this():
     """The package object is never replaced, so the accessor stays callable."""
-    import memory.backends as B
+    B = importlib.import_module("memory.backends")
 
     assert callable(B.dialect), type(B.dialect).__name__
 

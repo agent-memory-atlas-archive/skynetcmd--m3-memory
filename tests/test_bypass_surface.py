@@ -5,6 +5,7 @@ migration up/down + index seek, builder modes + scope gating, scope isolation,
 and gdpr_forget removal via explicit enumeration (NOT cascade-only).
 """
 
+import importlib
 import sqlite3
 import sys
 from pathlib import Path
@@ -84,7 +85,7 @@ def built_db(monkeypatch):
     """A seeded DB with the builder wired to it via monkeypatched _db()."""
     import contextlib
 
-    import memory.entity as E
+    E = importlib.import_module("memory.entity")
 
     db = sqlite3.connect(":memory:")
     db.row_factory = sqlite3.Row

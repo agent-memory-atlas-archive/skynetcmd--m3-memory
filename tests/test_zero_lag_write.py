@@ -12,6 +12,7 @@ inline exactly as before.
 
 from __future__ import annotations
 
+import importlib
 import sys
 import time
 from pathlib import Path
@@ -76,7 +77,7 @@ async def test_write_defers_and_is_fast_without_embedder(monkeypatch, tmp_path):
     # DIFFERENT object than this file's `embed_mod` — patching only embed_mod then
     # misses (isolated test passed, full-suite run attempted a real embed and did
     # not defer). Patch the exact object the code under test dereferences.
-    import memory.write as _write_mod
+    _write_mod = importlib.import_module("memory.write")
 
     for _target in {embed_mod, _write_mod._embed_mod}:
         monkeypatch.setattr(_target, "fast_embedder_available", lambda: False)

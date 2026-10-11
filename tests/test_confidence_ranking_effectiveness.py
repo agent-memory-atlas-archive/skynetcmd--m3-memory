@@ -16,6 +16,7 @@ The number here is a mechanism check, not a published benchmark result.
 
 from __future__ import annotations
 
+import importlib
 import os
 import sqlite3
 import sys
@@ -139,7 +140,7 @@ async def test_confidence_ranking_lifts_corroborated_recall(monkeypatch, tmp_pat
         conn.commit()
 
     targets = {f"target-{i}" for i in range(N_TARGETS)}
-    import memory.config as cfg
+    cfg = importlib.import_module("memory.config")
 
     # Flag OFF baseline.
     monkeypatch.setattr(cfg, "CONFIDENCE_RANKING", False)

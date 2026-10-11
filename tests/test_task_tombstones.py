@@ -1,3 +1,4 @@
+import importlib
 import os
 import sys
 
@@ -31,7 +32,7 @@ def _isolated_db(monkeypatch, tmp_path):
     the new path. M3_SKIP_MIGRATIONS=1 prevents a second migrate_memory
     subprocess since the template is already at the latest version.
     """
-    import memory.db as _mdb
+    _mdb = importlib.import_module("memory.db")
 
     from conftest import create_full_main_schema
 

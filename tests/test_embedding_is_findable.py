@@ -31,6 +31,7 @@ the implementation.
 
 from __future__ import annotations
 
+import importlib
 import sys
 import unittest
 from pathlib import Path
@@ -75,7 +76,7 @@ class TestFirstWindowIsDefault(unittest.TestCase):
         this row small?" when the question is "is this the FIRST window?"."""
         import inspect
 
-        import memory.write as w
+        w = importlib.import_module("memory.write")
 
         src = inspect.getsource(w)
         code = "\n".join(ln for ln in src.splitlines() if not ln.strip().startswith("#"))

@@ -362,7 +362,7 @@ async def test_embed_for_search_skips_when_no_fast_tier(monkeypatch):
     """No fast tier available -> skip the embed entirely, return (None, model).
     The underlying _embed must NOT be called (that's the whole point: we never
     enter the slow cascade)."""
-    import memory.embed as emb
+    emb = importlib.import_module("memory.embed")
 
     called = {"n": 0}
 
@@ -381,7 +381,7 @@ async def test_embed_for_search_skips_when_no_fast_tier(monkeypatch):
 @pytest.mark.asyncio
 async def test_embed_for_search_runs_when_fast_tier_present(monkeypatch):
     """Fast tier available + fast _embed -> the vector is returned unchanged."""
-    import memory.embed as emb
+    emb = importlib.import_module("memory.embed")
 
     async def _fast(text):
         return [0.5] * 1024, "mock"
@@ -399,8 +399,8 @@ async def test_embed_for_search_deadline_degrades_not_hangs(monkeypatch):
     """A fast tier that is believed-up but actually SLOW (never trips its
     breaker) must not hang the caller: the deadline fires and we degrade to
     (None, ...). Uses a tiny deadline + a sleep longer than it."""
-    import memory.config as cfg
-    import memory.embed as emb
+    cfg = importlib.import_module("memory.config")
+    emb = importlib.import_module("memory.embed")
 
     async def _slow(text):
         await asyncio.sleep(0.5)  # longer than the deadline below
@@ -423,8 +423,8 @@ async def test_embed_for_search_deadline_degrades_not_hangs(monkeypatch):
 async def test_embed_for_search_deadline_zero_disables_ceiling(monkeypatch):
     """EMBED_SEARCH_DEADLINE_S=0 disables the wall-clock ceiling (pre-fix
     behavior) — the embed runs to completion even if slow."""
-    import memory.config as cfg
-    import memory.embed as emb
+    cfg = importlib.import_module("memory.config")
+    emb = importlib.import_module("memory.embed")
 
     async def _slow_but_ok(text):
         await asyncio.sleep(0.05)

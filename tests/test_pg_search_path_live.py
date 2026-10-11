@@ -9,6 +9,7 @@ title-matching item ranks first — the functional contract, backend-independent
 from __future__ import annotations
 
 import asyncio
+import importlib
 import os
 import struct
 
@@ -260,7 +261,7 @@ def test_pg_write_supersede_lifecycle_persists(monkeypatch):
 def test_pg_scored_search_ranks_aligned_item_first(pg_seeded, monkeypatch, mode):
     qvec, _seeded_ids = pg_seeded
 
-    import memory.embed as emb
+    emb = importlib.import_module("memory.embed")
     from memory.search import memory_search_scored_impl
 
     async def fake_embed_for_search(query, embed_fn=None, gate=False):

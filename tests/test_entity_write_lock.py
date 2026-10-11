@@ -64,7 +64,7 @@ def store(tmp_path, monkeypatch):
 def test_no_write_lock_is_held_while_resolution_awaits(store, monkeypatch):
     ent = importlib.import_module("memory.entity")
     try:
-        import memory.embed as me
+        me = importlib.import_module("memory.embed")
 
         me._ENTITY_NAME_EMBED_CACHE.clear()
     except (ImportError, AttributeError):

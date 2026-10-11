@@ -12,6 +12,7 @@ tests pin both halves: the refusal, and the diagnostic that makes it findable.
 
 from __future__ import annotations
 
+import importlib
 import logging
 import sys
 from pathlib import Path
@@ -21,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bin"))
 
 
 def test_dialect_is_the_accessor_after_a_normal_import():
+    # A plain import statement on purpose: this pins what an ordinary import yields.
     import memory.backends as B
 
     assert callable(B.dialect), type(B.dialect).__name__
@@ -28,7 +30,7 @@ def test_dialect_is_the_accessor_after_a_normal_import():
 
 def test_rebinding_dialect_to_a_module_is_refused(caplog):
     """The guard must actually refuse -- and say where the attempt came from."""
-    import memory.backends as B
+    B = importlib.import_module("memory.backends")
 
     original = B.dialect
     assert callable(original)
@@ -47,7 +49,7 @@ def test_rebinding_dialect_to_a_module_is_refused(caplog):
 
 def test_a_non_module_value_is_still_assignable():
     """The guard is narrow: it must not freeze the attribute outright."""
-    import memory.backends as B
+    B = importlib.import_module("memory.backends")
 
     original = B.dialect
     try:

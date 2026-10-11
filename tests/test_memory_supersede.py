@@ -16,6 +16,7 @@ memory_relationships is added to the schema since supersede writes an edge.
 """
 
 import asyncio
+import importlib
 import os
 import sqlite3
 import sys
@@ -305,7 +306,7 @@ def test_concurrent_close_loses_race_and_rolls_back_orphan(isolated_db, monkeypa
     The race is reproduced deterministically: a memory_write_impl wrapper that
     closes old_id as a side effect, which is exactly the interleaving a
     concurrent supersede/delete would produce."""
-    import memory.write as write_mod
+    write_mod = importlib.import_module("memory.write")
     from memory_core import memory_supersede_impl
 
     old_id = _seed_memory(isolated_db, content="original content")

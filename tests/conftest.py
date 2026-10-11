@@ -1,5 +1,7 @@
 """pytest configuration and fixtures for chatlog + main-DB tests."""
 
+import importlib
+
 # Add bin/ directory to Python path so tests can import bin modules
 import os as _os
 
@@ -1414,7 +1416,7 @@ def _capture_pristine_embed_globals():
     """Import memory.embed once at session start and snapshot its shared-mode
     switches, so the restore below always has genuinely-pristine values."""
     try:
-        import memory.embed as _m
+        _m = importlib.import_module("memory.embed")
 
         _snapshot_embed_globals(_m)
     except Exception:  # noqa: BLE001 — best effort; module may not be importable

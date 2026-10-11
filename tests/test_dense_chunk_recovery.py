@@ -3,6 +3,7 @@
 Pure Python; no DB, no embedder.
 """
 
+import importlib
 import os
 import sys
 import unittest
@@ -141,7 +142,7 @@ class MeanPoolTests(unittest.TestCase):
     def setUp(self):
         import math
 
-        import memory.embed as me
+        me = importlib.import_module("memory.embed")
 
         self.me = me
         self.math = math
@@ -192,7 +193,7 @@ class HttpBulkSubdivideTests(unittest.IsolatedAsyncioTestCase):
     over HTTP so the row still gets embedded instead of being dropped."""
 
     def setUp(self):
-        import memory.embed as me
+        me = importlib.import_module("memory.embed")
 
         self.me = me
 
@@ -295,7 +296,7 @@ class RecoverOversizedSingleTests(unittest.IsolatedAsyncioTestCase):
     row is never silently dropped on any remote tier."""
 
     def setUp(self):
-        import memory.embed as me
+        me = importlib.import_module("memory.embed")
 
         self.me = me
 

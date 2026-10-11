@@ -18,6 +18,7 @@ one message, instead of as 96 mystery TypeErrors somewhere else.
 
 from __future__ import annotations
 
+import importlib
 import os
 import sys
 
@@ -30,7 +31,7 @@ if _BIN not in sys.path:
 def test_the_package_attribute_is_the_callable_not_the_module():
     """THE invariant. Every `from memory.backends import dialect` call site in
     the tree -- 47 production files at last count -- depends on it."""
-    import memory.backends as backends
+    backends = importlib.import_module("memory.backends")
 
     assert callable(backends.dialect), (
         f"memory.backends.dialect is {type(backends.dialect).__name__}, not the "
@@ -43,7 +44,7 @@ def test_it_survives_importing_the_submodule_afterwards():
     """The dangerous direction. Importing the submodule sets the parent
     attribute to the MODULE as a side effect; if that happens after the
     package finished initialising, the accessor must still win."""
-    import memory.backends as backends
+    backends = importlib.import_module("memory.backends")
     import memory.backends.dialect  # noqa: F401 - the side effect IS the test
 
     assert callable(backends.dialect), (
