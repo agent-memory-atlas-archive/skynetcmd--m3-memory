@@ -47,6 +47,12 @@ The web dashboard's GDPR panel exposes the same fields under **Compliance detail
 
 ---
 
+**Reads are not yet attributed.** m3 records when a memory was last read
+(`last_accessed_at`, `access_count`) but not which agent or user read it, so it
+cannot yet produce the who-read-what part of an Art. 30 record. Mutations are
+recorded (`memory_history`). A read-access audit log is in progress
+([ROADMAP](ROADMAP.md#-planned--multi-agent--collaboration)).
+
 ## What m3 does **not** do (the program layer — your responsibility)
 
 These are the parts of an Art. 17 request that only your organization can perform.

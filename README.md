@@ -87,6 +87,25 @@ The query shares no keywords with the stored text — no "RS256", no "JWT" — a
 
 ---
 
+## <a id="project-status"></a>📍 Project status
+
+**The core is stable; some subsystems are beta.** One summary line per point, each linked to the doc that owns the detail. The test suite checks these lines against the code and the [ROADMAP](docs/ROADMAP.md).
+
+| Status | What it means | Features |
+| :--- | :--- | :--- |
+| **Stable** | Safe to build on. Covered by the full test matrix on every release; changes go through a deprecation notice. | Memory write / search / update / supersede · hybrid retrieval (BM25 + vectors + MMR) · bitemporal history · contradiction detection on write · GDPR forget / export · SQLite and PostgreSQL storage · MCP server and `m3` CLI · cross-device sync |
+| **Beta** | Shipped and usable, still being hardened on real workloads; behaviour may change between releases ([ROADMAP: in progress](docs/ROADMAP.md#-in-progress)). | Web dashboard · autonomous cognitive loop · Observer & Reflector stages |
+| **Planned** | Not available yet, in this order ([ROADMAP](docs/ROADMAP.md#-planned--distribution--deployment)). | Health and Prometheus metrics endpoint · pgvector / HNSW approximate search on PostgreSQL · official Docker image · server / multi-user deployment guide · stable public SDK with semver guarantees |
+
+*   **Tested on** Windows, macOS and Linux × SQLite and PostgreSQL × Python 3.12–3.15, with and without the native (Rust) core; the full matrix runs before every release ([Testing](docs/TESTING.md)).
+*   **Limit: vector search on PostgreSQL is exact, not approximate:** every query scores every stored vector. Fine for personal and team stores; very large stores will want the planned pgvector / HNSW arm ([Architecture](docs/ARCHITECTURE.md)).
+*   **Limit: SQLite has one writer at a time:** concurrent writers wait (WAL, 30 s busy timeout, retries) rather than fail. Many agents writing at once should share a PostgreSQL store ([Multi-agent](docs/MULTI_AGENT.md)).
+*   **Limit: reads are not yet attributed:** m3 records when a memory was last read, not which agent read it. A read-access audit log is in progress ([GDPR](docs/GDPR_COMPLIANCE.md)).
+*   **Configuration is moving from environment variables to `m3_config.toml`:** `m3 config show` prints every setting and where it came from ([Config reference](docs/CONFIG_REFERENCE.md)); deprecated variable names keep working with a warning, and `m3 doctor` lists any still in use ([Environment variables](docs/ENVIRONMENT_VARIABLES.md)).
+*   **Versioning:** calendar versions (`YYYY.M.D.N`). A renamed or removed setting, argument or tool keeps working, with a warning, for at least two releases after its replacement ships ([Changelog](CHANGELOG.md)).
+
+---
+
 ## <a id="for-developers"></a>🛠️ For developers: a memory backend, not a framework
 
 **MCP is optional.** m3 is a memory *layer* — it owns durable, searchable,
@@ -229,7 +248,7 @@ Short version: m3 is the **local-first, MCP-native** option that stays *yours* a
 | **Retrieval Accuracy** | State-of-the-art for a local-first substrate — **99.2% session-hit-rate @ k=8, 100% @ k=20** on LongMemEval-S (no oracle routing), with a gold session as the **#1 result for 91.8% of questions**. SHR measures the memory layer alone — no answer model, no judge — which is why it, not end-to-end QA, is the like-for-like comparison between memory systems. See [Benchmarks](#-benchmarks). |
 | **Entity & Relationship Enrichment** | **Yes.** m3 includes LLM-based entity extraction and relationship enrichment (Observer + Reflector), running as background cognitive passes over raw text — automatic once a local or cloud LLM endpoint is configured. Observer emits entities, facts and typed relationships from unstructured text; Reflector resolves contradictions and writes `supersedes` edges. **Entity types and predicates are configurable without code changes** — point `M3_ENTITY_VOCAB_YAML` at your own YAML profile (the default has 42 types and 34 predicates; two alternatives ship). Any OpenAI-compatible endpoint (LM Studio / Ollama / llama.cpp auto-probed locally, or a cloud model). See [Enrichment Guide](docs/M3_ENRICH_GUIDE.md). |
 | **Context Efficiency** | Exposes 100+ tools but occupies just **~2% of a 200K context window** at startup — the 10 registered schemas absorb 95% of real tool calls; lazy domain-gating loads the rest on demand. |
-| **Maturity** | Stable, battle-tested core engine (4,600+ tests, 6,600+ collected tests, run on 3 OSes, 2 databases and Python 3.12–3.15) that's safe to build on today; new features and integrations are added actively. **SQLite by default; PostgreSQL as a first-class primary backend** (`M3_DB_BACKEND=postgres`) via a pluggable SQL storage seam. (See [features.json](docs/features.json)) |
+| **Maturity** | Stable, battle-tested core engine (4,600+ tests, 6,600+ collected tests, run on 3 OSes, 2 databases and Python 3.12–3.15) that's safe to build on today; new features and integrations are added actively. **SQLite by default; PostgreSQL as a first-class primary backend** (`M3_DB_BACKEND=postgres`) via a pluggable SQL storage seam. (See [features.json](docs/features.json)) Per-feature status, limits and plans: [Project status](#project-status). |
 
 ---
 
@@ -510,6 +529,7 @@ m3 ships a Rust compute core (`m3_core_rs`) that speeds up MMR re-ranking by **9
 *   **You value privacy:** Zero external cloud requests or subscriptions required.
 
 ### m3 is NOT a fit if...
+*   **You need approximate vector search over a very large PostgreSQL store today, or many agents writing to one SQLite file at once:** see the limits in [Project status](#project-status).
 *   You need a hosted SaaS dashboard with managed infrastructure (use [Letta](https://letta.ai)).
 *   **You don't want persistent memory:** you want each session to start fresh, with no ability to retrieve prior sessions' knowledge — m3 exists to do the opposite, so your agent's built-in defaults are the simpler fit.
 

@@ -295,6 +295,13 @@ the policy is forward-going only.
 
 ### Added
 
+- **The README states the project's status.** A "Project status" section near
+  the top labels each feature Stable, Beta or Planned, lists the tested
+  platforms and the known limits, and states the deprecation policy, each line
+  linked to the doc with the detail. Tests keep it consistent with the ROADMAP
+  and the package metadata.
+  **Affected:** readers of the README · **Action:** none · **Data status:** none.
+
 - **`notifications_peek` reads an inbox without side effects.** It returns
   what `notifications_poll` returns but records no heartbeat and reclaims no
   leases, so checking another agent's inbox no longer marks that agent alive.
