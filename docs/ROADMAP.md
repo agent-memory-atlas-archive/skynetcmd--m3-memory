@@ -179,7 +179,6 @@ Memory as a maintained body of knowledge, not a flat index. All additive and
 - [x] **Observer & Reflector SLM stages** (`bin/run_observer.py`, `bin/run_reflector.py`) — LLM-based semantic contradiction detection beyond embeddings.
 
 - [ ] **LoCoMo audit** — harness scaffolded under `benchmarks/locomo/`; full run pending
-- [ ] **Linux CUDA smoke-test automation** — wheels currently rely on manual verification on real NVIDIA hardware before each release
 
 ---
 
