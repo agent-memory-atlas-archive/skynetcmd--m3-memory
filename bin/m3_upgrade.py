@@ -612,14 +612,26 @@ def run_captured(cmd: list[str], *, timeout: int = 900) -> str:
 # Lines `m3 doctor --fix --fix-hooks` prints when a check passed and nothing
 # was changed. A run made only of these collapses to its health line; any other
 # line (a repair, a warning, a probe added later) shows the full output.
-# Tells m3 stop and m3 setup they run on behalf of this upgrade. The owner of
-# the name is m3_memory.wizard.ui (UPGRADE_CALLER_ENV); this script cannot import
-# m3_memory, since the package is replaced under it. A test pins the two.
-UPGRADE_CALLER_ENV = "M3_SETUP_CALLER"
+# Tells m3 stop and m3 setup they run on behalf of this upgrade: the top-level
+# `m3 --caller upgrade <command>` (owner: m3_memory.wizard.ui.CALLER_FLAG; this
+# script cannot import m3_memory, since the package is replaced under it, so a
+# test pins the two). It was the env var M3_SETUP_CALLER (user decision
+# 2026-10-11, m3 c8b803b5).
+CALLER_FLAG = "--caller"
 
 
-def _as_upgrade() -> dict[str, str]:
-    return {**os.environ, UPGRADE_CALLER_ENV: "upgrade"}
+def _caller_args(m3: str, dry: bool = False) -> list[str]:
+    """``["--caller", "upgrade"]`` when THIS m3 lists the flag in its help, else [].
+
+    Probed per call, at the moment of use: step 1 runs the OLD m3, step 3 the NEW
+    one, and an upgrade may install an OLDER release. One that predates the flag
+    would reject it as unknown and fail the step, so it runs without it: its
+    output is fuller and it runs its own doctor once more. Cosmetic, not wrong.
+    A dry run probes nothing (it runs nothing) and shows the plan without it."""
+    if dry:
+        return []
+    rc, out = run_captured_rc([m3, "--help"], timeout=60)
+    return [CALLER_FLAG, "upgrade"] if rc == 0 and CALLER_FLAG in out else []
 
 
 def m3_still_installed(owner_python: str) -> bool | None:
@@ -954,8 +966,8 @@ def main(argv: list[str] | None = None) -> int:
     if not args.skip_stop:
         print(f"\n[1/5] stopping m3 DB writers: {_cmd_label([m3, 'stop'])}")
         # Non-fatal: nothing may be running, and that is a fine state to upgrade from.
-        # The caller variable makes the stop summarize its services in one line.
-        run([m3, "stop"], dry=dry, timeout=180, env=_as_upgrade())
+        # --caller makes the stop summarize its services in one line.
+        run([m3, *_caller_args(m3, dry), "stop"], dry=dry, timeout=180)
 
     print(f"\n[2/5] upgrading the package: {_cmd_label(up)}")
     # Re-probe: a hook or agent may have started an m3 launcher since the check
@@ -1062,7 +1074,7 @@ def main(argv: list[str] | None = None) -> int:
     # writer that did not exit would leave `setup --non-interactive` waiting on
     # a quiesce that never completes -- an unattended upgrade that hangs instead
     # of finishing. Reported by antigravity-agent in review of this script.
-    setup_cmd = [m3, "setup", "--non-interactive", "--force-quiesce"]
+    setup_cmd = [m3, *_caller_args(m3, dry), "setup", "--non-interactive", "--force-quiesce"]
     # Carry the CURRENT cognitive-loop choice across the upgrade. Without this,
     # `--non-interactive` leaves plan.cognitive_loop False, the role never
     # reaches `expected`, and setup neither restarts nor verifies the loop we
@@ -1100,7 +1112,7 @@ def main(argv: list[str] | None = None) -> int:
             )
 
     # Tells setup that this run verifies and summarizes (see setup_wizard._called_by_upgrade).
-    rc = run(setup_cmd, dry=dry, env=_as_upgrade())
+    rc = run(setup_cmd, dry=dry)
     if rc != 0:
         print(
             f"\n`m3 setup` failed (exit {rc}). The package IS upgraded; re-run\n"

@@ -1637,7 +1637,7 @@ def test_setup_run_by_upgrade_leaves_verification_to_it(monkeypatch):
     doctor inside setup warned about what that step then repaired."""
     events: list = []
     _stub_setup_steps(monkeypatch, events)
-    monkeypatch.setenv(setup_wizard.UPGRADE_CALLER_ENV, "upgrade")
+    monkeypatch.setattr("m3_memory.wizard.ui._caller", "upgrade")
     assert setup_wizard.run_setup(argparse.Namespace(non_interactive=True)) == 0
     assert "doctor" not in events
     assert "verify" in events  # daemons are still checked
@@ -1647,7 +1647,7 @@ def test_setup_run_by_upgrade_leaves_verification_to_it(monkeypatch):
 def test_setup_run_directly_still_verifies(monkeypatch):
     events: list = []
     _stub_setup_steps(monkeypatch, events)
-    monkeypatch.delenv(setup_wizard.UPGRADE_CALLER_ENV, raising=False)
+    monkeypatch.setattr("m3_memory.wizard.ui._caller", None)
     assert setup_wizard.run_setup(argparse.Namespace(non_interactive=True)) == 0
     assert "doctor" in events and ("summary", False) in events
 
@@ -1671,9 +1671,9 @@ def test_the_plan_is_shown_only_when_setup_is_run_directly(monkeypatch, capsys, 
     events: list = []
     _stub_setup_steps(monkeypatch, events)
     if from_upgrade:
-        monkeypatch.setenv(setup_wizard.UPGRADE_CALLER_ENV, "upgrade")
+        monkeypatch.setattr("m3_memory.wizard.ui._caller", "upgrade")
     else:
-        monkeypatch.delenv(setup_wizard.UPGRADE_CALLER_ENV, raising=False)
+        monkeypatch.setattr("m3_memory.wizard.ui._caller", None)
     setup_wizard.run_setup(argparse.Namespace(non_interactive=True))
     assert ("Plan:" in capsys.readouterr().out) is not from_upgrade
 
@@ -1698,9 +1698,9 @@ def test_a_non_blocking_embed_server_is_noted_without_promises(monkeypatch, caps
     `m3 upgrade` the server was already reported by its first step."""
     monkeypatch.setattr(setup_wizard, "_import_m3_halt", lambda: _HaltWithEmbedServer())
     if from_upgrade:
-        monkeypatch.setenv(setup_wizard.UPGRADE_CALLER_ENV, "upgrade")
+        monkeypatch.setattr("m3_memory.wizard.ui._caller", "upgrade")
     else:
-        monkeypatch.delenv(setup_wizard.UPGRADE_CALLER_ENV, raising=False)
+        monkeypatch.setattr("m3_memory.wizard.ui._caller", None)
     assert setup_wizard._quiesce_db_writers(_q_args()) is True
     out = capsys.readouterr().out
     assert "OLD binary" not in out
@@ -1716,7 +1716,7 @@ def test_step_headers_are_numbered_in_order_and_labelled_under_upgrade(monkeypat
     src = Path(setup_wizard.__file__).read_text(encoding="utf-8")
     assert not re.search(r'_say\(f?"Step \d/5', src), "step headers go through _step()"
     assert sorted({int(n) for n in re.findall(r"_step\((\d),", src)}) == [0, 1, 2, 3, 4, 5]
-    monkeypatch.delenv(setup_wizard.UPGRADE_CALLER_ENV, raising=False)
+    monkeypatch.setattr("m3_memory.wizard.ui._caller", None)
     setup_wizard._step(2, "native core")
     assert "Step 2/5: native core" in capsys.readouterr().out
 
@@ -1746,9 +1746,9 @@ def test_unchanged_state_lines_show_only_when_setup_runs_directly(monkeypatch, c
     """Under `m3 upgrade`, setup shows changes and problems only; run directly
     it still confirms each check."""
     if from_upgrade:
-        monkeypatch.setenv(setup_wizard.UPGRADE_CALLER_ENV, "upgrade")
+        monkeypatch.setattr("m3_memory.wizard.ui._caller", "upgrade")
     else:
-        monkeypatch.delenv(setup_wizard.UPGRADE_CALLER_ENV, raising=False)
+        monkeypatch.setattr("m3_memory.wizard.ui._caller", None)
     setup_wizard._ok_unchanged("  launchers on PATH: one install")
     setup_wizard._say_unchanged("  payload already present")
     setup_wizard._warn("  a real problem")
@@ -1778,6 +1778,6 @@ def test_hermes_home_is_read_without_a_deprecation_warning(monkeypatch, tmp_path
 
 
 def test_step_headers_are_not_printed_under_the_upgrade(monkeypatch, capsys):
-    monkeypatch.setenv(setup_wizard.UPGRADE_CALLER_ENV, "upgrade")
+    monkeypatch.setattr("m3_memory.wizard.ui._caller", "upgrade")
     setup_wizard._step(2, "native core")
     assert capsys.readouterr().out == ""

@@ -73,23 +73,20 @@ if not _OXIDATION_DISABLED:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Mutable config (set at import from env, written at runtime by setters)
+# Embedder URL/model overrides
 # ──────────────────────────────────────────────────────────────────────────────
-# Embedder URL/model overrides. `set_embed_override()` (in memory_core.py for
-# now; moves to embed.py in Phase 3) writes to these. Readers MUST go through
-# the module attribute, not a local alias:
-#
-#   # Right:
-#   from .. import config
-#   url = config._EMBED_URL_OVERRIDE
-#
-#   # Wrong (binds at import time; misses later sets):
-#   from ..config import _EMBED_URL_OVERRIDE
-_EMBED_URL_OVERRIDE: str | None = (_setting("embed.url") or "").strip() or None
-# An override only when SET (file or env), not the registry default.
-_EMBED_MODEL_OVERRIDE: str | None = (
-    (_setting("embed.model") or "").strip() or None if _set_by_file_or_canonical_env("embed.model") else None
-)
+# Read them as `config._EMBED_URL_OVERRIDE`, never `from ..config import ...`
+# (a bare import binds once and misses a later --embed-url).
+# _EMBED_URL_OVERRIDE / _EMBED_MODEL_OVERRIDE are accessors (below): read at call
+# time, so a CLI flag (settings.set_from_cli, origin "cli") is seen with no env
+# write and no module constant to mutate. The model is an override only when SET
+# (file, canonical env or flag), not the registry default.
+
+
+def _embed_model_override() -> str | None:
+    if not _set_by_file_or_canonical_env("embed.model"):
+        return None
+    return (_setting("embed.model") or "").strip() or None
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -496,6 +493,8 @@ EMBED_BREAKER_CLOUD_RESET_SECS: float  # accessor (registry)
 # none is read per row). A module __getattr__ does not serve a bare-name lookup,
 # so code in THIS module reaches these names through _get().
 _ACCESSORS: dict[str, Callable[[], Any]] = {
+    "_EMBED_URL_OVERRIDE": lambda: (_setting("embed.url") or "").strip() or None,
+    "_EMBED_MODEL_OVERRIDE": _embed_model_override,
     "EMBED_MODEL": lambda: _setting("embed.model"),
     "EMBED_DIM": lambda: _setting("embed.dim"),
     "EMBED_REQUIRE_UNIT_NORM": lambda: _setting("embed.require_unit_norm"),

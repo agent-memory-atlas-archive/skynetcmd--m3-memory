@@ -1899,6 +1899,12 @@ Examples:
 """,
     )
     parser.add_argument("--version", action="version", version=f"m3-memory {__version__}")
+    parser.add_argument(
+        "--caller",
+        choices=("upgrade",),
+        default=None,
+        help="Set by `m3 upgrade` on the steps it runs: they report only changes and problems.",
+    )
 
     subparsers = parser.add_subparsers(dest="command", metavar="<command>")
 
@@ -2392,6 +2398,10 @@ Examples:
     # by the outer parser — they're passed through to the child script.
     # args.rest carries them.
     args, extras = parser.parse_known_args()
+    if args.caller:
+        from m3_memory.wizard.ui import set_caller
+
+        set_caller(args.caller)
     # chatlog (alias) + doctor forward unknown flags verbatim to the child
     # script. `chat` does too, but ONLY for its operational subcommands
     # (chatlog_cmd set) — for generated tool subcommands, unknown flags are

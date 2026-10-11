@@ -635,7 +635,7 @@ def _prefer_observations_gate() -> bool:
     import sys
 
     mc = sys.modules[__name__]
-    return getattr(mc, "_gate_active")("M3_PREFER_OBSERVATIONS", getattr(mc, "_OBS_COUNT_QUERY"), threshold=100)
+    return getattr(mc, "_gate_active")("search.prefer_observations", getattr(mc, "_OBS_COUNT_QUERY"), threshold=100)
 
 
 def _two_stage_observations_gate() -> bool:
@@ -643,14 +643,14 @@ def _two_stage_observations_gate() -> bool:
     import sys
 
     mc = sys.modules[__name__]
-    return getattr(mc, "_gate_active")("M3_TWO_STAGE_OBSERVATIONS", getattr(mc, "_OBS_COUNT_QUERY"), threshold=100)
+    return getattr(mc, "_gate_active")("search.two_stage_observations", getattr(mc, "_OBS_COUNT_QUERY"), threshold=100)
 
 
 def _enable_entity_graph_gate() -> bool:
-    import sys
+    """The one owner is memory.entity._enable_entity_graph_gate; this was a copy."""
+    from memory.entity import _enable_entity_graph_gate as _owner
 
-    mc = sys.modules[__name__]
-    return getattr(mc, "_gate_active")("M3_ENABLE_ENTITY_GRAPH", getattr(mc, "_ENTITY_COUNT_QUERY"), threshold=1)
+    return _owner()
 
 
 _AUTO_ENTITIES_CACHE: dict[str, list[str]] = {}

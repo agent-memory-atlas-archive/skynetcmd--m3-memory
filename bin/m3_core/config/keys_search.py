@@ -196,6 +196,23 @@ SEARCH: list[Key] = [
         0.95,
         "Similarity above which a write corroborates an existing memory.",
     ),
+    # Phase L gates: on when set, else switched on automatically once enough
+    # observations exist (memory.disable_auto_activation stops that). They were read
+    # by a dynamic env name in memory/db.py `_gate_active`, outside the registry.
+    _flag(
+        "search.prefer_observations",
+        ("M3_PREFER_OBSERVATIONS",),
+        False,
+        "Rank distilled observations ahead of raw turns (also on automatically once 100 exist).",
+        legacy=lambda raw: raw.strip().lower() in ("1", "true", "yes", "on"),
+    ),
+    _flag(
+        "search.two_stage_observations",
+        ("M3_TWO_STAGE_OBSERVATIONS",),
+        False,
+        "Expand observation hits to their source turns (also on automatically once 100 observations exist).",
+        legacy=lambda raw: raw.strip().lower() in ("1", "true", "yes", "on"),
+    ),
     # ── [memory] ──
     _flag(
         "memory.fact_enriched",

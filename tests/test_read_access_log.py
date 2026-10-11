@@ -158,3 +158,21 @@ def test_the_flusher_does_not_sleep_on_the_shared_time_module(monkeypatch):
     monkeypatch.setattr(db, "flush_read_log", lambda: 0)
     with pytest.raises(_Stop):
         db._read_log_loop()
+
+
+def test_a_superseded_flusher_ends(monkeypatch):
+    """A rebuilt memory package starts its own flusher; the old one must stop once
+    its module is not the live one and its queue is empty."""
+    import importlib
+
+    db = importlib.import_module("memory.db")
+
+    class _Tick:
+        def wait(self, _timeout):
+            return None
+
+    monkeypatch.setattr(db, "_read_log_tick", _Tick())
+    monkeypatch.setattr(db, "flush_read_log", lambda: 0)
+    monkeypatch.setattr(db, "_read_log_pending", [])
+    monkeypatch.setattr(db, "_THIS_MODULE", object())  # as if a newer module took over
+    db._read_log_loop()  # returns instead of looping for ever

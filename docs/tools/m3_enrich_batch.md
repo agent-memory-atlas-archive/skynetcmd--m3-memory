@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_enrich_batch.py
-sha1: 3ea500ee4697
-mtime_utc: 2026-10-11T18:40:07.336700+00:00
-generated_utc: 2026-10-11T19:18:32.162414+00:00
+sha1: 43bbb378a1f3
+mtime_utc: 2026-10-11T21:02:20.622809+00:00
+generated_utc: 2026-10-11T21:08:57.265655+00:00
 private: false
 ---
 
@@ -63,7 +63,7 @@ Status:  Phase E worker. Pairs with batch_runner.py (provider abstraction).
 
 ## Entry points
 
-- `def main()` (line 1394)
+- `def main()` (line 1386)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -85,8 +85,8 @@ Status:  Phase E worker. Pairs with batch_runner.py (provider abstraction).
 | `--limit` | Cap number of conversations submitted (smoke testing). | None |  | int |  |
 | `--poll-interval-s` | Seconds between batch poll requests. Default 30. | `30.0` |  | float |  |
 | `--max-wait-s` | Max seconds to wait for batch completion. Default 86400 (24h). | `24 * 3600` |  | float |  |
-| `--embed-url` | Hard override for the embedder endpoint URL (e.g. http://127.0.0.1:8081/v1). Bypasses llm_failover discovery so observation embeds during ingest pin to a chosen server. Without this, the default discovery prefers LMS :1234 (1-slot), which throttles ingest under multi-worker load. Set to the multi-slot llama.cpp endpoint instead. Env: M3_EMBED_URL. | `os.environ.get('M3_EMBED_URL')` |  | str |  |
-| `--embed-model` | Model id for the override endpoint. llama.cpp default: 'bge-m3-GGUF-Q4_K_M.gguf'. LM Studio: 'text-embedding-bge-m3'. Required only when --embed-url is set and the default model id is wrong for that server. Env: M3_EMBED_MODEL. | `os.environ.get('M3_EMBED_MODEL')` |  | str |  |
+| `--embed-url` | Hard override for the embedder endpoint URL (e.g. http://127.0.0.1:8081/v1). Bypasses llm_failover discovery so observation embeds during ingest pin to a chosen server. Without this, the default discovery prefers LMS :1234 (1-slot), which throttles ingest under multi-worker load. Set to the multi-slot llama.cpp endpoint instead. Default: the embed.url setting (m3_config.toml or M3_EMBED_URL). | None |  | str |  |
+| `--embed-model` | Model id for the override endpoint. llama.cpp default: 'bge-m3-GGUF-Q4_K_M.gguf'. LM Studio: 'text-embedding-bge-m3'. Required only when --embed-url is set and the default model id is wrong for that server. Default: the embed.model setting (m3_config.toml or M3_EMBED_MODEL). | None |  | str |  |
 | `--slice-size` | Override runner.max_batch_size. Use to fit Gemini's Tier-1 enqueued-tokens cap (3M) — at ~5,600 tok/req set this to ~500 for 16k-input convos. | None |  | int |  |
 | `--budget-usd` | Hard cap on total run cost in USD. The worker checks after each slice ingest; if cumulative cost exceeds the cap, the run aborts cleanly (claims released, remaining slices NOT submitted). Use to prevent runaway spend on a misconfigured conv-list. | None |  | float |  |
 | `--skip-preflight` |  | `True` |  | store_true |  |
@@ -99,8 +99,6 @@ Status:  Phase E worker. Pairs with batch_runner.py (provider abstraction).
 
 - `COMPUTERNAME`
 - `M3_DATABASE`
-- `M3_EMBED_MODEL`
-- `M3_EMBED_URL`
 
 ---
 
@@ -121,7 +119,7 @@ Status:  Phase E worker. Pairs with batch_runner.py (provider abstraction).
 
 **http**
 
-- `httpx.AsyncClient()` (line 1233)
+- `httpx.AsyncClient()` (line 1225)
 - `httpx.AsyncClient()` (line 734)
 
 

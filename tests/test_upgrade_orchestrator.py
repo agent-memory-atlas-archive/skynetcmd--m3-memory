@@ -16,6 +16,7 @@ from __future__ import annotations
 import ast
 import importlib.util
 import pathlib
+import re
 import sys
 
 import pytest
@@ -233,7 +234,8 @@ def test_daemons_are_stopped_AFTER_the_package_is_replaced():
     would be useless.
     """
     src = (_BIN / "m3_upgrade.py").read_text(encoding="utf-8")
-    assert src.count('run([m3, "stop"') >= 2, (
+    stops = len(re.findall(r'run\(\[m3, (?:\*_caller_args\([^)]*\), )?"stop"', src))
+    assert stops >= 2, (
         "only one `m3 stop` remains; a daemon that survived it now runs OLD code "
         "and the setup step will not restart it because it looks healthy"
     )
@@ -638,30 +640,48 @@ def test_a_failed_doctor_ends_in_an_incomplete_summary(tmp_path, monkeypatch, ca
     assert "\nDone.\n" not in out
 
 
-def test_setup_is_told_it_runs_inside_an_upgrade(tmp_path, monkeypatch):
-    """Setup then skips its own doctor and long summary; only the setup child
-    gets the variable, not the doctor step that follows."""
+@pytest.mark.parametrize("target_has_flag", [True, False])
+def test_setup_is_told_it_runs_inside_an_upgrade(tmp_path, monkeypatch, target_has_flag):
+    """Setup and stop get `m3 --caller upgrade` when the target lists it (they then
+    skip setup's own doctor and the long summaries); the doctor step does not. A
+    target that predates the flag gets none: an unknown flag would fail the step.
+    Nothing travels through env."""
     scripts, pkg = _pip_install(tmp_path)
     monkeypatch.setattr(m3u.shutil, "which", lambda n: str(scripts / "m3.exe"))
     monkeypatch.setattr(m3u, "find_m3_package", lambda exe: pkg)
     monkeypatch.setattr(m3u, "locked_launchers", lambda d, n: [])
     monkeypatch.setattr(m3u, "cognitive_loop_installed", lambda exe: True)
-    envs = {}
-    monkeypatch.setattr(m3u, "run", lambda cmd, **k: (envs.setdefault(cmd[1], k.get("env")) and 0) or 0)
+    help_text = "usage: m3 [-h] [--version] [--caller {upgrade}]" if target_has_flag else "usage: m3 [-h] [--version]"
+    real_captured = m3u.run_captured_rc
+    monkeypatch.setattr(
+        m3u, "run_captured_rc", lambda cmd, **k: (0, help_text) if cmd[1:] == ["--help"] else real_captured(cmd, **k)
+    )
+    calls: dict[str, tuple[list[str], dict]] = {}
+
+    def fake_run(cmd, **k):
+        sub = next(a for a in cmd[1:] if not a.startswith("-") and a != "upgrade")
+        calls.setdefault(sub, (list(cmd), k))
+        return 0
+
+    monkeypatch.setattr(m3u, "run", fake_run)
     assert m3u.main(["--yes"]) == 0
-    assert envs["setup"]["M3_SETUP_CALLER"] == "upgrade"
-    assert envs.get("doctor") is None
+    flag = ["--caller", "upgrade"]
+    for step in ("stop", "setup"):
+        argv, kwargs = calls[step]
+        assert (argv[1:3] == flag) is target_has_flag, f"{step}: {argv}"
+        assert "env" not in kwargs or kwargs["env"] is None, f"{step} must not get the caller through env"
+    assert "--caller" not in calls["doctor"][0]
 
 
-def test_the_caller_variable_matches_setups():
+def test_the_caller_flag_matches_setups():
     """m3_upgrade.py must not import m3_memory (the package is replaced under
-    it), so the name is declared twice; keep the two in step, and keep the
-    script to its one constant."""
+    it), so the flag is declared twice; keep the two in step. The old env
+    handshake is gone from the code."""
     from m3_memory.wizard import ui
 
-    assert m3u.UPGRADE_CALLER_ENV == ui.UPGRADE_CALLER_ENV
+    assert m3u.CALLER_FLAG == ui.CALLER_FLAG
     src = (_BIN / "m3_upgrade.py").read_text(encoding="utf-8")
-    assert src.count('"M3_SETUP_CALLER"') == 1
+    assert '"M3_SETUP_CALLER"' not in src
 
 
 def test_a_changed_version_tells_the_user_to_restart_agents():

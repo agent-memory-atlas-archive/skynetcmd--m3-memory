@@ -305,6 +305,19 @@ the policy is forward-going only.
   `~/.m3` · **Data status:** copied, never moved or deleted; a failed copy leaves
   m3 on the old directory.
 
+- **The entity extractor's LM Studio address is `llm.lmstudio_url`.** It used
+  `M3_EMBED_URL`, which names an embedding endpoint everywhere else.
+  **Affected:** users who pointed extraction at LM Studio through `M3_EMBED_URL`
+  · **Action:** set `M3_LMSTUDIO_URL` (or `llm.lmstudio_url`) instead ·
+  **Data status:** none.
+
+- **A bad `--embed-url` / `--embed-model` stops the run.** `m3_enrich`,
+  `m3_enrich_batch` and `m3_entities` printed a warning and carried on with the
+  default embedder.
+  **Affected:** runs with an invalid embedder flag · **Action:** fix the flag ·
+  **Data status:** none; before, such a run could embed with an unintended
+  model.
+
 - **About a hundred settings are now read through the configuration registry.**
   They can be set in `m3_config.toml` as well as through their environment
   variables, and `m3 config show` reports them. A malformed or out-of-range
@@ -366,6 +379,13 @@ the policy is forward-going only.
   **Data status:** none.
 
 ### Added
+
+- **`search.prefer_observations` and `search.two_stage_observations` settings.**
+  The observation-ranking switches, previously env-only (`M3_PREFER_OBSERVATIONS`,
+  `M3_TWO_STAGE_OBSERVATIONS`), can be set in `m3_config.toml` and appear in
+  `m3 config show`. They still switch on automatically once 100 observations
+  exist.
+  **Affected:** none · **Action:** none · **Data status:** none.
 
 - **Read-access audit log (GDPR Article 30).** Every memory read, by
   `memory_get` or as a search hit, is recorded with the reading agent, the data

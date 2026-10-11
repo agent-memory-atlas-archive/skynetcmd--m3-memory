@@ -126,9 +126,9 @@ def test_an_unchanged_embedder_is_silent_under_the_upgrade(monkeypatch, capsys, 
     monkeypatch.setattr(ea, "_wait_serving", lambda port: True)
     monkeypatch.setattr(ea, "_confirm_started", lambda b, g: True)
     if from_upgrade:
-        monkeypatch.setenv("M3_SETUP_CALLER", "upgrade")
+        monkeypatch.setattr("m3_memory.wizard.ui._caller", "upgrade")
     else:
-        monkeypatch.delenv("M3_SETUP_CALLER", raising=False)
+        monkeypatch.setattr("m3_memory.wizard.ui._caller", None)
     assert ea.cmd_install(argparse.Namespace(concurrency=2)) == 0
     out = capsys.readouterr().out
     assert (out == "") is from_upgrade

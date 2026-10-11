@@ -1392,6 +1392,11 @@
           "description": "Tokens of observations a two-stage search returns.",
           "default": 4000
         },
+        "prefer_observations": {
+          "type": "boolean",
+          "description": "Rank distilled observations ahead of raw turns (also on automatically once 100 exist).",
+          "default": false
+        },
         "query_type_routing": {
           "type": "boolean",
           "description": "Route searches by query type.",
@@ -1436,6 +1441,11 @@
           "type": "integer",
           "description": "Supporting turns kept per observation.",
           "default": 3
+        },
+        "two_stage_observations": {
+          "type": "boolean",
+          "description": "Expand observation hits to their source turns (also on automatically once 100 observations exist).",
+          "default": false
         },
         "two_stage_turn_penalty": {
           "type": "number",

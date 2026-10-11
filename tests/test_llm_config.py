@@ -133,9 +133,9 @@ def test_no_runtime_guidance_is_for_setup_not_the_upgrade(monkeypatch, capsys, f
     monkeypatch.setattr(setup_wizard, "_endpoint_reachable", lambda url, **k: False)
     monkeypatch.setattr(setup_wizard, "_llm_switch_enabled", lambda var: False)
     if from_upgrade:
-        monkeypatch.setenv(setup_wizard.UPGRADE_CALLER_ENV, "upgrade")
+        monkeypatch.setattr("m3_memory.wizard.ui._caller", "upgrade")
     else:
-        monkeypatch.delenv(setup_wizard.UPGRADE_CALLER_ENV, raising=False)
+        monkeypatch.setattr("m3_memory.wizard.ui._caller", None)
     setup_wizard._probe_llm_endpoints(object(), argparse.Namespace(non_interactive=True))
     out = [ln for ln in capsys.readouterr().out.splitlines() if ln.strip()]
     if from_upgrade:

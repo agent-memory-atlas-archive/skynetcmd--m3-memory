@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_cognitive_loop.py
-sha1: 176ae8cd5235
-mtime_utc: 2026-10-11T17:51:15.732480+00:00
-generated_utc: 2026-10-11T18:07:53.927034+00:00
+sha1: 6e834ce25faa
+mtime_utc: 2026-10-11T21:05:42.309238+00:00
+generated_utc: 2026-10-11T21:08:57.226459+00:00
 private: false
 ---
 
@@ -82,8 +82,6 @@ for m3_enrich and m3_entities.
 
 - `M3_CHATLOG_DB_PATH`
 - `M3_DATABASE`
-- `M3_EMBED_MODEL`
-- `M3_EMBED_URL`
 
 ---
 

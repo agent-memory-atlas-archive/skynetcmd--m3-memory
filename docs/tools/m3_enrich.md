@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_enrich.py
-sha1: 06211df65e1a
-mtime_utc: 2026-10-11T19:04:23.521830+00:00
-generated_utc: 2026-10-11T19:18:32.141221+00:00
+sha1: 455151f79eab
+mtime_utc: 2026-10-11T21:02:20.600583+00:00
+generated_utc: 2026-10-11T21:08:57.245530+00:00
 private: false
 ---
 
@@ -45,7 +45,7 @@ Status: Phase D user-facing CLI. Pairs with bin/run_observer.py + bin/run_reflec
 
 ## Entry points
 
-- `def main()` (line 1042)
+- `def main()` (line 1036)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -57,8 +57,8 @@ Status: Phase D user-facing CLI. Pairs with bin/run_observer.py + bin/run_reflec
 | `--profile` | f'Profile name in config/slm/. Default: {DEFAULT_PROFILE}.' | `DEFAULT_PROFILE` |  | str |  |
 | `--profile-path` | Explicit YAML path. Overrides --profile when set. | None |  | str |  |
 | `--reflector-profile` | Override the Reflector stage with a different profile. Defaults to --profile (same model for both stages). | None |  | str |  |
-| `--embed-url` | Hard override for the embedder endpoint URL (e.g. http://127.0.0.1:8081/v1). Bypasses llm_failover discovery so observation embeds during ingest pin to a chosen server. Without this, the default discovery prefers LMS :1234 (often a single-slot server that throttles ingest under multi-stream load). Env: M3_EMBED_URL. | `os.environ.get('M3_EMBED_URL')` |  | str |  |
-| `--embed-model` | Model id for the override endpoint. llama.cpp default: 'bge-m3-GGUF-Q4_K_M.gguf'. LM Studio: 'text-embedding-bge-m3'. Required only when --embed-url is set and the default model id is wrong for that server. Env: M3_EMBED_MODEL. | `os.environ.get('M3_EMBED_MODEL')` |  | str |  |
+| `--embed-url` | Hard override for the embedder endpoint URL (e.g. http://127.0.0.1:8081/v1). Bypasses llm_failover discovery so observation embeds during ingest pin to a chosen server. Without this, the default discovery prefers LMS :1234 (often a single-slot server that throttles ingest under multi-stream load). Default: the embed.url setting (m3_config.toml or M3_EMBED_URL). | None |  | str |  |
+| `--embed-model` | Model id for the override endpoint. llama.cpp default: 'bge-m3-GGUF-Q4_K_M.gguf'. LM Studio: 'text-embedding-bge-m3'. Required only when --embed-url is set and the default model id is wrong for that server. Default: the embed.model setting (m3_config.toml or M3_EMBED_MODEL). | None |  | str |  |
 | `--core` | f"Only enrich the core memory DB (skip chatlog). Auto-broadens default type allowlist to: {','.join(DEFAULT_CORE_TYPES)}." | `False` |  | store_true |  |
 | `--chatlog` | f"Only enrich the chatlog DB (skip core). Default type allowlist stays message-shaped: {','.join(DEFAULT_CHATLOG_TYPES)}." | `False` |  | store_true |  |
 | `--core-db` | Explicit path to the core memory DB. | None |  | str |  |
@@ -101,8 +101,6 @@ Status: Phase D user-facing CLI. Pairs with bin/run_observer.py + bin/run_reflec
 
 - `M3_CHATLOG_DATABASE`
 - `M3_DATABASE`
-- `M3_EMBED_MODEL`
-- `M3_EMBED_URL`
 
 ---
 

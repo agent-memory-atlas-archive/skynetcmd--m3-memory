@@ -338,7 +338,7 @@ def test_an_identical_openclaw_entry_is_not_rewritten(monkeypatch, tmp_path, cap
 def test_missing_cli_is_one_short_line_under_the_upgrade(wired, capsys, monkeypatch, tmp_path):
     (tmp_path / ".openclaw").mkdir()
     monkeypatch.setattr(sw.Path, "home", classmethod(lambda cls: tmp_path))
-    monkeypatch.setenv(sw.UPGRADE_CALLER_ENV, "upgrade")
+    monkeypatch.setattr("m3_memory.wizard.ui._caller", "upgrade")
     wired(exe=None)
     assert sw._wire_openclaw() is False
     out = capsys.readouterr().out

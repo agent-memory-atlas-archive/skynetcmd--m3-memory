@@ -187,6 +187,34 @@ def new_process_group_kwargs() -> dict:
     return {}
 
 
+def killable_tree_kwargs() -> dict:
+    """Popen kwargs so :func:`kill_tree` can end the child AND everything it
+    started. POSIX: ``start_new_session`` (the child leads its own process group).
+    Windows: ``{}`` (taskkill walks the tree by parent pid). The capability
+    (``os.killpg``) decides, not the OS name."""
+    return {"start_new_session": True} if hasattr(os, "killpg") else {}
+
+
+def kill_tree(pid: int) -> None:
+    """Kill ``pid`` and its descendants now (a child started with
+    :func:`killable_tree_kwargs`). Killing only the child leaves grandchildren
+    alive and holding its pipes, so a caller reading them waits on the orphans
+    (measured 2026-10-11: a 5 s deadline returned after 64 s)."""
+    if hasattr(os, "killpg"):
+        import signal
+
+        try:
+            os.killpg(pid, getattr(signal, "SIGKILL", signal.SIGTERM))
+        except ProcessLookupError:
+            pass
+        return
+    import subprocess
+
+    subprocess.run(  # nosec B603 B607 - fixed argv, the OS's own tool
+        ["taskkill", "/T", "/F", "/PID", str(pid)], capture_output=True, check=False, **hidden_window_kwargs()
+    )
+
+
 def detached_spawn_kwargs() -> dict:
     """Popen kwargs for a BACKGROUND child that outlives this process and never
     shows a console window.

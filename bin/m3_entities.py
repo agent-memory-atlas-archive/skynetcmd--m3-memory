@@ -705,8 +705,9 @@ async def _run_db(
 ) -> None:
     """Drive the extractor across all eligible rows in one DB."""
     os.environ["M3_DATABASE"] = str(db_path)
-    # Make sure entity-graph code-path is enabled in this process.
-    os.environ.setdefault("M3_ENABLE_ENTITY_GRAPH", "1")
+    # This tool builds the entity graph, so the graph is on for this process
+    # (it was an env setdefault, which also overrode a file setting of false).
+    _m3cfg.set_from_cli({"memory.entity_graph": True})
 
     def _enqueue_failure(memory_id: str, err: Exception | None) -> None:
         """Record a failed turn in entity_extraction_queue so it is visibly
@@ -1221,22 +1222,22 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--entity-vocab-yaml", default=None, help=f"Vocab YAML path. Default: {DEFAULT_VOCAB_YAML}.")
     ap.add_argument(
         "--embed-url",
-        default=os.environ.get("M3_EMBED_URL"),
+        default=None,
         help="Hard override for the embedder endpoint URL "
         "(e.g. http://127.0.0.1:8081/v1). Bypasses "
         "get_best_embed discovery — use when you need "
         "deterministic routing under concurrent load. "
-        "Env: M3_EMBED_URL.",
+        "Default: the embed.url setting (m3_config.toml or M3_EMBED_URL).",
     )
     ap.add_argument(
         "--embed-model",
-        default=os.environ.get("M3_EMBED_MODEL"),
+        default=None,
         help="Model id to send to the override endpoint. "
         "llama.cpp default: 'bge-m3-GGUF-Q4_K_M.gguf'. "
         "LM Studio: 'text-embedding-bge-m3'. "
         "Required only when --embed-url is set and the "
         "default model id is wrong for that server. "
-        "Env: M3_EMBED_MODEL.",
+        "Default: the embed.model setting (m3_config.toml or M3_EMBED_MODEL).",
     )
     ap.add_argument(
         "--core", action="store_true", dest="core_only", help="Only enrich the core memory DB (skip chatlog)."

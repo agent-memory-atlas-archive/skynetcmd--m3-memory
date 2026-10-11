@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_enrich_batch_parallel.py
-sha1: bfe2bbb0ba9b
-mtime_utc: 2026-10-10T22:34:36.968598+00:00
-generated_utc: 2026-10-10T22:35:15.249037+00:00
+sha1: e817e592b6d2
+mtime_utc: 2026-10-11T21:02:20.648512+00:00
+generated_utc: 2026-10-11T21:08:57.270215+00:00
 private: false
 ---
 
@@ -70,8 +70,8 @@ logs/<base>_worker<N>_<ts>.log. PIDs are reported up front for kill-by-PID.
 | `--poll-interval-s` |  | `60.0` |  | float |  |
 | `--max-wait-s` |  | `24 * 3600` |  | float |  |
 | `--budget-usd` | Per-worker budget cap. Total spend can be up to workers × budget_usd. | None |  | float |  |
-| `--embed-url` | Pin observation embeds to this URL on every worker (passed through as --embed-url to each). Default discovery prefers LMS :1234 (1-slot); set this to the multi-slot llama.cpp endpoint (e.g. http://127.0.0.1:8081/v1) to avoid throttling 3-worker ingest through a single slot. Env: M3_EMBED_URL. | `os.environ.get('M3_EMBED_URL')` |  | str |  |
-| `--embed-model` | Model id for the override endpoint. See m3_enrich_batch.py --embed-model. Env: M3_EMBED_MODEL. | `os.environ.get('M3_EMBED_MODEL')` |  | str |  |
+| `--embed-url` | Pin observation embeds to this URL on every worker (passed through as --embed-url to each). Default discovery prefers LMS :1234 (1-slot); set this to the multi-slot llama.cpp endpoint (e.g. http://127.0.0.1:8081/v1) to avoid throttling 3-worker ingest through a single slot. Default: the embed.url setting (m3_config.toml or M3_EMBED_URL). | None |  | str |  |
+| `--embed-model` | Model id for the override endpoint. See m3_enrich_batch.py --embed-model. Default: the embed.model setting (m3_config.toml or M3_EMBED_MODEL). | None |  | str |  |
 | `--shard-dir` | Directory for shard files. Default: .scratch/ | None |  | str |  |
 | `--log-base` | Log basename. Default: gemini_parallel_<ts> | None |  | str |  |
 
@@ -79,8 +79,7 @@ logs/<base>_worker<N>_<ts>.log. PIDs are reported up front for kill-by-PID.
 
 ## Environment variables read
 
-- `M3_EMBED_MODEL`
-- `M3_EMBED_URL`
+_(none detected)_
 
 ---
 

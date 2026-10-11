@@ -530,7 +530,8 @@ def _norm_model_tag(tag: str) -> str:
 
 
 def _classify_embed_model(cfg: dict | None, body: dict) -> tuple[str | None, list[str]]:
-    """Compare the PINNED embed_model (env ``M3_EMBED_MODEL`` > the seeded
+    """Compare the PINNED embed_model (the embed.model setting when the user set
+    it: file, ``M3_EMBED_MODEL`` or a flag, not a legacy alias > the seeded
     ``embed_model`` in .embed_config.json) against what the server actually
     serves. The pin is the store's contract for which model owns its vector
     space, so a served model in a different family means new embeds land in a
@@ -541,7 +542,12 @@ def _classify_embed_model(cfg: dict | None, body: dict) -> tuple[str | None, lis
     read here would make the probe's verdict depend on machine state, §3). When no
     model is pinned there is nothing to compare, so it stays quiet. Returns
     (token, lines): token in {'model-mismatch', None}; lines are printable rows."""
-    pinned = ((os.environ.get("M3_EMBED_MODEL") or "").strip() or (cfg or {}).get("embed_model") or "").strip()
+    from m3_core.config import settings as _m3cfg
+
+    origin = _m3cfg.origin_of("embed.model")
+    user_set = origin != "default" and not origin.startswith("env-legacy:")
+    configured = (_m3cfg.setting("embed.model") or "").strip() if user_set else ""
+    pinned = (configured or (cfg or {}).get("embed_model") or "").strip()
     served = str((body or {}).get("model") or "").strip()
     try:
         served_dim = int((body or {}).get("dim") or 0)

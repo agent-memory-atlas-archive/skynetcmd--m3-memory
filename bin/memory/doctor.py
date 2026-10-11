@@ -35,6 +35,7 @@ from urllib.parse import urlparse
 
 from m3_core.aio import gather_or_cancel
 from m3_core.config import settings as _m3cfg
+from m3_core.seams import childenv
 
 # The non-empty-content predicate comes from the backend seam so it has exactly
 # one definition (DESIGN_PHILOSOPHIES §10a: duplicated predicate logic is the
@@ -564,17 +565,13 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
             _record("run_migrations", "skipped", "dry_run=True; would run migrate_memory.py up --yes")
         else:
             try:
-                import os as _os
-
-                env = _os.environ.copy()
-                env["M3_DATABASE"] = str(db_path)
                 mig_script = str(Path(__file__).absolute().parents[1] / "migrate_memory.py")
                 # On a worker thread: this runs inside the MCP server's event
                 # loop, and up to 300s of migration would stall every other call.
                 result = await asyncio.to_thread(
                     subprocess.run,
-                    [sys.executable, mig_script, "up", "--yes"],
-                    env=env,
+                    # The store reaches the child as --database, not env (2E.1 part 2).
+                    [sys.executable, mig_script, "--database", str(db_path), "up", "--yes"],
                     capture_output=True,
                     text=True,
                     timeout=300,
@@ -707,15 +704,15 @@ async def memory_doctor_fix_impl(dry_run: bool = False) -> dict[str, Any]:
                 if _n <= 0:
                     continue
                 try:
-                    env = _os.environ.copy()
-                    env["M3_DATABASE"] = str(_store)
+                    # The store reaches the child as --db (embed_backfill binds it
+                    # itself); only the import path is handed over.
                     # macOS: a venv's python symlinks to the base framework python,
                     # so sys.executable can resolve to an interpreter whose
                     # site-packages LACKS m3's deps → the child would die
                     # ModuleNotFoundError. Propagate our own import paths so the
                     # child finds them regardless of which python sys.executable
                     # points at (the child has no -E, so PYTHONPATH is honored).
-                    env["PYTHONPATH"] = _os.pathsep.join(p for p in ([env.get("PYTHONPATH", ""), *sys.path]) if p)
+                    env = childenv.child_env(prepend_pythonpath=_os.pathsep.join(p for p in sys.path if p))
                     result = await asyncio.to_thread(
                         subprocess.run,
                         [sys.executable, bf_script, "--db", str(_store), "--limit", "500"],

@@ -319,7 +319,9 @@ Text to process:
 
         gemini_key = get_secret_cached("GEMINI_API_KEY")
         claude_key = get_secret_cached("ANTHROPIC_API_KEY")
-        lmstudio_url = self.url or os.environ.get("M3_EMBED_URL") or "http://localhost:1234"
+        # Decision embed-1 = B (2026-10-11): the extractor's LM Studio base URL is
+        # llm.lmstudio_url; M3_EMBED_URL names an EMBEDDING endpoint everywhere else.
+        lmstudio_url = self.url or _m3cfg.setting("llm.lmstudio_url") or "http://localhost:1234"
 
         # Instantiate unified client
         cli = unified_ai.UnifiedAI(gemini_key=gemini_key, claude_key=claude_key, lmstudio_url=lmstudio_url)

@@ -3396,10 +3396,11 @@ def _spawn_detached(host: str, port: int) -> int:
     """
     import subprocess
 
-    env = dict(os.environ)
-    env["M3_DASHBOARD_HOST"] = host
-    env["M3_DASHBOARD_PORT"] = str(port)
+    # host and port reach the child as its own --host/--port (2E.1 part 2): an env
+    # handoff is ignored once the child reads config, and it would silently fall
+    # back to the default address.
     script = os.path.abspath(__file__)
+    args = [script, "--foreground", "--host", host, "--port", str(port)]
     if is_windows():
         # pythonw.exe (GUI subsystem) = the OS never allocates a console → no
         # window, no flash. CREATE_NO_WINDOW belts-and-braces the no-console
@@ -3407,8 +3408,7 @@ def _spawn_detached(host: str, port: int) -> int:
         pyw = sys.executable.replace("python.exe", "pythonw.exe")
         exe = pyw if os.path.exists(pyw) else sys.executable
         subprocess.Popen(  # noqa: S603
-            [exe, script, "--foreground"],
-            env=env,
+            [exe, *args],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             stdin=subprocess.DEVNULL,
@@ -3421,8 +3421,7 @@ def _spawn_detached(host: str, port: int) -> int:
         from _task_runtime import no_window_kwargs
 
         subprocess.Popen(  # noqa: S603
-            [sys.executable, script, "--foreground"],
-            env=env,
+            [sys.executable, *args],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             stdin=subprocess.DEVNULL,

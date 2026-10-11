@@ -354,16 +354,15 @@ async def test_predicate_enum_validates_known(monkeypatch, tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_default_off_no_extraction(monkeypatch, tmp_path):
-    """With M3_ENABLE_ENTITY_GRAPH unset, _try_extract_or_enqueue is a no-op:
+async def test_default_off_no_extraction(monkeypatch, tmp_path, m3_settings):
+    """With memory.entity_graph off, _try_extract_or_enqueue is a no-op:
     no entity rows created, no queue rows created."""
     import memory_core
 
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
     monkeypatch.setenv("M3_DATABASE", str(db_path))
-    # Ensure the env var is not set (or set to false)
-    monkeypatch.setenv("M3_ENABLE_ENTITY_GRAPH", "false")
+    m3_settings({"memory.entity_graph": False})
 
     extractor_calls = []
 

@@ -12,11 +12,26 @@ import sys
 
 from m3_memory._platform import is_windows
 
-# Set by `m3 upgrade` on the setup it runs (and inherited by setup's children):
-# the upgrade verifies and summarizes, so they report only changes and problems.
-# An environment variable rather than a flag: an upgrade can install an OLDER
-# release, whose setup would reject an unknown flag but ignores this.
-UPGRADE_CALLER_ENV = "M3_SETUP_CALLER"
+# Who launched this process: "upgrade" when `m3 upgrade` ran it with the top-level
+# `m3 --caller upgrade <command>`. The upgrade verifies and summarizes, so those
+# steps report only changes and problems. A flag, not env (user decision
+# 2026-10-11, m3 c8b803b5; it was M3_SETUP_CALLER): m3_upgrade passes it only when
+# the TARGET release lists it in `m3 --help`, so an older target, which would
+# reject an unknown flag, just runs with its fuller output. m3 children of an
+# upgraded step get it from _m3_cli (setup_wizard), not by inheriting env.
+CALLER_FLAG = "--caller"
+_caller: str | None = None
+
+
+def set_caller(value: str | None) -> None:
+    """Record who launched this process (cli.main, from --caller)."""
+    global _caller
+    _caller = value
+
+
+def caller_args() -> list[str]:
+    """The top-level flag an m3 child of this process needs, or []."""
+    return [CALLER_FLAG, _caller] if _caller else []
 
 
 def console_has_person() -> bool:
@@ -46,7 +61,7 @@ def console_has_person() -> bool:
 
 def called_by_upgrade() -> bool:
     """True when this process runs on behalf of `m3 upgrade`."""
-    return os.environ.get(UPGRADE_CALLER_ENV) == "upgrade"
+    return _caller == "upgrade"
 
 
 def _color(code: str, msg: str) -> str:

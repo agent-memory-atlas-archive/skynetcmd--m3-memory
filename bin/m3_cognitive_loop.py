@@ -805,12 +805,12 @@ async def run_entity_pass(args):
             dry_run=False,
             skip_preflight=True,
             yes=True,
-            # m3_entities._main_async reads args.embed_url/embed_model directly
-            # (not via getattr). The argparse CLI defaults them to the
-            # M3_EMBED_URL/M3_EMBED_MODEL env vars; mirror that here so the
-            # loop honors the same embedder override and doesn't AttributeError.
-            embed_url=os.environ.get("M3_EMBED_URL"),
-            embed_model=os.environ.get("M3_EMBED_MODEL"),
+            # m3_entities._main_async reads args.embed_url/embed_model directly.
+            # None = no flag: the embedder follows the embed.url / embed.model
+            # settings (m3_config.toml or M3_EMBED_URL / M3_EMBED_MODEL), as the
+            # CLI does when the flags are not given.
+            embed_url=None,
+            embed_model=None,
         )
         await m3_entities._main_async(ent_args)
     except Exception as e:

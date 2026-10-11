@@ -13,6 +13,7 @@ processes, one database file) still races.
 from __future__ import annotations
 
 import collections
+import json
 import os
 import sqlite3
 import subprocess
@@ -33,6 +34,52 @@ _HERE = os.path.dirname(__file__)
 _BIN = os.path.normpath(os.path.join(_HERE, "..", "bin"))
 if _BIN not in sys.path:
     sys.path.insert(0, _BIN)
+
+_POOL_TIMEOUT_S = 180.0
+
+
+def _pool_map(func_name: str, n: int, tasks: list) -> list:
+    """Map module function ``func_name`` over ``tasks`` in a spawn Pool of ``n``,
+    run inside a CHILD Python with a deadline.
+
+    A spawn worker that never starts leaves ``Pool()`` blocked for ever, writing
+    its start data to a pipe nobody reads: a gate lane sat 15 minutes in this
+    file's 8-process test with no worker alive (2026-10-11). In-process nothing
+    can time that out; in a child it is this test's failure, loud, and the lane
+    carries on."""
+    code = (
+        "import json, sys\n"
+        f"sys.path.insert(0, {_HERE!r})\n"
+        "import test_notification_claim as t\n"
+        "a = json.loads(sys.stdin.read())\n"
+        "with t.Pool(a['n']) as pool:\n"
+        "    out = pool.map(getattr(t, a['func']), [tuple(x) for x in a['tasks']])\n"
+        "print('RESULT:' + json.dumps(out))\n"
+    )
+    from m3_memory._platform import kill_tree, killable_tree_kwargs
+
+    payload = json.dumps({"func": func_name, "n": n, "tasks": tasks})
+    proc = subprocess.Popen(
+        [sys.executable, "-c", code],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        **killable_tree_kwargs(),
+    )
+    try:
+        out, err = proc.communicate(payload, timeout=_POOL_TIMEOUT_S)
+    except subprocess.TimeoutExpired:
+        kill_tree(proc.pid)  # the workers too: they hold the pipes
+        proc.communicate()
+        pytest.fail(
+            f"{n}-process {func_name} did not finish in {_POOL_TIMEOUT_S:.0f}s: a spawn worker never "
+            "started or hung (in-process this would have hung the whole run)"
+        )
+    lines = [ln for ln in out.splitlines() if ln.startswith("RESULT:")]
+    assert proc.returncode == 0 and lines, f"pool child failed (rc {proc.returncode}): {err[-2000:]}"
+    return json.loads(lines[-1].removeprefix("RESULT:"))
+
 
 from memory.backends.sqlite_backend import SqliteDialect  # noqa: E402
 
@@ -170,8 +217,7 @@ def test_eight_processes_never_double_claim():
     path = os.path.join(tempfile.mkdtemp(), "claim_mp.db")
     _make_db(path, rows=200)
 
-    with Pool(8) as pool:
-        results = pool.map(_worker, [(path, f"agent@p{i}", 100) for i in range(8)])
+    results = _pool_map("_worker", 8, [(path, f"agent@p{i}", 100) for i in range(8)])
 
     seen = collections.Counter()
     errors = []
@@ -199,8 +245,7 @@ def test_every_row_ends_up_owned_by_exactly_one_agent():
     path = os.path.join(tempfile.mkdtemp(), "claim_own.db")
     _make_db(path, rows=120)
 
-    with Pool(6) as pool:
-        results = pool.map(_worker, [(path, f"agent@p{i}", 60) for i in range(6)])
+    results = _pool_map("_worker", 6, [(path, f"agent@p{i}", 60) for i in range(6)])
 
     handed_out = [row for got, _ in results for row in got]
     assert len(handed_out) == len(set(handed_out)), "a row was handed to two agents"
@@ -273,8 +318,7 @@ def test_begin_immediate_survives_the_upgrade_shape():
     """
     path = os.path.join(tempfile.mkdtemp(), "upgrade.db")
     _make_db(path, rows=200)
-    with Pool(8) as pool:
-        immediate = pool.map(_upgrade_worker, [(path, f"a{i}", "IMMEDIATE", 100) for i in range(8)])
+    immediate = _pool_map("_upgrade_worker", 8, [(path, f"a{i}", "IMMEDIATE", 100) for i in range(8)])
     errors = [e for errs in immediate for e in errs]
     assert not errors, f"BEGIN IMMEDIATE raised under contention: {collections.Counter(errors)}"
 
@@ -355,3 +399,17 @@ def test_claim_time_comes_from_the_database_not_the_caller(db_path):
         f"claimed_at {stamped!r} is not in the DB's own format -- a Python "
         f"datetime.isoformat() leaks a +00:00 offset and microseconds"
     )
+
+
+def _sleep_worker(args):
+    import time
+
+    time.sleep(args[0])
+
+
+def test_a_hung_pool_fails_instead_of_hanging(monkeypatch):
+    """The deadline must be able to fire: a worker that never finishes is a
+    failure naming the cause, not a lane that hangs."""
+    monkeypatch.setattr(sys.modules[__name__], "_POOL_TIMEOUT_S", 5.0)
+    with pytest.raises(pytest.fail.Exception, match="did not finish"):
+        _pool_map("_sleep_worker", 1, [[60]])

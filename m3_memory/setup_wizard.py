@@ -40,7 +40,6 @@ from ._platform import python_exe as _python_exe
 # The upgrade-caller check has one owner, wizard.ui: embedder_admin, run as
 # setup's child, needs it too.
 from .wizard.ui import (  # noqa: F401 — re-exported for setup_wizard.<name> access
-    UPGRADE_CALLER_ENV,  # noqa: F401
     _color,
     _err,
     _ok,
@@ -4123,7 +4122,9 @@ def _m3_cli(*args: str) -> list[str]:
     current = os.environ.get("PYTHONPATH", "")
     if root not in current.split(os.pathsep):
         os.environ["PYTHONPATH"] = root + (os.pathsep + current if current else "")
-    return [sys.executable, "-P", "-m", "m3_memory.cli", *args]
+    from .wizard.ui import caller_args
+
+    return [sys.executable, "-P", "-m", "m3_memory.cli", *caller_args(), *args]
 
 
 def _print_plan(plan) -> None:

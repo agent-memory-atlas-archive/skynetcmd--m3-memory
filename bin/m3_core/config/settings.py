@@ -139,13 +139,28 @@ class _Cache:
         self._settings: Settings | None = None
         self._checked_at = 0.0
         self._last_error: str | None = None
+        self._cli: dict[Key, ConfigValue] = {}
         self.ttl_s = DEFAULT_TTL_S
+
+    def _with_cli(self, settings: Settings) -> Settings:
+        if not self._cli:
+            return settings
+        resolved = dict(settings.resolved)
+        for key, value in self._cli.items():
+            resolved[key.name] = Resolved(value=value, origin="cli")
+        return dataclasses.replace(settings, resolved=MappingProxyType(resolved))
+
+    def set_cli(self, values: Mapping[Key, ConfigValue]) -> None:
+        with self._lock:
+            self._cli.update(values)
+            if self._settings is not None:
+                self._settings = self._with_cli(self._settings)
 
     def current(self) -> Settings:
         with self._lock:
             now = time.monotonic()
             if self._settings is None:
-                self._settings = build()  # startup: a bad file raises (§3)
+                self._settings = self._with_cli(build())  # startup: a bad file raises (§3)
                 self._checked_at = now
                 _warn_deprecated_aliases(self._settings)
                 return self._settings
@@ -154,7 +169,7 @@ class _Cache:
             self._checked_at = now
             if file_identity(self._settings.location.file) == self._settings.identity:
                 return self._settings
-            self._settings = self._reload(self._settings)
+            self._settings = self._with_cli(self._reload(self._settings))
             return self._settings
 
     def _reload(self, old: Settings) -> Settings:
@@ -186,6 +201,7 @@ class _Cache:
             self._settings = None
             self._checked_at = 0.0
             self._last_error = None
+            self._cli = {}
 
 
 _CACHE = _Cache()
@@ -219,6 +235,30 @@ if TYPE_CHECKING:
     from m3_memory._setting_types import setting
 else:
     setting = _setting
+
+
+def set_from_cli(values: Mapping[str, ConfigValue | None]) -> None:
+    """Command-line flags as settings for THIS process (origin ``cli``), above the
+    file and env (R-explicit: an explicit flag beats env; env is only a default).
+
+    What a CLI used to do with ``os.environ[NAME] = flag``: readers that call
+    ``setting()`` see the value with no plumbing, it survives config reloads, and
+    nothing leaks into the environment of unrelated children. A ``None`` value
+    (flag not given) changes nothing. Validated like any value: a bad flag fails
+    here, loud. A child that needs the value gets the flag, not env (2E.1)."""
+    given: dict[Key, ConfigValue] = {}
+    for name, value in values.items():
+        if value is None:
+            continue
+        key = REGISTRY.get(name)
+        if key is None:
+            raise KeyError(f"observed: {name!r} is not a registry key. inspect: m3_core/config/keys*.py")
+        if isinstance(value, str):
+            value = key.parse(value)  # a flag's text, read by the key's one parser
+        key.check(value)
+        given[key] = value
+    if given:
+        _CACHE.set_cli(given)
 
 
 def origin_of(name: str) -> str:

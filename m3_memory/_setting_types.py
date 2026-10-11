@@ -76,8 +76,10 @@ _Names1 = Literal[
     "observer.precise_provenance",
     "search.confidence_ranking",
     "search.intent_routing",
+    "search.prefer_observations",
     "search.query_type_routing",
     "search.speaker_in_title",
+    "search.two_stage_observations",
     "slm.classifier",
     "tools.lazy",
 ]

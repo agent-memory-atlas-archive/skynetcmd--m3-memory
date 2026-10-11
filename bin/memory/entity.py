@@ -65,7 +65,7 @@ from .config import (
     ENTITY_RESOLVE_COSINE_MIN,
     ENTITY_RESOLVE_FUZZY_MIN,
 )
-from .db import _ENTITY_COUNT_QUERY, _db, _gate_active
+from .db import _db
 from .embed import _embed_canonical_cached
 from .util import sha256_hex as _sha256_hex
 
@@ -233,37 +233,15 @@ def _store_entity_vector(db, entity_id: str, vec: list[float], model: str | None
 
 
 def _enable_entity_graph_gate() -> bool:
-    """Auto-activate the entity graph when EITHER the env var is set OR
-    enough entity rows exist for the feature to be useful.
+    """The memory.entity_graph setting (default ON), read at call time.
 
-    Resolution order (each consulted at call time):
-      1. memory_core.ENABLE_ENTITY_GRAPH — set by test monkeypatch.
-      2. M3_ENABLE_ENTITY_GRAPH env var — set by tests via setenv.
-         Explicit false here vetoes the count-based gate.
-      3. Count-based gate: `entities` table size >= threshold.
-      4. memory.config.ENABLE_ENTITY_GRAPH — the import-time default.
-
-    Definition lives here (post Phase 7+8 refactor) rather than in
-    memory_core because entity.py is the only caller that matters; the
-    function was inadvertently dropped during the extraction.
-    """
-    # (1) env-var explicit override — wins because tests use monkeypatch.setenv
-    env = os.environ.get("M3_ENABLE_ENTITY_GRAPH")
-    if env is not None:
-        return env.lower() in ("1", "true", "yes")
-    # (2) monkeypatched attribute on the shim
-    try:
-        import memory_core as _mc
-
-        if hasattr(_mc, "ENABLE_ENTITY_GRAPH"):
-            return bool(_mc.ENABLE_ENTITY_GRAPH)
-    except ImportError:
-        pass
-    # (3) count-based gate
-    if _gate_active("M3_ENABLE_ENTITY_GRAPH", _ENTITY_COUNT_QUERY, threshold=1):
-        return True
-    # (4) import-time default
-    return bool(getattr(_config, "ENABLE_ENTITY_GRAPH", False))
+    It used to try env, then ``memory_core.ENABLE_ENTITY_GRAPH``, then a
+    row-count auto-activation. memory_core re-exports that name lazily, so the
+    second step ALWAYS answered and the count gate never ran (measured
+    2026-10-11); with the default on it had nothing to switch on. The user's
+    2026-10-09 decision ("one key, canonical parse; prove or remove the count
+    gate") removes it. memory_core's copy delegates here."""
+    return bool(_m3cfg.setting("memory.entity_graph"))
 
 
 def _read_gate(name: str):

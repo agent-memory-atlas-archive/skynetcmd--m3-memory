@@ -860,25 +860,17 @@ async def _run_async(args) -> int:
     # llm_failover discovery, which prefers LMS :1234 — typically a 1-slot
     # server that becomes the bottleneck under multi-worker concurrent
     # ingest. Override redirects to the user-specified endpoint (typically
-    # the multi-slot llama.cpp :8081 we run for bench work). We set both
-    # the env var (for any subprocess that re-imports memory_core) AND
-    # call set_embed_override (since memory_core's module-level
-    # _EMBED_URL_OVERRIDE was already resolved at import time).
+    # the multi-slot llama.cpp :8081). The flags become settings for this process
+    # (origin "cli", no env write; nothing here spawns a child that embeds). A
+    # flag that cannot apply stops the run rather than embedding on the default
+    # endpoint with only a warning (§3).
     embed_url = getattr(args, "embed_url", None)
     embed_model = getattr(args, "embed_model", None)
     if embed_url:
-        os.environ["M3_EMBED_URL"] = embed_url
-        if embed_model:
-            os.environ["M3_EMBED_MODEL"] = embed_model
-        try:
-            import memory_core as _mc
+        import memory_core as _mc
 
-            _mc.set_embed_override(embed_url, embed_model)
-            print(
-                f"[batch] embedder pinned: {embed_url}" + (f" (model={embed_model})" if embed_model else ""), flush=True
-            )
-        except Exception as e:  # noqa: BLE001
-            print(f"[batch] WARN: set_embed_override failed: {e!r}", flush=True)
+        _mc.set_embed_override(embed_url, embed_model)
+        print(f"[batch] embedder pinned: {embed_url}" + (f" (model={embed_model})" if embed_model else ""), flush=True)
 
     # Resume path: if --resume-run is given, skip enumeration + claim + submit.
     # Goes straight to poll/ingest for any non-ingested batches in notes.
@@ -1449,7 +1441,7 @@ def main() -> int:
     )
     ap.add_argument(
         "--embed-url",
-        default=os.environ.get("M3_EMBED_URL"),
+        default=None,
         help="Hard override for the embedder endpoint URL "
         "(e.g. http://127.0.0.1:8081/v1). Bypasses "
         "llm_failover discovery so observation embeds during "
@@ -1457,16 +1449,16 @@ def main() -> int:
         "default discovery prefers LMS :1234 (1-slot), which "
         "throttles ingest under multi-worker load. Set to "
         "the multi-slot llama.cpp endpoint instead. "
-        "Env: M3_EMBED_URL.",
+        "Default: the embed.url setting (m3_config.toml or M3_EMBED_URL).",
     )
     ap.add_argument(
         "--embed-model",
-        default=os.environ.get("M3_EMBED_MODEL"),
+        default=None,
         help="Model id for the override endpoint. llama.cpp "
         "default: 'bge-m3-GGUF-Q4_K_M.gguf'. LM Studio: "
         "'text-embedding-bge-m3'. Required only when "
         "--embed-url is set and the default model id is "
-        "wrong for that server. Env: M3_EMBED_MODEL.",
+        "wrong for that server. Default: the embed.model setting (m3_config.toml or M3_EMBED_MODEL).",
     )
     ap.add_argument(
         "--slice-size",

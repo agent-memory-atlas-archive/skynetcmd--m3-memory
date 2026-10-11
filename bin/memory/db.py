@@ -669,10 +669,13 @@ def _gate_count_query(query: str) -> int:
         return 0
 
 
-def _gate_active(env_var: str, count_query: str, threshold: int = 1) -> bool:
-    """True if env var is explicitly on, or auto-activated by data presence.
+def _gate_active(setting_name: str, count_query: str, threshold: int = 1) -> bool:
+    """True if registry flag ``setting_name`` is on (file, env or flag), or the
+    feature is auto-activated by data presence.
 
-    Cached per (env_var, count_query) for ~5 min; the cache is invalidated by
+    It took an env var NAME and read os.environ with it, so the scanner could not
+    see the read and the setting was not in the registry (2026-10-11).
+    Cached per (setting_name, count_query) for ~5 min; the cache is invalidated by
     process restart or natural TTL expiry. Single-process; no thread lock — a
     stampede on first miss would just run COUNT(*) twice, harmless.
 
@@ -680,11 +683,11 @@ def _gate_active(env_var: str, count_query: str, threshold: int = 1) -> bool:
     monkeypatch `memory_core._gate_count_query` (legacy pattern) take
     effect. Production reads the module-local `_gate_count_query`.
     """
-    if os.environ.get(env_var, "").strip().lower() in ("1", "true", "yes", "on"):
+    if _m3cfg.setting(setting_name):
         return True
     if _m3cfg.setting("memory.disable_auto_activation"):
         return False
-    cache_key = f"{env_var}::{count_query}"
+    cache_key = f"{setting_name}::{count_query}"
     cached = _GATE_CACHE.get(cache_key)
     now = time.monotonic()
     # Resolve TTL via memory_core for legacy tests that monkeypatch it
@@ -883,6 +886,15 @@ def _read_log_loop() -> None:
             flush_read_log()
         except Exception as e:  # noqa: BLE001 — the flusher must outlive any one failure
             logger.error("read-access log: flush failed (%s); queued reads kept for the next flush", e)
+        # A rebuilt `memory` package (the test suite's namespace purge, a reload)
+        # starts its own flusher; this one ends once its module is no longer the
+        # live one and its queue is drained, instead of waking for ever (a gate
+        # run's stack dump showed several, 2026-10-11).
+        if sys.modules.get(__name__) is not _THIS_MODULE and not _read_log_pending:
+            return
+
+
+_THIS_MODULE = sys.modules[__name__]
 
 
 def flush_read_log() -> int:

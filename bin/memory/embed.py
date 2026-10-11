@@ -1245,11 +1245,11 @@ def _embedded_label() -> str:
 
 
 def set_embed_override(url: str | None, model: str | None = None) -> None:
-    """Set or clear the embedder endpoint override at runtime."""
-    new_url = (url or "").strip() or None
-    new_model = (model or "").strip() or None
-    config._EMBED_URL_OVERRIDE = new_url
-    config._EMBED_MODEL_OVERRIDE = new_model
+    """Point this process's embedder at ``url`` (and ``model``): the --embed-url /
+    --embed-model flags. They become settings with origin ``cli`` (above file and
+    env), so every reader of embed.url / embed.model sees them, with no env write.
+    A blank or None argument leaves that setting as configured."""
+    _m3cfg.set_from_cli({"embed.url": (url or "").strip() or None, "embed.model": (model or "").strip() or None})
     try:
         from llm_failover import clear_embed_cache as _cec
 

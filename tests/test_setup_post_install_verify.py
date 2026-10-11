@@ -551,7 +551,7 @@ def test_brief_summary_is_short_and_keeps_failures():
 
 
 def test_running_services_are_one_line_under_the_upgrade(wizard, monkeypatch, capsys):
-    monkeypatch.setenv(wizard.UPGRADE_CALLER_ENV, "upgrade")
+    monkeypatch.setattr("m3_memory.wizard.ui._caller", "upgrade")
     monkeypatch.setattr(wizard, "_import_m3_halt", lambda: _fake_halt(["cognitive-loop", "dashboard"]))
     assert wizard._step_verify_daemons(_P(loop=True, dash=True)) is True
     out = capsys.readouterr().out
@@ -575,9 +575,9 @@ def test_a_start_attempts_ok_line_is_left_to_the_verified_line(wizard, monkeypat
     sched._start_longlived_tasks = _start
     monkeypatch.setitem(sys.modules, "install_schedules", sched)
     if from_upgrade:
-        monkeypatch.setenv(wizard.UPGRADE_CALLER_ENV, "upgrade")
+        monkeypatch.setattr("m3_memory.wizard.ui._caller", "upgrade")
     else:
-        monkeypatch.delenv(wizard.UPGRADE_CALLER_ENV, raising=False)
+        monkeypatch.setattr("m3_memory.wizard.ui._caller", None)
     assert wizard._start_service_for_role("cognitive-loop") is True
     out = capsys.readouterr().out
     assert ("[OK] Started AgentOS_CognitiveLoop" in out) is not from_upgrade

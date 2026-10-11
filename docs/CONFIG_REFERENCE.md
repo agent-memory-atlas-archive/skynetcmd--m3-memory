@@ -440,6 +440,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `intent_routing` | boolean | `true` | `M3_INTENT_ROUTING` | restart to apply; Route searches by intent. |
 | `intent_user_fact_boost` | number | `0.2` | `M3_INTENT_USER_FACT_BOOST` | restart to apply; Boost for user facts on a user-fact intent. |
 | `observation_budget_tokens` | integer | `4000` | `M3_OBSERVATION_BUDGET_TOKENS` | restart to apply; Tokens of observations a two-stage search returns. |
+| `prefer_observations` | boolean | `false` | `M3_PREFER_OBSERVATIONS` | restart to apply; Rank distilled observations ahead of raw turns (also on automatically once 100 exist). |
 | `query_type_routing` | boolean | `true` | `M3_QUERY_TYPE_ROUTING` | restart to apply; Route searches by query type. |
 | `rerank_model` | string | `cross-encoder/ms-marco-MiniLM-L-6-v2` | `M3_RERANK_MODEL` | restart to apply; Cross-encoder used to rerank. |
 | `router_temporal_k_bump` | integer | `5` | `M3_ROUTER_TEMPORAL_K_BUMP` | restart to apply; Extra results a temporal query fetches. |
@@ -449,6 +450,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 | `supersedes_penalty` | number | `0.5` | `M3_SUPERSEDES_PENALTY`, `SUPERSEDES_PENALTY` | restart to apply; Multiplier for a superseded memory's score (1.0 = no penalty). |
 | `title_match_boost` | number | `0.15` | `M3_TITLE_MATCH_BOOST`, `TITLE_MATCH_BOOST` | restart to apply; Score added when the query matches the title. |
 | `two_stage_max_turns_per_observation` | integer | `3` | `M3_TWO_STAGE_MAX_TURNS_PER_OBS` | restart to apply; Supporting turns kept per observation. |
+| `two_stage_observations` | boolean | `false` | `M3_TWO_STAGE_OBSERVATIONS` | restart to apply; Expand observation hits to their source turns (also on automatically once 100 observations exist). |
 | `two_stage_turn_penalty` | number | `0.7` | `M3_TWO_STAGE_TURN_PENALTY` | restart to apply; Multiplier for raw turns in a two-stage search. |
 
 ## [secrets]

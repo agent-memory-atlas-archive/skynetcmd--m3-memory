@@ -915,7 +915,7 @@
     },
     "_gate_active": {
       "kind": "function",
-      "signature": "(env_var: 'str', count_query: 'str', threshold: 'int' = 1) -> 'bool'",
+      "signature": "(setting_name: 'str', count_query: 'str', threshold: 'int' = 1) -> 'bool'",
       "value_repr": null
     },
     "_gate_count_query": {

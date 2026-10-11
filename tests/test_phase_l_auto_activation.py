@@ -2,7 +2,7 @@
 
 Targets the _gate_active helper directly. The data-presence count query is
 patched per-test, so tests don't bring up a SQLite schema — the helper's
-contract is "given env var + count query, return bool".
+contract is "given a registry flag + count query, return bool".
 """
 
 from __future__ import annotations
@@ -50,39 +50,39 @@ def _patch_count(monkeypatch, count, calls=None):
 def test_prefer_observations_matrix(monkeypatch, m3_settings, env, count, disable, expected):
     import memory_core
 
-    if env is None:
-        monkeypatch.delenv("M3_PREFER_OBSERVATIONS", raising=False)
-    else:
-        monkeypatch.setenv("M3_PREFER_OBSERVATIONS", env)
-    # memory.disable_auto_activation is read through the registry (M3_DISABLE_AUTO_ACTIVATION).
-    m3_settings({"memory.disable_auto_activation": disable == "1"})
+    # Both read through the registry (M3_PREFER_OBSERVATIONS, M3_DISABLE_AUTO_ACTIVATION).
+    m3_settings({"search.prefer_observations": env == "1", "memory.disable_auto_activation": disable == "1"})
     _patch_count(monkeypatch, count)
     assert memory_core._prefer_observations_gate() is expected
 
 
-def test_entity_graph_threshold_one(monkeypatch):
+def test_entity_graph_follows_its_setting_only(monkeypatch, m3_settings):
+    """memory.entity_graph decides (default on); no row count switches it. The old
+    count gate never ran (memory_core's lazy re-export answered first; measured
+    2026-10-11) and was removed per the 2026-10-09 decision."""
     import memory_core
 
-    monkeypatch.delenv("M3_ENABLE_ENTITY_GRAPH", raising=False)
-    monkeypatch.delenv("M3_DISABLE_AUTO_ACTIVATION", raising=False)
-    _patch_count(monkeypatch, 1)
+    calls: list = []
+    _patch_count(monkeypatch, 1, calls=calls)
+    m3_settings()
     assert memory_core._enable_entity_graph_gate() is True
+    m3_settings({"memory.entity_graph": False})
+    assert memory_core._enable_entity_graph_gate() is False
+    assert calls == [], "the entity graph must not consult a row count"
 
 
-def test_two_stage_paired_with_prefer(monkeypatch):
+def test_two_stage_paired_with_prefer(monkeypatch, m3_settings):
     import memory_core
 
-    monkeypatch.delenv("M3_TWO_STAGE_OBSERVATIONS", raising=False)
-    monkeypatch.delenv("M3_DISABLE_AUTO_ACTIVATION", raising=False)
+    m3_settings()
     _patch_count(monkeypatch, 100)
     assert memory_core._two_stage_observations_gate() is True
 
 
-def test_cache_avoids_repeat_queries(monkeypatch):
+def test_cache_avoids_repeat_queries(monkeypatch, m3_settings):
     import memory_core
 
-    monkeypatch.delenv("M3_PREFER_OBSERVATIONS", raising=False)
-    monkeypatch.delenv("M3_DISABLE_AUTO_ACTIVATION", raising=False)
+    m3_settings()
     calls: list = []
     _patch_count(monkeypatch, 200, calls=calls)
     for _ in range(3):
@@ -90,11 +90,10 @@ def test_cache_avoids_repeat_queries(monkeypatch):
     assert len(calls) == 1
 
 
-def test_cache_expires_after_ttl(monkeypatch):
+def test_cache_expires_after_ttl(monkeypatch, m3_settings):
     import memory_core
 
-    monkeypatch.delenv("M3_PREFER_OBSERVATIONS", raising=False)
-    monkeypatch.delenv("M3_DISABLE_AUTO_ACTIVATION", raising=False)
+    m3_settings()
     calls: list = []
     _patch_count(monkeypatch, 200, calls=calls)
     monkeypatch.setattr(memory_core, "_GATE_CACHE_TTL", 0)

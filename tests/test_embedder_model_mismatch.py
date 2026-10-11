@@ -82,8 +82,9 @@ def test_pinned_vs_foreign_served_is_warned(monkeypatch):
     assert any("INCOMPATIBLE" in ln for ln in lines)
 
 
-def test_env_pin_overrides_config(monkeypatch):
-    monkeypatch.setenv("M3_EMBED_MODEL", "nomic-embed-text")
+def test_env_pin_overrides_config(m3_settings):
+    # embed.model set by the user (file, M3_EMBED_MODEL or a flag) is the pin.
+    m3_settings({"embed.model": "nomic-embed-text"})
     token, _ = P._classify_embed_model(
         {"embed_model": "bge-m3-GGUF-Q4_K_M.gguf"}, {"model": "bge-m3-GGUF-Q4_K_M.gguf", "dim": 1024}
     )

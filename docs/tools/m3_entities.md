@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_entities.py
-sha1: e2d5dbe565f0
-mtime_utc: 2026-10-11T18:40:07.356513+00:00
-generated_utc: 2026-10-11T19:18:32.192091+00:00
+sha1: 2078aeb74efa
+mtime_utc: 2026-10-11T21:07:32.398082+00:00
+generated_utc: 2026-10-11T21:08:57.288248+00:00
 private: false
 ---
 
@@ -51,7 +51,7 @@ Override via --entity-vocab-yaml or M3_ENTITY_VOCAB_YAML.
 
 ## Entry points
 
-- `def main()` (line 1285)
+- `def main()` (line 1286)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -62,8 +62,8 @@ Override via --entity-vocab-yaml or M3_ENTITY_VOCAB_YAML.
 |---|---|---|---|---|---|
 | `--profile` | f'Profile name in config/slm/. Default: {DEFAULT_PROFILE}.' | `DEFAULT_PROFILE` |  | str |  |
 | `--entity-vocab-yaml` | f'Vocab YAML path. Default: {DEFAULT_VOCAB_YAML}.' | None |  | str |  |
-| `--embed-url` | Hard override for the embedder endpoint URL (e.g. http://127.0.0.1:8081/v1). Bypasses get_best_embed discovery — use when you need deterministic routing under concurrent load. Env: M3_EMBED_URL. | `os.environ.get('M3_EMBED_URL')` |  | str |  |
-| `--embed-model` | Model id to send to the override endpoint. llama.cpp default: 'bge-m3-GGUF-Q4_K_M.gguf'. LM Studio: 'text-embedding-bge-m3'. Required only when --embed-url is set and the default model id is wrong for that server. Env: M3_EMBED_MODEL. | `os.environ.get('M3_EMBED_MODEL')` |  | str |  |
+| `--embed-url` | Hard override for the embedder endpoint URL (e.g. http://127.0.0.1:8081/v1). Bypasses get_best_embed discovery — use when you need deterministic routing under concurrent load. Default: the embed.url setting (m3_config.toml or M3_EMBED_URL). | None |  | str |  |
+| `--embed-model` | Model id to send to the override endpoint. llama.cpp default: 'bge-m3-GGUF-Q4_K_M.gguf'. LM Studio: 'text-embedding-bge-m3'. Required only when --embed-url is set and the default model id is wrong for that server. Default: the embed.model setting (m3_config.toml or M3_EMBED_MODEL). | None |  | str |  |
 | `--core` | Only enrich the core memory DB (skip chatlog). | `False` |  | store_true |  |
 | `--chatlog` | Only enrich the chatlog DB (skip core). | `False` |  | store_true |  |
 | `--core-db` | Explicit path to the core memory DB. | None |  | str |  |
@@ -83,8 +83,6 @@ Override via --entity-vocab-yaml or M3_ENTITY_VOCAB_YAML.
 ## Environment variables read
 
 - `M3_DATABASE`
-- `M3_EMBED_MODEL`
-- `M3_EMBED_URL`
 
 ---
 
@@ -106,7 +104,7 @@ Override via --entity-vocab-yaml or M3_ENTITY_VOCAB_YAML.
 **http**
 
 - `httpx.AsyncClient()` (line 668)
-- `httpx.AsyncClient()` (line 861)
+- `httpx.AsyncClient()` (line 862)
 
 
 ---
