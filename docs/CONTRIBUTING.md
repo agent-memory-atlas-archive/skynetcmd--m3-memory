@@ -60,7 +60,7 @@ python run_tests.py
 python bin/bench_memory.py
 
 # Lint (Ruff)
-ruff check bin/ memory/ m3_memory/ tests/
+ruff check .
 
 # Type check (Mypy)
 mypy bin/ --ignore-missing-imports
@@ -81,7 +81,7 @@ bin/                    Core MCP bridges and utility scripts
 memory/                 SQLite schema and migration scripts
 config/                 Agent configuration templates (CLAUDE.md, GEMINI.md)
 docs/                   Architecture diagrams, API reference, and OS install guides
-scripts/                Maintenance utilities (fix_bugs.py, fix_db.py, fix_lint.py)
+scripts/                Maintenance utilities (inventory_graph.py: the call-graph generator)
 tests/                  End-to-end test suite
 benchmarks/             Benchmark harnesses and result catalogs (not shipped on PyPI)
   longmemeval/          LongMemEval-S/M harness + README + RUN_CATALOG
@@ -136,7 +136,7 @@ Open an issue on GitHub with:
 ## Code Style
 
 - Python 3.12+
-- Ruff for linting (`ruff check bin/ memory/ m3_memory/ tests/`)
+- Ruff for linting (`ruff check .`)
 - Mypy for type checking (`mypy bin/ --ignore-missing-imports`)
 - No external cloud APIs — all features must work fully offline
 

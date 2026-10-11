@@ -16,7 +16,7 @@ def fs_read(body: dict):
     try:
         candidate.relative_to(FS_BASE_DIR)
     except ValueError:
-        raise HTTPException(status_code=400, detail="path outside allowed base")
+        raise HTTPException(status_code=400, detail="path outside allowed base") from None
     return {"content": candidate.read_text(encoding="utf-8")}
 
 
@@ -27,6 +27,6 @@ def fs_write(body: dict):
     try:
         candidate.relative_to(FS_BASE_DIR)
     except ValueError:
-        raise HTTPException(status_code=400, detail="path outside allowed base")
+        raise HTTPException(status_code=400, detail="path outside allowed base") from None
     candidate.write_text(body["content"], encoding="utf-8")
     return {"status": "ok"}

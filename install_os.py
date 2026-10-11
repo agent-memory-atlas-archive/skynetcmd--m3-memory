@@ -18,6 +18,7 @@ def _os_name() -> str:
         return "Darwin"
     return "Linux"
 
+
 # On Windows the default console code page is cp1252, which can't encode
 # characters outside that 8-bit range (emoji, arrows, box-drawing). A stray
 # non-ASCII char in a print() (e.g. the banner's rocket emoji) crashes the
@@ -32,6 +33,7 @@ if hasattr(sys.stderr, "reconfigure"):
 # ── Paths ─────────────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+
 def get_m3_root() -> str:
     """Returns the M3 root directory for user state (~/.m3-memory)."""
     root = os.getenv("M3_MEMORY_ROOT")
@@ -45,6 +47,7 @@ def get_m3_root() -> str:
             return p.replace("\\", "/")
         return os.path.abspath(p).replace("\\", "/")
     return os.path.join(os.path.expanduser("~"), ".m3-memory")
+
 
 M3_ROOT = get_m3_root()
 
@@ -76,6 +79,7 @@ DB_DIR = os.path.join(M3_ROOT, "memory")
 LOGS_DIR = os.path.join(M3_ROOT, "logs")
 REQ_FILE = os.path.join(BASE_DIR, "requirements.txt")
 
+
 def run_cmd(cmd, env=None, *, optional=False, label=None):
     """Run a command. Aborts the install on failure unless ``optional``.
 
@@ -98,24 +102,25 @@ def run_cmd(cmd, env=None, *, optional=False, label=None):
         si.wShowWindow = subprocess.SW_HIDE
         extra_kw["startupinfo"] = si
     result = subprocess.run(
-        cmd, env=env,
+        cmd,
+        env=env,
         **({"capture_output": True, "text": True} if optional else {}),
         **extra_kw,
     )
     if result.returncode != 0:
         if optional:
-            print(f"  -> skipped: {label or ' '.join(cmd)} "
-                  f"(non-critical, exit {result.returncode})")
+            print(f"  -> skipped: {label or ' '.join(cmd)} (non-critical, exit {result.returncode})")
             return False
         print(f"\n[ERROR] Command failed: {' '.join(cmd)}", file=sys.stderr)
         sys.exit(result.returncode)
     return True
 
+
 def setup_master_key(python_exe):
     """Prompts the user to configure the AGENT_OS_MASTER_KEY using the python keyring."""
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print("🔐 ZERO-KNOWLEDGE ENCRYPTED VAULT SETUP")
-    print("="*50)
+    print("=" * 50)
     print("To sync API keys securely across devices, you must provide the AGENT_OS_MASTER_KEY.")
     print("This key will be securely stored in your native OS keyring (macOS Keychain,")
     print("Windows Credential Manager, or Linux Secret Service) and NEVER synced.")
@@ -139,9 +144,11 @@ def setup_master_key(python_exe):
             env["AGENT_OS_MASTER_KEY"] = env_key
             run_cmd([python_exe, "-c", script], env=env)
         else:
-            print("Non-interactive session: skipping master key prompt. "
-                  "Set AGENT_OS_MASTER_KEY in the environment or run "
-                  "`m3 setup` in a terminal to configure synced API keys later.")
+            print(
+                "Non-interactive session: skipping master key prompt. "
+                "Set AGENT_OS_MASTER_KEY in the environment or run "
+                "`m3 setup` in a terminal to configure synced API keys later."
+            )
         return
 
     while True:
@@ -172,6 +179,7 @@ except Exception as e:
             break
         else:
             print("❌ Passwords do not match. Please try again.")
+
 
 def install_node_manager():
     """
@@ -205,7 +213,18 @@ def install_node_manager():
         print("  -> Attempting to install nvm-windows via winget...")
         try:
             subprocess.run(["winget", "--version"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            res = subprocess.run(["winget", "install", "-e", "--id", "CoreyButler.NVMforWindows", "--silent", "--accept-package-agreements", "--accept-source-agreements"])
+            res = subprocess.run(
+                [
+                    "winget",
+                    "install",
+                    "-e",
+                    "--id",
+                    "CoreyButler.NVMforWindows",
+                    "--silent",
+                    "--accept-package-agreements",
+                    "--accept-source-agreements",
+                ]
+            )
             if res.returncode == 0:
                 print("  ✅ nvm-windows installed successfully!")
                 print("     RESTART YOUR TERMINAL to use it.")
@@ -213,7 +232,9 @@ def install_node_manager():
             else:
                 print("  -> winget install failed. You may need to install it manually.")
         except (subprocess.CalledProcessError, FileNotFoundError, PermissionError):
-            print("  -> winget not found. Please install nvm-windows manually: https://github.com/coreybutler/nvm-windows/releases")
+            print(
+                "  -> winget not found. Please install nvm-windows manually: https://github.com/coreybutler/nvm-windows/releases"
+            )
 
     else:
         # Unix/macOS: Prefer fnm or nvm
@@ -227,6 +248,7 @@ def install_node_manager():
             # user). Treat as not installed and install into the user's home.
             run_cmd(["bash", "-c", "curl -fsSL https://fnm.vercel.app/install | bash -s -- --skip-shell"])
             print("  -> fnm installed. Please follow the terminal instructions to add it to your shell.")
+
 
 def setup_oxidation():
     """Prompts the user to install Project Oxidation (Rust compute core).
@@ -249,9 +271,9 @@ def setup_oxidation():
     installs get the recommended native hot path instead of silently
     degrading to pure-Python.
     """
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print("🦀 PROJECT OXIDATION: HIGH-PERFORMANCE RUST CORE")
-    print("="*50)
+    print("=" * 50)
     print("Project Oxidation replaces critical Python hot-paths with")
     print("optimized Rust primitives. Per-operation speedups (Rust vs Python,")
     print("FFI-inclusive; see docs/OXIDATION_BENCHMARKS.md):")
@@ -270,9 +292,7 @@ def setup_oxidation():
         choice = "y"
     else:
         try:
-            ans = input(
-                "\nWould you like to install Project Oxidation now? [Y/n]: "
-            ).strip().lower()
+            ans = input("\nWould you like to install Project Oxidation now? [Y/n]: ").strip().lower()
             # Default ON: installing the prebuilt wheel is a SAFE attempt — it
             # never auto-compiles from source here, and m3 stays fully
             # functional in pure-Python if no wheel matches. An empty answer
@@ -322,15 +342,13 @@ def setup_oxidation():
             print("    Embeddings still work via the tier-2 HTTP fallback.")
             print("    See above for source-build steps if you want native speed.")
     else:
-        print(
-            "Skipping Project Oxidation. Install it later via:\n"
-            "  m3 embedder install-gpu"
-        )
+        print("Skipping Project Oxidation. Install it later via:\n  m3 embedder install-gpu")
+
 
 def main():
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print("🚀 M3 MAX AGENTIC OS: UNIVERSAL INSTALLER")
-    print("="*50)
+    print("=" * 50)
 
     # 0. Setup Node.js Management
     install_node_manager()
@@ -351,8 +369,7 @@ def main():
         # executable — a pipx venv has no `pip.exe` of its own on Windows.
         python_exe = sys.executable
         pip_exe = None
-        print(f"  -> Installed layout — using the running interpreter, "
-              f"creating no venv.\n     {python_exe}")
+        print(f"  -> Installed layout — using the running interpreter, creating no venv.\n     {python_exe}")
     else:
         if not os.path.exists(VENV_DIR):
             venv.create(VENV_DIR, with_pip=True)
@@ -382,14 +399,12 @@ def main():
     #
     # Optional either way: a current pip is a convenience, not a requirement.
     # Every dependency install below works on the pip the venv shipped with.
-    run_cmd([python_exe, "-m", "pip", "install", "--upgrade", "pip"],
-            optional=True, label="pip self-upgrade")
+    run_cmd([python_exe, "-m", "pip", "install", "--upgrade", "pip"], optional=True, label="pip self-upgrade")
     if os.path.exists(REQ_FILE):
-        run_cmd(pip_cmd + ["install", "-r", REQ_FILE])
+        run_cmd([*pip_cmd, "install", "-r", REQ_FILE])
     else:
         print(f"  -> Warning: {REQ_FILE} not found. Installing defaults...")
-        run_cmd(pip_cmd + ["install", "fastmcp", "httpx", "numpy", "keyring",
-                           "cryptography", "psycopg2-binary"])
+        run_cmd([*pip_cmd, "install", "fastmcp", "httpx", "numpy", "keyring", "cryptography", "psycopg2-binary"])
 
     # 4. Project Oxidation (Rust Core)
     # No pip_exe arg — setup_oxidation installs into the current interpreter
@@ -431,9 +446,9 @@ def main():
     else:
         print(f"  -> Warning: {gen_config_script} not found. Run it manually after install.")
 
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print("🎉 INSTALLATION COMPLETE!")
-    print("="*50)
+    print("=" * 50)
     print(f"M3 Memory is now fully initialized for {_os_name()}.")
     print("\nMCP bridges are configured in .mcp.json — Claude Code will load them automatically.")
     print("\nNext Steps:")
@@ -446,9 +461,12 @@ def main():
         print(f"    {python_exe} {pg_sync_script} hourly.")
     else:
         print("  Add the following to your crontab (crontab -e):")
-        print(f"    0 * * * * {os.path.join(BASE_DIR, 'bin', 'pg_sync.sh')} >> {os.path.join(LOGS_DIR, 'cron.log')} 2>&1")
+        print(
+            f"    0 * * * * {os.path.join(BASE_DIR, 'bin', 'pg_sync.sh')} >> {os.path.join(LOGS_DIR, 'cron.log')} 2>&1"
+        )
 
-    print("="*50 + "\n")
+    print("=" * 50 + "\n")
+
 
 if __name__ == "__main__":
     main()

@@ -1,6 +1,6 @@
 # Tool inventory index
 
-_Generated 2026-10-11T15:05:56.088776+00:00._
+_Generated 2026-10-11T16:19:14.396279+00:00._
 
 Re-run `python bin/gen_tool_inventory.py` after changing any tool.
 Entries whose `sha1` no longer matches the live file need re-validation.
@@ -140,6 +140,4 @@ Entries whose `sha1` no longer matches the live file need re-validation.
 | [run_tests.py](run_tests.md) | (no docstring) |  |
 | [scan_repo_v7.py](scan_repo_v7.md) | Scan orchestrator for the m3-memory security pipeline on LXC 504. |  |
 | [scripts/inventory_graph.py](inventory_graph.md) | Build a mermaid call-graph from tool-inventory markdown files. |  |
-| [scripts/metadata_filler.py](metadata_filler.md) | (no docstring) |  |
-| [scripts/test_focus_fix.py](test_focus_fix.md) | (no docstring) |  |
 | [validate_env.py](validate_env.md) | (no docstring) |  |

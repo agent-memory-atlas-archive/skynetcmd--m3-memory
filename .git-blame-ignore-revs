@@ -6,3 +6,6 @@
 
 # ruff format: the one mechanical sweep at the end of 2D.M (914 files)
 13edc78fc33779daddb6b879be2b5c23edf54cca
+
+# ruff format: the files outside the old lint scope (scripts/, examples/, top level)
+2b43522c70334896114f2216929bc2ad90dfce4f

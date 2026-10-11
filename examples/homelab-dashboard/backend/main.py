@@ -1,3 +1,4 @@
+import asyncio
 import os
 import subprocess
 import sys
@@ -15,7 +16,10 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".
 try:
     from auth_utils import get_api_key
 except ImportError:
-    def get_api_key(service): return None
+
+    def get_api_key(service):
+        return None
+
 
 app = FastAPI(title="Homelab Dashboard API")
 
@@ -30,9 +34,11 @@ app.add_middleware(
 POSTGRES_SERVER = os.environ.get("POSTGRES_SERVER", "localhost")
 HOMEPAGE_URL = f"http://{POSTGRES_SERVER}:3000/"
 
+
 def get_lm_headers():
     key = get_api_key("LM_STUDIO_API_KEY") or get_api_key("LM_API_TOKEN") or ""
     return {"Authorization": f"Bearer {key}"} if key else {}
+
 
 import base64
 import re
@@ -61,6 +67,7 @@ def _ext_for(content: bytes, content_type: str) -> str:
 def get_safe_stem(name: str) -> str:
     return base64.urlsafe_b64encode(name.encode()).decode().rstrip("=")
 
+
 @app.get("/api/icon")
 async def get_icon(name: str):
     stem = get_safe_stem(name)
@@ -84,7 +91,9 @@ async def get_icon(name: str):
             elif name.startswith("si-"):
                 # SimpleIcons
                 icon_name = name[3:]
-                res = await client.get(f"https://cdn.jsdelivr.net/npm/simple-icons@v13/icons/{icon_name}.svg", timeout=5.0)
+                res = await client.get(
+                    f"https://cdn.jsdelivr.net/npm/simple-icons@v13/icons/{icon_name}.svg", timeout=5.0
+                )
                 if res.status_code == 200:
                     content = res.content
 
@@ -98,13 +107,14 @@ async def get_icon(name: str):
             if content:
                 ext = _ext_for(content, content_type)
                 cache_path = ICON_CACHE_DIR / f"{stem}{ext}"
-                with open(cache_path, "wb") as f:
-                    f.write(content)
+                # Off the event loop: a blocking write here stalls every request.
+                await asyncio.to_thread(cache_path.write_bytes, content)
                 return Response(content=content, media_type=_MEDIA_BY_EXT[ext])
 
             raise HTTPException(status_code=404, detail="Icon not found")
-        except Exception:
-            raise HTTPException(status_code=404, detail="Icon not found")
+        except Exception as e:
+            raise HTTPException(status_code=404, detail="Icon not found") from e
+
 
 @app.get("/api/homepage")
 async def get_homepage_data():
@@ -113,7 +123,7 @@ async def get_homepage_data():
             response = await client.get(HOMEPAGE_URL, timeout=10.0)
             response.raise_for_status()
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
         soup = BeautifulSoup(response.text, "html.parser")
         next_data_script = soup.find("script", id="__NEXT_DATA__")
@@ -125,7 +135,8 @@ async def get_homepage_data():
             props = data.get("props", {}).get("pageProps", {})
             return {"status": "success", "data": props}
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to parse JSON: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to parse JSON: {e}") from e
+
 
 import os
 import sys
@@ -141,15 +152,16 @@ _SWIFT_THERMAL = (
     "import Foundation\n"
     "let t = ProcessInfo.processInfo.thermalState\n"
     "switch t {\n"
-    "case .nominal: print(\"Nominal\")\n"
-    "case .fair: print(\"Fair\")\n"
-    "case .serious: print(\"Serious\")\n"
-    "case .critical: print(\"Critical\")\n"
-    "@unknown default: print(\"Unknown\")\n"
+    'case .nominal: print("Nominal")\n'
+    'case .fair: print("Fair")\n'
+    'case .serious: print("Serious")\n'
+    'case .critical: print("Critical")\n'
+    '@unknown default: print("Unknown")\n'
     "}\n"
 )
 
 # ... API endpoints ...
+
 
 @app.get("/api/os/health")
 async def get_os_health():
@@ -158,12 +170,7 @@ async def get_os_health():
         return {"status": "error", "error": "M3 SDK not found. Ensure backend is running within project root."}
 
     ctx = M3Context()
-    health = {
-        "status": "healthy",
-        "local_memory": "offline",
-        "data_warehouse": "offline",
-        "db_path": ctx.db_path
-    }
+    health = {"status": "healthy", "local_memory": "offline", "data_warehouse": "offline", "db_path": ctx.db_path}
 
     # Check Local SQLite
     try:
@@ -189,10 +196,13 @@ async def get_os_health():
 
     return health
 
+
 @app.get("/api/thermal")
 async def get_thermal_load():
     try:
-        status = subprocess.check_output(
+        # Off the event loop: the swift run takes up to 10 s.
+        status = await asyncio.to_thread(
+            subprocess.check_output,
             ["swift", "-"],
             input=_SWIFT_THERMAL,
             stderr=subprocess.DEVNULL,
@@ -202,6 +212,7 @@ async def get_thermal_load():
         return {"status": "success", "thermal_load": status}
     except Exception:
         return {"status": "error", "thermal_load": "Unknown"}
+
 
 @app.get("/api/llm")
 async def get_llm_state():
@@ -213,7 +224,8 @@ async def get_llm_state():
             models = [m for m in models if "embed" not in m["id"].lower() and "nomic" not in m["id"].lower()]
             return {"status": "success", "models": models}
     except Exception:
-         return {"status": "error", "models": []}
+        return {"status": "error", "models": []}
+
 
 @app.post("/api/analyze")
 async def analyze_infrastructure():
@@ -229,7 +241,7 @@ async def analyze_infrastructure():
             data = ujson.loads(next_data_script.string)
             services = data.get("props", {}).get("pageProps", {}).get("fallback", {}).get("/api/services", [])
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to get infrastructure data: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to get infrastructure data: {e}") from e
 
         # 2. Get available models
         try:
@@ -242,7 +254,7 @@ async def analyze_infrastructure():
             # Just pick the first available model for now, ideally the largest loaded model
             model_id = models[0]["id"]
         except Exception as e:
-            raise HTTPException(status_code=503, detail=f"LM Studio error: {e}")
+            raise HTTPException(status_code=503, detail=f"LM Studio error: {e}") from e
 
         # 3. Analyze with LLM
         prompt = f"Analyze the following homelab infrastructure state for anomalies, offline services, or structural issues. Keep it concise (1-2 paragraphs). State:\n{ujson.dumps(services)[:2000]}..."
@@ -250,18 +262,24 @@ async def analyze_infrastructure():
             chat_payload = {
                 "model": model_id,
                 "messages": [
-                    {"role": "system", "content": "You are an expert homelab DevOps AI. Your job is to monitor infrastructure state and report anomalies."},
-                    {"role": "user", "content": prompt}
+                    {
+                        "role": "system",
+                        "content": "You are an expert homelab DevOps AI. Your job is to monitor infrastructure state and report anomalies.",
+                    },
+                    {"role": "user", "content": prompt},
                 ],
                 "temperature": 0.2,
-                "max_tokens": 500
+                "max_tokens": 500,
             }
-            chat_resp = await client.post("http://localhost:1234/v1/chat/completions", headers=get_lm_headers(), json=chat_payload)
+            chat_resp = await client.post(
+                "http://localhost:1234/v1/chat/completions", headers=get_lm_headers(), json=chat_payload
+            )
             chat_resp.raise_for_status()
             analysis = chat_resp.json()["choices"][0]["message"]["content"]
             return {"status": "success", "model": model_id, "analysis": analysis}
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"AI Analysis failed: {e}")
+            raise HTTPException(status_code=500, detail=f"AI Analysis failed: {e}") from e
+
 
 frontend_dist_path = (Path(__file__).parent / ".." / "frontend" / "dist").resolve()
 
@@ -288,8 +306,10 @@ if frontend_dist_path.exists():
             return FileResponse(str(candidate))
         return FileResponse(str(index_path), headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
+
 if __name__ == "__main__":
     import uvicorn
+
     # Example homelab dashboard is intentionally exposed on the LAN so other
     # devices on the trusted home network can view host status. Deployers who
     # want stricter binding can override via their process manager.

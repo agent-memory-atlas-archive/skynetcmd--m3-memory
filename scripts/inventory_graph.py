@@ -3,6 +3,7 @@
 Edges come from each tool's "Calls INTO this repo" section (intra-repo imports)
 and "Calls OUT" subprocess invocations of sibling `bin/*.py` scripts.
 """
+
 from __future__ import annotations
 
 import re
@@ -11,28 +12,62 @@ from pathlib import Path
 INV = Path(__file__).resolve().parent.parent / "docs" / "tools"
 
 BIN_SCRIPTS = {
-    "weekly_auditor", "sync_all", "secret_rotator", "memory_maintenance",
-    "pg_sync", "gen_tool_inventory", "migrate_memory",
-    "embed_server", "embed_server_gpu", "install_schedules",
-    "test_debug_agent", "test_mcp_proxy", "test_memory_bridge",
+    "weekly_auditor",
+    "sync_all",
+    "secret_rotator",
+    "memory_maintenance",
+    "pg_sync",
+    "gen_tool_inventory",
+    "migrate_memory",
+    "embed_server",
+    "embed_server_gpu",
+    "install_schedules",
+    "test_debug_agent",
+    "test_mcp_proxy",
+    "test_memory_bridge",
     "bench_memory",
-    "cli_knowledge", "cli_kb_browse", "memory_doctor", "migrate_flat_memory",
-    "pg_setup", "setup_secret", "embed_agent_instructions",
-    "inventory_graph", "metadata_filler",
+    "cli_knowledge",
+    "cli_kb_browse",
+    "memory_doctor",
+    "migrate_flat_memory",
+    "pg_setup",
+    "setup_secret",
+    "embed_agent_instructions",
+    "inventory_graph",
 }
 
 # Stdlib module names that sometimes appear in the "Calls INTO this repo"
 # section because an agent misclassified an import. Drop them silently.
 STDLIB_FALSE_POSITIVES = {
-    "pathlib", "argparse", "asyncio", "logging", "subprocess", "sqlite3",
-    "json", "os", "sys", "re", "typing", "datetime", "collections",
-    "functools", "itertools", "hashlib", "uuid", "tempfile", "shutil",
-    "ast", "io", "socket", "struct", "time",
+    "pathlib",
+    "argparse",
+    "asyncio",
+    "logging",
+    "subprocess",
+    "sqlite3",
+    "json",
+    "os",
+    "sys",
+    "re",
+    "typing",
+    "datetime",
+    "collections",
+    "functools",
+    "itertools",
+    "hashlib",
+    "uuid",
+    "tempfile",
+    "shutil",
+    "ast",
+    "io",
+    "socket",
+    "struct",
+    "time",
 }
 
 
 def parse_section(text: str, heading: str) -> str:
-    m = re.search(rf"## {re.escape(heading)}[^\n]*\n(.*?)(?=\n## |\Z)", text, re.S)
+    m = re.search(rf"## {re.escape(heading)}[^\n]*\n(.*?)(?=\n## |\Z)", text, re.DOTALL)
     return m.group(1) if m else ""
 
 
@@ -97,8 +132,26 @@ def main() -> None:
     # Classify nodes
     test_nodes = {t for t in tools if t.startswith("test_")}
     bench_nodes = {t for t in tools if t.startswith("bench_")}
-    cli_nodes = {t for t in tools if t.startswith("cli_") or t in {"setup_secret", "memory_doctor", "migrate_memory", "migrate_flat_memory", "install_schedules"}}
-    sync_nodes = {t for t in tools if "sync" in t or t in {"pg_setup", "embed_server", "embed_server_gpu", "weekly_auditor", "secret_rotator", "embed_agent_instructions"}}
+    cli_nodes = {
+        t
+        for t in tools
+        if t.startswith("cli_")
+        or t in {"setup_secret", "memory_doctor", "migrate_memory", "migrate_flat_memory", "install_schedules"}
+    }
+    sync_nodes = {
+        t
+        for t in tools
+        if "sync" in t
+        or t
+        in {
+            "pg_setup",
+            "embed_server",
+            "embed_server_gpu",
+            "weekly_auditor",
+            "secret_rotator",
+            "embed_agent_instructions",
+        }
+    }
 
     all_nodes: set[str] = set(tools)
     for s, t, _ in uniq:
@@ -148,17 +201,11 @@ def main() -> None:
     lines.append("- Solid arrows = Python import; dotted `exec` = subprocess launch.")
     if lib_targets:
         lines.append(
-            "- Library modules (imported but not themselves tools): "
-            + ", ".join(f"`{m}`" for m in lib_targets)
-            + "."
+            "- Library modules (imported but not themselves tools): " + ", ".join(f"`{m}`" for m in lib_targets) + "."
         )
     for s in exec_callers:
         targets = sorted({d for src, d in exec_edges if src == s})
-        lines.append(
-            f"- `{s}` execs other tools: "
-            + ", ".join(f"`{t}`" for t in targets)
-            + "."
-        )
+        lines.append(f"- `{s}` execs other tools: " + ", ".join(f"`{t}`" for t in targets) + ".")
     if orphans:
         lines.append(
             "- Orphans (no edges to or from other tools in this graph): "

@@ -1,8 +1,8 @@
 ---
 tool: scan_repo_v7.py
-sha1: 812146d99a18
-mtime_utc: 2026-10-04T08:59:26.351701+00:00
-generated_utc: 2026-10-04T09:01:02.878165+00:00
+sha1: 9f681b6afe62
+mtime_utc: 2026-10-11T16:14:48.307886+00:00
+generated_utc: 2026-10-11T16:19:14.393278+00:00
 private: false
 ---
 
@@ -43,7 +43,7 @@ with a setup hint covering both input shapes.
 
 ## Entry points
 
-- `def main()` (line 386)
+- `def main()` (line 618)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -79,11 +79,11 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `argv`` (line 260)
+- `subprocess.run()  → `argv`` (line 453)
 
 **http**
 
-- `requests.post()  → `url`` (line 301)
+- `requests.post()  → `url`` (line 526)
 
 
 ---
@@ -102,6 +102,7 @@ _(none detected)_
 - `cargo-audit.json`
 - `cargo-deny.json`
 - `find {repo} -name requirements*.txt | head -1 | xargs -I R pip-audit -r R -f json -o {out}/pip-audit.json || echo [] > {out}/pip-audit.json`
+- `gitleaks.json`
 - `mypy.txt`
 - `osv-scanner.json`
 - `pip-audit.json`

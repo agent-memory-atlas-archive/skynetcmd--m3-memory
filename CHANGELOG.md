@@ -242,6 +242,13 @@ the policy is forward-going only.
 
 ### Changed
 
+- **Lint and format checks cover the whole repository.** `ruff check .` is the
+  gate; `scripts/`, `examples/` and the top-level scripts were outside it. Eight
+  unused one-off scripts were removed from `scripts/`. The homelab dashboard
+  example no longer blocks its event loop on file writes and the thermal probe.
+  **Affected:** contributors; users of the homelab dashboard example ·
+  **Action:** none · **Data status:** none.
+
 - **The `database` argument is refused where it would be ignored:** on a
   non-SQLite backend and on every files tool, where the call used to run against
   the default store.

@@ -432,6 +432,13 @@ Documentation = "https://github.com/skynetcmd/m3-memory/blob/main/docs/GETTING_S
 [tool.ruff]
 target-version = "py312"   # the supported floor (requires-python)
 line-length = 120
+# The lint/format gate is `ruff check .` / `ruff format --check .`: the scope lives
+# here, not in a path list copied into CI and the docs. bench_*.py / benchmark_*.py
+# carry lint debt, but editing them trips the pre-push bench-data guard (their
+# source references private dataset paths); lint them in a bench-aware change.
+# Markdown is excluded too: ruff 0.17 formats code blocks in .md files, which no
+# gate checked before; reformatting doc samples is a separate decision.
+extend-exclude = ["**/bench_*.py", "**/benchmark_*.py", "*.md"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP",

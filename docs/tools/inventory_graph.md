@@ -1,8 +1,8 @@
 ---
 tool: scripts/inventory_graph.py
-sha1: 00f448b8ce0a
-mtime_utc: 2026-07-19T03:04:59.861497+00:00
-generated_utc: 2026-07-19T19:29:23.049239+00:00
+sha1: 9d582f115271
+mtime_utc: 2026-10-11T16:14:48.307886+00:00
+generated_utc: 2026-10-11T16:19:14.381195+00:00
 private: false
 ---
 
@@ -19,7 +19,7 @@ and "Calls OUT" subprocess invocations of sibling `bin/*.py` scripts.
 
 ## Entry points
 
-- `def main()` (line 39)
+- `def main()` (line 74)
 - `if __name__ == "__main__"` guard
 
 ---

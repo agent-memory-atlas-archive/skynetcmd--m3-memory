@@ -34,17 +34,15 @@ jobs:
     - name: Install Ruff
       run: pip install ruff==0.17.0  # exact, matching the dev extra
     - name: Run Ruff
-      # bench_*.py / benchmark_*.py are excluded: they carry the same mechanical
-      # lint debt, but editing them trips the pre-push bench-data guard (their
-      # source references private benchmark dataset paths). Lint them via a
-      # separate bench-aware change, not the standard CI gate.
-      # m3_memory/ (the installed package) and tests/ too: left out, both
-      # accumulated findings that no gate reported.
-      run: ruff check bin/ memory/ m3_memory/ tests/ --exclude 'bench_*.py' --exclude 'benchmark_*.py'
+      # The whole tree. The scope (and the bench exclusion, with its reason) is in
+      # pyproject.toml [tool.ruff]. A path list here once left m3_memory/, tests/,
+      # scripts/, examples/ and the top-level scripts unlinted: each accumulated
+      # findings that no gate reported.
+      run: ruff check .
     - name: Formatting (ruff format)
-      # Same scope as the lint step. The tree was formatted in one commit
+      # Same scope as the lint step. The tree was formatted in mechanical commits
       # (.git-blame-ignore-revs); this keeps it formatted.
-      run: ruff format --check bin/ memory/ m3_memory/ tests/ --exclude 'bench_*.py' --exclude 'benchmark_*.py'
+      run: ruff format --check .
     - name: Environment-access gate (report mode)
       # Plan Step 2A.1: inventory every os.environ / getenv access. Report mode
       # prints counts and passes; it fails only if its selftest misses a planted

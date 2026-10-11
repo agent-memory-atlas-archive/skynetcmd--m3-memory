@@ -9,11 +9,13 @@ def is_valid_ip(ip):
         return True
     return re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", ip)
 
+
 def is_valid_url(url):
     """Validate URL format."""
     if not url:
         return True
     return re.match(r"^https?:\/\/.+", url)
+
 
 def is_postgres_url(url):
     """Validate PostgreSQL connection string format."""
@@ -21,16 +23,23 @@ def is_postgres_url(url):
         return True
     return re.match(r"^postgresql:\/\/.+", url)
 
+
 def is_absolute_path(path):
     """Validate if a path is absolute."""
     if not path:
         return True
     return os.path.isabs(path)
 
+
 ENV_VARS = [
     {"name": "M3_MEMORY_ROOT", "required": True, "validator": is_absolute_path, "format": "Absolute path"},
     {"name": "SYNC_TARGET_IP", "required": False, "validator": is_valid_ip, "format": "IP address (e.g., 192.0.2.100)"},
-    {"name": "PG_URL", "required": True, "validator": is_postgres_url, "format": "PostgreSQL connection string (e.g., postgresql://USERNAME:REPLACE_WITH_YOUR_PASSWORD@host/db)"},
+    {
+        "name": "PG_URL",
+        "required": True,
+        "validator": is_postgres_url,
+        "format": "PostgreSQL connection string (e.g., postgresql://USERNAME:REPLACE_WITH_YOUR_PASSWORD@host/db)",
+    },
     {"name": "AGENT_OS_MASTER_KEY", "required": True, "validator": None, "format": None},
     {"name": "LM_API_TOKEN", "required": True, "validator": None, "format": None},
     {"name": "PERPLEXITY_API_KEY", "required": False, "validator": None, "format": None},
@@ -40,14 +49,16 @@ ENV_VARS = [
     {"name": "OPENCLAW_GATEWAY_TOKEN", "required": False, "validator": None, "format": None},
 ]
 
+
 def get_platform_instructions(var_name):
     """Get instructions for setting environment variables permanently on all platforms."""
     return {
         "Windows (Command Prompt)": f'setx {var_name} "YOUR_VALUE"',
         "Windows (PowerShell)": f'[Environment]::SetEnvironmentVariable("{var_name}", "YOUR_VALUE", "User")',
         "macOS (Zsh)": f'echo "export {var_name}=\\"YOUR_VALUE\\"" >> ~/.zshrc',
-        "Linux (Bash)": f'echo "export {var_name}=\\"YOUR_VALUE\\"" >> ~/.bashrc'
+        "Linux (Bash)": f'echo "export {var_name}=\\"YOUR_VALUE\\"" >> ~/.bashrc',
     }
+
 
 import argparse
 
@@ -61,11 +72,12 @@ def list_secrets():
         value = os.getenv(var_name, "(Not Set)")
         print(f"{var_name:<{max_len}} : {value}")
 
+
 def main():
     parser = argparse.ArgumentParser(description="Validate or list environment variables.")
     parser.add_argument("-l", "--list", help="List values of environment variables (e.g., -l secrets)", metavar="MODE")
 
-    args, unknown = parser.parse_known_args()
+    args, _unknown = parser.parse_known_args()
 
     if args.list == "secrets":
         list_secrets()
@@ -103,12 +115,15 @@ def main():
 
     if errors_found > 0:
         print(f"\nFound {errors_found} error(s). Please fix them and re-run the validation.")
-        print("Note: If you just set an environment variable permanently, you may need to restart your terminal for it to take effect.")
+        print(
+            "Note: If you just set an environment variable permanently, you may need to restart your terminal for it to take effect."
+        )
         sys.exit(1)
     else:
         print("\nAll required environment variables are set and have the correct format.")
         print("Note: If some variables appear missing but you've set them, try restarting your terminal.")
         sys.exit(0)
+
 
 if __name__ == "__main__":
     main()
