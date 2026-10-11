@@ -394,6 +394,9 @@ test = [
     "scipy>=1.18.1,<2",
     "transformers>=5.17.0,<6",
     "setuptools>=84.0.0",
+    # tests/test_tool_token_budget.py measures cl100k_base tokens; without it the
+    # gate skipped on every lane and the published figures drifted unseen.
+    "tiktoken>=0.14.0,<1",
 ]
 release = [
     "twine>=6.2.0,<7",
