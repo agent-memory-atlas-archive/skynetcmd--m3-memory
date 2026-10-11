@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_embed_sweeper.py
-sha1: efab2fd8b303
-mtime_utc: 2026-10-11T17:51:15.847512+00:00
-generated_utc: 2026-10-11T18:07:53.598848+00:00
+sha1: b0d651f8bb9b
+mtime_utc: 2026-10-11T18:40:07.054857+00:00
+generated_utc: 2026-10-11T19:18:31.703135+00:00
 private: false
 ---
 
@@ -42,7 +42,6 @@ and drains any spill-to-disk files from the async write queue.
 ## Environment variables read
 
 - `M3_DATABASE`
-- `M3_SPILL_MAX_ATTEMPTS`
 
 ---
 

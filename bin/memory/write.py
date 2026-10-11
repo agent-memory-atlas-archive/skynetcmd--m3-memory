@@ -72,6 +72,7 @@ def _db(*args, **kwargs):
     return _canonical_db(*args, **kwargs)
 
 
+from m3_core.config import settings as _m3cfg
 from m3_core.errors import log_swallowed
 
 from .embed import (
@@ -330,8 +331,8 @@ async def memory_write_impl(
 
     if entity_extractor is None:
         # Load configured extractor if active or enabled
-        write_through = os.environ.get("M3_EXTRACTION_WRITE_THROUGH", "0").lower() in ("1", "true", "yes")
-        if write_through or os.environ.get("M3_EXTRACTION_TYPE"):
+        write_through = bool(_m3cfg.setting("extraction.write_through"))
+        if write_through or _m3cfg.explicit("extraction.type"):  # an extraction type was configured
             from .extraction import get_configured_extractor
 
             ext = get_configured_extractor()
@@ -348,7 +349,7 @@ async def memory_write_impl(
     # failure the row simply stays 'auto' and is retried next sweep — never lost,
     # never blocking. Set M3_INLINE_CLASSIFY=1 to force the old inline behavior.
     if auto_classify and (not type or type == "auto"):
-        if os.environ.get("M3_INLINE_CLASSIFY", "0").strip().lower() in ("1", "true", "yes", "on"):
+        if bool(_m3cfg.setting("memory.inline_classify")):
             type = await _auto_classify(content, title)
         else:
             type = "auto"  # deferred; classification sweep resolves it
@@ -1296,8 +1297,8 @@ async def memory_write_bulk_impl(
     _warn_ignored_bulk_concurrency(fact_enricher_concurrency, entity_extractor_concurrency)
     _resolve_mc_callbacks()
     if entity_extractor is None:
-        write_through = os.environ.get("M3_EXTRACTION_WRITE_THROUGH", "0").lower() in ("1", "true", "yes")
-        if write_through or os.environ.get("M3_EXTRACTION_TYPE"):
+        write_through = bool(_m3cfg.setting("extraction.write_through"))
+        if write_through or _m3cfg.explicit("extraction.type"):  # an extraction type was configured
             from .extraction import get_configured_extractor
 
             ext = get_configured_extractor()
@@ -1336,7 +1337,7 @@ async def memory_write_bulk_impl(
         # forces the old inline behavior.
         item_type = it.get("type", "note")
         if it.get("auto_classify") and (not item_type or item_type == "auto"):
-            if os.environ.get("M3_INLINE_CLASSIFY", "0").strip().lower() in ("1", "true", "yes", "on"):
+            if bool(_m3cfg.setting("memory.inline_classify")):
                 item_type = await _auto_classify(content, title)
             else:
                 item_type = "auto"

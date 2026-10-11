@@ -29,6 +29,7 @@ import time
 from pathlib import Path
 from typing import cast
 
+from m3_memory import _config
 from m3_memory._platform import is_macos, is_windows
 
 # Exit code for "the service is REGISTERED but is not running". Distinct from 1
@@ -133,7 +134,7 @@ def _find_bundled_gguf() -> Path | None:
       4.  Walk up from this file looking for `_assets/models/<filename>`
           (developer case: `pip install -e .` from a clone)
     """
-    env_path = os.environ.get("M3_EMBED_GGUF")
+    env_path = _config.setting("embed.gguf")
     if env_path and os.path.isfile(Path(env_path)):
         return Path(env_path)
 
@@ -172,7 +173,7 @@ def _find_bundled_gguf() -> Path | None:
     try:
         import json
 
-        if os.environ.get("M3_EMBED_GGUF_AUTODETECT", "1") == "0":
+        if not _config.setting("embed.autodetect"):
             raise RuntimeError("autodetect disabled")
         cfg = Path(_embed_config_path())
         if os.path.isfile(cfg):
@@ -260,7 +261,7 @@ def _server_binary() -> Path | None:
       2. Inside the m3-core-rs Python wheel (installed by `m3 embedder install-gpu`)
       3. PATH lookup for `m3-embed-server`
     """
-    env_bin = os.environ.get("M3_EMBED_SERVER_BIN")
+    env_bin = _config.setting("embed.server.bin")
     if env_bin and os.path.isfile(Path(env_bin)):
         return Path(env_bin)
 
@@ -455,10 +456,7 @@ def _service_cmd_quiet(binary: Path, gguf: Path, sub: str, *extra: str) -> int:
 
 def _embed_server_port() -> int:
     """The configured tier-2 embed-server port (M3_EMBED_SERVER_PORT, def 8082)."""
-    try:
-        return int(os.environ.get("M3_EMBED_SERVER_PORT", "8082"))
-    except ValueError:
-        return 8082
+    return _config.setting("embed.server.port")  # malformed fails at config load (R-loud)
 
 
 def _port_in_use(port: int, host: str = "127.0.0.1", timeout: float = 0.3) -> bool:
@@ -959,7 +957,7 @@ def _offer_model_download() -> Path | None:
     if fetch_bge_m3 is None:
         return None
 
-    if os.environ.get("M3_NO_MODEL_DOWNLOAD", "") == "1":
+    if _config.setting("install.no_model_download"):
         return None
 
     prompt = (
@@ -1245,17 +1243,15 @@ def _service_defined_on_disk() -> bool:
     """
     import importlib
 
-    here = Path(__file__).resolve().parent
-    for bin_dir in (here / "bin", here.parent / "bin"):
-        if not os.path.isfile(bin_dir / "install_schedules.py"):
-            continue
-        if str(bin_dir) not in sys.path:
-            sys.path.insert(0, str(bin_dir))
-        try:
-            return importlib.import_module("install_schedules")._rust_embed_service_loaded() is True
-        except Exception:  # noqa: BLE001 — unknown is "not shown as registered"
-            return False
-    return False
+    from m3_memory import _bin
+
+    bin_dir = _bin.ensure_on_path()  # both layouts: m3_memory/bin or a checkout's bin/
+    if bin_dir is None or not os.path.isfile(bin_dir / "install_schedules.py"):
+        return False
+    try:
+        return importlib.import_module("install_schedules")._rust_embed_service_loaded() is True
+    except Exception:  # noqa: BLE001 — unknown is "not shown as registered"
+        return False
 
 
 def _import_model_fetch(name: str):
@@ -1269,18 +1265,16 @@ def _import_model_fetch(name: str):
     """
     import importlib
 
-    here = Path(__file__).resolve().parent
-    for bin_dir in (here / "bin", here.parent / "bin"):
-        if not os.path.isfile(bin_dir / "memory" / "model_fetch.py"):
-            continue
-        if str(bin_dir) not in sys.path:
-            sys.path.insert(0, str(bin_dir))
-        try:
-            mod = importlib.import_module("memory.model_fetch")
-            return getattr(mod, name, None)
-        except Exception:  # noqa: BLE001 - optional path, never fatal
-            return None
-    return None
+    from m3_memory import _bin
+
+    bin_dir = _bin.ensure_on_path()  # both layouts, one rule (m3_memory._bin)
+    if bin_dir is None or not os.path.isfile(bin_dir / "memory" / "model_fetch.py"):
+        return None
+    try:
+        mod = importlib.import_module("memory.model_fetch")
+        return getattr(mod, name, None)
+    except Exception:  # noqa: BLE001 - optional path, never fatal
+        return None
 
 
 def _embed_config_path() -> str:
@@ -1463,7 +1457,7 @@ def cmd_unshared(args: argparse.Namespace) -> int:
         print(f"[OK] removed {path}")
     else:
         print(f"[~] {path} not present — nothing to remove.")
-    inproc_on = os.environ.get("M3_EMBED_INPROC", "0") == "1"
+    inproc_on = bool(_config.setting("embed.inproc"))
     print()
     if inproc_on:
         print("     M3_EMBED_INPROC=1 is set, so processes WILL load their own in-process embedder.")
@@ -1508,9 +1502,9 @@ def cmd_backfill(args: argparse.Namespace) -> int:
         # Reuse the loop's own resolver so the CLI and the automatic pass agree
         # on what "every store" means; duplicating that logic here is how the
         # two would drift.
-        bin_dir = str(script.parent)
-        if bin_dir not in sys.path:
-            sys.path.insert(0, bin_dir)
+        from m3_memory import _bin
+
+        _bin.ensure_on_path()
         try:
             import m3_cognitive_loop as _loop
 

@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_sdk.py
-sha1: be005c6f8710
-mtime_utc: 2026-10-11T18:02:27.971045+00:00
-generated_utc: 2026-10-11T18:07:54.017354+00:00
+sha1: f1ddd1a6e859
+mtime_utc: 2026-10-11T19:20:23.259963+00:00
+generated_utc: 2026-10-11T19:29:29.169060+00:00
 private: false
 ---
 
@@ -64,6 +64,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `m3_core.runtime`
 - `m3_core.runtime (LM_READ_TIMEOUT, LM_STUDIO_BASE, M3_CORE_RS_DISABLE, StructuredLogger, ensure_utf8, format_log, iso_local_timestamp, iso_utc_timestamp, logger)`
 - `m3_core.secret_store (PgRole, resolve_pg_dsn)`
+- `m3_core.secret_store (cached_secret)`
 - `memory.backends (active_backend, dialect)`
 - `types`
 

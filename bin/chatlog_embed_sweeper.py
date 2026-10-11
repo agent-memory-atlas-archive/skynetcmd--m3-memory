@@ -93,7 +93,7 @@ def _spill_max_attempts(now: float | None = None) -> int:
         # legacy name to a new one, and this knob is new — it has no legacy
         # spelling to be compatible with (test_env_rename_map_drift enforces
         # that every getenv_compat call site is a real rename).
-        return max(1, int(os.environ.get("M3_SPILL_MAX_ATTEMPTS", "5") or 5))
+        return max(1, _m3cfg.setting("chatlog.spill.max_drain_attempts"))
     except (TypeError, ValueError):
         return 5
 

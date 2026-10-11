@@ -210,7 +210,7 @@ Memory as a maintained body of knowledge, not a flat index. All additive and
 - [ ] **Shared memory namespaces** — optional scoped memory pools across multiple local agents
 - [ ] **Agent identity model** — per-agent memory isolation with explicit cross-agent read grants (today: per-`agent_id` scoping at the SQL layer; the cross-agent grant primitive is still implicit)
 - [ ] **Remote P2P sync** — encrypted memory replication over WireGuard / Tailscale without a central server
-- [ ] **Memory read-access audit log** — who *read* what and when (GDPR Article 30 record). Mutations are already recorded (`memory_history` and the hash-chained audit trail in `bin/audit_trail.py`); reads today only update `access_count` / `last_accessed_at`.
+- [x] **Memory read-access audit log** — who *read* what and when (GDPR Article 30 record). Mutations are already recorded (`memory_history` and the hash-chained audit trail in `bin/audit_trail.py`); reads today only update `access_count` / `last_accessed_at`.
 
 ---
 

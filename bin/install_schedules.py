@@ -36,6 +36,8 @@ import tempfile
 import time
 from datetime import UTC
 
+from m3_core.config import settings as _m3cfg
+
 # The OS seam (WMI-safe; platform.system() hangs on Py3.14/Windows). This
 # module runs under `m3 schedules` / the installer, where m3_memory imports.
 from m3_core.seams import os_name as _os_name  # noqa: E402
@@ -1596,7 +1598,7 @@ def _confirm_service_live(name: str, *, deadline_s: float = 25.0):
     url_tpl = _SERVICE_HEALTH_URLS.get(name)
     if not url_tpl:
         return None
-    port = int(os.environ.get("M3_DASHBOARD_PORT") or 8088)
+    port = _m3cfg.setting("dashboard.port") or 8088
     url = url_tpl.format(port=port)
     import urllib.error
     import urllib.request

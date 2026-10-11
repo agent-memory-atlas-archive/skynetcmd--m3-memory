@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_entities_gliner.py
-sha1: b0177098eba4
-mtime_utc: 2026-10-11T17:51:15.727475+00:00
-generated_utc: 2026-10-11T18:07:53.996143+00:00
+sha1: 46210c081ac4
+mtime_utc: 2026-10-11T19:04:23.622518+00:00
+generated_utc: 2026-10-11T19:18:32.199269+00:00
 private: false
 ---
 
@@ -66,10 +66,10 @@ Env vars (all optional):
 | `--source-variant` | Filter source rows by variant. '__none__' = variant IS NULL (true core rows). A name scopes to a single variant. Omit to process all variants. | None |  | str |  |
 | `--source-conv-list` | Path to a conversation_id allowlist (newline-delimited or JSON array). Filters AFTER --source-variant. | `_m3cfg.setting('entity.conv_list')` |  | str |  |
 | `--limit` | Cap eligible rows (smoke testing). | None |  | int |  |
-| `--model` | GLiNER HF model id. Default: urchade/gliner_large-v2.1. | `urchade/gliner_large-v2.1` |  | str |  |
-| `--threshold` | Confidence threshold (default: 0.5; lower e.g. 0.3 widens recall). | `0.5` |  | float |  |
-| `--batch-size` | Batch size for GLiNER inference (default: 32 — fits in a typical GPU alongside the embedder). | `32` |  | int |  |
-| `--device` | Inference device: 'cuda' (default; falls back to cpu) or 'cpu'. | `cuda` |  | str |  |
+| `--model` | GLiNER HF model id. Default: urchade/gliner_large-v2.1. | None |  | str |  |
+| `--threshold` | Confidence threshold (default: 0.5; lower e.g. 0.3 widens recall). | None |  | float |  |
+| `--batch-size` | Batch size for GLiNER inference (default: 32 — fits in a typical GPU alongside the embedder). | None |  | int |  |
+| `--device` | Inference device: 'cuda' (default; falls back to cpu) or 'cpu'. | None |  | str |  |
 | `--force` | Re-extract rows already linked in memory_item_entities. Default: skip already-extracted. Mutually exclusive with --recovery-pass. | `False` |  | store_true |  |
 | `--min-content-len` | Skip obs with content shorter than this many chars (default: 5). Was 10 historically, which excluded valid short canonical obs like 'User runs.' (10 chars). Lowered to 5 to capture canonical persona-action facts. | `5` |  | int |  |
 | `--recovery-pass` | Process ONLY obs that currently have zero entity rows (i.e. previously empty). Pair with --threshold < 0.5 to backfill below-cutoff entities. Mutually exclusive with --force. Idempotent: re-runs only touch new rows. | `False` |  | store_true |  |
@@ -80,11 +80,6 @@ Env vars (all optional):
 ## Environment variables read
 
 - `M3_DATABASE`
-- `M3_ENTITIES_CONV_LIST`
-- `M3_GLINER_BATCH_SIZE`
-- `M3_GLINER_DEVICE`
-- `M3_GLINER_MODEL`
-- `M3_GLINER_THRESHOLD`
 
 ---
 

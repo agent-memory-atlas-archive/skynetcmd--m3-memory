@@ -34,6 +34,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from m3_core.aio import gather_or_cancel
+from m3_core.config import settings as _m3cfg
 
 # The non-empty-content predicate comes from the backend seam so it has exactly
 # one definition (DESIGN_PHILOSOPHIES §10a: duplicated predicate logic is the
@@ -89,12 +90,12 @@ def _probe_tier1() -> dict[str, Any]:
             return res
     except Exception:  # noqa: BLE001 — fall through to normal probing if unreadable
         pass
-    gguf = os.environ.get("M3_EMBED_GGUF") or ""
-    res["gguf_source"] = "env" if gguf else None
+    gguf = str(_g) if (_g := _m3cfg.setting("embed.gguf")) else ""
+    res["gguf_source"] = "env" if gguf else None  # set via env or m3_config.toml
     # When the env var is unset, tier-1 now auto-detects a bge-m3 GGUF in the
     # canonical model dirs (default on). Reflect that here so doctor reports the
     # path tier-1 will ACTUALLY use, not a misleading 'not-configured'.
-    if not gguf and os.environ.get("M3_EMBED_GGUF_AUTODETECT", "1") != "0":
+    if not gguf and _m3cfg.setting("embed.autodetect"):
         try:
             from memory.embed import discover_bge_m3_gguf
 
@@ -144,7 +145,7 @@ def _probe_tier1() -> dict[str, Any]:
 
 def _probe_tier2() -> dict[str, Any]:
     """Tier 2: m3-embed-server HTTP service (default :8082)."""
-    url = os.environ.get("M3_EMBED_FALLBACK_URL") or "http://127.0.0.1:8082"
+    url = _m3cfg.setting("embed.fallback_url") or "http://127.0.0.1:8082"
     parsed = urlparse(url)
     host = parsed.hostname or "127.0.0.1"
     port = parsed.port or 8082

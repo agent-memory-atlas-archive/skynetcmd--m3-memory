@@ -27,7 +27,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import cast
 
-from m3_memory import _roots
+from m3_memory import _bin as _m3bin
+from m3_memory import _childenv, _roots
 from m3_memory._platform import is_macos, is_windows
 
 from ._platform import hidden_window_kwargs as _hidden_window_kwargs
@@ -100,7 +101,7 @@ def _env_compat(new_name: str, old_name: str, default: str | None = None) -> str
     payload bin/ is importable; falls back to a plain dual-read otherwise, since
     this module can run before bin/ is on sys.path and must never fail setup."""
     try:
-        sys.path.insert(0, str(_bin_dir()))
+        _m3bin.ensure_on_path()
         from m3_core.paths import getenv_compat
 
         return cast("str | None", getenv_compat(new_name, old_name, default))
@@ -735,7 +736,7 @@ def _detect_governor_eligible_tasks() -> list[str]:
     """Read-only probe for installed governor-eligible scheduled tasks. Never
     raises — a missing scheduler tool or import yields an empty list."""
     try:
-        sys.path.insert(0, str(_bin_dir()))
+        _m3bin.ensure_on_path()
         import governor_migration
 
         return cast("list[str]", governor_migration.detect_scheduled_tasks().get("eligible", []))
@@ -752,7 +753,7 @@ def _shared_gguf_is(path: str) -> bool:
 def _cognitive_loop_installed() -> bool | None:
     """Whether the loop is registered here; None when it cannot be told."""
     try:
-        sys.path.insert(0, str(_bin_dir()))
+        _m3bin.ensure_on_path()
         import governor_migration
 
         return cast("bool | None", governor_migration.cognitive_loop_installed())
@@ -764,7 +765,7 @@ def _pin_chatlog_store() -> None:
     """Record the separate chatlog store in its config so a process that sets
     M3_DATABASE (a scheduled job, the loop) cannot fold it into the main store."""
     try:
-        sys.path.insert(0, str(_bin_dir()))
+        _m3bin.ensure_on_path()
         import chatlog_config
 
         pinned = chatlog_config.pin_split_path()
@@ -781,7 +782,7 @@ def _pin_chatlog_store() -> None:
 def _existing_install() -> str | None:
     """The existing store or capture config, or None on a first install."""
     try:
-        sys.path.insert(0, str(_bin_dir()))
+        _m3bin.ensure_on_path()
         from m3_core.paths import get_m3_config_root, get_m3_engine_root
 
         candidates = (
@@ -817,11 +818,7 @@ def _import_m3_halt():
     Returns None if unavailable (e.g. payload not yet installed) so the caller
     degrades gracefully rather than crashing setup."""
     try:
-        from m3_memory.installer import bin_dir
-
-        bd = bin_dir()
-        if bd and str(bd) not in sys.path:
-            sys.path.insert(0, str(bd))
+        _m3bin.ensure_on_path()
         import m3_halt
 
         return m3_halt
@@ -880,7 +877,7 @@ _STOPPED_SERVICES: list = []
 def _stop_supervised_services() -> None:
     """Stop m3's launchd/systemd services for the install (best-effort)."""
     try:
-        sys.path.insert(0, str(_bin_dir()))
+        _m3bin.ensure_on_path()
         import install_schedules
 
         stopped = install_schedules.stop_unix_services()
@@ -922,7 +919,7 @@ def _restore_stopped_services() -> None:
     if not _STOPPED_SERVICES:
         return
     try:
-        sys.path.insert(0, str(_bin_dir()))
+        _m3bin.ensure_on_path()
         import install_schedules
 
         started = install_schedules.start_unix_services(list(_STOPPED_SERVICES))
@@ -1348,7 +1345,7 @@ def _offer_touchid_sudo() -> None:
     try:
         from m3_memory import touchid
 
-        sys.path.insert(0, str(_bin_dir()))
+        _m3bin.ensure_on_path()
         from m3_core.paths import get_m3_config_root
     except ImportError:
         return
@@ -1961,7 +1958,7 @@ def _probe_llm_endpoints(plan: SetupPlan, args: argparse.Namespace) -> None:
 def _llm_switch_enabled(var: str) -> bool:
     """True when a previous setup recorded this LLM runtime switch as on."""
     try:
-        sys.path.insert(0, str(_bin_dir()))
+        _m3bin.ensure_on_path()
         from m3_core.llm_config import read_llm_config
 
         return str(read_llm_config().get(var, "")).strip().lower() in ("1", "true", "yes", "on")
@@ -1973,7 +1970,7 @@ def _record_llm_switch(var: str, val: str) -> None:
     """Write an LLM endpoint switch to <config_root>/.llm_config.json, the copy
     background daemons read."""
     try:
-        sys.path.insert(0, str(_bin_dir()))
+        _m3bin.ensure_on_path()
         from m3_core.llm_config import read_llm_config, write_llm_setting
 
         if str(read_llm_config().get(var, "")) == val:
@@ -2107,7 +2104,7 @@ def _discover_bge_m3_gguf() -> str | None:
     already on sys.path here (added at wizard entry); fall back to the inline
     cascade only if that import is somehow unavailable."""
     try:
-        sys.path.insert(0, str(_bin_dir()))
+        _m3bin.ensure_on_path()
         from memory.embed import discover_bge_m3_gguf as _discover
 
         return cast("str | None", _discover())
@@ -2190,7 +2187,7 @@ def _step_install_m3(plan: SetupPlan) -> bool:
     #   1. Strip PYTHONPATH for the child so the repo payload can't shadow the
     #      installed package.
     #   2. Probe the child's resolved m3_memory.__file__ and abort on mismatch.
-    child_env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    child_env = _childenv.child_env(drop=["PYTHONPATH"])
     try:
         import m3_memory as _wiz_pkg
 
@@ -2661,9 +2658,7 @@ def _existing_wolfssl() -> str | None:
     free to disagree with the thing it is meant to predict.
     """
     try:
-        _bin = str(_bin_dir())
-        if _bin not in sys.path:
-            sys.path.insert(0, _bin)
+        _m3bin.ensure_on_path()
         from crypto_provider import _resolve_wolfssl_path
 
         return cast("str | None", _resolve_wolfssl_path())
@@ -3104,11 +3099,7 @@ def _ensure_payload_importable() -> None:
     mock _canonical_memory_env, so every mocked path was green while the real one
     failed. Same pattern installer.py:1113 uses. Idempotent.
     """
-    import sys as _sys
-
-    bd = str(_bin_dir())
-    if bd not in _sys.path:
-        _sys.path.insert(0, bd)
+    _m3bin.ensure_on_path()
 
 
 def _openclaw_startup_tools() -> list[str]:
@@ -3601,7 +3592,7 @@ def _step_governor_migration(plan: SetupPlan, *, non_interactive: bool = False, 
     if not plan.migrate_to_governor:
         return result
     try:
-        sys.path.insert(0, str(_bin_dir()))
+        _m3bin.ensure_on_path()
         import governor_migration as gm
     except Exception as e:
         _warn(f"governor migration unavailable: {e}")
@@ -3810,11 +3801,7 @@ def _start_service_for_role(role: str) -> bool:
     if not task:
         return False
     try:
-        from m3_memory.installer import bin_dir
-
-        bd = bin_dir()
-        if bd and str(bd) not in sys.path:
-            sys.path.insert(0, str(bd))
+        _m3bin.ensure_on_path()
         import contextlib
         import io
 

@@ -12,7 +12,6 @@ if TYPE_CHECKING:
 
 from crypto_provider import provider as crypto
 from m3_core.seams import is_macos, is_windows, os_name
-from m3_sdk import getenv_compat
 
 # --- Global Sync ---
 _crypto_lock = threading.Lock()
@@ -25,6 +24,7 @@ import unicodedata
 from datetime import UTC, datetime
 
 from _task_runtime import no_window_kwargs
+from m3_core.config import settings as _m3cfg
 from m3_core.errors import log_swallowed
 
 logger = logging.getLogger(__name__)
@@ -751,7 +751,7 @@ def set_api_key(service: str, value: str):
 
     encrypted_value = _encrypt_value(value, master_key)
     origin_device = (
-        getenv_compat("M3_ORIGIN_DEVICE", "ORIGIN_DEVICE")
+        _m3cfg.setting("identity.origin_device")  # M3_ORIGIN_DEVICE / ORIGIN_DEVICE
         or os.environ.get("COMPUTERNAME")
         or os.environ.get("HOSTNAME")
         or platform.node()
@@ -794,6 +794,9 @@ def set_api_key(service: str, value: str):
 
         conn.commit()
         logger.info(f"Successfully saved encrypted {service} to the synchronized vault (version {version}).")
+        from m3_core.secret_store import bump_secret_generation
+
+        bump_secret_generation()  # running processes drop their cached copy
     finally:
         if conn is not None:
             try:

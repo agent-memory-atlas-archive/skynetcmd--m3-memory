@@ -210,6 +210,32 @@ def setting(name: str) -> ConfigValue:
     return current()[key]
 
 
+def origin_of(name: str) -> str:
+    """Where key ``name``'s value came from: ``default``, ``env:<NAME>``,
+    ``env-legacy:<NAME>`` or the config file. The reporting path for diagnostics
+    that ask "is this pinned in the process environment?" (CONFIG_DESIGN §2,
+    ignored-env reporting): they read the origin, not os.environ."""
+    key = REGISTRY.get(name)
+    if key is None:
+        raise KeyError(f"observed: {name!r} is not a registry key. inspect: m3_core/config/keys*.py")
+    return current().origin(key)
+
+
+def explicit(name: str) -> bool:
+    """True when key ``name`` was SET (by m3_config.toml or an env name), False when
+    it resolved to its default.
+
+    For readers whose behaviour depends on whether the user chose a value, not
+    just on the value: ``if os.environ.get("M3_EXTRACTION_TYPE"):`` meant "an
+    extraction type was configured", and ``setting()`` alone cannot say that for a
+    key with a default.
+    """
+    key = REGISTRY.get(name)
+    if key is None:
+        raise KeyError(f"observed: {name!r} is not a registry key. inspect: m3_core/config/keys*.py")
+    return current().origin(key) != "default"
+
+
 def last_error() -> str | None:
     """The most recent failed reload, for doctor; None when the last one succeeded."""
     return _CACHE.last_error()

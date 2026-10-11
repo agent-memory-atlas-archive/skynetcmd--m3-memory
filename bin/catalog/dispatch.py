@@ -16,6 +16,7 @@ import json
 from contextlib import AbstractContextManager
 from typing import Any, cast
 
+from m3_core.caller import as_caller
 from m3_core.config import settings as _m3cfg
 from m3_sdk import active_database, destructive_tools_allowed
 
@@ -224,7 +225,7 @@ async def execute_tool(spec: ToolSpec, args: dict, agent_id: str) -> str:
         args, err = validate_args(spec, args)
         if err:
             return err
-        with scope:
+        with scope, as_caller(agent_id):  # the read-access audit log's "who"
             result = await _run_impl_bounded(spec, args, timeout)
         return result if isinstance(result, str) else str(result)
     except Exception as e:
@@ -282,7 +283,7 @@ async def execute_tool_structured(
         raise ValueError(err)
     if dry_run:
         return {"dry_run": True, "ok": True, "tool": spec.name}
-    with scope:
+    with scope, as_caller(agent_id):  # the read-access audit log's "who"
         return await _run_impl_bounded(spec, args, timeout)
 
 

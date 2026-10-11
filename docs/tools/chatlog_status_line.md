@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_status_line.py
-sha1: 61e8ad874822
-mtime_utc: 2026-10-10T23:42:28.611353+00:00
-generated_utc: 2026-10-10T23:43:51.409319+00:00
+sha1: 5287b7099bc2
+mtime_utc: 2026-10-11T18:40:07.353084+00:00
+generated_utc: 2026-10-11T19:18:31.757903+00:00
 private: false
 ---
 
@@ -46,7 +46,6 @@ _(none detected)_
 ## Calls INTO this repo (intra-repo imports)
 
 - `chatlog_config`
-- `m3_sdk (getenv_compat)`
 
 ---
 
@@ -58,7 +57,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
-_(only stdlib)_
+- `m3_core.config (settings)`
 
 ---
 

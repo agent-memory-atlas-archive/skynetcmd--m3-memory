@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import re
 import sqlite3
 import time
@@ -32,6 +31,7 @@ from pathlib import Path
 from typing import Any
 
 from embedding_utils import pack
+from m3_core.config import settings as _m3cfg
 from m3_core.errors import log_swallowed
 from m3_core.paths import canonical_path
 
@@ -110,9 +110,7 @@ def _llm_endpoint() -> str | None:
     launchd/systemd/task launchers resolve it too (§3). None only when no endpoint
     is configured or discoverable anywhere."""
     override = (
-        os.environ.get("M3_FILES_EXTRACT_URL")
-        or os.environ.get("M3_FILES_SUMMARY_URL")
-        or os.environ.get("M3_LMSTUDIO_URL")
+        _m3cfg.setting("files.extract_url") or _m3cfg.setting("files.summary_url") or _m3cfg.setting("llm.lmstudio_url")
     )
     if override:
         return override
@@ -136,7 +134,7 @@ def _llm_model() -> str | None:
     The old "qwen3-4b-instruct" tail made a specific model NAME the fallback,
     which 404s on any box that does not have it loaded.
     """
-    explicit = os.environ.get("M3_FILES_EXTRACT_MODEL") or os.environ.get("M3_FILES_SUMMARY_MODEL")
+    explicit = _m3cfg.setting("files.extract_model") or _m3cfg.setting("files.summary_model")
     if explicit:
         return explicit
     endpoint = _llm_endpoint()

@@ -21,7 +21,6 @@ Both return (summary_text, used_llm_bool).
 from __future__ import annotations
 
 import logging
-import os
 import time
 from pathlib import Path
 
@@ -79,7 +78,7 @@ def _llm_available() -> bool:
 
 
 def _summary_endpoint() -> str | None:
-    return os.environ.get("M3_FILES_SUMMARY_URL") or os.environ.get("M3_LMSTUDIO_URL") or None
+    return _m3cfg.setting("files.summary_url") or _m3cfg.setting("llm.lmstudio_url") or None
 
 
 def _summary_model() -> str | None:

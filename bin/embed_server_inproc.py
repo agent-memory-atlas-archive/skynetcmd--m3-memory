@@ -301,7 +301,7 @@ def _load_embedder() -> None:
             )
             sys.exit(2)
 
-        gguf = (os.environ.get("M3_EMBED_GGUF") or "").strip() or discover_bge_m3_gguf()
+        gguf = (str(_g) if (_g := _m3cfg.setting("embed.gguf")) else "") or discover_bge_m3_gguf()
         if not gguf:
             logger.error(
                 "observed: no bge-m3 GGUF model found. cause: either "

@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_ingest.py
-sha1: 47102342ade7
-mtime_utc: 2026-10-11T17:51:15.734479+00:00
-generated_utc: 2026-10-11T18:07:53.609316+00:00
+sha1: 91e1c9d2d736
+mtime_utc: 2026-10-11T18:40:07.343287+00:00
+generated_utc: 2026-10-11T19:18:31.714103+00:00
 private: false
 ---
 
@@ -56,7 +56,6 @@ message ids / indices have been ingested so re-invoking on the same transcript
 - `COMPUTERNAME`
 - `HOSTNAME`
 - `LOCALAPPDATA`
-- `M3_AUTO_ENRICH`
 - `M3_CHATLOG_DB_PATH`
 - `M3_DATABASE`
 - `OPENCODE_DATA_DIR`

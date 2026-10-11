@@ -57,7 +57,7 @@ from .config import (
     TITLE_MATCH_BOOST,
     m3_core_rs,
 )
-from .db import _db, _enqueue_access_stamps
+from .db import _db, _enqueue_access_stamps, record_reads
 from .embed import _embed  # noqa: F401 — runtime globals() lookup
 
 
@@ -609,13 +609,13 @@ def _stamp_retrieved(hits) -> None:
     """
     if not hits:
         return
-    _enqueue_access_stamps(
-        [
-            h[1].get("id")
-            for h in hits
-            if isinstance(h, (list, tuple)) and len(h) > 1 and isinstance(h[1], dict) and h[1].get("id")
-        ]
-    )
+    rows = [
+        h[1] for h in hits if isinstance(h, (list, tuple)) and len(h) > 1 and isinstance(h[1], dict) and h[1].get("id")
+    ]
+    _enqueue_access_stamps([r["id"] for r in rows])
+    # The read-access audit log: one row per hit, under the hit's data subject.
+    for user in {r.get("user_id") for r in rows}:
+        record_reads([r["id"] for r in rows if r.get("user_id") == user], "search_hit", user_id=user)
 
 
 def _ranking_importance(row, apply_decay: bool) -> float:
@@ -2011,8 +2011,10 @@ async def memory_search_routed_impl(
     _egt = entity_graph_valid_types or None
     _egp = entity_graph_valid_predicates or None
 
-    # Read env-var override for the bump
-    bump = int(os.environ.get("M3_ROUTER_TEMPORAL_K_BUMP", str(temporal_k_bump)))
+    # A SET search.router_temporal_k_bump (env M3_ROUTER_TEMPORAL_K_BUMP or the
+    # config file) overrides the parameter, as the env read did.
+    _k = "search.router_temporal_k_bump"
+    bump = _m3cfg.setting(_k) if _m3cfg.explicit(_k) else int(temporal_k_bump)
 
     # ── AUTO overshoot reuse ─────────────────────────────────────────────────
     # When AUTO already ran the overshoot retrieval, the overshoot result can

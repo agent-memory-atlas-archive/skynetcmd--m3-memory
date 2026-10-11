@@ -1,8 +1,8 @@
 ---
 tool: bin/dashboard_server.py
-sha1: 13b32c57505c
-mtime_utc: 2026-10-10T21:05:17.243976+00:00
-generated_utc: 2026-10-10T21:05:29.480542+00:00
+sha1: 1616b725af6d
+mtime_utc: 2026-10-11T19:09:42.553594+00:00
+generated_utc: 2026-10-11T19:18:31.890232+00:00
 private: false
 ---
 
@@ -77,8 +77,6 @@ you intend to launch the server with (typically ``.venv``).
 
 ## Environment variables read
 
-- `M3_DASHBOARD_HOST`
-- `M3_DASHBOARD_PORT`
 - `M3_DATABASE`
 
 ---
@@ -105,11 +103,11 @@ you intend to launch the server with (typically ``.venv``).
 
 **subprocess**
 
-- `subprocess.Popen()  → `[exe, script, '--foreground']`` (line 3411)
-- `subprocess.Popen()  → `[sys.executable, script, '--foreground']`` (line 3425)
-- `subprocess.Popen()  → `cmd`` (line 3062)
-- `subprocess.run()  → `['powershell', '-NoProfile', '-Command', ps]`` (line 3281)
-- `subprocess.run()  → `['taskkill', '/F', '/PID', str(pid)]`` (line 3321)
+- `subprocess.Popen()  → `[exe, script, '--foreground']`` (line 3409)
+- `subprocess.Popen()  → `[sys.executable, script, '--foreground']`` (line 3423)
+- `subprocess.Popen()  → `cmd`` (line 3060)
+- `subprocess.run()  → `['powershell', '-NoProfile', '-Command', ps]`` (line 3279)
+- `subprocess.run()  → `['taskkill', '/F', '/PID', str(pid)]`` (line 3319)
 
 
 ---
@@ -130,7 +128,9 @@ you intend to launch the server with (typically ``.venv``).
 - `files_memory.db (_files_store_is_a_schema)`
 - `files_memory.search (files_search)`
 - `html`
+- `m3_core.config (settings)`
 - `m3_core.paths (get_m3_engine_root)`
+- `m3_core.seams (childenv)`
 - `m3_core.seams (detached_spawn_kwargs, is_windows)`
 - `memory.backends (active_backend)`
 - `memory.config (FILES_DB_PATH)`

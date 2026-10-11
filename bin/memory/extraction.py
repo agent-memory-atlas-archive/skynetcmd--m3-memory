@@ -27,6 +27,7 @@ if _BIN not in sys.path:
 
 import llm_failover
 import unified_ai
+from m3_core.config import settings as _m3cfg
 
 from memory import config as _config
 from memory import entity as _entity_mod
@@ -312,8 +313,12 @@ Text to process:
 "{text}"
 """
 
-        gemini_key = os.environ.get("GEMINI_API_KEY")
-        claude_key = os.environ.get("ANTHROPIC_API_KEY")
+        # Through the secret resolver (env > keyring > file > vault), cached per process:
+        # a key kept in the keyring now reaches headless launchers too.
+        from m3_sdk import get_secret_cached
+
+        gemini_key = get_secret_cached("GEMINI_API_KEY")
+        claude_key = get_secret_cached("ANTHROPIC_API_KEY")
         lmstudio_url = self.url or os.environ.get("M3_EMBED_URL") or "http://localhost:1234"
 
         # Instantiate unified client
@@ -427,12 +432,12 @@ class CustomScriptExtractor(BaseExtractor):
 def get_configured_extractor() -> BaseExtractor:
     """Instantiate and return the configured entity extractor based on settings."""
     # Look for env overrides first (typical M3 design language)
-    etype = os.environ.get("M3_EXTRACTION_TYPE", "rule_based").lower().strip()
+    etype = (_m3cfg.setting("extraction.type") or "rule_based").lower().strip()
     model = os.environ.get("M3_EXTRACTION_MODEL", "").strip()
     url = os.environ.get("M3_EXTRACTION_URL", "").strip()
     prompt = os.environ.get("M3_EXTRACTION_PROMPT", "").strip()
-    script = os.environ.get("M3_EXTRACTION_SCRIPT", "").strip()
-    func = os.environ.get("M3_EXTRACTION_FUNCTION", "extract").strip()
+    script = str(_s) if (_s := _m3cfg.setting("extraction.script")) else ""
+    func = (_m3cfg.setting("extraction.function") or "extract").strip()
 
     # Look for config file fallback (~/.m3/config/extraction.json)
     cfg_file = Path(_config._M3_CONFIG_ROOT) / "extraction.json"

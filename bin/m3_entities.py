@@ -1052,8 +1052,8 @@ async def _main_async(args: argparse.Namespace) -> int:
     # memory_core.load_entity_vocab's contract). Final fallback: m3 default.
     if args.entity_vocab_yaml:
         vocab_path = Path(args.entity_vocab_yaml)
-    elif os.environ.get("M3_ENTITY_VOCAB_YAML"):
-        vocab_path = Path(os.environ["M3_ENTITY_VOCAB_YAML"])
+    elif _vocab := _m3cfg.setting("entity.vocab_yaml"):
+        vocab_path = Path(_vocab)
     else:
         vocab_path = DEFAULT_VOCAB_YAML
     if not os.path.exists(vocab_path):

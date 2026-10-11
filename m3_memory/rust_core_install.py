@@ -29,6 +29,7 @@ from dataclasses import dataclass
 from datetime import UTC
 from typing import Any, cast
 
+from m3_memory import _childenv
 from m3_memory._platform import is_windows
 from m3_memory._platform import os_name as _os_name
 from m3_memory._pyver import wheel_python_tag
@@ -569,7 +570,7 @@ def _pip(*args: str, env: dict | None = None) -> subprocess.CompletedProcess:
         return subprocess.CompletedProcess(args, 1, "", str(e))
     return subprocess.run(
         argv,
-        env=env if env is not None else os.environ.copy(),
+        env=env if env is not None else _childenv.child_env(),
         capture_output=True,
         text=True,
     )
@@ -997,8 +998,9 @@ def _wheel_hasher():
             "found; observed: installer.bin_dir() is None. inspect: $M3_PATH_BIN, "
             "or reinstall m3-memory"
         )
-    if str(b) not in sys.path:
-        sys.path.insert(0, str(b))
+    from m3_memory import _bin
+
+    _bin.ensure_on_path()
     from crypto_provider import provider
 
     return provider.sha256_stream()

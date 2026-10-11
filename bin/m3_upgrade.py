@@ -657,7 +657,15 @@ def m3_still_installed(owner_python: str) -> bool | None:
 
 def no_cache_env() -> dict[str, str]:
     """The environment with pip's and uv's caches bypassed (pipx uses either)."""
-    return {**os.environ, "PIP_NO_CACHE_DIR": "1", "UV_NO_CACHE": "1"}
+    from m3_core.seams import childenv
+
+    try:  # pip/uv are not m3: strip m3 secrets. Mid-upgrade the config package may
+        from m3_core.config.env import secret_env_names  # not import; then keep today's env.
+
+        drop = secret_env_names()
+    except Exception:  # noqa: BLE001 — a half-upgraded venv must still upgrade
+        drop = frozenset()
+    return childenv.child_env(drop=drop, PIP_NO_CACHE_DIR="1", UV_NO_CACHE="1")
 
 
 def should_retry_uncached(*, unchanged: bool, local_source: bool, latest: str | None, installed: str | None) -> bool:

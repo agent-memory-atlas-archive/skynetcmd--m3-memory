@@ -90,27 +90,10 @@ def _ensure_bin_on_path() -> None:
     with _BIN_LOCK:
         if _BIN_ON_PATH:
             return
-        import os
-        import sys
 
-        bin_dir = None
-        try:
-            from m3_memory import installer
+        from m3_memory import _bin
 
-            _bd = installer.bin_dir()
-            if _bd is not None:
-                bin_dir = str(_bd)
-        except Exception:
-            bin_dir = None
-        if bin_dir is None:
-            # Dev-checkout fallback: this file is
-            # m3_memory/integrations/langchain/m3client.py → repo/bin.
-            here = os.path.dirname(os.path.abspath(__file__))
-            cand = os.path.abspath(os.path.join(here, "..", "..", "..", "bin"))
-            if os.path.isfile(os.path.join(cand, "mcp_tool_catalog.py")):
-                bin_dir = cand
-        if bin_dir and bin_dir not in sys.path:
-            sys.path.insert(0, bin_dir)
+        _bin.ensure_on_path()  # installed payload or a checkout's bin/, one rule
         _BIN_ON_PATH = True
 
 

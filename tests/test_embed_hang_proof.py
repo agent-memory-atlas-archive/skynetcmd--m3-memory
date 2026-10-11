@@ -64,7 +64,7 @@ def test_explicit_opt_in_allows_inproc(monkeypatch):
     empty_root = tempfile.mkdtemp()
     e = _fresh_embed(monkeypatch, M3_CONFIG_ROOT=empty_root, M3_EMBED_GGUF="C:/fake/model.gguf", M3_EMBED_INPROC="1")
     assert e._INPROC_ALLOWED is True
-    assert e._EMBED_GGUF_PATH == "C:/fake/model.gguf"
+    assert os.path.normpath(e._EMBED_GGUF_PATH) == os.path.normpath("C:/fake/model.gguf")
 
 
 def test_config_present_shared_disables_inproc(monkeypatch):
@@ -88,7 +88,7 @@ def test_config_present_not_shared_allows_inproc(monkeypatch):
     e = _fresh_embed(monkeypatch, M3_CONFIG_ROOT=root, M3_EMBED_GGUF="C:/fake/model.gguf")
     assert e._EMBED_CFG_PRESENT is True
     assert e._INPROC_ALLOWED is True
-    assert e._EMBED_GGUF_PATH == "C:/fake/model.gguf"
+    assert os.path.normpath(e._EMBED_GGUF_PATH) == os.path.normpath("C:/fake/model.gguf")
 
 
 # ── Defect 3: the CUDA init is timeout-bounded ────────────────────────────────

@@ -9,6 +9,22 @@
       "type": "integer",
       "minimum": 1
     },
+    "audit": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "read_log": {
+          "type": "boolean",
+          "description": "Record who read which memory, and when (memory_access_log).",
+          "default": true
+        },
+        "read_log_retention_days": {
+          "type": "integer",
+          "description": "Days the read-access log keeps a row before maintenance prunes it.",
+          "default": 90
+        }
+      }
+    },
     "autonomy": {
       "type": "object",
       "additionalProperties": false,

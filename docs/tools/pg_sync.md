@@ -1,8 +1,8 @@
 ---
 tool: bin/pg_sync.py
-sha1: f139cdcac204
-mtime_utc: 2026-10-11T07:09:38.017295+00:00
-generated_utc: 2026-10-11T07:09:58.805272+00:00
+sha1: d649ee6937fd
+mtime_utc: 2026-10-11T19:20:11.403966+00:00
+generated_utc: 2026-10-11T19:29:29.356165+00:00
 private: false
 ---
 
@@ -16,7 +16,7 @@ _(no module docstring — update the source file.)_
 
 ## Entry points
 
-- `def main()` (line 1792)
+- `def main()` (line 1796)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -57,6 +57,7 @@ _(no subprocess / http / sqlite calls detected)_
 ## Notable external imports
 
 - `doctor.embed_space_probe (_family)`
+- `m3_core.secret_store (bump_secret_generation)`
 - `memory.backends (active_backend)`
 - `memory.backends (dialect)`
 - `memory.backends.dialect (chatlog_table_for)`

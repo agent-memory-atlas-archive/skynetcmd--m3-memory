@@ -103,7 +103,9 @@ def _example_dir() -> Path:
 
 def _add_orchestrator_to_path() -> None:
     sys.path.insert(0, str(_example_dir()))
-    sys.path.insert(0, str(_example_dir().parent.parent / "bin"))
+    from m3_memory import _bin
+
+    _bin.ensure_on_path()
 
 
 def cmd_init(path: Path) -> int:

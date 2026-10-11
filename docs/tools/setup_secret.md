@@ -1,8 +1,8 @@
 ---
 tool: bin/setup_secret.py
-sha1: 64350cf476f9
-mtime_utc: 2026-10-10T21:05:16.537376+00:00
-generated_utc: 2026-10-10T21:05:29.951246+00:00
+sha1: ae5ce229dae5
+mtime_utc: 2026-10-11T19:20:11.404478+00:00
+generated_utc: 2026-10-11T19:29:29.421341+00:00
 private: false
 ---
 
@@ -26,7 +26,7 @@ Usage:
 
 ## Entry points
 
-- `def main()` (line 322)
+- `def main()` (line 325)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -65,6 +65,7 @@ _(no subprocess / http / sqlite calls detected)_
 ## Notable external imports
 
 - `getpass`
+- `m3_core.secret_store (bump_secret_generation)`
 - `memory.backends (dialect)`
 
 ---

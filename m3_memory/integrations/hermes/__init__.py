@@ -28,6 +28,8 @@ from typing import Any, cast
 from agent.memory_provider import MemoryProvider
 from tools.registry import tool_error
 
+from m3_memory import _config as _m3config
+
 logger = logging.getLogger(__name__)
 
 # Circuit breaker — same policy as the mem0 provider.
@@ -45,8 +47,8 @@ def _load_config() -> dict:
     from hermes_constants import get_hermes_home
 
     config = {
-        "user_id": os.environ.get("M3_USER_ID", "hermes-user"),
-        "agent_id": os.environ.get("M3_AGENT_ID", "hermes"),
+        "user_id": _m3config.setting("integrations.hermes.user_id"),
+        "agent_id": _m3config.setting("integrations.hermes.agent_id"),
     }
 
     config_path = get_hermes_home() / "m3.json"

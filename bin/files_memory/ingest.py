@@ -29,6 +29,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from m3_core.config import settings as _m3cfg
 from m3_core.paths import canonical_path
 
 from . import config
@@ -561,9 +562,7 @@ def ingest_one_file(
 
                 if llm_available():
                     model_id = (
-                        os.environ.get("M3_FILES_EXTRACT_MODEL")
-                        or os.environ.get("M3_FILES_SUMMARY_MODEL")
-                        or "unknown"
+                        _m3cfg.setting("files.extract_model") or _m3cfg.setting("files.summary_model") or "unknown"
                     )
                     for leaf_uuid, leaf_text, _, ldiff in leaf_records:
                         # Carry-forward fast-path: this leaf is identical

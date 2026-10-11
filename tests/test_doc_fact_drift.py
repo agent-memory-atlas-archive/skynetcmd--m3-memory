@@ -367,7 +367,12 @@ def test_inproc_opt_in_default_is_off() -> None:
     becomes wrong at once -- so fail here rather than let the prose rot silently.
     """
     src = (REPO / "bin" / "memory" / "embed.py").read_text(encoding="utf-8")
-    assert 'os.environ.get("M3_EMBED_INPROC", "0") == "1"' in src, (
+    from m3_core.config import REGISTRY
+
+    # Re-verified 2026-10-11 when the gate moved to the registry: the docs' claims
+    # ("off by default; M3_EMBED_INPROC=1 opts in") still hold.
+    assert REGISTRY.get("embed.inproc").default is False, "embed.inproc now defaults ON"
+    assert '_EMBED_INPROC_OPT_IN: bool = bool(_m3cfg.setting("embed.inproc"))' in src, (
         "the M3_EMBED_INPROC gate changed shape -- re-verify the embedder "
         "topology claims in EMBED_DEPLOYMENT.md, the QUICKSTART pages, "
         "install_windows.md and README.md before updating this test"

@@ -125,13 +125,22 @@ def _windows_user_env_has(var: str) -> bool:
     return bool((user_env_get(var) or "").strip())  # the OS seam owns the store
 
 
+def _gguf_pinned_in_process_env() -> bool:
+    """Is embed.gguf set by this process's environment (M3_EMBED_GGUF or a legacy
+    alias)? Answered from the config snapshot's ORIGIN, the config package's
+    reporting path (CONFIG_DESIGN §2), not by reading os.environ here."""
+    from m3_core.config import settings as _m3cfg
+
+    return _m3cfg.origin_of("embed.gguf").startswith("env")
+
+
 def _manual_env_leak_remains() -> bool:
     """True if a MANUAL-ONLY M3_EMBED_GGUF leak is present — a process/User/shell
     var that --fix provably cannot remove (as opposed to a settings.json env block,
     which it can auto-scrub). This is the signal that lets the doctor print manual
     instructions and STOP, instead of looping 'run --fix' forever."""
     return (
-        bool((os.environ.get("M3_EMBED_GGUF") or "").strip())
+        _gguf_pinned_in_process_env()
         or _windows_user_env_has("M3_EMBED_GGUF")
         or bool(_find_env_in_shell_rc("M3_EMBED_GGUF"))
     )
@@ -168,7 +177,7 @@ def _detect_inproc_env_leak() -> list[str]:
     exact shell-rc file:line / Windows User-env key where possible) AND every
     client settings file's m3 MCP-server env block."""
     hits: list[str] = []
-    if (os.environ.get("M3_EMBED_GGUF") or "").strip() or _windows_user_env_has("M3_EMBED_GGUF"):
+    if _gguf_pinned_in_process_env() or _windows_user_env_has("M3_EMBED_GGUF"):
         rc_hits = _find_env_in_shell_rc("M3_EMBED_GGUF")
         if rc_hits:
             for hit in rc_hits:
@@ -230,9 +239,7 @@ def _fix_scrub_env_leak() -> tuple[bool, bool]:
                 settings_scrubbed = True
             except Exception as e:  # noqa: BLE001
                 print(f"  [fix] could not rewrite {path}: {e}")
-    process_env_remains = bool((os.environ.get("M3_EMBED_GGUF") or "").strip()) or _windows_user_env_has(
-        "M3_EMBED_GGUF"
-    )
+    process_env_remains = _gguf_pinned_in_process_env() or _windows_user_env_has("M3_EMBED_GGUF")
     if process_env_remains:
         print("  [fix] M3_EMBED_GGUF is ALSO set in the process/User env — that cannot")
         print("        be removed from here. Remove it so new shells + MCP servers stop")

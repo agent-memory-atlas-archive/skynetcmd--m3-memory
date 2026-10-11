@@ -97,7 +97,7 @@ async def test_rule_based_extractor():
     assert ("John Doe", "Rust", "prefers") in rels
 
 
-def test_factory_config(monkeypatch):
+def test_factory_config(m3_settings):
     """Test the extractor factory instantiates subclasses based on configuration."""
     # Resolve the factory AND the classes from the SAME (current) module object.
     # The top-of-file `from memory.extraction import ...` binds at first import;
@@ -113,20 +113,20 @@ def test_factory_config(monkeypatch):
         get_configured_extractor,
     )
 
-    monkeypatch.setenv("M3_EXTRACTION_TYPE", "rule_based")
+    m3_settings({"extraction.type": "rule_based"})
     ext = get_configured_extractor()
     assert isinstance(ext, RuleBasedExtractor)
 
-    monkeypatch.setenv("M3_EXTRACTION_TYPE", "gemini")
+    m3_settings({"extraction.type": "gemini"})
     ext = get_configured_extractor()
     assert isinstance(ext, LLMExtractor)
     assert ext.provider == "gemini"
 
 
 @pytest.mark.asyncio
-async def test_extract_entities_impl_mcp(monkeypatch):
+async def test_extract_entities_impl_mcp(m3_settings):
     """Test the extract_entities_impl tool returns valid JSON matching the schema."""
-    monkeypatch.setenv("M3_EXTRACTION_TYPE", "rule_based")
+    m3_settings({"extraction.type": "rule_based"})
     raw_json = await extract_entities_impl("John Doe lives in Roanoke.")
     res = json.loads(raw_json)
 
@@ -139,12 +139,12 @@ async def test_extract_entities_impl_mcp(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_extract_pending_drain(tmp_path, monkeypatch):
+async def test_extract_pending_drain(tmp_path, monkeypatch, m3_settings):
     """Test that extract_pending_impl executes and processes the queue using the pluggable extractor."""
     db_file = tmp_path / "test_extraction.db"
     _init_test_db(db_file, monkeypatch)
 
-    monkeypatch.setenv("M3_EXTRACTION_TYPE", "rule_based")
+    m3_settings({"extraction.type": "rule_based"})
 
     # Insert a raw memory item and enqueue it
     memory_id = "test-mem-123"
@@ -187,14 +187,13 @@ async def test_extract_pending_drain(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_write_through_mode(tmp_path, monkeypatch):
+async def test_write_through_mode(tmp_path, monkeypatch, m3_settings):
     """Test that memory_write_impl automatically extracts and links entities in write-through mode."""
     db_file = tmp_path / "test_write_through.db"
     _init_test_db(db_file, monkeypatch)
 
     # Enable write-through
-    monkeypatch.setenv("M3_EXTRACTION_WRITE_THROUGH", "1")
-    monkeypatch.setenv("M3_EXTRACTION_TYPE", "rule_based")
+    m3_settings({"extraction.write_through": True, "extraction.type": "rule_based"})
 
     # Write new memory
     await _write_mod.memory_write_impl(

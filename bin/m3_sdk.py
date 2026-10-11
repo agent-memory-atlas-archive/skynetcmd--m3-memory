@@ -157,6 +157,20 @@ def get_secret(service: str) -> "str | None":
     return get_api_key(service)
 
 
+def get_secret_cached(service: str) -> "str | None":
+    """``get_secret``, resolved once per process and cached until a secret changes.
+
+    For hot paths (a token read on every call): the keyring is touched at most
+    once per process, not per call. Any m3 write of a secret, a sync pull, or
+    `m3 secret refresh` moves a generation marker, and processes re-resolve within
+    a few seconds (m3_core.secret_store.cached_secret). Use plain ``get_secret``
+    when the value was just written in this process and must be read back.
+    """
+    from m3_core.secret_store import cached_secret
+
+    return cached_secret(service, get_secret)
+
+
 def resolve_warehouse_dsn() -> "str | None":
     """The data-warehouse (CDW) DSN, or None when sync is not configured.
 

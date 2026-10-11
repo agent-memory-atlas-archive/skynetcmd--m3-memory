@@ -112,7 +112,9 @@ else:
 
 def _run_probe(python: str, bin_dir: str, engine: str, config: str, k: int = 8) -> dict:
     code = _PROBE.format(queries=QUERIES, k=k)
-    env = dict(os.environ)
+    from m3_core.seams import childenv
+
+    env = childenv.child_env()
     # PYTHONPATH rather than a sys.path.insert inside the script: a venv's
     # startup can reorder sys.path and win over the insert, which is exactly how
     # the pipx-installed payload failed to import while its files sat right
@@ -231,7 +233,9 @@ def _seed_store(tmp: Path) -> tuple[str, str]:
     items_path = tmp / "seed_items.json"
     items_path.write_text(json.dumps(items), encoding="utf-8")
 
-    env = dict(os.environ, PYTHONPATH=str(REPO / "bin"))
+    from m3_core.seams import childenv
+
+    env = childenv.child_env(PYTHONPATH=str(REPO / "bin"))
     proc = subprocess.run(
         [sys.executable, "-c", _SEED, str(engine), str(config), str(items_path)],
         capture_output=True,

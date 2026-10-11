@@ -180,6 +180,9 @@ def _delete_service(service: str) -> None:
             (service,),
         )
         conn.commit()
+        from m3_core.secret_store import bump_secret_generation
+
+        bump_secret_generation()  # running processes drop their cached copy
         print(f"deleted {service}")
 
 

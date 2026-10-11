@@ -1,8 +1,8 @@
 ---
 tool: bin/embed_server_inproc.py
-sha1: 3903b1be78c3
-mtime_utc: 2026-10-11T17:51:15.729480+00:00
-generated_utc: 2026-10-11T18:07:53.770799+00:00
+sha1: 941cb8a7900c
+mtime_utc: 2026-10-11T18:40:07.326171+00:00
+generated_utc: 2026-10-11T19:18:31.924243+00:00
 private: false
 ---
 
@@ -68,7 +68,7 @@ Model: M3_EMBED_GGUF env, else auto-detected (discover_bge_m3_gguf).
 
 ## Environment variables read
 
-- `M3_EMBED_GGUF`
+_(none detected)_
 
 ---
 

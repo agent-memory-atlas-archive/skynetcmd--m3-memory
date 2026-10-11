@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_upgrade.py
-sha1: 5439f557fe26
-mtime_utc: 2026-10-10T23:38:17.721694+00:00
-generated_utc: 2026-10-10T23:43:51.785015+00:00
+sha1: 092bf2528d82
+mtime_utc: 2026-10-11T19:09:42.555595+00:00
+generated_utc: 2026-10-11T19:18:32.240777+00:00
 private: false
 ---
 
@@ -60,7 +60,7 @@ is stopped or replaced.
 ## Entry points
 
 - `def run()` (line 545)
-- `def main()` (line 746)
+- `def main()` (line 754)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -113,6 +113,8 @@ _(none detected)_
 
 - `ctypes`
 - `ctypes (wintypes)`
+- `m3_core.config.env (secret_env_names)`
+- `m3_core.seams (childenv)`
 - `m3_core.seams (is_windows)`
 - `psutil`
 - `site`

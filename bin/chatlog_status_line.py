@@ -18,7 +18,7 @@ import os
 import sys
 from typing import Any, cast
 
-from m3_sdk import getenv_compat
+from m3_core.config import settings as _m3cfg
 
 try:
     import chatlog_config
@@ -49,7 +49,7 @@ def _humanize_bytes(b: int) -> str:
 
 
 def chatlog_status_line() -> str:
-    if getenv_compat("M3_CHATLOG_STATUSLINE", "CHATLOG_STATUSLINE") == "off":
+    if not _m3cfg.setting("chatlog.statusline"):  # M3_CHATLOG_STATUSLINE=off
         return ""
 
     state = _load_state_file()
@@ -97,7 +97,7 @@ def chatlog_status_line() -> str:
     if not warning:
         return ""
 
-    prefix = "[!]" if getenv_compat("M3_CHATLOG_STATUSLINE_ASCII", "CHATLOG_STATUSLINE_ASCII") == "1" else "⚠"
+    prefix = "[!]" if _m3cfg.setting("chatlog.statusline_ascii") else "⚠"
     return f"{prefix} {warning}"
 
 

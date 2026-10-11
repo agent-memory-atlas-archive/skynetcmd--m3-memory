@@ -205,6 +205,20 @@ CHATLOG: list[Key] = [
         "Do not embed the observations the observer writes.",
         legacy=_truthy4,
     ),
+    # ── [audit] read-access log (GDPR Art. 30; user decision 2026-10-11: always on, 90 days) ──
+    _flag(
+        "audit.read_log",
+        ("M3_AUDIT_READ_LOG",),
+        True,
+        "Record who read which memory, and when (memory_access_log).",
+    ),
+    _int(
+        "audit.read_log_retention_days",
+        ("M3_AUDIT_READ_LOG_RETENTION_DAYS",),
+        90,
+        "Days the read-access log keeps a row before maintenance prunes it.",
+        hi=36500,
+    ),
     # ── [governor] (today .governor_config.json wins) ──
     _int(
         "governor.feedback_window_minutes",

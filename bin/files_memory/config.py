@@ -64,7 +64,7 @@ def files_table(name: str) -> str:
 # Hard cap on per-file size during walk. Files larger than this are skipped
 # unless --force is passed. 10 MiB chosen to comfortably handle docs/PDFs
 # while keeping a 1k-file ingest under 10 GiB worst-case.
-FILES_MAX_FILE_BYTES: int = int(os.environ.get("M3_FILES_MAX_FILE_BYTES", str(10 * 1024 * 1024)))
+FILES_MAX_FILE_BYTES: int = _m3cfg.setting("files.max_file_bytes")
 
 # Per-leaf token cap. Leaves above this are truncated with a warning and
 # `truncated=true` flag. The bge-m3 ctx default is 8192; we stay under that.
@@ -74,11 +74,7 @@ FILES_MAX_LEAF_TOKENS: int = _m3cfg.setting("files.max_leaf_tokens")
 FILES_MAX_FILES_PER_INGEST: int = _m3cfg.setting("files.max_files_per_ingest")
 
 # Follow symlinks during walk. Off by default to avoid filesystem loops.
-FILES_FOLLOW_SYMLINKS: bool = os.environ.get("M3_FILES_FOLLOW_SYMLINKS", "0").lower() in (
-    "1",
-    "true",
-    "yes",
-)
+FILES_FOLLOW_SYMLINKS: bool = bool(_m3cfg.setting("files.follow_symlinks"))
 
 # Default corpus_id used when --corpus is not passed. "default" is a valid
 # sentinel; per-project users can override per ingest or via env.

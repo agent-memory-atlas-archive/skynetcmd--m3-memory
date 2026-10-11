@@ -47,11 +47,13 @@ The web dashboard's GDPR panel exposes the same fields under **Compliance detail
 
 ---
 
-**Reads are not yet attributed.** m3 records when a memory was last read
-(`last_accessed_at`, `access_count`) but not which agent or user read it, so it
-cannot yet produce the who-read-what part of an Art. 30 record. Mutations are
-recorded (`memory_history`). A read-access audit log is in progress
-([ROADMAP](ROADMAP.md#-planned--multi-agent--collaboration)).
+**Reads are audited.** Every memory read (`memory_get`, and each search hit) adds
+a row to `memory_access_log`: the memory, the reading agent (the authenticated
+caller of the tool; `direct` for code that calls m3 without the dispatcher), the
+data subject (`user_id`) and the time. Rows are written in batches off the read
+path, kept 90 days (`audit.read_log_retention_days`), included in `gdpr_export`
+(`access_log`) and erased by `gdpr_forget`. On by default (`audit.read_log`).
+Mutations are recorded separately (`memory_history`).
 
 ## What m3 does **not** do (the program layer — your responsibility)
 

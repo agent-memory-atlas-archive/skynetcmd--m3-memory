@@ -352,7 +352,7 @@ def _read_embed_config() -> tuple[dict, bool]:
 
 _EMBED_CFG, _EMBED_CFG_PRESENT = _read_embed_config()
 
-_EMBED_GGUF_PATH: str | None = (os.environ.get("M3_EMBED_GGUF") or "").strip() or None
+_EMBED_GGUF_PATH: str | None = str(_gguf) if (_gguf := _m3cfg.setting("embed.gguf")) else None
 # Defaults to the canonical SPACE tag, not a file name. The GGUF tiers used to
 # default to "bge-m3-GGUF-Q4_K_M.gguf" while LM Studio wrote
 # "text-embedding-bge-m3", which read as two embedding namespaces and was
@@ -371,11 +371,11 @@ _EMBED_GGUF_PATH: str | None = (os.environ.get("M3_EMBED_GGUF") or "").strip() o
 # drops those rows out of `_compatible_model_names()` and therefore out of
 # search entirely; add the old tag to M3_EMBED_COMPATIBLE_MODELS first.
 # `m3 doctor`'s embed-space probe reports UNREACHABLE if that happens.
-_EMBED_GGUF_MODEL_TAG: str = (os.environ.get("M3_EMBED_GGUF_MODEL_TAG") or "").strip() or config.EMBED_SPACE_TAG
+_EMBED_GGUF_MODEL_TAG: str = (_m3cfg.setting("embed.gguf_model_tag") or "").strip() or config.EMBED_SPACE_TAG
 # Explicit opt-IN to a per-process in-process embedder (a second CUDA context).
 # Shared mode is the safe default; this is the escape hatch for someone who
 # genuinely wants tier-1 in THIS process and accepts the extra CUDA context.
-_EMBED_INPROC_OPT_IN: bool = os.environ.get("M3_EMBED_INPROC", "0") == "1"
+_EMBED_INPROC_OPT_IN: bool = bool(_m3cfg.setting("embed.inproc"))
 
 # SAFE-BY-DEFAULT (§3, §6): route to the SHARED server unless inproc is clearly
 # intended. Inproc is permitted ONLY when:
@@ -405,7 +405,7 @@ else:
 # so tier-1 (the ~10-85x faster in-process embedder) activates automatically —
 # but ONLY when inproc is allowed (safe-default above). The walk is depth- and
 # time-bounded so a pathological models directory can never stall cold start.
-_EMBED_GGUF_AUTODETECT: bool = os.environ.get("M3_EMBED_GGUF_AUTODETECT", "1") != "0" and _INPROC_ALLOWED
+_EMBED_GGUF_AUTODETECT: bool = bool(_m3cfg.setting("embed.autodetect")) and _INPROC_ALLOWED
 # When inproc is not allowed, force-clear any explicit GGUF path so a process
 # pointed at a shared server never opens its OWN CUDA context (the whole point —
 # one context total, not one per process).
@@ -1165,7 +1165,9 @@ def _get_embed_client() -> _httpx.AsyncClient:
 
 
 _EMBED_FALLBACK_URL: str = (
-    os.environ.get("M3_EMBED_FALLBACK_URL")  # env override wins
+    # A SET embed.fallback_url (m3_config.toml or env) wins; the legacy JSON file
+    # sits below it until it folds (R8); then the default.
+    (_m3cfg.setting("embed.fallback_url") if _m3cfg.explicit("embed.fallback_url") else None)
     or _EMBED_CFG.get("fallback_url")  # config-file (headless-safe)
     or "http://127.0.0.1:8082"  # default (the tier-2 port)
 ).rstrip("/")
@@ -1269,6 +1271,38 @@ _EMBED_BULK_SEM = asyncio.Semaphore(EMBED_BULK_CONCURRENCY)
 # ──────────────────────────────────────────────────────────────────────────────
 # The cascade itself
 # ──────────────────────────────────────────────────────────────────────────────
+
+
+def _cloud_auth_token() -> str | None:
+    """The cloud-enclave token, resolved ONCE per process and cached until a secret
+    changes (m3_sdk.get_secret_cached; `m3 secret refresh` or any m3 secret write
+    invalidates it). It used to be looked up in the keyring on every embed call,
+    in two copied blocks: a macOS keychain read per call can prompt.
+
+    Order: the configured keyring entry (``M3_CLOUD_AUTH_TOKEN_KEYRING``,
+    ``service:username`` or a username under ``m3_memory``), then the standard
+    secret resolver for ``M3_CLOUD_AUTH_TOKEN`` (env > keyring > file > vault)."""
+    from m3_core.secret_store import cached_secret
+
+    def _resolve(name: str) -> str | None:
+        locator = config.M3_CLOUD_AUTH_TOKEN_KEYRING
+        if locator:
+            service, username = locator.split(":", 1) if ":" in locator else ("m3_memory", locator)
+            try:
+                from auth_utils import safe_keyring_get_password
+
+                token = safe_keyring_get_password(service, username)
+                if token:
+                    return token
+            except Exception as keyring_err:  # noqa: BLE001 — fall through to the resolver
+                logger.warning(f"Keyring lookup for cloud token failed: {keyring_err}")
+        from m3_sdk import get_secret
+
+        return get_secret(name)
+
+    return cached_secret("M3_CLOUD_AUTH_TOKEN", _resolve)
+
+
 async def _embed(text: str) -> tuple[list[float] | None, str]:
     # Length contract (see _enforce_length_contract). This path serves SEARCH
     # QUERIES as well as single-row writes, and the query side had NO length
@@ -1481,23 +1515,8 @@ async def _embed(text: str) -> tuple[list[float] | None, str]:
                             f"text before cloud transmission (groups: {groups_fired})"
                         )
 
-                    # 2. Keyring credentials resolution
-                    cloud_token = None
-                    if config.M3_CLOUD_AUTH_TOKEN_KEYRING:
-                        try:
-                            if ":" in config.M3_CLOUD_AUTH_TOKEN_KEYRING:
-                                service, username = config.M3_CLOUD_AUTH_TOKEN_KEYRING.split(":", 1)
-                            else:
-                                service = "m3_memory"
-                                username = config.M3_CLOUD_AUTH_TOKEN_KEYRING
-                            from auth_utils import safe_keyring_get_password
-
-                            cloud_token = safe_keyring_get_password(service, username)
-                        except Exception as keyring_err:
-                            logger.warning(f"Keyring lookup for cloud token failed: {keyring_err}")
-
-                    if not cloud_token:
-                        cloud_token = os.environ.get("M3_CLOUD_AUTH_TOKEN")
+                    # 2. Credentials: one cached resolution per process (_cloud_auth_token).
+                    cloud_token = _cloud_auth_token()
 
                     # 3. HTTP Call to Cloud Enclave
                     client = _get_embed_client()
@@ -1625,23 +1644,8 @@ async def _embed_many_cloud_fallback(
             scrubbed, _, _ = scrub(texts[idx], redact_cfg)
             cloud_texts.append(scrubbed)
 
-        # 2. Keyring credentials resolution
-        token = None
-        if config.M3_CLOUD_AUTH_TOKEN_KEYRING:
-            try:
-                if ":" in config.M3_CLOUD_AUTH_TOKEN_KEYRING:
-                    service, username = config.M3_CLOUD_AUTH_TOKEN_KEYRING.split(":", 1)
-                else:
-                    service = "m3_memory"
-                    username = config.M3_CLOUD_AUTH_TOKEN_KEYRING
-                from auth_utils import safe_keyring_get_password
-
-                token = safe_keyring_get_password(service, username)
-            except Exception as keyring_err:
-                logger.warning(f"Keyring lookup for cloud token failed: {keyring_err}")
-
-        if not token:
-            token = os.environ.get("M3_CLOUD_AUTH_TOKEN")
+        # 2. Credentials: one cached resolution per process (_cloud_auth_token).
+        token = _cloud_auth_token()
 
         # 3. HTTP Call to Cloud Enclave (Batched)
         client = _get_embed_client()
@@ -2075,7 +2079,7 @@ async def embedder_status_impl() -> dict:
     import http.client
     from urllib.parse import urlparse
 
-    url = os.environ.get("M3_EMBED_FALLBACK_URL") or "http://127.0.0.1:8082"
+    url = _m3cfg.setting("embed.fallback_url") or "http://127.0.0.1:8082"
     parsed = urlparse(url)
     host = parsed.hostname or "127.0.0.1"
     port = parsed.port or 8082

@@ -44,9 +44,18 @@ def test_embed_server_port_env_override(monkeypatch):
     assert ea._embed_server_port() == 9099
 
 
-def test_embed_server_port_bad_env_falls_back(monkeypatch):
-    monkeypatch.setenv("M3_EMBED_SERVER_PORT", "not-a-number")
-    assert ea._embed_server_port() == 8082
+def test_a_malformed_embed_server_port_fails_at_config_load():
+    """R-loud: M3_EMBED_SERVER_PORT=not-a-number used to fall back to 8082 silently."""
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bin"))
+    from m3_core.config import settings as st
+    from m3_core.config.resolve import NO_DOTENV, ConfigEnvErrors
+
+    with pytest.raises(ConfigEnvErrors) as exc:
+        st.build(environ={"M3_EMBED_SERVER_PORT": "not-a-number"}, dotenv=NO_DOTENV)
+    assert "M3_EMBED_SERVER_PORT" in str(exc.value.exceptions[0])
 
 
 def test_warn_if_port_busy_prints_when_busy(monkeypatch, capsys):

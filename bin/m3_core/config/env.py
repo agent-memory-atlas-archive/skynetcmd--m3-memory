@@ -15,6 +15,16 @@ def environ() -> Mapping[str, str]:
     return os.environ
 
 
+def secret_env_names() -> frozenset[str]:
+    """Every env name a secret-class key answers to: what ``child_env(drop=...)``
+    strips for a non-m3 child, so an env secret override never leaks into pip,
+    pg_dump or a model server (CONFIG_DESIGN §5)."""
+    from .keys import REGISTRY
+    from .registry import KeyClass
+
+    return frozenset(n for k in REGISTRY if k.klass is KeyClass.SECRET for n in k.env_names)
+
+
 def dotenv() -> tuple[str | None, Mapping[str, str]]:
     """The legacy .env as (path, values), parsed WITHOUT injecting it into
     os.environ (CONFIG_DESIGN §10, #D20); (None, {}) when there is none. A

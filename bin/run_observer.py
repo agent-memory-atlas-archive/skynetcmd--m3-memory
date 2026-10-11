@@ -643,7 +643,7 @@ async def process_conversation(
     # supersession to a single statement, and link an observation to one message.
     # The fallback (_attribute_turn) only runs under the flag, so the default
     # path is unchanged and adds no per-observation work.
-    precise = os.environ.get("M3_OBSERVER_PRECISE_PROVENANCE", "0") == "1"
+    precise = bool(_m3cfg.setting("observer.precise_provenance"))
     idx_to_id = {t[3]: t[0] for t in turns} if precise else {}
     group_written = 0
     for obs in observations:

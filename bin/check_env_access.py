@@ -52,7 +52,7 @@ SCAN_ROOTS = ("bin", "m3_memory")
 # Modules allowed to touch the environment; paths are repo-relative, POSIX style.
 # The config package reads env in exactly one module (CONFIG_DESIGN §2, read
 # path 6); the child_env helper joins in 2E.1.
-ALLOWED_MODULES: frozenset[str] = frozenset({"bin/m3_core/config/env.py"})
+ALLOWED_MODULES: frozenset[str] = frozenset({"bin/m3_core/config/env.py", "m3_memory/_childenv.py"})
 
 # Names m3 reads that are NOT m3 settings: the OS's (measured readers, plan
 # review §4b), plus terminals' and other programs' own variables (U4 bucket A,

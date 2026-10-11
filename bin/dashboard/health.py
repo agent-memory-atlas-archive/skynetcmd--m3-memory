@@ -612,7 +612,7 @@ def _smoke_enabled() -> bool:
     readiness via a real completion, the panel now shows 'unknown' until the smoke
     is explicitly enabled.
     """
-    return os.environ.get("M3_DASHBOARD_LLM_SMOKE", "0").strip().lower() in ("1", "true", "yes")
+    return bool(_m3cfg.setting("dashboard.llm_smoke"))
 
 
 def _smoke_llm_completion(base_url: str, model: str, token: str, timeout_s: float = 6.0) -> dict:

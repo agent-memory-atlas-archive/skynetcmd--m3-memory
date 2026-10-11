@@ -1291,6 +1291,18 @@ def memory_maintenance_impl(
         if prune_orphan_embeddings:
             res = db.execute("DELETE FROM memory_embeddings WHERE memory_id NOT IN (SELECT id FROM memory_items)")
             report.append(f"Pruned {res.rowcount} orphans")
+        # Read-access log retention (audit.read_log_retention_days, default 90; user
+        # decision 2026-10-11). Guarded: the table is absent on a store below 053.
+        try:
+            with _savepoint(db):
+                res = db.execute(
+                    f"DELETE FROM memory_access_log WHERE {_d.age_days_gt('ts', _p)}",
+                    (int(_m3cfg.setting("audit.read_log_retention_days")),),
+                )
+            report.append(f"Pruned {res.rowcount} read-log rows past retention")
+        except Exception as e:  # noqa: BLE001 — pre-053 store
+            if not _is_missing_schema(e):
+                raise
         if prune_orphan_queues:
             # Reap entity_extraction_queue rows whose target memory is GONE or
             # SOFT-DELETED. The extraction worker only processes LIVE memories
@@ -1441,6 +1453,9 @@ def gdpr_export_impl(user_id: str) -> str:
 
     if not user_id or not user_id.strip():
         return "Error: user_id is required"
+    from memory.db import flush_read_log
+
+    flush_read_log()  # queued reads are part of the record
     from memory.backends import dialect
 
     _d = dialect()
@@ -1452,6 +1467,17 @@ def gdpr_export_impl(user_id: str) -> str:
             (user_id,),
         ).fetchall()
         items = [dict(r) for r in rows]
+        # Who read this subject's memories, and when (Art. 30 / Art. 15).
+        try:
+            access = [
+                dict(r)
+                for r in db.execute(
+                    f"SELECT memory_id, agent_id, op, ts FROM memory_access_log WHERE user_id = {_p} ORDER BY ts",
+                    (user_id,),
+                ).fetchall()
+            ]
+        except Exception:  # noqa: BLE001 — table absent (pre-053)
+            access = []
 
         # Log the export request
         import uuid
@@ -1467,7 +1493,9 @@ def gdpr_export_impl(user_id: str) -> str:
             pass  # gdpr_requests table may not exist yet
 
     return json.dumps(
-        {"user_id": user_id, "request_id": req_id, "items_count": len(items), "items": items}, indent=2, default=str
+        {"user_id": user_id, "request_id": req_id, "items_count": len(items), "items": items, "access_log": access},
+        indent=2,
+        default=str,
     )
 
 
@@ -1497,6 +1525,11 @@ def gdpr_forget_impl(user_id: str, compliance: "dict | str | None" = None) -> st
 
     if not user_id or not user_id.strip():
         return "Error: user_id is required"
+    # Land queued audit rows BEFORE this function opens its write transaction (a
+    # flush inside it would wait on that lock), so they are erased below too.
+    from memory.db import flush_read_log
+
+    flush_read_log()
     # Normalize compliance to a dict; tolerate a JSON string (CLI/HTTP callers).
     if isinstance(compliance, str):
         try:
@@ -1582,6 +1615,21 @@ def gdpr_forget_impl(user_id: str, compliance: "dict | str | None" = None) -> st
                 )
                 wiki_ledger_summary = {"error": repr(_e)}
 
+        # The read-access audit log (migration 053): the subject's rows are personal
+        # data too. By user_id AND by the forgotten memories. Guarded: absent on a
+        # store below 053.
+        from memory.db import savepoint as _sp_log
+
+        try:
+            with _sp_log(db):
+                db.execute(f"DELETE FROM memory_access_log WHERE user_id = {_p}", (user_id,))
+                if item_ids:
+                    db.execute(
+                        f"DELETE FROM memory_access_log WHERE memory_id IN ({_d.placeholder(len(item_ids))})",
+                        item_ids,
+                    )
+        except Exception:  # noqa: BLE001 — table absent (pre-053): nothing to erase
+            pass
         if item_ids:
             placeholders = _d.placeholder(len(item_ids))
             # Delete embeddings
@@ -2045,7 +2093,7 @@ def _resolve_distill_model() -> str:
     - any other value → treated as a profile NAME (another local model, or a
                         cloud endpoint via a `backend: anthropic|openai` profile)
     """
-    return (os.environ.get("M3_DISTILL_MODEL", "") or "slm").strip()
+    return (_m3cfg.setting("loop.distill_model") or "slm").strip()
 
 
 async def _distill_call_model(prompt: str) -> "str | None":

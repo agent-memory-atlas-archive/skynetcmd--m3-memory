@@ -47,17 +47,15 @@ def _patch_count(monkeypatch, count, calls=None):
         ("1", 0, "1", True),  # escape hatch does NOT block explicit
     ],
 )
-def test_prefer_observations_matrix(monkeypatch, env, count, disable, expected):
+def test_prefer_observations_matrix(monkeypatch, m3_settings, env, count, disable, expected):
     import memory_core
 
     if env is None:
         monkeypatch.delenv("M3_PREFER_OBSERVATIONS", raising=False)
     else:
         monkeypatch.setenv("M3_PREFER_OBSERVATIONS", env)
-    if disable is None:
-        monkeypatch.delenv("M3_DISABLE_AUTO_ACTIVATION", raising=False)
-    else:
-        monkeypatch.setenv("M3_DISABLE_AUTO_ACTIVATION", disable)
+    # memory.disable_auto_activation is read through the registry (M3_DISABLE_AUTO_ACTIVATION).
+    m3_settings({"memory.disable_auto_activation": disable == "1"})
     _patch_count(monkeypatch, count)
     assert memory_core._prefer_observations_gate() is expected
 

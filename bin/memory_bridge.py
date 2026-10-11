@@ -256,7 +256,7 @@ def _build_typed_function(spec, *, for_mcp: bool = False):
 # startup. Other tools register on demand when the agent calls
 # `tools_load_domain(domain=…)`. Set M3_TOOLS_LAZY=0 to disable and expose
 # every tool at startup (legacy behavior).
-_LAZY_MODE = os.environ.get("M3_TOOLS_LAZY", "1") != "0"
+_LAZY_MODE = bool(_m3cfg.setting("tools.lazy"))
 
 # Tracks which tools are currently registered with FastMCP. Starts with the
 # essentials + the two meta-tools, grows as domains are loaded.

@@ -21,6 +21,18 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **Installed m3 finds its own scripts from every command.** Several commands
+  looked for m3's `bin/` directory one level too high on a pip-installed copy,
+  and two could put the current directory on Python's import path when it was
+  missing. One resolver now locates it for all of them.
+  **Affected:** pip/pipx installs · **Action:** none · **Data status:** none.
+
+- **`m3_entities_gliner` flags beat the environment.** `--model`, `--threshold`,
+  `--batch-size` and `--device` were overridden by the matching `M3_GLINER_*`
+  variables; a flag given on the command line now wins.
+  **Affected:** users of `m3_entities_gliner` who set `M3_GLINER_*` · **Action:**
+  none · **Data status:** none.
+
 - **Every tool resolves the data roots the same way.** About twenty places
   carried their own copy of the root rules, and several had drifted: the
   notification waiter wrote its log under the engine root's parent and ignored
@@ -213,6 +225,13 @@ the policy is forward-going only.
 
 ### Security
 
+- **m3's API keys and vault secrets no longer reach non-m3 programs.** `pg_dump`,
+  `pg_restore` and the pip/uv upgrade step used to inherit every secret set in
+  m3's environment; they now start without them. Child-process environments are
+  built in one place.
+  **Affected:** installs that put API keys or the vault key in the environment ·
+  **Action:** none · **Data status:** none.
+
 - **PostgreSQL: a keyword-form DSN (`host=... dbname=...`) no longer puts its
   password into store identities and snapshot names.** The whole DSN was read
   as the database name, which also hid the warehouse from the same-database
@@ -314,6 +333,27 @@ the policy is forward-going only.
   **Data status:** none.
 
 ### Added
+
+- **Read-access audit log (GDPR Article 30).** Every memory read, by
+  `memory_get` or as a search hit, is recorded with the reading agent, the data
+  subject and the time. Rows are written in batches off the read path, kept 90
+  days (`audit.read_log_retention_days`), included in `gdpr_export` as
+  `access_log`, and erased by `gdpr_forget`. On by default; `audit.read_log`
+  turns it off.
+  **Affected:** all installs · **Action:** none (the table is created by
+  migration) · **Data status:** new table `memory_access_log`; reads before
+  this version were not recorded.
+
+- **`m3 secret refresh`, and API keys found where m3 stores them.** The LLM
+  extraction keys (`GEMINI_API_KEY`, `ANTHROPIC_API_KEY`) and the cloud embed
+  token are now looked up through m3's secret store (environment, keyring,
+  secrets file, vault) instead of the environment alone, so a key kept in the
+  keyring also reaches background services. Each is read once per process and
+  cached; storing, deleting, rotating or syncing a secret, or running
+  `m3 secret refresh` after changing one outside m3, makes running processes
+  re-read it within a few seconds.
+  **Affected:** users of LLM extraction or the cloud embedder · **Action:** none ·
+  **Data status:** none.
 
 - **The README states the project's status.** A "Project status" section near
   the top labels each feature Stable, Beta or Planned, lists the tested

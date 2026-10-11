@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_entities.py
-sha1: b1159e95e7f6
-mtime_utc: 2026-10-11T17:51:15.709790+00:00
-generated_utc: 2026-10-11T18:07:53.989449+00:00
+sha1: e2d5dbe565f0
+mtime_utc: 2026-10-11T18:40:07.356513+00:00
+generated_utc: 2026-10-11T19:18:32.192091+00:00
 private: false
 ---
 
@@ -85,7 +85,6 @@ Override via --entity-vocab-yaml or M3_ENTITY_VOCAB_YAML.
 - `M3_DATABASE`
 - `M3_EMBED_MODEL`
 - `M3_EMBED_URL`
-- `M3_ENTITY_VOCAB_YAML`
 
 ---
 

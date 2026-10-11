@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_enrich.py
-sha1: 7fa99350f4a7
-mtime_utc: 2026-10-11T17:51:15.688078+00:00
-generated_utc: 2026-10-11T18:07:53.945900+00:00
+sha1: 06211df65e1a
+mtime_utc: 2026-10-11T19:04:23.521830+00:00
+generated_utc: 2026-10-11T19:18:32.141221+00:00
 private: false
 ---
 
@@ -66,16 +66,16 @@ Status: Phase D user-facing CLI. Pairs with bin/run_observer.py + bin/run_reflec
 | `--target-variant` | Variant tag for emitted observations. Default: m3-observations-YYYYMMDD. | `f'm3-observations-{_today()}'` |  | str |  |
 | `--source-variant` | Filter source rows by variant. '__none__' = true core memory only (variant IS NULL). A name string = single-variant scope. Default: no filter (all rows). | None |  | str |  |
 | `--source-conv-list` | Path to a file listing group_keys (conversation_ids) to process. Format: newline-delimited text (with optional # comments) OR a JSON array of strings. Narrows the eligible-groups set AFTER --source-variant + type filtering — opt-in lever, no effect on default behavior. Env: M3_ENRICH_CONV_LIST. | `_m3cfg.setting('enrich.conv_list')` |  | str |  |
-| `--track-state` | Record per-group enrichment state in the enrichment_groups table (migration 028). Required for --resume / --budget-usd. Requires --source-variant. Env: M3_ENRICH_TRACK_STATE. | `os.environ.get('M3_ENRICH_TRACK_STATE', '0').lower() in ('1', 'true', 'yes')` |  | store_true |  |
+| `--track-state` | Record per-group enrichment state in the enrichment_groups table (migration 028). Required for --resume / --budget-usd. Requires --source-variant. Env: M3_ENRICH_TRACK_STATE. | `bool(_m3cfg.setting('enrich.track_state'))` |  | store_true |  |
 | `--resume` | Skip groups already at status='success' or 'empty' for the current (source_variant, target_variant) pair. Implies --track-state. Picks up pending + failed-with-retries-left. | `False` |  | store_true |  |
 | `--include-dead-letter` | Also retry groups currently at status='dead_letter'. Manual override; implies --resume. Use after fixing the underlying issue (prompt change, model upgrade, etc.). | `False` |  | store_true |  |
-| `--max-attempts` | f'Per-group retry cap before promotion to dead_letter. Default {estate.DEFAULT_MAX_ATTEMPTS}. Env: M3_ENRICH_MAX_ATTEMPTS.' | `int(os.environ.get('M3_ENRICH_MAX_ATTEMPTS', estate.DEFAULT_MAX_ATTEMPTS))` |  | int |  |
-| `--budget-usd` | Hard ceiling on cumulative cost_usd across this run. When tripped, drains inflight calls and exits cleanly with status='aborted'. Implies --track-state. Env: M3_ENRICH_BUDGET_USD. | `float(os.environ['M3_ENRICH_BUDGET_USD']) if os.environ.get('M3_ENRICH_BUDGET_USD') else None` |  | float |  |
+| `--max-attempts` | f'Per-group retry cap before promotion to dead_letter. Default {estate.DEFAULT_MAX_ATTEMPTS}. Env: M3_ENRICH_MAX_ATTEMPTS.' | `_m3cfg.setting('enrich.max_attempts')` |  | int |  |
+| `--budget-usd` | Hard ceiling on cumulative cost_usd across this run. When tripped, drains inflight calls and exits cleanly with status='aborted'. Implies --track-state. Env: M3_ENRICH_BUDGET_USD. | `_m3cfg.setting('enrich.budget_usd')` |  | float |  |
 | `--sample` | Process at most N groups, selected via --sample-strategy. Independent of --limit (which caps the SQL pull). | None |  | int |  |
 | `--sample-strategy` | How --sample picks groups. 'first' = top-N by turn-count desc (cheapest). 'random' = uniform random. 'stratified' = balanced by turn-count quartile. Default 'first'. | `first` |  | str |  |
-| `--input-max-k` | Override the per-call input cap for the SLM, in KB. Caps the total chars sent to the model at N*1024. Use to fit a smaller per-slot ctx budget when raising concurrency in the model server. Falls back to profile.input_max_chars when unset. Env: M3_ENRICH_INPUT_MAX_K. | `int(os.environ['M3_ENRICH_INPUT_MAX_K']) if os.environ.get('M3_ENRICH_INPUT_MAX_K') else None` |  | int |  |
-| `--min-size-k` | --resume only: pick groups whose total source content is at least N KB. Use with --max-attempts to retry the big groups at lower concurrency. Excludes legacy rows where content_size_k is NULL. Env: M3_ENRICH_MIN_SIZE_K. | `int(os.environ['M3_ENRICH_MIN_SIZE_K']) if os.environ.get('M3_ENRICH_MIN_SIZE_K') else None` |  | int |  |
-| `--max-size-k` | --resume only: pick groups whose total source content is at most N KB. Pair with --concurrency to fit per-slot ctx budget. Excludes legacy rows where content_size_k is NULL. Env: M3_ENRICH_MAX_SIZE_K. | `int(os.environ['M3_ENRICH_MAX_SIZE_K']) if os.environ.get('M3_ENRICH_MAX_SIZE_K') else None` |  | int |  |
+| `--input-max-k` | Override the per-call input cap for the SLM, in KB. Caps the total chars sent to the model at N*1024. Use to fit a smaller per-slot ctx budget when raising concurrency in the model server. Falls back to profile.input_max_chars when unset. Env: M3_ENRICH_INPUT_MAX_K. | `_m3cfg.setting('enrich.input_max_k')` |  | int |  |
+| `--min-size-k` | --resume only: pick groups whose total source content is at least N KB. Use with --max-attempts to retry the big groups at lower concurrency. Excludes legacy rows where content_size_k is NULL. Env: M3_ENRICH_MIN_SIZE_K. | `_m3cfg.setting('enrich.min_size_k')` |  | int |  |
+| `--max-size-k` | --resume only: pick groups whose total source content is at most N KB. Pair with --concurrency to fit per-slot ctx budget. Excludes legacy rows where content_size_k is NULL. Env: M3_ENRICH_MAX_SIZE_K. | `_m3cfg.setting('enrich.max_size_k')` |  | int |  |
 | `--send-to` | --resume only: pick groups whose send_to column matches this name. Use for parallel multi-provider runs where each provider's worker should claim only its assigned rows. Rows with send_to IS NULL are EXCLUDED in routed mode — assign rows via bin/m3_enrich_assign.py before running with --send-to. When this flag is omitted, the send_to column is ignored entirely (backwards compatible with non-routed runs). Env: M3_ENRICH_SEND_TO. | `_m3cfg.setting('enrich.send_to')` |  | str |  |
 | `--limit` | Cap conversations enriched per DB (smoke testing). | None |  | int |  |
 | `--concurrency` | Concurrent SLM calls. Default 4. | `4` |  | int |  |
@@ -103,12 +103,6 @@ Status: Phase D user-facing CLI. Pairs with bin/run_observer.py + bin/run_reflec
 - `M3_DATABASE`
 - `M3_EMBED_MODEL`
 - `M3_EMBED_URL`
-- `M3_ENRICH_BUDGET_USD`
-- `M3_ENRICH_INPUT_MAX_K`
-- `M3_ENRICH_MAX_ATTEMPTS`
-- `M3_ENRICH_MAX_SIZE_K`
-- `M3_ENRICH_MIN_SIZE_K`
-- `M3_ENRICH_TRACK_STATE`
 
 ---
 

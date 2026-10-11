@@ -31,6 +31,8 @@ import os
 import sys
 from typing import cast
 
+from m3_core.config import settings as _m3cfg
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Default policy: give a completed task a few days to settle before distilling,
@@ -70,7 +72,7 @@ async def _run(apply: bool, threshold: int, stale_days: int, max_procedures: int
     import memory_maintenance
 
     # Hard gate: writing requires BOTH --apply and M3_DISTILL_AUTO=1.
-    auto = os.environ.get("M3_DISTILL_AUTO", "0") == "1"
+    auto = bool(_m3cfg.setting("autonomy.distill_auto"))
     dry_run = not (apply and auto)
     if apply and not auto:
         prefix = (

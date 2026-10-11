@@ -35,7 +35,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, override
 
 from m3_core.config import settings as _m3cfg
-from m3_sdk import getenv_compat
 
 from .base import (
     BackendName,
@@ -226,7 +225,7 @@ def _forbidden_pg_hosts() -> list[str]:
     ``M3_PG_FORBIDDEN_HOSTS`` (comma-separated). Empty by default here — the
     deployment supplies its known warehouse host(s); tests supply the dev hub.
     """
-    return [h.strip() for h in os.environ.get("M3_PG_FORBIDDEN_HOSTS", "").split(",") if h.strip()]
+    return [h.strip() for h in _m3cfg.setting("db.postgres.forbidden_hosts") if h.strip()]
 
 
 def _reject_forbidden_host(url: str) -> None:
@@ -408,8 +407,8 @@ def _pg_tool(name: str) -> str:
         if os.path.isfile(Path(explicit)):
             return str(Path(explicit).absolute())
         raise SnapshotError(f"{_PG_TOOL_ENV[name]}={explicit!r} is not a file.")
-    if name == "pg_restore" and os.environ.get("M3_PG_DUMP"):
-        sibling = shutil.which("pg_restore", path=str(Path(os.environ["M3_PG_DUMP"]).parent))
+    if name == "pg_restore" and (_dump := _m3cfg.setting("db.postgres.pg_dump")):
+        sibling = shutil.which("pg_restore", path=str(Path(_dump).parent))
         if sibling:
             return sibling
     found = shutil.which(name)
@@ -443,7 +442,12 @@ def _conninfo_and_env(dsn: str) -> tuple[str, dict[str, str]]:
     except Exception as e:  # noqa: BLE001 — never echo the DSN: it carries a password
         raise SnapshotError(f"cannot parse the PostgreSQL DSN ({type(e).__name__}).") from e
     password = params.pop("password", None)
-    env = dict(os.environ)
+    from m3_core.config.env import secret_env_names
+    from m3_core.seams import childenv
+
+    # pg_dump / pg_restore are not m3: no m3 secret reaches them; the password
+    # goes in PGPASSWORD, never on argv.
+    env = childenv.child_env(drop=secret_env_names())
     if password:
         env["PGPASSWORD"] = str(password)
     return " ".join(f"{k}={_libpq_quote(v)}" for k, v in params.items()), env
@@ -966,8 +970,8 @@ class PostgresBackend:
                     "`pip install 'm3-memory[postgres]'`. The PostgreSQL backend "
                     "requires psycopg2 to connect to the database."
                 ) from e
-            minconn = int(getenv_compat("M3_PG_POOL_MIN", "", str(_DEFAULT_MINCONN)) or _DEFAULT_MINCONN)
-            maxconn = int(getenv_compat("M3_PG_POOL_MAX", "", str(_DEFAULT_MAXCONN)) or _DEFAULT_MAXCONN)
+            minconn = _m3cfg.setting("db.postgres.pool_min") or _DEFAULT_MINCONN
+            maxconn = _m3cfg.setting("db.postgres.pool_max") or _DEFAULT_MAXCONN
             if maxconn < minconn:
                 raise ValueError(
                     f"M3_PG_POOL_MAX ({maxconn}) < M3_PG_POOL_MIN ({minconn}). "

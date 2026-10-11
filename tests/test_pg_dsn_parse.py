@@ -73,18 +73,18 @@ def test_the_warehouse_guard_sees_through_the_keyword_form(monkeypatch):
         "postgresql://u@WH.example/m3",
     ],
 )
-def test_a_forbidden_host_is_refused_in_any_form(monkeypatch, dsn):
+def test_a_forbidden_host_is_refused_in_any_form(m3_settings, dsn):
     from memory.backends.postgres_backend import _reject_forbidden_host
 
-    monkeypatch.setenv("M3_PG_FORBIDDEN_HOSTS", "wh.example")
+    m3_settings({"db.postgres.forbidden_hosts": ["wh.example"]})
     with pytest.raises(RuntimeError, match="forbidden"):
         _reject_forbidden_host(dsn)
 
 
-def test_a_forbidden_host_inside_a_password_is_not_a_hit(monkeypatch):
+def test_a_forbidden_host_inside_a_password_is_not_a_hit(m3_settings):
     from memory.backends.postgres_backend import _reject_forbidden_host
 
-    monkeypatch.setenv("M3_PG_FORBIDDEN_HOSTS", "wh.example")
+    m3_settings({"db.postgres.forbidden_hosts": ["wh.example"]})
     _reject_forbidden_host("host=ok.example dbname=m3 password=wh.example")
 
 

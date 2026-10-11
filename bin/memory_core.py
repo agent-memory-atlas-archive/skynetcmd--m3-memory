@@ -767,6 +767,9 @@ def memory_get_impl(id):
             row = db.execute(f"SELECT * FROM memory_items WHERE id = {_p}", (ident,)).fetchone()
             if not row:
                 return "Error: not found"
+        from memory.db import record_reads
+
+        record_reads([row["id"]], "get", user_id=row["user_id"] if "user_id" in row.keys() else None)
         return json.dumps(_row_out(row), indent=2, default=str)
     if len(ident) == 8:
         with _db() as db:
@@ -779,7 +782,11 @@ def memory_get_impl(id):
             if len(rows) > 1:
                 ids = ", ".join(r["id"] for r in rows)
                 return f"Error: ambiguous prefix '{ident}': matches {ids}"
-        return json.dumps(_row_out(rows[0]), indent=2, default=str)
+        from memory.db import record_reads
+
+        row = rows[0]
+        record_reads([row["id"]], "get", user_id=row["user_id"] if "user_id" in row.keys() else None)
+        return json.dumps(_row_out(row), indent=2, default=str)
     return "Error: id must be 36-char UUID or 8-char prefix"
 
 

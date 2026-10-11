@@ -25,6 +25,7 @@ if _ilu.find_spec("m3_memory") is None:
     if _os.path.isfile(_root / "m3_memory" / "_platform.py"):
         _sys.path.append(str(_root))
 
+from m3_memory import _childenv as childenv  # noqa: E402  (child-process env owner, stdlib-only)
 from m3_memory import _roots as roots  # noqa: E402  (the root-directory owner, stdlib-only)
 from m3_memory._platform import (  # noqa: E402
     PLATFORM_OF,
@@ -48,6 +49,7 @@ from m3_memory._pyver import PY, event_loop_timer_slack, wheel_python_tag  # noq
 __all__ = [
     "PLATFORM_OF",
     "PY",
+    "childenv",
     "current_uid",
     "detached_spawn_kwargs",
     "event_loop_timer_slack",

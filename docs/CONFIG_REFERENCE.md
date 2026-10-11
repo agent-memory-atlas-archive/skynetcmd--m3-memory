@@ -6,6 +6,13 @@ The file is `m3_config.toml` in the config root (`--config <file>` > `M3_CONFIG_
 
 Precedence for each setting: the environment, for the keys marked *env override* only; then this file; then, until release N+3, the setting's legacy environment names; then the default. `m3 config show --origin` prints where each value came from.
 
+## [audit]
+
+| Key | Type | Default | Environment names | Notes |
+|---|---|---|---|---|
+| `read_log` | boolean | `true` | `M3_AUDIT_READ_LOG` | restart to apply; Record who read which memory, and when (memory_access_log). |
+| `read_log_retention_days` | integer | `90` | `M3_AUDIT_READ_LOG_RETENTION_DAYS` | restart to apply; Days the read-access log keeps a row before maintenance prunes it. |
+
 ## [autonomy]
 
 | Key | Type | Default | Environment names | Notes |

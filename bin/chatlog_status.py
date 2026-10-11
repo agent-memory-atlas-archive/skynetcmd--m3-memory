@@ -752,12 +752,9 @@ def _run_subprocess_interactive(cmd: list[str]) -> None:
     print("=" * 80)
 
     # Add bin directory to PYTHONPATH so packages like files_memory are importable when run as modules
-    env = os.environ.copy()
-    bin_dir = os.path.dirname(os.path.abspath(__file__))
-    if "PYTHONPATH" in env:
-        env["PYTHONPATH"] = bin_dir + os.pathsep + env["PYTHONPATH"]
-    else:
-        env["PYTHONPATH"] = bin_dir
+    from m3_core.seams import childenv
+
+    env = childenv.child_env(prepend_pythonpath=os.path.dirname(os.path.abspath(__file__)))
 
     try:
         result = subprocess.run(cmd, env=env, shell=False)

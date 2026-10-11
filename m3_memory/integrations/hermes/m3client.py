@@ -72,18 +72,13 @@ class M3Client:
         own directory (m3's bin/) and move it to the FRONT of sys.path so m3's
         `memory` resolves first. Idempotent; cheap.
         """
-        import importlib.util
         import sys
 
-        spec = importlib.util.find_spec("mcp_tool_catalog")
-        if spec and spec.origin:
-            import os
+        from m3_memory import _bin
 
-            bin_dir = os.path.dirname(spec.origin)
-            if sys.path and sys.path[0] != bin_dir:
-                # Drop any existing occurrence, then prepend.
-                sys.path[:] = [p for p in sys.path if p != bin_dir]
-                sys.path.insert(0, bin_dir)
+        found = _bin.ensure_on_path(front=True)  # m3's bin/ at position 0
+        if found is not None:
+            bin_dir = str(found)
             # If a shadowing `memory` was already imported, evict it so the
             # next import re-resolves against m3's bin.
             _m = sys.modules.get("memory")

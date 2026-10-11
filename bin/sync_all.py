@@ -28,7 +28,6 @@ import sys
 
 from m3_core.config import settings as _m3cfg
 from m3_core.seams import is_windows, os_name
-from m3_sdk import getenv_compat
 
 IS_WIN = is_windows()
 
@@ -75,10 +74,7 @@ PY = _resolve_python()
 def _warehouse_host_from_env() -> str:
     """The host env vars, read when asked: a value captured at import is the
     importing process's environment, not the one sync runs in."""
-    return (
-        getenv_compat("M3_POSTGRES_SERVER", "POSTGRES_SERVER", getenv_compat("M3_SYNC_TARGET_IP", "SYNC_TARGET_IP", ""))
-        or ""
-    ).strip()
+    return (_m3cfg.setting("sync.warehouse_host") or _m3cfg.setting("sync.target_ip") or "").strip()
 
 
 def warehouse_target() -> "tuple[str, int, str] | None":

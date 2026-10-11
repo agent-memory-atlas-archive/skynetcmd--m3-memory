@@ -9,7 +9,6 @@ prevents this phase from hanging.
 from __future__ import annotations
 
 import logging
-import os
 import shutil
 import subprocess
 from typing import cast
@@ -134,7 +133,10 @@ def run(brief: bool = False) -> int:
     # with this probe's stdout and scroll the readable summary off-screen.
     # GGML_LOG_LEVEL=4 (error-only) suppresses them while still surfacing real
     # errors. Respect an operator-set value so power users can opt back in.
-    env = {**os.environ, "GGML_LOG_LEVEL": os.environ.get("GGML_LOG_LEVEL", "4")}
+    from m3_core.seams import childenv
+
+    env = childenv.child_env()
+    env.setdefault("GGML_LOG_LEVEL", "4")  # an operator-set value is inherited and kept
     try:
         # In brief mode, capture (and discard) the subprocess's own noisy output;
         # we only report pass/fail from its exit code as a single line.

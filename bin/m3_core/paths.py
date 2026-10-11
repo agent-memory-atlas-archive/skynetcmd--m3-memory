@@ -35,10 +35,6 @@ DEPRECATED_ENV_RENAMES: dict[str, str] = {
     "AGENT_DB": "M3_AGENT_DB",
     "CHATLOG_DB": "M3_CHATLOG_DB",
     "CHATLOG_DB_PATH": "M3_CHATLOG_DB_PATH",
-    "CHATLOG_STATUSLINE": "M3_CHATLOG_STATUSLINE",
-    "CHATLOG_STATUSLINE_ASCII": "M3_CHATLOG_STATUSLINE_ASCII",
-    "GGUF_MODEL_PATH": "M3_GGUF_MODEL_PATH",
-    "LLAMA_SERVER_EXE": "M3_LLAMA_SERVER_EXE",
     "LM_READ_TIMEOUT": "M3_LM_READ_TIMEOUT",
     # CHROMA_BASE_URL is NOT here: the ChromaDB feature was retired, so there is
     # no live getenv_compat call site for it. It moved to RETIRED_ENV_RENAMES so
@@ -52,8 +48,6 @@ DEPRECATED_ENV_RENAMES: dict[str, str] = {
     # PG_URL is NOT here: it was split by role (primary vs warehouse), so it lives
     # in ROLE_SPLIT_ENV_RENAMES (-> M3_CDW_PG_URL) and is resolved by the
     # role-specific resolvers, not getenv_compat. See below.
-    "POSTGRES_SERVER": "M3_POSTGRES_SERVER",
-    "SYNC_TARGET_IP": "M3_SYNC_TARGET_IP",
 }
 
 # ROLE_SPLIT_ENV_RENAMES: deprecations that are NOT pure M3_ namespacing because

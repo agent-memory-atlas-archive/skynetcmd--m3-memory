@@ -699,6 +699,10 @@ def sync_secrets(sl_cur, pg_cur, target_name: str):
             _direction_failed(target_name, "secrets_pull", exc, pull_count, len(remote_rows))
 
     logger.info(f"[{target_name}] Pulled {pull_count} remote secrets from the warehouse.")
+    if pull_count:
+        from m3_core.secret_store import bump_secret_generation
+
+        bump_secret_generation()  # a synced key reaches running processes
 
 
 def _ensure_pg_tasks_schema(pg_cur):

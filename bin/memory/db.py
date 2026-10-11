@@ -42,6 +42,7 @@ from pathlib import Path
 from typing import Any
 
 from embedding_utils import infer_change_agent as _infer_change_agent_util
+from m3_core.config import settings as _m3cfg
 from m3_core.errors import log_swallowed
 from m3_sdk import M3Context, migration_lock, resolve_db_path
 
@@ -681,7 +682,7 @@ def _gate_active(env_var: str, count_query: str, threshold: int = 1) -> bool:
     """
     if os.environ.get(env_var, "").strip().lower() in ("1", "true", "yes", "on"):
         return True
-    if os.environ.get("M3_DISABLE_AUTO_ACTIVATION", "").strip().lower() in ("1", "true", "yes", "on"):
+    if _m3cfg.setting("memory.disable_auto_activation"):
         return False
     cache_key = f"{env_var}::{count_query}"
     cached = _GATE_CACHE.get(cache_key)
@@ -805,3 +806,116 @@ def _enqueue_access_stamps(ids) -> None:
     _access_pending.update(i for i in ids if i)
     if _access_flusher_task is None or _access_flusher_task.done():
         _access_flusher_task = loop.create_task(_access_stamp_flusher())
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Read-access audit log (GDPR Art. 30: who read what, when; user decision
+# 2026-10-11: always on, 90-day retention). memory_access_log, migration 053/pg_062.
+# ──────────────────────────────────────────────────────────────────────────────
+# Its own batcher, flushed by a DAEMON THREAD, not the access-stamp batcher above:
+# that one runs only inside an event loop, and memory_get is synchronous, so an
+# audit log riding it would silently miss every direct get. Each record carries
+# the caller (m3_core.caller, bound by the dispatcher) and the STORE it was read
+# from: the flush thread does not inherit the reader's active_database
+# ContextVar, so without it a read under --store X would be logged into the
+# default store.
+_READ_LOG_FLUSH_S = 0.25
+_read_log_pending: list[tuple[str, str, str, str | None, str]] = []  # (store, memory, agent, user, op)
+_read_log_lock = threading.Lock()
+_read_log_thread: threading.Thread | None = None
+
+
+def record_reads(memory_ids, op: str, user_id: str | None = None) -> None:
+    """Queue one audit row per memory read (op: get | search_hit | export).
+
+    Never raises into the read path and never blocks it: a failure to record is
+    logged by the flusher. Off only when audit.read_log is set false."""
+    global _read_log_thread
+    ids = [m for m in (memory_ids or ()) if m]
+    if not ids:
+        return
+    try:
+        if not _m3cfg.setting("audit.read_log"):
+            return
+        from m3_core.caller import current_caller
+
+        _bind_read_log_deps()
+        store = str(resolve_db_path(None))
+        agent = current_caller()
+        with _read_log_lock:
+            _read_log_pending.extend((store, m, agent, user_id, op) for m in ids)
+            if _read_log_thread is None or not _read_log_thread.is_alive():
+                _read_log_thread = threading.Thread(target=_read_log_loop, name="m3-read-log", daemon=True)
+                _read_log_thread.start()
+    except Exception as e:  # noqa: BLE001 — auditing must not break a read
+        log_swallowed(logger, e, f"read-access log: could not queue {len(ids)} read(s): {e}")
+
+
+_read_log_deps: tuple[Any, Any] | None = None  # (active_database, dialect)
+
+
+def _bind_read_log_deps() -> tuple[Any, Any]:
+    """Resolve the flusher's imports on the CALLER's thread, once. The flush
+    thread must never import: a lazy `memory.backends` import there races any
+    concurrent rebuild of the `memory` package (measured: KeyError
+    'memory.chunking' killed the thread under the test suite's namespace purge),
+    and a dead flusher is a silent audit gap."""
+    global _read_log_deps
+    if _read_log_deps is None:
+        from m3_core.paths import active_database
+
+        from memory.backends import dialect
+
+        _read_log_deps = (active_database, dialect)
+    return _read_log_deps
+
+
+def _read_log_loop() -> None:
+    while True:
+        time.sleep(_READ_LOG_FLUSH_S)
+        try:
+            flush_read_log()
+        except Exception as e:  # noqa: BLE001 — the flusher must outlive any one failure
+            logger.error("read-access log: flush failed (%s); queued reads kept for the next flush", e)
+
+
+def flush_read_log() -> int:
+    """Write every queued read; returns rows written. A batch that fails is
+    logged LOUDLY (an audit gap is a §3 failure, not telemetry drift) and put back
+    for the next flush."""
+    if not _read_log_pending:
+        return 0
+    active_database, _dialect = _bind_read_log_deps()
+
+    with _read_log_lock:
+        batch = list(_read_log_pending)
+        _read_log_pending.clear()
+    if not batch:
+        return 0
+    by_store: dict[str, set[tuple[str, str, str | None, str]]] = {}
+    for store, mid, agent, user, op in batch:
+        by_store.setdefault(store, set()).add((mid, agent, user, op))  # a burst coalesces
+    written = 0
+    for store, rows in by_store.items():
+        try:
+            with active_database(store), _db() as db:
+                d = _dialect()
+                p = d.param()
+                for mid, agent, user, op in rows:
+                    db.execute(
+                        f"INSERT INTO memory_access_log (id, memory_id, agent_id, user_id, op, ts) "
+                        f"VALUES ({p}, {p}, {p}, {p}, {p}, {d.now()})",
+                        (uuid.uuid4().hex, mid, agent, user, op),
+                    )
+                db.commit()
+            written += len(rows)
+        except Exception as e:  # noqa: BLE001 — requeue, report, keep the thread alive
+            logger.error("read-access log: %d row(s) for %s not written (%s); retrying next flush", len(rows), store, e)
+            with _read_log_lock:
+                _read_log_pending.extend((store, *r) for r in rows)
+    return written
+
+
+import atexit as _atexit  # noqa: E402
+
+_atexit.register(flush_read_log)  # the last reads before exit are not lost

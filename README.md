@@ -100,7 +100,7 @@ The query shares no keywords with the stored text — no "RS256", no "JWT" — a
 *   **Tested on** Windows, macOS and Linux × SQLite and PostgreSQL × Python 3.12–3.15, with and without the native (Rust) core; the full matrix runs before every release ([Testing](docs/TESTING.md)).
 *   **Limit: vector search on PostgreSQL is exact, not approximate:** every query scores every stored vector. Fine for personal and team stores; very large stores will want the planned pgvector / HNSW arm ([Architecture](docs/ARCHITECTURE.md)).
 *   **Limit: SQLite has one writer at a time:** concurrent writers wait (WAL, 30 s busy timeout, retries) rather than fail. Many agents writing at once should share a PostgreSQL store ([Multi-agent](docs/MULTI_AGENT.md)).
-*   **Limit: reads are not yet attributed:** m3 records when a memory was last read, not which agent read it. A read-access audit log is in progress ([GDPR](docs/GDPR_COMPLIANCE.md)).
+*   **Reads are audited:** every memory read (get or search hit) is logged with the reading agent, the data subject and the time, kept 90 days, included in `gdpr_export` and erased by `gdpr_forget` ([GDPR](docs/GDPR_COMPLIANCE.md)).
 *   **Configuration is moving from environment variables to `m3_config.toml`:** `m3 config show` prints every setting and where it came from ([Config reference](docs/CONFIG_REFERENCE.md)); deprecated variable names keep working with a warning, and `m3 doctor` lists any still in use ([Environment variables](docs/ENVIRONMENT_VARIABLES.md)).
 *   **Versioning:** calendar versions (`YYYY.M.D.N`). A renamed or removed setting, argument or tool keeps working, with a warning, for at least two releases after its replacement ships ([Changelog](CHANGELOG.md)).
 

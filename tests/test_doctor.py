@@ -347,7 +347,7 @@ async def test_doctor_classification_all_four_states():
 
 
 @pytest.mark.asyncio
-async def test_doctor_per_probe_timeouts_respected(monkeypatch):
+async def test_doctor_per_probe_timeouts_respected(m3_settings):
     """A probe that hangs is bounded by its own 2s timeout, so doctor still
     returns well inside 5s. Only ONE probe hangs here, so this cannot tell
     concurrent from sequential probes (measured: it passed with gather made
@@ -363,10 +363,10 @@ async def test_doctor_per_probe_timeouts_respected(monkeypatch):
     # process also pays one-off initialisation (store, imports), which on a slow
     # CI runner pushed a concurrent run past the budget (5.6s, windows py3.13)
     # without any probe running sequentially. Only the hanging run is timed.
-    monkeypatch.setenv("M3_EMBED_FALLBACK_URL", "http://127.0.0.1:1")
+    m3_settings({"embed.fallback_url": "http://127.0.0.1:1"})
     await asyncio.wait_for(memory_doctor_impl(), timeout=8.0)
 
-    monkeypatch.setenv("M3_EMBED_FALLBACK_URL", "http://198.51.100.1:8082")
+    m3_settings({"embed.fallback_url": "http://198.51.100.1:8082"})
     t0 = time.perf_counter()
     out = await asyncio.wait_for(memory_doctor_impl(), timeout=8.0)
     elapsed = time.perf_counter() - t0

@@ -1,8 +1,8 @@
 ---
 tool: bin/sync_all.py
-sha1: b01e9dc39257
-mtime_utc: 2026-10-11T17:51:15.750373+00:00
-generated_utc: 2026-10-11T18:07:54.255628+00:00
+sha1: 1e27b5aef8e9
+mtime_utc: 2026-10-11T18:40:07.466947+00:00
+generated_utc: 2026-10-11T19:18:32.531125+00:00
 private: false
 ---
 
@@ -31,7 +31,7 @@ DB list:
 
 ## Entry points
 
-- `def main()` (line 476)
+- `def main()` (line 472)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -58,7 +58,6 @@ DB list:
 - `_task_runtime (add_log_file_arg, setup_task_runtime)`
 - `_task_runtime (no_window_kwargs)`
 - `m3_sdk (add_database_arg)`
-- `m3_sdk (getenv_compat)`
 - `m3_sdk (resolve_db_path)`
 - `m3_sdk (resolve_warehouse_dsn)`
 - `pg_fdw_sync`
@@ -70,7 +69,7 @@ DB list:
 
 **subprocess**
 
-- `subprocess.run()  → `[str(PY), str(BASE / 'bin' / 'pg_sync.py'), '--db', str(db_path)]`` (line 201)
+- `subprocess.run()  → `[str(PY), str(BASE / 'bin' / 'pg_sync.py'), '--db', str(db_path)]`` (line 197)
 
 
 ---

@@ -60,6 +60,7 @@ from typing import Any, cast
 from urllib.parse import urlparse
 
 import httpx
+from m3_core.config import settings as _m3cfg
 from m3_core.errors import log_swallowed
 
 try:
@@ -74,11 +75,11 @@ logger = logging.getLogger("slm_intent")
 
 # ── Gate + env-driven resolution ──────────────────────────────────────────────
 def _gate_on() -> bool:
-    return os.environ.get("M3_SLM_CLASSIFIER", "").strip().lower() in ("1", "true", "yes")
+    return bool(_m3cfg.setting("slm.classifier"))
 
 
 def _default_profile_name() -> str:
-    return os.environ.get("M3_SLM_PROFILE", "").strip() or "default"
+    return (_m3cfg.setting("slm.profile") or "").strip() or "default"
 
 
 def _profile_search_dirs() -> list[Path]:
@@ -90,12 +91,9 @@ def _profile_search_dirs() -> list[Path]:
     last so a missing override never surprises the caller with a hard fail.
     """
     dirs: list[Path] = []
-    env = os.environ.get("M3_SLM_PROFILES_DIR", "").strip()
-    if env:
-        for part in env.split(os.pathsep):
-            p = part.strip()
-            if p:
-                dirs.append(Path(p))
+    # slm.profile_dirs (env M3_SLM_PROFILES_DIR, os.pathsep-separated): the
+    # registry parser splits and drops blank parts, as this loop did.
+    dirs.extend(Path(p) for p in _m3cfg.setting("slm.profile_dirs"))
     # M3_MEMORY_ROOT-derived default — valid only when that var points at the
     # repo/payload root.
     from m3_core.seams import roots

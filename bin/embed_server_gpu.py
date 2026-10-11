@@ -23,7 +23,6 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from m3_core.config import settings as _m3cfg
 from m3_core.seams import is_windows, new_process_group_kwargs
-from m3_sdk import getenv_compat
 from pydantic import BaseModel, Field
 
 logging.basicConfig(level=logging.INFO, format="%(name)s: [%(levelname)s] %(message)s")
@@ -31,14 +30,12 @@ logger = logging.getLogger("embed_proxy_gpu")
 
 # M3_-namespaced like LLAMA_PORT; the bare names still work, with a deprecation
 # notice (getenv_compat), until the alias window closes (U4, 2026-10-08).
-LLAMA_SERVER_EXE = getenv_compat(
-    "M3_LLAMA_SERVER_EXE",
-    "LLAMA_SERVER_EXE",
-    os.path.join(os.path.expanduser("~"), "llama.cpp", "bin", "llama-server.exe"),
+# The registry key owns both names (M3_ and the bare legacy alias, with its notice).
+LLAMA_SERVER_EXE = str(
+    _m3cfg.setting("embed.gpu.llama_server_exe")
+    or os.path.join(os.path.expanduser("~"), "llama.cpp", "bin", "llama-server.exe")
 )
-GGUF_MODEL_PATH = getenv_compat(
-    "M3_GGUF_MODEL_PATH", "GGUF_MODEL_PATH", os.path.join(os.getcwd(), "models", "qwen3-q8.gguf")
-)
+GGUF_MODEL_PATH = str(_m3cfg.setting("embed.gpu.model_path") or os.path.join(os.getcwd(), "models", "qwen3-q8.gguf"))
 LLAMA_PORT = _m3cfg.setting("embed.gpu.llama_port")
 
 app = FastAPI(title="M3 Qwen3 GPU Proxy")

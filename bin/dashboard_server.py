@@ -285,6 +285,7 @@ from dashboard.templates import (  # noqa: E402
     INDEX_HTML,
     STYLE_CSS,
 )
+from m3_core.config import settings as _m3cfg
 
 
 def _logo_data_uri() -> str:
@@ -3046,13 +3047,10 @@ async def trigger_maintenance_task(action: str):
     # Open log file in append mode for child process redirection
     log_file_handle = open(log_path, "a", encoding="utf-8", errors="replace")  # noqa: SIM115, ASYNC230 — the child's stdout; closed when the task ends
 
-    env = os.environ.copy()
-    env["PYTHONUTF8"] = "1"
+    from m3_core.seams import childenv
+
     bin_dir = os.path.dirname(os.path.abspath(__file__))
-    if "PYTHONPATH" in env:
-        env["PYTHONPATH"] = bin_dir + os.pathsep + env["PYTHONPATH"]
-    else:
-        env["PYTHONPATH"] = bin_dir
+    env = childenv.child_env(PYTHONUTF8="1", prepend_pythonpath=bin_dir)
 
     try:
         # Spawn child process in the background. no_window_kwargs() suppresses a
@@ -3155,8 +3153,8 @@ def _ensure_std_streams() -> None:
 
 
 def _resolve_host_port(host: str | None, port: int | None) -> tuple[str, int]:
-    resolved_host = host or os.environ.get("M3_DASHBOARD_HOST", HOST)
-    resolved_port = int(port or os.environ.get("M3_DASHBOARD_PORT", PORT))
+    resolved_host = host or _m3cfg.setting("dashboard.host") or HOST
+    resolved_port = int(port or _m3cfg.setting("dashboard.port") or PORT)
     return resolved_host, resolved_port
 
 

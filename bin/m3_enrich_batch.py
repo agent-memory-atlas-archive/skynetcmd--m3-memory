@@ -74,6 +74,7 @@ import httpx  # noqa: E402
 import run_observer as observer  # noqa: E402
 from auth_utils import get_api_key  # noqa: E402
 from batch_runner import BatchRequest, make_runner  # noqa: E402
+from m3_core.config import settings as _m3cfg
 
 # THE owner of this format is m3_core.runtime.utc_iso; this is its local name.
 from m3_core.runtime import utc_iso as _utcnow_iso  # noqa: E402
@@ -433,7 +434,7 @@ async def _ingest_one_group(
     # When enabled: link each observation to the specific turn it came from
     # (model-reported source_turn_index + content-overlap fallback), so callers can cite
     # the exact source turn. turns are (id, content, role, turn_index, ts).
-    precise = os.environ.get("M3_OBSERVER_PRECISE_PROVENANCE", "0") == "1"
+    precise = bool(_m3cfg.setting("observer.precise_provenance"))
     idx_to_id = {t[3]: t[0] for t in turns} if precise else {}
     # Lift source session_id from the first turn's metadata so observations
     # can be traced back to the LongMemEval session. Required for SHR scoring

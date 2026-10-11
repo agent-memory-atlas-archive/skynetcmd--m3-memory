@@ -176,8 +176,8 @@ async def test_non_temporal_with_fact_variant_fusion(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_env_var_temporal_k_bump_override(monkeypatch):
-    """M3_ROUTER_TEMPORAL_K_BUMP env var overrides temporal_k_bump kwarg."""
+async def test_env_var_temporal_k_bump_override(monkeypatch, m3_settings):
+    """A SET search.router_temporal_k_bump (env M3_ROUTER_TEMPORAL_K_BUMP) overrides the kwarg."""
     import memory_core
 
     recorded_calls = []
@@ -187,7 +187,7 @@ async def test_env_var_temporal_k_bump_override(monkeypatch):
         return [(0.9, {"id": "m1", "content": "h1"})]
 
     monkeypatch.setattr(memory_core, "memory_search_scored_impl", stub_search)
-    monkeypatch.setenv("M3_ROUTER_TEMPORAL_K_BUMP", "10")
+    m3_settings({"search.router_temporal_k_bump": 10})
 
     await memory_core.memory_search_routed_impl("when was that?", k=5, temporal_k_bump=5)
 

@@ -78,6 +78,44 @@ def test_the_os_seam_imports_only_stdlib_and_the_version_seam():
     assert not foreign, f"m3_memory/_platform.py may import only the stdlib and _pyver: {foreign}"
 
 
+def test_the_bin_path_owner_is_stdlib_only():
+    """m3_memory/_bin.py runs before anything in bin/ can be imported."""
+    foreign = _top(_imports(_ROOT / "m3_memory" / "_bin.py")) - set(sys.stdlib_module_names) - {"__future__"}
+    assert not foreign, f"m3_memory/_bin.py may import only the stdlib: {foreign}"
+
+
+# Files that put something OTHER than the payload bin/ on sys.path, by design.
+_SYS_PATH_ALLOWED = {
+    "m3_memory/_bin.py",  # the owner
+    "m3_memory/team_cli.py",  # the examples/ orchestrator dir, not bin/
+    "m3_memory/integrations/crewai/test_provider_logic.py",  # test harness: repo root
+    "m3_memory/integrations/langchain/test_provider_logic.py",
+    "m3_memory/integrations/pydantic_ai/test_provider_logic.py",
+}
+
+
+def test_m3_memory_puts_bin_on_the_path_only_through_its_owner():
+    """About twenty m3_memory sites inserted bin/ themselves, three of them at
+    parents[2]/bin, which is site-packages/bin on a wheel install (user decision
+    2026-10-11: one owner, m3_memory._bin.ensure_on_path)."""
+    hits = []
+    for p in sorted((_ROOT / "m3_memory").rglob("*.py")):
+        rel = p.relative_to(_ROOT).as_posix()
+        if "__pycache__" in p.parts or rel in _SYS_PATH_ALLOWED:
+            continue
+        for n in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
+            f = n.func if isinstance(n, ast.Call) else None
+            if (
+                isinstance(f, ast.Attribute)
+                and f.attr in ("insert", "append")
+                and isinstance(f.value, ast.Attribute)
+                and f.value.attr == "path"
+                and getattr(f.value.value, "id", "") in ("sys", "_sys")
+            ):
+                hits.append(f"{rel}:{n.lineno}")
+    assert not hits, "use m3_memory._bin.ensure_on_path(): " + ", ".join(hits)
+
+
 def test_the_roots_owner_imports_only_stdlib_and_the_lower_seams():
     """m3_memory/_roots.py is imported by code that must run without m3_core (the
     installed package, the crypto layer, the chatlog hooks), so it may reach only
@@ -178,7 +216,8 @@ def test_m3_core_seams_reexports_the_seams_unchanged():
     pv = importlib.import_module("m3_memory._pyver")
     # The roots owner is re-exported as a module, so its functions stay its own.
     assert seams.roots is importlib.import_module("m3_memory._roots"), "m3_core.seams.roots is not m3_memory._roots"
-    for name in (n for n in seams.__all__ if n != "roots"):
+    assert seams.childenv is importlib.import_module("m3_memory._childenv"), "m3_core.seams.childenv is not its owner"
+    for name in (n for n in seams.__all__ if n not in ("roots", "childenv")):
         owner = pf if hasattr(pf, name) else pv
         assert getattr(seams, name) is getattr(owner, name), f"m3_core.seams.{name} is not the seam's own"
     defs = [

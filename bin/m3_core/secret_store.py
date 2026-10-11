@@ -349,6 +349,7 @@ def store_pg_dsn(role: PgRole, dsn: str) -> DsnStored:
         if err is None:
             back, read_err = auth_utils._keyring_tier(key)
             if back == dsn:
+                bump_secret_generation()  # running processes drop their cached copy
                 return DsnStored(location=f"keyring:{key}", skipped=())
             err = f"keyring: wrote {key} but the read-back " + (
                 f"failed ({read_err})" if read_err else "returned a different value"
@@ -383,6 +384,7 @@ def set_secret(name: str, value: str) -> Path:
             _check_new_file_would_be_private(p.parent)
         table[name] = value
         atomic_write(p, _render(table))
+    bump_secret_generation()  # running processes drop their cached copy
     return p
 
 
@@ -401,3 +403,67 @@ def _check_new_file_would_be_private(directory: Path) -> None:
                 '/grant:r "SYSTEM:(OI)(CI)F", or point M3_CONFIG_ROOT at a user-only directory'
             ),
         )
+
+
+# ── Per-process secret cache with a refresh signal (user decision 2026-10-11) ──
+# A hot path (the cloud embed token, read per embed call) must not touch the
+# keyring every time: a macOS keychain read can prompt. So a secret is resolved
+# once per process and cached. A changed key still reaches long-running processes:
+# every m3 write of a secret (secrets file, vault, PG DSN) and `m3 secret refresh`
+# rewrite a GENERATION marker; a cached process checks its mtime at most every
+# _GEN_TTL_S seconds and drops its cache when it moved. A marker file, not a
+# signal: SIGHUP has no Windows equivalent.
+_GEN_TTL_S = 5.0
+_cache: dict[str, str | None] = {}
+_gen_seen: int | None = None
+_gen_checked_at = 0.0
+
+
+def secret_generation_path() -> Path:
+    """``<config root>/.secrets_generation``: the refresh signal's one location."""
+    from m3_core.seams import roots
+
+    return Path(roots.config_root()) / ".secrets_generation"
+
+
+def _generation() -> int:
+    try:
+        return secret_generation_path().stat().st_mtime_ns
+    except OSError:
+        return 0
+
+
+def bump_secret_generation() -> Path:
+    """Signal every m3 process that cached secrets are stale, and drop this one's."""
+    import time
+
+    from m3_core.atomic_io import atomic_write
+
+    p = secret_generation_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write(p, f"{time.time_ns()}\n")
+    clear_secret_cache()
+    return p
+
+
+def clear_secret_cache() -> None:
+    global _gen_seen, _gen_checked_at
+    _cache.clear()
+    _gen_seen, _gen_checked_at = None, 0.0
+
+
+def cached_secret(name: str, resolve) -> str | None:
+    """``resolve(name)``, once per process until the generation marker moves."""
+    import time
+
+    global _gen_seen, _gen_checked_at
+    now = time.monotonic()
+    if now - _gen_checked_at >= _GEN_TTL_S:
+        _gen_checked_at = now
+        gen = _generation()
+        if gen != _gen_seen:
+            _cache.clear()
+            _gen_seen = gen
+    if name not in _cache:
+        _cache[name] = resolve(name)
+    return _cache[name]

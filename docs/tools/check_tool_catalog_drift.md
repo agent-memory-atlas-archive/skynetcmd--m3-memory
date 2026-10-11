@@ -1,8 +1,8 @@
 ---
 tool: bin/check_tool_catalog_drift.py
-sha1: 7df71960aaa8
-mtime_utc: 2026-10-10T21:05:16.871011+00:00
-generated_utc: 2026-10-10T21:05:29.404254+00:00
+sha1: a461a8fd922f
+mtime_utc: 2026-10-11T19:09:50.182993+00:00
+generated_utc: 2026-10-11T19:18:31.793635+00:00
 private: false
 ---
 
@@ -76,7 +76,7 @@ _(none detected)_
 **subprocess**
 
 - `subprocess.run()  → `['git', 'diff', '--name-only', '--', *_GENERATED_PATHS]`` (line 83)
-- `subprocess.run()  → `[_PY, '-m', 'pytest', '-q', '-p', 'no:cacheprovider', *_DRIFT_TESTS]`` (line 124)
+- `subprocess.run()  → `[_PY, '-m', 'pytest', '-q', '-p', 'no:cacheprovider', *_DRIFT_TESTS]`` (line 125)
 - `subprocess.run()  → `cmd`` (line 68)
 
 
@@ -84,7 +84,7 @@ _(none detected)_
 
 ## Notable external imports
 
-_(only stdlib)_
+- `m3_core.seams (childenv)`
 
 ---
 

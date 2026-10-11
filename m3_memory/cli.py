@@ -21,6 +21,7 @@ import sys
 from pathlib import Path  # noqa: F401 - used in _auto_install return-type comment
 from typing import cast, override
 
+from m3_memory import _bin, _config
 from m3_memory._platform import is_windows
 
 
@@ -126,7 +127,7 @@ def _auto_install(interactive: bool) -> "Path | None":
     # `m3_memory.installer.install_m3` and have it take effect here.
     from m3_memory import installer
 
-    if os.environ.get("M3_AUTO_INSTALL", "").strip() == "0":
+    if not _config.setting("install.auto_install"):  # M3_AUTO_INSTALL=0
         return None
 
     dest = installer.default_repo_path()
@@ -193,9 +194,7 @@ def _run_bridge() -> None:
         sys.exit(1)
 
     # Put bin/ on sys.path so the bridge's siblings (memory_core, etc.) import.
-    bin_dir = str(bridge.parent)
-    if bin_dir not in sys.path:
-        sys.path.insert(0, bin_dir)
+    _bin.ensure_on_path()  # bin/ (where bridge lives) on sys.path
 
     # Execute the bridge in this process - equivalent to `python memory_bridge.py`,
     # not dynamic code from an untrusted source; it's a file path from our own
@@ -415,9 +414,7 @@ def _cmd_stop(args: argparse.Namespace) -> int:
     if script is None:
         print("Error: m3_halt.py not found (payload not installed?). Run `mcp-memory install-m3`.", file=sys.stderr)
         return 1
-    bin_dir = str(script.parent)
-    if bin_dir not in sys.path:
-        sys.path.insert(0, bin_dir)
+    _bin.ensure_on_path()  # bin/ (where script lives) on sys.path
     import m3_halt as halt
 
     # Supervised daemons are stopped through their service manager first;
@@ -659,6 +656,20 @@ def _cmd_governor(args: argparse.Namespace) -> int:
     return _run_bin_script("governor_cli.py", argv)
 
 
+def _cmd_secret(args: argparse.Namespace) -> int:
+    """`m3 secret refresh`: move the secrets generation marker. m3's own secret
+    writes do this already; this is for a key changed outside m3 (a keyring edit)."""
+    if getattr(args, "secret_cmd", None) != "refresh":
+        print("usage: m3 secret refresh", file=sys.stderr)
+        return 2
+    _bin.ensure_on_path()
+    from m3_core.secret_store import bump_secret_generation
+
+    p = bump_secret_generation()
+    print(f"secrets refresh signalled ({p}); running m3 processes re-read within a few seconds.")
+    return 0
+
+
 def _cmd_config(args: argparse.Namespace) -> int:
     """Dispatch `m3 config show` to bin/config_cli.py (read-only; always starts)."""
     if not _resolve_bin_script("config_cli.py"):
@@ -833,9 +844,7 @@ def _import_http_auth():
 
     bridge = find_bridge()
     if bridge is not None:
-        bin_dir = str(bridge.parent)
-        if bin_dir not in sys.path:
-            sys.path.insert(0, bin_dir)
+        _bin.ensure_on_path()  # bin/ (where bridge lives) on sys.path
     import m3_http_auth  # noqa: PLC0415 — needs bin/ on sys.path first
 
     return m3_http_auth
@@ -1081,9 +1090,7 @@ def _run_bin_script(script_name: str, argv: list) -> int:
 
     # Put bin/ on sys.path so the script's sibling imports (chatlog_config,
     # m3_sdk, ...) resolve the same way they do when invoked directly.
-    bin_dir = str(script.parent)
-    if bin_dir not in sys.path:
-        sys.path.insert(0, bin_dir)
+    _bin.ensure_on_path()  # bin/ (where script lives) on sys.path
 
     saved_argv = sys.argv
     sys.argv = [str(script), *list(argv)]
@@ -1117,7 +1124,7 @@ def _cmd_enrich_pending(args: argparse.Namespace) -> int:
     if core is None:
         print("Error: memory_core.py not found. Run `mcp-memory install-m3`.", file=sys.stderr)
         return 1
-    sys.path.insert(0, str(core.parent))
+    _bin.ensure_on_path()
     import memory_core
 
     limit = args.limit or 0
@@ -1202,7 +1209,7 @@ def _cmd_extract_pending(args: argparse.Namespace) -> int:
     if core is None:
         print("Error: memory_core.py not found. Run `mcp-memory install-m3`.", file=sys.stderr)
         return 1
-    sys.path.insert(0, str(core.parent))
+    _bin.ensure_on_path()
     import memory_core
 
     limit = args.limit or 0
@@ -1318,9 +1325,7 @@ def _cmd_chatlog(args: argparse.Namespace) -> int:
         import json as _json
         import runpy
 
-        bin_dir = str(status_script.parent)
-        if bin_dir not in sys.path:
-            sys.path.insert(0, bin_dir)
+        _bin.ensure_on_path()  # bin/ (where status_script lives) on sys.path
         # Call the impl directly for clean JSON, bypassing the CLI formatter.
         mod = runpy.run_path(str(status_script), run_name="_chatlog_status_mod")
         data = _json.loads(mod["chatlog_status_impl"]())
@@ -1376,9 +1381,7 @@ def _bin_on_path() -> bool:
     core = _resolve_bin_script("memory_core.py")
     if core is None:
         return False
-    bin_dir = str(core.parent)
-    if bin_dir not in sys.path:
-        sys.path.insert(0, bin_dir)
+    _bin.ensure_on_path()  # bin/ (where core lives) on sys.path
     return True
 
 
@@ -2115,6 +2118,17 @@ Examples:
     p_cfg_show.add_argument("--json", action="store_true", help="Machine-readable output.")
     p_cfg_show.add_argument("--config", metavar="FILE", help="Read this file instead of the located one.")
     p_config.set_defaults(func=_cmd_config)
+
+    p_secret = subparsers.add_parser(
+        "secret",
+        help="Secrets: `refresh` makes running m3 processes re-read changed keys.",
+    )
+    sec_sub = p_secret.add_subparsers(dest="secret_cmd", metavar="<refresh>")
+    sec_sub.add_parser(
+        "refresh",
+        help="Signal every m3 process to drop its cached secrets (after changing a key outside m3).",
+    )
+    p_secret.set_defaults(func=_cmd_secret)
 
     p_schedules = subparsers.add_parser(
         "schedules",

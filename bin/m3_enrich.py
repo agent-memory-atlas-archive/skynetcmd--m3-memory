@@ -1133,7 +1133,7 @@ Profile picker:
     ap.add_argument(
         "--track-state",
         action="store_true",
-        default=os.environ.get("M3_ENRICH_TRACK_STATE", "0").lower() in ("1", "true", "yes"),
+        default=bool(_m3cfg.setting("enrich.track_state")),
         help="Record per-group enrichment state in the enrichment_groups "
         "table (migration 028). Required for --resume / --budget-usd. "
         "Requires --source-variant. Env: M3_ENRICH_TRACK_STATE.",
@@ -1155,7 +1155,7 @@ Profile picker:
     ap.add_argument(
         "--max-attempts",
         type=int,
-        default=int(os.environ.get("M3_ENRICH_MAX_ATTEMPTS", estate.DEFAULT_MAX_ATTEMPTS)),
+        default=_m3cfg.setting("enrich.max_attempts"),
         help=f"Per-group retry cap before promotion to dead_letter. "
         f"Default {estate.DEFAULT_MAX_ATTEMPTS}. "
         f"Env: M3_ENRICH_MAX_ATTEMPTS.",
@@ -1163,7 +1163,7 @@ Profile picker:
     ap.add_argument(
         "--budget-usd",
         type=float,
-        default=(float(os.environ["M3_ENRICH_BUDGET_USD"]) if os.environ.get("M3_ENRICH_BUDGET_USD") else None),
+        default=_m3cfg.setting("enrich.budget_usd"),
         help="Hard ceiling on cumulative cost_usd across this run. When "
         "tripped, drains inflight calls and exits cleanly with "
         "status='aborted'. Implies --track-state. "
@@ -1187,7 +1187,7 @@ Profile picker:
     ap.add_argument(
         "--input-max-k",
         type=int,
-        default=(int(os.environ["M3_ENRICH_INPUT_MAX_K"]) if os.environ.get("M3_ENRICH_INPUT_MAX_K") else None),
+        default=_m3cfg.setting("enrich.input_max_k"),
         help="Override the per-call input cap for the SLM, in KB. "
         "Caps the total chars sent to the model at N*1024. "
         "Use to fit a smaller per-slot ctx budget when raising "
@@ -1198,7 +1198,7 @@ Profile picker:
     ap.add_argument(
         "--min-size-k",
         type=int,
-        default=(int(os.environ["M3_ENRICH_MIN_SIZE_K"]) if os.environ.get("M3_ENRICH_MIN_SIZE_K") else None),
+        default=_m3cfg.setting("enrich.min_size_k"),
         help="--resume only: pick groups whose total source content "
         "is at least N KB. Use with --max-attempts to retry the "
         "big groups at lower concurrency. Excludes legacy rows "
@@ -1207,7 +1207,7 @@ Profile picker:
     ap.add_argument(
         "--max-size-k",
         type=int,
-        default=(int(os.environ["M3_ENRICH_MAX_SIZE_K"]) if os.environ.get("M3_ENRICH_MAX_SIZE_K") else None),
+        default=_m3cfg.setting("enrich.max_size_k"),
         help="--resume only: pick groups whose total source content "
         "is at most N KB. Pair with --concurrency to fit per-slot "
         "ctx budget. Excludes legacy rows where content_size_k "

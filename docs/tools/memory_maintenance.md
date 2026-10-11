@@ -1,8 +1,8 @@
 ---
 tool: bin/memory_maintenance.py
-sha1: b6195901851e
-mtime_utc: 2026-10-11T18:02:28.175154+00:00
-generated_utc: 2026-10-11T18:07:54.114310+00:00
+sha1: 94bc82dfef67
+mtime_utc: 2026-10-11T19:28:18.551623+00:00
+generated_utc: 2026-10-11T19:29:29.272156+00:00
 private: false
 ---
 
@@ -28,7 +28,7 @@ _(no argparse arguments detected)_
 
 ## Environment variables read
 
-- `M3_DISTILL_MODEL`
+_(none detected)_
 
 ---
 
@@ -52,7 +52,7 @@ _(no argparse arguments detected)_
 
 **http**
 
-- `httpx.AsyncClient()` (line 2102)
+- `httpx.AsyncClient()` (line 2150)
 
 
 ---
@@ -67,6 +67,7 @@ _(no argparse arguments detected)_
 - `memory (config)`
 - `memory (trust)`
 - `memory.backends (dialect)`
+- `memory.db (flush_read_log)`
 - `memory.db (savepoint)`
 - `memory.db (tolerant_schema)`
 - `wiki.erasure (restrict_derived_on_erasure)`

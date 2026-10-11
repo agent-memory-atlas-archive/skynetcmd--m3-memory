@@ -102,10 +102,12 @@ class _Cfg:
 
 def _resolve_cfg(args: argparse.Namespace) -> _Cfg:
     return _Cfg(
-        model_id=os.environ.get("M3_GLINER_MODEL", args.model),
-        threshold=float(os.environ.get("M3_GLINER_THRESHOLD", args.threshold)),
-        batch_size=int(os.environ.get("M3_GLINER_BATCH_SIZE", args.batch_size)),
-        device=os.environ.get("M3_GLINER_DEVICE", args.device),
+        # R-explicit: a flag given on the command line beats the config/env value
+        # (the env used to override an explicit flag).
+        model_id=args.model if args.model is not None else _m3cfg.setting("gliner.model"),
+        threshold=args.threshold if args.threshold is not None else _m3cfg.setting("gliner.threshold"),
+        batch_size=args.batch_size if args.batch_size is not None else _m3cfg.setting("gliner.batch_size"),
+        device=args.device if args.device is not None else _m3cfg.setting("gliner.device"),
         dry_run=bool(args.dry_run),
         limit=args.limit,
         source_variant=args.source_variant,
@@ -396,7 +398,7 @@ async def _run_async(args: argparse.Namespace) -> int:
         # context; pin it so an explicit --core-db wins for the write path too.
         os.environ["M3_DATABASE"] = db_path
 
-    conv_allowlist = _load_conv_allowlist(args.source_conv_list or os.environ.get("M3_ENTITIES_CONV_LIST"))
+    conv_allowlist = _load_conv_allowlist(args.source_conv_list or _m3cfg.setting("entity.conv_list"))
 
     print(
         f"[gliner] db={db_path or backend} variant={cfg.source_variant!r} limit={cfg.limit} force={cfg.force}",
@@ -506,22 +508,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to a conversation_id allowlist (newline-delimited or JSON array). Filters AFTER --source-variant.",
     )
     ap.add_argument("--limit", type=int, default=None, help="Cap eligible rows (smoke testing).")
-    ap.add_argument(
-        "--model", default="urchade/gliner_large-v2.1", help="GLiNER HF model id. Default: urchade/gliner_large-v2.1."
-    )
+    ap.add_argument("--model", default=None, help="GLiNER HF model id. Default: urchade/gliner_large-v2.1.")
     ap.add_argument(
         "--threshold",
         type=float,
-        default=0.5,
+        default=None,
         help="Confidence threshold (default: 0.5; lower e.g. 0.3 widens recall).",
     )
     ap.add_argument(
         "--batch-size",
         type=int,
-        default=32,
+        default=None,
         help="Batch size for GLiNER inference (default: 32 — fits in a typical GPU alongside the embedder).",
     )
-    ap.add_argument("--device", default="cuda", help="Inference device: 'cuda' (default; falls back to cpu) or 'cpu'.")
+    ap.add_argument("--device", default=None, help="Inference device: 'cuda' (default; falls back to cpu) or 'cpu'.")
     ap.add_argument(
         "--force",
         action="store_true",

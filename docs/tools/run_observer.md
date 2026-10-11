@@ -1,8 +1,8 @@
 ---
 tool: bin/run_observer.py
-sha1: 97d163e50cf3
-mtime_utc: 2026-10-11T17:51:15.726779+00:00
-generated_utc: 2026-10-11T18:07:54.209508+00:00
+sha1: 078f11ef6d3d
+mtime_utc: 2026-10-11T18:40:07.357517+00:00
+generated_utc: 2026-10-11T19:18:32.457695+00:00
 private: false
 ---
 
@@ -61,7 +61,7 @@ Status: Phase D Task 3. Pairs with config/slm/observer_local.yaml.
 
 ## Environment variables read
 
-- `M3_OBSERVER_PRECISE_PROVENANCE`
+_(none detected)_
 
 ---
 

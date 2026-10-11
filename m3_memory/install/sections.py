@@ -21,6 +21,7 @@ import sqlite3
 from pathlib import Path
 from typing import cast
 
+from m3_memory import _bin
 from m3_memory._platform import os_name as _os_name
 
 
@@ -92,9 +93,7 @@ def _resolve_chatlog_db(cfg: dict) -> Path | None:
         return Path(cfg_chatlog).expanduser()
     # Decoupled engine root — the canonical location for chatlog DBs today.
     try:
-        import sys as _sys
-
-        _sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "bin"))
+        _bin.ensure_on_path()  # one rule; parents[2]/bin missed a wheel install
         from m3_sdk import get_m3_engine_root
 
         eng_db = Path(get_m3_engine_root()) / "agent_chatlog.db"
@@ -388,9 +387,7 @@ def _crypto_section() -> None:
     Best-effort and read-only; never changes doctor's exit code.
     """
     try:
-        import sys as _sys
-
-        _sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "bin"))
+        _bin.ensure_on_path()  # one rule; parents[2]/bin missed a wheel install
         from crypto_provider import active_crypto_status
 
         cs = active_crypto_status()
@@ -430,9 +427,7 @@ def _roots_section() -> None:
     the section rather than fail doctor.
     """
     try:
-        import sys as _sys
-
-        _sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "bin"))
+        _bin.ensure_on_path()  # one rule; parents[2]/bin missed a wheel install
         from m3_sdk import (
             get_m3_config_root,
             get_m3_engine_root,
@@ -608,9 +603,7 @@ def _cdw_sync_section() -> None:
     LOCAL (ZULU) time. Silent when no CDW is configured (the common case).
     """
     try:
-        import sys as _sys
-
-        _sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "bin"))
+        _bin.ensure_on_path()  # one rule; parents[2]/bin missed a wheel install
         from m3_sdk import PgRole, resolve_db_path, resolve_pg_dsn
     except Exception:  # noqa: BLE001 — informational only
         return
@@ -676,9 +669,7 @@ def _backend_section(cfg: dict) -> None:
     rather than crash doctor.
     """
     try:
-        import sys as _sys
-
-        _sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "bin"))
+        _bin.ensure_on_path()  # one rule; parents[2]/bin missed a wheel install
         from memory.backends import resolve_backend_name
     except Exception:  # noqa: BLE001 — informational only
         return
@@ -708,9 +699,7 @@ def _backend_section(cfg: dict) -> None:
         # (chatlog_db == main_db) — dedupe the display. "If present and
         # discernible": a store that doesn't exist is shown as absent, not an error.
         try:
-            import sys as _sys
-
-            _sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "bin"))
+            _bin.ensure_on_path()  # one rule; parents[2]/bin missed a wheel install
             from m3_sdk import resolve_db_path
 
             core_db = resolve_db_path(None)
@@ -865,9 +854,8 @@ def _deprecated_env_section() -> None:
     """
     try:
         import os as _os
-        import sys as _sys
 
-        _sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "bin"))
+        _bin.ensure_on_path()  # one rule; parents[2]/bin missed a wheel install
         from m3_core.paths import ROLE_SPLIT_ENV_RENAMES
         from m3_sdk import deprecated_env_in_use
     except Exception:  # noqa: BLE001 — informational only

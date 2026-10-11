@@ -1,8 +1,8 @@
 ---
 tool: bin/slm_intent.py
-sha1: 5d01c8ceea65
-mtime_utc: 2026-10-11T17:00:40.236967+00:00
-generated_utc: 2026-10-11T17:32:13.206315+00:00
+sha1: 48ac8634b146
+mtime_utc: 2026-10-11T18:35:49.548506+00:00
+generated_utc: 2026-10-11T19:18:32.506680+00:00
 private: false
 ---
 
@@ -75,9 +75,7 @@ _(no argparse arguments detected)_
 
 ## Environment variables read
 
-- `M3_SLM_CLASSIFIER`
-- `M3_SLM_PROFILE`
-- `M3_SLM_PROFILES_DIR`
+_(none detected)_
 
 ---
 
@@ -96,9 +94,9 @@ _(no argparse arguments detected)_
 
 **http**
 
-- `httpx.AsyncClient()` (line 574)
-- `httpx.AsyncClient()` (line 631)
-- `httpx.AsyncClient()` (line 681)
+- `httpx.AsyncClient()` (line 572)
+- `httpx.AsyncClient()` (line 629)
+- `httpx.AsyncClient()` (line 679)
 
 
 ---
@@ -106,6 +104,7 @@ _(no argparse arguments detected)_
 ## Notable external imports
 
 - `httpx`
+- `m3_core.config (settings)`
 - `m3_core.errors (log_swallowed)`
 - `m3_core.seams (roots)`
 - `yaml`

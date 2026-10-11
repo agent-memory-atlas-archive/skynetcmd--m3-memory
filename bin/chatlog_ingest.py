@@ -930,7 +930,7 @@ async def main() -> int:
     # Debounce: only enqueue when this ingest wrote >= M3_AUTO_ENRICH_MIN_TURNS
     # turns (default 10). Single-turn pings, status checks, and short
     # acks shouldn't keep the drainer busy.
-    if os.environ.get("M3_AUTO_ENRICH", "0").strip().lower() in ("1", "true", "yes", "on"):
+    if _m3cfg.setting("chatlog.auto_enrich"):
         try:
             min_turns = _m3cfg.setting("chatlog.auto_enrich_min_turns")
         except ValueError:

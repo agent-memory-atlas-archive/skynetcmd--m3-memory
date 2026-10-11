@@ -30,6 +30,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
+from m3_memory import _bin
 from m3_memory._platform import hidden_window_kwargs as _hidden_window_kwargs
 from m3_memory._platform import is_macos, is_windows
 from m3_memory._platform import os_name as _os_name
@@ -127,38 +128,17 @@ def _developer_bridge() -> Path | None:
 
 
 def _payload_dir(component: str, env_var: str, must_contain: str | None = None) -> Path | None:
-    """Resolve a payload component dir (bin/docs/_assets/examples) with a
-    per-component env-var override. Precedence:
-      1. $<env_var> if set and exists (and, if must_contain given, contains it)
-      2. Path(__file__).parent / component  (the wheel-shipped packaged copy)
-      3. a dev-checkout sibling: walk up from __file__ for a <component>/ dir
-         (mirrors _developer_bridge for the pip-install-e . case)
-      4. None
-    """
+    """Resolve a payload component dir: owned by ``m3_memory._bin.payload_dir``."""
+    from m3_memory import _bin
 
-    def _ok(base: Path) -> bool:
-        return os.path.isdir(base) and (must_contain is None or os.path.exists(base / must_contain))
-
-    env = os.environ.get(env_var)
-    if env:
-        p = Path(env).expanduser()
-        if _ok(p):
-            return p.resolve()
-    packaged = Path(__file__).resolve().parent / component
-    if _ok(packaged):
-        return packaged
-    # dev-checkout sibling: walk up looking for <repo>/<component>
-    here = Path(__file__).resolve()
-    for parent in here.parents:
-        cand = parent / component
-        if _ok(cand):
-            return cand
-    return None
+    return _bin.payload_dir(component, env_var, must_contain)
 
 
 def bin_dir() -> Path | None:
     """The bin/ directory (payload scripts + memory_bridge.py). $M3_PATH_BIN overrides."""
-    return _payload_dir("bin", "M3_PATH_BIN", must_contain="memory_bridge.py")
+    from m3_memory import _bin
+
+    return _bin.bin_dir()
 
 
 def docs_dir() -> Path | None:
@@ -1119,7 +1099,7 @@ def _pg_reachable(dsn: str) -> tuple[bool, str]:
     reason on failure — never the raw password.
     """
     try:
-        sys.path.insert(0, str(bin_dir() or ""))
+        _bin.ensure_on_path()  # never inserts "" (the cwd) when bin/ is missing
         from memory.backends.postgres_backend import _reject_forbidden_host
 
         _reject_forbidden_host(dsn)  # raises on a forbidden (warehouse) host
@@ -1277,7 +1257,7 @@ def _persist_pg_backend_env(dsn: str) -> list[str]:
     os.environ["M3_PRIMARY_PG_URL"] = dsn  # this process's post-install steps only
 
     try:
-        sys.path.insert(0, str(bin_dir() or ""))
+        _bin.ensure_on_path()  # never inserts "" (the cwd) when bin/ is missing
         from m3_core.secret_store import PgRole, SecretsFileError, store_pg_dsn
     except ImportError as e:
         store_error: Exception | None = e
@@ -1625,9 +1605,7 @@ def _primary_backend_name() -> str:
     can't be imported — the default and the safe assumption for backup guidance.
     """
     try:
-        import sys as _sys
-
-        _sys.path.insert(0, str(bin_dir() or ""))
+        _bin.ensure_on_path()  # never inserts "" (the cwd) when bin/ is missing
         from memory.backends import resolve_backend_name
 
         return cast("str", resolve_backend_name())
@@ -1954,9 +1932,7 @@ def status_summary() -> dict:
     cfg = load_config()
     # 2. Memory count (main DB), best-effort.
     try:
-        import sys as _sys
-
-        _sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bin"))
+        _bin.ensure_on_path()  # parent.parent/bin missed a wheel install
         # No is_file() gate: on PostgreSQL there is no agent_memory.db, so the
         # gate reported 0 memories for a populated store. The backend decides
         # whether a file is involved at all.
@@ -2183,9 +2159,8 @@ def _deprecated_env_in_config() -> dict[Path, dict[str, str]]:
     Only files with >=1 old name are included. Tolerant: unreadable/unparseable
     files are skipped, never raised.
     """
-    import sys as _sys
 
-    _sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bin"))
+    _bin.ensure_on_path()  # parent.parent/bin missed a wheel install
     from m3_core.paths import all_env_renames
 
     # Union of pure-namespacing + role-split (e.g. PG_URL -> M3_CDW_PG_URL) renames.
@@ -2265,9 +2240,7 @@ def _all_env_renames() -> dict[str, str]:
     """The union deprecation map (pure-namespacing + role-split). Best-effort:
     returns {} if the payload SDK isn't importable (thin pip pre-payload)."""
     try:
-        import sys as _sys
-
-        _sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bin"))
+        _bin.ensure_on_path()  # parent.parent/bin missed a wheel install
         from m3_core.paths import all_env_renames
 
         return cast("dict[str, str]", all_env_renames())
