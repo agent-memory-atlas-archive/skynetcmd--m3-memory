@@ -14,4 +14,3 @@ def get_model():
 def embed(texts: list[str]) -> list[list[float]]:
     model = get_model()
     return model.encode(texts, convert_to_numpy=False).tolist()
-

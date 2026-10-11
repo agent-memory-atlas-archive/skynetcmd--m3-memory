@@ -1032,7 +1032,9 @@ def notifications_peek_impl(agent_id: str, unread_only: bool = True, limit: int 
     return _read_notifications(agent_id, unread_only, limit, as_records, record_liveness=False)
 
 
-def _read_notifications(agent_id: str, unread_only: bool, limit: int, as_records: bool, *, record_liveness: bool) -> str:
+def _read_notifications(
+    agent_id: str, unread_only: bool, limit: int, as_records: bool, *, record_liveness: bool
+) -> str:
     """The one inbox reader behind poll (record_liveness) and peek (read-only)."""
     if record_liveness:
         # Opportunistic sweep, BEFORE this function opens its own connection scope.

@@ -67,20 +67,16 @@ def main() -> int:
     read = _timed(lambda i: m.search(f"topic {i % 7}", limit=5), 50)
     listing = _timed(lambda i: m.get_all(limit=50), 30)
 
-    print(f"WRITE  ms  P50={statistics.median(write):6.2f}  "
-          f"P95={_pct(write, 95):6.2f}  P99={_pct(write, 99):6.2f}")
-    print(f"READ   ms  P50={statistics.median(read):6.2f}  "
-          f"P95={_pct(read, 95):6.2f}  P99={_pct(read, 99):6.2f}")
-    print(f"LIST   ms  P50={statistics.median(listing):6.2f}  "
-          f"P95={_pct(listing, 95):6.2f}")
+    print(f"WRITE  ms  P50={statistics.median(write):6.2f}  P95={_pct(write, 95):6.2f}  P99={_pct(write, 99):6.2f}")
+    print(f"READ   ms  P50={statistics.median(read):6.2f}  P95={_pct(read, 95):6.2f}  P99={_pct(read, 99):6.2f}")
+    print(f"LIST   ms  P50={statistics.median(listing):6.2f}  P95={_pct(listing, 95):6.2f}")
 
     # Bulk throughput — one coalesced write of BULK_ITEMS.
     items = [f"bulk item {i} content text here" for i in range(BULK_ITEMS)]
     t = time.perf_counter()
     m.add(items)
     bulk_s = time.perf_counter() - t
-    print(f"BULK   {BULK_ITEMS}-add: {bulk_s * 1000:.0f}ms total, "
-          f"{bulk_s / BULK_ITEMS * 1000:.2f}ms/item")
+    print(f"BULK   {BULK_ITEMS}-add: {bulk_s * 1000:.0f}ms total, {bulk_s / BULK_ITEMS * 1000:.2f}ms/item")
 
     # Assert the read budget + bulk ceiling (the effectiveness gate).
     ok = True
@@ -95,8 +91,7 @@ def main() -> int:
         passed = got <= ceiling
         ok = ok and passed
         unit = "s" if name.startswith("bulk") else "ms"
-        print(f"  [{'PASS' if passed else 'FAIL'}] {name}: {got:.2f}{unit} "
-              f"<= {ceiling}{unit}")
+        print(f"  [{'PASS' if passed else 'FAIL'}] {name}: {got:.2f}{unit} <= {ceiling}{unit}")
     return 0 if ok else 1
 
 

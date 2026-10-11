@@ -32,7 +32,7 @@ def main() -> None:
     # sharpen a beat later.
     relevant = memory.search("dark mode", limit=3)
     print("recall (mem0-compatible shape):")
-    for m in relevant["results"]:                    # {"results": [{"id","memory","score",...}]}
+    for m in relevant["results"]:  # {"results": [{"id","memory","score",...}]}
         score = m.get("score") or 0.0
         print(f"  - {m['memory']}   (score={score:.3f})")
 
@@ -53,8 +53,7 @@ def main() -> None:
     latest = memory.search("lighting", limit=1)["results"]
     if latest:
         md = latest[0].get("metadata", {})
-        print(f"first-class signal on the result: "
-              f"confidence={md.get('confidence')}, valid_from={md.get('valid_from')}")
+        print(f"first-class signal on the result: confidence={md.get('confidence')}, valid_from={md.get('valid_from')}")
 
     # 4) FORGETTING: commanded delete (GDPR Art. 17) — mem0 has no forget verb.
     # memory.forget()   # uncomment to wipe this user's memories

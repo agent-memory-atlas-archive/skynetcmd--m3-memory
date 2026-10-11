@@ -46,8 +46,8 @@ def recall_preferences(query: str) -> str:
 
 
 # ── the two m3 surfaces ──────────────────────────────────────────────────────
-store = M3Store()          # long-term memory  (LangGraph BaseStore)
-saver = M3Saver()          # run persistence   (LangGraph BaseCheckpointSaver)
+store = M3Store()  # long-term memory  (LangGraph BaseStore)
+saver = M3Saver()  # run persistence   (LangGraph BaseCheckpointSaver)
 
 
 def main() -> None:
@@ -55,8 +55,8 @@ def main() -> None:
     agent = create_react_agent(
         model,
         tools=[save_preference, recall_preferences],
-        store=store,          # ← long-term memory
-        checkpointer=saver,   # ← pause/resume persistence
+        store=store,  # ← long-term memory
+        checkpointer=saver,  # ← pause/resume persistence
     )
 
     cfg = {"configurable": {"thread_id": "conv-1"}}

@@ -45,7 +45,7 @@ def main() -> None:
     chain = (
         MemoryRetrieve(user_id=USER, k=4)
         | RunnableLambda(summarize)
-        | MemoryWrite(user_id=USER)          # persists the produced answer
+        | MemoryWrite(user_id=USER)  # persists the produced answer
     )
     answer = chain.invoke("when is the deploy and how should I answer?")
     print("chain output:", answer)
@@ -63,8 +63,7 @@ def main() -> None:
     print("\nretrieval explanation (attach to a LangSmith run's metadata):")
     print("  config:", explanation["config"])
     for hit in explanation["results"]:
-        print(f"  - score={hit['score']:.3f} conf={hit.get('confidence')} "
-              f"type={hit.get('type')} :: {hit['preview']}")
+        print(f"  - score={hit['score']:.3f} conf={hit.get('confidence')} type={hit.get('type')} :: {hit['preview']}")
 
 
 if __name__ == "__main__":

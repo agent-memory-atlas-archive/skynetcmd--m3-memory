@@ -4,7 +4,8 @@ import os
 # --- CONFIGURATION ---
 PROJECT_NAME = os.path.basename(os.getcwd())
 MEMORY_FILE = ".ai_context_memory.json"
-EXCLUDE_DIRS = {'.git', 'node_modules', '__pycache__', '.venv', 'dist', 'build'}
+EXCLUDE_DIRS = {".git", "node_modules", "__pycache__", ".venv", "dist", "build"}
+
 
 def setup_mcp_configs():
     """Configures Claude Code and Gemini CLI to see your Local MLX and Web Tools."""
@@ -16,19 +17,17 @@ def setup_mcp_configs():
         "mcpServers": {
             "local_mlx": {
                 "command": "npx",
-                "args": ["-y", "@modelcontextprotocol/server-openai", "--base-url", "http://localhost:1234/v1"]
+                "args": ["-y", "@modelcontextprotocol/server-openai", "--base-url", "http://localhost:1234/v1"],
             },
-            "web_intel": {
-                "command": "npx",
-                "args": ["-y", "@agentify/mcp-server"]
-            }
+            "web_intel": {"command": "npx", "args": ["-y", "@agentify/mcp-server"]},
         }
     }
 
     os.makedirs(os.path.dirname(claude_config_path), exist_ok=True)
-    with open(claude_config_path, 'w') as f:
+    with open(claude_config_path, "w") as f:
         json.dump(claude_config, f, indent=2)
     print(f"✅ Claude Code configured at {claude_config_path}")
+
 
 def create_project_manifest():
     """Uses Gemini's context window to index the project for $0.01."""
@@ -44,12 +43,13 @@ def create_project_manifest():
     manifest = {
         "project": PROJECT_NAME,
         "files": file_structure,
-        "instructions": "Use this map to find files. Do not read them all at once; only read what is needed for the specific task."
+        "instructions": "Use this map to find files. Do not read them all at once; only read what is needed for the specific task.",
     }
 
-    with open(MEMORY_FILE, 'w') as f:
+    with open(MEMORY_FILE, "w") as f:
         json.dump(manifest, f, indent=2)
     print(f"✅ Created {MEMORY_FILE}. Feed this to Gemini CLI for instant project awareness.")
+
 
 def generate_bash_shortcuts():
     """Creates the 'Smart Handoff' commands for your terminal."""
@@ -65,6 +65,7 @@ alias ai-do="claude --model claude-3-7-sonnet 'Read RESEARCH.md and the project 
     with open("ai_shortcuts.sh", "w") as f:
         f.write(shortcuts)
     print("✅ Created ai_shortcuts.sh. Run 'source ai_shortcuts.sh' to activate.")
+
 
 if __name__ == "__main__":
     setup_mcp_configs()

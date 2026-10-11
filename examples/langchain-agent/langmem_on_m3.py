@@ -47,15 +47,17 @@ def background_extraction():
     manager = create_memory_store_manager(
         MODEL,
         namespace=("memories", "{langgraph_user_id}"),  # LangMem's default template
-        store=store,                                     # ← m3 backs the manager
+        store=store,  # ← m3 backs the manager
     )
     # Feed it a conversation; it extracts durable facts on its own.
-    manager.invoke({
-        "messages": [
-            {"role": "user", "content": "I moved from Python to Rust for the perf work."},
-            {"role": "assistant", "content": "Got it — Rust for the performance-critical path."},
-        ]
-    })
+    manager.invoke(
+        {
+            "messages": [
+                {"role": "user", "content": "I moved from Python to Rust for the perf work."},
+                {"role": "assistant", "content": "Got it — Rust for the performance-critical path."},
+            ]
+        }
+    )
     # Those extracted memories are now searchable through the same m3 store.
     hits = store.search(("memories", "default"), query="programming language", limit=5)
     print("background-extracted facts in m3:")

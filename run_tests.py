@@ -7,7 +7,7 @@ from pathlib import Path
 
 def main():
     if platform.system() == "Windows":
-        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stdout.reconfigure(encoding="utf-8")
 
     m3_memory_root = Path(__file__).parent.resolve()
 
@@ -57,11 +57,11 @@ def main():
                 [str(venv_python), str(f_path)],
                 timeout=timeout_seconds,
                 capture_output=True,
-                encoding='utf-8',
-                errors='replace'
+                encoding="utf-8",
+                errors="replace",
             )
 
-            with open(log_file, "w", encoding='utf-8') as log:
+            with open(log_file, "w", encoding="utf-8") as log:
                 if result.stdout:
                     log.write(result.stdout)
                 if result.stderr:
@@ -74,11 +74,12 @@ def main():
 
         except subprocess.TimeoutExpired as e:
             print(f"❌ {test_name}: TIMEOUT (>{timeout_seconds}s)")
-            with open(log_file, "w", encoding='utf-8') as log:
+            with open(log_file, "w", encoding="utf-8") as log:
                 if e.stdout:
                     log.write(e.stdout)
                 if e.stderr:
                     log.write(e.stderr)
+
 
 if __name__ == "__main__":
     main()

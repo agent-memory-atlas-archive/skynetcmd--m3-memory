@@ -104,10 +104,12 @@ def _format_terminal(agent_name: str, notif_id: int, result: DispatchResult) -> 
     return head
 
 
-async def _run_one(agent: dict, provider_cfg: dict, notification: dict,
-                   http: httpx.AsyncClient, limits: DispatchLimits) -> tuple[dict, DispatchResult]:
+async def _run_one(
+    agent: dict, provider_cfg: dict, notification: dict, http: httpx.AsyncClient, limits: DispatchLimits
+) -> tuple[dict, DispatchResult]:
     """Look up the task record, dispatch, ack on terminal, return the result."""
     import json
+
     payload = json.loads(notification.get("payload_json") or "{}")
     task_id = payload.get("task_id")
     task_record = memory_core.task_get_impl(task_id) if task_id else None
@@ -129,8 +131,7 @@ async def _run_one(agent: dict, provider_cfg: dict, notification: dict,
     return notification, result
 
 
-async def tick(team: dict, http: httpx.AsyncClient, limits: DispatchLimits,
-               max_concurrent: int) -> int:
+async def tick(team: dict, http: httpx.AsyncClient, limits: DispatchLimits, max_concurrent: int) -> int:
     """One polling pass. Returns total dispatches handled this tick."""
     providers = team["providers"]
     kinds = team["orchestrator"]["notification_kinds"]
@@ -147,9 +148,7 @@ async def tick(team: dict, http: httpx.AsyncClient, limits: DispatchLimits,
 
     async def _bounded(agent, notification):
         async with sem:
-            return await _run_one(
-                agent, providers[agent["provider"]], notification, http, limits
-            )
+            return await _run_one(agent, providers[agent["provider"]], notification, http, limits)
 
     results = await asyncio.gather(*(_bounded(a, n) for a, n in jobs))
     for notification, result in results:

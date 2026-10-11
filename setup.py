@@ -12,10 +12,14 @@ import sys
 # path isn't taken anyway.
 if sys.platform == "win32":
     import platform as _platform
+
     try:
         _machine = os.environ.get("PROCESSOR_ARCHITECTURE", "AMD64")
         _safe_uname = _platform.uname_result(
-            system="Windows", node="localhost", release="", version="",
+            system="Windows",
+            node="localhost",
+            release="",
+            version="",
             machine=_machine,
         )
         _platform.uname = lambda: _safe_uname
@@ -72,10 +76,18 @@ def _payload_mapping():
             # built from this mapping, which bypassed it entirely. The two lists
             # have to agree, and only this one decides what ships in the wheel.
             dirnames[:] = [
-                d for d in dirnames
-                if d not in {
-                    "__pycache__", "node_modules", ".venv", "venv", ".git",
-                    ".mypy_cache", ".pytest_cache", ".ruff_cache",
+                d
+                for d in dirnames
+                if d
+                not in {
+                    "__pycache__",
+                    "node_modules",
+                    ".venv",
+                    "venv",
+                    ".git",
+                    ".mypy_cache",
+                    ".pytest_cache",
+                    ".ruff_cache",
                 }
             ]
             rel = os.path.relpath(dirpath, disk_root)
@@ -88,6 +100,7 @@ def _payload_mapping():
 
 _pkg_dir, _payload_pkgs, _pkg_data = _payload_mapping()
 
+
 # install_os.py is a single ROOT-LEVEL file (the OS-level installer). It must
 # land at m3_memory/install_os.py so _run_os_install (installer.py) finds it via
 # bin_dir().parent. A tree-walk can't map a lone file, so stage it into a build
@@ -96,6 +109,7 @@ _pkg_dir, _payload_pkgs, _pkg_data = _payload_mapping()
 # works — but ship it for completeness / air-gapped OS-install support.
 def _stage_root_file(src, pkg="m3_memory"):
     import shutil
+
     if not os.path.isfile(src):
         return
     dst = os.path.join(pkg, os.path.basename(src))
@@ -129,6 +143,7 @@ if not os.environ.get("M3_SKIP_MYPYC"):
         import shutil as _sh
 
         from mypyc.build import mypycify
+
         _staged = []
         for _rel in ("memory/util.py", "memory/fts.py"):
             _src = os.path.join("bin", _rel)
@@ -147,8 +162,8 @@ if not os.environ.get("M3_SKIP_MYPYC"):
     # the package, so we fall back on any failure including SystemExit.
     except BaseException as e:  # ImportError, compile/toolchain errors, SystemExit
         import sys
-        print(f"[setup] mypyc skipped ({type(e).__name__}: {e}); "
-              "building pure-Python wheel.", file=sys.stderr)
+
+        print(f"[setup] mypyc skipped ({type(e).__name__}: {e}); building pure-Python wheel.", file=sys.stderr)
         ext_modules = []
 
 # Discover the real python packages (m3_memory + subpackages) the same way
@@ -163,9 +178,7 @@ if not os.environ.get("M3_SKIP_MYPYC"):
 # *data* (loaded by path, not imported), added to package_data below.
 from setuptools import find_packages
 
-_code_pkgs = find_packages(
-    where=".", include=["m3_memory*"], exclude=["m3_memory.integrations.hermes*"]
-)
+_code_pkgs = find_packages(where=".", include=["m3_memory*"], exclude=["m3_memory.integrations.hermes*"])
 
 # package_data for the CODE package: the mcp examples + the vendored Hermes
 # provider (which ships as data, not an importable package). Previously in

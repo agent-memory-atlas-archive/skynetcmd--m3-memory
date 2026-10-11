@@ -5,6 +5,7 @@ patch DB_PATH and leaked fixture rows into memory/agent_memory.db. This
 fixture forces M3_DATABASE / CHATLOG_DB_PATH / memory_core.DB_PATH to a
 per-test tmp dir for every test that runs.
 """
+
 from __future__ import annotations
 
 import sys

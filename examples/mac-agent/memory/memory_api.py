@@ -42,4 +42,3 @@ def query_memory(item: dict):
     _ = embed([query])[0]
     # TODO: implement real vector search (FAISS/HNSW)
     return {"results": []}
-

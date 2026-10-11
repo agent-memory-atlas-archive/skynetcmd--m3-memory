@@ -25,4 +25,3 @@ async def discover():
             except Exception:
                 continue
     return {"services": found}
-

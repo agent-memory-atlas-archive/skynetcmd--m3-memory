@@ -19,14 +19,16 @@ USER = "alex"
 def chat_history_demo() -> None:
     # session_id (classic) / thread_id (LangGraph) both map to conversation_id.
     history = M3ChatMessageHistory("session-42", user_id=USER)
-    history.add_messages([
-        HumanMessage(content="Book me a window seat next time."),
-        AIMessage(content="Noted — window seat preference saved."),
-        HumanMessage(content="And I'm vegetarian."),
-    ])
+    history.add_messages(
+        [
+            HumanMessage(content="Book me a window seat next time."),
+            AIMessage(content="Noted — window seat preference saved."),
+            HumanMessage(content="And I'm vegetarian."),
+        ]
+    )
 
     print("conversation (chronological, roles preserved):")
-    for msg in history.messages:                 # oldest → newest
+    for msg in history.messages:  # oldest → newest
         print(f"  [{msg.type}] {msg.content}")
 
     # clear() wipes just this conversation (two-step, hidden behind one call).
@@ -45,8 +47,7 @@ def retriever_demo() -> None:
     for d in docs:
         md = d.metadata
         print(f"  - {d.page_content}")
-        print(f"      score={md.get('score')}, confidence={md.get('confidence')}, "
-              f"valid_from={md.get('valid_from')}")
+        print(f"      score={md.get('score')}, confidence={md.get('confidence')}, valid_from={md.get('valid_from')}")
 
 
 if __name__ == "__main__":

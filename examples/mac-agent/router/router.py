@@ -47,7 +47,7 @@ async def route(request: dict):
         headers = {
             "x-api-key": os.getenv("ANTHROPIC_API_KEY"),
             "anthropic-version": "2023-06-01",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
         anthropic_payload = PROTOCOL.openai_to_anthropic(messages, model)
         resp = await _post(url, anthropic_payload, headers)
@@ -83,4 +83,3 @@ async def route(request: dict):
 
     # Fallback to local LM Studio
     return await _post(LM_STUDIO_URL, request)
-

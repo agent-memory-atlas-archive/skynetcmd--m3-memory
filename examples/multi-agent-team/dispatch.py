@@ -76,14 +76,16 @@ def build_openai_tools(allowlist: set[str]) -> list[dict]:
     for spec in mcp_tool_catalog.TOOLS:
         if spec.name not in allowlist:
             continue
-        out.append({
-            "type": "function",
-            "function": {
-                "name": spec.name,
-                "description": spec.description,
-                "parameters": spec.parameters,
-            },
-        })
+        out.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": spec.name,
+                    "description": spec.description,
+                    "parameters": spec.parameters,
+                },
+            }
+        )
     return out
 
 
@@ -105,8 +107,9 @@ def resolve_allowlist(agent: dict) -> set[str]:
     return allowed - deny
 
 
-def _build_initial_messages(agent: dict, notification: dict,
-                            task_record: str | None, task_id: str | None) -> list[dict]:
+def _build_initial_messages(
+    agent: dict, notification: dict, task_record: str | None, task_id: str | None
+) -> list[dict]:
     """System + user message for turn 1. Embeds task_id so the model can pass
     it straight to task_update without digging through the payload."""
     payload = json.loads(notification.get("payload_json") or "{}")
@@ -126,10 +129,8 @@ def _build_initial_messages(agent: dict, notification: dict,
         "- Read any context memories the planner attached (memory_search, memory_get).",
         "- Do the work the task describes.",
         "- Write your result to memory (memory_write) so the team can build on it.",
-        "- When the work is complete, update the task state with "
-        "task_update(task_id, state=\"completed\").",
-        "- When you have nothing more to do this turn, return a final text response "
-        "(no more tool calls).",
+        '- When the work is complete, update the task state with task_update(task_id, state="completed").',
+        "- When you have nothing more to do this turn, return a final text response (no more tool calls).",
         "",
         "Stay focused. Don't call tools that aren't necessary for this task.",
     ]
@@ -140,10 +141,15 @@ def _build_initial_messages(agent: dict, notification: dict,
     ]
 
 
-async def _call_provider_with_retry(http: httpx.AsyncClient, provider_cfg: dict,
-                                    model: str, messages: list[dict],
-                                    tools: list[dict], max_tokens: int,
-                                    retries: int) -> dict:
+async def _call_provider_with_retry(
+    http: httpx.AsyncClient,
+    provider_cfg: dict,
+    model: str,
+    messages: list[dict],
+    tools: list[dict],
+    max_tokens: int,
+    retries: int,
+) -> dict:
     """Send one provider request; retry on 429/5xx; return the raw response dict.
 
     Contract differs from v1's call_provider:
@@ -210,16 +216,22 @@ async def _call_provider_with_retry(http: httpx.AsyncClient, provider_cfg: dict,
         backoff = min(0.5 * (2 ** (attempt - 1)), 4.0)
         await asyncio.sleep(backoff)
 
-    raise ProviderError5xxExhausted(
-        f"exhausted {retries} attempts; last error: {last_err}"
-    )
+    raise ProviderError5xxExhausted(f"exhausted {retries} attempts; last error: {last_err}")
 
 
-async def _terminate(terminal: str, task_id: str | None, agent_name: str,
-                     reason: str, messages: list, turns: int,
-                     total_calls: int, started: float,
-                     error: str | None = None, final_text: str = "",
-                     mark_failed: bool = True) -> DispatchResult:
+async def _terminate(
+    terminal: str,
+    task_id: str | None,
+    agent_name: str,
+    reason: str,
+    messages: list,
+    turns: int,
+    total_calls: int,
+    started: float,
+    error: str | None = None,
+    final_text: str = "",
+    mark_failed: bool = True,
+) -> DispatchResult:
     """Build a DispatchResult; mark the task failed on bounded-failure terminals.
 
     Success and 5xx-exhausted skip task_update:
@@ -251,9 +263,14 @@ async def _terminate(terminal: str, task_id: str | None, agent_name: str,
     )
 
 
-async def dispatch(agent: dict, provider_cfg: dict, notification: dict,
-                   task_record: str | None, http: httpx.AsyncClient,
-                   limits: DispatchLimits) -> DispatchResult:
+async def dispatch(
+    agent: dict,
+    provider_cfg: dict,
+    notification: dict,
+    task_record: str | None,
+    http: httpx.AsyncClient,
+    limits: DispatchLimits,
+) -> DispatchResult:
     """Run one notification through its agent's LLM as a tool-calling MCP client."""
     payload = json.loads(notification.get("payload_json") or "{}")
     task_id = payload.get("task_id")
@@ -272,29 +289,50 @@ async def dispatch(agent: dict, provider_cfg: dict, notification: dict,
         turns = turn
         if (time.monotonic() - started) > limits.max_seconds:
             return await _terminate(
-                "timeout", task_id, agent_name,
+                "timeout",
+                task_id,
+                agent_name,
                 reason=f"elapsed > {limits.max_seconds}s",
-                messages=messages, turns=turns, total_calls=total_calls, started=started,
+                messages=messages,
+                turns=turns,
+                total_calls=total_calls,
+                started=started,
             )
 
         try:
             raw = await _call_provider_with_retry(
-                http, provider_cfg, agent["model"], messages,
-                tools_for_model, limits.max_tokens_per_call, limits.provider_retries,
+                http,
+                provider_cfg,
+                agent["model"],
+                messages,
+                tools_for_model,
+                limits.max_tokens_per_call,
+                limits.provider_retries,
             )
         except ProviderError4xx as e:
             return await _terminate(
-                "provider_error_4xx", task_id, agent_name,
+                "provider_error_4xx",
+                task_id,
+                agent_name,
                 reason="4xx from provider",
-                messages=messages, turns=turns, total_calls=total_calls,
-                started=started, error=str(e),
+                messages=messages,
+                turns=turns,
+                total_calls=total_calls,
+                started=started,
+                error=str(e),
             )
         except ProviderError5xxExhausted as e:
             return await _terminate(
-                "provider_error_5xx_exhausted", task_id, agent_name,
+                "provider_error_5xx_exhausted",
+                task_id,
+                agent_name,
                 reason="5xx retries exhausted",
-                messages=messages, turns=turns, total_calls=total_calls,
-                started=started, error=str(e), mark_failed=False,
+                messages=messages,
+                turns=turns,
+                total_calls=total_calls,
+                started=started,
+                error=str(e),
+                mark_failed=False,
             )
 
         text, tool_calls = AgentProtocol.parse_tool_calls(raw, provider_cfg["format"])
@@ -319,9 +357,14 @@ async def dispatch(agent: dict, provider_cfg: dict, notification: dict,
             total_calls += 1
             if total_calls > limits.max_tool_calls:
                 return await _terminate(
-                    "tool_call_budget", task_id, agent_name,
+                    "tool_call_budget",
+                    task_id,
+                    agent_name,
                     reason=f"{total_calls} > {limits.max_tool_calls}",
-                    messages=messages, turns=turns, total_calls=total_calls, started=started,
+                    messages=messages,
+                    turns=turns,
+                    total_calls=total_calls,
+                    started=started,
                 )
 
             fn = tc.get("function") or {}
@@ -334,9 +377,14 @@ async def dispatch(agent: dict, provider_cfg: dict, notification: dict,
                 last_call_hashes.pop(0)
             if len(last_call_hashes) == 4 and len(set(last_call_hashes)) == 1:
                 return await _terminate(
-                    "loop_detected", task_id, agent_name,
+                    "loop_detected",
+                    task_id,
+                    agent_name,
                     reason=f"4x same call: {tool_name}",
-                    messages=messages, turns=turns, total_calls=total_calls, started=started,
+                    messages=messages,
+                    turns=turns,
+                    total_calls=total_calls,
+                    started=started,
                 )
 
             if tool_name not in allowlist:
@@ -354,13 +402,16 @@ async def dispatch(agent: dict, provider_cfg: dict, notification: dict,
                     result = await mcp_tool_catalog.execute_tool(spec, tool_args, agent_name)
                     is_error = isinstance(result, str) and result.startswith("Error:")
 
-            tool_msg = AgentProtocol.format_tool_result(
-                tc.get("id", ""), tool_name, result, is_error
-            )
+            tool_msg = AgentProtocol.format_tool_result(tc.get("id", ""), tool_name, result, is_error)
             messages.append(tool_msg)
 
     return await _terminate(
-        "max_turns", task_id, agent_name,
+        "max_turns",
+        task_id,
+        agent_name,
         reason=f"hit {limits.max_turns} turns",
-        messages=messages, turns=turns, total_calls=total_calls, started=started,
+        messages=messages,
+        turns=turns,
+        total_calls=total_calls,
+        started=started,
     )
