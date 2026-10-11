@@ -1462,7 +1462,7 @@
     },
     "memory_supersede_impl": {
       "kind": "async_function",
-      "signature": "(old_id: 'str', content: 'str', type: 'str' = '', title: 'str' = '', metadata: 'str' = '{}', agent_id: 'str' = '', model_id: 'str' = '', change_agent: 'str' = '', importance: 'float' = -1.0, source: 'str' = 'agent', embed: 'bool' = True, user_id: 'str' = '', scope: 'str' = '', valid_from: 'str' = '', variant: 'str | None' = None, embed_text: 'str | None' = None) -> 'str'",
+      "signature": "(old_id: 'str', content: 'str' = '', type: 'str' = '', title: 'str' = '', metadata: 'str' = '{}', agent_id: 'str' = '', model_id: 'str' = '', change_agent: 'str' = '', importance: 'float' = -1.0, source: 'str' = 'agent', embed: 'bool' = True, user_id: 'str' = '', scope: 'str' = '', valid_from: 'str' = '', variant: 'str | None' = None, embed_text: 'str | None' = None, replacement_id: 'str' = '') -> 'str'",
       "value_repr": null
     },
     "memory_unpin_impl": {

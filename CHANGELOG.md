@@ -252,6 +252,12 @@ the policy is forward-going only.
 
 ### Added
 
+- **`memory_supersede` can retire a memory into an existing one.** Pass
+  `replacement_id` (a full id) instead of `content`: the old memory is closed and
+  linked to the existing one, and nothing new is created. Use it to clean up
+  duplicates; passing `content` for each duplicate adds another copy.
+  **Affected:** all installs · **Action:** none · **Data status:** none.
+
 - **`m3_config.toml`: one file for every setting,** in the config root, with
   `m3 config show [--origin] [--json] [--config FILE]` to print each value and
   where it came from. Environment variables keep working and take precedence

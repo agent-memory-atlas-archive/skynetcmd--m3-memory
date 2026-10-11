@@ -15,8 +15,10 @@ a prefix is rejected via _is_full_uuid in their validators. Read tools
 on a mutation could close/delete the wrong memory irreversibly. This asymmetry
 is intentional; keep the validators and the "full UUID required" wording in the
 tool descriptions so it survives doc-inventory regeneration. Also note:
-memory_supersede is non-destructive and creates a NEW successor each call — it
-is an update primitive, not a delete; do not chain it to "clean up" clutter.
+memory_supersede is non-destructive. With content it creates a NEW successor;
+with replacement_id it retires the old memory into an EXISTING one and creates
+nothing, which is the way to clean up duplicates (a fresh successor per
+duplicate multiplies them). It is an update primitive, not a delete.
 
 ── Module structure (catalog/ subpackage split) ──────────────────────────────
 This module is the AGGREGATOR + INJECTION point. The actual ToolSpec support

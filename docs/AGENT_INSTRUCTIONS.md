@@ -233,7 +233,7 @@ Be concise yet self-contained. Include good tags and categories when possible.
 
 ### 3. Update Instead of Duplicating
 If information changes or conflicts with existing memory:
-→ Use `memory_supersede` on the existing memory: it closes the old fact (`valid_to`), links the new one with a `supersedes` edge, and preserves history via bitemporal versioning. (`memory_write` also runs contradiction detection and may supersede a conflicting same-type memory automatically — see below.)
+→ Use `memory_supersede` on the existing memory: it closes the old fact (`valid_to`), links the new one with a `supersedes` edge, and preserves history via bitemporal versioning. To clean up duplicates, keep one copy and pass `replacement_id=<its full id>` for each other copy: that retires the duplicate into the kept one and creates nothing (passing `content` would write one more copy). (`memory_write` also runs contradiction detection and may supersede a conflicting same-type memory automatically — see below.)
 Reserve `memory_update` for correcting a typo, metadata, or refresh fields: it overwrites in place (the prior value is recorded in `memory_history`, but no supersession happens).
 
 ### 4. Leverage the Knowledge Graph

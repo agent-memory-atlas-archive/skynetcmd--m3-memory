@@ -196,8 +196,11 @@ TOOLS: list[ToolSpec] = [
             "separate gated tool (memory_delete). "
             "old_id MUST be the full UUID — a prefix is rejected (full UUID "
             "required for mutation safety; memory_get accepts a prefix, this "
-            "does not). Note: each supersede creates a NEW successor memory; "
-            "call it once with the full id, do not chain supersedes."
+            "does not). Pass content to create a NEW successor memory, or "
+            "replacement_id (a full UUID) to retire old_id into an EXISTING "
+            "active memory without creating anything: use that to clean up "
+            "duplicates, since writing a fresh successor per duplicate "
+            "multiplies them. Exactly one of the two."
         ),
         parameters={
             "type": "object",
@@ -206,7 +209,16 @@ TOOLS: list[ToolSpec] = [
                     "type": "string",
                     "description": "FULL UUID of the memory being superseded (not an 8-char prefix — a prefix is rejected for mutation safety). Must exist and not already be deleted/superseded.",
                 },
-                "content": {"type": "string", "description": "Body of the replacement memory (max 50000 chars)."},
+                "content": {
+                    "type": "string",
+                    "description": "Body of the NEW replacement memory (max 50000 chars). Omit when passing replacement_id.",
+                    "default": "",
+                },
+                "replacement_id": {
+                    "type": "string",
+                    "description": "FULL UUID of an EXISTING active memory to retire old_id into; nothing is created. Mutually exclusive with content.",
+                    "default": "",
+                },
                 "type": {
                     "type": "string",
                     "description": f"Memory type of the replacement. Omit to inherit the old memory's type. One of: {', '.join(sorted(VALID_MEMORY_TYPES))}.",
@@ -266,7 +278,7 @@ TOOLS: list[ToolSpec] = [
                     "default": "",
                 },
             },
-            "required": ["old_id", "content"],
+            "required": ["old_id"],
         },
         impl=memory_core.memory_supersede_impl,
         is_async=True,

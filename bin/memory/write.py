@@ -839,7 +839,7 @@ def _mark_superseded(
 
 async def memory_supersede_impl(
     old_id: str,
-    content: str,
+    content: str = "",
     type: str = "",
     title: str = "",
     metadata: str = "{}",
@@ -854,8 +854,10 @@ async def memory_supersede_impl(
     valid_from: str = "",
     variant: str | None = None,
     embed_text: str | None = None,
+    replacement_id: str = "",
 ) -> str:
-    """Explicitly supersede memory ``old_id`` with a new memory.
+    """Explicitly supersede memory ``old_id`` with a new memory, or with an
+    EXISTING one (``replacement_id``).
 
     Unlike ``memory_write``'s automatic contradiction detection — which fires on
     a cosine + title heuristic and may or may not link the right prior memory —
@@ -878,7 +880,14 @@ async def memory_supersede_impl(
         real importance is always in ``[0.0, 1.0]``.
     So the caller passes only what changed.
 
-    Returns ``"Superseded <old_id> -> Created: <new_id>"`` on success, or an
+    With ``replacement_id`` (mutually exclusive with ``content``) nothing is
+    created: the old memory is retired in favour of an existing active memory,
+    through the same ``_mark_superseded`` (edge new -> old, closed interval,
+    history row). Cleaning up duplicates this way lowers the active-copy count;
+    writing a fresh replacement for each duplicate multiplied it (m3 e116b526).
+
+    Returns ``"Superseded <old_id> -> Created: <new_id>"`` (or
+    ``"Superseded <old_id> -> Existing: <replacement_id>"``) on success, or an
     ``"Error: ..."`` string (the old row is left untouched on any error).
 
     Concurrency: the step-4 UPDATE carries ``WHERE is_deleted = 0`` and the
@@ -908,6 +917,12 @@ async def memory_supersede_impl(
         return (
             f"Error: memory {old_id} is already deleted/superseded (supersede an active memory, or write a fresh one)"
         )
+    if replacement_id and content:
+        return "Error: pass content (write a new replacement) OR replacement_id (use an existing one), not both"
+    if not replacement_id and not content:
+        return "Error: pass content (the replacement's body) or replacement_id (an existing memory to retire into)"
+    if replacement_id:
+        return _supersede_into_existing(old_id, replacement_id, valid_from=valid_from, agent_id=agent_id)
 
     # 2. Inherit unspecified fields from the old memory — the caller passes
     #    only what changed. See the docstring for the sentinel convention:
@@ -995,6 +1010,50 @@ async def memory_supersede_impl(
     except Exception as e:
         logger.warning(f"Failed to write audit trail entry for supersede: {e}")
     return f"Superseded {old_id} -> Created: {new_id}"
+
+
+def _supersede_into_existing(old_id: str, replacement_id: str, *, valid_from: str, agent_id: str) -> str:
+    """Retire ``old_id`` in favour of the existing active memory ``replacement_id``.
+
+    Creates nothing. Refuses, leaving both rows untouched: the same id twice, a
+    replacement that does not exist, or one that is itself deleted/superseded
+    (retiring into a closed memory would leave the fact with no live copy).
+    ``old_id`` was pre-checked active by the caller; ``_mark_superseded``'s
+    conditional UPDATE is still the real guard against a concurrent close.
+    """
+    if replacement_id == old_id:
+        return f"Error: replacement_id equals old_id ({old_id}); a memory cannot supersede itself"
+    from memory.backends import dialect
+
+    p = dialect().param()
+    with _db() as db:
+        rep = db.execute(f"SELECT is_deleted FROM memory_items WHERE id = {p}", (replacement_id,)).fetchone()
+    if rep is None:
+        return f"Error: replacement memory {replacement_id} not found; nothing was superseded"
+    if rep["is_deleted"]:
+        return (
+            f"Error: replacement memory {replacement_id} is itself deleted/superseded; "
+            "retire into an active memory (nothing was superseded)"
+        )
+    close_at = valid_from or datetime.now(UTC).isoformat()
+    with _db() as db:
+        won_race = _mark_superseded(
+            old_id, replacement_id, close_at=close_at, db=db, actor_id=agent_id, require_active=True
+        )
+    if not won_race:
+        return f"Error: memory {old_id} was superseded or deleted concurrently; nothing was changed"
+    logger.info(f"Memory {replacement_id} (existing) supersedes {old_id} (valid_to={close_at})")
+    try:
+        from audit_trail import write_audit_entry
+
+        write_audit_entry(
+            action="memory_supersede",
+            target_id=old_id,
+            metadata={"new_id": replacement_id, "existing": True, "valid_to": close_at, "agent_id": agent_id},
+        )
+    except Exception as e:
+        logger.warning(f"Failed to write audit trail entry for supersede: {e}")
+    return f"Superseded {old_id} -> Existing: {replacement_id}"
 
 
 async def memory_write_bulk_impl(

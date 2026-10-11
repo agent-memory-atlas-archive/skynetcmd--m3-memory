@@ -3257,7 +3257,12 @@
         },
         {
           "name": "content",
-          "required": true,
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "replacement_id",
+          "required": false,
           "type": "string"
         },
         {
@@ -3350,7 +3355,7 @@
         },
         {
           "name": "content",
-          "required": true,
+          "required": false,
           "type": "string"
         },
         {

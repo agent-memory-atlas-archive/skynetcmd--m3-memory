@@ -71,6 +71,24 @@ def _memory_supersede_validator(args: dict) -> Any:
             "prefix), then pass the returned full id."
         )
     args["old_id"] = old_id
+    # Exactly one of content (write a new replacement) or replacement_id (retire
+    # into an existing memory). The existing one is a mutation target too, so it
+    # gets the same full-UUID rule as old_id.
+    rep = str(args.get("replacement_id", "") or "").strip()
+    has_content = bool(str(args.get("content", "") or "").strip())
+    if rep and has_content:
+        return "Error: pass content (write a new replacement) OR replacement_id (use an existing memory), not both."
+    if not rep and not has_content:
+        return "Error: pass content (the replacement's body) or replacement_id (an existing memory to retire into)."
+    if rep:
+        if not _is_full_uuid(rep):
+            return (
+                "Error: replacement_id must be the full UUID, not a prefix — full UUID required for "
+                "mutation safety. Resolve the prefix with memory_get first."
+            )
+        if rep == old_id:
+            return "Error: replacement_id equals old_id; a memory cannot supersede itself."
+        args["replacement_id"] = rep
     t = args.get("type", "")
     # Empty type is the inherit-from-old sentinel; only validate a non-empty one.
     if t and t not in VALID_MEMORY_TYPES:
