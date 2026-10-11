@@ -4,6 +4,25 @@
 
 ---
 
+## 🔜 Next release — in testing
+
+Built and under test; not yet released. Details in the
+[CHANGELOG `[Unreleased]` section](../CHANGELOG.md#unreleased).
+
+- [ ] **One configuration file** — `m3_config.toml` in the config root holds every setting, so background services read the same values as your shell; `m3 config show` reports each setting and where it came from. Legacy environment names keep working for now and log a notice.
+- [ ] **Named stores** — `[stores.<name>]` defines a store, selected per call (`store`) or per process (`--store`).
+- [ ] **A user-only secrets file** — `m3_secrets.toml`, for machines without an OS keyring; the installer stores the primary PostgreSQL DSN in the keyring or this file, not in plaintext environment variables.
+- [ ] **More of m3 runs on PostgreSQL** — including the LangGraph checkpointer (`M3Saver`), GLiNER entity extraction, and the enrichment tools.
+- [ ] **`search_profile` tool** — per-stage timing of one real search.
+- [ ] **Python 3.12 codebase** — the code is brought up to the supported floor and held there by lint and type checks.
+
+## ✅ Shipped — 2026-Q4 so far
+
+- [x] **Verified backups** — backups taken by maintenance tools are complete and verified, and tools refuse a store they were not meant for (v2026.10.4.0).
+- [x] **Upgrades that finish on their own** — on Windows and Linux, without manual steps, and an upgrade can no longer remove m3 (v2026.10.5.0 → v2026.10.7.1).
+- [x] **Fresh pipx installs work** (v2026.10.4.3).
+- [x] **Release engineering** — PyPI and TestPyPI publishing use trusted publishing (no stored tokens) for both m3-memory and m3-core-rs; every release is published to the MCP Registry; one command keeps every version string and manifest in sync, and tests fail when they drift.
+
 ## ✅ Shipped — 2026-Q3 highlights
 
 ### Pluggable storage backend + framework breadth + procedural memory (v2026.7.17.0)
@@ -12,6 +31,17 @@
 - [x] **PydanticAI integration** — deps-injected tools + a recall history-processor, plus a formal `M3MemoryToolset` (`m3-memory[pydantic-ai]`); Python 3.14-native.
 - [x] **Procedural memory** — a first-class `procedure` type (skill/runbook/how-to/checklist) distilled from successful task runs (writing is opt-in: `M3_DISTILL_AUTO=1`, else dry-run), with `distills_from` provenance and a procedural retrieval boost.
 - [x] **Test suite hardening** — 4,600+ test functions (6,200+ collected cases, 6,600+ with the native core) across 510+ files, run with `filterwarnings=error` (a new warning fails the build).
+
+### Later in Q3 (v2026.7.18 → v2026.9.21)
+- [x] **Memory wiki** — `m3 wiki generate` builds a wiki from your memories (v2026.7.21.1).
+- [x] **Cursor and Cline** are first-class MCP hosts, configured by `m3 setup` (v2026.7.21.0).
+- [x] **Web dashboard in the base install** — no extra needed (v2026.7.30.2).
+- [x] **Local reasoning models** — fact extraction works on Ollama reasoning models (v2026.8.11.0), and the cognitive loop drains queued file extraction on its own (v2026.8.17.0).
+- [x] **A much smaller download** — the wheel is about 87% smaller (v2026.9.9.0).
+- [x] **Python 3.12 floor** — m3 requires Python 3.12 or newer (v2026.9.13.0).
+- [x] **Documents of every common format** — HTML, Word, PowerPoint, Excel, RTF, EPUB, OpenDocument and Apple iWork (v2026.9.16.0).
+- [x] **A lighter startup surface** — 10 tool schemas registered at startup instead of 20 (v2026.9.17.0).
+- [x] **Memories with dynamics** — importance decays and strengthens with use instead of staying fixed (v2026.9.20.0).
 
 ## ✅ Shipped — 2026-Q2 highlights
 
@@ -150,18 +180,14 @@ Memory as a maintained body of knowledge, not a flat index. All additive and
 
 - [ ] **LoCoMo audit** — harness scaffolded under `benchmarks/locomo/`; full run pending
 - [ ] **Linux CUDA smoke-test automation** — wheels currently rely on manual verification on real NVIDIA hardware before each release
-- [ ] **Per-project PyPI publish tokens** — replace the account-wide token used during the m3-core-rs 3.6.6 first-upload window
-- [ ] **Description / metadata consistency** — keep `pyproject.toml`, GitHub repo description, README header tagline, and `docs/COMPARISON.md` claims in sync across releases
 
 ---
 
 ## 📦 Planned — Distribution & Deployment
 
-- [ ] **Configuration moves from environment variables to config files** — settings will live in files under the config root, as `.llm_config.json` and `.chatlog_config.json` already do, so background services (launchd, systemd, Task Scheduler) read the same values as your shell. Environment variables will be deprecated first and then removed, with a migration command and at least one release's notice — the same policy as the Python floor.
 - [ ] **pgvector / HNSW ANN on the PostgreSQL primary backend** — PostgreSQL can already be m3's primary live store (`M3_DB_BACKEND=postgres` + `M3_PRIMARY_PG_URL`), but vector search there is still **brute-force Rust cosine**, the same as on SQLite. Index-accelerated approximate nearest-neighbor via pgvector/HNSW is not yet implemented — so PG-primary today is about a shared/server store, not faster vector search.
 - [ ] **Docker image** — `docker run -v ~/.m3-memory:/data ghcr.io/skynetcmd/m3-memory:latest`
-- [ ] **Auto MCP Registry** — zero-config discovery in Claude Code and other MCP clients via published `mcp-server.json`
-- [ ] **TestPyPI dry-run CI gate** — catch packaging regressions before every release
+- [ ] **TestPyPI as a release gate** — TestPyPI is published alongside PyPI today; make it pass before PyPI publishes
 - [ ] **Homebrew formula** — `brew install m3-memory` (macOS / Linuxbrew)
 
 ---
@@ -170,8 +196,8 @@ Memory as a maintained body of knowledge, not a flat index. All additive and
 
 > The **web dashboard** has shipped and is listed under [In progress / Available now](#-in-progress); the items below extend it.
 
+- [x] **Search explain mode** — `memory_search(explain=true)` attaches a per-result breakdown (vector, keyword, title overlap, importance)
 - [ ] **Real-time contradiction log** — surfaced in dashboard and via `memory_verify` tool
-- [ ] **Search explain mode** — show FTS5 score + vector score + MMR penalty breakdown for every result (today: `memory_suggest` returns these; UX still spartan)
 - [ ] **Prometheus metrics endpoint** — latency, write/read counts, cache hit rates
 - [ ] **Grafana dashboard template** — pre-built panels for memory health
 
@@ -193,7 +219,6 @@ Memory as a maintained body of knowledge, not a flat index. All additive and
 - [ ] **Stable public API** — `m3_memory.sdk` Python API with semver guarantees
 - [ ] **Full documentation site** — MkDocs or Docusaurus with API reference, tutorials, architecture deep-dives
 - [ ] **Plugin system** — register custom memory types, custom embedders, custom sync backends
-- [ ] **Full refactor to Python 3.12+ standards** — the supported floor is 3.12; bring the whole codebase up to it: native `X | Y` and PEP 695 type syntax instead of quoted annotations and `from __future__ import annotations`, drop pre-3.12 compatibility branches, adopt 3.12-era stdlib (`tomllib`, `itertools.batched`, …), and enforce it with Ruff's pyupgrade rules targeting py312 plus stricter mypy
 
 ---
 
