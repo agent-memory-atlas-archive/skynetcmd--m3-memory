@@ -29,12 +29,42 @@ from conftest import skip_reason
 _ROOT = Path(__file__).resolve().parents[1]
 
 
+_TIMEOUT_S = 60
+
+
 def _run(cmd: list[str], cwd: Path) -> str:
-    """Run a validator and return combined stdout+stderr (exit code ignored)."""
-    p = subprocess.run(
-        cmd, cwd=str(cwd), capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60
-    )
+    """Run a validator and return combined stdout+stderr (exit code ignored).
+
+    A validator that never answers is an environment condition, not a manifest
+    verdict: `claude plugin validate` hangs past 90 s in non-interactive shells
+    (nohup, ssh). That skips with its reason; a real validation failure still
+    fails, because that is judged on the output below."""
+    try:
+        p = subprocess.run(
+            cmd, cwd=str(cwd), capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=_TIMEOUT_S
+        )
+    except subprocess.TimeoutExpired:
+        pytest.skip(
+            skip_reason(
+                "env",
+                f"{cmd[0]} plugin validate gave no answer; observed: no exit within {_TIMEOUT_S} s. "
+                "inspect: run it in an interactive shell (it hangs under nohup/ssh)",
+            )
+        )
     return (p.stdout or "") + (p.stderr or "")
+
+
+def test_a_hung_validator_skips_rather_than_fails(monkeypatch):
+    """The timeout path is an env skip, not a failure (no validator binary needed)."""
+
+    def _hang(*_a, **kw):
+        raise subprocess.TimeoutExpired(cmd="claude plugin validate .", timeout=kw.get("timeout"))
+
+    monkeypatch.setattr(subprocess, "run", _hang)
+    with pytest.raises(pytest.skip.Exception) as exc:
+        _run(["claude", "plugin", "validate", "."], _ROOT)
+    assert str(exc.value.msg).startswith("[env]"), "the skip must name its dimension"
+    assert "observed:" in str(exc.value.msg)
 
 
 @pytest.mark.skipif(

@@ -1766,40 +1766,37 @@ the policy is forward-going only.
 ---
   **Affected:** installs holding double-encoded notification payloads · **Action:** upgrade · **Data status:** no loss — the stored rows are intact and are now decoded on read.
 
-## [2026.9.13.0] — 2026-09-13 — Python floor raised to 3.12
+## [2026.9.13.2] — 2026-09-13 — notifications carry a return address
 
-### Changed — BREAKING
+### Added
 
-- **m3 now requires Python 3.12 or newer** (`requires-python = ">=3.12"`).
-  `2026.9.12.0` was the last release supporting Python 3.11.
+- **`notify` and `memory_handoff` can carry a return address.** Optional
+  `from_agent` and `from_session` arrive with the message as `_from` (and, for
+  a handoff, in the stored memory's metadata), so a reply can go to the one
+  session that wrote.
+  **Affected:** multi-agent setups using `notify` or `memory_handoff` · **Action:** none · **Data status:** none — without a return address, behaviour is unchanged.
 
-  On Python 3.11, `pip install -U m3-memory` will not error loudly — it
-  resolves to the last 3.11-compatible release and silently stops upgrading.
-  Check with `python --version`; upgrade guidance is in
-  [README → Installation](README.md#-installation) and
-  [HOW-TO-UPGRADE.md](docs/HOW-TO-UPGRADE.md).
+### Fixed
 
-  Stored memories are unaffected: the databases live outside the virtualenv
-  under `~/.m3/engine`. After a Python minor-version bump, recreate the venv
-  (`rm -rf .venv && python3 -m venv .venv`).
+- **Install and upgrade do only their own work.** On Windows they no longer
+  open console windows; they no longer build a nested virtualenv inside the
+  installed package (#173); and `install_m3` no longer clones a second copy of
+  m3 or reports "already installed" for a tree other than the one running
+  (#174).
+  **Affected:** installs and upgrades (console windows: Windows only) · **Action:** none · **Data status:** a nested `.venv` left by an earlier version is not removed.
 
-  Why: 3.11-era pins were holding back the dependency tree (numpy and scipy
-  both dropped 3.11 at exactly m3's pinned ceiling), and the CI floor lane
-  and the code had already diverged — a 3.12-only construct
-  (`StorageBackend.__protocol_attrs__`) had been merging green and failing
-  the 3.11 lane. The floor now matches what the code and CI actually target.
+### Changed
 
-  Recommended: **3.13 or newer** for new installs. Python 3.12 is in
-  security-fix-only maintenance upstream (security support until 2028-10-31,
-  no further bug fixes), so a future release will raise the floor again —
-  announced at least one minor release in advance.
-  **Affected:** ⚠ **breaking** — Python 3.11 installs; `2026.9.12.0` was the last release supporting 3.11 · **Action:** move to Python 3.12+ before upgrading m3 · **Data status:** none — your store is unaffected by the interpreter change.
-- Docs corrected to match the shipped floor: the install guides, contributing
-  guide, upgrade guide and testing doc had continued to state "Python 3.11+"
-  after the requirement changed.
+- **`m3 doctor` names the fix for an out-of-date plugin marketplace clone:**
+  enable auto-update in `/plugin` -> Marketplaces -> skynetcmd.
+  **Affected:** Claude Code plugin users · **Action:** turn on auto-update for the skynetcmd marketplace · **Data status:** none.
+- **The MCP proxy's security note no longer claims an agent cannot pose as
+  another:** its key decides who may use the proxy; agent identity is
+  self-asserted.
+  **Affected:** deployments using the MCP proxy · **Action:** do not treat an agent id as authenticated · **Data status:** none.
 
 ---
-  **Affected:** readers of the install, contributing, upgrade and testing docs · **Action:** none · **Data status:** none — the docs had continued to say "Python 3.11+" after the floor moved.
+
 ## [2026.9.13.1] — 2026-09-13 — no more console flashes on Windows
 
 ### Fixed
@@ -1867,6 +1864,21 @@ mutation-tested against a real regression.
 ---
 
 ## [2026.9.13.0] — 2026-09-13 — the checks that reported health without looking
+
+### Changed — BREAKING
+
+- **m3 now requires Python 3.12 or newer.** `2026.9.12.0` was the last release
+  supporting Python 3.11. On 3.11, `pip install -U m3-memory` does not fail: it
+  stays on the last 3.11-compatible release and stops upgrading. After changing
+  Python's minor version, recreate the virtualenv
+  (`rm -rf .venv && python3 -m venv .venv`); see
+  [README → Installation](README.md#-installation) and
+  [HOW-TO-UPGRADE.md](docs/HOW-TO-UPGRADE.md). Python 3.13 or newer is
+  recommended for new installs; a later release will raise the floor again,
+  announced at least one minor release ahead.
+  **Affected:** ⚠ **breaking** — Python 3.11 installs · **Action:** move to Python 3.12+ before upgrading m3 · **Data status:** none — stores live outside the virtualenv, under `~/.m3/engine`.
+- **The install, contributing, upgrade and testing docs state Python 3.12+.**
+  **Affected:** readers of those docs · **Action:** none · **Data status:** none.
 
 Ten issues, one theme: **a check that tests something adjacent to the thing that
 matters.** Every defect below was found by running the system, not reading it —
