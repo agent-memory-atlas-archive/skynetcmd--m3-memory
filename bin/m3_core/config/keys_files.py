@@ -10,7 +10,7 @@ or retire each: registering them would publish a setting that does nothing
 
 from __future__ import annotations
 
-from .registry import Key, in_range, one_of, parse_bool, parse_float, parse_int
+from .registry import Key, in_range, one_of, parse_bool, parse_float, parse_int, parse_str
 
 
 def _int(name: str, env: str, default: int, doc: str, lo: int = 1) -> Key[int]:
@@ -26,7 +26,7 @@ def _int(name: str, env: str, default: int, doc: str, lo: int = 1) -> Key[int]:
 
 
 def _str(name: str, env: str, default: str | None, doc: str) -> Key[str]:
-    return Key[str](name=name, parse=str, default=default, env_names=(env,), reloadable=False, doc=doc)
+    return Key[str](name=name, parse=parse_str, default=default, env_names=(env,), reloadable=False, doc=doc)
 
 
 FILES: list[Key] = [
@@ -38,7 +38,7 @@ FILES: list[Key] = [
     ),
     Key[str](
         name="files.default_extract_mode",
-        parse=str,
+        parse=parse_str,
         default="none",
         validate=one_of("none", "inline", "queue"),
         env_names=("M3_FILES_DEFAULT_EXTRACT_MODE",),

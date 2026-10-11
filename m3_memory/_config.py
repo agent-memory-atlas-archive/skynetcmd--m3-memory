@@ -9,7 +9,7 @@ reader in `m3_memory/` writes ``_config.setting("embed.gguf")`` exactly as a
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from m3_memory import _bin
 
@@ -21,11 +21,18 @@ def _settings():
     return settings
 
 
-def setting(name: str) -> Any:
+def _setting(name: str) -> Any:
     """Key ``name``'s current value (m3_config.toml > env names > default)."""
     return _settings().setting(name)
 
 
+# Typed per key, like m3_core.config.settings.setting: the same generated overloads.
+if TYPE_CHECKING:
+    from m3_memory._setting_types import setting
+else:
+    setting = _setting
+
+
 def explicit(name: str) -> bool:
     """True when key ``name`` was set by the file or an env name, not defaulted."""
-    return _settings().explicit(name)
+    return bool(_settings().explicit(name))

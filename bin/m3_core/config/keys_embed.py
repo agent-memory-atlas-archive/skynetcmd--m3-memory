@@ -10,7 +10,7 @@ logged once (§2, intended-change list).
 
 from __future__ import annotations
 
-from .registry import Key, in_range, parse_bool, parse_float, parse_int, parse_list, parse_path
+from .registry import Key, in_range, parse_bool, parse_float, parse_int, parse_list, parse_path, parse_str
 
 _NONNEG = in_range(lo=0)
 
@@ -43,7 +43,7 @@ def _float(name: str, env: tuple[str, ...], default: float, doc: str, *, reloada
 
 
 def _str(name: str, env: tuple[str, ...], default: str | None, doc: str) -> Key[str]:
-    return Key[str](name=name, parse=str, default=default, env_names=env, reloadable=False, doc=doc)
+    return Key[str](name=name, parse=parse_str, default=default, env_names=env, reloadable=False, doc=doc)
 
 
 # Most embed knobs are read at import today (memory/config.py, embed.py), so none

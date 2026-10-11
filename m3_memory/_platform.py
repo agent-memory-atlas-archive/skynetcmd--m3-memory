@@ -17,7 +17,7 @@ import logging
 import os
 import sys
 from types import ModuleType
-from typing import Any
+from typing import Any, NoReturn
 
 # The sys.platform value that names each supported OS. sys.platform is the ONE
 # knob this module reads to tell OSes apart, so it is also the one a test turns to
@@ -208,6 +208,24 @@ def detached_spawn_kwargs() -> dict:
         sp: Any = subprocess
         return {"creationflags": sp.CREATE_NO_WINDOW | sp.DETACHED_PROCESS}
     return {"start_new_session": True}
+
+
+def reexec(argv: list[str]) -> NoReturn:
+    """Run ``argv`` in place of this process; its exit code becomes ours.
+
+    POSIX: ``os.execv``, a true exec (same pid). Windows has no exec: ``os.exec*``
+    there starts a new process and ends this one at once, and measured on
+    2026-10-11 that loses three things: the caller sees exit code 0 after 0.1 s
+    (the child exited 7), an argument containing a space is split, and a console
+    child of a windowless parent (a scheduled task) gets its own visible window.
+    So on Windows the child runs to completion, hidden, with ``argv`` passed as a
+    list, and we exit with its code. Output handles are inherited either way.
+    """
+    if is_windows():
+        import subprocess
+
+        raise SystemExit(subprocess.call(argv, **hidden_window_kwargs()))  # nosec B603
+    os.execv(argv[0], argv)  # nosec B606
 
 
 def python_exe(windowless: bool = False) -> str:

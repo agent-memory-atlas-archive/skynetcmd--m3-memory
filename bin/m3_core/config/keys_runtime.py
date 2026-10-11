@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import re
 
-from .registry import ConfigValueError, Key, in_range, one_of, parse_bool, parse_float, parse_int, parse_path
+from .registry import ConfigValueError, Key, in_range, one_of, parse_bool, parse_float, parse_int, parse_path, parse_str
 
 
 def _eq1(raw: str) -> bool:
@@ -49,7 +49,7 @@ def _float(name, env, default, doc):
 
 
 def _str(name, env, default, doc):
-    return Key[str](name=name, parse=str, default=default, env_names=env, reloadable=False, doc=doc)
+    return Key[str](name=name, parse=parse_str, default=default, env_names=env, reloadable=False, doc=doc)
 
 
 def _upper(raw: str) -> str:

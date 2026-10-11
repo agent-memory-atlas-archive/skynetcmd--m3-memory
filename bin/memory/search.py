@@ -2014,7 +2014,7 @@ async def memory_search_routed_impl(
     # A SET search.router_temporal_k_bump (env M3_ROUTER_TEMPORAL_K_BUMP or the
     # config file) overrides the parameter, as the env read did.
     _k = "search.router_temporal_k_bump"
-    bump = _m3cfg.setting(_k) if _m3cfg.explicit(_k) else int(temporal_k_bump)
+    bump = _m3cfg.setting("search.router_temporal_k_bump") if _m3cfg.explicit(_k) else int(temporal_k_bump)
 
     # ── AUTO overshoot reuse ─────────────────────────────────────────────────
     # When AUTO already ran the overshoot retrieval, the overshoot result can

@@ -16,7 +16,7 @@ from .keys_files import FILES
 from .keys_llm import LLM
 from .keys_runtime import RUNTIME
 from .keys_search import SEARCH
-from .registry import Key, KeyClass, Registry, Scope, in_range, one_of, parse_int, parse_list, parse_path
+from .registry import Key, KeyClass, Registry, Scope, in_range, one_of, parse_int, parse_list, parse_path, parse_str
 
 
 def _parse_backend(raw: str) -> str:
@@ -117,7 +117,7 @@ DB_POSTGRES: list[Key] = [
     ),
     Key[str](
         name="db.postgres.dispatch_schema",
-        parse=str,
+        parse=parse_str,
         default="m3_dispatch",
         env_names=("M3_DISPATCH_PG_SCHEMA",),
         reloadable=False,
@@ -219,7 +219,7 @@ SECRETS_FILE = Key(
 def _secret(name: str, doc: str, *, aliases: tuple[str, ...] = (), bootstrap: bool = False) -> Key:
     return Key[str](
         name=name,
-        parse=str,
+        parse=parse_str,
         default=None,
         klass=KeyClass.SECRET,
         bootstrap=bootstrap,

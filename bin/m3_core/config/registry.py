@@ -96,7 +96,13 @@ def choices_of(key: Key) -> tuple[str, ...] | None:
 
 def type_name(key: Key) -> str:
     """The TOML-native type of a key, for generated docs and schema."""
-    return _TYPE_NAMES.get(key.parse, "string")
+    return known_type(key) or "string"
+
+
+def known_type(key: Key) -> str | None:
+    """``type_name`` when the key uses a standard parser, else None (a key's own
+    parser may produce anything: the static types must not guess "string")."""
+    return _TYPE_NAMES.get(key.parse)
 
 
 def in_range(lo: float | None = None, hi: float | None = None) -> Callable[[float], None]:

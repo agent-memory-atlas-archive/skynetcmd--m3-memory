@@ -10,13 +10,13 @@ precedence. Held for the user: M3_CLOUD_MINIMIZATION_LEVEL (read, never used).
 
 from __future__ import annotations
 
-from .registry import Key, in_range, one_of, parse_bool, parse_float, parse_list, parse_path
+from .registry import Key, in_range, one_of, parse_bool, parse_float, parse_list, parse_path, parse_str
 
 _NONNEG = in_range(lo=0)
 
 
 def _str(name, env, default, doc):
-    return Key[str](name=name, parse=str, default=default, env_names=env, reloadable=False, doc=doc)
+    return Key[str](name=name, parse=parse_str, default=default, env_names=env, reloadable=False, doc=doc)
 
 
 def _float(name, env, default, doc):

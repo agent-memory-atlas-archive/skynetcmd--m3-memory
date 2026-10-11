@@ -29,14 +29,13 @@ REPO_ROOT = SCRIPT_DIR.parent
 DB_PATH = REPO_ROOT / "memory" / "agent_memory.db"
 
 sys.path.insert(0, str(REPO_ROOT / "bin"))
-from m3_sdk import add_database_arg, resolve_db_path, resolve_venv_python
+from m3_sdk import add_database_arg, resolve_db_path
 
 
 def ensure_venv():
-    venv_python = resolve_venv_python()
-    if os.path.exists(venv_python) and sys.executable != venv_python:
-        # venv_python is an absolute path within the project root, so this is safe.
-        os.execl(venv_python, venv_python, *sys.argv)  # nosec B606
+    from m3_core.paths import reexec_in_project_venv
+
+    reexec_in_project_venv()
 
 
 ensure_venv()

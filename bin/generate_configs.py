@@ -166,7 +166,7 @@ def generate_configs(write: bool = True):
     # minimal payload, and tests simulate other OSes while it is imported.
     from m3_core.config import settings as _m3cfg
 
-    embed_gguf = _m3cfg.setting("embed.gguf")
+    embed_gguf: str | os.PathLike[str] | None = _m3cfg.setting("embed.gguf")
     if not embed_gguf:
         from m3_core.paths import get_m3_models_root
 
@@ -181,7 +181,7 @@ def generate_configs(write: bool = True):
         try:
             from m3_memory.embedder_admin import seed_shared_config
 
-            _cfg_path, _wrote = seed_shared_config(gguf_path=embed_gguf or None)
+            _cfg_path, _wrote = seed_shared_config(gguf_path=os.fspath(embed_gguf) if embed_gguf else None)
             if _wrote:
                 print(f"[generate_configs] seeded shared embedder config: {_cfg_path}")
         except Exception as _e:  # noqa: BLE001 — config gen must not hard-fail on this

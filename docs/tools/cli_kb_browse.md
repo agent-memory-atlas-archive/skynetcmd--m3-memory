@@ -1,8 +1,8 @@
 ---
 tool: bin/cli_kb_browse.py
-sha1: 0ae0651fdf4a
-mtime_utc: 2026-10-10T21:05:16.943038+00:00
-generated_utc: 2026-10-10T21:05:29.411557+00:00
+sha1: aeac15387dfa
+mtime_utc: 2026-10-11T20:16:00.728249+00:00
+generated_utc: 2026-10-11T20:18:46.675340+00:00
 private: false
 ---
 
@@ -24,7 +24,7 @@ Usage:
 
 ## Entry points
 
-- `def main()` (line 230)
+- `def main()` (line 229)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -53,7 +53,7 @@ Usage:
 
 ## Calls INTO this repo (intra-repo imports)
 
-- `m3_sdk (add_database_arg, resolve_db_path, resolve_venv_python)`
+- `m3_sdk (add_database_arg, resolve_db_path)`
 
 ---
 
@@ -65,6 +65,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
+- `m3_core.paths (reexec_in_project_venv)`
 - `m3_core.paths (seam_backend, seam_dialect)`
 - `m3_core.seams (is_windows)`
 

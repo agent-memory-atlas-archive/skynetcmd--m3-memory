@@ -1220,9 +1220,11 @@ def _run_pg_migrations(bridge: Path, dsn: str) -> str | None:
         "b = PostgresBackend(); b.ensure_schema(); b.close(); "
         "print('OK')"
     )
-    env = dict(os.environ)
-    env["M3_DB_BACKEND"] = "postgres"
-    env["M3_PRIMARY_PG_URL"] = dsn
+    from m3_memory import _childenv
+
+    env = _childenv.child_env(
+        handoff=(_childenv.PG_BOOTSTRAP_SECRET, {"M3_DB_BACKEND": "postgres", "M3_PRIMARY_PG_URL": dsn})
+    )
     try:
         subprocess.run(
             [sys.executable, "-c", child],

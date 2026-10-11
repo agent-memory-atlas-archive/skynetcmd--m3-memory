@@ -21,6 +21,7 @@ import time
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
+from typing import TYPE_CHECKING
 
 from m3_core.paths import StoreRef
 
@@ -195,7 +196,7 @@ def current() -> Settings:
     return _CACHE.current()
 
 
-def setting(name: str) -> ConfigValue:
+def _setting(name: str) -> ConfigValue | None:
     """Key ``name``'s current value: m3_config.toml, then the key's env names, then
     its default, parsed by the key's one parser.
 
@@ -207,7 +208,17 @@ def setting(name: str) -> ConfigValue:
     key = REGISTRY.get(name)
     if key is None:
         raise KeyError(f"observed: {name!r} is not a registry key. inspect: m3_core/config/keys*.py")
-    return current()[key]
+    value: ConfigValue | None = current()[key]
+    return value
+
+
+# Statically, ``setting`` has one overload per value type, generated from this
+# registry (bin/gen_setting_types.py), so ``setting("search.row_cap")`` is an int.
+# A single ``-> ConfigValue`` left every caller with the full union.
+if TYPE_CHECKING:
+    from m3_memory._setting_types import setting
+else:
+    setting = _setting
 
 
 def origin_of(name: str) -> str:

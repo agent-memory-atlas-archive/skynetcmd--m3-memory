@@ -201,6 +201,17 @@ def test_no_orphaned_tool_pages():
     assert not orphans, "Orphaned tool pages (source is gone) — delete them:\n  " + "\n  ".join(orphans)
 
 
+def test_setting_types_are_fresh():
+    """m3_memory/_setting_types.py (the static type of setting(name)) is generated
+    from the config registry."""
+    import gen_setting_types
+
+    committed = os.path.join(_ROOT, "m3_memory", "_setting_types.py")
+    assert _read(committed) == gen_setting_types.render(), (
+        "m3_memory/_setting_types.py is stale — run `python bin/gen_setting_types.py` and commit."
+    )
+
+
 def test_config_reference_and_schema_are_fresh(tmp_path, monkeypatch):
     """docs/CONFIG_REFERENCE.md and the JSON Schema are generated from the config registry."""
     import gen_config_docs

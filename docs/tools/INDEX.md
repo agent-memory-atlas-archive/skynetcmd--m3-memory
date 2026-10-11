@@ -1,6 +1,6 @@
 # Tool inventory index
 
-_Generated 2026-10-11T16:19:14.396279+00:00._
+_Generated 2026-10-11T20:19:15.283697+00:00._
 
 Re-run `python bin/gen_tool_inventory.py` after changing any tool.
 Entries whose `sha1` no longer matches the live file need re-validation.
@@ -60,6 +60,7 @@ Entries whose `sha1` no longer matches the live file need re-validation.
 | [bin/gen_features_json.py](gen_features_json.md) | gen_features_json.py — generate docs/features.json (machine-readable capabilities). |  |
 | [bin/gen_mcp_inventory.py](gen_mcp_inventory.md) | gen_mcp_inventory.py — Generates docs/MCP_TOOLS.md from mcp_tool_catalog and mcp_proxy. |  |
 | [bin/gen_requirements.py](gen_requirements.md) | Generate requirements.txt: the lane install set, resolved and pinned. |  |
+| [bin/gen_setting_types.py](gen_setting_types.md) | Generate m3_memory/_setting_types.py: the static type of ``setting(name)``. |  |
 | [bin/gen_star_history.py](gen_star_history.md) | Generate docs/star-history.svg from the GitHub stargazers API. |  |
 | [bin/gen_tool_manifest.py](gen_tool_manifest.md) | Generate a machine-readable tool-catalog manifest at docs/tools/MCP_CATALOG.json. |  |
 | [bin/gen_wiki.py](gen_wiki.md) | gen_wiki.py — compile a browsable wiki from core memories + the files corpus. |  |

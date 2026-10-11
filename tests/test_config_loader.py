@@ -71,6 +71,28 @@ def test_db_backend_set_is_the_selectors():
         key.check("postgre")
 
 
+def test_every_key_has_a_typed_parser():
+    """A key parsed by the builtin ``str`` got no TOML type check at all:
+    ``dashboard.host = 8088`` passed through as an int (13 keys, found 2026-10-11).
+    Every key must use a registry parser or an annotated one of its own."""
+    import typing
+
+    from m3_core.config import REGISTRY
+    from m3_core.config.registry import known_type
+
+    untyped = sorted(
+        k.name for k in REGISTRY if known_type(k) is None and "return" not in typing.get_type_hints(k.parse)
+    )
+    assert not untyped, f"keys with an untyped parser (use registry.parse_str etc.): {untyped}"
+
+
+def test_a_string_key_rejects_a_non_string_file_value():
+    from m3_core.config import REGISTRY, ConfigValueError
+
+    with pytest.raises(ConfigValueError, match="expected str"):
+        REGISTRY.get("dashboard.host").coerce_file_value(8088)
+
+
 def test_an_env_name_is_claimed_by_one_key_only():
     from m3_core.config import REGISTRY, Key, Registry
 

@@ -21,6 +21,27 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **Windows: the hourly sync no longer opens a window, and reports its real
+  result.** When a `.venv` directory sat inside the installed package, `pg_sync`
+  restarted itself under it: a console window flashed every hour, and the sync
+  always read the restart as success, including runs that failed or were
+  skipped. `pg_sync` and the knowledge CLIs now restart only from outside any
+  virtual environment, and a restart keeps the exit code and arguments.
+  **Affected:** Windows installs with a `.venv` inside the package directory ·
+  **Action:** none (the stray `.venv` can be deleted) · **Data status:** a sync
+  reported as successful may not have run; the next run catches up.
+
+- **The embed server listens on the configured port.** m3 started
+  `m3-embed-server` on 8082 whatever `embed.server.port` said in
+  `m3_config.toml`, while checking the configured port.
+  **Affected:** users who set `embed.server.port` in the config file ·
+  **Action:** restart the embed server · **Data status:** none.
+
+- **Text settings in `m3_config.toml` are type-checked.** Thirteen text settings
+  (such as `dashboard.host`) accepted a number or a list without an error.
+  **Affected:** config files with a wrong-typed text value · **Action:** fix the
+  value the error names · **Data status:** none.
+
 - **Installed m3 finds its own scripts from every command.** Several commands
   looked for m3's `bin/` directory one level too high on a pip-installed copy,
   and two could put the current directory on Python's import path when it was

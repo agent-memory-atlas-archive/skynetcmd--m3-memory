@@ -870,9 +870,15 @@ def _bind_read_log_deps() -> tuple[Any, Any]:
     return _read_log_deps
 
 
+_read_log_tick = threading.Event()  # never set: its wait() is the flusher's own sleep
+
+
 def _read_log_loop() -> None:
     while True:
-        time.sleep(_READ_LOG_FLUSH_S)
+        # Not time.sleep: that is the process-wide time module, which code and
+        # tests patch (test_m3_halt's sleep stub raised inside this thread and
+        # killed it, 2026-10-11). An Event wait is this thread's alone.
+        _read_log_tick.wait(_READ_LOG_FLUSH_S)
         try:
             flush_read_log()
         except Exception as e:  # noqa: BLE001 — the flusher must outlive any one failure

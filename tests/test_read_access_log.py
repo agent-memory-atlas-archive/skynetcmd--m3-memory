@@ -131,3 +131,30 @@ def test_maintenance_prunes_rows_past_retention(mem):
         conn.commit()
     memory_maintenance_impl(decay=False, purge_expired=False, reinforce=False, prune_orphan_queues=False)
     assert [r["agent_id"] for r in _log(backend, mid)] == ["new-agent"]
+
+
+def test_the_flusher_does_not_sleep_on_the_shared_time_module(monkeypatch):
+    """Code and tests patch time.sleep process-wide (test_m3_halt stubs it to
+    fail): a flusher sleeping on it died in the gate, 2026-10-11. It must wait on
+    its own Event."""
+    import importlib
+    import time
+
+    db = importlib.import_module("memory.db")
+
+    class _Stop(BaseException):
+        pass
+
+    class _Tick:
+        calls = 0
+
+        def wait(self, _timeout):
+            self.calls += 1
+            if self.calls > 1:
+                raise _Stop
+
+    monkeypatch.setattr(time, "sleep", lambda s: pytest.fail("the flusher slept on the shared time module"))
+    monkeypatch.setattr(db, "_read_log_tick", _Tick(), raising=False)  # absent before the fix
+    monkeypatch.setattr(db, "flush_read_log", lambda: 0)
+    with pytest.raises(_Stop):
+        db._read_log_loop()

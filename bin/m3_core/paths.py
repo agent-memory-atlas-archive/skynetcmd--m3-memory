@@ -356,6 +356,26 @@ def resolve_venv_python() -> str:
     return os.path.join(base, ".venv", "bin", "python")
 
 
+def reexec_in_project_venv() -> None:
+    """Re-run this script under the project's ``.venv`` when it was started by an
+    interpreter OUTSIDE any venv (a dev checkout run with the system Python).
+
+    Never from inside a venv: a pip/pipx install already runs in its own, and a
+    stray ``.venv`` beside an installed payload (found 2026-10-11 under
+    ``site-packages/m3_memory``) re-ran the hourly sync under an interpreter nobody
+    chose, through a Windows "exec" that flashed a window and reported exit 0 for
+    every run (``m3_memory._platform.reexec``). The one owner: pg_sync and the two
+    knowledge CLIs each carried a copy."""
+    if sys.prefix != sys.base_prefix:
+        return
+    venv_python = resolve_venv_python()
+    if not os.path.exists(venv_python) or os.path.abspath(sys.executable) == os.path.abspath(venv_python):
+        return
+    from m3_core.seams import reexec
+
+    reexec([venv_python, *sys.argv])
+
+
 def canonical_path(p: "str | os.PathLike[str]") -> str:
     """The lexical absolute form of ``p``, as a string: the one owner of path IDENTITY.
 

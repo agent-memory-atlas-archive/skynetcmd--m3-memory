@@ -29,7 +29,7 @@ import time
 from pathlib import Path
 from typing import cast
 
-from m3_memory import _config
+from m3_memory import _childenv, _config
 from m3_memory._platform import is_macos, is_windows
 
 # Exit code for "the service is REGISTERED but is not running". Distinct from 1
@@ -427,12 +427,23 @@ def repair_exec_bit(binary: Path | None = None, dry_run: bool = False) -> dict:
     }
 
 
+def _embed_server_env(gguf: Path) -> dict[str, str]:
+    """The Rust server's environment: its sanctioned handoff (env is its only
+    configuration interface) with the GGUF and the RESOLVED port. The port used to
+    be hardcoded to 8082, so a port set in m3_config.toml moved m3's own probe but
+    never the server."""
+    return _childenv.child_env(
+        handoff=(
+            _childenv.RUST_EMBED_SERVER,
+            {"M3_EMBED_GGUF": str(gguf), "M3_EMBED_SERVER_PORT": str(_embed_server_port())},
+        )
+    )
+
+
 def _service_cmd(binary: Path, gguf: Path, sub: str, *extra: str) -> int:
     """Run `<binary> <sub> [extra...]` with the GGUF path in env."""
     _ensure_executable(binary)
-    env = os.environ.copy()
-    env.setdefault("M3_EMBED_GGUF", str(gguf))
-    env.setdefault("M3_EMBED_SERVER_PORT", "8082")
+    env = _embed_server_env(gguf)
     # The child writes straight to the same stream; flush ours first so a piped
     # (block-buffered) stdout does not print our lines after its output.
     sys.stdout.flush()
@@ -442,9 +453,7 @@ def _service_cmd(binary: Path, gguf: Path, sub: str, *extra: str) -> int:
 def _service_cmd_quiet(binary: Path, gguf: Path, sub: str, *extra: str) -> int:
     """_service_cmd, printing the binary's output only when it fails."""
     _ensure_executable(binary)
-    env = os.environ.copy()
-    env.setdefault("M3_EMBED_GGUF", str(gguf))
-    env.setdefault("M3_EMBED_SERVER_PORT", "8082")
+    env = _embed_server_env(gguf)
     proc = subprocess.run(
         [str(binary), sub, *extra], env=env, check=False, capture_output=True, text=True, errors="replace"
     )
@@ -478,9 +487,7 @@ def _service_reports_installed(binary: Path, gguf: Path) -> bool:
     """True if the service manager says the service exists. `status` prints
     'running'/'stopped' when registered and 'not installed' otherwise, so parse
     its stdout rather than trusting the exit code alone."""
-    env = os.environ.copy()
-    env.setdefault("M3_EMBED_GGUF", str(gguf))
-    env.setdefault("M3_EMBED_SERVER_PORT", "8082")
+    env = _embed_server_env(gguf)
     try:
         out = subprocess.run(
             [str(binary), "status"],
@@ -566,7 +573,7 @@ def _service_reports_running(binary: Path, gguf: Path) -> bool:
     try:
         proc = subprocess.run(
             [str(binary), "status"],
-            env={**os.environ, "M3_EMBED_GGUF": str(gguf)},
+            env=_embed_server_env(gguf),
             capture_output=True,
             text=True,
             timeout=20,

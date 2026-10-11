@@ -1,8 +1,8 @@
 ---
 tool: bin/pg_sync.py
-sha1: d649ee6937fd
-mtime_utc: 2026-10-11T19:20:11.403966+00:00
-generated_utc: 2026-10-11T19:29:29.356165+00:00
+sha1: cb8696155123
+mtime_utc: 2026-10-11T20:16:00.729246+00:00
+generated_utc: 2026-10-11T20:18:47.181852+00:00
 private: false
 ---
 
@@ -16,7 +16,7 @@ _(no module docstring — update the source file.)_
 
 ## Entry points
 
-- `def main()` (line 1796)
+- `def main()` (line 1794)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -42,7 +42,6 @@ _(none detected)_
 - `chatlog_config (chatlog_db_path)`
 - `m3_halt (pid_is_alive)`
 - `m3_sdk (M3Context, resolve_db_path)`
-- `m3_sdk (resolve_venv_python)`
 - `m3_sdk (resolve_warehouse_dsn)`
 - `migrate_memory`
 
@@ -57,6 +56,7 @@ _(no subprocess / http / sqlite calls detected)_
 ## Notable external imports
 
 - `doctor.embed_space_probe (_family)`
+- `m3_core.paths (reexec_in_project_venv)`
 - `m3_core.secret_store (bump_secret_generation)`
 - `memory.backends (active_backend)`
 - `memory.backends (dialect)`

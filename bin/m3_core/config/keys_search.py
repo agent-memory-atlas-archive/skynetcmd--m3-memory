@@ -8,7 +8,7 @@ M3_ROUTE_SHADOW_MODE. M3_LIMIT_PER_PASS belongs to the cognitive loop's table.
 
 from __future__ import annotations
 
-from .registry import Key, in_range, one_of, parse_bool, parse_float, parse_int, parse_list
+from .registry import Key, in_range, one_of, parse_bool, parse_float, parse_int, parse_list, parse_str
 
 _NONNEG = in_range(lo=0)
 
@@ -112,7 +112,7 @@ SEARCH: list[Key] = [
     ),
     Key[str](
         name="search.rerank_model",
-        parse=str,
+        parse=parse_str,
         default="cross-encoder/ms-marco-MiniLM-L-6-v2",
         env_names=("M3_RERANK_MODEL",),
         reloadable=False,

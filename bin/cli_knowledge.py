@@ -8,14 +8,13 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, BASE_DIR)
 
 sys.path.insert(0, os.path.join(BASE_DIR, "bin"))
-from m3_sdk import add_database_arg, resolve_venv_python
+from m3_sdk import add_database_arg
 
 
 def ensure_venv():
-    venv_python = resolve_venv_python()
-    if os.path.exists(venv_python) and sys.executable != venv_python:
-        # venv_python is an absolute path within the project root, so this is safe.
-        os.execl(venv_python, venv_python, *sys.argv)  # nosec B606
+    from m3_core.paths import reexec_in_project_venv
+
+    reexec_in_project_venv()
 
 
 ensure_venv()

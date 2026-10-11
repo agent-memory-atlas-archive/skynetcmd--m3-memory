@@ -280,7 +280,7 @@ def _select_rows(
     return out
 
 
-def _load_conv_allowlist(path: str | None) -> set[str] | None:
+def _load_conv_allowlist(path: str | os.PathLike[str] | None) -> set[str] | None:
     if not path:
         return None
     p = Path(path)

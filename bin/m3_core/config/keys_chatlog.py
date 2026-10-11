@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import os
 
-from .registry import Key, in_range, parse_bool, parse_float, parse_int
+from .registry import Key, in_range, parse_bool, parse_float, parse_int, parse_str
 
 
 def _eq1(raw: str) -> bool:  # today's `== "1"`
@@ -48,7 +48,7 @@ def _float(name, env, default, doc):
 
 
 def _str(name, env, default, doc):
-    return Key[str](name=name, parse=str, default=default, env_names=env, reloadable=False, doc=doc)
+    return Key[str](name=name, parse=parse_str, default=default, env_names=env, reloadable=False, doc=doc)
 
 
 def parse_path_list(raw: str) -> list[str]:

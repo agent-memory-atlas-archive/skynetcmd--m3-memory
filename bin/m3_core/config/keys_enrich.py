@@ -9,7 +9,7 @@ user's 2026-10-09 "retire settings that have no effect" decision.
 
 from __future__ import annotations
 
-from .registry import Key, in_range, parse_bool, parse_float, parse_int, parse_list, parse_path
+from .registry import Key, in_range, parse_bool, parse_float, parse_int, parse_list, parse_path, parse_str
 
 _UNIT = in_range(lo=0, hi=1)
 
@@ -40,7 +40,7 @@ ENRICH: list[Key] = [
     # ── [enrich]: m3_enrich's run defaults (a CLI flag always wins) ──
     Key[str](
         name="enrich.profile",
-        parse=str,
+        parse=parse_str,
         default="enrich_local_qwen",
         env_names=("M3_ENRICH_PROFILE",),
         reloadable=False,
@@ -95,7 +95,7 @@ ENRICH: list[Key] = [
     ),
     Key[str](
         name="enrich.send_to",
-        parse=str,
+        parse=parse_str,
         default=None,
         env_names=("M3_ENRICH_SEND_TO",),
         reloadable=False,
@@ -193,7 +193,7 @@ ENRICH: list[Key] = [
     # ── [gliner]: m3_entities_gliner (today env OVERRIDES its CLI flags; 2D fixes) ──
     Key[str](
         name="gliner.model",
-        parse=str,
+        parse=parse_str,
         default="urchade/gliner_large-v2.1",
         env_names=("M3_GLINER_MODEL",),
         reloadable=False,
@@ -203,7 +203,7 @@ ENRICH: list[Key] = [
     _int("gliner.batch_size", "M3_GLINER_BATCH_SIZE", 32, "Texts per GLiNER batch."),
     Key[str](
         name="gliner.device",
-        parse=str,
+        parse=parse_str,
         default="cuda",
         env_names=("M3_GLINER_DEVICE",),
         reloadable=False,

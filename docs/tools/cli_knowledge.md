@@ -1,8 +1,8 @@
 ---
 tool: bin/cli_knowledge.py
-sha1: 8c5a27a84e9a
-mtime_utc: 2026-10-10T21:05:16.995550+00:00
-generated_utc: 2026-10-10T21:05:29.414685+00:00
+sha1: 9103e4db3ea8
+mtime_utc: 2026-10-11T20:16:00.728249+00:00
+generated_utc: 2026-10-11T20:18:46.678932+00:00
 private: false
 ---
 
@@ -16,7 +16,7 @@ _(no module docstring — update the source file.)_
 
 ## Entry points
 
-- `def main()` (line 33)
+- `def main()` (line 32)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -53,7 +53,7 @@ _(no module docstring — update the source file.)_
 
 ## Calls INTO this repo (intra-repo imports)
 
-- `m3_sdk (add_database_arg, resolve_venv_python)`
+- `m3_sdk (add_database_arg)`
 
 ---
 
@@ -65,6 +65,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
+- `m3_core.paths (reexec_in_project_venv)`
 - `memory.knowledge_helpers (add_knowledge, delete_knowledge, get_all_types, list_knowledge, search_knowledge, update_knowledge)`
 
 ---
