@@ -65,7 +65,7 @@ def test_sweep_resolves_type(tmp_path):
     assert typ == "decision"
 
 
-def test_sweep_failopen_leaves_auto_on_llm_timeout(tmp_path):
+def test_sweep_failopen_leaves_auto_on_llm_timeout(tmp_path, m3_settings):
     db = str(tmp_path / "m.db")
     _mk_db(db)
 
@@ -74,10 +74,8 @@ def test_sweep_failopen_leaves_auto_on_llm_timeout(tmp_path):
         return "decision"
 
     # Tight deadline so the test is fast; the row must stay 'auto', no raise.
-    with (
-        patch.dict("os.environ", {"M3_CLASSIFY_DEADLINE_S": "0.2"}),
-        patch("memory.enrich._auto_classify", side_effect=hang_classify),
-    ):
+    m3_settings({"loop.classify_deadline_s": 0.2})
+    with patch("memory.enrich._auto_classify", side_effect=hang_classify):
         asyncio.run(L.run_classify_pass(_Args(db)))
 
     c = sqlite3.connect(db)

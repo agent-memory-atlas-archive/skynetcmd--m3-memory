@@ -1,8 +1,8 @@
 ---
 tool: bin/auth_utils.py
-sha1: 69ed2c1d4aa1
-mtime_utc: 2026-10-11T19:20:03.988096+00:00
-generated_utc: 2026-10-11T19:29:28.626956+00:00
+sha1: dcf7cfcf0096
+mtime_utc: 2026-10-11T20:28:34.222107+00:00
+generated_utc: 2026-10-11T20:28:52.702068+00:00
 private: false
 ---
 
@@ -39,7 +39,6 @@ _(no argparse arguments detected)_
 
 - `_task_runtime (no_window_kwargs)`
 - `crypto_provider (provider)`
-- `m3_sdk (get_m3_config_root, get_m3_root)`
 - `m3_sdk (resolve_db_path)`
 
 ---
@@ -62,6 +61,7 @@ _(no argparse arguments detected)_
 - `keyring`
 - `m3_core.config (settings)`
 - `m3_core.errors (log_swallowed)`
+- `m3_core.paths (get_m3_config_root, get_m3_legacy_root)`
 - `m3_core.paths (resolve_backend_name, store_is_a_file)`
 - `m3_core.seams (is_macos, is_windows, os_name)`
 - `m3_core.secret_store (SecretsFileError)`

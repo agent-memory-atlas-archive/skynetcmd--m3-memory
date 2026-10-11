@@ -44,14 +44,13 @@ from typing import cast
 from m3_core.seams import is_windows
 
 sys.path.insert(0, os.path.dirname(__file__))
-from m3_sdk import get_m3_config_root, get_m3_engine_root, get_m3_root
+from m3_sdk import get_m3_config_root, get_m3_engine_root
 
 logging.basicConfig(level=logging.INFO, format="%(name)s: [%(levelname)s] %(message)s")
 logger = logging.getLogger("migrate_memory")
 
 _M3_CONFIG_ROOT = get_m3_config_root()
 _M3_ENGINE_ROOT = get_m3_engine_root()
-_M3_ROOT = get_m3_root()
 
 # Path resolution (new-root-with-legacy-fallback) is the single source of truth
 # in m3_core.paths; these local names are thin aliases.

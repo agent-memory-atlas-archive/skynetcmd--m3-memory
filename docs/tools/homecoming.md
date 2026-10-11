@@ -1,8 +1,8 @@
 ---
 tool: bin/homecoming.py
-sha1: 524a250e6dbc
-mtime_utc: 2026-10-10T22:34:36.870403+00:00
-generated_utc: 2026-10-10T22:35:15.107620+00:00
+sha1: ff21c6242ddc
+mtime_utc: 2026-10-11T20:28:34.224199+00:00
+generated_utc: 2026-10-11T20:28:52.979853+00:00
 private: false
 ---
 
@@ -22,7 +22,7 @@ and MOVES configuration files. It does NOT modify system-wide tool settings
 
 ## Entry points
 
-- `def main()` (line 91)
+- `def main()` (line 95)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -54,7 +54,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
-_(only stdlib)_
+- `m3_core.seams (root_migration)`
 
 ---
 

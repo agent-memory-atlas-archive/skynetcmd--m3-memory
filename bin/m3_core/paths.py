@@ -407,8 +407,16 @@ def _abs_root(root: str) -> str:
 
 
 def get_m3_root() -> str:
-    """The memory root: ``M3_MEMORY_ROOT``, else ``~/.m3-memory`` (``m3_memory._roots``)."""
+    """The memory root: ``M3_MEMORY_ROOT``, else ``~/.m3`` once migrated, else
+    ``~/.m3-memory`` (``m3_memory._roots``)."""
     return _roots.memory_root()
+
+
+def get_m3_legacy_root() -> str:
+    """Where pre-decoupling state lives, for legacy FALLBACK lookups only
+    (``m3_memory._roots.legacy_memory_root``): never ``get_m3_root()``, which moves
+    to ``~/.m3`` at the Root-1 flip."""
+    return _roots.legacy_memory_root()
 
 
 def get_m3_backups_root() -> str:
@@ -441,10 +449,10 @@ def config_root_with_tier() -> tuple[str, str]:
 
 
 def dotenv_path() -> str | None:
-    """The legacy .env m3 reads: ``<config root>/.env``, else ``<memory root>/.env``;
+    """The legacy .env m3 reads: ``<config root>/.env``, else the legacy root's ``.env``;
     None when neither exists. The one owner of that rule: M3Context injects it
     (until 2D) and the config registry parses it as its lowest source."""
-    for root in (get_m3_config_root(), get_m3_root()):
+    for root in (get_m3_config_root(), get_m3_legacy_root()):
         candidate = os.path.join(root, ".env")
         if os.path.exists(candidate):
             return candidate
@@ -492,7 +500,7 @@ def resolve_engine_file(filename: str) -> str:
     import it from here so the resolution rule lives in exactly one place.
     """
     new_path = os.path.join(get_m3_engine_root(), filename)
-    legacy_path = os.path.join(get_m3_root(), "memory", filename)
+    legacy_path = os.path.join(get_m3_legacy_root(), "memory", filename)
     if os.path.exists(legacy_path) and not os.path.exists(new_path):
         return legacy_path
     return new_path
@@ -687,7 +695,7 @@ def resolve_config_file(filename: str) -> str:
     :func:`resolve_engine_file`; see that docstring for the de-duplication note.
     """
     new_path = os.path.join(get_m3_config_root(), filename)
-    legacy_path = os.path.join(get_m3_root(), "memory", filename)
+    legacy_path = os.path.join(get_m3_legacy_root(), "memory", filename)
     if os.path.exists(legacy_path) and not os.path.exists(new_path):
         return legacy_path
     return new_path

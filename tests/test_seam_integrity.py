@@ -214,10 +214,11 @@ def test_m3_core_seams_reexports_the_seams_unchanged():
     seams = importlib.import_module("m3_core.seams")
     pf = importlib.import_module("m3_memory._platform")
     pv = importlib.import_module("m3_memory._pyver")
-    # The roots owner is re-exported as a module, so its functions stay its own.
-    assert seams.roots is importlib.import_module("m3_memory._roots"), "m3_core.seams.roots is not m3_memory._roots"
-    assert seams.childenv is importlib.import_module("m3_memory._childenv"), "m3_core.seams.childenv is not its owner"
-    for name in (n for n in seams.__all__ if n not in ("roots", "childenv")):
+    # The stdlib-only owners are re-exported as modules, so their functions stay their own.
+    module_owners = {"roots": "_roots", "childenv": "_childenv", "root_migration": "_root_migration"}
+    for name, mod in module_owners.items():
+        assert getattr(seams, name) is importlib.import_module(f"m3_memory.{mod}"), f"m3_core.seams.{name} is not {mod}"
+    for name in (n for n in seams.__all__ if n not in module_owners):
         owner = pf if hasattr(pf, name) else pv
         assert getattr(seams, name) is getattr(owner, name), f"m3_core.seams.{name} is not the seam's own"
     defs = [

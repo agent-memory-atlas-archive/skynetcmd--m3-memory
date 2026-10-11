@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_status.py
-sha1: 78d072449208
-mtime_utc: 2026-10-11T19:09:42.552596+00:00
-generated_utc: 2026-10-11T19:18:31.751969+00:00
+sha1: fa2e1cbb28c4
+mtime_utc: 2026-10-11T20:28:34.223614+00:00
+generated_utc: 2026-10-11T20:28:52.794349+00:00
 private: false
 ---
 
@@ -23,7 +23,7 @@ Cold call <50ms (no full table scans).
 
 ## Entry points
 
-- `def main()` (line 1066)
+- `def main()` (line 1064)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -47,7 +47,6 @@ Cold call <50ms (no full table scans).
 ## Calls INTO this repo (intra-repo imports)
 
 - `chatlog_config`
-- `m3_sdk (get_m3_root)`
 - `m3_sdk (resolve_db_path)`
 
 ---
@@ -56,14 +55,14 @@ Cold call <50ms (no full table scans).
 
 **subprocess**
 
-- `subprocess.run()  → `cmd`` (line 760)
+- `subprocess.run()  → `cmd`` (line 758)
 
 **sqlite**
 
-- `sqlite3.connect()  → `chatlog_db`` (line 139)
-- `sqlite3.connect()  → `files_db`` (line 211)
-- `sqlite3.connect()  → `main_db`` (line 127)
-- `sqlite3.connect()  → `uri`` (line 309)
+- `sqlite3.connect()  → `chatlog_db`` (line 137)
+- `sqlite3.connect()  → `files_db`` (line 209)
+- `sqlite3.connect()  → `main_db`` (line 125)
+- `sqlite3.connect()  → `uri`` (line 307)
 
 
 ---
@@ -74,6 +73,7 @@ Cold call <50ms (no full table scans).
 - `files_memory.config (files_table)`
 - `files_memory.db (_db)`
 - `files_memory.db (_files_store_is_a_schema)`
+- `m3_core.paths (resolve_engine_file)`
 - `m3_core.paths (seam_backend)`
 - `m3_core.seams (childenv)`
 - `m3_core.seams (read_key)`

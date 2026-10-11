@@ -10,7 +10,7 @@ a backwards-compatible alias). Run `m3 <command> --help` for flags.
 | Command | What it does |
 | --- | --- |
 | `m3 setup` | Interactive one-command setup: payload, embedder, agent wiring, chatlog hooks, final `m3 doctor` (`--gui` for a window) |
-| `m3 install-m3` | Fetch the system payload into the M3 root (default `~/.m3-memory/repo`); `--db-backend postgres` for a PostgreSQL primary store |
+| `m3 install-m3` | Fetch the system payload into the memory root's `repo/` (`~/.m3/repo`; `~/.m3-memory/repo` before the root moves); `--db-backend postgres` for a PostgreSQL primary store |
 | `m3 reinstall` | Wipe and reinstall the payload (alias for `install-m3 --force`) |
 | `m3 upgrade` | Upgrade the package end to end with the right installer (pipx / pip / pip --user), then re-wire and verify; `--from-pypi` moves a pipx install off a local wheel onto PyPI |
 | `m3 update` | Re-sync the payload for the installed version (not a package upgrade) |
@@ -53,7 +53,7 @@ destructive tool; `m3 <domain> --help` lists the tools):
 
 ## `bin/` scripts and their target database
 
-The rest of this document lists every command-line entry point that touches a SQLite database and how each one selects its target DB. Run these `bin/*.py` scripts from a source checkout (or the installed payload at `~/.m3-memory/repo/bin`).
+The rest of this document lists every command-line entry point that touches a SQLite database and how each one selects its target DB. Run these `bin/*.py` scripts from a source checkout (or the installed payload at `<memory root>/repo/bin`).
 
 ## Universal `--database` flag
 

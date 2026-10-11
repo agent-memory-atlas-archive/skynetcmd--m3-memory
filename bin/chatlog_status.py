@@ -68,11 +68,9 @@ def _resolve_files_location() -> str:
 
         return os.path.abspath(CONFIG_FILES_DB_PATH)
     except Exception:
-        from m3_sdk import get_m3_root
+        from m3_core.paths import resolve_engine_file
 
-        return os.path.abspath(
-            os.environ.get("M3_FILES_DB_PATH") or os.path.join(get_m3_root(), "memory", "files_database.db")
-        )
+        return os.path.abspath(os.environ.get("M3_FILES_DB_PATH") or resolve_engine_file("files_database.db"))
 
 
 def _load_state_file() -> dict[str, Any]:
@@ -200,10 +198,10 @@ def _get_row_counts(config: chatlog_config.ChatlogConfig) -> dict[str, Any]:
 
                 files_db = os.path.abspath(CONFIG_FILES_DB_PATH)
             except Exception:
-                from m3_sdk import get_m3_root
+                from m3_core.paths import resolve_engine_file
 
                 files_db = os.path.abspath(
-                    os.environ.get("M3_FILES_DB_PATH") or os.path.join(get_m3_root(), "memory", "files_database.db")
+                    os.environ.get("M3_FILES_DB_PATH") or resolve_engine_file("files_database.db")
                 )
 
             if os.path.exists(files_db):

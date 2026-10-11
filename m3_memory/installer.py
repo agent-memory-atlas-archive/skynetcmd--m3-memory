@@ -64,7 +64,9 @@ TARBALL_URL_TEMPLATE = "https://github.com/skynetcmd/m3-memory/archive/refs/tags
 
 def config_dir() -> Path:
     """Directory for per-user m3-memory state (config + default repo clone): the
-    memory root, from its one owner (M3_MEMORY_ROOT, else ~/.m3-memory)."""
+    memory root, from its one owner (M3_MEMORY_ROOT, else ~/.m3 once migrated, else
+    ~/.m3-memory). An existing payload is found through config.json's repo_path, which
+    the Root-1 migration copies, so only a NEW fetch lands under ~/.m3."""
     from m3_memory import _roots
 
     return Path(_roots.memory_root())
@@ -2661,6 +2663,26 @@ def _migrate_dotenv_file(path: Path, renames: dict[str, str], *, apply: bool) ->
     return actions
 
 
+def _memory_root_migration_section(fix: bool) -> None:
+    """Doctor section (Root-1): report legacy ~/.m3-memory state still to move to
+    ~/.m3, and move it on --fix. Silent when there is nothing to migrate. Not a
+    fault: an un-migrated install works, so it is information, not a warning."""
+    from m3_memory import _root_migration, _roots
+
+    if not _root_migration.pending():
+        return
+    print()
+    if not fix:
+        print(f"  [i] memory root: still the legacy {_roots.legacy_memory_root()}.")
+        print("      → `m3 doctor --fix` copies its state to ~/.m3 and switches to it (the old root is kept).")
+        return
+    report = _root_migration.migrate_memory_root()
+    if report["failed"]:
+        print("  [X] memory root NOT moved: " + "; ".join(report["failed"]))
+        return
+    print(f"  [OK] memory root moved to ~/.m3 (copied: {', '.join(report['moved']) or 'nothing'}; old root kept)")
+
+
 def _deprecated_env_config_section() -> None:
     """Doctor section: flag on-disk config still using deprecated env var names.
 
@@ -2900,6 +2922,7 @@ def doctor(fix: bool = False, brief: bool = False) -> int:
                 print(f"  {line}")
         _duplicate_registration_section()
         _deprecated_env_config_section()
+        _memory_root_migration_section(fix)
         bridge = find_bridge()
         if bridge and os.path.isfile(bridge):
             print("[OK] memory bridge found")  # its path: `m3 doctor --verbose`
@@ -2960,6 +2983,7 @@ def doctor(fix: bool = False, brief: bool = False) -> int:
         print("developer sibling bridge:  (not found)")
 
     _roots_section()
+    _memory_root_migration_section(fix)
 
     _backend_section(cfg)
 

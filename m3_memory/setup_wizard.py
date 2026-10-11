@@ -2319,6 +2319,24 @@ def _step_cpu_sovereign_embedder() -> bool:
         return True  # non-fatal
 
 
+def _step_migrate_memory_root() -> bool:
+    """Root-1: copy the legacy ~/.m3-memory state into ~/.m3 and flip the default.
+    Runs after preflight quiesced the DB-writers, so nothing appends to the audit
+    trail mid-merge. Non-fatal: an un-migrated install keeps working on its old
+    root, and the next setup or `m3 doctor --fix` retries."""
+    from m3_memory import _root_migration
+
+    if not _root_migration.pending():
+        return True
+    report = _root_migration.migrate_memory_root()
+    if report["failed"]:
+        _warn("  memory root NOT moved (still ~/.m3-memory): " + "; ".join(report["failed"]))
+        _warn("  inspect: fix the cause, then re-run `m3 setup` or `m3 doctor --fix`")
+        return False
+    _ok(f"  memory root moved to ~/.m3 (copied: {', '.join(report['moved']) or 'nothing'}; old root kept)")
+    return True
+
+
 def _step_rust_core(plan: SetupPlan) -> bool:
     """Ensure the m3-core-rs native wheel is present AND at the pinned version.
 
@@ -4220,6 +4238,7 @@ def run_setup(args: argparse.Namespace) -> int:
         return 2  # preflight cleared its own HALT on any abort path
     try:
         _begin_elevation_batch(gui=getattr(args, "gui_child", False))
+        _step_migrate_memory_root()
         if not _step_install_m3(plan):
             _err("setup aborted")
             return 2

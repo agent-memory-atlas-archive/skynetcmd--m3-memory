@@ -26,6 +26,7 @@ if _ilu.find_spec("m3_memory") is None:
         _sys.path.append(str(_root))
 
 from m3_memory import _childenv as childenv  # noqa: E402  (child-process env owner, stdlib-only)
+from m3_memory import _root_migration as root_migration  # noqa: E402  (Root-1 migration, stdlib-only)
 from m3_memory import _roots as roots  # noqa: E402  (the root-directory owner, stdlib-only)
 from m3_memory._platform import (  # noqa: E402
     PLATFORM_OF,
@@ -64,6 +65,7 @@ __all__ = [
     "python_exe",
     "read_key",
     "reexec",
+    "root_migration",
     "roots",
     "user_env_get",
     "user_env_snapshot",

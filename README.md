@@ -459,7 +459,7 @@ m3 ships a Rust compute core (`m3_core_rs`) that speeds up MMR re-ranking by **9
     | `M3_ENGINE_ROOT` | `~/.m3/engine` | Databases + runtime state (`agent_memory.db`, `agent_chatlog.db`, `files_database.db`) |
     | `M3_CONFIG_ROOT` | `~/.m3/config` | Configuration (chatlog config, salt) |
     | `M3_LOGS_ROOT` | `~/.m3/logs` | Scheduled-task and service logs |
-    | `M3_MEMORY_ROOT` | `~/.m3-memory` | Payload root, and master override for the other roots (not a repo clone) |
+    | `M3_MEMORY_ROOT` | `~/.m3` (`~/.m3-memory` until `m3 setup` or `m3 doctor --fix` moves it) | Payload root, and master override for the other roots (not a repo clone) |
 
     **All are overridable.** Set any of them to relocate that root. `M3_MEMORY_ROOT` also acts as a master override — if set and the others are unset, engine, config and logs derive from it as `<root>/engine`, `<root>/config` and `<root>/logs`. Precedence is `M3_ENGINE_ROOT` / `M3_CONFIG_ROOT` / `M3_LOGS_ROOT` → `M3_MEMORY_ROOT/…` → the `~/.m3/…` default, so a specific root always wins over the master. (See [Architecture](docs/ARCHITECTURE.md).)
 

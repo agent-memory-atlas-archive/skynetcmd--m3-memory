@@ -27,6 +27,10 @@ except ImportError:
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger("homecoming")
 
+from m3_core.seams import root_migration  # noqa: E402  (the ONE Root-1 migration)
+
+migrate_memory_root = root_migration.migrate_memory_root
+
 
 def get_size_mb(path):
     if os.path.isfile(path):
@@ -99,7 +103,7 @@ def main():
         logger.info(
             "No legacy assets found in repository or old ~/.m3-memory/. Current configuration is already standard."
         )
-        return None
+        return _report_memory_root(migrate_memory_root())
 
     failed = []
     total_size = sum(get_size_mb(src) for src, _ in assets.values())
@@ -159,7 +163,15 @@ def main():
     logger.info(f"New engine root: {engine_root}")
 
     _print_post_migration_checklist(config_root, engine_root)
-    return 0
+    return _report_memory_root(migrate_memory_root())
+
+
+def _report_memory_root(report) -> int:
+    if report["skipped"]:
+        logger.info(f"Memory root: not migrated ({report['skipped']}).")
+        return 0
+    logger.info(f"Memory root: moved {report['moved'] or 'nothing'}; kept existing {report['kept'] or 'none'}.")
+    return 1 if report["failed"] else 0
 
 
 def _rewrite_chatlog_db_path(config_path, engine_root):

@@ -78,12 +78,41 @@ def pinned(env_name: str) -> str | None:
     return abs_root(root) if root else None
 
 
+MIGRATED_MARKER = ".memory_root_migrated"
+
+
+def memory_root_pin() -> str | None:
+    """The memory root ``M3_MEMORY_ROOT`` pins explicitly, or None. The one read of
+    that name for Root-1: the legacy root, the default and the migration all ask here."""
+    return pinned(MEMORY_ROOT_ENV)
+
+
+def legacy_memory_root() -> str:
+    """Where pre-decoupling state lives: ``M3_MEMORY_ROOT`` when pinned, else
+    ``~/.m3-memory``. Legacy lookups (the old salt location, the .env fallback, the
+    old ``memory/`` databases) read it through the deprecation window, whatever
+    ``memory_root()`` resolves to. They must NOT ask ``memory_root()``: after the
+    Root-1 flip that answers ``~/.m3``, and a pre-Homecoming install whose
+    databases still sit in ``~/.m3-memory/memory/`` would stop finding them."""
+    return memory_root_pin() or _home(".m3-memory")
+
+
+def memory_root_migrated() -> bool:
+    """True once ``homecoming.migrate_memory_root`` has moved the legacy root's
+    state into ``~/.m3`` (it writes the marker last)."""
+    return os.path.isfile(_home(".m3", MIGRATED_MARKER))
+
+
 def memory_root() -> str:
-    """The memory root: ``M3_MEMORY_ROOT``, else ``~/.m3-memory``."""
-    root = _env(MEMORY_ROOT_ENV)
-    if root:
-        return abs_root(root)
-    return _home(".m3-memory")
+    """The memory root: ``M3_MEMORY_ROOT``; else ``~/.m3`` once the legacy state has
+    been migrated there; else the legacy ``~/.m3-memory``.
+
+    Root-1 (user decision 2026-10-11, migrate-then-flip): the default moves to
+    ``~/.m3`` only AFTER the migration ran, so an un-migrated install keeps its old
+    root instead of splitting its audit trail and config across two directories."""
+    if memory_root_pin() or not memory_root_migrated():
+        return legacy_memory_root()  # the pin, or the un-migrated ~/.m3-memory
+    return _home(".m3")
 
 
 def _derived(env_name: str, sub: str) -> str:

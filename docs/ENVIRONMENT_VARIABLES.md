@@ -77,7 +77,7 @@ per root:
 
 | Root | Precedence (first match wins) | Default |
 |---|---|---|
-| `M3_MEMORY_ROOT` | `M3_MEMORY_ROOT` env | `~/.m3-memory` |
+| `M3_MEMORY_ROOT` | `M3_MEMORY_ROOT` env | `~/.m3` (`~/.m3-memory` until `m3 setup` or `m3 doctor --fix` moves it) |
 | `M3_CONFIG_ROOT` | `M3_CONFIG_ROOT` env → `M3_MEMORY_ROOT`/config | `~/.m3/config` |
 | `M3_ENGINE_ROOT` | `M3_ENGINE_ROOT` env → `M3_MEMORY_ROOT`/engine | `~/.m3/engine` |
 
@@ -171,7 +171,7 @@ engine root; the sweeper knobs bound background embedding cost.
 
 | Variable | Purpose | Example Keychain Command (macOS) |
 |---|---|---|
-| `M3_MEMORY_ROOT` | Optional master state-root override (see [Roots & precedence](#roots--precedence-the-single-source-of-truth)). Defaults to `~/.m3-memory`. | `export M3_MEMORY_ROOT="/path/to/state"` (Set directly) |
+| `M3_MEMORY_ROOT` | Optional master state-root override (see [Roots & precedence](#roots--precedence-the-single-source-of-truth)). Defaults to `~/.m3` (`~/.m3-memory` until `m3 setup` or `m3 doctor --fix` moves it). | `export M3_MEMORY_ROOT="/path/to/state"` (Set directly) |
 | `M3_SYNC_TARGET_IP` | **Optional.** Overrides the host the sync job probes before running; by default it comes from the warehouse DSN. *(legacy alias: `SYNC_TARGET_IP`.)* | `export M3_SYNC_TARGET_IP="192.0.2.10"` |
 | `PG_URL`| **Deprecated as an env var.** Use `M3_CDW_PG_URL` for the data-warehouse role or `M3_PRIMARY_PG_URL` for a PostgreSQL primary store (see "Primary database backend" above). `PG_URL` remains the NAME of the warehouse DSN in m3's encrypted vault, which is where scheduled jobs read it. The default install is SQLite and needs no PostgreSQL at all. | `python <payload>/bin/setup_secret.py` (service name `PG_URL`) |
 

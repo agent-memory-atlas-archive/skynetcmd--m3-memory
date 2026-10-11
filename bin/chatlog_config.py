@@ -50,11 +50,10 @@ from sqlite_pragmas import apply_pragmas
 
 logger = logging.getLogger("chatlog_config")
 
-from m3_sdk import get_m3_config_root, get_m3_engine_root, get_m3_root, getenv_compat
+from m3_sdk import get_m3_config_root, get_m3_engine_root, getenv_compat
 
 _M3_CONFIG_ROOT = get_m3_config_root()
 _M3_ENGINE_ROOT = get_m3_engine_root()
-_M3_ROOT = get_m3_root()
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Path resolution (new-root-with-legacy-fallback) is the single source of truth

@@ -6,7 +6,7 @@ import pytest
 
 
 @pytest.fixture
-def status_line_env(tmp_path, monkeypatch):
+def status_line_env(tmp_path, monkeypatch, m3_settings):
     """Set up environment for status_line tests."""
     import chatlog_config
 
@@ -15,7 +15,7 @@ def status_line_env(tmp_path, monkeypatch):
 
     monkeypatch.setattr(chatlog_config, "STATE_FILE", str(state_file))
     monkeypatch.setattr(chatlog_config, "SPILL_DIR", str(spill_dir))
-    monkeypatch.delenv("CHATLOG_STATUSLINE", raising=False)
+    m3_settings()  # registry defaults: a developer's CHATLOG_STATUSLINE=off cannot leak in
 
     yield {
         "state_file": state_file,
@@ -80,11 +80,11 @@ def test_status_line_spill_warning(status_line_env, monkeypatch):
     assert "spill" in output.lower() or len(output) > 0
 
 
-def test_status_line_respects_env_disable(status_line_env, monkeypatch):
-    """CHATLOG_STATUSLINE=off disables output."""
+def test_status_line_respects_env_disable(status_line_env, m3_settings):
+    """chatlog.statusline off (CHATLOG_STATUSLINE=off) disables output."""
     import chatlog_status_line
 
-    monkeypatch.setenv("CHATLOG_STATUSLINE", "off")
+    m3_settings({"chatlog.statusline": False})
 
     output = chatlog_status_line.chatlog_status_line()
 

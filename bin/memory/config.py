@@ -95,15 +95,13 @@ _EMBED_MODEL_OVERRIDE: str | None = (
 # ──────────────────────────────────────────────────────────────────────────────
 # Paths
 # ──────────────────────────────────────────────────────────────────────────────
-from m3_sdk import get_m3_config_root, get_m3_engine_root, get_m3_root
+from m3_sdk import get_m3_config_root, get_m3_engine_root
 
 # BASE_DIR remains the m3-memory repo root for internal assets (e.g. config lists).
 BASE_DIR: str = str(Path(__file__).absolute().parents[2])
 
-# Default state (DBs) now lives in the unified M3 root (~/.m3-memory/memory/).
 _M3_CONFIG_ROOT = get_m3_config_root()
 _M3_ENGINE_ROOT = get_m3_engine_root()
-_M3_ROOT = get_m3_root()
 
 # Path resolution (new-root-with-legacy-fallback) is the single source of truth
 # in m3_core.paths; this local name is a thin alias.
@@ -120,7 +118,7 @@ ARCHIVE_DB_PATH: str = _resolve_engine_file("agent_memory_archive.db")
 
 # files.db (FILE_INGESTION_PLAN.md). Separate physical store with its own
 # lifecycle (high-volume, regeneratable, version-tracked, promotable).
-# Resolution order: M3_FILES_DB_PATH env > get_m3_root()/memory/files_database.db.
+# Resolution order: M3_FILES_DB_PATH env > the engine root (legacy <legacy root>/memory/ fallback).
 # abspath, not Path.absolute(): this is an identity string compared with
 # files_memory.db's own abspath of the same file, and only abspath collapses "..".
 FILES_DB_PATH: str = os.path.abspath(  # noqa: PTH100 — identity string; see above

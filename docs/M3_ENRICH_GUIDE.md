@@ -181,12 +181,10 @@ your own observations).
 1. **Profile smoke** — sends a trivial empty-input prompt to the SLM to
    verify the endpoint is reachable + auth works. Aborts with a clear
    error if not.
-2. **DB backup** — copies each target DB to `<M3_MEMORY_ROOT>/backups/`
-   with a timestamp suffix (`~/.m3-memory/backups/` by default). Note this
-   is the *memory root*, which is separate from the engine root holding the
-   live DBs (`~/.m3/engine`) — see
-   [Homecoming Architecture](../CLAUDE.md). Backups deliberately do not sit
-   beside the databases they protect.
+2. **DB backup** — copies each target DB to `<engine root>/backups/enrich/`
+   with a timestamp suffix (`~/.m3/engine/backups/enrich/` by default).
+   Backups are database state, so they follow the engine root and
+   `M3_ENGINE_ROOT` — see [Homecoming Architecture](../CLAUDE.md).
 3. **Migration 025** — applies the observation_queue / reflector_queue
    migration if missing (auto-runs the SQL directly; no migrate-script
    dependency).
@@ -700,7 +698,7 @@ The drainer:
 Add to your crontab — drain every 30 minutes:
 
 ```cron
-*/30 * * * * cd /path/to/m3-memory && python bin/m3_enrich.py --drain-queue >> ~/.m3-memory/enrich.log 2>&1
+*/30 * * * * cd /path/to/m3-memory && python bin/m3_enrich.py --drain-queue >> ~/.m3/logs/enrich.log 2>&1
 ```
 
 #### Linux (systemd timer)
@@ -715,8 +713,8 @@ Description=m3-enrich drain pending observations
 Type=oneshot
 WorkingDirectory=/path/to/m3-memory
 ExecStart=/usr/bin/python bin/m3_enrich.py --drain-queue
-StandardOutput=append:%h/.m3-memory/enrich.log
-StandardError=append:%h/.m3-memory/enrich.log
+StandardOutput=append:%h/.m3/logs/enrich.log
+StandardError=append:%h/.m3/logs/enrich.log
 ```
 
 `~/.config/systemd/user/m3-enrich-drain.timer`:

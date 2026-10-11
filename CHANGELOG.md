@@ -293,6 +293,18 @@ the policy is forward-going only.
 
 ### Changed
 
+- **m3's own state moves from `~/.m3-memory` to `~/.m3`.** `m3 setup`, and
+  `m3 doctor --fix`, copy the audit trail, `config.json`, version state, `.env`,
+  backups and the vault salt into `~/.m3` (the salt into the config root), then
+  switch to it. The old directory is kept, with a `MOVED.txt`; databases still in
+  `~/.m3-memory/memory/` keep being found. Until the copy has run, m3 keeps using
+  `~/.m3-memory`; `m3 doctor` says when it has not. A pinned `M3_MEMORY_ROOT` is
+  never moved.
+  **Affected:** installs that still have `~/.m3-memory` · **Action:** run
+  `m3 setup` or `m3 doctor --fix`; delete `~/.m3-memory` once m3 runs from
+  `~/.m3` · **Data status:** copied, never moved or deleted; a failed copy leaves
+  m3 on the old directory.
+
 - **About a hundred settings are now read through the configuration registry.**
   They can be set in `m3_config.toml` as well as through their environment
   variables, and `m3 config show` reports them. A malformed or out-of-range

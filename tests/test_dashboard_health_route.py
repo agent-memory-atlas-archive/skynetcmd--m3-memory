@@ -515,7 +515,7 @@ def test_llamacpp_health_loading_not_ready(monkeypatch):
     assert out["reachable"] and not out["model_loaded"]
 
 
-def test_smoke_used_only_when_no_cache_safe_signal(monkeypatch):
+def test_smoke_used_only_when_no_cache_safe_signal(monkeypatch, m3_settings):
     """A bare OpenAI-compat server (no /api/v0/models, no /api/ps, no /health) that
     LISTS a model → the block falls back to ONE real completion to verify it can
     serve. Confirms the smoke is the LAST resort (only when no cache-safe signal).
@@ -525,7 +525,7 @@ def test_smoke_used_only_when_no_cache_safe_signal(monkeypatch):
     import httpx
     import llm_failover as lf
 
-    monkeypatch.setenv("M3_DASHBOARD_LLM_SMOKE", "1")
+    m3_settings({"dashboard.llm_smoke": True})
     monkeypatch.setattr(H, "_llm_token", lambda: "x")
     monkeypatch.setattr(lf, "LLM_ENDPOINTS", ["http://localhost:9999/v1"])
     # Only /v1/models answers; native readiness endpoints 404.

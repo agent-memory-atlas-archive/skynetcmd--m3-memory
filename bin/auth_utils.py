@@ -313,11 +313,11 @@ def device_salt_path() -> str:
     the legacy root's when only that one exists. THE owner: the salt reader and
     M3Context's salt-cohesion check both ask here (the check imported a
     ``get_salt_path`` that never existed, so it never ran)."""
-    from m3_sdk import get_m3_config_root, get_m3_root
+    from m3_core.paths import get_m3_config_root, get_m3_legacy_root
 
     salt_path = os.path.join(get_m3_config_root(), ".agent_os_salt")
     if not os.path.exists(salt_path):
-        legacy_path = os.path.join(get_m3_root(), ".agent_os_salt")
+        legacy_path = os.path.join(get_m3_legacy_root(), ".agent_os_salt")
         if os.path.exists(legacy_path):
             return legacy_path
     return salt_path
@@ -381,7 +381,7 @@ def _get_device_salt() -> bytes:
             f"Device salt is missing but the vault already holds encrypted secrets; refusing to mint a new salt. "
             f"observed: salt file not found at {salt_path}, no M3_AGENT_OS_SALT_HEX env set, and vault {vault} contains synchronized_secrets rows. "
             "possible: the salt file was deleted, the config/engine root was relocated without preserving .agent_os_salt, a backup restore was incomplete, or the file system is corrupted. "
-            "inspect: (1) check if .agent_os_salt exists in the config root or legacy root (get_m3_root() / get_m3_config_root()); (2) restore from backup if available; (3) if salt is unrecoverable and secrets can be re-entered, clear synchronized_secrets with `DELETE FROM synchronized_secrets` and retry — a fresh salt will mint automatically."
+            "inspect: (1) check if .agent_os_salt exists in the config root or legacy root (get_m3_legacy_root() / get_m3_config_root()); (2) restore from backup if available; (3) if salt is unrecoverable and secrets can be re-entered, clear synchronized_secrets with `DELETE FROM synchronized_secrets` and retry — a fresh salt will mint automatically."
         )
 
     # Genuine fresh install (empty/absent vault): mint a new salt.
