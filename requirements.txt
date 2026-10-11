@@ -226,7 +226,7 @@ pillow==12.3.0
     # via
     #   m3-memory (pyproject.toml)
     #   fpdf2
-platformdirs==4.12.4
+platformdirs==4.13.0
     # via fastmcp-slim
 pluggy==1.6.0
     # via pytest
