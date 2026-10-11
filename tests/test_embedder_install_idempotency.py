@@ -172,9 +172,9 @@ def test_m3_models_dir_probed_before_third_party(monkeypatch, tmp_path):
     monkeypatch.setenv("M3_MODELS_ROOT", str(tmp_path))
     import importlib
 
-    import memory.embed as embed
-
-    importlib.reload(embed)
+    # The models dir is resolved per call (m3_core.paths), so no reload: reloading a
+    # shared module mid-run failed after a namespace purge ("not in sys.modules").
+    embed = importlib.import_module("memory.embed")
 
     own = tmp_path / "bge-m3-Q4_K_M.gguf"
     own.write_bytes(b"GGUF" + b"\x00" * 64)
