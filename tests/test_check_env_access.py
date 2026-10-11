@@ -1,8 +1,9 @@
 """bin/check_env_access.py: the environment-access inventory gate (plan Step 2A.1).
 
-REPORT mode only: it must catch every planted shape (selftest) and must scan
-every production file. It does not yet fail on violations; that is the
-enforce step, once the config package and child_env exist.
+It must catch every planted shape (selftest) and must scan every production
+file. The counts are held by the ratchet in tests/test_env_access_ratchet.py;
+failing on ANY violation is the enforce step, once the config package and
+child_env own every read.
 """
 
 from __future__ import annotations

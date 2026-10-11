@@ -1,8 +1,8 @@
 ---
 tool: bin/check_env_access.py
-sha1: 3d4b9b072dcc
-mtime_utc: 2026-10-10T21:05:16.853503+00:00
-generated_utc: 2026-10-10T21:05:29.401916+00:00
+sha1: a100cbb5b7ff
+mtime_utc: 2026-10-11T06:00:34.811088+00:00
+generated_utc: 2026-10-11T06:00:35.245575+00:00
 private: false
 ---
 
@@ -26,8 +26,11 @@ config package, once it exists, and the ``child_env`` helper) or reads a non-m3
 OS name on the allow-list (HOME, PATH, ...). Writes, whole-environment copies
 and dynamic names are violations wherever an allowed module is not.
 
-REPORT MODE (this step): print the inventory and exit 0, so the baseline can be
-reviewed before the gate enforces anything. A file that does not parse is NOT
+REPORT MODE: print the inventory and exit 0. The counts are a RATCHET
+(tests/test_env_access_ratchet.py, plan 2D.2 rule 2): they may only fall, and a
+fall must lower the stored budget. ``--tests`` counts the other side, env WRITES
+of non-OS names in tests/ (tests that configure m3 through the environment
+instead of the ``m3_settings`` fixture). A file that does not parse is NOT
 skipped silently -- it is reported and makes the run exit 2, because an
 unscanned file is not a clean file (the same rule CI applies to bandit).
 
@@ -35,6 +38,7 @@ Usage:
     python bin/check_env_access.py                 # report: findings + summary
     python bin/check_env_access.py --json          # machine-readable report
     python bin/check_env_access.py --summary       # counts only
+    python bin/check_env_access.py --tests         # env writes in tests/
     python bin/check_env_access.py --selftest      # planted violations must all be caught
 
 Exit: 0 = report written (or selftest passed); 1 = selftest failed;
@@ -44,7 +48,7 @@ Exit: 0 = report written (or selftest passed); 1 = selftest failed;
 
 ## Entry points
 
-- `def main()` (line 571)
+- `def main()` (line 664)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -56,6 +60,7 @@ Exit: 0 = report written (or selftest passed); 1 = selftest failed;
 | `--selftest` | every planted violation must be caught | `False` |  | store_true |  |
 | `--json` | emit the full report as JSON | `False` |  | store_true |  |
 | `--summary` | print counts only | `False` |  | store_true |  |
+| `--tests` | inventory env WRITES of non-OS names in tests/ instead of production reads | `False` |  | store_true |  |
 
 ---
 

@@ -15,8 +15,11 @@ config package, once it exists, and the ``child_env`` helper) or reads a non-m3
 OS name on the allow-list (HOME, PATH, ...). Writes, whole-environment copies
 and dynamic names are violations wherever an allowed module is not.
 
-REPORT MODE (this step): print the inventory and exit 0, so the baseline can be
-reviewed before the gate enforces anything. A file that does not parse is NOT
+REPORT MODE: print the inventory and exit 0. The counts are a RATCHET
+(tests/test_env_access_ratchet.py, plan 2D.2 rule 2): they may only fall, and a
+fall must lower the stored budget. ``--tests`` counts the other side, env WRITES
+of non-OS names in tests/ (tests that configure m3 through the environment
+instead of the ``m3_settings`` fixture). A file that does not parse is NOT
 skipped silently -- it is reported and makes the run exit 2, because an
 unscanned file is not a clean file (the same rule CI applies to bandit).
 
@@ -24,6 +27,7 @@ Usage:
     python bin/check_env_access.py                 # report: findings + summary
     python bin/check_env_access.py --json          # machine-readable report
     python bin/check_env_access.py --summary       # counts only
+    python bin/check_env_access.py --tests         # env writes in tests/
     python bin/check_env_access.py --selftest      # planted violations must all be caught
 
 Exit: 0 = report written (or selftest passed); 1 = selftest failed;
@@ -472,6 +476,67 @@ def _production_files() -> list[Path]:
     return out
 
 
+def _patch_dict_names(call: ast.Call) -> list[str] | None:
+    """Names a ``patch.dict(os.environ, {...})`` call writes, or None if it is not one."""
+    f = call.func
+    if not (isinstance(f, ast.Attribute) and f.attr == "dict" and call.args):
+        return None
+    target = call.args[0]
+    is_environ = (isinstance(target, ast.Attribute) and target.attr == "environ") or (
+        isinstance(target, ast.Constant) and target.value == "os.environ"
+    )
+    if not is_environ:
+        return None
+    names: list[str] = []
+    values = call.args[1] if len(call.args) > 1 else None
+    if isinstance(values, ast.Dict):
+        for k in values.keys:
+            names.append(k.value if isinstance(k, ast.Constant) and isinstance(k.value, str) else "<dynamic>")
+    elif values is not None:
+        names.append("<dynamic>")
+    names += [kw.arg for kw in call.keywords if kw.arg and kw.arg != "clear"]
+    if any(kw.arg == "clear" for kw in call.keywords) and not names:
+        names.append("*")
+    return names
+
+
+def scan_test_source(src: str, rel: str) -> list[Finding]:
+    """Environment WRITES in a test file: monkeypatch setenv/delenv, patch.dict on
+    os.environ, and the production write forms. OS names (``OS_NAMES``) are not counted:
+    the ratchet tracks tests that configure m3 through the environment instead of the
+    ``m3_settings`` fixture (plan 2D.2 rule 1)."""
+    tree = ast.parse(src, filename=rel)
+    found: list[Finding] = []
+    for n in ast.walk(tree):
+        if not isinstance(n, ast.Call):
+            continue
+        f = n.func
+        if isinstance(f, ast.Attribute) and f.attr in ("setenv", "delenv") and n.args:
+            a = n.args[0]
+            name = a.value if isinstance(a, ast.Constant) and isinstance(a.value, str) else "<dynamic>"
+            found.append(Finding(rel, n.lineno, "write", f"monkeypatch.{f.attr}", name, "violation"))
+            continue
+        names = _patch_dict_names(n)
+        if names is not None:
+            found += [Finding(rel, n.lineno, "write", "patch.dict(os.environ)", nm, "violation") for nm in names]
+    found += [f for f in scan_source(src, rel, {}) if f.kind == "write"]
+    return sorted({f for f in found if f.name not in OS_NAMES}, key=lambda f: (f.path, f.line, f.form, f.name))
+
+
+def scan_tests() -> tuple[list[Finding], list[str]]:
+    findings: list[Finding] = []
+    unparsed: list[str] = []
+    for p in sorted((REPO / "tests").rglob("*.py")):
+        if "__pycache__" in p.parts:
+            continue
+        rel = p.relative_to(REPO).as_posix()
+        try:
+            findings += scan_test_source(p.read_text(encoding="utf-8"), rel)
+        except (SyntaxError, UnicodeDecodeError) as e:
+            unparsed.append(f"{rel}: {type(e).__name__}: {e}")
+    return findings, unparsed
+
+
 def scan_repo() -> tuple[list[Finding], list[str]]:
     findings: list[Finding] = []
     unparsed: list[str] = []
@@ -542,6 +607,25 @@ _NOT_READS = [
 ]
 
 
+# --tests: (snippet, expected form, expected name); each must be counted.
+_PLANTED_TEST_WRITES: list[tuple[str, str, str]] = [
+    ("def t(monkeypatch):\n    monkeypatch.setenv('M3_X', '1')", "monkeypatch.setenv", "M3_X"),
+    ("def t(mp):\n    mp.delenv('M3_X', raising=False)", "monkeypatch.delenv", "M3_X"),
+    ("def t(monkeypatch):\n    n = 'M3_X'\n    monkeypatch.setenv(n, '1')", "monkeypatch.setenv", "<dynamic>"),
+    (
+        "import os\nfrom unittest import mock\n@mock.patch.dict(os.environ, {'M3_X': '1'})\ndef t():\n    pass",
+        "patch.dict(os.environ)",
+        "M3_X",
+    ),
+    (
+        "from unittest.mock import patch\ndef t():\n    with patch.dict('os.environ', M3_X='1'):\n        pass",
+        "patch.dict(os.environ)",
+        "M3_X",
+    ),
+    ("import os\ndef t():\n    os.environ['M3_X'] = '1'", "os.environ[...] =", "M3_X"),
+]
+
+
 def selftest() -> int:
     failures = []
     for snippet, kind, form in PLANTED:
@@ -561,7 +645,16 @@ def selftest() -> int:
         hits = [f for f in scan_source(snippet, "planted.py") if f.verdict == "violation"]
         if hits:
             failures.append(f"FALSE POSITIVE: {snippet!r} -> {[(f.form, f.name) for f in hits]}")
-    total = len(PLANTED) + 2 + len(_NOT_READS)
+    # --tests: each test-side write shape is counted, and an OS name is not
+    for snippet, form, name in _PLANTED_TEST_WRITES:
+        hits = scan_test_source(snippet, "planted_test.py")
+        if not any(f.form == form and f.name == name for f in hits):
+            failures.append(
+                f"TEST WRITE NOT CAUGHT ({form} / {name}): {snippet!r} -> {[(f.form, f.name) for f in hits]}"
+            )
+    if scan_test_source("def t(monkeypatch):\n    monkeypatch.setenv('HOME', '/x')", "planted_test.py"):
+        failures.append("test write of the OS name HOME was counted")
+    total = len(PLANTED) + 2 + len(_NOT_READS) + len(_PLANTED_TEST_WRITES) + 1
     for f in failures:
         print(f, file=sys.stderr)
     print(f"selftest: {total - len(failures)}/{total} checks passed")
@@ -573,9 +666,30 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--selftest", action="store_true", help="every planted violation must be caught")
     ap.add_argument("--json", action="store_true", help="emit the full report as JSON")
     ap.add_argument("--summary", action="store_true", help="print counts only")
+    ap.add_argument(
+        "--tests",
+        action="store_true",
+        help="inventory env WRITES of non-OS names in tests/ instead of production reads",
+    )
     args = ap.parse_args(argv)
     if args.selftest:
         return selftest()
+    if args.tests:
+        tfind, tunparsed = scan_tests()
+        if args.json:
+            print(json.dumps({"findings": [asdict(f) for f in tfind], "unparsed": tunparsed}, indent=2))
+        else:
+            if not args.summary:
+                for f in tfind:
+                    print(f"{f.path}:{f.line}: {f.form:28} {f.name}")
+            names = Counter(f.name for f in tfind)
+            print(
+                f"\nTESTS: {len(tfind)} env writes of non-OS names in {len({f.path for f in tfind})} files; "
+                f"by form {dict(sorted(Counter(f.form for f in tfind).items()))}; {len(names)} distinct names"
+            )
+        for u in tunparsed:
+            print(f"UNPARSED (not scanned, not clean): {u}", file=sys.stderr)
+        return 2 if tunparsed else 0
 
     findings, unparsed = scan_repo()
     violations = [f for f in findings if f.verdict == "violation"]
