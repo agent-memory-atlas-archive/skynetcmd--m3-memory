@@ -582,11 +582,13 @@ async def memory_write_impl(
     if check_contradictions and type not in CONTRADICTION_TYPE_EXCLUSIONS:
         if vec:
             superseded_ids = await _contradiction_pass(item_id, content, title, vec, type, agent_id, variant, user_id)
-        else:
-            # No vector yet (embedding deferred, or every embed call failed): the
-            # check is owed, not skipped. embed_backfill runs it once the vector
-            # exists. A missing vector alone cannot say this: opted-out writes
-            # and legacy rows lack vectors too, and must not be checked.
+        elif _embed_deferred or embed:
+            # No vector because m3 deferred the embedding (no fast embedder) or
+            # every embed call failed (`embed` is still True): the check is owed,
+            # not skipped, and embed_backfill runs it once the vector exists. A
+            # caller who passed embed=False chose no vector, like an opt-out, so
+            # nothing is flagged (nor added to that caller's metadata). A missing
+            # vector alone cannot tell these apart, nor legacy rows.
             _flag_contradiction_check_deferred(item_id)
 
     # Opt-in ingestion emitters. Each one is gated off by default and fails

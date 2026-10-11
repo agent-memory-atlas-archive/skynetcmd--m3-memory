@@ -24,10 +24,14 @@ def test_re_embed_all_rewrites_the_vector(each_backend, monkeypatch):
     rea = importlib.import_module("re_embed_all")
     new_vec = [0.125, 0.25, 0.5, 1.0]
 
-    async def _fake_embed(text):
+    async def _fake_embed(text, *a, **k):
         return new_vec, "probe-model"
 
-    monkeypatch.setattr(rea, "_embed", _fake_embed)
+    # re_embed_all re-embeds through memory.write.rewindow_memory (the write path's
+    # windowing owner), so the embedder to replace is the one memory.write uses.
+    wr = importlib.import_module("memory.write")
+    monkeypatch.setattr(wr, "_embed", _fake_embed)
+    monkeypatch.setattr(wr, "_get_embedded_embedder", lambda: None)
     from m3_sdk import resolve_db_path
 
     asyncio.run(rea.re_embed_all(str(resolve_db_path(None))))

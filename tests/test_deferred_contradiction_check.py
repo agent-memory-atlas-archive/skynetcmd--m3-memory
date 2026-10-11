@@ -102,6 +102,25 @@ def test_an_embedder_down_write_is_flagged_and_an_opted_out_one_is_not(each_back
             conn.commit()
 
 
+def test_a_caller_who_passes_embed_false_is_not_flagged(each_backend):
+    """embed=False is the caller choosing no vector: no flag, metadata untouched
+    (the PG end-to-end write test caught the first version adding the key)."""
+    import memory_core as mc
+
+    r = asyncio.run(
+        mc.memory_write_impl(type="fact", content=f"no-embed write {uuid.uuid4().hex}", title="t", embed=False)
+    )
+    mid = r.split("Created:", 1)[1].split()[0]
+    try:
+        assert "contradiction_check" not in _meta(_row(each_backend, mid)), f"observed: flagged on {each_backend.name}"
+    finally:
+        p = _p()
+        with each_backend.connection() as conn:
+            conn.execute(f"DELETE FROM memory_history WHERE memory_id = {p}", (mid,))
+            conn.execute(f"DELETE FROM memory_items WHERE id = {p}", (mid,))
+            conn.commit()
+
+
 def _sweep_args(prefix: str) -> argparse.Namespace:
     from m3_sdk import resolve_db_path
 
