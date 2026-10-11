@@ -205,14 +205,15 @@ class M3Client:
                     try:
                         db.flush_access_stamps_now()
                     except Exception as e:
-                        # Logging is still up while atexit handlers run. The
-                        # owner is fetched, not imported: exit imports nothing.
-                        errors = sys.modules.get("m3_core.errors")
-                        msg = "access-stamp drain at shutdown failed; observed: %s: %s. inspect: memory.db flush_access_stamps_now"
-                        if errors is not None:
-                            errors.log_swallowed(logger, e, msg, type(e).__name__, e)
-                        else:
-                            logger.debug(msg, type(e).__name__, e)
+                        # flush_access_stamps_now() reports its own expected DB
+                        # failures, so anything reaching here is a defect: WARNING.
+                        # Logging is still up while atexit handlers run.
+                        logger.warning(
+                            "access-stamp drain at shutdown failed; observed: %s: %s. "
+                            "inspect: memory.db flush_access_stamps_now",
+                            type(e).__name__,
+                            e,
+                        )
                 loop.call_soon_threadsafe(loop.stop)
             if thread is not None:
                 thread.join(timeout=5)
