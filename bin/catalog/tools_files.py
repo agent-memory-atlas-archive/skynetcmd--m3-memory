@@ -594,7 +594,7 @@ TOOLS: list[ToolSpec] = [
         is_async=False,
         validators=(),
         # DESTRUCTIVE (cascade deletes every file_node/leaf/fact/embedding in the
-        # corpus). Gate behind MCP_PROXY_ALLOW_DESTRUCTIVE like memory_delete /
+        # corpus). Gate behind M3_MCP_PROXY_ALLOW_DESTRUCTIVE like memory_delete /
         # gdpr_forget rather than leaving it default-allowed (§6). Also corrects
         # the m3_index advertisement to destructive:True.
         default_allowed=False,

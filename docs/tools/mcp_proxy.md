@@ -1,8 +1,8 @@
 ---
 tool: bin/mcp_proxy.py
-sha1: 5c09aedb37ad
-mtime_utc: 2026-10-10T21:05:16.950038+00:00
-generated_utc: 2026-10-10T21:05:29.769065+00:00
+sha1: 187852e3847c
+mtime_utc: 2026-10-11T15:03:48.714909+00:00
+generated_utc: 2026-10-11T15:05:55.801248+00:00
 private: false
 ---
 
@@ -38,7 +38,7 @@ setup — and both were deleted. The proxy now serves only m3's own catalog.
 
 Default allowlist excludes destructive catalog tools (memory_delete,
 gdpr_*, *_export, *_import, memory_maintenance, memory_set_retention, agent_offline).
-Set MCP_PROXY_ALLOW_DESTRUCTIVE=1 to expose them.
+Set M3_MCP_PROXY_ALLOW_DESTRUCTIVE=1 to expose them.
 
 Agent identity is taken from the X-Agent-Id request header (default
 "mcp-proxy-client"). Catalog tools marked inject_agent_id receive this value
@@ -132,7 +132,7 @@ _(no argparse arguments detected)_
 
 **http**
 
-- `httpx.AsyncClient()` (line 561)
+- `httpx.AsyncClient()` (line 580)
 
 
 ---

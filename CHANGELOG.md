@@ -21,6 +21,14 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **Destructive-tool hints name `M3_MCP_PROXY_ALLOW_DESTRUCTIVE`.** The proxy's
+  and `m3_call`'s messages still told users to set the deprecated
+  `MCP_PROXY_ALLOW_DESTRUCTIVE`, and `measure_tool_tokens.py` set it itself,
+  which printed a deprecation warning on every run.
+  **Affected:** users enabling destructive tools through the proxy ·
+  **Action:** none; the old name still works until it is removed ·
+  **Data status:** none.
+
 - **Re-embedding a long memory no longer flattens it.** `memory_update` with
   `reembed=True` and `re_embed_all.py` wrote one vector over all of a long
   memory's window rows, so the later parts stopped matching searches. Both now

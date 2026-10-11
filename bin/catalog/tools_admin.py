@@ -131,7 +131,7 @@ TOOLS: list[ToolSpec] = [
             "rest; capped at 100). Set `dry_run` to validate args + check the "
             "destructive gate WITHOUT executing. Returns JSON. Call `m3_index` "
             "first if you don't know a tool's args. Destructive tools require "
-            "MCP_PROXY_ALLOW_DESTRUCTIVE=1."
+            "M3_MCP_PROXY_ALLOW_DESTRUCTIVE=1."
         ),
         parameters={
             "type": "object",

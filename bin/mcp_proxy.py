@@ -28,7 +28,7 @@ setup — and both were deleted. The proxy now serves only m3's own catalog.
 
 Default allowlist excludes destructive catalog tools (memory_delete,
 gdpr_*, *_export, *_import, memory_maintenance, memory_set_retention, agent_offline).
-Set MCP_PROXY_ALLOW_DESTRUCTIVE=1 to expose them.
+Set M3_MCP_PROXY_ALLOW_DESTRUCTIVE=1 to expose them.
 
 Agent identity is taken from the X-Agent-Id request header (default
 "mcp-proxy-client"). Catalog tools marked inject_agent_id receive this value
@@ -249,7 +249,7 @@ _catalog_built = False
 #
 # ONE source: mcp_tool_catalog.TOOLS, the single source of truth. Built
 # dynamically each request so it respects default_allowed (destructive tools
-# opt-in via MCP_PROXY_ALLOW_DESTRUCTIVE) and inject_agent_id (the orchestrator
+# opt-in via M3_MCP_PROXY_ALLOW_DESTRUCTIVE) and inject_agent_id (the orchestrator
 # stamps agent_id; the LLM cannot spoof it).
 
 # PROTOCOL_TOOLS and DEBUG_TOOLS are GONE, deliberately.
@@ -267,8 +267,38 @@ PROTOCOL_TOOLS: list[dict] = []
 DEBUG_TOOLS: list[dict] = []
 
 
+def catalog_schemas(include_destructive: bool) -> tuple[list[dict], dict]:
+    """(openai_schemas, name->spec) for the catalog, uncached and env-free.
+
+    The one schema builder. The proxy caches it under its own setting
+    (`_build_catalog_tools`); measure_tool_tokens asks for the full set directly.
+    It used to set the (deprecated) env var before importing this module, which
+    did nothing once the module was already imported and leaked into the
+    importing process.
+    """
+    import mcp_tool_catalog as cat
+
+    schemas: list[dict] = []
+    by_name: dict = {}
+    for spec in cat.TOOLS:
+        if not include_destructive and not spec.default_allowed:
+            continue
+        by_name[spec.name] = spec
+        schemas.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": spec.name,
+                    "description": spec.description,
+                    "parameters": spec.parameters,
+                },
+            }
+        )
+    return schemas, by_name
+
+
 def _build_catalog_tools() -> tuple[list[dict], dict]:
-    """Lazy-load mcp_tool_catalog and build (openai_schemas, name->spec)."""
+    """Lazy-load mcp_tool_catalog and build (openai_schemas, name->spec), cached."""
     global _catalog_mod, _catalog_specs_by_name, _catalog_tool_schemas, _catalog_built
     if _catalog_built:
         return _catalog_tool_schemas, _catalog_specs_by_name
@@ -276,20 +306,9 @@ def _build_catalog_tools() -> tuple[list[dict], dict]:
         import mcp_tool_catalog as cat
 
         _catalog_mod = cat
-        for spec in cat.TOOLS:
-            if not ALLOW_DESTRUCTIVE and not spec.default_allowed:
-                continue
-            _catalog_specs_by_name[spec.name] = spec
-            _catalog_tool_schemas.append(
-                {
-                    "type": "function",
-                    "function": {
-                        "name": spec.name,
-                        "description": spec.description,
-                        "parameters": spec.parameters,
-                    },
-                }
-            )
+        schemas, by_name = catalog_schemas(ALLOW_DESTRUCTIVE)
+        _catalog_specs_by_name.update(by_name)
+        _catalog_tool_schemas.extend(schemas)
         log.info(f"Catalog loaded: {len(_catalog_tool_schemas)} tools (ALLOW_DESTRUCTIVE={ALLOW_DESTRUCTIVE})")
     except Exception as exc:
         log.error(f"Failed to load mcp_tool_catalog: {type(exc).__name__}: {exc}")
@@ -367,7 +386,7 @@ async def _execute_tool(name: str, args: dict, agent_id: str = "mcp-proxy-client
                 if full is not None and not ALLOW_DESTRUCTIVE and not full.default_allowed:
                     return (
                         f"Tool '{name}' is destructive and disabled by default. "
-                        f"Set MCP_PROXY_ALLOW_DESTRUCTIVE=1 to enable."
+                        f"Set M3_MCP_PROXY_ALLOW_DESTRUCTIVE=1 to enable."
                     )
             return f"Unknown MCP tool: {name}"
 

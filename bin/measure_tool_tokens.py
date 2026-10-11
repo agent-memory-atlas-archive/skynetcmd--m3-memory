@@ -27,10 +27,6 @@ from typing import cast
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(BASE_DIR, "bin"))
 
-# Show the full repertoire including destructive tools so the report covers
-# everything the proxy *can* expose.
-os.environ.setdefault("MCP_PROXY_ALLOW_DESTRUCTIVE", "1")
-
 import mcp_proxy  # noqa: E402
 
 try:
@@ -122,8 +118,10 @@ def main() -> int:
     import tool_domains as td
 
     # Full repertoire: every tool the proxy can dispatch (protocol + debug +
-    # the whole catalog), independent of lazy-mode gating.
-    full = mcp_proxy.PROTOCOL_TOOLS + mcp_proxy.DEBUG_TOOLS + mcp_proxy._build_catalog_tools()[0]
+    # the whole catalog, destructive tools included), independent of lazy-mode
+    # gating and of how this process's proxy was configured.
+    catalog = mcp_proxy.catalog_schemas(include_destructive=True)[0]
+    full = mcp_proxy.PROTOCOL_TOOLS + mcp_proxy.DEBUG_TOOLS + catalog
 
     # Schemas are OpenAI function-calling shape: {"type":"function","function":{"name":…}}.
     def _name(t: dict) -> str:

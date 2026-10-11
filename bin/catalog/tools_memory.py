@@ -893,7 +893,7 @@ TOOLS: list[ToolSpec] = [
         impl=memory_core.memory_delete_bulk_impl,
         is_async=False,
         validators=(),
-        default_allowed=False,  # destructive — gated by MCP_PROXY_ALLOW_DESTRUCTIVE
+        default_allowed=False,  # destructive — gated by M3_MCP_PROXY_ALLOW_DESTRUCTIVE
         inject_agent_id=False,
     ),
     ToolSpec(

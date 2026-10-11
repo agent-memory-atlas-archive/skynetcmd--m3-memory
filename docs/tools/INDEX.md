@@ -1,6 +1,6 @@
 # Tool inventory index
 
-_Generated 2026-10-10T08:45:11.047372+00:00._
+_Generated 2026-10-11T15:05:56.088776+00:00._
 
 Re-run `python bin/gen_tool_inventory.py` after changing any tool.
 Entries whose `sha1` no longer matches the live file need re-validation.
@@ -130,7 +130,6 @@ Entries whose `sha1` no longer matches the live file need re-validation.
 | [bin/test_fips_integrity.py](test_fips_integrity.md) | test_fips_integrity.py — Validation suite for FIPS-ready crypto abstraction. |  |
 | [bin/test_keychain.py](test_keychain.md) | (no docstring) |  |
 | [bin/test_mcp_proxy.py](test_mcp_proxy.md) | test_mcp_proxy.py — End-to-end proxy test suite |  |
-| [bin/test_mcp_proxy_unit.py](test_mcp_proxy_unit.md) | test_mcp_proxy_unit.py - In-process unit tests for mcp_proxy. |  |
 | [bin/test_memory_bridge.py](test_memory_bridge.md) | End-to-end test suite for memory_bridge.py. |  |
 | [bin/test_unified_router.py](test_unified_router.md) | (no docstring) |  |
 | [bin/thermal_utils.py](thermal_utils.md) | (no docstring) |  |

@@ -12,7 +12,7 @@ for the change you just made.
 | Memory core, MCP tool schemas, dispatch logic | `python bin/test_memory_bridge.py` |
 | Chatlog subsystem (ingest / queue / redact / status) | `python -m pytest tests/test_chatlog_*.py` |
 | `bin/slm_intent.py` or the SLM profiles | `python -m pytest tests/test_slm_intent.py` |
-| MCP proxy dispatch | `python -m unittest bin.test_mcp_proxy_unit` |
+| MCP proxy dispatch | `pytest tests/test_mcp_proxy_unit.py` (runs with the suite) |
 | Retrieval quality on a real dataset | See published LME-S report — harnesses are maintained internally |
 
 Full test inventory and what each exercises follows.
@@ -113,7 +113,7 @@ M3_DATABASE=memory/_test.db python bin/test_memory_bridge.py
 | `test_memory_bridge.py` | `python bin/test_memory_bridge.py` | 193 checks across 47 scenarios | LM Studio (skips embedding tests if offline); DB via `M3_DATABASE` | All 38+ MCP tools: memory write/get/search/update/delete, conversations, tasks, handoffs, inbox, agent registry, notifications, GDPR, sync |
 | `test_debug_agent.py` | `python bin/test_debug_agent.py` | ~25 checks | LM Studio (graceful skip); DB via `M3_DATABASE` | Debug agent bridge: thermal, LLM routing, debug_analyze / bisect / trace / correlate / history / report |
 | `test_mcp_proxy.py` | `python bin/test_mcp_proxy.py` | 4 scenarios, ~10 checks | MCP proxy running on :9000, `ANTHROPIC_API_KEY`, DB | Proxy end-to-end: `/health`, Claude + Gemini routing, aider subprocess, activity_logs delta |
-| `test_mcp_proxy_unit.py` | `python -m unittest bin.test_mcp_proxy_unit` (or pytest) | ~15 methods | none | Proxy internals: tool-list merging, destructive-tool gating, `inject_agent_id` enforcement |
+| `test_mcp_proxy_unit.py` (now in `tests/`) | `pytest tests/test_mcp_proxy_unit.py` | 12 tests | none | Proxy internals: tool-list merging, destructive-tool gating, `inject_agent_id` enforcement |
 | `test_bulk_parity.py` | `python bin/test_bulk_parity.py` | ~15 checks | SQLite (mocked schema) | Bulk vs single write parity: enrichment, variant isolation, contradiction detection |
 | `test_embedding_logic.py` | `python bin/test_embedding_logic.py` | 2 ops | LM Studio, `LM_API_TOKEN` | Embed path smoke: token resolution, `_embed()` round-trip |
 | `test_keychain.py` | `python bin/test_keychain.py` | 3 lookups | OS keychain or env vars | `auth_utils.get_api_key()` across env / keyring / platform-native stores |
@@ -161,7 +161,6 @@ python -m pytest tests/
 python bin/setup_test_db.py --database memory/_test.db --force
 M3_DATABASE=memory/_test.db python bin/test_memory_bridge.py
 M3_DATABASE=memory/_test.db python bin/test_debug_agent.py
-python -m unittest bin.test_mcp_proxy_unit
 
 # 3. Benchmark smoke — internal harness, see published LME-S report
 ```
