@@ -21,6 +21,15 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **Warehouse sync no longer skips rows after a failed batch.** When a batch
+  failed (for example "database is locked"), sync still moved on as if it had
+  succeeded, so those rows were not sent again unless edited, and the run
+  reported success. Now the failed direction is retried on the next run, and
+  `pg_sync` exits 1 naming every direction that failed.
+  **Affected:** installs that sync to a PostgreSQL warehouse · **Action:** none ·
+  **Data status:** rows skipped this way by earlier versions are not re-sent
+  until they change; a full re-sync (clear the `sync_watermarks` rows) sends them.
+
 - **PostgreSQL: features that failed, several of them silently, now work.**
   Memory history diffs, the single-text embedding cache, conversation window
   and gist summaries, conversation search pairing, the bulk embedding cache

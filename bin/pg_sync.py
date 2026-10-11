@@ -203,6 +203,35 @@ def _set_watermark(sl_cur, direction: str, ts: str, target_name: str) -> None:
         logger.error(f"[{target_name}] watermark write failed for {prefixed_direction}: {exc}")
 
 
+# Directions that failed this run, as "<target>/<direction>". A failed direction
+# does NOT advance its watermark (the next run retries from the last good one),
+# and main() exits 1 when any is listed, so a scheduled sync shows the failure
+# instead of reporting success over rows it never moved.
+_FAILED_DIRECTIONS: list[str] = []
+
+
+def _failed_run_exit_code() -> int | None:
+    """1 (and an error naming every failed direction) when any direction failed
+    this run; None when the run was clean."""
+    if not _FAILED_DIRECTIONS:
+        return None
+    logger.error(
+        f"pg_sync FINISHED WITH FAILURES: {', '.join(_FAILED_DIRECTIONS)}. observed: those watermarks "
+        "were not advanced, so the next run retries their rows. inspect: the errors above"
+    )
+    return 1
+
+
+def _direction_failed(target_name: str, direction: str, exc: BaseException, done: int, total: int) -> None:
+    """Record and report one failed sync direction (its single owner)."""
+    _FAILED_DIRECTIONS.append(f"{target_name}/{direction}")
+    logger.error(
+        f"[{target_name}] {direction} FAILED after {done} of {total} rows: {exc.__class__.__name__}: {exc}. "
+        f"observed: the {direction} watermark was NOT advanced, so the next run retries these rows. "
+        f"inspect: the error above, and sync_watermarks for {target_name}"
+    )
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
@@ -401,10 +430,11 @@ def sync_memory_items(sl_cur, pg_cur, sl_conn, target_name: str):
                 execute_values(pg_cur, upsert_query, chunk)
                 push_count += len(chunk)
         except Exception as exc:
-            logger.error(f"[{target_name}] Batch push failed: {type(exc).__name__}: {exc}")
-            push_errors = len(local_rows)
+            push_errors = max(1, len(local_rows) - push_count)
+            _direction_failed(target_name, "pg_push", exc, push_count, len(local_rows))
 
-    _set_watermark(sl_cur, "pg_push", now, target_name)
+    if not push_errors:
+        _set_watermark(sl_cur, "pg_push", now, target_name)
     sl_conn.commit()
     logger.info(f"[{target_name}] Pushed {push_count} local memory items ({push_errors} errors).")
 
@@ -517,10 +547,11 @@ def sync_memory_items(sl_cur, pg_cur, sl_conn, target_name: str):
                 )
                 sl_conn.commit()
         except Exception as exc:
-            logger.error(f"[{target_name}] Batch pull failed: {type(exc).__name__}: {exc}")
-            pull_errors = len(remote_rows)
+            pull_errors = max(1, len(remote_rows) - pull_count)
+            _direction_failed(target_name, "pg_pull", exc, pull_count, len(remote_rows))
 
-    _set_watermark(sl_cur, "pg_pull", pull_watermark, target_name)
+    if not pull_errors:
+        _set_watermark(sl_cur, "pg_pull", pull_watermark, target_name)
     logger.info(f"[{target_name}] Pulled {pull_count} remote memory items ({pull_errors} errors).")
 
 
@@ -544,6 +575,7 @@ def sync_memory_relationships(sl_cur, pg_cur, sl_conn, target_name: str):
 
     local_rows = sl_cur.fetchall()
     push_count = 0
+    push_failed = False
     if local_rows:
         try:
             execute_values(
@@ -553,9 +585,11 @@ def sync_memory_relationships(sl_cur, pg_cur, sl_conn, target_name: str):
             )
             push_count = len(local_rows)
         except Exception as exc:
-            logger.warning(f"[{target_name}] Batch Relationship push failed: {type(exc).__name__}")
+            push_failed = True
+            _direction_failed(target_name, "rel_push", exc, push_count, len(local_rows))
 
-    _set_watermark(sl_cur, "rel_push", now, target_name)
+    if not push_failed:
+        _set_watermark(sl_cur, "rel_push", now, target_name)
     sl_conn.commit()
     logger.info(f"[{target_name}] Pushed {push_count} relationships to warehouse.")
 
@@ -578,6 +612,7 @@ def sync_memory_relationships(sl_cur, pg_cur, sl_conn, target_name: str):
 
     remote_rows = pg_cur.fetchall()
     pull_count = 0
+    pull_failed = False
     if remote_rows:
         try:
             # DO NOTHING, not an upsert: an edge is immutable, so an existing row
@@ -594,9 +629,11 @@ def sync_memory_relationships(sl_cur, pg_cur, sl_conn, target_name: str):
             )
             sl_conn.commit()
         except Exception as exc:
-            logger.warning(f"[{target_name}] Batch Relationship pull failed: {type(exc).__name__}")
+            pull_failed = True
+            _direction_failed(target_name, "rel_pull", exc, pull_count, len(remote_rows))
 
-    _set_watermark(sl_cur, "rel_pull", pull_watermark, target_name)
+    if not pull_failed:
+        _set_watermark(sl_cur, "rel_pull", pull_watermark, target_name)
     sl_conn.commit()
     logger.info(f"[{target_name}] Pulled {pull_count} relationships from warehouse.")
 
@@ -628,7 +665,7 @@ def sync_secrets(sl_cur, pg_cur, target_name: str):
             )
             push_count = len(local_rows)
         except Exception as exc:
-            logger.warning(f"[{target_name}] Batch Secret push failed: {type(exc).__name__}")
+            _direction_failed(target_name, "secrets_push", exc, push_count, len(local_rows))
 
     logger.info(f"[{target_name}] Pushed {push_count} local secrets to the warehouse.")
 
@@ -659,7 +696,7 @@ def sync_secrets(sl_cur, pg_cur, target_name: str):
                 guard_sql=guard,
             )
         except Exception as exc:
-            logger.warning(f"[{target_name}] Batch Secret pull failed: {type(exc).__name__}")
+            _direction_failed(target_name, "secrets_pull", exc, pull_count, len(remote_rows))
 
     logger.info(f"[{target_name}] Pulled {pull_count} remote secrets from the warehouse.")
 
@@ -726,6 +763,7 @@ def sync_tasks(sl_cur, pg_cur, sl_conn, target_name: str):
 
     local_rows = sl_cur.fetchall()
     push_count = 0
+    tasks_push_failed = False
     if local_rows:
         try:
             upsert = f"""
@@ -748,9 +786,11 @@ def sync_tasks(sl_cur, pg_cur, sl_conn, target_name: str):
                 execute_values(pg_cur, upsert, batch)
                 push_count += len(batch)
         except Exception as exc:
-            logger.error(f"[{target_name}] Batch task push failed: {type(exc).__name__}: {exc}")
+            tasks_push_failed = True
+            _direction_failed(target_name, "tasks_push", exc, push_count, len(local_rows))
 
-    _set_watermark(sl_cur, "tasks_push", now, target_name)
+    if not tasks_push_failed:
+        _set_watermark(sl_cur, "tasks_push", now, target_name)
     sl_conn.commit()
     logger.info(f"[{target_name}] Pushed {push_count} tasks to warehouse.")
 
@@ -768,6 +808,7 @@ def sync_tasks(sl_cur, pg_cur, sl_conn, target_name: str):
 
     remote_rows = pg_cur.fetchall()
     pull_count = 0
+    tasks_pull_failed = False
     if remote_rows:
         try:
             # Columns the remote may overwrite. Deliberately NOT `created_by` or
@@ -799,9 +840,11 @@ def sync_tasks(sl_cur, pg_cur, sl_conn, target_name: str):
                 )
                 sl_conn.commit()
         except Exception as exc:
-            logger.error(f"[{target_name}] Batch task pull failed: {type(exc).__name__}: {exc}")
+            tasks_pull_failed = True
+            _direction_failed(target_name, "tasks_pull", exc, pull_count, len(remote_rows))
 
-    _set_watermark(sl_cur, "tasks_pull", now, target_name)
+    if not tasks_pull_failed:
+        _set_watermark(sl_cur, "tasks_pull", now, target_name)
     sl_conn.commit()
     logger.info(f"[{target_name}] Pulled {pull_count} tasks from warehouse.")
 
@@ -948,10 +991,11 @@ def sync_memory_embeddings(sl_cur, pg_cur, sl_conn, target_name: str):
                 )
                 push_count += len(chunk)
         except Exception as exc:
-            logger.error(f"[{target_name}] Batch embedding push failed: {type(exc).__name__}: {exc}")
-            push_errors = len(filtered_rows)
+            push_errors = max(1, len(filtered_rows) - push_count)
+            _direction_failed(target_name, "emb_push", exc, push_count, len(filtered_rows))
 
-    _set_watermark(sl_cur, "emb_push", now, target_name)
+    if not push_errors:
+        _set_watermark(sl_cur, "emb_push", now, target_name)
     sl_conn.commit()
     logger.info(
         f"[{target_name}] Pushed {push_count} embeddings to warehouse "
@@ -1006,10 +1050,11 @@ def sync_memory_embeddings(sl_cur, pg_cur, sl_conn, target_name: str):
                 )
                 sl_conn.commit()
         except Exception as exc:
-            logger.error(f"[{target_name}] Batch embedding pull failed: {type(exc).__name__}: {exc}")
-            pull_errors = len(remote_rows)
+            pull_errors = max(1, len(remote_rows) - pull_count)
+            _direction_failed(target_name, "emb_pull", exc, pull_count, len(remote_rows))
 
-    _set_watermark(sl_cur, "emb_pull", now, target_name)
+    if not pull_errors:
+        _set_watermark(sl_cur, "emb_pull", now, target_name)
     sl_conn.commit()
     logger.info(f"[{target_name}] Pulled {pull_count} embeddings from warehouse ({pull_errors} errors).")
 
@@ -1385,6 +1430,8 @@ def _sync_table_generic(
         return
 
     local_rows = sl_cur.fetchall()
+    push_count = 0
+    generic_push_failed = False
 
     if dry_run:
         logger.info(f"[{target_name}] [{name}] [DRY-RUN] Would push {len(local_rows)} rows to PG")
@@ -1417,15 +1464,18 @@ def _sync_table_generic(
                 push_count += len(batch)
             logger.info(f"[{target_name}] [{name}] Pushed {push_count} rows to PG")
         except Exception as exc:
-            logger.error(f"[{target_name}] [{name}] Push failed: {type(exc).__name__}: {exc}")
+            generic_push_failed = True
+            _direction_failed(target_name, f"{name} push", exc, push_count, len(local_rows))
 
-    if not dry_run:
+    if not dry_run and not generic_push_failed:
         _set_watermark(sl_cur, push_key, now, target_name)
         sl_conn.commit()
 
     # ── PULL: PG → SQLite ────────────────────────────────────────────────────
     watermark = _get_watermark(sl_cur, pull_key, target_name)
 
+    pull_count = 0
+    remote_rows = []
     if dry_run:
         logger.info(f"[{target_name}] [{name}] [DRY-RUN] Would pull rows from PG (watermark={watermark})")
     else:
@@ -1487,7 +1537,7 @@ def _sync_table_generic(
             sl_conn.commit()
 
         except Exception as exc:
-            logger.error(f"[{target_name}] [{name}] Pull failed: {type(exc).__name__}: {exc}")
+            _direction_failed(target_name, f"{name} pull", exc, pull_count, len(remote_rows))
 
 
 # ── Per-DB sync dispatcher ───────────────────────────────────────────────────
@@ -1740,6 +1790,7 @@ def _open_local_store(target: SyncTarget):
 
 
 def main():
+    _FAILED_DIRECTIONS.clear()  # one run's failures; an in-process caller may run main() again
     parser = argparse.ArgumentParser(
         description="Bidirectional SQLite ↔ PostgreSQL sync with per-DB manifests.",
     )
@@ -1873,7 +1924,8 @@ def main():
                                 _release_sync_lock(sl_cur)
                                 sl_conn.commit()
                     except Exception as e:
-                        logger.error(f"Failed during sync of target {target.name}: {e}")
+                        _FAILED_DIRECTIONS.append(f"{target.name}/target")
+                        logger.error(f"Failed during sync of target {target.name}: {e.__class__.__name__}: {e}")
 
         else:
             # Generic manifest-driven path for bench DBs and future additions
@@ -1936,6 +1988,8 @@ def main():
                 # borrower. The context manager knows how to release it.
                 _store_cm.__exit__(None, None, None)
 
+        if rc := _failed_run_exit_code():
+            return rc
         logger.info("pg_sync completed successfully.")
 
     except Exception as e:
