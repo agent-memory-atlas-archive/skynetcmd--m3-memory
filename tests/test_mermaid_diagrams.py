@@ -28,6 +28,7 @@ from pathlib import Path
 import pytest
 
 from conftest import skip_reason
+from m3_memory._platform import hidden_window_kwargs
 
 REPO = Path(__file__).resolve().parents[1]
 _BLOCK = re.compile(r"```mermaid\n(.*?)```", re.DOTALL)
@@ -136,11 +137,15 @@ def _render(cli: list[str], src: Path, cfg: Path) -> tuple[bool, subprocess.Comp
     """
     out = src.with_suffix(".svg")
     try:
+        # mmdc is a .CMD shim on Windows: cmd.exe and the headless Chrome it starts
+        # each opened a visible console window during test runs (user-reported
+        # 2026-10-11). The OS seam hides it and keeps the captured output.
         proc = subprocess.run(
             [*cli, "-i", str(src), "-o", str(out), "-p", str(cfg)],
             capture_output=True,
             text=True,
             timeout=180,
+            **hidden_window_kwargs(),
         )
     except (subprocess.TimeoutExpired, OSError) as exc:
         pytest.skip(skip_reason("env", f"mermaid-cli unusable: {exc}"))
