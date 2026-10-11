@@ -63,10 +63,16 @@ def _resolve_db() -> str:
             return os.path.abspath(os.path.join(engine_root_fn(), "agent_memory.db"))
         except Exception:  # noqa: BLE001
             pass
-    engine_root = os.environ.get("M3_ENGINE_ROOT")
-    if engine_root:
-        return os.path.abspath(os.path.join(os.path.expanduser(engine_root), "agent_memory.db"))
-    return str(repo / "engine" / "agent_memory.db")
+    # m3_sdk did not import: the stdlib-only roots owner still does (it applies
+    # M3_ENGINE_ROOT > M3_MEMORY_ROOT/engine > ~/.m3/engine). The guess this used
+    # to end on, <repo>/engine, is a pre-Homecoming location: on a migrated
+    # install it named the wrong DB and raised a false "NOT writing" alarm.
+    try:
+        from m3_core.seams import roots
+
+        return os.path.abspath(os.path.join(roots.engine_root(), "agent_memory.db"))
+    except Exception:  # noqa: BLE001 — the code itself is unreachable
+        return str(repo / "engine" / "agent_memory.db")
 
 
 def _recent_window_sql() -> tuple[str, tuple]:

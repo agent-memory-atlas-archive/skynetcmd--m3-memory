@@ -173,9 +173,9 @@ def _fips_strict() -> bool:
 def _m3_lib_dir() -> str:
     """M3's own trusted lib directory (~/.m3/lib by default).
 
-    Mirrors the decoupled-roots resolution without importing m3_sdk (the crypto
-    layer stays dependency-light): M3_LIB_DIR, else M3_CONFIG_ROOT's parent,
-    else M3_MEMORY_ROOT/.. , else ~/.m3 — then /lib.
+    Owned by ``m3_memory._roots.lib_root`` (stdlib-only, so the crypto layer stays
+    dependency-light): M3_LIB_DIR, else M3_CONFIG_ROOT's parent, else
+    M3_MEMORY_ROOT, else ~/.m3 — then /lib.
 
     M3_LIB_DIR pins the DIRECTORY only; the per-OS filename is still chosen by
     _trusted_wolfssl_candidates(). That distinction matters: M3_WOLFSSL_LIB
@@ -186,16 +186,9 @@ def _m3_lib_dir() -> str:
     install) silently moves the trusted crypto search away from the real
     installed library, which is FAIL-CLOSED under M3_FIPS_MODE=1.
     """
-    pinned_dir = os.environ.get("M3_LIB_DIR", "").strip()
-    if pinned_dir:
-        return os.path.abspath(os.path.expanduser(pinned_dir))
-    cfg = os.environ.get("M3_CONFIG_ROOT")
-    if cfg:
-        base = os.path.dirname(os.path.abspath(os.path.expanduser(cfg)))
-    else:
-        mem = os.environ.get("M3_MEMORY_ROOT")
-        base = os.path.abspath(os.path.expanduser(mem)) if mem else os.path.join(os.path.expanduser("~"), ".m3")
-    return os.path.join(base, "lib")
+    from m3_core.seams import roots
+
+    return roots.lib_root()
 
 
 def _trusted_wolfssl_candidates() -> "list[str]":

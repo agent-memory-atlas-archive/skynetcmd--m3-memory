@@ -106,20 +106,11 @@ def _os_name() -> str:
 
 
 def _config_root() -> Path:
-    """Config root, honoring the Homecoming overrides. Mirrors
-    m3_loop_watchdog._roots(): prefer the SDK resolver, fall back to the
-    documented precedence when the venv is half-upgraded."""
-    try:
-        from m3_sdk import get_m3_config_root
+    """Config root, honoring the Homecoming overrides, from the stdlib-only roots
+    owner (it imports even from a half-upgraded venv, so no fallback copy)."""
+    from m3_core.seams import roots
 
-        return Path(get_m3_config_root())
-    except Exception:
-        master = os.environ.get("M3_MEMORY_ROOT")
-        return Path(
-            os.environ.get("M3_CONFIG_ROOT")
-            or (os.path.join(master, "config") if master else None)
-            or os.path.expanduser("~/.m3/config")
-        )
+    return Path(roots.config_root())
 
 
 CONFIG_ROOT = _config_root()

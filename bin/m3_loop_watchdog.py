@@ -104,25 +104,13 @@ def _roots() -> tuple[Path, Path]:
     """(config_root, engine_root), honoring the Homecoming env overrides.
 
     Hardcoding ~/.m3 would silently break every deployment that sets
-    M3_CONFIG_ROOT / M3_ENGINE_ROOT / M3_MEMORY_ROOT. Prefer the SDK resolvers;
-    fall back to the documented precedence when the venv is unimportable."""
-    try:
-        from m3_sdk import get_m3_config_root, get_m3_engine_root
+    M3_CONFIG_ROOT / M3_ENGINE_ROOT / M3_MEMORY_ROOT. From the roots owner, which
+    is stdlib-only: it imports even when the venv is not (measured 2026-10-11 with
+    a bare `python -I`), so the fallback copy of the precedence this carried for a
+    broken venv is gone."""
+    from m3_core.seams import roots
 
-        return Path(get_m3_config_root()), Path(get_m3_engine_root())
-    except Exception:
-        master = os.environ.get("M3_MEMORY_ROOT")
-        cfg = (
-            os.environ.get("M3_CONFIG_ROOT")
-            or (os.path.join(master, "config") if master else None)
-            or os.path.expanduser("~/.m3/config")
-        )
-        eng = (
-            os.environ.get("M3_ENGINE_ROOT")
-            or (os.path.join(master, "engine") if master else None)
-            or os.path.expanduser("~/.m3/engine")
-        )
-        return Path(cfg), Path(eng)
+    return Path(roots.config_root()), Path(roots.engine_root())
 
 
 CONFIG_ROOT, ENGINE_ROOT = _roots()

@@ -42,10 +42,9 @@ EXIT_REGISTERED_NOT_RUNNING = 3
 
 
 def _m3_root() -> Path:
-    root = os.environ.get("M3_MEMORY_ROOT")
-    if root:
-        return Path(root).expanduser().resolve()
-    return Path.home() / ".m3-memory"
+    from m3_memory import _roots
+
+    return Path(_roots.memory_root())
 
 
 # ── BGE-M3 GGUF discovery ────────────────────────────────────────────────────
@@ -69,15 +68,10 @@ def _is_sovereign_path(p: Path) -> bool:
             roots.append(Path(fn()))
         except Exception:  # noqa: BLE001 — advisory
             pass
-    if not roots:  # model_fetch unimportable (bare install): resolve inline.
-        env = os.environ.get("M3_MODELS_ROOT")
-        mem = os.environ.get("M3_MEMORY_ROOT")
-        if env:
-            roots.append(Path(os.path.expanduser(env)))
-        elif mem:
-            roots.append(Path(os.path.expanduser(mem)) / "models")
-        else:
-            roots.append(Path.home() / ".m3" / "models")
+    if not roots:  # model_fetch unimportable (bare install): the stdlib-only owner.
+        from m3_memory import _roots
+
+        roots.append(Path(_roots.models_root()))
     for root in roots:
         try:
             p.resolve().relative_to(root.resolve())
@@ -1292,18 +1286,11 @@ def _import_model_fetch(name: str):
 def _embed_config_path() -> str:
     """<config_root>/.embed_config.json — read at import by bin/memory/embed.py.
 
-    Resolves the config root the same way m3_core.paths.get_m3_config_root does:
-    M3_CONFIG_ROOT > M3_MEMORY_ROOT/config > ~/.m3/config. Kept dependency-free
-    (no m3_sdk import) so this CLI helper works from a bare package install."""
-    root = os.environ.get("M3_CONFIG_ROOT")
-    if not root:
-        mem_root = os.environ.get("M3_MEMORY_ROOT")
-        root = (
-            os.path.join(os.path.abspath(os.path.expanduser(mem_root)), "config")
-            if mem_root
-            else os.path.join(os.path.expanduser("~"), ".m3", "config")
-        )
-    return os.path.join(root, ".embed_config.json")
+    The config root comes from m3_memory._roots, which is stdlib-only, so this CLI
+    helper still works from a bare package install."""
+    from m3_memory import _roots
+
+    return os.path.join(_roots.config_root(), ".embed_config.json")
 
 
 def shared_mode_enabled() -> bool:

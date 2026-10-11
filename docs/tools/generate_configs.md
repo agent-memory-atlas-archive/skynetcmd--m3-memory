@@ -1,8 +1,8 @@
 ---
 tool: bin/generate_configs.py
-sha1: db84cde1572b
-mtime_utc: 2026-10-10T21:05:16.868013+00:00
-generated_utc: 2026-10-10T21:05:29.552753+00:00
+sha1: 004bdd4fcf97
+mtime_utc: 2026-10-11T17:01:05.099655+00:00
+generated_utc: 2026-10-11T17:32:12.811588+00:00
 private: false
 ---
 
@@ -34,10 +34,7 @@ _(no module docstring — update the source file.)_
 
 ## Environment variables read
 
-- `M3_CONFIG_ROOT`
 - `M3_EMBED_GGUF`
-- `M3_ENGINE_ROOT`
-- `M3_MEMORY_ROOT`
 
 ---
 
@@ -46,7 +43,6 @@ _(no module docstring — update the source file.)_
 - `chatlog_config`
 - `m3_memory.embedder_admin (seed_shared_config)`
 - `m3_memory.installer (bin_dir)`
-- `m3_sdk (get_m3_config_root, get_m3_engine_root, get_m3_root)`
 
 ---
 
@@ -61,6 +57,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `difflib`
 - `m3_core.atomic_io (atomic_write)`
 - `m3_core.paths (get_m3_models_root)`
+- `m3_core.seams (roots)`
 - `ntpath`
 - `posixpath`
 

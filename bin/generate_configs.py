@@ -215,17 +215,13 @@ def generate_configs(write: bool = True):
     # the code location (the repo's parent is site-packages under
     # an installed layout, which would point the server at a nonexistent
     # site-packages/engine and silently orphan the real DB on the next restart).
-    try:
-        from m3_sdk import get_m3_config_root, get_m3_engine_root, get_m3_root
+    # From the roots owner (stdlib-only, so no m3_sdk fallback is needed; the
+    # copy that fallback carried defaulted the memory root differently).
+    from m3_core.seams import roots
 
-        memory_root = get_m3_root()
-        engine_root = get_m3_engine_root()
-        config_root = get_m3_config_root()
-    except Exception:  # noqa: BLE001 — SDK unavailable: env vars, then ~/.m3 defaults
-        _home = os.path.expanduser("~")
-        memory_root = os.environ.get("M3_MEMORY_ROOT") or os.path.join(_home, ".m3")
-        engine_root = os.environ.get("M3_ENGINE_ROOT") or os.path.join(memory_root, "engine")
-        config_root = os.environ.get("M3_CONFIG_ROOT") or os.path.join(memory_root, "config")
+    memory_root = roots.memory_root()
+    engine_root = roots.engine_root()
+    config_root = roots.config_root()
     memory_root = str(memory_root).replace("\\", "/")
     engine_root = str(engine_root).replace("\\", "/")
     config_root = str(config_root).replace("\\", "/")

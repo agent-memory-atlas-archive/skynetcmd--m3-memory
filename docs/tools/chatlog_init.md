@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_init.py
-sha1: bcd3ef3177fb
-mtime_utc: 2026-10-10T22:34:36.773285+00:00
-generated_utc: 2026-10-10T22:35:14.910724+00:00
+sha1: bef3cc9c06f1
+mtime_utc: 2026-10-11T17:01:05.098151+00:00
+generated_utc: 2026-10-11T17:32:12.614609+00:00
 private: false
 ---
 
@@ -29,7 +29,7 @@ path equality.
 
 ## Entry points
 
-- `def main()` (line 609)
+- `def main()` (line 605)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -51,9 +51,7 @@ path equality.
 
 ## Environment variables read
 
-- `M3_CONFIG_ROOT`
-- `M3_ENGINE_ROOT`
-- `M3_MEMORY_ROOT`
+_(none detected)_
 
 ---
 
@@ -63,7 +61,6 @@ path equality.
 - `generate_configs`
 - `m3_memory.installer (_canonical_memory_server)`
 - `m3_memory.installer (_fix_npm_global_path)`
-- `m3_sdk (get_m3_config_root, get_m3_engine_root)`
 
 ---
 
@@ -73,7 +70,7 @@ path equality.
 
 - `subprocess.run()  → `[sys.executable, install_script, '--add', 'chatlog-embed-sweep']`` (line 293)
 - `subprocess.run()  → `[sys.executable, migrate_script, 'up', '--target', 'chatlog', '-y']`` (line 270)
-- `subprocess.run()  → `[sys.executable, migrate_script, 'up', '--target', 'chatlog', '-y']`` (line 740)
+- `subprocess.run()  → `[sys.executable, migrate_script, 'up', '--target', 'chatlog', '-y']`` (line 736)
 
 
 ---
@@ -82,6 +79,7 @@ path equality.
 
 - `m3_core.paths (store_is_a_file)`
 - `m3_core.seams (is_windows)`
+- `m3_core.seams (roots)`
 
 ---
 

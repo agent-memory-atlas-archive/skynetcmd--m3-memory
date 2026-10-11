@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_embed_watchdog.py
-sha1: 55b66b471395
-mtime_utc: 2026-10-10T23:43:02.125747+00:00
-generated_utc: 2026-10-10T23:43:51.687709+00:00
+sha1: 2faf9cb28066
+mtime_utc: 2026-10-11T17:03:01.489742+00:00
+generated_utc: 2026-10-11T17:32:12.915900+00:00
 private: false
 ---
 
@@ -62,7 +62,7 @@ DESIGN (§1 three-OS, §3 fail-loud/never-silent, §4 cheap, §10a one owner)
 
 ## Entry points
 
-- `def main()` (line 290)
+- `def main()` (line 281)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -75,15 +75,13 @@ _(no argparse arguments detected)_
 
 ## Environment variables read
 
-- `M3_CONFIG_ROOT`
-- `M3_MEMORY_ROOT`
+_(none detected)_
 
 ---
 
 ## Calls INTO this repo (intra-repo imports)
 
 - `_task_runtime (no_window_kwargs)`
-- `m3_sdk (get_m3_config_root)`
 
 ---
 
@@ -91,14 +89,14 @@ _(no argparse arguments detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `cmd`` (line 262)
+- `subprocess.run()  → `cmd`` (line 253)
 
 
 ---
 
 ## Notable external imports
 
-_(only stdlib)_
+- `m3_core.seams (roots)`
 
 ---
 

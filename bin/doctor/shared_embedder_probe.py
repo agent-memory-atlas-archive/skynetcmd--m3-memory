@@ -40,17 +40,11 @@ _TASK = "AgentOS_EmbedServer"
 
 
 def _config_root() -> str:
-    # Dependency-free mirror of m3_core.paths.get_m3_config_root (this probe must
-    # run from a bare payload without m3_sdk on the path).
-    root = os.environ.get("M3_CONFIG_ROOT")
-    if not root:
-        mem = os.environ.get("M3_MEMORY_ROOT")
-        root = (
-            os.path.join(os.path.abspath(os.path.expanduser(mem)), "config")
-            if mem
-            else os.path.join(os.path.expanduser("~"), ".m3", "config")
-        )
-    return root
+    # m3_memory._roots is stdlib-only, so this probe still runs from a bare
+    # payload without m3_sdk on the path.
+    from m3_core.seams import roots
+
+    return roots.config_root()
 
 
 def _config_path() -> str:

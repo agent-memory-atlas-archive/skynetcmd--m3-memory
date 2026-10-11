@@ -897,17 +897,11 @@ def _install_log_path() -> pathlib.Path | None:
 
     _Path = pathlib.Path
     try:
-        try:
-            from m3_sdk import get_m3_config_root
+        # The stdlib-only roots owner: no m3_sdk, so a half-upgraded venv needs
+        # no fallback copy of the precedence.
+        from m3_memory import _roots
 
-            config_root = _Path(get_m3_config_root())
-        except Exception:  # noqa: BLE001 - half-upgraded venv; fall back
-            master = os.environ.get("M3_MEMORY_ROOT")
-            config_root = _Path(
-                os.environ.get("M3_CONFIG_ROOT")
-                or (os.path.join(master, "config") if master else "")
-                or os.path.expanduser("~/.m3/config")
-            )
+        config_root = _Path(_roots.config_root())
         if _os_name() == "Darwin":
             return _Path(os.path.expanduser("~/Library/Logs/m3_rust_core_install.log"))
         return config_root.parent / "logs" / "m3_rust_core_install.log"

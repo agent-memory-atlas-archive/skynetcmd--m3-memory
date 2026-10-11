@@ -138,17 +138,18 @@ def _no_window() -> dict:
 
 
 def _log_path() -> pathlib.Path | None:
-    """~/.m3/logs/notification_waiter.log, honouring M3_ENGINE_ROOT's parent.
+    """<logs root>/notification_waiter.log (``m3_memory._roots.logs_root``).
 
-    Resolution mirrors the engine-root rules rather than hardcoding ~/.m3, so a
-    machine that relocated its roots still gets its log next to the others.
+    It used to derive the directory from M3_ENGINE_ROOT's parent, which ignored
+    M3_LOGS_ROOT and put this log apart from every other m3 log. The import is
+    deferred and stdlib-only, so the supervisor still survives `pipx upgrade`.
     Returns None rather than raising: logging is best-effort and must never take
     down the thing it is observing.
     """
     try:
-        engine = os.environ.get("M3_ENGINE_ROOT")
-        base = pathlib.Path(engine).parent if engine else pathlib.Path.home() / ".m3"
-        d = base / "logs"
+        from m3_core.seams import roots
+
+        d = pathlib.Path(roots.logs_root())
         d.mkdir(parents=True, exist_ok=True)
         return d / "notification_waiter.log"
     except Exception:
@@ -530,6 +531,18 @@ def _has_change_signal(probe_store: str) -> bool:
         return env == "sqlite"
 
 
+def _default_engine_root() -> str:
+    """The engine root from its one owner (m3_memory._roots, which also honours
+    M3_MEMORY_ROOT; the inline default here did not). Degraded beats dead: a
+    stripped payload without m3_core gets the default location, not a crash."""
+    try:
+        from m3_core.seams import roots
+
+        return roots.engine_root()
+    except ImportError:
+        return str(pathlib.Path.home() / ".m3" / "engine")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument(
@@ -542,9 +555,7 @@ def main() -> int:
         action="append",
         dest="agent_ids",
     )
-    ap.add_argument(
-        "--engine-root", default=os.environ.get("M3_ENGINE_ROOT") or str(pathlib.Path.home() / ".m3" / "engine")
-    )
+    ap.add_argument("--engine-root", default=_default_engine_root())
     ap.add_argument("--interval", type=float, default=1.0)
     ap.add_argument(
         "--timeout", type=float, default=3600.0, help="Give up after N seconds so a forgotten waiter cannot leak."

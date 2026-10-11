@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_notification_waiter.py
-sha1: ae36a6deeff6
-mtime_utc: 2026-10-10T21:05:16.911529+00:00
-generated_utc: 2026-10-10T21:05:29.741008+00:00
+sha1: c8262884f08d
+mtime_utc: 2026-10-11T17:00:48.936311+00:00
+generated_utc: 2026-10-11T17:32:12.994574+00:00
 private: false
 ---
 
@@ -33,7 +33,7 @@ is the whole point: on-change delivery to the agent, without a turn per tick.
 
 ## Entry points
 
-- `def main()` (line 533)
+- `def main()` (line 546)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -43,7 +43,7 @@ is the whole point: on-change delivery to the agent, without a turn per tick.
 | Flag(s) | Help | Default | Default behavior | Type/Action | Impact when set |
 |---|---|---|---|---|---|
 | `--agent-id` | Inbox to watch. Repeatable: pass once per agent to serve several inboxes from ONE process. The WAL trigger is shared -- a single file change covers every inbox -- so N agents cost N cheap confirm-polls after a change, not N watchers. | — |  | append |  |
-| `--engine-root` |  | `os.environ.get('M3_ENGINE_ROOT') or str(pathlib.Path.home() / '.m3' / 'engine')` |  | str |  |
+| `--engine-root` |  | `_default_engine_root()` |  | str |  |
 | `--interval` |  | `1.0` |  | float |  |
 | `--timeout` | Give up after N seconds so a forgotten waiter cannot leak. | `3600.0` |  | float |  |
 | `--supervise` | Never exit: after each detection, re-arm and keep waiting. For an ONSTART scheduled task, which needs a long-lived process. Without it the waiter is single-shot, which is what a runtime wants when the process EXIT is the wake signal. | `False` |  | store_true |  |
@@ -56,7 +56,6 @@ is the whole point: on-change delivery to the agent, without a turn per tick.
 
 - `DB_BACKEND`
 - `M3_DB_BACKEND`
-- `M3_ENGINE_ROOT`
 
 ---
 
@@ -70,8 +69,8 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.Popen()  → `cmd`` (line 389)
-- `subprocess.run()` (line 220)
+- `subprocess.Popen()  → `cmd`` (line 390)
+- `subprocess.run()` (line 221)
 
 
 ---
@@ -80,6 +79,7 @@ _(none detected)_
 
 - `m3_core.paths (notification_store_paths)`
 - `m3_core.paths (resolve_backend_name)`
+- `m3_core.seams (roots)`
 - `memory (db)`
 - `memory.backends (dialect)`
 - `memory.orchestration (agent_list_impl)`

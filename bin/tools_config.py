@@ -97,11 +97,9 @@ def config_path() -> str:
     Resolved lazily rather than at import so a test (or a caller that sets
     M3_CONFIG_ROOT after import) sees the right root.
     """
-    root = os.environ.get("M3_CONFIG_ROOT")
-    if not root:
-        m3_root = os.environ.get("M3_MEMORY_ROOT")
-        root = os.path.join(m3_root, "config") if m3_root else os.path.join(os.path.expanduser("~"), ".m3", "config")
-    return os.path.join(root, CONFIG_FILENAME)
+    from m3_core.seams import roots
+
+    return os.path.join(roots.config_root(), CONFIG_FILENAME)
 
 
 def _load_file() -> dict:

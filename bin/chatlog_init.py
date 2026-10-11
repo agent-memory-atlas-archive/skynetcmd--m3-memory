@@ -320,15 +320,11 @@ def _root_env_prefix() -> str:
     pins on Windows is safe rather than a downgrade."""
     if is_windows():
         return ""
-    try:
-        from m3_sdk import get_m3_config_root, get_m3_engine_root
+    # The roots owner is stdlib-only, so this needs no m3_sdk fallback (the copy
+    # that fallback carried defaulted the memory root differently).
+    from m3_core.seams import roots
 
-        eng, cfg = get_m3_engine_root(), get_m3_config_root()
-    except Exception:  # noqa: BLE001 — SDK unavailable: env vars, then ~/.m3 defaults
-        _home = os.path.expanduser("~")
-        _mem = os.environ.get("M3_MEMORY_ROOT") or os.path.join(_home, ".m3")
-        eng = os.environ.get("M3_ENGINE_ROOT") or os.path.join(_mem, "engine")
-        cfg = os.environ.get("M3_CONFIG_ROOT") or os.path.join(_mem, "config")
+    eng, cfg = roots.engine_root(), roots.config_root()
     eng = str(eng).replace("\\", "/")
     cfg = str(cfg).replace("\\", "/")
     return f"M3_ENGINE_ROOT={eng} M3_CONFIG_ROOT={cfg} "

@@ -21,6 +21,17 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **Every tool resolves the data roots the same way.** About twenty places
+  carried their own copy of the root rules, and several had drifted: the
+  notification waiter wrote its log under the engine root's parent and ignored
+  `M3_LOGS_ROOT`; `.tools_config.json` did not expand `~` in `M3_CONFIG_ROOT`;
+  the session-start capture check could look for the database under the code
+  checkout and report capture as stopped when it was not. All of them now use
+  one resolver.
+  **Affected:** installs that set `M3_LOGS_ROOT`, `M3_MEMORY_ROOT` or a
+  `~`-relative `M3_CONFIG_ROOT` · **Action:** none · **Data status:** none;
+  the notification waiter's new log starts in the logs root.
+
 - **A POSIX-style `M3_MODELS_ROOT` is kept as given on Windows.** Set from Git
   Bash or WSL (`/data/models`), it was turned into `C:\data\models`, as the
   other roots no longer do. The models root now follows the same rule as the

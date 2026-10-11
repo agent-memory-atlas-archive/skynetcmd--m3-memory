@@ -7,6 +7,7 @@ mechanism (a scheduled-task daemon doesn't inherit shell env — §3).
 """
 
 import json
+import os
 import sys
 import types
 from pathlib import Path
@@ -20,13 +21,14 @@ from m3_memory import embedder_admin as EA  # noqa: E402
 
 def test_config_path_honors_config_root(monkeypatch, tmp_path):
     monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path))
-    assert EA._embed_config_path() == str(tmp_path / ".embed_config.json")
+    # The roots owner returns forward slashes (as m3_core.paths always has): compare locations.
+    assert os.path.normpath(EA._embed_config_path()) == str(tmp_path / ".embed_config.json")
 
 
 def test_config_path_falls_back_to_memory_root(monkeypatch, tmp_path):
     monkeypatch.delenv("M3_CONFIG_ROOT", raising=False)
     monkeypatch.setenv("M3_MEMORY_ROOT", str(tmp_path))
-    assert EA._embed_config_path() == str(tmp_path / "config" / ".embed_config.json")
+    assert os.path.normpath(EA._embed_config_path()) == str(tmp_path / "config" / ".embed_config.json")
 
 
 def test_shared_writes_config(monkeypatch, tmp_path):

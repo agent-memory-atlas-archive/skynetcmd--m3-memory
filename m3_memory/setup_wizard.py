@@ -27,6 +27,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import cast
 
+from m3_memory import _roots
 from m3_memory._platform import is_macos, is_windows
 
 from ._platform import hidden_window_kwargs as _hidden_window_kwargs
@@ -2118,16 +2119,9 @@ def _discover_bge_m3_gguf() -> str | None:
         # extension, so finding one needs the manifest walk that lives there.
         candidate_dirs = [
             # m3's OWN dir first — the only one that survives the user dropping
-            # LM Studio / Ollama / llama.cpp. Mirrors get_m3_models_root()'s
-            # precedence without importing it (bin/ is unavailable on this path).
-            Path(
-                os.environ.get("M3_MODELS_ROOT")
-                or (
-                    Path(os.environ["M3_MEMORY_ROOT"]).expanduser() / "models"
-                    if os.environ.get("M3_MEMORY_ROOT")
-                    else home / ".m3" / "models"
-                )
-            ).expanduser(),
+            # LM Studio / Ollama / llama.cpp. From the stdlib-only roots owner
+            # (bin/ is unavailable on this path; m3_memory._roots is not).
+            Path(_roots.models_root()),
             home / ".lmstudio" / "models",
             home / "Library" / "Application Support" / "LM Studio" / "models",
             home / ".cache" / "lm-studio" / "models",

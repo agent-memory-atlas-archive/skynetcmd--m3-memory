@@ -62,13 +62,11 @@ TARBALL_URL_TEMPLATE = "https://github.com/skynetcmd/m3-memory/archive/refs/tags
 
 
 def config_dir() -> Path:
-    """Directory for per-user m3-memory state (config + default repo clone).
-    Honors M3_MEMORY_ROOT environment variable, defaults to ~/.m3-memory.
-    """
-    root = os.environ.get("M3_MEMORY_ROOT")
-    if root:
-        return Path(root).expanduser().resolve()
-    return Path.home() / ".m3-memory"
+    """Directory for per-user m3-memory state (config + default repo clone): the
+    memory root, from its one owner (M3_MEMORY_ROOT, else ~/.m3-memory)."""
+    from m3_memory import _roots
+
+    return Path(_roots.memory_root())
 
 
 def config_file() -> Path:
@@ -252,10 +250,7 @@ def _m3_state_root() -> Path:
     the value written as ``M3_MEMORY_ROOT`` into each agent's MCP ``env`` so the
     bridge resolves the decoupled engine/config roots consistently.
     """
-    root = os.environ.get("M3_MEMORY_ROOT")
-    if root:
-        return Path(root).expanduser()
-    # config_dir() is <root>/config-ish; its parent is the state root (~/.m3).
+    # The memory root, pinned or default: config_dir() is the same owner's answer.
     return config_dir()
 
 
@@ -277,29 +272,14 @@ def _canonical_memory_env() -> dict:
     ``doctor --fix`` self-heal, so the two never drift apart again.
     """
     state_root = str(_m3_state_root()).replace("\\", "/")
-    cfg = load_config()
-    # Precedence MUST match the canonical resolver in m3_core.paths
-    # (env > derived), or the bridge and this generated env block disagree on
-    # which roots are authoritative. Previously this read the config file FIRST
-    # (cfg.get(...) or env or derived), which let a stale/hand-edited config key
-    # beat an explicit env var — the opposite of the documented rule. In
-    # practice m3 never writes these keys to the config file (the setup wizard
-    # sets them as env vars), so cfg is now only a last-resort override BELOW
-    # env + the canonical derivation.
-    from m3_sdk import get_m3_config_root, get_m3_engine_root
+    # The roots come from their one owner, so the bridge and this env block cannot
+    # disagree on which roots are authoritative. (A config-file override once
+    # beat an explicit env var here; later it sat below the owner, which always
+    # answers, so it could never be reached and is gone.)
+    from m3_memory import _roots
 
-    eng = (
-        os.environ.get("M3_ENGINE_ROOT")
-        or get_m3_engine_root()
-        or cfg.get("M3_ENGINE_ROOT")
-        or str(_m3_state_root() / "engine")
-    )
-    conf = (
-        os.environ.get("M3_CONFIG_ROOT")
-        or get_m3_config_root()
-        or cfg.get("M3_CONFIG_ROOT")
-        or str(_m3_state_root() / "config")
-    )
+    eng = _roots.engine_root()
+    conf = _roots.config_root()
     env = {
         "M3_MEMORY_ROOT": state_root,
         "M3_ENGINE_ROOT": str(eng).replace("\\", "/"),
@@ -2953,8 +2933,9 @@ def doctor(fix: bool = False, brief: bool = False) -> int:
         print("\nFor full detail, run:  m3 doctor --verbose")
         return 1
 
-    root = os.environ.get("M3_MEMORY_ROOT")
-    root_src = "(M3_MEMORY_ROOT env)" if root else "(default)"
+    from m3_memory import _roots
+
+    root_src = "(M3_MEMORY_ROOT env)" if _roots.pinned(_roots.MEMORY_ROOT_ENV) else "(default)"
 
     print(f"m3-memory package version: {__version__}")
     print(f"M3 root directory:         {config_dir()} {root_src}")

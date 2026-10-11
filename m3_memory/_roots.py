@@ -67,6 +67,17 @@ def _home(*parts: str) -> str:
     return os.path.join(os.path.expanduser("~"), *parts)
 
 
+def pinned(env_name: str) -> str | None:
+    """The root a variable pins EXPLICITLY (absolute), or None when unset or blank.
+
+    For callers whose behaviour depends on whether the user chose a root, not
+    just on where it resolves (the installer's "is this root pinned?", a search
+    path that applies only when M3_MEMORY_ROOT is set).
+    """
+    root = _env(env_name)
+    return abs_root(root) if root else None
+
+
 def memory_root() -> str:
     """The memory root: ``M3_MEMORY_ROOT``, else ``~/.m3-memory``."""
     root = _env(MEMORY_ROOT_ENV)
@@ -107,6 +118,32 @@ def logs_root() -> str:
     """Logs are user state, not payload: never under the install root, where a
     reinstall deletes them."""
     return _derived(LOGS_ROOT_ENV, "logs")
+
+
+LIB_DIR_ENV = "M3_LIB_DIR"
+
+
+def lib_root() -> str:
+    """m3's own trusted native-library directory (wolfSSL): ``~/.m3/lib`` by default.
+
+    Precedence: ``M3_LIB_DIR`` > the config root's PARENT ``/lib`` >
+    ``M3_MEMORY_ROOT/lib`` > ``~/.m3/lib``. Unlike the other roots it hangs off
+    the config root's parent, and it keeps host-convention ``abspath``: the crypto
+    loader and the wolfSSL installer each carried a hand-synced copy of exactly
+    this rule, and this is that rule, unchanged. Relocating it matters: anything
+    that repoints the config root would otherwise move the trusted search away
+    from the installed library, which is fail-closed under M3_FIPS_MODE=1.
+    """
+    pinned = (os.environ.get(LIB_DIR_ENV) or "").strip()
+    if pinned:
+        return os.path.abspath(os.path.expanduser(pinned))
+    cfg = _env(CONFIG_ROOT_ENV_NAME)
+    if cfg:
+        base = os.path.dirname(os.path.abspath(os.path.expanduser(cfg)))
+    else:
+        mem = _env(MEMORY_ROOT_ENV)
+        base = os.path.abspath(os.path.expanduser(mem)) if mem else _home(".m3")
+    return os.path.join(base, "lib")
 
 
 def models_root() -> str:

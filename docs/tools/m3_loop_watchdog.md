@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_loop_watchdog.py
-sha1: 6118573f4f9e
-mtime_utc: 2026-10-10T21:05:16.905525+00:00
-generated_utc: 2026-10-10T21:05:29.735083+00:00
+sha1: 26a493f02839
+mtime_utc: 2026-10-11T17:03:01.489227+00:00
+generated_utc: 2026-10-11T17:32:12.988898+00:00
 private: false
 ---
 
@@ -53,7 +53,7 @@ DESIGN (§2 modularity, §3 fail-safe, §5 effectiveness)
 
 ## Entry points
 
-- `def main()` (line 316)
+- `def main()` (line 304)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -66,9 +66,7 @@ _(no argparse arguments detected)_
 
 ## Environment variables read
 
-- `M3_CONFIG_ROOT`
-- `M3_ENGINE_ROOT`
-- `M3_MEMORY_ROOT`
+_(none detected)_
 
 ---
 
@@ -77,7 +75,6 @@ _(no argparse arguments detected)_
 - `_task_runtime (no_window_kwargs)`
 - `m3_embed_watchdog`
 - `m3_halt`
-- `m3_sdk (get_m3_config_root, get_m3_engine_root)`
 
 ---
 
@@ -85,14 +82,14 @@ _(no argparse arguments detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `cmd`` (line 275)
+- `subprocess.run()  → `cmd`` (line 263)
 
 
 ---
 
 ## Notable external imports
 
-_(only stdlib)_
+- `m3_core.seams (roots)`
 
 ---
 

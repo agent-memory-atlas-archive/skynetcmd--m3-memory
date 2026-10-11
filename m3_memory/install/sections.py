@@ -303,15 +303,9 @@ def _shared_embedder_status() -> None:
         import json
         import os
 
-        root = os.environ.get("M3_CONFIG_ROOT")
-        if not root:
-            mem = os.environ.get("M3_MEMORY_ROOT")
-            root = (
-                os.path.join(os.path.abspath(os.path.expanduser(mem)), "config")
-                if mem
-                else os.path.join(os.path.expanduser("~"), ".m3", "config")
-            )
-        path = os.path.join(root, ".embed_config.json")
+        from m3_memory import _roots
+
+        path = os.path.join(_roots.config_root(), ".embed_config.json")
         if not os.path.exists(path):
             # Shared mode is the shipped DEFAULT, so its absence is an anomaly to
             # flag, not a neutral state. A per-process fleet means N embedder
@@ -447,10 +441,12 @@ def _roots_section() -> None:
     except Exception:  # noqa: BLE001 — informational only
         return
 
+    from m3_memory import _roots
+
     def _src(env_name: str, default: str) -> str:
-        if os.environ.get(env_name):
+        if _roots.pinned(env_name):
             return f"({env_name} env)"
-        if os.environ.get("M3_MEMORY_ROOT"):
+        if _roots.pinned(_roots.MEMORY_ROOT_ENV):
             return "(derived from M3_MEMORY_ROOT)"
         return f"(default {default})"
 
@@ -479,8 +475,8 @@ def _roots_section() -> None:
     # in THIS process but the MCP server / hook may not inherit it. We can only
     # observe this process's env, so we flag the structural asymmetry (a) and
     # always remind about the both-surfaces requirement when ANY root is pinned.
-    eng_pinned = bool(os.environ.get("M3_ENGINE_ROOT"))
-    cfg_pinned = bool(os.environ.get("M3_CONFIG_ROOT"))
+    eng_pinned = _roots.pinned(_roots.ENGINE_ROOT_ENV) is not None
+    cfg_pinned = _roots.pinned(_roots.CONFIG_ROOT_ENV_NAME) is not None
     if eng_pinned != cfg_pinned:
         print()
         only = "M3_ENGINE_ROOT" if eng_pinned else "M3_CONFIG_ROOT"
@@ -489,7 +485,7 @@ def _roots_section() -> None:
         print("      Pin BOTH together so the config and engine roots can't")
         print("      diverge. (Setting only one leaves the other on its")
         print("      derived/default path.)")
-    if eng_pinned or cfg_pinned or os.environ.get("M3_MEMORY_ROOT"):
+    if eng_pinned or cfg_pinned or _roots.pinned(_roots.MEMORY_ROOT_ENV):
         print()
         print("  [i] Decoupled-roots reminder: the m3 MCP server reads its root")
         print("      from the server `env` block in the client settings.json,")

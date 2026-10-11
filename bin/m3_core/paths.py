@@ -730,20 +730,20 @@ def _default_db_path() -> str:
     # M3_MEMORY_ROOT is set, the engine path is DERIVED, not chosen. If that
     # derived DB is missing or an empty stub, we must not let it shadow a
     # populated legacy memory/ DB — see _db_is_populated.
-    if os.getenv("M3_ENGINE_ROOT"):
+    if _roots.pinned(_roots.ENGINE_ROOT_ENV):
         # Explicit engine root is a deliberate operator choice; honor it verbatim
         # even if empty (a fresh deployment legitimately starts empty here).
         return os.path.join(get_m3_engine_root(), "agent_memory.db")
 
     engine_db = os.path.join(get_m3_engine_root(), "agent_memory.db")
-    mem_root = os.getenv("M3_MEMORY_ROOT")
+    mem_root = _roots.pinned(_roots.MEMORY_ROOT_ENV)
     if mem_root:
         if _db_is_populated(engine_db):
             return engine_db
         # Derived engine DB is missing/empty. Prefer a populated legacy memory/
         # DB under the same root before falling back to the empty engine path.
         legacy_under_root = os.path.join(
-            os.path.abspath(os.path.expanduser(mem_root)),
+            os.path.abspath(mem_root),  # host form, as this path has always been
             "memory",
             "agent_memory.db",
         )

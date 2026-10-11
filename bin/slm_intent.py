@@ -98,7 +98,9 @@ def _profile_search_dirs() -> list[Path]:
                 dirs.append(Path(p))
     # M3_MEMORY_ROOT-derived default — valid only when that var points at the
     # repo/payload root.
-    base = os.environ.get("M3_MEMORY_ROOT")
+    from m3_core.seams import roots
+
+    base = roots.pinned(roots.MEMORY_ROOT_ENV)
     if base:
         dirs.append(Path(base) / "config" / "slm")
     # ALWAYS also search the code-relative location where profiles actually ship
