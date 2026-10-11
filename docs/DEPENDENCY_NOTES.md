@@ -308,8 +308,8 @@ Releases are unaffected: `publish.yml` installs twine unpinned in its own
 environment, and twine 7.0.0 `check --strict` passes on m3's sdist and wheel
 (measured 2026-10-10).
 
-Lift when langchain-core relaxes its packaging cap, or when the `langchain`
-extra moves to langchain-core 1.x.
+Lift when the `langchain` extra moves to langchain-core 1.x: 1.6.9 no longer
+caps packaging (see "Inherited limits" below).
 
 ### `setuptools` (`setuptools>=84.0.0`)
 
@@ -350,3 +350,94 @@ together, and an `entity-ner` install runs a transformers below that floor.
 `bin/m3_entities_gliner.py` warns on every run when that is the case, and
 pyproject declares the two extras (and the test groups) as conflicting to uv.
 Until gliner widens its range: run GLiNER only on trusted models and data.
+
+## Inherited limits (set by dependencies, not by m3)
+
+m3's own limits are above. These are the limits m3's dependencies put on
+OTHER packages, which hold an install below the newest release no matter what
+m3 declares. Measured 2026-10-10 from PyPI: each package's `requires_dist` at its `uv.lock`
+version AND at its newest non-yanked final release that day, so the tables show
+whether upgrading the dependent lifts a limit. Only limits that bind (the newest release falls outside them) are
+listed. Re-measure before lifting anything here: a newer release of the
+dependent package is what removes each one.
+
+No section here uses a `name` heading on purpose: these are not m3's limits,
+and tests/test_dependency_limits_documented.py reads those headings as m3's.
+
+### Effective floors higher than m3 declares
+
+m3's stated floor is not reachable in practice where a core dependency needs
+more:
+
+| Package | m3 declares | Needed by | Effective floor |
+|---|---|---|---|
+| pydantic | `>=2.11,<3` | fastmcp-slim 3.4.8 (core) | 2.11.7 |
+| pydantic | `>=2.11,<3` | pydantic-ai-slim / pydantic-graph 2.55 (`pydantic-ai` extra) | 2.12 with that extra |
+| starlette | `>=0.46` | sse-starlette 3.5.0 (core, via mcp) | 0.49.1 |
+| langchain-core | `>=0.3.0,<1` | langgraph-prebuilt 0.6.5 (`langchain` extra) | 0.3.67 with langgraph |
+| packaging | `>=20.9` (`entity-ner`) | build, twine, deptry, pytest, langsmith, crewai | 23.2 to 24.0 in dev and extra installs |
+
+### Dependents, their versions, and the limits they set
+
+Each row is one dependent at its locked and its newest version; a limit is
+listed only while it binds (the limited package's newest release falls
+outside it). Regenerate both measurements before acting on a row.
+
+#### `langchain` extra
+
+| Dependent | Locked | Limits it sets (locked) | Newest | Limits it sets (newest) | m3 admits newest |
+|---|---|---|---|---|---|
+| langchain-core | 0.3.86 | packaging `<26.0.0,>=23.2.0`<br>uuid-utils `<1.0,>=0.12.0` | 1.6.9 | uuid-utils `<1.0,>=0.12.0` | blocked by m3 `<1,>=0.3.0` |
+| langgraph | 0.6.11 | langgraph-checkpoint `<4.0.0,>=2.1.0`<br>langgraph-prebuilt `<0.7.0,>=0.6.0`<br>langgraph-sdk `<0.3.0,>=0.2.2` | 1.2.14 | none binding | blocked by m3 `<1,>=0.2.0` |
+| langgraph-prebuilt | 0.6.5 | langgraph-checkpoint `<4.0.0,>=2.1.0` | 1.1.0 | none binding | yes |
+| langsmith | 0.14.7 | uuid-utils `<1.0,>=0.12.0` | 0.14.7 (= locked) | same | yes |
+
+#### `crewai` extra
+
+| Dependent | Locked | Limits it sets (locked) | Newest | Limits it sets (newest) | m3 admits newest |
+|---|---|---|---|---|---|
+| crewai | 1.15.27 | aiofiles `~=24.1.0`<br>aiosqlite `~=0.21.0`<br>instructor `<1.16,>=1.3.3`<br>json-repair `~=0.60.1`<br>json5 `~=0.10.0`<br>lancedb `<0.30.1,>=0.29.2`<br>mcp `~=1.28.1`<br>openai `<3,>=2.30.0`<br>portalocker `~=2.7.0`<br>pydantic `<2.13,>=2.11.9`<br>regex `~=2026.1.15`<br>tomli `~=2.0.2`<br>tomli-w `~=1.1.0` | 1.15.27 (= locked) | same | yes |
+| crewai-core | 1.15.27 | portalocker `~=2.7.0`<br>pydantic `<2.13,>=2.11.9`<br>tomli `~=2.0.2` | 1.15.27 (= locked) | same | yes |
+| crewai-cli | 1.15.27 | pydantic `<2.13,>=2.11.9`<br>tomli `~=2.0.2`<br>tomli-w `~=1.1.0`<br>uv `~=0.11.6` | 1.15.27 (= locked) | same | yes |
+| instructor | 1.15.4 | jiter `<0.15,>=0.6.1`<br>openai `<3.0.0,>=2.0.0`<br>rich `<15.0.0,>=13.7.0` | 1.17.0 | aiohttp `<3.14.0,>=3.9.1`<br>jiter `<0.15,>=0.6.1`<br>requests `<2.33.0,>=2.32.3`<br>rich `<15.0.0,>=13.7.0` | yes |
+
+#### Embedding and NER stack
+
+| Dependent | Locked | Limits it sets (locked) | Newest | Limits it sets (newest) | m3 admits newest |
+|---|---|---|---|---|---|
+| gliner | 0.2.29 | transformers `<5.17.0,>=4.51.3` | 0.2.29 (= locked) | same | yes |
+| transformers | 5.16.1 | huggingface-hub `<2.0,>=1.5.0` | 5.19.0 | none binding | yes |
+| sentence-transformers | 5.7.0 | none binding | 6.1.0 | huggingface-hub `<2.0.0,>=1.3.0` | blocked by m3 `<6,>=5.7.0` |
+| torch | 2.14.1 | cuda-toolkit `==13.0.3`<br>nvidia-cudnn-cu13 `==9.24.0.43`<br>nvidia-cusparselt-cu13 `==0.8.1`<br>nvidia-nccl-cu13 `==2.30.7`<br>nvidia-nvshmem-cu13 `==3.4.5` | 2.14.1 (= locked) | same | yes |
+| sympy | 1.14.0 | mpmath `<1.4,>=1.1.0` | 1.14.0 (= locked) | same | yes |
+
+#### Core and other
+
+| Dependent | Locked | Limits it sets (locked) | Newest | Limits it sets (newest) | m3 admits newest |
+|---|---|---|---|---|---|
+| fastmcp | 3.4.8 | fastmcp-slim `==3.4.8` | 4.1.0 | none binding | blocked by m3 `<4,>=3.4.7` |
+| mcp | 1.30.0 | none binding | 2.3.0 | none binding | blocked by m3 `<2,>=1.30.0` |
+| pydantic | 2.12.5 | pydantic-core `==2.41.5` | 2.14.0 | none binding | yes |
+| aiohttp | 3.14.4 | multidict `<7.0,>=4.5` | 3.14.4 (= locked) | same | yes |
+| twine | 6.2.0 | none binding | 7.0.0 | none binding | blocked by m3 `<7,>=6.2.0` |
+
+### What follows from the tables
+
+- **langchain-core 1.x drops `packaging<26`** (0.3.86 sets it, 1.6.9 does not),
+  which is what holds `twine` below 7. Only m3's own `<1` keeps the extra on
+  0.3; adopting 1.x is an API migration. `uuid-utils<1` remains in 1.6.9.
+- **langgraph 1.x drops all three 0.6 caps** (checkpoint, prebuilt, sdk). Only
+  m3's own `<1` blocks it.
+- **crewai's newest is the locked 1.15.27**: every crewai pin, including
+  `pydantic<2.13` and `mcp~=1.28.1`, stays until crewai ships a release. m3's
+  `[tool.uv] override-dependencies` lifts only the mcp pin.
+- **instructor 1.17 would add `aiohttp<3.14` and `requests<2.33`.** Both bind
+  today, but crewai's `instructor<1.16` keeps 1.17 out.
+- **sentence-transformers 6 would add `huggingface-hub<2`** even though the
+  newest transformers lifts that cap. m3's own `<6` blocks it for now.
+- **gliner 0.2.29 is its newest**, so `transformers<5.17` stays (see `gliner`).
+- **m3's own default ceilings block these newest releases:** fastmcp 4,
+  mcp 2, langchain-core 1, langgraph 1, sentence-transformers 6, twine 7.
+  Each is adopted deliberately in its own change (Version-limit policy).
+- torch's CUDA wheel pins and pydantic's pydantic-core pin are exact by design:
+  they move with their parent.
