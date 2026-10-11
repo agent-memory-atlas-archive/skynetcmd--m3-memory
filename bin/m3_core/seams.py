@@ -1,4 +1,4 @@
-"""The version and OS seams, as bin/ reaches them. Re-exports only; no logic.
+"""The version and OS seams (and the roots owner), as bin/ reaches them. Re-exports only; no logic.
 
 The seams have ONE owner each: m3_memory/_pyver.py (Python version) and
 m3_memory/_platform.py (OS). bin/ runs in two layouts:
@@ -25,6 +25,7 @@ if _ilu.find_spec("m3_memory") is None:
     if _os.path.isfile(_root / "m3_memory" / "_platform.py"):
         _sys.path.append(str(_root))
 
+from m3_memory import _roots as roots  # noqa: E402  (the root-directory owner, stdlib-only)
 from m3_memory._platform import (  # noqa: E402
     PLATFORM_OF,
     current_uid,
@@ -59,6 +60,7 @@ __all__ = [
     "os_name",
     "python_exe",
     "read_key",
+    "roots",
     "user_env_get",
     "user_env_snapshot",
     "wait_for_any_key",

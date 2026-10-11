@@ -24,6 +24,7 @@ from packaging.specifiers import SpecifierSet
 _ROOT = Path(__file__).resolve().parents[1]
 _PYVER = _ROOT / "m3_memory" / "_pyver.py"
 _PLATFORM = _ROOT / "m3_memory" / "_platform.py"
+_ROOTS = _ROOT / "m3_memory" / "_roots.py"
 _BACKENDS = _ROOT / "bin" / "memory" / "backends"
 
 # What the database seam may reach outside itself in the memory package. Each is
@@ -75,6 +76,20 @@ def test_the_os_seam_imports_only_stdlib_and_the_version_seam():
         if m.split(".")[0] not in sys.stdlib_module_names and m != "__future__" and not m.startswith("m3_memory._pyver")
     }
     assert not foreign, f"m3_memory/_platform.py may import only the stdlib and _pyver: {foreign}"
+
+
+def test_the_roots_owner_imports_only_stdlib_and_the_lower_seams():
+    """m3_memory/_roots.py is imported by code that must run without m3_core (the
+    installed package, the crypto layer, the chatlog hooks), so it may reach only
+    the stdlib and the version/OS seams (user decision 2026-10-11)."""
+    names = _imports(_ROOTS)
+    allowed = ("m3_memory._pyver", "m3_memory._platform")
+    foreign = {
+        m
+        for m in names
+        if m.split(".")[0] not in sys.stdlib_module_names and m != "__future__" and not m.startswith(allowed)
+    }
+    assert not foreign, f"m3_memory/_roots.py may import only the stdlib, _pyver and _platform: {foreign}"
 
 
 def test_the_database_seam_does_not_import_business_logic():
@@ -143,13 +158,13 @@ def test_bin_reaches_the_seams_only_through_m3_core_seams():
             continue
         for n in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
             mods = (
-                [n.module]
+                [n.module, *(f"{n.module}.{a.name}" for a in n.names)]
                 if isinstance(n, ast.ImportFrom) and n.module
                 else [a.name for a in n.names]
                 if isinstance(n, ast.Import)
                 else []
             )
-            if any(m in ("m3_memory._platform", "m3_memory._pyver") for m in mods):
+            if any(m in ("m3_memory._platform", "m3_memory._pyver", "m3_memory._roots") for m in mods):
                 hits.append(f"{p.relative_to(_ROOT).as_posix()}:{n.lineno}")
     assert not hits, (
         "observed: bin/ imports a seam module directly: " + ", ".join(hits) + ". inspect: import it from m3_core.seams"
@@ -161,7 +176,9 @@ def test_m3_core_seams_reexports_the_seams_unchanged():
     seams = importlib.import_module("m3_core.seams")
     pf = importlib.import_module("m3_memory._platform")
     pv = importlib.import_module("m3_memory._pyver")
-    for name in seams.__all__:
+    # The roots owner is re-exported as a module, so its functions stay its own.
+    assert seams.roots is importlib.import_module("m3_memory._roots"), "m3_core.seams.roots is not m3_memory._roots"
+    for name in (n for n in seams.__all__ if n != "roots"):
         owner = pf if hasattr(pf, name) else pv
         assert getattr(seams, name) is getattr(owner, name), f"m3_core.seams.{name} is not the seam's own"
     defs = [

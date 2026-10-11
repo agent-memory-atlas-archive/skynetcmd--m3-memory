@@ -2,10 +2,8 @@ import argparse
 import contextvars
 import enum
 import logging
-import ntpath
 import os
 import platform
-import posixpath
 import sqlite3
 import sys
 from contextlib import contextmanager
@@ -13,6 +11,7 @@ from dataclasses import dataclass
 from typing import Literal, overload, override
 
 from m3_core.seams import is_windows
+from m3_core.seams import roots as _roots
 
 logger = logging.getLogger("M3_SDK")
 
@@ -406,30 +405,13 @@ def expand_user(p: "str | os.PathLike[str]") -> str:
 
 
 def _abs_root(root: str) -> str:
-    """Expand `~` and make relative roots absolute, WITHOUT rewriting a path that
-    is already absolute under either path convention.
-
-    `os.path.abspath` only understands the host convention. On Windows a POSIX
-    root such as `/data/.m3` — which is exactly what a user gets by exporting
-    M3_MEMORY_ROOT from Git Bash or WSL — looks relative, so abspath silently
-    prefixes the current drive and yields `C:\\data\\.m3`. The server then points
-    at a location the user never chose, and the real store is orphaned. Absolute
-    roots are returned normalised (forward slashes) and otherwise untouched.
-    """
-    p = os.path.expanduser(root)
-    if posixpath.isabs(p) or ntpath.isabs(p):
-        return p.replace("\\", "/")
-    return os.path.abspath(p).replace("\\", "/")
+    """Absolute root, convention-aware: ``m3_memory._roots.abs_root`` (the owner)."""
+    return _roots.abs_root(root)
 
 
 def get_m3_root() -> str:
-    """Returns the M3 root directory for user state (config, backups, etc.).
-    Honors M3_MEMORY_ROOT env var, defaults to ~/.m3-memory.
-    """
-    root = os.getenv("M3_MEMORY_ROOT")
-    if root:
-        return _abs_root(root)
-    return os.path.join(os.path.expanduser("~"), ".m3-memory")
+    """The memory root: ``M3_MEMORY_ROOT``, else ``~/.m3-memory`` (``m3_memory._roots``)."""
+    return _roots.memory_root()
 
 
 def get_m3_backups_root() -> str:
@@ -447,25 +429,18 @@ def get_m3_config_root() -> str:
     """Returns the M3 configuration directory.
     Precedence: M3_CONFIG_ROOT > M3_MEMORY_ROOT/config > ~/.m3/config
     """
-    return config_root_with_tier()[0]
+    return _roots.config_root()
 
 
-# Which tier of the config-root precedence answered (CONFIG_DESIGN §9). The
-# loader reports it (`m3 config show --origin`) and warns on the legacy tier.
-CONFIG_ROOT_ENV = "env:M3_CONFIG_ROOT"
-CONFIG_ROOT_LEGACY = "legacy:M3_MEMORY_ROOT/config"
-CONFIG_ROOT_DEFAULT = "default:~/.m3/config"
+# Which tier of the config-root precedence answered (CONFIG_DESIGN §9).
+CONFIG_ROOT_ENV = _roots.CONFIG_ROOT_ENV
+CONFIG_ROOT_LEGACY = _roots.CONFIG_ROOT_LEGACY
+CONFIG_ROOT_DEFAULT = _roots.CONFIG_ROOT_DEFAULT
 
 
 def config_root_with_tier() -> tuple[str, str]:
-    """(config root, tier): the one owner of the config-root precedence."""
-    root = os.getenv("M3_CONFIG_ROOT")
-    if root:
-        return _abs_root(root), CONFIG_ROOT_ENV
-    m3_mem_root = os.getenv("M3_MEMORY_ROOT")
-    if m3_mem_root:
-        return posixpath.join(_abs_root(m3_mem_root), "config"), CONFIG_ROOT_LEGACY
-    return os.path.join(os.path.expanduser("~"), ".m3", "config"), CONFIG_ROOT_DEFAULT
+    """(config root, tier); the precedence is owned by ``m3_memory._roots``."""
+    return _roots.config_root_with_tier()
 
 
 def dotenv_path() -> str | None:
@@ -483,13 +458,7 @@ def get_m3_engine_root() -> str:
     """Returns the M3 database engine directory.
     Precedence: M3_ENGINE_ROOT > M3_MEMORY_ROOT/engine > ~/.m3/engine
     """
-    root = os.getenv("M3_ENGINE_ROOT")
-    if root:
-        return _abs_root(root)
-    m3_mem_root = os.getenv("M3_MEMORY_ROOT")
-    if m3_mem_root:
-        return posixpath.join(_abs_root(m3_mem_root), "engine")
-    return os.path.join(os.path.expanduser("~"), ".m3", "engine")
+    return _roots.engine_root()
 
 
 def get_m3_models_root() -> str:
@@ -497,16 +466,10 @@ def get_m3_models_root() -> str:
     Precedence: M3_MODELS_ROOT > M3_MEMORY_ROOT/models > ~/.m3/models
 
     This is the one model location that does not belong to a third party, so
-    it is probed FIRST — a user who drops LM Studio, Ollama, or llama.cpp
-    keeps a working embedder.
+    it is probed FIRST: a user who drops LM Studio, Ollama, or llama.cpp keeps
+    a working embedder.
     """
-    root = os.getenv("M3_MODELS_ROOT")
-    if root:
-        return os.path.abspath(os.path.expanduser(root))
-    m3_mem_root = os.getenv("M3_MEMORY_ROOT")
-    if m3_mem_root:
-        return os.path.join(os.path.abspath(os.path.expanduser(m3_mem_root)), "models")
-    return os.path.join(os.path.expanduser("~"), ".m3", "models")
+    return _roots.models_root()
 
 
 def get_m3_logs_root() -> str:
@@ -517,13 +480,7 @@ def get_m3_logs_root() -> str:
     them inside the pipx venv (site-packages/m3_memory/logs), where nobody
     looks and a reinstall deletes them.
     """
-    root = os.getenv("M3_LOGS_ROOT")
-    if root:
-        return _abs_root(root)
-    m3_mem_root = os.getenv("M3_MEMORY_ROOT")
-    if m3_mem_root:
-        return posixpath.join(_abs_root(m3_mem_root), "logs")
-    return os.path.join(os.path.expanduser("~"), ".m3", "logs")
+    return _roots.logs_root()
 
 
 def resolve_engine_file(filename: str) -> str:

@@ -21,6 +21,14 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **A POSIX-style `M3_MODELS_ROOT` is kept as given on Windows.** Set from Git
+  Bash or WSL (`/data/models`), it was turned into `C:\data\models`, as the
+  other roots no longer do. The models root now follows the same rule as the
+  config, engine and logs roots, and is returned with forward slashes like them.
+  **Affected:** Windows installs that set `M3_MODELS_ROOT` or `M3_MEMORY_ROOT`
+  to a POSIX-style path · **Action:** none · **Data status:** none; model files
+  found in the old location are found in the new one unless the two differ.
+
 - **Destructive-tool hints name `M3_MCP_PROXY_ALLOW_DESTRUCTIVE`.** The proxy's
   and `m3_call`'s messages still told users to set the deprecated
   `MCP_PROXY_ALLOW_DESTRUCTIVE`, and `measure_tool_tokens.py` set it itself,
