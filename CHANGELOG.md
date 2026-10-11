@@ -2471,6 +2471,91 @@ test. No search, API, or behaviour change.
 - `docs/MCP_TOOLS.md` is generated but never said so, leaving no way to tell its
   counts from hand-written prose.
   **Affected:** readers · **Action:** none · **Data status:** none.
+
+---
+
+## [2026.9.9.0] — 2026-09-09 — a much smaller download
+
+### Fixed
+
+- **The wheel is about 87% smaller** (35.9 MB to 4.6 MB): it no longer ships
+  the example dashboard's JavaScript dependencies.
+  **Affected:** every `pip install` / `pipx install` · **Action:** none · **Data status:** none.
+- **`m3 doctor --fix` repoints the bridge path its own startup warning names**;
+  it used to report success while the warning returned on the next start.
+  **Affected:** installs whose configured bridge path is stale · **Action:** run `m3 doctor --fix` if the warning appears · **Data status:** none.
+- **The background loop no longer spins when its entity or enrichment check
+  fails**; it waits its normal interval and logs why.
+  **Affected:** installs where the store is unreachable or a migration is half-applied · **Action:** none · **Data status:** none.
+- **Under `M3_FIPS_MODE=1`, the open-source wolfSSL notice is logged once at
+  INFO** instead of a warning on every start and every `m3` command.
+  `M3_FIPS_STRICT` still warns.
+  **Affected:** FIPS-mode installs · **Action:** none · **Data status:** none.
+
+### Changed
+
+- **A current security scan is published** (`docs/audits/`), and the security
+  policy states a quarterly cadence.
+  **Affected:** readers of the security docs · **Action:** none · **Data status:** none.
+
+---
+
+## [2026.9.8.0] — 2026-09-08 — the memory that could not be found
+
+### Fixed
+
+- **A memory long enough to be split across embedding windows is findable by
+  semantic search.** It was stored and embedded but never matched.
+  `m3 doctor` now reports any memory that is embedded but unfindable.
+  **Affected:** memories long enough to be windowed, all backends · **Action:** run `m3 doctor`; it lists affected memories · **Data status:** memories written by earlier versions are not repaired automatically.
+- **On PostgreSQL, the chat-log backfill and entity-extraction tools measure
+  text size in bytes, not characters**, so long multi-byte text is selected the
+  same as on SQLite.
+  **Affected:** PostgreSQL installs with CJK or other multi-byte text · **Action:** none · **Data status:** rows written earlier are not changed.
+
+---
+
+## [2026.9.7.1] — 2026-09-08 — PostgreSQL fixes
+
+### Fixed
+
+- **On PostgreSQL, the secret vault, `setup_secret`, the dashboard's health
+  panels and three background passes work.** The vault was reported empty when
+  it was not, `setup_secret` list/delete/lookup failed, and the background passes
+  and dashboard panels raised errors.
+  **Affected:** PostgreSQL installs · **Action:** none · **Data status:** none written by this release; a device salt created by an earlier version is not reverted.
+
+---
+
+## [2026.9.7.0] — 2026-09-08 — long rows embed, and the native core installs
+
+### Added
+
+- **`m3 embedder backfill`** embeds rows that have no vector, across every
+  store by default (including the separate chat-log store).
+  **Affected:** all installs · **Action:** none · **Data status:** none.
+
+### Fixed
+
+- **Rows too long for the embedder are split and embedded** instead of failing,
+  and a long row no longer stops the background embedding sweep.
+  **Affected:** installs with long memories or chat turns · **Action:** none · **Data status:** rows the sweep had stalled on are embedded by later sweeps.
+- **A memory whose text loses part of its embedding is logged as an error**
+  naming the missing slice; it used to vanish without a trace.
+  **Affected:** all installs · **Action:** none · **Data status:** slices dropped by earlier versions are not repaired and were not reported.
+- **Chat-log date filters include the requested day**: `until=<date>` in
+  search, promote, cost report and rescrub returned none of that day's rows.
+  **Affected:** chat-log tools filtered by date · **Action:** re-run any promote or rescrub bounded by `until=<date>` · **Data status:** none — those earlier runs skipped that day's rows.
+- **`m3 setup` installs the native core every time, and `m3 update` offers to
+  upgrade it**; a default install could skip both the core and the CPU
+  embedder that depends on it.
+  **Affected:** installs where setup's opt-in prompt was declined (the default) · **Action:** run `m3 setup` again · **Data status:** none.
+- **`m3 setup` warns when two m3 installs shadow each other on PATH.**
+  **Affected:** machines with both a pip and a pipx install · **Action:** remove the older install · **Data status:** none.
+- **Agent instructions no longer say chat-log capture stops when the MCP
+  connection drops**; capture does not depend on that connection.
+  **Affected:** agents following m3's instructions · **Action:** none · **Data status:** none.
+
 <!-- impact-headers: required above this line -->
 
 ## [2026.8.30.1] — 2026-08-30 — the console nothing could suppress
