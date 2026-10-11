@@ -418,7 +418,6 @@ outside it). Regenerate both measurements before acting on a row.
 | fastmcp | 3.4.8 | fastmcp-slim `==3.4.8` | 4.1.0 | none binding | blocked by m3 `<4,>=3.4.7` |
 | mcp | 1.30.0 | none binding | 2.3.0 | none binding | blocked by m3 `<2,>=1.30.0` |
 | pydantic | 2.12.5 | pydantic-core `==2.41.5` | 2.14.0 | none binding | yes |
-| aiohttp | 3.14.4 | multidict `<7.0,>=4.5` | 3.14.4 (= locked) | same | yes |
 | twine | 6.2.0 | none binding | 7.0.0 | none binding | blocked by m3 `<7,>=6.2.0` |
 
 ### What follows from the tables
