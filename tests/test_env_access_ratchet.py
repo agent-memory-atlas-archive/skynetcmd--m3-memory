@@ -17,8 +17,8 @@ _BIN = Path(__file__).resolve().parents[1] / "bin"
 
 # Current floors. Lower these as readers move to the registry; never raise them.
 # 2026-10-11 (re-baseline at 7687acd3): 611 production violations, 1080 test writes.
-_BUDGET = 578
-_TESTS_BUDGET = 1080
+_BUDGET = 468
+_TESTS_BUDGET = 1067
 
 
 def _cea():

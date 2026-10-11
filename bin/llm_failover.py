@@ -12,6 +12,7 @@ import re
 import time
 
 import httpx
+from m3_core.config import settings as _m3cfg
 from m3_sdk import getenv_compat
 
 logger = logging.getLogger("llm_failover")
@@ -198,7 +199,7 @@ LLM_EXCLUSIONS = ()  # nothing excluded for LLM selection — embedding models f
 # any absent endpoint. Mainly caps remote LAN endpoints set via LLM_ENDPOINTS_CSV.
 # Override with M3_LLM_CONNECT_TIMEOUT (seconds) for slow LAN links.
 try:
-    CONNECT_TIMEOUT = float(os.environ.get("M3_LLM_CONNECT_TIMEOUT", "0.3"))
+    CONNECT_TIMEOUT = _m3cfg.setting("llm.connect_timeout_s")
 except ValueError:
     CONNECT_TIMEOUT = 0.3
 READ_TIMEOUT = 10.0  # for model list fetches only
@@ -217,7 +218,7 @@ _EMBED_ENDPOINT_CACHE: tuple[str, str] | None = None
 # own per-call request storm. Remember a "no embed endpoint" result for
 # _EMBED_NEG_TTL seconds, then re-probe (so it recovers when a model is loaded).
 _EMBED_NEG_CACHE_TS: float = 0.0
-_EMBED_NEG_TTL: float = float(os.environ.get("M3_EMBED_DISCOVERY_NEG_TTL", "60"))
+_EMBED_NEG_TTL: float = _m3cfg.setting("embed.discovery_negative_ttl_s")
 
 # Sync discovery cache, keyed by ENDPOINT (not process-global): sync callers
 # resolve their own endpoint first, so a model picked for another endpoint
@@ -433,7 +434,7 @@ class LLMUnavailable(httpx.HTTPError):
 # probe per endpoint per TTL instead of one per call. Keyed by endpoint.
 _USABILITY_CACHE: dict = {}
 try:
-    USABILITY_TTL = float(os.environ.get("M3_LLM_USABILITY_TTL", "60"))
+    USABILITY_TTL = _m3cfg.setting("llm.usability_ttl_s")
 except ValueError:
     USABILITY_TTL = 60.0
 
@@ -520,7 +521,7 @@ async def require_usable_endpoint(
 # every OUTAGE_REPEAT_S while it lasts, INFO on recovery; DEBUG in between.
 _OUTAGE_STATE: dict = {}  # component -> (first_seen, last_warned)
 try:
-    OUTAGE_REPEAT_S = float(os.environ.get("M3_LLM_OUTAGE_REPEAT_S", "3600"))
+    OUTAGE_REPEAT_S = _m3cfg.setting("llm.outage_repeat_s")
 except ValueError:
     OUTAGE_REPEAT_S = 3600.0
 

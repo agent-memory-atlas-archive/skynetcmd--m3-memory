@@ -61,6 +61,7 @@ import mcp_tool_catalog
 import memory_core
 import tool_domains
 import tool_loader
+from m3_core.config import settings as _m3cfg
 from m3_core.errors import log_swallowed
 
 # Re-export internal helpers for legacy compatibility (C7, H11)
@@ -397,7 +398,7 @@ if __name__ == "__main__":
         _self = _Path(__file__).resolve()
         # M3_PATH_BIN is the bin/ DIRECTORY (replaces the removed M3_BRIDGE_PATH
         # file-var); the expected bridge is <M3_PATH_BIN>/memory_bridge.py.
-        _pb = _os.environ.get("M3_PATH_BIN")
+        _pb = _m3cfg.setting("paths.bin")
         _want = str(_Path(_pb) / "memory_bridge.py") if _pb else None
         if not _want:
             try:

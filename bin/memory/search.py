@@ -129,6 +129,7 @@ logger = logging.getLogger("memory.search")
 # search"), name)` — continues to find these names as attributes of this
 # module. Do NOT remove even though this module no longer calls them itself.
 # ──────────────────────────────────────────────────────────────────────────────
+from m3_core.config import settings as _m3cfg
 from m3_core.errors import log_swallowed
 
 from .search_ranking import (  # noqa: F401 — re-exported for callers + memory_core shim
@@ -1638,7 +1639,7 @@ def _apply_observation_preference(ranked, k):
     refactor extracted the call site but dropped the implementation.)
     """
     try:
-        obs_budget = int(os.environ.get("M3_OBSERVATION_BUDGET_TOKENS", "4000"))
+        obs_budget = _m3cfg.setting("search.observation_budget_tokens")
     except ValueError:
         obs_budget = 4000
     obs_hits = [(s, it) for s, it in ranked if isinstance(it, dict) and it.get("type") == "observation"]
@@ -1669,11 +1670,11 @@ async def _apply_two_stage_expansion(ranked, k, user_id: str = "", scope: str = 
     into the results, matching how the sibling expansion paths were hardened.
     """
     try:
-        turn_penalty = float(os.environ.get("M3_TWO_STAGE_TURN_PENALTY", "0.7"))
+        turn_penalty = _m3cfg.setting("search.two_stage_turn_penalty")
     except ValueError:
         turn_penalty = 0.7
     try:
-        max_turns_per_obs = int(os.environ.get("M3_TWO_STAGE_MAX_TURNS_PER_OBS", "3"))
+        max_turns_per_obs = _m3cfg.setting("search.two_stage_max_turns_per_observation")
     except ValueError:
         max_turns_per_obs = 3
     topk = ranked[:k]

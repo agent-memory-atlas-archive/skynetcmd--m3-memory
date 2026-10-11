@@ -1,8 +1,8 @@
 ---
 tool: bin/run_reflector.py
-sha1: d7c7f2880440
-mtime_utc: 2026-10-10T21:05:16.503867+00:00
-generated_utc: 2026-10-10T21:05:29.934944+00:00
+sha1: b9e19d8683de
+mtime_utc: 2026-10-11T17:51:15.733479+00:00
+generated_utc: 2026-10-11T18:07:54.215169+00:00
 private: false
 ---
 
@@ -62,7 +62,6 @@ _(none detected)_
 - `agent_protocol (strip_code_fences)`
 - `auth_utils (get_api_key)`
 - `llm_failover (apply_thinking_suppression, apply_thinking_suppression_anthropic, reply_ran_out_of_room)`
-- `m3_sdk (getenv_compat)`
 - `memory_core`
 - `slm_intent (load_profile)`
 
@@ -82,6 +81,7 @@ _(none detected)_
 
 - `httpx`
 - `m3_core.aio (gather_or_cancel)`
+- `m3_core.config (settings)`
 - `memory.backends (dialect)`
 
 ---

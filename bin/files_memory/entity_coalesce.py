@@ -41,6 +41,8 @@ import sqlite3
 import time
 import uuid as _uuid
 
+from m3_core.config import settings as _m3cfg
+
 from .config import files_table as _files_table
 from .dedup import _cosine_packed
 from .entities import _memory_db
@@ -66,14 +68,14 @@ def _route_dialect(explicit_path: str | None):
 
 
 # ── Tunables (env-overridable, mirrors files_dedup) ──────────────────────────
-AUTO_MERGE_COSINE: float = float(os.environ.get("M3_ENTITY_COALESCE_AUTOMERGE", "0.95"))
-FLAG_COSINE: float = float(os.environ.get("M3_ENTITY_COALESCE_FLAG", "0.80"))
-FUZZY_HIGH: int = int(os.environ.get("M3_ENTITY_COALESCE_FUZZY_HIGH", "90"))
+AUTO_MERGE_COSINE: float = _m3cfg.setting("entity.coalesce.automerge_cosine")
+FLAG_COSINE: float = _m3cfg.setting("entity.coalesce.flag_cosine")
+FUZZY_HIGH: int = _m3cfg.setting("entity.coalesce.fuzzy_high")
 MAX_PAIRS: int = int(os.environ.get("M3_ENTITY_COALESCE_MAX_PAIRS", "1000"))
-MAX_BLOCK: int = int(os.environ.get("M3_ENTITY_COALESCE_MAX_BLOCK", "400"))
+MAX_BLOCK: int = _m3cfg.setting("entity.coalesce.max_block")
 # Cluster-growth guardrail (lesson #2): refuse to auto-band a pair that would
 # grow a same_as cluster beyond this — route to review instead.
-MAX_CLUSTER: int = int(os.environ.get("M3_ENTITY_COALESCE_MAX_CLUSTER", "12"))
+MAX_CLUSTER: int = _m3cfg.setting("entity.coalesce.max_cluster")
 
 # Stage-0 noise: code keywords / generic nouns that are never useful entities.
 _DENY_NOUNS = frozenset(

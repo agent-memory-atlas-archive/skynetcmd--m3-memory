@@ -60,6 +60,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Path resolution (new-root-with-legacy-fallback) is the single source of truth
 # in m3_core.paths; these module-local names are thin aliases kept for any
 # in-module / external caller that referenced them.
+from m3_core.config import settings as _m3cfg
 from m3_core.paths import resolve_config_file as _resolve_config_file  # noqa: E402
 from m3_core.paths import resolve_engine_file as _resolve_engine_file  # noqa: E402
 
@@ -475,8 +476,8 @@ _POOL_DB_PATH: str | None = None  # path the pool was opened against; if it chan
 
 
 def _build_pool(db_path: str) -> queue.Queue[sqlite3.Connection]:
-    pool_size = int(getenv_compat("M3_CHATLOG_DB_POOL_SIZE", "CHATLOG_DB_POOL_SIZE", "4"))
-    pool_timeout = int(getenv_compat("M3_CHATLOG_DB_POOL_TIMEOUT", "CHATLOG_DB_POOL_TIMEOUT", "10"))
+    pool_size = _m3cfg.setting("chatlog.db.pool_size")
+    pool_timeout = _m3cfg.setting("chatlog.db.pool_timeout_s")
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
     q: queue.Queue[sqlite3.Connection] = queue.Queue(maxsize=pool_size)
     for _ in range(pool_size):
@@ -517,7 +518,7 @@ def chatlog_sqlite_conn():
     SQLite-only — the name is not a lie.
     """
     pool = _ensure_pool()
-    timeout = int(getenv_compat("M3_CHATLOG_DB_POOL_TIMEOUT", "CHATLOG_DB_POOL_TIMEOUT", "10"))
+    timeout = _m3cfg.setting("chatlog.db.pool_timeout_s")
     conn = pool.get(timeout=timeout)
     try:
         yield conn

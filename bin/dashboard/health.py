@@ -18,6 +18,7 @@ import os
 import re
 from typing import Any
 
+from m3_core.config import settings as _m3cfg
 from m3_core.paths import seam_backend, seam_dialect
 
 
@@ -591,7 +592,7 @@ def _probe_llm_endpoint(endpoint: str, connect_timeout: float, read_timeout: flo
 # Default TTL is deliberately long (15 min): the failover selection rarely changes
 # and we must not periodically cold-start the server's cache.
 _SMOKE_CACHE: dict = {}  # key -> (monotonic_deadline, result)
-_SMOKE_TTL_S = float(os.environ.get("M3_DASHBOARD_LLM_SMOKE_TTL_S", "900"))  # 15 min
+_SMOKE_TTL_S = _m3cfg.setting("dashboard.llm_smoke_ttl_s")  # 15 min
 _SMOKE_LOCK = __import__("threading").Lock()
 # A single constant, innocuous prompt so repeated smokes reuse ONE cache slot
 # rather than evicting a different one each time. Kept distinct from any pipeline
@@ -714,7 +715,7 @@ def _cached_smoke(base_url: str, model: str, token: str) -> dict:
 # (which can fire every few seconds) from re-hitting even the cheap endpoints.
 # Separate from _SMOKE_CACHE (15 min) which guards the rare real completion.
 _BLOCK_CACHE: dict = {}  # {"v": (deadline, result)}
-_BLOCK_TTL_S = float(os.environ.get("M3_DASHBOARD_LLM_BLOCK_TTL_S", "45"))  # 30-60s band
+_BLOCK_TTL_S = _m3cfg.setting("dashboard.llm_block_ttl_s")  # 30-60s band
 
 
 def _inference_block() -> dict:

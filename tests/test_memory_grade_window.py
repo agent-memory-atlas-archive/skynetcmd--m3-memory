@@ -329,11 +329,16 @@ def test_a_window_under_the_ceiling_is_untouched(store):
     assert "window_clamped_from" not in res
 
 
-def test_a_config_file_cannot_exceed_the_ceiling_either(monkeypatch):
-    """Every route resolves through one owner -- env included."""
-    monkeypatch.setenv("M3_FEEDBACK_WINDOW_MINUTES", "525600")
-    mm._fb_window_cache.update({"ts": 0.0, "mtime": None, "minutes": None})
-    assert mm._feedback_window_minutes() == mm._FEEDBACK_WINDOW_MINUTES_MAX
+def test_the_env_route_cannot_exceed_the_ceiling_either():
+    """Every route resolves through one owner -- env included. The registry key's
+    range check refuses an over-ceiling value at config load (R-loud), the same
+    rule a config-file value gets, instead of clamping it silently."""
+    from m3_core.config import settings as st
+    from m3_core.config.resolve import NO_DOTENV, ConfigEnvErrors
+
+    with pytest.raises(ConfigEnvErrors) as exc:
+        st.build(environ={"M3_FEEDBACK_WINDOW_MINUTES": "525600"}, dotenv=NO_DOTENV)
+    assert "M3_FEEDBACK_WINDOW_MINUTES" in str(exc.value.exceptions[0]), exc.value.exceptions
 
 
 def test_a_non_integer_window_returns_a_structured_error(store):

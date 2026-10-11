@@ -162,7 +162,11 @@ def generate_configs(write: bool = True):
     # NEXT restart — a deferred failure that surfaces at a reboot, far from the
     # cause. The LM Studio path stays as a fallback so existing boxes keep
     # working; it is simply no longer preferred.
-    embed_gguf = os.environ.get("M3_EMBED_GGUF", "")
+    # Imported here, not at module top: setup_memory runs this module from a
+    # minimal payload, and tests simulate other OSes while it is imported.
+    from m3_core.config import settings as _m3cfg
+
+    embed_gguf = _m3cfg.setting("embed.gguf")
     if not embed_gguf:
         from m3_core.paths import get_m3_models_root
 

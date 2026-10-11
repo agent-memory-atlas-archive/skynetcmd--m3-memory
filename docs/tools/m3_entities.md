@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_entities.py
-sha1: 1d3ab0bda835
-mtime_utc: 2026-10-10T23:43:02.170933+00:00
-generated_utc: 2026-10-10T23:43:51.745680+00:00
+sha1: b1159e95e7f6
+mtime_utc: 2026-10-11T17:51:15.709790+00:00
+generated_utc: 2026-10-11T18:07:53.989449+00:00
 private: false
 ---
 
@@ -51,7 +51,7 @@ Override via --entity-vocab-yaml or M3_ENTITY_VOCAB_YAML.
 
 ## Entry points
 
-- `def main()` (line 1284)
+- `def main()` (line 1285)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -69,7 +69,7 @@ Override via --entity-vocab-yaml or M3_ENTITY_VOCAB_YAML.
 | `--core-db` | Explicit path to the core memory DB. | None |  | str |  |
 | `--chatlog-db` | Explicit path to the chatlog DB. | None |  | str |  |
 | `--source-variant` | Filter source rows by variant. '__none__' = true core memory only (variant IS NULL). A name = single-variant scope. Default: no filter. | None |  | str |  |
-| `--source-conv-list` | Path to a file listing conversation_ids to scope extraction to. Format: newline-delimited text (with optional # comments) OR a JSON array. Filtering reads metadata_json.$.conversation_id, falling back to the memory_items.conversation_id column. Narrows the eligible set AFTER --source-variant + type filtering. Env: M3_ENTITIES_CONV_LIST. | `os.environ.get('M3_ENTITIES_CONV_LIST')` |  | str |  |
+| `--source-conv-list` | Path to a file listing conversation_ids to scope extraction to. Format: newline-delimited text (with optional # comments) OR a JSON array. Filtering reads metadata_json.$.conversation_id, falling back to the memory_items.conversation_id column. Narrows the eligible set AFTER --source-variant + type filtering. Env: M3_ENTITIES_CONV_LIST. | `_m3cfg.setting('entity.conv_list')` |  | str |  |
 | `--types` | Comma-separated type allowlist override. Default: chat + curated. | None |  | str |  |
 | `--limit` | Cap rows enriched per DB (smoke testing). | None |  | int |  |
 | `--concurrency` | Concurrent SLM calls. Default 2 (single-host LM Studio with two qwen3-8b instances was OOM-reloading at 4). | `2` |  | int |  |
@@ -85,7 +85,6 @@ Override via --entity-vocab-yaml or M3_ENTITY_VOCAB_YAML.
 - `M3_DATABASE`
 - `M3_EMBED_MODEL`
 - `M3_EMBED_URL`
-- `M3_ENTITIES_CONV_LIST`
 - `M3_ENTITY_VOCAB_YAML`
 
 ---
@@ -107,8 +106,8 @@ Override via --entity-vocab-yaml or M3_ENTITY_VOCAB_YAML.
 
 **http**
 
-- `httpx.AsyncClient()` (line 667)
-- `httpx.AsyncClient()` (line 860)
+- `httpx.AsyncClient()` (line 668)
+- `httpx.AsyncClient()` (line 861)
 
 
 ---
@@ -117,6 +116,7 @@ Override via --entity-vocab-yaml or M3_ENTITY_VOCAB_YAML.
 
 - `httpx`
 - `m3_core.aio (gather_or_cancel)`
+- `m3_core.config (settings)`
 - `m3_core.paths (get_m3_backups_root, snapshot_stores)`
 - `memory.backends (active_backend)`
 - `memory.backends (dialect)`

@@ -1,8 +1,8 @@
 ---
 tool: bin/mcp_proxy.py
-sha1: 187852e3847c
-mtime_utc: 2026-10-11T15:03:48.714909+00:00
-generated_utc: 2026-10-11T15:05:55.801248+00:00
+sha1: 6664ad29568f
+mtime_utc: 2026-10-11T17:51:15.748025+00:00
+generated_utc: 2026-10-11T18:07:54.043585+00:00
 private: false
 ---
 
@@ -113,7 +113,7 @@ _(no argparse arguments detected)_
 
 ## Environment variables read
 
-- `LM_STUDIO_BASE`
+_(none detected)_
 
 ---
 
@@ -121,7 +121,7 @@ _(no argparse arguments detected)_
 
 - `m3_sdk (M3Context)`
 - `m3_sdk (acquire_or_exit)`
-- `m3_sdk (destructive_tools_allowed, getenv_compat)`
+- `m3_sdk (destructive_tools_allowed)`
 - `m3_sdk (ensure_utf8)`
 - `mcp_tool_catalog`
 - `memory_bridge`
@@ -132,7 +132,7 @@ _(no argparse arguments detected)_
 
 **http**
 
-- `httpx.AsyncClient()` (line 580)
+- `httpx.AsyncClient()` (line 581)
 
 
 ---
@@ -143,6 +143,7 @@ _(no argparse arguments detected)_
 - `fastapi.responses (JSONResponse, StreamingResponse)`
 - `httpx`
 - `m3_core.aio (gather_or_cancel)`
+- `m3_core.config (settings)`
 - `pydantic (BaseModel, Field)`
 - `uvicorn`
 

@@ -253,6 +253,15 @@ the policy is forward-going only.
 
 ### Changed
 
+- **About a hundred settings are now read through the configuration registry.**
+  They can be set in `m3_config.toml` as well as through their environment
+  variables, and `m3 config show` reports them. A malformed or out-of-range
+  value (for example a non-number timeout, or a feedback window above its
+  ceiling) now stops startup with a message naming the variable, where it was
+  ignored or clamped before; a blank value means the default.
+  **Affected:** installs that set m3 environment variables · **Action:** fix any
+  value the startup error names · **Data status:** none.
+
 - **Lint and format checks cover the whole repository.** `ruff check .` is the
   gate; `scripts/`, `examples/` and the top-level scripts were outside it. Eight
   unused one-off scripts were removed from `scripts/`. The homelab dashboard

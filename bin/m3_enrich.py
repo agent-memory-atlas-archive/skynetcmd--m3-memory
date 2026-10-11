@@ -77,13 +77,14 @@ from enrich.report import (
     _print_dry_run,
     _print_run_summary,
 )  # noqa: E402
+from m3_core.config import settings as _m3cfg
 from m3_core.paths import scoped_db_env, snapshot_stores  # noqa: E402
 from slm_intent import (  # noqa: E402
     Profile,
 )
 
 # ── Defaults ────────────────────────────────────────────────────────────────
-DEFAULT_PROFILE = os.environ.get("M3_ENRICH_PROFILE", "enrich_local_qwen")
+DEFAULT_PROFILE = _m3cfg.setting("enrich.profile")
 # Chatlog DBs are message-shaped, so the message/conversation/chat_log
 # default catches everything substantive. Core memory mostly lives under
 # summary/note/decision/plan/knowledge/fact/preference — filtering it
@@ -1121,7 +1122,7 @@ Profile picker:
     )
     ap.add_argument(
         "--source-conv-list",
-        default=os.environ.get("M3_ENRICH_CONV_LIST"),
+        default=_m3cfg.setting("enrich.conv_list"),
         help="Path to a file listing group_keys (conversation_ids) to "
         "process. Format: newline-delimited text (with optional "
         "# comments) OR a JSON array of strings. Narrows the "
@@ -1215,7 +1216,7 @@ Profile picker:
     ap.add_argument(
         "--send-to",
         type=str,
-        default=os.environ.get("M3_ENRICH_SEND_TO"),
+        default=_m3cfg.setting("enrich.send_to"),
         help="--resume only: pick groups whose send_to column matches "
         "this name. Use for parallel multi-provider runs where "
         "each provider's worker should claim only its assigned "

@@ -1,8 +1,8 @@
 ---
 tool: bin/embed_server_inproc.py
-sha1: 5da6d117f07c
-mtime_utc: 2026-10-10T21:15:53.541943+00:00
-generated_utc: 2026-10-10T21:16:09.677862+00:00
+sha1: 3903b1be78c3
+mtime_utc: 2026-10-11T17:51:15.729480+00:00
+generated_utc: 2026-10-11T18:07:53.770799+00:00
 private: false
 ---
 
@@ -51,7 +51,7 @@ Model: M3_EMBED_GGUF env, else auto-detected (discover_bge_m3_gguf).
 
 ## Entry points
 
-- `def main()` (line 537)
+- `def main()` (line 538)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -60,22 +60,15 @@ Model: M3_EMBED_GGUF env, else auto-detected (discover_bge_m3_gguf).
 
 | Flag(s) | Help | Default | Default behavior | Type/Action | Impact when set |
 |---|---|---|---|---|---|
-| `--port` |  | `int(os.environ.get('M3_EMBED_SERVER_PORT', '8082'))` |  | int |  |
-| `--host` | Bind host. Default 127.0.0.1 (loopback only — the embedder is not a LAN service). Set 0.0.0.0 ONLY deliberately. | `os.environ.get('M3_EMBED_SERVER_HOST', '127.0.0.1')` |  | str |  |
+| `--port` |  | `_m3cfg.setting('embed.server.port')` |  | int |  |
+| `--host` | Bind host. Default 127.0.0.1 (loopback only — the embedder is not a LAN service). Set 0.0.0.0 ONLY deliberately. | `_m3cfg.setting('embed.server.host')` |  | str |  |
 | `--log-file` |  | None |  | str |  |
 
 ---
 
 ## Environment variables read
 
-- `M3_EMBED_CTX`
 - `M3_EMBED_GGUF`
-- `M3_EMBED_INTERACTIVE_MAX_TEXTS`
-- `M3_EMBED_SERVER_CONCURRENCY`
-- `M3_EMBED_SERVER_HOST`
-- `M3_EMBED_SERVER_INTERACTIVE_RESERVED`
-- `M3_EMBED_SERVER_MAX_BATCH`
-- `M3_EMBED_SERVER_PORT`
 
 ---
 
@@ -96,6 +89,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 - `fastapi (FastAPI, Request, Response)`
 - `fastapi.responses (JSONResponse)`
+- `m3_core.config (settings)`
 - `memory (config)`
 - `memory.embed (_EMBED_GGUF_MODEL_TAG, discover_bge_m3_gguf)`
 - `numpy`

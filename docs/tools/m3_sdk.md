@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_sdk.py
-sha1: 7e3b5b6760cd
-mtime_utc: 2026-10-10T21:05:16.917529+00:00
-generated_utc: 2026-10-10T21:05:29.743275+00:00
+sha1: be005c6f8710
+mtime_utc: 2026-10-11T18:02:27.971045+00:00
+generated_utc: 2026-10-11T18:07:54.017354+00:00
 private: false
 ---
 
@@ -49,6 +49,7 @@ _(no subprocess / http / sqlite calls detected)_
 ## Notable external imports
 
 - `m3_core (secret_store)`
+- `m3_core.config (settings)`
 - `m3_core.context`
 - `m3_core.context (_CB_COOLDOWN, _CB_THRESHOLD, _CIRCUITS, _CONTEXT_CACHE_SIZE, _CONTEXTS, _CONTEXTS_LOCK, _HTTP_CLIENT, _HTTP_CLIENT_LOCK, _HTTP_CLIENT_LOOP_ID, M3Context, _cleanup, _close_context_pool)`
 - `m3_core.governor`

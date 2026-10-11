@@ -187,8 +187,11 @@ def destructive_tools_allowed() -> bool:
     dispatcher: M3_MCP_PROXY_ALLOW_DESTRUCTIVE, or its legacy name
     MCP_PROXY_ALLOW_DESTRUCTIVE, set to 1/true/yes.
     """
-    raw = getenv_compat("M3_MCP_PROXY_ALLOW_DESTRUCTIVE", "MCP_PROXY_ALLOW_DESTRUCTIVE", "")
-    return (raw or "").lower() in ("1", "true", "yes")
+    # Registry key mcp.allow_destructive: both names, today's 1/true/yes reading
+    # (its legacy parser), default off. Imported here: m3_sdk loads before config.
+    from m3_core.config import settings as _m3cfg
+
+    return bool(_m3cfg.setting("mcp.allow_destructive"))
 
 
 # name -> submodules whose namespace must observe a rebind of that name. The

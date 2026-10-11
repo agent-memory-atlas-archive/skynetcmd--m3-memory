@@ -30,6 +30,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from m3_core.config import settings as _m3cfg
 from m3_core.runtime import utc_iso
 from m3_core.seams import is_windows
 
@@ -931,7 +932,7 @@ async def main() -> int:
     # acks shouldn't keep the drainer busy.
     if os.environ.get("M3_AUTO_ENRICH", "0").strip().lower() in ("1", "true", "yes", "on"):
         try:
-            min_turns = int(os.environ.get("M3_AUTO_ENRICH_MIN_TURNS", "10"))
+            min_turns = _m3cfg.setting("chatlog.auto_enrich_min_turns")
         except ValueError:
             min_turns = 10
         written = result.get("written", 0)

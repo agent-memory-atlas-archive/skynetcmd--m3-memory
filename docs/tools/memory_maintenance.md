@@ -1,8 +1,8 @@
 ---
 tool: bin/memory_maintenance.py
-sha1: 05e413860ee6
-mtime_utc: 2026-10-10T23:43:02.162932+00:00
-generated_utc: 2026-10-10T23:43:51.867657+00:00
+sha1: b6195901851e
+mtime_utc: 2026-10-11T18:02:28.175154+00:00
+generated_utc: 2026-10-11T18:07:54.114310+00:00
 private: false
 ---
 
@@ -29,7 +29,6 @@ _(no argparse arguments detected)_
 ## Environment variables read
 
 - `M3_DISTILL_MODEL`
-- `M3_FEEDBACK_WINDOW_MINUTES`
 
 ---
 
@@ -62,6 +61,7 @@ _(no argparse arguments detected)_
 
 - `base64`
 - `httpx`
+- `m3_core.config (settings)`
 - `m3_core.errors (log_swallowed)`
 - `memory (confidence)`
 - `memory (config)`

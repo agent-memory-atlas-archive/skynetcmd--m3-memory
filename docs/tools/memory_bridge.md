@@ -1,8 +1,8 @@
 ---
 tool: bin/memory_bridge.py
-sha1: db079816bd04
-mtime_utc: 2026-10-11T14:19:53.940835+00:00
-generated_utc: 2026-10-11T14:19:55.555897+00:00
+sha1: 7c6d4768cb3f
+mtime_utc: 2026-10-11T17:51:15.683291+00:00
+generated_utc: 2026-10-11T18:07:54.063377+00:00
 private: false
 ---
 
@@ -32,7 +32,6 @@ _(no argparse arguments detected)_
 - `M3_HTTP_PATH`
 - `M3_HTTP_PORT`
 - `M3_HTTP_PUBLIC_HOST`
-- `M3_PATH_BIN`
 - `M3_TOOLS_LAZY`
 - `M3_TRANSPORT`
 
@@ -62,6 +61,7 @@ _(no subprocess / http / sqlite calls detected)_
 ## Notable external imports
 
 - `atexit`
+- `m3_core.config (settings)`
 - `m3_core.errors (log_swallowed)`
 - `memory.backends (dialect)`
 

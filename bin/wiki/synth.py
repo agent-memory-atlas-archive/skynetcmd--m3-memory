@@ -26,6 +26,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
+from m3_core.config import settings as _m3cfg
+
 from .cluster import Cluster
 
 _PROMPT_VERSION = "1"  # bump to invalidate all caches when the prompt changes
@@ -51,9 +53,9 @@ class SynthConfig:
     @classmethod
     def from_env(cls, cache_dir: str | None) -> SynthConfig:
         return cls(
-            url=os.environ.get("M3_WIKI_SYNTH_URL", cls.url),
-            model=os.environ.get("M3_WIKI_SYNTH_MODEL", cls.model),
-            timeout_s=float(os.environ.get("M3_WIKI_SYNTH_TIMEOUT", cls.timeout_s)),
+            url=_m3cfg.setting("wiki.synth.url"),
+            model=_m3cfg.setting("wiki.synth.model") or cls.model,
+            timeout_s=_m3cfg.setting("wiki.synth.timeout_s"),
             cache_dir=cache_dir,
         )
 

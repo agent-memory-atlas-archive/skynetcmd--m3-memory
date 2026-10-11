@@ -238,10 +238,12 @@ def test_destructive_gate_reads_the_m3_name_and_the_legacy_name(monkeypatch):
     """m3_call and the MCP proxy share one reading of the opt-in, and both the
     M3_ name and the legacy name enable it."""
     import m3_sdk
+    from m3_core.config import settings as st
+    from m3_core.config.resolve import NO_DOTENV
 
+    # The registry key owns both names; build the snapshot from each, as a process would.
     for name in ("M3_MCP_PROXY_ALLOW_DESTRUCTIVE", "MCP_PROXY_ALLOW_DESTRUCTIVE"):
-        monkeypatch.delenv("M3_MCP_PROXY_ALLOW_DESTRUCTIVE", raising=False)
-        monkeypatch.delenv("MCP_PROXY_ALLOW_DESTRUCTIVE", raising=False)
+        st._install_for_tests(st.build(environ={}, dotenv=NO_DOTENV))
         assert m3_sdk.destructive_tools_allowed() is False
-        monkeypatch.setenv(name, "1")
+        st._install_for_tests(st.build(environ={name: "1"}, dotenv=NO_DOTENV))
         assert m3_sdk.destructive_tools_allowed() is True, name

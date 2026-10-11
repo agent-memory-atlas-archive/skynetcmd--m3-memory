@@ -1,8 +1,8 @@
 ---
 tool: bin/generate_configs.py
-sha1: 004bdd4fcf97
-mtime_utc: 2026-10-11T17:01:05.099655+00:00
-generated_utc: 2026-10-11T17:32:12.811588+00:00
+sha1: 417f61eaee39
+mtime_utc: 2026-10-11T18:07:52.876246+00:00
+generated_utc: 2026-10-11T18:07:53.822304+00:00
 private: false
 ---
 
@@ -34,7 +34,7 @@ _(no module docstring — update the source file.)_
 
 ## Environment variables read
 
-- `M3_EMBED_GGUF`
+_(none detected)_
 
 ---
 
@@ -56,6 +56,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 - `difflib`
 - `m3_core.atomic_io (atomic_write)`
+- `m3_core.config (settings)`
 - `m3_core.paths (get_m3_models_root)`
 - `m3_core.seams (roots)`
 - `ntpath`

@@ -86,6 +86,11 @@ def _build_settings(monkeypatch, os_name):
     # (green on 3.12, where the guard sits elsewhere; green on Windows, where
     # WindowsPath is native — so it only ever bit POSIX + 3.11 in CI).
     # Scope the override to the generator call and restore it immediately.
+    # Build the config snapshot BEFORE faking os.name: it is process state built at
+    # startup, and building it constructs Paths, which a faked "nt" breaks on POSIX.
+    from m3_core.config import settings as _cfg
+
+    _cfg.current()
     saved_name = g.os.name
     try:
         g.os.name = os_name

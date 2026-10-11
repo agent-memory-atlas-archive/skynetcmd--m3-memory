@@ -52,6 +52,7 @@ import time
 import uvicorn
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
+from m3_core.config import settings as _m3cfg
 from pydantic import BaseModel, Field
 
 # bin/ on path so sibling modules import when run as a script.
@@ -65,11 +66,11 @@ logger = logging.getLogger("embed_server_inproc")
 # Cap a single request's batch so a pathological caller can't OOM the GPU. Tune
 # via M3_EMBED_SERVER_MAX_BATCH. The client's own EMBED_BULK_CHUNK is 1024, so
 # this is a safety ceiling, not the expected batch size.
-_MAX_BATCH = int(os.environ.get("M3_EMBED_SERVER_MAX_BATCH", "2048"))
+_MAX_BATCH = _m3cfg.setting("embed.server.max_batch")
 # The model context window this server was built with. Mirrors what the Rust
 # core reads (crates/m3-core-py/src/config.rs: embed_ctx()), so the 413 body
 # reports the SAME ceiling the embedder actually enforces.
-_EMBED_CTX = int(os.environ.get("M3_EMBED_CTX", "8192"))
+_EMBED_CTX = _m3cfg.setting("embed.ctx")
 
 # ── Two-lane admission gate (interactive fast-lane) ───────────────────────────
 # WHY: the Rust `m3_core_rs.EmbeddedEmbedder` is NOT one serial CUDA context —
@@ -101,14 +102,14 @@ _EMBED_CTX = int(os.environ.get("M3_EMBED_CTX", "8192"))
 #
 # Classification is by batch size (interactive posts 1 text, bulk posts up to
 # EMBED_BULK_CHUNK=1024) with an explicit `X-M3-Embed-Priority` header override.
-_INTERACTIVE_MAX_TEXTS = int(os.environ.get("M3_EMBED_INTERACTIVE_MAX_TEXTS", "8"))
+_INTERACTIVE_MAX_TEXTS = _m3cfg.setting("embed.server.interactive_max_texts")
 # Slots reserved for interactive (never usable by bulk). >=1 guarantees a search
 # always has a free slot.
-_INTERACTIVE_RESERVED = int(os.environ.get("M3_EMBED_SERVER_INTERACTIVE_RESERVED", "1"))
+_INTERACTIVE_RESERVED = _m3cfg.setting("embed.server.interactive_reserved")
 # Total admission ceiling. 0 (the default sentinel) => use the backend stream
 # pool as resolved in _resolve_admission(). A positive value overrides but is
 # still clamped to the backend pool so we never over-subscribe the dispatcher.
-_ADMISSION_TOTAL_DEFAULT = int(os.environ.get("M3_EMBED_SERVER_CONCURRENCY", "0"))
+_ADMISSION_TOTAL_DEFAULT = _m3cfg.setting("embed.server.concurrency")
 
 
 class _AdmissionGate:
@@ -536,10 +537,10 @@ def list_models():
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Shared in-process GPU embedder server")
-    parser.add_argument("--port", type=int, default=int(os.environ.get("M3_EMBED_SERVER_PORT", "8082")))
+    parser.add_argument("--port", type=int, default=_m3cfg.setting("embed.server.port"))
     parser.add_argument(
         "--host",
-        default=os.environ.get("M3_EMBED_SERVER_HOST", "127.0.0.1"),
+        default=_m3cfg.setting("embed.server.host"),
         help="Bind host. Default 127.0.0.1 (loopback only — the embedder is not a "
         "LAN service). Set 0.0.0.0 ONLY deliberately.",
     )

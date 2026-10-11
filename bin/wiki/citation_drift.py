@@ -36,6 +36,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
+from m3_core.config import settings as _m3cfg
+
 # Same provenance relations the blast-radius walk uses: a synthesis was compiled
 # FROM these sources, so these are what its claim must still hold against.
 _PROVENANCE_RELS = ("consolidates", "distills_from")
@@ -232,9 +234,10 @@ class DriftConfig:
     @classmethod
     def from_env(cls, cache_dir: str | None = None) -> DriftConfig:
         return cls(
-            url=os.environ.get("M3_WIKI_DRIFT_URL", os.environ.get("M3_WIKI_SYNTH_URL", cls.url)),
-            model=os.environ.get("M3_WIKI_DRIFT_MODEL", os.environ.get("M3_WIKI_SYNTH_MODEL", cls.model)),
-            timeout_s=float(os.environ.get("M3_WIKI_DRIFT_TIMEOUT", cls.timeout_s)),
+            # Unset drift keys fall back to the synth ones (registry default None).
+            url=_m3cfg.setting("wiki.drift.url") or _m3cfg.setting("wiki.synth.url"),
+            model=_m3cfg.setting("wiki.drift.model") or _m3cfg.setting("wiki.synth.model") or cls.model,
+            timeout_s=_m3cfg.setting("wiki.drift.timeout_s"),
             cache_dir=cache_dir,
         )
 

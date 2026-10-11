@@ -8,6 +8,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+from m3_core.config import settings as _m3cfg
 from m3_core.paths import get_m3_backups_root, resolve_engine_file
 from slm_intent import (
     Profile,
@@ -19,7 +20,7 @@ from slm_intent import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-DEFAULT_PROFILE = os.environ.get("M3_ENRICH_PROFILE", "enrich_local_qwen")
+DEFAULT_PROFILE = _m3cfg.setting("enrich.profile")
 BACKUP_DIR = Path(get_m3_backups_root()) / "enrich"
 
 

@@ -71,6 +71,7 @@ from llm_failover import (  # noqa: E402
     report_unavailable,
     require_usable_endpoint,
 )
+from m3_core.config import settings as _m3cfg
 from m3_core.paths import get_m3_backups_root, snapshot_stores
 from m3_sdk import scoped_db_env
 from slm_intent import Profile, _is_loopback, load_profile, localize_endpoint  # noqa: E402
@@ -1253,7 +1254,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     ap.add_argument(
         "--source-conv-list",
-        default=os.environ.get("M3_ENTITIES_CONV_LIST"),
+        default=_m3cfg.setting("entity.conv_list"),
         help="Path to a file listing conversation_ids to scope extraction to. "
         "Format: newline-delimited text (with optional # comments) OR a "
         "JSON array. Filtering reads metadata_json.$.conversation_id, "

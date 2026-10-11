@@ -162,14 +162,22 @@ def test_cap_ordering_keeps_highest_confidence(built_db):
     assert kept == {"a0", "a1"}  # the two highest-confidence, deterministically
 
 
-def test_cap_env_default_and_override(built_db, monkeypatch):
+def test_cap_default_and_override(built_db, m3_settings):
     E, _ = built_db
-    monkeypatch.delenv("M3_BYPASS_SURFACE_CAP", raising=False)
+    m3_settings()
     assert E._resolve_bypass_cap() == 300
-    monkeypatch.setenv("M3_BYPASS_SURFACE_CAP", "50")
+    m3_settings({"search.bypass_surface_cap": 50})
     assert E._resolve_bypass_cap() == 50
-    monkeypatch.setenv("M3_BYPASS_SURFACE_CAP", "garbage")
-    assert E._resolve_bypass_cap() == 300  # bad input falls back to default
+
+
+def test_a_malformed_cap_fails_at_config_load():
+    """R-loud: a malformed M3_BYPASS_SURFACE_CAP no longer silently becomes 300."""
+    from m3_core.config import settings as st
+    from m3_core.config.resolve import NO_DOTENV, ConfigEnvErrors
+
+    with pytest.raises(ConfigEnvErrors) as exc:
+        st.build(environ={"M3_BYPASS_SURFACE_CAP": "garbage"}, dotenv=NO_DOTENV)
+    assert "M3_BYPASS_SURFACE_CAP" in str(exc.value.exceptions[0]), exc.value.exceptions
 
 
 # ── GDPR (explicit enumeration, not cascade-only) ─────────────────────────────

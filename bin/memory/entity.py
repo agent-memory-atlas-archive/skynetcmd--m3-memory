@@ -333,6 +333,7 @@ def _cosine(v1, v2):
 # dispatch; released in `_run_entity_extractor`'s finally block.
 # Identity preserved through the shim — external callers may inspect
 # `.locked()` or `._value` for queue-depth diagnostics.
+from m3_core.config import settings as _m3cfg
 from m3_core.errors import log_swallowed
 
 from .config import ENTITY_EXTRACT_CONCURRENCY  # noqa: E402 — local to this block
@@ -1370,13 +1371,10 @@ _BYPASS_ORDER_DEFAULT = "confidence"
 
 
 def _resolve_bypass_cap() -> int:
-    """Effective base cap from M3_BYPASS_SURFACE_CAP (default 300), bounded by MAX."""
-    raw = os.environ.get("M3_BYPASS_SURFACE_CAP")
-    try:
-        cap = int(raw) if raw else _BYPASS_SURFACE_CAP_DEFAULT
-    except (TypeError, ValueError):
-        cap = _BYPASS_SURFACE_CAP_DEFAULT
-    return max(1, min(cap, _BYPASS_SURFACE_CAP_MAX))
+    """Effective base cap from search.bypass_surface_cap (default 300), bounded by MAX.
+
+    A malformed value fails at config load (R-loud) instead of silently becoming 300."""
+    return max(1, min(_m3cfg.setting("search.bypass_surface_cap"), _BYPASS_SURFACE_CAP_MAX))
 
 
 def build_bypass_surface(

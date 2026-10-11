@@ -40,7 +40,6 @@ from pathlib import Path
 from llm_failover import apply_thinking_suppression, apply_thinking_suppression_anthropic, reply_ran_out_of_room
 from m3_core.aio import gather_or_cancel
 from m3_core.runtime import utc_iso
-from m3_sdk import getenv_compat
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 # Production-first sys.path: main bin first, bench bin appended at end.
@@ -55,9 +54,10 @@ import httpx  # noqa: E402
 import memory_core as mc  # noqa: E402
 from agent_protocol import strip_code_fences  # noqa: E402
 from auth_utils import get_api_key  # noqa: E402
+from m3_core.config import settings as _m3cfg
 from slm_intent import load_profile  # noqa: E402
 
-PROFILE_NAME = getenv_compat("M3_OBSERVER_PROFILE", "OBSERVER_PROFILE", "observer_local")
+PROFILE_NAME = _m3cfg.setting("observer.profile")
 
 
 def _ingest_llm_enabled_from_env(flag: str) -> bool:

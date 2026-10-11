@@ -17,6 +17,7 @@ from llm_failover import (
     report_available,
     report_unavailable,
 )
+from m3_core.config import settings as _m3cfg
 from m3_core.errors import log_swallowed
 from memory_core import (
     DEDUP_LIMIT,
@@ -546,9 +547,8 @@ def _feedback_window_minutes(now: float | None = None) -> int:
 
     val = _fb_window_cache["minutes"]
     if val is None:
-        val = os.environ.get("M3_FEEDBACK_WINDOW_MINUTES")
-    if val is None:
-        return _FEEDBACK_WINDOW_MINUTES_DEFAULT
+        # Registry key governor.feedback_window_minutes (default 5); malformed fails at load.
+        val = _m3cfg.setting("governor.feedback_window_minutes")
     try:
         return _clamp_feedback_window(int(val))
     except (TypeError, ValueError):

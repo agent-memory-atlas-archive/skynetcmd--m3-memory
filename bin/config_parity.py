@@ -244,14 +244,22 @@ def record(name: str, value: object, key: bytes, markers: list[str]) -> dict:
 
 # ── capture ───────────────────────────────────────────────────────────────────
 def _env_names() -> tuple[list[str], int]:
-    """Constant env names from the 2A.1 inventory (its one owner), plus the
-    count of dynamic-name sites a snapshot cannot enumerate."""
+    """Constant env names m3 reads: the 2A.1 inventory's direct reads, plus every
+    name a config-registry key answers to, plus the count of dynamic-name sites a
+    snapshot cannot enumerate.
+
+    The registry half matters more as 2D.2 proceeds: a reader converted from
+    ``os.environ.get("M3_X")`` to the registry no longer appears in the direct-read
+    inventory, so without it every conversion silently shrank parity's coverage
+    (a converted M3_TOOL_TIMEOUT stopped registering as drift, 2026-10-11)."""
     import check_env_access as cea
+    from m3_core.config import REGISTRY
 
     findings, unparsed = cea.scan_repo()
     if unparsed:
         raise ParityError(f"inventory incomplete, files not parsed: {unparsed}")
     names = {f.name for f in findings if f.kind == "read" and f.name not in ("<dynamic>", "*")}
+    names |= set(REGISTRY.env_names())
     dynamic = sum(1 for f in findings if f.kind == "read" and f.name == "<dynamic>")
     return sorted(names), dynamic
 

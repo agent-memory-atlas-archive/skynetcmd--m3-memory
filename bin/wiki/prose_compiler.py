@@ -21,9 +21,10 @@ an intentional, explained mass-supersede rather than silent churn.
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
+
+from m3_core.config import settings as _m3cfg
 
 from .cluster import Cluster
 
@@ -93,9 +94,10 @@ class ProseCompilerConfig:
     @classmethod
     def from_env(cls) -> ProseCompilerConfig:
         return cls(
-            url=os.environ.get("M3_WIKI_COMPILE_URL", os.environ.get("M3_WIKI_SYNTH_URL", cls.url)),
-            model=os.environ.get("M3_WIKI_COMPILE_MODEL", os.environ.get("M3_WIKI_SYNTH_MODEL", cls.model)),
-            timeout_s=float(os.environ.get("M3_WIKI_COMPILE_TIMEOUT", cls.timeout_s)),
+            # Unset compile keys fall back to the synth ones (registry default None).
+            url=_m3cfg.setting("wiki.compile.url") or _m3cfg.setting("wiki.synth.url"),
+            model=_m3cfg.setting("wiki.compile.model") or _m3cfg.setting("wiki.synth.model") or cls.model,
+            timeout_s=_m3cfg.setting("wiki.compile.timeout_s"),
         )
 
 

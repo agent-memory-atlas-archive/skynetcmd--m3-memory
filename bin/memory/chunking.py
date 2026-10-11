@@ -17,14 +17,15 @@ back to embed.py. Do NOT import `embed` here — that would create a cycle.
 from __future__ import annotations
 
 import math
-import os
 import re
+
+from m3_core.config import settings as _m3cfg
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Sliding-window chunking + dense-content recovery
 # ──────────────────────────────────────────────────────────────────────────────
-MAX_CHARS_PER_CHUNK = int(os.environ.get("M3_EMBED_CHUNK_MAX_CHARS", 28000))
-MIN_OVERLAP_CHARS = int(os.environ.get("M3_EMBED_CHUNK_OVERLAP_CHARS", 8000))
+MAX_CHARS_PER_CHUNK = _m3cfg.setting("embed.chunk_max_chars")
+MIN_OVERLAP_CHARS = _m3cfg.setting("embed.chunk_overlap_chars")
 STRIDE_CHARS = MAX_CHARS_PER_CHUNK - MIN_OVERLAP_CHARS
 
 # Floor for the token-aware split: below this a window is handed back whole even

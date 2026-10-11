@@ -1,8 +1,8 @@
 ---
 tool: bin/run_observer.py
-sha1: 424d5d3cd63b
-mtime_utc: 2026-10-10T22:34:37.107932+00:00
-generated_utc: 2026-10-10T22:35:15.480808+00:00
+sha1: 97d163e50cf3
+mtime_utc: 2026-10-11T17:51:15.726779+00:00
+generated_utc: 2026-10-11T18:07:54.209508+00:00
 private: false
 ---
 
@@ -70,7 +70,6 @@ Status: Phase D Task 3. Pairs with config/slm/observer_local.yaml.
 - `agent_protocol (strip_code_fences)`
 - `auth_utils (get_api_key)`
 - `llm_failover (apply_thinking_suppression, apply_thinking_suppression_anthropic, reply_ran_out_of_room)`
-- `m3_sdk (getenv_compat)`
 - `memory_core`
 - `slm_intent (load_profile)`
 - `unified_ai (async_client_for_profile)`
@@ -87,6 +86,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 - `httpx`
 - `m3_core.aio (gather_or_cancel)`
+- `m3_core.config (settings)`
 - `m3_core.runtime (utc_iso)`
 - `memory.backends (dialect)`
 

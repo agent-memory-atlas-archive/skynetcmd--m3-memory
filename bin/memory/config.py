@@ -34,12 +34,7 @@ def _setting(name: str) -> Any:
     import-time binding is their contract, exactly as the env reads it replaces
     (a changed file says "restart required"). A name that is not a registry key
     raises here, at import, rather than reading a default nobody declared."""
-    key = _REGISTRY.get(name)
-    if key is None:
-        raise KeyError(
-            f"observed: memory.config reads {name!r}, which is not a registry key. inspect: m3_core/config/keys*.py"
-        )
-    return _settings.current()[key]
+    return _settings.setting(name)
 
 
 def _set_by_file_or_canonical_env(name: str) -> bool:

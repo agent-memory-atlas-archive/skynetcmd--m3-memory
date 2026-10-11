@@ -101,6 +101,7 @@ import chatlog_config
 import m3_enrich
 import m3_entities
 import m3_halt
+from m3_core.config import settings as _m3cfg
 from m3_core.errors import log_swallowed
 from m3_sdk import (
     M3Context,
@@ -295,7 +296,7 @@ logger = logging.getLogger("m3_cognitive_loop")
 # batch. Default 1 = send a single item, then re-check load before the next —
 # the most conservative, interactive-first cadence. Tune via
 # M3_GOVERNOR_THROTTLED_LIMIT.
-_THROTTLED_LIMIT = max(1, int(os.environ.get("M3_GOVERNOR_THROTTLED_LIMIT", "1")))
+_THROTTLED_LIMIT = max(1, _m3cfg.setting("loop.throttled_limit"))
 
 
 def _is_local_llm_url(url: str | None) -> bool:
@@ -1291,7 +1292,7 @@ async def run_classify_pass(args):
     from memory.enrich import _auto_classify
 
     _p = dialect().param()
-    deadline_s = float(os.environ.get("M3_CLASSIFY_DEADLINE_S", "10"))
+    deadline_s = _m3cfg.setting("loop.classify_deadline_s")
 
     logger.info("Starting Classification pass...")
     # Fetch the batch with a short-lived connection; do the (slow) LLM work
@@ -2084,7 +2085,7 @@ def main():
     parser.add_argument(
         "--limit-per-pass",
         type=int,
-        default=max(1, int(os.environ.get("M3_LIMIT_PER_PASS", "4"))),
+        default=max(1, _m3cfg.setting("loop.limit_per_pass")),
         help="Max groups/rows per heavy-LLM pass (entity extraction, "
         "enrichment, observation drain). Default 4 (override with the "
         "M3_LIMIT_PER_PASS env var — e.g. set it higher to drain a large "

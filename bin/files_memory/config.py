@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 
+from m3_core.config import settings as _m3cfg
 from m3_core.paths import canonical_path, expand_user
 
 # Re-exports from memory.config — single source of truth.
@@ -67,10 +68,10 @@ FILES_MAX_FILE_BYTES: int = int(os.environ.get("M3_FILES_MAX_FILE_BYTES", str(10
 
 # Per-leaf token cap. Leaves above this are truncated with a warning and
 # `truncated=true` flag. The bge-m3 ctx default is 8192; we stay under that.
-FILES_MAX_LEAF_TOKENS: int = int(os.environ.get("M3_FILES_MAX_LEAF_TOKENS", "7000"))
+FILES_MAX_LEAF_TOKENS: int = _m3cfg.setting("files.max_leaf_tokens")
 
 # Per-ingest file count cap. Override with --no-cap on the CLI.
-FILES_MAX_FILES_PER_INGEST: int = int(os.environ.get("M3_FILES_MAX_FILES_PER_INGEST", "10000"))
+FILES_MAX_FILES_PER_INGEST: int = _m3cfg.setting("files.max_files_per_ingest")
 
 # Follow symlinks during walk. Off by default to avoid filesystem loops.
 FILES_FOLLOW_SYMLINKS: bool = os.environ.get("M3_FILES_FOLLOW_SYMLINKS", "0").lower() in (
@@ -81,7 +82,7 @@ FILES_FOLLOW_SYMLINKS: bool = os.environ.get("M3_FILES_FOLLOW_SYMLINKS", "0").lo
 
 # Default corpus_id used when --corpus is not passed. "default" is a valid
 # sentinel; per-project users can override per ingest or via env.
-FILES_DEFAULT_CORPUS: str = os.environ.get("M3_FILES_DEFAULT_CORPUS", "default")
+FILES_DEFAULT_CORPUS: str = _m3cfg.setting("files.default_corpus")
 
 # Default scope for promoted-to-memory items. Plan §14 Q3: "user" because
 # file content is generally personal-knowledge shaped, not agent-private.
@@ -107,7 +108,7 @@ EXTRACTOR_VERSION: str | None = "p2.0.0"
 # behavior), 'inline' = sync per-leaf, 'queue' = defer to extract_pending.
 # We keep 'none' as default so a fresh ingest doesn't surprise the user
 # with a long LLM run. Pass --mode inline (or queue) explicitly.
-DEFAULT_EXTRACT_MODE: str = os.environ.get("M3_FILES_DEFAULT_EXTRACT_MODE", "none")
+DEFAULT_EXTRACT_MODE: str = _m3cfg.setting("files.default_extract_mode")
 
 # Per-leaf concurrency for inline extraction. Higher = faster but more
 # memory + more pressure on the LLM endpoint. 2 is conservative; 4 fine
@@ -121,10 +122,10 @@ EXTRACT_MAX_ATTEMPTS: int = int(os.environ.get("M3_FILES_EXTRACT_MAX_ATTEMPTS", 
 
 # Min characters in a leaf for extraction to be attempted. Tiny leaves
 # rarely contain extractable facts; skip them to save LLM calls.
-EXTRACT_MIN_LEAF_CHARS: int = int(os.environ.get("M3_FILES_EXTRACT_MIN_LEAF_CHARS", "120"))
+EXTRACT_MIN_LEAF_CHARS: int = _m3cfg.setting("files.extract_min_leaf_chars")
 
 # Promotion default scope when --scope not passed. See plan §14 Q3.
-PROMOTION_DEFAULT_SCOPE: str = os.environ.get("M3_FILES_PROMOTION_SCOPE", "user")
+PROMOTION_DEFAULT_SCOPE: str = _m3cfg.setting("files.promotion_scope")
 
 
 # Core memory.db path for cross-store operations (entity link + promotion).

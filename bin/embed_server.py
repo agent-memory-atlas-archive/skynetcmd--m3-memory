@@ -19,7 +19,7 @@ import time
 
 import uvicorn
 from fastapi import FastAPI
-from m3_sdk import getenv_compat
+from m3_core.config import settings as _m3cfg
 from pydantic import BaseModel, Field
 from sentence_transformers import SentenceTransformer
 
@@ -100,7 +100,7 @@ def main():
     parser.add_argument("--port", type=int, default=1234, help="Port to serve on")
     parser.add_argument(
         "--host",
-        default=getenv_compat("M3_EMBED_SERVER_HOST", "EMBED_SERVER_HOST", "127.0.0.1"),
+        default=_m3cfg.setting("embed.server.host"),
         help="Host to bind to (default 127.0.0.1; set 0.0.0.0 to serve on LAN)",
     )
     parser.add_argument("--device", default=None, help="Device to use (e.g. cuda:0, cpu)")

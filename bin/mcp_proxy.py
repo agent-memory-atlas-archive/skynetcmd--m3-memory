@@ -101,7 +101,7 @@ from collections.abc import AsyncIterator
 from typing import Any, override
 
 from m3_core.aio import gather_or_cancel
-from m3_sdk import destructive_tools_allowed, getenv_compat
+from m3_sdk import destructive_tools_allowed
 
 # Force Python UTF-8 mode before any output. This proxy is launched directly
 # (`python bin/mcp_proxy.py` — the OpenClaw path), bypassing the m3 CLI, so it
@@ -126,12 +126,13 @@ logging.basicConfig(
 )
 log = logging.getLogger("mcp_proxy")
 
+from m3_core.config import settings as _m3cfg
 from m3_sdk import M3Context
 
 ctx = M3Context.for_db(None)
 
 # ── Constants ─────────────────────────────────────────────────────────────────
-PROXY_HOST = getenv_compat("M3_MCP_PROXY_HOST", "MCP_PROXY_HOST", "127.0.0.1")
+PROXY_HOST = _m3cfg.setting("mcp.proxy_host")
 PROXY_PORT = 9000
 ANTHROPIC_BASE = "https://api.anthropic.com/v1"
 ANTHROPIC_VERSION = "2023-06-01"
@@ -139,7 +140,7 @@ GOOGLE_AI_BASE = "https://generativelanguage.googleapis.com/v1beta/openai"
 GROK_BASE = "https://api.x.ai/v1"
 PERPLEXITY_BASE = "https://api.perplexity.ai"
 OPENAI_BASE = "https://api.openai.com/v1"
-LMSTUDIO_BASE = os.environ.get("LM_STUDIO_BASE", "http://localhost:1234/v1")
+LMSTUDIO_BASE = _m3cfg.setting("llm.lmstudio_base")
 MAX_TOOL_ROUNDS = 10
 CONNECT_TIMEOUT = 5.0
 # Canonical LM_READ_TIMEOUT default is 4800.0 (~80 min for 32k tokens at
@@ -147,7 +148,7 @@ CONNECT_TIMEOUT = 5.0
 # defaulted to 300, so the same
 # env var resolved to two different values depending on entry point (§3: one
 # default per var). Reconciled to the documented canonical value.
-READ_TIMEOUT = float(getenv_compat("M3_LM_READ_TIMEOUT", "LM_READ_TIMEOUT", "4800.0"))
+READ_TIMEOUT = _m3cfg.setting("llm.read_timeout_s")
 ALLOW_DESTRUCTIVE = destructive_tools_allowed()
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

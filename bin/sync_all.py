@@ -26,6 +26,7 @@ import socket
 import subprocess
 import sys
 
+from m3_core.config import settings as _m3cfg
 from m3_core.seams import is_windows, os_name
 from m3_sdk import getenv_compat
 
@@ -33,7 +34,7 @@ IS_WIN = is_windows()
 
 # Subprocess timeout for pg_sync.py. First-run full syncs can take several
 # minutes; delta syncs are much faster. Override with M3_PG_SYNC_TIMEOUT (seconds).
-PG_SYNC_TIMEOUT = int(os.environ.get("M3_PG_SYNC_TIMEOUT", "600"))
+PG_SYNC_TIMEOUT = _m3cfg.setting("sync.timeout_s")
 
 BASE = pathlib.Path(__file__).parent.parent.resolve()
 sys.path.insert(0, str(BASE / "bin"))

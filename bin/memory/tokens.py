@@ -64,8 +64,9 @@ assumption so the swap fails loudly instead of silently under-estimating.
 
 from __future__ import annotations
 
-import os
 from collections.abc import Callable, Sequence
+
+from m3_core.config import settings as _m3cfg
 
 from . import config
 
@@ -80,7 +81,7 @@ from . import config
 # beyond that you are extrapolating past the model rather than gaining capacity,
 # and KV cost is ~96 KB/token — 16384 takes a 4-stream pool from ~3.0 GB to
 # ~6.0 GB for embeddings that are getting worse, not better.
-TOKEN_CEILING: int = int(os.environ.get("M3_EMBED_CTX", "8192"))
+TOKEN_CEILING: int = _m3cfg.setting("embed.ctx")
 
 # The target we chunk to, leaving headroom under the ceiling for:
 #   - anchor augmentation (`[2026-05-16, 2026-Q2] ` prepended at write time;
@@ -88,11 +89,11 @@ TOKEN_CEILING: int = int(os.environ.get("M3_EMBED_CTX", "8192"))
 #     unbounded in principle, which is why the budget is computed on the
 #     POST-augmentation text — see memory/write.py),
 #   - the estimator's own slack on mixed-density content.
-TOKEN_BUDGET: int = int(os.environ.get("M3_EMBED_TOKEN_BUDGET", "7000"))
+TOKEN_BUDGET: int = _m3cfg.setting("embed.token_budget")
 
 # Overlap between adjacent windows, in tokens. Preserves the legacy ~28%
 # ratio (8000/28000 chars) so retrieval across a chunk seam does not degrade.
-TOKEN_OVERLAP: int = int(os.environ.get("M3_EMBED_TOKEN_OVERLAP", "2000"))
+TOKEN_OVERLAP: int = _m3cfg.setting("embed.token_overlap")
 
 # Bytes-per-token divisor for the estimator's byte term. Deliberately 3 (not 4):
 # 4 is the English ratio and under-estimates every denser content type.

@@ -22,12 +22,11 @@ from datetime import UTC, datetime
 from glob import glob
 from typing import cast
 
-from m3_sdk import getenv_compat
-
 # Setup path so we can import bin/ modules
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import chatlog_config
+from m3_core.config import settings as _m3cfg
 
 logger = logging.getLogger("chatlog_embed_sweeper")
 
@@ -577,17 +576,11 @@ async def main() -> int:
     # Resolve config
     cfg = chatlog_config.resolve_config()
     batch_size = args.batch or cfg.embed_sweeper.batch_size
-    max_per_run = args.max_per_run or int(
-        getenv_compat("M3_CHATLOG_EMBED_MAX_PER_RUN", "CHATLOG_EMBED_MAX_PER_RUN", "10000")
-    )
+    max_per_run = args.max_per_run or _m3cfg.setting("chatlog.embed.max_per_run")
     # Soft time budget per run. None -> env default (60s). 0 -> unbounded (old
     # behavior). Keeps a big backlog from pinning the GPU in one long run; the
     # next scheduled sweep picks up where this one left off (cursor-advanced).
-    _deadline = (
-        args.deadline
-        if args.deadline is not None
-        else float(getenv_compat("M3_CHATLOG_EMBED_DEADLINE_S", "CHATLOG_EMBED_DEADLINE_S", "60"))
-    )
+    _deadline = args.deadline if args.deadline is not None else _m3cfg.setting("chatlog.embed.deadline_s")
     # run_embed_loop expects an ABSOLUTE time.monotonic() deadline, not a
     # duration — convert here (a raw duration like 60 would read as "already
     # elapsed" since the monotonic clock is far past 60 at runtime).

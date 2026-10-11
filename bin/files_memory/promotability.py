@@ -33,6 +33,8 @@ import sqlite3
 from datetime import UTC, datetime
 from itertools import batched
 
+from m3_core.config import settings as _m3cfg
+
 from .config import files_table
 from .db import _db
 
@@ -40,7 +42,7 @@ logger = logging.getLogger("files_memory.promotability")
 
 
 # Tunables (env-overridable so deployments can dial them without code).
-DEFAULT_HALF_LIFE_DAYS: float = float(os.environ.get("M3_FILES_PROMO_HALF_LIFE_DAYS", "30"))
+DEFAULT_HALF_LIFE_DAYS: float = _m3cfg.setting("files.promo_half_life_days")
 DEFAULT_SUGGEST_THRESHOLD: float = float(os.environ.get("M3_FILES_PROMO_SUGGEST_THRESHOLD", "0.30"))
 
 

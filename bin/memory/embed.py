@@ -31,8 +31,9 @@ import httpx as _httpx
 from embedding_utils import unpack as _unpack
 from llm_failover import get_best_embed
 from m3_core.aio import gather_or_cancel
+from m3_core.config import settings as _m3cfg
 from m3_core.errors import log_swallowed
-from m3_sdk import M3Context, getenv_compat, resolve_db_path
+from m3_sdk import M3Context, resolve_db_path
 
 from . import config
 
@@ -410,11 +411,11 @@ _EMBED_GGUF_AUTODETECT: bool = os.environ.get("M3_EMBED_GGUF_AUTODETECT", "1") !
 # one context total, not one per process).
 if not _INPROC_ALLOWED:
     _EMBED_GGUF_PATH = None
-_EMBED_GGUF_WALK_BUDGET_S: float = float(os.environ.get("M3_EMBED_GGUF_WALK_BUDGET", "2.0"))
+_EMBED_GGUF_WALK_BUDGET_S: float = _m3cfg.setting("embed.autodetect_budget_s")
 # Hard deadline on the in-process CUDA embedder INIT (§6: strict timeouts
 # everywhere). A stuck EmbeddedEmbedder(path) load (bad driver, GPU contention,
 # OOM) must degrade to HTTP tier-2, never hang the caller forever. 0 disables.
-_EMBED_INIT_TIMEOUT_S: float = float(os.environ.get("M3_EMBED_INIT_TIMEOUT_S", "20"))
+_EMBED_INIT_TIMEOUT_S: float = _m3cfg.setting("embed.init_timeout_s")
 _embedded_embedder = None
 _embedded_embed_checked = False
 
@@ -1105,8 +1106,8 @@ async def _http_bulk_with_subdivide(post_one, texts: list[str]) -> list[list[flo
 # ──────────────────────────────────────────────────────────────────────────────
 # HTTP-client singleton
 # ──────────────────────────────────────────────────────────────────────────────
-_EMBED_HTTP_MAX_CONNS = int(os.environ.get("M3_EMBED_HTTP_MAX_CONNS", "32"))
-_EMBED_HTTP_MAX_KEEPALIVE = int(os.environ.get("M3_EMBED_HTTP_MAX_KEEPALIVE", "16"))
+_EMBED_HTTP_MAX_CONNS = _m3cfg.setting("embed.http.max_connections")
+_EMBED_HTTP_MAX_KEEPALIVE = _m3cfg.setting("embed.http.max_keepalive")
 # Default lowered 60.0 -> 5.0: the embed server (local :8082 / LM Studio) closes
 # idle keep-alive connections on ITS side within a few seconds. At the old 60s
 # expiry httpx kept handing out those now-dead pooled sockets for up to a minute;
@@ -1118,7 +1119,7 @@ _EMBED_HTTP_MAX_KEEPALIVE = int(os.environ.get("M3_EMBED_HTTP_MAX_KEEPALIVE", "1
 # expiry discards a connection before the server can silently drop it, so pooling
 # still helps within a burst but stale-socket reuse can't happen across the idle
 # gaps between the loop's cycles. Override via M3_EMBED_HTTP_KEEPALIVE_EXPIRY.
-_EMBED_HTTP_KEEPALIVE_EXPIRY = float(os.environ.get("M3_EMBED_HTTP_KEEPALIVE_EXPIRY", "5.0"))
+_EMBED_HTTP_KEEPALIVE_EXPIRY = _m3cfg.setting("embed.http.keepalive_expiry_s")
 
 _EMBED_CLIENT: _httpx.AsyncClient | None = None
 _EMBED_CLIENT_LOOP_ID: int | None = None
@@ -1260,8 +1261,8 @@ def set_embed_override(url: str | None, model: str | None = None) -> None:
 # ──────────────────────────────────────────────────────────────────────────────
 _EMBED_SEM = asyncio.Semaphore(4)
 
-EMBED_BULK_CHUNK = int(getenv_compat("M3_EMBED_BULK_CHUNK", "EMBED_BULK_CHUNK", "1024"))
-EMBED_BULK_CONCURRENCY = int(getenv_compat("M3_EMBED_BULK_CONCURRENCY", "EMBED_BULK_CONCURRENCY", "4"))
+EMBED_BULK_CHUNK = _m3cfg.setting("embed.bulk_chunk")
+EMBED_BULK_CONCURRENCY = _m3cfg.setting("embed.bulk_concurrency")
 _EMBED_BULK_SEM = asyncio.Semaphore(EMBED_BULK_CONCURRENCY)
 
 
@@ -2012,9 +2013,7 @@ async def _embed_many(texts: list[str]) -> list[tuple[list[float] | None, str]]:
 # Entity-name embedding cache (used by entity resolution)
 # ──────────────────────────────────────────────────────────────────────────────
 _ENTITY_NAME_EMBED_CACHE: dict[str, list[float]] = {}
-ENTITY_NAME_EMBED_CACHE_MAX = int(
-    getenv_compat("M3_ENTITY_NAME_EMBED_CACHE_MAX", "ENTITY_NAME_EMBED_CACHE_MAX", "50000")
-)
+ENTITY_NAME_EMBED_CACHE_MAX = _m3cfg.setting("embed.entity_name_cache_max")
 
 
 async def _embed_canonical_cached(canonical_name: str) -> list[float] | None:

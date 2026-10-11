@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_entities_gliner.py
-sha1: eae8e8995c3c
-mtime_utc: 2026-10-10T23:43:02.185809+00:00
-generated_utc: 2026-10-10T23:43:51.752216+00:00
+sha1: b0177098eba4
+mtime_utc: 2026-10-11T17:51:15.727475+00:00
+generated_utc: 2026-10-11T18:07:53.996143+00:00
 private: false
 ---
 
@@ -52,7 +52,7 @@ Env vars (all optional):
 
 ## Entry points
 
-- `def main()` (line 556)
+- `def main()` (line 557)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -64,7 +64,7 @@ Env vars (all optional):
 | `--core` | Operate on the core memory DB (the default; kept for CLI symmetry with bin/m3_entities.py). | `False` |  | store_true |  |
 | `--core-db` | Explicit path to the core memory DB. Overrides M3_DATABASE. | None |  | str |  |
 | `--source-variant` | Filter source rows by variant. '__none__' = variant IS NULL (true core rows). A name scopes to a single variant. Omit to process all variants. | None |  | str |  |
-| `--source-conv-list` | Path to a conversation_id allowlist (newline-delimited or JSON array). Filters AFTER --source-variant. | `os.environ.get('M3_ENTITIES_CONV_LIST')` |  | str |  |
+| `--source-conv-list` | Path to a conversation_id allowlist (newline-delimited or JSON array). Filters AFTER --source-variant. | `_m3cfg.setting('entity.conv_list')` |  | str |  |
 | `--limit` | Cap eligible rows (smoke testing). | None |  | int |  |
 | `--model` | GLiNER HF model id. Default: urchade/gliner_large-v2.1. | `urchade/gliner_large-v2.1` |  | str |  |
 | `--threshold` | Confidence threshold (default: 0.5; lower e.g. 0.3 widens recall). | `0.5` |  | float |  |
@@ -104,6 +104,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 - `gliner (GLiNER)`
 - `importlib (metadata)`
+- `m3_core.config (settings)`
 - `m3_core.context (pointed_store_connection)`
 - `m3_core.gpu (torch_device)`
 - `m3_core.paths (resolve_cli_store, seam_backend)`

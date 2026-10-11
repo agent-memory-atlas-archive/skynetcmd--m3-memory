@@ -26,6 +26,7 @@ import time
 from pathlib import Path
 
 from llm_failover import apply_thinking_suppression
+from m3_core.config import settings as _m3cfg
 from m3_core.errors import log_swallowed
 from m3_core.paths import canonical_path
 
@@ -93,7 +94,7 @@ def _summary_model() -> str | None:
     than POSTing a guessed name (DESIGN_PHILOSOPHIES §3 — fail loud, not
     silently wrong).
     """
-    explicit = os.environ.get("M3_FILES_SUMMARY_MODEL")
+    explicit = _m3cfg.setting("files.summary_model")
     if explicit:
         return explicit
     endpoint = _summary_endpoint()
@@ -112,7 +113,7 @@ def _summary_model() -> str | None:
 # Pre-warm timeout. Deliberately generous and SEPARATE from the per-call
 # timeout: this call is expected to be slow — it is paying the model load cost
 # up front so the real calls do not.
-_PREWARM_TIMEOUT_S = float(os.environ.get("M3_FILES_PREWARM_TIMEOUT_S", "180"))
+_PREWARM_TIMEOUT_S = _m3cfg.setting("files.prewarm_timeout_s")
 
 
 def prewarm(timeout: float | None = None) -> bool:

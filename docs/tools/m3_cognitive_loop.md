@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_cognitive_loop.py
-sha1: be13bebd05b1
-mtime_utc: 2026-10-10T23:43:02.196021+00:00
-generated_utc: 2026-10-10T23:43:51.683782+00:00
+sha1: 176ae8cd5235
+mtime_utc: 2026-10-11T17:51:15.732480+00:00
+generated_utc: 2026-10-11T18:07:53.927034+00:00
 private: false
 ---
 
@@ -30,7 +30,7 @@ for m3_enrich and m3_entities.
 
 ## Entry points
 
-- `def main()` (line 2073)
+- `def main()` (line 2074)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -43,7 +43,7 @@ for m3_enrich and m3_entities.
 | `--background` | Run in background (fire and forget) | `False` |  | store_true |  |
 | `--log-file` | Append logging to this file (scheduled-task / service mode). Survives the Windows pythonw re-exec. | None |  | str |  |
 | `--concurrency` | SLM concurrency (default: 2) | `2` |  | int |  |
-| `--limit-per-pass` | Max groups/rows per heavy-LLM pass (entity extraction, enrichment, observation drain). Default 4 (override with the M3_LIMIT_PER_PASS env var — e.g. set it higher to drain a large catch-up backlog faster on an idle box, WITHOUT editing the flag in a scheduled task). Small enough that one pass is a few-second GPU burst (the governor is only re-checked BETWEEN passes, not within a batch — a 50-item pass once pinned the GPU for ~17 min, so 4 stays ~10x under that). Under THROTTLED load this is shrunk to M3_GOVERNOR_THROTTLED_LIMIT (default 1); when idle the loop also re-ticks immediately if a backlog remains (see the backlog-aware wait below) rather than sleeping the full --interval. Embedding is a separate scheduled task (ChatlogEmbedSweep) and is unaffected. | `max(1, int(os.environ.get('M3_LIMIT_PER_PASS', '4')))` |  | int |  |
+| `--limit-per-pass` | Max groups/rows per heavy-LLM pass (entity extraction, enrichment, observation drain). Default 4 (override with the M3_LIMIT_PER_PASS env var — e.g. set it higher to drain a large catch-up backlog faster on an idle box, WITHOUT editing the flag in a scheduled task). Small enough that one pass is a few-second GPU burst (the governor is only re-checked BETWEEN passes, not within a batch — a 50-item pass once pinned the GPU for ~17 min, so 4 stays ~10x under that). Under THROTTLED load this is shrunk to M3_GOVERNOR_THROTTLED_LIMIT (default 1); when idle the loop also re-ticks immediately if a backlog remains (see the backlog-aware wait below) rather than sleeping the full --interval. Embedding is a separate scheduled task (ChatlogEmbedSweep) and is unaffected. | `max(1, _m3cfg.setting('loop.limit_per_pass'))` |  | int |  |
 | `--database` | Core Memory DB path (Env: M3_DATABASE) | None |  | str |  |
 | `--chatlog-db` | Chatlog DB path (Env: CHATLOG_DB_PATH) | None |  | str |  |
 | `--profile-entities` | Profile for entities | `entities_local_qwen` |  | str |  |
@@ -81,12 +81,9 @@ for m3_enrich and m3_entities.
 ## Environment variables read
 
 - `M3_CHATLOG_DB_PATH`
-- `M3_CLASSIFY_DEADLINE_S`
 - `M3_DATABASE`
 - `M3_EMBED_MODEL`
 - `M3_EMBED_URL`
-- `M3_GOVERNOR_THROTTLED_LIMIT`
-- `M3_LIMIT_PER_PASS`
 
 ---
 
@@ -119,11 +116,11 @@ for m3_enrich and m3_entities.
 
 **subprocess**
 
-- `subprocess.Popen()  → `argv`` (line 189)
+- `subprocess.Popen()  → `argv`` (line 190)
 
 **sqlite**
 
-- `sqlite3.connect()  → `path`` (line 1085)
+- `sqlite3.connect()  → `path`` (line 1086)
 
 
 ---
@@ -137,6 +134,7 @@ for m3_enrich and m3_entities.
 - `m3_core.atomic_io (atomic_write)`
 - `m3_core.autonomy (autonomy_flag)`
 - `m3_core.autonomy (ensure_autonomy_config)`
+- `m3_core.config (settings)`
 - `m3_core.errors (log_swallowed)`
 - `m3_core.seams (is_windows)`
 - `memory.backends (active_backend)`

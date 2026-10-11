@@ -195,6 +195,21 @@ def current() -> Settings:
     return _CACHE.current()
 
 
+def setting(name: str) -> ConfigValue:
+    """Key ``name``'s current value: m3_config.toml, then the key's env names, then
+    its default, parsed by the key's one parser.
+
+    The ONE accessor for code converted off direct env reads (plan 2D.2 batch (b)).
+    A private ``_setting`` per module would be ~100 copies of these three lines.
+    A name that is not a registry key raises, rather than reading a default
+    nobody declared.
+    """
+    key = REGISTRY.get(name)
+    if key is None:
+        raise KeyError(f"observed: {name!r} is not a registry key. inspect: m3_core/config/keys*.py")
+    return current()[key]
+
+
 def last_error() -> str | None:
     """The most recent failed reload, for doctor; None when the last one succeeded."""
     return _CACHE.last_error()

@@ -1,8 +1,8 @@
 ---
 tool: bin/llm_failover.py
-sha1: a538a1ed010d
-mtime_utc: 2026-10-10T23:38:17.727696+00:00
-generated_utc: 2026-10-10T23:43:51.648442+00:00
+sha1: b61a23eaf08d
+mtime_utc: 2026-10-11T18:06:28.839741+00:00
+generated_utc: 2026-10-11T18:07:53.892051+00:00
 private: false
 ---
 
@@ -33,10 +33,6 @@ _(no argparse arguments detected)_
 ## Environment variables read
 
 - `LM_API_TOKEN`
-- `M3_EMBED_DISCOVERY_NEG_TTL`
-- `M3_LLM_CONNECT_TIMEOUT`
-- `M3_LLM_OUTAGE_REPEAT_S`
-- `M3_LLM_USABILITY_TTL`
 
 ---
 
@@ -51,7 +47,7 @@ _(no argparse arguments detected)_
 
 **http**
 
-- `httpx.get()  → `f"{endpoint.rstrip('/')}/models"`` (line 336)
+- `httpx.get()  → `f"{endpoint.rstrip('/')}/models"`` (line 337)
 
 
 ---
@@ -59,6 +55,7 @@ _(no argparse arguments detected)_
 ## Notable external imports
 
 - `httpx`
+- `m3_core.config (settings)`
 - `m3_core.llm_config (llm_setting)`
 
 ---

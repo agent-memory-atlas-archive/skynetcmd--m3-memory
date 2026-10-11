@@ -58,6 +58,7 @@ if str(_BIN) not in sys.path:
     sys.path.insert(0, str(_BIN))
 
 import memory_core as mc  # noqa: E402
+from m3_core.config import settings as _m3cfg
 from m3_core.context import pointed_store_connection
 from m3_core.paths import resolve_cli_store, seam_backend  # noqa: E402
 
@@ -501,7 +502,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     ap.add_argument(
         "--source-conv-list",
-        default=os.environ.get("M3_ENTITIES_CONV_LIST"),
+        default=_m3cfg.setting("entity.conv_list"),
         help="Path to a conversation_id allowlist (newline-delimited or JSON array). Filters AFTER --source-variant.",
     )
     ap.add_argument("--limit", type=int, default=None, help="Cap eligible rows (smoke testing).")

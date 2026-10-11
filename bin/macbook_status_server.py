@@ -12,7 +12,7 @@ import urllib.error
 import urllib.request
 from typing import override
 
-from m3_sdk import getenv_compat
+from m3_core.config import settings as _m3cfg
 
 PORT = 9876
 LM_STUDIO_URL = "http://localhost:1234"
@@ -127,7 +127,7 @@ class StatusHandler(http.server.BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    host = getenv_compat("M3_MACBOOK_STATUS_HOST", "MACBOOK_STATUS_HOST", "127.0.0.1")
+    host = _m3cfg.setting("services.macbook_status_host")
     server = http.server.HTTPServer((host, PORT), StatusHandler)
     print(f"MacBook status server listening on {host}:{PORT}", flush=True)
     server.serve_forever()

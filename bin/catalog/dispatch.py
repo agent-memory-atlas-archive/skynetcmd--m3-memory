@@ -13,10 +13,10 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 from contextlib import AbstractContextManager
 from typing import Any, cast
 
+from m3_core.config import settings as _m3cfg
 from m3_sdk import active_database, destructive_tools_allowed
 
 from .spec import ToolSpec, memory_core
@@ -169,7 +169,7 @@ def _resolve_tool_timeout(args: dict, spec: ToolSpec | None = None) -> float | N
     own ceiling without weakening the fast-fail 30s for everything else."""
     raw = args.pop("timeout", None)
     if raw is None:
-        raw = os.environ.get("M3_TOOL_TIMEOUT")
+        raw = _m3cfg.setting("tools.timeout_s")
     if raw is None and spec is not None and spec.timeout_s is not None:
         raw = spec.timeout_s
     try:

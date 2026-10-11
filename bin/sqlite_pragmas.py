@@ -29,10 +29,11 @@ Checkpoint helpers::
 
 from __future__ import annotations
 
-import os
 import sqlite3
 from pathlib import Path
 from typing import Any
+
+from m3_core.config import settings as _m3cfg
 
 # ---------------------------------------------------------------------------
 # Universal pragmas applied to every connection regardless of profile.
@@ -89,7 +90,7 @@ PROFILES: dict[str, dict[str, int]] = {
 
 # Allow runtime override of mmap_size via environment variable (same pattern
 # as M3_CONTEXT_CACHE_SIZE in m3_sdk.py).
-_ENV_MMAP = os.environ.get("M3_SQLITE_MMAP_SIZE")
+_ENV_MMAP = _m3cfg.setting("db.sqlite_mmap_size")
 
 
 def profile_for_db(db_path: str | Path) -> str:

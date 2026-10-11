@@ -34,6 +34,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, override
 
+from m3_core.config import settings as _m3cfg
 from m3_sdk import getenv_compat
 
 from .base import (
@@ -63,7 +64,7 @@ _DEFAULT_MAXCONN = 16
 # large enough that per-round-trip latency stops dominating, small enough that a
 # single statement stays comfortably parseable and a failure rolls back a
 # bounded amount of work. Overridable for tuning against a slow link.
-_UPSERT_PAGE_SIZE = int(os.environ.get("M3_PG_UPSERT_PAGE_SIZE", "500"))
+_UPSERT_PAGE_SIZE = _m3cfg.setting("db.postgres.upsert_page_size")
 
 
 def _make_compat_cursor_factory():

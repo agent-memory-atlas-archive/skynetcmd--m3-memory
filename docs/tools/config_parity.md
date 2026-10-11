@@ -1,8 +1,8 @@
 ---
 tool: bin/config_parity.py
-sha1: 674f2330118e
-mtime_utc: 2026-10-10T22:34:36.804423+00:00
-generated_utc: 2026-10-10T22:35:14.971961+00:00
+sha1: 896b5c0b5301
+mtime_utc: 2026-10-11T18:07:52.863748+00:00
+generated_utc: 2026-10-11T18:07:53.688464+00:00
 private: false
 ---
 
@@ -49,7 +49,7 @@ Exit: 0 = ok / no drift; 1 = drift; 2 = cannot check (missing key or baseline).
 
 ## Entry points
 
-- `def main()` (line 380)
+- `def main()` (line 388)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -66,7 +66,7 @@ Exit: 0 = ok / no drift; 1 = drift; 2 = cannot check (missing key or baseline).
 
 ## Environment variables read
 
-_(none detected)_
+- `M3_X`
 
 ---
 
@@ -90,6 +90,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `keyring`
 - `keyring.errors`
 - `m3_core.atomic_io (atomic_write)`
+- `m3_core.config (REGISTRY)`
 - `m3_core.context (M3Context)`
 - `m3_core.paths (get_m3_config_root)`
 - `m3_core.seams (current_uid)`

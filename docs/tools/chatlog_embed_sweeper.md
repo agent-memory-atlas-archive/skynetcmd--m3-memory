@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_embed_sweeper.py
-sha1: be2d5e276e2e
-mtime_utc: 2026-10-10T23:43:02.179988+00:00
-generated_utc: 2026-10-10T23:43:51.367914+00:00
+sha1: efab2fd8b303
+mtime_utc: 2026-10-11T17:51:15.847512+00:00
+generated_utc: 2026-10-11T18:07:53.598848+00:00
 private: false
 ---
 
@@ -20,7 +20,7 @@ and drains any spill-to-disk files from the async write queue.
 
 ## Entry points
 
-- `async def main()` (line 527)
+- `async def main()` (line 526)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -55,7 +55,6 @@ and drains any spill-to-disk files from the async write queue.
 - `embed_sweep_lib (run_embed_loop)`
 - `embedding_utils (pack)`
 - `m3_sdk (add_database_arg)`
-- `m3_sdk (getenv_compat)`
 - `memory_core (_content_hash)`
 - `memory_core (_embed_many)`
 - `memory_core (_pack)`
@@ -66,7 +65,7 @@ and drains any spill-to-disk files from the async write queue.
 
 **sqlite**
 
-- `sqlite3.connect()  → `db_path`` (line 631)
+- `sqlite3.connect()  → `db_path`` (line 624)
 
 
 ---
@@ -74,6 +73,7 @@ and drains any spill-to-disk files from the async write queue.
 ## Notable external imports
 
 - `m3_core.atomic_io (atomic_write)`
+- `m3_core.config (settings)`
 - `m3_core.paths (_db_is_populated)`
 - `m3_core.paths (get_m3_config_root)`
 - `m3_core.paths (resolve_backend_name)`

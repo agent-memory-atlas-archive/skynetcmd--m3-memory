@@ -1,8 +1,8 @@
 ---
 tool: bin/promote_pipeline.py
-sha1: ed4e125c4f48
-mtime_utc: 2026-10-10T21:05:16.866013+00:00
-generated_utc: 2026-10-10T21:05:29.909329+00:00
+sha1: 57571e718939
+mtime_utc: 2026-10-11T17:51:15.697350+00:00
+generated_utc: 2026-10-11T18:07:54.189225+00:00
 private: false
 ---
 
@@ -20,7 +20,7 @@ Stage 2 (--smoke N / --run): batched judge via LM Studio; distill PROMOTE
 
 ## Entry points
 
-- `def main()` (line 180)
+- `def main()` (line 181)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -47,7 +47,7 @@ _(none detected)_
 
 ## Calls INTO this repo (intra-repo imports)
 
-- `m3_sdk (get_secret, getenv_compat)`
+- `m3_sdk (get_secret)`
 
 ---
 
@@ -60,6 +60,7 @@ _(no subprocess / http / sqlite calls detected)_
 ## Notable external imports
 
 - `importlib.util`
+- `m3_core.config (settings)`
 - `m3_core.paths (seam_backend)`
 - `memory.backends (chatlog_table, dialect)`
 

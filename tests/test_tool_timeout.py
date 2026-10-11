@@ -38,16 +38,16 @@ async def _fast(**_):
     return "quick"
 
 
-def test_resolve_precedence_and_pop(monkeypatch):
-    monkeypatch.delenv("M3_TOOL_TIMEOUT", raising=False)
+def test_resolve_precedence_and_pop(m3_settings):
+    m3_settings()  # registry defaults: no global override
     # default
     assert C._resolve_tool_timeout({}) == C._DEFAULT_TOOL_TIMEOUT
     # per-call arg wins and is popped
     d = {"timeout": 3, "x": 1}
     assert C._resolve_tool_timeout(d) == 3.0
     assert "timeout" not in d and d == {"x": 1}
-    # env override
-    monkeypatch.setenv("M3_TOOL_TIMEOUT", "2")
+    # global override (tools.timeout_s, env M3_TOOL_TIMEOUT)
+    m3_settings({"tools.timeout_s": 2.0})
     assert C._resolve_tool_timeout({}) == 2.0
     # per-call still beats env
     assert C._resolve_tool_timeout({"timeout": 7}) == 7.0
@@ -55,12 +55,12 @@ def test_resolve_precedence_and_pop(monkeypatch):
     assert C._resolve_tool_timeout({"timeout": 0}) is None
     assert C._resolve_tool_timeout({"timeout": -1}) is None
     # malformed -> safe default (fail safe)
-    monkeypatch.delenv("M3_TOOL_TIMEOUT", raising=False)
+    m3_settings()
     assert C._resolve_tool_timeout({"timeout": "abc"}) == C._DEFAULT_TOOL_TIMEOUT
 
 
-def test_per_tool_timeout_s_precedence(monkeypatch):
-    monkeypatch.delenv("M3_TOOL_TIMEOUT", raising=False)
+def test_per_tool_timeout_s_precedence(m3_settings):
+    m3_settings()
     slow_spec = ToolSpec(
         name="slow_tool",
         description="",
@@ -73,10 +73,10 @@ def test_per_tool_timeout_s_precedence(monkeypatch):
     assert C._resolve_tool_timeout({}, slow_spec) == 120.0
     # per-call arg still beats the per-tool default
     assert C._resolve_tool_timeout({"timeout": 5}, slow_spec) == 5.0
-    # env still beats the per-tool default
-    monkeypatch.setenv("M3_TOOL_TIMEOUT", "45")
+    # the global override still beats the per-tool default
+    m3_settings({"tools.timeout_s": 45.0})
     assert C._resolve_tool_timeout({}, slow_spec) == 45.0
-    monkeypatch.delenv("M3_TOOL_TIMEOUT", raising=False)
+    m3_settings()
     # a spec without timeout_s falls through to the global default
     plain = ToolSpec(name="plain", description="", parameters={"properties": {}}, impl=_fast, is_async=True)
     assert C._resolve_tool_timeout({}, plain) == C._DEFAULT_TOOL_TIMEOUT
