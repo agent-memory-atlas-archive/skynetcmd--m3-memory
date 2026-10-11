@@ -147,12 +147,11 @@ def _report_unfindable() -> None:
     )
     for mid, n in orphans[:5]:
         print(f"      {mid}  ({n} chars)")
-    # Only a NEW write labels its first window 'default' (memory_write_impl);
-    # backfill skips these rows (they have embeddings) and memory_update's
-    # re-embed rewrites existing rows in place, so neither repairs them.
+    # The backfill's repair pass re-windows them through the write path's own
+    # owner (memory.write.rewindow_memory), first window 'default'.
     print(
-        "    fix: write each memory again with memory_write, then delete the old one. "
-        "`m3 embedder backfill` and memory_update's re-embed do not repair these rows."
+        "    fix: run `m3 embedder backfill`; after embedding pending rows it re-windows these, "
+        "so each gets a 'default' vector. memory_update with reembed=True repairs one at a time."
     )
 
 

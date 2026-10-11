@@ -625,6 +625,8 @@ async def _run_sweep_inner(args: argparse.Namespace, counters: Counters) -> int:
             limit=args.limit,
             log=_log,
         )
+        if check_core and not args.dry_run:
+            await _repair_unfindable(args)
         due = sorted(owed & written)
         if due and not args.dry_run:
             superseded = 0
@@ -633,6 +635,36 @@ async def _run_sweep_inner(args: argparse.Namespace, counters: Counters) -> int:
                 superseded += len(got or [])
             _log(f"deferred contradiction checks: {len(due)} run, {superseded} memories superseded")
     return 0
+
+
+async def _repair_unfindable(args: argparse.Namespace) -> None:
+    """Re-window live memories that have embeddings but no 'default' vector.
+
+    Memories windowed before 2026.9.8.0 carry window_N rows and no 'default', so
+    default search cannot reach them, and the sweep above skips them (they HAVE
+    embeddings). The predicate is the doctor's own (unfindable_memories, one
+    owner); the repair is the write path's own (rewindow_memory).
+    """
+    from doctor.embed_space_probe import unfindable_memories
+    from memory.write import rewindow_memory
+
+    d = _sql()
+    with _bound_db(args.db) as conn:
+        cols = {r[0] for r in conn.execute(*d.columns_of("memory_embeddings")).fetchall()}
+        if "vector_kind" not in cols:
+            # A store older than migration 022 has no vector kinds, so it cannot
+            # hold the pre-9.8 windowed rows this repairs. Say so; never fail the
+            # backfill that already ran over it.
+            _log("unfindable-memory repair skipped: memory_embeddings has no vector_kind column")
+            return
+        ids = [r[0] for r in unfindable_memories(conn, d, limit=100_000)]
+    if not ids:
+        return
+    repaired = 0
+    for mid in ids:
+        if await rewindow_memory(mid):
+            repaired += 1
+    _log(f"unfindable memories (embeddings but no 'default' vector): {len(ids)} found, {repaired} re-windowed")
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────

@@ -1,8 +1,8 @@
 ---
 tool: bin/memory_core.py
-sha1: 3bba30449354
-mtime_utc: 2026-10-10T21:05:16.574418+00:00
-generated_utc: 2026-10-10T21:05:29.806883+00:00
+sha1: c6555a1d77ba
+mtime_utc: 2026-10-11T07:25:12.563407+00:00
+generated_utc: 2026-10-11T07:28:00.554454+00:00
 private: false
 ---
 
@@ -113,6 +113,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `memory.orchestration (_addressing_predicate)`
 - `memory.orchestration (_addressing_predicate, require_agent_id)`
 - `memory.util (_POISON_PATTERNS, _check_content_safety)`
+- `memory.write (rewindow_memory)`
 
 ---
 

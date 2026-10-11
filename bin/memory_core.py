@@ -888,13 +888,11 @@ async def memory_update_impl(
             db.execute(f"UPDATE memory_items SET conversation_id = {_p} WHERE id = {_p}", (new_val, id))
         db.execute(f"UPDATE memory_items SET updated_at = {_p} WHERE id = {_p}", (now, id))
     if reembed and content:
-        vec, m = await _embed(content)
-        if vec:
-            with _db() as db:
-                db.execute(
-                    f"UPDATE memory_embeddings SET embedding = {_p}, embed_model = {_p} WHERE memory_id = {_p}",
-                    (_pack(vec), m, id),
-                )
+        # Re-window through the write path's own owner: the former blanket
+        # UPDATE wrote one vector over every window row of a long memory.
+        from memory.write import rewindow_memory
+
+        await rewindow_memory(id)
     return f"Updated: {id}"
 
 

@@ -1,8 +1,8 @@
 ---
 tool: bin/re_embed_all.py
-sha1: 331a35e25a27
-mtime_utc: 2026-10-10T21:05:16.456797+00:00
-generated_utc: 2026-10-10T21:05:29.911301+00:00
+sha1: 1443068b994d
+mtime_utc: 2026-10-11T07:25:52.915411+00:00
+generated_utc: 2026-10-11T07:28:00.664191+00:00
 private: false
 ---
 
@@ -16,7 +16,7 @@ _(no module docstring — update the source file.)_
 
 ## Entry points
 
-- `def main()` (line 70)
+- `def main()` (line 61)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -39,7 +39,7 @@ _(no module docstring — update the source file.)_
 ## Calls INTO this repo (intra-repo imports)
 
 - `m3_sdk (add_database_arg, resolve_db_path)`
-- `memory_core (_embed, _pack)`
+- `memory_core`
 
 ---
 
@@ -51,7 +51,8 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
-- `m3_core.paths (active_database, seam_backend, seam_dialect)`
+- `m3_core.paths (active_database, seam_backend)`
+- `memory.write (rewindow_memory)`
 
 ---
 

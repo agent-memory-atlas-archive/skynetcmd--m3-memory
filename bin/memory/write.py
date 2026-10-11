@@ -516,152 +516,22 @@ async def memory_write_impl(
         # one vector_kind='default' row (back-compat). Long inputs return N
         # windows and produce N vector_kind='window_<idx>' rows. Retrieval
         # picks across kinds with vector_kind_strategy='max'.
-        chunks = _chunk_for_sliding_window(_et)
-
-        # Dense-content recovery uses the in-process Rust embedder directly
-        # to keep error context (the "input too long: NNNN tokens" message
-        # is what we parse). Falls back to _embed() if the in-process
-        # embedder isn't configured for this deployment.
-        _direct_embedder = _get_embedded_embedder()
-
-        async def _embed_chunk_with_dense_recovery(
-            txt: str,
-            base_kind: str,
-        ) -> list[tuple[str, str, list[float], str]]:
-            """Embed one chunk, recovering from dense-overflow if needed.
-
-            Returns list of (sub_text, kind_suffix, vector, model_tag).
-            kind_suffix is empty string for the no-recovery case, or
-            '_dense_<j>' for sub-chunks created by recovery. Caller
-            appends suffix to base_kind for vector_kind on insert.
-            """
-            # Fast path: caller has no in-process embedder configured —
-            # fall through to _embed (which itself tries in-process first;
-            # any error there will produce None and we just skip the chunk).
-            if _direct_embedder is None:
-                cvec, mm = await _embed(txt)
-                if cvec:
-                    return [(txt, "", cvec, mm)]
-                return []
-            # In-process path: catch input-too-long, recurse with smaller
-            # sub-chunks sized by the observed chars/token ratio.
-            try:
-                cvec = await asyncio.to_thread(lambda: _direct_embedder.embed([txt])[0])
-                if cvec:
-                    _record_embed_backend(_embedded_label(), 1)
-                    return [(txt, "", cvec, _EMBED_GGUF_MODEL_TAG)]
-                return []
-            except Exception as e:
-                err = str(e)
-                rmatch = _DENSE_ERR_RE.search(err)
-                if not rmatch:
-                    # Non-dense error: this chunk gets no vector. The
-                    # memory_items row is already persisted, so FTS-only
-                    # retrieval still finds it — but it is INVISIBLE to
-                    # semantic/vector search, and nothing downstream reports
-                    # that. Logged at ERROR (not WARNING) because a silently
-                    # unembedded row is exactly the failure that leaves a
-                    # corpus looking healthy while retrieval quietly degrades.
-                    logger.error(
-                        "EMBED_NO_VECTOR: %s chunk base_kind=%s got no vector. "
-                        "cause: %s. effect: this text is FTS-searchable but NOT "
-                        "semantically searchable. try: `m3 embedder backfill` "
-                        "once the cause is resolved.",
-                        item_id,
-                        base_kind,
-                        err,
-                    )
-                    return []
-                observed_tokens = int(rmatch.group(1))
-                subs = _subdivide_dense_chunk(txt, observed_tokens)
-                logger.info(
-                    f"memory_write_impl: dense overflow on {item_id} chunk base_kind={base_kind} "
-                    f"({observed_tokens} tokens for {len(txt)} chars => "
-                    f"{len(txt) / observed_tokens:.2f} c/t); subdividing into {len(subs)} sub-chunks"
-                )
-                results: list[tuple[str, str, list[float], str]] = []
-                dropped: list[int] = []
-                for j, sub in enumerate(subs):
-                    try:
-
-                        def _embed_one(s: str = sub) -> list[float]:
-                            return cast("list[float]", _direct_embedder.embed([s])[0])
-
-                        sv = await asyncio.to_thread(_embed_one)
-                        if sv:
-                            results.append((sub, f"_dense_{j}", sv, _EMBED_GGUF_MODEL_TAG))
-                            _record_embed_backend(_embedded_label(), 1)
-                        else:
-                            # A falsy vector with NO exception. Previously this
-                            # fell through the `if sv:` with no else and left no
-                            # trace at all — the sub-chunk simply vanished.
-                            dropped.append(j)
-                    except Exception as se:
-                        dropped.append(j)
-                        logger.warning(
-                            f"memory_write_impl: dense sub-chunk {j} of {len(subs)} still failed for {item_id}: {se}"
-                        )
-                if dropped:
-                    # PARTIAL COVERAGE IS THE FAILURE MODE HERE. Sub-chunks are
-                    # stored as SEPARATE vector rows (kind `_dense_<j>`), not
-                    # mean-pooled, so a missing one does not corrupt a vector —
-                    # it silently removes a SLICE OF THE TEXT from semantic
-                    # search while the memory still looks fully indexed. Nothing
-                    # downstream can detect that, which is why it must be loud
-                    # here and carry the numbers.
-                    logger.error(
-                        "EMBED_PARTIAL_COVERAGE: %s chunk base_kind=%s — %d of %d "
-                        "sub-chunk(s) produced no vector (indices %s). "
-                        "cause: the embedder returned nothing for those pieces. "
-                        "effect: that text is NOT semantically searchable, though "
-                        "the memory row and FTS index are intact. "
-                        "review: M3_EMBED_TOKEN_BUDGET; re-run `m3 embedder backfill` "
-                        "after fixing to regenerate.",
-                        item_id,
-                        base_kind,
-                        len(dropped),
-                        len(subs),
-                        dropped,
-                    )
-                return results
+        windows = await _embed_windows(item_id, _et)
 
         first_vec: list[float] | None = None
         any_inserted = False
-        for chunk_text, chunk_idx in chunks:
-            # The FIRST window is always 'default', even when a row is split
-            # into several. memory_search's back-compat strategy scores ONLY
-            # vector_kind='default' rows (search.py: `me.vector_kind =
-            # 'default'`), so naming every window `window_N` made a large
-            # memory embedded-but-UNFINDABLE: memory_get returns it, embed
-            # backfill reports 0 pending (an embedding row DOES exist), and
-            # semantic search never returns it. Every health check says fine.
-            #
-            # Observed 2026-09-08: a 28,527-char procedure produced window_0 +
-            # window_1 and could not be retrieved by its own distinctive
-            # strings. It was the only such row in 3,864 memories -- the defect
-            # needs a row big enough to window, so it hid until one appeared.
-            #
-            # Later windows keep window_N: they are additional views of the
-            # same row, reachable via vector_kind_strategy="max", and the
-            # dedupe there keeps the best-scoring one per memory_id.
-            base_kind = "default" if chunk_idx == 0 else f"window_{chunk_idx}"
-            sub_results = await _embed_chunk_with_dense_recovery(chunk_text, base_kind)
-            if not sub_results:
-                logger.warning(f"memory_write_impl: embed failed for {item_id} chunk {chunk_idx}; skipping that window")
-                continue
-            for sub_text, kind_suffix, cvec, m in sub_results:
-                kind = base_kind + kind_suffix
-                with _db() as db:
-                    db.execute(
-                        (
-                            "INSERT INTO memory_embeddings (id, memory_id, embedding, embed_model, dim, created_at, content_hash, vector_kind) "
-                            f"VALUES ({_d1.placeholder(8)})"
-                        ).rstrip(),
-                        (str(uuid.uuid4()), item_id, _pack(cvec), m, len(cvec), now, _content_hash(sub_text), kind),
-                    )
-                any_inserted = True
-                if first_vec is None:
-                    first_vec = cvec
+        for kind, sub_text, cvec, m in windows:
+            with _db() as db:
+                db.execute(
+                    (
+                        "INSERT INTO memory_embeddings (id, memory_id, embedding, embed_model, dim, created_at, content_hash, vector_kind) "
+                        f"VALUES ({_d1.placeholder(8)})"
+                    ).rstrip(),
+                    (str(uuid.uuid4()), item_id, _pack(cvec), m, len(cvec), now, _content_hash(sub_text), kind),
+                )
+            any_inserted = True
+            if first_vec is None:
+                first_vec = cvec
         if any_inserted:
             # Downstream code (contradiction check, MMR, etc.) needs *a*
             # vector for this memory. The first window's vector is the
@@ -740,6 +610,195 @@ async def memory_write_impl(
     if superseded_ids:
         result += f" (superseded {len(superseded_ids)} conflicting memories: {', '.join(superseded_ids[:3])})"
     return result
+
+
+async def _embed_windows(item_id: str, embed_text: str) -> list[tuple[str, str, list[float], str]]:
+    """Embed one memory's text as the write path stores it: sliding windows, the
+    first labelled 'default', later ones 'window_<n>', dense-overflow chunks split
+    into '_dense_<j>' sub-windows. Returns (vector_kind, sub_text, vector, model)
+    in insertion order and writes nothing, so memory_write_impl and
+    rewindow_memory store exactly the same rows (one owner, plan 2D.V).
+    """
+    chunks = _chunk_for_sliding_window(embed_text)
+
+    # Dense-content recovery uses the in-process Rust embedder directly
+    # to keep error context (the "input too long: NNNN tokens" message
+    # is what we parse). Falls back to _embed() if the in-process
+    # embedder isn't configured for this deployment.
+    _direct_embedder = _get_embedded_embedder()
+
+    async def _embed_chunk_with_dense_recovery(
+        txt: str,
+        base_kind: str,
+    ) -> list[tuple[str, str, list[float], str]]:
+        """Embed one chunk, recovering from dense-overflow if needed.
+
+        Returns list of (sub_text, kind_suffix, vector, model_tag).
+        kind_suffix is empty string for the no-recovery case, or
+        '_dense_<j>' for sub-chunks created by recovery. Caller
+        appends suffix to base_kind for vector_kind on insert.
+        """
+        # Fast path: caller has no in-process embedder configured —
+        # fall through to _embed (which itself tries in-process first;
+        # any error there will produce None and we just skip the chunk).
+        if _direct_embedder is None:
+            cvec, mm = await _embed(txt)
+            if cvec:
+                return [(txt, "", cvec, mm)]
+            return []
+        # In-process path: catch input-too-long, recurse with smaller
+        # sub-chunks sized by the observed chars/token ratio.
+        try:
+            cvec = await asyncio.to_thread(lambda: _direct_embedder.embed([txt])[0])
+            if cvec:
+                _record_embed_backend(_embedded_label(), 1)
+                return [(txt, "", cvec, _EMBED_GGUF_MODEL_TAG)]
+            return []
+        except Exception as e:
+            err = str(e)
+            rmatch = _DENSE_ERR_RE.search(err)
+            if not rmatch:
+                # Non-dense error: this chunk gets no vector. The
+                # memory_items row is already persisted, so FTS-only
+                # retrieval still finds it — but it is INVISIBLE to
+                # semantic/vector search, and nothing downstream reports
+                # that. Logged at ERROR (not WARNING) because a silently
+                # unembedded row is exactly the failure that leaves a
+                # corpus looking healthy while retrieval quietly degrades.
+                logger.error(
+                    "EMBED_NO_VECTOR: %s chunk base_kind=%s got no vector. "
+                    "cause: %s. effect: this text is FTS-searchable but NOT "
+                    "semantically searchable. try: `m3 embedder backfill` "
+                    "once the cause is resolved.",
+                    item_id,
+                    base_kind,
+                    err,
+                )
+                return []
+            observed_tokens = int(rmatch.group(1))
+            subs = _subdivide_dense_chunk(txt, observed_tokens)
+            logger.info(
+                f"memory_write_impl: dense overflow on {item_id} chunk base_kind={base_kind} "
+                f"({observed_tokens} tokens for {len(txt)} chars => "
+                f"{len(txt) / observed_tokens:.2f} c/t); subdividing into {len(subs)} sub-chunks"
+            )
+            results: list[tuple[str, str, list[float], str]] = []
+            dropped: list[int] = []
+            for j, sub in enumerate(subs):
+                try:
+
+                    def _embed_one(s: str = sub) -> list[float]:
+                        return cast("list[float]", _direct_embedder.embed([s])[0])
+
+                    sv = await asyncio.to_thread(_embed_one)
+                    if sv:
+                        results.append((sub, f"_dense_{j}", sv, _EMBED_GGUF_MODEL_TAG))
+                        _record_embed_backend(_embedded_label(), 1)
+                    else:
+                        # A falsy vector with NO exception. Previously this
+                        # fell through the `if sv:` with no else and left no
+                        # trace at all — the sub-chunk simply vanished.
+                        dropped.append(j)
+                except Exception as se:
+                    dropped.append(j)
+                    logger.warning(
+                        f"memory_write_impl: dense sub-chunk {j} of {len(subs)} still failed for {item_id}: {se}"
+                    )
+            if dropped:
+                # PARTIAL COVERAGE IS THE FAILURE MODE HERE. Sub-chunks are
+                # stored as SEPARATE vector rows (kind `_dense_<j>`), not
+                # mean-pooled, so a missing one does not corrupt a vector —
+                # it silently removes a SLICE OF THE TEXT from semantic
+                # search while the memory still looks fully indexed. Nothing
+                # downstream can detect that, which is why it must be loud
+                # here and carry the numbers.
+                logger.error(
+                    "EMBED_PARTIAL_COVERAGE: %s chunk base_kind=%s — %d of %d "
+                    "sub-chunk(s) produced no vector (indices %s). "
+                    "cause: the embedder returned nothing for those pieces. "
+                    "effect: that text is NOT semantically searchable, though "
+                    "the memory row and FTS index are intact. "
+                    "review: M3_EMBED_TOKEN_BUDGET; re-run `m3 embedder backfill` "
+                    "after fixing to regenerate.",
+                    item_id,
+                    base_kind,
+                    len(dropped),
+                    len(subs),
+                    dropped,
+                )
+            return results
+
+    windows: list[tuple[str, str, list[float], str]] = []
+    for chunk_text, chunk_idx in chunks:
+        # The FIRST window is always 'default', even when a row is split
+        # into several. memory_search's back-compat strategy scores ONLY
+        # vector_kind='default' rows (search.py: `me.vector_kind =
+        # 'default'`), so naming every window `window_N` made a large
+        # memory embedded-but-UNFINDABLE: memory_get returns it, embed
+        # backfill reports 0 pending (an embedding row DOES exist), and
+        # semantic search never returns it. Every health check says fine.
+        #
+        # Observed 2026-09-08: a 28,527-char procedure produced window_0 +
+        # window_1 and could not be retrieved by its own distinctive
+        # strings. It was the only such row in 3,864 memories -- the defect
+        # needs a row big enough to window, so it hid until one appeared.
+        #
+        # Later windows keep window_N: they are additional views of the
+        # same row, reachable via vector_kind_strategy="max", and the
+        # dedupe there keeps the best-scoring one per memory_id.
+        base_kind = "default" if chunk_idx == 0 else f"window_{chunk_idx}"
+        sub_results = await _embed_chunk_with_dense_recovery(chunk_text, base_kind)
+        if not sub_results:
+            logger.warning(f"memory_write_impl: embed failed for {item_id} chunk {chunk_idx}; skipping that window")
+            continue
+        for sub_text, kind_suffix, cvec, m in sub_results:
+            windows.append((base_kind + kind_suffix, sub_text, cvec, m))
+    return windows
+
+
+async def rewindow_memory(item_id: str) -> int:
+    """Re-embed a memory exactly as a fresh write would, replacing ALL of its
+    embedding rows in one transaction: the first window 'default', later ones
+    'window_<n>'. Returns the number of rows written.
+
+    The one owner for re-embedding (plan 2D.V). It replaces a blanket
+    ``UPDATE memory_embeddings SET embedding = ? WHERE memory_id = ?``, which wrote
+    ONE vector over every window row of a long memory, so its tail stopped being
+    searchable, and it repairs memories windowed before 2026.9.8.0 that have no
+    'default' row (unreachable by default search). Nothing is deleted when the
+    embedder returns nothing: the old rows stay and 0 is returned.
+    """
+    from memory.backends import dialect
+
+    d = dialect()
+    p = d.param()
+    with _db() as db:
+        row = db.execute(
+            f"SELECT content, title, metadata_json, is_deleted FROM memory_items WHERE id = {p}", (item_id,)
+        ).fetchone()
+    if row is None or row["is_deleted"]:
+        return 0
+    text = _augment_embed_text_with_anchors(row["content"] or row["title"] or "", row["metadata_json"])
+    if not (text or "").strip():
+        return 0
+    windows = await _embed_windows(item_id, text)
+    if not windows:
+        logger.warning(
+            "rewindow_memory: the embedder returned no vector for %s; observed: its existing "
+            "embedding rows were left as they were. inspect: the embedder (m3 doctor)",
+            item_id,
+        )
+        return 0
+    now = datetime.now(UTC).isoformat()
+    with _db() as db:
+        db.execute(f"DELETE FROM memory_embeddings WHERE memory_id = {p}", (item_id,))
+        for kind, sub_text, cvec, m in windows:
+            db.execute(
+                "INSERT INTO memory_embeddings (id, memory_id, embedding, embed_model, dim, created_at, content_hash, "
+                f"vector_kind) VALUES ({d.placeholder(8)})",
+                (str(uuid.uuid4()), item_id, _pack(cvec), m, len(cvec), now, _content_hash(sub_text), kind),
+            )
+    return len(windows)
 
 
 # metadata_json key marking a contradiction check that is OWED: the write asked

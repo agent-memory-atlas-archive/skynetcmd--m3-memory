@@ -21,6 +21,17 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **Re-embedding a long memory no longer flattens it.** `memory_update` with
+  `reembed=True` and `re_embed_all.py` wrote one vector over all of a long
+  memory's window rows, so the later parts stopped matching searches. Both now
+  re-embed the way a new write does, with one vector per window.
+  `m3 embedder backfill` also repairs memories written before 2026.9.8.0 that
+  had window vectors but no default one, which search could not reach.
+  **Affected:** all installs with memories long enough to be windowed ·
+  **Action:** run `m3 embedder backfill` once to repair older memories ·
+  **Data status:** memories re-embedded by earlier versions keep their flattened
+  vectors until re-embedded again.
+
 - **Warehouse sync no longer skips rows after a failed batch.** When a batch
   failed (for example "database is locked"), sync still moved on as if it had
   succeeded, so those rows were not sent again unless edited, and the run
