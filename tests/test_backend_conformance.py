@@ -258,6 +258,29 @@ def test_postgres_floor_write_then_retrieve_both_ways():
     mid = f"conf-{uuid.uuid4().hex[:12]}"
     with backend.connection() as conn:
         cur = conn.cursor()
+        # This test never cleaned up, so on a persistent PG database every run left
+        # an identical row, and after ~10 runs the new one tied out of the top 10
+        # (measured 2026-10-11 on a dev DB). Clear the earlier runs' leftovers (the
+        # `conf-` ids are this test's own) and delete this run's rows at the end.
+        _drop_conf_rows(cur)
+        conn.commit()
+    try:
+        _floor_write_then_retrieve(backend, mid)
+    finally:
+        with backend.connection() as conn:
+            _drop_conf_rows(conn.cursor(), mid)
+            conn.commit()
+
+
+def _drop_conf_rows(cur, mid: str | None = None) -> None:
+    pattern = mid or "conf-%"
+    cur.execute("DELETE FROM memory_embeddings WHERE memory_id LIKE %s", (pattern,))
+    cur.execute("DELETE FROM memory_items WHERE id LIKE %s", (pattern,))
+
+
+def _floor_write_then_retrieve(backend, mid: str) -> None:
+    with backend.connection() as conn:
+        cur = conn.cursor()
         cur.execute(
             # `type` is NOT NULL in the real schema (memory_items, 001_initial);
             # the PG floor uses ensure_schema() which enforces it, so supply it.
