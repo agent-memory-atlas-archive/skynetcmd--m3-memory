@@ -13,6 +13,7 @@ import sqlite3
 import uuid
 
 import pytest
+from m3_core.paths import pin_database
 
 from conftest import use_backend
 
@@ -52,7 +53,7 @@ def test_the_pointed_file_wins_over_m3_database(tmp_path, monkeypatch):
         raw.execute("CREATE TABLE t (x INTEGER)")
         raw.commit()
         raw.close()
-    monkeypatch.setenv("M3_DATABASE", str(other))
+    pin_database(str(other))
 
     with pointed_store_connection(str(target)) as conn:
         conn.execute("INSERT INTO t VALUES (7)")

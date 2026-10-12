@@ -21,6 +21,7 @@ import sqlite3
 import sys
 
 import pytest
+from m3_core.paths import pin_database
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
@@ -76,7 +77,7 @@ def _make_db(db_path):
     conn.executescript(_SCHEMA_SQL)
     conn.commit()
     conn.close()
-    os.environ["M3_DATABASE"] = str(db_path)
+    pin_database(str(db_path))
 
 
 def _seed(db_path, conv_id, items):

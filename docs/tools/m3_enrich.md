@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_enrich.py
-sha1: e2f16471d6e4
-mtime_utc: 2026-10-12T22:50:28.945754+00:00
-generated_utc: 2026-10-12T23:01:47.937102+00:00
+sha1: 84449e1beae6
+mtime_utc: 2026-10-12T23:37:52.719683+00:00
+generated_utc: 2026-10-12T23:37:54.051558+00:00
 private: false
 ---
 
@@ -126,7 +126,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 - `enrich (ALWAYS_SKIP_TYPES)`
 - `enrich.eligibility (_load_conv_list, _query_eligible_groups)`
-- `enrich.prep (BACKUP_DIR, _ensure_migration_025, _load_profile_with_path, _resolve_db, _today)`
+- `enrich.prep (BACKUP_DIR, _ensure_migration_025, _load_profile_with_path, _today)`
 - `enrich.rate_limit (_classify_observer_error, _estimate_cost_wall, _RateLimitCascade)`
 - `enrich.report (_print_dry_run, _print_run_summary)`
 - `m3_core.aio (gather_or_cancel)`
@@ -134,6 +134,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `m3_core.paths (apply_early_argv)`
 - `m3_core.paths (configured_main_db, pin_database)`
 - `m3_core.paths (get_m3_engine_root)`
+- `m3_core.paths (resolve_role_db)`
 - `m3_core.paths (scoped_db_env, snapshot_stores)`
 - `m3_core.runtime (utc_iso)`
 - `m3_core.seams (is_windows)`

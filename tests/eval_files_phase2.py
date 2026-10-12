@@ -33,6 +33,7 @@ _REPO_ROOT = _HERE.parent
 sys.path.insert(0, str(_REPO_ROOT / "bin"))
 
 import yaml  # type: ignore
+from m3_core.paths import pin_database
 
 
 def _load_questions() -> list[dict]:
@@ -95,7 +96,7 @@ def _fact_recall(db_path: Path, topn: int = 5) -> dict:
 def _promotion_smoke(db_path: Path, memory_db_path: Path) -> dict:
     """Promote one fact and verify idempotency + memory.db landing."""
     os.environ["M3_FILES_DB_PATH"] = str(db_path)
-    os.environ["M3_DATABASE"] = str(memory_db_path)
+    pin_database(str(memory_db_path))
 
     from files_memory.db import _db
     from files_memory.promote import files_promote

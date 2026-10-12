@@ -13,6 +13,8 @@ from __future__ import annotations
 import asyncio
 import uuid
 
+from m3_core.paths import pin_database
+
 
 def _write(content: str, **kw) -> str:
     from memory.write import memory_write_impl
@@ -33,7 +35,7 @@ def test_extracts_only_the_selected_variant_once(each_backend, monkeypatch):
 
     if each_backend.name == "sqlite":
         # _run_async pins M3_DATABASE for the write path; let monkeypatch restore it.
-        monkeypatch.setenv("M3_DATABASE", resolve_db_path(None))
+        pin_database(resolve_db_path(None))
     tag = uuid.uuid4().hex[:8]  # the PG test store persists across runs
     variant, other = f"gl-{tag}", f"gl-other-{tag}"
     person = f"zorblax{tag}"

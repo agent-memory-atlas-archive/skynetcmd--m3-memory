@@ -15,6 +15,7 @@ Exits non-zero (1) if any percentile fails the gate, suitable for CI.
 
 The seed is deterministic (SEED=2027) so runs are repeatable.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -26,6 +27,8 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+
+from m3_core.paths import pin_database
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
@@ -79,12 +82,10 @@ CREATE TABLE IF NOT EXISTS memory_item_entities (
 CREATE INDEX IF NOT EXISTS idx_mie_entity ON memory_item_entities(entity_id);
 """
 
-ENTITY_TYPES = ["product", "organization", "place", "person", "event",
-                 "date", "quantity", "topic"]
+ENTITY_TYPES = ["product", "organization", "place", "person", "event", "date", "quantity", "topic"]
 
 
-def seed_corpus(db_path: Path, n_conv: int, turns_per_conv: int,
-                 ents_per_turn: float) -> dict:
+def seed_corpus(db_path: Path, n_conv: int, turns_per_conv: int, ents_per_turn: float) -> dict:
     """Build a synthetic corpus. Returns metadata about seeded data."""
     conn = sqlite3.connect(str(db_path))
     conn.executescript(_SCHEMA_SQL)
@@ -98,17 +99,12 @@ def seed_corpus(db_path: Path, n_conv: int, turns_per_conv: int,
     # Build a shared entity vocabulary — entities are reused across conversations
     # for realism (entity rows aren't per-conv, only mentions are scoped).
     n_unique_entities = max(int(n_conv * turns_per_conv * ents_per_turn / 5), 100)
-    print(f"[seed] {n_unique_entities} unique entities, "
-          f"{n_conv} conversations, {turns_per_conv} turns/conv")
+    print(f"[seed] {n_unique_entities} unique entities, {n_conv} conversations, {turns_per_conv} turns/conv")
 
     ent_ids = [f"ent_{i:07d}" for i in range(n_unique_entities)]
-    ent_rows = [
-        (eid, f"Name{i:07d}", rng.choice(ENTITY_TYPES))
-        for i, eid in enumerate(ent_ids)
-    ]
+    ent_rows = [(eid, f"Name{i:07d}", rng.choice(ENTITY_TYPES)) for i, eid in enumerate(ent_ids)]
     conn.executemany(
-        "INSERT OR IGNORE INTO entities (id, canonical_name, entity_type) "
-        "VALUES (?, ?, ?)",
+        "INSERT OR IGNORE INTO entities (id, canonical_name, entity_type) VALUES (?, ?, ?)",
         ent_rows,
     )
     conn.commit()
@@ -129,8 +125,7 @@ def seed_corpus(db_path: Path, n_conv: int, turns_per_conv: int,
                 mie_rows.append((mid, eid, "mention", j))
                 total_mentions += 1
         conn.executemany(
-            "INSERT OR IGNORE INTO memory_items (id, conversation_id, content) "
-            "VALUES (?, ?, ?)",
+            "INSERT OR IGNORE INTO memory_items (id, conversation_id, content) VALUES (?, ?, ?)",
             mi_rows,
         )
         conn.executemany(
@@ -141,8 +136,7 @@ def seed_corpus(db_path: Path, n_conv: int, turns_per_conv: int,
         )
         if (conv_idx + 1) % 50 == 0:
             conn.commit()
-            print(f"[seed] {conv_idx + 1}/{n_conv} conversations "
-                  f"({total_mentions:,} mentions so far)")
+            print(f"[seed] {conv_idx + 1}/{n_conv} conversations ({total_mentions:,} mentions so far)")
 
     conn.commit()
     # Analyze for query planner.
@@ -176,24 +170,17 @@ def summary(label: str, samples: list[float]) -> dict:
     mn = samples_sorted[0]
     avg = statistics.mean(samples_sorted)
     print(f"\n[bench] {label} ({n} samples)")
-    print(f"  min={mn:6.2f}  p50={p50:6.2f}  p95={p95:6.2f}  "
-          f"p99={p99:6.2f}  max={mx:6.2f}  avg={avg:6.2f}  (ms)")
-    return {"p50": p50, "p95": p95, "p99": p99, "max": mx,
-            "min": mn, "avg": avg, "n": n}
+    print(f"  min={mn:6.2f}  p50={p50:6.2f}  p95={p95:6.2f}  p99={p99:6.2f}  max={mx:6.2f}  avg={avg:6.2f}  (ms)")
+    return {"p50": p50, "p95": p95, "p99": p99, "max": mx, "min": mn, "avg": avg, "n": n}
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="entity_count bench gate")
-    parser.add_argument("--n-conv", type=int, default=500,
-                         help="Number of conversations to seed")
-    parser.add_argument("--turns-per-conv", type=int, default=500,
-                         help="Turns per conversation")
-    parser.add_argument("--ents-per-turn", type=float, default=2.5,
-                         help="Avg entities per turn")
-    parser.add_argument("--repeats", type=int, default=200,
-                         help="Sample size for each percentile")
-    parser.add_argument("--keep-db", action="store_true",
-                         help="Don't delete the seeded DB on exit")
+    parser.add_argument("--n-conv", type=int, default=500, help="Number of conversations to seed")
+    parser.add_argument("--turns-per-conv", type=int, default=500, help="Turns per conversation")
+    parser.add_argument("--ents-per-turn", type=float, default=2.5, help="Avg entities per turn")
+    parser.add_argument("--repeats", type=int, default=200, help="Sample size for each percentile")
+    parser.add_argument("--keep-db", action="store_true", help="Don't delete the seeded DB on exit")
     args = parser.parse_args()
 
     tmpdir = Path(tempfile.mkdtemp(prefix="bench_entity_count_"))
@@ -201,13 +188,14 @@ def main() -> int:
     print(f"[seed] DB: {db_path}")
 
     t_seed = time.perf_counter()
-    meta = seed_corpus(db_path, args.n_conv, args.turns_per_conv,
-                        args.ents_per_turn)
-    print(f"[seed] done in {time.perf_counter() - t_seed:.1f}s — "
-          f"{meta['total_mentions']:,} mentions, "
-          f"{meta['n_entities']:,} entities")
+    meta = seed_corpus(db_path, args.n_conv, args.turns_per_conv, args.ents_per_turn)
+    print(
+        f"[seed] done in {time.perf_counter() - t_seed:.1f}s — "
+        f"{meta['total_mentions']:,} mentions, "
+        f"{meta['n_entities']:,} entities"
+    )
 
-    os.environ["M3_DATABASE"] = str(db_path)
+    pin_database(str(db_path))
 
     # Import AFTER setting M3_DATABASE so the active context resolves correctly.
     from memory.entity_count import (
@@ -254,8 +242,7 @@ def main() -> int:
     samples = []
     for _ in range(args.repeats):
         cid = rng.choice(conv_ids)
-        samples.append(time_call(count_entities_impl, cid,
-                                   entity_type="product"))
+        samples.append(time_call(count_entities_impl, cid, entity_type="product"))
     r_count_filt = summary("count_entities_impl (type=product)", samples)
 
     # ── 2. count_mentions ─────────────────────────────────────────────────
@@ -273,26 +260,25 @@ def main() -> int:
 
     # ── Gate ──────────────────────────────────────────────────────────────
     print()
-    print(f"[gate] Budgets: P50<{GATES['p50']}ms  P95<{GATES['p95']}ms  "
-          f"P99<{GATES['p99']}ms")
+    print(f"[gate] Budgets: P50<{GATES['p50']}ms  P95<{GATES['p95']}ms  P99<{GATES['p99']}ms")
     print()
     failures = []
     for label, r in [
-        ("count_entities (all)",       r_count),
+        ("count_entities (all)", r_count),
         ("count_entities (type=prod)", r_count_filt),
-        ("count_mentions",             r_mentions),
-        ("list_mentions",              r_list),
+        ("count_mentions", r_mentions),
+        ("list_mentions", r_list),
     ]:
         verdict = "PASS"
         for pct in ("p50", "p95", "p99"):
             if r[pct] > GATES[pct]:
                 verdict = "FAIL"
                 failures.append(f"{label}.{pct}={r[pct]:.2f}>{GATES[pct]}")
-        print(f"  {label:30s} P50={r['p50']:6.2f}  P95={r['p95']:6.2f}  "
-              f"P99={r['p99']:6.2f}  [{verdict}]")
+        print(f"  {label:30s} P50={r['p50']:6.2f}  P95={r['p95']:6.2f}  P99={r['p99']:6.2f}  [{verdict}]")
 
     if not args.keep_db:
         import shutil
+
         shutil.rmtree(tmpdir, ignore_errors=True)
         print(f"\n[cleanup] removed {tmpdir}")
     else:

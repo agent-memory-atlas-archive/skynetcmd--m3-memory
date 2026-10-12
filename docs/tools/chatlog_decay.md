@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_decay.py
-sha1: b44700c5adeb
-mtime_utc: 2026-10-12T22:51:17.763556+00:00
-generated_utc: 2026-10-12T23:01:47.391914+00:00
+sha1: 7c160c070d39
+mtime_utc: 2026-10-12T23:37:18.650655+00:00
+generated_utc: 2026-10-12T23:37:27.455861+00:00
 private: false
 ---
 
@@ -37,7 +37,7 @@ DB SELECTION
 In priority order:
   1. --db <path> CLI argument
   2. $CHATLOG_DB env var
-  3. $M3_DATABASE env var (unified mode)
+  3. the main DB: a --database pin, else legacy $M3_DATABASE (unified mode)
   4. memory/agent_chatlog.db (default)
 
 ALL queries scope to `type='chat_log'`, regardless of layout.

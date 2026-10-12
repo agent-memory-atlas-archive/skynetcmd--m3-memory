@@ -25,6 +25,7 @@ if _BIN not in sys.path:
 from datetime import UTC
 
 import memory_core  # noqa: E402
+from m3_core.paths import pin_database
 from memory.backends import dialect  # noqa: E402
 from memory.orchestration import _db  # noqa: E402
 
@@ -35,7 +36,7 @@ def clean(monkeypatch, tmp_path):
 
     db_path = tmp_path / "handoff.db"
     create_full_main_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
 
     prefix = f"pytest-conv-{uuid.uuid4().hex[:12]}"
     yield prefix

@@ -20,6 +20,7 @@ if _BIN not in sys.path:
     sys.path.insert(0, _BIN)
 
 import memory.search as s  # noqa: E402
+from m3_core.paths import pin_database
 
 
 def _obs(i, content, **md):
@@ -73,7 +74,7 @@ def tmp_memory_db(tmp_path, monkeypatch):
     )
     conn.commit()
     conn.close()
-    monkeypatch.setenv("M3_DATABASE", str(db))
+    pin_database(str(db))
     return db
 
 

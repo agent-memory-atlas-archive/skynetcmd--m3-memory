@@ -17,6 +17,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from m3_core.paths import pin_database
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "bin"))
@@ -33,7 +34,7 @@ def bench_db(tmp_path, monkeypatch):
     Observer write path.
     """
     db_path = tmp_path / "test.db"
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     conn = sqlite3.connect(str(db_path))
     conn.executescript("""
         CREATE TABLE memory_items (

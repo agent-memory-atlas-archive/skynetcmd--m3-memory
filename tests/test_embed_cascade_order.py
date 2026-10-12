@@ -21,6 +21,7 @@ import os
 import sys
 
 import pytest
+from m3_core.paths import pin_database
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
@@ -48,7 +49,7 @@ def _isolate_env(monkeypatch, tmp_path):
     env could still resurrect tier-1.)"""
     monkeypatch.delenv("M3_EMBED_GGUF", raising=False)
     monkeypatch.setenv("M3_CORE_RS_DISABLE", "1")
-    monkeypatch.setenv("M3_DATABASE", str(tmp_path / "test.db"))
+    pin_database(str(tmp_path / "test.db"))
     monkeypatch.setenv("M3_SKIP_MIGRATIONS", "1")
     # Force a fresh module load so module-level constants (e.g. _EMBED_GGUF_PATH)
     # and config.m3_core_rs see the env set above.

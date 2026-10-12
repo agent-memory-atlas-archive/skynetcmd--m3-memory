@@ -22,6 +22,7 @@ import sqlite3
 import sys
 
 import pytest
+from m3_core.paths import pin_database
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
@@ -103,7 +104,7 @@ def _connect(db_path):
 @pytest.fixture
 def isolated_db(monkeypatch, tmp_path):
     db_path = tmp_path / "agent_memory.db"
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     _init_schema(db_path)
 
     import memory_core

@@ -30,6 +30,7 @@ import sys
 import uuid
 
 import pytest
+from m3_core.paths import pin_database
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
@@ -268,7 +269,7 @@ async def test_type_enum_validates_known(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
 
     # All valid entity types should be present in the frozenset.
     # Vocab v2 (migration 2026-04-22) renamed concept→legacy_concept and
@@ -315,7 +316,7 @@ async def test_predicate_enum_validates_known(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
 
     # Create two entities to link
     with sqlite3.connect(str(db_path)) as conn:
@@ -361,7 +362,7 @@ async def test_default_off_no_extraction(monkeypatch, tmp_path, m3_settings):
 
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     m3_settings({"memory.entity_graph": False})
 
     extractor_calls = []
@@ -407,7 +408,7 @@ async def test_verbatim_first_on_extractor_exception(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     # memory.entity_graph is on by default (registry); nothing to set.
 
     async def failing_extractor(content: str) -> dict:
@@ -451,7 +452,7 @@ async def test_variant_skip_default(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     # memory.entity_graph is on by default (registry); nothing to set.
 
     extractor_calls = []
@@ -491,7 +492,7 @@ async def test_variant_allowlist_override(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     # memory.entity_graph is on by default (registry); nothing to set.
 
     extractor_calls = []
@@ -539,7 +540,7 @@ async def test_resolution_exact_reuses_entity_id(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     # memory.entity_graph is on by default (registry); nothing to set.
 
     call_count = [0]
@@ -605,7 +606,7 @@ async def test_resolution_fuzzy_reuses_entity_id(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     # Lock threshold so the test is deterministic
     monkeypatch.setattr(memory_core, "ENTITY_RESOLVE_FUZZY_MIN", 0.8)
 
@@ -654,7 +655,7 @@ async def test_resolution_cosine_separate_when_below_threshold(monkeypatch, tmp_
 
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     monkeypatch.setattr(memory_core, "ENTITY_RESOLVE_FUZZY_MIN", 0.8)
     monkeypatch.setattr(memory_core, "ENTITY_RESOLVE_COSINE_MIN", 0.99)
 
@@ -710,7 +711,7 @@ async def test_resolution_cosine_stores_and_reuses_candidate_vectors(monkeypatch
 
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     monkeypatch.setattr(me, "ENTITY_RESOLVE_FUZZY_MIN", 0.85)
     monkeypatch.setattr(me, "ENTITY_RESOLVE_COSINE_MIN", 0.99)  # high → never merge, force full candidate scan
 
@@ -784,7 +785,7 @@ async def test_store_once_deferred_buffer_flush(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     monkeypatch.setattr(me, "ENTITY_RESOLVE_FUZZY_MIN", 0.85)
     monkeypatch.setattr(me, "ENTITY_RESOLVE_COSINE_MIN", 0.99)  # never merge → full candidate scan
 
@@ -879,7 +880,7 @@ async def test_relationship_predicate_enforced(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
 
     with sqlite3.connect(str(db_path)) as conn:
         conn.row_factory = sqlite3.Row
@@ -912,7 +913,7 @@ async def test_fact_enriched_rows_skipped(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     # memory.entity_graph is on by default (registry); nothing to set.
     monkeypatch.setattr(memory_core, "ENABLE_ENTITY_GRAPH", True)
 
@@ -951,7 +952,7 @@ async def test_select_pending_excludes_already_extracted(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
 
     mid = _insert_memory(db_path, content="already extracted content")
 
@@ -990,7 +991,7 @@ async def test_select_pending_honors_variant_filter_and_allowlist(monkeypatch, t
 
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
 
     mid_null = _insert_memory(db_path, content="null variant", variant=None)
     mid_foo = _insert_memory(db_path, content="lme-foo variant", variant="lme-foo")
@@ -1030,7 +1031,7 @@ async def test_extract_pending_dry_run(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
 
     # Populate some items
     inserted_ids = []
@@ -1084,7 +1085,7 @@ async def test_entity_search_impl_basic(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
 
     with sqlite3.connect(str(db_path)) as conn:
         conn.row_factory = sqlite3.Row
@@ -1137,7 +1138,7 @@ async def test_entity_get_impl_returns_neighborhood(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
 
     # Insert source memory
     mid = _insert_memory(db_path, content="Alex works at Acme")
@@ -1366,7 +1367,7 @@ async def test_locomo_audit_extractor_none(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
 
     # Stub embedding so we don't hit a live embed server
     async def fake_embed_many(texts):
@@ -1408,7 +1409,7 @@ async def test_extractor_retries_transient_failure(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     # memory.entity_graph is on by default (registry); nothing to set.
 
     call_count = [0]
@@ -1473,7 +1474,7 @@ async def test_extractor_idempotent_on_reextraction(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     # memory.entity_graph is on by default (registry); nothing to set.
 
     async def stub_extractor(content: str) -> dict:
@@ -1557,7 +1558,7 @@ async def test_extractor_validates_invalid_entity_type(monkeypatch, tmp_path, ca
 
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     # memory.entity_graph is on by default (registry); nothing to set.
 
     async def bad_type_extractor(content: str) -> dict:
@@ -1606,7 +1607,7 @@ async def test_extractor_validates_invalid_predicate(monkeypatch, tmp_path, capl
 
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     # memory.entity_graph is on by default (registry); nothing to set.
 
     async def bad_predicate_extractor(content: str) -> dict:
@@ -1651,7 +1652,7 @@ async def test_bitemporal_valid_from_inherits_from_source(monkeypatch, tmp_path)
 
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     # memory.entity_graph is on by default (registry); nothing to set.
 
     source_valid_from = "2024-01-01T00:00:00Z"
@@ -1697,7 +1698,7 @@ async def test_extractor_respects_vocabulary_override(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     # memory.entity_graph is on by default (registry); nothing to set.
 
     async def custom_extractor(content: str) -> dict:
@@ -1740,7 +1741,7 @@ async def test_max_attempts_excludes_poisoned_items(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     # memory.entity_graph is on by default (registry); nothing to set.
     # Override MAX_ATTEMPTS to 2 for this test
     monkeypatch.setenv("M3_ENTITY_EXTRACTOR_MAX_ATTEMPTS", "2")
@@ -1782,7 +1783,7 @@ async def test_entity_extractor_health_reports_state(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test.db"
     _create_entity_graph_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     monkeypatch.setattr(memory_core, "ENTITY_EXTRACT_MAX_ATTEMPTS", 3)
 
     class _FakeConn:

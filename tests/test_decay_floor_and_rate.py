@@ -33,6 +33,7 @@ if _BIN not in sys.path:
 
 import memory_core as mc  # noqa: E402
 import memory_maintenance as mm  # noqa: E402
+from m3_core.paths import pin_database
 from memory.backends import dialect as _dialect  # noqa: E402
 
 
@@ -63,7 +64,7 @@ def aged_row(main_db_template, monkeypatch, tmp_path):
 
     db_path = tmp_path / "decay_probe.db"
     shutil.copy2(main_db_template, db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
 
     mid = str(uuid.uuid4())
     with mc._db() as db:
@@ -159,7 +160,7 @@ def test_pinned_rows_are_untouched_by_decay(main_db_template, monkeypatch, tmp_p
 
     db_path = tmp_path / "pinned_probe.db"
     shutil.copy2(main_db_template, db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     mid = str(uuid.uuid4())
     with mc._db() as db:
         db.execute(
@@ -210,7 +211,7 @@ def test_floor_is_inert_on_first_pass(main_db_template, monkeypatch, tmp_path):
 
     db_path = tmp_path / "inert_probe.db"
     shutil.copy2(main_db_template, db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
 
     ordinary, graded = mm._ORDINARY_FLOOR, mm._GRADED_FLOOR
     # Comfortably ABOVE their floor — the live-corpus precondition. The *2 / *1.05

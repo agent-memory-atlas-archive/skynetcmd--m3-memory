@@ -14,6 +14,7 @@ import os
 import sys
 
 import pytest
+from m3_core.paths import pin_database
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
@@ -1138,7 +1139,7 @@ async def test_fts_short_circuit_bypasses_embedding(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test_short_circuit.db"
     create_full_main_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
 
     # Insert a specific memory item into the database
     with sqlite3.connect(str(db_path)) as conn:
@@ -1207,7 +1208,7 @@ async def test_fts_short_circuit_conversational_skip(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test_short_circuit_skip.db"
     create_full_main_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
 
     with sqlite3.connect(str(db_path)) as conn:
         conn.row_factory = sqlite3.Row

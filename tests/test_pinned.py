@@ -22,6 +22,7 @@ import sys
 import uuid
 
 import pytest
+from m3_core.paths import pin_database
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
@@ -141,11 +142,11 @@ def test_pinned_row_survives_importance_decay_unpinned_decays(tmp_path):
     conn.commit()
     conn.close()
 
-    os.environ["M3_DATABASE"] = str(db)
+    pin_database(str(db))
     try:
         memory_maintenance_impl(decay=True, purge_expired=False, prune_orphan_embeddings=False, reinforce=False)
     finally:
-        os.environ.pop("M3_DATABASE", None)
+        pin_database(None)
 
     conn = sqlite3.connect(str(db))
     pinned_importance = conn.execute("SELECT importance FROM memory_items WHERE id='pinned-id'").fetchone()[0]
@@ -198,11 +199,11 @@ def test_pinned_row_not_expiry_purged_unpinned_is(tmp_path):
     conn.commit()
     conn.close()
 
-    os.environ["M3_DATABASE"] = str(db)
+    pin_database(str(db))
     try:
         memory_maintenance_impl(decay=False, purge_expired=True, prune_orphan_embeddings=False, reinforce=False)
     finally:
-        os.environ.pop("M3_DATABASE", None)
+        pin_database(None)
 
     conn = sqlite3.connect(str(db))
     remaining_ids = {r[0] for r in conn.execute("SELECT id FROM memory_items")}
@@ -236,12 +237,12 @@ def test_decay_and_expiry_tolerate_missing_pinned_column(tmp_path):
     conn.commit()
     conn.close()
 
-    os.environ["M3_DATABASE"] = str(db)
+    pin_database(str(db))
     try:
         # Must not raise even though `pinned` doesn't exist.
         memory_maintenance_impl(decay=True, purge_expired=True, prune_orphan_embeddings=False, reinforce=False)
     finally:
-        os.environ.pop("M3_DATABASE", None)
+        pin_database(None)
 
     conn = sqlite3.connect(str(db))
     remaining_ids = {r[0] for r in conn.execute("SELECT id FROM memory_items")}
@@ -345,7 +346,7 @@ def test_memory_pin_and_unpin_impl(tmp_path, monkeypatch):
     conn.commit()
     conn.close()
 
-    monkeypatch.setenv("M3_DATABASE", str(db))
+    pin_database(str(db))
     import memory_core
 
     result = memory_core.memory_pin_impl(mid)
@@ -372,7 +373,7 @@ def test_memory_pin_impl_accepts_8char_prefix(tmp_path, monkeypatch):
     conn.commit()
     conn.close()
 
-    monkeypatch.setenv("M3_DATABASE", str(db))
+    pin_database(str(db))
     import memory_core
 
     result = memory_core.memory_pin_impl(mid[:8])
@@ -382,7 +383,7 @@ def test_memory_pin_impl_accepts_8char_prefix(tmp_path, monkeypatch):
 def test_memory_pin_impl_not_found(tmp_path, monkeypatch):
     db = tmp_path / "t.db"
     _full_db(db)
-    monkeypatch.setenv("M3_DATABASE", str(db))
+    pin_database(str(db))
     import memory_core
 
     result = memory_core.memory_pin_impl(str(uuid.uuid4()))
@@ -417,7 +418,7 @@ def test_pinned_row_can_still_be_superseded(tmp_path, monkeypatch):
     conn.commit()
     conn.close()
 
-    monkeypatch.setenv("M3_DATABASE", str(db))
+    pin_database(str(db))
     import memory_core
 
     result = asyncio.run(memory_core.memory_supersede_impl(old_id, content="corrected fact", embed=False))

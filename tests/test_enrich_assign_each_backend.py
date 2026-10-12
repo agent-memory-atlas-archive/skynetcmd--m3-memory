@@ -11,6 +11,7 @@ import sys
 import uuid
 
 import pytest
+from m3_core.paths import pin_database
 
 from conftest import skip_reason
 
@@ -118,7 +119,7 @@ def test_explicit_db_wins_over_m3_database(each_backend, groups, monkeypatch, tm
     target = resolve_db_path(None)
     decoy = tmp_path / "decoy.db"
     sqlite3.connect(decoy).close()
-    monkeypatch.setenv("M3_DATABASE", str(decoy))
+    pin_database(str(decoy))
     src, tgt = groups
     assert (
         _assign(
@@ -136,7 +137,7 @@ def test_explicit_db_wins_over_m3_database(each_backend, groups, monkeypatch, tm
         )
         == 0
     )
-    monkeypatch.setenv("M3_DATABASE", target)
+    pin_database(target)
     assert _routes(each_backend, src)["g0"] == "grok", "observed: the update did not reach --db"
 
 

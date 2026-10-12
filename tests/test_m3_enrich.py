@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from m3_core.paths import pin_database
 from m3_core.secret_store import set_secret  # noqa: E402
 
 REPO = Path(__file__).resolve().parent.parent
@@ -51,7 +52,7 @@ def test_resolve_db_explicit_path_wins(tmp_path, monkeypatch):
 
     target = tmp_path / "explicit.db"
     target.write_text("placeholder", encoding="utf-8")
-    monkeypatch.setenv("M3_DATABASE", "/fake/missing/path.db")
+    pin_database("/fake/missing/path.db")
     out = m3_enrich._resolve_db(str(target), "M3_DATABASE", "agent_memory.db")
     assert out == target.resolve()
 
@@ -61,7 +62,7 @@ def test_resolve_db_env_fallback(tmp_path, monkeypatch):
 
     target = tmp_path / "from_env.db"
     target.write_text("x", encoding="utf-8")
-    monkeypatch.setenv("M3_DATABASE", str(target))
+    pin_database(str(target))
     out = m3_enrich._resolve_db(None, "M3_DATABASE", "agent_memory.db")
     assert out == target.resolve()
 
@@ -463,7 +464,7 @@ def test_observation_enqueue_idempotent(stub_db, monkeypatch):
     re-enqueueing the same conversation should be a no-op."""
     import sqlite3
 
-    monkeypatch.setenv("M3_DATABASE", str(stub_db))
+    pin_database(str(stub_db))
     # Migrate to add observation_queue / reflector_queue tables.
     import m3_enrich
 
@@ -500,7 +501,7 @@ def test_drain_queue_mode_handles_empty_queue(stub_db, monkeypatch, capsys):
     import argparse
     import asyncio
 
-    monkeypatch.setenv("M3_DATABASE", str(stub_db))
+    pin_database(str(stub_db))
     # The local-SLM profile resolves LM_API_TOKEN via get_api_key; on CI
     # there's no credential vault and no env, so the call sys.exits before
     # we ever reach the empty-queue check. Stamp a dummy token — the real
@@ -575,7 +576,7 @@ def test_resolve_db_uses_engine_root_not_the_checkout(tmp_path, monkeypatch):
     the drain reports success against an empty queue while the real store is
     never touched — a silent wrong-store, not a loud failure.
     """
-    from enrich.prep import _resolve_db
+    from m3_core.paths import resolve_role_db as _resolve_db
 
     engine = tmp_path / "engine"
     engine.mkdir()
@@ -592,19 +593,31 @@ def test_resolve_db_uses_engine_root_not_the_checkout(tmp_path, monkeypatch):
 
 def test_resolve_db_still_honours_explicit_arg_and_env(tmp_path, monkeypatch):
     """The seam change must not disturb the higher-precedence sources."""
-    from enrich.prep import _resolve_db
+    from m3_core.paths import resolve_role_db as _resolve_db
 
     explicit = tmp_path / "explicit.db"
     explicit.write_bytes(b"")
     env_db = tmp_path / "from_env.db"
     env_db.write_bytes(b"")
 
-    monkeypatch.setenv("M3_DATABASE", str(env_db))
+    pin_database(str(env_db))
     assert Path(_resolve_db(str(explicit), "M3_DATABASE", "agent_memory.db")) == explicit
     assert Path(_resolve_db(None, "M3_DATABASE", "agent_memory.db")) == env_db
 
     # A path that does not exist resolves to None, so the caller can skip it.
     assert _resolve_db(str(tmp_path / "absent.db"), "M3_DATABASE", "agent_memory.db") is None
+
+
+def test_every_batch_script_resolves_through_the_one_owner():
+    """Three scripts carried their own copies; two kept the checkout-relative
+    default and one missed the --database pin. A copied predicate drifts."""
+    import m3_chatlog_backfill_embed
+    import m3_chatlog_backfill_title
+    import m3_enrich
+    from m3_core.paths import resolve_role_db
+
+    for mod in (m3_enrich, m3_chatlog_backfill_title, m3_chatlog_backfill_embed):
+        assert mod._resolve_db is resolve_role_db, f"{mod.__name__} has its own _resolve_db"
 
 
 def test_migration_025_skips_a_store_without_memory_items(tmp_path, capsys):

@@ -28,6 +28,7 @@ _BIN = os.path.normpath(os.path.join(_HERE, "..", "bin"))
 if _BIN not in sys.path:
     sys.path.insert(0, _BIN)
 
+from m3_core.paths import pin_database
 from memory.backends import dialect  # noqa: E402
 from memory.orchestration import (  # noqa: E402
     _db,
@@ -44,7 +45,7 @@ def agents(monkeypatch, tmp_path):
 
     db_path = tmp_path / "heartbeat.db"
     create_full_main_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
 
     type_ = f"pytest-hb-{uuid.uuid4().hex[:12]}"
     s1, s2 = f"{type_}@s1", f"{type_}@s2"

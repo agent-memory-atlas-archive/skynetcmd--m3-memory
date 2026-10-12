@@ -13,6 +13,7 @@ import uuid
 from pathlib import Path
 
 import pytest
+from m3_core.paths import pin_database
 
 from conftest import use_backend
 
@@ -108,7 +109,7 @@ def test_a_sqlite_store_outranks_the_legacy_path_and_is_undone_after(stores_file
     from m3_core.paths import resolve_backend_name, resolve_db_path
 
     legacy = str(tmp_path / "legacy.db")
-    monkeypatch.setenv("M3_DATABASE", legacy)
+    pin_database(legacy)
     stores_file(f'[stores.scratch]\nbackend = "sqlite"\npath = "{(tmp_path / "s.db").as_posix()}"\n')
     with active_store("scratch"):
         assert resolve_db_path(None) == str((tmp_path / "s.db").absolute())

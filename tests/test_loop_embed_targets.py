@@ -12,6 +12,7 @@ import os
 import sys
 
 import pytest
+from m3_core.paths import pin_database
 
 BIN = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bin")
 if BIN not in sys.path:
@@ -72,7 +73,7 @@ def test_m3_database_override_does_not_mask_the_chatlog(loop_mod, tmp_path, monk
 
     main = _touch_db(tmp_path / "agent_memory.db")
     chat = _touch_db(tmp_path / "agent_chatlog.db")
-    monkeypatch.setenv("M3_DATABASE", main)
+    pin_database(main)
     monkeypatch.delenv("CHATLOG_DB_PATH", raising=False)
     # Point the config FILE at the chatlog store, as a real install does.
     monkeypatch.setattr(chatlog_config, "DEFAULT_DB_PATH", chat)

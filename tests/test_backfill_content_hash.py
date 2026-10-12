@@ -15,12 +15,12 @@ Asserts:
 from __future__ import annotations
 
 import argparse
-import os
 import sqlite3
 import sys
 from pathlib import Path
 
 import pytest
+from m3_core.paths import pin_database
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "bin"))
@@ -283,7 +283,7 @@ def test_count_id_prefix(db):
 
 def test_hash_matches_memory_core(db):
     """The hash we write must match what memory_core._content_hash would compute."""
-    os.environ["M3_DATABASE"] = str(db)
+    pin_database(str(db))
     sys.path.insert(0, str(REPO / "bin"))
     import memory_core as mc
 

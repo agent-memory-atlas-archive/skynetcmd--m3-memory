@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bin"))
 
 import llm_failover  # noqa: E402
 import m3_entities  # noqa: E402
+from m3_core.paths import pin_database
 
 ROWS = [("m1", "first row long enough"), ("m2", "second row long enough"), ("m3", "third row long enough")]
 
@@ -48,7 +49,7 @@ class _RecordingConn:
 @pytest.fixture
 def harness(monkeypatch):
     # _run_db writes these into os.environ; pre-set them so monkeypatch restores.
-    monkeypatch.setenv("M3_DATABASE", "unused.db")
+    pin_database("unused.db")
     monkeypatch.setenv("M3_ENABLE_ENTITY_GRAPH", "1")
     monkeypatch.setattr(llm_failover, "_OUTAGE_STATE", {})
     writes: list = []

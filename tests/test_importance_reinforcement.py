@@ -37,6 +37,7 @@ if _BIN not in sys.path:
 
 import memory_core as mc  # noqa: E402
 import memory_maintenance as mm  # noqa: E402
+from m3_core.paths import pin_database
 
 from memory import confidence as _conf  # noqa: E402
 
@@ -50,7 +51,7 @@ def store(main_db_template, monkeypatch, tmp_path):
 
     db_path = tmp_path / "reinforce.db"
     shutil.copy2(main_db_template, db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
 
     def add(*, importance=0.02, access_count=0, helpful=0, pinned=0, age_days=30):
         mid = str(uuid.uuid4())

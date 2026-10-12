@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from m3_core.paths import pin_database
 
 from conftest import skip_reason
 
@@ -34,7 +35,7 @@ def client(tmp_path, monkeypatch):
     import sqlite3
 
     sqlite3.connect(str(db)).close()
-    monkeypatch.setenv("M3_DATABASE", str(db))
+    pin_database(str(db))
     import dashboard_server
 
     return TestClient(dashboard_server.app), tmp_path

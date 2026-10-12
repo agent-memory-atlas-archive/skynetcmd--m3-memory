@@ -171,17 +171,25 @@ def test_ensure_sync_tables_passes_target_chatlog_for_chatlog_path(tmp_path, mon
     assert "--target" in captured["cmd"], f"expected --target flag in subprocess args, got {captured['cmd']}"
     target_idx = captured["cmd"].index("--target")
     assert captured["cmd"][target_idx + 1] == "chatlog"
-    # And M3_DATABASE in the child env points at the chatlog path
-    assert os.path.abspath(captured["env"].get("M3_DATABASE", "")) == os.path.abspath(str(chatlog_path))
+    # And the child is told the chatlog path as --database, not through env
+    db_idx = captured["cmd"].index("--database")
+    assert os.path.abspath(captured["cmd"][db_idx + 1]) == os.path.abspath(str(chatlog_path))
+    assert captured["env"].get("M3_DATABASE") == os.environ.get("M3_DATABASE"), (
+        "m3 must not add M3_DATABASE to the child"
+    )
 
 
 def test_ensure_sync_tables_no_target_for_main_path(tmp_path, monkeypatch):
     """For a main-shaped active DB, no --target flag is added — the runner
-    handles all targets in 'all' mode."""
+    handles all targets in 'all' mode — and the child is told the store as
+    --database: it does not inherit this process's --database pin, so without
+    the flag it migrated the default store instead."""
+    from m3_core.paths import pin_database
+
     main_path = tmp_path / "fake_main.db"
     _make_main_db(str(main_path))
 
-    monkeypatch.setenv("M3_DATABASE", str(main_path))
+    pin_database(str(main_path))
     monkeypatch.delenv("CHATLOG_DB_PATH", raising=False)
 
     captured = {}
@@ -198,6 +206,8 @@ def test_ensure_sync_tables_no_target_for_main_path(tmp_path, monkeypatch):
 
     assert "cmd" in captured
     assert "--target" not in captured["cmd"], f"expected NO --target flag, got {captured['cmd']}"
+    db_idx = captured["cmd"].index("--database")
+    assert os.path.abspath(captured["cmd"][db_idx + 1]) == os.path.abspath(str(main_path))
 
 
 def test_pending_migrations_lists_only_unapplied_versions(tmp_path, monkeypatch):

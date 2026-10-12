@@ -18,6 +18,7 @@ if _BIN not in sys.path:
 
 import memory.entity as me
 import memory_core
+from m3_core.paths import pin_database
 from memory.entity import _resolve_entity, _resolve_entity_async, _token_jaccard
 
 from conftest import create_full_main_schema
@@ -45,7 +46,7 @@ def test_fuzzy_threshold_resolution_tuning(monkeypatch, tmp_path):
     db_path = tmp_path / "test_fuzzy.db"
     create_full_main_schema(db_path)
 
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     monkeypatch.setenv("M3_SKIP_MIGRATIONS", "1")
 
     # 1. With a high threshold (e.g. 0.85, default), "Google DeepMind" and "Google DeepMind LLC"
@@ -76,7 +77,7 @@ async def test_cosine_threshold_resolution_tuning(monkeypatch, tmp_path):
     db_path = tmp_path / "test_cosine.db"
     create_full_main_schema(db_path)
 
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     monkeypatch.setenv("M3_SKIP_MIGRATIONS", "1")
 
     # Let's stub embedding function to return controlled vectors

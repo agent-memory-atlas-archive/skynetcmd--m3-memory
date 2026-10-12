@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_chatlog_backfill_title.py
-sha1: 935c568cb87e
-mtime_utc: 2026-10-12T22:51:17.660812+00:00
-generated_utc: 2026-10-12T23:01:47.881767+00:00
+sha1: 642d38c4866e
+mtime_utc: 2026-10-12T23:35:40.029597+00:00
+generated_utc: 2026-10-12T23:37:27.764497+00:00
 private: false
 ---
 
@@ -28,7 +28,7 @@ Quick start:
 
 ## Entry points
 
-- `def main()` (line 226)
+- `def main()` (line 213)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -71,8 +71,8 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
-- `m3_core.paths (configured_main_db)`
 - `m3_core.paths (get_m3_backups_root, scoped_db_env, seam_backend, seam_dialect, snapshot_stores)`
+- `m3_core.paths (resolve_role_db)`
 
 ---
 

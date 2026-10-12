@@ -3,6 +3,7 @@ import os
 import sys
 
 import pytest
+from m3_core.paths import pin_database
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
@@ -39,7 +40,7 @@ def _isolated_db(monkeypatch, tmp_path):
     db_path = tmp_path / "tombstone_test.db"
     create_full_main_schema(db_path)
 
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     monkeypatch.setenv("M3_SKIP_MIGRATIONS", "1")
 
     # Clear the per-path init cache so _lazy_init runs against the new temp DB.

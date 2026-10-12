@@ -14,6 +14,7 @@ import sys
 import uuid
 
 import pytest
+from m3_core.paths import pin_database
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
@@ -67,7 +68,7 @@ def test_event_counts_in_window(tmp_path, monkeypatch):
     conn.commit()
     conn.close()
 
-    monkeypatch.setenv("M3_DATABASE", str(db))
+    pin_database(str(db))
     import memory_maintenance
 
     out = memory_maintenance.memory_lifecycle_summary_impl(window_days=7)
@@ -89,7 +90,7 @@ def test_corroboration_vs_contradiction_split(tmp_path, monkeypatch):
     conn.commit()
     conn.close()
 
-    monkeypatch.setenv("M3_DATABASE", str(db))
+    pin_database(str(db))
     import memory_maintenance
 
     out = memory_maintenance.memory_lifecycle_summary_impl(window_days=7)
@@ -110,7 +111,7 @@ def test_top_lists_populated_and_capped(tmp_path, monkeypatch):
     conn.commit()
     conn.close()
 
-    monkeypatch.setenv("M3_DATABASE", str(db))
+    pin_database(str(db))
     import memory_maintenance
 
     out = memory_maintenance.memory_lifecycle_summary_impl(window_days=7, top_n=5)
@@ -139,7 +140,7 @@ def test_tolerates_missing_corroborations_table(tmp_path, monkeypatch):
     conn.commit()
     conn.close()
 
-    monkeypatch.setenv("M3_DATABASE", str(db))
+    pin_database(str(db))
     import memory_maintenance
 
     out = memory_maintenance.memory_lifecycle_summary_impl(window_days=7)  # must not raise

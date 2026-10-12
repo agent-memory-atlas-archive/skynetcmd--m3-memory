@@ -1,4 +1,4 @@
-"""DB prep / profile loading — _today, _resolve_db, _load_profile_with_path,
+"""DB prep / profile loading — _today, _load_profile_with_path,
 _ensure_migration_025."""
 
 from __future__ import annotations
@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from m3_core.config import settings as _m3cfg
-from m3_core.paths import get_m3_backups_root, resolve_engine_file
+from m3_core.paths import get_m3_backups_root
 from slm_intent import (
     Profile,
     _parse_profile,
@@ -26,31 +26,6 @@ BACKUP_DIR = Path(get_m3_backups_root()) / "enrich"
 
 def _today() -> str:
     return datetime.now(UTC).strftime("%Y%m%d")
-
-
-def _resolve_db(arg_path: str | None, env_var: str, default_name: str) -> Path | None:
-    """Pick the DB to use for one role (core or chatlog).
-
-    Order: explicit --core-db / --chatlog-db arg > env > default sibling.
-    Returns None if no file exists at the resolved path (caller skips).
-    """
-    if arg_path:
-        p = Path(arg_path).expanduser().resolve()
-        return p if os.path.exists(p) else None
-    env_val = os.environ.get(env_var)
-    if env_val:
-        p = Path(env_val).expanduser().resolve()
-        return p if os.path.exists(p) else None
-    # Resolve through the engine-root seam, which also honours the legacy
-    # <repo>/memory/ location for pre-Homecoming installs. Hardcoding REPO_ROOT
-    # here made the default depend on the CALLER'S CHECKOUT: from a scheduled
-    # task's working directory nothing matched, so every run exited "no DBs
-    # found to drain" (129/129 runs, 2026-09-16). Worse from a dev tree, where
-    # <repo>/memory/agent_memory.db exists as a 32 KB stub with no memory_items
-    # table at all — the drain would silently work an empty queue and report
-    # success while the real 316 MB store went untouched.
-    p = Path(resolve_engine_file(default_name))
-    return p if os.path.exists(p) else None
 
 
 def _load_profile_with_path(name: str | None, path: str | None) -> Profile:

@@ -1,8 +1,8 @@
 ---
 tool: bin/migrate_memory.py
-sha1: 450e81684cfc
-mtime_utc: 2026-10-12T22:51:17.783724+00:00
-generated_utc: 2026-10-12T23:01:48.256850+00:00
+sha1: 34a5132e4d85
+mtime_utc: 2026-10-12T23:37:18.650655+00:00
+generated_utc: 2026-10-12T23:37:27.993143+00:00
 private: false
 ---
 
@@ -50,7 +50,7 @@ transaction already committed.
 
 | Flag(s) | Help | Default | Default behavior | Type/Action | Impact when set |
 |---|---|---|---|---|---|
-| `--database` | Override the file path for the 'main' (core memories) target. Sets M3_DATABASE for this run; targets() resolves the main DB via that env. The 'chatlog' target is unaffected — to override the chatlog DB path, set M3_CHATLOG_DATABASE in the environment before running. Default main DB: memory/agent_memory.db. | None | Falls back to M3_DATABASE env then memory/agent_memory.db. | str | Routes all DB reads/writes against PATH for this run. |
+| `--database` | Override the file path for the 'main' (core memories) target. Pins it for this run; targets() resolves the main DB from that pin. The 'chatlog' target is unaffected — to override the chatlog DB path, set M3_CHATLOG_DATABASE in the environment before running. Default main DB: memory/agent_memory.db. | None | Falls back to M3_DATABASE env then memory/agent_memory.db. | str | Routes all DB reads/writes against PATH for this run. |
 | `--target` | Memory FAMILY to migrate (NOT a git branch): 'main' = core memories DB (default agent_memory.db, overridable via --database / M3_DATABASE); 'chatlog' = chatlog memories DB (default agent_chatlog.db, overridable via M3_CHATLOG_DATABASE); 'all' = both. Default: all configured. | `all` | Displays status for all configured targets (main + chatlog if available). | str | Shows status for only specified target. |
 | `--to` | Apply up to this version (default: latest) | None | Applies all pending migrations up to latest available version. | int | Applies migrations up to specified version; stops before newer ones. |
 | `--target` | Memory FAMILY to migrate (NOT a git branch): 'main' = core memories DB (default agent_memory.db, overridable via --database / M3_DATABASE); 'chatlog' = chatlog memories DB (default agent_chatlog.db, overridable via M3_CHATLOG_DATABASE); 'all' = both. Default: all configured. | `all` | Prompts for backup dir; applies migrations to all configured targets. | str | Applies migrations to only specified target. |

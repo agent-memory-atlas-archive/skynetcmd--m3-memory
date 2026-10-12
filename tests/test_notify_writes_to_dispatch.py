@@ -27,6 +27,7 @@ import unittest
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "bin"))
 
 from m3_core import paths as P  # noqa: E402
+from m3_core.paths import pin_database
 
 _MAIN_DDL = """
 CREATE TABLE notifications (
@@ -49,12 +50,12 @@ class _Store(unittest.TestCase):
     INTEGRATED = False
 
     def setUp(self):
-        self._saved = {k: os.environ.get(k) for k in ("M3_ENGINE_ROOT", "M3_DATABASE", "M3_DISPATCH_MODE")}
+        self._saved = {k: os.environ.get(k) for k in ("M3_ENGINE_ROOT", "M3_DISPATCH_MODE")}
         root = tempfile.mkdtemp(prefix="m3-notify-test-")
         engine = os.path.join(root, "engine")
         os.makedirs(engine, exist_ok=True)
         os.environ["M3_ENGINE_ROOT"] = engine
-        os.environ.pop("M3_DATABASE", None)
+        pin_database(None)
         if self.INTEGRATED:
             os.environ["M3_DISPATCH_MODE"] = "integrated"
         else:
@@ -76,9 +77,10 @@ class _Store(unittest.TestCase):
             d.executescript(boot)
             d.commit()
             d.close()
-        os.environ["M3_DATABASE"] = self.main
+        pin_database(self.main)
 
     def tearDown(self):
+        pin_database(None)
         for k, v in self._saved.items():
             if v is None:
                 os.environ.pop(k, None)

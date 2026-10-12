@@ -35,6 +35,7 @@ if _BIN not in sys.path:
 
 import memory_core as mc  # noqa: E402
 import memory_maintenance as mm  # noqa: E402
+from m3_core.paths import pin_database
 
 pytestmark = pytest.mark.usefixtures("m3_sandbox")
 
@@ -45,7 +46,7 @@ def store(main_db_template, monkeypatch, tmp_path):
 
     db_path = tmp_path / "noautodel.db"
     shutil.copy2(main_db_template, db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
 
     def add(*, importance=0.001, age_days=60, deleted=0, reason=None):
         mid = str(uuid.uuid4())

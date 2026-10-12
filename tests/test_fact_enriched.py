@@ -17,6 +17,7 @@ import sys
 import uuid
 
 import pytest
+from m3_core.paths import pin_database
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
@@ -126,7 +127,7 @@ async def test_default_off_no_enrichment(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test.db"
     _create_fact_enriched_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
 
     # Force module-level var to False (simulating env unset)
     monkeypatch.setattr(memory_core, "ENABLE_FACT_ENRICHED", False)
@@ -165,7 +166,7 @@ async def test_verbatim_first_on_enricher_exception(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test.db"
     _create_fact_enriched_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     monkeypatch.setattr(memory_core, "ENABLE_FACT_ENRICHED", True)
 
     async def failing_enricher(content: str) -> list[dict]:
@@ -221,7 +222,7 @@ async def test_variant_skip_default(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test.db"
     _create_fact_enriched_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     monkeypatch.setattr(memory_core, "ENABLE_FACT_ENRICHED", True)
 
     enricher_calls = []
@@ -273,7 +274,7 @@ async def test_variant_allowlist_override(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test.db"
     _create_fact_enriched_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     monkeypatch.setattr(memory_core, "ENABLE_FACT_ENRICHED", True)
 
     enricher_calls = []
@@ -329,7 +330,7 @@ async def test_semaphore_concurrency_behavior(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test.db"
     _create_fact_enriched_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
 
     # Set concurrency to 1
     monkeypatch.setattr(memory_core, "FACT_ENRICH_CONCURRENCY", 1)
@@ -392,7 +393,7 @@ async def test_references_edge_created(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test.db"
     _create_fact_enriched_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     monkeypatch.setattr(memory_core, "ENABLE_FACT_ENRICHED", True)
 
     async def simple_enricher(content: str) -> list[dict]:
@@ -443,7 +444,7 @@ async def test_select_pending_excludes_fact_enriched_children(monkeypatch, tmp_p
 
     db_path = tmp_path / "test.db"
     _create_fact_enriched_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
 
     with sqlite3.connect(str(db_path)) as conn:
         # Create source item
@@ -506,7 +507,7 @@ async def test_select_pending_excludes_variant_by_default(monkeypatch, tmp_path)
 
     db_path = tmp_path / "test.db"
     _create_fact_enriched_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
 
     with sqlite3.connect(str(db_path)) as conn:
         # Create null-variant item
@@ -563,7 +564,7 @@ async def test_select_pending_includes_allowed_variants(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test.db"
     _create_fact_enriched_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
 
     with sqlite3.connect(str(db_path)) as conn:
         conn.execute(
@@ -622,7 +623,7 @@ async def test_select_pending_excludes_high_attempts(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test.db"
     _create_fact_enriched_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     monkeypatch.setattr(memory_core, "FACT_ENRICH_MAX_ATTEMPTS", 5)
 
     with sqlite3.connect(str(db_path)) as conn:
@@ -672,7 +673,7 @@ async def test_select_pending_excludes_soft_deleted(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test.db"
     _create_fact_enriched_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
 
     with sqlite3.connect(str(db_path)) as conn:
         conn.execute(
@@ -760,7 +761,7 @@ async def test_locomo_audit_fact_enricher_none(monkeypatch, tmp_path):
 
     db_path = tmp_path / "test.db"
     _create_fact_enriched_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
 
     # Mock embedding so we don't hit a real embedder
     async def fake_embed_many(texts):

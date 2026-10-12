@@ -32,6 +32,7 @@ import uuid
 from pathlib import Path
 
 import pytest
+from m3_core.paths import pin_database
 
 from conftest import use_backend
 
@@ -158,7 +159,7 @@ def sqlite_store(tmp_path, monkeypatch):
 
     db = tmp_path / "chatlog.db"
     create_full_main_schema(str(db))
-    monkeypatch.setenv("M3_DATABASE", str(db))
+    pin_database(str(db))
     monkeypatch.setenv("M3_CHATLOG_DB_PATH", str(db))
     _enable_redaction(monkeypatch, tmp_path)
     return _seed(25)
@@ -246,7 +247,7 @@ def test_rescrub_refuses_when_redaction_is_off(tmp_path, monkeypatch):
 
     db = tmp_path / "chatlog.db"
     create_full_main_schema(str(db))
-    monkeypatch.setenv("M3_DATABASE", str(db))
+    pin_database(str(db))
     monkeypatch.setenv("M3_CHATLOG_DB_PATH", str(db))
     _enable_redaction(monkeypatch, tmp_path, enabled=False)
 

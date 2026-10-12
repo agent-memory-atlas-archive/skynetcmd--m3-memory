@@ -21,6 +21,14 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **The chatlog title and embedding backfill scripts find the databases under
+  the engine root.** With no `--core-db`/`--chatlog-db` they looked in
+  `<checkout>/memory`, so run from elsewhere they found nothing, and from a dev
+  checkout they could pick up an empty stub.
+  **Affected:** `m3_chatlog_backfill_title` and `m3_chatlog_backfill_embed` run
+  without explicit database arguments · **Action:** none ·
+  **Data status:** none; runs that found no database changed nothing.
+
 - **Reads from a named store or `--database` record their access in that
   store.** A search stamped "last accessed" in the store the process first read
   from, so a memory read from another store never had it recorded: grading it

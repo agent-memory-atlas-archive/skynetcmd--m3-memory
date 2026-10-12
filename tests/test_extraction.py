@@ -12,6 +12,7 @@ import pytest
 # Ensure bin/ is on path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
+from m3_core.paths import pin_database
 from memory.extraction import (
     RuleBasedExtractor,
     canonicalize_relationship,
@@ -53,7 +54,7 @@ def _mock_embeddings(monkeypatch):
 
 def _init_test_db(db_path, monkeypatch):
     create_full_main_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     monkeypatch.setattr(_config, "DB_PATH", str(db_path))
 
 

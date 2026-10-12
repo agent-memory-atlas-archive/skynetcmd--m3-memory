@@ -17,6 +17,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
+from m3_core.paths import pin_database
+
 from memory import confidence as C  # noqa: E402
 
 
@@ -32,7 +34,7 @@ def _full_db(db_path):
 
 
 async def _write(db_path, monkeypatch, **kw):
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     from memory.write import memory_write_impl
 
     res = await memory_write_impl(embed=False, **kw)

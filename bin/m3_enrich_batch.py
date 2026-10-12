@@ -853,7 +853,7 @@ async def _run_async(args) -> int:
         sys.exit(f"ERROR: {e}")
     db_path = Path(store) if store else None
     if db_path is not None:
-        # Set M3_DATABASE so memory_core.write picks the right DB
+        # Pin the main database so memory_core.write picks the right DB
         pin_database(str(db_path))
 
     # Pin the embedder endpoint if --embed-url / M3_EMBED_URL was given.

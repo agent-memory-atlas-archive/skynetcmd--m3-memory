@@ -32,6 +32,7 @@ from m3_core.paths import (
 )
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
+from m3_core.paths import resolve_role_db as _resolve_db  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BACKUP_DIR = Path(get_m3_backups_root()) / "title-backfill"
@@ -51,20 +52,6 @@ DEFAULT_USELESS_TITLES = (
     "[AUTO] Generated",
     "untitled",
 )
-
-
-def _resolve_db(arg_path: str | None, env_var: str, default_name: str) -> Path | None:
-    if arg_path:
-        p = Path(arg_path).expanduser().resolve()
-        return p if os.path.exists(p) else None
-    from m3_core.paths import configured_main_db
-
-    env_val = configured_main_db() if env_var == "M3_DATABASE" else os.environ.get(env_var)
-    if env_val:
-        p = Path(env_val).expanduser().resolve()
-        return p if os.path.exists(p) else None
-    p = REPO_ROOT / "memory" / default_name
-    return p if os.path.exists(p) else None
 
 
 def _derive_title(content: str, max_chars: int = 100) -> str:

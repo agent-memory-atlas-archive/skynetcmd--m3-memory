@@ -21,6 +21,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from m3_core.paths import pin_database
 
 from conftest import use_backend
 
@@ -43,7 +44,7 @@ def store(tmp_path, monkeypatch):
 
     db = tmp_path / "t.db"
     create_full_main_schema(db)
-    monkeypatch.setenv("M3_DATABASE", str(db))
+    pin_database(str(db))
     monkeypatch.setenv("M3_SKIP_MIGRATIONS", "1")
     use_backend("sqlite")
     monkeypatch.setenv("M3_ENABLE_ENTITY_GRAPH", "true")

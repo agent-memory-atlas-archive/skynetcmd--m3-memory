@@ -21,6 +21,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bin"))
 
+from m3_core.paths import pin_database
+
 from memory import embed as embed_mod  # noqa: E402
 
 
@@ -64,7 +66,7 @@ async def test_write_defers_and_is_fast_without_embedder(monkeypatch, tmp_path):
     from m3_sdk import active_database
 
     db = str(tmp_path / "zerolag.db")
-    monkeypatch.setenv("M3_DATABASE", db)
+    pin_database(db)
     try:
         migrate_memory.run_migrations(db)
     except Exception:

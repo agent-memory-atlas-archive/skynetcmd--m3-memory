@@ -214,7 +214,7 @@ def targets(selected: str = "all") -> list[MigrationTarget]:
         if main_kind == "chatlog":
             logger.error(
                 "Refusing to apply main migrations to %s — schema fingerprint says "
-                "this is a chatlog DB. Set M3_DATABASE to your main agent_memory.db, "
+                "this is a chatlog DB. Pass --database PATH naming your main agent_memory.db, "
                 "or use --target chatlog.",
                 main_path,
             )
@@ -286,7 +286,7 @@ def targets(selected: str = "all") -> list[MigrationTarget]:
                 # data still gets schema fixes instead of being stranded.
                 logger.warning(
                     "Main path resolves to a chatlog DB; routing chatlog migrations "
-                    "to %s. Set M3_DATABASE to your main agent_memory.db to avoid "
+                    "to %s. Pass --database PATH naming your main agent_memory.db to avoid "
                     "this fallback.",
                     chatlog_path,
                 )
@@ -990,16 +990,16 @@ def cmd_plan(args):
 
 def build_parser():
     p = argparse.ArgumentParser(description="m3-memory database migration runner")
-    # Top-level --database sets M3_DATABASE for the duration of the run so
-    # targets() picks up the override. Subcommand --target still selects which
+    # Top-level --database pins the main database for the run so targets()
+    # picks up the override. Subcommand --target still selects which
     # DB family (main / chatlog) to touch.
     p.add_argument(
         "--database",
         default=None,
         metavar="PATH",
         help="Override the file path for the 'main' (core memories) target. "
-        "Sets M3_DATABASE for this run; targets() resolves the main DB "
-        "via that env. The 'chatlog' target is unaffected — to override "
+        "Pins it for this run; targets() resolves the main DB from that "
+        "pin. The 'chatlog' target is unaffected — to override "
         "the chatlog DB path, set M3_CHATLOG_DATABASE in the environment "
         "before running. Default main DB: memory/agent_memory.db.",
     )

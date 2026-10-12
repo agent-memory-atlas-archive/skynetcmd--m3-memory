@@ -16,6 +16,7 @@ if _BIN not in sys.path:
     sys.path.insert(0, _BIN)
 
 from files_memory import entity_coalesce as ec  # noqa: E402
+from m3_core.paths import pin_database
 
 
 # ── Pure-function units (no DB, no embedder) ─────────────────────────────────
@@ -200,7 +201,7 @@ def tmp_entity_db(tmp_path, monkeypatch):
     conn.commit()
     conn.close()
     monkeypatch.setenv("M3_MEMORY_DB", str(db))
-    monkeypatch.setenv("M3_DATABASE", str(db))  # must NOT mislead the pass
+    pin_database(str(db))  # must NOT mislead the pass
     return db
 
 

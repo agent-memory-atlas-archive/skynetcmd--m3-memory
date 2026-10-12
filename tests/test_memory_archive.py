@@ -20,6 +20,7 @@ import sys
 import uuid
 
 import pytest
+from m3_core.paths import pin_database
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
@@ -31,7 +32,7 @@ def main_db(tmp_path, monkeypatch):
 
     db_path = tmp_path / "main.db"
     create_full_main_schema(str(db_path))
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     monkeypatch.setenv("M3_SKIP_MIGRATIONS", "1")  # template already migrated
     monkeypatch.setenv("M3_CORE_RS_DISABLE", "1")
     # Force a re-resolve of the cached db path in memory_core (the scratch_db idiom).

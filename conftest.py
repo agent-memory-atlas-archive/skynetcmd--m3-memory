@@ -38,9 +38,9 @@ def _isolate_db_paths(tmp_path, monkeypatch):
     tmp_main = engine / "agent_memory.db"
     tmp_chatlog = tmp_path / "test_agent_chatlog.db"
     # The main store as the DEFAULT (the engine root), the lowest rank, so a test
-    # that sets its own -- pin_database, or the legacy M3_DATABASE -- still wins.
-    # A --database pin here outranked 142 such settings. The developer's exported
-    # M3_DATABASE is cleared: it would point a test at a real store.
+    # that sets its own -- pin_database, or the legacy M3_DATABASE -- still wins;
+    # a pin here would outrank them. A developer's exported M3_DATABASE is
+    # cleared: it would point a test at a real store.
     monkeypatch.delenv("M3_DATABASE", raising=False)
     monkeypatch.setenv("M3_ENGINE_ROOT", str(engine))
     # Under the name chatlog tests clear to exercise their own resolution; moving

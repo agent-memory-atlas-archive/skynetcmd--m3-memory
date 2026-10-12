@@ -387,8 +387,10 @@ def _ensure_sync_tables(db_path: str | None = None) -> None:
             )
 
         env = os.environ.copy()
-        if target_flag:
-            env["M3_DATABASE"] = active
+        # The store reaches the child as --database (its pin), for BOTH targets: a
+        # child no longer inherits this process's database through env, so without
+        # it a main-target migration ran against the default store, not `active`.
+        db_flag = ["--database", str(active)]
         # ⚠ RESOLVE THE HELPER, DO NOT HOPE FOR IT.
         #
         # `from _task_runtime import ...` is a BARE module name: it resolves
@@ -434,7 +436,7 @@ def _ensure_sync_tables(db_path: str | None = None) -> None:
             # rather than discarded: a migration is worth seeing, just not in
             # the data channel.
             proc = subprocess.run(
-                [sys.executable, migration_script, "up", "--yes", *target_flag],
+                [sys.executable, migration_script, *db_flag, "up", "--yes", *target_flag],
                 check=True,
                 timeout=300,
                 stdin=subprocess.DEVNULL,

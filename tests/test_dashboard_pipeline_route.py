@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from m3_core.paths import pin_database
 
 from conftest import skip_reason
 
@@ -49,7 +50,7 @@ def _seed_db(tmp_path) -> str:
 
 def test_pipeline_route_renders_panel(tmp_path, monkeypatch):
     db = _seed_db(tmp_path)
-    monkeypatch.setenv("M3_DATABASE", db)
+    pin_database(db)
 
     import dashboard_server as d
 

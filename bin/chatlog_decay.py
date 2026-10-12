@@ -26,7 +26,7 @@ DB SELECTION
 In priority order:
   1. --db <path> CLI argument
   2. $CHATLOG_DB env var
-  3. $M3_DATABASE env var (unified mode)
+  3. the main DB: a --database pin, else legacy $M3_DATABASE (unified mode)
   4. memory/agent_chatlog.db (default)
 
 ALL queries scope to `type='chat_log'`, regardless of layout.

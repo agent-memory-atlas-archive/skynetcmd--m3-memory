@@ -35,6 +35,7 @@ from __future__ import annotations
 
 from m3_core.paths import apply_early_argv as _apply_early_argv
 from m3_core.paths import configured_main_db, pin_database  # noqa: E402
+from m3_core.paths import resolve_role_db as _resolve_db  # noqa: E402
 
 # --config FILE (the file this job was registered with) is pinned, and every
 # --set KEY=VALUE applied, before any import below binds a root or reads a
@@ -73,7 +74,6 @@ from enrich.prep import (
     BACKUP_DIR,
     _ensure_migration_025,
     _load_profile_with_path,
-    _resolve_db,
     _today,
 )  # noqa: E402
 from enrich.rate_limit import (
@@ -174,7 +174,7 @@ async def _run_db(
     cascade_threshold: int = 10,
     cascade_window_s: float = 60.0,
 ) -> str | None:
-    """Drive Observer over one DB. Apply migration, set M3_DATABASE so
+    """Drive Observer over one DB. Apply migration, pin the main database so
     memory_core writes land here, then call run_observer.process_conversation
     for each grouped conversation.
 
@@ -670,7 +670,7 @@ async def _drain_queue_mode(args, profile, token: str) -> int:
             f"observed: scope={scope}, engine_root={get_m3_engine_root()}, "
             f"core_db={args.core_db or 'unset'}, "
             f"chatlog_db={args.chatlog_db or 'unset'}, "
-            f"M3_DATABASE={configured_main_db() or 'unset'}, "
+            f"main_db={configured_main_db() or 'unset'}, "
             f"M3_CHATLOG_DATABASE={os.environ.get('M3_CHATLOG_DATABASE') or 'unset'}. "
             f"possible: the engine root is wrong, the databases have not been "
             f"created yet, or an explicit --core-db/--chatlog-db points at a "
@@ -828,8 +828,8 @@ async def _main_async(args) -> int:
             db_targets.append(("chatlog", chatlog_db))
     if not db_targets:
         sys.exit(
-            "ERROR: no DBs found to enrich. Set M3_DATABASE / M3_CHATLOG_DATABASE or use --core-db/--chatlog-db. "
-            "observed: no core or chatlog store resolved. inspect: M3_DATABASE, M3_CHATLOG_DATABASE, --core-db"
+            "ERROR: no DBs found to enrich. Pass --core-db/--chatlog-db (or set M3_CHATLOG_DATABASE). "
+            "observed: no core or chatlog store resolved. inspect: --core-db, --chatlog-db, M3_CHATLOG_DATABASE, the engine root"
         )
 
     # Build dry-run plan first (cheap; useful as both preview AND the

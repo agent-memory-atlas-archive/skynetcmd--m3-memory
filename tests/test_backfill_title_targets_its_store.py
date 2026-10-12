@@ -11,6 +11,8 @@ import os
 import sqlite3
 import sys
 
+from m3_core.paths import configured_main_db, pin_database
+
 BIN = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bin")
 if BIN not in sys.path:
     sys.path.insert(0, BIN)
@@ -42,7 +44,7 @@ def test_chatlog_pass_writes_the_chatlog_store_only(tmp_path, monkeypatch):
     main, chat = tmp_path / "agent_memory.db", tmp_path / "agent_chatlog.db"
     _store(main)
     _store(chat)
-    monkeypatch.setenv("M3_DATABASE", str(main))  # the process-active store
+    pin_database(str(main))  # the process-active store
     from memory.backends import selector
 
     selector._reset_for_tests()
@@ -52,4 +54,4 @@ def test_chatlog_pass_writes_the_chatlog_store_only(tmp_path, monkeypatch):
     assert counters["updated"] == 1
     assert _title(chat), "the targeted store gets the title"
     assert _title(main) is None, "the active store must be left alone"
-    assert os.environ["M3_DATABASE"] == str(main), "the scope must be restored"
+    assert configured_main_db() == str(main), "the scope must be restored"

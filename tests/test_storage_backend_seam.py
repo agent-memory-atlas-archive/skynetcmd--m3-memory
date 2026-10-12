@@ -14,6 +14,7 @@ from __future__ import annotations
 import sqlite3
 
 import pytest
+from m3_core.paths import pin_database
 from memory.backends import (
     StorageBackend,
     active_backend,
@@ -120,7 +121,7 @@ def test_sqlite_schema_version_reports_current(monkeypatch, tmp_path):
     import sqlite3
 
     sqlite3.connect(str(db_path)).close()  # empty file; _db() will migrate it
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
     backend = active_backend()
     v = backend.schema_version()
@@ -161,7 +162,7 @@ def test_sqlite_connection_delegates_to_db(monkeypatch, tmp_path):
 
     db_path = tmp_path / "agent_memory.db"
     create_memory_items_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
 
     from memory import db as db_mod

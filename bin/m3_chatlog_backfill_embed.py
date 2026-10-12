@@ -30,7 +30,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import os
 import sys
 import time
 import uuid
@@ -38,7 +37,6 @@ from pathlib import Path
 
 from m3_core.aio import gather_or_cancel
 from m3_core.paths import (  # noqa: E402
-    configured_main_db,
     get_m3_backups_root,
     pin_database,
     seam_backend,
@@ -49,22 +47,10 @@ from m3_core.runtime import utc_iso
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "bin"))
-
 import memory_core as mc  # noqa: E402
+from m3_core.paths import resolve_role_db as _resolve_db  # noqa: E402
 
 BACKUP_DIR = Path(get_m3_backups_root()) / "embed-backfill"
-
-
-def _resolve_db(arg_path: str | None, env_var: str, default_name: str) -> Path | None:
-    if arg_path:
-        p = Path(arg_path).expanduser().resolve()
-        return p if os.path.exists(p) else None
-    env_val = configured_main_db() if env_var == "M3_DATABASE" else os.environ.get(env_var)
-    if env_val:
-        p = Path(env_val).expanduser().resolve()
-        return p if os.path.exists(p) else None
-    p = REPO_ROOT / "memory" / default_name
-    return p if os.path.exists(p) else None
 
 
 def _audit_unembedded(
@@ -293,7 +279,7 @@ async def _main_async(args) -> int:
             "ERROR: no DBs found. "
             "observed: tried core_db='" + str(_resolve_db(args.core_db, "M3_DATABASE", "agent_memory.db")) + "', "
             "chatlog_db='" + str(_resolve_db(args.chatlog_db, "M3_CHATLOG_DATABASE", "agent_chatlog.db")) + "'. "
-            "inspect: M3_DATABASE, M3_CHATLOG_DATABASE env vars or --core-db/--chatlog-db arguments."
+            "inspect: the --core-db/--chatlog-db arguments, M3_CHATLOG_DATABASE, the engine root."
         )
 
     plan = {"types": type_filter or "ALL types", "min_chars": args.min_chars, "dbs": {}}

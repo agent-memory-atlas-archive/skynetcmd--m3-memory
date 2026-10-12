@@ -13,6 +13,7 @@ import sqlite3
 import sys
 
 import pytest
+from m3_core.paths import pin_database
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
@@ -68,7 +69,7 @@ def _seed(db_path, rows):
 def isolated_db(monkeypatch, tmp_path):
     """Point memory_core at a tmp DB and short-circuit lazy schema init."""
     db_path = tmp_path / "agent_memory.db"
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
 
     import memory_core
 

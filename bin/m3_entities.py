@@ -1100,7 +1100,7 @@ async def _main_async(args: argparse.Namespace) -> int:
         sys.exit(
             "ERROR: no DBs found. "
             "observed: no core DB resolved and chatlog DB does not exist. "
-            "inspect: --core-db argument, M3_DATABASE env var, or M3_CHATLOG_DATABASE."
+            "inspect: the --core-db argument, or M3_CHATLOG_DATABASE."
         )
 
     # Build dry-run plan

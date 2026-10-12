@@ -21,6 +21,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from m3_core.paths import configured_main_db, pin_database
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "bin"))
@@ -358,15 +359,15 @@ async def test_sweep_writes_embeddings_and_queue(db, monkeypatch):
         ],
     )
 
-    # Mock _embed_many BEFORE _run_sweep imports memory_core (it sets
-    # M3_DATABASE first, then late-imports). We monkeypatch on the module
+    # Mock _embed_many BEFORE _run_sweep imports memory_core (it pins
+    # the main database first, then late-imports). We monkeypatch on the module
     # after import.
     args = _make_args(db)
     counters = eb.Counters()
 
     # _run_sweep imports memory_core lazily; trigger the import here
     # so we can monkeypatch _embed_many before sweep dispatches.
-    os.environ["M3_DATABASE"] = str(db)
+    pin_database(str(db))
     if str(REPO / "bin") not in sys.path:
         sys.path.insert(0, str(REPO / "bin"))
     import memory_core as mc
@@ -409,7 +410,7 @@ async def test_sweep_skips_oversize(db, monkeypatch):
         ],
     )
 
-    os.environ["M3_DATABASE"] = str(db)
+    pin_database(str(db))
     import memory_core as mc
 
     embed_calls = []
@@ -453,7 +454,7 @@ async def test_sweep_skips_oversize_after_augment(db, monkeypatch):
 
     _seed_rows(db, [{"id": "row-A", "content": "small enough on disk"}])
 
-    os.environ["M3_DATABASE"] = str(db)
+    pin_database(str(db))
     import memory_core as mc
 
     # Row passes the query filter, then augmentation blows it past the cap.
@@ -506,7 +507,7 @@ async def test_sweep_subdivides_oversize_by_default(db, monkeypatch):
         ],
     )
 
-    os.environ["M3_DATABASE"] = str(db)
+    pin_database(str(db))
     import memory_core as mc
 
     embed_calls = []
@@ -545,7 +546,7 @@ async def test_sweep_subdivides_oversize_after_augment(db, monkeypatch):
 
     _seed_rows(db, [{"id": "row-A", "content": "small enough on disk"}])
 
-    os.environ["M3_DATABASE"] = str(db)
+    pin_database(str(db))
     import memory_core as mc
 
     huge = "y" * 50_000
@@ -575,7 +576,7 @@ async def test_sweep_skips_bad_dim(db, monkeypatch):
 
     _seed_rows(db, [{"id": "row-A", "content": "alpha"}])
 
-    os.environ["M3_DATABASE"] = str(db)
+    pin_database(str(db))
     import memory_core as mc
 
     async def fake_embed_many(texts):
@@ -604,7 +605,7 @@ async def test_sweep_handles_embed_failure_gracefully(db, monkeypatch):
 
     _seed_rows(db, [{"id": "row-A", "content": "alpha"}])
 
-    os.environ["M3_DATABASE"] = str(db)
+    pin_database(str(db))
     import memory_core as mc
 
     async def fake_embed_many(texts):
@@ -636,7 +637,7 @@ async def test_sweep_resumes_skipping_already_embedded(db, monkeypatch):
         ],
     )
 
-    os.environ["M3_DATABASE"] = str(db)
+    pin_database(str(db))
     import memory_core as mc
 
     n_calls = [0]
@@ -696,7 +697,8 @@ def test_parse_args_repeatable_filters():
 
 
 # ── M3_DATABASE must not leak out of a sweep (#180) ────────────────────────
-# _run_sweep sets M3_DATABASE before its late import of memory_core. Leaking
+# _run_sweep pins the main database (it wrote M3_DATABASE until phase 2) before
+# its late import of memory_core. Leaking
 # it poisons every later resolve_db_path(None) in the process: in the cognitive
 # loop the value left behind was the CHATLOG db, so chat_store_paths() returned
 # the chatlog path as its "main store", collapsed to one entry, and the chatlog
@@ -706,39 +708,39 @@ def test_parse_args_repeatable_filters():
 
 @pytest.mark.asyncio
 async def test_run_sweep_restores_m3_database(tmp_path, monkeypatch):
-    """A sweep must leave M3_DATABASE exactly as it found it."""
+    """A sweep must leave the main-database pin exactly as it found it."""
     import embed_backfill as eb
 
     sentinel = str(tmp_path / "main.db")
-    monkeypatch.setenv("M3_DATABASE", sentinel)
+    pin_database(sentinel)
 
     swept = tmp_path / "chatlog.db"
     _make_min_schema(swept)  # no rows: sweep is a no-op, restore still required
 
     await eb._run_sweep(_make_args(swept), eb.Counters())
 
-    assert os.environ["M3_DATABASE"] == sentinel, "M3_DATABASE leaked the swept db; see #180"
+    assert configured_main_db() == sentinel, "the main-database pin leaked the swept db; see #180"
 
 
 @pytest.mark.asyncio
 async def test_run_sweep_restores_m3_database_absence(tmp_path, monkeypatch):
     """Previously UNSET must come back unset, not as an empty string.
 
-    resolve_db_path() uses `os.environ.get("M3_DATABASE") or ...`, so "" would
-    fall through -- but chat_store_paths()/_main_path_from_env() and any
-    truthiness check elsewhere would still see a key that did not exist before.
-    Restoring absence as absence is the only faithful restore.
+    A sweep with no pin before must leave no pin after: anything else makes
+    chat_store_paths()/_main_path_from_env() see a main store that was never
+    configured. Restoring absence as absence is the only faithful restore.
     """
     import embed_backfill as eb
 
-    monkeypatch.delenv("M3_DATABASE", raising=False)
+    pin_database(None)
 
     swept = tmp_path / "chatlog.db"
     _make_min_schema(swept)
 
     await eb._run_sweep(_make_args(swept), eb.Counters())
 
-    assert "M3_DATABASE" not in os.environ, "absence must be restored as absence, not as an empty string; see #180"
+    assert configured_main_db() is None, "absence must be restored as absence; see #180"
+    assert "M3_DATABASE" not in os.environ, "a sweep must not write the environment"
 
 
 @pytest.mark.asyncio
@@ -752,7 +754,7 @@ async def test_run_sweep_restores_m3_database_on_exception(tmp_path, monkeypatch
     import embed_backfill as eb
 
     sentinel = str(tmp_path / "main.db")
-    monkeypatch.setenv("M3_DATABASE", sentinel)
+    pin_database(sentinel)
 
     swept = tmp_path / "chatlog.db"
     _make_min_schema(swept)
@@ -767,4 +769,4 @@ async def test_run_sweep_restores_m3_database_on_exception(tmp_path, monkeypatch
     with pytest.raises(RuntimeError):
         await eb._run_sweep(_make_args(swept), eb.Counters())
 
-    assert os.environ["M3_DATABASE"] == sentinel, "M3_DATABASE leaked after a failing sweep; see #180"
+    assert configured_main_db() == sentinel, "the main-database pin leaked after a failing sweep; see #180"

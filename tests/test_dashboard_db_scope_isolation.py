@@ -38,7 +38,7 @@ sys.path.insert(0, str(_BIN))
 
 pytest.importorskip("fastapi", reason=skip_reason("dep", "dashboard needs the [dashboard] extra"))
 
-from m3_core.paths import active_database, resolve_db_path  # noqa: E402
+from m3_core.paths import active_database, pin_database, resolve_db_path  # noqa: E402
 
 # ── The mechanism, independent of the dashboard ───────────────────────────────
 
@@ -56,7 +56,7 @@ def test_the_contextvar_outranks_the_env_var(monkeypatch, tmp_path):
     with active_database(chat):
         assert resolve_db_path(None) == os.path.abspath(chat)
 
-    monkeypatch.setenv("M3_DATABASE", main)
+    pin_database(main)
     with active_database(chat):
         assert resolve_db_path(None) == os.path.abspath(chat), (
             "the scope must outrank M3_DATABASE; DbScopeMiddleware's yield is what lets an operator's explicit pin win"

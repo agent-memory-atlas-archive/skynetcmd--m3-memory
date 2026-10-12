@@ -18,6 +18,7 @@ import sys
 import uuid
 
 import pytest
+from m3_core.paths import pin_database
 
 _BIN = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "bin"))
 if _BIN not in sys.path:
@@ -85,7 +86,7 @@ def scratch_db(monkeypatch, tmp_path):
     conn.commit()
     conn.close()
 
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    pin_database(str(db_path))
     import memory_core
 
     if hasattr(memory_core, "_initialized_dbs"):
