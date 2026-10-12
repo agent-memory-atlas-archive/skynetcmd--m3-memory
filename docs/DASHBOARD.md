@@ -137,7 +137,7 @@ case. An ⓘ info box in the UI documents this inline.
 ## Backends
 
 The dashboard reads and writes through m3's storage-backend seam, so it works
-unchanged on **SQLite** (the default) and **PostgreSQL** (`M3_DB_BACKEND=postgres`).
+unchanged on **SQLite** (the default) and **PostgreSQL** (`[db] backend = "postgres"`).
 A future SQL backend (e.g. MariaDB) is picked up automatically — the dashboard
 never hardcodes an engine.
 

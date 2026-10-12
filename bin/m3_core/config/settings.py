@@ -29,7 +29,7 @@ from . import env as _env
 from .keys import REGISTRY
 from .loader import FileIdentity, LoadedFile, Location, file_identity, format_config_error, load, locate
 from .registry import ConfigValue, Key, KeyClass, Registry
-from .resolve import ConfigEnvError, DotEnv, Resolved, env_outranks_file, from_env, live_env_override, resolve_all
+from .resolve import ConfigEnvError, DotEnv, Resolved, from_env, resolve_all
 
 logger = logging.getLogger(__name__)
 
@@ -242,12 +242,7 @@ def _setting(name: str) -> ConfigValue | None:
     key = REGISTRY.get(name)
     if key is None:
         raise KeyError(f"observed: {name!r} is not a registry key. inspect: m3_core/config/keys*.py")
-    snap = current()
-    if env_outranks_file(key):
-        resolved = snap.resolved[key.name]
-        if resolved.origin not in ("cli", "override"):  # an explicit choice beats env
-            return live_env_override(key, resolved, _env.environ())
-    value: ConfigValue | None = snap[key]
+    value: ConfigValue | None = current()[key]
     return value
 
 
@@ -555,8 +550,7 @@ class EnvDisagreement:
     key: str
     env_name: str
     env_value: ConfigValue | str  # the raw text when it does not even parse
-    file_value: ConfigValue | None
-    winner: str  # "file" | "env" (env only for an env_override key, U9)
+    file_value: ConfigValue | None  # what m3 uses: the file always wins
 
 
 def env_contradicting(key: Key, value: ConfigValue | None) -> list[tuple[str, ConfigValue | str]]:
@@ -579,8 +573,8 @@ def env_contradicting(key: Key, value: ConfigValue | None) -> list[tuple[str, Co
 
 
 def env_disagreements() -> list[EnvDisagreement]:
-    """Every env var that contradicts a value SET in m3_config.toml, and which one
-    wins. The transition report ``m3 doctor`` and setup print until the user
+    """Every env var that contradicts a value SET in m3_config.toml (the file
+    wins). The transition report ``m3 doctor`` and setup print until the user
     retires it (user decision 2026-10-12, m3 64ea4eab). A key with no value in
     the file, or one a flag set for this run, has nothing to disagree with."""
     snap = current()
@@ -589,13 +583,11 @@ def env_disagreements() -> list[EnvDisagreement]:
         if key.klass is not KeyClass.CONFIG or key.name not in snap.resolved:
             continue
         r = snap.resolved[key.name]
-        in_file = r if r.origin.startswith("file:") else r.beneath
-        if in_file is None or not in_file.origin.startswith("file:"):
+        if not r.origin.startswith("file:"):
             continue
-        winner = "env" if env_outranks_file(key) else "file"
         out.extend(
-            EnvDisagreement(key=key.name, env_name=n, env_value=v, file_value=in_file.value, winner=winner)
-            for n, v in env_contradicting(key, in_file.value)
+            EnvDisagreement(key=key.name, env_name=n, env_value=v, file_value=r.value)
+            for n, v in env_contradicting(key, r.value)
         )
     return out
 

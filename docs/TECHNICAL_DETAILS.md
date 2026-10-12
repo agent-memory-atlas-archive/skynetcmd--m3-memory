@@ -153,7 +153,7 @@ Migrations v013+ ship both `.up.sql` and `.down.sql` files.
   is bounded separately by a SQL `LIMIT` (2,000 on the default path), so the cap
   is a backstop rather than the active bound.
 - Embedding cache: content hash lookup avoids re-embedding identical text
-- On a **PostgreSQL primary backend** (`M3_DB_BACKEND=postgres`), vector search is still brute-force Rust cosine over the candidate set — the same algorithm, not an index-accelerated ANN. pgvector/HNSW approximate nearest-neighbor is a **future accelerator, not yet implemented**, so choosing PG-primary today buys a shared/server-hosted store, not faster vector search.
+- On a **PostgreSQL primary backend** (`[db] backend = "postgres"`), vector search is still brute-force Rust cosine over the candidate set — the same algorithm, not an index-accelerated ANN. pgvector/HNSW approximate nearest-neighbor is a **future accelerator, not yet implemented**, so choosing PG-primary today buys a shared/server-hosted store, not faster vector search.
 
 **Stage 3 — MMR Re-Ranking**
 - Maximal Marginal Relevance with λ=0.7

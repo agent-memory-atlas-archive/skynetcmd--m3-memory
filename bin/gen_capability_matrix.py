@@ -82,7 +82,7 @@ def main() -> int:
     lines.append(
         "> **Beyond MCP tools:** M3 also ships a **storage backend** choice "
         "(SQLite default; PostgreSQL as a first-class primary via "
-        "`M3_DB_BACKEND=postgres`) and native **framework adapters** — "
+        '`[db] backend = "postgres"`) and native **framework adapters** — '
         "LangChain/LangGraph, CrewAI, and PydanticAI. These are "
         "deployment/framework facts, not MCP tools, so they don't appear in the "
         "table below. See [CORE_FEATURES](CORE_FEATURES.md) and "

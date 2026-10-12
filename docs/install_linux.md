@@ -19,7 +19,7 @@ The script:
 
 `m3 setup` always keeps the store on **SQLite** (default, zero-infrastructure);
 it never configures PostgreSQL. For a PostgreSQL **primary** store, run
-`m3 install-m3 --db-backend postgres` (or set `M3_DB_BACKEND=postgres`) with a
+`m3 install-m3 --db-backend postgres` (or `m3 config set db.backend postgres`) with a
 reachable server whose DSN you stored with `m3 secret set M3_PRIMARY_PG_URL`.
 
 Refuses to run as root. Sudo is invoked individually for the package install

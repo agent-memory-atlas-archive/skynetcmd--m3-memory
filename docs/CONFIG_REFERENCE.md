@@ -88,7 +88,7 @@ Precedence for each setting: the environment, for the keys marked *env override*
 
 | Key | Type | Default | Environment names | Notes |
 |---|---|---|---|---|
-| `backend` | string | `sqlite` | `M3_DB_BACKEND`, `DB_BACKEND` | env override; restart to apply; one of `sqlite`, `postgres`; Primary storage backend. The one key env may override (CI, containers). |
+| `backend` | string | `sqlite` | `M3_DB_BACKEND`, `DB_BACKEND` | restart to apply; one of `sqlite`, `postgres`; Primary storage backend. Set it with `m3 config set db.backend postgres`; M3_DB_BACKEND is read only as a legacy name (below this file) until N+3. |
 | `pool_size` | integer | `5` | `M3_DB_POOL_SIZE`, `DB_POOL_SIZE` | restart to apply; SQLite connections in M3Context's pool. |
 | `pool_timeout_s` | integer | `30` | `M3_DB_POOL_TIMEOUT`, `DB_POOL_TIMEOUT` | restart to apply; Seconds to wait for a pooled SQLite connection. |
 | `sqlite_mmap_size` | integer | (none) | `M3_SQLITE_MMAP_SIZE` | restart to apply; SQLite mmap_size in bytes; unset keeps the pragma profile's own value. |

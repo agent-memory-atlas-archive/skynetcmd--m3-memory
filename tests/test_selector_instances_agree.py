@@ -20,6 +20,8 @@ from types import ModuleType
 
 import pytest
 
+from conftest import select_backend  # noqa: E402
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bin"))
 
 _SRC = Path(__file__).resolve().parents[1] / "bin" / "memory" / "backends" / "selector.py"
@@ -42,11 +44,11 @@ def test_a_reset_through_one_instance_is_seen_by_the_other(monkeypatch):
     rival = _rival_instance()
     assert rival is not held and rival.__dict__ is not held.__dict__, "not a separate instance"
 
-    monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
+    select_backend("sqlite")
     assert held.resolve_backend_name() == "sqlite"
     assert rival.resolve_backend_name() == "sqlite"
 
-    monkeypatch.setenv("M3_DB_BACKEND", "postgres")
+    select_backend("postgres")
     held._reset_for_tests()
 
     assert held.resolve_backend_name() == "postgres"
@@ -57,19 +59,36 @@ def test_a_reset_through_one_instance_is_seen_by_the_other(monkeypatch):
 
 
 @pytest.mark.parametrize("first,second", [("sqlite", "postgres"), ("postgres", "sqlite")])
-def test_an_env_change_takes_effect_without_a_reset(first, second, monkeypatch):
-    """No memo means no stale value to reset; installer._persist_pg_backend_env
-    sets M3_DB_BACKEND in-process and expects later steps to see it."""
+def test_a_selection_change_takes_effect_without_a_reset(first, second, monkeypatch):
+    """No memo means no stale value to reset; installer._persist_pg_backend
+    selects postgres in-process (a flag) and expects later steps to see it."""
     sel = importlib.import_module("memory.backends.selector")
-    monkeypatch.setenv("M3_DB_BACKEND", first)
+    select_backend(first)
     assert sel.resolve_backend_name() == first
-    monkeypatch.setenv("M3_DB_BACKEND", second)
+    select_backend(second)
     assert sel.resolve_backend_name() == second
 
 
 def test_an_unrecognized_backend_still_raises(monkeypatch):
-    """Dropping the memo must not drop the validation: a typo must never run SQLite."""
+    """Dropping the memo must not drop the validation: a typo must never run SQLite.
+    A flag is refused when it is set; one in the file, when it is resolved."""
+    from m3_memory import _roots
+
     sel = importlib.import_module("memory.backends.selector")
-    monkeypatch.setenv("M3_DB_BACKEND", "postgre")
     with pytest.raises(ValueError, match="postgre"):
+        select_backend("postgre")
+    cfg = _roots.config_root()
+    import os
+
+    os.makedirs(cfg, exist_ok=True)
+    with open(os.path.join(cfg, "m3_config.toml"), "w", encoding="utf-8", newline="\n") as f:
+        f.write('schema_version = 1\n[db]\nbackend = "postgre"\n')
+    from m3_core.config import settings as st
+
+    st._reset_for_tests()
+    from m3_core.config import ConfigFileError, format_config_error
+
+    with pytest.raises(ConfigFileError) as refused:
         sel.resolve_backend_name()
+    assert "postgre" in format_config_error(refused.value)
+    st._reset_for_tests()

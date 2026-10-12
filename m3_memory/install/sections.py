@@ -614,9 +614,9 @@ def _cdw_sync_section() -> None:
     if not cdw:
         return  # no warehouse configured — nothing to report
 
-    import re as _re
+    from m3_core.secret_store import mask_dsn_passwords  # the one masker
 
-    masked = _re.sub(r"(://[^:/@]+:)[^@/]+(@)", r"\1***\2", cdw)
+    masked = mask_dsn_passwords(cdw)
     print()
     print("data warehouse (CDW) sync:")
     print(f"  warehouse DSN:            {masked}")
@@ -657,13 +657,14 @@ def _cdw_sync_section() -> None:
 def _backend_section(cfg: dict) -> None:
     """Report the active PRIMARY database backend and, on PostgreSQL, its health.
 
-    The runtime selects its backend from the ENVIRONMENT (M3_DB_BACKEND +
-    M3_PRIMARY_PG_URL / the selector), not the config file — so a mismatch
-    between what the installer recorded in config (`db_backend`) and what the
-    live env resolves to is a real footgun (the operator thinks they're on PG
-    but the process still opens SQLite, or vice-versa). doctor is the place to
-    surface both and flag the divergence, and to confirm a PG DSN is reachable
-    rather than let the first real query be the discovery.
+    The runtime selects its backend from registry key ``db.backend``
+    (m3_config.toml; ``M3_DB_BACKEND`` only as a legacy name below the file) and
+    the DSN from the secrets chain. The installer's ``db_backend`` record in
+    config.json is a report, not the switch, so a mismatch is a real footgun
+    (the operator thinks they're on PG but the process still opens SQLite, or
+    vice-versa). doctor is the place to surface both and flag the divergence,
+    and to confirm a PG DSN is reachable rather than let the first real query be
+    the discovery.
 
     Best-effort: importing the seam can fail on a stripped env — skip the section
     rather than crash doctor.
@@ -678,20 +679,22 @@ def _backend_section(cfg: dict) -> None:
     print("primary database backend:")
     try:
         live = resolve_backend_name()
-    except Exception as e:  # noqa: BLE001 — a bad M3_DB_BACKEND value lands here
+    except Exception as e:  # noqa: BLE001 — a bad db.backend value lands here
         print(f"  [!] backend unresolved: {e}")
         return
-    env_set = os.environ.get("M3_DB_BACKEND")
-    src = "(M3_DB_BACKEND env)" if env_set else "(default)"
+    try:
+        from m3_core.config.settings import origin_of
+
+        src = f"({origin_of('db.backend')})"
+    except Exception as e:  # noqa: BLE001 -- doctor reports, never crashes
+        src = f"(origin unknown: {e})"
     print(f"  active backend (runtime): {live}  {src}")
 
-    # Config vs env divergence — the switch is env, config is only a record.
+    # The installer's record vs the selector: the switch is db.backend.
     recorded = cfg.get("db_backend")
     if recorded and recorded != live:
-        print(f"  [!] config records db_backend={recorded!r} but the live environment resolves to {live!r}.")
-        print("      The runtime uses the ENV value. Set M3_DB_BACKEND (and, for")
-        print("      postgres, M3_PRIMARY_PG_URL) wherever m3 runs — the MCP server")
-        print("      `env` block and any process that imports m3 — or re-run install.")
+        print(f"  [!] config.json records db_backend={recorded!r} but db.backend resolves to {live!r}.")
+        print(f"      fix: `m3 config set db.backend {recorded}` (the runtime reads that), or re-run install.")
 
     if live == "sqlite":
         # Report the three local stores (core / chat / files) with full paths,
@@ -759,13 +762,13 @@ def _backend_section(cfg: dict) -> None:
     except Exception:  # noqa: BLE001
         dsn = ""
     if not dsn:
-        print("  [!] M3_DB_BACKEND=postgres but no M3_PRIMARY_PG_URL/M3_PG_URL is set —")
-        print("      the primary store has no DSN. Set M3_PRIMARY_PG_URL.")
+        print("  [!] db.backend is postgres but no primary DSN is stored, so the primary store")
+        print("      cannot open. fix: `m3 secret set M3_PRIMARY_PG_URL` (prompts for it).")
         return
 
-    import re as _re
+    from m3_core.secret_store import mask_dsn_passwords  # the one masker
 
-    masked = _re.sub(r"(://[^:/@]+:)[^@/]+(@)", r"\1***\2", dsn)
+    masked = mask_dsn_passwords(dsn)
     print(f"  primary DSN:              {masked}")
     try:
         import psycopg2
@@ -811,7 +814,9 @@ def _backend_section(cfg: dict) -> None:
             print(f"    {label:<6} {table}")
             print(f"           rows: {st['rows']}   last updated: {last}")
     except Exception as e:  # noqa: BLE001 — connection / auth / undefined-table
-        detail = _re.sub(r"(://[^:/@]+:)[^@/]+(@)", r"\1***\2", str(e).strip())
+        from m3_core.secret_store import mask_dsn_passwords  # the one masker
+
+        detail = mask_dsn_passwords(str(e).strip())
         print(f"  reachable:                NO — {detail}")
         print("      Start/reach the PostgreSQL server. The schema builds")
         print("      automatically on the first successful connect.")
@@ -839,11 +844,10 @@ def _config_env_disagreement_section() -> None:
     from m3_memory import installer as _I  # lazy: installer imports this module
 
     for d in found:
-        used = d.env_value if d.winner == "env" else d.file_value
         where = ", ".join(_I._find_env_var_locations(d.env_name)) or "the environment"
         print(
-            f"  [!] {d.env_name}={d.env_value} (set in {where}) disagrees with m3_config.toml "
-            f"{d.key} = {d.file_value}; m3 uses {used} (the {d.winner}). fix: remove {d.env_name} "
+            f"  [i] {d.env_name}={d.env_value} (set in {where}) disagrees with m3_config.toml "
+            f"{d.key} = {d.file_value}; m3 uses the file's value. fix: remove {d.env_name} "
             "there, or change the file."
         )
 

@@ -38,7 +38,7 @@ from m3_core.config import REGISTRY, KeyClass, format_config_error, locate  # no
 from m3_core.config.keys import DB_BACKEND  # noqa: E402
 from m3_core.config.loader import ConfigFileError  # noqa: E402
 from m3_core.config.registry import ConfigValueError, Key, Scope  # noqa: E402
-from m3_core.config.resolve import ConfigEnvErrors, env_outranks_file  # noqa: E402
+from m3_core.config.resolve import ConfigEnvErrors  # noqa: E402
 from m3_core.config.settings import Settings, build, env_contradicting, with_flags  # noqa: E402
 from m3_core.config.writer import ConfigWriteError, set_values  # noqa: E402
 from m3_core.paths import add_config_arg  # noqa: E402
@@ -215,12 +215,10 @@ def _set(args: argparse.Namespace) -> int:
     done = f"{args.key} = {_value_text(value)}" if value is not None else f"removed {args.key}"
     print(f"{done}  ({loc.file})")
     if value is not None:
-        winner = "the environment" if env_outranks_file(key) else "the file"
         for name, seen in env_contradicting(key, value):
-            used = seen if env_outranks_file(key) else value
             print(
-                f"  [!] {name}={seen} is set in this process's environment and disagrees; m3 uses "
-                f"{_value_text(used)} ({winner}). fix: remove {name} where it is set (`m3 doctor` "
+                f"  [i] {name}={seen} is still set in this process's environment; m3 uses "
+                f"{_value_text(value)} (the file). remove {name} where it is set (`m3 doctor` "
                 "names each place)."
             )
     return 0

@@ -84,7 +84,7 @@ Measured on the fixed eval corpus: **22/22 top-5 text recall (100%)** and
 ## Storage backends
 
 Files-memory runs on the same storage seam as the rest of m3, so it follows
-whichever backend the deployment selects (`M3_DB_BACKEND`) — no files-specific
+whichever backend the deployment selects (`db.backend`) — no files-specific
 configuration:
 
 | Backend | Files store lives in | Notes |

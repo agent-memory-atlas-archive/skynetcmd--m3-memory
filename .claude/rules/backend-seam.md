@@ -11,8 +11,11 @@ paths:
 # The backend seam
 
 - **Registry key `db.backend` is the ONLY backend selector** (default `sqlite`):
-  a flag (`set_from_cli`), then `M3_DB_BACKEND` (the one env_override key, U9),
-  then `[db] backend` in m3_config.toml. `M3_PRIMARY_PG_URL` never selects the
+  a flag (`set_from_cli` / `--set`), then `[db] backend` in m3_config.toml, then
+  `M3_DB_BACKEND` only as a legacy name BELOW the file (warned once; until N+3;
+  U9's env override was reversed, m3 9cbed0af). A test switches it with
+  `select_backend(name)` (a flag) or `use_backend(name, dsn)` (the file), never
+  `setenv`. `M3_PRIMARY_PG_URL` never selects the
   backend — it only says where PostgreSQL is. A lane that sets the DSN without the selector silently tests SQLite; that
   shipped once, and a CI job titled "PostgreSQL lane" had no PG coverage.
 - **`conftest.pg_dsn()`** is the `pytest --m3-pg-url` option and nothing else:
@@ -25,10 +28,9 @@ paths:
 - **`requires_pg` gates on REACHABILITY**, not on the seam being PG. A DSN being
   *present* is not the cluster being *up*; treating it as such costs a connect
   timeout per test instead of a skip.
-- **The backend NAME is not memoized** — `resolve_backend_name()` re-reads the
-  env on every call (the settings snapshot is invalidated by the file, not by
-  env, so `setting()` reads an env_override key's env live; `Resolved.beneath`
-  holds the file/default answer for when that env var is removed). A
+- **The backend NAME is not memoized** — `resolve_backend_name()` reads the
+  setting on every call (a flag is live at once; a file change within the
+  snapshot's TTL). A
   module-global memo lives per module instance, and two selector instances with disagreeing memos sent PG-marked tests to SQLite ("the
   23"); do not reintroduce one. Backend INSTANCES (`_backends`) are still cached
   and cleared by `_reset_for_tests()`. Anything that resolves a backend at

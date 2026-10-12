@@ -152,7 +152,6 @@ class Key[T: ConfigValue]:
     bootstrap: bool = False  # secret resolved without the vault (§10)
     scope: Scope = Scope.GLOBAL
     env_names: tuple[str, ...] = ()  # canonical first, then legacy aliases
-    env_override: bool = False  # U9: only M3_DB_BACKEND
     reloadable: bool = True
     validate: Callable[[T], None] | None = None
     legacy_parse: Callable[[str], T] | None = None  # today's reading, where it differs
@@ -165,8 +164,6 @@ class Key[T: ConfigValue]:
             raise ValueError(f"{self.name}: a secret has no default")
         if self.bootstrap and self.klass is not KeyClass.SECRET:
             raise ValueError(f"{self.name}: only a secret can be bootstrap")
-        if self.env_override and not self.env_names:
-            raise ValueError(f"{self.name}: env_override needs an env name")
 
     @property
     def table(self) -> str:
@@ -220,11 +217,6 @@ class Registry:
                 if env in self._by_env:
                     raise ValueError(f"env name {env} claimed by {self._by_env[env].name} and {key.name}")
                 self._by_env[env] = key
-        overrides = sorted(k.name for k in keys if k.env_override)
-        if overrides != sorted(_ENV_OVERRIDE_KEYS):
-            raise ValueError(
-                f"env_override keys {overrides} differ from the approved list {sorted(_ENV_OVERRIDE_KEYS)} (U9)"
-            )
 
     def __iter__(self):
         return iter(self._by_name.values())
@@ -252,6 +244,5 @@ class Registry:
         return out
 
 
-# U9, decided by the user 2026-10-08 (m3 18292d50): the ONLY keys env may
-# override after the N+3 cutover. The Registry refuses any other set.
-_ENV_OVERRIDE_KEYS = frozenset({"db.backend"})
+# No key's env value outranks m3_config.toml: U9's one exception (db.backend,
+# m3 18292d50) was reversed by the user 2026-10-12 (m3 9cbed0af).

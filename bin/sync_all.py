@@ -445,7 +445,7 @@ def run_pg_sync(dry_run: bool) -> bool | None:
     backend = _local_backend_name()
     if backend != "sqlite":
         log.error(
-            f"Local store is {backend!r} (M3_DB_BACKEND), but the generic sync "
+            f"Local store is {backend!r} (db.backend), but the generic sync "
             "bridge supports only a SQLite local store.\n"
             f"  {_FDW_LAST_REASON or 'FDW fast-path did not run.'}\n"
             "  Refusing to run rather than syncing an empty database.\n"

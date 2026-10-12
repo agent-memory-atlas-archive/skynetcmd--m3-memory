@@ -127,7 +127,7 @@ The storage layer is a narrow SQL/DB-API seam — the engine talks to the backen
 through a `Dialect`, so the primary store is selectable, not hard-wired:
 
 - **SQLite** (default) — zero-infra, a single local file. The battle-tested path.
-- **PostgreSQL** (first-class primary) — set `M3_DB_BACKEND=postgres` and store
+- **PostgreSQL** (first-class primary) — run `m3 config set db.backend postgres` and store
   the DSN with `m3 secret set M3_PRIMARY_PG_URL` for shared, high-concurrency,
   or multi-user deployments.
   Same semantics as SQLite (behavior does not depend on the backend).

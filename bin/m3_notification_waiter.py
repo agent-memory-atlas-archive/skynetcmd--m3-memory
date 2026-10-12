@@ -536,7 +536,8 @@ def _has_change_signal(probe_store: str) -> bool:
             from m3_core.paths import resolve_backend_name  # the selector's single owner
 
             env = resolve_backend_name()
-        except ImportError:  # stripped payload: no m3_core either
+        except ImportError:  # stripped payload: no m3_core, so no registry to read [db] backend;
+            # the legacy env name is the only answer left (a diagnostic, not a selection)
             env = (os.environ.get("M3_DB_BACKEND") or os.environ.get("DB_BACKEND") or "sqlite").strip().lower()
         except ValueError as sel_exc:  # an unrecognised name; the selector says which
             env = f"unrecognised ({sel_exc})"

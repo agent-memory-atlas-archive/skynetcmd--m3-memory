@@ -17,10 +17,11 @@ import asyncio
 
 import pytest
 
+from conftest import select_backend  # noqa: E402
+
 
 def _set_backend(monkeypatch, name: str) -> None:
-    monkeypatch.setenv("M3_DB_BACKEND", name)
-    monkeypatch.delenv("DB_BACKEND", raising=False)
+    select_backend(name)
 
 
 def test_sqlite_memory_tool_keeps_the_path(monkeypatch, tmp_path):
@@ -48,7 +49,7 @@ def test_postgres_refuses_database(monkeypatch, tmp_path):
     _set_backend(monkeypatch, "postgres")
     with pytest.raises(ValueError, match=r"memory_search: `database` would be ignored") as e:
         cat._pop_database({"database": str(tmp_path / "a.db")}, "memory_search")
-    assert "M3_DB_BACKEND=postgres" in str(e.value) and "`store`" in str(e.value)
+    assert "db.backend=postgres" in str(e.value) and "`store`" in str(e.value)
 
 
 @pytest.mark.parametrize("backend", ["sqlite", "postgres"])

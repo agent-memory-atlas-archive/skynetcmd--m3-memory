@@ -2,8 +2,8 @@
 
 Precedence for a CONFIG key, N..N+2 (the deprecation window, #D28):
 
-    env, for an ``env_override`` key only (U9: db.backend)
-    > m3_config.toml
+    m3_config.toml (no key's env value outranks it; U9's db.backend exception
+    was reversed 2026-10-12, m3 9cbed0af)
     > legacy env (any other key's old env name; honoured, and reported, until N+3)
     > .env (parsed, never injected; CONFIG_DESIGN §10)
     > <config_root>/.llm_config.json (the [llm] keys' old file; folds in at import-env)
@@ -36,10 +36,6 @@ class Resolved:
     origin: str  # "env:NAME" | "file:<path> [t].k" | "env-legacy:NAME" | "default"
     shadowed: tuple[str, ...] = ()  # env names set but outranked by the file
     env_name: str | None = None  # the env / .env name that supplied the value, if one did
-    # For an env_override key answered by env: what the key resolves to WITHOUT
-    # that env value (file, .env or default). ``setting()`` reads such a key's
-    # env live and falls back to this when the variable is gone since the snapshot.
-    beneath: Resolved | None = None
 
 
 class ConfigEnvError(ValueError):
@@ -118,12 +114,6 @@ def _note_legacy_difference(key: Key, name: str, raw: str, value: ConfigValue) -
         )
 
 
-def env_outranks_file(key: Key) -> bool:
-    """True for an ``env_override`` key (U9: db.backend): its env value beats
-    m3_config.toml. Every other key: the file wins (Option B)."""
-    return key.env_override
-
-
 def resolve_key(
     key: Key,
     loaded: LoadedFile,
@@ -134,30 +124,7 @@ def resolve_key(
     if key.klass is not KeyClass.CONFIG:
         # A contract violation, not a diagnostic: secrets resolve in secret_store.
         raise ValueError(f"{key.name} is a {key.klass} key; secret_store resolves secrets, not resolve_key")
-    legacy = (dotenv, llmfile)
-    hit = _env_hit(key, environ)
-    if env_outranks_file(key) and hit is not None:
-        without = {n: v for n, v in environ.items() if n not in key.env_names}
-        return Resolved(
-            value=from_env(key, *hit),
-            origin=f"env:{hit[0]}",
-            env_name=hit[0],
-            beneath=_resolve_below_env(key, loaded, without, legacy),
-        )
-    return _resolve_below_env(key, loaded, environ, legacy)
-
-
-def live_env_override(key: Key, resolved: Resolved, environ: Mapping[str, str]) -> ConfigValue | None:
-    """An ``env_override`` key's value read from the LIVE environment: env when set
-    now, else what the snapshot holds beneath a since-removed env value. The
-    snapshot is invalidated by the file, not by env, and such a key was always
-    re-read on every call (``paths.resolve_backend_name``)."""
-    hit = _env_hit(key, environ)
-    if hit is not None:
-        return from_env(key, *hit)
-    if resolved.beneath is not None:
-        return resolved.beneath.value
-    return resolved.value
+    return _resolve_below_env(key, loaded, environ, (dotenv, llmfile))
 
 
 def _resolve_below_env(

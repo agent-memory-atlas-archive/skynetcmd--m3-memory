@@ -73,7 +73,7 @@ def _pop_database(args: dict, tool: str) -> str | None:
         return cast("str | None", db)
     raise ValueError(
         f"{tool}: `database` would be ignored. observed: database={db!r}, "
-        f"M3_DB_BACKEND={backend}. cause: {cause}, so the call would run "
+        f"db.backend={backend}. cause: {cause}, so the call would run "
         f"against the default store. inspect: drop `database` to use the "
         f"default store, or select a named store with `store`."
     )

@@ -270,7 +270,7 @@ def _rewrite_file(p: Path, change) -> None:
 
 # ── PostgreSQL DSNs: the one owner (plan 2B.1, review S5) ─────────────────────
 class PgRole(StrEnum):
-    PRIMARY = "primary"  # the live store (M3_DB_BACKEND=postgres)
+    PRIMARY = "primary"  # the live store (db.backend = "postgres")
     WAREHOUSE = "warehouse"  # the pg_sync fan-in mirror (CDW)
 
 

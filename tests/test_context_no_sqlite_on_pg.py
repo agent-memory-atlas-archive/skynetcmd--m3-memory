@@ -16,10 +16,12 @@ if _BIN not in sys.path:
 
 from m3_core.context import M3Context, _close_context_pool  # noqa: E402
 
+from conftest import select_backend  # noqa: E402
+
 
 def test_no_store_file_until_sqlite_is_used(monkeypatch, tmp_path):
     db = tmp_path / "agent_memory.db"
-    monkeypatch.setenv("M3_DB_BACKEND", "postgres")
+    select_backend("postgres")
     ctx = M3Context(str(db))
     try:
         assert not db.exists()
@@ -27,7 +29,7 @@ def test_no_store_file_until_sqlite_is_used(monkeypatch, tmp_path):
         # file is not the live store, and every caller is gated (m3 5c33bf8a).
         import pytest
 
-        with pytest.raises(RuntimeError, match="observed: M3_DB_BACKEND='postgres'"):
+        with pytest.raises(RuntimeError, match=r"observed: db.backend='postgres'"):
             with ctx.get_sqlite_conn():
                 pass
         assert not db.exists(), "a refused request must not create the store either"

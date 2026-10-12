@@ -56,7 +56,7 @@ def _route_dialect(explicit_path: str | None):
     ``_memory_db(path)`` has two routes with DIFFERENT backends (see its
     docstring): an explicit ``path`` ALWAYS opens a raw sqlite3 FILE (tests /
     isolated mutators), so its dialect is unconditionally SQLite regardless of the
-    process-wide ``M3_DB_BACKEND``; ``path=None`` routes through the memory seam,
+    process-wide ``db.backend``; ``path=None`` routes through the memory seam,
     so it uses the ACTIVE backend's dialect (SQLite file or the primary PG store).
     Resolving the dialect per-route — not from the global ``dialect()`` — is what
     keeps an explicit-SQLite-file call correct on a PG deployment.

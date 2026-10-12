@@ -117,7 +117,7 @@ def test_dsn_is_rejected_not_coerced(dsn, monkeypatch):
     with pytest.raises(ValueError) as exc:
         m3_sdk.resolve_db_path(None)
     assert "M3_DATABASE" in str(exc.value)
-    assert "M3_DB_BACKEND" in str(exc.value), "must point at the right knob"
+    assert "db.backend" in str(exc.value), "must point at the right knob"
 
 
 def test_dsn_error_does_not_leak_password(monkeypatch):

@@ -356,6 +356,16 @@ the policy is forward-going only.
 
 ### Changed
 
+- **The storage backend is chosen in `m3_config.toml`, not the environment.**
+  `[db] backend = "postgres"` (or `m3 config set db.backend postgres`) selects
+  it; `--set` changes it for one run. `M3_DB_BACKEND` no longer overrides the
+  file: it is read only when the file does not set the backend, with a warning,
+  until a later release removes it. `m3 config import-env` (run by
+  `m3 upgrade`) moves it into the file, and `m3 doctor` names leftover copies.
+  **Affected:** installs that select PostgreSQL with `M3_DB_BACKEND` ·
+  **Action:** run `m3 upgrade` (or `m3 config set db.backend postgres`), then
+  remove `M3_DB_BACKEND` · **Data status:** none.
+
 - **m3 no longer reads secrets from environment variables.** DSNs, API keys,
   tokens and the vault master key come from the user-only secrets file, then
   the OS keyring entry the file names (or `system/<NAME>` when the file does not

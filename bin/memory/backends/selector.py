@@ -1,4 +1,4 @@
-"""Backend selection — resolves `M3_DB_BACKEND` to a `StorageBackend`.
+"""Backend selection — resolves registry key `db.backend` to a `StorageBackend`.
 
 Default is ``sqlite`` (DESIGN_PHILOSOPHIES §1: L1 SQLite is the only required
 store; PostgreSQL is opt-in). Selecting ``postgres`` before its implementation
@@ -30,9 +30,10 @@ _lock = threading.Lock()
 # ⚠ The backend NAME is deliberately NOT memoized. A module-global memo lives
 # per module INSTANCE, and this module can be loaded twice in one process; two
 # memos then disagree and there is no correct winner — the seam served sqlite to
-# code under M3_DB_BACKEND=postgres. Resolution is an env read plus a membership
+# code selected for postgres. Resolution is a settings read plus a membership
 # check, so the memo bought nothing measurable. Consequence: an in-process
-# M3_DB_BACKEND change takes effect on the next call (installer relies on this).
+# selection change (a flag, set_from_cli) takes effect on the next call (the
+# installer relies on this).
 
 
 def resolve_backend_name() -> BackendName:
@@ -130,8 +131,8 @@ def dialect() -> Dialect:
 
     Convenience over ``active_backend().dialect()`` — the form ~96 call sites
     repeat. A per-CALL function, deliberately NOT a module-global bound at import:
-    ``active_database()`` overrides the DB *path* and ``M3_DB_BACKEND`` is re-read
-    on every call, so a global captured at import would serve a stale dialect.
+    ``active_database()`` overrides the DB *path* and ``db.backend`` is read on
+    every call, so a global captured at import would serve a stale dialect.
     Each call is an env read plus cache hits (cached backend -> frozen dialect
     singleton).
     """

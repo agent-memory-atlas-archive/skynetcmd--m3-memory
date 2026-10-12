@@ -171,7 +171,7 @@ Concurrent writes from multiple agents do **not** fail on lock contention. Every
 
 For **high-concurrency fleets** where many agents write to one shared pool continuously, there are two paths:
 
-1. **PostgreSQL as the shared primary store** (`M3_DB_BACKEND=postgres` + `M3_PRIMARY_PG_URL`): every agent reads and writes the *same* Postgres database directly — no per-agent local store, no sync lag. Postgres has no single-writer constraint, so concurrent writers don't serialize the way one SQLite file does. This is the simplest topology when the agents share infrastructure.
+1. **PostgreSQL as the shared primary store** (`[db] backend = "postgres"` + the `M3_PRIMARY_PG_URL` secret): every agent reads and writes the *same* Postgres database directly — no per-agent local store, no sync lag. Postgres has no single-writer constraint, so concurrent writers don't serialize the way one SQLite file does. This is the simplest topology when the agents share infrastructure.
 2. **Local SQLite + bidirectional warehouse sync** (`bin/pg_sync.py`): each agent writes locally to its own WAL-mode SQLite store and syncs bidirectionally to a shared Postgres *warehouse* (`M3_CDW_PG_URL`). This suits agents that must keep working offline / air-gapped and reconcile later. See [SYNC.md](SYNC.md).
 
 The warehouse (path 2) is a *sync tier*, distinct from using Postgres as the primary backend (path 1) — pick based on whether the fleet shares a live database or each agent owns a local one.

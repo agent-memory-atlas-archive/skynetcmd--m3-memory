@@ -12,6 +12,8 @@ import importlib
 
 import pytest
 
+from conftest import select_backend  # noqa: E402
+
 
 def test_every_registered_backend_declares_it():
     from m3_core.paths import SELECTABLE_BACKENDS
@@ -43,7 +45,7 @@ def test_bootstrap_answers_from_the_configured_name(monkeypatch, name, expected)
             raise ImportError("bootstrap: no memory package")
         return real_import(mod, *a, **kw)
 
-    monkeypatch.setenv("M3_DB_BACKEND", name)
+    select_backend(name)
     monkeypatch.setattr(builtins, "__import__", no_memory)
     assert paths.store_is_a_file() is expected
 
@@ -76,10 +78,10 @@ def test_bootstrap_shim_only_for_sqlite(monkeypatch, resolver):
         return real_import(mod, *a, **kw)
 
     monkeypatch.setattr(builtins, "__import__", no_memory)
-    monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
+    select_backend("sqlite")
     assert getattr(paths, resolver)().param() if resolver == "seam_dialect" else getattr(paths, resolver)().name
-    monkeypatch.setenv("M3_DB_BACKEND", "postgres")
-    with pytest.raises(RuntimeError, match="observed: M3_DB_BACKEND=postgres"):
+    select_backend("postgres")
+    with pytest.raises(RuntimeError, match=r"observed: db.backend=postgres"):
         getattr(paths, resolver)()
 
 

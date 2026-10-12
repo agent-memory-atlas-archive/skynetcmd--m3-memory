@@ -13,7 +13,7 @@ air-gapped enclave) and §2 (modularity, shim-preserved identity). The m3 memory
 directive c4e4a145 carries the full rationale.
 
 Shipped backends: ``sqlite`` (default; delegates to the proven `M3Context`/
-`_db()` machinery) and ``postgres`` (selected via `M3_DB_BACKEND=postgres`).
+`_db()` machinery) and ``postgres`` (selected by `[db] backend = "postgres"`).
 Both are registered via `@register_backend` and resolved through the registry —
 adding another SQL backend (e.g. MariaDB) is one `<name>_backend.py` with a
 co-located `Dialect` subclass plus an allow-list entry, no edits to the shared

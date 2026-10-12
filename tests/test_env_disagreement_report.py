@@ -56,26 +56,22 @@ def test_the_file_wins_for_an_ordinary_key(config_file, monkeypatch):
     config_file("[search]\nrow_cap = 50\n")
     monkeypatch.setenv("M3_SEARCH_ROW_CAP", "60")
     [d] = env_disagreements()
-    assert (d.key, d.env_name, d.env_value, d.file_value, d.winner) == (
-        "search.row_cap",
-        "M3_SEARCH_ROW_CAP",
-        60,
-        50,
-        "file",
-    )
+    assert (d.key, d.env_name, d.env_value, d.file_value) == ("search.row_cap", "M3_SEARCH_ROW_CAP", 60, 50)
 
 
-def test_env_wins_for_the_backend(config_file, monkeypatch):
-    """db.backend is the one env_override key (U9)."""
+def test_the_file_wins_for_the_backend_too(config_file, monkeypatch):
+    """U9 reversed (m3 9cbed0af): db.backend is an ordinary key, so the file wins."""
     from m3_core.config.settings import env_disagreements
+    from m3_core.paths import resolve_backend_name
 
     config_file('[db]\nbackend = "postgres"\n')
     monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
     [d] = env_disagreements()
-    assert (d.env_name, d.env_value, d.file_value, d.winner) == ("M3_DB_BACKEND", "sqlite", "postgres", "env")
+    assert (d.env_name, d.env_value, d.file_value) == ("M3_DB_BACKEND", "sqlite", "postgres")
+    assert resolve_backend_name() == "postgres"
 
 
-def test_doctor_names_both_values_and_the_winner(config_file, monkeypatch, capsys):
+def test_doctor_names_both_values_and_says_the_file_is_used(config_file, monkeypatch, capsys):
     from m3_memory.install.sections import _config_env_disagreement_section
 
     config_file('[db]\nbackend = "postgres"\n')
@@ -84,7 +80,8 @@ def test_doctor_names_both_values_and_the_winner(config_file, monkeypatch, capsy
     monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
     _config_env_disagreement_section()
     out = capsys.readouterr().out
-    assert "M3_DB_BACKEND=sqlite" in out and "db.backend = postgres" in out and "m3 uses sqlite" in out, out
+    assert "M3_DB_BACKEND=sqlite" in out and "db.backend = postgres" in out and "the file's value" in out, out
+    assert "[i]" in out and "[!]" not in out, "a shadowed leftover is not a fault (§3)"
 
 
 @pytest.mark.parametrize(("env", "warned"), [("0", True), ("1", False)])

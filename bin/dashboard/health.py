@@ -1030,12 +1030,12 @@ def _backend_block() -> dict:
     else:
         # PostgreSQL / other SQL backend: report identity + counts via a probe.
         try:
-            import re
-
             from m3_sdk import PgRole, resolve_pg_dsn
 
             dsn = resolve_pg_dsn(PgRole.PRIMARY)
-            masked = re.sub(r"(://[^:/@]+:)[^@/]+(@)", r"\1***\2", dsn) if dsn else ""
+            from m3_core.secret_store import mask_dsn_passwords  # the one masker
+
+            masked = mask_dsn_passwords(dsn) if dsn else ""
             rows, last, reachable = None, "—", False
             if dsn:
                 import psycopg2
@@ -1076,9 +1076,9 @@ def _cdw_block() -> dict | None:
         return None
     if not cdw:
         return None
-    import re
+    from m3_core.secret_store import mask_dsn_passwords  # the one masker
 
-    masked = re.sub(r"(://[^:/@]+:)[^@/]+(@)", r"\1***\2", cdw)
+    masked = mask_dsn_passwords(cdw)
     out: dict[str, Any] = {"dsn": masked, "watermarks": []}
     try:
         core_db = resolve_db_path(None)

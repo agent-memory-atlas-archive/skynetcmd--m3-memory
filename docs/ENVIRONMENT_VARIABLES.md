@@ -142,15 +142,23 @@ By default m3 stores everything in a local **SQLite** file — zero infrastructu
 nothing to configure. PostgreSQL as the **primary** store is opt-in. The installer
 asks which backend to use (default SQLite); you can also pass
 `m3 install-m3 --db-backend postgres` (it reads the DSN from the
-`M3_PRIMARY_PG_URL` secret). m3 selects its backend from the **environment**, not
-the config file, so `M3_DB_BACKEND` must be set wherever m3 runs (your MCP
-server's `env` block, your shell, or the process that imports m3 —
-LangChain/SDK/CLI). The DSN is a secret and is never read from the environment:
+`M3_PRIMARY_PG_URL` secret), and the installer writes the choice to the config
+file. The backend is the config key `db.backend` in `m3_config.toml`, not an
+environment variable:
+
+```toml
+[db]
+backend = "postgres"   # or "sqlite" (the default)
+```
+
+Set it with `m3 config set db.backend postgres`, or for one run with
+`m3 "--set={db.backend=^postgres^}" <command>`. The DSN is a secret and is never
+read from the environment:
 
 | Name | Purpose | Example |
 |---|---|---|
-| `M3_DB_BACKEND` | Primary backend: `sqlite` (default) or `postgres`. | `export M3_DB_BACKEND=postgres` |
-| `M3_PRIMARY_PG_URL` | **Secret** (secrets file / keyring). Primary-store DSN when `M3_DB_BACKEND=postgres`. Never the warehouse DSN. The env names `M3_PRIMARY_PG_URL` / `M3_PG_URL` are read only by `m3 config import-env`, to migrate. | `m3 secret set M3_PRIMARY_PG_URL` (value like `postgresql://m3:PASSWORD@localhost:5432/m3_primary`) |
+| `M3_DB_BACKEND` / `DB_BACKEND` | **Legacy name** for `db.backend`. It does not override the file: it is read only when the file does not set the key (with a one-time warning), until release N+3. `m3 config import-env` (run by `m3 upgrade`) moves it into the file; `m3 doctor` names leftover copies. | `m3 config set db.backend postgres` |
+| `M3_PRIMARY_PG_URL` | **Secret** (secrets file / keyring). Primary-store DSN when `db.backend` is `postgres`. Never the warehouse DSN. The env names `M3_PRIMARY_PG_URL` / `M3_PG_URL` are read only by `m3 config import-env`, to migrate. | `m3 secret set M3_PRIMARY_PG_URL` (value like `postgresql://m3:PASSWORD@localhost:5432/m3_primary`) |
 
 The schema is created automatically on first connect if the server wasn't reachable
 at install time — nothing else to do once the database is up.

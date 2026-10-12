@@ -31,9 +31,9 @@ DB_BACKEND = Key[str](
     default="sqlite",
     validate=one_of(*SELECTABLE_BACKENDS),  # S6: the selector owns the set
     env_names=("M3_DB_BACKEND", "DB_BACKEND"),
-    env_override=True,  # U9: the only env_override key
     reloadable=False,
-    doc="Primary storage backend. The one key env may override (CI, containers).",
+    doc="Primary storage backend. Set it with `m3 config set db.backend postgres`; "
+    "M3_DB_BACKEND is read only as a legacy name (below this file) until N+3.",
 )
 
 _POSITIVE = in_range(lo=1)

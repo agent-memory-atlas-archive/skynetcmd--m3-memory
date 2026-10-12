@@ -1257,8 +1257,9 @@ def _persist_pg_backend(dsn: str) -> list[str]:
     so the choice goes to the file every m3 process reads, and to this process as
     a flag-level setting so its later steps see it. No env, registry or shell
     profile write: setup writes files, not env (wizard cut-over, user decision
-    2026-10-11, m3 ec79a21b). ``M3_DB_BACKEND`` still OVERRIDES the file (U9), so a
-    different value left in the environment is reported.
+    2026-10-11, m3 ec79a21b). ``M3_DB_BACKEND`` no longer overrides the file (U9
+    reversed 2026-10-12, m3 9cbed0af); a different value left in the environment
+    is reported as a leftover to remove.
 
     The DSN is a secret and goes to the one DSN store owner
     (``m3_core.secret_store.store_pg_dsn``: the user-only secrets file), never to
@@ -1276,17 +1277,17 @@ def _persist_pg_backend(dsn: str) -> list[str]:
     except ImportError as e:
         msgs.append(
             f"[!] the PostgreSQL backend was NOT recorded (m3's config package did not import: {e}); "
-            "m3 selects PostgreSQL only where M3_DB_BACKEND=postgres is set. inspect: m3 doctor"
+            'm3 stays on SQLite until [db] backend = "postgres" is set in m3_config.toml. inspect: m3 doctor'
         )
     else:
         # Transition report (user decision 2026-10-12, m3 64ea4eab): an env var
-        # that disagrees with what setup writes is named. M3_DB_BACKEND is the
-        # env_override key (U9), so here the env var WINS.
+        # that disagrees with what setup writes is named. The file wins, so it is
+        # a leftover to remove, not a value m3 uses.
         for name, seen in settings.env_contradicting(DB_BACKEND, "postgres"):
             where = ", ".join(_find_env_var_locations(name)) or "the environment"
             msgs.append(
-                f"[!] {name}={seen} is set in {where} and overrides m3_config.toml "
-                f'([db] backend = "postgres"): m3 runs on {seen} until it is removed or set to postgres.'
+                f"[i] {name}={seen} is still set in {where}; m3 uses m3_config.toml "
+                f'([db] backend = "postgres"). Remove {name} there.'
             )
         settings.set_from_cli({DB_BACKEND.name: "postgres"})  # this run's later steps
         try:
@@ -1297,7 +1298,7 @@ def _persist_pg_backend(dsn: str) -> list[str]:
             # install's other steps already ran (best-effort post-install).
             msgs.append(
                 f"[!] the PostgreSQL backend was NOT recorded in {locate().file}: {e}. That file does "
-                "not select PostgreSQL, so m3 uses it only where M3_DB_BACKEND=postgres is set. "
+                "not select PostgreSQL, so m3 stays on SQLite. "
                 'fix: set [db] backend = "postgres" in that file. inspect: m3 config show --origin'
             )
 
@@ -1582,12 +1583,10 @@ def _print_backup_reminder() -> None:
         # PostgreSQL primary store — the durable data is in PG, not local .db files.
         dsn_masked = ""
         try:
-            import re as _re
-
             from m3_sdk import PgRole, resolve_pg_dsn
 
             _dsn = resolve_pg_dsn(PgRole.PRIMARY)
-            dsn_masked = _re.sub(r"(://[^:/@]+:)[^@/]+(@)", r"\1***\2", _dsn)
+            dsn_masked = _mask_dsn(_dsn)
         except Exception:  # noqa: BLE001
             pass
         print()

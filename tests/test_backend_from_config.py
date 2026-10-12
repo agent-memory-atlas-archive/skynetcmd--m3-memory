@@ -1,8 +1,9 @@
-"""The backend selector reads registry key ``db.backend`` (CONFIG_DESIGN §2 item 6):
-a flag, then ``M3_DB_BACKEND`` re-read LIVE (U9, the one env_override key), then
-``[db] backend`` in m3_config.toml, then sqlite. Before this, the selector read
-env only, so a backend chosen in the file was silently ignored: a PostgreSQL
-install would have run on SQLite."""
+"""The backend selector reads registry key ``db.backend`` (CONFIG_DESIGN §2 item 6),
+an ordinary key since 2026-10-12 (U9 reversed, m3 9cbed0af): a flag, then
+``[db] backend`` in m3_config.toml, then ``M3_DB_BACKEND`` as a legacy name BELOW
+the file (warned once), then sqlite. Before the registry, the selector read env
+only, so a backend chosen in the file was silently ignored: a PostgreSQL install
+would have run on SQLite."""
 
 from __future__ import annotations
 
@@ -35,23 +36,32 @@ def test_the_file_selects_the_backend(postgres_in_file):
     assert resolve_backend_name() == "postgres"
 
 
-def test_env_overrides_the_file(postgres_in_file, monkeypatch):
+def test_the_file_beats_env(postgres_in_file, monkeypatch):
+    from m3_core.config import settings as st
     from m3_core.paths import resolve_backend_name
 
     monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
-    assert resolve_backend_name() == "sqlite"
-
-
-def test_env_is_read_live_after_the_snapshot(postgres_in_file, monkeypatch):
-    """The snapshot is invalidated by the file, not by env: an env value present
-    when it was built and removed since must not linger, and must not hide the
-    file's value either."""
-    from m3_core.paths import resolve_backend_name
-
-    monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
-    assert resolve_backend_name() == "sqlite"  # the snapshot is built with env set
-    monkeypatch.delenv("M3_DB_BACKEND")
+    st._reset_for_tests()
     assert resolve_backend_name() == "postgres"
+
+
+def test_the_legacy_env_name_answers_below_the_file_and_warns_once(monkeypatch, caplog):
+    """With no [db] backend in the file, M3_DB_BACKEND still selects until N+3,
+    and says so once per process: a daemon on PostgreSQL because of a variable
+    nobody sees must not be silent (§3)."""
+    import logging
+
+    from m3_core import paths
+    from m3_core.config import settings as st
+
+    monkeypatch.setenv("M3_DB_BACKEND", "postgres")
+    monkeypatch.setattr(paths, "_BACKEND_ENV_WARNED", set())
+    st._reset_for_tests()
+    with caplog.at_level(logging.WARNING):
+        assert paths.resolve_backend_name() == "postgres"
+        assert paths.resolve_backend_name() == "postgres"
+    said = [r.getMessage() for r in caplog.records if "M3_DB_BACKEND" in r.getMessage()]
+    assert len(said) == 1 and "m3 config set db.backend postgres" in said[0], said
 
 
 def test_a_flag_beats_env(postgres_in_file, monkeypatch):

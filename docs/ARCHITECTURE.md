@@ -6,7 +6,7 @@
 
 ## 👁️ System Overview
 
-m3 Memory is a local-first persistent memory system for MCP agents. An agent calls MCP tools to write, search, link, and manage memories. The primary store is pluggable — a local SQLite file by default, or PostgreSQL as a first-class primary backend (`M3_DB_BACKEND=postgres`; see Storage Hierarchy). A separate optional PostgreSQL sync layer enables cross-device search.
+m3 Memory is a local-first persistent memory system for MCP agents. An agent calls MCP tools to write, search, link, and manage memories. The primary store is pluggable — a local SQLite file by default, or PostgreSQL as a first-class primary backend (`[db] backend = "postgres"`; see Storage Hierarchy). A separate optional PostgreSQL sync layer enables cross-device search.
 
 ```
 Agent (Claude Code / Gemini CLI / Aider)
@@ -63,7 +63,7 @@ flowchart LR
     subgraph L1 ["L1 · Local primary — required"]
         direction TB
         SQ[("<b>SQLite</b><br/><i>default</i>")]
-        PGL[("<b>PostgreSQL</b><br/><i>M3_DB_BACKEND=postgres</i>")]
+        PGL[("<b>PostgreSQL</b><br/><i>db.backend = postgres</i>")]
     end
 
     subgraph L2 ["L2 · Warehouse — optional"]
@@ -87,7 +87,7 @@ row-level bridge; a **PostgreSQL** primary uses the `postgres_fdw` fast path,
 which is not optional there but the *only* supported path (see
 [SYNC_PG_TO_PG.md](SYNC_PG_TO_PG.md)).
 
-**L1 — Primary store** *(pluggable)*. SQLite by default: all reads and writes hit local SQLite first, WAL mode enables concurrent access, no external dependencies — the recommended default for single-user/local. The primary backend can instead be **PostgreSQL** via `M3_DB_BACKEND=postgres` + `M3_PRIMARY_PG_URL` (opt-in, chosen at install or with `mcp-memory install-m3 --db-backend postgres`), for a shared/server-hosted live store. Note: on the PostgreSQL primary, vector search is currently brute-force Rust cosine; pgvector/HNSW ANN is a future accelerator, not yet implemented.
+**L1 — Primary store** *(pluggable)*. SQLite by default: all reads and writes hit local SQLite first, WAL mode enables concurrent access, no external dependencies — the recommended default for single-user/local. The primary backend can instead be **PostgreSQL** via `[db] backend = "postgres"` + the `M3_PRIMARY_PG_URL` secret (opt-in, chosen at install or with `mcp-memory install-m3 --db-backend postgres`), for a shared/server-hosted live store. Note: on the PostgreSQL primary, vector search is currently brute-force Rust cosine; pgvector/HNSW ANN is a future accelerator, not yet implemented.
 
 **L2 — PostgreSQL warehouse** *(optional, separate role)* provides cross-device sync. Bi-directional delta sync uses UUID-based UPSERT with watermark tracking. Syncs memories, relationships, embeddings, and encrypted secrets. Configured by the `M3_CDW_PG_URL` secret (`m3 secret set M3_CDW_PG_URL`; a vault entry under the older name `PG_URL` still works). This is distinct from using PostgreSQL as the L1 primary store above.
 

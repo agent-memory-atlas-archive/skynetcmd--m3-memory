@@ -173,8 +173,9 @@ again:
    from cron and non-login sshd shells. No-op on Windows.
 8. **Interactive prompts** (TTY only):
    - Primary database backend: SQLite (default, zero-infrastructure) or
-     PostgreSQL. Choosing PostgreSQL sets `M3_DB_BACKEND=postgres` and needs
-     a reachable server via `M3_PRIMARY_PG_URL`. Non-interactively:
+     PostgreSQL. Choosing PostgreSQL writes `[db] backend = "postgres"` to
+     `m3_config.toml` and stores the server's DSN as the `M3_PRIMARY_PG_URL`
+     secret (`m3 secret set M3_PRIMARY_PG_URL`). Non-interactively:
      `m3 install-m3 --db-backend {sqlite,postgres}`.
    - LLM endpoint: probe local OpenAI-compatible servers (Ollama :11434
      etc.), or pin a custom URL. m3's own embedder is sovereign and runs

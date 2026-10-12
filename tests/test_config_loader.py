@@ -38,16 +38,15 @@ def test_bool_parser_is_canonical():
         parse_bool("maybe")
 
 
-def test_only_the_approved_keys_are_env_override():
-    """U9 (m3 18292d50): M3_DB_BACKEND only. The Registry refuses another set."""
-    from m3_core.config import REGISTRY, Key, Registry, parse_bool
+def test_no_key_can_let_env_outrank_the_file():
+    """U9's one exception (db.backend) was reversed 2026-10-12 (m3 9cbed0af): no
+    key's env value outranks m3_config.toml, so the machinery for one is gone.
+    Bringing it back is a design change, not a flag."""
+    from dataclasses import fields
 
-    assert [k.name for k in REGISTRY if k.env_override] == ["db.backend"]
-    rogue = Key[bool](
-        name="log.debug", parse=parse_bool, default=False, doc="x", env_names=("M3_X",), env_override=True
-    )
-    with pytest.raises(ValueError, match="U9"):
-        Registry([*REGISTRY, rogue])
+    from m3_core.config import Key
+
+    assert "env_override" not in {f.name for f in fields(Key)}
 
 
 def test_bootstrap_secrets_are_the_design_set():

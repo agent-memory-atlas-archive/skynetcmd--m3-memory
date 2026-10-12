@@ -45,15 +45,17 @@ def test_the_file_beats_the_default(tmp_path):
     assert s.origin(_key("db.backend")).endswith("[db].backend")
 
 
-def test_an_env_override_key_beats_the_file(tmp_path):
-    """U9: db.backend is the one key env may override."""
+def test_the_file_beats_env_for_the_backend_too(tmp_path):
+    """U9 reversed (m3 9cbed0af): db.backend is an ordinary key. The file wins and
+    the env name it shadows is reported, not dropped."""
     s = _build(tmp_path, '[db]\nbackend = "postgres"\n', {"M3_DB_BACKEND": "SQLite "})
-    assert s[_key("db.backend")] == "sqlite" and s.origin(_key("db.backend")) == "env:M3_DB_BACKEND"
+    assert s[_key("db.backend")] == "postgres" and s.origin(_key("db.backend")).startswith("file:")
+    assert "M3_DB_BACKEND" in s.shadowed_env()
 
 
-def test_the_legacy_alias_still_answers(tmp_path):
+def test_the_legacy_alias_still_answers_below_the_file(tmp_path):
     s = _build(tmp_path, None, {"DB_BACKEND": "postgres"})
-    assert s.origin(_key("db.backend")) == "env:DB_BACKEND"
+    assert s[_key("db.backend")] == "postgres" and s.origin(_key("db.backend")) == "env-legacy:DB_BACKEND"
 
 
 def test_a_non_override_key_from_env_ranks_below_the_file(tmp_path):

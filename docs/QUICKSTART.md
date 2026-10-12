@@ -456,7 +456,7 @@ configuration.
 
 **PostgreSQL as primary store (not just sync).** Separately from the warehouse
 role above, PostgreSQL can be m3's *primary* live backend instead of SQLite —
-opt in with `M3_DB_BACKEND=postgres` + the `M3_PRIMARY_PG_URL` secret
+opt in with `m3 config set db.backend postgres` + the `M3_PRIMARY_PG_URL` secret
 (`m3 secret set M3_PRIMARY_PG_URL`), chosen at install
 (the installer prompts) or non-interactively with
 `mcp-memory install-m3 --db-backend postgres`. SQLite remains the recommended

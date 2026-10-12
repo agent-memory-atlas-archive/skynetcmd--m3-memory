@@ -785,12 +785,18 @@ class TestDbBackendSelection:
         assert any("stored the primary PostgreSQL DSN" in m and "secrets-file:" in m for m in msgs), msgs
         assert not any("s3cretpw" in m for m in msgs), "a status line echoed the password"
 
-    def test_an_env_backend_that_overrides_the_file_is_reported(self, unix_home, monkeypatch):
+    def test_a_disagreeing_env_backend_is_named_as_a_leftover(self, unix_home, monkeypatch):
+        """The file wins now (U9 reversed, m3 9cbed0af): a disagreeing env value is
+        a leftover to remove, reported [i], and m3 runs on what setup recorded."""
+        from m3_core.paths import resolve_backend_name
+
         from m3_memory.installer import _persist_pg_backend
 
         monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
         msgs = _persist_pg_backend(self._DSN)
-        assert any("M3_DB_BACKEND=sqlite" in m and "overrides" in m for m in msgs), msgs
+        said = [m for m in msgs if "M3_DB_BACKEND=sqlite" in m]
+        assert said and said[0].startswith("[i]") and "Remove M3_DB_BACKEND" in said[0], msgs
+        assert resolve_backend_name() == "postgres"
 
     def test_an_env_backend_that_agrees_is_not_reported(self, unix_home, monkeypatch):
         """An earlier install persisted M3_DB_BACKEND=postgres: same answer, no alarm (§3)."""

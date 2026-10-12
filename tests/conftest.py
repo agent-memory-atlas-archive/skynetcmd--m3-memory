@@ -183,6 +183,17 @@ def pg_dsn() -> "str | None":
     return (_PG_URL_OPTION or "").strip() or None
 
 
+def select_backend(name: str) -> None:
+    """Select the backend for the rest of this test the way `m3 --set` does: a
+    flag-level setting, live at once, importing nothing from ``memory`` (so it
+    works under a test that blocks that package). No env (U9 reversed, m3
+    9cbed0af); ``_process_flags_cleared`` undoes it after the test. Use
+    ``use_backend`` instead when the test needs the file and a stored DSN."""
+    from m3_core.config import settings as st
+
+    st.set_from_cli({"db.backend": name})
+
+
 def use_backend(name: str, dsn: "str | None" = None) -> None:
     """Select the backend for this test the way a user does: ``[db] backend`` in
     the sandbox's m3_config.toml, and the PostgreSQL DSN in the sandbox's

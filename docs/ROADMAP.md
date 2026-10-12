@@ -26,7 +26,7 @@ Built and under test; not yet released. Details in the
 ## ✅ Shipped — 2026-Q3 highlights
 
 ### Pluggable storage backend + framework breadth + procedural memory (v2026.7.17.0)
-- [x] **PostgreSQL as a first-class primary backend** (`M3_DB_BACKEND=postgres`) via a pluggable SQL storage seam (`bin/memory/backends/`) — SQLite and PostgreSQL ship, with identical semantics across backends.
+- [x] **PostgreSQL as a first-class primary backend** (`[db] backend = "postgres"`) via a pluggable SQL storage seam (`bin/memory/backends/`) — SQLite and PostgreSQL ship, with identical semantics across backends.
 - [x] **CrewAI (v1.x) integration** — a native `StorageBackend` (`m3-memory[crewai]`); a CrewAI memory stays searchable by every other m3 agent.
 - [x] **PydanticAI integration** — deps-injected tools + a recall history-processor, plus a formal `M3MemoryToolset` (`m3-memory[pydantic-ai]`); Python 3.14-native.
 - [x] **Procedural memory** — a first-class `procedure` type (skill/runbook/how-to/checklist) distilled from successful task runs (writing is opt-in: `M3_DISTILL_AUTO=1`, else dry-run), with `distills_from` provenance and a procedural retrieval boost.
@@ -186,7 +186,7 @@ Memory as a maintained body of knowledge, not a flat index. All additive and
 
 > **Order after the next release:** health and Prometheus metrics endpoint, written exit criteria for the beta subsystems, pgvector / HNSW, official Docker image, server / multi-user deployment guide, stable public SDK, search-explainability UI. The README's [Project status](../README.md#project-status) summarizes this list.
 
-- [ ] **pgvector / HNSW ANN on the PostgreSQL primary backend** — PostgreSQL can already be m3's primary live store (`M3_DB_BACKEND=postgres` + `M3_PRIMARY_PG_URL`), but vector search there is still **brute-force Rust cosine**, the same as on SQLite. Index-accelerated approximate nearest-neighbor via pgvector/HNSW is not yet implemented — so PG-primary today is about a shared/server store, not faster vector search.
+- [ ] **pgvector / HNSW ANN on the PostgreSQL primary backend** — PostgreSQL can already be m3's primary live store (`[db] backend = "postgres"` + the `M3_PRIMARY_PG_URL` secret), but vector search there is still **brute-force Rust cosine**, the same as on SQLite. Index-accelerated approximate nearest-neighbor via pgvector/HNSW is not yet implemented — so PG-primary today is about a shared/server store, not faster vector search.
 - [ ] **Docker image** — `docker run -v ~/.m3-memory:/data ghcr.io/skynetcmd/m3-memory:latest`
 - [ ] **TestPyPI as a release gate** — TestPyPI is published alongside PyPI today; make it pass before PyPI publishes
 - [ ] **Homebrew formula** — `brew install m3-memory` (macOS / Linuxbrew)

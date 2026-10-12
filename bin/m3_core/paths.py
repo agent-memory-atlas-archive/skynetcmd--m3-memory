@@ -797,8 +797,8 @@ def resolve_db_path(explicit: str | None = None) -> str:
             f"cause: a DSN here is joined onto the working directory by "
             f"abspath(), producing a path SQLite will happily create as an "
             f"empty database while the configured store goes untouched. "
-            f"inspect: M3_DB_BACKEND selects a non-SQLite backend (with that "
-            f"backend's own DSN variable, e.g. M3_PRIMARY_PG_URL); "
+            f"inspect: db.backend selects a non-SQLite backend (its DSN is a "
+            f"stored secret, e.g. M3_PRIMARY_PG_URL); "
             f"M3_DATABASE must be unset or point at a SQLite file."
         )
     return os.path.abspath(candidate)
@@ -848,8 +848,8 @@ def scoped_db_env(path: "str | os.PathLike[str] | None"):
 
     SQLITE-SHAPED BY CONTRACT, and that is not a portability gap.
     ``M3_DATABASE`` names a SQLite FILE: ``resolve_db_path`` raises on a DSN,
-    and a non-SQLite backend is selected by ``M3_DB_BACKEND`` with its own DSN
-    variable (e.g. ``M3_PRIMARY_PG_URL``), which this function does not touch.
+    and a non-SQLite backend is selected by ``db.backend`` with its own stored
+    DSN secret (e.g. ``M3_PRIMARY_PG_URL``), which this function does not touch.
     So on PostgreSQL there is nothing here to scope -- callers pass the path
     they were going to set anyway, and a DSN raises from ``resolve_db_path``
     at use, as it already would.
@@ -903,7 +903,7 @@ def seam_backend():
         if backend == "sqlite":
             return _sqlite_bootstrap_shim()
         raise RuntimeError(
-            f"observed: M3_DB_BACKEND={backend} but the memory package is not "
+            f"observed: db.backend={backend} but the memory package is not "
             f"importable, and only SQLite can be opened without it. "
             f"inspect: put the m3 payload's bin/ on sys.path, or run m3 setup"
         ) from None
@@ -958,7 +958,7 @@ def resolve_cli_store(explicit: str | None, flag: str = "--db", default: str | N
     if explicit:
         raise ValueError(
             f"observed: {flag} names a SQLite file but the active backend is "
-            f"{resolve_backend_name()}. inspect: drop {flag}, or set M3_DB_BACKEND=sqlite"
+            f"{resolve_backend_name()}. inspect: drop {flag}, or `m3 config set db.backend sqlite`"
         )
     return None
 
@@ -991,7 +991,7 @@ def store_is_a_file() -> bool:
     return bool(backend_factory_for(name).stores_databases_as_files)
 
 
-# The backend names M3_DB_BACKEND may select. `memory.backends.selector` and
+# The backend names db.backend may select. `memory.backends.selector` and
 # its registry use this tuple; it lives here so tools that must not import the
 # `memory` package (migration runners, repair scripts) share the one predicate.
 SELECTABLE_BACKENDS: tuple = ("sqlite", "postgres")
@@ -1001,11 +1001,11 @@ def resolve_backend_name() -> str:
     """The configured backend name: registry key ``db.backend``.
 
     THE single owner of this predicate; ``memory.backends.selector`` re-exports
-    it. Precedence (U9, the one ``env_override`` key): a ``--``flag
-    (``set_from_cli``), then ``M3_DB_BACKEND`` / legacy ``DB_BACKEND`` re-read
-    from the environment on every call, then ``[db] backend`` in m3_config.toml,
-    then ``sqlite``. An unrecognised value raises — a typo like ``postgre`` must
-    not silently run SQLite.
+    it. An ordinary registry key (U9's env override reversed 2026-10-12, m3
+    9cbed0af): a ``--set`` flag, then ``[db] backend`` in m3_config.toml, then the
+    legacy env names ``M3_DB_BACKEND`` / ``DB_BACKEND`` (below the file, warned
+    once per process, until N+3), then ``sqlite``. An unrecognised value raises —
+    a typo like ``postgre`` must not silently run SQLite.
 
     Never memoised: a module-global memo lives per module instance, and two
     loaded instances can disagree about the backend.
@@ -1020,11 +1020,40 @@ def resolve_backend_name() -> str:
     from m3_core.config.settings import setting
 
     try:
-        return setting("db.backend")
+        name = setting("db.backend")
     except ConfigEnvErrors as e:
         # The selector's contract is ValueError (callers degrade on it); the
         # registry reports every bad env value at once, as a group.
         raise ValueError(f"{e.message}: " + "; ".join(str(x) for x in e.exceptions)) from e
+    _warn_backend_from_legacy_env(name)
+    return name
+
+
+_BACKEND_ENV_WARNED: set[str] = set()
+
+
+def _warn_backend_from_legacy_env(name: str) -> None:
+    """Once per process: the backend came from M3_DB_BACKEND / DB_BACKEND, which
+    m3 honours for it only until N+3. A daemon that runs on PostgreSQL because
+    of a variable nobody sees must say so (§3)."""
+    from m3_core.config.settings import current
+
+    origin = current().resolved["db.backend"].origin
+    if not origin.startswith("env-legacy:"):
+        return
+    var = origin.removeprefix("env-legacy:")
+    if var in _BACKEND_ENV_WARNED:
+        return
+    _BACKEND_ENV_WARNED.add(var)
+    logger.warning(
+        "observed: the storage backend (%s) comes from the environment variable %s, which m3 "
+        "reads for it only until release N+3. fix: `m3 config set db.backend %s` (or "
+        "`m3 config import-env`), then remove %s where it is set.",
+        name,
+        var,
+        name,
+        var,
+    )
 
 
 def require_sqlite_backend(tool: str) -> None:
@@ -1033,7 +1062,7 @@ def require_sqlite_backend(tool: str) -> None:
     Such tools open ``sqlite3.connect`` on a file path. Under PostgreSQL that
     file is not the live store, so the tool would silently read or WRITE a stale
     or empty SQLite file. Call this first thing in ``main()``: an operator who
-    set ``M3_DB_BACKEND=postgres`` gets an actionable refusal instead. A no-op
+    selected PostgreSQL (``db.backend``) gets an actionable refusal instead. A no-op
     on SQLite (the default).
 
     Importable without the ``memory`` package, so lightweight bootstrap tools
@@ -1042,10 +1071,10 @@ def require_sqlite_backend(tool: str) -> None:
     name = resolve_backend_name()
     if name != "sqlite":
         raise RuntimeError(
-            f"{tool} is SQLite-only; observed: M3_DB_BACKEND={name!r}. Running it "
+            f"{tool} is SQLite-only; observed: db.backend={name!r}. Running it "
             f"would touch a stale SQLite file, not the live {name} store, so it "
-            f"refuses. inspect: run it against a SQLite deployment, or unset "
-            f"M3_DB_BACKEND"
+            f"refuses. inspect: run it against a SQLite deployment "
+            f"(`m3 config get db.backend` says where the choice came from)"
         )
 
 
@@ -1105,7 +1134,7 @@ def seam_dialect():
 
             return _SqliteParams()
         raise RuntimeError(
-            f"observed: M3_DB_BACKEND={backend} but the memory package is not "
+            f"observed: db.backend={backend} but the memory package is not "
             f"importable, and only SQLite placeholders are known without it. "
             f"inspect: put the m3 payload's bin/ on sys.path, or run m3 setup"
         ) from None

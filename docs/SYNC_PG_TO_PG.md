@@ -3,7 +3,7 @@
 *Advanced / optional. Most users don't need this — see [SYNC.md](SYNC.md) for the
 default sync.*
 
-If your **primary store is PostgreSQL** (`M3_DB_BACKEND=postgres`) **and** you sync
+If your **primary store is PostgreSQL** (`[db] backend = "postgres"`) **and** you sync
 to a **PostgreSQL warehouse**, m3 can use a native PostgreSQL-to-PostgreSQL
 fast-path instead of the default row-by-row bridge. It uses
 [`postgres_fdw`](https://www.postgresql.org/docs/current/postgres-fdw.html) to run
@@ -28,7 +28,7 @@ silently moves nothing is worse than one that fails, so it fails.
 The error names both the condition and the FDW reason behind it, e.g.:
 
 ```
-Local store is 'postgres' (M3_DB_BACKEND), but the generic sync bridge
+Local store is 'postgres' (db.backend), but the generic sync bridge
 supports only a SQLite local store.
   FDW fast-path unavailable: postgres_fdw extension not installed on the primary
   Refusing to run rather than syncing an empty database.

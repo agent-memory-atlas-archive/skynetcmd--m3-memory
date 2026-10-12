@@ -214,7 +214,7 @@ only if that need genuinely wants HALT's close-your-connections semantics.
 The protocol is **per-engine-root**, and the engine root is always a *local
 filesystem directory* (`get_m3_engine_root()`: `M3_ENGINE_ROOT` >
 `M3_MEMORY_ROOT/engine` > `~/.m3/engine`) — resolved with **no reference to
-`M3_DB_BACKEND`**. Coordination files live where the *processes and installer*
+`db.backend`**. Coordination files live where the *processes and installer*
 run, not where the *data* lives. That makes the design backend-agnostic by
 construction:
 

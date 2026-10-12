@@ -619,7 +619,7 @@ async def main() -> int:
         logger.info(
             "Skipping the SQLite embedding backfill; observed: backend=%s, local "
             "chat log DB %s %s; spill drained: %d. On a server backend the "
-            "cognitive loop's embed pass does this. inspect: M3_DB_BACKEND",
+            "cognitive loop's embed pass does this. inspect: `m3 config get db.backend`",
             _bk,
             db_path,
             "present" if os.path.exists(db_path) else "absent",

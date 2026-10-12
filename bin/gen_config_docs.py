@@ -69,8 +69,6 @@ def render_markdown() -> str:
         lines += [f"## [{table}]", "", "| Key | Type | Default | Environment names | Notes |", "|---|---|---|---|---|"]
         for key in sorted(keys, key=lambda k: k.leaf):
             notes = []
-            if key.env_override:
-                notes.append("env override")
             if not key.reloadable:
                 notes.append("restart to apply")
             if (ch := choices_of(key)) is not None:

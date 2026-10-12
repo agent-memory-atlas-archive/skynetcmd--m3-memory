@@ -78,7 +78,7 @@ def sanitize(text, max_len=200):
 
 def _db():
     # Backend-aware core-store connection via the seam (mc._db()). On a
-    # PG-primary deployment (M3_DB_BACKEND=postgres) the old
+    # PG-primary deployment (db.backend = "postgres") the old
     # sqlite3.connect(resolve_db_path(None)) read a stale/empty SQLite file;
     # mc._db() reads the live store. Returns a context manager — callers use
     # `with _db() as conn:` so the connection commits/returns-to-pool correctly

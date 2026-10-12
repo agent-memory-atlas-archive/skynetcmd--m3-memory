@@ -215,7 +215,7 @@
       "properties": {
         "backend": {
           "type": "string",
-          "description": "Primary storage backend. The one key env may override (CI, containers).",
+          "description": "Primary storage backend. Set it with `m3 config set db.backend postgres`; M3_DB_BACKEND is read only as a legacy name (below this file) until N+3.",
           "enum": [
             "sqlite",
             "postgres"

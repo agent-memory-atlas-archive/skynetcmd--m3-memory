@@ -110,7 +110,7 @@ Mem0 is a popular agentic memory library with broad ecosystem adoption. m3-Memor
 | **Category** | Dedicated memory layer (MCP-native) | Managed agentic-memory service + library |
 | **Deployment** | 👑 100% local by default — SQLite + bundled BGE-M3 embedder, fully offline, zero data egress | 🏆 Cloud API, **or** self-hosted server (Docker Compose) / pip-npm library |
 | **Infrastructure required** | 👑 None to start — no server, no graph DB, no model server | Managed cloud, or a self-hosted server stack (Docker Compose) |
-| **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`M3_DB_BACKEND=postgres`) — same semantics on either | Managed cloud store; self-hosted uses a pluggable vector DB (e.g. Qdrant) |
+| **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`[db] backend = "postgres"`) — same semantics on either | Managed cloud store; self-hosted uses a pluggable vector DB (e.g. Qdrant) |
 | **Search / retrieval** | 🏆 3-pillar hybrid: FTS5 (BM25) + vector cosine + MMR diversity re-rank | Vector search + knowledge-graph traversal |
 | **Temporal model** | 🏆 Bitemporal (valid + transaction time), item-grain — local-first, no graph DB to run | ⚖️ Time-aware retrieval ranks the right dated instance; no bitemporal as-of query model |
 | **Contradiction handling** | 👑 Heuristic auto-detect on write **plus** deterministic explicit `memory_supersede` — soft-delete, `supersedes` edge, history preserved | Basic deduplication; no strong conflict resolution |
@@ -154,7 +154,7 @@ m3-Memory is a **dedicated, lightweight memory layer** — a drop-in backend for
 | **Category** | Dedicated memory layer (MCP-native) | 🏆 Full stateful agent runtime + memory |
 | **Deployment** | 👑 100% local by default — SQLite + bundled BGE-M3 embedder, fully offline, zero data egress | 🏆 Self-hosted or Letta Cloud |
 | **Infrastructure required** | 👑 None to start — no server, no graph DB, no model server | Letta runtime (must rebuild your agent on it) |
-| **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`M3_DB_BACKEND=postgres`) — same semantics on either | Letta's own DB |
+| **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`[db] backend = "postgres"`) — same semantics on either | Letta's own DB |
 | **Search / retrieval** | 🏆 3-pillar hybrid: FTS5 (BM25) + vector cosine + MMR diversity re-rank | Tiered recall with embeddings (core / recall / archival blocks) |
 | **Temporal model** | 🏆 Bitemporal (valid + transaction time), item-grain — local-first, no graph DB to run | ❌ No bitemporal / as-of queries |
 | **Contradiction handling** | 👑 Heuristic auto-detect on write **plus** deterministic explicit `memory_supersede` — soft-delete, `supersedes` edge, history preserved | 🏆 Agent-driven — the agent decides to update its own memory blocks |
@@ -199,7 +199,7 @@ Zep focuses on temporal knowledge graphs for enterprise multi-agent systems. It 
 | **Category** | Dedicated memory layer (MCP-native) | Temporal knowledge-graph memory for enterprise fleets |
 | **Deployment** | 👑 100% local by default — SQLite + bundled BGE-M3 embedder, fully offline, zero data egress | 🏆 Self-hosted or Zep Cloud |
 | **Infrastructure required** | 👑 None to start — no server, no graph DB, no model server | 🛠️ Requires a graph DB (Neo4j / FalkorDB) |
-| **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`M3_DB_BACKEND=postgres`) — same semantics on either | Graph database |
+| **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`[db] backend = "postgres"`) — same semantics on either | Graph database |
 | **Search / retrieval** | 🏆 3-pillar hybrid: FTS5 (BM25) + vector cosine + MMR diversity re-rank | 🏆 Vector + temporal knowledge-graph traversal |
 | **Temporal model** | 🏆 Bitemporal (valid + transaction time), item-grain — local-first, no graph DB to run | 🏆 Bitemporal at fact/edge grain in a temporal KG — finer grain than m3's item-grain |
 | **Contradiction handling** | 👑 Heuristic auto-detect on write **plus** deterministic explicit `memory_supersede` — soft-delete, `supersedes` edge, history preserved | 🏆 Graph-level fact invalidation over time |
@@ -236,7 +236,7 @@ m3 is memory-first rather than graph-first: the primary store is a bitemporal SQ
 | **Category** | Dedicated memory layer (MCP-native) | Framework for temporally-aware knowledge graphs |
 | **Deployment** | 👑 100% local by default — SQLite + bundled BGE-M3 embedder, fully offline, zero data egress | Depends on your graph-DB deployment |
 | **Infrastructure required** | 👑 None to start — no server, no graph DB, no model server | 🛠️ Requires a graph database (Neo4j, FalkorDB, or Amazon Neptune) |
-| **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`M3_DB_BACKEND=postgres`) — same semantics on either | Graph DB — Neo4j, FalkorDB, or Amazon Neptune (Kuzu deprecated) |
+| **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`[db] backend = "postgres"`) — same semantics on either | Graph DB — Neo4j, FalkorDB, or Amazon Neptune (Kuzu deprecated) |
 | **Search / retrieval** | 🏆 3-pillar hybrid: FTS5 (BM25) + vector cosine + MMR diversity re-rank | 🏆 Graph traversal + semantic + BM25 |
 | **Temporal model** | 🏆 Bitemporal (valid + transaction time), item-grain — local-first, no graph DB to run | 🏆 Bi-temporal edge validity (fact/edge grain) |
 | **Contradiction handling** | 👑 Heuristic auto-detect on write **plus** deterministic explicit `memory_supersede` — soft-delete, `supersedes` edge, history preserved | 🏆 Edge invalidation as facts change |
@@ -276,7 +276,7 @@ m3 is production-and-operations oriented: typed memories, bitemporal supersessio
 | **Category** | Dedicated memory layer (MCP-native) | 🛠️ Research prototype — self-organizing note network |
 | **Deployment** | 👑 100% local by default — SQLite + bundled BGE-M3 embedder, fully offline, zero data egress | Depends on the LLM / embeddings you wire up |
 | **Infrastructure required** | 👑 None to start — no server, no graph DB, no model server | ChromaDB + an LLM endpoint |
-| **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`M3_DB_BACKEND=postgres`) — same semantics on either | ChromaDB |
+| **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`[db] backend = "postgres"`) — same semantics on either | ChromaDB |
 | **Search / retrieval** | 🏆 3-pillar hybrid: FTS5 (BM25) + vector cosine + MMR diversity re-rank | Embedding-based over the note network |
 | **Temporal model** | 🏆 Bitemporal (valid + transaction time), item-grain — local-first, no graph DB to run | ❌ No bitemporal / as-of queries |
 | **Contradiction handling** | 👑 Heuristic auto-detect on write **plus** deterministic explicit `memory_supersede` — soft-delete, `supersedes` edge, history preserved | 🏆 LLM-driven link and attribute updates (Zettelkasten-style evolution) |
@@ -344,7 +344,7 @@ m3's differences are breadth. Both ship a native MCP server and both scale to Po
 | **Category** | Dedicated memory layer (MCP-native) | Sovereign local-first memory system |
 | **Deployment** | 👑 100% local by default — SQLite + bundled BGE-M3 embedder, fully offline, zero data egress | 🏆 Full local — SQLite, deterministic extraction, zero telemetry |
 | **Infrastructure required** | 👑 None to start — no server, no graph DB, no model server | 🏆 None — native Python + SQLite |
-| **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`M3_DB_BACKEND=postgres`) — same semantics on either | 🏆 SQLite (default) or PostgreSQL for multi-process |
+| **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`[db] backend = "postgres"`) — same semantics on either | 🏆 SQLite (default) or PostgreSQL for multi-process |
 | **Search / retrieval** | 🏆 3-pillar hybrid: FTS5 (BM25) + vector cosine + MMR diversity re-rank | 🏆 6-signal hybrid — a broader signal mix than m3's 3 pillars |
 | **Temporal model** | 🏆 Bitemporal (valid + transaction time), item-grain — local-first, no graph DB to run | ⚖️ Temporal signature is integrity-oriented, not an as-of query model |
 | **Contradiction handling** | 👑 Heuristic auto-detect on write **plus** deterministic explicit `memory_supersede` — soft-delete, `supersedes` edge, history preserved | Merkle-tree integrity + consolidation pipeline; no documented supersession model |
@@ -382,7 +382,7 @@ m3 differs on deployment simplicity and openness: zero-infrastructure local SQLi
 | **Category** | Dedicated memory layer (MCP-native) | Research memory system — event-calendar / ISO-temporal model |
 | **Deployment** | 👑 100% local by default — SQLite + bundled BGE-M3 embedder, fully offline, zero data egress | ⚖️ On-prem (Linux/Python + services) |
 | **Infrastructure required** | 👑 None to start — no server, no graph DB, no model server | 🛠️ Service stack |
-| **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`M3_DB_BACKEND=postgres`) — same semantics on either | Service-managed store |
+| **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`[db] backend = "postgres"`) — same semantics on either | Service-managed store |
 | **Search / retrieval** | 🏆 3-pillar hybrid: FTS5 (BM25) + vector cosine + MMR diversity re-rank | ⚖️ Dual-index design |
 | **Temporal model** | 🏆 Bitemporal (valid + transaction time), item-grain — local-first, no graph DB to run | 🏆 ISO-temporal event log — strong for calendar-grained reasoning |
 | **Contradiction handling** | 👑 Heuristic auto-detect on write **plus** deterministic explicit `memory_supersede` — soft-delete, `supersedes` edge, history preserved | Event-log / ISO-temporal audit trail |
@@ -420,7 +420,7 @@ m3's edges: native MCP with a 100+-tool surface (Hindsight integrates via per-fr
 | **Category** | Dedicated memory layer (MCP-native) | Local-first memory layer, framework-agnostic |
 | **Deployment** | 👑 100% local by default — SQLite + bundled BGE-M3 embedder, fully offline, zero data egress | 🏆 Docker recommended, or embedded/self-contained via the `hindsight-all` Python package |
 | **Infrastructure required** | 👑 None to start — no server, no graph DB, no model server | PostgreSQL (embedded `pg0` option for Python) |
-| **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`M3_DB_BACKEND=postgres`) — same semantics on either | 🏆 PostgreSQL by default; Oracle AI Database for enterprise |
+| **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`[db] backend = "postgres"`) — same semantics on either | 🏆 PostgreSQL by default; Oracle AI Database for enterprise |
 | **Search / retrieval** | 🏆 3-pillar hybrid: FTS5 (BM25) + vector cosine + MMR diversity re-rank | 🏆 4-stream neural retrieval — richer, but heavier rerank cost |
 | **Temporal model** | 🏆 Bitemporal (valid + transaction time), item-grain — local-first, no graph DB to run | ⚖️ Traceable, but not an as-of query model |
 | **Contradiction handling** | 👑 Heuristic auto-detect on write **plus** deterministic explicit `memory_supersede` — soft-delete, `supersedes` edge, history preserved | Not a documented focus |
@@ -458,7 +458,7 @@ m3 differs mainly on reach and temporal depth. Mastra OM is memory *for the Mast
 | **Category** | Dedicated memory layer (MCP-native) | Observational memory for the Mastra agent framework |
 | **Deployment** | 👑 100% local by default — SQLite + bundled BGE-M3 embedder, fully offline, zero data egress | 🏆 Runs locally (LibSQL file DB) or against hosted Postgres/MongoDB/Convex |
 | **Infrastructure required** | 👑 None to start — no server, no graph DB, no model server | A supported storage adapter (`@mastra/pg`, `libsql`, `mongodb`, or `convex`); no vector or graph DB needed |
-| **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`M3_DB_BACKEND=postgres`) — same semantics on either | 🏆 LibSQL, PostgreSQL, MongoDB, or Convex |
+| **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`[db] backend = "postgres"`) — same semantics on either | 🏆 LibSQL, PostgreSQL, MongoDB, or Convex |
 | **Search / retrieval** | 🏆 3-pillar hybrid: FTS5 (BM25) + vector cosine + MMR diversity re-rank | Observation-log retrieval over reflector-compressed history |
 | **Temporal model** | 🏆 Bitemporal (valid + transaction time), item-grain — local-first, no graph DB to run | ⚖️ 3-date anchor, not full bitemporal |
 | **Contradiction handling** | 👑 Heuristic auto-detect on write **plus** deterministic explicit `memory_supersede` — soft-delete, `supersedes` edge, history preserved | 🏆 Background reflector agents reconcile the observation log |
@@ -496,7 +496,7 @@ m3's differences: a verifiable standard-setting benchmark (Memento's number is f
 | **Category** | Dedicated memory layer (MCP-native) | Sovereign bitemporal knowledge-graph memory |
 | **Deployment** | 👑 100% local by default — SQLite + bundled BGE-M3 embedder, fully offline, zero data egress | ⚖️ Config-local (native Python, local SQLite) |
 | **Infrastructure required** | 👑 None to start — no server, no graph DB, no model server | 🏆 None — native Python + SQLite |
-| **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`M3_DB_BACKEND=postgres`) — same semantics on either | SQLite |
+| **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`[db] backend = "postgres"`) — same semantics on either | SQLite |
 | **Search / retrieval** | 🏆 3-pillar hybrid: FTS5 (BM25) + vector cosine + MMR diversity re-rank | Compositional retrieval |
 | **Temporal model** | 🏆 Bitemporal (valid + transaction time), item-grain — local-first, no graph DB to run | 🏆 Bitemporal KG with Merkle-audit — a genuine peer on temporal modelling |
 | **Contradiction handling** | 👑 Heuristic auto-detect on write **plus** deterministic explicit `memory_supersede` — soft-delete, `supersedes` edge, history preserved | 🏆 Contradiction detection with entity resolution over a Merkle-audited bitemporal graph |
@@ -534,7 +534,7 @@ MemPalace advertises a spatial "memory-palace" (loci-hierarchy) architecture wit
 | **Category** | Dedicated memory layer (MCP-native) | ⚠️ Spatial "memory-palace" (loci-hierarchy) store — **disputed claims** |
 | **Deployment** | 👑 100% local by default — SQLite + bundled BGE-M3 embedder, fully offline, zero data egress | Local Python + ChromaDB |
 | **Infrastructure required** | 👑 None to start — no server, no graph DB, no model server | ChromaDB |
-| **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`M3_DB_BACKEND=postgres`) — same semantics on either | 🛠️ ChromaDB + JSON (documented desync risk) |
+| **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`[db] backend = "postgres"`) — same semantics on either | 🛠️ ChromaDB + JSON (documented desync risk) |
 | **Search / retrieval** | 🏆 3-pillar hybrid: FTS5 (BM25) + vector cosine + MMR diversity re-rank | ChromaDB embeddings + verbatim storage |
 | **Temporal model** | 🏆 Bitemporal (valid + transaction time), item-grain — local-first, no graph DB to run | ❌ Verbatim only — no temporal model |
 | **Contradiction handling** | 👑 Heuristic auto-detect on write **plus** deterministic explicit `memory_supersede` — soft-delete, `supersedes` edge, history preserved | ❌ Verbatim only; 🛠️ multi-agent writes can fail silently |
@@ -565,7 +565,7 @@ m3-Memory is framework-agnostic and MCP-native — it works with any agent via a
 | **Category** | Dedicated memory layer (MCP-native) | Memory inside the LangChain / LangGraph ecosystem |
 | **Deployment** | 👑 100% local by default — SQLite + bundled BGE-M3 embedder, fully offline, zero data egress | 🏆 Good — depends on the backend store you configure |
 | **Infrastructure required** | 👑 None to start — no server, no graph DB, no model server | A backend store + an external embedder |
-| **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`M3_DB_BACKEND=postgres`) — same semantics on either | 🏆 Pluggable (`BaseStore` implementations) |
+| **Storage backend** | 🏆 SQLite (default) **or PostgreSQL** as a first-class primary (`[db] backend = "postgres"`) — same semantics on either | 🏆 Pluggable (`BaseStore` implementations) |
 | **Search / retrieval** | 🏆 3-pillar hybrid: FTS5 (BM25) + vector cosine + MMR diversity re-rank | Depends on the configured backend store |
 | **Temporal model** | 🏆 Bitemporal (valid + transaction time), item-grain — local-first, no graph DB to run | ❌ No bitemporal / as-of queries |
 | **Contradiction handling** | 👑 Heuristic auto-detect on write **plus** deterministic explicit `memory_supersede` — soft-delete, `supersedes` edge, history preserved | 🏆 Manual / LLM-driven via procedural memory |
