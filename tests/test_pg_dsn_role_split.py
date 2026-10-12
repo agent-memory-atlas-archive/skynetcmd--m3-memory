@@ -169,7 +169,7 @@ class TestInstallerMultiLocationScan:
 
         # Fake winreg: PG_URL present at HKCU\Environment, absent at HKLM.
         store = {("HKCU", r"Environment"): {"PG_URL": ("postgresql://reg/legacy", 1)}}
-        monkeypatch.setitem(__import__("sys").modules, "winreg", _make_fake_winreg(store))
+        monkeypatch.setattr(__import__("m3_memory._platform", fromlist=["_"]), "_winreg", _make_fake_winreg(store))
 
         locs = I._find_deprecated_pg_url_locations()
         assert any("HKEY_CURRENT_USER" in x for x in locs), locs
@@ -343,9 +343,9 @@ class TestRegistryEnvMigration:
         from m3_memory import installer as I
 
         simulate_os(monkeypatch, "Windows")
-        monkeypatch.setitem(__import__("sys").modules, "winreg", _make_fake_winreg(store))
+        monkeypatch.setattr(__import__("m3_memory._platform", fromlist=["_"]), "_winreg", _make_fake_winreg(store))
         # avoid a real WM_SETTINGCHANGE broadcast in the test
-        monkeypatch.setattr(I, "_broadcast_env_change", lambda: None)
+        monkeypatch.setattr(__import__("m3_memory._platform", fromlist=["_"]), "broadcast_env_change", lambda: None)
         return I
 
     def test_scan_all_names_not_just_pg_url(self, monkeypatch):

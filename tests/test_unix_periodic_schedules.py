@@ -147,7 +147,8 @@ def test_macos_install_writes_hourly_and_backs_up_a_hand_made_plist(unix):
         got = plistlib.load(fh)
     assert got["StartInterval"] == 3600 and "StartCalendarInterval" not in got
     assert got["ProgramArguments"][0] == _PY
-    assert any(p.name.startswith("com.m3memory.sync_all.plist.bak-") for p in unix["agents"].iterdir())
+    names = {p.name for p in unix["agents"].iterdir()}
+    assert {"com.m3memory.sync_all.plist.bak", "com.m3memory.sync_all.plist.backup_history"} <= names, names
 
 
 def test_macos_install_leaves_a_current_plist_untouched(unix):

@@ -66,12 +66,17 @@ def _rehome(path: Path) -> Path:
         return path
 
 
+def claude_user_config() -> Path:
+    """Claude Code's user config, where `claude mcp add` writes server env blocks."""
+    return _home() / ".claude.json"
+
+
 def mcp_config_files() -> list[Path]:
     """Every file an MCP client reads its server env blocks from."""
     from m3_memory import installer as _I  # lazy: installer imports install/*
 
     files = {_rehome(p) for sources in _I._client_config_sources().values() for p in sources}
-    files.add(_home() / ".claude.json")
+    files.add(claude_user_config())
     return sorted(files)
 
 

@@ -187,12 +187,15 @@ def install_unix_crontab(m3_memory_root, *, block: bool = True):
         _bak_dir = get_m3_engine_root()
     except Exception:
         _bak_dir = os.path.expanduser(os.path.join("~", ".m3", "engine"))
+    from m3_core.atomic_io import GuardedRewrite
+
+    guard: GuardedRewrite | None = None  # set once the backup is taken
     try:
         os.makedirs(_bak_dir, exist_ok=True)
-        _bak_path = os.path.join(_bak_dir, "crontab.bak")
-        with open(_bak_path, "w", encoding="utf-8") as _bf:
-            _bf.write(current_cron)
-        _safe_print(f"   Backed up existing crontab to: {_bak_path}")
+        taken = GuardedRewrite(os.path.join(_bak_dir, "crontab"), by="m3 schedules (crontab)")
+        taken.begin(current_cron.encode("utf-8"))
+        guard = taken
+        _safe_print(f"   Backed up existing crontab to: {taken.bak} (history: {taken.history})")
     except OSError as _be:
         _safe_print(f"{WARN} Could not back up crontab before rewrite: {_be}")
 
@@ -206,6 +209,11 @@ def install_unix_crontab(m3_memory_root, *, block: bool = True):
 
     try:
         _run(["crontab", tmp_path], check=True)
+        if guard is not None:
+            try:
+                guard.end(new_cron.encode("utf-8"))
+            except OSError as e:  # the crontab is installed; only the record is short
+                _safe_print(f"{WARN} crontab installed, but its history entry was not closed: {e}")
         if block:
             _safe_print(
                 f"{OK} Installed m3's cron schedules "
@@ -369,8 +377,8 @@ def install_macos_periodic(m3_memory_root) -> bool:
     job runs outside the login session, where the Keychain that unlocks the
     stored warehouse credentials is not available. Returns True if all loaded."""
     import plistlib
-    import shutil
-    import time as _time
+
+    from m3_core.atomic_io import GuardedRewrite, atomic_write
 
     python_exe = _venv_python(m3_memory_root)
     dest_dir = os.path.expanduser("~/Library/LaunchAgents")
@@ -386,11 +394,11 @@ def install_macos_periodic(m3_memory_root) -> bool:
                         continue  # already current; leave it loaded as is
             except Exception:  # noqa: BLE001 — unreadable: replace it below
                 pass
-            backup = f"{dest}.bak-{_time.strftime('%Y%m%d-%H%M%S')}"
-            shutil.copy2(dest, backup)
-            _safe_print(f"  saved the previous {os.path.basename(dest)} as {backup}")
-        with open(dest, "wb") as fh:
-            plistlib.dump(want, fh)
+            guard = GuardedRewrite(dest, by="m3 schedules (launchd)")
+            guard.write(plistlib.dumps(want))
+            _safe_print(f"  saved the previous {os.path.basename(dest)} as {guard.bak} (history: {guard.history})")
+        else:
+            atomic_write(dest, plistlib.dumps(want))
         _run(["launchctl", "unload", dest], capture_output=True)
         r = _run(["launchctl", "load", dest], capture_output=True, text=True)
         if r.returncode == 0:

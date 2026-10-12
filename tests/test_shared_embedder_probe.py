@@ -21,6 +21,9 @@ from doctor import shared_embedder_probe as P  # noqa: E402
 
 from conftest import simulate_os
 
+# The real list, before the autouse fixture below swaps it out for isolation.
+_PROBE_KNOWN_AGENT_SETTINGS = P._known_agent_settings
+
 
 @pytest.fixture(autouse=True)
 def _clear_embed_env(monkeypatch):
@@ -308,3 +311,15 @@ def test_stopped_service_does_not_fall_through_to_python_task(monkeypatch, cfg_r
     assert rc != 0
     assert "STOPPED" in out
     assert "scheduled task (1-min self-heal" not in out
+
+
+@pytest.mark.parametrize("os_name", ["Windows", "Darwin", "Linux"])
+def test_the_probe_mirror_lists_the_installers_settings_files(monkeypatch, os_name):
+    """The probe keeps its own copy of installer._known_agent_settings (it runs
+    from a bare payload); the copies once drifted, and the probe never looked at
+    Cursor or Cline. Same labels, same paths, on every OS."""
+    from m3_memory import installer
+
+    simulate_os(monkeypatch, os_name)
+    mirror = [(label, Path(path)) for label, path in _PROBE_KNOWN_AGENT_SETTINGS()]
+    assert mirror == [(label, Path(path)) for label, path in installer._known_agent_settings()]

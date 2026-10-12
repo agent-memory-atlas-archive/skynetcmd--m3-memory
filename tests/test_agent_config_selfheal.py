@@ -106,7 +106,7 @@ def test_backup_written_before_repoint(canonical, tmp_path):
     cfg = tmp_path / "host" / "settings.json"
     _write(cfg, {"mcpServers": {"memory": {"args": ["/dead.py"]}}})
     I._heal_agent_settings(cfg)
-    bak = cfg.with_suffix(cfg.suffix + ".m3bak")
+    bak = cfg.with_suffix(cfg.suffix + ".bak")
     assert bak.is_file()
     assert "/dead.py" in bak.read_text()  # the prior (broken) config is preserved
 
@@ -235,7 +235,7 @@ def test_wire_opencode_repoints_a_dead_entry(tmp_path, monkeypatch):
     assert W._wire_opencode() is True
     after = json.loads(cfg.read_text())["mcp"]["memory"]
     assert after["command"] == ["m3"]  # repointed to the relocation-proof CLI
-    assert cfg.with_suffix(".json.m3bak").is_file()  # backed up first
+    assert cfg.with_suffix(".json.bak").is_file()  # backed up first
 
 
 def test_wire_opencode_leaves_a_healthy_entry(tmp_path, monkeypatch):
@@ -249,7 +249,7 @@ def test_wire_opencode_leaves_a_healthy_entry(tmp_path, monkeypatch):
 
     W._wire_opencode()
     assert cfg.read_text() == before  # no rewrite of a healthy entry
-    assert not cfg.with_suffix(".json.m3bak").exists()
+    assert not cfg.with_suffix(".json.bak").exists()
 
 
 def test_claude_settings_never_gets_an_mcpservers_entry(canonical, tmp_path, monkeypatch):

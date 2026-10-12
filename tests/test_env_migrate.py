@@ -154,54 +154,49 @@ def test_migrate_one_bad_file_does_not_abort_others(tmp_path, monkeypatch):
     assert env == {"M3_CDW_PG_URL": "postgres://z"}
 
 
-# ── .env file scan + rewrite ────────────────────────────────────────────────
-def test_dotenv_detect_and_migrate_preserves_values_and_comments(tmp_path, monkeypatch):
+# ── .env and ~/.claude.json: reported, never rewritten (user decision 2026-10-12,
+# m3 3566d016; CONFIG_DESIGN #D20) ──────────────────────────────────────────────
+def test_dotenv_is_reported_with_the_edit_and_never_rewritten(tmp_path, monkeypatch):
     dotenv = tmp_path / ".env"
-    dotenv.write_text(
-        "# a comment\nCHROMA_BASE_URL=http://x:8000\nUNRELATED=keepme\n",
-        encoding="utf-8",
-    )
+    original = "# a comment\nCHROMA_BASE_URL=http://x:8000\nUNRELATED=keepme\n"
+    dotenv.write_text(original, encoding="utf-8")
     monkeypatch.setattr(I, "_client_config_sources", lambda: {})
     monkeypatch.chdir(tmp_path)
 
-    found = I._deprecated_env_in_config()
-    assert found == {dotenv: {"CHROMA_BASE_URL": "M3_CHROMA_BASE_URL"}}
-
+    assert I._deprecated_env_in_config() == {dotenv: {"CHROMA_BASE_URL": "M3_CHROMA_BASE_URL"}}
     actions = I._migrate_env_names(apply=True)
-    assert any("CHROMA_BASE_URL -> M3_CHROMA_BASE_URL" in a for a in actions)
-
-    text = dotenv.read_text(encoding="utf-8")
-    assert "M3_CHROMA_BASE_URL=http://x:8000" in text
-    assert "CHROMA_BASE_URL=" not in text.replace("M3_CHROMA_BASE_URL=", "")
-    assert "# a comment" in text
-    assert "UNRELATED=keepme" in text
-
-    backup = dotenv.with_suffix(dotenv.suffix + ".bak")
-    assert backup.is_file()
-    assert "CHROMA_BASE_URL=http://x:8000" in backup.read_text(encoding="utf-8")
-
-    # Idempotent.
-    assert I._migrate_env_names(apply=True) == []
-
-
-def test_dotenv_conflict_drops_old_line_keeps_new(tmp_path, monkeypatch):
-    # PG_URL now renames to the warehouse var M3_CDW_PG_URL; if that new name is
-    # already present, the old PG_URL line is dropped as superseded.
-    dotenv = tmp_path / ".env"
-    dotenv.write_text(
-        "PG_URL=postgres://old\nM3_CDW_PG_URL=postgres://new\n",
-        encoding="utf-8",
+    assert any(str(dotenv) in a and "rename CHROMA_BASE_URL to M3_CHROMA_BASE_URL by hand" in a for a in actions), (
+        actions
     )
+    assert dotenv.read_text(encoding="utf-8") == original
+    assert not dotenv.with_name(".env.bak").exists() and not dotenv.with_name(".env.backup_history").exists()
+    assert I._migrate_env_names(apply=True) == actions, "still reported until the user edits it"
+
+
+def test_claude_json_is_reported_not_rewritten(tmp_path, monkeypatch):
+    from m3_memory.install import env_sources
+
+    claude = env_sources.claude_user_config()
+    original = json.dumps({"mcpServers": {"m3_memory": {"env": {"CHROMA_BASE_URL": "http://x"}}}})
+    claude.write_text(original, encoding="utf-8")
     monkeypatch.setattr(I, "_client_config_sources", lambda: {})
     monkeypatch.chdir(tmp_path)
 
     actions = I._migrate_env_names(apply=True)
-    assert any("dropped superseded PG_URL" in a for a in actions)
+    assert any(str(claude) in a and "claude mcp remove" in a for a in actions), actions
+    assert claude.read_text(encoding="utf-8") == original
 
-    text = dotenv.read_text(encoding="utf-8")
-    assert "PG_URL=postgres://old" not in text
-    assert "M3_CDW_PG_URL=postgres://new" in text
-    assert I._migrate_env_names(apply=True) == []
+
+def test_a_json_rename_leaves_the_active_backup_and_a_history_section(tmp_path, monkeypatch):
+    settings = tmp_path / "settings.json"
+    _mk(settings, {"memory": {"command": "py", "env": {"CHROMA_BASE_URL": "http://x"}}})
+    monkeypatch.setattr(I, "_client_config_sources", lambda: {"Claude Code": [settings]})
+    monkeypatch.chdir(tmp_path)
+
+    I._migrate_env_names(apply=True)
+    assert "CHROMA_BASE_URL" in settings.with_name("settings.json.bak").read_text(encoding="utf-8")
+    history = settings.with_name("settings.json.backup_history").read_text(encoding="utf-8")
+    assert "by m3 doctor --fix (env names)" in history and "END rewrite (ok)" in history
 
 
 # ── Section renders without error ────────────────────────────────────────

@@ -660,14 +660,19 @@ def install_claude_settings(settings_path=None, assume_yes=False, dry_run=False,
 
     # Back up, then write atomically.
     os.makedirs(os.path.dirname(settings_path), exist_ok=True)
-    if os.path.exists(settings_path):
-        bak = settings_path + ".bak"
-        with open(settings_path, encoding="utf-8") as f:
-            backup = f.read()
-        with open(bak, "w", encoding="utf-8") as f:
-            f.write(backup)
-        print(f"Backed up existing settings to {bak}")
-    _write_json(settings_path, live)
+    from m3_core.atomic_io import GuardedRewrite, atomic_write
+
+    text = json.dumps(live, indent=2) + "\n"
+    guard = GuardedRewrite(settings_path, by="m3 setup (Claude hooks)")
+    try:
+        if os.path.exists(settings_path):
+            guard.write(text)
+            print(f"Backed up existing settings to {guard.bak} (history: {guard.history})")
+        else:
+            atomic_write(settings_path, text)
+    except OSError as e:
+        print(f"Failed to write {settings_path}: {e}. Nothing was installed; see {guard.history} if it exists.")
+        return {"changed": False, "path": settings_path, "diff": diff}
     print(f"Installed m3 hooks + statusLine into {settings_path}")
     return {"changed": True, "path": settings_path, "diff": diff}
 

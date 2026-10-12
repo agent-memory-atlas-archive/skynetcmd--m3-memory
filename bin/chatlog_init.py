@@ -30,7 +30,6 @@ import logging
 import os
 import subprocess
 import sys
-from datetime import datetime
 from pathlib import Path
 
 from m3_core.seams import is_windows
@@ -490,12 +489,13 @@ def apply_gemini_settings() -> tuple[bool, str]:
     if not actions:
         return False, f"no change — Gemini already wired for m3-memory in {settings_path}"
 
-    if os.path.isfile(settings_path):
-        stamp = datetime.now().strftime("%Y%m%dT%H%M%SZ")
-        backup = settings_path.with_suffix(f".json.bak.{stamp}")
-        backup.write_text(settings_path.read_text(encoding="utf-8"), encoding="utf-8")
+    from m3_core.atomic_io import GuardedRewrite, atomic_write
 
-    settings_path.write_text(json.dumps(existing, indent=2) + "\n", encoding="utf-8")
+    text = json.dumps(existing, indent=2) + "\n"
+    if os.path.isfile(settings_path):
+        GuardedRewrite(settings_path, by="m3 chatlog init (Gemini hooks)").write(text)
+    else:
+        atomic_write(settings_path, text)
     return True, f"added {', '.join(actions)} to {settings_path}"
 
 

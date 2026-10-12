@@ -867,7 +867,9 @@ class TestDbBackendSelection:
         fake = types.SimpleNamespace(
             HKEY_CURRENT_USER="HKCU", HKEY_LOCAL_MACHINE="HKLM", OpenKey=open_key, QueryValueEx=query
         )
-        monkeypatch.setitem(sys.modules, "winreg", fake)
+        from m3_memory import _platform
+
+        monkeypatch.setattr(_platform, "_winreg", fake)  # the OS seam owns registry access
         simulate_os(monkeypatch, "Windows")
         unchecked: list[str] = []
         assert inst._scan_registry_env_deprecations({"M3_PG_URL": ""}, unchecked) == []

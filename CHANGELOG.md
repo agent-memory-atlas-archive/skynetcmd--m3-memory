@@ -21,6 +21,17 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **`m3 doctor` checks Cursor and Cline for `M3_EMBED_GGUF`.** The check for an
+  embedder path pinned in an MCP server's env block, and its `--fix` scrub,
+  skipped those two clients.
+  **Affected:** Cursor and Cline users · **Action:** run `m3 doctor` ·
+  **Data status:** none.
+
+- **Setup reports a failed write of Claude's settings.** When
+  `~/.claude/settings.json` could not be written, setup still said the hooks were
+  installed.
+  **Affected:** all installs · **Action:** none · **Data status:** none.
+
 - **`m3 doctor` and `m3 install` look in `~/.claude.json`.** The places checked
   for an environment variable (where a disagreeing or deprecated variable is
   set, and the refusal of a deprecated `PG_URL`) now include Claude Code's
@@ -339,6 +350,28 @@ the policy is forward-going only.
   **Affected:** Windows · **Action:** none · **Data status:** none.
 
 ### Changed
+
+- **Each file m3 rewrites keeps `<name>.bak` and `<name>.backup_history`.**
+  - **`<name>.bak`** is the file exactly as it was before the latest change;
+    restoring is copying it back.
+  - **`<name>.backup_history`** gets one UTC-stamped entry per change, with the
+    diff. An entry with no `END` line means the change did not finish, and the
+    entry says how to restore.
+  - **Which files:** MCP client settings, OpenCode, the Gemini hooks, the
+    crontab and launchd agents.
+  - **What it replaces:** the `.m3bak`, `.bak` and timestamped copies, which
+    could overwrite one another. Older ones can be deleted.
+  - **When a backup fails,** the file is not rewritten.
+
+  **Affected:** all installs · **Action:** none · **Data status:** none.
+
+- **`m3 doctor --fix` no longer rewrites a `.env` or `~/.claude.json`.** Doctor
+  prints the exact rename to make by hand in a `.env`. For `~/.claude.json`,
+  which the `claude` CLI manages, it prints the `claude mcp` command to use
+  instead. Other MCP client configs are still fixed automatically.
+  **Affected:** users with deprecated variable names in a `.env` or
+  `~/.claude.json` · **Action:** make the rename doctor prints ·
+  **Data status:** none.
 
 - **The storage backend can be set in `m3_config.toml`.** `[db] backend =
   "postgres"` selects PostgreSQL; `M3_DB_BACKEND` still overrides it. Choosing

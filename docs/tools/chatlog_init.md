@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_init.py
-sha1: 938735402c3b
-mtime_utc: 2026-10-12T03:55:17.064782+00:00
-generated_utc: 2026-10-12T03:55:24.604643+00:00
+sha1: ebeb2fb4580f
+mtime_utc: 2026-10-12T13:12:14.844596+00:00
+generated_utc: 2026-10-12T13:12:28.505246+00:00
 private: false
 ---
 
@@ -68,8 +68,8 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `[sys.executable, install_script, '--add', 'chatlog-embed-sweep']`` (line 299)
-- `subprocess.run()  → `[sys.executable, migrate_script, 'up', '--target', 'chatlog', '-y']`` (line 276)
+- `subprocess.run()  → `[sys.executable, install_script, '--add', 'chatlog-embed-sweep']`` (line 298)
+- `subprocess.run()  → `[sys.executable, migrate_script, 'up', '--target', 'chatlog', '-y']`` (line 275)
 - `subprocess.run()  → `[sys.executable, migrate_script, 'up', '--target', 'chatlog', '-y']`` (line 745)
 
 
@@ -77,6 +77,7 @@ _(none detected)_
 
 ## Notable external imports
 
+- `m3_core.atomic_io (GuardedRewrite, atomic_write)`
 - `m3_core.paths (add_config_arg)`
 - `m3_core.paths (store_is_a_file)`
 - `m3_core.seams (is_windows)`

@@ -28,11 +28,11 @@ import tempfile
 import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import cast
 
 from m3_memory import _bin, _config
 from m3_memory._platform import hidden_window_kwargs as _hidden_window_kwargs
-from m3_memory._platform import is_macos, is_windows
+from m3_memory._platform import is_windows
 from m3_memory._platform import os_name as _os_name
 from m3_memory._platform import python_exe as _python_exe
 from m3_memory.install.fs import (  # noqa: F401  (re-exported facade surface — see cli.py / test_installer.py importers)
@@ -419,15 +419,6 @@ def _heal_agent_settings(settings_file: Path, *, force: bool = False, create_if_
     if not mcp_stale and not hooks_fixed:
         return None  # everything healthy — stay quiet
 
-    # Back up before any rewrite so the prior config is always restorable.
-    # Skip when the file didn't exist (create_if_absent path) — nothing to save.
-    if os.path.isfile(settings_file):
-        bak = settings_file.with_suffix(settings_file.suffix + ".m3bak")
-        try:
-            bak.write_text(settings_file.read_text(encoding="utf-8"), encoding="utf-8")
-        except OSError:
-            pass
-
     parts = []
     if mcp_stale:
         verb = "repointed" if existing is not None else "registered"
@@ -435,8 +426,20 @@ def _heal_agent_settings(settings_file: Path, *, force: bool = False, create_if_
         parts.append(f"{verb} 'memory' MCP")
     if hooks_fixed:
         parts.append(f"repointed {hooks_fixed} stale chatlog hook(s)")
-    settings_file.parent.mkdir(parents=True, exist_ok=True)
-    settings_file.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    text = json.dumps(data, indent=2) + "\n"
+    # An existing file is backed up first (<name>.bak + .backup_history), so the
+    # prior config is always restorable; no backup, no rewrite.
+    try:
+        if os.path.isfile(settings_file):
+            _guarded_write(settings_file, text, by="m3 setup/doctor (MCP + chatlog hooks)")
+        else:
+            settings_file.parent.mkdir(parents=True, exist_ok=True)
+            _bin.ensure_on_path()
+            from m3_core.atomic_io import atomic_write
+
+            atomic_write(settings_file, text)
+    except OSError as e:
+        return f"[X] could not rewrite {settings_file} ({e}); it is unchanged or restorable from its .bak"
     return f"[+] {' + '.join(parts)} in {settings_file}"
 
 
@@ -560,15 +563,9 @@ def _cline_config_path() -> Path:
     Always returns a path (the standard per-OS location) so Cline can be a plain,
     unconditional host entry like the others; whether Cline is actually installed
     is decided by _register_cline_mcp / the file-exists check at scan time."""
-    if is_windows():
-        # %APPDATA% is the norm; fall back to its default if the env var is unset.
-        base = os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming")
-        code_user = Path(base) / "Code" / "User"
-    elif is_macos():
-        code_user = Path.home() / "Library" / "Application Support" / "Code" / "User"
-    else:
-        code_user = Path.home() / ".config" / "Code" / "User"
-    return code_user / "globalStorage" / "saoudrizwan.claude-dev" / "settings" / "cline_mcp_settings.json"
+    from m3_memory._platform import vscode_user_dir
+
+    return Path(vscode_user_dir()) / "globalStorage" / "saoudrizwan.claude-dev" / "settings" / "cline_mcp_settings.json"
 
 
 def _register_cline_mcp() -> str | None:
@@ -2060,6 +2057,15 @@ def _duplicate_mcp_registration() -> dict[str, dict[str, list[Path]]]:
     return out
 
 
+def _guarded_write(path: Path, text: str, *, by: str) -> None:
+    """Rewrite a file m3 does not own outright, leaving <name>.bak (the active
+    backup) and a <name>.backup_history section: m3_core.atomic_io.GuardedRewrite."""
+    _bin.ensure_on_path()
+    from m3_core.atomic_io import GuardedRewrite
+
+    GuardedRewrite(path, by=by).write(text)
+
+
 def _dedupe_mcp_registration(*, apply: bool = False) -> list[str]:
     """Resolve same-client duplicate MCP registrations by keeping ONE copy and
     removing the redundant ones. For each client + duplicated server, keep the
@@ -2096,84 +2102,33 @@ def _dedupe_mcp_registration(*, apply: bool = False) -> list[str]:
                 if apply:
                     try:
                         data = json.loads(f.read_text(encoding="utf-8")) or {}
-                        f.with_suffix(f.suffix + ".bak").write_text(f.read_text(encoding="utf-8"), encoding="utf-8")
                         (data.get("mcpServers") or {}).pop(name, None)
-                        f.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+                        _guarded_write(
+                            f, json.dumps(data, indent=2) + "\n", by="m3 doctor --fix (duplicate MCP server)"
+                        )
                     except (OSError, json.JSONDecodeError) as e:
                         actions[-1] = f"[X] could not dedup '{name}' in {f}: {e}"
     return actions
 
 
 def _deprecated_env_in_config() -> dict[Path, dict[str, str]]:
-    """Return {file: {OLD: NEW}} for on-disk config that still uses a deprecated
-    (pre-M3_ namespacing) env var name. Scans the SAME config files
-    ``_client_config_sources()`` reads (settings.json per client, plus Claude's
-    .mcp.json), walking every ``mcpServers.<server>.env`` block, plus a plain
-    ``.env`` (KEY=VALUE) at the cwd if present. Uses ``all_env_renames()``
-    (bin/m3_core/paths.py — the union of the pure-namespacing map and the
-    role-split map, e.g. PG_URL -> M3_CDW_PG_URL) as the sole source of truth for
-    what counts as an old name — never a second hardcoded copy.
-
-    Only files with >=1 old name are included. Tolerant: unreadable/unparseable
-    files are skipped, never raised.
-    """
+    """Return {file: {OLD: NEW}} for each file that still sets a deprecated
+    (pre-M3_ namespacing) env var name: MCP client env blocks (including
+    ``~/.claude.json``) and the ``.env`` files, as the one sweep
+    (``env_sources.scan``) finds them. ``all_env_renames()`` is the sole source
+    of what counts as an old name. Only files with >=1 old name are included."""
 
     _bin.ensure_on_path()  # parent.parent/bin missed a wheel install
     from m3_core.paths import all_env_renames
 
-    # Union of pure-namespacing + role-split (e.g. PG_URL -> M3_CDW_PG_URL) renames.
+    from m3_memory.install.env_sources import scan
+
     renames = all_env_renames()
-    return {path: {k: renames[k] for k in sorted(keys)} for path, keys in _env_names_in_config(renames).items()}
-
-
-def _env_names_in_config(names, unchecked: list[str] | None = None) -> dict[Path, set[str]]:
-    """Return {file: names it sets} for each of ``names`` found in an MCP
-    client's ``mcpServers.<server>.env`` block (the files
-    ``_client_config_sources()`` reads) or the cwd ``.env``. Only files with a
-    hit are included. Tolerant: an unreadable/unparseable file is skipped, and
-    named in ``unchecked`` when the caller passes a list (a file not read is not
-    a file without the name)."""
-    wanted = set(names)
-    skipped = unchecked if unchecked is not None else []
-    out: dict[Path, set[str]] = {}
-
-    seen_files: set[Path] = set()
-    for sources in _client_config_sources().values():
-        for path in sources:
-            seen_files.add(path)
-
-    for path in seen_files:
-        if not os.path.isfile(path):
-            continue
-        try:
-            data = json.loads(path.read_text(encoding="utf-8")) or {}
-        except (OSError, json.JSONDecodeError) as e:
-            skipped.append(f"{path} ({type(e).__name__}: {e})")
-            continue
-        found: set[str] = set()
-        for entry in (data.get("mcpServers") or {}).values():
-            env_block = (entry or {}).get("env") or {}
-            found.update(k for k in env_block if k in wanted)
-        if found:
-            out[path] = found
-
-    dotenv = Path.cwd() / ".env"
-    if os.path.isfile(dotenv):
-        try:
-            found = set()
-            for line in dotenv.read_text(encoding="utf-8").splitlines():
-                stripped = line.strip()
-                if not stripped or stripped.startswith("#") or "=" not in stripped:
-                    continue
-                key = stripped.split("=", 1)[0].strip()
-                if key in wanted:
-                    found.add(key)
-            if found:
-                out[dotenv] = found
-        except OSError as e:
-            skipped.append(f"{dotenv} ({type(e).__name__}: {e})")
-
-    return out
+    out: dict[Path, dict[str, str]] = {}
+    for found in scan(list(renames), include_process_env=False):
+        if found.kind in ("mcp", "dotenv"):
+            out.setdefault(Path(found.where), {})[found.name] = renames[found.name]
+    return {path: dict(sorted(names.items())) for path, names in out.items()}
 
 
 def _shell_assigns(text: str, name: str) -> bool:
@@ -2182,15 +2137,6 @@ def _shell_assigns(text: str, name: str) -> bool:
     from m3_memory.install.env_sources import shell_assignment
 
     return shell_assignment(text, name) is not None
-
-
-# Windows persistent-environment registry scopes. Each entry:
-#   (winreg-hive-attr-name, subkey path, User|Machine label, whether writable
-#    without admin). HKCU is User-writable; HKLM needs admin so --fix reports it.
-_WIN_ENV_REG_SCOPES = (
-    ("HKEY_CURRENT_USER", r"Environment", "User", True),
-    ("HKEY_LOCAL_MACHINE", r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment", "Machine", False),
-)
 
 
 def _all_env_renames() -> dict[str, str]:
@@ -2207,46 +2153,17 @@ def _all_env_renames() -> dict[str, str]:
 
 def _scan_registry_env_deprecations(names: dict[str, str], unchecked: list[str] | None = None) -> list[dict]:
     """Return one record per deprecated env var found in a Windows registry env
-    scope. Each record: {scope, label, subkey, hive_name, old, new, writable}.
-    Non-Windows → []. Read-only; never raises. A scope it could not read is
-    named in ``unchecked`` when the caller passes a list."""
-    if not is_windows() or not names:
+    scope: {scope, label, subkey, hive_name, old, new, writable, value}. Where the
+    OS keeps no such store, []. Read-only; never raises. A scope it could not
+    read is named in ``unchecked``. The registry access is the OS seam's
+    (``_platform.persistent_env_read``); this maps it onto the rename table."""
+    if not names:
         return []
-    skipped = unchecked if unchecked is not None else []
-    hits: list[dict] = []
-    try:
-        import winreg as _winreg  # noqa: PLC0415 — Windows-only, lazy
-    except Exception as e:  # noqa: BLE001
-        skipped.append(f"the Windows registry (winreg: {e})")
-        return hits
-    winreg: Any = _winreg  # Any alias: see the rationale in _migrate_registry_env_names
-    for hive_name, subkey, scope, writable in _WIN_ENV_REG_SCOPES:
-        hive = getattr(winreg, hive_name)
-        try:
-            with winreg.OpenKey(hive, subkey) as k:
-                for old, new in names.items():
-                    try:
-                        value, _kind = winreg.QueryValueEx(k, old)
-                    except FileNotFoundError:
-                        continue  # this var not set at this scope
-                    hits.append(
-                        {
-                            "scope": scope,
-                            "label": f"Windows {scope} env ({hive_name}\\{subkey})",
-                            "subkey": subkey,
-                            "hive_name": hive_name,
-                            "old": old,
-                            "new": new,
-                            "writable": writable,
-                            "value": str(value),
-                        }
-                    )
-        except FileNotFoundError:
-            continue  # scope key absent
-        except OSError as e:  # e.g. no read permission on HKLM
-            skipped.append(f"Windows {scope} env ({hive_name}\\{subkey}): {type(e).__name__}: {e}")
-            continue
-    return hits
+    from m3_memory._platform import persistent_env_read
+
+    return [
+        {**hit, "old": hit["name"], "new": names[hit["name"]]} for hit in persistent_env_read(list(names), unchecked)
+    ]
 
 
 def _find_deprecated_pg_url_locations() -> list[str]:
@@ -2331,10 +2248,23 @@ def _migrate_env_names(*, apply: bool = False) -> list[str]:
     actions: list[str] = []
     affected = _deprecated_env_in_config()
 
+    from m3_memory.install.env_sources import claude_user_config
+
     for path, renames in affected.items():
         try:
-            if path.name == ".env":
-                actions.extend(_migrate_dotenv_file(path, renames, apply=apply))
+            if path.name.startswith(".env"):
+                # m3 never rewrites a user's .env (CONFIG_DESIGN #D20).
+                actions.extend(
+                    f"[!] {path}: rename {old} to {new} by hand (m3 does not rewrite a .env)"
+                    for old, new in renames.items()
+                )
+            elif path == claude_user_config():
+                # The claude CLI manages this file; m3 says what to change.
+                actions.extend(
+                    f"[!] {path}: rename {old} to {new} in the server's env block "
+                    f"(or `claude mcp remove <server>` and add it again with --env {new}=...)"
+                    for old, new in renames.items()
+                )
             else:
                 actions.extend(_migrate_json_config_file(path, renames, apply=apply))
         except (OSError, json.JSONDecodeError) as e:
@@ -2364,23 +2294,11 @@ def _migrate_registry_env_names(*, apply: bool = False) -> list[str]:
     apply=False: dry-run ("would rename/drop ..."). apply=True: performs HKCU
     writes. Best-effort and per-var isolated: a failure on one var is noted, never
     aborts the rest. Idempotent."""
+    from m3_memory._platform import user_env_rename
+
     actions: list[str] = []
     names = _all_env_renames()
     hits = _scan_registry_env_deprecations(names)
-    if not hits:
-        return actions
-    try:
-        import winreg  # noqa: PLC0415
-    except Exception as e:  # noqa: BLE001
-        actions.append(f"[X] winreg unavailable, cannot migrate registry env: {e}")
-        return actions
-    # winreg is Windows-only stdlib; on a non-Windows type-checker (CI runs mypy
-    # on Linux) its stub exposes no attributes, so winreg.OpenKey/QueryValueEx/…
-    # raise attr-defined. This block only runs on Windows (the import is guarded
-    # above). Access the module through an Any-typed alias so the checker accepts
-    # the calls without a false positive. No runtime effect (same object).
-    _wr: Any = winreg
-
     for hit in hits:
         old, new = hit["old"], hit["new"]
         label = hit["label"]
@@ -2392,70 +2310,27 @@ def _migrate_registry_env_names(*, apply: bool = False) -> list[str]:
                 f'"HKLM\\{hit["subkey"]}" /v {old} /f'
             )
             continue
-        hive = getattr(_wr, hit["hive_name"])
-        try:
-            with _wr.OpenKey(hive, hit["subkey"], 0, _wr.KEY_READ) as k:
-                old_val, old_type = _wr.QueryValueEx(k, old)
-                new_exists = True
-                try:
-                    _wr.QueryValueEx(k, new)
-                except FileNotFoundError:
-                    new_exists = False
-        except OSError as e:
-            actions.append(f"[X] {label}: could not read {old}: {e}")
-            continue
-
-        if new_exists:
-            verb = "dropped" if apply else "would drop"
-            actions.append(
-                f"[+] {verb} superseded {old} ({new} already set) in {label} "
-                f"(old value preserved under {new}; {old} removed)"
-            )
-            if apply:
-                try:
-                    with _wr.OpenKey(hive, hit["subkey"], 0, _wr.KEY_SET_VALUE) as k:
-                        _wr.DeleteValue(k, old)
-                    _broadcast_env_change()
-                except OSError as e:
-                    actions.append(f"[X] {label}: could not delete {old}: {e}")
-        else:
-            verb = "renamed" if apply else "would rename"
-            actions.append(f"[+] {verb} {old} -> {new} in {label} (value carried over)")
-            if apply:
-                try:
-                    with _wr.OpenKey(hive, hit["subkey"], 0, _wr.KEY_SET_VALUE) as k:
-                        _wr.SetValueEx(k, new, 0, old_type, old_val)
-                        _wr.DeleteValue(k, old)
-                    _broadcast_env_change()
-                except OSError as e:
-                    actions.append(f"[X] {label}: could not rename {old}->{new}: {e}")
-    return actions
-
-
-def _broadcast_env_change() -> None:
-    """Ask running processes to reload the environment after a registry env write
-    (Windows broadcasts WM_SETTINGCHANGE with 'Environment'). Best-effort — the
-    change is already persisted; this only nudges live shells. Never raises."""
-    if not is_windows():
-        return
-    try:
-        import ctypes
-
-        HWND_BROADCAST = 0xFFFF
-        WM_SETTINGCHANGE = 0x1A
-        SMTO_ABORTIFHUNG = 0x0002
-        _ct: Any = ctypes  # Any alias: typeshed has ctypes.windll only for win32
-        _ct.windll.user32.SendMessageTimeoutW(
-            HWND_BROADCAST,
-            WM_SETTINGCHANGE,
-            0,
-            "Environment",
-            SMTO_ABORTIFHUNG,
-            5000,
-            ctypes.byref(ctypes.c_ulong()),
+        new_set = any(
+            h["name"] == new and h["scope"] == hit["scope"] for h in _scan_registry_env_deprecations({new: new})
         )
-    except Exception:  # noqa: BLE001
-        pass
+        if not apply:
+            actions.append(
+                f"[+] would drop superseded {old} ({new} already set) in {label}"
+                if new_set
+                else f"[+] would rename {old} -> {new} in {label} (value carried over)"
+            )
+            continue
+        try:
+            done = user_env_rename(old, new)
+        except OSError as e:
+            actions.append(f"[X] {label}: could not rename {old}->{new}: {e}")
+            continue
+        actions.append(
+            f"[+] dropped superseded {old} ({new} already set) in {label}"
+            if done == "dropped"
+            else f"[+] renamed {old} -> {new} in {label} (value carried over)"
+        )
+    return actions
 
 
 def _migrate_json_config_file(path: Path, renames: dict[str, str], *, apply: bool) -> list[str]:
@@ -2485,8 +2360,7 @@ def _migrate_json_config_file(path: Path, renames: dict[str, str], *, apply: boo
                     env_block[new] = env_block.pop(old)
                     changed = True
     if apply and changed:
-        path.with_suffix(path.suffix + ".bak").write_text(original, encoding="utf-8")
-        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        _guarded_write(path, json.dumps(data, indent=2) + "\n", by="m3 doctor --fix (env names)")
     return actions
 
 
@@ -2528,8 +2402,7 @@ def _scrub_embed_gguf_from_settings(path: Path, *, apply: bool) -> list[str]:
             env_block.pop("M3_EMBED_GGUF", None)
             changed = True
     if apply and changed:
-        path.with_suffix(path.suffix + ".bak").write_text(original, encoding="utf-8")
-        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        _guarded_write(path, json.dumps(data, indent=2) + "\n", by="m3 doctor --fix (M3_EMBED_GGUF)")
     return actions
 
 
@@ -2553,49 +2426,6 @@ def _heal_embed_gguf_env_leak(*, apply: bool) -> list[str]:
                 actions.append(f"[+] seeded shared embedder config: {_p}")
         except Exception as e:  # noqa: BLE001
             actions.append(f"[!] could not seed shared config: {type(e).__name__}: {e}")
-    return actions
-
-
-def _migrate_dotenv_file(path: Path, renames: dict[str, str], *, apply: bool) -> list[str]:
-    """Rename OLD->NEW KEY= tokens line-wise in a plain .env file, preserving
-    values and comments. Raises on I/O error (caller handles)."""
-    actions: list[str] = []
-    original = path.read_text(encoding="utf-8")
-    lines = original.splitlines(keepends=True)
-
-    existing_keys: set[str] = set()
-    for line in lines:
-        stripped = line.strip()
-        if stripped and not stripped.startswith("#") and "=" in stripped:
-            existing_keys.add(stripped.split("=", 1)[0].strip())
-
-    new_lines: list[str] = []
-    changed = False
-    for line in lines:
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#") or "=" not in stripped:
-            new_lines.append(line)
-            continue
-        key, _, rest = stripped.partition("=")
-        key = key.strip()
-        new = renames.get(key)
-        if new is None:
-            new_lines.append(line)
-            continue
-        if new in existing_keys:
-            verb = "dropped" if apply else "would drop"
-            actions.append(f"[+] {verb} superseded {key} ({new} already set) in {path}")
-            changed = True
-            continue  # old line dropped entirely; new's own line already carries the value
-        verb = "renamed" if apply else "would rename"
-        actions.append(f"[+] {verb} {key} -> {new} in {path}")
-        changed = True
-        ending = "\n" if line.endswith("\n") else ""
-        new_lines.append(f"{new}={rest}".rstrip("\n") + ending)
-
-    if apply and changed:
-        path.with_suffix(path.suffix + ".bak").write_text(original, encoding="utf-8")
-        path.write_text("".join(new_lines), encoding="utf-8")
     return actions
 
 
@@ -2638,9 +2468,10 @@ def _deprecated_env_config_section() -> None:
     for path, renames in sorted(affected.items(), key=lambda kv: str(kv[0])):
         for old, new in sorted(renames.items()):
             print(f"        {path}: {old}  ->  {new}")
-    print("      → Run `m3 doctor --fix` to rename these into the M3_ namespace")
-    print("        automatically (a .bak is written; the old names still work")
-    print("        until you do).")
+    print("      → `m3 doctor --fix` renames these in MCP client configs (each file keeps")
+    print("        <name>.bak and a <name>.backup_history entry); a .env and ~/.claude.json")
+    print("        are never rewritten: it prints the edit to make. The old names still")
+    print("        work until you change them.")
 
 
 # m3's own long-running scripts. The four deleted bridges (grok/web_research/

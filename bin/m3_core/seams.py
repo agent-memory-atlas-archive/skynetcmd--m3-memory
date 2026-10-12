@@ -45,6 +45,7 @@ from m3_memory._platform import (  # noqa: E402
     reexec,
     user_env_get,
     user_env_snapshot,
+    vscode_user_dir,
     wait_for_any_key,
 )
 from m3_memory._pyver import PY, event_loop_timer_slack, wheel_python_tag  # noqa: E402
@@ -71,6 +72,7 @@ __all__ = [
     "roots",
     "user_env_get",
     "user_env_snapshot",
+    "vscode_user_dir",
     "wait_for_any_key",
     "wheel_python_tag",
 ]

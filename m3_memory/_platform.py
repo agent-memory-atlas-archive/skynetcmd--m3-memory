@@ -71,6 +71,115 @@ def user_env_get(name: str) -> str | None:
     return str(value)
 
 
+def vscode_user_dir() -> str:
+    """VS Code's per-user data directory (extensions such as Cline keep their
+    settings under its ``globalStorage``): ``%APPDATA%/Code/User`` on Windows,
+    ``~/Library/Application Support/Code/User`` on macOS, ``~/.config/Code/User``
+    elsewhere. A string, joined with os.path, so a simulated OS keeps the host's
+    separator (as the roots do)."""
+    home = os.path.expanduser("~")
+    if is_windows():
+        base = os.environ.get("APPDATA") or os.path.join(home, "AppData", "Roaming")  # its default when unset
+        return os.path.join(base, "Code", "User")
+    if is_macos():
+        return os.path.join(home, "Library", "Application Support", "Code", "User")
+    return os.path.join(home, ".config", "Code", "User")
+
+
+# The persistent environment scopes: (label, hive attribute, subkey, writable
+# without admin). User is what `setx` writes; Machine needs elevation.
+PERSISTENT_ENV_SCOPES = (
+    ("User", "HKEY_CURRENT_USER", "Environment", True),
+    ("Machine", "HKEY_LOCAL_MACHINE", r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment", False),
+)
+
+
+def _env_store() -> Any | None:
+    """The registry module when this OS keeps a persistent environment there.
+    Both the store (measured) and the seam's answer (is_windows) must say so: a
+    run simulating POSIX (conftest.simulate_os, the one knob) sees no store."""
+    return _winreg if _winreg is not None and is_windows() else None
+
+
+def persistent_env_read(names: list[str] | dict[str, str], unchecked: list[str] | None = None) -> list[dict]:
+    """Each of ``names`` set in a persistent environment scope, as {scope, label,
+    hive_name, subkey, writable, name, value, kind}; [] where the OS keeps no such
+    store. Never raises: a scope it could not read is named in ``unchecked``."""
+    reg = _env_store()
+    if reg is None:
+        return []
+    skipped = unchecked if unchecked is not None else []
+    hits: list[dict] = []
+    for scope, hive_name, subkey, writable in PERSISTENT_ENV_SCOPES:
+        try:
+            with reg.OpenKey(getattr(reg, hive_name), subkey) as k:
+                for name in names:
+                    try:
+                        value, kind = reg.QueryValueEx(k, name)
+                    except FileNotFoundError:
+                        continue  # not set at this scope
+                    hits.append(
+                        {
+                            "scope": scope,
+                            "label": f"Windows {scope} env ({hive_name}\\{subkey})",
+                            "hive_name": hive_name,
+                            "subkey": subkey,
+                            "writable": writable,
+                            "name": name,
+                            "value": str(value),
+                            "kind": kind,
+                        }
+                    )
+        except FileNotFoundError:
+            continue  # scope key absent
+        except OSError as e:  # e.g. no read permission on HKLM
+            skipped.append(f"Windows {scope} env ({hive_name}\\{subkey}): {type(e).__name__}: {e}")
+    return hits
+
+
+def user_env_rename(old: str, new: str) -> str:
+    """Rename ``old`` to ``new`` in the persistent per-user environment, carrying
+    the value and its registry type; when ``new`` is already set, ``old`` is
+    dropped (``new`` wins). Returns "renamed" or "dropped"; raises ``OSError``
+    (including where there is no such store). Running shells are asked to
+    reload their environment afterwards."""
+    reg = _env_store()
+    if reg is None:
+        raise OSError("this OS keeps no persistent per-user environment store")
+    _scope, hive_name, subkey, _w = PERSISTENT_ENV_SCOPES[0]
+    with reg.OpenKey(getattr(reg, hive_name), subkey, 0, reg.KEY_READ) as k:
+        old_val, old_type = reg.QueryValueEx(k, old)
+        try:
+            reg.QueryValueEx(k, new)
+            new_exists = True
+        except FileNotFoundError:
+            new_exists = False
+    with reg.OpenKey(getattr(reg, hive_name), subkey, 0, reg.KEY_SET_VALUE) as k:
+        if not new_exists:
+            reg.SetValueEx(k, new, 0, old_type, old_val)
+        reg.DeleteValue(k, old)
+    broadcast_env_change()
+    return "dropped" if new_exists else "renamed"
+
+
+def broadcast_env_change() -> None:
+    """Ask running processes to reload the environment after a persistent env
+    write (WM_SETTINGCHANGE 'Environment'). Best-effort: the change is already
+    stored; this only nudges live shells. Never raises."""
+    if _env_store() is None:
+        return
+    try:
+        import ctypes
+
+        hwnd_broadcast, wm_settingchange, smto_abortifhung = 0xFFFF, 0x1A, 0x0002
+        _ct: Any = ctypes  # Any: typeshed has ctypes.windll only for win32
+        _ct.windll.user32.SendMessageTimeoutW(
+            hwnd_broadcast, wm_settingchange, 0, "Environment", smto_abortifhung, 5000, ctypes.byref(ctypes.c_ulong())
+        )
+    except Exception:  # noqa: BLE001 -- a nudge, never a failure
+        pass
+
+
 def os_name() -> str:
     """Return 'Windows', 'Darwin', or 'Linux' without touching WMI.
 

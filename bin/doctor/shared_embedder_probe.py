@@ -64,8 +64,12 @@ def _read_config() -> dict | None:
 
 def _known_agent_settings() -> list[tuple[str, str]]:
     """(label, path) for every client settings file that may carry an m3 MCP
-    server env block. Dependency-free mirror of installer._known_agent_settings
-    so this probe runs from a bare payload."""
+    server env block. A mirror of installer._known_agent_settings, free of the
+    installer so this probe runs from a bare payload; the OS-specific location
+    comes from the OS seam, and tests/test_shared_embedder_probe.py pins the two
+    lists together (it once lacked Cursor and Cline)."""
+    from m3_core.seams import vscode_user_dir
+
     home = os.path.expanduser("~")
     j = os.path.join
     return [
@@ -73,6 +77,11 @@ def _known_agent_settings() -> list[tuple[str, str]]:
         ("Gemini CLI", j(home, ".gemini", "settings.json")),
         ("Antigravity", j(home, ".gemini", "antigravity-cli", "settings.json")),
         ("Aider", j(home, ".aider", "settings.json")),
+        ("Cursor", j(home, ".cursor", "mcp.json")),
+        (
+            "Cline",
+            j(vscode_user_dir(), "globalStorage", "saoudrizwan.claude-dev", "settings", "cline_mcp_settings.json"),
+        ),
     ]
 
 
@@ -230,12 +239,11 @@ def _fix_scrub_env_leak() -> tuple[bool, bool]:
                 changed = True
         if changed:
             try:
-                with open(path + ".bak", "w", encoding="utf-8") as f:
-                    f.write(original)
-                with open(path, "w", encoding="utf-8") as f:
-                    json.dump(data, f, indent=2)
-                    f.write("\n")
-                print(f"  [fix] scrubbed M3_EMBED_GGUF from {path} (backup: {path}.bak)")
+                from m3_core.atomic_io import GuardedRewrite
+
+                guard = GuardedRewrite(path, by="m3 doctor --fix (M3_EMBED_GGUF)")
+                guard.write(json.dumps(data, indent=2) + "\n")
+                print(f"  [fix] scrubbed M3_EMBED_GGUF from {path} (backup: {guard.bak}, history: {guard.history})")
                 settings_scrubbed = True
             except Exception as e:  # noqa: BLE001
                 print(f"  [fix] could not rewrite {path}: {e}")

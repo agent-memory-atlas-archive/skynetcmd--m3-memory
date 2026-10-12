@@ -3024,16 +3024,21 @@ def _wire_opencode() -> bool:
             _say_unchanged(f"  · OpenCode already wired ({cfg_path})")
             healed_any = True
             continue
-        # Missing or stale -> (re)write the canonical entry, backing up a rewrite.
-        if cur is not None:
-            bak = cfg_path.with_suffix(cfg_path.suffix + ".m3bak")
-            try:
-                bak.write_text(cfg_path.read_text(encoding="utf-8"), encoding="utf-8")
-            except OSError:
-                pass
+        # Missing or stale -> (re)write the canonical entry. An existing file is
+        # backed up first (<name>.bak + .backup_history); no backup, no rewrite.
         mcp["memory"] = canonical
         existing.setdefault("$schema", "https://opencode.ai/config.json")
-        cfg_path.write_text(json.dumps(existing, indent=2) + "\n", encoding="utf-8")
+        from m3_core.atomic_io import GuardedRewrite, atomic_write
+
+        text = json.dumps(existing, indent=2) + "\n"
+        try:
+            if os.path.isfile(cfg_path):  # os.path: Path.is_file raises on 3.12/3.13 (test_python_version_seam)
+                GuardedRewrite(cfg_path, by="m3 setup (OpenCode)").write(text)
+            else:
+                atomic_write(cfg_path, text)
+        except OSError as e:
+            _warn(f"  · OpenCode: could not rewrite {cfg_path} ({e}); left as it was")
+            continue
         verb = "repointed" if cur is not None else "wrote"
         _say(f"  · {verb} OpenCode memory MCP in {cfg_path}")
         healed_any = True
