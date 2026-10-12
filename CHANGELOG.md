@@ -513,6 +513,18 @@ the policy is forward-going only.
 
 ### Added
 
+- **`m3 batch` runs several commands in one process.** Each line of stdin is a
+  command as it would follow `m3` (the same quoting on every OS), or a JSON
+  array of its arguments. Results come back as one JSON object per command;
+  `--text` prints readable sections instead.
+  - **Failures:** a failing command does not stop the rest unless
+    `--stop-on-error` is given.
+  - **`--set` and `--config`** apply to the whole batch: `m3 "--set={...}" batch`.
+  - **Not run inside a batch:** commands that prompt, that run until stopped,
+    or that change the m3 installation. Each refusal says why.
+
+  **Affected:** none · **Action:** none · **Data status:** none.
+
 - **`--set` overrides settings for one run.** It works on any `m3` command and
   any m3 script. One table in double quotes goes right after `m3`, with the
   setting names of `m3_config.toml`; strings go in `^...^`:

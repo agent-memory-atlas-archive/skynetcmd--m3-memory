@@ -749,6 +749,135 @@ def _secret_set(args: argparse.Namespace) -> int:
     return 0
 
 
+# `m3 batch` (approved interface, m3 009d7cce): commands it refuses, by reason.
+_BATCH_REFUSED: dict[str, str] = {
+    **dict.fromkeys(("setup",), "it asks questions, and a batch's stdin is the batch"),
+    **dict.fromkeys(("serve", "dashboard"), "it runs until stopped"),
+    **dict.fromkeys(
+        ("install-m3", "reinstall", "update", "upgrade", "uninstall", "stop"),
+        "it changes or stops the m3 installation the batch is running on",
+    ),
+    "batch": "batches do not nest",
+}
+
+
+class _BatchLineError(ValueError):
+    """A batch line that is refused before it runs; the message never echoes a value."""
+
+
+def _batch_argv(line: str, n: int) -> list[str]:
+    """The arguments of batch line ``n``: a JSON array when the line starts with
+    '[', else command text split by POSIX shell-word rules (no shell sees stdin,
+    so the same rules hold on every OS)."""
+    import json
+    import shlex
+
+    text = line.strip()
+    if text.startswith("["):
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError as e:
+            raise _BatchLineError(f"line {n}: not a JSON array ({e.msg} at column {e.colno})") from None
+        if not (isinstance(parsed, list) and all(isinstance(a, str) for a in parsed)):
+            raise _BatchLineError(f"line {n}: a JSON line must be an array of strings")
+        argv: list[str] = [str(a) for a in parsed]
+    else:
+        try:
+            argv = shlex.split(text, posix=True)
+        except ValueError as e:
+            raise _BatchLineError(f"line {n}: {e} (an unclosed quote?)") from None
+    if not argv:
+        raise _BatchLineError(f"line {n}: empty")
+    for arg in argv:
+        if arg in ("--set", "--config") or arg.startswith(("--set=", "--config=")):
+            flag = arg.split("=", 1)[0]
+            raise _BatchLineError(
+                f"line {n}: {flag} is process-wide and would leak into the following lines; "
+                f'give it once to the batch: m3 "{flag}=..." batch'
+            )
+    command = argv[0]
+    why = _BATCH_REFUSED.get(command)
+    if why is None and argv[:2] == ["secret", "set"]:
+        why = "it asks for the secret, and a batch's stdin is the batch"
+    if why is not None:
+        raise _BatchLineError(f"line {n}: `{command}` is not run inside a batch: {why}; run it on its own")
+    return argv
+
+
+def _run_batch_line(argv: list[str]) -> tuple[int, str, str]:
+    """Run one command in this process, as `m3 <argv>` would, capturing what it
+    writes at the FILE-DESCRIPTOR level: a child process inherits the
+    descriptors, and its output would otherwise bypass sys.stdout and corrupt
+    the batch's JSON Lines. A command that exits does not end the batch."""
+    import io
+    import tempfile
+    from contextlib import redirect_stderr, redirect_stdout
+
+    saved_argv = sys.argv
+    sys.stdout.flush()
+    sys.stderr.flush()
+    with tempfile.TemporaryFile() as out_f, tempfile.TemporaryFile() as err_f:
+        saved_fds = os.dup(1), os.dup(2)
+        os.dup2(out_f.fileno(), 1)
+        os.dup2(err_f.fileno(), 2)
+        out_s, err_s = io.StringIO(), io.StringIO()
+        code = 0
+        try:
+            with redirect_stdout(out_s), redirect_stderr(err_s):
+                sys.argv = ["m3", *argv]
+                try:
+                    main()
+                except SystemExit as e:
+                    code = e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
+                except Exception as e:  # noqa: BLE001 -- one line's failure is reported, the batch goes on
+                    print(f"m3 batch: the command failed: {type(e).__name__}: {e}", file=sys.stderr)
+                    code = 1
+        finally:
+            sys.argv = saved_argv
+            os.dup2(saved_fds[0], 1)
+            os.dup2(saved_fds[1], 2)
+            os.close(saved_fds[0])
+            os.close(saved_fds[1])
+        out_f.seek(0)
+        err_f.seek(0)
+        fd_out = out_f.read().decode("utf-8", errors="replace")
+        fd_err = err_f.read().decode("utf-8", errors="replace")
+    return code, out_s.getvalue() + fd_out, err_s.getvalue() + fd_err
+
+
+def _cmd_batch(args: argparse.Namespace) -> int:
+    """`m3 batch [--text] [--stop-on-error]`: run the commands on stdin, one per
+    line, in this one process (one start-up for all of them)."""
+    import json
+
+    lines = sys.stdin.read().splitlines()
+    any_failed = False
+    for n, line in enumerate(lines, 1):
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        command: list[str] | None
+        try:
+            command = _batch_argv(line, n)
+        except _BatchLineError as e:
+            command, code, out, err = None, 2, "", str(e)
+        else:
+            code, out, err = _run_batch_line(command)
+        failed = code != 0
+        any_failed |= failed
+        if args.text:
+            shown = " ".join(command or ["(refused)"])
+            print(f"=== line {n}: {shown} (exit {code}) ===")
+            if out:
+                print(out.rstrip("\n"))
+            if err:
+                print(err.rstrip("\n"))
+        else:
+            print(json.dumps({"line": n, "command": command, "exit": code, "stdout": out, "stderr": err}), flush=True)
+        if failed and args.stop_on_error:
+            break
+    return 1 if any_failed else 0
+
+
 def _cmd_secret(args: argparse.Namespace) -> int:
     """`m3 secret refresh | set NAME [--keyring]`. refresh moves the secrets
     generation marker (m3's own writes do this already; this is for a key changed
@@ -2287,6 +2416,19 @@ Examples:
     for p_cfg in (p_cfg_show, p_cfg_get, p_cfg_set, p_cfg_unset, p_cfg_import):
         p_cfg.add_argument("--config", metavar="FILE", help="Use this file instead of the located one.")
     p_config.set_defaults(func=_cmd_config)
+
+    p_batch = subparsers.add_parser(
+        "batch",
+        help="Run several m3 commands from stdin in one process (one per line; JSON Lines results).",
+        description=(
+            "Each stdin line is a command as it would follow `m3` (POSIX quoting, the same on every OS), "
+            'or a JSON array of its arguments (["config", "get", "search.row_cap"]). Blank and # lines '
+            'are skipped. --set and --config go on the batch itself: m3 "--set={...}" batch.'
+        ),
+    )
+    p_batch.add_argument("--text", action="store_true", help="Readable sections instead of JSON Lines.")
+    p_batch.add_argument("--stop-on-error", action="store_true", help="Stop at the first command that fails.")
+    p_batch.set_defaults(func=_cmd_batch)
 
     p_restore = subparsers.add_parser(
         "restore",
