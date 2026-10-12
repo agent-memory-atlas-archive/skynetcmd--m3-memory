@@ -116,6 +116,18 @@ def _get(mid, col):
     return _sql(f"SELECT {col} FROM memory_items WHERE id = {p}", (mid,))[0][0]
 
 
+def _stamp_queued(mid):
+    """Queue an access stamp the way a search does, through the owner of the
+    queue's key shape (it queues only inside a running loop)."""
+    from memory.db import _access_pending, _enqueue_access_stamps
+
+    async def _go():
+        _enqueue_access_stamps([mid])
+
+    _access_pending.clear()
+    asyncio.run(_go())
+
+
 _OLD = "2020-01-01T00:00:00+00:00"  # far older than the 7-day decay window
 
 
@@ -492,14 +504,13 @@ def test_access_stamps_are_written_on_pg(pg):
     An entire backend had the feature set disabled and nothing said so. This
     asserts the write really lands, on the backend that rejected it.
     """
-    from memory.db import _access_pending, flush_access_stamps_now
+    from memory.db import flush_access_stamps_now
 
     uid = f"dyn-{uuid.uuid4().hex[:8]}"
     mid = _write(uid, type="note", content="stamp me", importance=0.5)
     _set(mid, last_accessed_at=None, access_count=0)
 
-    _access_pending.clear()
-    _access_pending.add(mid)
+    _stamp_queued(mid)
     written = flush_access_stamps_now()
 
     assert written == 1, "the flusher reported no rows written on PG"
@@ -515,14 +526,13 @@ def test_a_stamped_memory_can_be_graded_on_pg(pg):
     Both halves failed together on PG, so assert them together.
     """
     import memory_maintenance as MM
-    from memory.db import _access_pending, flush_access_stamps_now
+    from memory.db import flush_access_stamps_now
 
     uid = f"dyn-{uuid.uuid4().hex[:8]}"
     mid = _write(uid, type="note", content="grade me", importance=0.5)
     _set(mid, last_accessed_at=None)
 
-    _access_pending.clear()
-    _access_pending.add(mid)
+    _stamp_queued(mid)
     flush_access_stamps_now()
 
     res = MM.memory_grade_impl(grades=[{"memory_id": mid, "verdict": "helpful"}])
