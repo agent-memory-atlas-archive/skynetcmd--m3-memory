@@ -40,7 +40,6 @@ DEPRECATED_ENV_RENAMES: dict[str, str] = {
     # no live getenv_compat call site for it. It moved to RETIRED_ENV_RENAMES so
     # `m3 doctor` still cleans a stale CHROMA_BASE_URL out of on-disk config. See
     # below.
-    "DB_BACKEND": "M3_DB_BACKEND",
     "DB_POOL_SIZE": "M3_DB_POOL_SIZE",
     "DB_POOL_TIMEOUT": "M3_DB_POOL_TIMEOUT",
     "LLM_ENDPOINTS_CSV": "M3_LLM_ENDPOINTS_CSV",
@@ -1043,12 +1042,14 @@ SELECTABLE_BACKENDS: tuple = ("sqlite", "postgres")
 
 
 def resolve_backend_name() -> str:
-    """The configured backend name, re-read from the environment on every call.
+    """The configured backend name: registry key ``db.backend``.
 
     THE single owner of this predicate; ``memory.backends.selector`` re-exports
-    it. Precedence mirrors every other m3 flag: ``M3_DB_BACKEND``, then the
-    legacy ``DB_BACKEND``, then ``sqlite``. An unrecognised value raises — a
-    typo like ``postgre`` must not silently run SQLite.
+    it. Precedence (U9, the one ``env_override`` key): a ``--``flag
+    (``set_from_cli``), then ``M3_DB_BACKEND`` / legacy ``DB_BACKEND`` re-read
+    from the environment on every call, then ``[db] backend`` in m3_config.toml,
+    then ``sqlite``. An unrecognised value raises — a typo like ``postgre`` must
+    not silently run SQLite.
 
     Never memoised: a module-global memo lives per module instance, and two
     loaded instances can disagree about the backend.
@@ -1059,14 +1060,15 @@ def resolve_backend_name() -> str:
     store = current_store()
     if store is not None:
         return store.backend
-    raw = (getenv_compat("M3_DB_BACKEND", "DB_BACKEND", "sqlite") or "sqlite").strip().lower()
-    if raw not in SELECTABLE_BACKENDS:
-        raise ValueError(
-            f"M3_DB_BACKEND={raw!r} is not recognized; expected one of {SELECTABLE_BACKENDS}. "
-            f"Unset it to use the default 'sqlite'. "
-            f"observed: M3_DB_BACKEND={raw!r}. inspect: M3_DB_BACKEND (or the legacy DB_BACKEND)"
-        )
-    return raw
+    from m3_core.config.resolve import ConfigEnvErrors  # config imports this module
+    from m3_core.config.settings import setting
+
+    try:
+        return setting("db.backend")
+    except ConfigEnvErrors as e:
+        # The selector's contract is ValueError (callers degrade on it); the
+        # registry reports every bad env value at once, as a group.
+        raise ValueError(f"{e.message}: " + "; ".join(str(x) for x in e.exceptions)) from e
 
 
 def require_sqlite_backend(tool: str) -> None:

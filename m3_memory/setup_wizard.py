@@ -1892,7 +1892,10 @@ def _probe_llm_endpoints(plan: SetupPlan, args: argparse.Namespace) -> None:
     vars to match. Mirrors the M3_EMBED_GGUF persistence (shell rc + MCP env)."""
     # If the user already pinned a custom server, honor it — just confirm.
     custom = (_config.setting("llm.url") or "").strip()
-    csv = (_env_compat("M3_LLM_ENDPOINTS_CSV", "LLM_ENDPOINTS_CSV", "") or "").strip()
+    # `m3 install --llm-endpoint` records its pin in .llm_config.json, not env.
+    csv = (_env_compat("M3_LLM_ENDPOINTS_CSV", "LLM_ENDPOINTS_CSV", "") or "").strip() or _llm_recorded(
+        "M3_LLM_ENDPOINTS_CSV"
+    )
     if csv:
         _ok(f"  LLM endpoints pinned via LLM_ENDPOINTS_CSV ({csv}); leaving as-is")
         _record_llm_switch("M3_LLM_ENDPOINTS_CSV", csv)
@@ -1933,15 +1936,14 @@ def _probe_llm_endpoints(plan: SetupPlan, args: argparse.Namespace) -> None:
         already = os.environ.get(var, "").strip()
         from m3_memory.wizard.persist import shell_rc_has
 
+        # Recorded in <config root>/.llm_config.json, which every launcher reads
+        # (llm_config: env > that file). No env write and no shell-rc / MCP-env
+        # persistence: setup writes files, not env (wizard cut-over, user decision
+        # 2026-10-11, m3 ec79a21b); the file folds into m3_config.toml with import-env.
         if already in ("1", "true", "yes") or shell_rc_has(var, val):
-            # The shell has it, but launchd/systemd daemons never read the rc;
-            # record it where they look.
-            os.environ[var] = val
-            _record_llm_switch(var, val)
+            _record_llm_switch(var, val)  # the shell has it; daemons never read the rc
             continue
-        if args.non_interactive or _ask_yes_no(f"  Enable {label} for enrichment (persist {var}=1)?", default=True):
-            os.environ[var] = val
-            _persist_env_var(var, val, non_interactive=args.non_interactive)
+        if args.non_interactive or _ask_yes_no(f"  Enable {label} for enrichment ({var}=1)?", default=True):
             _record_llm_switch(var, val)
 
     # If LM Studio is NOT reachable but something else is, disable its probe so
@@ -1949,21 +1951,25 @@ def _probe_llm_endpoints(plan: SetupPlan, args: argparse.Namespace) -> None:
     lmstudio_live = any(label == "LM Studio" for label, *_ in reachable)
     if not lmstudio_live and os.environ.get("M3_ENABLE_LMSTUDIO_FAILOVER", "").strip() not in ("0", "false", "no"):
         _say("  LM Studio (:1234) not reachable — disabling its probe to avoid a dead connect")
-        os.environ["M3_ENABLE_LMSTUDIO_FAILOVER"] = "0"
-        _persist_env_var("M3_ENABLE_LMSTUDIO_FAILOVER", "0", non_interactive=args.non_interactive)
     if not lmstudio_live:
         _record_llm_switch("M3_ENABLE_LMSTUDIO_FAILOVER", "0")
 
 
-def _llm_switch_enabled(var: str) -> bool:
-    """True when a previous setup recorded this LLM runtime switch as on."""
+def _llm_recorded(var: str) -> str:
+    """The value a previous setup or install recorded for ``var`` in
+    <config_root>/.llm_config.json ("" when none)."""
     try:
         _m3bin.ensure_on_path()
         from m3_core.llm_config import read_llm_config
 
-        return str(read_llm_config().get(var, "")).strip().lower() in ("1", "true", "yes", "on")
+        return str(read_llm_config().get(var, "")).strip()
     except (ImportError, OSError, ValueError):
-        return False
+        return ""
+
+
+def _llm_switch_enabled(var: str) -> bool:
+    """True when a previous setup recorded this LLM runtime switch as on."""
+    return _llm_recorded(var).lower() in ("1", "true", "yes", "on")
 
 
 def _record_llm_switch(var: str, val: str) -> None:
@@ -2041,58 +2047,13 @@ def _kill_process_windows(pid: int) -> bool:
         return False
 
 
-def _persist_embed_gguf(gguf_path: str, *, non_interactive: bool) -> None:
-    """Persist M3_EMBED_GGUF so new shells + spawned MCP servers see it.
-
-    Two surfaces, both idempotent and cross-platform:
-
-      1. Shell env — so `mcp-memory doctor` and other CLI invocations see
-         the var without the wizard's process being in scope:
-           - Unix (macOS / Linux): append `export M3_EMBED_GGUF=...` to
-             ~/.zshrc on zsh, ~/.bashrc on bash, ~/.profile fallback.
-           - Windows: `setx M3_EMBED_GGUF <path>` writes to the user env
-             (HKCU\\Environment), so new cmd / PowerShell sessions inherit
-             it. setx does NOT update the current process or other open
-             shells — that's fine, the wizard's own os.environ is already set.
-
-      2. The 'memory' MCP server entry's `env` block in
-         ~/.claude/settings.json and ~/.gemini/settings.json. MCP servers
-         are spawned by Claude Code / Gemini CLI as subprocesses that DO NOT
-         inherit the user's interactive shell env on macOS (launchd) or
-         Windows (GUI process tree). Without this, the shell rc alone never
-         reaches them. Same code path on all 3 platforms — Path.home()
-         resolves correctly on each.
-
-    Failure on any surface is reported as a warning but does not abort:
-    the GGUF is still set in *this* process, which is enough for the
-    rest of setup. Best-effort across surfaces matches the wizard's
-    overall posture (post-install steps print warnings, don't crash).
-    """
-    _persist_embed_gguf_shell(gguf_path, non_interactive=non_interactive)
-    _persist_embed_gguf_mcp(gguf_path)
-
-
-# Shell-rc / MCP-env persistence backends (never monkeypatched; confirmed via
-# grep) live in wizard/persist.py, re-imported here so setup_wizard.<name>
-# keeps resolving for tests/importers. The top-level _persist_embed_gguf /
-# _persist_env_var wrappers below (which delegate to these) DO get patched by
-# tests indirectly via _ask_yes_no/_run — they stay in this module along with
-# every other patched-fn caller.
+# The shell-rc helpers live in wizard/persist.py; re-imported so
+# setup_wizard._pick_unix_shell_rc keeps resolving for tests. (The env-var
+# persisters that also lived there went with the wizard cut-over: setup
+# records its choices in files, not env.)
 from .wizard.persist import (  # noqa: F401,E402 — re-exported for setup_wizard.<name> access
-    _persist_embed_gguf_mcp,
-    _persist_embed_gguf_shell,
-    _persist_env_var_mcp,
-    _persist_env_var_shell,
     _pick_unix_shell_rc,
 )
-
-
-def _persist_env_var(name: str, value: str, *, non_interactive: bool) -> None:
-    """Generic env-var persistence — shell rc + memory MCP env block, mirroring
-    _persist_embed_gguf for arbitrary name/value (e.g. failover opt-in vars).
-    Best-effort across surfaces; warnings don't abort."""
-    _persist_env_var_shell(name, value, non_interactive=non_interactive)
-    _persist_env_var_mcp(name, value)
 
 
 def _discover_bge_m3_gguf() -> str | None:
@@ -2246,8 +2207,9 @@ def _step_cpu_sovereign_embedder() -> bool:
     from m3_memory.embedder_admin import EXIT_REGISTERED_NOT_RUNNING
 
     cmd = _m3_cli("embedder", "install", "--concurrency", "2")
+    m3_env = _m3_child_env()
     try:
-        _run(cmd)  # reports "running on port 8082" itself
+        _run(cmd, env=m3_env)  # reports "running on port 8082" itself
         return True
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         # One nonzero code is NOT benign: the service got registered but is not
@@ -2402,7 +2364,7 @@ def _step_rust_core(plan: SetupPlan) -> bool:
     if not plan.allow_native_source_build:
         cmd.append("--no-source-fallback")
     try:
-        _run(cmd)
+        _run(cmd, env=_m3_child_env())
         _ok(f"native core installed (m3-core-rs {M3_CORE_RS_VERSION})")
         return True
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
@@ -2444,7 +2406,7 @@ def _step_gpu_embedder(plan: SetupPlan) -> bool:
     if not plan.allow_native_source_build:
         cmd.append("--no-source-fallback")
     try:
-        _run(cmd)
+        _run(cmd, env=_m3_child_env())
         _ok("Project Oxidation native embedder installed (in-process hot path active)")
         return True
     except subprocess.CalledProcessError as e:
@@ -2707,7 +2669,7 @@ def _step_install_wolfssl(plan: SetupPlan) -> bool:
     _say("FIPS: building + installing open-source wolfSSL (from official source)")
     cmd = _m3_cli("fips", "install-wolfssl")
     try:
-        _run(cmd)
+        _run(cmd, env=_m3_child_env())
         _ok("wolfSSL installed to ~/.m3/lib — FIPS mode can use it")
         return True
     except subprocess.CalledProcessError as e:
@@ -4029,7 +3991,7 @@ def _step_doctor(plan=None) -> bool:
         # forever. Observed on windows-latest: the E2E job sat in_progress for
         # 25+ minutes on this step while its ubuntu/macOS twins finish in well
         # under 10, i.e. the failure mode there is a BLOCK, not a crash.
-        cp = _run(argv, timeout=_DOCTOR_TIMEOUT_S)
+        cp = _run(argv, env=_m3_child_env(), timeout=_DOCTOR_TIMEOUT_S)
         _trace(f"doctor: _run returned rc={getattr(cp, 'returncode', '?')}")
         _ok("verification passed — m3 is installed and working")
         return True
@@ -4119,13 +4081,19 @@ def _m3_cli(*args: str) -> list[str]:
     package's own root goes on PYTHONPATH instead, so an installed setup stays
     on the install and a setup run from a checkout stays on that checkout.
     """
-    root = str(Path(__file__).resolve().parent.parent)
-    current = os.environ.get("PYTHONPATH", "")
-    if root not in current.split(os.pathsep):
-        os.environ["PYTHONPATH"] = root + (os.pathsep + current if current else "")
     from .wizard.ui import caller_args
 
     return [sys.executable, "-P", "-m", "m3_memory.cli", *caller_args(), *args]
+
+
+def _m3_child_env() -> dict[str, str]:
+    """The environment for a child built by :func:`_m3_cli`: this package's root
+    first on PYTHONPATH (``-P`` dropped the working directory), via ``child_env``.
+
+    Per spawn, not a global write: ``_m3_cli`` used to put the root into
+    ``os.environ`` on its first call, so every LATER child of setup, pip and
+    schtasks included, inherited it by accident (wizard cut-over, 2026-10-11)."""
+    return _childenv.child_env(prepend_pythonpath=str(Path(__file__).resolve().parent.parent))
 
 
 def _print_plan(plan) -> None:

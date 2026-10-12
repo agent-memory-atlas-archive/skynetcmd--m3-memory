@@ -716,6 +716,18 @@ def _sys_path_restored():
 
 
 @pytest.fixture(autouse=True)
+def _cli_settings_cleared():
+    """Clear flag-level settings a test set (``settings.set_from_cli``). They are
+    process-wide by design (a CLI's flags for its whole run), so one test running
+    an installer step that records ``db.backend = postgres`` would otherwise send
+    every later test in the process to PostgreSQL."""
+    yield
+    st = sys.modules.get("m3_core.config.settings")
+    if st is not None and st._CACHE._cli:
+        st._reset_for_tests()
+
+
+@pytest.fixture(autouse=True)
 def _no_existing_install_by_default(monkeypatch):
     """setup's "keep current settings?" prompt keys off the developer's real
     store, which CI does not have; default it off so interactive-setup tests
@@ -867,7 +879,7 @@ def _real_user_env_untouched():
                 winreg.DeleteValue(key, name)
     pytest.fail(
         f"observed: this test changed the real Windows user environment: {changed} "
-        "(restored). inspect: stub the writer (installer._write_user_registry_env) in the "
+        "(restored). inspect: stub whatever ran setx or wrote HKCU\\Environment in the "
         "test, or simulate the OS with conftest.simulate_os",
         pytrace=False,
     )

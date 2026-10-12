@@ -29,7 +29,7 @@ from . import env as _env
 from .keys import REGISTRY
 from .loader import FileIdentity, LoadedFile, Location, file_identity, format_config_error, load, locate
 from .registry import ConfigValue, Key, Registry
-from .resolve import DotEnv, Resolved, resolve_all
+from .resolve import DotEnv, Resolved, live_env_override, resolve_all
 
 logger = logging.getLogger(__name__)
 
@@ -224,7 +224,12 @@ def _setting(name: str) -> ConfigValue | None:
     key = REGISTRY.get(name)
     if key is None:
         raise KeyError(f"observed: {name!r} is not a registry key. inspect: m3_core/config/keys*.py")
-    value: ConfigValue | None = current()[key]
+    snap = current()
+    if key.env_override:
+        resolved = snap.resolved[key.name]
+        if resolved.origin not in ("cli", "override"):  # an explicit choice beats env
+            return live_env_override(key, resolved, _env.environ())
+    value: ConfigValue | None = snap[key]
     return value
 
 

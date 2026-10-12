@@ -543,189 +543,6 @@ def test_present_payload_still_reregisters_the_loop(monkeypatch, platform, enabl
 
 
 # ────────────────────────────────────────────────────────────────────────
-# _persist_embed_gguf — Fix #7: M3_EMBED_GGUF persistence
-# ────────────────────────────────────────────────────────────────────────
-
-
-def test_persist_embed_gguf_writes_zshrc(monkeypatch, tmp_path):
-    """Non-interactive run writes the export to ~/.zshrc (zsh shell)."""
-    home = tmp_path / "home"
-    home.mkdir()
-    (home / ".zshrc").write_text("# existing rc\n", encoding="utf-8")
-
-    monkeypatch.setattr(Path, "home", lambda: home)
-    monkeypatch.setenv("SHELL", "/bin/zsh")
-    simulate_os(monkeypatch, "Darwin")  # not win32
-
-    setup_wizard._persist_embed_gguf("/path/to/bge-m3.gguf", non_interactive=True)
-
-    content = (home / ".zshrc").read_text(encoding="utf-8")
-    assert "M3_EMBED_GGUF" in content
-    assert '"/path/to/bge-m3.gguf"' in content
-    # Original content is preserved
-    assert "# existing rc" in content
-
-
-def test_persist_embed_gguf_idempotent(monkeypatch, tmp_path):
-    """Re-running doesn't append a second export line."""
-    home = tmp_path / "home"
-    home.mkdir()
-    rc = home / ".zshrc"
-    rc.write_text(
-        '# already set\nexport M3_EMBED_GGUF="/old/path.gguf"\n',
-        encoding="utf-8",
-    )
-
-    monkeypatch.setattr(Path, "home", lambda: home)
-    monkeypatch.setenv("SHELL", "/bin/zsh")
-    simulate_os(monkeypatch, "Darwin")
-
-    setup_wizard._persist_embed_gguf("/new/path.gguf", non_interactive=True)
-
-    content = rc.read_text(encoding="utf-8")
-    assert content.count("M3_EMBED_GGUF") == 1, "Expected exactly one M3_EMBED_GGUF entry; got duplicate writes"
-    # Pre-existing path is left untouched (user already configured it)
-    assert "/old/path.gguf" in content
-
-
-def test_persist_embed_gguf_patches_claude_settings(monkeypatch, tmp_path):
-    """Adds env.M3_EMBED_GGUF to the 'memory' MCP entry in claude settings."""
-    import json
-
-    home = tmp_path / "home"
-    home.mkdir()
-    claude_dir = home / ".claude"
-    claude_dir.mkdir()
-    settings = claude_dir / "settings.json"
-    settings.write_text(
-        json.dumps(
-            {
-                "mcpServers": {"memory": {"command": "mcp-memory"}},
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    monkeypatch.setattr(Path, "home", lambda: home)
-    monkeypatch.setenv("SHELL", "/bin/zsh")
-    simulate_os(monkeypatch, "Darwin")
-
-    setup_wizard._persist_embed_gguf("/path/to/bge-m3.gguf", non_interactive=True)
-
-    cfg = json.loads(settings.read_text(encoding="utf-8"))
-    mem = cfg["mcpServers"]["memory"]
-    assert mem.get("env", {}).get("M3_EMBED_GGUF") == "/path/to/bge-m3.gguf", (
-        f"Expected env wired on memory MCP entry; got: {mem}"
-    )
-
-
-def test_persist_embed_gguf_skips_settings_without_memory_entry(monkeypatch, tmp_path):
-    """If settings.json has no 'memory' entry yet, we don't pre-create it —
-    the per-agent wiring step later in setup is responsible for that."""
-    import json
-
-    home = tmp_path / "home"
-    home.mkdir()
-    claude_dir = home / ".claude"
-    claude_dir.mkdir()
-    settings = claude_dir / "settings.json"
-    settings.write_text(json.dumps({"mcpServers": {}}), encoding="utf-8")
-
-    monkeypatch.setattr(Path, "home", lambda: home)
-    monkeypatch.setenv("SHELL", "/bin/zsh")
-    simulate_os(monkeypatch, "Darwin")
-
-    setup_wizard._persist_embed_gguf("/path/to/bge-m3.gguf", non_interactive=True)
-
-    cfg = json.loads(settings.read_text(encoding="utf-8"))
-    # No memory entry was conjured up out of nothing
-    assert "memory" not in cfg.get("mcpServers", {})
-
-
-def test_persist_embed_gguf_uses_setx_on_windows(monkeypatch, tmp_path):
-    """Windows uses `setx` instead of writing a shell rc — setx is the
-    canonical way to persist user env vars across reboot."""
-    home = tmp_path / "home"
-    home.mkdir()
-    monkeypatch.setattr(Path, "home", lambda: home)
-    simulate_os(monkeypatch, "Windows")
-
-    captured: list = []
-
-    class _FakeResult:
-        returncode = 0
-        stdout = "SUCCESS: Specified value was saved."
-        stderr = ""
-
-    def fake_run(cmd, *args, **kwargs):
-        captured.append(cmd)
-        return _FakeResult()
-
-    monkeypatch.setattr(subprocess, "run", fake_run)
-
-    setup_wizard._persist_embed_gguf("C:\\path\\bge-m3.gguf", non_interactive=True)
-
-    # Exactly one setx call with the right env var and path
-    assert len(captured) == 1
-    cmd = captured[0]
-    assert cmd[0] == "setx"
-    assert cmd[1] == "M3_EMBED_GGUF"
-    assert cmd[2] == "C:\\path\\bge-m3.gguf"
-
-    # No Unix rc files were created (we did NOT fall through to the Unix path)
-    assert not (home / ".zshrc").exists()
-    assert not (home / ".bashrc").exists()
-
-
-def test_persist_embed_gguf_patches_mcp_settings_on_windows(monkeypatch, tmp_path):
-    """The MCP settings.json env wiring must run on Windows too — Claude
-    Code on Windows reads %USERPROFILE%\\.claude\\settings.json, and the
-    spawned MCP server doesn't inherit the user env from the GUI process."""
-    import json
-
-    home = tmp_path / "home"
-    home.mkdir()
-    (home / ".claude").mkdir()
-    settings = home / ".claude" / "settings.json"
-    settings.write_text(
-        json.dumps(
-            {
-                "mcpServers": {"memory": {"command": "mcp-memory"}},
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    monkeypatch.setattr(Path, "home", lambda: home)
-    simulate_os(monkeypatch, "Windows")
-    # Stub setx so the shell-env step doesn't try to execute a real binary.
-    monkeypatch.setattr(subprocess, "run", lambda *a, **kw: mock.Mock(returncode=0, stdout="", stderr=""))
-
-    setup_wizard._persist_embed_gguf("C:\\path\\bge-m3.gguf", non_interactive=True)
-
-    cfg = json.loads(settings.read_text(encoding="utf-8"))
-    mem = cfg["mcpServers"]["memory"]
-    assert mem.get("env", {}).get("M3_EMBED_GGUF") == "C:\\path\\bge-m3.gguf"
-
-
-def test_persist_embed_gguf_setx_failure_is_non_fatal(monkeypatch, tmp_path):
-    """A setx crash on Windows warns but does not abort — the GGUF is still
-    set in the current process, and that's enough for the rest of setup."""
-    home = tmp_path / "home"
-    home.mkdir()
-    monkeypatch.setattr(Path, "home", lambda: home)
-    simulate_os(monkeypatch, "Windows")
-
-    def boom(*a, **kw):
-        raise OSError("setx not found")
-
-    monkeypatch.setattr(subprocess, "run", boom)
-
-    # Should not raise
-    setup_wizard._persist_embed_gguf("C:\\path\\bge-m3.gguf", non_interactive=True)
-
-
-# ────────────────────────────────────────────────────────────────────────
 # _pick_unix_shell_rc — Linux/macOS shell rc selection
 # ────────────────────────────────────────────────────────────────────────
 
@@ -810,12 +627,15 @@ def test_probe_enables_ollama_when_only_ollama_reachable(monkeypatch):
     monkeypatch.delenv("M3_ENABLE_LMSTUDIO_FAILOVER", raising=False)
     # Only Ollama (:11434) answers; LM Studio (:1234) is dead.
     monkeypatch.setattr(setup_wizard, "_endpoint_reachable", lambda url, **k: "11434" in url)
-    persisted = {}
-    monkeypatch.setattr(setup_wizard, "_persist_env_var", lambda n, v, **k: persisted.__setitem__(n, v))
+    recorded = {}
+    monkeypatch.setattr(setup_wizard, "_record_llm_switch", lambda n, v: recorded.__setitem__(n, v))
     setup_wizard._probe_llm_endpoints(object(), _probe_args(non_interactive=True))
     # Ollama enabled, LM Studio probe disabled (it's not reachable).
-    assert persisted.get("M3_ENABLE_OLLAMA_FAILOVER") == "1"
-    assert persisted.get("M3_ENABLE_LMSTUDIO_FAILOVER") == "0"
+    assert recorded.get("M3_ENABLE_OLLAMA_FAILOVER") == "1"
+    assert recorded.get("M3_ENABLE_LMSTUDIO_FAILOVER") == "0"
+    # Recorded in the file only: setup writes files, not env (wizard cut-over).
+    assert "M3_ENABLE_OLLAMA_FAILOVER" not in os.environ
+    assert "M3_ENABLE_LMSTUDIO_FAILOVER" not in os.environ
 
 
 def test_probe_no_op_when_only_lmstudio_reachable(monkeypatch):
@@ -826,10 +646,10 @@ def test_probe_no_op_when_only_lmstudio_reachable(monkeypatch):
     monkeypatch.delenv("M3_ENABLE_LMSTUDIO_FAILOVER", raising=False)
     monkeypatch.delenv("M3_ENABLE_OLLAMA_FAILOVER", raising=False)
     monkeypatch.setattr(setup_wizard, "_endpoint_reachable", lambda url, **k: "1234" in url)
-    persisted = {}
-    monkeypatch.setattr(setup_wizard, "_persist_env_var", lambda n, v, **k: persisted.__setitem__(n, v))
+    recorded = {}
+    monkeypatch.setattr(setup_wizard, "_record_llm_switch", lambda n, v: recorded.__setitem__(n, v))
     setup_wizard._probe_llm_endpoints(object(), _probe_args(non_interactive=True))
-    assert persisted == {}
+    assert recorded == {}
 
 
 # ────────────────────────────────────────────────────────────────────────
@@ -1496,18 +1316,6 @@ def test_gguf_question_is_skipped_when_already_configured(monkeypatch, tmp_path)
     assert setup_wizard._shared_gguf_is(str(tmp_path / "other.gguf")) is False
 
 
-@pytest.mark.requires_posix  # shell rc files are POSIX
-def test_persist_skips_the_question_when_the_rc_already_has_it(monkeypatch, tmp_path):
-    from m3_memory.wizard import persist
-
-    rc = tmp_path / ".zshrc"
-    rc.write_text('export M3_ENABLE_OLLAMA_FAILOVER="1"\n', encoding="utf-8")
-    monkeypatch.setattr(persist, "_pick_unix_shell_rc", lambda: rc)
-    monkeypatch.setattr(setup_wizard, "_ask_yes_no", lambda *a, **k: pytest.fail("must not ask when already persisted"))
-    persist._persist_env_var_shell("M3_ENABLE_OLLAMA_FAILOVER", "1", non_interactive=False)
-    assert persist.shell_rc_has("M3_ENABLE_OLLAMA_FAILOVER", "1")
-
-
 def test_gui_is_not_offered_on_an_existing_install(monkeypatch):
     from m3_memory import setup_gui
 
@@ -1602,7 +1410,9 @@ def test_pycache_is_offered_on_an_editable_checkout(monkeypatch, tmp_path):
 def test_setup_children_import_the_same_m3_package(monkeypatch, tmp_path):
     """Setup's `python -m m3_memory.cli` children must not pick up a checkout in
     the working directory: -P drops the cwd, and this package's root is passed
-    on PYTHONPATH so the child imports exactly what the parent imported."""
+    on the child's PYTHONPATH (``_m3_child_env``, per spawn; the parent's env is
+    never modified, see test_m3_child_env) so the child imports exactly what
+    the parent imported."""
     import os
     import sys
     from pathlib import Path
@@ -1614,9 +1424,8 @@ def test_setup_children_import_the_same_m3_package(monkeypatch, tmp_path):
     assert argv[:4] == [sys.executable, "-P", "-m", "m3_memory.cli"]
     assert argv[4:] == ["doctor"]
     root = str(Path(sw.__file__).resolve().parent.parent)
-    assert os.environ["PYTHONPATH"].split(os.pathsep)[0] == root
-    sw._m3_cli("doctor")  # idempotent: the root is not added twice
-    assert os.environ["PYTHONPATH"].split(os.pathsep).count(root) == 1
+    assert sw._m3_child_env()["PYTHONPATH"].split(os.pathsep) == [root]
+    assert "PYTHONPATH" not in os.environ
 
 
 def _stub_setup_steps(monkeypatch, events):

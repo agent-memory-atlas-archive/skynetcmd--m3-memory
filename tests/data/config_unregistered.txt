@@ -5,5 +5,4 @@
 #     allowed foreign names) -> child_env owns them, plan 2E.1 (CONFIG_DESIGN §5).
 # (The store locations left in 2C.3: m3_core.config.stores.LEGACY_LOCATORS.)
 GGML_LOG_LEVEL
-PYTHONPATH
 PYTHONUTF8

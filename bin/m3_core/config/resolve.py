@@ -35,6 +35,10 @@ class Resolved:
     origin: str  # "env:NAME" | "file:<path> [t].k" | "env-legacy:NAME" | "default"
     shadowed: tuple[str, ...] = ()  # env names set but outranked by the file
     env_name: str | None = None  # the env / .env name that supplied the value, if one did
+    # For an env_override key answered by env: what the key resolves to WITHOUT
+    # that env value (file, .env or default). ``setting()`` reads such a key's
+    # env live and falls back to this when the variable is gone since the snapshot.
+    beneath: Resolved | None = None
 
 
 class ConfigEnvError(ValueError):
@@ -110,7 +114,31 @@ def resolve_key(key: Key, loaded: LoadedFile, environ: Mapping[str, str], dotenv
         raise ValueError(f"{key.name} is a {key.klass} key; secret_store resolves secrets, not resolve_key")
     hit = _env_hit(key, environ)
     if key.env_override and hit is not None:
-        return Resolved(value=_from_env(key, *hit), origin=f"env:{hit[0]}", env_name=hit[0])
+        without = {n: v for n, v in environ.items() if n not in key.env_names}
+        return Resolved(
+            value=_from_env(key, *hit),
+            origin=f"env:{hit[0]}",
+            env_name=hit[0],
+            beneath=_resolve_below_env(key, loaded, without, dotenv),
+        )
+    return _resolve_below_env(key, loaded, environ, dotenv)
+
+
+def live_env_override(key: Key, resolved: Resolved, environ: Mapping[str, str]) -> ConfigValue | None:
+    """An ``env_override`` key's value read from the LIVE environment: env when set
+    now, else what the snapshot holds beneath a since-removed env value. The
+    snapshot is invalidated by the file, not by env, and such a key was always
+    re-read on every call (``paths.resolve_backend_name``)."""
+    hit = _env_hit(key, environ)
+    if hit is not None:
+        return _from_env(key, *hit)
+    if resolved.beneath is not None:
+        return resolved.beneath.value
+    return resolved.value
+
+
+def _resolve_below_env(key: Key, loaded: LoadedFile, environ: Mapping[str, str], dotenv: DotEnv) -> Resolved:
+    hit = _env_hit(key, environ)
     dot = _env_hit(key, dotenv.values)
     if key.name in loaded.values:
         shadowed = tuple(n for n in key.env_names if (environ.get(n) or "").strip())

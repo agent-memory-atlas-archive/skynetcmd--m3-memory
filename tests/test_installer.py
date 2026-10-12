@@ -453,14 +453,14 @@ def test_resolve_chatlog_db_falls_back_to_repo_when_no_engine_db(tmp_path, monke
 # ── Auto-install tests (Option C behavior on `mcp-memory` bare invocation) ────
 
 
-def test_auto_install_opt_out_via_env(monkeypatch, tmp_path):
+def test_auto_install_opt_out_via_env(monkeypatch, tmp_path, m3_settings):
     """M3_AUTO_INSTALL=0 is an absolute opt-out: _auto_install returns None
     in both TTY and non-TTY modes, regardless of what install_m3 would do."""
     from m3_memory import cli, installer
 
     monkeypatch.setattr(installer, "config_dir", lambda: tmp_path / ".m3-memory")
     monkeypatch.setattr(installer, "config_file", lambda: tmp_path / ".m3-memory" / "config.json")
-    monkeypatch.setenv("M3_AUTO_INSTALL", "0")
+    m3_settings({"install.auto_install": False})  # M3_AUTO_INSTALL=0
 
     # If install_m3 got called despite the opt-out we'd blow up loudly.
     def boom(*a, **kw):
@@ -472,14 +472,14 @@ def test_auto_install_opt_out_via_env(monkeypatch, tmp_path):
     assert cli._auto_install(interactive=False) is None
 
 
-def test_auto_install_interactive_prompt_declined(monkeypatch, tmp_path):
+def test_auto_install_interactive_prompt_declined(monkeypatch, tmp_path, m3_settings):
     """Interactive mode with user answering 'n' to the prompt returns None
     without calling install_m3."""
     from m3_memory import cli, installer
 
     monkeypatch.setattr(installer, "config_dir", lambda: tmp_path / ".m3-memory")
     monkeypatch.setattr(installer, "config_file", lambda: tmp_path / ".m3-memory" / "config.json")
-    monkeypatch.delenv("M3_AUTO_INSTALL", raising=False)
+    m3_settings()  # the default: auto-install on
 
     def boom(*a, **kw):
         raise AssertionError("install_m3 should not be called when user declines")
@@ -490,14 +490,14 @@ def test_auto_install_interactive_prompt_declined(monkeypatch, tmp_path):
     assert cli._auto_install(interactive=True) is None
 
 
-def test_auto_install_interactive_prompt_accepted(monkeypatch, tmp_path):
+def test_auto_install_interactive_prompt_accepted(monkeypatch, tmp_path, m3_settings):
     """Interactive mode with user answering 'y' calls install_m3 and returns
     the resolved bridge path."""
     from m3_memory import cli, installer
 
     monkeypatch.setattr(installer, "config_dir", lambda: tmp_path / ".m3-memory")
     monkeypatch.setattr(installer, "config_file", lambda: tmp_path / ".m3-memory" / "config.json")
-    monkeypatch.delenv("M3_AUTO_INSTALL", raising=False)
+    m3_settings()  # the default: auto-install on
 
     fake_bridge = tmp_path / "repo" / "bin" / "memory_bridge.py"
     called = []
@@ -516,14 +516,14 @@ def test_auto_install_interactive_prompt_accepted(monkeypatch, tmp_path):
     assert called, "install_m3 should have been invoked"
 
 
-def test_auto_install_non_interactive_auto_fetches(monkeypatch, tmp_path):
+def test_auto_install_non_interactive_auto_fetches(monkeypatch, tmp_path, m3_settings):
     """Non-interactive mode (no TTY) auto-fetches without prompting. This is
     the MCP-subprocess path: prompting would deadlock the parent."""
     from m3_memory import cli, installer
 
     monkeypatch.setattr(installer, "config_dir", lambda: tmp_path / ".m3-memory")
     monkeypatch.setattr(installer, "config_file", lambda: tmp_path / ".m3-memory" / "config.json")
-    monkeypatch.delenv("M3_AUTO_INSTALL", raising=False)
+    m3_settings()  # the default: auto-install on
 
     fake_bridge = tmp_path / "repo" / "bin" / "memory_bridge.py"
 
@@ -546,7 +546,7 @@ def test_auto_install_non_interactive_auto_fetches(monkeypatch, tmp_path):
     assert result == fake_bridge
 
 
-def test_auto_install_surfaces_install_m3_failure(monkeypatch, tmp_path, capsys):
+def test_auto_install_surfaces_install_m3_failure(monkeypatch, tmp_path, capsys, m3_settings):
     """If install_m3 raises RuntimeError (bad tag, network blip, etc.),
     _auto_install returns None and prints the error to stderr so the caller
     can fall through to the actionable help message."""
@@ -554,7 +554,7 @@ def test_auto_install_surfaces_install_m3_failure(monkeypatch, tmp_path, capsys)
 
     monkeypatch.setattr(installer, "config_dir", lambda: tmp_path / ".m3-memory")
     monkeypatch.setattr(installer, "config_file", lambda: tmp_path / ".m3-memory" / "config.json")
-    monkeypatch.delenv("M3_AUTO_INSTALL", raising=False)
+    m3_settings()  # the default: auto-install on
 
     def fail(*a, **kw):
         raise RuntimeError("network unreachable")
@@ -751,43 +751,6 @@ class TestDbBackendSelection:
         assert ok2 is False
         assert "forbidden" in d2.lower() or "198.51.100.9" in d2
 
-    def test_append_env_to_profile_fresh_idempotent_partial(self, monkeypatch, tmp_path):
-        from m3_memory.installer import _append_env_to_profile
-
-        monkeypatch.setenv("HOME", str(tmp_path))
-        monkeypatch.setenv("USERPROFILE", str(tmp_path))
-        pairs = {"M3_DB_BACKEND": "postgres", "M3_PRIMARY_PG_URL": "postgresql://u:p@h/db"}
-        profile = tmp_path / ".profile"
-
-        # 1) fresh append writes both, in a marked block
-        msg1 = _append_env_to_profile(pairs)
-        assert msg1 and msg1.startswith("[+]")
-        txt = profile.read_text()
-        assert 'export M3_DB_BACKEND="postgres"' in txt
-        assert "M3_PRIMARY_PG_URL" in txt
-        assert "Added by mcp-memory" in txt
-
-        # 2) idempotent re-run: both already set, no duplication
-        msg2 = _append_env_to_profile(pairs)
-        assert "already set" in msg2
-        assert profile.read_text().count("M3_DB_BACKEND=") == 1
-
-    def test_append_env_preserves_handset_var(self, monkeypatch, tmp_path):
-        from m3_memory.installer import _append_env_to_profile
-
-        monkeypatch.setenv("HOME", str(tmp_path))
-        monkeypatch.setenv("USERPROFILE", str(tmp_path))
-        profile = tmp_path / ".profile"
-        # user already set one var by hand → we must NOT shadow/duplicate it
-        profile.write_text("export M3_DB_BACKEND=sqlite  # hand-set\n")
-        pairs = {"M3_DB_BACKEND": "postgres", "M3_PRIMARY_PG_URL": "postgresql://u:p@h/db"}
-        msg = _append_env_to_profile(pairs)
-        txt = profile.read_text()
-        assert txt.count("M3_DB_BACKEND=") == 1  # hand-set value untouched
-        assert "sqlite" in txt  # their value wins
-        assert "M3_PRIMARY_PG_URL" in txt  # the missing one still added
-        assert "already present" in msg
-
     # D2: the DSN goes to the secret store, never into a profile or the registry.
     _DSN = "postgresql://u:s3cretpw@db.example/m3"
 
@@ -803,29 +766,48 @@ class TestDbBackendSelection:
         monkeypatch.setattr(inst, "_scan_registry_env_deprecations", lambda names, unchecked=None: [])
         monkeypatch.setattr(inst, "_client_config_sources", lambda: {})
         monkeypatch.chdir(tmp_path)
-        # _persist sets these for its own process; let monkeypatch restore them.
-        monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
+        # M3_DB_BACKEND / DB_BACKEND: the conftest sandbox clears them.
         monkeypatch.delenv("M3_PRIMARY_PG_URL", raising=False)
         return tmp_path / ".profile"
 
-    def test_persist_stores_the_dsn_and_writes_only_the_selector(self, unix_home):
+    def test_persist_stores_the_dsn_and_records_the_backend_in_the_file(self, unix_home):
+        import os
+
         from m3_core import secret_store
+        from m3_core.config.loader import locate
+        from m3_core.paths import resolve_backend_name
 
-        from m3_memory.installer import _persist_pg_backend_env
+        from m3_memory.installer import _persist_pg_backend
 
-        msgs = _persist_pg_backend_env(self._DSN)
-        txt = unix_home.read_text()
-        assert 'export M3_DB_BACKEND="postgres"' in txt
-        assert "PG_URL" not in txt and "s3cretpw" not in txt, txt
+        msgs = _persist_pg_backend(self._DSN)
+        assert not unix_home.exists(), "setup writes files, not a shell profile"
+        assert "M3_DB_BACKEND" not in os.environ and "M3_PRIMARY_PG_URL" not in os.environ
+        assert 'backend = "postgres"' in locate().file.read_text(encoding="utf-8")
+        assert resolve_backend_name() == "postgres", "this run's later steps see the choice"
         assert secret_store.get_secret("M3_PRIMARY_PG_URL") == self._DSN
         assert any("stored the primary PostgreSQL DSN" in m and "secrets-file:" in m for m in msgs), msgs
         assert not any("s3cretpw" in m for m in msgs), "a status line echoed the password"
 
+    def test_an_env_backend_that_overrides_the_file_is_reported(self, unix_home, monkeypatch):
+        from m3_memory.installer import _persist_pg_backend
+
+        monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
+        msgs = _persist_pg_backend(self._DSN)
+        assert any("M3_DB_BACKEND=sqlite" in m and "overrides" in m for m in msgs), msgs
+
+    def test_an_env_backend_that_agrees_is_not_reported(self, unix_home, monkeypatch):
+        """An earlier install persisted M3_DB_BACKEND=postgres: same answer, no alarm (§3)."""
+        from m3_memory.installer import _persist_pg_backend
+
+        monkeypatch.setenv("M3_DB_BACKEND", "postgres")
+        msgs = _persist_pg_backend(self._DSN)
+        assert not any("overrides" in m for m in msgs), msgs
+
     def test_persist_reports_a_legacy_plaintext_copy(self, unix_home):
-        from m3_memory.installer import _persist_pg_backend_env
+        from m3_memory.installer import _persist_pg_backend
 
         unix_home.write_text('export M3_PRIMARY_PG_URL="postgresql://old/x"\n')
-        msgs = _persist_pg_backend_env(self._DSN)
+        msgs = _persist_pg_backend(self._DSN)
         assert any("plaintext DSN copy left in place" in m and "M3_PRIMARY_PG_URL" in m for m in msgs), msgs
         assert 'M3_PRIMARY_PG_URL="postgresql://old/x"' in unix_home.read_text(), "the legacy copy was removed"
 
@@ -902,16 +884,16 @@ class TestDbBackendSelection:
     def test_persist_when_no_store_takes_it_is_loud_and_writes_no_plaintext(self, unix_home, monkeypatch):
         from m3_core import secret_store
 
-        from m3_memory.installer import _persist_pg_backend_env
+        from m3_memory.installer import _persist_pg_backend
 
         def refuse(name, value):
             raise OSError("read-only file system")
 
         monkeypatch.setattr(secret_store, "set_secret", refuse)
-        msgs = _persist_pg_backend_env(self._DSN)
+        msgs = _persist_pg_backend(self._DSN)
         bad = [m for m in msgs if "NOT stored" in m]
         assert bad and "read-only file system" in bad[0] and "keyring set system" in bad[0], msgs
-        assert "s3cretpw" not in unix_home.read_text()
+        assert not unix_home.exists(), "no plaintext fallback into a profile"
 
 
 class TestStorePgDsn:
@@ -951,3 +933,34 @@ class TestStorePgDsn:
         monkeypatch.setattr(auth_utils, "_keyring_store", lambda k, v: pytest.fail("wrote a keyring cron cannot read"))
         r = s.store_pg_dsn(s.PgRole.PRIMARY, self.DSN)
         assert r.location.startswith("secrets-file:") and "cron" in r.skipped[0]
+
+
+def test_a_pinned_llm_endpoint_is_recorded_in_the_file_not_env(monkeypatch, tmp_path):
+    """`m3 install --llm-endpoint` records the pin in .llm_config.json, which
+    every m3 process reads; it used to setdefault env, which reached only this
+    process's children (wizard cut-over, m3 ec79a21b)."""
+    import json
+
+    from m3_core import llm_config
+
+    import m3_memory.installer as inst
+
+    monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path))
+    for name in (
+        "_run_os_install",
+        "_run_main_migrations",
+        "_register_gemini_mcp",
+        "_register_antigravity_mcp",
+        "_register_cursor_mcp",
+        "_register_cline_mcp",
+        "_sqlite3_cli_hint",
+        "_fix_npm_global_path",
+        "_print_backup_reminder",
+    ):
+        monkeypatch.setattr(inst, name, lambda *a, **k: None)
+    monkeypatch.setattr(inst, "load_config", lambda: {})
+    monkeypatch.setattr(inst, "save_config", lambda cfg: None)
+    inst._post_install(tmp_path / "bridge.py", False, "http://127.0.0.1:8080/v1", None)
+    recorded = json.loads((tmp_path / llm_config.LLM_CONFIG_NAME).read_text(encoding="utf-8"))
+    assert recorded == {"M3_LLM_ENDPOINTS_CSV": "http://127.0.0.1:8080/v1"}
+    assert "LLM_ENDPOINTS_CSV" not in os.environ

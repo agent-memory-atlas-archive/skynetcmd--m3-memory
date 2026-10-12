@@ -56,7 +56,7 @@ def test_legacy_alias_resolves(monkeypatch):
 def test_invalid_backend_raises_not_silent(monkeypatch):
     """A typo must fail loud (§3), never silently run the default."""
     monkeypatch.setenv("M3_DB_BACKEND", "postgre")  # typo
-    with pytest.raises(ValueError, match="not recognized"):
+    with pytest.raises(ValueError, match=r"M3_DB_BACKEND='postgre'.*not one of"):
         resolve_backend_name()
 
 

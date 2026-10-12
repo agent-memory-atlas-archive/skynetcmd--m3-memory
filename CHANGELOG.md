@@ -318,6 +318,20 @@ the policy is forward-going only.
 
 ### Changed
 
+- **The storage backend can be set in `m3_config.toml`.** `[db] backend =
+  "postgres"` selects PostgreSQL; `M3_DB_BACKEND` still overrides it. Choosing
+  PostgreSQL in `m3 install` now writes that line instead of setting
+  `M3_DB_BACKEND` in the Windows registry or your shell profile; a value already
+  there keeps working, and the installer reports one that disagrees.
+  **Affected:** PostgreSQL installs · **Action:** none · **Data status:** none.
+
+- **Setup records its choices in files, not environment variables.** The LLM
+  runtime switches and an `--llm-endpoint` pin go to `.llm_config.json` in the
+  config root, which every m3 process reads; setup no longer adds them to the
+  Windows registry, your shell profile or MCP server `env` blocks. Values already
+  there keep working.
+  **Affected:** all installs · **Action:** none · **Data status:** none.
+
 - **`chatlog_set_redaction` is a CLI command only.** It writes your config, and
   MCP clients no longer get it: run `m3 chat chatlog_set_redaction --yes`. The
   MCP catalog lists one tool fewer.

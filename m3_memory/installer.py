@@ -1243,12 +1243,16 @@ def _run_pg_migrations(bridge: Path, dsn: str) -> str | None:
         return f"[!] PG schema init failed: {last} — it will retry on first connect"
 
 
-def _persist_pg_backend_env(dsn: str) -> list[str]:
-    """Make the PostgreSQL primary store take effect: selector in env, DSN stored.
+def _persist_pg_backend(dsn: str) -> list[str]:
+    """Make the PostgreSQL primary store take effect: ``[db] backend`` in
+    m3_config.toml, DSN stored.
 
-    ``M3_DB_BACKEND`` is read from the ENVIRONMENT, not the config file, so it is
-    set where the runtime sees it: this process, the Windows User-scope registry,
-    or a marked block in the Unix shell profile (a hand-set value wins).
+    The selector reads registry key ``db.backend`` (``paths.resolve_backend_name``),
+    so the choice goes to the file every m3 process reads, and to this process as
+    a flag-level setting so its later steps see it. No env, registry or shell
+    profile write: setup writes files, not env (wizard cut-over, user decision
+    2026-10-11, m3 ec79a21b). ``M3_DB_BACKEND`` still OVERRIDES the file (U9), so a
+    different value left in the environment is reported.
 
     The DSN is a secret and goes to the one DSN store owner
     (``m3_core.secret_store.store_pg_dsn``: keyring where headless jobs can read
@@ -1257,11 +1261,36 @@ def _persist_pg_backend_env(dsn: str) -> list[str]:
     wrote is left alone, still wins as env, and is reported here.
     """
     msgs: list[str] = []
-    os.environ["M3_DB_BACKEND"] = "postgres"
-    os.environ["M3_PRIMARY_PG_URL"] = dsn  # this process's post-install steps only
+    _bin.ensure_on_path()  # never inserts "" (the cwd) when bin/ is missing
+    try:
+        from m3_core.config import settings
+        from m3_core.config.keys import DB_BACKEND
+        from m3_core.config.loader import locate
+        from m3_core.config.writer import set_values
+    except ImportError as e:
+        msgs.append(
+            f"[!] the PostgreSQL backend was NOT recorded: {e}. m3 runs on SQLite until it is. inspect: m3 doctor"
+        )
+    else:
+        origin = settings.origin_of(DB_BACKEND.name)
+        if origin.startswith("env:") and settings.setting(DB_BACKEND.name) != "postgres":
+            name = origin.removeprefix("env:")
+            where = ", ".join(_find_env_var_locations(name)) or "the environment"
+            msgs.append(
+                f"[!] {name}={settings.setting(DB_BACKEND.name)} is set in {where} and overrides "
+                f"m3_config.toml: m3 runs on that backend until it is removed or set to postgres."
+            )
+        settings.set_from_cli({DB_BACKEND.name: "postgres"})  # this run's later steps
+        try:
+            path = set_values(locate(), {DB_BACKEND: "postgres"})
+            msgs.append(f'[+] primary backend recorded: [db] backend = "postgres" in {path}')
+        except (OSError, ValueError) as e:  # ConfigWriteError is a ValueError
+            msgs.append(
+                f"[!] the PostgreSQL backend was NOT recorded in m3_config.toml: {e}. m3 runs on "
+                'SQLite until it is: add [db] backend = "postgres" to that file. inspect: m3 doctor'
+            )
 
     try:
-        _bin.ensure_on_path()  # never inserts "" (the cwd) when bin/ is missing
         from m3_core.secret_store import PgRole, SecretsFileError, store_pg_dsn
     except ImportError as e:
         store_error: Exception | None = e
@@ -1280,21 +1309,7 @@ def _persist_pg_backend_env(dsn: str) -> list[str]:
             "M3_PRIMARY_PG_URL` (prompts for it), or set M3_PRIMARY_PG_URL in the "
             "environment of every m3 process."
         )
-
-    pairs = {"M3_DB_BACKEND": "postgres"}
-    if _os_name() == "Windows":
-        msgs.extend(_write_user_registry_env(pairs))
-    else:
-        msgs.append(_append_env_to_profile(pairs))
     msgs.extend(_legacy_plaintext_dsn_notes())
-
-    print(
-        "\n    m3 selects its backend from the ENVIRONMENT, not the config file. "
-        "Ensure this is set wherever m3 runs — your MCP server's `env` block, "
-        "and any process that imports m3 (LangChain / SDK / CLI):"
-    )
-    print("      M3_DB_BACKEND=postgres")
-    print("    The DSN itself is read from the store above; it does not need to be in env.")
     return [m for m in msgs if m]
 
 
@@ -1319,84 +1334,6 @@ def _legacy_plaintext_dsn_notes() -> list[str]:
     ]
     notes += [f"[!] could not check {u} for a plaintext DSN copy; inspect it by hand." for u in sorted(set(unchecked))]
     return notes
-
-
-def _append_env_to_profile(pairs: dict[str, str]) -> str:
-    """Append `export NAME=VALUE` lines to the shell profile, idempotently.
-
-    Mirrors ``_fix_npm_global_path``'s append pattern. Before writing, scans the
-    profile for an EXISTING definition of each var (in any form — ``export X=``
-    or ``X=``), and skips ones already present so a hand-set value is never
-    shadowed or duplicated. Reports what it did / found. Never raises.
-    """
-    profile = Path.home() / ".profile"
-    existing = ""
-    if os.path.isfile(profile):
-        try:
-            existing = profile.read_text(encoding="utf-8")
-        except OSError:
-            names = ", ".join(f"{k}={v}" for k, v in pairs.items())
-            return f"[!] {profile} unreadable; add manually: {names}"
-
-    to_write: dict[str, str] = {}
-    already: list[str] = []
-    for name, value in pairs.items():
-        if _shell_assigns(existing, name):
-            already.append(name)
-        else:
-            to_write[name] = value
-
-    if not to_write:
-        return f"[=] {', '.join(already)} already set in {profile}; left as-is"
-
-    lines = "".join(f'export {n}="{v}"\n' for n, v in to_write.items())
-    suffix = "\n# Added by mcp-memory install-m3 (PostgreSQL primary backend)\n" + lines
-    if existing and not existing.endswith("\n"):
-        suffix = "\n" + suffix
-    try:
-        with profile.open("a", encoding="utf-8") as f:
-            f.write(suffix)
-    except OSError as e:
-        return f"[!] could not write {profile}: {e}"
-    wrote = ", ".join(to_write)
-    note = f" ({', '.join(already)} already present)" if already else ""
-    return f"[+] appended {wrote} to {profile}{note}"
-
-
-def _write_user_registry_env(pairs: dict[str, str]) -> list[str]:
-    """Set User-scope persistent env vars on Windows via `setx`, idempotently.
-
-    Only writes a var whose current User-scope value differs (setx rewrites the
-    whole value, so re-running is safe but we avoid noisy no-op writes). A
-    WM_SETTINGCHANGE broadcast (via the existing helper) nudges live shells.
-    Never raises — a failure is reported, not fatal.
-    """
-    msgs: list[str] = []
-    for name, value in pairs.items():
-        current = os.environ.get(name)
-        if current == value:
-            msgs.append(f"[=] {name} already set (User env)")
-            continue
-        try:
-            # setx writes HKCU\Environment (User scope); no elevation needed.
-            subprocess.run(["setx", name, value], check=True, capture_output=True, text=True, **_hidden_window_kwargs())
-            shown = _mask_dsn(value) if "PG_URL" in name else value
-            msgs.append(f"[+] set {name}={shown} (User env; open a new shell to pick it up)")
-        except (subprocess.CalledProcessError, OSError) as e:
-            msgs.append(
-                f"[!] could not set {name} via setx; observed: {type(e).__name__}: {e}. "
-                f"inspect: run `setx {name} <value>` by hand"
-            )
-    try:
-        _broadcast_env_change()  # nudge live shells to reload (best-effort)
-    except Exception:  # noqa: BLE001 — cosmetic
-        pass
-    return msgs
-
-
-# Backstop for a non-interactive OS-setup subprocess. Kept well under a CI or
-# test budget so a block surfaces AS a timeout message rather than as an
-# unexplained hang -- a 15-minute backstop is indistinguishable from wedged.
 
 
 def _run_os_install(bridge: Path, interactive: bool = True) -> str | None:
@@ -1499,17 +1436,28 @@ def _post_install(
     changed = False
     if endpoint_choice is not None:
         cfg["llm_endpoints_csv"] = endpoint_choice
-        os.environ.setdefault("LLM_ENDPOINTS_CSV", endpoint_choice)
-        messages.append(f"[+] pinned LLM endpoint: {endpoint_choice}")
+        # Recorded where every m3 process reads it (llm_config: env > that file),
+        # not in env: setup writes files, not env (wizard cut-over, m3 ec79a21b).
+        try:
+            _bin.ensure_on_path()
+            from m3_core.llm_config import write_llm_setting
+
+            where = write_llm_setting("M3_LLM_ENDPOINTS_CSV", endpoint_choice)
+            messages.append(f"[+] pinned LLM endpoint: {endpoint_choice} (in {where})")
+        except (ImportError, OSError) as e:
+            messages.append(
+                f"[!] the LLM endpoint {endpoint_choice} was NOT recorded ({e}); m3 will not use it. "
+                "fix: re-run with --llm-endpoint, or set M3_LLM_ENDPOINTS_CSV"
+            )
         changed = True
     if capture_choice is not None:
         cfg["chatlog_capture_mode"] = capture_choice
         messages.append(f"[+] pinned chatlog capture mode: {capture_choice}")
         changed = True
     if db_backend_choice is not None:
-        # Record the choice in config for `doctor`/status/`m3 setup` to REPORT.
-        # (The runtime selects the backend from ENV, not config — see
-        # _persist_pg_backend_env — so this key is introspection, not the switch.)
+        # Record the choice in config.json for `doctor`/status/`m3 setup` to REPORT.
+        # (The runtime selects the backend from m3_config.toml `[db] backend` —
+        # see _persist_pg_backend — so this key is introspection, not the switch.)
         backend_name, _dsn = db_backend_choice
         cfg["db_backend"] = backend_name
         changed = True
@@ -1537,10 +1485,10 @@ def _post_install(
                 "[i] schema deferred — m3 builds it automatically on the first "
                 "successful connect (no action needed once the server is up)"
             )
-        # Persist the env vars the runtime actually reads (registry / profile),
+        # Record the choice where the runtime reads it (m3_config.toml),
         # regardless of reachability — the choice stands even if the server is
         # coming up later.
-        messages.extend(_persist_pg_backend_env(_dsn))
+        messages.extend(_persist_pg_backend(_dsn))
 
     # Wire chatlog hooks into agent settings.json files when the user picked
     # a capture mode. Skips silently when capture_choice is None (user accepted

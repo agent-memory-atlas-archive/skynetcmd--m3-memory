@@ -3,6 +3,7 @@
 import argparse
 import json
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -59,7 +60,6 @@ def _probe(monkeypatch, reachable_port):
     monkeypatch.delenv("M3_LLM_ENDPOINTS_CSV", raising=False)
     monkeypatch.delenv("M3_LLM_URL", raising=False)
     monkeypatch.setattr(setup_wizard, "_endpoint_reachable", lambda url, **k: reachable_port in url)
-    monkeypatch.setattr(setup_wizard, "_persist_env_var", lambda *a, **k: None)
     setup_wizard._probe_llm_endpoints(object(), argparse.Namespace(non_interactive=True))
 
 
@@ -81,6 +81,8 @@ def test_setup_records_ollama_even_when_the_shell_already_has_it(config_root, mo
 def test_setup_records_a_fresh_ollama_enable(config_root, monkeypatch):
     _probe(monkeypatch, "11434")
     assert _recorded(config_root)["M3_ENABLE_OLLAMA_FAILOVER"] == "1"
+    # The file only: setup no longer writes env, the registry, rc or HKCU.
+    assert "M3_ENABLE_OLLAMA_FAILOVER" not in os.environ
 
 
 def test_setup_records_a_custom_server_url(config_root, monkeypatch):
