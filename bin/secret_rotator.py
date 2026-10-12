@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from m3_core.paths import apply_early_argv as _apply_early_argv
+from m3_core.paths import pin_database  # noqa: E402
 
 # --config FILE (the file this job was registered with) is pinned, and every
 # --set KEY=VALUE applied, before any import below binds a root or reads a
@@ -99,7 +100,6 @@ def rotate_secrets(dry_run: bool = False):
 
 if __name__ == "__main__":
     import argparse
-    import os as _os
 
     from _task_runtime import add_log_file_arg, setup_task_runtime
     from m3_sdk import add_database_arg
@@ -111,5 +111,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
     setup_task_runtime(args.log_file, lock_name="secret_rotator")
     if args.database:
-        _os.environ["M3_DATABASE"] = args.database
+        pin_database(args.database)
     rotate_secrets(dry_run=args.dry_run)

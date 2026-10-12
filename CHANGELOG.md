@@ -373,6 +373,16 @@ the policy is forward-going only.
 
 ### Changed
 
+- **`M3_DATABASE` is a legacy setting; use `--database` or `--store`.** m3 no
+  longer sets it for itself. It is still read when nothing else names the
+  database, with a warning, until a later release removes it. A `--database`
+  given to a script also chooses the chatlog when the chatlog is not pinned
+  elsewhere, as `M3_DATABASE` did. `m3 config import-env` and `m3 doctor` name
+  where `M3_DATABASE` is still set, with the replacement.
+  **Affected:** installs or scripts that set `M3_DATABASE` · **Action:** pass
+  `--database PATH`, or add `[stores.<name>]` to `m3_config.toml` and pass
+  `--store NAME`; then remove `M3_DATABASE` · **Data status:** none.
+
 - **`m3` commands start faster.** A command now loads only what it uses: the
   tool catalog loads for `m3 <domain> <tool>` commands, and the version only for
   `--version`. `m3 config get` and `m3 --help` went from about 350 ms to about

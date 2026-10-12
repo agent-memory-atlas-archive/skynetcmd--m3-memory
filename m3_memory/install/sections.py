@@ -85,7 +85,9 @@ def _resolve_chatlog_db(cfg: dict) -> Path | None:
     env_chatlog = getenv_compat("M3_CHATLOG_DB_PATH", "CHATLOG_DB_PATH")
     if env_chatlog:
         return Path(env_chatlog).expanduser()
-    env_main = os.environ.get("M3_DATABASE")
+    from m3_core.paths import configured_main_db
+
+    env_main = configured_main_db()
     if env_main:
         return Path(env_main).expanduser()
     cfg_chatlog = cfg.get("chatlog_db_path")
@@ -850,6 +852,36 @@ def _config_env_disagreement_section() -> None:
             f"{d.key} = {d.file_value}; m3 uses the file's value. fix: remove {d.env_name} "
             "there, or change the file."
         )
+
+
+def database_env_leftovers() -> list[str]:
+    """Report lines for every place M3_DATABASE is still set, with the fix; [] when
+    none. m3 reads it only as a legacy name until N+3 and never moves it: a
+    database PATH is a locator, so the fix is a flag or a named store (M3_DATABASE
+    design Q2, 2026-10-12). Shared by `m3 doctor` and `m3 config import-env`."""
+    from m3_memory.install.env_sources import scan
+
+    unchecked: list[str] = []
+    places = sorted({f.place for f in scan(["M3_DATABASE"], unchecked=unchecked) if f.value.strip()})
+    lines = [f"  [i] could not check {u} for M3_DATABASE; inspect it by hand." for u in sorted(set(unchecked))]
+    if places:
+        lines.append(
+            "  [i] M3_DATABASE is set in: "
+            + "; ".join(places)
+            + ". m3 reads it only until release N+3. fix: pass --database PATH to the command, or add "
+            "[stores.<name>] to m3_config.toml and pass --store NAME; then remove it."
+        )
+    return lines
+
+
+def _database_env_section() -> None:
+    try:
+        lines = database_env_leftovers()
+    except Exception as e:  # noqa: BLE001 -- doctor reports, never crashes
+        lines = [f"  [!] could not check where M3_DATABASE is set: {e}"]
+    if lines:
+        print()
+        print("\n".join(lines))
 
 
 def _llm_file_legacy_section() -> None:

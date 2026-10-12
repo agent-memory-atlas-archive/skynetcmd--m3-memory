@@ -8,6 +8,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(BASE_DIR, "bin"))
 
 import memory_core  # noqa: F401 — loads the payload's memory package before memory.write
+from m3_core.paths import pin_database  # noqa: E402
 from m3_sdk import add_database_arg, resolve_db_path
 
 
@@ -65,7 +66,7 @@ def main():
 
     db_path = resolve_db_path(args.database)
     if args.database:
-        os.environ["M3_DATABASE"] = args.database
+        pin_database(args.database)
     asyncio.run(re_embed_all(db_path))
 
 

@@ -234,6 +234,15 @@ def assert_no_deprecated_pg_url_on_install() -> None:
 # tool call; CLI scripts set it once at startup.
 _active_db: contextvars.ContextVar[str | None] = contextvars.ContextVar("m3_active_db", default=None)
 
+# The process's main database, as a script's --database names it (M3_DATABASE
+# design phase 2, approved 2026-10-12). It replaces m3's own writes of
+# os.environ['M3_DATABASE'] AT THE SAME RANK: below a call's active_database()
+# scope, and (in chatlog_config) below a chatlog path pinned in
+# .chatlog_config.json, exactly where the env value sat. A ContextVar would rank
+# above that pin and silently move a split install's chatlog onto the main DB.
+_pinned_db: str | None = None
+_LEGACY_DB_WARNED = False
+
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class StoreRef:
@@ -540,7 +549,7 @@ def resolve_dispatch_db() -> str:
     if explicit:
         return explicit
     if dispatch_store_mode() == "integrated":
-        return os.environ.get("M3_DATABASE") or resolve_engine_file("agent_memory.db")
+        return configured_main_db() or resolve_engine_file("agent_memory.db")
     return resolve_engine_file("agent_dispatch.db")
 
 
@@ -625,7 +634,7 @@ def notification_store_paths() -> "list[str]":
 
         _add(resolve_db_path(None))
     except Exception:  # noqa: BLE001 -- fall through to the documented default
-        _add(os.environ.get("M3_DATABASE") or resolve_engine_file("agent_memory.db"))
+        _add(configured_main_db() or resolve_engine_file("agent_memory.db"))
 
     # Dispatch store second. In integrated mode this resolves to the main store
     # and de-duplicates away, which is exactly the "no special case" property.
@@ -756,7 +765,8 @@ def resolve_db_path(explicit: str | None = None) -> str:
     """Resolve an absolute SQLite DB path.
 
     Order: explicit arg > the active named SQLite store (2C.3, §14) >
-    active_database ContextVar > M3_DATABASE env (legacy) > default
+    active_database ContextVar > configured_main_db() (the --database pin, else
+    the legacy M3_DATABASE env var) > default
     (memory/agent_memory.db). Returns an absolute path so pool-cache keys are
     consistent regardless of caller CWD.
 
@@ -785,13 +795,21 @@ def resolve_db_path(explicit: str | None = None) -> str:
     store = current_store()
     store_path = store.path if store is not None and store.backend == "sqlite" else None
     scoped = _active_db.get()
-    legacy = os.environ.get("M3_DATABASE")
-    candidate = explicit or store_path or scoped or legacy or _default_db_path()
+    configured = configured_main_db()
+    candidate = explicit or store_path or scoped or configured or _default_db_path()
     if _looks_like_dsn(candidate):
         # Name the source so the operator knows WHICH knob to fix; the value is
         # echoed scheme-only because a DSN carries a password.
         scheme = candidate.strip().split("://", 1)[0]
-        source = "the explicit argument" if explicit else "the active_database() context" if scoped else "M3_DATABASE"
+        source = (
+            "the explicit argument"
+            if explicit
+            else "the active_database() context"
+            if scoped
+            else "the --database pin"
+            if _pinned_db
+            else "M3_DATABASE"
+        )
         raise ValueError(
             f"resolve_db_path() resolves a SQLite FILE path, but got a DSN. "
             f"observed: {scheme}:// DSN from {source}. "
@@ -803,6 +821,36 @@ def resolve_db_path(explicit: str | None = None) -> str:
             f"M3_DATABASE must be unset or point at a SQLite file."
         )
     return os.path.abspath(candidate)
+
+
+def pin_database(path: "str | os.PathLike[str] | None") -> str | None:
+    """Make ``path`` this process's main database for the rest of the run (a
+    script's ``--database``). ``None`` or "" clears the pin. Returns the pin.
+    In-process only: a child m3 process gets ``--database PATH`` as an argument."""
+    global _pinned_db
+    _pinned_db = str(path) if path else None
+    return _pinned_db
+
+
+def configured_main_db() -> str | None:
+    """This process's main database as configured, or None for the default: the
+    ``--database`` pin, else the legacy ``M3_DATABASE`` env var (warned once per
+    process; honoured until N+3). THE reader for every caller that used to read
+    ``os.environ.get("M3_DATABASE")``."""
+    global _LEGACY_DB_WARNED
+    if _pinned_db:
+        return _pinned_db
+    legacy = (os.environ.get("M3_DATABASE") or "").strip()
+    if not legacy:
+        return None
+    if not _LEGACY_DB_WARNED:
+        _LEGACY_DB_WARNED = True
+        logger.warning(
+            "observed: the database comes from the environment variable M3_DATABASE, which m3 "
+            "reads only until release N+3. fix: pass --database PATH to the command, or name a "
+            "store in m3_config.toml ([stores.<name>]) and pass --store NAME; then remove M3_DATABASE."
+        )
+    return legacy
 
 
 @contextmanager
@@ -823,53 +871,30 @@ def active_database(path: str | None):
 
 @contextmanager
 def scoped_db_env(path: "str | os.PathLike[str] | None"):
-    """Set ``M3_DATABASE`` for a block and restore it exactly on exit.
+    """Pin ``path`` as the main database for a block and restore the previous pin
+    exactly on exit. Yields the previous pin (None when there was none).
 
-    PREFER :func:`active_database`. This exists for the one case it cannot
-    cover: a module that must influence what a LATER ``import`` binds at import
-    time (``memory.config.DB_PATH`` reads ``M3_DATABASE`` when first imported),
-    which a ContextVar cannot reach. Everything else -- routing reads and writes
-    at a store -- belongs in ``active_database``, which needs no env var and
-    cannot leak. Use both together when both are needed: this one for the
-    import, that one for the routing.
+    It wrote ``os.environ['M3_DATABASE']`` until the M3_DATABASE design (phase 2,
+    2026-10-12); it now sets the in-process pin at the same rank, so callers are
+    unchanged and nothing leaks into the environment of children.
 
-    WHY THIS IS A SEAM PRIMITIVE RATHER THAN FOUR COPIES. An unrestored write
-    poisons every later ``resolve_db_path(None)`` in the process, and the
-    callers that need it are loops over MULTIPLE stores (core, then chatlog),
-    so the value left behind is the LAST store swept, not the main one. That
-    turned into a silent wrong-store read four separate times in this codebase
-    (#180). The save/restore is three lines and every copy got to decide
-    independently whether to bother -- exactly the duplication §10a calls the
-    defect, independent of correctness.
+    PREFER :func:`active_database` for routing one call. This exists for the
+    loops that sweep SEVERAL stores (core, then chatlog) and must leave the
+    process's main database exactly as it was: an unrestored value poisoned
+    every later ``resolve_db_path(None)`` with the LAST store swept (#180), the
+    reason it is one seam primitive rather than four copies (§10a).
 
-    RESTORES ABSENCE AS ABSENCE. ``resolve_db_path`` reads
-    ``os.environ.get("M3_DATABASE") or ...``, so an empty string would fall
-    through there -- but other readers test for the KEY, so putting "" back
-    where nothing existed is not a restore.
-
-    SQLITE-SHAPED BY CONTRACT, and that is not a portability gap.
-    ``M3_DATABASE`` names a SQLite FILE: ``resolve_db_path`` raises on a DSN,
-    and a non-SQLite backend is selected by ``db.backend`` with its own stored
-    DSN secret (e.g. ``M3_PRIMARY_PG_URL``), which this function does not touch.
-    So on PostgreSQL there is nothing here to scope -- callers pass the path
-    they were going to set anyway, and a DSN raises from ``resolve_db_path``
-    at use, as it already would.
-
-    Accepts ``os.PathLike`` as well as ``str`` because the callers hold
-    ``Path`` objects (they iterate resolved store paths) and the body stringifies
-    anyway. Annotating this ``str``-only forced a ``str(...)`` at every call site
-    to satisfy the type checker while changing nothing at runtime.
+    SQLITE-SHAPED BY CONTRACT: it names a SQLite FILE; ``resolve_db_path``
+    raises on a DSN. Accepts ``os.PathLike`` because the callers hold Paths.
     """
-    prev = os.environ.get("M3_DATABASE")
+    global _pinned_db
+    prev = _pinned_db
     if path is not None:
-        os.environ["M3_DATABASE"] = str(path)
+        _pinned_db = str(path)
     try:
         yield prev
     finally:
-        if prev is None:
-            os.environ.pop("M3_DATABASE", None)
-        else:
-            os.environ["M3_DATABASE"] = prev
+        _pinned_db = prev
 
 
 def seam_backend():

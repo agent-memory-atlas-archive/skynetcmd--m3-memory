@@ -1,8 +1,8 @@
 ---
 tool: bin/cli_knowledge.py
-sha1: 9103e4db3ea8
-mtime_utc: 2026-10-11T20:16:00.728249+00:00
-generated_utc: 2026-10-11T20:18:46.678932+00:00
+sha1: 58765da18315
+mtime_utc: 2026-10-12T22:51:17.782220+00:00
+generated_utc: 2026-10-12T23:01:47.533415+00:00
 private: false
 ---
 
@@ -16,7 +16,7 @@ _(no module docstring — update the source file.)_
 
 ## Entry points
 
-- `def main()` (line 32)
+- `def main()` (line 33)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -47,7 +47,7 @@ _(no module docstring — update the source file.)_
 
 ## Environment variables read
 
-- `M3_DATABASE`
+_(none detected)_
 
 ---
 
@@ -65,6 +65,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
+- `m3_core.paths (pin_database)`
 - `m3_core.paths (reexec_in_project_venv)`
 - `memory.knowledge_helpers (add_knowledge, delete_knowledge, get_all_types, list_knowledge, search_knowledge, update_knowledge)`
 

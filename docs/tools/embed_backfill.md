@@ -1,8 +1,8 @@
 ---
 tool: bin/embed_backfill.py
-sha1: 6b979af917c4
-mtime_utc: 2026-10-11T07:27:47.297754+00:00
-generated_utc: 2026-10-11T07:28:00.230668+00:00
+sha1: b4bb69f69b06
+mtime_utc: 2026-10-12T22:51:17.753535+00:00
+generated_utc: 2026-10-12T23:01:47.649590+00:00
 private: false
 ---
 
@@ -69,7 +69,7 @@ an active enricher in WAL mode (SQLite handles concurrent reads fine).
 
 | Flag(s) | Help | Default | Default behavior | Type/Action | Impact when set |
 |---|---|---|---|---|---|
-| `--db` | f'Target DB. Default: $M3_DATABASE or {DEFAULT_DB}' | `Path(os.environ.get('M3_DATABASE', str(DEFAULT_DB)))` |  | Path |  |
+| `--db` | f'Target DB. Default: $M3_DATABASE or {DEFAULT_DB}' | `Path(configured_main_db() or str(DEFAULT_DB))` |  | Path |  |
 | `--target` | Which tables to sweep on a backend that keeps both in one database (PostgreSQL). On SQLite --db selects the file. | `core` |  | str |  |
 | `--store` | (hidden from --help) | — |  | deprecated_alias('--target') |  |
 | `--variant` | Filter to one variant. Repeatable for OR. | `[]` |  | append |  |
@@ -125,7 +125,7 @@ an active enricher in WAL mode (SQLite handles concurrent reads fine).
 - `doctor.embed_space_probe (unfindable_memories)`
 - `m3_core.context (pointed_store_connection)`
 - `m3_core.paths (_looks_like_dsn)`
-- `m3_core.paths (deprecated_alias, store_is_a_file)`
+- `m3_core.paths (configured_main_db, deprecated_alias, pin_database, store_is_a_file)`
 - `m3_core.runtime (utc_iso)`
 - `memory.backends (chatlog_table)`
 - `memory.backends (dialect)`

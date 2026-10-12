@@ -60,7 +60,7 @@ if str(_BIN) not in sys.path:
 import memory_core as mc  # noqa: E402
 from m3_core.config import settings as _m3cfg
 from m3_core.context import pointed_store_connection
-from m3_core.paths import resolve_cli_store, seam_backend  # noqa: E402
+from m3_core.paths import pin_database, resolve_cli_store, seam_backend  # noqa: E402  # noqa: E402
 
 # GLiNER's published 7-label vocab (person, place, organization, event, concept, object, date).
 GLINER_LABELS: list[str] = [
@@ -396,7 +396,7 @@ async def _run_async(args: argparse.Namespace) -> int:
     if db_path:
         # memory_core._run_entity_extractor reads M3_DATABASE via the active
         # context; pin it so an explicit --core-db wins for the write path too.
-        os.environ["M3_DATABASE"] = db_path
+        pin_database(db_path)
 
     conv_allowlist = _load_conv_allowlist(args.source_conv_list or _m3cfg.setting("entity.conv_list"))
 

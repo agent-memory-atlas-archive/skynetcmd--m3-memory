@@ -39,7 +39,7 @@ DB SELECTION
 
 Source (CORE, where chat_log rows currently live), in priority order:
   1. --source <path>
-  2. $M3_DATABASE env var
+  2. legacy $M3_DATABASE env var (warned once; pass --source instead)
   3. <engine_root>/agent_memory.db   (via m3_core.paths.resolve_engine_file)
 
 Target (CHATLOG, where they should go), in priority order:
@@ -68,6 +68,7 @@ import os
 import sqlite3
 import sys
 
+from m3_core.paths import configured_main_db  # noqa: E402
 from m3_sdk import getenv_compat
 
 try:
@@ -80,7 +81,7 @@ except ImportError:  # pragma: no cover - direct-run fallback
 def resolve_source(cli_arg: str | None) -> str:
     if cli_arg:
         return os.path.abspath(cli_arg)
-    env = os.environ.get("M3_DATABASE")
+    env = configured_main_db()
     if env:
         return os.path.abspath(env)
     return os.path.abspath(resolve_engine_file("agent_memory.db"))
@@ -123,7 +124,7 @@ def main() -> int:
 
     require_sqlite_backend("split_chatlog_from_core")  # opens SQLite files directly; refuse on PostgreSQL
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--source", help="CORE memory DB (default: $M3_DATABASE or engine agent_memory.db)")
+    ap.add_argument("--source", help="CORE memory DB (default: engine agent_memory.db)")
     ap.add_argument("--target", help="CHATLOG DB (default: $CHATLOG_DB_PATH or engine agent_chatlog.db)")
     ap.add_argument("--commit", action="store_true", help="actually copy + delete (default: dry-run)")
     args = ap.parse_args()

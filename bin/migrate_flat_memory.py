@@ -675,7 +675,9 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
     if args.database:
-        os.environ["M3_DATABASE"] = args.database
+        from m3_core.paths import pin_database
+
+        pin_database(args.database)
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
         log.setLevel(logging.DEBUG)

@@ -82,6 +82,7 @@ from pathlib import Path
 from typing import Any
 
 from chatlog_prune import _age_days, role_from_title_sql  # noqa: F401
+from m3_core.paths import configured_main_db  # noqa: E402
 from m3_sdk import getenv_compat
 
 
@@ -97,7 +98,7 @@ def resolve_db_path(cli_arg: str | None) -> str:
     env = (
         getenv_compat("M3_CHATLOG_DB", "CHATLOG_DB")
         or getenv_compat("M3_CHATLOG_DB_PATH", "CHATLOG_DB_PATH")
-        or os.environ.get("M3_DATABASE")
+        or configured_main_db()
     )
     if env:
         return os.path.abspath(env)

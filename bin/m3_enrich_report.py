@@ -30,6 +30,8 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+from m3_core.paths import configured_main_db  # bin/ is the script's dir
+
 
 def _connect(db_path: str):
     """A read-only connection to `db_path` via the seam.
@@ -319,8 +321,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument(
         "--db",
-        default=os.environ.get("M3_DATABASE", "memory/agent_memory.db"),
-        help="SQLite DB path. Default: memory/agent_memory.db or $M3_DATABASE.",
+        default=configured_main_db() or "memory/agent_memory.db",
+        help="SQLite DB path. Default: memory/agent_memory.db.",
     )
     ap.add_argument("--run-id", help="enrich_run_id to summarize (UUID).")
     ap.add_argument("--variant", help="source_variant to summarize across all runs.")

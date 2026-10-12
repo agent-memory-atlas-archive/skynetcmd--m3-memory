@@ -33,13 +33,13 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
-import os
 import sys
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR / "bin"))
 
+from m3_core.paths import pin_database  # noqa: E402
 from m3_sdk import add_database_arg, resolve_db_path  # noqa: E402
 from memory.backends import dialect  # noqa: E402
 from memory_core import _db, memory_link_impl  # noqa: E402
@@ -199,7 +199,7 @@ def _build_parser() -> argparse.ArgumentParser:
 async def _main() -> int:
     args = _build_parser().parse_args()
     if getattr(args, "database", None):
-        os.environ["M3_DATABASE"] = args.database
+        pin_database(args.database)
     resolved = resolve_db_path(getattr(args, "database", None))
     logger.info(f"Target DB: {resolved}")
 

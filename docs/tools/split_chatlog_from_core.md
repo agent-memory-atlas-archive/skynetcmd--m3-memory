@@ -1,8 +1,8 @@
 ---
 tool: bin/split_chatlog_from_core.py
-sha1: 3b71a8916f0e
-mtime_utc: 2026-10-10T21:05:16.554907+00:00
-generated_utc: 2026-10-10T21:05:29.963553+00:00
+sha1: 4be3bc44fcc3
+mtime_utc: 2026-10-12T23:02:55.200341+00:00
+generated_utc: 2026-10-12T23:02:56.322894+00:00
 private: false
 ---
 
@@ -48,7 +48,7 @@ DB SELECTION
 
 Source (CORE, where chat_log rows currently live), in priority order:
   1. --source <path>
-  2. $M3_DATABASE env var
+  2. legacy $M3_DATABASE env var (warned once; pass --source instead)
   3. <engine_root>/agent_memory.db   (via m3_core.paths.resolve_engine_file)
 
 Target (CHATLOG, where they should go), in priority order:
@@ -73,7 +73,7 @@ Take a filesystem backup of both DBs before --commit; this script does not.
 
 ## Entry points
 
-- `def main()` (line 121)
+- `def main()` (line 122)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -82,7 +82,7 @@ Take a filesystem backup of both DBs before --commit; this script does not.
 
 | Flag(s) | Help | Default | Default behavior | Type/Action | Impact when set |
 |---|---|---|---|---|---|
-| `--source` | CORE memory DB (default: $M3_DATABASE or engine agent_memory.db) | — |  | str |  |
+| `--source` | CORE memory DB (default: engine agent_memory.db) | — |  | str |  |
 | `--target` | CHATLOG DB (default: $CHATLOG_DB_PATH or engine agent_chatlog.db) | — |  | str |  |
 | `--commit` | actually copy + delete (default: dry-run) | `False` |  | store_true |  |
 
@@ -90,7 +90,7 @@ Take a filesystem backup of both DBs before --commit; this script does not.
 
 ## Environment variables read
 
-- `M3_DATABASE`
+_(none detected)_
 
 ---
 
@@ -105,14 +105,15 @@ Take a filesystem backup of both DBs before --commit; this script does not.
 
 **sqlite**
 
-- `sqlite3.connect()  → `p`` (line 102)
-- `sqlite3.connect()  → `source`` (line 155)
+- `sqlite3.connect()  → `p`` (line 103)
+- `sqlite3.connect()  → `source`` (line 156)
 
 
 ---
 
 ## Notable external imports
 
+- `m3_core.paths (configured_main_db)`
 - `m3_core.paths (require_sqlite_backend)`
 - `m3_core.paths (resolve_engine_file)`
 

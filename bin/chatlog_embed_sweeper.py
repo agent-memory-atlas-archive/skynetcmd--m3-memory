@@ -10,6 +10,7 @@ and drains any spill-to-disk files from the async write queue.
 from __future__ import annotations
 
 from m3_core.paths import apply_early_argv as _apply_early_argv
+from m3_core.paths import pin_database  # noqa: E402
 
 # --config FILE (the file this job was registered with) is pinned, and every
 # --set KEY=VALUE applied, before any import below binds a root or reads a
@@ -577,7 +578,7 @@ async def main() -> int:
 
     if args.database:
         # M3_DATABASE unifies main+chatlog unless CHATLOG_DB_PATH overrides.
-        os.environ["M3_DATABASE"] = args.database
+        pin_database(args.database)
         chatlog_config.invalidate_cache()
 
     # Resolve config

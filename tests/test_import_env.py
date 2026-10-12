@@ -282,3 +282,13 @@ def test_m3_config_import_env_dispatches(world, capsys, monkeypatch):
     assert done.value.code == 0
     assert "would import search.row_cap = 700" in capsys.readouterr().out
     assert not world["cfg"].exists()
+
+
+def test_m3_database_is_named_with_the_fix_and_never_moved(world, capsys):
+    """M3_DATABASE design Q2: a database path is a locator, so import-env names
+    where it is set and how to replace it, and writes nothing for it."""
+    _rc(world, "export M3_DATABASE=/data/other.db\n")
+    assert _run(world) == 0
+    out = capsys.readouterr().out
+    assert "M3_DATABASE is set in" in out and ".bashrc" in out and "--database PATH" in out and "--store NAME" in out
+    assert "M3_DATABASE" not in (world["cfg"].read_text(encoding="utf-8") if world["cfg"].exists() else "")

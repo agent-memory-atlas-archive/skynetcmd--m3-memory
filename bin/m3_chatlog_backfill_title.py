@@ -57,7 +57,9 @@ def _resolve_db(arg_path: str | None, env_var: str, default_name: str) -> Path |
     if arg_path:
         p = Path(arg_path).expanduser().resolve()
         return p if os.path.exists(p) else None
-    env_val = os.environ.get(env_var)
+    from m3_core.paths import configured_main_db
+
+    env_val = configured_main_db() if env_var == "M3_DATABASE" else os.environ.get(env_var)
     if env_val:
         p = Path(env_val).expanduser().resolve()
         return p if os.path.exists(p) else None

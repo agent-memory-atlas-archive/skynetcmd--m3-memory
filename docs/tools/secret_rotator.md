@@ -1,8 +1,8 @@
 ---
 tool: bin/secret_rotator.py
-sha1: 68739e0aa504
-mtime_utc: 2026-10-12T15:22:21.783981+00:00
-generated_utc: 2026-10-12T15:38:20.744168+00:00
+sha1: 9e562ed85029
+mtime_utc: 2026-10-12T22:51:17.785729+00:00
+generated_utc: 2026-10-12T23:01:48.402619+00:00
 private: false
 ---
 
@@ -32,7 +32,7 @@ _(no module docstring — update the source file.)_
 
 ## Environment variables read
 
-- `M3_DATABASE`
+_(none detected)_
 
 ---
 
@@ -55,6 +55,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 - `m3_core.paths (active_database, seam_backend, seam_dialect)`
 - `m3_core.paths (apply_early_argv)`
+- `m3_core.paths (pin_database)`
 - `secrets`
 
 ---

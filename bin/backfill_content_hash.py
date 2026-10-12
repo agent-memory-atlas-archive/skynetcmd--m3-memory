@@ -56,7 +56,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 import time
 from pathlib import Path
@@ -64,7 +63,7 @@ from typing import cast
 
 from m3_core.context import pointed_store_connection
 from m3_core.errors import is_defect
-from m3_core.paths import resolve_cli_store, seam_backend, seam_dialect
+from m3_core.paths import pin_database, resolve_cli_store, seam_backend, seam_dialect  # noqa: E402
 from m3_core.runtime import utc_iso
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -163,7 +162,7 @@ def _run_backfill(conn, args: argparse.Namespace) -> dict:
     # Late import: memory_core's _content_hash + _augment_embed_text_with_anchors
     # need M3_DATABASE set BEFORE import (SQLite only: it names a file).
     if args.db:
-        os.environ["M3_DATABASE"] = str(args.db)
+        pin_database(str(args.db))
     if str(BIN_DIR) not in sys.path:
         sys.path.insert(0, str(BIN_DIR))
     import memory_core as mc  # noqa: E402

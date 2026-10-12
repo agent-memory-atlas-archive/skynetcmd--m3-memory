@@ -12,6 +12,7 @@ Use --no-memory to skip the memory write step.
 """
 
 from m3_core.paths import apply_early_argv as _apply_early_argv
+from m3_core.paths import pin_database  # noqa: E402
 
 # --config FILE (the file this job was registered with) is pinned, and every
 # --set KEY=VALUE applied, before any import below binds a root or reads a
@@ -448,7 +449,7 @@ def main():
     setup_task_runtime(args.log_file, lock_name="weekly_auditor")
 
     if args.database:
-        os.environ["M3_DATABASE"] = args.database
+        pin_database(args.database)
 
     run_audit(write_memory=not args.no_memory)
 

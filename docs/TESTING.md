@@ -90,7 +90,7 @@ python -m pytest tests/ -m "not slow"
 
 # Against an isolated DB (see bin/setup_test_db.py)
 python bin/setup_test_db.py --database memory/_test.db --force
-M3_DATABASE=memory/_test.db python -m pytest tests/
+M3_DATABASE=memory/_test.db python -m pytest tests/   # legacy env name (read until N+3, warned)
 ```
 
 ---
@@ -101,7 +101,8 @@ These are self-contained scripts that print a `✅/❌` summary. They exist
 for scenarios that need a real live DB, a running MCP server, or LM Studio
 on localhost — things pytest would have to mock extensively.
 
-All honor `M3_DATABASE` so you can point them at a scratch DB:
+They define no `--database` flag; point them at a scratch DB with the legacy
+`M3_DATABASE` env var (read until release N+3, with a one-time warning):
 
 ```bash
 python bin/setup_test_db.py --database memory/_test.db --force
@@ -110,8 +111,8 @@ M3_DATABASE=memory/_test.db python bin/test_memory_bridge.py
 
 | File | Invocation | Count | Requires | Covers |
 |---|---|---|---|---|
-| `test_memory_bridge.py` | `python bin/test_memory_bridge.py` | 193 checks across 47 scenarios | LM Studio (skips embedding tests if offline); DB via `M3_DATABASE` | All 38+ MCP tools: memory write/get/search/update/delete, conversations, tasks, handoffs, inbox, agent registry, notifications, GDPR, sync |
-| `test_debug_agent.py` | `python bin/test_debug_agent.py` | ~25 checks | LM Studio (graceful skip); DB via `M3_DATABASE` | Debug agent bridge: thermal, LLM routing, debug_analyze / bisect / trace / correlate / history / report |
+| `test_memory_bridge.py` | `python bin/test_memory_bridge.py` | 193 checks across 47 scenarios | LM Studio (skips embedding tests if offline); DB via legacy `M3_DATABASE` | All 38+ MCP tools: memory write/get/search/update/delete, conversations, tasks, handoffs, inbox, agent registry, notifications, GDPR, sync |
+| `test_debug_agent.py` | `python bin/test_debug_agent.py` | ~25 checks | LM Studio (graceful skip); DB via legacy `M3_DATABASE` | Debug agent bridge: thermal, LLM routing, debug_analyze / bisect / trace / correlate / history / report |
 | `test_mcp_proxy.py` | `python bin/test_mcp_proxy.py` | 4 scenarios, ~10 checks | MCP proxy running on :9000, `ANTHROPIC_API_KEY`, DB | Proxy end-to-end: `/health`, Claude + Gemini routing, aider subprocess, activity_logs delta |
 | `test_mcp_proxy_unit.py` (now in `tests/`) | `pytest tests/test_mcp_proxy_unit.py` | 12 tests | none | Proxy internals: tool-list merging, destructive-tool gating, `inject_agent_id` enforcement |
 | `test_bulk_parity.py` | `python bin/test_bulk_parity.py` | ~15 checks | SQLite (mocked schema) | Bulk vs single write parity: enrichment, variant isolation, contradiction detection |
@@ -124,8 +125,9 @@ M3_DATABASE=memory/_test.db python bin/test_memory_bridge.py
 
 The three harnesses that take over the live DB (`test_memory_bridge.py`,
 `test_debug_agent.py`, `test_mcp_proxy.py`) resolve `DB_PATH` at import
-time via `m3_sdk.resolve_db_path(None)`, so setting `M3_DATABASE` before
-invocation isolates them. Typical flow:
+time via `m3_sdk.resolve_db_path(None)` and define no `--database` flag, so
+setting the legacy `M3_DATABASE` before invocation isolates them (read until
+release N+3, warned). Typical flow:
 
 ```bash
 python bin/setup_test_db.py --database memory/_test.db --force

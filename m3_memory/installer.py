@@ -49,6 +49,7 @@ from m3_memory.install.sections import (  # noqa: F401  (re-exported facade surf
     _claude_hook_state,
     _config_env_disagreement_section,
     _crypto_section,
+    _database_env_section,
     _deprecated_env_section,
     _embedder_tier_section,
     _gemini_hook_state,
@@ -2754,6 +2755,8 @@ def doctor(fix: bool = False, brief: bool = False) -> int:
     _interrupted_rewrite_section()
 
     _secrets_in_env_section(brief=brief)
+
+    _database_env_section()
 
     _secrets_file_exposure_section(brief=brief)
 

@@ -1,8 +1,8 @@
 ---
 tool: bin/dashboard_server.py
-sha1: c7ba05483794
-mtime_utc: 2026-10-12T22:24:51.007526+00:00
-generated_utc: 2026-10-12T22:25:01.356998+00:00
+sha1: 6e7029ad2cba
+mtime_utc: 2026-10-12T22:51:17.791634+00:00
+generated_utc: 2026-10-12T23:01:47.623768+00:00
 private: false
 ---
 
@@ -103,11 +103,11 @@ you intend to launch the server with (typically ``.venv``).
 
 **subprocess**
 
-- `subprocess.Popen()  → `[exe, *args]`` (line 3418)
-- `subprocess.Popen()  → `[sys.executable, *args]`` (line 3431)
-- `subprocess.Popen()  → `cmd`` (line 3068)
-- `subprocess.run()  → `['powershell', '-NoProfile', '-Command', ps]`` (line 3287)
-- `subprocess.run()  → `['taskkill', '/F', '/PID', str(pid)]`` (line 3327)
+- `subprocess.Popen()  → `[exe, *args]`` (line 3419)
+- `subprocess.Popen()  → `[sys.executable, *args]`` (line 3432)
+- `subprocess.Popen()  → `cmd`` (line 3069)
+- `subprocess.run()  → `['powershell', '-NoProfile', '-Command', ps]`` (line 3288)
+- `subprocess.run()  → `['taskkill', '/F', '/PID', str(pid)]`` (line 3328)
 
 
 ---
@@ -131,6 +131,7 @@ you intend to launch the server with (typically ``.venv``).
 - `m3_core.config (settings)`
 - `m3_core.paths (add_config_arg)`
 - `m3_core.paths (apply_early_argv)`
+- `m3_core.paths (configured_main_db)`
 - `m3_core.paths (get_m3_engine_root)`
 - `m3_core.seams (childenv)`
 - `m3_core.seams (detached_spawn_kwargs, is_windows)`

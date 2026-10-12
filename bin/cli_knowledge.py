@@ -8,6 +8,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, BASE_DIR)
 
 sys.path.insert(0, os.path.join(BASE_DIR, "bin"))
+from m3_core.paths import pin_database  # noqa: E402
 from m3_sdk import add_database_arg
 
 
@@ -77,7 +78,7 @@ def main():
 
     if args.database:
         # Set before knowledge_helpers touches the DB so memory_core picks it up.
-        os.environ["M3_DATABASE"] = args.database
+        pin_database(args.database)
 
     if args.type in ("?", "all"):
         types = get_all_types()

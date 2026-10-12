@@ -18,6 +18,7 @@ for m3_enrich and m3_entities.
 """
 
 from m3_core.paths import apply_early_argv as _apply_early_argv
+from m3_core.paths import configured_main_db, pin_database  # noqa: E402
 
 # --config FILE (the file this job was registered with) is pinned, and every
 # --set KEY=VALUE applied, before any import below binds a root or reads a
@@ -953,7 +954,7 @@ def _embed_target_dbs(core_db: str | None) -> list[str]:
     # the chatlog store alone. That is deliberate and matches the pre-refactor
     # behaviour: a caller naming a database that is not there should not cause
     # the loop to silently sweep a DIFFERENT one instead.
-    main = core_db or os.environ.get("M3_DATABASE")
+    main = core_db or configured_main_db()
     if main:
         default_main = paths[0] if paths else None
         rest = list(paths[1:]) if default_main else list(paths)
@@ -1087,7 +1088,7 @@ def _checkpoint_wal(db_path: str | None) -> None:
 
         from sqlite_pragmas import apply_pragmas, profile_for_db
 
-        path = db_path or os.environ.get("M3_DATABASE")
+        path = db_path or configured_main_db()
         if not path:
             return
         conn = sqlite3.connect(path, timeout=10)
@@ -2261,7 +2262,7 @@ def main():
 
     # Resolve paths once to normalize env vs flag
     if args.database:
-        os.environ["M3_DATABASE"] = os.path.abspath(args.database)
+        pin_database(os.path.abspath(args.database))
     args.database = resolve_db_path()
 
     if args.chatlog_db:

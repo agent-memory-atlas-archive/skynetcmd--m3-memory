@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_entities.py
-sha1: 2078aeb74efa
-mtime_utc: 2026-10-11T21:07:32.398082+00:00
-generated_utc: 2026-10-11T21:08:57.288248+00:00
+sha1: 782343cdda99
+mtime_utc: 2026-10-12T22:50:28.953319+00:00
+generated_utc: 2026-10-12T23:01:48.011765+00:00
 private: false
 ---
 
@@ -51,7 +51,7 @@ Override via --entity-vocab-yaml or M3_ENTITY_VOCAB_YAML.
 
 ## Entry points
 
-- `def main()` (line 1286)
+- `def main()` (line 1287)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -82,7 +82,7 @@ Override via --entity-vocab-yaml or M3_ENTITY_VOCAB_YAML.
 
 ## Environment variables read
 
-- `M3_DATABASE`
+_(none detected)_
 
 ---
 
@@ -103,8 +103,8 @@ Override via --entity-vocab-yaml or M3_ENTITY_VOCAB_YAML.
 
 **http**
 
-- `httpx.AsyncClient()` (line 668)
-- `httpx.AsyncClient()` (line 862)
+- `httpx.AsyncClient()` (line 669)
+- `httpx.AsyncClient()` (line 863)
 
 
 ---
@@ -114,6 +114,7 @@ Override via --entity-vocab-yaml or M3_ENTITY_VOCAB_YAML.
 - `httpx`
 - `m3_core.aio (gather_or_cancel)`
 - `m3_core.config (settings)`
+- `m3_core.paths (configured_main_db, pin_database)`
 - `m3_core.paths (get_m3_backups_root, snapshot_stores)`
 - `memory.backends (active_backend)`
 - `memory.backends (dialect)`

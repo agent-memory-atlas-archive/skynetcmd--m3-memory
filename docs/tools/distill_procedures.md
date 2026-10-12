@@ -1,8 +1,8 @@
 ---
 tool: bin/distill_procedures.py
-sha1: e5e9cbf0093d
-mtime_utc: 2026-10-11T18:40:07.342771+00:00
-generated_utc: 2026-10-11T19:18:31.900928+00:00
+sha1: ab7298742dd6
+mtime_utc: 2026-10-12T22:51:17.765560+00:00
+generated_utc: 2026-10-12T23:01:47.635324+00:00
 private: false
 ---
 
@@ -37,7 +37,7 @@ Usage:
 
 ## Entry points
 
-- `def main()` (line 100)
+- `def main()` (line 101)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -55,7 +55,7 @@ Usage:
 
 ## Environment variables read
 
-- `M3_DATABASE`
+_(none detected)_
 
 ---
 
@@ -77,6 +77,7 @@ _(no subprocess / http / sqlite calls detected)_
 ## Notable external imports
 
 - `m3_core.config (settings)`
+- `m3_core.paths (configured_main_db)`
 
 ---
 

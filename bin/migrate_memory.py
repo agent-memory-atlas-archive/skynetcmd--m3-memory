@@ -41,6 +41,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import cast
 
+from m3_core.paths import configured_main_db, pin_database  # noqa: E402
 from m3_core.seams import is_windows
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -60,7 +61,7 @@ from m3_core.paths import resolve_engine_file as _resolve_engine_file
 from sqlite_snapshot import snapshot_sqlite
 
 CONFIG_PATH = _resolve_config_file(".migrate_config.json")
-DB_PATH = os.environ.get("M3_DATABASE") or _resolve_engine_file("agent_memory.db")
+DB_PATH = configured_main_db() or _resolve_engine_file("agent_memory.db")
 # Migrations inside the repository are still base-dir relative since they are static code assets
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MIGRATIONS_DIR = os.path.join(BASE_DIR, "memory", "migrations")
@@ -1109,7 +1110,7 @@ def main():
     args = parser.parse_args()
 
     if args.database:
-        os.environ["M3_DATABASE"] = args.database
+        pin_database(args.database)
 
     # Back-compat: `python migrate_memory.py` with no args == `up` (the old behavior),
     # but now with the new prompts. Scripts that relied on the old no-arg invocation

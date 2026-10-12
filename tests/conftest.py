@@ -771,6 +771,10 @@ def clear_process_flags() -> None:
     roots = sys.modules.get("m3_memory._roots")
     if roots is not None and roots.pinned_config_file() is not None:
         roots.pin_config_file(None)
+    # The --database pin (M3_DATABASE design phase 2) is process-wide the same way.
+    paths = sys.modules.get("m3_core.paths")
+    if paths is not None and getattr(paths, "_pinned_db", None) is not None:
+        paths.pin_database(None)
     st = sys.modules.get("m3_core.config.settings")
     if st is not None and st._CACHE._cli:
         st._reset_for_tests()
@@ -1735,6 +1739,11 @@ _SANDBOX_CLEAR_ENV = (
     # tests resolve the wrong backend.
     "M3_DB_BACKEND",
     "DB_BACKEND",
+    # A developer's exported M3_DATABASE would point a test at a real store; tests
+    # use pin_database (M3_DATABASE design phase 2). The chatlog path names are NOT
+    # cleared here: the repo-root conftest pins them to the test's tmp dir first,
+    # and clearing them silently unified every test's chatlog with its main store.
+    "M3_DATABASE",
     # Primary-store DSNs — an ambient dev DSN to a throwaway cluster leaks into
     # tests that read PG_URL (higher-precedence M3_PG_URL overrides an injected
     # PG_URL otherwise).
@@ -1978,7 +1987,9 @@ def isolate_chatlog_env(monkeypatch, tmp_path):
     # deprecation notice -- 18 times in a full run. A warning that fires when
     # nothing is wrong trains people to ignore the one that matters (§3).
     monkeypatch.setenv("M3_CHATLOG_DB_PATH", str(db_path))
-    monkeypatch.setenv("M3_DATABASE", str(main_db_path))
+    from m3_core.paths import pin_database  # the --database pin, not env (cleared after the test)
+
+    pin_database(str(main_db_path))
     chatlog_config.invalidate_cache()
 
     monkeypatch.setattr(chatlog_config, "_POOL", None)

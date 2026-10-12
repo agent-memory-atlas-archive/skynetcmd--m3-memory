@@ -57,17 +57,20 @@ The rest of this document lists every command-line entry point that touches a SQ
 
 ## Universal `--database` flag
 
-Every DB-aware script accepts a standardized `--database PATH` flag. Resolution order is:
+Every DB-aware script accepts a standardized `--database PATH` flag. To use a named store instead, add `[stores.<name>]` to `m3_config.toml` and pass `--store NAME`. Resolution order (`resolve_db_path`) is:
 
-1. `--database PATH` CLI flag
-2. `M3_DATABASE` environment variable
-3. Default: `<engine_root>/agent_memory.db` — i.e. `~/.m3/engine/agent_memory.db`
+1. Explicit argument
+2. The active named store (`--store`)
+3. A call's `active_database()` scope
+4. The process's `--database PATH` pin
+5. `M3_DATABASE` environment variable — **legacy**: read only when nothing above names a database, with a one-time warning, until release N+3. m3 itself no longer writes it.
+6. Default: `<engine_root>/agent_memory.db` — i.e. `~/.m3/engine/agent_memory.db`
    (the engine root resolves `M3_ENGINE_ROOT` → `M3_MEMORY_ROOT/engine` → `~/.m3/engine`;
    see [ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md#roots--precedence-the-single-source-of-truth)).
    A legacy `memory/agent_memory.db` in a dev checkout is used only if it already
    holds data.
 
-The flag is wired through `bin/m3_sdk.add_database_arg(parser)` and every value is normalized via `resolve_db_path(explicit)` to an absolute path before use. Scripts that shell out to other scripts (e.g. `sync_all.py` → `pg_sync.py`) set `M3_DATABASE` in the environment so subprocesses inherit the override.
+The flag is wired through `bin/m3_sdk.add_database_arg(parser)` and every value is normalized via `resolve_db_path(explicit)` to an absolute path before use. Scripts that shell out to other scripts pass the database explicitly (e.g. `sync_all.py` runs `pg_sync.py --db <path>`); they do not hand it on through the environment.
 
 Use the flag to route to separate stores for different workloads:
 
@@ -86,7 +89,7 @@ CHATLOG_DB_PATH=memory/my_chatlog.db python bin/chatlog_ingest.py --format claud
 
 ## Running tests against an isolated DB
 
-The test suites (`test_memory_bridge.py`, `test_debug_agent.py`, `test_mcp_proxy.py`) read their `DB_PATH` via `resolve_db_path(None)` at import time, so they honor `M3_DATABASE` set in the environment.
+The test suites (`test_memory_bridge.py`, `test_debug_agent.py`, `test_mcp_proxy.py`) read their `DB_PATH` via `resolve_db_path(None)` at import time. They define no `--database` flag, so point them at a scratch DB with the legacy `M3_DATABASE` env var (read until release N+3, with a one-time warning).
 
 Isolated test run:
 
@@ -94,7 +97,7 @@ Isolated test run:
 # Seed a fresh schema-complete scratch DB
 python bin/setup_test_db.py --database memory/_test.db --force
 
-# Run any test suite against it
+# Run any test suite against it (legacy env name; these scripts have no --database flag)
 M3_DATABASE=memory/_test.db python bin/test_memory_bridge.py
 ```
 
@@ -122,10 +125,10 @@ M3_DATABASE=memory/_test.db python bin/test_memory_bridge.py
 | `bin/mission_control.py` | Status dashboard | Uses default resolution only |
 | `bin/re_embed_all.py` | Re-embed every active item | — |
 | `bin/secret_rotator.py` | Rotate vault-stored secrets | — |
-| `bin/setup_memory.py` | Bootstrap (venv + deps + migrations) | Reads `M3_DATABASE` or `--database PATH` positionally |
+| `bin/setup_memory.py` | Bootstrap (venv + deps + migrations) | Reads `--database PATH` positionally (or legacy `M3_DATABASE`) |
 | `bin/setup_secret.py` | Add/list/delete vault keys | — |
 | `bin/setup_test_db.py` | Seed a scratch DB with the full schema (for test isolation) | `--force` wipes existing file before seeding |
-| `bin/sync_all.py` | Hourly sync runner (shells out to pg_sync) | Propagates `--database` to subprocesses via `M3_DATABASE` |
+| `bin/sync_all.py` | Hourly sync runner (shells out to pg_sync) | Passes the database to the pg_sync child as `--db <path>` |
 | `bin/weekly_auditor.py` | PDF weekly audit report | — |
 
 ---
@@ -137,7 +140,7 @@ The chatlog subsystem has its own resolver (see `bin/chatlog_config.py`):
 | Env | Role |
 | --- | --- |
 | `CHATLOG_DB_PATH` | Explicit chatlog-only path override, highest priority for chatlog reads/writes |
-| `M3_DATABASE` | Shared main DB; chatlog follows it unless `CHATLOG_DB_PATH` overrides |
+| `M3_DATABASE` | **Legacy** (read until release N+3, warned). Unified layout: with no `CHATLOG_DB_PATH` and no `db_path` pinned in `.chatlog_config.json`, the chatlog shares the process's `--database` (or legacy `M3_DATABASE`) main DB |
 | `CHATLOG_MODE` | **Deprecated** — ignored with a one-time warning. The three-mode system (integrated/separate/hybrid) has collapsed into path equality: same file = integrated behavior, different file = separate behavior, promote semantics switch automatically. |
 
 See [CHATLOG.md](CHATLOG.md) for the full chatlog architecture.

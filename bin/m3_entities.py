@@ -55,6 +55,7 @@ from pathlib import Path
 from typing import cast
 
 from m3_core.aio import gather_or_cancel
+from m3_core.paths import configured_main_db, pin_database  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 _BIN = REPO_ROOT / "bin"
@@ -704,7 +705,7 @@ async def _run_db(
     source_conv_list: set[str] | None = None,
 ) -> None:
     """Drive the extractor across all eligible rows in one DB."""
-    os.environ["M3_DATABASE"] = str(db_path)
+    pin_database(str(db_path))
     # This tool builds the entity graph, so the graph is on for this process
     # (it was an env setdefault, which also overrode a file setting of false).
     _m3cfg.set_from_cli({"memory.entity_graph": True})
@@ -1087,7 +1088,7 @@ async def _main_async(args: argparse.Namespace) -> int:
         core_db = (
             Path(args.core_db)
             if args.core_db
-            else Path(os.environ.get("M3_DATABASE") or (REPO_ROOT / "memory" / "agent_memory.db"))
+            else Path(configured_main_db() or (REPO_ROOT / "memory" / "agent_memory.db"))
         )
         if os.path.exists(core_db):
             db_targets.append(("core", core_db))

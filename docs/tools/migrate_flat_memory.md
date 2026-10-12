@@ -1,8 +1,8 @@
 ---
 tool: bin/migrate_flat_memory.py
-sha1: 8805c22d5b04
-mtime_utc: 2026-10-10T22:34:37.084647+00:00
-generated_utc: 2026-10-10T22:35:15.400130+00:00
+sha1: 1b9bf88117bb
+mtime_utc: 2026-10-12T22:51:17.660812+00:00
+generated_utc: 2026-10-12T23:01:48.239982+00:00
 private: false
 ---
 
@@ -61,7 +61,7 @@ Usage:
 
 ## Environment variables read
 
-- `M3_DATABASE`
+_(none detected)_
 
 ---
 
@@ -84,6 +84,7 @@ Usage:
 
 ## Notable external imports
 
+- `m3_core.paths (pin_database)`
 - `memory.backends (dialect)`
 
 ---

@@ -25,6 +25,7 @@ from typing import Any
 
 from m3_core.config import REGISTRY as _REGISTRY
 from m3_core.config import settings as _settings
+from m3_core.paths import configured_main_db  # noqa: E402
 
 
 def _setting(name: str) -> Any:
@@ -104,7 +105,7 @@ _M3_ENGINE_ROOT = get_m3_engine_root()
 # in m3_core.paths; this local name is a thin alias.
 from m3_core.paths import resolve_engine_file as _resolve_engine_file
 
-DB_PATH: str = os.environ.get("M3_DATABASE") or _resolve_engine_file("agent_memory.db")
+DB_PATH: str = configured_main_db() or _resolve_engine_file("agent_memory.db")
 # DEPRECATED (2026-07-24): the archive is now the `memory_archive` table IN the
 # primary store (SQLite migration 042 / pg_047), written through the seam so it
 # works on both backends — see memory_maintenance._transfer_to_archive. The old

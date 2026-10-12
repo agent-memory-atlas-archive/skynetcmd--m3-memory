@@ -32,6 +32,7 @@ import sys
 from typing import cast
 
 from m3_core.config import settings as _m3cfg
+from m3_core.paths import configured_main_db  # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -59,7 +60,7 @@ def _should_yield_to_user(min_idle_s: float = 30.0) -> str | None:
     try:
         from m3_sdk import M3Context, get_governor_pacing
 
-        ctx = M3Context.for_db(os.environ.get("M3_DATABASE"))
+        ctx = M3Context.for_db(configured_main_db())
         pacing = get_governor_pacing(ctx.get_system_telemetry())
         if pacing.get("background") == "HALTED":
             return "host load/activity critical (governor HALTED)"

@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any
 
 from m3_core.config import settings as _m3cfg
+from m3_core.paths import pin_database  # noqa: E402
 from m3_core.runtime import utc_iso
 from m3_core.seams import is_windows
 
@@ -907,7 +908,7 @@ async def main() -> int:
             # Unified model: --database sets M3_DATABASE so main + chatlog
             # resolution both see it. CHATLOG_DB_PATH overrides that for the
             # chatlog-only case (kept for the legacy --db flag).
-            os.environ["M3_DATABASE"] = args.database
+            pin_database(args.database)
             logger.info("Overriding DB path via M3_DATABASE: %s", args.database)
         if args.db:
             # Set the namespaced var so the getenv_compat reader picks it up via

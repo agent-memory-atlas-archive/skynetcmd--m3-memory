@@ -47,6 +47,7 @@ you intend to launch the server with (typically ``.venv``).
 from __future__ import annotations
 
 from m3_core.paths import apply_early_argv as _apply_early_argv
+from m3_core.paths import configured_main_db  # noqa: E402
 
 # --config FILE (the file this job was registered with) is pinned, and every
 # --set KEY=VALUE applied, before any import below binds a root or reads a
@@ -759,7 +760,7 @@ class DbScopeMiddleware(BaseHTTPMiddleware):
 
     @override
     async def dispatch(self, request: Request, call_next):
-        if os.environ.get("M3_DATABASE"):
+        if configured_main_db():
             # Operator pinned it; the env var outranks us by design.
             return await call_next(request)
         try:

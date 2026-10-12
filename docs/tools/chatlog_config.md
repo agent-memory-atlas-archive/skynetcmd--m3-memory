@@ -1,8 +1,8 @@
 ---
 tool: bin/chatlog_config.py
-sha1: 7a6a7dea7e6f
-mtime_utc: 2026-10-11T20:28:34.222107+00:00
-generated_utc: 2026-10-11T20:28:52.731388+00:00
+sha1: 5bfe25e86385
+mtime_utc: 2026-10-12T23:02:44.312702+00:00
+generated_utc: 2026-10-12T23:02:55.494283+00:00
 private: false
 ---
 
@@ -24,8 +24,9 @@ Resolution order for the chatlog DB path:
     1. CHATLOG_DB_PATH env var (explicit chatlog-only override, highest priority)
     2. active_database() ContextVar (per-call override set by the MCP tool
        dispatcher when a caller passes `database` on a chatlog_* tool)
-    3. M3_DATABASE env var (unified main DB — chatlog shares it)
-    4. .chatlog_config.json db_path field
+    3. .chatlog_config.json db_path field, when it pins one
+    4. the configured main DB (a script's --database pin, else the legacy
+       M3_DATABASE env) — unified: chatlog shares it
     5. Default: memory/agent_chatlog.db (separate file; historical default)
 
 Consumers:
@@ -42,7 +43,7 @@ from any module in bin/ without creating cycles.
 Deprecated env var:
     CHATLOG_MODE — ignored with a warning. The former "integrated" behavior
     is now achieved by setting CHATLOG_DB_PATH equal to the main DB (or by
-    leaving both unset when a shared M3_DATABASE covers everything).
+    leaving it unset when a shared --database covers everything).
 
 ---
 
@@ -62,7 +63,6 @@ _(no argparse arguments detected)_
 
 - `CHATLOG_DB_PATH`
 - `M3_CHATLOG_DB`
-- `M3_DATABASE`
 
 ---
 
@@ -79,7 +79,7 @@ _(no argparse arguments detected)_
 
 **sqlite**
 
-- `sqlite3.connect()  → `db_path`` (line 483)
+- `sqlite3.connect()  → `db_path`` (line 486)
 
 
 ---
@@ -88,6 +88,7 @@ _(no argparse arguments detected)_
 
 - `m3_core.atomic_io (atomic_write)`
 - `m3_core.config (settings)`
+- `m3_core.paths (configured_main_db, pin_database)`
 - `m3_core.paths (resolve_config_file)`
 - `m3_core.paths (resolve_engine_file)`
 

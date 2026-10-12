@@ -19,6 +19,7 @@ DB list:
 """
 
 from m3_core.paths import apply_early_argv as _apply_early_argv
+from m3_core.paths import pin_database  # noqa: E402
 
 # --config FILE (the file this job was registered with) is pinned, and every
 # --set KEY=VALUE applied, before any import below binds a root or reads a
@@ -489,7 +490,7 @@ def main():
 
     if args.database:
         # Pass-through env so the pg_sync subprocess inherits.
-        os.environ["M3_DATABASE"] = args.database
+        pin_database(args.database)
 
     # sys.platform, not platform.system() (WMI-hang risk on Py3.14/Windows).
     _os = os_name()

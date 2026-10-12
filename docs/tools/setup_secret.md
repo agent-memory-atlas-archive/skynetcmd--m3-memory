@@ -1,8 +1,8 @@
 ---
 tool: bin/setup_secret.py
-sha1: ae5ce229dae5
-mtime_utc: 2026-10-11T19:20:11.404478+00:00
-generated_utc: 2026-10-11T19:29:29.421341+00:00
+sha1: 0a411173fcf8
+mtime_utc: 2026-10-12T22:51:17.660812+00:00
+generated_utc: 2026-10-12T23:01:48.420220+00:00
 private: false
 ---
 
@@ -44,7 +44,7 @@ Usage:
 
 ## Environment variables read
 
-- `M3_DATABASE`
+_(none detected)_
 
 ---
 
@@ -65,6 +65,7 @@ _(no subprocess / http / sqlite calls detected)_
 ## Notable external imports
 
 - `getpass`
+- `m3_core.paths (pin_database)`
 - `m3_core.secret_store (bump_secret_generation)`
 - `memory.backends (dialect)`
 

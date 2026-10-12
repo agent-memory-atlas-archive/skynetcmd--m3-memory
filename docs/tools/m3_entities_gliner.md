@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_entities_gliner.py
-sha1: 78ac7376c2bb
-mtime_utc: 2026-10-11T20:18:09.042639+00:00
-generated_utc: 2026-10-11T20:18:46.993601+00:00
+sha1: a96f19d4d311
+mtime_utc: 2026-10-12T22:51:17.791634+00:00
+generated_utc: 2026-10-12T23:01:48.023895+00:00
 private: false
 ---
 
@@ -79,7 +79,7 @@ Env vars (all optional):
 
 ## Environment variables read
 
-- `M3_DATABASE`
+_(none detected)_
 
 ---
 
@@ -102,7 +102,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `m3_core.config (settings)`
 - `m3_core.context (pointed_store_connection)`
 - `m3_core.gpu (torch_device)`
-- `m3_core.paths (resolve_cli_store, seam_backend)`
+- `m3_core.paths (pin_database, resolve_cli_store, seam_backend)`
 - `memory.backends (dialect)`
 - `packaging.requirements (Requirement)`
 - `packaging.version (Version)`

@@ -1,8 +1,8 @@
 ---
 tool: bin/augment_memory.py
-sha1: fa6a44d9f60e
-mtime_utc: 2026-10-10T21:05:16.658430+00:00
-generated_utc: 2026-10-10T21:05:29.267969+00:00
+sha1: cb9293f2d924
+mtime_utc: 2026-10-12T22:51:17.765560+00:00
+generated_utc: 2026-10-12T23:01:47.302292+00:00
 private: false
 ---
 
@@ -63,7 +63,7 @@ Usage:
 
 ## Environment variables read
 
-- `M3_DATABASE`
+_(none detected)_
 
 ---
 
@@ -83,6 +83,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
+- `m3_core.paths (pin_database)`
 - `memory.backends (dialect)`
 
 ---

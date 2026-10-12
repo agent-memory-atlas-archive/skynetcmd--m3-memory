@@ -58,17 +58,17 @@ class TestChatStorePaths(unittest.TestCase):
     def test_honours_an_explicit_chatlog_db_env(self):
         """The reason to call the resolver instead of guessing a sibling: a
         relocated chatlog must still be found."""
-        saved = os.environ.get("CHATLOG_DB_PATH")
+        saved = os.environ.get("M3_CHATLOG_DB_PATH")
         target = os.path.abspath(os.path.join(os.path.dirname(__file__), "_relocated_chatlog.db"))
         try:
-            os.environ["CHATLOG_DB_PATH"] = target
+            os.environ["M3_CHATLOG_DB_PATH"] = target
             C.invalidate_cache()
             self.assertIn(target, [os.path.abspath(p) for p in C.chat_store_paths()])
         finally:
             if saved is None:
-                os.environ.pop("CHATLOG_DB_PATH", None)
+                os.environ.pop("M3_CHATLOG_DB_PATH", None)
             else:
-                os.environ["CHATLOG_DB_PATH"] = saved
+                os.environ["M3_CHATLOG_DB_PATH"] = saved
             C.invalidate_cache()
 
     def test_main_store_is_first(self):
@@ -108,49 +108,54 @@ class TestSessionStartHookUsesIt(unittest.TestCase):
         self.assertIn(os.path.abspath(C.chatlog_db_path()), [os.path.abspath(p) for p in H._candidate_dbs()])
 
 
-class TestEnvPollutionCollapsesStores(unittest.TestCase):
+class TestPinPollutionCollapsesStores(unittest.TestCase):
     """The FOURTH instance of this bug class, and a new mechanism (#180).
 
     The three in the module docstring were all callers hand-rolling the store
     list. This one corrupts the SHARED resolver's own answer: `chat_store_paths`
-    takes its "main store" entry from `resolve_db_path(None)`, which reads
-    `M3_DATABASE`. A caller that sets that env var and does not restore it --
-    while looping over core THEN chatlog, so the value left behind is the
-    CHATLOG path -- makes the resolver return the chatlog store AS main and
-    collapse to a single entry. `_embed_target_dbs` then substitutes its own
+    takes its "main store" entry from `resolve_db_path(None)`, which reads the
+    process's main database (the `M3_DATABASE` env until the M3_DATABASE design
+    phase 2, the --database pin since). A caller that sets it and does not
+    restore it -- while looping over core THEN chatlog, so the value left behind
+    is the CHATLOG path -- makes the resolver return the chatlog store AS main
+    and collapse to a single entry. `_embed_target_dbs` then substitutes its own
     main over that one entry and the chatlog store disappears entirely, so
     `has_embed_work()` reads a clean main DB, reports no work, and the
     unembedded chat backlog grows until the process restarts.
 
-    Using the shared resolver is therefore NOT sufficient on its own: the env
-    var it depends on has to be scoped. That is what `scoped_db_env` is for.
+    Using the shared resolver is therefore NOT sufficient on its own: the value
+    it depends on has to be scoped. That is what `scoped_db_env` is for.
     """
 
     def setUp(self):
-        self._prev = os.environ.get("M3_DATABASE")
+        from m3_core import paths
+
+        self._prev = paths.configured_main_db()
 
     def tearDown(self):
-        if self._prev is None:
-            os.environ.pop("M3_DATABASE", None)
-        else:
-            os.environ["M3_DATABASE"] = self._prev
+        from m3_core import paths
+
+        paths.pin_database(self._prev)
         C.invalidate_cache()
 
-    def test_leaked_env_collapses_the_store_list(self):
+    def test_leaked_pin_collapses_the_store_list(self):
         """Pins the MECHANISM: this is what a leak does, so it stays diagnosed."""
+        from m3_core import paths
+
         chat = os.path.abspath(C.chatlog_db_path())
-        os.environ["M3_DATABASE"] = chat
+        paths.pin_database(chat)
         C.invalidate_cache()
-        paths = [os.path.abspath(p) for p in C.chat_store_paths()]
+        found = [os.path.abspath(p) for p in C.chat_store_paths()]
         self.assertEqual(
-            paths,
+            found,
             [chat],
-            "a leaked M3_DATABASE should collapse the list to the chatlog store "
-            "-- if this no longer holds, the #180 mechanism has changed and the "
-            "scoped_db_env callers should be re-reviewed",
+            "a leaked main-database pin should collapse the list to the chatlog "
+            "store -- if this no longer holds, the #180 mechanism has changed and "
+            "the scoped_db_env callers should be re-reviewed",
         )
 
     def test_scoped_db_env_restores_and_keeps_both_stores(self):
+        from m3_core import paths
         from m3_sdk import scoped_db_env
 
         main = os.path.abspath(C._main_path_from_env() or C.MAIN_DB_PATH)
@@ -158,7 +163,7 @@ class TestEnvPollutionCollapsesStores(unittest.TestCase):
         if main == chat:
             self.skipTest(skip_reason("na", "unified topology: one store, nothing to collapse"))
 
-        os.environ["M3_DATABASE"] = main
+        paths.pin_database(main)
         C.invalidate_cache()
 
         # Iterate core THEN chatlog, as every affected caller does.
@@ -166,25 +171,21 @@ class TestEnvPollutionCollapsesStores(unittest.TestCase):
             with scoped_db_env(db):
                 pass
 
-        self.assertEqual(os.environ.get("M3_DATABASE"), main, "scoped_db_env must restore the prior value")
+        self.assertEqual(paths.configured_main_db(), main, "scoped_db_env must restore the prior pin")
         C.invalidate_cache()
-        paths = [os.path.abspath(p) for p in C.chat_store_paths()]
-        self.assertIn(chat, paths)
-        self.assertIn(main, paths)
+        found = [os.path.abspath(p) for p in C.chat_store_paths()]
+        self.assertIn(chat, found)
+        self.assertIn(main, found)
 
     def test_scoped_db_env_restores_absence(self):
+        from m3_core import paths
         from m3_sdk import scoped_db_env
 
-        os.environ.pop("M3_DATABASE", None)
+        paths.pin_database(None)
         with scoped_db_env(os.path.abspath(C.chatlog_db_path())):
             pass
-        self.assertNotIn(
-            "M3_DATABASE",
-            os.environ,
-            "absence must restore as absence: an empty string falls through "
-            "resolve_db_path's `or`, but readers that test for the KEY see a "
-            "variable that did not exist before",
-        )
+        self.assertIsNone(paths.configured_main_db(), "absence must restore as absence, not the swept store")
+        self.assertNotIn("M3_DATABASE", os.environ, "scoped_db_env must not write the environment")
 
 
 if __name__ == "__main__":

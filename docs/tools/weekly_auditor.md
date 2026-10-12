@@ -1,8 +1,8 @@
 ---
 tool: bin/weekly_auditor.py
-sha1: 79b5d1d3ab8a
-mtime_utc: 2026-10-12T21:35:23.543632+00:00
-generated_utc: 2026-10-12T21:35:24.893573+00:00
+sha1: 753f83730373
+mtime_utc: 2026-10-12T22:51:17.765560+00:00
+generated_utc: 2026-10-12T23:01:48.580313+00:00
 private: false
 ---
 
@@ -25,7 +25,7 @@ Use --no-memory to skip the memory write step.
 
 ## Entry points
 
-- `def main()` (line 435)
+- `def main()` (line 436)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -42,7 +42,7 @@ Use --no-memory to skip the memory write step.
 
 ## Environment variables read
 
-- `M3_DATABASE`
+_(none detected)_
 
 ---
 
@@ -60,9 +60,9 @@ Use --no-memory to skip the memory write step.
 
 **subprocess**
 
-- `subprocess.check_call()  → `[sys.executable, gen_script]`` (line 306)
-- `subprocess.check_call()  → `[sys.executable, graph_script]`` (line 325)
-- `subprocess.check_output()  → `cmd`` (line 259)
+- `subprocess.check_call()  → `[sys.executable, gen_script]`` (line 307)
+- `subprocess.check_call()  → `[sys.executable, graph_script]`` (line 326)
+- `subprocess.check_output()  → `cmd`` (line 260)
 
 
 ---
@@ -72,6 +72,7 @@ Use --no-memory to skip the memory write step.
 - `fpdf (FPDF)`
 - `fpdf.enums (XPos, YPos)`
 - `m3_core.paths (apply_early_argv)`
+- `m3_core.paths (pin_database)`
 - `memory.backends (dialect)`
 
 ---

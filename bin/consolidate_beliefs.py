@@ -57,9 +57,10 @@ def _should_yield_to_user(min_idle_s: float = 30.0) -> str | None:
     except Exception:  # noqa: BLE001 — never block on a telemetry import error
         return None
     try:
+        from m3_core.paths import configured_main_db
         from m3_sdk import M3Context, get_governor_pacing
 
-        ctx = M3Context.for_db(os.environ.get("M3_DATABASE"))
+        ctx = M3Context.for_db(configured_main_db())
         pacing = get_governor_pacing(ctx.get_system_telemetry())
         if pacing.get("background") == "HALTED":
             return "host load/activity critical (governor HALTED)"

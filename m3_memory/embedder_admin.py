@@ -1514,8 +1514,9 @@ def cmd_backfill(args: argparse.Namespace) -> int:
         _bin.ensure_on_path()
         try:
             import m3_cognitive_loop as _loop
+            from m3_core.paths import configured_main_db
 
-            targets = _loop._embed_target_dbs(os.environ.get("M3_DATABASE"))
+            targets = _loop._embed_target_dbs(configured_main_db())
         except Exception as e:  # noqa: BLE001
             print(
                 f"warning: could not resolve the store list ({e}); falling back to the default database.",

@@ -59,7 +59,7 @@ from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from typing import cast
 
-from m3_core.paths import deprecated_alias, store_is_a_file
+from m3_core.paths import configured_main_db, deprecated_alias, pin_database, store_is_a_file  # noqa: E402
 from m3_core.runtime import utc_iso
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -211,16 +211,16 @@ def _scoped_db_env(db_path):
     try:
         from m3_sdk import scoped_db_env
     except Exception:  # pragma: no cover - standalone fallback
-        prev = os.environ.get("M3_DATABASE")
+        prev = configured_main_db()
         if db_path is not None:
-            os.environ["M3_DATABASE"] = str(db_path)
+            pin_database(str(db_path))
         try:
             yield prev
         finally:
             if prev is None:
-                os.environ.pop("M3_DATABASE", None)
+                pin_database(None)
             else:
-                os.environ["M3_DATABASE"] = prev
+                pin_database(prev)
         return
     with scoped_db_env(db_path) as prev:
         yield prev
@@ -503,7 +503,7 @@ async def _run_sweep(args: argparse.Namespace, counters: Counters) -> int:
             # did NOT confirm who wrote it, so the writer is `possible:`, not
             # `cause:`. Quiet on a healthy sweep (a false alarm is itself a §3
             # violation).
-            _observed = os.environ.get("M3_DATABASE")
+            _observed = configured_main_db()
             if _observed != str(args.db):
                 _log(
                     f"WARNING: M3_DATABASE changed during the sweep. "
@@ -733,7 +733,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     sel.add_argument(
         "--db",
         type=Path,
-        default=Path(os.environ.get("M3_DATABASE", str(DEFAULT_DB))),
+        default=Path(configured_main_db() or str(DEFAULT_DB)),
         help=f"Target DB. Default: $M3_DATABASE or {DEFAULT_DB}",
     )
     sel.add_argument(

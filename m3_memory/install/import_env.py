@@ -192,6 +192,10 @@ def run(config: str | None, *, dry_run: bool, non_interactive: bool = False) -> 
     except (OSError, SecretsFileError) as e:
         print(f"observed: import-env could not store a secret: {e}; inspect: `m3 doctor --verbose`", file=sys.stderr)
         return 2
+    from m3_memory.install.sections import database_env_leftovers
+
+    for line in database_env_leftovers():  # a locator, not a setting: named, never moved
+        print(line)
     if not chosen:
         print("  nothing to import")
         return 0

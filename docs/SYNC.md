@@ -162,7 +162,8 @@ failed. Check:
 - Is your warehouse running, and is the network path (VPN/tailnet) up?
 
 **Only `['main']` is synced, no chatlog** → the chat log resolved to the main
-store, usually because the job sets `M3_DATABASE`. Run `m3 setup` once (it pins
+store, usually because the job pins the main DB with `--database` (or the
+legacy `M3_DATABASE`) and nothing pins the chat log's path. Run `m3 setup` once (it pins
 the chat log's own path), or set `M3_CHATLOG_DB_PATH`.
 
 **"pg_sync SKIPPED … (EX_TEMPFAIL)"** → the run could not take the sync lock

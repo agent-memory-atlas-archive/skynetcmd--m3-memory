@@ -19,7 +19,9 @@ def cost_report_db(tmp_path, monkeypatch):
     # CHATLOG_MODE deprecated; pin chatlog DB via env for the resolver.
     monkeypatch.delenv("CHATLOG_MODE", raising=False)
     monkeypatch.setenv("CHATLOG_DB_PATH", str(db_path))
-    monkeypatch.setenv("M3_DATABASE", str(main_db_path))
+    from m3_core.paths import pin_database  # the --database pin, cleared after the test
+
+    pin_database(str(main_db_path))
     chatlog_config.invalidate_cache()
 
     # Create schema and seed data

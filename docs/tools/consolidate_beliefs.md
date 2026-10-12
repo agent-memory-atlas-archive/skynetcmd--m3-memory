@@ -1,8 +1,8 @@
 ---
 tool: bin/consolidate_beliefs.py
-sha1: 0eb0edb4ecd0
-mtime_utc: 2026-10-10T23:43:02.143928+00:00
-generated_utc: 2026-10-10T23:43:51.451357+00:00
+sha1: c1f723368d3a
+mtime_utc: 2026-10-12T22:51:17.753535+00:00
+generated_utc: 2026-10-12T23:01:47.558101+00:00
 private: false
 ---
 
@@ -34,7 +34,7 @@ Usage:
 
 ## Entry points
 
-- `def main()` (line 111)
+- `def main()` (line 112)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -52,7 +52,7 @@ Usage:
 
 ## Environment variables read
 
-- `M3_DATABASE`
+_(none detected)_
 
 ---
 
@@ -74,6 +74,7 @@ _(no subprocess / http / sqlite calls detected)_
 ## Notable external imports
 
 - `m3_core.autonomy (autonomy_flag)`
+- `m3_core.paths (configured_main_db)`
 
 ---
 

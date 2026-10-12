@@ -13,8 +13,9 @@ Resolution order for the chatlog DB path:
     1. CHATLOG_DB_PATH env var (explicit chatlog-only override, highest priority)
     2. active_database() ContextVar (per-call override set by the MCP tool
        dispatcher when a caller passes `database` on a chatlog_* tool)
-    3. M3_DATABASE env var (unified main DB — chatlog shares it)
-    4. .chatlog_config.json db_path field
+    3. .chatlog_config.json db_path field, when it pins one
+    4. the configured main DB (a script's --database pin, else the legacy
+       M3_DATABASE env) — unified: chatlog shares it
     5. Default: memory/agent_chatlog.db (separate file; historical default)
 
 Consumers:
@@ -31,7 +32,7 @@ from any module in bin/ without creating cycles.
 Deprecated env var:
     CHATLOG_MODE — ignored with a warning. The former "integrated" behavior
     is now achieved by setting CHATLOG_DB_PATH equal to the main DB (or by
-    leaving both unset when a shared M3_DATABASE covers everything).
+    leaving it unset when a shared --database covers everything).
 """
 
 from __future__ import annotations
@@ -50,6 +51,7 @@ from sqlite_pragmas import apply_pragmas
 
 logger = logging.getLogger("chatlog_config")
 
+from m3_core.paths import configured_main_db, pin_database  # noqa: E402
 from m3_sdk import get_m3_config_root, get_m3_engine_root, getenv_compat
 
 _M3_CONFIG_ROOT = get_m3_config_root()
@@ -65,7 +67,7 @@ from m3_core.paths import resolve_engine_file as _resolve_engine_file  # noqa: E
 
 CONFIG_PATH = _resolve_config_file(".chatlog_config.json")
 DEFAULT_DB_PATH = os.environ.get("M3_CHATLOG_DB") or _resolve_engine_file("agent_chatlog.db")
-MAIN_DB_PATH = os.environ.get("M3_DATABASE") or _resolve_engine_file("agent_memory.db")
+MAIN_DB_PATH = configured_main_db() or _resolve_engine_file("agent_memory.db")
 STATE_FILE = _resolve_engine_file(".chatlog_state.json")
 SPILL_DIR = _resolve_engine_file("chatlog_spill")
 INGEST_CURSOR = _resolve_engine_file(".chatlog_ingest_cursor.json")
@@ -228,13 +230,14 @@ def _pinned_path(file_data: dict) -> str | None:
 
 
 def _unified_fallback(file_data: dict) -> str | None:
-    """M3_DATABASE as the chatlog path, unless the config file pins one.
+    """The configured main DB as the chatlog path, unless the config file pins one.
 
-    Hazard: M3_DATABASE also names the MAIN store for a single process (the
-    cognitive loop, a launchd/systemd job, a harness). Followed unconditionally
-    it collapses a split install onto the main DB, and sync then drops the
-    chatlog as "the same file". A pinned db_path is the install's own answer,
-    so it wins; with no pin, M3_DATABASE still unifies (docs/CHATLOG.md).
+    Hazard: the --database pin (formerly the M3_DATABASE env write) names the
+    MAIN store for a single process (the cognitive loop, a launchd/systemd job,
+    a harness). Followed unconditionally it collapses a split install onto the
+    main DB, and sync then drops the chatlog as "the same file". A pinned
+    db_path is the install's own answer, so it wins; with no pin, the main DB
+    still unifies (docs/CHATLOG.md).
     """
     if _pinned_path(file_data):
         return None
@@ -243,9 +246,9 @@ def _unified_fallback(file_data: dict) -> str | None:
 
 def pin_split_path() -> str | None:
     """Write the default (separate) chatlog path into .chatlog_config.json when
-    nothing pins one, so a later M3_DATABASE cannot collapse this install onto
-    the main store. Leaves alone an explicit CHATLOG_DB_PATH, a unified
-    M3_DATABASE in this environment, and a file that already pins a path.
+    nothing pins one, so a later --database cannot collapse this install onto
+    the main store. Leaves alone an explicit CHATLOG_DB_PATH, a configured main
+    DB in this process, and a file that already pins a path.
     Returns the path written, or None."""
     if _path_from_env() is not None or _main_path_from_env() is not None:
         return None
@@ -262,9 +265,9 @@ def pin_split_path() -> str | None:
 
 
 def _main_path_from_env() -> str | None:
-    """Respect M3_DATABASE: if the user unified on a single DB, chatlog shares it
-    unless CHATLOG_DB_PATH explicitly says otherwise."""
-    v = os.environ.get("M3_DATABASE")
+    """The configured main DB (--database pin, else legacy M3_DATABASE): on a
+    unified install chatlog shares it unless CHATLOG_DB_PATH says otherwise."""
+    v = configured_main_db()
     if v is None:
         return None
     v = v.strip()
@@ -280,7 +283,7 @@ def _warn_if_mode_env_set() -> None:
     if "CHATLOG_MODE" in os.environ:
         logger.warning(
             "CHATLOG_MODE is deprecated and ignored. The chatlog DB path is now "
-            "resolved from CHATLOG_DB_PATH > M3_DATABASE > .chatlog_config.json > "
+            "resolved from CHATLOG_DB_PATH > .chatlog_config.json > the main DB > "
             "default. Set CHATLOG_DB_PATH equal to your main DB to restore the old "
             "'integrated' behavior."
         )
@@ -384,7 +387,7 @@ def chatlog_db_path() -> str:
     Re-resolved on every call so the ContextVar override set by the MCP tool
     dispatcher (when a caller passes `database` on a chatlog_* tool) wins.
     Order: CHATLOG_DB_PATH env > active_database() ContextVar > pinned
-    .chatlog_config.json db_path > M3_DATABASE env > default. Using the cached config's
+    .chatlog_config.json db_path > main DB (--database pin, legacy M3_DATABASE) > default. Using the cached config's
     db_path directly would miss the ContextVar since the cache is populated
     at first-call time.
     """
@@ -392,7 +395,7 @@ def chatlog_db_path() -> str:
     if env_path is not None:
         return env_path
     # ContextVar — set by MCP dispatcher or CLI wrapper. Falls back to
-    # M3_DATABASE + default when no override is active.
+    # the main DB + default when no override is active.
     try:
         from m3_sdk import _active_db  # lazy: avoid import cycle at module load
 
@@ -450,8 +453,8 @@ def chat_store_paths() -> list[str]:
     except Exception:  # noqa: BLE001 — fall through to the chatlog half
         _add(_main_path_from_env())
     # Deliberately NOT chatlog_db_path() here. With no explicit
-    # CHATLOG_DB_PATH it falls back to M3_DATABASE (the "one env var = unified
-    # DB" convenience). The cognitive loop ALWAYS sets M3_DATABASE, so on a
+    # CHATLOG_DB_PATH it falls back to the main DB (the "one store = unified
+    # DB" convenience). The cognitive loop ALWAYS pins --database, so on a
     # SPLIT install this would hand back the MAIN db, the list would collapse
     # to one entry, and the real chatlog store would never be visited — the
     # precise bug `_embed_target_dbs` was written to avoid (2026-07-25: 6,653
@@ -529,16 +532,15 @@ def chatlog_sqlite_conn():
 def _selftest() -> None:
     # Env > file > default
     os.environ.pop("CHATLOG_DB_PATH", None)
-    os.environ.pop("M3_DATABASE", None)
+    pin_database(None)
     invalidate_cache()
     c = resolve_config()
     assert c.db_path == DEFAULT_DB_PATH
 
-    os.environ["M3_DATABASE"] = MAIN_DB_PATH
+    pin_database(MAIN_DB_PATH)
     invalidate_cache()
     assert chatlog_db_path() == MAIN_DB_PATH
-    os.environ.pop("M3_DATABASE")
-
+    pin_database(None)
     import tempfile
 
     tmp_db = os.path.join(tempfile.gettempdir(), "alt_chatlog.db")

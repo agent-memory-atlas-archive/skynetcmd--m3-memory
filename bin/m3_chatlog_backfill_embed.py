@@ -37,7 +37,14 @@ import uuid
 from pathlib import Path
 
 from m3_core.aio import gather_or_cancel
-from m3_core.paths import get_m3_backups_root, seam_backend, seam_dialect, snapshot_stores
+from m3_core.paths import (  # noqa: E402
+    configured_main_db,
+    get_m3_backups_root,
+    pin_database,
+    seam_backend,
+    seam_dialect,
+    snapshot_stores,
+)
 from m3_core.runtime import utc_iso
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -52,7 +59,7 @@ def _resolve_db(arg_path: str | None, env_var: str, default_name: str) -> Path |
     if arg_path:
         p = Path(arg_path).expanduser().resolve()
         return p if os.path.exists(p) else None
-    env_val = os.environ.get(env_var)
+    env_val = configured_main_db() if env_var == "M3_DATABASE" else os.environ.get(env_var)
     if env_val:
         p = Path(env_val).expanduser().resolve()
         return p if os.path.exists(p) else None
@@ -208,7 +215,7 @@ async def _backfill_db(
     with seam_backend().open_readonly(str(db_path)) as read_conn:
         cursor = read_conn.execute(sql, params)
         batch: list[tuple[str, str]] = []
-        os.environ["M3_DATABASE"] = str(db_path)  # so memory_core._embed picks the right embed server / config
+        pin_database(str(db_path))  # so memory_core._embed picks the right embed server / config
         while True:
             row = cursor.fetchone()
             if row is None:

@@ -34,6 +34,7 @@ Status: Phase D user-facing CLI. Pairs with bin/run_observer.py + bin/run_reflec
 from __future__ import annotations
 
 from m3_core.paths import apply_early_argv as _apply_early_argv
+from m3_core.paths import configured_main_db, pin_database  # noqa: E402
 
 # --config FILE (the file this job was registered with) is pinned, and every
 # --set KEY=VALUE applied, before any import below binds a root or reads a
@@ -183,7 +184,7 @@ async def _run_db(
     import random as _random
     import sqlite3
 
-    os.environ["M3_DATABASE"] = str(db_path)
+    pin_database(str(db_path))
     _ensure_migration_025(db_path)
     groups = _query_eligible_groups(
         db_path,
@@ -547,7 +548,7 @@ async def _run_reflector_pass(
 ) -> dict:
     """Run Reflector on every (user_id, conversation_id) pair whose
     observation count meets `threshold`. Returns a counters dict."""
-    os.environ["M3_DATABASE"] = str(db_path)
+    pin_database(str(db_path))
     from memory.backends import active_backend
 
     _backend = active_backend()
@@ -669,7 +670,7 @@ async def _drain_queue_mode(args, profile, token: str) -> int:
             f"observed: scope={scope}, engine_root={get_m3_engine_root()}, "
             f"core_db={args.core_db or 'unset'}, "
             f"chatlog_db={args.chatlog_db or 'unset'}, "
-            f"M3_DATABASE={os.environ.get('M3_DATABASE') or 'unset'}, "
+            f"M3_DATABASE={configured_main_db() or 'unset'}, "
             f"M3_CHATLOG_DATABASE={os.environ.get('M3_CHATLOG_DATABASE') or 'unset'}. "
             f"possible: the engine root is wrong, the databases have not been "
             f"created yet, or an explicit --core-db/--chatlog-db points at a "

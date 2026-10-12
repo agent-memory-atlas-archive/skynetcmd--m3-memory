@@ -63,6 +63,7 @@ from pathlib import Path
 from typing import cast
 
 from m3_core.aio import gather_or_cancel
+from m3_core.paths import pin_database  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 _BIN = REPO_ROOT / "bin"
@@ -853,7 +854,7 @@ async def _run_async(args) -> int:
     db_path = Path(store) if store else None
     if db_path is not None:
         # Set M3_DATABASE so memory_core.write picks the right DB
-        os.environ["M3_DATABASE"] = str(db_path)
+        pin_database(str(db_path))
 
     # Pin the embedder endpoint if --embed-url / M3_EMBED_URL was given.
     # Default behavior (without override) sends ingest embeds through

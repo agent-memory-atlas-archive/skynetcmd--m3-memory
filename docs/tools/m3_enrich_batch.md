@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_enrich_batch.py
-sha1: 43bbb378a1f3
-mtime_utc: 2026-10-11T21:02:20.622809+00:00
-generated_utc: 2026-10-11T21:08:57.265655+00:00
+sha1: 9ae6f5895d70
+mtime_utc: 2026-10-12T22:51:17.773694+00:00
+generated_utc: 2026-10-12T23:01:47.969406+00:00
 private: false
 ---
 
@@ -63,7 +63,7 @@ Status:  Phase E worker. Pairs with batch_runner.py (provider abstraction).
 
 ## Entry points
 
-- `def main()` (line 1386)
+- `def main()` (line 1387)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -98,7 +98,6 @@ Status:  Phase E worker. Pairs with batch_runner.py (provider abstraction).
 ## Environment variables read
 
 - `COMPUTERNAME`
-- `M3_DATABASE`
 
 ---
 
@@ -119,8 +118,8 @@ Status:  Phase E worker. Pairs with batch_runner.py (provider abstraction).
 
 **http**
 
-- `httpx.AsyncClient()` (line 1225)
-- `httpx.AsyncClient()` (line 734)
+- `httpx.AsyncClient()` (line 1226)
+- `httpx.AsyncClient()` (line 735)
 
 
 ---
@@ -130,6 +129,7 @@ Status:  Phase E worker. Pairs with batch_runner.py (provider abstraction).
 - `httpx`
 - `m3_core.aio (gather_or_cancel)`
 - `m3_core.config (settings)`
+- `m3_core.paths (pin_database)`
 - `m3_core.paths (resolve_cli_store)`
 - `m3_core.runtime (utc_iso)`
 - `memory.backends.dialect (dialect_for_connection)`

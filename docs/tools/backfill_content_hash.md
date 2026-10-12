@@ -1,8 +1,8 @@
 ---
 tool: bin/backfill_content_hash.py
-sha1: 7f9144ac70df
-mtime_utc: 2026-10-10T23:43:02.150929+00:00
-generated_utc: 2026-10-10T23:43:51.320211+00:00
+sha1: 58fcabfea70e
+mtime_utc: 2026-10-12T22:51:17.773694+00:00
+generated_utc: 2026-10-12T23:01:47.329316+00:00
 private: false
 ---
 
@@ -66,7 +66,7 @@ Usage:
 
 ## Entry points
 
-- `def main()` (line 351)
+- `def main()` (line 350)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -91,7 +91,7 @@ Usage:
 
 ## Environment variables read
 
-- `M3_DATABASE`
+_(none detected)_
 
 ---
 
@@ -112,7 +112,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 - `m3_core.context (pointed_store_connection)`
 - `m3_core.errors (is_defect)`
-- `m3_core.paths (resolve_cli_store, seam_backend, seam_dialect)`
+- `m3_core.paths (pin_database, resolve_cli_store, seam_backend, seam_dialect)`
 - `m3_core.runtime (utc_iso)`
 - `memory.backends.dialect (chatlog_table)`
 

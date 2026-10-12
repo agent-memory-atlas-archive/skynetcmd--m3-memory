@@ -107,9 +107,17 @@ per root:
 from it (`<root>/config`, `<root>/engine`) unless their own env var is also set.
 None are *required* — every root has a working default.
 
-**DB path** (`M3_DATABASE`) precedence: explicit `database` tool arg → `M3_DATABASE`
-env → active-database contextvar → `<engine_root>/agent_memory.db` (with a
-populated-DB guard that prefers a legacy populated store over an empty stub).
+**DB path** precedence (`resolve_db_path`): explicit `database` arg → the active
+named store (`--store NAME`, from `[stores.<name>]` in `m3_config.toml`) → a
+call's `active_database()` scope → the process's `--database` pin → legacy
+`M3_DATABASE` env → `<engine_root>/agent_memory.db` (with a populated-DB guard
+that prefers a legacy populated store over an empty stub).
+
+`M3_DATABASE` is a **legacy** name: m3 reads it only when nothing else names the
+database, with a one-time warning, until release N+3, and never writes it. Use
+`--database PATH` or `--store NAME` instead. `m3 config import-env` and
+`m3 doctor` report where it is still set, with that fix; `import-env` never
+moves it (a path is a locator, not a setting).
 
 **⚠️ Split-brain hazard.** The MCP **server** reads its roots from the `env` of
 its own MCP registration — for Claude Code that is `~/.claude.json`, written by

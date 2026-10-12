@@ -76,8 +76,10 @@ def scratch_db(monkeypatch, tmp_path):
     conn.commit()
     conn.close()
 
-    # Point M3_DATABASE at the scratch DB so memory_core._db() uses it.
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
+    # Pin the scratch DB as this process's main store so memory_core._db() uses it.
+    from m3_core.paths import pin_database
+
+    pin_database(str(db_path))
     # Force a re-resolve of the cached db path in memory_core.
     import memory_core
 

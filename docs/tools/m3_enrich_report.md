@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_enrich_report.py
-sha1: 5a0a8b5b6468
-mtime_utc: 2026-10-10T22:34:36.976602+00:00
-generated_utc: 2026-10-10T22:35:15.253674+00:00
+sha1: 3074696ac43e
+mtime_utc: 2026-10-12T22:51:17.658010+00:00
+generated_utc: 2026-10-12T23:01:47.987472+00:00
 private: false
 ---
 
@@ -35,7 +35,7 @@ for security scans.
 
 ## Entry points
 
-- `def main()` (line 318)
+- `def main()` (line 320)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -44,7 +44,7 @@ for security scans.
 
 | Flag(s) | Help | Default | Default behavior | Type/Action | Impact when set |
 |---|---|---|---|---|---|
-| `--db` | SQLite DB path. Default: memory/agent_memory.db or $M3_DATABASE. | `os.environ.get('M3_DATABASE', 'memory/agent_memory.db')` |  | str |  |
+| `--db` | SQLite DB path. Default: memory/agent_memory.db. | `configured_main_db() or 'memory/agent_memory.db'` |  | str |  |
 | `--run-id` | enrich_run_id to summarize (UUID). | — |  | str |  |
 | `--variant` | source_variant to summarize across all runs. | — |  | str |  |
 | `--target` | Output file (default: stdout). | — |  | str |  |
@@ -53,7 +53,7 @@ for security scans.
 
 ## Environment variables read
 
-- `M3_DATABASE`
+_(none detected)_
 
 ---
 
@@ -71,6 +71,7 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
+- `m3_core.paths (configured_main_db)`
 - `m3_core.paths (seam_backend)`
 - `m3_core.paths (seam_dialect)`
 
