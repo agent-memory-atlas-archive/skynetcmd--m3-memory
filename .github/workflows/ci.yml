@@ -455,35 +455,13 @@ jobs:
             v = c.cursor(); v.execute("SELECT version()")
             print(v.fetchone()[0])
         PY
-    - name: Assert the SEAM resolves to postgres, not just that PG is reachable
-      # The reachability probe above answers a question ADJACENT to the one that
-      # matters. Measured 2026-09-13: this lane set M3_PRIMARY_PG_URL but NOT
-      # M3_DB_BACKEND, so `resolve_backend_name()` returned 'sqlite' -- a job
-      # named "PostgreSQL lane" that ran SQLite and reported green. A declared
-      # guarantee with no enforcement site is a lie the tests cannot see (§3).
-      env:
-        M3_DB_BACKEND: postgres
-      run: |
-        python - <<'PY'
-        import sys
-        sys.path.insert(0, "bin")
-        from memory.backends.selector import resolve_backend_name
-        from memory.backends import dialect
-        name = resolve_backend_name()
-        param = dialect().param()
-        print(f"observed: backend={name!r} param={param!r}")
-        if name != "postgres" or param != "%s":
-            sys.exit(
-                f"the seam resolved to {name!r} (param {param!r}) -- this lane "
-                f"would have tested SQLite while calling itself the PostgreSQL "
-                f"lane. Refusing to report a result for a backend it never ran."
-            )
-        print("confirmed: the suite below runs against PostgreSQL")
-        PY
-
     - name: Run the FULL suite against PostgreSQL
+      # No global backend selector (no-env step (iv)): each test selects its
+      # backend (use_backend / each_backend). What makes this lane a PostgreSQL
+      # lane is the cluster reaching every test that asks for it, so a skip for
+      # "no reachable PostgreSQL" fails the step instead of passing as green.
+      shell: bash
       env:
-        M3_DB_BACKEND: postgres
         # The test cluster reaches pytest as --m3-pg-url, never as env m3 reads
         # (no-env plan). CI_PG_DSN is this workflow's own variable.
         CI_PG_DSN: postgresql://m3dev:m3devpass@localhost:5432/m3_citest
@@ -500,11 +478,17 @@ jobs:
       # (embedder, gguf, files_db); those would only self-skip and re-create the
       # ambiguity this lane exists to remove.
       run: |
-        pytest tests/ -m "not integration" -p no:cacheprovider -q --m3-pg-url "$CI_PG_DSN"
+        set -o pipefail
+        pytest tests/ -m "not integration" -p no:cacheprovider -q -rs --m3-pg-url "$CI_PG_DSN" | tee pg-full.log
+        n=$(grep -c 'no reachable PostgreSQL' pg-full.log || true)
+        echo "observed: $n tests skipped for an unreachable cluster"
+        if [ "$n" -ne 0 ]; then
+          echo "the cluster is reachable in this job (asserted above), so these tests did not receive it -- inspect: pytest --m3-pg-url wiring, conftest.pg_dsn()"
+          exit 1
+        fi
 
     - name: Run the requires_pg suites
       env:
-        M3_DB_BACKEND: postgres
         # The test cluster reaches pytest as --m3-pg-url, never as env m3 reads
         # (no-env plan). CI_PG_DSN is this workflow's own variable.
         CI_PG_DSN: postgresql://m3dev:m3devpass@localhost:5432/m3_citest
