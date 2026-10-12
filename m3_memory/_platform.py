@@ -39,18 +39,20 @@ except ImportError:  # POSIX: no such store (shell rc files are text, not this)
     _winreg = None
 
 
-def user_env_snapshot() -> dict[str, tuple[object, int]] | None:
+def user_env_snapshot(reg: Any | None = None) -> dict[str, tuple[object, int]] | None:
     """The persistent per-user environment as {name: (value, registry type)}, or
     None where the OS keeps no such store. The capability is the store, not the
-    OS name."""
-    if _winreg is None:
+    OS name. ``reg``: the registry module to read through (the test sandbox's
+    guard passes the real one, which a test's fake may have replaced here)."""
+    reg = reg if reg is not None else _winreg
+    if reg is None:
         return None
     out: dict[str, tuple[object, int]] = {}
-    with _winreg.OpenKey(_winreg.HKEY_CURRENT_USER, "Environment") as key:
+    with reg.OpenKey(reg.HKEY_CURRENT_USER, "Environment") as key:
         i = 0
         while True:
             try:
-                name, value, kind = _winreg.EnumValue(key, i)
+                name, value, kind = reg.EnumValue(key, i)
             except OSError:
                 break
             out[name] = (value, kind)

@@ -873,6 +873,29 @@ def _isolated_env_sweep_home(monkeypatch, tmp_path):
 
     sources = importlib.import_module("m3_memory.install.env_sources")
     monkeypatch.setattr(sources, "_home", lambda: tmp_path if Path.home() == _REAL_HOME else Path.home())
+    # The client config list is built from the real home too: rebase what it
+    # builds there. Only those paths: on Windows pytest's own temp directory is
+    # under the home, and a test's files there must stay where it put them.
+    installer = importlib.import_module("m3_memory.installer")
+    real_sources = installer._client_config_sources
+
+    import tempfile
+
+    temp_root = Path(tempfile.gettempdir()).resolve()
+
+    def _rebase(p: Path) -> Path:
+        # A path under the temp root is a test's own (its cwd .mcp.json).
+        if not p.is_relative_to(_REAL_HOME) or p.resolve().is_relative_to(temp_root):
+            return p
+        return tmp_path / p.relative_to(_REAL_HOME)
+
+    def _rebased():
+        out = real_sources()
+        if Path.home() != _REAL_HOME:
+            return out
+        return {client: [_rebase(p) for p in paths] for client, paths in out.items()}
+
+    monkeypatch.setattr(installer, "_client_config_sources", _rebased)
     yield
 
 
@@ -914,11 +937,28 @@ def _session_tempdir(tmp_path_factory):
                 _os.environ[k] = v
 
 
+def _real_winreg():
+    """The REAL registry module, captured the first time the guard runs, before
+    any test body: tests replace _platform._winreg with a fake, and the guard
+    must still see the developer's real HKCU."""
+    global _REAL_WINREG
+    if _REAL_WINREG is _UNSET:
+        from m3_memory import _platform
+
+        _REAL_WINREG = _platform._winreg
+    return _REAL_WINREG
+
+
+_UNSET = object()
+_REAL_WINREG: object = _UNSET
+
+
 def _user_env_snapshot() -> dict | None:
-    """The persistent per-user environment, read through the OS seam."""
+    """The persistent per-user environment, read through the OS seam from the
+    real registry module."""
     from m3_memory._platform import user_env_snapshot
 
-    return user_env_snapshot()
+    return user_env_snapshot(_real_winreg())
 
 
 @pytest.fixture(autouse=True)
@@ -935,7 +975,7 @@ def _real_user_env_untouched():
     after = _user_env_snapshot()
     if after == before:
         return
-    from m3_memory._platform import _winreg as winreg  # bound at seam import: never a test's fake
+    winreg = _real_winreg()  # never a test's fake
 
     changed = sorted(n for n in before.keys() | after.keys() if before.get(n) != after.get(n))
     with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment", 0, winreg.KEY_SET_VALUE) as key:

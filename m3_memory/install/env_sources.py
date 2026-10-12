@@ -53,17 +53,11 @@ def shell_assignment(text: str, name: str) -> str | None:
 
 
 def _home() -> Path:
-    """The home directory every home-based file of the sweep is read under. The
-    test sandbox points it at a temp directory, so a test never reads the
-    developer's real rc files or MCP client configs."""
+    """The home directory the sweep's own home files (rc files, ~/.claude.json)
+    are read under. The test sandbox points it at a temp directory, and rebases
+    the client config list the same way, so a test never reads the developer's
+    real files."""
     return Path.home()
-
-
-def _rehome(path: Path) -> Path:
-    try:
-        return _home() / path.relative_to(Path.home())
-    except ValueError:  # not under the home directory (a repo's .mcp.json)
-        return path
 
 
 def claude_user_config() -> Path:
@@ -75,7 +69,7 @@ def mcp_config_files() -> list[Path]:
     """Every file an MCP client reads its server env blocks from."""
     from m3_memory import installer as _I  # lazy: installer imports install/*
 
-    files = {_rehome(p) for sources in _I._client_config_sources().values() for p in sources}
+    files = {p for sources in _I._client_config_sources().values() for p in sources}
     files.add(claude_user_config())
     return sorted(files)
 
