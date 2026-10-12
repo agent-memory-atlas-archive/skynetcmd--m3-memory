@@ -416,6 +416,13 @@ the policy is forward-going only.
 
 ### Added
 
+- **The engine, logs and models roots can be set in `m3_config.toml`.** Under
+  `[paths]` (`engine_root`, `logs_root`, `models_root`); a value in the file wins
+  over `M3_ENGINE_ROOT` / `M3_LOGS_ROOT` / `M3_MODELS_ROOT`, which still work. A
+  malformed value stops with an error naming the key.
+  **Affected:** installs that relocate a root · **Action:** none ·
+  **Data status:** none.
+
 - **`search.prefer_observations` and `search.two_stage_observations` settings.**
   The observation-ranking switches, previously env-only (`M3_PREFER_OBSERVATIONS`,
   `M3_TWO_STAGE_OBSERVATIONS`), can be set in `m3_config.toml` and appear in

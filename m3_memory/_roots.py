@@ -27,6 +27,7 @@ from __future__ import annotations
 import ntpath
 import os
 import posixpath
+import tomllib
 
 MEMORY_ROOT_ENV = "M3_MEMORY_ROOT"
 CONFIG_ROOT_ENV_NAME = "M3_CONFIG_ROOT"
@@ -139,14 +140,59 @@ def config_root() -> str:
     return _derived(CONFIG_ROOT_ENV_NAME, "config")
 
 
+CONFIG_FILE_NAME = "m3_config.toml"
+_file_key: tuple[str, int, int] | None = None
+_file_values: dict[str, str] = {}
+
+
+def _file_paths() -> dict[str, str]:
+    """``[paths]`` from ``<config root>/m3_config.toml``, as strings; {} without a file.
+
+    Roots resolve FILE first, then the env var read LIVE, then the derived default
+    (user decision 2026-10-11, m3 d4ea1da9). Read here with stdlib ``tomllib``, NOT
+    through the registry: the registry sits above the database seam and this module
+    beside the OS seam, so asking it would be an upward import (§10a), and its
+    ``Path`` parsing breaks under a simulated OS. Strings through ``abs_root`` are
+    convention-aware. Cached on the file's identity; a malformed file raises, as
+    the loader does (§3). tests/test_roots_from_file.py pins parity with
+    ``settings.setting("paths.*")``."""
+    global _file_key, _file_values
+    path = os.path.join(config_root(), CONFIG_FILE_NAME)
+    try:
+        st = os.stat(path)
+    except OSError:
+        return {}
+    key = (path, st.st_mtime_ns, st.st_size)
+    if _file_key != key:
+        with open(path, "rb") as fh:
+            table = tomllib.load(fh).get("paths") or {}
+        paths: dict[str, str] = {}
+        for name in ("engine_root", "logs_root", "models_root"):
+            if name not in table:
+                continue
+            value = table[name]
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"[paths] {name} in {path} must be a non-empty path string, found {value!r}")
+            paths[name] = value.strip()
+        _file_key, _file_values = key, paths
+    return _file_values
+
+
+def _file_root(name: str) -> str | None:
+    """``[paths] <name>`` from m3_config.toml, made absolute; None when unset.
+    The file outranks the env var and the derived default."""
+    value = _file_paths().get(name)
+    return abs_root(value) if value else None
+
+
 def engine_root() -> str:
-    return _derived(ENGINE_ROOT_ENV, "engine")
+    return _file_root("engine_root") or _derived(ENGINE_ROOT_ENV, "engine")
 
 
 def logs_root() -> str:
     """Logs are user state, not payload: never under the install root, where a
     reinstall deletes them."""
-    return _derived(LOGS_ROOT_ENV, "logs")
+    return _file_root("logs_root") or _derived(LOGS_ROOT_ENV, "logs")
 
 
 LIB_DIR_ENV = "M3_LIB_DIR"
@@ -178,4 +224,4 @@ def lib_root() -> str:
 def models_root() -> str:
     """GGUF weights m3 owns itself. Probed FIRST among model locations: every
     other one belongs to a tool the user may uninstall."""
-    return _derived(MODELS_ROOT_ENV, "models")
+    return _file_root("models_root") or _derived(MODELS_ROOT_ENV, "models")

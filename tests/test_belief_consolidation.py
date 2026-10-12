@@ -41,6 +41,15 @@ def _seed_observations(conn, n, *, agent="claude", user="u1", typ="observation")
         )
 
 
+def _consolidation_on(monkeypatch):
+    """The consolidation_auto toggle on. These tests are about what --apply does
+    once allowed; the gate is read from the cognitive-loop config file
+    (m3_core.autonomy), not env, so stub the reader."""
+    from m3_core import autonomy
+
+    monkeypatch.setattr(autonomy, "autonomy_flag", lambda name, env_name=None, *a, **k: name == "consolidation_auto")
+
+
 def _patch_db(monkeypatch, db_path):
     import memory_core
     import memory_maintenance
@@ -207,7 +216,7 @@ async def test_job_writes_when_apply_and_env_set(monkeypatch, tmp_path):
         conn.commit()
     mm = _patch_db(monkeypatch, db)
     _patch_llm(monkeypatch, mm)
-    monkeypatch.setenv("M3_CONSOLIDATION_AUTO", "1")
+    _consolidation_on(monkeypatch)
 
     import consolidate_beliefs
 
@@ -231,7 +240,7 @@ async def test_apply_defers_when_user_active(monkeypatch, tmp_path):
         conn.commit()
     mm = _patch_db(monkeypatch, db)
     _patch_llm(monkeypatch, mm)
-    monkeypatch.setenv("M3_CONSOLIDATION_AUTO", "1")
+    _consolidation_on(monkeypatch)
 
     import consolidate_beliefs
 

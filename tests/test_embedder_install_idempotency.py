@@ -199,10 +199,11 @@ def test_invalid_gguf_is_rejected(tmp_path, monkeypatch):
     assert _is_valid_gguf(truncated) is False
 
 
-def test_fetch_is_opt_out_via_env(monkeypatch):
-    """M3_NO_MODEL_DOWNLOAD=1 must suppress the download offer entirely —
-    air-gapped and metered-connection installs (§1 local-first)."""
-    monkeypatch.setenv("M3_NO_MODEL_DOWNLOAD", "1")
+def test_fetch_is_opt_out(m3_settings):
+    """install.no_model_download (M3_NO_MODEL_DOWNLOAD=1) must suppress the
+    download offer entirely — air-gapped and metered-connection installs (§1
+    local-first)."""
+    m3_settings({"install.no_model_download": True})
     assert ea._offer_model_download() is None
 
 
