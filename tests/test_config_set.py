@@ -107,7 +107,7 @@ def test_set_reports_an_env_var_that_contradicts_the_new_value(cfg, monkeypatch,
     monkeypatch.setenv("M3_SEARCH_ROW_CAP", "800")
     assert _run("set", "search.row_cap", "700", "--config", str(cfg)) == 0
     out = capsys.readouterr().out
-    assert "M3_SEARCH_ROW_CAP=800" in out and "700" in out
+    assert "M3_SEARCH_ROW_CAP=800" in out and "m3 uses 700 (the file)" in out and "m3 doctor" in out
 
 
 def test_m3_config_set_dispatches_end_to_end(tmp_path):
@@ -123,6 +123,18 @@ def test_m3_config_set_dispatches_end_to_end(tmp_path):
     )
     assert out.returncode == 0, out.stderr
     assert _file(f)["search"]["row_cap"] == 7
+
+
+def test_confirmation_follows_the_registry_not_a_list():
+    """A new LOCATOR key is confirmed without editing config_cli."""
+    import config_cli
+    from m3_core.config import REGISTRY
+    from m3_core.config.registry import Scope
+
+    for key in REGISTRY:
+        expected = key.name == "db.backend" or key.scope is Scope.LOCATOR
+        assert config_cli.needs_confirmation(key) is expected, key.name
+    assert not config_cli.needs_confirmation(REGISTRY.get("search.row_cap"))
 
 
 def test_console_has_person_lives_in_the_os_seam():

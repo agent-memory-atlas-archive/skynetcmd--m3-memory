@@ -1,8 +1,8 @@
 ---
 tool: bin/config_cli.py
-sha1: 7f8fcf1b7043
-mtime_utc: 2026-10-12T12:15:02.893715+00:00
-generated_utc: 2026-10-12T12:15:03.566746+00:00
+sha1: 67ac6049bb0e
+mtime_utc: 2026-10-12T12:41:40.255714+00:00
+generated_utc: 2026-10-12T12:49:19.162702+00:00
 private: false
 ---
 
@@ -35,7 +35,7 @@ Exit codes: 0 = done; 1 = declined at the prompt; 2 = refused or invalid
 
 ## Entry points
 
-- `def main()` (line 220)
+- `def main()` (line 227)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -78,9 +78,10 @@ _(no subprocess / http / sqlite calls detected)_
 ## Notable external imports
 
 - `m3_core.config (REGISTRY, KeyClass, format_config_error, locate)`
+- `m3_core.config.keys (DB_BACKEND)`
 - `m3_core.config.keys (RETIRED)`
 - `m3_core.config.loader (ConfigFileError)`
-- `m3_core.config.registry (ConfigValueError, Key)`
+- `m3_core.config.registry (ConfigValueError, Key, Scope)`
 - `m3_core.config.resolve (ConfigEnvErrors, env_outranks_file)`
 - `m3_core.config.settings (Settings, build, env_contradicting)`
 - `m3_core.config.writer (ConfigWriteError, set_values)`

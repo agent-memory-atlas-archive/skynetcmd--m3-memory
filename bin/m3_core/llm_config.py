@@ -40,8 +40,9 @@ def read_llm_config() -> dict:
         return {}
     except (OSError, ValueError) as e:
         logger.warning(
-            "observed: %s is unreadable (%s: %s); LLM endpoint switches "
-            "fall back to the environment. inspect: that file",
+            "observed: %s is unreadable (%s: %s); its LLM endpoint settings are "
+            "ignored, so m3_config.toml [llm], the environment and .env answer, "
+            "else the defaults. inspect: fix that file, or move its values into [llm]",
             path,
             type(e).__name__,
             e,

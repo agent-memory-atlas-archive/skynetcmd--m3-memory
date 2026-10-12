@@ -34,17 +34,21 @@ if _BIN not in sys.path:
     sys.path.insert(0, _BIN)
 
 from m3_core.config import REGISTRY, KeyClass, format_config_error, locate  # noqa: E402
+from m3_core.config.keys import DB_BACKEND  # noqa: E402
 from m3_core.config.loader import ConfigFileError  # noqa: E402
-from m3_core.config.registry import ConfigValueError, Key  # noqa: E402
+from m3_core.config.registry import ConfigValueError, Key, Scope  # noqa: E402
 from m3_core.config.resolve import ConfigEnvErrors, env_outranks_file  # noqa: E402
 from m3_core.config.settings import Settings, build, env_contradicting  # noqa: E402
 from m3_core.config.writer import ConfigWriteError, set_values  # noqa: E402
 from m3_core.seams import console_has_person  # noqa: E402
 
-# Keys that move the store, the roots or the secrets file: a mistaken or
-# injected write to one is the costly kind, so `set`/`unset` confirms them.
-_SENSITIVE = ("db.backend", "secrets.file")
-_SENSITIVE_TABLES = ("paths.",)
+
+def needs_confirmation(key: Key) -> bool:
+    """The backend selector, or a LOCATOR key (it decides which file is read: the
+    roots, the secrets file). A mistaken or injected write to one moves where m3
+    keeps its data, so `set`/`unset` confirm it. The registry's own facts, not a
+    list kept here."""
+    return key is DB_BACKEND or key.scope is Scope.LOCATOR
 
 
 class _Refused(Exception):
@@ -167,10 +171,11 @@ def _config_key(name: str) -> Key:
     return key
 
 
-def _confirmed(name: str, change: str, file: object, yes: bool) -> bool:
-    """True to go ahead. A sensitive key needs --yes or a person who says yes;
-    with no one at the console and no --yes it is refused (exit 2)."""
-    if yes or not (name in _SENSITIVE or name.startswith(_SENSITIVE_TABLES)):
+def _confirmed(key: Key, change: str, file: object, yes: bool) -> bool:
+    """True to go ahead. A key that needs confirmation needs --yes or a person who
+    says yes; with no one at the console and no --yes it is refused (exit 2)."""
+    name = key.name
+    if yes or not needs_confirmation(key):
         return True
     if not console_has_person():
         raise _Refused(
@@ -198,7 +203,7 @@ def _set(args: argparse.Namespace) -> int:
         except ConfigValueError as e:
             raise _Refused(f"observed: {args.key} = {args.value!r} is refused: {e}") from None
     change = f"Set {args.key} = {_value_text(value)}" if args.cmd == "set" else f"Remove {args.key}"
-    if not _confirmed(args.key, change, loc.file, args.yes):
+    if not _confirmed(key, change, loc.file, args.yes):
         print("not changed")
         return 1
     try:
@@ -210,9 +215,11 @@ def _set(args: argparse.Namespace) -> int:
     if value is not None:
         winner = "the environment" if env_outranks_file(key) else "the file"
         for name, seen in env_contradicting(key, value):
+            used = seen if env_outranks_file(key) else value
             print(
-                f"  [!] {name}={seen} is set in the environment and disagrees; m3 uses {winner}. "
-                f"fix: remove {name} there."
+                f"  [!] {name}={seen} is set in this process's environment and disagrees; m3 uses "
+                f"{_value_text(used)} ({winner}). fix: remove {name} where it is set (`m3 doctor` "
+                "names each place)."
             )
     return 0
 
