@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_enrich.py
-sha1: 455151f79eab
-mtime_utc: 2026-10-11T21:02:20.600583+00:00
-generated_utc: 2026-10-11T21:08:57.245530+00:00
+sha1: 883fbd523a99
+mtime_utc: 2026-10-12T03:53:56.984114+00:00
+generated_utc: 2026-10-12T03:54:18.601595+00:00
 private: false
 ---
 
@@ -45,7 +45,7 @@ Status: Phase D user-facing CLI. Pairs with bin/run_observer.py + bin/run_reflec
 
 ## Entry points
 
-- `def main()` (line 1036)
+- `def main()` (line 1042)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -136,6 +136,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `m3_core.paths (scoped_db_env, snapshot_stores)`
 - `m3_core.runtime (utc_iso)`
 - `m3_core.seams (is_windows)`
+- `m3_core.seams (roots)`
 - `memory.backends (active_backend)`
 - `memory.backends (dialect)`
 

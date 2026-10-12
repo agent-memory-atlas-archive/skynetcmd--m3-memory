@@ -1216,10 +1216,13 @@ def _runas_schedule_repair_windows(script: str) -> bool:
     elevated, which is idempotent (adds only the missing boot tasks). Returns True
     iff the elevated repair exited 0; a cancelled UAC → False (caller falls back to
     the printed banner). Interactive-only (UAC is a GUI prompt)."""
+    # An elevated process starts from the user's environment, not this one's, so
+    # the config file it must register tasks with goes as an argument.
+    extra = "".join(",'\"{}\"'".format(a.replace("'", "''")) for a in _job_config_args())
     ps = (
         "$p = Start-Process -FilePath "
         f"'{sys.executable}' "
-        f"-ArgumentList '\"{script}\"','--repair' "
+        f"-ArgumentList '\"{script}\"','--repair'{extra} "
         "-Verb RunAs -PassThru -Wait; "
         "exit $p.ExitCode"
     )
@@ -1518,7 +1521,8 @@ def _offer_elevated_schedule_repair(script: str, *, non_interactive: bool) -> bo
         return False
     # None = queued for the single prompt at the end of setup (not done yet).
     if _queue_elevated(
-        "register m3's boot-start services (install_schedules --repair)", [_python_exe(), script, "--repair"]
+        "register m3's boot-start services (install_schedules --repair)",
+        [_python_exe(), script, "--repair", *_job_config_args()],
     ):
         return None
     # `non_interactive` here means "the caller already gathered its choices", NOT
@@ -1972,6 +1976,31 @@ def _llm_switch_enabled(var: str) -> bool:
     return _llm_recorded(var).lower() in ("1", "true", "yes", "on")
 
 
+def _report_llm_env_disagreement(var: str, val: str) -> None:
+    """Name an env var that contradicts the LLM setting setup just recorded: env
+    outranks .llm_config.json, so m3 runs on the env value. The transition report
+    (user decision 2026-10-12, m3 64ea4eab); silent when they agree."""
+    try:
+        from m3_core.config.keys import REGISTRY
+        from m3_core.config.settings import env_contradicting
+
+        key = REGISTRY.by_env(var)
+        if key is None:
+            return
+        found = env_contradicting(key, key.coerce_env_value(val))
+    except (ImportError, ValueError) as e:
+        _warn(f"    could not compare {var} with the environment ({e}). inspect: m3 doctor")
+        return
+    from m3_memory.installer import _find_env_var_locations
+
+    for name, seen in found:
+        where = ", ".join(_find_env_var_locations(name)) or "the environment"
+        _warn(
+            f"    {name}={seen} (set in {where}) disagrees with the recorded {var}={val}; "
+            f"m3 uses {seen} (env outranks the recorded value). fix: remove {name} there"
+        )
+
+
 def _record_llm_switch(var: str, val: str) -> None:
     """Write an LLM endpoint switch to <config_root>/.llm_config.json, the copy
     background daemons read."""
@@ -1979,6 +2008,7 @@ def _record_llm_switch(var: str, val: str) -> None:
         _m3bin.ensure_on_path()
         from m3_core.llm_config import read_llm_config, write_llm_setting
 
+        _report_llm_env_disagreement(var, val)
         if str(read_llm_config().get(var, "")) == val:
             return
         path = write_llm_setting(var, val)
@@ -2535,7 +2565,7 @@ def _register_embed_server_task(*, non_interactive: bool = False) -> None:
         # Capture output so we can (a) show it AND (b) detect the Windows
         # 'Access is denied' boot-task case to offer inline UAC elevation.
         proc = subprocess.run(
-            [_python_exe(), script, "--add", "embed-server"],
+            [_python_exe(), script, "--add", "embed-server", *_job_config_args()],
             check=False,
             capture_output=True,
             text=True,
@@ -2588,7 +2618,7 @@ def _verify_and_report_schedules(script: str, *, non_interactive: bool) -> None:
     """
     try:
         proc = subprocess.run(
-            [_python_exe(), script, "--verify"],
+            [_python_exe(), script, "--verify", *_job_config_args()],
             check=False,
             capture_output=True,
             text=True,
@@ -2618,7 +2648,7 @@ def _verify_and_report_schedules(script: str, *, non_interactive: bool) -> None:
         elif elevated:
             print("    Repaired elevated; re-verifying...")
             re_proc = subprocess.run(
-                [_python_exe(), script, "--verify"],
+                [_python_exe(), script, "--verify", *_job_config_args()],
                 check=False,
                 capture_output=True,
                 text=True,
@@ -2900,7 +2930,15 @@ def _wire_claude_hooks(capture_mode: str) -> bool:
             _warn("chatlog_init.py not found; skipping Claude hook wiring")
             return False
         proc = subprocess.run(
-            [python_exe(), str(chatlog_init), "--non-interactive", "--capture-mode", capture_mode, "--apply-claude"],
+            [
+                python_exe(),
+                str(chatlog_init),
+                "--non-interactive",
+                "--capture-mode",
+                capture_mode,
+                "--apply-claude",
+                *_job_config_args(),
+            ],
             check=False,
             capture_output=True,
             text=True,
@@ -3510,7 +3548,7 @@ def _register_dashboard_task(port: int = 8088) -> None:
         return
     try:
         proc = subprocess.run(
-            [_python_exe(), script, "--add", "dashboard", "--port", str(port)],
+            [_python_exe(), script, "--add", "dashboard", "--port", str(port), *_job_config_args()],
             check=False,
             capture_output=True,
             text=True,
@@ -4081,9 +4119,49 @@ def _m3_cli(*args: str) -> list[str]:
     package's own root goes on PYTHONPATH instead, so an installed setup stays
     on the install and a setup run from a checkout stays on that checkout.
     """
+    from ._roots import config_args
     from .wizard.ui import caller_args
 
-    return [sys.executable, "-P", "-m", "m3_memory.cli", *caller_args(), *args]
+    return [sys.executable, "-P", "-m", "m3_memory.cli", *config_args(), *caller_args(), *args]
+
+
+def _record_decoupled_roots(config_root: str, engine_root: str) -> bool:
+    """Pin ``<config_root>/m3_config.toml`` for this run and record ``[paths]
+    engine_root`` in it. False (after saying why) when the file cannot be written:
+    setup then stops, since every later step would use roots the user did not choose."""
+    config_file = os.path.join(config_root, _roots.CONFIG_FILE_NAME)
+    _roots.pin_config_file(config_file)
+    _m3bin.ensure_on_path()
+    try:
+        from m3_core.config.keys import REGISTRY
+        from m3_core.config.loader import ConfigFileError, locate
+        from m3_core.config.writer import set_values
+    except ImportError as e:
+        _warn(
+            f"could not record the engine root in {config_file}: m3's config package did not import ({e}); stopping. inspect: m3 doctor"
+        )
+        return False
+    try:
+        key = REGISTRY.get("paths.engine_root")
+        if key is None:  # a renamed registry key: a wiring bug, said loudly
+            raise ValueError("observed: no registry key paths.engine_root. inspect: m3_core/config/keys.py")
+        set_values(locate(), {key: key.parse(engine_root)})
+    except (OSError, ValueError, ConfigFileError) as e:
+        _warn(
+            f"could not record the engine root in {config_file} ({e}); stopping, since later "
+            "steps would use the default roots. inspect: that file and its directory's permissions"
+        )
+        return False
+    _ok(f"  roots: config {config_root}, engine {engine_root} (recorded in {config_file})")
+    return True
+
+
+def _job_config_args() -> list[str]:
+    """``--config FILE`` for setup's SCRIPT children (install_schedules,
+    chatlog_init): the config file this run located, unless it is the default.
+    They register tasks and hooks that run without this process's environment, so
+    the file goes as an argument, never env (CONFIG_DESIGN §5)."""
+    return _roots.located_config_args()
 
 
 def _m3_child_env() -> dict[str, str]:
@@ -4165,7 +4243,10 @@ def run_setup(args: argparse.Namespace) -> int:
         _warn("aborted by user — no changes made")
         return 1
 
-    # Set decoupled paths in environment so child commands inherit them.
+    # Decoupled roots: the config file is pinned for this run (m3 children get
+    # --config, script children too: _job_config_args) and the engine root is
+    # written into it as [paths] engine_root, which every m3 process reads. No env
+    # write: setup writes files, not env (wizard cut-over, m3 ec79a21b).
     if plan.decouple_roots:
         if plan.config_root is None or plan.engine_root is None:
             _warn(
@@ -4174,10 +4255,10 @@ def run_setup(args: argparse.Namespace) -> int:
                 "inspect: the wizard's root step (both roots must be chosen)"
             )
             return 1
-        os.environ["M3_CONFIG_ROOT"] = plan.config_root
-        os.environ["M3_ENGINE_ROOT"] = plan.engine_root
         os.makedirs(plan.config_root, exist_ok=True)
         os.makedirs(plan.engine_root, exist_ok=True)
+        if not _record_decoupled_roots(plan.config_root, plan.engine_root):
+            return 1
 
     # FIPS: build wolfSSL FIRST (if requested), THEN set the FIPS env vars.
     # Order matters — setting M3_FIPS_MODE before wolfSSL exists would make every

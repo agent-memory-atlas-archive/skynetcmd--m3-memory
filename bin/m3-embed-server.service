@@ -32,7 +32,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=[M3_PYTHON] [M3_MEMORY_ROOT]/bin/embed_server_inproc.py --port 8082
+ExecStart=[M3_PYTHON] [M3_MEMORY_ROOT]/bin/embed_server_inproc.py --port 8082 [M3_CONFIG_ARGS]
 # Unconditional, matching the cognitive loop: a CLEAN exit (an upgrade, an
 # operator stop) must still be restarted, because in shared mode the whole
 # fleet defers to this one process.

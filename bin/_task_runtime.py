@@ -97,6 +97,10 @@ def add_log_file_arg(parser) -> None:
         help="Write stdout/stderr/logging to this file (scheduled-task mode). "
         "Defaults to <logs root>/<script>.log (~/.m3/logs).",
     )
+    # Every scheduled entry point takes the --config its task was registered with.
+    from m3_core.paths import add_config_arg
+
+    add_config_arg(parser)
 
 
 def _resolve_log_file(log_file) -> pathlib.Path:

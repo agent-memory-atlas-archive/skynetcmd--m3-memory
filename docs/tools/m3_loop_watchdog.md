@@ -1,8 +1,8 @@
 ---
 tool: bin/m3_loop_watchdog.py
-sha1: 26a493f02839
-mtime_utc: 2026-10-11T17:03:01.489227+00:00
-generated_utc: 2026-10-11T17:32:12.988898+00:00
+sha1: 71733f97529a
+mtime_utc: 2026-10-12T03:54:17.517885+00:00
+generated_utc: 2026-10-12T03:54:18.694592+00:00
 private: false
 ---
 
@@ -53,7 +53,7 @@ DESIGN (§2 modularity, §3 fail-safe, §5 effectiveness)
 
 ## Entry points
 
-- `def main()` (line 304)
+- `def main()` (line 321)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -82,7 +82,7 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `cmd`` (line 263)
+- `subprocess.run()  → `cmd`` (line 280)
 
 
 ---

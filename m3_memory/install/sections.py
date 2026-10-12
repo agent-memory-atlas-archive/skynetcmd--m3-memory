@@ -819,6 +819,35 @@ def _backend_section(cfg: dict) -> None:
     _cdw_sync_section()
 
 
+def _config_env_disagreement_section() -> None:
+    """Name each env var that contradicts a value set in m3_config.toml, both
+    values, and which one m3 uses. The transition report: kept until the user
+    decides to stop it (user decision 2026-10-12, m3 64ea4eab). Says nothing when
+    env and file agree, or when the file sets nothing (§3: no false alarm)."""
+    try:
+        _bin.ensure_on_path()
+        from m3_core.config.settings import env_disagreements
+
+        found = env_disagreements()
+    except Exception as e:  # noqa: BLE001 -- doctor reports, never crashes
+        print()
+        print(f"  [!] could not compare env with m3_config.toml: {e}. inspect: m3 config show --origin")
+        return
+    if not found:
+        return
+    print()
+    from m3_memory import installer as _I  # lazy: installer imports this module
+
+    for d in found:
+        used = d.env_value if d.winner == "env" else d.file_value
+        where = ", ".join(_I._find_env_var_locations(d.env_name)) or "the environment"
+        print(
+            f"  [!] {d.env_name}={d.env_value} (set in {where}) disagrees with m3_config.toml "
+            f"{d.key} = {d.file_value}; m3 uses {used} (the {d.winner}). fix: remove {d.env_name} "
+            "there, or change the file."
+        )
+
+
 def _plaintext_dsn_section() -> None:
     """Name each plaintext primary-DSN copy in the registry or shell profile.
 

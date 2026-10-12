@@ -9,6 +9,12 @@ and drains any spill-to-disk files from the async write queue.
 
 from __future__ import annotations
 
+from m3_core.seams import roots as _seam_roots
+
+# --config FILE (the file this job was registered with) is pinned before any
+# import below binds a root at import time (chatlog_config, log dirs).
+_seam_roots.pin_from_argv()
+
 import argparse
 import asyncio
 import json

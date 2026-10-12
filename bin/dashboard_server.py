@@ -46,6 +46,12 @@ you intend to launch the server with (typically ``.venv``).
 
 from __future__ import annotations
 
+from m3_core.seams import roots as _seam_roots
+
+# --config FILE (the file this job was registered with) is pinned before any
+# import below binds a root at import time (chatlog_config, log dirs).
+_seam_roots.pin_from_argv()
+
 import asyncio
 import html
 import json
@@ -3573,6 +3579,9 @@ if __name__ == "__main__":
         help="Print the one-time sign-in URL (includes the token) for opening the dashboard on another device.",
     )
     _p.add_argument("--log-file", default=None, help=argparse.SUPPRESS)
+    from m3_core.paths import add_config_arg
+
+    add_config_arg(_p)  # pinned already (pin_from_argv); declared for --help
     _a = _p.parse_args()
 
     if _a.log_file:

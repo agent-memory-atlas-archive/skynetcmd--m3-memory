@@ -44,7 +44,7 @@ Type=simple
 # -u is REQUIRED, not cosmetic: without it Python buffers stdout and a live
 # supervisor emits nothing for minutes, which is indistinguishable from a dead
 # one. Cost a false "supervise is broken" diagnosis while this was built.
-ExecStart=[M3_PYTHON] -u [M3_MEMORY_ROOT]/bin/m3_notification_waiter.py --agent-id claude-code --interval 5 --supervise --timeout 3600
+ExecStart=[M3_PYTHON] -u [M3_MEMORY_ROOT]/bin/m3_notification_waiter.py --agent-id claude-code --interval 5 --supervise --timeout 3600 [M3_CONFIG_ARGS]
 # Unconditional, matching the cognitive loop and the embed server: the waiter
 # exits CLEANLY every hour by design (--timeout 3600, so a forgotten waiter
 # cannot leak), and that exit must be restarted or the receipt SLA dies until

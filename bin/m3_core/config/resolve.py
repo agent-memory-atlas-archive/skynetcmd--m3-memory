@@ -70,7 +70,9 @@ class DotEnv:
 NO_DOTENV = DotEnv()
 
 
-def _from_env(key: Key, name: str, raw: str, where: str = "environment") -> ConfigValue:
+def from_env(key: Key, name: str, raw: str, where: str = "environment") -> ConfigValue:
+    """``raw`` (env name ``name``) read by ``key``'s one env parser; raises
+    ``ConfigEnvError`` naming the value and the fix."""
     try:
         return cast("ConfigValue", key.coerce_env_value(raw))
     except ConfigValueError as e:
@@ -108,15 +110,21 @@ def _note_legacy_difference(key: Key, name: str, raw: str, value: ConfigValue) -
         )
 
 
+def env_outranks_file(key: Key) -> bool:
+    """True for an ``env_override`` key (U9: db.backend): its env value beats
+    m3_config.toml. Every other key: the file wins (Option B)."""
+    return key.env_override
+
+
 def resolve_key(key: Key, loaded: LoadedFile, environ: Mapping[str, str], dotenv: DotEnv = NO_DOTENV) -> Resolved:
     if key.klass is not KeyClass.CONFIG:
         # A contract violation, not a diagnostic: secrets resolve in secret_store.
         raise ValueError(f"{key.name} is a {key.klass} key; secret_store resolves secrets, not resolve_key")
     hit = _env_hit(key, environ)
-    if key.env_override and hit is not None:
+    if env_outranks_file(key) and hit is not None:
         without = {n: v for n, v in environ.items() if n not in key.env_names}
         return Resolved(
-            value=_from_env(key, *hit),
+            value=from_env(key, *hit),
             origin=f"env:{hit[0]}",
             env_name=hit[0],
             beneath=_resolve_below_env(key, loaded, without, dotenv),
@@ -131,7 +139,7 @@ def live_env_override(key: Key, resolved: Resolved, environ: Mapping[str, str]) 
     re-read on every call (``paths.resolve_backend_name``)."""
     hit = _env_hit(key, environ)
     if hit is not None:
-        return _from_env(key, *hit)
+        return from_env(key, *hit)
     if resolved.beneath is not None:
         return resolved.beneath.value
     return resolved.value
@@ -148,12 +156,12 @@ def _resolve_below_env(key: Key, loaded: LoadedFile, environ: Mapping[str, str],
             value=loaded.values[key.name], origin=f"file:{loaded.location.file} {show_key(key.name)}", shadowed=shadowed
         )
     if hit is not None:
-        value = _from_env(key, *hit)
+        value = from_env(key, *hit)
         _note_legacy_difference(key, *hit, value)
         shadowed = (f"{dot[0]} (in {dotenv.path})",) if dot is not None else ()
         return Resolved(value=value, origin=f"env-legacy:{hit[0]}", shadowed=shadowed, env_name=hit[0])
     if dot is not None:  # the lowest source: below the file and below real env
-        value = _from_env(key, *dot, where=f".env {dotenv.path}")
+        value = from_env(key, *dot, where=f".env {dotenv.path}")
         _note_legacy_difference(key, *dot, value)
         return Resolved(value=value, origin=f"dotenv:{dotenv.path} {dot[0]}", env_name=dot[0])
     # A list default is copied: the registry's own object must never be shared

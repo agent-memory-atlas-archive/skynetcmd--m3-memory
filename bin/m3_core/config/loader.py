@@ -23,16 +23,22 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import override
 
-from m3_core.paths import CONFIG_ROOT_LEGACY, StoreRef, config_root_with_tier
+from m3_core.paths import (
+    CONFIG_FILE_NAME,
+    CONFIG_ROOT_ARG,
+    CONFIG_ROOT_LEGACY,
+    StoreRef,
+    config_root_with_tier,
+    pinned_config_file,
+)
 
 from .registry import ConfigValue, ConfigValueError, KeyClass, Registry
 from .stores import parse_stores
 
 logger = logging.getLogger(__name__)
 
-CONFIG_FILE_NAME = "m3_config.toml"
 SCHEMA_VERSION = 1
-CONFIG_ARG_TIER = "arg:--config"
+CONFIG_ARG_TIER = CONFIG_ROOT_ARG  # the roots seam owns the tier names
 _REPAIR = "inspect: `m3 config show --origin`; fix or remove the line, then retry"
 
 
@@ -46,7 +52,10 @@ class Location:
 def locate(explicit: str | os.PathLike[str] | None = None) -> Location:
     """``--config <file>`` > M3_CONFIG_ROOT > M3_MEMORY_ROOT/config (legacy, warns)
     > ~/.m3/config. ``explicit`` is a FILE, made absolute here; the root is its
-    parent. The env tiers come from ``paths.config_root_with_tier``, their one owner."""
+    parent. The env tiers come from ``paths.config_root_with_tier``, their one owner.
+    With no ``explicit`` file, a process-wide ``m3 --config`` pin answers first."""
+    if explicit is None:
+        explicit = pinned_config_file()
     if explicit is not None:
         f = Path(explicit).expanduser().absolute()
         return Location(file=f, root=f.parent, tier=CONFIG_ARG_TIER)

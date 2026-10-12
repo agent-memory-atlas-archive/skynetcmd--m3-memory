@@ -715,16 +715,24 @@ def _sys_path_restored():
     sys.path[:] = saved
 
 
-@pytest.fixture(autouse=True)
-def _cli_settings_cleared():
-    """Clear flag-level settings a test set (``settings.set_from_cli``). They are
-    process-wide by design (a CLI's flags for its whole run), so one test running
-    an installer step that records ``db.backend = postgres`` would otherwise send
-    every later test in the process to PostgreSQL."""
-    yield
+def clear_process_flags() -> None:
+    """Undo the process-wide flag state a test left: flag-level settings
+    (``settings.set_from_cli``) and the ``m3 --config`` pin. Both are process-wide
+    by design (a CLI's flags for its whole run), so one test running an installer
+    step that records ``db.backend = postgres``, or pinning a temp config file,
+    would otherwise steer every later test in the process."""
+    roots = sys.modules.get("m3_memory._roots")
+    if roots is not None and roots.pinned_config_file() is not None:
+        roots.pin_config_file(None)
     st = sys.modules.get("m3_core.config.settings")
     if st is not None and st._CACHE._cli:
         st._reset_for_tests()
+
+
+@pytest.fixture(autouse=True)
+def _process_flags_cleared():
+    yield
+    clear_process_flags()
 
 
 @pytest.fixture(autouse=True)
@@ -778,6 +786,53 @@ def _no_warehouse_secret(monkeypatch):
 
 # Every DSN name a test must never resolve from the developer's real keyring or vault.
 _DSN_SECRETS = _WAREHOUSE_SECRETS | {"M3_PRIMARY_PG_URL", "M3_PG_URL"}
+
+
+def dsn_env_snapshot() -> dict[str, str | None]:
+    return {n: _os.environ.get(n) for n in _DSN_SECRETS}
+
+
+def restore_dsn_env(before: dict[str, str | None]) -> list[str]:
+    """Put each DSN name back as ``before`` had it; return the names that had changed."""
+    leaked = sorted(n for n in _DSN_SECRETS if _os.environ.get(n) != before[n])
+    for n in leaked:
+        if before[n] is None:
+            _os.environ.pop(n, None)
+        else:
+            _os.environ[n] = before[n]
+    return leaked
+
+
+_DSN_BEFORE = pytest.StashKey[dict]()
+
+
+@pytest.hookimpl(hookwrapper=True, tryfirst=True)
+def pytest_runtest_setup(item):
+    # Before ANY fixture of this test runs: the sandbox clears and restores these
+    # names through fixtures, so a fixture-based check sees mid-sequence states.
+    item.stash[_DSN_BEFORE] = dsn_env_snapshot()
+    yield
+
+
+@pytest.hookimpl(hookwrapper=True, trylast=True)
+def pytest_runtest_teardown(item, nextitem):
+    """Fail the test that leaves a DSN name in os.environ changed once EVERY
+    fixture has torn down, and put it back: what remains is a raw write nothing
+    undoes. One went unseen until 2026-10-12: an installer step wrote
+    M3_PRIMARY_PG_URL into os.environ, and a LATER test (ai_mechanic's PostgreSQL
+    refusal) passed in the full suite only because of that leaked DSN; run alone
+    with no DSN it failed."""
+    yield
+    before = item.stash.get(_DSN_BEFORE, None)
+    if before is None:
+        return
+    leaked = restore_dsn_env(before)
+    if leaked:
+        pytest.fail(
+            f"observed: this test left {leaked} changed in os.environ (restored). "
+            "inspect: set it with monkeypatch, or stop the code under test writing env",
+            pytrace=False,
+        )
 
 
 @pytest.fixture(autouse=True)

@@ -1,3 +1,9 @@
+from m3_core.seams import roots as _seam_roots
+
+# --config FILE (the file this job was registered with) is pinned before any
+# import below binds a root at import time (chatlog_config, log dirs).
+_seam_roots.pin_from_argv()
+
 import base64
 import json
 import logging

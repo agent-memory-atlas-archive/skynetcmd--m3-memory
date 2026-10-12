@@ -17,6 +17,12 @@ When M3_AUTO_ENRICH is ON, this replaces the need for separate cron jobs
 for m3_enrich and m3_entities.
 """
 
+from m3_core.seams import roots as _seam_roots
+
+# --config FILE (the file this job was registered with) is pinned before any
+# import below binds a root at import time (chatlog_config, log dirs).
+_seam_roots.pin_from_argv()
+
 import argparse
 import asyncio
 import atexit
@@ -2220,6 +2226,9 @@ def main():
         help="Min seconds between audit passes (default: 604800 = 7d)",
     )
 
+    from m3_core.paths import add_config_arg
+
+    add_config_arg(parser)  # pinned already (pin_from_argv); declared for --help
     args = parser.parse_args()
 
     if args.background:

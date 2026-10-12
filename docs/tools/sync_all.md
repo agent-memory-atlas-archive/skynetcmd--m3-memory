@@ -1,8 +1,8 @@
 ---
 tool: bin/sync_all.py
-sha1: 1e27b5aef8e9
-mtime_utc: 2026-10-11T18:40:07.466947+00:00
-generated_utc: 2026-10-11T19:18:32.531125+00:00
+sha1: 525d8ca8b211
+mtime_utc: 2026-10-12T03:53:56.956311+00:00
+generated_utc: 2026-10-12T03:54:19.075886+00:00
 private: false
 ---
 
@@ -31,7 +31,7 @@ DB list:
 
 ## Entry points
 
-- `def main()` (line 472)
+- `def main()` (line 478)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -69,7 +69,7 @@ DB list:
 
 **subprocess**
 
-- `subprocess.run()  → `[str(PY), str(BASE / 'bin' / 'pg_sync.py'), '--db', str(db_path)]`` (line 197)
+- `subprocess.run()  → `[str(PY), str(BASE / 'bin' / 'pg_sync.py'), '--db', str(db_path)]`` (line 203)
 
 
 ---
@@ -80,6 +80,7 @@ DB list:
 - `m3_core.dsn (parse_pg_dsn)`
 - `m3_core.paths (get_m3_logs_root)`
 - `m3_core.seams (is_windows, os_name)`
+- `m3_core.seams (roots)`
 - `m3_core.secret_store (PgRole, resolve_pg_dsn)`
 - `memory.backends (active_backend)`
 - `memory.backends.postgres_backend (PostgresBackend)`

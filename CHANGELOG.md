@@ -21,6 +21,21 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **Scheduled jobs and services use the config root chosen at setup.** With a
+  non-default config root, the background jobs (cognitive loop, sync,
+  maintenance, the dashboard and others) ran against the default roots while the
+  MCP server and hooks used the chosen ones. Registered jobs now carry
+  `--config`. Installs on the default roots are unchanged.
+  **Affected:** installs with a non-default config root (`M3_CONFIG_ROOT` or a
+  root chosen in `m3 setup`) · **Action:** run `m3 schedules repair` ·
+  **Data status:** jobs may have written to the default store; check it for
+  memories and chat logs that belong in your chosen store.
+
+- **Tools refuse a SQLite path on PostgreSQL cleanly.** With PostgreSQL selected
+  and no connection string set, a tool given `--database` stopped with a
+  traceback instead of its error message.
+  **Affected:** PostgreSQL installs · **Action:** none · **Data status:** none.
+
 - **Windows: `m3 schedules add` no longer stops the embed server.** Re-registering
   any task stopped the Rust `m3-embed-server` and tried to restart it through a
   task that does not exist on Windows, cutting off embeddings until its own
@@ -429,6 +444,16 @@ the policy is forward-going only.
   **Data status:** none.
 
 ### Added
+
+- **`m3 --config FILE`.** Runs any `m3` command against that config file; its
+  directory becomes the config root. It takes precedence over `M3_CONFIG_ROOT`.
+  **Affected:** none · **Action:** none · **Data status:** none.
+
+- **`m3 doctor` and setup report environment variables that disagree with
+  `m3_config.toml`.** Each one is named with both values and which one m3 uses.
+  Nothing is printed when they agree.
+  **Affected:** installs with m3 settings in the environment · **Action:** remove
+  the reported variable, or change the file · **Data status:** none.
 
 - **The engine, logs and models roots can be set in `m3_config.toml`.** Under
   `[paths]` (`engine_root`, `logs_root`, `models_root`); a value in the file wins

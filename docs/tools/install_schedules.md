@@ -1,8 +1,8 @@
 ---
 tool: bin/install_schedules.py
-sha1: 601454a39d94
-mtime_utc: 2026-10-12T02:17:01.830616+00:00
-generated_utc: 2026-10-12T02:18:09.083532+00:00
+sha1: 5c2774dc8bf7
+mtime_utc: 2026-10-12T04:17:03.507778+00:00
+generated_utc: 2026-10-12T04:18:17.240276+00:00
 private: false
 ---
 
@@ -18,7 +18,7 @@ Uses project virtual environment paths and ensures log directories exist.
 
 ## Entry points
 
-- `def main()` (line 2689)
+- `def main()` (line 2716)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -64,7 +64,7 @@ Uses project virtual environment paths and ensures log directories exist.
 
 **subprocess**
 
-- `subprocess.run()  → `*args`` (line 22)
+- `subprocess.run()  → `*args`` (line 28)
 
 
 ---
@@ -74,14 +74,17 @@ Uses project virtual environment paths and ensures log directories exist.
 - `html`
 - `m3_core.autonomy (ensure_autonomy_config)`
 - `m3_core.config (settings)`
+- `m3_core.paths (add_config_arg)`
 - `m3_core.paths (get_m3_logs_root)`
-- `m3_core.seams (is_macos, is_windows)`
+- `m3_core.seams (is_macos, is_windows, roots)`
 - `m3_core.seams (os_name)`
+- `m3_core.seams (roots)`
 - `memory.backends (dialect)`
 - `memory.orchestration (_db)`
 - `memory.orchestration (agent_list_impl)`
 - `plistlib`
 - `shlex`
+- `xml.sax.saxutils (escape)`
 
 ---
 

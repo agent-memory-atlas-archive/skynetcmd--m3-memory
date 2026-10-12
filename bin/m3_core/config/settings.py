@@ -23,13 +23,13 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
-from m3_core.paths import StoreRef
+from m3_core.paths import StoreRef, pinned_config_file
 
 from . import env as _env
 from .keys import REGISTRY
 from .loader import FileIdentity, LoadedFile, Location, file_identity, format_config_error, load, locate
-from .registry import ConfigValue, Key, Registry
-from .resolve import DotEnv, Resolved, live_env_override, resolve_all
+from .registry import ConfigValue, Key, KeyClass, Registry
+from .resolve import ConfigEnvError, DotEnv, Resolved, env_outranks_file, from_env, live_env_override, resolve_all
 
 logger = logging.getLogger(__name__)
 
@@ -140,6 +140,7 @@ class _Cache:
         self._checked_at = 0.0
         self._last_error: str | None = None
         self._cli: dict[Key, ConfigValue] = {}
+        self._pin: str | None = None  # the `m3 --config` file the snapshot was built for
         self.ttl_s = DEFAULT_TTL_S
 
     def _with_cli(self, settings: Settings) -> Settings:
@@ -159,6 +160,9 @@ class _Cache:
     def current(self) -> Settings:
         with self._lock:
             now = time.monotonic()
+            pin = pinned_config_file()
+            if pin != self._pin:  # `--config` chosen (or changed) after a snapshot: another file
+                self._settings, self._pin = None, pin
             if self._settings is None:
                 self._settings = self._with_cli(build())  # startup: a bad file raises (§3)
                 self._checked_at = now
@@ -225,7 +229,7 @@ def _setting(name: str) -> ConfigValue | None:
     if key is None:
         raise KeyError(f"observed: {name!r} is not a registry key. inspect: m3_core/config/keys*.py")
     snap = current()
-    if key.env_override:
+    if env_outranks_file(key):
         resolved = snap.resolved[key.name]
         if resolved.origin not in ("cli", "override"):  # an explicit choice beats env
             return live_env_override(key, resolved, _env.environ())
@@ -275,6 +279,58 @@ def origin_of(name: str) -> str:
     if key is None:
         raise KeyError(f"observed: {name!r} is not a registry key. inspect: m3_core/config/keys*.py")
     return current().origin(key)
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class EnvDisagreement:
+    """An environment variable whose value contradicts m3_config.toml."""
+
+    key: str
+    env_name: str
+    env_value: ConfigValue | str  # the raw text when it does not even parse
+    file_value: ConfigValue | None
+    winner: str  # "file" | "env" (env only for an env_override key, U9)
+
+
+def env_contradicting(key: Key, value: ConfigValue | None) -> list[tuple[str, ConfigValue | str]]:
+    """Each of ``key``'s env names set in the LIVE environment to something other
+    than ``value``, with what it reads as. A matching value is not listed: the
+    transition report must not cry wolf (user decision 2026-10-12, m3 64ea4eab)."""
+    environ = _env.environ()
+    out: list[tuple[str, ConfigValue | str]] = []
+    for name in key.env_names:
+        raw = environ.get(name)
+        if raw is None or not raw.strip():
+            continue
+        try:
+            seen: ConfigValue | str = from_env(key, name, raw)
+        except ConfigEnvError:
+            seen = raw
+        if seen != value:
+            out.append((name, seen))
+    return out
+
+
+def env_disagreements() -> list[EnvDisagreement]:
+    """Every env var that contradicts a value SET in m3_config.toml, and which one
+    wins. The transition report ``m3 doctor`` and setup print until the user
+    retires it (user decision 2026-10-12, m3 64ea4eab). A key with no value in
+    the file, or one a flag set for this run, has nothing to disagree with."""
+    snap = current()
+    out: list[EnvDisagreement] = []
+    for key in REGISTRY:
+        if key.klass is not KeyClass.CONFIG or key.name not in snap.resolved:
+            continue
+        r = snap.resolved[key.name]
+        in_file = r if r.origin.startswith("file:") else r.beneath
+        if in_file is None or not in_file.origin.startswith("file:"):
+            continue
+        winner = "env" if env_outranks_file(key) else "file"
+        out.extend(
+            EnvDisagreement(key=key.name, env_name=n, env_value=v, file_value=in_file.value, winner=winner)
+            for n, v in env_contradicting(key, in_file.value)
+        )
+    return out
 
 
 def explicit(name: str) -> bool:

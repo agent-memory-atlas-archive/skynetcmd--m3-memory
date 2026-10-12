@@ -21,6 +21,23 @@ is the whole point: on-change delivery to the agent, without a turn per tick.
 
 from __future__ import annotations
 
+import sys as _sys
+
+# --config FILE (the file this job was registered with) is pinned before any
+# import below binds a root at import time. Guarded like this module's other m3
+# imports: a stripped payload still runs, on the default roots, and says so.
+try:
+    from m3_core.seams import roots as _seam_roots
+
+    _seam_roots.pin_from_argv()
+except ImportError as _e:
+    if any(a == "--config" or a.startswith("--config=") for a in _sys.argv[1:]):
+        print(
+            f"observed: --config given but m3_core is not importable ({_e}); running on the "
+            "default config root. inspect: the payload's bin/ (reinstall with `m3 upgrade`)",
+            file=_sys.stderr,
+        )
+
 import argparse
 import json
 import os
@@ -580,6 +597,12 @@ def main() -> int:
         "survives the ack.",
     )
     ap.add_argument("--child", action="store_true")
+    try:
+        from m3_core.paths import add_config_arg
+
+        add_config_arg(ap)  # pinned already (pin_from_argv); declared for --help
+    except ImportError:  # stripped payload: accept the flag, the guard above reported it
+        ap.add_argument("--config", dest="config_file", default=None)
     args = ap.parse_args()
 
     # Supervise mode loops the single-shot body instead of duplicating it, so

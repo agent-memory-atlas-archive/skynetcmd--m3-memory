@@ -44,44 +44,43 @@ def _write_profile(path, **fields):
     path.write_text(yaml.safe_dump(base), encoding="utf-8")
 
 
-def test_classify_intent_returns_none_when_gate_off(tmp_path, monkeypatch):
+def test_classify_intent_returns_none_when_gate_off(tmp_path, monkeypatch, m3_settings):
     """Gate off → immediate None, no profile load attempted."""
     import slm_intent
 
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.profile_dirs": [str(tmp_path)]})
     # Intentionally don't set M3_SLM_CLASSIFIER.
     result = asyncio.run(slm_intent.classify_intent("anything", profile="default"))
     assert result is None
 
 
-def test_classify_intent_returns_none_for_empty_query(tmp_path, monkeypatch):
+def test_classify_intent_returns_none_for_empty_query(tmp_path, monkeypatch, m3_settings):
     """Empty / whitespace-only input returns None without calling the SLM."""
     import slm_intent
 
     _write_profile(tmp_path / "default.yaml")
-    monkeypatch.setenv("M3_SLM_CLASSIFIER", "1")
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.classifier": True, "slm.profile_dirs": [str(tmp_path)]})
     slm_intent.invalidate_cache()
 
     assert asyncio.run(slm_intent.classify_intent("")) is None
     assert asyncio.run(slm_intent.classify_intent("   ")) is None
 
 
-def test_load_profile_missing_returns_none(tmp_path, monkeypatch):
+def test_load_profile_missing_returns_none(tmp_path, monkeypatch, m3_settings):
     """Requesting a profile that doesn't exist logs + returns None."""
     import slm_intent
 
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.profile_dirs": [str(tmp_path)]})
     slm_intent.invalidate_cache()
     assert slm_intent.load_profile("nonexistent") is None
 
 
-def test_load_profile_cached_across_calls(tmp_path, monkeypatch):
+def test_load_profile_cached_across_calls(tmp_path, monkeypatch, m3_settings):
     """Second call returns the cached object (same identity)."""
     import slm_intent
 
     _write_profile(tmp_path / "cached.yaml")
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.profile_dirs": [str(tmp_path)]})
     slm_intent.invalidate_cache()
 
     p1 = slm_intent.load_profile("cached")
@@ -89,37 +88,37 @@ def test_load_profile_cached_across_calls(tmp_path, monkeypatch):
     assert p1 is p2
 
 
-def test_load_profile_malformed_raises(tmp_path, monkeypatch):
+def test_load_profile_malformed_raises(tmp_path, monkeypatch, m3_settings):
     """Missing required keys surface as ValueError, not a silent fallback."""
     import slm_intent
 
     (tmp_path / "broken.yaml").write_text("url: http://x\n", encoding="utf-8")
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.profile_dirs": [str(tmp_path)]})
     slm_intent.invalidate_cache()
 
     with pytest.raises(ValueError, match="missing required keys"):
         slm_intent.load_profile("broken")
 
 
-def test_load_profile_rejects_fallback_not_in_labels(tmp_path, monkeypatch):
+def test_load_profile_rejects_fallback_not_in_labels(tmp_path, monkeypatch, m3_settings):
     """fallback must be one of the declared labels."""
     import slm_intent
 
     _write_profile(tmp_path / "bad_fallback.yaml", fallback="not-a-label")
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.profile_dirs": [str(tmp_path)]})
     slm_intent.invalidate_cache()
 
     with pytest.raises(ValueError, match="fallback"):
         slm_intent.load_profile("bad_fallback")
 
 
-def test_list_profiles_discovers_yaml_files(tmp_path, monkeypatch):
+def test_list_profiles_discovers_yaml_files(tmp_path, monkeypatch, m3_settings):
     """list_profiles() returns a name→path map for every .yaml in search dirs."""
     import slm_intent
 
     _write_profile(tmp_path / "one.yaml")
     _write_profile(tmp_path / "two.yaml")
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.profile_dirs": [str(tmp_path)]})
     slm_intent.invalidate_cache()
 
     profs = slm_intent.list_profiles()
@@ -150,12 +149,12 @@ def test_profile_search_dir_stacking(tmp_path, monkeypatch):
     assert prof.model == "from-a"
 
 
-def test_pick_label_exact_match(tmp_path, monkeypatch):
+def test_pick_label_exact_match(tmp_path, monkeypatch, m3_settings):
     """_pick_label returns exact-match label with case folding."""
     import slm_intent
 
     _write_profile(tmp_path / "p.yaml", labels=["user-fact", "temporal", "general"], fallback="general")
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.profile_dirs": [str(tmp_path)]})
     slm_intent.invalidate_cache()
 
     prof = slm_intent.load_profile("p")
@@ -164,12 +163,12 @@ def test_pick_label_exact_match(tmp_path, monkeypatch):
     assert slm_intent._pick_label("  temporal  ", prof) == "temporal"
 
 
-def test_pick_label_substring_match(tmp_path, monkeypatch):
+def test_pick_label_substring_match(tmp_path, monkeypatch, m3_settings):
     """Falls back to substring when model returns prose not matching exactly."""
     import slm_intent
 
     _write_profile(tmp_path / "p.yaml", labels=["user-fact", "general"], fallback="general")
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.profile_dirs": [str(tmp_path)]})
     slm_intent.invalidate_cache()
 
     prof = slm_intent.load_profile("p")
@@ -177,12 +176,12 @@ def test_pick_label_substring_match(tmp_path, monkeypatch):
     assert slm_intent._pick_label("This is a user-fact question", prof) == "user-fact"
 
 
-def test_pick_label_fallback_on_mismatch(tmp_path, monkeypatch):
+def test_pick_label_fallback_on_mismatch(tmp_path, monkeypatch, m3_settings):
     """When the model's reply matches no label, fallback wins."""
     import slm_intent
 
     _write_profile(tmp_path / "p.yaml", labels=["a", "b"], fallback="b")
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.profile_dirs": [str(tmp_path)]})
     slm_intent.invalidate_cache()
 
     prof = slm_intent.load_profile("p")
@@ -193,48 +192,45 @@ def test_pick_label_fallback_on_mismatch(tmp_path, monkeypatch):
 # ── extract_text tests ───────────────────────────────────────────────────────
 
 
-def test_extract_text_returns_none_when_gate_off(tmp_path, monkeypatch):
+def test_extract_text_returns_none_when_gate_off(tmp_path, monkeypatch, m3_settings):
     """Gate off → immediate None, no profile load attempted."""
     import slm_intent
 
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.profile_dirs": [str(tmp_path)]})
     # Intentionally don't set M3_SLM_CLASSIFIER.
     result = asyncio.run(slm_intent.extract_text("anything", profile="default"))
     assert result is None
 
 
-def test_extract_text_returns_none_for_empty_input(tmp_path, monkeypatch):
+def test_extract_text_returns_none_for_empty_input(tmp_path, monkeypatch, m3_settings):
     """Empty / whitespace-only input returns None without calling the SLM."""
     import slm_intent
 
     _write_profile(tmp_path / "default.yaml")
-    monkeypatch.setenv("M3_SLM_CLASSIFIER", "1")
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.classifier": True, "slm.profile_dirs": [str(tmp_path)]})
     slm_intent.invalidate_cache()
 
     assert asyncio.run(slm_intent.extract_text("", profile="default")) is None
     assert asyncio.run(slm_intent.extract_text("   ", profile="default")) is None
 
 
-def test_extract_text_requires_profile(tmp_path, monkeypatch):
+def test_extract_text_requires_profile(tmp_path, monkeypatch, m3_settings):
     """No fallback default for extract_text — empty profile returns None."""
     import slm_intent
 
     _write_profile(tmp_path / "default.yaml")
-    monkeypatch.setenv("M3_SLM_CLASSIFIER", "1")
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.classifier": True, "slm.profile_dirs": [str(tmp_path)]})
     slm_intent.invalidate_cache()
 
     assert asyncio.run(slm_intent.extract_text("hello", profile="")) is None
     assert asyncio.run(slm_intent.extract_text("hello", profile="   ")) is None
 
 
-def test_extract_text_returns_none_when_profile_missing(tmp_path, monkeypatch):
+def test_extract_text_returns_none_when_profile_missing(tmp_path, monkeypatch, m3_settings):
     """Profile not found → None."""
     import slm_intent
 
-    monkeypatch.setenv("M3_SLM_CLASSIFIER", "1")
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.classifier": True, "slm.profile_dirs": [str(tmp_path)]})
     slm_intent.invalidate_cache()
 
     assert asyncio.run(slm_intent.extract_text("hello", profile="nonexistent")) is None
@@ -258,7 +254,7 @@ def _write_profile_with_post(path, post_block):
     path.write_text(yaml.safe_dump(base), encoding="utf-8")
 
 
-def test_apply_post_strip_prefixes_single(tmp_path, monkeypatch):
+def test_apply_post_strip_prefixes_single(tmp_path, monkeypatch, m3_settings):
     """strip_prefixes removes the matched prefix from the start."""
     import slm_intent
 
@@ -266,7 +262,7 @@ def test_apply_post_strip_prefixes_single(tmp_path, monkeypatch):
         tmp_path / "p.yaml",
         {"strip_prefixes": [r"^here are (the )?facts?\s*:?\s*"]},
     )
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.profile_dirs": [str(tmp_path)]})
     slm_intent.invalidate_cache()
     prof = slm_intent.load_profile("p")
 
@@ -276,7 +272,7 @@ def test_apply_post_strip_prefixes_single(tmp_path, monkeypatch):
     assert slm_intent._apply_post("Just A | B", prof) == "Just A | B"
 
 
-def test_apply_post_strip_prefixes_stacked(tmp_path, monkeypatch):
+def test_apply_post_strip_prefixes_stacked(tmp_path, monkeypatch, m3_settings):
     """Multiple prefixes peel iteratively until none match."""
     import slm_intent
 
@@ -284,7 +280,7 @@ def test_apply_post_strip_prefixes_stacked(tmp_path, monkeypatch):
         tmp_path / "p.yaml",
         {"strip_prefixes": [r"^sure[,.]?\s*", r"^here are (the )?facts?\s*:?\s*"]},
     )
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.profile_dirs": [str(tmp_path)]})
     slm_intent.invalidate_cache()
     prof = slm_intent.load_profile("p")
 
@@ -292,7 +288,7 @@ def test_apply_post_strip_prefixes_stacked(tmp_path, monkeypatch):
     assert slm_intent._apply_post("Sure. Here are facts: X | Y", prof) == "X | Y"
 
 
-def test_apply_post_skip_if_matches(tmp_path, monkeypatch):
+def test_apply_post_skip_if_matches(tmp_path, monkeypatch, m3_settings):
     """skip_if_matches returns '' when ANY pattern matches."""
     import slm_intent
 
@@ -300,7 +296,7 @@ def test_apply_post_skip_if_matches(tmp_path, monkeypatch):
         tmp_path / "p.yaml",
         {"skip_if_matches": [r"^[-_.\s]*$", r"no (extractable )?facts"]},
     )
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.profile_dirs": [str(tmp_path)]})
     slm_intent.invalidate_cache()
     prof = slm_intent.load_profile("p")
 
@@ -312,7 +308,7 @@ def test_apply_post_skip_if_matches(tmp_path, monkeypatch):
     assert slm_intent._apply_post("A | B | C", prof) == "A | B | C"
 
 
-def test_apply_post_format_wrapper(tmp_path, monkeypatch):
+def test_apply_post_format_wrapper(tmp_path, monkeypatch, m3_settings):
     """format wraps cleaned text in a template containing {text}."""
     import slm_intent
 
@@ -320,7 +316,7 @@ def test_apply_post_format_wrapper(tmp_path, monkeypatch):
         tmp_path / "p.yaml",
         {"format": "[FACTS] {text}"},
     )
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.profile_dirs": [str(tmp_path)]})
     slm_intent.invalidate_cache()
     prof = slm_intent.load_profile("p")
 
@@ -329,7 +325,7 @@ def test_apply_post_format_wrapper(tmp_path, monkeypatch):
     assert slm_intent._apply_post("", prof) == ""
 
 
-def test_apply_post_combined_pipeline(tmp_path, monkeypatch):
+def test_apply_post_combined_pipeline(tmp_path, monkeypatch, m3_settings):
     """Full pipeline: skip, then strip, then format."""
     import slm_intent
 
@@ -341,7 +337,7 @@ def test_apply_post_combined_pipeline(tmp_path, monkeypatch):
             "format": "<<{text}>>",
         },
     )
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.profile_dirs": [str(tmp_path)]})
     slm_intent.invalidate_cache()
     prof = slm_intent.load_profile("p")
 
@@ -350,12 +346,12 @@ def test_apply_post_combined_pipeline(tmp_path, monkeypatch):
     assert slm_intent._apply_post("Y | Z", prof) == "<<Y | Z>>"
 
 
-def test_apply_post_default_noop(tmp_path, monkeypatch):
+def test_apply_post_default_noop(tmp_path, monkeypatch, m3_settings):
     """Profiles without `post:` leave output unchanged (post is all optional)."""
     import slm_intent
 
     _write_profile(tmp_path / "default.yaml")  # no post block
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.profile_dirs": [str(tmp_path)]})
     slm_intent.invalidate_cache()
     prof = slm_intent.load_profile("default")
 
@@ -364,7 +360,7 @@ def test_apply_post_default_noop(tmp_path, monkeypatch):
     assert slm_intent._apply_post("", prof) == ""
 
 
-def test_parse_profile_rejects_invalid_regex_in_post(tmp_path, monkeypatch):
+def test_parse_profile_rejects_invalid_regex_in_post(tmp_path, monkeypatch, m3_settings):
     """Bad regex in post.strip_prefixes fails loudly at load time.
 
     load_profile raises ValueError for malformed profiles (not None) — a
@@ -376,14 +372,14 @@ def test_parse_profile_rejects_invalid_regex_in_post(tmp_path, monkeypatch):
         tmp_path / "bad.yaml",
         {"strip_prefixes": ["[invalid("]},
     )
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.profile_dirs": [str(tmp_path)]})
     slm_intent.invalidate_cache()
 
     with pytest.raises(ValueError, match="invalid regex"):
         slm_intent.load_profile("bad")
 
 
-def test_parse_profile_rejects_format_without_placeholder(tmp_path, monkeypatch):
+def test_parse_profile_rejects_format_without_placeholder(tmp_path, monkeypatch, m3_settings):
     """post.format without {text} is rejected with a clear ValueError."""
     import slm_intent
 
@@ -391,7 +387,7 @@ def test_parse_profile_rejects_format_without_placeholder(tmp_path, monkeypatch)
         tmp_path / "bad.yaml",
         {"format": "just a string"},
     )
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.profile_dirs": [str(tmp_path)]})
     slm_intent.invalidate_cache()
 
     with pytest.raises(ValueError, match=r"post\.format must contain"):
@@ -401,12 +397,12 @@ def test_parse_profile_rejects_format_without_placeholder(tmp_path, monkeypatch)
 # ── Backend dispatch tests ───────────────────────────────────────────────────
 
 
-def test_parse_profile_default_backend_is_openai(tmp_path, monkeypatch):
+def test_parse_profile_default_backend_is_openai(tmp_path, monkeypatch, m3_settings):
     """Profiles without `backend:` default to 'openai' (back-compat)."""
     import slm_intent
 
     _write_profile(tmp_path / "default.yaml")
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.profile_dirs": [str(tmp_path)]})
     slm_intent.invalidate_cache()
 
     prof = slm_intent.load_profile("default")
@@ -415,12 +411,12 @@ def test_parse_profile_default_backend_is_openai(tmp_path, monkeypatch):
     assert prof.anthropic_version == "2023-06-01"
 
 
-def test_parse_profile_backend_anthropic(tmp_path, monkeypatch):
+def test_parse_profile_backend_anthropic(tmp_path, monkeypatch, m3_settings):
     """Profile can declare backend: anthropic."""
     import slm_intent
 
     _write_profile(tmp_path / "p.yaml", backend="anthropic", cache_system=False)
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.profile_dirs": [str(tmp_path)]})
     slm_intent.invalidate_cache()
 
     prof = slm_intent.load_profile("p")
@@ -428,12 +424,12 @@ def test_parse_profile_backend_anthropic(tmp_path, monkeypatch):
     assert prof.cache_system is False
 
 
-def test_parse_profile_rejects_unknown_backend(tmp_path, monkeypatch):
+def test_parse_profile_rejects_unknown_backend(tmp_path, monkeypatch, m3_settings):
     """Unknown backend is a deploy error."""
     import slm_intent
 
     _write_profile(tmp_path / "bad.yaml", backend="gemini")
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.profile_dirs": [str(tmp_path)]})
     slm_intent.invalidate_cache()
 
     with pytest.raises(ValueError, match="backend must be"):
@@ -441,13 +437,13 @@ def test_parse_profile_rejects_unknown_backend(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_call_model_openai_body_shape(tmp_path, monkeypatch):
+async def test_call_model_openai_body_shape(tmp_path, monkeypatch, m3_settings):
     """_call_model with backend=openai sends OpenAI chat/completions body."""
     import httpx
     import slm_intent
 
     _write_profile(tmp_path / "default.yaml", api_key_service=None)
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.profile_dirs": [str(tmp_path)]})
     slm_intent.invalidate_cache()
     prof = slm_intent.load_profile("default")
     assert prof.backend == "openai"
@@ -480,14 +476,14 @@ async def test_call_model_openai_body_shape(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_call_model_anthropic_body_shape(tmp_path, monkeypatch):
+async def test_call_model_anthropic_body_shape(tmp_path, monkeypatch, m3_settings):
     """_call_model with backend=anthropic sends Anthropic messages body,
     with system as a top-level field wrapped in cache_control."""
     import httpx
     import slm_intent
 
     _write_profile(tmp_path / "a.yaml", backend="anthropic", api_key_service=None)
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.profile_dirs": [str(tmp_path)]})
     slm_intent.invalidate_cache()
     prof = slm_intent.load_profile("a")
     assert prof.backend == "anthropic"
@@ -524,7 +520,7 @@ async def test_call_model_anthropic_body_shape(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_call_model_anthropic_no_cache(tmp_path, monkeypatch):
+async def test_call_model_anthropic_no_cache(tmp_path, monkeypatch, m3_settings):
     """When cache_system=False, system is sent as a plain string."""
     import httpx
     import slm_intent
@@ -535,7 +531,7 @@ async def test_call_model_anthropic_no_cache(tmp_path, monkeypatch):
         cache_system=False,
         api_key_service=None,
     )
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.profile_dirs": [str(tmp_path)]})
     slm_intent.invalidate_cache()
     prof = slm_intent.load_profile("a")
 
@@ -561,13 +557,13 @@ async def test_call_model_anthropic_no_cache(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_call_model_anthropic_uses_x_api_key(tmp_path, monkeypatch):
+async def test_call_model_anthropic_uses_x_api_key(tmp_path, monkeypatch, m3_settings):
     """When an API key resolves, anthropic backend uses x-api-key header."""
     import httpx
     import slm_intent
 
     _write_profile(tmp_path / "a.yaml", backend="anthropic", api_key_service="FAKE_KEY_SVC")
-    monkeypatch.setenv("M3_SLM_PROFILES_DIR", str(tmp_path))
+    m3_settings({"slm.profile_dirs": [str(tmp_path)]})
     slm_intent.invalidate_cache()
 
     # Monkey-patch _resolve_api_key to return a known string without

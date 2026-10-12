@@ -11,6 +11,12 @@ Optionally writes a consolidated summary into memory_items.
 Use --no-memory to skip the memory write step.
 """
 
+from m3_core.seams import roots as _seam_roots
+
+# --config FILE (the file this job was registered with) is pinned before any
+# import below binds a root at import time (chatlog_config, log dirs).
+_seam_roots.pin_from_argv()
+
 import argparse
 import asyncio
 import os

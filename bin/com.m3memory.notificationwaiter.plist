@@ -60,6 +60,7 @@
         <string>--supervise</string>
         <string>--timeout</string>
         <string>3600</string>
+[M3_CONFIG_ARGS]
     </array>
     <key>RunAtLoad</key>
     <true/>

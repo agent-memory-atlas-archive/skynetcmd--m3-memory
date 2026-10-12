@@ -8,7 +8,10 @@ import sqlite3
 import sys
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Literal, overload, override
+from typing import TYPE_CHECKING, Literal, cast, overload, override
+
+if TYPE_CHECKING:
+    from memory.backends.base import BackendName
 
 from m3_core.seams import is_windows
 from m3_core.seams import roots as _roots
@@ -440,11 +443,18 @@ def get_m3_config_root() -> str:
 CONFIG_ROOT_ENV = _roots.CONFIG_ROOT_ENV
 CONFIG_ROOT_LEGACY = _roots.CONFIG_ROOT_LEGACY
 CONFIG_ROOT_DEFAULT = _roots.CONFIG_ROOT_DEFAULT
+CONFIG_ROOT_ARG = _roots.CONFIG_ROOT_ARG
+CONFIG_FILE_NAME = _roots.CONFIG_FILE_NAME
 
 
 def config_root_with_tier() -> tuple[str, str]:
     """(config root, tier); the precedence is owned by ``m3_memory._roots``."""
     return _roots.config_root_with_tier()
+
+
+def pinned_config_file() -> str | None:
+    """The ``m3 --config`` file pinned for this process, or None."""
+    return _roots.pinned_config_file()
 
 
 def dotenv_path() -> str | None:
@@ -1022,17 +1032,22 @@ def store_is_a_file() -> bool:
     (reembed_space) returned True on ANY error, so a misconfigured PostgreSQL
     install fell into the SQLite file path silently.
 
-    The answer is the backend's ``stores_databases_as_files``. Without the
-    memory package (bootstrap, standalone) no backend object exists, so the
-    configured NAME decides: SQLite is the only file backend that can be
-    opened then. Only ImportError falls back; any other error from the seam is
-    a configuration fault and propagates (§3).
+    The answer is the backend CLASS's ``stores_databases_as_files``: a fact of
+    the backend kind, so asking it builds no instance and needs no DSN. Building
+    one made a PostgreSQL selection without a DSN crash here, before a tool could
+    give its own refusal ("--database names a SQLite file"). Without the memory
+    package (bootstrap, standalone) the configured NAME decides: SQLite is the
+    only file backend that can be opened then. Only ImportError falls back; any
+    other error from the seam is a configuration fault and propagates (§3).
     """
     try:
-        from memory.backends import active_backend
+        from memory.backends.registry import backend_factory_for
     except ImportError:
         return resolve_backend_name() == "sqlite"
-    return bool(active_backend().stores_databases_as_files)
+    # The registry validated the name against SELECTABLE_BACKENDS (db.backend's
+    # one_of), so it is one of the BackendName literals.
+    name = cast("BackendName", resolve_backend_name())
+    return bool(backend_factory_for(name).stores_databases_as_files)
 
 
 # The backend names M3_DB_BACKEND may select. `memory.backends.selector` and
@@ -1154,6 +1169,31 @@ def seam_dialect():
             f"inspect: put the m3 payload's bin/ on sys.path, or run m3 setup"
         ) from None
     return dialect()
+
+
+class _ConfigAction(argparse.Action):
+    """``--config FILE``: pin the config file for the whole PROCESS while the
+    command line is parsed (``m3_memory._roots.pin_config_file``), so a script
+    that resolves a root or a setting after parsing follows it with no code of
+    its own, and none can accept the flag and then ignore it."""
+
+    @override
+    def __call__(self, parser, namespace, values, option_string=None):
+        _roots.pin_config_file(str(values))
+        setattr(namespace, self.dest, str(values))
+
+
+def add_config_arg(parser: argparse.ArgumentParser) -> None:
+    """Register ``--config FILE`` on a script's parser: the file its scheduled
+    task or service was registered with (``_roots.located_config_args``)."""
+    parser.add_argument(
+        "--config",
+        dest="config_file",
+        metavar="FILE",
+        default=None,
+        action=_ConfigAction,
+        help="Read this m3_config.toml (its directory is the config root).",
+    )
 
 
 class _StoreAction(argparse.Action):

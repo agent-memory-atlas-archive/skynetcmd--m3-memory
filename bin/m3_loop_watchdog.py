@@ -41,6 +41,23 @@ DESIGN (§2 modularity, §3 fail-safe, §5 effectiveness)
 
 from __future__ import annotations
 
+import sys as _sys
+
+# --config FILE (the file this job was registered with) is pinned before any
+# import below binds a root at import time. Guarded like this module's other m3
+# imports: a stripped payload still runs, on the default roots, and says so.
+try:
+    from m3_core.seams import roots as _seam_roots
+
+    _seam_roots.pin_from_argv()
+except ImportError as _e:
+    if any(a == "--config" or a.startswith("--config=") for a in _sys.argv[1:]):
+        print(
+            f"observed: --config given but m3_core is not importable ({_e}); running on the "
+            "default config root. inspect: the payload's bin/ (reinstall with `m3 upgrade`)",
+            file=_sys.stderr,
+        )
+
 import json
 import os
 import subprocess

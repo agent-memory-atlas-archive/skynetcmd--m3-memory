@@ -31,7 +31,10 @@ def test_an_elevated_shell_is_not_asked_to_elevate(monkeypatch):
     )
     monkeypatch.setattr(cli, "_run_bin_script", lambda script, argv: ran.append(argv) or 0)
     assert cli._cmd_schedules(_args("add")) == 0
-    assert ran == [["--add", "AgentOS_NotificationWaiter"]]
+    from m3_memory._roots import located_config_args
+
+    # The sandbox's config root is not the default, so the tasks carry --config.
+    assert ran == [["--add", "AgentOS_NotificationWaiter", *located_config_args()]]
 
 
 def test_no_person_at_the_console_is_refused_not_prompted(monkeypatch, capsys):

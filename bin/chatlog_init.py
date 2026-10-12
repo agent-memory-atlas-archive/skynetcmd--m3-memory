@@ -18,6 +18,12 @@ path equality.
 
 from __future__ import annotations
 
+from m3_core.seams import roots as _seam_roots
+
+# --config FILE (the file this job was registered with) is pinned before any
+# import below binds a root at import time (chatlog_config, log dirs).
+_seam_roots.pin_from_argv()
+
 import argparse
 import json
 import logging
@@ -667,6 +673,9 @@ def main() -> int:
         ),
     )
 
+    from m3_core.paths import add_config_arg
+
+    add_config_arg(parser)  # pinned already (pin_from_argv); declared for --help
     args = parser.parse_args()
 
     # Standalone toggle actions: apply and exit without reconfigure prompts.

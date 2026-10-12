@@ -14,6 +14,6 @@ Documentation=https://github.com/skynetcmd/m3-memory
 
 [Service]
 Type=oneshot
-ExecStart=[M3_PYTHON] [M3_MEMORY_ROOT]/bin/m3_loop_watchdog.py
+ExecStart=[M3_PYTHON] [M3_MEMORY_ROOT]/bin/m3_loop_watchdog.py [M3_CONFIG_ARGS]
 # The watchdog restarts m3-cognitive-loop.service; it must not be considered
 # part of that unit's cgroup or a restart would kill the watchdog mid-run.

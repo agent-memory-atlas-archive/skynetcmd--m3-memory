@@ -25,6 +25,7 @@
         <string>[M3_DASHBOARD_PORT]</string>
         <string>--log-file</string>
         <string>[M3_LOGS_ROOT]/dashboard.log</string>
+[M3_CONFIG_ARGS]
     </array>
     <key>RunAtLoad</key>
     <true/>

@@ -47,6 +47,7 @@ from m3_memory.install.sections import (  # noqa: F401  (re-exported facade surf
     _chatlog_db_stats,
     _chatlog_section,
     _claude_hook_state,
+    _config_env_disagreement_section,
     _crypto_section,
     _deprecated_env_section,
     _embedder_tier_section,
@@ -1265,29 +1266,34 @@ def _persist_pg_backend(dsn: str) -> list[str]:
     try:
         from m3_core.config import settings
         from m3_core.config.keys import DB_BACKEND
-        from m3_core.config.loader import locate
+        from m3_core.config.loader import ConfigFileError, locate
         from m3_core.config.writer import set_values
     except ImportError as e:
         msgs.append(
-            f"[!] the PostgreSQL backend was NOT recorded: {e}. m3 runs on SQLite until it is. inspect: m3 doctor"
+            f"[!] the PostgreSQL backend was NOT recorded (m3's config package did not import: {e}); "
+            "m3 selects PostgreSQL only where M3_DB_BACKEND=postgres is set. inspect: m3 doctor"
         )
     else:
-        origin = settings.origin_of(DB_BACKEND.name)
-        if origin.startswith("env:") and settings.setting(DB_BACKEND.name) != "postgres":
-            name = origin.removeprefix("env:")
+        # Transition report (user decision 2026-10-12, m3 64ea4eab): an env var
+        # that disagrees with what setup writes is named. M3_DB_BACKEND is the
+        # env_override key (U9), so here the env var WINS.
+        for name, seen in settings.env_contradicting(DB_BACKEND, "postgres"):
             where = ", ".join(_find_env_var_locations(name)) or "the environment"
             msgs.append(
-                f"[!] {name}={settings.setting(DB_BACKEND.name)} is set in {where} and overrides "
-                f"m3_config.toml: m3 runs on that backend until it is removed or set to postgres."
+                f"[!] {name}={seen} is set in {where} and overrides m3_config.toml "
+                f'([db] backend = "postgres"): m3 runs on {seen} until it is removed or set to postgres.'
             )
         settings.set_from_cli({DB_BACKEND.name: "postgres"})  # this run's later steps
         try:
             path = set_values(locate(), {DB_BACKEND: "postgres"})
             msgs.append(f'[+] primary backend recorded: [db] backend = "postgres" in {path}')
-        except (OSError, ValueError) as e:  # ConfigWriteError is a ValueError
+        except (OSError, ValueError, ConfigFileError) as e:  # ConfigWriteError is a ValueError;
+            # ConfigFileError: the existing file does not load. Reported, never fatal: the
+            # install's other steps already ran (best-effort post-install).
             msgs.append(
-                f"[!] the PostgreSQL backend was NOT recorded in m3_config.toml: {e}. m3 runs on "
-                'SQLite until it is: add [db] backend = "postgres" to that file. inspect: m3 doctor'
+                f"[!] the PostgreSQL backend was NOT recorded in {locate().file}: {e}. That file does "
+                "not select PostgreSQL, so m3 uses it only where M3_DB_BACKEND=postgres is set. "
+                'fix: set [db] backend = "postgres" in that file. inspect: m3 config show --origin'
             )
 
     try:
@@ -2935,6 +2941,8 @@ def doctor(fix: bool = False, brief: bool = False) -> int:
     _backend_section(cfg)
 
     _deprecated_env_section()
+
+    _config_env_disagreement_section()
 
     _plaintext_dsn_section()
 

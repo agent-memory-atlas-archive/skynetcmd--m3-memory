@@ -5,6 +5,12 @@ Automatically configures crontab (macOS/Linux) or schtasks (Windows).
 Uses project virtual environment paths and ensures log directories exist.
 """
 
+from m3_core.seams import roots as _seam_roots
+
+# --config FILE (setup passes the file it chose) is pinned before any import
+# below binds a root, and is what every task registered here then carries.
+_seam_roots.pin_from_argv()
+
 import argparse
 import html
 import os
@@ -13,7 +19,7 @@ import re
 import subprocess
 from typing import cast
 
-from m3_core.seams import is_macos, is_windows
+from m3_core.seams import is_macos, is_windows, roots
 
 
 def _run(*args, **kwargs):
@@ -227,7 +233,21 @@ def _render_template(template_path: str, m3_memory_root: str, python_exe: str, p
     )
     if port is not None:
         content = content.replace("[M3_DASHBOARD_PORT]", str(port))
-    return content
+    placeholder, config_args = _config_args_placeholder(template_path)
+    return content.replace(placeholder, config_args)
+
+
+def _config_args_placeholder(template_path: str) -> tuple[str, str]:
+    """[M3_CONFIG_ARGS] -> this registration's --config (roots.located_config_args),
+    in the template's own syntax; for the default config root the placeholder goes
+    and the rendered file is exactly what it was before the placeholder existed."""
+    args = roots.located_config_args()
+    if template_path.endswith(".plist"):
+        from xml.sax.saxutils import escape
+
+        return "[M3_CONFIG_ARGS]\n", "".join(f"        <string>{escape(a)}</string>\n" for a in args)
+    # systemd ExecStart: double quotes keep a path with spaces one argument.
+    return " [M3_CONFIG_ARGS]", "".join(f' "{a}"' if " " in a else f" {a}" for a in args)
 
 
 def install_unix_dashboard(m3_memory_root, port: int = 8088):
@@ -1075,7 +1095,7 @@ def get_schedule_specs(m3_memory_root, dashboard_port: int = 8088):
     def _script(name):
         return os.path.join(bin_dir, name)
 
-    return [
+    specs = [
         {
             "name": "AgentOS_WeeklyAuditor",
             "args": [_script("weekly_auditor.py"), "--log-file", _log("auditor.log")],
@@ -1285,6 +1305,13 @@ def get_schedule_specs(m3_memory_root, dashboard_port: int = 8088):
             "description": "Local web dashboard (windowless, localhost HTTP :8088)",
         },
     ]
+    # A task runs without the registering shell's environment, so a non-default
+    # config root reaches it only as --config (none for the default root: those
+    # definitions stay as they were).
+    extra = roots.located_config_args()
+    for spec in specs:
+        spec["args"] = [*spec["args"], *extra]
+    return specs
 
 
 def _filter_tasks(tasks: list, selector: str | None) -> list:
@@ -2716,6 +2743,9 @@ def main():
     parser.add_argument(
         "--port", type=int, default=8088, help="Port for the dashboard service (with --add dashboard). Default 8088."
     )
+    from m3_core.paths import add_config_arg
+
+    add_config_arg(parser)  # pinned already (pin_from_argv); declared for --help
     args = parser.parse_args()
 
     if args.list:

@@ -715,6 +715,12 @@ def _cmd_schedules(args: argparse.Namespace) -> int:
     port = getattr(args, "port", None)
     if port:
         argv += ["--port", str(port)]
+    # The config file this command located, unless it is the default: an elevated
+    # child starts from the user's environment, not this one, and the tasks it
+    # registers run without any environment of ours.
+    from m3_memory._roots import located_config_args
+
+    argv += located_config_args()
 
     # On Windows, --repair and --add/--remove need admin: registering a boot
     # (ONSTART) task, and deleting one, are both privileged. Running unelevated
@@ -1916,6 +1922,13 @@ Examples:
         default=None,
         help="Set by `m3 upgrade` on the steps it runs: they report only changes and problems.",
     )
+    parser.add_argument(
+        "--config",
+        dest="config_file",  # `m3 config show --config` has its own; a shared dest would be overwritten
+        metavar="FILE",
+        default=None,
+        help="Read this m3_config.toml (its directory is the config root) instead of the located one.",
+    )
 
     subparsers = parser.add_subparsers(dest="command", metavar="<command>")
 
@@ -2409,6 +2422,10 @@ Examples:
     # by the outer parser — they're passed through to the child script.
     # args.rest carries them.
     args, extras = parser.parse_known_args()
+    if args.config_file:
+        from m3_memory._roots import pin_config_file
+
+        pin_config_file(args.config_file)
     if args.caller:
         from m3_memory.wizard.ui import set_caller
 

@@ -23,6 +23,7 @@
         <string>300</string>
         <string>--log-file</string>
         <string>[M3_LOGS_ROOT]/cognitive_loop.log</string>
+[M3_CONFIG_ARGS]
     </array>
     <key>RunAtLoad</key>
     <true/>

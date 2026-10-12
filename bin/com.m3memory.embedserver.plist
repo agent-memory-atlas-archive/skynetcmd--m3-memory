@@ -41,6 +41,7 @@
         <string>[M3_MEMORY_ROOT]/bin/embed_server_inproc.py</string>
         <string>--port</string>
         <string>8082</string>
+[M3_CONFIG_ARGS]
     </array>
     <key>RunAtLoad</key>
     <true/>

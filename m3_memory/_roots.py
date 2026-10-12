@@ -40,6 +40,8 @@ MODELS_ROOT_ENV = "M3_MODELS_ROOT"
 CONFIG_ROOT_ENV = "env:M3_CONFIG_ROOT"
 CONFIG_ROOT_LEGACY = "legacy:M3_MEMORY_ROOT/config"
 CONFIG_ROOT_DEFAULT = "default:~/.m3/config"
+CONFIG_ROOT_ARG = "arg:--config"
+CONFIG_FILE_NAME = "m3_config.toml"
 
 
 def abs_root(root: str) -> str:
@@ -127,8 +129,63 @@ def _derived(env_name: str, sub: str) -> str:
     return _home(".m3", sub)
 
 
+_pinned_config: str | None = None
+
+
+def pin_config_file(path: str | os.PathLike[str] | None) -> None:
+    """``m3 --config FILE``: this process reads FILE and its directory is the
+    config root, above ``M3_CONFIG_ROOT`` (CONFIG_DESIGN §9). Process-wide, like
+    ``--store``'s process layer; a child gets ``--config`` (``_childenv``), never
+    env. ``None`` clears it. The file need not exist yet: setup creates it."""
+    global _pinned_config
+    _pinned_config = abs_root(os.fspath(path)) if path is not None else None
+
+
+def pinned_config_file() -> str | None:
+    return _pinned_config
+
+
+def pin_from_argv(argv: list[str] | None = None) -> None:
+    """Pin ``--config FILE`` / ``--config=FILE`` from a script's argv BEFORE its
+    m3 imports run. Several modules bind roots at import (chatlog_config's paths,
+    log dirs), so the argparse pin (``add_config_arg``) comes too late for them;
+    an inherited env var never did. Call it as a scheduled entry script's first
+    statement. A ``--config`` with no value is left for argparse to reject."""
+    if argv is None:
+        import sys
+
+        argv = sys.argv
+    for i, arg in enumerate(argv[1:], start=1):
+        if arg.startswith("--config="):
+            pin_config_file(arg.split("=", 1)[1])
+            return
+        if arg == "--config" and i + 1 < len(argv):
+            pin_config_file(argv[i + 1])
+            return
+
+
+def located_config_args() -> list[str]:
+    """``--config FILE`` for a job that runs WITHOUT this process's environment (a
+    scheduled task, a service): the config file this process located, unless that
+    is the default one, which the job finds by itself. Covers a ``--config`` pin
+    AND ``M3_CONFIG_ROOT`` / the legacy tier: a job registered from a shell that
+    exports M3_CONFIG_ROOT would otherwise run against the default store."""
+    if config_root_with_tier()[1] == CONFIG_ROOT_DEFAULT:
+        return []
+    return ["--config", config_file()]
+
+
+def config_args() -> list[str]:
+    """``--config FILE`` for an m3 CLI child when this process has a pin; [] otherwise
+    (the child locates the same file the usual way). The pin reaches children as an
+    argument, never as env (CONFIG_DESIGN §5)."""
+    return ["--config", _pinned_config] if _pinned_config is not None else []
+
+
 def config_root_with_tier() -> tuple[str, str]:
     """(config root, tier): which precedence tier answered, for `m3 config show`."""
+    if _pinned_config is not None:
+        return posixpath.dirname(_pinned_config), CONFIG_ROOT_ARG
     if _env(CONFIG_ROOT_ENV_NAME):
         return _derived(CONFIG_ROOT_ENV_NAME, "config"), CONFIG_ROOT_ENV
     if _env(MEMORY_ROOT_ENV):
@@ -137,10 +194,17 @@ def config_root_with_tier() -> tuple[str, str]:
 
 
 def config_root() -> str:
+    if _pinned_config is not None:
+        return posixpath.dirname(_pinned_config)
     return _derived(CONFIG_ROOT_ENV_NAME, "config")
 
 
-CONFIG_FILE_NAME = "m3_config.toml"
+def config_file() -> str:
+    """The m3_config.toml this process reads: the ``--config`` file, else
+    ``<config root>/m3_config.toml``."""
+    return _pinned_config or posixpath.join(config_root(), CONFIG_FILE_NAME)
+
+
 _file_key: tuple[str, int, int] | None = None
 _file_values: dict[str, str] = {}
 
@@ -157,7 +221,7 @@ def _file_paths() -> dict[str, str]:
     the loader does (§3). tests/test_roots_from_file.py pins parity with
     ``settings.setting("paths.*")``."""
     global _file_key, _file_values
-    path = os.path.join(config_root(), CONFIG_FILE_NAME)
+    path = config_file()
     try:
         st = os.stat(path)
     except OSError:
