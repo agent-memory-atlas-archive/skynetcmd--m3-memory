@@ -84,12 +84,14 @@ def test_bootstrap_shim_only_for_sqlite(monkeypatch, resolver):
 
 
 def test_a_seam_fault_is_not_read_as_a_file(monkeypatch):
-    mb = importlib.import_module("memory.backends")
+    # The question is answered from the backend CLASS (no instance, no DSN), so the
+    # seam call that can fault is the registry lookup.
+    reg = importlib.import_module("memory.backends.registry")
     paths = importlib.import_module("m3_core.paths")
 
-    def broken():
+    def broken(name):
         raise RuntimeError("seam misconfigured")
 
-    monkeypatch.setattr(mb, "active_backend", broken)
+    monkeypatch.setattr(reg, "backend_factory_for", broken)
     with pytest.raises(RuntimeError, match="seam misconfigured"):
         paths.store_is_a_file()

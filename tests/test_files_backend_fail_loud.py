@@ -15,12 +15,12 @@ import pytest
 
 def test_an_unresolvable_backend_raises(monkeypatch):
     fdb = importlib.import_module("files_memory.db")
-    mb = importlib.import_module("memory.backends")
+    reg = importlib.import_module("memory.backends.registry")  # store_is_a_file's seam call
 
-    def boom():
+    def boom(name):
         raise RuntimeError("backend resolution failed")
 
-    monkeypatch.setattr(mb, "active_backend", boom)
+    monkeypatch.setattr(reg, "backend_factory_for", boom)
     with pytest.raises(RuntimeError, match="backend resolution failed"):
         fdb._files_store_is_a_schema()
 
