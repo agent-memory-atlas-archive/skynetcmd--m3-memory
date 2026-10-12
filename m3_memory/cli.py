@@ -1684,8 +1684,50 @@ def _spec_is_complex(spec) -> bool:
     return False
 
 
-def _add_tool_domain_subcommands(subparsers) -> None:
+class _VersionAction(argparse.Action):
+    """``--version``, resolved when used: the version lookup costs ~55 ms, and
+    almost no command needs it (lazy imports design, 2026-10-12)."""
+
+    def __init__(self, option_strings, dest=argparse.SUPPRESS, default=argparse.SUPPRESS, help=None):
+        super().__init__(option_strings=option_strings, dest=dest, default=default, nargs=0, help=help)
+
+    @override
+    def __call__(self, parser, namespace, values, option_string=None):
+        from m3_memory import __version__
+
+        print(f"m3-memory {__version__}")
+        parser.exit()
+
+
+# Global options that take a value: the word after them is not the command.
+_GLOBAL_VALUE_OPTIONS = frozenset({"--config", "--caller"})
+
+
+def _command_word(argv: list[str]) -> str | None:
+    """The first command word on the command line (``memory`` in
+    ``m3 --config f.toml memory memory_search``), or None. Only used to decide
+    which domain's tool subcommands to build; argparse still does the parsing."""
+    skip = False
+    for word in argv:
+        if skip:
+            skip = False
+            continue
+        if word in _GLOBAL_VALUE_OPTIONS:
+            skip = True
+            continue
+        if word.startswith("-"):
+            continue
+        return word
+    return None
+
+
+def _add_tool_domain_subcommands(subparsers, command: str | None = None) -> None:
     """Register `m3 <domain> <tool>` subcommands generated from the catalog.
+
+    Only the domain ``command`` names gets its tools: the catalog import costs
+    ~160 ms (with httpx and the Rust core under it), and `m3 config get` must
+    not pay it. Every other domain is a stub carrying its name and description,
+    so `m3 --help` still lists it.
 
     Best-effort: if the catalog can't be imported (no install yet), skip
     silently — the operational commands above are unaffected.
@@ -1693,9 +1735,28 @@ def _add_tool_domain_subcommands(subparsers) -> None:
     if not _bin_on_path():
         return
     try:
-        import mcp_tool_catalog as _cat
         import tool_domains as _td
     except Exception:
+        return
+    wanted = {d for d in _td.DOMAIN_DESCRIPTIONS if _DOMAIN_CMD.get(d, d) == command}
+    for domain in sorted(set(_td.DOMAIN_DESCRIPTIONS) - wanted):
+        cmd = _DOMAIN_CMD.get(domain, domain)
+        stub = subparsers.add_parser(
+            cmd, help=_esc(f"{_td.DOMAIN_DESCRIPTIONS[domain]} (run `m3 {cmd} --help` for its tools).")
+        )
+        stub.set_defaults(func=_cmd_tool_dispatch, _domain_cmd=cmd)
+    if not wanted:
+        return
+    try:
+        import mcp_tool_catalog as _cat
+    except Exception as e:  # noqa: BLE001 -- reported when the named domain runs, below
+        # The command line names this domain, so a silent skip would surface as
+        # argparse's "invalid choice", which names the wrong problem (§3).
+        for domain in wanted:
+            cmd = _DOMAIN_CMD.get(domain, domain)
+            broken = subparsers.add_parser(cmd, help=_esc(_td.DOMAIN_DESCRIPTIONS[domain]))
+            broken.add_argument("_rest", nargs=argparse.REMAINDER)
+            broken.set_defaults(func=_catalog_unavailable, _domain_cmd=cmd, _catalog_error=f"{type(e).__name__}: {e}")
         return
 
     import argparse as _ap
@@ -1705,7 +1766,9 @@ def _add_tool_domain_subcommands(subparsers) -> None:
     for spec in _cat.TOOLS:
         if spec.name in _CLI_TOOL_EXCLUDE:
             continue
-        by_domain[_td.domain_of_tool(spec.name)].append(spec)
+        domain = _td.domain_of_tool(spec.name)
+        if domain in wanted:
+            by_domain[domain].append(spec)
 
     for domain in sorted(by_domain):
         cmd = _DOMAIN_CMD.get(domain, domain)
@@ -1854,6 +1917,16 @@ def _add_tool_domain_subcommands(subparsers) -> None:
                 _tool_complex=complex_,
                 _tool_destructive=not spec.default_allowed,
             )
+
+
+def _catalog_unavailable(args: argparse.Namespace) -> int:
+    """`m3 <domain> ...` when the tool catalog did not import: say so, with the cause."""
+    print(
+        f"Error: `m3 {args._domain_cmd}` needs the tool catalog, which did not import "
+        f"({args._catalog_error}). inspect: `m3 doctor`; repair: `m3 upgrade`.",
+        file=sys.stderr,
+    )
+    return 1
 
 
 def _cmd_tool_dispatch(args: argparse.Namespace) -> int:
@@ -2117,8 +2190,6 @@ def _warn_if_not_applied(result, tool: str) -> None:
 
 
 def main() -> None:
-    from m3_memory import __version__
-
     # --set={...} is read once, applied, and removed here, before any parser or
     # module reads a setting; the command parses the rest untouched.
     _bin.ensure_on_path()
@@ -2167,7 +2238,7 @@ Examples:
   m3
 """,
     )
-    parser.add_argument("--version", action="version", version=f"m3-memory {__version__}")
+    parser.add_argument("--version", action=_VersionAction, help="show the version and exit")
     parser.add_argument(
         "--caller",
         choices=("upgrade",),
@@ -2196,7 +2267,7 @@ Examples:
     p_install.add_argument(
         "--tag",
         default=None,
-        help=f"Override the GitHub tag to fetch (default: v{__version__}).",
+        help="Override the GitHub tag to fetch (default: the tag of this m3's version).",
     )
     p_install.add_argument(
         "--non-interactive",
@@ -2319,7 +2390,7 @@ Examples:
     p_update.add_argument(
         "--tag",
         default=None,
-        help=f"Override the GitHub tag to fetch (default: v{__version__}).",
+        help="Override the GitHub tag to fetch (default: the tag of this m3's version).",
     )
     p_update.add_argument(
         "--yes-core",
@@ -2718,7 +2789,7 @@ Examples:
 
     # Generated tool subcommands: `m3 <domain> <tool>` (and `m3 chat <tool>` for
     # the chatlog domain). Best-effort — skipped if no install/dev checkout.
-    _add_tool_domain_subcommands(subparsers)
+    _add_tool_domain_subcommands(subparsers, _command_word(sys.argv[1:]))
 
     # Use parse_known_args so flags after `chatlog <sub>` aren't fought over
     # by the outer parser — they're passed through to the child script.

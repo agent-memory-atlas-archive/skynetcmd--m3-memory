@@ -356,6 +356,13 @@ the policy is forward-going only.
 
 ### Changed
 
+- **`m3` commands start faster.** A command now loads only what it uses: the
+  tool catalog loads for `m3 <domain> <tool>` commands, and the version only for
+  `--version`. `m3 config get` and `m3 --help` went from about 350 ms to about
+  150 ms on a Windows test machine.
+  **Affected:** CLI users and agents that call `m3` directly · **Action:** none ·
+  **Data status:** none.
+
 - **The storage backend is chosen in `m3_config.toml`, not the environment.**
   `[db] backend = "postgres"` (or `m3 config set db.backend postgres`) selects
   it; `--set` changes it for one run. `M3_DB_BACKEND` no longer overrides the
