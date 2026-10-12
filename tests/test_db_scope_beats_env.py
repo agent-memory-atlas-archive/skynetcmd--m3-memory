@@ -62,11 +62,10 @@ def test_the_scope_survives_the_async_bridge(two_dbs):
     assert asyncio.run(caller()) == scoped
 
 
-def test_a_dsn_from_the_scope_names_the_scope(two_dbs, monkeypatch):
+def test_a_dsn_from_the_scope_names_the_scope():
     """The refusal names which knob held the DSN, and never echoes the password."""
     from m3_core.paths import _active_db, resolve_db_path
 
-    monkeypatch.delenv("M3_DATABASE")
     token = _active_db.set("postgresql://u:hunter2pw@h/db")
     try:
         with pytest.raises(ValueError) as e:

@@ -103,9 +103,8 @@ def test_on_postgres_no_sqlite_file_is_opened_or_created(monkeypatch, tmp_path, 
     from conftest import select_backend
 
     select_backend("postgres")
-    engine = tmp_path / "engine"
-    engine.mkdir()
-    monkeypatch.setenv("M3_ENGINE_ROOT", str(engine))
+    engine = tmp_path / "engine"  # the sandbox's engine root (conftest m3_sandbox)
+    engine.mkdir(exist_ok=True)
     _state(monkeypatch, tmp_path, _iso(2))
     mod = _load_hook()
     mod.main()

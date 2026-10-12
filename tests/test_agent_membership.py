@@ -41,14 +41,17 @@ _ANCIENT = "2020-01-01T00:00:00Z"
 
 @pytest.fixture
 def agent(monkeypatch, tmp_path):
+    from m3_core.paths import active_database
+
     from conftest import create_full_main_schema
 
     db_path = tmp_path / "membership.db"
     create_full_main_schema(db_path)
-    monkeypatch.setenv("M3_DATABASE", str(db_path))
-    aid = f"pytest-member-{uuid.uuid4().hex[:12]}"
-    agent_register_impl(aid, "test")
-    return aid
+    # A scope, not M3_DATABASE: a test points m3 at its store the way code does.
+    with active_database(str(db_path)):
+        aid = f"pytest-member-{uuid.uuid4().hex[:12]}"
+        agent_register_impl(aid, "test")
+        yield aid
 
 
 def _row(aid):
