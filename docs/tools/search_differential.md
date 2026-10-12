@@ -1,8 +1,8 @@
 ---
 tool: bin/search_differential.py
-sha1: 6272ba79eaca
-mtime_utc: 2026-10-11T19:09:50.097958+00:00
-generated_utc: 2026-10-11T19:18:32.472332+00:00
+sha1: 2cfec7454b28
+mtime_utc: 2026-10-12T23:58:48.966996+00:00
+generated_utc: 2026-10-12T23:59:18.185742+00:00
 private: false
 ---
 
@@ -65,7 +65,7 @@ that is how the 2026-09-10 bug was found, against a 5,203-memory store.
 
 ## Entry points
 
-- `def main()` (line 271)
+- `def main()` (line 266)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -82,14 +82,10 @@ that is how the 2026-09-10 bug was found, against a 5,203-memory store.
 
 ## Environment variables read
 
-- `M3_CONFIG_ROOT`
 - `M3_DIFF_REF_BIN`
 - `M3_DIFF_REF_PYTHON`
 - `M3_DIFF_REF_REV`
 - `M3_DIFF_STORE`
-- `M3_ENGINE_ROOT`
-- `M3_FIPS_MODE`
-- `M3_FIPS_STRICT`
 
 ---
 
@@ -103,13 +99,13 @@ _(none detected)_
 
 **subprocess**
 
-- `subprocess.run()  → `['git', 'worktree', 'add', '-q', '--detach', str(wt), rev]`` (line 157)
-- `subprocess.run()  → `[python, '-c', code, engine, config]`` (line 128)
-- `subprocess.run()  → `[sys.executable, '-c', _SEED, str(engine), str(config), str(items_path)]`` (line 239)
+- `subprocess.run()  → `['git', 'worktree', 'add', '-q', '--detach', str(wt), rev]`` (line 159)
+- `subprocess.run()  → `[python, '-c', code, engine, config]`` (line 130)
+- `subprocess.run()  → `[sys.executable, '-c', _SEED, str(engine), str(config), str(items_path)]`` (line 234)
 
 **sqlite**
 
-- `sqlite3.connect()  → `str(engine / 'agent_memory.db')`` (line 259)
+- `sqlite3.connect()  → `str(engine / 'agent_memory.db')`` (line 254)
 
 
 ---

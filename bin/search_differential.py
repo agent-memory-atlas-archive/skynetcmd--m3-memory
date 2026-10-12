@@ -81,15 +81,7 @@ QUERIES = [
 _PROBE = r"""
 import sys, os, json, asyncio, contextlib, io
 
-# FIRST, before any m3 import: conftest's autouse sandbox exports its own
-# M3_ENGINE_ROOT / M3_CONFIG_ROOT / M3_MEMORY_ROOT (and M3_MEMORY_ROOT is the
-# MASTER override, from which the others derive when unset). A child inherits
-# all three, so the probe pins the pair it wants and drops the master.
-os.environ["M3_ENGINE_ROOT"] = sys.argv[1]
-os.environ["M3_CONFIG_ROOT"] = sys.argv[2]
-os.environ.pop("M3_MEMORY_ROOT", None)
-os.environ["M3_FIPS_MODE"] = "0"
-os.environ["M3_FIPS_STRICT"] = "0"
+# The roots arrive in this child's env from the parent (_probe_env).
 buf = io.StringIO()
 try:
     with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
@@ -110,21 +102,31 @@ else:
 """
 
 
-def _run_probe(python: str, bin_dir: str, engine: str, config: str, k: int = 8) -> dict:
-    code = _PROBE.format(queries=QUERIES, k=k)
+def _probe_env(engine: str, config: str, bin_dir: str) -> dict[str, str]:
+    """The child env that points a probe or seed at one scratch store.
+
+    ENV, NOT --config, ON PURPOSE: the reference build may be an older installed
+    m3 that predates --config and [paths]; the root variables are the one locator
+    every version reads. A scoped child env (CONFIG_DESIGN 4c), so nothing in
+    this process changes. M3_MEMORY_ROOT is dropped: it is the master root the
+    others derive from, and a caller's value (the test sandbox's) would redirect
+    the probe."""
     from m3_core.seams import childenv
 
-    env = childenv.child_env()
+    env = childenv.child_env(PYTHONPATH=bin_dir)
+    env.update(M3_ENGINE_ROOT=engine, M3_CONFIG_ROOT=config, M3_FIPS_MODE="0", M3_FIPS_STRICT="0")
+    env.pop("M3_MEMORY_ROOT", None)
+    return env
+
+
+def _run_probe(python: str, bin_dir: str, engine: str, config: str, k: int = 8) -> dict:
+    code = _PROBE.format(queries=QUERIES, k=k)
+
     # PYTHONPATH rather than a sys.path.insert inside the script: a venv's
     # startup can reorder sys.path and win over the insert, which is exactly how
     # the pipx-installed payload failed to import while its files sat right
     # there. PYTHONPATH is applied before any of that.
-    env["PYTHONPATH"] = bin_dir
-    env["M3_ENGINE_ROOT"] = engine
-    env["M3_CONFIG_ROOT"] = config
-    env["M3_FIPS_MODE"] = "0"
-    env["M3_FIPS_STRICT"] = "0"
-    env.pop("M3_MEMORY_ROOT", None)  # never let a caller's root redirect a probe
+    env = _probe_env(engine, config, bin_dir)
     proc = subprocess.run(
         [python, "-c", code, engine, config],
         capture_output=True,
@@ -190,11 +192,6 @@ def _reference_build() -> tuple[str, str, str] | None:
 
 _SEED = r"""
 import sys, os, json, asyncio, contextlib, io
-os.environ["M3_ENGINE_ROOT"] = sys.argv[1]
-os.environ["M3_CONFIG_ROOT"] = sys.argv[2]
-os.environ.pop("M3_MEMORY_ROOT", None)
-os.environ["M3_FIPS_MODE"] = "0"
-os.environ["M3_FIPS_STRICT"] = "0"
 buf = io.StringIO()
 with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
     import memory_core as mc
@@ -233,9 +230,7 @@ def _seed_store(tmp: Path) -> tuple[str, str]:
     items_path = tmp / "seed_items.json"
     items_path.write_text(json.dumps(items), encoding="utf-8")
 
-    from m3_core.seams import childenv
-
-    env = childenv.child_env(PYTHONPATH=str(REPO / "bin"))
+    env = _probe_env(str(engine), str(config), str(REPO / "bin"))
     proc = subprocess.run(
         [sys.executable, "-c", _SEED, str(engine), str(config), str(items_path)],
         capture_output=True,
