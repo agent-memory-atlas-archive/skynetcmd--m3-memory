@@ -117,6 +117,7 @@ def test_unix_install_restarts_what_the_reap_stopped(monkeypatch):
 
     monkeypatch.setattr(m3_sdk, "kill_stale_daemons", lambda **k: [{"role": "embed-server", "pid": 1, "killed": True}])
     monkeypatch.setattr(isch, "keeps_rust_embed_server", lambda: False)  # Python server
+    monkeypatch.setattr(isch, "_rust_embed_service_loaded", lambda: False)
     monkeypatch.setattr(isch, "_reaped_roles", set())
     monkeypatch.setattr(isch, "_os_name", lambda: "Linux")
     monkeypatch.setattr(isch, "_platform_key", lambda: "linux")
@@ -221,9 +222,46 @@ def test_a_stale_registry_row_is_not_watched():
     in MAY -- while the live agent `agy` went unwatched: 36 notifications to it,
     ZERO with receipt recorded, for hours.
     """
-    assert isch._agent_is_live("agy") is True or isch._agent_is_live("agy") is False, (
-        "liveness check must return a bool"
+    import importlib
+    from datetime import UTC, datetime, timedelta
+
+    orch = importlib.import_module("memory.orchestration")
+    for a in ("fresh-agent", "stale-agent", "offline-agent"):
+        orch.agent_register_impl(a)
+    old = (datetime.now(UTC) - timedelta(days=60)).isoformat()
+    with orch._db() as db:
+        p = importlib.import_module("memory.backends").dialect().param()
+        db.execute(f"UPDATE agents SET last_seen = {p} WHERE agent_id = {p}", (old, "stale-agent"))
+        db.commit()
+    orch.agent_offline_impl("offline-agent")
+
+    assert isch._agent_is_live("fresh-agent") is True
+    assert isch._agent_is_live("stale-agent") is False, "60 days unseen must not be watched"
+    assert isch._agent_is_live("offline-agent") is False, (
+        "an agent marked offline must not be watched, however recently it was seen"
     )
+
+
+def test_with_nobody_live_the_waiter_skips_offline_agents(capsys):
+    """When no agent checked in within 30 days the waiter watches every registered
+    agent, but never one marked offline, and says so (it used to fall back to
+    every id silently, bringing retired agents back)."""
+    import importlib
+    from datetime import UTC, datetime, timedelta
+
+    orch = importlib.import_module("memory.orchestration")
+    for a in ("old-but-kept", "retired"):
+        orch.agent_register_impl(a)
+    old = (datetime.now(UTC) - timedelta(days=60)).isoformat()
+    with orch._db() as db:
+        p = importlib.import_module("memory.backends").dialect().param()
+        db.execute(f"UPDATE agents SET last_seen = {p}", (old,))
+        db.commit()
+    orch.agent_offline_impl("retired")
+
+    args = isch._waiter_agent_args()
+    assert "old-but-kept" in args and "retired" not in args, args
+    assert "not marked offline" in capsys.readouterr().out
 
 
 def test_liveness_fails_OPEN_for_an_unknown_agent():
@@ -244,7 +282,9 @@ def test_waiter_never_watches_nothing():
 
 def test_the_install_reap_leaves_a_registered_rust_embed_server(monkeypatch):
     """The Rust server runs no payload code; reaping it only made its supervisor
-    restart it in the middle of every macOS/Linux upgrade."""
+    restart it in the middle of every upgrade, and on Windows the restart then
+    went to a task that does not exist there (2026-10-11). Decided by whether the
+    Rust service is registered, on every OS."""
     import m3_sdk
 
     seen = {}
@@ -254,7 +294,8 @@ def test_the_install_reap_leaves_a_registered_rust_embed_server(monkeypatch):
         return []
 
     monkeypatch.setattr(m3_sdk, "kill_stale_daemons", fake_kill)
-    monkeypatch.setattr(isch, "keeps_rust_embed_server", lambda: True)
+    monkeypatch.setattr(isch, "_rust_embed_service_loaded", lambda: True)
+    monkeypatch.setattr(isch, "keeps_rust_embed_server", lambda: False)  # as on Windows: m3 stop still frees the .exe
     monkeypatch.setattr(isch, "_reaped_roles", set())
     monkeypatch.setattr(isch, "_os_name", lambda: "Linux")
     monkeypatch.setattr(isch, "_platform_key", lambda: "linux")

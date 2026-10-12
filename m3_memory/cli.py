@@ -22,7 +22,7 @@ from pathlib import Path  # noqa: F401 - used in _auto_install return-type comme
 from typing import cast, override
 
 from m3_memory import _bin, _config
-from m3_memory._platform import is_windows
+from m3_memory._platform import is_elevated, is_windows
 
 
 def _ensure_utf8() -> None:
@@ -724,7 +724,18 @@ def _cmd_schedules(args: argparse.Namespace) -> int:
     # letting the child fail and print a command to paste into another shell.
     # A missed UAC dialog re-asks; declining falls through to the unelevated run
     # so nothing becomes unreachable just because elevation was refused.
-    if is_windows() and sub in ("repair", "add", "remove"):
+    if is_windows() and sub in ("repair", "add", "remove") and not is_elevated():
+        from .wizard.ui import console_has_person
+
+        if not console_has_person():
+            # Nobody can answer the UAC question here; asking would wait for ever
+            # (a hidden elevated run did, 2026-10-11), and running unelevated is
+            # destructive for `repair`. Refuse, with the fix.
+            print(
+                f"  `m3 schedules {sub}` needs an admin shell on Windows, and no one is at this "
+                f"console to approve the UAC prompt. fix: run it from an elevated PowerShell."
+            )
+            return 1
         script = _resolve_bin_script("install_schedules.py")
         if script and _elevate_schedules_windows(str(script), argv, sub):
             return 0

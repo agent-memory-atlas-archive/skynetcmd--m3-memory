@@ -187,6 +187,24 @@ def new_process_group_kwargs() -> dict:
     return {}
 
 
+def is_elevated() -> bool:
+    """True when this process already has admin rights: uid 0 where the OS has
+    uids, else a Windows administrator token. The capability decides. Callers
+    that self-elevate check it first: `m3 schedules add` asked "Run it elevated
+    now?" from an ELEVATED shell, and in a hidden window waited for ever
+    (2026-10-11)."""
+    uid = current_uid()  # the seam's own uid reader
+    if uid is not None:
+        return uid == 0
+    try:
+        import ctypes
+
+        windll: Any = getattr(ctypes, "windll", None)
+        return bool(windll.shell32.IsUserAnAdmin()) if windll is not None else False
+    except (AttributeError, OSError):
+        return False
+
+
 def killable_tree_kwargs() -> dict:
     """Popen kwargs so :func:`kill_tree` can end the child AND everything it
     started. POSIX: ``start_new_session`` (the child leads its own process group).

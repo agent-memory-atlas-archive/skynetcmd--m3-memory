@@ -76,7 +76,7 @@ def isolated_roots(tmp_path, monkeypatch):
     # `_run_os_install` shells out to the REAL install_os.py against the
     # developer's actual machine. It is not what any test in this file asserts
     # (they assert engine DBs survive), and it hangs: the child's own backstop
-    # is _OS_INSTALL_TIMEOUT_S = 15 min, far longer than any test timeout, so
+    # is install.os_install_timeout_s (180 s by default), far longer than any test timeout, so
     # "it has a timeout" does not make it safe to call here. Stubbing it keeps
     # the fixture's stated contract -- "never hit the network" -- actually true.
     monkeypatch.setattr(installer, "_run_os_install", lambda *a, **k: "OS setup skipped (test).")

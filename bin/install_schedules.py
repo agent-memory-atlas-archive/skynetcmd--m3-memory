@@ -2106,11 +2106,13 @@ def _start_longlived_tasks(tasks: list) -> None:
             _safe_print(f"        start it with: {' '.join(cmd)}")
 
 
-def _agent_is_live(agent_id: str, max_age_days: int = 30) -> bool:
+def _agent_is_live(agent_id: str, max_age_days: int | None = 30) -> bool:
     """Has this agent checked in recently enough to be worth watching?
 
-    Best-effort and FAILS OPEN: if `last_seen` cannot be read or parsed, the
-    agent is treated as live. Watching a stale inbox wastes one poll; dropping
+    An agent marked ``offline`` is never live: that is an explicit statement, and
+    the 30-day window alone kept test leftovers watched (probe-*, doc-verify-tmp,
+    2026-10-11). Best-effort and FAILS OPEN: if the row cannot be read or parsed,
+    the agent is treated as live. Watching a stale inbox wastes one poll; dropping
     a live one loses messages silently, and the second is the failure mode this
     whole feature exists to remove.
     """
@@ -2126,12 +2128,16 @@ def _agent_is_live(agent_id: str, max_age_days: int = 30) -> bool:
             # match at most one row. Materialising a list to read [0] is the
             # Python-side post-processing §4 exists to prevent -- small here,
             # but the habit is what scales badly.
-            row = db.execute(f"SELECT last_seen FROM agents WHERE agent_id = {ph}", (agent_id,)).fetchone()
+            row = db.execute(f"SELECT last_seen, status FROM agents WHERE agent_id = {ph}", (agent_id,)).fetchone()
+        if row is not None and row["status"] == "offline":
+            return False
         if row is None or not row["last_seen"]:
             return True
         seen = datetime.fromisoformat(str(row["last_seen"]))
         if seen.tzinfo is None:
             seen = seen.replace(tzinfo=UTC)
+        if max_age_days is None:  # only the offline mark counts
+            return True
         return (datetime.now(UTC) - seen) <= timedelta(days=max_age_days)
     except Exception:  # noqa: BLE001 - fail OPEN, see docstring
         return True
@@ -2166,7 +2172,18 @@ def _waiter_agent_args() -> list:
         # unwatched -- 36 notifications to it, ZERO with receipt recorded, for
         # hours. Watching a dead inbox costs a poll; MISSING a live one is the
         # failure this feature exists to prevent.
-        ids = [a for a in ids if _agent_is_live(a)] or ids
+        live = [a for a in ids if _agent_is_live(a)]
+        if not live:
+            # Nobody checked in within 30 days (heartbeats come only from active
+            # orchestration). Watch every registered agent NOT marked offline:
+            # the old fallback (every id) brought back agents an operator had
+            # retired, and said nothing about it.
+            live = [a for a in ids if _agent_is_live(a, max_age_days=None)]
+            _safe_print(
+                f"[waiter] no agent seen in 30 days; watching every registered agent not marked offline "
+                f"({len(live)} of {len(ids)})"
+            )
+        ids = live
     except Exception:  # noqa: BLE001 - registry is best-effort at install time
         ids = []
     if not ids:
@@ -2489,8 +2506,9 @@ def _verify_windows_task(name: str, expected_args: "str | None" = None) -> bool:
             _safe_print(
                 f"{FAIL} {name}: self-heal Repetition is BOUNDED "
                 f"(<Duration>{_dur}</Duration>) — it stops repeating after "
-                f"{_dur} and cannot self-heal afterwards. Re-register with "
-                f"--repair (needs an elevated shell on Windows)."
+                f"{_dur} and cannot self-heal afterwards. fix: `m3 schedules add {name}` "
+                f"(this task) or `m3 schedules repair` (all; restarts services); an "
+                f"admin shell on Windows."
             )
             ok = False
         else:
@@ -2503,8 +2521,9 @@ def _verify_windows_task(name: str, expected_args: "str | None" = None) -> bool:
         if live != expected_args:
             _safe_print(
                 f"{WARN} {name}: arguments differ from this payload's spec "
-                f"(older script or log paths). Re-register with --repair "
-                f"(needs an elevated shell on Windows)."
+                f"(older script or log paths). fix: `m3 schedules add {name}` (this "
+                f"task) or `m3 schedules repair` (all; restarts services); an admin "
+                f"shell on Windows."
             )
             ok = False
     if ok:
@@ -2761,7 +2780,13 @@ def main():
             # keeps_rust_embed_server); its supervisor would only restart it.
             reaped = kill_stale_daemons(
                 started_before=os.path.getmtime(__file__),
-                exclude_roles=["embed-server"] if keeps_rust_embed_server() else None,
+                # The capability, on EVERY OS: keeps_rust_embed_server() is
+                # macOS/Linux-only because `m3 stop` must free the Windows .exe for
+                # a package upgrade, but re-registering tasks replaces no files.
+                # On Windows the reap killed the Rust server and then "restarted"
+                # it through an AgentOS_EmbedServer task that does not exist
+                # there, warning wrongly (2026-10-11).
+                exclude_roles=["embed-server"] if _rust_embed_service_loaded() is True else None,
             )
             killed = [r for r in reaped if r["killed"]]
             stuck = [r for r in reaped if not r["killed"]]

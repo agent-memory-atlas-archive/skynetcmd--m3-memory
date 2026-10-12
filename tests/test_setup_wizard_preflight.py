@@ -1758,7 +1758,7 @@ def test_unchanged_state_lines_show_only_when_setup_runs_directly(monkeypatch, c
     assert "a real problem" in out
 
 
-def test_hermes_home_is_read_without_a_deprecation_warning(monkeypatch, tmp_path, caplog, capsys):
+def test_hermes_home_is_read_without_a_deprecation_warning(monkeypatch, tmp_path, caplog, capsys, m3_settings):
     """HERMES_HOME belongs to Hermes Agent; m3 told users to rename it, which
     would break Hermes. M3_HERMES_HOME still overrides it."""
     import logging
@@ -1773,7 +1773,9 @@ def test_hermes_home_is_read_without_a_deprecation_warning(monkeypatch, tmp_path
 
     override = tmp_path / "m3_override"
     (override / "plugins" / "memory").mkdir(parents=True)
-    monkeypatch.setenv("M3_HERMES_HOME", str(override))
+    # integrations.hermes.home (M3_HERMES_HOME) is read through the registry; set it
+    # there: a setenv after the settings snapshot was built would not be seen.
+    m3_settings({"integrations.hermes.home": str(override)})
     assert setup_wizard._find_hermes_plugins_dir() == override / "plugins" / "memory"
 
 

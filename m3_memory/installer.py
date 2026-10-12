@@ -30,7 +30,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
-from m3_memory import _bin
+from m3_memory import _bin, _config
 from m3_memory._platform import hidden_window_kwargs as _hidden_window_kwargs
 from m3_memory._platform import is_macos, is_windows
 from m3_memory._platform import os_name as _os_name
@@ -282,7 +282,7 @@ def _canonical_memory_env() -> dict:
     # hang that motivated this). Discover the GGUF and seed it into the SHARED
     # config instead (§3 headless knob -> config file), so the single :8082 server
     # owns the one CUDA context and the bridge defers to it.
-    embed = os.environ.get("M3_EMBED_GGUF")
+    embed: str | os.PathLike[str] | None = _config.setting("embed.gguf")  # m3_config.toml or M3_EMBED_GGUF
     if not embed:
         cand = Path.home() / ".lmstudio" / "models" / "deepsweet" / "bge-m3-GGUF-Q4_K_M" / "bge-m3-GGUF-Q4_K_M.gguf"
         if os.path.isfile(cand):
@@ -1397,7 +1397,6 @@ def _write_user_registry_env(pairs: dict[str, str]) -> list[str]:
 # Backstop for a non-interactive OS-setup subprocess. Kept well under a CI or
 # test budget so a block surfaces AS a timeout message rather than as an
 # unexplained hang -- a 15-minute backstop is indistinguishable from wedged.
-_OS_INSTALL_TIMEOUT_S = int(os.environ.get("M3_OS_INSTALL_TIMEOUT_S", "180"))
 
 
 def _run_os_install(bridge: Path, interactive: bool = True) -> str | None:
@@ -1450,7 +1449,7 @@ def _run_os_install(bridge: Path, interactive: bool = True) -> str | None:
             [_python_exe(), str(install_script)],
             check=True,
             stdin=None if interactive else subprocess.DEVNULL,
-            timeout=None if interactive else _OS_INSTALL_TIMEOUT_S,
+            timeout=None if interactive else _config.setting("install.os_install_timeout_s"),
             **_hidden_window_kwargs(),
         )
         return "OS-specific environment setup complete."
@@ -2970,11 +2969,11 @@ def doctor(fix: bool = False, brief: bool = False) -> int:
     else:
         print("  (none — expected for a pip/pipx install, which runs the packaged payload)")
 
-    env = os.environ.get("M3_PATH_BIN")
-    if env:
-        print(f"M3_PATH_BIN (env):         {env}")
+    # paths.bin: m3_config.toml or M3_PATH_BIN; a developer's non-packaged bin/.
+    if _config.explicit("paths.bin"):
+        print(f"paths.bin (M3_PATH_BIN):   {_config.setting('paths.bin')}")
     else:
-        print("M3_PATH_BIN (env):         (unset)")
+        print("paths.bin (M3_PATH_BIN):   (unset)")
 
     dev = _developer_bridge()
     if dev:

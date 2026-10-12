@@ -21,6 +21,31 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **Windows: `m3 schedules add` no longer stops the embed server.** Re-registering
+  any task stopped the Rust `m3-embed-server` and tried to restart it through a
+  task that does not exist on Windows, cutting off embeddings until its own
+  service restarted it, and printing a misleading warning.
+  **Affected:** Windows with the Rust embed server · **Action:** none ·
+  **Data status:** none.
+
+- **Windows: `m3 schedules add/remove/repair` from an admin shell runs directly.**
+  It asked "Run it elevated now?" even when already elevated; with no one at the
+  console (a scheduled or hidden run) it waited for ever. It now runs when
+  elevated, and with no one to answer it stops and says to use an admin shell.
+  **Affected:** Windows · **Action:** none · **Data status:** none.
+
+- **The notification waiter skips agents marked offline.** It kept watching
+  retired agents, and when no agent had checked in recently it fell back to every
+  agent ever registered without saying so.
+  **Affected:** multi-agent setups · **Action:** re-register the waiter
+  (`m3 schedules add AgentOS_NotificationWaiter`, admin shell on Windows) ·
+  **Data status:** none.
+
+- **`m3 schedules verify` names the right fix.** It said "re-register with
+  `--repair`", which `m3 schedules` does not accept; it now names
+  `m3 schedules add <task>` or `m3 schedules repair`.
+  **Affected:** all · **Action:** none · **Data status:** none.
+
 - **Windows: the hourly sync no longer opens a window, and reports its real
   result.** When a `.venv` directory sat inside the installed package, `pg_sync`
   restarted itself under it: a console window flashed every hour, and the sync

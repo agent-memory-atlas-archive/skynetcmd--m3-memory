@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import cast
 
 from m3_memory import _bin as _m3bin
-from m3_memory import _childenv, _roots
+from m3_memory import _childenv, _config, _roots
 from m3_memory._platform import is_macos, is_windows
 
 from ._platform import hidden_window_kwargs as _hidden_window_kwargs
@@ -236,7 +236,8 @@ def _find_hermes_plugins_dir() -> Path | None:
     # HERMES_HOME is Hermes Agent's own variable, not an old m3 name, so it is
     # read directly rather than through the deprecation shim (which told users
     # to rename it, breaking Hermes). M3_HERMES_HOME is an m3-only override.
-    env_home = os.environ.get("M3_HERMES_HOME") or os.environ.get("HERMES_HOME")
+    m3_home = _config.setting("integrations.hermes.home")  # m3_config.toml or M3_HERMES_HOME
+    env_home = str(m3_home) if m3_home else os.environ.get("HERMES_HOME")
     if env_home:
         roots.append(Path(env_home))
     # Windows app-data location (the `hermes` CLI's default home).
@@ -1890,7 +1891,7 @@ def _probe_llm_endpoints(plan: SetupPlan, args: argparse.Namespace) -> None:
     """Detect the reachable local LLM runtime(s) and persist the failover opt-in
     vars to match. Mirrors the M3_EMBED_GGUF persistence (shell rc + MCP env)."""
     # If the user already pinned a custom server, honor it — just confirm.
-    custom = os.environ.get("M3_LLM_URL", "").strip()
+    custom = (_config.setting("llm.url") or "").strip()
     csv = (_env_compat("M3_LLM_ENDPOINTS_CSV", "LLM_ENDPOINTS_CSV", "") or "").strip()
     if csv:
         _ok(f"  LLM endpoints pinned via LLM_ENDPOINTS_CSV ({csv}); leaving as-is")
@@ -2299,7 +2300,7 @@ def _step_cpu_sovereign_embedder() -> bool:
                 print("    run the server directly instead:")
             else:
                 print("    systemctl not found — run the server directly:")
-            gguf_hint = os.environ.get("M3_EMBED_GGUF", "~/bge-m3-GGUF-Q4_K_M.gguf")
+            gguf_hint = _config.setting("embed.gguf") or "~/bge-m3-GGUF-Q4_K_M.gguf"
             print(f"        M3_EMBED_GGUF={gguf_hint} \\")
             print("            nohup m3-embed-server > ~/.m3/engine/embed-server.log 2>&1 &")
             print()
