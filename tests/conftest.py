@@ -864,6 +864,18 @@ def _isolated_shell_rc(monkeypatch, tmp_path):
     yield
 
 
+@pytest.fixture(autouse=True)
+def _isolated_env_sweep_home(monkeypatch, tmp_path):
+    """The env-location sweep (m3_memory.install.env_sources) reads rc files and
+    MCP client configs under home, ~/.claude.json among them; point it at a temp
+    directory. A test that set HOME keeps its own (as _isolated_shell_rc)."""
+    import importlib
+
+    sources = importlib.import_module("m3_memory.install.env_sources")
+    monkeypatch.setattr(sources, "_home", lambda: tmp_path if Path.home() == _REAL_HOME else Path.home())
+    yield
+
+
 # The OS temp directory as it was before _session_tempdir redirected it. A test
 # whose subject is that directory's own properties (its inherited ACL) needs the
 # real one: pytest creates basetemp 0o700, so a child of it inherits a different ACL.

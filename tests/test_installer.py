@@ -33,10 +33,10 @@ def _isolate_home(monkeypatch, tmp_path):
     monkeypatch.delenv("M3_BRIDGE_PATH", raising=False)
     # install_m3 now hard-fails if a deprecated PG_URL is set anywhere it can see
     # (env / config / shell profiles / Windows registry). These tests exercise the
-    # fetch/overwrite/bridge logic, not that guard, so neutralize it: drop the env
-    # var and force sys.platform off win32 so the host machine's real HKCU PG_URL
-    # (if any) can't trip the guard. HOME already points at tmp_path (no profiles).
-    monkeypatch.delenv("PG_URL", raising=False)
+    # fetch/overwrite/bridge logic, not that guard, so neutralize it: the sandbox
+    # clears the env var, and sys.platform is forced off win32 so the host
+    # machine's real HKCU PG_URL (if any) can't trip the guard. HOME already
+    # points at tmp_path (no profiles).
     simulate_os(monkeypatch, "Linux")
     # Reload the installer module so any module-level paths re-resolve against
     # the new HOME. (There aren't any today, but cheap insurance.)
@@ -819,7 +819,9 @@ class TestDbBackendSelection:
         monkeypatch.setattr(
             inst,
             "_scan_registry_env_deprecations",
-            lambda names, unchecked=None: [{"label": "Windows Machine env (HKLM)"}] if "M3_PG_URL" in names else [],
+            lambda names, unchecked=None: (
+                [{"label": "Windows Machine env (HKLM)", "old": "M3_PG_URL"}] if "M3_PG_URL" in names else []
+            ),
         )
         monkeypatch.setenv("M3_PRIMARY_PG_URL", "postgresql://process/x")
         notes = " | ".join(inst._legacy_plaintext_dsn_notes())

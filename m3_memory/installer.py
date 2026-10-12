@@ -2177,12 +2177,11 @@ def _env_names_in_config(names, unchecked: list[str] | None = None) -> dict[Path
 
 
 def _shell_assigns(text: str, name: str) -> bool:
-    """Whether shell startup text assigns ``name`` (``NAME=``, ``export NAME=``,
-    csh ``set NAME=``) at a line start: ``M3_CDW_PG_URL=`` is not ``PG_URL``,
-    and a commented-out line does not count. The one owner of this predicate."""
-    import re as _re
+    """Whether shell startup text assigns ``name`` (env_sources.shell_assignment,
+    the one owner of that reading)."""
+    from m3_memory.install.env_sources import shell_assignment
 
-    return bool(_re.search(rf"(?m)^\s*(?:export\s+|set\s+)?{_re.escape(name)}\s*=", text))
+    return shell_assignment(text, name) is not None
 
 
 # Windows persistent-environment registry scopes. Each entry:
@@ -2227,7 +2226,7 @@ def _scan_registry_env_deprecations(names: dict[str, str], unchecked: list[str] 
             with winreg.OpenKey(hive, subkey) as k:
                 for old, new in names.items():
                     try:
-                        winreg.QueryValueEx(k, old)
+                        value, _kind = winreg.QueryValueEx(k, old)
                     except FileNotFoundError:
                         continue  # this var not set at this scope
                     hits.append(
@@ -2239,6 +2238,7 @@ def _scan_registry_env_deprecations(names: dict[str, str], unchecked: list[str] 
                             "old": old,
                             "new": new,
                             "writable": writable,
+                            "value": str(value),
                         }
                     )
         except FileNotFoundError:
@@ -2267,40 +2267,22 @@ def _find_env_var_locations(
     them all in one pass rather than re-running install per hidden copy):
 
       1. the live process environment (``os.environ``), unless excluded;
-      2. every MCP-client config file's ``mcpServers.<server>.env`` block plus the
-         cwd ``.env`` (``_env_names_in_config``);
-      3. shell startup files in ``$HOME`` (``.zshenv``, ``.zshrc``, ``.bashrc``,
-         ``.bash_profile``, ``.profile``, ``.zprofile``, ``.bash_login``) that
-         assign it (``_shell_assigns``) — the usual home of a persistent DSN;
-      4. the Windows User and Machine registry environment, where a persistent
-         var lives on Windows (unsetting the process copy alone wouldn't stick).
+      2. every MCP-client ``mcpServers.<server>.env`` block, including Claude
+         Code's ``~/.claude.json``, where ``claude mcp add --env`` writes;
+      3. the ``.env`` m3 reads and the cwd ``.env``;
+      4. shell startup files in ``$HOME`` that assign it — the usual home of a
+         persistent DSN;
+      5. the Windows User and Machine registry environment, where a persistent
+         var lives on Windows (unsetting the process copy alone wouldn't stick);
+      6. the legacy ``.llm_config.json``.
+
+    The sweep is ``m3_memory.install.env_sources.scan`` (import-env reads it too).
 
     Never raises: an unreadable file or a config-scan failure is not fatal.
     Returns a de-duplicated, sorted list (empty when nothing was found)."""
-    skipped = unchecked if unchecked is not None else []
-    locations: set[str] = set()
+    from m3_memory.install.env_sources import scan
 
-    if include_process_env and os.environ.get(name) is not None:
-        locations.add(f"environment (os.environ['{name}'])")
-
-    try:
-        locations.update(str(p) for p, keys in _env_names_in_config([name], skipped).items() if name in keys)
-    except Exception as e:  # noqa: BLE001 — informational scan, never fatal
-        skipped.append(f"MCP client configs ({type(e).__name__}: {e})")
-
-    home = Path.home()
-    for rc in (".zshenv", ".zshrc", ".zprofile", ".bashrc", ".bash_profile", ".bash_login", ".profile"):
-        f = home / rc
-        try:
-            if os.path.isfile(f) and _shell_assigns(f.read_text(encoding="utf-8", errors="ignore"), name):
-                locations.add(str(f))
-        except OSError as e:
-            skipped.append(f"{f} ({type(e).__name__}: {e})")
-
-    for hit in _scan_registry_env_deprecations({name: ""}, skipped):
-        locations.add(hit["label"])
-
-    return sorted(locations)
+    return sorted({f.where for f in scan([name], include_process_env=include_process_env, unchecked=unchecked)})
 
 
 def _assert_no_deprecated_pg_url_anywhere() -> None:

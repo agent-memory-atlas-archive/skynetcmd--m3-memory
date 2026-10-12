@@ -21,6 +21,13 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **`m3 doctor` and `m3 install` look in `~/.claude.json`.** The places checked
+  for an environment variable (where a disagreeing or deprecated variable is
+  set, and the refusal of a deprecated `PG_URL`) now include Claude Code's
+  `~/.claude.json` server `env` blocks, `m3`'s own `.env` and
+  `.llm_config.json`. A `PG_URL` there was missed.
+  **Affected:** Claude Code users · **Action:** none · **Data status:** none.
+
 - **Scheduled jobs and services use the config root chosen at setup.** With a
   non-default config root, the background jobs (cognitive loop, sync,
   maintenance, the dashboard and others) ran against the default roots while the

@@ -26,19 +26,9 @@ def shell_rc_has(name: str, value: str) -> bool:
         text = rc.read_text(encoding="utf-8") if os.path.exists(rc) else ""
     except OSError:
         return False
-    prefix = f"export {name}="
-    last = None
-    for line in text.splitlines():
-        line = line.strip()
-        if not line.startswith(prefix):
-            continue
-        rhs = line[len(prefix) :]
-        if rhs[:1] in ('"', "'") and rhs.count(rhs[0]) >= 2:
-            rhs = rhs[1 : rhs.index(rhs[0], 1)]
-        else:
-            rhs = rhs.split("#", 1)[0].strip()
-        last = rhs
-    return last == value
+    from m3_memory.install.env_sources import shell_assignment
+
+    return shell_assignment(text, name) == value
 
 
 def _pick_unix_shell_rc() -> Path:
