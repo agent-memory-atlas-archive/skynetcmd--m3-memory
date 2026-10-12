@@ -677,9 +677,9 @@ def _cmd_config(args: argparse.Namespace) -> int:
         return 1
     argv = [getattr(args, "config_cmd", None) or "show"]
     argv += [v for v in (getattr(args, "key", None), getattr(args, "value", None)) if v is not None]
-    for flag in ("origin", "json", "yes"):
+    for flag in ("origin", "json", "yes", "dry_run"):
         if getattr(args, flag, False):
-            argv.append(f"--{flag}")
+            argv.append(f"--{flag.replace('_', '-')}")
     if getattr(args, "config", None):
         argv += ["--config", args.config]
     return _run_bin_script("config_cli.py", argv)
@@ -2142,7 +2142,7 @@ Examples:
         "config",
         help="Show, read and change m3's configuration (m3_config.toml).",
     )
-    cfg_sub = p_config.add_subparsers(dest="config_cmd", metavar="<show|get|set|unset>")
+    cfg_sub = p_config.add_subparsers(dest="config_cmd", metavar="<show|get|set|unset|import-env>")
     p_cfg_show = cfg_sub.add_parser("show", help="Every setting with its value.")
     p_cfg_show.add_argument("--origin", action="store_true", help="Say where each value came from.")
     p_cfg_show.add_argument("--json", action="store_true", help="Machine-readable output.")
@@ -2156,7 +2156,11 @@ Examples:
     p_cfg_unset.add_argument("key")
     for p_cfg in (p_cfg_set, p_cfg_unset):
         p_cfg.add_argument("--yes", "-y", action="store_true", help="Skip the confirmation for a sensitive key.")
-    for p_cfg in (p_cfg_show, p_cfg_get, p_cfg_set, p_cfg_unset):
+    p_cfg_import = cfg_sub.add_parser(
+        "import-env", help="Move settings from env, rc files, .env and MCP env blocks into m3_config.toml."
+    )
+    p_cfg_import.add_argument("--dry-run", action="store_true", help="Say what would be imported; write nothing.")
+    for p_cfg in (p_cfg_show, p_cfg_get, p_cfg_set, p_cfg_unset, p_cfg_import):
         p_cfg.add_argument("--config", metavar="FILE", help="Use this file instead of the located one.")
     p_config.set_defaults(func=_cmd_config)
 

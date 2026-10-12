@@ -495,6 +495,23 @@ the policy is forward-going only.
 
 ### Added
 
+- **`m3 config import-env`.** It moves settings into `m3_config.toml` from the
+  places they used to live: the environment, shell startup files, `.env` files,
+  MCP client `env` blocks (including `~/.claude.json`), the Windows registry
+  environment and `.llm_config.json`.
+  - **Conflicts:** a setting is imported only when every place agrees. When they
+    differ, it asks which value to keep; when no one is at the console, it
+    lists each place and value and imports nothing for that setting.
+  - **What it leaves alone:** settings already in the file. Secrets are listed
+    by name only.
+  - **Safety:** `--dry-run` shows the plan. The file is backed up first, and a
+    write that does not read back correctly is undone.
+  - **`.llm_config.json`** is renamed `.llm_config.json.imported` once all its
+    values are in the file. The old places are otherwise left as they are.
+
+  **Affected:** none · **Action:** run `m3 config import-env --dry-run` to
+  preview · **Data status:** none.
+
 - **`m3 config get`, `m3 config set` and `m3 config unset`.** Read one setting,
   or write or remove it in `m3_config.toml`. A value is checked before it is
   written; secrets are refused. Changing the storage backend, a root directory

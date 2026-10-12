@@ -1,0 +1,194 @@
+"""`m3 config import-env` (plan 2F.1 slice 2; design 2026.10.12-IMPORT_ENV_DESIGN).
+Every legacy source is read (env_sources.scan); a key is imported only when all
+sources agree; on a disagreement a person at the console chooses, and with no
+one there nothing is written for that key and every source is listed (user
+decision, m3 7200dbed). The file is backed up (GuardedRewrite) and every
+imported key must resolve from it afterwards, or the backup is restored."""
+
+from __future__ import annotations
+
+import sys
+import tomllib
+from pathlib import Path
+
+import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bin"))
+
+
+@pytest.fixture
+def world(tmp_path, monkeypatch):
+    """A config file, a home with rc files, a cwd .env; no registry store, no
+    process env for the names used, no one at the console."""
+    from m3_memory import _platform, installer
+    from m3_memory.install import env_sources, import_env
+
+    home = tmp_path / "home"
+    home.mkdir()
+    cwd = tmp_path / "cwd"
+    cwd.mkdir()
+    monkeypatch.setattr(env_sources, "_home", lambda: home)
+    monkeypatch.setattr(installer, "_client_config_sources", lambda: {})
+    monkeypatch.setattr(_platform, "_winreg", None)
+    monkeypatch.setattr(import_env, "console_has_person", lambda: False)
+    monkeypatch.chdir(cwd)
+    cfg = tmp_path / "config" / "m3_config.toml"
+    cfg.parent.mkdir()
+    return {"home": home, "cwd": cwd, "cfg": cfg}
+
+
+def _run(world, *extra):
+    from m3_memory.install import import_env
+
+    return import_env.main(["--config", str(world["cfg"]), *extra])
+
+
+def _file(world):
+    f = world["cfg"]
+    return tomllib.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+
+
+def _rc(world, text):
+    (world["home"] / ".bashrc").write_text(text, encoding="utf-8")
+
+
+def test_a_single_source_is_imported_in_its_toml_type(world, capsys):
+    _rc(world, "export M3_SEARCH_ROW_CAP=700\n")
+    assert _run(world) == 0
+    assert _file(world)["search"]["row_cap"] == 700
+    out = capsys.readouterr().out
+    assert "imported search.row_cap = 700" in out and ".bashrc" in out
+
+
+def test_dry_run_writes_nothing(world, capsys):
+    _rc(world, "export M3_SEARCH_ROW_CAP=700\n")
+    assert _run(world, "--dry-run") == 0
+    assert not world["cfg"].exists()
+    assert "would import search.row_cap = 700" in capsys.readouterr().out
+
+
+def test_a_second_run_writes_nothing(world, capsys):
+    _rc(world, "export M3_SEARCH_ROW_CAP=700\n")
+    _run(world)
+    before = world["cfg"].read_bytes()
+    capsys.readouterr()
+    assert _run(world) == 0
+    assert world["cfg"].read_bytes() == before
+    assert "nothing to import" in capsys.readouterr().out
+
+
+def test_agreeing_sources_are_one_value(world):
+    _rc(world, "export M3_SEARCH_ROW_CAP=700\n")
+    (world["cwd"] / ".env").write_text("M3_SEARCH_ROW_CAP=700\n", encoding="utf-8")
+    assert _run(world) == 0
+    assert _file(world)["search"]["row_cap"] == 700
+
+
+def test_a_disagreement_with_no_one_at_the_console_writes_nothing_and_names_every_source(world, capsys):
+    _rc(world, "export M3_SEARCH_ROW_CAP=700\n")
+    (world["cwd"] / ".env").write_text("M3_SEARCH_ROW_CAP=800\n", encoding="utf-8")
+    assert _run(world) == 0
+    assert "row_cap" not in _file(world).get("search", {})
+    out = capsys.readouterr().out
+    assert "search.row_cap" in out and "700" in out and "800" in out and ".bashrc" in out and ".env" in out
+    assert "m3 config set search.row_cap" in out
+
+
+def test_a_person_at_the_console_chooses(world, monkeypatch):
+    from m3_memory.install import import_env
+
+    _rc(world, "export M3_SEARCH_ROW_CAP=700\n")
+    (world["cwd"] / ".env").write_text("M3_SEARCH_ROW_CAP=800\n", encoding="utf-8")
+    monkeypatch.setattr(import_env, "console_has_person", lambda: True)
+    answers = iter(["800"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
+    assert _run(world) == 0
+    assert _file(world)["search"]["row_cap"] == 800
+
+
+def test_a_key_already_in_the_file_is_left_alone(world, capsys):
+    world["cfg"].write_text("schema_version = 1\n[search]\nrow_cap = 5\n", encoding="utf-8")
+    _rc(world, "export M3_SEARCH_ROW_CAP=700\n")
+    assert _run(world) == 0
+    assert _file(world)["search"]["row_cap"] == 5
+    assert "already set in" in capsys.readouterr().out
+
+
+def test_an_unparseable_value_is_skipped_with_its_source(world, capsys):
+    _rc(world, "export M3_SEARCH_ROW_CAP=lots\n")
+    assert _run(world) == 0
+    assert "row_cap" not in _file(world).get("search", {})
+    out = capsys.readouterr().out
+    assert "'lots'" in out and ".bashrc" in out
+
+
+def test_a_secret_is_listed_never_written_or_shown(world, capsys):
+    _rc(world, 'export M3_PRIMARY_PG_URL="postgresql://u:s3cret@h/db"\n')
+    assert _run(world) == 0
+    out = capsys.readouterr().out
+    assert "M3_PRIMARY_PG_URL" in out and "s3cret" not in out
+    assert "s3cret" not in (world["cfg"].read_text(encoding="utf-8") if world["cfg"].exists() else "")
+
+
+def test_an_existing_file_is_backed_up_with_a_history_section(world):
+    world["cfg"].write_text("schema_version = 1\n", encoding="utf-8")
+    _rc(world, "export M3_SEARCH_ROW_CAP=700\n")
+    assert _run(world) == 0
+    bak = world["cfg"].with_name("m3_config.toml.bak")
+    hist = world["cfg"].with_name("m3_config.toml.backup_history")
+    assert bak.read_text(encoding="utf-8") == "schema_version = 1\n"
+    assert "by m3 config import-env" in hist.read_text(encoding="utf-8")
+    assert "END rewrite (ok)" in hist.read_text(encoding="utf-8")
+
+
+def test_the_llm_file_is_renamed_once_its_values_are_in_the_file(world):
+    import json
+
+    llm = world["cfg"].parent / ".llm_config.json"
+    llm.write_text(json.dumps({"M3_ENABLE_OLLAMA_FAILOVER": "1"}), encoding="utf-8")
+    from m3_memory import _roots
+
+    _roots.pin_config_file(world["cfg"])
+    assert _run(world) == 0
+    assert _file(world)["llm"]["ollama_failover"] is True
+    assert not llm.exists() and llm.with_name(".llm_config.json.imported").exists()
+
+
+def test_the_llm_file_is_kept_while_a_value_is_not_imported(world):
+    import json
+
+    llm = world["cfg"].parent / ".llm_config.json"
+    llm.write_text(json.dumps({"M3_ENABLE_OLLAMA_FAILOVER": "1"}), encoding="utf-8")
+    _rc(world, "export M3_ENABLE_OLLAMA_FAILOVER=0\n")
+    from m3_memory import _roots
+
+    _roots.pin_config_file(world["cfg"])
+    assert _run(world) == 0
+    assert llm.exists(), "a disagreement left a value only there"
+
+
+def test_a_write_that_does_not_resolve_is_rolled_back(world, monkeypatch, capsys):
+    from m3_memory.install import import_env
+
+    world["cfg"].write_text("schema_version = 1\n", encoding="utf-8")
+    _rc(world, "export M3_SEARCH_ROW_CAP=700\n")
+    monkeypatch.setattr(import_env, "_resolves_from_file", lambda settings, key, value: False)
+    assert _run(world) == 2
+    assert world["cfg"].read_text(encoding="utf-8") == "schema_version = 1\n"
+    assert "restored" in capsys.readouterr().err
+    history = world["cfg"].with_name("m3_config.toml.backup_history").read_text(encoding="utf-8")
+    assert "ROLLED BACK" in history, "a rolled-back rewrite closes its section, so BEGIN alone means a crash"
+
+
+def test_m3_config_import_env_dispatches(world, capsys, monkeypatch):
+    """In-process through the real entry point (a subprocess would read the
+    developer's real rc files, registry and ~/.claude.json)."""
+    from m3_memory import cli
+
+    _rc(world, "export M3_SEARCH_ROW_CAP=700\n")
+    monkeypatch.setattr(sys, "argv", ["m3", "config", "import-env", "--dry-run", "--config", str(world["cfg"])])
+    with pytest.raises(SystemExit) as done:
+        cli.main()
+    assert done.value.code == 0
+    assert "would import search.row_cap = 700" in capsys.readouterr().out
+    assert not world["cfg"].exists()

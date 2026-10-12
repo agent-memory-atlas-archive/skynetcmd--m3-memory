@@ -93,6 +93,7 @@ _MOVES = {
     # Found when the scan learned pathlib's Path.replace (pathlib phase 1):
     ("bin/_task_runtime.py", "log_path"): "rotates a log file to its .1 backup",
     ("bin/memory/model_fetch.py", "part"): "publishes a finished, validated download",
+    ("m3_memory/install/import_env.py", "path"): "renames .llm_config.json to .imported once imported",
     ("m3_memory/embedder_admin.py", "tmp"): (
         "NOT a move: a hand-rolled temp-then-replace config WRITE that should use "
         "atomic_write; listed so the guard runs, to be converted (m3_memory phase)"

@@ -870,6 +870,7 @@ def _llm_file_legacy_section() -> None:
     print(f"      {snap.location.file}:")
     for name in names:
         print(f"        {name}")
+    print("      `m3 config import-env` moves them (`--dry-run` first to see the plan).")
 
 
 def _plaintext_dsn_section() -> None:

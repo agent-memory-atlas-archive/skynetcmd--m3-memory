@@ -5,6 +5,7 @@
     m3 config get KEY [--origin] [--config FILE]
     m3 config set KEY VALUE [--yes] [--config FILE]
     m3 config unset KEY [--yes] [--config FILE]
+    m3 config import-env [--dry-run] [--config FILE]
 
 `set` takes a value as the environment would spell it (a list comma-separated)
 and writes it in its TOML type under the file's lock (CONFIG_DESIGN §12). Secrets
@@ -241,7 +242,9 @@ def main(argv: list[str] | None = None) -> int:
     u.add_argument("key")
     for q in (s_, u):
         q.add_argument("--yes", "-y", action="store_true", help="skip the confirmation for a sensitive key")
-    for q in (g, s_, u):
+    im = sub.add_parser("import-env", help="move settings from env, rc files, .env and MCP env blocks into the file")
+    im.add_argument("--dry-run", action="store_true", help="say what would be imported; write nothing")
+    for q in (g, s_, u, im):
         q.add_argument("--config", metavar="FILE", help="use this file instead of the located one")
     args = ap.parse_args(argv)
 
@@ -250,6 +253,10 @@ def main(argv: list[str] | None = None) -> int:
             return _get(args)
         if args.cmd in ("set", "unset"):
             return _set(args)
+        if args.cmd == "import-env":
+            from m3_memory.install import import_env  # the sweep lives with the installer
+
+            return import_env.run(args.config, dry_run=args.dry_run)
         settings = build(locate(args.config))
     except _Refused as e:
         print(e, file=sys.stderr)

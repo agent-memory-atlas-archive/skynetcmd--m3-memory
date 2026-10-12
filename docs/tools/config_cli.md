@@ -1,8 +1,8 @@
 ---
 tool: bin/config_cli.py
-sha1: 67ac6049bb0e
-mtime_utc: 2026-10-12T12:41:40.255714+00:00
-generated_utc: 2026-10-12T12:49:19.162702+00:00
+sha1: 14f0b6f0ee03
+mtime_utc: 2026-10-12T13:29:16.536066+00:00
+generated_utc: 2026-10-12T13:29:57.491425+00:00
 private: false
 ---
 
@@ -16,6 +16,7 @@ private: false
     m3 config get KEY [--origin] [--config FILE]
     m3 config set KEY VALUE [--yes] [--config FILE]
     m3 config unset KEY [--yes] [--config FILE]
+    m3 config import-env [--dry-run] [--config FILE]
 
 `set` takes a value as the environment would spell it (a list comma-separated)
 and writes it in its TOML type under the file's lock (CONFIG_DESIGN §12). Secrets
@@ -35,7 +36,7 @@ Exit codes: 0 = done; 1 = declined at the prompt; 2 = refused or invalid
 
 ## Entry points
 
-- `def main()` (line 227)
+- `def main()` (line 228)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -52,6 +53,7 @@ Exit codes: 0 = done; 1 = declined at the prompt; 2 = refused or invalid
 | `key` |  | — |  | str |  |
 | `value` | as the environment would spell it; a list comma-separated | — |  | str |  |
 | `key` |  | — |  | str |  |
+| `--dry-run` | say what would be imported; write nothing | `False` |  | store_true |  |
 | `--yes`, `-y` | skip the confirmation for a sensitive key | `False` |  | store_true |  |
 | `--config` | use this file instead of the located one | — |  | str |  |
 
@@ -65,7 +67,7 @@ _(none detected)_
 
 ## Calls INTO this repo (intra-repo imports)
 
-_(none detected)_
+- `m3_memory.install (import_env)`
 
 ---
 

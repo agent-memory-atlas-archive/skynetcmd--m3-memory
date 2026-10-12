@@ -128,6 +128,15 @@ class GuardedRewrite:
             diff = f"(binary content: {len(self._old or b'')} -> {len(new)} bytes)\n"
         self._append(f"{diff or '(no change)'}\n=== {utc_iso()} END rewrite (ok) ===\n", None)
 
+    def abort(self, reason: str) -> None:
+        """Close the section for a rewrite the caller undid (it restored ``.bak``),
+        so an open BEGIN keeps meaning "interrupted"."""
+        from m3_core.runtime import utc_iso
+
+        self._append(
+            f"=== {utc_iso()} ROLLED BACK ({reason}); {self.path.name} was restored from {self.bak.name} ===\n", None
+        )
+
     def write(self, data: str | bytes, *, encoding: str = "utf-8") -> None:
         """begin, write ``data`` atomically, end: the whole protocol for a file."""
         payload = data.encode(encoding) if isinstance(data, str) else data

@@ -61,7 +61,8 @@ def render_markdown() -> str:
         "only; then this file; then, until release N+3, the setting's legacy environment "
         "names; then `.env`; then, for the `[llm]` keys, `.llm_config.json`; then the default. "
         "`m3 config show --origin` prints where each value came from; `m3 config set KEY VALUE` "
-        "and `m3 config unset KEY` change this file.",
+        "and `m3 config unset KEY` change this file; `m3 config import-env` moves settings "
+        "from the environment, rc files, `.env` and MCP env blocks into it.",
         "",
     ]
     for table, keys in sorted(REGISTRY.tables().items()):
