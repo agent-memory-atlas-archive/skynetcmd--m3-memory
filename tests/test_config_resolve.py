@@ -99,8 +99,6 @@ def cache(monkeypatch, tmp_path):
     from m3_core.config import settings as st
 
     monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path))
-    monkeypatch.delenv("M3_DB_BACKEND", raising=False)
-    monkeypatch.delenv("DB_BACKEND", raising=False)
     st._reset_for_tests()
     st.set_ttl_for_tests(0.0)
     yield tmp_path / "m3_config.toml"

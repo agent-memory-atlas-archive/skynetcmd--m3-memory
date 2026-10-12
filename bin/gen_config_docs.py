@@ -60,7 +60,8 @@ def render_markdown() -> str:
         "Precedence for each setting: the environment, for the keys marked *env override* "
         "only; then this file; then, until release N+3, the setting's legacy environment "
         "names; then `.env`; then, for the `[llm]` keys, `.llm_config.json`; then the default. "
-        "`m3 config show --origin` prints where each value came from.",
+        "`m3 config show --origin` prints where each value came from; `m3 config set KEY VALUE` "
+        "and `m3 config unset KEY` change this file.",
         "",
     ]
     for table, keys in sorted(REGISTRY.tables().items()):

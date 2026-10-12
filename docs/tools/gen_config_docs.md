@@ -1,8 +1,8 @@
 ---
 tool: bin/gen_config_docs.py
-sha1: 00a5cebfb812
-mtime_utc: 2026-10-12T11:58:53.091964+00:00
-generated_utc: 2026-10-12T11:58:58.092239+00:00
+sha1: 15bc542d82c4
+mtime_utc: 2026-10-12T11:50:44.018293+00:00
+generated_utc: 2026-10-12T12:09:03.290307+00:00
 private: false
 ---
 
@@ -22,7 +22,7 @@ tests/test_generated_docs_fresh.py fails when the registry moves without them.
 
 ## Entry points
 
-- `def main()` (line 130)
+- `def main()` (line 131)
 - `if __name__ == "__main__"` guard
 
 ---

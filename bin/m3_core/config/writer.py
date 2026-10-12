@@ -32,7 +32,9 @@ class ConfigWriteError(ValueError):
 
 def _toml_native(value: ConfigValue) -> object:
     if isinstance(value, Path):
-        return str(value)
+        # Forward slashes: str() on Windows re-separated `/srv/m3` into `\srv\m3`,
+        # rewriting the user's spelling; Windows reads either separator.
+        return value.as_posix()
     if isinstance(value, list):
         return list(value)
     return value

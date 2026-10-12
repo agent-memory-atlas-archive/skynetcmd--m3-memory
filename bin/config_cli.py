@@ -1,14 +1,24 @@
 #!/usr/bin/env python3
-"""`m3 config show`: every setting, its value and where it came from (read-only).
+"""`m3 config`: show, read and change m3_config.toml.
 
     m3 config show [--origin] [--json] [--config FILE]
+    m3 config get KEY [--origin] [--config FILE]
+    m3 config set KEY VALUE [--yes] [--config FILE]
+    m3 config unset KEY [--yes] [--config FILE]
+
+`set` takes a value as the environment would spell it (a list comma-separated)
+and writes it in its TOML type under the file's lock (CONFIG_DESIGN §12). Secrets
+are never written to this file. A key that moves the store or the roots asks a
+person at the console, or needs --yes (plan "Config-set confirmation": defence in
+depth, not a boundary; a shell can edit the file directly).
 
 A repair command: it always starts. An invalid m3_config.toml or environment
 value is printed in full (every problem, its line and the fix) with exit 2,
 never a traceback (CONFIG_DESIGN §3). Secrets are listed by name and source
 only; a value is never printed (§10).
 
-Exit codes: 0 = shown; 2 = the configuration is invalid (problems printed).
+Exit codes: 0 = done; 1 = declined at the prompt; 2 = refused or invalid
+(problems printed).
 """
 
 from __future__ import annotations
@@ -25,8 +35,20 @@ if _BIN not in sys.path:
 
 from m3_core.config import REGISTRY, KeyClass, format_config_error, locate  # noqa: E402
 from m3_core.config.loader import ConfigFileError  # noqa: E402
-from m3_core.config.resolve import ConfigEnvErrors  # noqa: E402
-from m3_core.config.settings import Settings, build  # noqa: E402
+from m3_core.config.registry import ConfigValueError, Key  # noqa: E402
+from m3_core.config.resolve import ConfigEnvErrors, env_outranks_file  # noqa: E402
+from m3_core.config.settings import Settings, build, env_contradicting  # noqa: E402
+from m3_core.config.writer import ConfigWriteError, set_values  # noqa: E402
+from m3_core.seams import console_has_person  # noqa: E402
+
+# Keys that move the store, the roots or the secrets file: a mistaken or
+# injected write to one is the costly kind, so `set`/`unset` confirms them.
+_SENSITIVE = ("db.backend", "secrets.file")
+_SENSITIVE_TABLES = ("paths.",)
+
+
+class _Refused(Exception):
+    """A request that changes nothing; the message is printed and exit is 2."""
 
 
 def _value_text(value: object) -> str:
@@ -131,17 +153,100 @@ def show(settings: Settings, *, origin: bool, as_json: bool) -> str:
     return "\n".join(lines)
 
 
+def _config_key(name: str) -> Key:
+    key = REGISTRY.get(name)
+    if key is None:
+        raise _Refused(f"observed: {name!r} is not a setting. inspect: `m3 config show` lists every key")
+    if key.klass is KeyClass.SECRET:
+        raise _Refused(
+            f"observed: {name} is a secret; secrets are never written to m3_config.toml. "
+            "inspect: store it in the keyring or the secrets file (`m3 config show` names each secret's source)"
+        )
+    if key.klass is not KeyClass.CONFIG:
+        raise _Refused(f"observed: {name} is a {key.klass} key, not a setting")
+    return key
+
+
+def _confirmed(name: str, change: str, file: object, yes: bool) -> bool:
+    """True to go ahead. A sensitive key needs --yes or a person who says yes;
+    with no one at the console and no --yes it is refused (exit 2)."""
+    if yes or not (name in _SENSITIVE or name.startswith(_SENSITIVE_TABLES)):
+        return True
+    if not console_has_person():
+        raise _Refused(
+            f"observed: {name} changes where m3 keeps its data; no one is at the console to confirm. "
+            "inspect: rerun with --yes"
+        )
+    return input(f"{change} in {file}? [y/N] ").strip().lower() in ("y", "yes")
+
+
+def _get(args: argparse.Namespace) -> int:
+    key = _config_key(args.key)
+    settings = build(locate(args.config))
+    line = _value_text(settings[key])
+    print(f"{line}    # {settings.origin(key)}" if args.origin else line)
+    return 0
+
+
+def _set(args: argparse.Namespace) -> int:
+    key = _config_key(args.key)
+    loc = locate(args.config)
+    value = None
+    if args.cmd == "set":
+        try:
+            value = key.coerce_env_value(args.value)
+        except ConfigValueError as e:
+            raise _Refused(f"observed: {args.key} = {args.value!r} is refused: {e}") from None
+    change = f"Set {args.key} = {_value_text(value)}" if args.cmd == "set" else f"Remove {args.key}"
+    if not _confirmed(args.key, change, loc.file, args.yes):
+        print("not changed")
+        return 1
+    try:
+        set_values(loc, {key: value})
+    except ConfigWriteError as e:
+        raise _Refused(f"observed: {e}") from None
+    done = f"{args.key} = {_value_text(value)}" if value is not None else f"removed {args.key}"
+    print(f"{done}  ({loc.file})")
+    if value is not None:
+        winner = "the environment" if env_outranks_file(key) else "the file"
+        for name, seen in env_contradicting(key, value):
+            print(
+                f"  [!] {name}={seen} is set in the environment and disagrees; m3 uses {winner}. "
+                f"fix: remove {name} there."
+            )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="m3 config", description="Show m3's configuration (read-only).")
+    ap = argparse.ArgumentParser(prog="m3 config", description="Show, read and change m3_config.toml.")
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("show", help="every setting with its value (and, with --origin, its source)")
     p.add_argument("--origin", action="store_true", help="say where each value came from")
     p.add_argument("--json", action="store_true", help="machine-readable output")
     p.add_argument("--config", metavar="FILE", help="read this file instead of the located one")
+    g = sub.add_parser("get", help="one setting's value")
+    g.add_argument("key")
+    g.add_argument("--origin", action="store_true", help="say where the value came from")
+    s_ = sub.add_parser("set", help="write one setting to m3_config.toml")
+    s_.add_argument("key")
+    s_.add_argument("value", help="as the environment would spell it; a list comma-separated")
+    u = sub.add_parser("unset", help="remove one setting from m3_config.toml (it falls back)")
+    u.add_argument("key")
+    for q in (s_, u):
+        q.add_argument("--yes", "-y", action="store_true", help="skip the confirmation for a sensitive key")
+    for q in (g, s_, u):
+        q.add_argument("--config", metavar="FILE", help="use this file instead of the located one")
     args = ap.parse_args(argv)
 
     try:
+        if args.cmd == "get":
+            return _get(args)
+        if args.cmd in ("set", "unset"):
+            return _set(args)
         settings = build(locate(args.config))
+    except _Refused as e:
+        print(e, file=sys.stderr)
+        return 2
     except (ConfigFileError, ConfigEnvErrors) as e:
         print(format_config_error(e), file=sys.stderr)
         return 2

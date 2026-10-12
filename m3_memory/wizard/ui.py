@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 import sys
 
-from m3_memory._platform import is_windows
+from m3_memory._platform import console_has_person, is_windows  # noqa: F401  (console_has_person: re-exported)
 
 # Who launched this process: "upgrade" when `m3 upgrade` ran it with the top-level
 # `m3 --caller upgrade <command>`. The upgrade verifies and summarizes, so those
@@ -32,31 +32,6 @@ def set_caller(value: str | None) -> None:
 def caller_args() -> list[str]:
     """The top-level flag an m3 child of this process needs, or []."""
     return [CALLER_FLAG, _caller] if _caller else []
-
-
-def console_has_person() -> bool:
-    """True when a person is at this console.
-
-    On Windows, isatty() is not enough: the NUL device reports itself as a
-    character device, so `< NUL` (how scripts and schedulers detach stdin) reads
-    as a terminal. GetConsoleMode succeeds only for a real console input handle.
-    bin/m3_upgrade.py keeps a copy (interactive_console) because it cannot
-    import this package; a test pins the two together.
-    """
-    try:
-        if sys.stdin is None or not sys.stdin.isatty():
-            return False
-    except (AttributeError, ValueError):
-        return False
-    if not is_windows():
-        return True
-    import ctypes
-    from ctypes import wintypes
-
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined, unused-ignore]
-    handle = kernel32.GetStdHandle(wintypes.DWORD(-10 & 0xFFFFFFFF))  # STD_INPUT_HANDLE
-    mode = wintypes.DWORD()
-    return bool(kernel32.GetConsoleMode(handle, ctypes.byref(mode)))
 
 
 def called_by_upgrade() -> bool:

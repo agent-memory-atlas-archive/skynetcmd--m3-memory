@@ -30,6 +30,7 @@ from m3_memory import _root_migration as root_migration  # noqa: E402  (Root-1 m
 from m3_memory import _roots as roots  # noqa: E402  (the root-directory owner, stdlib-only)
 from m3_memory._platform import (  # noqa: E402
     PLATFORM_OF,
+    console_has_person,
     current_uid,
     detached_spawn_kwargs,
     hidden_window_kwargs,
@@ -52,6 +53,7 @@ __all__ = [
     "PLATFORM_OF",
     "PY",
     "childenv",
+    "console_has_person",
     "current_uid",
     "detached_spawn_kwargs",
     "event_loop_timer_slack",

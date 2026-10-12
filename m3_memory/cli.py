@@ -671,15 +671,15 @@ def _cmd_secret(args: argparse.Namespace) -> int:
 
 
 def _cmd_config(args: argparse.Namespace) -> int:
-    """Dispatch `m3 config show` to bin/config_cli.py (read-only; always starts)."""
+    """Dispatch `m3 config show|get|set|unset` to bin/config_cli.py (always starts)."""
     if not _resolve_bin_script("config_cli.py"):
         print("config command requires the project payload (run `m3 install`).")
         return 1
     argv = [getattr(args, "config_cmd", None) or "show"]
-    if getattr(args, "origin", False):
-        argv.append("--origin")
-    if getattr(args, "json", False):
-        argv.append("--json")
+    argv += [v for v in (getattr(args, "key", None), getattr(args, "value", None)) if v is not None]
+    for flag in ("origin", "json", "yes"):
+        if getattr(args, flag, False):
+            argv.append(f"--{flag}")
     if getattr(args, "config", None):
         argv += ["--config", args.config]
     return _run_bin_script("config_cli.py", argv)
@@ -2140,13 +2140,24 @@ Examples:
 
     p_config = subparsers.add_parser(
         "config",
-        help="Show m3's configuration and where each value comes from (read-only).",
+        help="Show, read and change m3's configuration (m3_config.toml).",
     )
-    cfg_sub = p_config.add_subparsers(dest="config_cmd", metavar="<show>")
+    cfg_sub = p_config.add_subparsers(dest="config_cmd", metavar="<show|get|set|unset>")
     p_cfg_show = cfg_sub.add_parser("show", help="Every setting with its value.")
     p_cfg_show.add_argument("--origin", action="store_true", help="Say where each value came from.")
     p_cfg_show.add_argument("--json", action="store_true", help="Machine-readable output.")
-    p_cfg_show.add_argument("--config", metavar="FILE", help="Read this file instead of the located one.")
+    p_cfg_get = cfg_sub.add_parser("get", help="One setting's value.")
+    p_cfg_get.add_argument("key")
+    p_cfg_get.add_argument("--origin", action="store_true", help="Say where the value came from.")
+    p_cfg_set = cfg_sub.add_parser("set", help="Write one setting to m3_config.toml.")
+    p_cfg_set.add_argument("key")
+    p_cfg_set.add_argument("value", help="As the environment would spell it; a list comma-separated.")
+    p_cfg_unset = cfg_sub.add_parser("unset", help="Remove one setting from m3_config.toml (it falls back).")
+    p_cfg_unset.add_argument("key")
+    for p_cfg in (p_cfg_set, p_cfg_unset):
+        p_cfg.add_argument("--yes", "-y", action="store_true", help="Skip the confirmation for a sensitive key.")
+    for p_cfg in (p_cfg_show, p_cfg_get, p_cfg_set, p_cfg_unset):
+        p_cfg.add_argument("--config", metavar="FILE", help="Use this file instead of the located one.")
     p_config.set_defaults(func=_cmd_config)
 
     p_secret = subparsers.add_parser(

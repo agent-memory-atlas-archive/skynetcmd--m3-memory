@@ -86,8 +86,6 @@ def test_it_reports_the_resolved_backend(monkeypatch):
 
 
 def test_it_echoes_the_env_var_including_the_unset_case(monkeypatch):
-    monkeypatch.delenv("M3_DB_BACKEND", raising=False)
-    monkeypatch.delenv("DB_BACKEND", raising=False)
     msg = ct._backend_diagnosis(_Item("requires_pg"), _Call(exc=_sqlite_error()))
     assert "default sqlite" in msg, "an unset backend is the common cause and must be shown as such, not blank"
 

@@ -455,6 +455,13 @@ the policy is forward-going only.
 
 ### Added
 
+- **`m3 config get`, `m3 config set` and `m3 config unset`.** Read one setting,
+  or write or remove it in `m3_config.toml`. A value is checked before it is
+  written; secrets are refused. Changing the storage backend, a root directory
+  or the secrets file asks for confirmation, or needs `--yes`. `set` names any
+  environment variable that disagrees with the new value.
+  **Affected:** none · **Action:** none · **Data status:** none.
+
 - **`m3 --config FILE`.** Runs any `m3` command against that config file; its
   directory becomes the config root. It takes precedence over `M3_CONFIG_ROOT`.
   **Affected:** none · **Action:** none · **Data status:** none.

@@ -37,8 +37,6 @@ def test_no_store_file_until_sqlite_is_used(monkeypatch, tmp_path):
 
 def test_sqlite_backend_still_opens_eagerly(monkeypatch, tmp_path):
     db = tmp_path / "agent_memory.db"
-    monkeypatch.delenv("M3_DB_BACKEND", raising=False)
-    monkeypatch.delenv("DB_BACKEND", raising=False)
     ctx = M3Context(str(db))
     try:
         assert ctx._pool is not None
