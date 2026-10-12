@@ -955,3 +955,43 @@ def test_a_pinned_llm_endpoint_is_recorded_in_the_file_not_env(monkeypatch, tmp_
     recorded = json.loads((tmp_path / llm_config.LLM_CONFIG_NAME).read_text(encoding="utf-8"))
     assert recorded == {"M3_LLM_ENDPOINTS_CSV": "http://127.0.0.1:8080/v1"}
     assert "LLM_ENDPOINTS_CSV" not in os.environ
+
+
+def test_the_pg_schema_child_finds_the_dsn_in_the_secrets_file_not_env(monkeypatch, tmp_path):
+    """m3 reads no secret from env (m3 9cbed0af), so the DSN must be STORED before
+    the schema child runs, and never handed to it in env. Install ran the child
+    first and passed the DSN in env, so a fresh PostgreSQL install failed to
+    build its schema."""
+    from m3_core.secret_store import get_secret
+
+    import m3_memory.installer as inst
+
+    dsn = "postgresql://u:pw@db.example:5432/m3"
+    for name in (
+        "_run_os_install",
+        "_run_main_migrations",
+        "_register_gemini_mcp",
+        "_register_antigravity_mcp",
+        "_register_cursor_mcp",
+        "_register_cline_mcp",
+        "_sqlite3_cli_hint",
+        "_fix_npm_global_path",
+        "_print_backup_reminder",
+    ):
+        monkeypatch.setattr(inst, name, lambda *a, **k: None)
+    monkeypatch.setattr(inst, "load_config", lambda: {})
+    monkeypatch.setattr(inst, "save_config", lambda cfg: None)
+    monkeypatch.setattr(inst, "_pg_reachable", lambda d: (True, ""))
+    seen: dict = {}
+
+    def child(argv, **kw):
+        seen["stored"] = get_secret("M3_PRIMARY_PG_URL")
+        seen["env_dsn"] = [k for k, v in kw["env"].items() if "pw@" in str(v)]
+        seen["argv"] = argv
+        return subprocess.CompletedProcess(argv, 0, "OK", "")
+
+    monkeypatch.setattr(inst.subprocess, "run", child)
+    inst._post_install(tmp_path / "bin" / "memory_bridge.py", False, None, None, ("postgres", dsn))
+    assert seen["stored"] == dsn, "the DSN was not stored before the schema child ran"
+    assert seen["env_dsn"] == [], f"the DSN reached the child through env: {seen['env_dsn']}"
+    assert "apply_early_argv()" in seen["argv"][seen["argv"].index("-c") + 1]

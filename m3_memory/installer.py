@@ -1216,25 +1216,26 @@ def _run_pg_migrations(bridge: Path, dsn: str) -> str | None:
     pg_NNN migrations. Running ``migrate_pg up`` alone on an empty DB fails
     because it assumes ``schema_versions`` already exists. Only called when the
     DSN is reachable; the unreachable case defers to first-connect ensure_schema.
-    The DSN is passed via env to the child (never on the command line, where it
-    could land in a process listing) and masked in any status line.
+    The child reads the DSN from the secrets file, where ``_persist_pg_backend``
+    stored it first (never env, never the command line, where it could land in a
+    process listing), and the config file this process located, passed as
+    ``--config`` and pinned by ``apply_early_argv``. Masked in any status line.
     """
     # repr(), not r'...': a raw literal breaks on a quote in the path (a home
     # directory like O'Brien) or a trailing backslash.
     child = (
         f"import sys; sys.path.insert(0, {str(bridge.parent)!r}); "
+        "from m3_core.paths import apply_early_argv; apply_early_argv(); "
         "from memory.backends.postgres_backend import PostgresBackend; "
         "b = PostgresBackend(); b.ensure_schema(); b.close(); "
         "print('OK')"
     )
-    from m3_memory import _childenv
+    from m3_memory import _childenv, _roots
 
-    env = _childenv.child_env(
-        handoff=(_childenv.PG_BOOTSTRAP_SECRET, {"M3_DB_BACKEND": "postgres", "M3_PRIMARY_PG_URL": dsn})
-    )
+    env = _childenv.child_env()
     try:
         subprocess.run(
-            [sys.executable, "-c", child],
+            [sys.executable, "-c", child, *_roots.located_config_args()],
             check=True,
             capture_output=True,
             text=True,
@@ -1476,6 +1477,11 @@ def _post_install(
     if db_backend_choice is not None and db_backend_choice[0] == "postgres":
         _dsn = db_backend_choice[1]
         messages.append(f"[+] primary backend: PostgreSQL ({_mask_dsn(_dsn)})")
+        # Record the choice and store the DSN FIRST, where the runtime reads them
+        # (m3_config.toml, the secrets file), regardless of reachability: the
+        # schema child below reads both from there (m3 reads no secret from env,
+        # m3 9cbed0af), and the choice stands even if the server comes up later.
+        messages.extend(_persist_pg_backend(_dsn))
         ok, detail = _pg_reachable(_dsn)
         if ok:
             pg_msg = _run_pg_migrations(bridge, _dsn)
@@ -1491,10 +1497,6 @@ def _post_install(
                 "[i] schema deferred — m3 builds it automatically on the first "
                 "successful connect (no action needed once the server is up)"
             )
-        # Record the choice where the runtime reads it (m3_config.toml),
-        # regardless of reachability — the choice stands even if the server is
-        # coming up later.
-        messages.extend(_persist_pg_backend(_dsn))
 
     # Wire chatlog hooks into agent settings.json files when the user picked
     # a capture mode. Skips silently when capture_choice is None (user accepted

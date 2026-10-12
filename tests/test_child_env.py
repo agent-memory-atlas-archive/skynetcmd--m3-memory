@@ -48,14 +48,12 @@ def test_pg_tools_get_no_m3_secret(monkeypatch):
 def test_a_handoff_carries_only_the_names_it_sanctions():
     import pytest
 
-    from m3_memory._childenv import PG_BOOTSTRAP_SECRET
+    from m3_memory._childenv import RUST_EMBED_SERVER
 
-    env = child_env(
-        handoff=(PG_BOOTSTRAP_SECRET, {"M3_DB_BACKEND": "postgres", "M3_PRIMARY_PG_URL": "postgresql://h/d"})
-    )
-    assert env["M3_PRIMARY_PG_URL"] == "postgresql://h/d"
+    env = child_env(handoff=(RUST_EMBED_SERVER, {"M3_EMBED_SERVER_PORT": "8099"}))
+    assert env["M3_EMBED_SERVER_PORT"] == "8099"
     with pytest.raises(ValueError, match="does not sanction"):
-        child_env(handoff=(PG_BOOTSTRAP_SECRET, {"M3_DATABASE": "x"}))
+        child_env(handoff=(RUST_EMBED_SERVER, {"M3_DATABASE": "x"}))
 
 
 def test_the_sanctioned_handoffs_are_reviewed():
@@ -65,8 +63,7 @@ def test_the_sanctioned_handoffs_are_reviewed():
 
     assert {h.name: sorted(h.names) for h in HANDOFFS} == {
         "rust-embed-server": ["M3_EMBED_GGUF", "M3_EMBED_SERVER_PORT"],
-        "pg-bootstrap-secret": ["M3_DB_BACKEND", "M3_PRIMARY_PG_URL"],
-    }
+    }  # no secret is ever handed over env: m3 reads none from there (m3 9cbed0af)
 
 
 def test_the_embed_server_gets_the_configured_port(m3_settings, tmp_path):

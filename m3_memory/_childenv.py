@@ -56,12 +56,7 @@ RUST_EMBED_SERVER = Handoff(
     frozenset({"M3_EMBED_GGUF", "M3_EMBED_SERVER_PORT"}),
     "m3-embed-server (m3-core-rs) is configured only through env, also as an OS service; until it reads m3_config.toml",
 )
-PG_BOOTSTRAP_SECRET = Handoff(
-    "pg-bootstrap-secret",
-    frozenset({"M3_DB_BACKEND", "M3_PRIMARY_PG_URL"}),
-    "the schema bootstrap child needs a DSN with a password, and argv is visible to every process",
-)
-HANDOFFS: tuple[Handoff, ...] = (RUST_EMBED_SERVER, PG_BOOTSTRAP_SECRET)
+HANDOFFS: tuple[Handoff, ...] = (RUST_EMBED_SERVER,)
 
 
 def child_env(

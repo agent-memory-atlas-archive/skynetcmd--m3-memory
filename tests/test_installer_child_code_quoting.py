@@ -24,7 +24,7 @@ def test_child_program_compiles_and_names_the_path(monkeypatch, tmp_path, name):
     seen: dict = {}
 
     def _fake_run(argv, **kw):
-        seen["code"] = argv[-1]
+        seen["code"] = argv[argv.index("-c") + 1]
         return subprocess.CompletedProcess(argv, 0, "OK", "")
 
     monkeypatch.setattr(installer.subprocess, "run", _fake_run)
