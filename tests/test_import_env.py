@@ -138,6 +138,8 @@ def test_a_secret_goes_to_the_secrets_file_never_the_config_or_stdout(world, cap
     assert _run(world) == 0
     out = capsys.readouterr().out
     assert _secrets() == {"M3_PRIMARY_PG_URL": "postgresql://u:s3cret@h/db"}
+    # --config X puts the secrets beside X, not beside the default config.
+    assert (world["cfg"].parent / "m3_secrets.toml").is_file()
     assert "stored M3_PRIMARY_PG_URL" in out and ".bashrc" in out and "s3cret" not in out
     for f in world["cfg"].parent.glob("m3_config.toml*"):
         assert "s3cret" not in f.read_text(encoding="utf-8"), f

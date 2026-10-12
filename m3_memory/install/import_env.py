@@ -240,9 +240,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--non-interactive", action="store_true", help="never ask: list each disagreement and import nothing for it"
     )
-    ap.add_argument("--config", metavar="FILE", help="use this file instead of the located one")
+    from m3_core.paths import add_config_arg
+
+    add_config_arg(ap)  # the one --config owner: pins it, so the secrets file follows it
     args = ap.parse_args(argv)
-    return run(args.config, dry_run=args.dry_run, non_interactive=args.non_interactive)
+    return run(args.config_file, dry_run=args.dry_run, non_interactive=args.non_interactive)
 
 
 if __name__ == "__main__":

@@ -804,10 +804,10 @@ def _no_warehouse_secret(monkeypatch):
     import auth_utils
     import keyring
 
-    # NO test reads the developer's real keyring or keychain, under ANY name.
-    # Once secrets stopped coming from env (m3 9cbed0af), a test that set a
-    # secret in env fell through to the keyring and printed the real vault
-    # master key into a test log (2026-10-12). Three layers, because the real
+    # NO test reads the developer's real keyring or keychain, under ANY name:
+    # secrets no longer come from env (m3 9cbed0af), so a test that misses the
+    # secrets file falls through to the keyring, which on a dev box holds real
+    # secrets. Three layers, because the real
     # store is reachable three ways: python keyring (an empty backend for the
     # test; a test that installs its own fake backend replaces it), the macOS
     # security CLI (stubbed), and the tier itself for every registry secret
@@ -1860,8 +1860,10 @@ def m3_sandbox(monkeypatch, tmp_path):
     if _cc is not None and hasattr(_cc, "CONFIG_PATH"):
         monkeypatch.setattr(_cc, "CONFIG_PATH", str(tmp_path / "config" / ".chatlog_config.json"))
 
-    # 2. Leaky env → cleared.
-    for _var in _SANDBOX_CLEAR_ENV:
+    # 2. Leaky env → cleared. Every m3 secret's env names too (the registry is
+    # the list): m3 no longer reads them, but a developer's real key in the test
+    # process would reach every child a test spawns and every env sweep it runs.
+    for _var in (*_SANDBOX_CLEAR_ENV, *_registry_secret_names()):
         monkeypatch.delenv(_var, raising=False)
     yield
 

@@ -872,15 +872,10 @@ class TestDbBackendSelection:
         assert inst._scan_registry_env_deprecations({"M3_PG_URL": ""}, unchecked) == []
         assert len(unchecked) == 1 and "Machine" in unchecked[0] and "access denied" in unchecked[0]
 
-    def test_doctor_names_a_plaintext_copy_and_is_quiet_without_one(self, unix_home, capsys, monkeypatch):
-        from m3_core.config import REGISTRY, KeyClass
-
+    def test_doctor_names_a_plaintext_copy_and_is_quiet_without_one(self, unix_home, capsys):
         from m3_memory.install.sections import _secrets_in_env_section
 
-        # The developer's shell may export real secrets; the quiet case needs none.
-        for name in (n for k in REGISTRY if k.klass is KeyClass.SECRET for n in k.env_names):
-            monkeypatch.delenv(name, raising=False)
-        _secrets_in_env_section()
+        _secrets_in_env_section()  # the sandbox cleared every secret's env names
         assert capsys.readouterr().out == ""
         unix_home.write_text('export M3_PG_URL="postgresql://u:pw@old/x"\n')
         _secrets_in_env_section()

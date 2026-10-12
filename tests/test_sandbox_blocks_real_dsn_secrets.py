@@ -54,3 +54,14 @@ def test_no_test_reaches_the_real_keyring_or_keychain():
     assert auth_utils._macos_keychain_read("AGENT_OS_MASTER_KEY") is None
     for name in ("AGENT_OS_MASTER_KEY", "ANTHROPIC_API_KEY", "a-dynamic-profile-service"):
         assert explain_named_secret(name).source is None, name
+
+
+def test_no_test_inherits_a_secret_from_the_developers_environment():
+    """The sandbox clears every m3 secret's env names, so a real key exported
+    in the developer's shell never reaches a test or a child it spawns."""
+    import os
+
+    from m3_core.config import REGISTRY, KeyClass
+
+    names = [n for k in REGISTRY if k.klass is KeyClass.SECRET for n in k.env_names]
+    assert names and not [n for n in names if n in os.environ]

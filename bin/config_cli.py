@@ -41,6 +41,7 @@ from m3_core.config.registry import ConfigValueError, Key, Scope  # noqa: E402
 from m3_core.config.resolve import ConfigEnvErrors, env_outranks_file  # noqa: E402
 from m3_core.config.settings import Settings, build, env_contradicting, with_flags  # noqa: E402
 from m3_core.config.writer import ConfigWriteError, set_values  # noqa: E402
+from m3_core.paths import add_config_arg  # noqa: E402
 from m3_core.seams import console_has_person  # noqa: E402
 
 
@@ -188,7 +189,7 @@ def _confirmed(key: Key, change: str, file: object, yes: bool) -> bool:
 
 def _get(args: argparse.Namespace) -> int:
     key = _config_key(args.key)
-    settings = with_flags(build(locate(args.config)))
+    settings = with_flags(build(locate(args.config_file)))
     line = _value_text(settings[key])
     print(f"{line}    # {settings.origin(key)}" if args.origin else line)
     return 0
@@ -196,7 +197,7 @@ def _get(args: argparse.Namespace) -> int:
 
 def _set(args: argparse.Namespace) -> int:
     key = _config_key(args.key)
-    loc = locate(args.config)
+    loc = locate(args.config_file)
     value = None
     if args.cmd == "set":
         try:
@@ -231,7 +232,6 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("show", help="every setting with its value (and, with --origin, its source)")
     p.add_argument("--origin", action="store_true", help="say where each value came from")
     p.add_argument("--json", action="store_true", help="machine-readable output")
-    p.add_argument("--config", metavar="FILE", help="read this file instead of the located one")
     g = sub.add_parser("get", help="one setting's value")
     g.add_argument("key")
     g.add_argument("--origin", action="store_true", help="say where the value came from")
@@ -245,8 +245,10 @@ def main(argv: list[str] | None = None) -> int:
     im = sub.add_parser("import-env", help="move settings from env, rc files, .env and MCP env blocks into the file")
     im.add_argument("--dry-run", action="store_true", help="say what would be imported; write nothing")
     im.add_argument("--non-interactive", action="store_true", help="never ask; list each disagreement")
-    for q in (g, s_, u, im):
-        q.add_argument("--config", metavar="FILE", help="use this file instead of the located one")
+    # The one --config owner: it also PINS the file for the process, so the
+    # secrets file and every root follow it, not only this command's own reads.
+    for q in (p, g, s_, u, im):
+        add_config_arg(q)
     args = ap.parse_args(argv)
 
     try:
@@ -257,8 +259,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.cmd == "import-env":
             from m3_memory.install import import_env  # the sweep lives with the installer
 
-            return import_env.run(args.config, dry_run=args.dry_run, non_interactive=args.non_interactive)
-        settings = with_flags(build(locate(args.config)))
+            return import_env.run(args.config_file, dry_run=args.dry_run, non_interactive=args.non_interactive)
+        settings = with_flags(build(locate(args.config_file)))
     except _Refused as e:
         print(e, file=sys.stderr)
         return 2

@@ -1,8 +1,8 @@
 ---
 tool: bin/config_cli.py
-sha1: 250fe4331399
-mtime_utc: 2026-10-12T15:36:42.430716+00:00
-generated_utc: 2026-10-12T15:38:20.107752+00:00
+sha1: 2f371ed4b791
+mtime_utc: 2026-10-12T19:35:20.214669+00:00
+generated_utc: 2026-10-12T19:35:20.803824+00:00
 private: false
 ---
 
@@ -36,7 +36,7 @@ Exit codes: 0 = done; 1 = declined at the prompt; 2 = refused or invalid
 
 ## Entry points
 
-- `def main()` (line 228)
+- `def main()` (line 229)
 - `if __name__ == "__main__"` guard
 
 ---
@@ -47,7 +47,6 @@ Exit codes: 0 = done; 1 = declined at the prompt; 2 = refused or invalid
 |---|---|---|---|---|---|
 | `--origin` | say where each value came from | `False` |  | store_true |  |
 | `--json` | machine-readable output | `False` |  | store_true |  |
-| `--config` | read this file instead of the located one | — |  | str |  |
 | `key` |  | — |  | str |  |
 | `--origin` | say where the value came from | `False` |  | store_true |  |
 | `key` |  | — |  | str |  |
@@ -56,7 +55,6 @@ Exit codes: 0 = done; 1 = declined at the prompt; 2 = refused or invalid
 | `--dry-run` | say what would be imported; write nothing | `False` |  | store_true |  |
 | `--non-interactive` | never ask; list each disagreement | `False` |  | store_true |  |
 | `--yes`, `-y` | skip the confirmation for a sensitive key | `False` |  | store_true |  |
-| `--config` | use this file instead of the located one | — |  | str |  |
 
 ---
 
@@ -88,6 +86,7 @@ _(no subprocess / http / sqlite calls detected)_
 - `m3_core.config.resolve (ConfigEnvErrors, env_outranks_file)`
 - `m3_core.config.settings (Settings, build, env_contradicting, with_flags)`
 - `m3_core.config.writer (ConfigWriteError, set_values)`
+- `m3_core.paths (add_config_arg)`
 - `m3_core.seams (console_has_person)`
 - `m3_core.secret_store (SecretsFileError, secrets_file_path)`
 - `m3_core.secret_store (explain_named_secret)`
