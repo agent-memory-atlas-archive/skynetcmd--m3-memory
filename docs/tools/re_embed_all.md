@@ -2,7 +2,7 @@
 tool: bin/re_embed_all.py
 sha1: c1a768d7e509
 mtime_utc: 2026-10-12T22:51:17.782220+00:00
-generated_utc: 2026-10-12T23:01:48.347732+00:00
+generated_utc: 2026-10-12T23:24:27.758161+00:00
 private: false
 ---
 
@@ -25,7 +25,7 @@ _(no module docstring — update the source file.)_
 
 | Flag(s) | Help | Default | Default behavior | Type/Action | Impact when set |
 |---|---|---|---|---|---|
-| `--database` | SQLite database path. Env: M3_DATABASE. Default: memory/agent_memory.db. | None | Falls back to M3_DATABASE env then memory/agent_memory.db. | str | Routes this run against PATH for all DB reads/writes. |
+| `--database` | SQLite database path. Default: memory/agent_memory.db. | None | Falls back to M3_DATABASE env then memory/agent_memory.db. | str | Routes this run against PATH for all DB reads/writes. |
 | `--store` | Named store from m3_config.toml ('main' = the default). Not with --database. | None |  | str |  |
 
 ---

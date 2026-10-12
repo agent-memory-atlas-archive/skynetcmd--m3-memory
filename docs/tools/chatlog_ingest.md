@@ -2,7 +2,7 @@
 tool: bin/chatlog_ingest.py
 sha1: 3a64cb4255f8
 mtime_utc: 2026-10-12T22:51:17.787625+00:00
-generated_utc: 2026-10-12T23:01:47.416231+00:00
+generated_utc: 2026-10-12T23:24:27.160102+00:00
 private: false
 ---
 
@@ -46,7 +46,7 @@ message ids / indices have been ingested so re-invoking on the same transcript
 | `--variant` | Provenance tag (e.g. pre_compact, stop, session_end, test) | None | No variant tag added to rows | str | Tags each ingested row with provided variant value |
 | `--db` | Deprecated: chatlog-only override. Prefer --database. Sets CHATLOG_DB_PATH for the duration of the process. | None | Deprecated alias for --database / CHATLOG_DB_PATH | str | Deprecated alias for --database / CHATLOG_DB_PATH |
 | `--spill-dir` | Override spill directory for this run (dev smoke tests). Prevents stale spill files from polluting production. | None | Uses configured spill directory | str | Routes spill writes to PATH instead of configured dir (dev smoke tests only) |
-| `--database` | SQLite database path. Env: M3_DATABASE. Default: memory/agent_memory.db. | None | Falls back to M3_DATABASE env then memory/agent_memory.db | str | Routes this run against PATH for all DB reads/writes |
+| `--database` | SQLite database path. Default: memory/agent_memory.db. | None | Falls back to M3_DATABASE env then memory/agent_memory.db | str | Routes this run against PATH for all DB reads/writes |
 | `--store` | Named store from m3_config.toml ('main' = the default). Not with --database. | None |  | str |  |
 
 ---

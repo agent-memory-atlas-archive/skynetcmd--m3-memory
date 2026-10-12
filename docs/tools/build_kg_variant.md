@@ -2,7 +2,7 @@
 tool: bin/build_kg_variant.py
 sha1: a60334770c39
 mtime_utc: 2026-10-10T21:05:16.686941+00:00
-generated_utc: 2026-10-10T21:05:29.311466+00:00
+generated_utc: 2026-10-12T23:24:27.118862+00:00
 private: false
 ---
 
@@ -42,7 +42,7 @@ uses the configured database and refuses a path.
 | `--top-n` |  | — | Required; fails if not provided | int | Number of most similar items to link per item |
 | `--sim-threshold` |  | — | Required; fails if not provided | float | Minimum cosine similarity to create an edge |
 | `--wipe-target` | Delete any existing items/edges under target variant before building | `False` | Fails if target variant has existing items | store_true | Deletes all items/edges in target before duplicating source |
-| `--database` | SQLite database path. Env: M3_DATABASE. Default: memory/agent_memory.db. | None | Falls back to M3_DATABASE env then memory/agent_memory.db. | str | Routes this run against PATH for all DB reads/writes. |
+| `--database` | SQLite database path. Default: memory/agent_memory.db. | None | Falls back to M3_DATABASE env then memory/agent_memory.db. | str | Routes this run against PATH for all DB reads/writes. |
 | `--store` | Named store from m3_config.toml ('main' = the default). Not with --database. | None |  | str |  |
 
 ---

@@ -2,7 +2,7 @@
 tool: bin/secret_rotator.py
 sha1: 9e562ed85029
 mtime_utc: 2026-10-12T22:51:17.785729+00:00
-generated_utc: 2026-10-12T23:01:48.402619+00:00
+generated_utc: 2026-10-12T23:24:27.788602+00:00
 private: false
 ---
 
@@ -25,7 +25,7 @@ _(no module docstring — update the source file.)_
 | Flag(s) | Help | Default | Default behavior | Type/Action | Impact when set |
 |---|---|---|---|---|---|
 | `--dry-run` | Show planned rotations without writing | `False` | Rotates secrets: backs up old value, generates new token, encrypts to vault, logs event. | store_true | Logs planned rotations (new token length) but skips backup, encryption, vault write, and event logging. |
-| `--database` | SQLite database path. Env: M3_DATABASE. Default: memory/agent_memory.db. | None | Falls back to M3_DATABASE env then memory/agent_memory.db. | str | Routes all DB reads/writes against PATH for this run. |
+| `--database` | SQLite database path. Default: memory/agent_memory.db. | None | Falls back to M3_DATABASE env then memory/agent_memory.db. | str | Routes all DB reads/writes against PATH for this run. |
 | `--store` | Named store from m3_config.toml ('main' = the default). Not with --database. | None |  | str |  |
 
 ---

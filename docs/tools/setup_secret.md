@@ -2,7 +2,7 @@
 tool: bin/setup_secret.py
 sha1: 0a411173fcf8
 mtime_utc: 2026-10-12T22:51:17.660812+00:00
-generated_utc: 2026-10-12T23:01:48.420220+00:00
+generated_utc: 2026-10-12T23:24:27.796719+00:00
 private: false
 ---
 
@@ -37,7 +37,7 @@ Usage:
 |---|---|---|---|---|---|
 | `--list` | list stored services (no values) | `False` | Runs interactive service picker and secret entry flow (getpass-hidden input). | store_true | Displays table of vault entries (service name, version, origin device, updated_at); exits. |
 | `--delete` | remove a service from the vault | — | Runs interactive service picker and secret entry flow (getpass-hidden input). | str | Deletes specified service after confirmation prompt; exits. |
-| `--database` | SQLite database path. Env: M3_DATABASE. Default: memory/agent_memory.db. | None | Falls back to M3_DATABASE env then memory/agent_memory.db. | str | Routes all DB reads/writes against PATH for this run. |
+| `--database` | SQLite database path. Default: memory/agent_memory.db. | None | Falls back to M3_DATABASE env then memory/agent_memory.db. | str | Routes all DB reads/writes against PATH for this run. |
 | `--store` | Named store from m3_config.toml ('main' = the default). Not with --database. | None |  | str |  |
 
 ---

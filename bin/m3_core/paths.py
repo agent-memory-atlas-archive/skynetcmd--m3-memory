@@ -1270,17 +1270,17 @@ def add_database_arg(parser: argparse.ArgumentParser) -> None:
 
     ``--store NAME`` selects a named store from m3_config.toml for the process
     (its core and files data; config §14, plan 2C.3d) and outranks the legacy
-    path. ``--database PATH`` is that legacy SQLite path: --database >
-    M3_DATABASE env > default (memory/agent_memory.db); scripts activate it via
-    active_database() or by writing os.environ['M3_DATABASE'] before any
-    DB-touching code runs. The two are mutually exclusive.
+    path. ``--database PATH`` is that SQLite path: --database > the legacy
+    M3_DATABASE env (warned once) > default (memory/agent_memory.db); scripts
+    activate it with pin_database() for the process or active_database() for a
+    scope, before any DB-touching code runs. The two are mutually exclusive.
     """
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
         "--database",
         default=None,
         metavar="PATH",
-        help=("SQLite database path. Env: M3_DATABASE. Default: memory/agent_memory.db."),
+        help="SQLite database path. Default: memory/agent_memory.db.",
     )
     group.add_argument(
         "--store",

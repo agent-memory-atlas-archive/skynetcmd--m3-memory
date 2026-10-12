@@ -1889,8 +1889,7 @@ def _add_tool_domain_subcommands(subparsers, command: str | None = None) -> None
                 "--database",
                 dest="database",
                 default=None,
-                help="SQLite DB path. Env: M3_DATABASE. Default: agent_memory.db. "
-                "SQLite backend only, not files tools (refused there).",
+                help="SQLite DB path. Default: agent_memory.db. SQLite backend only, not files tools (refused there).",
             )
             tp.add_argument(
                 "--store",

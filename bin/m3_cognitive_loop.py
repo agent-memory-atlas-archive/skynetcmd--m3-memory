@@ -2110,7 +2110,7 @@ def main():
     )
 
     # Database knobs
-    parser.add_argument("--database", default=None, help="Core Memory DB path (Env: M3_DATABASE)")
+    parser.add_argument("--database", default=None, help="Core Memory DB path")
     parser.add_argument("--chatlog-db", default=None, help="Chatlog DB path (Env: CHATLOG_DB_PATH)")
 
     parser.add_argument("--profile-entities", default="entities_local_qwen", help="Profile for entities")

@@ -2,7 +2,7 @@
 tool: bin/chatlog_embed_sweeper.py
 sha1: ceae71840e6e
 mtime_utc: 2026-10-12T22:51:17.778052+00:00
-generated_utc: 2026-10-12T23:01:47.402000+00:00
+generated_utc: 2026-10-12T23:24:27.149847+00:00
 private: false
 ---
 
@@ -34,7 +34,7 @@ and drains any spill-to-disk files from the async write queue.
 | `--deadline` | Soft wall-clock budget (seconds) for one run. The embed loop stops starting new batches once this elapses, so a large backlog is drained across several scheduled runs instead of monopolizing the GPU in one long run. Default from CHATLOG_EMBED_DEADLINE_S env or 60s; 0 disables (unbounded, the old behavior). max-per-run still caps total rows. | None |  | float |  |
 | `--dry-run` | Query and log but don't embed | `False` | Queries unembed rows, embeds in batches, updates DB | store_true | Queries and logs row counts without embedding |
 | `--drain-spill` | Process spill files before embedding | `False` | Skips spill drain (unless spill dir exists) | store_true | Always processes spill files before embedding |
-| `--database` | SQLite database path. Env: M3_DATABASE. Default: memory/agent_memory.db. | None | Falls back to M3_DATABASE env then memory/agent_memory.db | str | Routes this run against PATH for all DB reads/writes |
+| `--database` | SQLite database path. Default: memory/agent_memory.db. | None | Falls back to M3_DATABASE env then memory/agent_memory.db | str | Routes this run against PATH for all DB reads/writes |
 | `--store` | Named store from m3_config.toml ('main' = the default). Not with --database. | None |  | str |  |
 
 ---

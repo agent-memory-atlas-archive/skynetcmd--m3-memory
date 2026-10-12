@@ -2,7 +2,7 @@
 tool: bin/augment_memory.py
 sha1: cb9293f2d924
 mtime_utc: 2026-10-12T22:51:17.765560+00:00
-generated_utc: 2026-10-12T23:01:47.302292+00:00
+generated_utc: 2026-10-12T23:24:27.086439+00:00
 private: false
 ---
 
@@ -56,7 +56,7 @@ Usage:
 | `--limit` | Max rows to enrich in this run | `200` | Enriches up to 200 user turns | int | Limits enrichment to first N user turns |
 | `--user-id` | Restrict to a single user_id | `` | Processes all users' turns | str | Restricts processing to turns belonging to user_id only |
 | `--limit` | Limit for the enrich-titles phase | `200` | Enriches up to 200 user turns | int | Limits enrichment to first N user turns |
-| `--database` | SQLite database path. Env: M3_DATABASE. Default: memory/agent_memory.db. | None | Falls back to M3_DATABASE env then memory/agent_memory.db. | str | Routes this run against PATH for all DB reads/writes. |
+| `--database` | SQLite database path. Default: memory/agent_memory.db. | None | Falls back to M3_DATABASE env then memory/agent_memory.db. | str | Routes this run against PATH for all DB reads/writes. |
 | `--store` | Named store from m3_config.toml ('main' = the default). Not with --database. | None |  | str |  |
 
 ---
