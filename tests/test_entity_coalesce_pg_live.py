@@ -22,7 +22,7 @@ import pytest
 _BIN = Path(__file__).resolve().parents[1] / "bin"
 sys.path.insert(0, str(_BIN))
 
-from conftest import pg_dsn
+from conftest import pg_dsn, use_backend
 
 pytestmark = pytest.mark.requires_pg
 
@@ -46,9 +46,7 @@ def _dsn() -> str:
 
 @pytest.fixture()
 def pg(monkeypatch):
-    monkeypatch.setenv("M3_DB_BACKEND", "postgres")
-    monkeypatch.setenv("M3_PG_URL", _dsn())
-    monkeypatch.setenv("M3_PRIMARY_PG_URL", _dsn())
+    use_backend("postgres", _dsn())
     from memory.backends import selector as _selector
 
     _selector._reset_for_tests()

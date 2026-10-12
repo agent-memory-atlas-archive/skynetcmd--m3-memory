@@ -23,6 +23,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import use_backend
+
 _BIN = Path(__file__).resolve().parents[1] / "bin"
 sys.path.insert(0, str(_BIN))
 
@@ -99,9 +101,7 @@ def test_drain_spill_postgres(tmp_path, monkeypatch, pg_url):
 
     This is the case the pre-2026-08-09 implementation could not do at all.
     """
-    monkeypatch.setenv("M3_PRIMARY_PG_URL", pg_url)
-    monkeypatch.setenv("M3_PG_URL", pg_url)
-    monkeypatch.setenv("M3_DB_BACKEND", "postgres")
+    use_backend("postgres", pg_url)
 
     from memory.backends import dialect
 
@@ -208,9 +208,7 @@ def test_stale_target_guard_is_sqlite_only(tmp_path, monkeypatch, pg_url):
     first version gated on nothing and would have refused every PG drain whose
     label did not happen to look like a local relative path.
     """
-    monkeypatch.setenv("M3_PRIMARY_PG_URL", pg_url)
-    monkeypatch.setenv("M3_PG_URL", pg_url)
-    monkeypatch.setenv("M3_DB_BACKEND", "postgres")
+    use_backend("postgres", pg_url)
 
     from memory.backends import dialect
 

@@ -30,7 +30,7 @@ Built and under test; not yet released. Details in the
 - [x] **CrewAI (v1.x) integration** — a native `StorageBackend` (`m3-memory[crewai]`); a CrewAI memory stays searchable by every other m3 agent.
 - [x] **PydanticAI integration** — deps-injected tools + a recall history-processor, plus a formal `M3MemoryToolset` (`m3-memory[pydantic-ai]`); Python 3.14-native.
 - [x] **Procedural memory** — a first-class `procedure` type (skill/runbook/how-to/checklist) distilled from successful task runs (writing is opt-in: `M3_DISTILL_AUTO=1`, else dry-run), with `distills_from` provenance and a procedural retrieval boost.
-- [x] **Test suite hardening** — 4,600+ test functions (6,200+ collected cases, 6,600+ with the native core) across 510+ files, run with `filterwarnings=error` (a new warning fails the build).
+- [x] **Test suite hardening** — 5,000+ test functions (6,700+ collected cases, 7,100+ with the native core) across 590+ files, run with `filterwarnings=error` (a new warning fails the build).
 
 ### Later in Q3 (v2026.7.18 → v2026.9.21)
 - [x] **Memory wiki** — `m3 wiki generate` builds a wiki from your memories (v2026.7.21.1).
@@ -131,7 +131,7 @@ Memory as a maintained body of knowledge, not a flat index. All additive and
 ### Sustained engineering
 
 - [x] **100+ MCP tools** (was 66 at v2026.4.12b)
-- [x] **4,600+ test functions (6,200+ collected cases, 6,600+ with the native core) across 510+ files** (warnings-as-errors)
+- [x] **5,000+ test functions (6,700+ collected cases, 7,100+ with the native core) across 590+ files** (warnings-as-errors)
 - [x] PyPI Trusted Publishing via OIDC — no token in CI
 - [x] Pre-push tool-catalog drift gate + bench-data leakage scan (`.githooks/pre-push`)
 - [x] CodeQL security gates + periodic Bandit + pip-audit + secrets-scan reports under [`docs/audits/`](./audits/)

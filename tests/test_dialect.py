@@ -251,7 +251,6 @@ class TestChatlogTableFork:
         # chatlog_table() resolves the active backend.
         from memory.backends import selector as _sel
 
-        monkeypatch.delenv("M3_DB_BACKEND", raising=False)
         _sel._reset_for_tests()
         from memory.backends.dialect import chatlog_table
 

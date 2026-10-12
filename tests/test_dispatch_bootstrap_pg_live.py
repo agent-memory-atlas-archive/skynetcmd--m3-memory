@@ -26,6 +26,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import use_backend
+
 _BIN = Path(__file__).resolve().parents[1] / "bin"
 sys.path.insert(0, str(_BIN))
 
@@ -41,9 +43,7 @@ def pg_no_dispatch(monkeypatch, pg_url):
     even with the bootstrap deleted. Measured — that is exactly what happened
     on the first attempt to prove this fix.
     """
-    monkeypatch.setenv("M3_DB_BACKEND", "postgres")
-    monkeypatch.setenv("M3_PG_URL", pg_url)
-    monkeypatch.setenv("M3_PRIMARY_PG_URL", pg_url)
+    use_backend("postgres", pg_url)
     monkeypatch.setenv("M3_CORE_RS_DISABLE", "1")
 
     from memory.backends import selector as _selector
@@ -122,9 +122,7 @@ def test_the_schema_name_is_configurable(monkeypatch, pg_url):
     search_path so one file serves any fleet's schema name. If the applier ever
     hardcodes 'm3_dispatch', several m3 fleets can no longer share one server.
     """
-    monkeypatch.setenv("M3_DB_BACKEND", "postgres")
-    monkeypatch.setenv("M3_PG_URL", pg_url)
-    monkeypatch.setenv("M3_PRIMARY_PG_URL", pg_url)
+    use_backend("postgres", pg_url)
     monkeypatch.setenv("M3_DISPATCH_PG_SCHEMA", "m3_dispatch_alt")
 
     from memory.backends import selector as _selector

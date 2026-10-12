@@ -33,6 +33,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import use_backend
+
 _ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_ROOT))
 sys.path.insert(0, str(_ROOT / "bin"))
@@ -264,9 +266,7 @@ def test_truncation_report_holds_on_postgres(monkeypatch, tmp_path, pg_url):
     kind of change (a new ORDER BY + a second aggregate query on the same WHERE)
     where a dialect assumption would hide until a PG deployment ran it.
     """
-    monkeypatch.setenv("M3_PRIMARY_PG_URL", pg_url)
-    monkeypatch.setenv("M3_PG_URL", pg_url)
-    monkeypatch.setenv("M3_DB_BACKEND", "postgres")
+    use_backend("postgres", pg_url)
 
     from memory.backends import dialect
 

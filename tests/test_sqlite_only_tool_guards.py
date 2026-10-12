@@ -14,10 +14,11 @@ import asyncio
 
 import pytest
 
+from conftest import use_backend
+
 
 def _force_pg(monkeypatch):
-    monkeypatch.setenv("M3_DB_BACKEND", "postgres")
-    monkeypatch.setenv("M3_PG_URL", "postgresql://u:p@127.0.0.1:5433/none")
+    use_backend("postgres", "postgresql://u:p@127.0.0.1:5433/none")
     from memory.backends import selector as _sel
 
     _sel._reset_for_tests()
@@ -153,7 +154,6 @@ def test_sqlite_only_tool_passes_the_guard_on_sqlite(tool, monkeypatch):
     import importlib
     import sys
 
-    monkeypatch.delenv("M3_DB_BACKEND", raising=False)
     mod = importlib.import_module(tool)
     monkeypatch.setattr(sys, "argv", [tool, "--help"])
     with pytest.raises(SystemExit):
@@ -224,7 +224,6 @@ def test_selector_reexports_the_single_owner():
 def test_guards_are_noop_on_sqlite(monkeypatch):
     """The default (sqlite) backend must not trip any guard — proving these are
     pure fail-loud gates that never affect a normal SQLite deployment."""
-    monkeypatch.delenv("M3_DB_BACKEND", raising=False)
     from memory.backends import require_sqlite_backend
     from memory.backends import selector as _sel
 

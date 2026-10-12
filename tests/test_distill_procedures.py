@@ -20,6 +20,8 @@ from contextlib import contextmanager
 
 import pytest
 
+from conftest import use_backend
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
 
@@ -259,7 +261,7 @@ async def test_a_distilled_task_is_not_distilled_again(monkeypatch, tmp_path):
     """Nothing excluded already-distilled tasks: every pass re-distilled every
     completed task, and contradiction detection superseded the previous copy
     (~5 procedure writes per minute on 2026-10-04)."""
-    monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
+    use_backend("sqlite")
     db = tmp_path / "t.db"
     _full_db(db)
     with sqlite3.connect(str(db)) as conn:
@@ -280,7 +282,7 @@ async def test_a_distilled_task_is_not_distilled_again(monkeypatch, tmp_path):
 def test_loop_work_gate_agrees_after_distillation(monkeypatch, tmp_path):
     """The loop's gate must stop reporting work once the task is distilled, or
     it keeps spending a model call per cycle on nothing."""
-    monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
+    use_backend("sqlite")
     import m3_cognitive_loop as loop
 
     db = tmp_path / "t.db"

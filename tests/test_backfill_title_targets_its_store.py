@@ -42,7 +42,6 @@ def test_chatlog_pass_writes_the_chatlog_store_only(tmp_path, monkeypatch):
     main, chat = tmp_path / "agent_memory.db", tmp_path / "agent_chatlog.db"
     _store(main)
     _store(chat)
-    monkeypatch.delenv("M3_DB_BACKEND", raising=False)
     monkeypatch.setenv("M3_DATABASE", str(main))  # the process-active store
     from memory.backends import selector
 

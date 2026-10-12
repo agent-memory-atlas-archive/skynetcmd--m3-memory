@@ -101,6 +101,16 @@ class Dialect:
         back as ``memoryview``, so a reader normalizes with ``bytes(...)``."""
         raise NotImplementedError("subclass must implement blob_type()")
 
+    def autoincrement_id_column(self, name: str = "id") -> str:
+        """DDL for an integer primary key the store numbers itself: SQLite
+        ``INTEGER PRIMARY KEY`` (the rowid alias), PostgreSQL ``SERIAL PRIMARY KEY``."""
+        raise NotImplementedError("subclass must implement autoincrement_id_column()")
+
+    def timestamp_type(self) -> str:
+        """The column type for a point in time in DDL: SQLite ``DATETIME``,
+        PostgreSQL ``TIMESTAMP WITH TIME ZONE``."""
+        raise NotImplementedError("subclass must implement timestamp_type()")
+
     def insert_or_ignore(self) -> str:
         """The INSERT verb+suffix for "insert, skip on PK/unique conflict".
 

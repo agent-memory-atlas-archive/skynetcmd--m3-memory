@@ -24,7 +24,7 @@ import sys
 
 import pytest
 
-from conftest import skip_reason
+from conftest import pg_dsn, skip_reason, use_backend
 
 _HERE = os.path.dirname(__file__)
 _BIN = os.path.normpath(os.path.join(_HERE, "..", "bin"))
@@ -94,7 +94,7 @@ def test_an_unknown_driver_falls_back_rather_than_raising():
 
 
 @pytest.mark.skipif(
-    not os.environ.get("M3_PRIMARY_PG_URL"),
+    not pg_dsn(),
     reason=skip_reason("db", "no PostgreSQL URL configured"),
 )
 def test_a_real_postgres_cursor_gets_the_postgres_param(monkeypatch):
@@ -114,8 +114,8 @@ def test_a_real_postgres_cursor_gets_the_postgres_param(monkeypatch):
     if driver is None:
         pytest.skip(skip_reason("db", "neither psycopg nor psycopg2 is installed"))
 
-    monkeypatch.setenv("M3_DB_BACKEND", "sqlite")  # global says the opposite
-    conn = driver.connect(os.environ["M3_PRIMARY_PG_URL"], connect_timeout=10)
+    use_backend("sqlite")  # the configured backend says the opposite
+    conn = driver.connect(pg_dsn(), connect_timeout=10)
     try:
         assert dialect_for_connection(conn).param() == "%s"
         assert dialect_for_connection(conn.cursor()).param() == "%s"

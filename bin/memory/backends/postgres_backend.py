@@ -531,6 +531,14 @@ class PostgresDialect(Dialect):
         return "BYTEA"
 
     @override
+    def autoincrement_id_column(self, name: str = "id") -> str:
+        return f"{name} SERIAL PRIMARY KEY"
+
+    @override
+    def timestamp_type(self) -> str:
+        return "TIMESTAMP WITH TIME ZONE"
+
+    @override
     def insert_or_ignore(self) -> str:
         # postgres has no verb form — the arbiter goes in a trailing clause.
         return "INSERT INTO"

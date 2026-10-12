@@ -13,6 +13,8 @@ import sqlite3
 
 import pytest
 
+from conftest import use_backend
+
 
 def _probe(monkeypatch, tables: list[str]):
     doctor = importlib.import_module("memory.doctor")
@@ -28,7 +30,7 @@ def _probe(monkeypatch, tables: list[str]):
     def fake_db():
         yield conn
 
-    monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
+    use_backend("sqlite")
     monkeypatch.setattr(db_mod, "_db", fake_db)
     monkeypatch.setattr(m3_sdk, "resolve_db_path", lambda _=None: ":memory:")
     return doctor._probe_db()

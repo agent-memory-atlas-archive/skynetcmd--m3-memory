@@ -21,6 +21,11 @@ the policy is forward-going only.
 
 ### Fixed
 
+- **The session-handoff server no longer opens the store when it starts.** It
+  creates its table on the first save, in the store that run selected.
+  **Affected:** users of the `session_handoff` MCP server · **Action:** none ·
+  **Data status:** none; existing handoffs are kept.
+
 - **`m3 doctor` checks Cursor and Cline for `M3_EMBED_GGUF`.** The check for an
   embedder path pinned in an MCP server's env block, and its `--fix` scrub,
   skipped those two clients.

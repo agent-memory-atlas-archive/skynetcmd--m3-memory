@@ -17,6 +17,8 @@ import sqlite3
 import sys
 from pathlib import Path
 
+from conftest import use_backend
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bin"))
 
 
@@ -24,7 +26,7 @@ def test_link_with_a_shared_connection_uses_it(tmp_path, monkeypatch):
     from conftest import create_full_main_schema
     from memory import write as W
 
-    monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
+    use_backend("sqlite")
     db_path = tmp_path / "t.db"
     create_full_main_schema(db_path)
     conn = sqlite3.connect(str(db_path))

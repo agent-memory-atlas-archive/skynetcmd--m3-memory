@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import pg_dsn
+from conftest import pg_dsn, use_backend
 
 pytestmark = pytest.mark.requires_pg
 _DSN = pg_dsn()
@@ -28,9 +28,7 @@ _DIM = 1024
 
 @pytest.fixture()
 def pg(monkeypatch, tmp_path):
-    monkeypatch.setenv("M3_DB_BACKEND", "postgres")
-    monkeypatch.setenv("M3_PG_URL", _DSN)
-    monkeypatch.setenv("M3_PRIMARY_PG_URL", _DSN)
+    use_backend("postgres", _DSN)
     monkeypatch.delenv("M3_DATABASE", raising=False)
     if str(_BIN) not in sys.path:
         sys.path.insert(0, str(_BIN))

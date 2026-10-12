@@ -32,7 +32,6 @@ from memory.backends.dialect import Dialect
 
 @pytest.fixture(autouse=True)
 def _reset(monkeypatch):
-    monkeypatch.delenv("M3_DB_BACKEND", raising=False)
     _selector._reset_for_tests()
     yield
     _selector._reset_for_tests()
@@ -253,6 +252,9 @@ def test_postgres_floor_write_then_retrieve_both_ways():
 
     from memory.backends.postgres_backend import PostgresBackend
 
+    from conftest import pg_dsn, use_backend
+
+    use_backend("postgres", pg_dsn())
     backend = PostgresBackend()
     backend.ensure_schema()
     mid = f"conf-{uuid.uuid4().hex[:12]}"
@@ -351,6 +353,9 @@ def test_postgres_result_can_be_iterated_and_fetched_alike():
     """
     from memory.backends.postgres_backend import PostgresBackend
 
+    from conftest import pg_dsn, use_backend
+
+    use_backend("postgres", pg_dsn())
     backend = PostgresBackend()
     backend.ensure_schema()
     d = backend.dialect()
@@ -384,6 +389,20 @@ def test_bare_dialect_raises_for_every_divergent_method():
         base.json_extract_text("metadata_json", "k")  # -> _json_extract_text_expr
     with pytest.raises(NotImplementedError):
         base.table_exists("memory_items")  # -> _table_exists_query
+    for ddl in (base.blob_type, base.autoincrement_id_column, base.timestamp_type):
+        with pytest.raises(NotImplementedError):
+            ddl()
+
+
+def test_ddl_column_types_each_backend():
+    """The DDL fragments a table created at run time uses (session_handoff)."""
+    from memory.backends.dialect import dialect_for
+
+    sqlite, pg = dialect_for("sqlite"), dialect_for("postgres")
+    assert sqlite.autoincrement_id_column() == "id INTEGER PRIMARY KEY"  # the rowid alias
+    assert pg.autoincrement_id_column("n") == "n SERIAL PRIMARY KEY"
+    assert (sqlite.timestamp_type(), pg.timestamp_type()) == ("DATETIME", "TIMESTAMP WITH TIME ZONE")
+    assert (sqlite.blob_type(), pg.blob_type()) == ("BLOB", "BYTEA")
 
 
 def test_unregistered_backend_fails_loud():

@@ -19,6 +19,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import use_backend
+
 _PROBE: contextvars.ContextVar[str] = contextvars.ContextVar("probe", default="unset")
 
 
@@ -172,7 +174,7 @@ def test_files_promotion_inside_a_loop_writes_to_the_selected_store(monkeypatch,
         f'[stores.scratch]\nbackend = "sqlite"\npath = "{(tmp_path / "s.db").as_posix()}"\n', encoding="utf-8"
     )
     st._reset_for_tests()
-    monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
+    use_backend("sqlite")
 
     seen: list[str] = []
 

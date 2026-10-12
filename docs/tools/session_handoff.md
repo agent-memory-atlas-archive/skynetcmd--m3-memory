@@ -1,8 +1,8 @@
 ---
 tool: bin/session_handoff.py
-sha1: d7d4ea551dfe
-mtime_utc: 2026-10-10T21:05:16.519865+00:00
-generated_utc: 2026-10-10T21:05:29.944792+00:00
+sha1: 34f21637ad39
+mtime_utc: 2026-10-12T17:13:12.012585+00:00
+generated_utc: 2026-10-12T17:14:11.895934+00:00
 private: false
 ---
 
@@ -48,7 +48,6 @@ _(no subprocess / http / sqlite calls detected)_
 
 ## Notable external imports
 
-- `memory.backends (active_backend)`
 - `memory.backends (dialect)`
 
 ---

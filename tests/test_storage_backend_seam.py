@@ -22,6 +22,8 @@ from memory.backends import (
 )
 from memory.backends import selector as _selector
 
+from conftest import use_backend
+
 
 @pytest.fixture(autouse=True)
 def _reset_backend_cache():
@@ -67,8 +69,7 @@ def test_postgres_selection_builds_backend(monkeypatch):
     with only a DSN present and no reachable server — the connection-time
     behavior is covered by the live integration tests.
     """
-    monkeypatch.setenv("M3_DB_BACKEND", "postgres")
-    monkeypatch.setenv("M3_PG_URL", "postgresql://u:p@127.0.0.1:5433/nonexistent")
+    use_backend("postgres", "postgresql://u:p@127.0.0.1:5433/nonexistent")
     assert resolve_backend_name() == "postgres"
     backend = active_backend()
     assert backend.name == "postgres"

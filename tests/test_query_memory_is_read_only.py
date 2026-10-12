@@ -13,7 +13,6 @@ import pytest
 
 
 def test_query_memory_reads_refuses_writes_and_leaves_the_pool_writable(tmp_path, monkeypatch):
-    monkeypatch.delenv("M3_DB_BACKEND", raising=False)
     from m3_core.context import M3Context, _close_context_pool
 
     ctx = M3Context(str(tmp_path / "q.db"))

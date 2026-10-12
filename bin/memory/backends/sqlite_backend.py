@@ -60,6 +60,14 @@ class SqliteDialect(Dialect):
         return "BLOB"
 
     @override
+    def autoincrement_id_column(self, name: str = "id") -> str:
+        return f"{name} INTEGER PRIMARY KEY"
+
+    @override
+    def timestamp_type(self) -> str:
+        return "DATETIME"
+
+    @override
     def insert_or_ignore(self) -> str:
         return "INSERT OR IGNORE INTO"
 

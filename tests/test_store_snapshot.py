@@ -154,7 +154,6 @@ def test_label_cannot_escape_the_backup_dir(tmp_path):
 
 
 def test_snapshot_stores_copies_each_distinct_store_once(tmp_path, monkeypatch):
-    monkeypatch.delenv("M3_DB_BACKEND", raising=False)
     from memory.backends import selector
 
     selector._reset_for_tests()
@@ -173,7 +172,6 @@ def test_snapshot_stores_copies_each_distinct_store_once(tmp_path, monkeypatch):
 
 
 def test_snapshot_stores_raises_rather_than_returning_an_unverified_copy(tmp_path, monkeypatch):
-    monkeypatch.delenv("M3_DB_BACKEND", raising=False)
     from memory.backends import selector
 
     selector._reset_for_tests()

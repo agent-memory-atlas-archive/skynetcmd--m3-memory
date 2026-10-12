@@ -22,7 +22,7 @@ _FORBIDDEN = [h.strip() for h in os.environ.get("M3_PG_FORBIDDEN_HOSTS", "").spl
 
 # Gated by the requires_pg marker (auto-skips when no Postgres reachable).
 # pg_dsn() centralizes the M3_PRIMARY_PG_URL > M3_PG_URL precedence — NEVER PG_URL.
-from conftest import pg_dsn
+from conftest import pg_dsn, use_backend
 
 pytestmark = pytest.mark.requires_pg
 
@@ -53,8 +53,7 @@ def pg_seeded(monkeypatch):
     """Seed 3 deterministic items+embeddings on the PG cluster; backend selected."""
     if any(f in _dsn() for f in _FORBIDDEN):
         pytest.fail("refusing to run destructive tests against a forbidden host")
-    monkeypatch.setenv("M3_DB_BACKEND", "postgres")
-    monkeypatch.setenv("M3_PG_URL", _dsn())
+    use_backend("postgres", _dsn())
 
     from memory.backends import selector as _selector
     from memory.embed import _compatible_model_names
@@ -143,8 +142,7 @@ def test_pg_memory_write_impl_end_to_end(monkeypatch):
     """memory_write_impl writes a real memory on PG and it reads back — proves the
     full write path (dialected SQL + connection routing + sqlite-compat adapter +
     JSONB empty-metadata normalization) works end to end."""
-    monkeypatch.setenv("M3_DB_BACKEND", "postgres")
-    monkeypatch.setenv("M3_PG_URL", _dsn())
+    use_backend("postgres", _dsn())
 
     from memory.backends import selector as _selector
 
@@ -212,8 +210,7 @@ def test_pg_write_supersede_lifecycle_persists(monkeypatch):
     transaction, and silently rolled back the supersede's is_deleted/edge writes —
     the caller logged success but nothing persisted. This exercises the whole
     chain end-to-end and asserts persistence."""
-    monkeypatch.setenv("M3_DB_BACKEND", "postgres")
-    monkeypatch.setenv("M3_PG_URL", _dsn())
+    use_backend("postgres", _dsn())
 
     from memory.backends import selector as _selector
 

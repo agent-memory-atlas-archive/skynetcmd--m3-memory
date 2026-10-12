@@ -19,6 +19,8 @@ import contextlib
 
 import pytest
 
+from conftest import use_backend
+
 
 class _Stop(Exception):
     pass
@@ -38,7 +40,7 @@ def seen(monkeypatch):
         yield  # pragma: no cover
 
     monkeypatch.setattr(M3Context, "get_chatlog_conn", _record)
-    monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
+    use_backend("sqlite")
     return out
 
 

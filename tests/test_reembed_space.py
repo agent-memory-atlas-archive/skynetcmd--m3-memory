@@ -81,7 +81,6 @@ def test_apply_deletes_only_the_minority_family(tmp_path):
 def backup_dir(tmp_path, monkeypatch):
     d = tmp_path / "backups"
     monkeypatch.setattr(reembed_space, "_backup_dir", lambda: str(d))
-    monkeypatch.delenv("M3_DB_BACKEND", raising=False)
     return d
 
 

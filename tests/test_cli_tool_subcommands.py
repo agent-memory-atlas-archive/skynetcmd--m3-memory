@@ -34,6 +34,8 @@ if _BIN not in sys.path:
 
 import mcp_tool_catalog  # noqa: E402
 
+from conftest import use_backend
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -51,7 +53,7 @@ def files_db(tmp_path, monkeypatch) -> Path:
     import importlib
     import sqlite3
 
-    monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
+    use_backend("sqlite")
     for var in ("M3_PRIMARY_PG_URL", "M3_PG_URL"):
         monkeypatch.delenv(var, raising=False)
     importlib.import_module("memory.backends.selector")._reset_for_tests()

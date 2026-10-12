@@ -22,6 +22,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import use_backend
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bin"))
 
 
@@ -43,7 +45,7 @@ def store(tmp_path, monkeypatch):
     create_full_main_schema(db)
     monkeypatch.setenv("M3_DATABASE", str(db))
     monkeypatch.setenv("M3_SKIP_MIGRATIONS", "1")
-    monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
+    use_backend("sqlite")
     monkeypatch.setenv("M3_ENABLE_ENTITY_GRAPH", "true")
     with sqlite3.connect(str(db)) as c:
         c.execute(

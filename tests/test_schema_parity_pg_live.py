@@ -37,7 +37,7 @@ sys.path.insert(0, str(_BIN))
 # module when no Postgres is reachable. pg_dsn() centralizes the
 # M3_PRIMARY_PG_URL > M3_PG_URL precedence (replaces the former per-file
 # _dsn()/_reachable()/skipif triplet).
-from conftest import pg_dsn
+from conftest import pg_dsn, use_backend
 
 pytestmark = pytest.mark.requires_pg
 
@@ -160,9 +160,7 @@ def _pg_columns(backend, tables=None) -> dict:
 
 @pytest.fixture()
 def pg(monkeypatch):
-    monkeypatch.setenv("M3_DB_BACKEND", "postgres")
-    monkeypatch.setenv("M3_PG_URL", _dsn())
-    monkeypatch.setenv("M3_PRIMARY_PG_URL", _dsn())
+    use_backend("postgres", _dsn())
     from memory.backends import selector as _selector
 
     _selector._reset_for_tests()

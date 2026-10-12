@@ -24,32 +24,22 @@ mcp = FastMCP("Session Manager")
 from datetime import UTC, datetime
 
 
-# Ensure table exists at module load (M13)
 # session_handoff is a CORE-store table, so it is created/read/written through
 # the backend-aware seam (mc._db()). On a PG-primary deployment the old
 # sqlite3.connect(DB_PATH) created/wrote a stale SQLite file that the live store
-# never sees. The DDL diverges per backend (SQLite INTEGER PRIMARY KEY +
-# DATETIME vs PG SERIAL + TIMESTAMPTZ), so the id/timestamp column types are
-# chosen from the active backend.
+# never sees. The DDL diverges per backend, so the column types come from the
+# dialect. Created on first use, not at import (M13 did it at module load): the
+# backend is selected after imports, by config, --set or a test.
 def _ensure_table():
     import memory_core as mc
-    from memory.backends import active_backend
+    from memory.backends import dialect
 
-    is_pg = active_backend().name != "sqlite"
-    id_col = "id SERIAL PRIMARY KEY" if is_pg else "id INTEGER PRIMARY KEY"
-    ts_col = (
-        "timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP"
-        if is_pg
-        else "timestamp DATETIME DEFAULT CURRENT_TIMESTAMP"
-    )
+    d = dialect()
     with mc._db() as conn:
         conn.execute(
-            f"CREATE TABLE IF NOT EXISTS session_handoff ({id_col}, project TEXT, "
-            f"summary TEXT, next_steps TEXT, {ts_col})"
+            f"CREATE TABLE IF NOT EXISTS session_handoff ({d.autoincrement_id_column()}, project TEXT, "
+            f"summary TEXT, next_steps TEXT, timestamp {d.timestamp_type()} DEFAULT CURRENT_TIMESTAMP)"
         )
-
-
-_ensure_table()
 
 
 @mcp.tool()
@@ -59,6 +49,7 @@ def save_handoff(project: str, summary: str, next_steps: str):
         import memory_core as mc
         from memory.backends import dialect
 
+        _ensure_table()
         _p = dialect().param()
         with mc._db() as conn:
             now = datetime.now(UTC).isoformat()

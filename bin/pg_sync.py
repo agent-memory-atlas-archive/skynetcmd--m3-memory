@@ -1149,9 +1149,8 @@ _EXIT_SKIPPED = 75
 def _local_dialect():
     """The LOCAL store's dialect — placeholders, upsert clause, error classes.
 
-    Resolved per call rather than cached: unlike _LOCAL_PARAM (a string baked at
-    import for use inside f-strings), the dialect object is consulted for
-    behaviour, and a test that flips M3_DB_BACKEND must see the change.
+    Resolved per call rather than cached: the dialect object is consulted for
+    behaviour, and a test or flag that selects the backend must see the change.
 
     Falls back to the SQLite dialect when the seam is unavailable (installer
     bootstrap), matching auth_utils._dialect_param's own fallback — the local
@@ -1189,14 +1188,11 @@ def _local_param() -> str:
         return "?"
 
 
-_LOCAL_PARAM = _local_param()
-
-
 def _param_of(cur) -> str:
     """The placeholder for the CONNECTION we were handed — not for a global.
 
-    `_LOCAL_PARAM` is bound ONCE at import from `_local_dialect()`, which reads
-    `M3_DB_BACKEND`. That makes the placeholder follow a process-wide env var
+    A placeholder bound ONCE at import from `_local_dialect()` (the old
+    `_LOCAL_PARAM`) followed the process-wide backend setting
     rather than the cursor it is interpolated into. sync legitimately holds TWO
     stores at once (local SQLite + the PostgreSQL warehouse), so with
     `M3_DB_BACKEND=postgres` the constant became `%s` and PostgreSQL syntax
@@ -1221,7 +1217,9 @@ def _param_of(cur) -> str:
 
         return dialect_for_connection(cur).param()
     except ImportError:  # bootstrap: seam not importable yet
-        return _LOCAL_PARAM
+        # Computed now, not at import: binding it at import built the active
+        # backend (a PostgreSQL connection) before any test or flag could choose it.
+        return _local_param()
 
 
 def _this_host() -> str:

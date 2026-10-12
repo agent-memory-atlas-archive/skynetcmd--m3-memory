@@ -33,7 +33,6 @@ from memory.backends import selector  # noqa: E402
 
 @pytest.fixture(autouse=True)
 def _clean_backend_env(monkeypatch):
-    monkeypatch.delenv("M3_DB_BACKEND", raising=False)
     monkeypatch.delenv("DB_BACKEND", raising=False)
     selector._reset_for_tests()
     yield

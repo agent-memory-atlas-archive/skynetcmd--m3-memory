@@ -14,6 +14,7 @@ import os
 import struct
 import sys
 import uuid as _uuid
+from typing import Any
 
 import httpx
 
@@ -51,9 +52,17 @@ from m3_core.context import open_pointed_store  # noqa: E402
 from m3_core.paths import seam_backend, seam_dialect, store_is_a_file  # noqa: E402
 from m3_sdk import resolve_db_path  # noqa: E402
 
-DB_PATH = resolve_db_path(None) if store_is_a_file() else None
-_D = seam_dialect()
-_P = _D.param()
+# Bound in main(), not at import: the backend is selected after imports.
+DB_PATH: str | None = None
+_D: Any = None
+_P = "?"
+
+
+def _bind_store() -> None:
+    global DB_PATH, _D, _P
+    DB_PATH = resolve_db_path(None) if store_is_a_file() else None
+    _D = seam_dialect()
+    _P = _D.param()
 
 
 def _open():
@@ -1296,6 +1305,7 @@ async def run(lm_online: bool, jina_loaded: bool) -> bool:
 
 
 async def main() -> None:
+    _bind_store()
     print("=" * 62)
     print("  Memory Bridge — End-to-End Test")
     print("=" * 62)

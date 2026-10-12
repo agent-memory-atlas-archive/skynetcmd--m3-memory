@@ -14,11 +14,13 @@ import uuid
 
 import pytest
 
+from conftest import use_backend
+
 
 def test_a_pointed_sqlite_file_is_not_migrated(tmp_path, monkeypatch):
     from m3_core.context import pointed_store_connection
 
-    monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
+    use_backend("sqlite")
     path = tmp_path / "export.db"
     raw = sqlite3.connect(path)
     raw.execute("CREATE TABLE only_this (x INTEGER)")
@@ -43,7 +45,7 @@ def test_the_pointed_file_wins_over_m3_database(tmp_path, monkeypatch):
     file. The sandbox sets M3_DATABASE to the target, which hid it."""
     from m3_core.context import pointed_store_connection
 
-    monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
+    use_backend("sqlite")
     target, other = tmp_path / "target.db", tmp_path / "main.db"
     for p in (target, other):
         raw = sqlite3.connect(p)
@@ -85,7 +87,7 @@ def test_an_error_rolls_back(each_backend):
 def test_no_path_on_a_file_backend_is_refused(monkeypatch):
     from m3_core.context import pointed_store_connection
 
-    monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
+    use_backend("sqlite")
     with pytest.raises(ValueError, match="observed: no SQLite path"):
         with pointed_store_connection(None):
             pass

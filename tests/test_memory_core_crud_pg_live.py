@@ -24,6 +24,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import use_backend
+
 _BIN = Path(__file__).resolve().parents[1] / "bin"
 sys.path.insert(0, str(_BIN))
 
@@ -33,9 +35,7 @@ pytestmark = pytest.mark.requires_pg
 @pytest.fixture()
 def pg(monkeypatch, pg_url):
     _DSN = pg_url
-    monkeypatch.setenv("M3_DB_BACKEND", "postgres")
-    monkeypatch.setenv("M3_PG_URL", _DSN)
-    monkeypatch.setenv("M3_PRIMARY_PG_URL", _DSN)
+    use_backend("postgres", _DSN)
     monkeypatch.setenv("M3_CORE_RS_DISABLE", "1")
     from memory.backends import selector as _selector
 

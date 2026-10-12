@@ -42,7 +42,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import skip_reason
+from conftest import skip_reason, use_backend
 
 _BIN = Path(__file__).resolve().parents[1] / "bin"
 sys.path.insert(0, str(_BIN))
@@ -63,8 +63,7 @@ def pg_backend(monkeypatch, pg_url):
     guard these tests raised UndefinedTable *from inside set_api_key* when handed
     a warehouse DSN.
     """
-    monkeypatch.setenv("M3_DB_BACKEND", "postgres")
-    monkeypatch.setenv("M3_PRIMARY_PG_URL", pg_url)
+    use_backend("postgres", pg_url)
     import auth_utils
 
     # Drop any backend cached from an earlier SQLite-backed test in this session.
@@ -163,8 +162,7 @@ def test_probe_degrades_to_false_when_the_table_is_absent(pg_url, monkeypatch):
     bridge would refuse to start on every PostgreSQL deployment -- turning a
     weaker diagnosis into a hard outage.
     """
-    monkeypatch.setenv("M3_DB_BACKEND", "postgres")
-    monkeypatch.setenv("M3_PRIMARY_PG_URL", pg_url)
+    use_backend("postgres", pg_url)
     import m3_http_auth as A
 
     assert A._vault_row_exists("ANY_SERVICE_NAME") is False

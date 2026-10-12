@@ -27,7 +27,7 @@ _FORBIDDEN = [h.strip() for h in os.environ.get("M3_PG_FORBIDDEN_HOSTS", "").spl
 
 # Gated by the requires_pg marker (auto-skips when no Postgres reachable).
 # pg_dsn() centralizes the M3_PRIMARY_PG_URL > M3_PG_URL precedence — NEVER PG_URL.
-from conftest import pg_dsn
+from conftest import pg_dsn, use_backend
 
 pytestmark = pytest.mark.requires_pg
 
@@ -59,8 +59,7 @@ def backend(monkeypatch):
     for forbidden in _FORBIDDEN:
         if forbidden in _dsn_val:
             pytest.fail(f"refusing to run destructive tests against forbidden host {forbidden}")
-    monkeypatch.setenv("M3_DB_BACKEND", "postgres")
-    monkeypatch.setenv("M3_PG_URL", _dsn_val)
+    use_backend("postgres", _dsn_val)
     from memory.backends import selector as _selector
 
     _selector._reset_for_tests()

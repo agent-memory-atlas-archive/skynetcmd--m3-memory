@@ -19,6 +19,8 @@ import sys
 
 import pytest
 
+from conftest import use_backend
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
 _FILE_NODE_COLS = (
@@ -33,7 +35,6 @@ def sqlite_files(tmp_path, monkeypatch):
     """A fresh SQLite files store wired via M3_FILES_DB_PATH."""
     monkeypatch.setenv("M3_FILES_DB_PATH", str(tmp_path / "files.db"))
     monkeypatch.setenv("M3_CORE_RS_DISABLE", "1")
-    monkeypatch.delenv("M3_DB_BACKEND", raising=False)
     monkeypatch.delenv("M3_PRIMARY_PG_URL", raising=False)
     monkeypatch.delenv("M3_PG_URL", raising=False)
     # The backend selector caches the active backend; a prior PG test may have left
@@ -128,9 +129,7 @@ pg = pytest.mark.requires_pg
 
 @pytest.fixture()
 def pg_files(monkeypatch, pg_url):
-    monkeypatch.setenv("M3_DB_BACKEND", "postgres")
-    monkeypatch.setenv("M3_PRIMARY_PG_URL", pg_url)
-    monkeypatch.setenv("M3_PG_URL", pg_url)
+    use_backend("postgres", pg_url)
     monkeypatch.setenv("M3_CORE_RS_DISABLE", "1")
     import psycopg2
 

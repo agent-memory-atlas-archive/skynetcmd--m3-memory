@@ -446,11 +446,11 @@ jobs:
       # requires_pg run that skips everything is indistinguishable from a pass,
       # and that ambiguity is the whole reason #160 was filed.
       env:
-        M3_PRIMARY_PG_URL: postgresql://m3dev:m3devpass@localhost:5432/m3_citest
+        CI_PG_DSN: postgresql://m3dev:m3devpass@localhost:5432/m3_citest
       run: |
         python - <<'PY'
         import os, sys, psycopg2
-        dsn = os.environ["M3_PRIMARY_PG_URL"]
+        dsn = os.environ["CI_PG_DSN"]
         with psycopg2.connect(dsn, connect_timeout=10) as c:
             v = c.cursor(); v.execute("SELECT version()")
             print(v.fetchone()[0])
@@ -463,7 +463,6 @@ jobs:
       # guarantee with no enforcement site is a lie the tests cannot see (§3).
       env:
         M3_DB_BACKEND: postgres
-        M3_PRIMARY_PG_URL: postgresql://m3dev:m3devpass@localhost:5432/m3_citest
       run: |
         python - <<'PY'
         import sys
@@ -485,7 +484,9 @@ jobs:
     - name: Run the FULL suite against PostgreSQL
       env:
         M3_DB_BACKEND: postgres
-        M3_PRIMARY_PG_URL: postgresql://m3dev:m3devpass@localhost:5432/m3_citest
+        # The test cluster reaches pytest as --m3-pg-url, never as env m3 reads
+        # (no-env plan). CI_PG_DSN is this workflow's own variable.
+        CI_PG_DSN: postgresql://m3dev:m3devpass@localhost:5432/m3_citest
       # The whole suite, not `-m requires_pg`. Measured 2026-09-13: the marker
       # selected 102 of 4,307 tests (2.4%). The other 4,205 are not
       # SQLite-specific -- they exercise the storage seam against WHATEVER
@@ -499,12 +500,14 @@ jobs:
       # (embedder, gguf, files_db); those would only self-skip and re-create the
       # ambiguity this lane exists to remove.
       run: |
-        pytest tests/ -m "not integration" -p no:cacheprovider -q
+        pytest tests/ -m "not integration" -p no:cacheprovider -q --m3-pg-url "$CI_PG_DSN"
 
     - name: Run the requires_pg suites
       env:
         M3_DB_BACKEND: postgres
-        M3_PRIMARY_PG_URL: postgresql://m3dev:m3devpass@localhost:5432/m3_citest
+        # The test cluster reaches pytest as --m3-pg-url, never as env m3 reads
+        # (no-env plan). CI_PG_DSN is this workflow's own variable.
+        CI_PG_DSN: postgresql://m3dev:m3devpass@localhost:5432/m3_citest
       # ⚠ THE STEP ABOVE CANNOT REACH THESE. `-m "not integration"` is correct
       # for suites whose SERVICE is missing here, but the collection hook gives
       # EVERY capability-marked test the `integration` umbrella -- including
@@ -521,7 +524,7 @@ jobs:
       # indistinguishable from a pass, which is the exact ambiguity #160 was
       # filed about. Assert a real collection instead of trusting the exit code.
       run: |
-        pytest tests/ -m requires_pg -p no:cacheprovider -q --junitxml=pg-marker.xml
+        pytest tests/ -m requires_pg -p no:cacheprovider -q --junitxml=pg-marker.xml --m3-pg-url "$CI_PG_DSN"
         python - <<'PY'
         import sys, xml.etree.ElementTree as ET
         root = ET.parse("pg-marker.xml").getroot()

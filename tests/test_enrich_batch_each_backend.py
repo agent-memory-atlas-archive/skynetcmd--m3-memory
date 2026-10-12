@@ -14,6 +14,8 @@ import uuid
 
 import pytest
 
+from conftest import use_backend
+
 
 @pytest.fixture
 def state(each_backend):
@@ -118,7 +120,7 @@ def test_a_stale_running_row_is_reaped(each_backend, state):
 def test_a_missing_state_file_is_refused_not_created(tmp_path, monkeypatch):
     import enrichment_state as estate
 
-    monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
+    use_backend("sqlite")
     missing = tmp_path / "typo.db"
     with pytest.raises(ValueError, match="observed: no SQLite DB at"):
         estate.open_state_conn(missing)

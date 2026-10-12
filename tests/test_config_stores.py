@@ -14,6 +14,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import use_backend
+
 
 @pytest.fixture
 def stores_file(monkeypatch, tmp_path):
@@ -128,7 +130,7 @@ def test_a_postgres_store_changes_the_backend_name(stores_file, monkeypatch):
     from m3_core.config.stores import active_store
     from m3_core.paths import resolve_backend_name
 
-    monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
+    use_backend("sqlite")
     stores_file('[stores.bench]\nbackend = "postgres"\ndsn_secret = "M3_STORE_BENCH_PG_URL"\n')
     with active_store("bench"):
         assert resolve_backend_name() == "postgres"
@@ -152,7 +154,7 @@ def test_a_write_inside_a_sqlite_store_lands_in_its_file(stores_file, tmp_path, 
 
     from m3_core.config.stores import active_store
 
-    monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
+    use_backend("sqlite")
     importlib.import_module("memory.backends.selector")._reset_for_tests()
     store_db = tmp_path / "scratch.db"
     stores_file(f'[stores.scratch]\nbackend = "sqlite"\npath = "{store_db.as_posix()}"\n')
@@ -172,7 +174,7 @@ def test_a_write_inside_a_sqlite_store_lands_in_its_file(stores_file, tmp_path, 
 def _pg_store(monkeypatch, stores_file, dsn: str | None):
     import importlib
 
-    monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
+    use_backend("sqlite")
     if dsn is None:
         monkeypatch.delenv("M3_STORE_BENCH_PG_URL", raising=False)
     else:
@@ -210,7 +212,7 @@ def test_two_stores_on_one_database_share_an_instance(monkeypatch, stores_file):
     import importlib
 
     mb = importlib.import_module("memory.backends.selector")
-    monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
+    use_backend("sqlite")
     monkeypatch.setenv("M3_STORE_A_PG_URL", dsn)
     monkeypatch.setenv("M3_STORE_B_PG_URL", dsn)
     monkeypatch.delenv("M3_CDW_PG_URL", raising=False)
@@ -280,7 +282,7 @@ def _path_probe(ran: list):
 
 
 def _scratch(stores_file, tmp_path, monkeypatch) -> str:
-    monkeypatch.setenv("M3_DB_BACKEND", "sqlite")
+    use_backend("sqlite")
     stores_file(f'[stores.scratch]\nbackend = "sqlite"\npath = "{(tmp_path / "s.db").as_posix()}"\n')
     return str((tmp_path / "s.db").absolute())
 

@@ -173,16 +173,14 @@ def pytest_configure(config):
 
 
 def pg_dsn() -> "str | None":
-    """The Postgres DSN for live tests — the SINGLE source of the precedence rule.
+    """The Postgres DSN for live tests: ``pytest --m3-pg-url``, the ONE source.
 
-    ``--m3-pg-url``. TRANSITIONAL until the lanes and CI pass the option (no-env
-    plan step 5, which removes this fallback): M3_PRIMARY_PG_URL > M3_PG_URL,
-    and NEVER PG_URL (PG_URL points at PROD; see CLAUDE.md and the pg-url-split
-    memory). Centralized so the 12 former copies cannot drift.
+    Never an env var (no-env plan, m3 18720cb5): the lanes, CI and the
+    pre-commit pass the option, and a DSN in the environment (a developer's own
+    M3_PRIMARY_PG_URL, or PG_URL, which points at PROD) can never select the
+    cluster tests write to. Centralized so the 12 former copies cannot drift.
     """
-    if _PG_URL_OPTION:
-        return _PG_URL_OPTION.strip() or None
-    return (_os.environ.get("M3_PRIMARY_PG_URL") or _os.environ.get("M3_PG_URL") or "").strip() or None
+    return (_PG_URL_OPTION or "").strip() or None
 
 
 def use_backend(name: str, dsn: "str | None" = None) -> None:
@@ -328,7 +326,7 @@ def skip_reason(dimension: str, text: str) -> str:
 # Marker -> (probe, dimension, reason). A marked test is skipped when its probe
 # returns False. One place; adding a capability is one row.
 _CAPABILITY_PROBES = {
-    "requires_pg": (_pg_reachable, "db", "no reachable PostgreSQL (set M3_PRIMARY_PG_URL to a throwaway cluster)"),
+    "requires_pg": (_pg_reachable, "db", "no reachable PostgreSQL (pass pytest --m3-pg-url=<a throwaway cluster DSN>)"),
     "requires_embedder": (
         embed_backend_reachable,
         "env",

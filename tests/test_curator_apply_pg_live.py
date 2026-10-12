@@ -22,7 +22,7 @@ sys.path.insert(0, str(_BIN))
 # module when no Postgres is reachable. pg_dsn() centralizes the
 # M3_PRIMARY_PG_URL > M3_PG_URL precedence (replaces the former per-file
 # _dsn()/_reachable()/skipif triplet).
-from conftest import pg_dsn
+from conftest import pg_dsn, use_backend
 
 pytestmark = pytest.mark.requires_pg
 
@@ -48,9 +48,7 @@ def _dsn() -> str:
 def pg_seeded(monkeypatch):
     """Backend=postgres, schema ensured, core tables dropped+rebuilt for a clean
     shape; seeds 4 memories via the write path and yields their ids."""
-    monkeypatch.setenv("M3_DB_BACKEND", "postgres")
-    monkeypatch.setenv("M3_PG_URL", _dsn())
-    monkeypatch.setenv("M3_PRIMARY_PG_URL", _dsn())
+    use_backend("postgres", _dsn())
 
     from memory.backends import selector as _selector
 
@@ -130,9 +128,7 @@ def test_apply_chatlog_plan_prune_on_pg(monkeypatch):
     chat_log_items directly."""
     import uuid
 
-    monkeypatch.setenv("M3_DB_BACKEND", "postgres")
-    monkeypatch.setenv("M3_PG_URL", _dsn())
-    monkeypatch.setenv("M3_PRIMARY_PG_URL", _dsn())
+    use_backend("postgres", _dsn())
     from memory.backends import selector as _selector
 
     _selector._reset_for_tests()
