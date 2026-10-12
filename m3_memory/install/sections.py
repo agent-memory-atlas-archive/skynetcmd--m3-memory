@@ -848,6 +848,30 @@ def _config_env_disagreement_section() -> None:
         )
 
 
+def _llm_file_legacy_section() -> None:
+    """Name each LLM setting m3 takes from the legacy .llm_config.json, to move
+    into [llm] of m3_config.toml (fold plan 2026.10.12, step 3). Silent when no
+    value in use comes from that file."""
+    try:
+        _bin.ensure_on_path()
+        from m3_core.config.settings import current
+        from m3_core.llm_config import llm_config_path
+
+        snap = current()
+        names = snap.llm_file_in_use()
+    except Exception as e:  # noqa: BLE001 -- doctor reports, never crashes
+        print()
+        print(f"  [!] could not read the LLM settings: {e}. inspect: m3 config show --origin")
+        return
+    if not names:
+        return
+    print()
+    print(f"  [i] LLM settings read from the legacy {llm_config_path()}; move them into [llm] of")
+    print(f"      {snap.location.file}:")
+    for name in names:
+        print(f"        {name}")
+
+
 def _plaintext_dsn_section() -> None:
     """Name each plaintext primary-DSN copy in the registry or shell profile.
 

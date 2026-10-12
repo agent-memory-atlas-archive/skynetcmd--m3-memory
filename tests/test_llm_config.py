@@ -17,48 +17,51 @@ from m3_memory import setup_wizard  # noqa: E402
 
 
 @pytest.fixture
-def config_root(monkeypatch, tmp_path):
-    monkeypatch.setenv("M3_CONFIG_ROOT", str(tmp_path))
-    monkeypatch.delenv("M3_ENABLE_OLLAMA_FAILOVER", raising=False)
-    monkeypatch.delenv("M3_ENABLE_LMSTUDIO_FAILOVER", raising=False)
-    return tmp_path
+def config_root():
+    """The sandbox's per-test config root; the sandbox also clears the LLM env names."""
+    from m3_core.config import settings as st
+
+    from m3_memory import _roots
+
+    root = Path(_roots.config_root())
+    root.mkdir(parents=True, exist_ok=True)
+    st._reset_for_tests()
+    yield root
+    st._reset_for_tests()
+
+
+def _ollama_on() -> bool:
+    from m3_core.config import settings as st
+
+    st._reset_for_tests()  # the snapshot watches m3_config.toml, not this file
+    return st.setting("llm.ollama_failover")
 
 
 def test_file_is_used_when_the_environment_is_bare(config_root):
     llm_config.write_llm_setting("M3_ENABLE_OLLAMA_FAILOVER", "1")
-    assert llm_config.llm_setting("M3_ENABLE_OLLAMA_FAILOVER") == "1"
-
-    import llm_failover
-
-    assert llm_failover._flag("M3_ENABLE_OLLAMA_FAILOVER", False) is True
+    assert _ollama_on() is True
 
 
 def test_environment_outranks_the_file(config_root, monkeypatch):
     llm_config.write_llm_setting("M3_ENABLE_OLLAMA_FAILOVER", "1")
     monkeypatch.setenv("M3_ENABLE_OLLAMA_FAILOVER", "0")
-
-    import llm_failover
-
-    assert llm_failover._flag("M3_ENABLE_OLLAMA_FAILOVER", True) is False
+    assert _ollama_on() is False
 
 
 def test_malformed_file_is_reported(config_root, caplog):
     (config_root / llm_config.LLM_CONFIG_NAME).write_text("{not json", encoding="utf-8")
     with caplog.at_level(logging.WARNING, logger="M3_SDK"):
-        assert llm_config.llm_setting("M3_ENABLE_OLLAMA_FAILOVER") is None
+        assert llm_config.read_llm_config() == {}
     assert "unreadable" in caplog.text
 
 
 def test_absent_file_is_silent(config_root, caplog):
     with caplog.at_level(logging.WARNING, logger="M3_SDK"):
-        assert llm_config.llm_setting("M3_ENABLE_OLLAMA_FAILOVER") is None
+        assert llm_config.read_llm_config() == {}
     assert caplog.text == ""
 
 
 def _probe(monkeypatch, reachable_port):
-    monkeypatch.delenv("LLM_ENDPOINTS_CSV", raising=False)
-    monkeypatch.delenv("M3_LLM_ENDPOINTS_CSV", raising=False)
-    monkeypatch.delenv("M3_LLM_URL", raising=False)
     monkeypatch.setattr(setup_wizard, "_endpoint_reachable", lambda url, **k: reachable_port in url)
     setup_wizard._probe_llm_endpoints(object(), argparse.Namespace(non_interactive=True))
 
@@ -86,17 +89,16 @@ def test_setup_records_a_fresh_ollama_enable(config_root, monkeypatch):
 
 
 def test_setup_records_a_custom_server_url(config_root, monkeypatch):
-    monkeypatch.delenv("LLM_ENDPOINTS_CSV", raising=False)
-    monkeypatch.delenv("M3_LLM_ENDPOINTS_CSV", raising=False)
     monkeypatch.setenv("M3_LLM_URL", "http://localhost:8080/v1")
     monkeypatch.setattr(setup_wizard, "_endpoint_reachable", lambda url, **k: True)
     setup_wizard._probe_llm_endpoints(object(), argparse.Namespace(non_interactive=True))
     assert _recorded(config_root) == {"M3_LLM_URL": "http://localhost:8080/v1"}
 
     monkeypatch.delenv("M3_LLM_URL")
-    import llm_failover
+    from m3_core.config import settings as st
 
-    assert llm_failover._setting("M3_LLM_URL") == "http://localhost:8080/v1"
+    st._reset_for_tests()
+    assert st.setting("llm.url") == "http://localhost:8080/v1"
 
 
 def test_setup_writes_nothing_when_only_the_default_is_reachable(config_root, monkeypatch):
@@ -130,8 +132,6 @@ def test_no_runtime_guidance_is_for_setup_not_the_upgrade(monkeypatch, capsys, f
     host that never had a runtime is the standing state: nothing is printed
     (it was six lines, then one, on every run). A runtime that WAS enabled and
     went away is a change, covered in test_upgrade_output_and_cache_retry."""
-    for var in ("M3_LLM_URL", "LLM_ENDPOINTS_CSV", "M3_LLM_ENDPOINTS_CSV"):
-        monkeypatch.delenv(var, raising=False)
     monkeypatch.setattr(setup_wizard, "_endpoint_reachable", lambda url, **k: False)
     monkeypatch.setattr(setup_wizard, "_llm_switch_enabled", lambda var: False)
     if from_upgrade:

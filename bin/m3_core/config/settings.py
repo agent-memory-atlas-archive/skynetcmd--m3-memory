@@ -60,6 +60,11 @@ class Settings:
             r.origin.removeprefix("env-legacy:") for r in self.resolved.values() if r.origin.startswith("env-legacy:")
         )
 
+    def llm_file_in_use(self) -> list[str]:
+        """Names whose value in use comes from the legacy .llm_config.json: what
+        import-env moves into [llm] (fold plan 2026.10.12, step 3)."""
+        return sorted(r.env_name for r in self.resolved.values() if r.origin.startswith("llmfile:") and r.env_name)
+
     def deprecated_aliases_in_use(self) -> dict[str, str]:
         """{old name: canonical name} for every key whose value came from a
         legacy ALIAS spelling (env or .env), the registry's half of
@@ -82,8 +87,10 @@ def build(
     registry: Registry = REGISTRY,
     environ: Mapping[str, str] | None = None,
     dotenv: DotEnv | None = None,
+    llmfile: DotEnv | None = None,
 ) -> Settings:
-    """Load and resolve a snapshot. Raises ``ConfigFileError`` / ``ConfigEnvErrors``."""
+    """Load and resolve a snapshot. Raises ``ConfigFileError`` / ``ConfigEnvErrors``.
+    A caller passing its own ``environ`` gets no legacy file it did not pass too."""
     from .keys import RETIRED
 
     loc = location if location is not None else locate()
@@ -92,7 +99,10 @@ def build(
     if dotenv is None:
         path, values = _env.dotenv() if environ is None else (None, {})
         dotenv = DotEnv(path=path, values=values)
-    resolved = resolve_all(registry, loaded, env, dotenv)
+    if llmfile is None:
+        path, values = _env.llm_file() if environ is None else (None, {})
+        llmfile = DotEnv(path=path, values=values, kind="llmfile")
+    resolved = resolve_all(registry, loaded, env, dotenv, llmfile)
     retired = tuple(sorted(n for n in RETIRED if (env.get(n) or "").strip()))
     return Settings(
         location=loc,

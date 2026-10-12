@@ -3,7 +3,12 @@
 Hazard: launchd and systemd start the cognitive loop with a bare environment, so
 a switch kept only in the user's shell rc (e.g. M3_ENABLE_OLLAMA_FAILOVER) never
 reaches it. ``<config_root>/.llm_config.json`` resolves the same way under every
-launcher. Precedence: environment > this file > the caller's default.
+launcher.
+
+The registry is its one reader (``m3_core.config.env.llm_file``: a legacy source
+below env and .env, origin ``llmfile:``); this module keeps the file's path, its
+parse and the writer until import-env moves the values into [llm] (fold plan
+2026.10.12).
 """
 
 from __future__ import annotations
@@ -43,15 +48,6 @@ def read_llm_config() -> dict:
         )
         return {}
     return data if isinstance(data, dict) else {}
-
-
-def llm_setting(name: str) -> str | None:
-    """The environment value of ``name`` if set, else the config file's."""
-    env = os.environ.get(name, "").strip()
-    if env:
-        return env
-    value = read_llm_config().get(name)
-    return None if value is None else str(value).strip()
 
 
 def write_llm_setting(name: str, value: str) -> str:

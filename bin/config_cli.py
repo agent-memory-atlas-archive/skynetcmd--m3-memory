@@ -71,6 +71,7 @@ def show(settings: Settings, *, origin: bool, as_json: bool) -> str:
                 "settings": rows,
                 "secrets": secrets,
                 "legacy_env_in_use": settings.legacy_env_in_use(),
+                "llm_file_in_use": settings.llm_file_in_use(),
                 "ignored_env": settings.shadowed_env(),
                 "retired_env_set": list(settings.retired_env),
                 "warnings": list(settings.warnings),
@@ -105,6 +106,12 @@ def show(settings: Settings, *, origin: bool, as_json: bool) -> str:
             "",
             "# honoured from legacy environment names until N+3; move them into the file:",
             *(f"#   {n}" for n in settings.legacy_env_in_use()),
+        ]
+    if settings.llm_file_in_use():
+        lines += [
+            "",
+            "# honoured from the legacy .llm_config.json; move them into [llm]:",
+            *(f"#   {n}" for n in settings.llm_file_in_use()),
         ]
     if settings.shadowed_env():
         lines += [

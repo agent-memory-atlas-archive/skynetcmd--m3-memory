@@ -1,8 +1,8 @@
 ---
 tool: bin/llm_failover.py
-sha1: 90564c8ab4bb
-mtime_utc: 2026-10-11T22:04:07.494090+00:00
-generated_utc: 2026-10-11T22:04:50.223267+00:00
+sha1: 35491b0bdd39
+mtime_utc: 2026-10-12T11:44:06.995253+00:00
+generated_utc: 2026-10-12T11:45:06.074034+00:00
 private: false
 ---
 
@@ -39,7 +39,6 @@ _(none detected)_
 ## Calls INTO this repo (intra-repo imports)
 
 - `auth_utils (get_api_key)`
-- `m3_sdk (getenv_compat)`
 
 ---
 
@@ -47,7 +46,7 @@ _(none detected)_
 
 **http**
 
-- `httpx.get()  → `f"{endpoint.rstrip('/')}/models"`` (line 338)
+- `httpx.get()  → `f"{endpoint.rstrip('/')}/models"`` (line 320)
 
 
 ---
@@ -56,7 +55,6 @@ _(none detected)_
 
 - `httpx`
 - `m3_core.config (settings)`
-- `m3_core.llm_config (llm_setting)`
 
 ---
 

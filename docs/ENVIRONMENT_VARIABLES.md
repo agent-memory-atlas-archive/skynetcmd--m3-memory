@@ -448,9 +448,10 @@ Background services started by launchd, systemd or Task Scheduler do not read
 your shell rc. For them, `M3_ENABLE_LMSTUDIO_FAILOVER`,
 `M3_ENABLE_OLLAMA_FAILOVER`, `M3_LLM_URL` and `M3_LLM_ENDPOINTS_CSV` are also
 read from `<M3_CONFIG_ROOT>/.llm_config.json`
-(e.g. `{"M3_ENABLE_OLLAMA_FAILOVER": "1"}`) when the environment does not set
-them. `m3 setup` writes this file to match the runtimes it detects; the
-environment still wins when set.
+(e.g. `{"M3_ENABLE_OLLAMA_FAILOVER": "1"}`) when neither `m3_config.toml`, the
+environment nor `.env` sets them. `m3 setup` writes this file to match the
+runtimes it detects. These are the `[llm]` keys of `m3_config.toml`; `m3 doctor`
+and `m3 config show --origin` list each value still read from this file.
 
 ### Embedding — model & client
 

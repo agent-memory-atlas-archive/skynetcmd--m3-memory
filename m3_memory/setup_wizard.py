@@ -1941,7 +1941,7 @@ def _probe_llm_endpoints(plan: SetupPlan, args: argparse.Namespace) -> None:
         from m3_memory.wizard.persist import shell_rc_has
 
         # Recorded in <config root>/.llm_config.json, which every launcher reads
-        # (llm_config: env > that file). No env write and no shell-rc / MCP-env
+        # (the registry, below env and .env). No env write and no shell-rc / MCP-env
         # persistence: setup writes files, not env (wizard cut-over, user decision
         # 2026-10-11, m3 ec79a21b); the file folds into m3_config.toml with import-env.
         if already in ("1", "true", "yes") or shell_rc_has(var, val):

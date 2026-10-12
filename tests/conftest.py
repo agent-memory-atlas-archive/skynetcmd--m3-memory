@@ -1601,6 +1601,13 @@ _SANDBOX_CLEAR_ENV = (
     "M3_CDW_URL",
     "M3_POSTGRES_SERVER",
     "POSTGRES_SERVER",
+    # LLM endpoint switches — a developer's exported M3_LLM_URL or
+    # M3_ENABLE_OLLAMA_FAILOVER outranks the test's own .llm_config.json.
+    "M3_LLM_URL",
+    "M3_LLM_ENDPOINTS_CSV",
+    "LLM_ENDPOINTS_CSV",
+    "M3_ENABLE_LMSTUDIO_FAILOVER",
+    "M3_ENABLE_OLLAMA_FAILOVER",
 )
 
 

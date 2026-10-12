@@ -607,13 +607,11 @@ def test_endpoint_reachable_false_on_dead_port():
 
 def test_probe_honors_explicit_csv(monkeypatch, capsys):
     monkeypatch.setenv("LLM_ENDPOINTS_CSV", "http://x:9/v1")
-    monkeypatch.delenv("M3_LLM_URL", raising=False)
     setup_wizard._probe_llm_endpoints(object(), _probe_args())
     assert "LLM_ENDPOINTS_CSV" in capsys.readouterr().out
 
 
 def test_probe_honors_custom_url(monkeypatch, capsys):
-    monkeypatch.delenv("LLM_ENDPOINTS_CSV", raising=False)
     monkeypatch.setenv("M3_LLM_URL", "http://localhost:8080/v1")
     monkeypatch.setattr(setup_wizard, "_endpoint_reachable", lambda u, **k: False)
     setup_wizard._probe_llm_endpoints(object(), _probe_args())
@@ -621,10 +619,6 @@ def test_probe_honors_custom_url(monkeypatch, capsys):
 
 
 def test_probe_enables_ollama_when_only_ollama_reachable(monkeypatch):
-    monkeypatch.delenv("LLM_ENDPOINTS_CSV", raising=False)
-    monkeypatch.delenv("M3_LLM_URL", raising=False)
-    monkeypatch.delenv("M3_ENABLE_OLLAMA_FAILOVER", raising=False)
-    monkeypatch.delenv("M3_ENABLE_LMSTUDIO_FAILOVER", raising=False)
     # Only Ollama (:11434) answers; LM Studio (:1234) is dead.
     monkeypatch.setattr(setup_wizard, "_endpoint_reachable", lambda url, **k: "11434" in url)
     recorded = {}
@@ -641,10 +635,6 @@ def test_probe_enables_ollama_when_only_ollama_reachable(monkeypatch):
 def test_probe_no_op_when_only_lmstudio_reachable(monkeypatch):
     # LM Studio is the default-on endpoint — nothing to persist when it's the
     # only one up (no stale disable, no redundant enable).
-    monkeypatch.delenv("LLM_ENDPOINTS_CSV", raising=False)
-    monkeypatch.delenv("M3_LLM_URL", raising=False)
-    monkeypatch.delenv("M3_ENABLE_LMSTUDIO_FAILOVER", raising=False)
-    monkeypatch.delenv("M3_ENABLE_OLLAMA_FAILOVER", raising=False)
     monkeypatch.setattr(setup_wizard, "_endpoint_reachable", lambda url, **k: "1234" in url)
     recorded = {}
     monkeypatch.setattr(setup_wizard, "_record_llm_switch", lambda n, v: recorded.__setitem__(n, v))

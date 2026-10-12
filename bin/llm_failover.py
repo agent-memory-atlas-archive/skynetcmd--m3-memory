@@ -7,13 +7,11 @@ Used by memory_bridge.py.
 """
 
 import logging
-import os
 import re
 import time
 
 import httpx
 from m3_core.config import settings as _m3cfg
-from m3_sdk import getenv_compat
 
 logger = logging.getLogger("llm_failover")
 
@@ -150,43 +148,27 @@ def is_lmstudio_url(url: str) -> bool:
         return False
 
 
-def _setting(name: str) -> str:
-    # Environment first, then <config_root>/.llm_config.json, which is what a
-    # launchd/systemd daemon can see (it never reads the shell rc).
-    try:
-        from m3_core.llm_config import llm_setting
-
-        return llm_setting(name) or ""
-    except Exception:  # noqa: BLE001 — a bare payload still honours the env
-        return os.environ.get(name, "").strip()
-
-
-def _flag(name: str, default: bool) -> bool:
-    v = _setting(name).lower()
-    if not v:
-        return default
-    return v in ("1", "true", "yes")
-
-
-_endpoints_csv = getenv_compat("M3_LLM_ENDPOINTS_CSV", "LLM_ENDPOINTS_CSV", "").strip() or _setting(
-    "M3_LLM_ENDPOINTS_CSV"
-)
-_custom_url = _setting("M3_LLM_URL")
-if _endpoints_csv:
-    # Explicit ordered list — full control, overrides everything below.
-    LLM_ENDPOINTS = [ep.strip() for ep in _endpoints_csv.split(",") if ep.strip()]
-else:
-    LLM_ENDPOINTS = []
-    if _custom_url:
-        LLM_ENDPOINTS.append(_custom_url)
+def endpoints_from_settings() -> list[str]:
+    """The failover list from the [llm] keys. The registry also reads the legacy
+    <config_root>/.llm_config.json (below env and .env), which is what a
+    launchd/systemd daemon can see: it never reads the shell rc."""
+    explicit = _m3cfg.setting("llm.endpoints")
+    if explicit:
+        # Explicit ordered list — full control, overrides everything below.
+        return list(explicit)
+    custom_url = _m3cfg.setting("llm.url")
+    endpoints = [custom_url] if custom_url else []
     # A custom URL implies "this is my server" — don't auto-probe LM Studio unless
     # the user explicitly opted in. With no custom URL, LM Studio stays on by default.
-    if _flag("M3_ENABLE_LMSTUDIO_FAILOVER", default=not _custom_url):
-        if _LMSTUDIO_ENDPOINT not in LLM_ENDPOINTS:
-            LLM_ENDPOINTS.append(_LMSTUDIO_ENDPOINT)
-    if _flag("M3_ENABLE_OLLAMA_FAILOVER", False):
-        if _OLLAMA_ENDPOINT not in LLM_ENDPOINTS:
-            LLM_ENDPOINTS.append(_OLLAMA_ENDPOINT)
+    lmstudio = _m3cfg.setting("llm.lmstudio_failover")
+    if (not custom_url if lmstudio is None else lmstudio) and _LMSTUDIO_ENDPOINT not in endpoints:
+        endpoints.append(_LMSTUDIO_ENDPOINT)
+    if _m3cfg.setting("llm.ollama_failover") and _OLLAMA_ENDPOINT not in endpoints:
+        endpoints.append(_OLLAMA_ENDPOINT)
+    return endpoints
+
+
+LLM_ENDPOINTS = endpoints_from_settings()
 
 # Model filtering patterns
 EMBED_EXCLUSIONS = ("embed", "nomic", "jina", "bge", "minilm", "e5")

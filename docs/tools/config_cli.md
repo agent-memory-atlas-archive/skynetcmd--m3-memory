@@ -1,8 +1,8 @@
 ---
 tool: bin/config_cli.py
-sha1: 444725dca1be
-mtime_utc: 2026-10-10T21:05:17.049779+00:00
-generated_utc: 2026-10-10T21:05:29.417364+00:00
+sha1: c00584a6c94e
+mtime_utc: 2026-10-12T11:44:29.535746+00:00
+generated_utc: 2026-10-12T11:45:05.655797+00:00
 private: false
 ---
 
@@ -25,7 +25,7 @@ Exit codes: 0 = shown; 2 = the configuration is invalid (problems printed).
 
 ## Entry points
 
-- `def main()` (line 127)
+- `def main()` (line 134)
 - `if __name__ == "__main__"` guard
 
 ---

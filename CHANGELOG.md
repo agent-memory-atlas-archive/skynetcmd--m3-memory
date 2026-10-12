@@ -347,6 +347,16 @@ the policy is forward-going only.
   there keep working.
   **Affected:** all installs · **Action:** none · **Data status:** none.
 
+- **The LLM endpoint settings in `m3_config.toml` take effect.** `[llm]` `url`,
+  `endpoints`, `lmstudio_failover` and `ollama_failover` now choose the failover
+  list; they were ignored. Precedence: `m3_config.toml`, then the environment,
+  then `.env`, then `.llm_config.json`. The switches accept `on`/`off` as well
+  as `1`/`0`, and an unreadable value names the file it came from. `m3 doctor`
+  and `m3 config show --origin` list each value still read from
+  `.llm_config.json`.
+  **Affected:** users who set LLM endpoints · **Action:** none ·
+  **Data status:** none.
+
 - **`chatlog_set_redaction` is a CLI command only.** It writes your config, and
   MCP clients no longer get it: run `m3 chat chatlog_set_redaction --yes`. The
   MCP catalog lists one tool fewer.

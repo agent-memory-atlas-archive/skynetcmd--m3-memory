@@ -45,7 +45,6 @@ DEPRECATED_ENV_RENAMES: dict[str, str] = {
     # below.
     "DB_POOL_SIZE": "M3_DB_POOL_SIZE",
     "DB_POOL_TIMEOUT": "M3_DB_POOL_TIMEOUT",
-    "LLM_ENDPOINTS_CSV": "M3_LLM_ENDPOINTS_CSV",
     "ORIGIN_DEVICE": "M3_ORIGIN_DEVICE",
     # PG_URL is NOT here: it was split by role (primary vs warehouse), so it lives
     # in ROLE_SPLIT_ENV_RENAMES (-> M3_CDW_PG_URL) and is resolved by the

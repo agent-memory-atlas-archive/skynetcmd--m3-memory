@@ -96,9 +96,6 @@ def test_the_retry_bypasses_both_caches():
 
 
 def _no_llm(monkeypatch, enabled_vars=()):
-    monkeypatch.delenv("M3_LLM_URL", raising=False)
-    monkeypatch.delenv("M3_LLM_ENDPOINTS_CSV", raising=False)
-    monkeypatch.delenv("LLM_ENDPOINTS_CSV", raising=False)
     monkeypatch.setattr(setup_wizard, "_endpoint_reachable", lambda *_a, **_k: False)
     monkeypatch.setattr(setup_wizard, "_called_by_upgrade", lambda: True)
     monkeypatch.setattr(setup_wizard, "_llm_switch_enabled", lambda var: var in enabled_vars)

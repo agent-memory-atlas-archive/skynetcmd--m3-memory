@@ -6,6 +6,7 @@ Precedence for a CONFIG key, N..N+2 (the deprecation window, #D28):
     > m3_config.toml
     > legacy env (any other key's old env name; honoured, and reported, until N+3)
     > .env (parsed, never injected; CONFIG_DESIGN §10)
+    > <config_root>/.llm_config.json (the [llm] keys' old file; folds in at import-env)
     > the registry default
 
 So ``m3 config set`` wins at once even while HKCU / rc files / MCP env blocks
@@ -61,10 +62,17 @@ def _env_hit(key: Key, environ: Mapping[str, str]) -> tuple[str, str] | None:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class DotEnv:
-    """The legacy .env, parsed, never injected (CONFIG_DESIGN §10)."""
+    """A legacy file of env names, parsed, never injected: the .env (CONFIG_DESIGN
+    §10) or, below it, ``.llm_config.json`` (kind "llmfile"; fold plan
+    2026.10.12). ``kind`` is the origin's prefix."""
 
     path: str | None = None
     values: Mapping[str, str] = field(default_factory=dict)
+    kind: str = "dotenv"
+
+    @property
+    def where(self) -> str:
+        return f".env {self.path}" if self.kind == "dotenv" else str(self.path)
 
 
 NO_DOTENV = DotEnv()
@@ -116,10 +124,17 @@ def env_outranks_file(key: Key) -> bool:
     return key.env_override
 
 
-def resolve_key(key: Key, loaded: LoadedFile, environ: Mapping[str, str], dotenv: DotEnv = NO_DOTENV) -> Resolved:
+def resolve_key(
+    key: Key,
+    loaded: LoadedFile,
+    environ: Mapping[str, str],
+    dotenv: DotEnv = NO_DOTENV,
+    llmfile: DotEnv = NO_DOTENV,
+) -> Resolved:
     if key.klass is not KeyClass.CONFIG:
         # A contract violation, not a diagnostic: secrets resolve in secret_store.
         raise ValueError(f"{key.name} is a {key.klass} key; secret_store resolves secrets, not resolve_key")
+    legacy = (dotenv, llmfile)
     hit = _env_hit(key, environ)
     if env_outranks_file(key) and hit is not None:
         without = {n: v for n, v in environ.items() if n not in key.env_names}
@@ -127,9 +142,9 @@ def resolve_key(key: Key, loaded: LoadedFile, environ: Mapping[str, str], dotenv
             value=from_env(key, *hit),
             origin=f"env:{hit[0]}",
             env_name=hit[0],
-            beneath=_resolve_below_env(key, loaded, without, dotenv),
+            beneath=_resolve_below_env(key, loaded, without, legacy),
         )
-    return _resolve_below_env(key, loaded, environ, dotenv)
+    return _resolve_below_env(key, loaded, environ, legacy)
 
 
 def live_env_override(key: Key, resolved: Resolved, environ: Mapping[str, str]) -> ConfigValue | None:
@@ -145,25 +160,30 @@ def live_env_override(key: Key, resolved: Resolved, environ: Mapping[str, str]) 
     return resolved.value
 
 
-def _resolve_below_env(key: Key, loaded: LoadedFile, environ: Mapping[str, str], dotenv: DotEnv) -> Resolved:
+def _resolve_below_env(
+    key: Key, loaded: LoadedFile, environ: Mapping[str, str], legacy: tuple[DotEnv, ...]
+) -> Resolved:
     hit = _env_hit(key, environ)
-    dot = _env_hit(key, dotenv.values)
+    # The legacy files that set this key, highest first (.env, then the LLM file).
+    files = [(src, h) for src in legacy if (h := _env_hit(key, src.values)) is not None]
+
+    def unused(below: list[tuple[DotEnv, tuple[str, str]]]) -> tuple[str, ...]:
+        return tuple(f"{h[0]} (in {src.path})" for src, h in below)
+
     if key.name in loaded.values:
-        shadowed = tuple(n for n in key.env_names if (environ.get(n) or "").strip())
-        if dot is not None:
-            shadowed += (f"{dot[0]} (in {dotenv.path})",)
+        shadowed = tuple(n for n in key.env_names if (environ.get(n) or "").strip()) + unused(files)
         return Resolved(
             value=loaded.values[key.name], origin=f"file:{loaded.location.file} {show_key(key.name)}", shadowed=shadowed
         )
     if hit is not None:
         value = from_env(key, *hit)
         _note_legacy_difference(key, *hit, value)
-        shadowed = (f"{dot[0]} (in {dotenv.path})",) if dot is not None else ()
-        return Resolved(value=value, origin=f"env-legacy:{hit[0]}", shadowed=shadowed, env_name=hit[0])
-    if dot is not None:  # the lowest source: below the file and below real env
-        value = from_env(key, *dot, where=f".env {dotenv.path}")
+        return Resolved(value=value, origin=f"env-legacy:{hit[0]}", shadowed=unused(files), env_name=hit[0])
+    if files:  # the lowest sources: below the file and below real env
+        (src, dot), below = files[0], files[1:]
+        value = from_env(key, *dot, where=src.where)
         _note_legacy_difference(key, *dot, value)
-        return Resolved(value=value, origin=f"dotenv:{dotenv.path} {dot[0]}", env_name=dot[0])
+        return Resolved(value=value, origin=f"{src.kind}:{src.path} {dot[0]}", shadowed=unused(below), env_name=dot[0])
     # A list default is copied: the registry's own object must never be shared
     # with a caller that might mutate it.
     default = list(key.default) if isinstance(key.default, list) else key.default
@@ -171,7 +191,11 @@ def _resolve_below_env(key: Key, loaded: LoadedFile, environ: Mapping[str, str],
 
 
 def resolve_all(
-    registry: Registry, loaded: LoadedFile, environ: Mapping[str, str], dotenv: DotEnv = NO_DOTENV
+    registry: Registry,
+    loaded: LoadedFile,
+    environ: Mapping[str, str],
+    dotenv: DotEnv = NO_DOTENV,
+    llmfile: DotEnv = NO_DOTENV,
 ) -> dict[str, Resolved]:
     """Every CONFIG key, or ``ConfigEnvErrors`` naming EVERY bad env value."""
     out: dict[str, Resolved] = {}
@@ -180,7 +204,7 @@ def resolve_all(
         if key.klass is not KeyClass.CONFIG:
             continue
         try:
-            out[key.name] = resolve_key(key, loaded, environ, dotenv)
+            out[key.name] = resolve_key(key, loaded, environ, dotenv, llmfile)
         except ConfigEnvError as e:
             errors.append(e)
     if errors:

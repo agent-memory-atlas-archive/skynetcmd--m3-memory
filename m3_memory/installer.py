@@ -52,6 +52,7 @@ from m3_memory.install.sections import (  # noqa: F401  (re-exported facade surf
     _deprecated_env_section,
     _embedder_tier_section,
     _gemini_hook_state,
+    _llm_file_legacy_section,
     _plaintext_dsn_section,
     _read_json,
     _resolve_chatlog_db,
@@ -1442,7 +1443,7 @@ def _post_install(
     changed = False
     if endpoint_choice is not None:
         cfg["llm_endpoints_csv"] = endpoint_choice
-        # Recorded where every m3 process reads it (llm_config: env > that file),
+        # Recorded where every m3 process reads it (the registry, below env and .env),
         # not in env: setup writes files, not env (wizard cut-over, m3 ec79a21b).
         try:
             _bin.ensure_on_path()
@@ -2943,6 +2944,8 @@ def doctor(fix: bool = False, brief: bool = False) -> int:
     _deprecated_env_section()
 
     _config_env_disagreement_section()
+
+    _llm_file_legacy_section()
 
     _plaintext_dsn_section()
 

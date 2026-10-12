@@ -52,3 +52,19 @@ def dotenv() -> tuple[str | None, Mapping[str, str]]:
     from dotenv import dotenv_values
 
     return path, {k: v for k, v in dotenv_values(path).items() if v is not None}
+
+
+def llm_file() -> tuple[str | None, Mapping[str, str]]:
+    """The legacy ``<config_root>/.llm_config.json`` as (path, values), read like
+    the .env: env names, never injected. (None, {}) when absent or empty; a
+    malformed file is reported by its reader. JSON true/false read as the words
+    the env parser takes."""
+    from m3_core.llm_config import llm_config_path, read_llm_config
+
+    data = read_llm_config()
+    values = {
+        k: ("true" if v else "false") if isinstance(v, bool) else str(v).strip()
+        for k, v in data.items()
+        if v is not None
+    }
+    return (llm_config_path(), values) if values else (None, {})
