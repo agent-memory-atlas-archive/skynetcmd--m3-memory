@@ -687,11 +687,76 @@ def _cmd_restore(args: argparse.Namespace) -> int:
     return 0
 
 
+def _secret_set(args: argparse.Namespace) -> int:
+    """`m3 secret set NAME [--keyring]`: ask for the value (hidden, twice) and
+    store it in the secrets file, or with --keyring in the OS keyring (then the
+    file's value line, if any, is removed). The value is never taken from the
+    command line, and never printed."""
+    import getpass
+
+    _bin.ensure_on_path()
+    from m3_core.secret_store import (
+        SecretsFileError,
+        get_secret,
+        is_known_secret,
+        remove_secret,
+        secrets_file_path,
+        set_secret,
+        store_in_keyring,
+    )
+
+    from m3_memory._platform import console_has_person, volume_encryption
+
+    name = args.name
+    if not is_known_secret(name):
+        print(
+            f"observed: {name} is not one of m3's secrets. inspect: `m3 config show` lists them (the secrets section).",
+            file=sys.stderr,
+        )
+        return 2
+    if not console_has_person():
+        print(
+            f"observed: no one is at the console to type the value of {name}; nothing stored. "
+            "inspect: run `m3 secret set` in a terminal (a value is never read from the command line).",
+            file=sys.stderr,
+        )
+        return 2
+    print(f"m3 now asks for the value of {name}. Typing is hidden; nothing is shown.")
+    value = getpass.getpass(f"Value for {name}: ").strip()
+    if not value:
+        print("observed: the value was empty; nothing stored.", file=sys.stderr)
+        return 2
+    if getpass.getpass(f"Again, to confirm {name}: ").strip() != value:
+        print("observed: the two entries differ; nothing stored. Run the command again.", file=sys.stderr)
+        return 2
+    try:
+        if args.keyring:
+            enc = volume_encryption(str(secrets_file_path()))
+            store = enc.keyring if enc is not None else "the OS keyring"
+            store_in_keyring(name, value)
+            removed = remove_secret(name)
+            print(f"stored {name} in {store} (read back OK).")
+            if removed is not None:
+                print(f"removed its value from {removed}; m3 reads the keyring for it now.")
+        else:
+            path = set_secret(name, value)
+            if get_secret(name) != value:
+                raise SecretsFileError(f"{path}: wrote {name} but the read-back returned a different value")
+            print(f"stored {name} in the secrets file {path} (read back OK).")
+    except (OSError, SecretsFileError) as e:
+        print(f"observed: {e}; inspect: `m3 doctor` (the secrets checks).", file=sys.stderr)
+        return 2
+    return 0
+
+
 def _cmd_secret(args: argparse.Namespace) -> int:
-    """`m3 secret refresh`: move the secrets generation marker. m3's own secret
-    writes do this already; this is for a key changed outside m3 (a keyring edit)."""
+    """`m3 secret refresh | set NAME [--keyring]`. refresh moves the secrets
+    generation marker (m3's own writes do this already; this is for a key changed
+    outside m3)."""
+    if getattr(args, "secret_cmd", None) == "set":
+        return _secret_set(args)
     if getattr(args, "secret_cmd", None) != "refresh":
-        print("usage: m3 secret refresh", file=sys.stderr)
+        print("usage: m3 secret refresh | m3 secret set NAME [--keyring]", file=sys.stderr)
         return 2
     _bin.ensure_on_path()
     from m3_core.secret_store import bump_secret_generation
@@ -1929,6 +1994,15 @@ def main() -> None:
     from m3_core.paths import apply_early_argv
 
     apply_early_argv()
+    # `m3 secret set NAME --keyring=<value>`: argparse's own error would PRINT the
+    # value. --keyring is a switch; the value is asked for. Refuse without echo.
+    if "secret" in sys.argv[1:] and any(a.startswith("--keyring=") for a in sys.argv[1:]):
+        print(
+            "m3 secret: --keyring is a switch, not a place for the value (what followed '=' is not shown); "
+            "nothing stored. Run `m3 secret set NAME --keyring` and m3 asks you for the value.",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
 
     parser = argparse.ArgumentParser(
         prog="m3",
@@ -2226,10 +2300,21 @@ Examples:
         "secret",
         help="Secrets: `refresh` makes running m3 processes re-read changed keys.",
     )
-    sec_sub = p_secret.add_subparsers(dest="secret_cmd", metavar="<refresh>")
+    sec_sub = p_secret.add_subparsers(dest="secret_cmd", metavar="<refresh|set>")
     sec_sub.add_parser(
         "refresh",
         help="Signal every m3 process to drop its cached secrets (after changing a key outside m3).",
+    )
+    p_secret_set = sec_sub.add_parser(
+        "set",
+        help="Store one secret: m3 ASKS for the value (hidden); never type it on the command line.",
+    )
+    p_secret_set.add_argument("name", help="The secret's name, e.g. M3_PRIMARY_PG_URL (not its value).")
+    p_secret_set.add_argument(
+        "--keyring",
+        action="store_true",
+        help="A switch, not a place for the value: store it in the OS keyring instead of the secrets "
+        "file. m3 then asks you for the value.",
     )
     p_secret.set_defaults(func=_cmd_secret)
 
@@ -2513,8 +2598,20 @@ Examples:
     if _forward:
         args.rest = extras
     elif extras:
-        # For any other subcommand, unknown flags are genuine errors.
-        parser.error(f"unrecognized arguments: {' '.join(extras)}")
+        # For any other subcommand, unknown flags are genuine errors. A stray '#'
+        # is cmd.exe passing a pasted "# comment" on as words (measured): say so.
+        hint = (
+            " (cmd.exe does not treat # as a comment: drop everything from the # on)"
+            if any(e.startswith("#") for e in extras)
+            else ""
+        )
+        if getattr(args, "command", None) == "secret":
+            # Never echo them: one could be the secret, typed where m3 would ask for it.
+            parser.error(
+                f"{len(extras)} unexpected word(s) after the secret's name (not shown){hint}. "
+                "A value is never given on the command line: `m3 secret set NAME` asks for it."
+            )
+        parser.error(f"unrecognized arguments: {' '.join(extras)}{hint}")
 
     if args.command is None:
         # Bare `m3` → run the bridge (the MCP stdio server). This is how agents

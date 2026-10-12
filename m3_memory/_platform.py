@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from dataclasses import dataclass
 from types import ModuleType
 from typing import Any, NoReturn
 
@@ -86,6 +87,59 @@ def vscode_user_dir() -> str:
     if is_macos():
         return os.path.join(home, "Library", "Application Support", "Code", "User")
     return os.path.join(home, ".config", "Code", "User")
+
+
+@dataclass(frozen=True, slots=True)
+class VolumeEncryption:
+    """Whether the disk holding a path is encrypted: True / False, or None when
+    it could not be told; ``detail`` says what was read (or why not)."""
+
+    encrypted: bool | None
+    detail: str
+    keyring: str  # what this OS's keyring is called, for a message
+
+
+def _probe(argv: list[str]) -> tuple[int, str]:
+    """Run a short read-only OS query windowless; (exit code, stdout)."""
+    import subprocess
+
+    try:
+        cp = subprocess.run(  # nosec B603 - argv list, no shell
+            argv, capture_output=True, text=True, timeout=20, check=False, **hidden_window_kwargs()
+        )
+    except (OSError, subprocess.SubprocessError) as e:
+        return -1, f"{type(e).__name__}: {e}"
+    return cp.returncode, (cp.stdout or "").strip()
+
+
+# System.Volume.BitLockerProtection, as Windows' Shell reports it to any user
+# (manage-bde needs admin). Undocumented by Microsoft: only the two values
+# relied on are mapped; anything else is reported, not guessed.
+_BITLOCKER = {"1": (True, "BitLocker is on"), "2": (False, "BitLocker is off")}
+
+
+def volume_encryption(path: str) -> VolumeEncryption | None:
+    """Whether the disk holding ``path`` is encrypted, where this OS can be asked
+    without admin: Windows (BitLocker, through the Shell) and macOS (FileVault,
+    ``fdesetup isactive``). None where it is not checked (other OSes)."""
+    if is_windows():
+        drive = os.path.splitdrive(os.path.abspath(path))[0] or "C:"
+        query = (
+            f"(New-Object -ComObject Shell.Application).NameSpace('{drive}\\').Self"
+            ".ExtendedProperty('System.Volume.BitLockerProtection')"
+        )
+        rc, out = _probe(["powershell", "-NoProfile", "-NonInteractive", "-Command", query])
+        state, detail = _BITLOCKER.get(out, (None, f"BitLocker status not read (code {out or rc!r})"))
+        return VolumeEncryption(state, f"{drive} {detail}", "Windows Credential Manager")
+    if is_macos():
+        rc, out = _probe(["fdesetup", "isactive"])
+        state = {"true": True, "false": False}.get(out)
+        if state is None:
+            detail = f"FileVault status not read ({out or rc!r})"
+        else:
+            detail = "FileVault is on" if state else "FileVault is off"
+        return VolumeEncryption(state, detail, "the macOS login keychain")
+    return None
 
 
 def synced_folder_roots() -> list[tuple[str, str]]:

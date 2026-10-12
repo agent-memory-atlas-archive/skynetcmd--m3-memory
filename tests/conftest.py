@@ -1819,6 +1819,32 @@ def m3_sandbox(monkeypatch, tmp_path):
     yield
 
 
+@pytest.fixture(autouse=True)
+def _read_log_drained():
+    """Flush the read-access log at THIS test's teardown, while its sandbox is
+    still in place (declared after m3_sandbox, so it tears down first). A queue
+    left for the background flusher was written during a LATER test: opening
+    the store reads settings, which rebuilt that test's snapshot between the
+    sandbox's reset and its setenv (a stale read, seen once on the Mac lane,
+    2026-10-12). What cannot be written (the test's database is gone) is
+    discarded here, never carried into the next test."""
+    yield
+    drain_read_log()
+
+
+def drain_read_log() -> None:
+    """Write the queued reads now, and discard what cannot be written."""
+    db = sys.modules.get("memory.db")
+    if db is None or not getattr(db, "_read_log_pending", None):
+        return
+    try:
+        db.flush_read_log()
+    except Exception:  # noqa: BLE001 -- a test-only drain; the store may be gone
+        pass
+    with db._read_log_lock:
+        db._read_log_pending.clear()
+
+
 # Minimal memory_items schema sufficient for chatlog writes. Embeddings and
 # FTS5 tables are created lazily by specific fixtures that need them.
 #

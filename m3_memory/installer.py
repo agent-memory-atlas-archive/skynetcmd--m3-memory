@@ -2766,7 +2766,7 @@ def doctor(fix: bool = False, brief: bool = False) -> int:
 
     _plaintext_dsn_section()
 
-    _secrets_file_exposure_section()
+    _secrets_file_exposure_section(brief=brief)
 
     _chatlog_section(cfg)
 

@@ -369,6 +369,58 @@ def store_pg_dsn(role: PgRole, dsn: str) -> DsnStored:
     return DsnStored(location=f"secrets-file:{p}", skipped=tuple(skipped))
 
 
+def is_known_secret(name: str) -> bool:
+    """A registry secret (or env alias), a DSN store name, or an SLM profile's
+    api_key_service: the names the secrets file accepts."""
+    if name in _known_secret_names():
+        return True
+    try:
+        from slm_intent import profile_secret_names
+
+        declared, _unreadable = profile_secret_names()
+    except ImportError:
+        return False
+    return name in declared
+
+
+def remove_secret(name: str) -> Path | None:
+    """Delete ``name``'s line from the secrets file under its lock. Returns the
+    path, or None when the file has no value for it."""
+    from m3_core.atomic_io import atomic_write
+    from m3_core.locking import file_lock
+
+    p = secrets_file_path()
+    with file_lock(str(p) + ".lock", purpose="secrets file"):
+        table = read_secrets()
+        if name not in table:
+            return None
+        del table[name]
+        atomic_write(p, _render(table))
+    bump_secret_generation()
+    return p
+
+
+def store_in_keyring(name: str, value: str) -> str:
+    """Put ``name`` in the OS keyring (service "system"), verified by read-back.
+    Only on the user's explicit request (`m3 secret set NAME --keyring`): m3
+    otherwise never writes the keyring (user decisions, m3 c7082b20 and its
+    2026-10-12 exception). Returns where it went; raises SecretsFileError naming
+    what failed, never the value."""
+    import auth_utils
+
+    err = auth_utils._keyring_store(name, value)
+    if err is not None:
+        raise SecretsFileError(f"could not store {name} in the OS keyring: {err}")
+    back, read_err = auth_utils._keyring_tier(name)
+    if back != value:
+        raise SecretsFileError(
+            f"stored {name} in the OS keyring but the read-back "
+            + (f"failed ({read_err})" if read_err else "returned a different value")
+        )
+    bump_secret_generation()  # running processes drop their cached copy
+    return f"keyring:system/{name}"
+
+
 def set_secret(name: str, value: str) -> Path:
     """Store one secret (create or replace) under the file lock. Returns the path."""
     if not _NAME.fullmatch(name):

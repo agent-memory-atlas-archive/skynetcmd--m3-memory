@@ -521,10 +521,20 @@ the policy is forward-going only.
 
   **Affected:** none · **Action:** none · **Data status:** none.
 
+- **`m3 secret set NAME [--keyring]`.** Stores one secret. m3 asks for the value
+  twice and never shows it; a value is never taken from the command line. The
+  value goes to the secrets file by default, or with `--keyring` to Windows
+  Credential Manager or the macOS keychain (it is checked by reading it back,
+  and its line in the secrets file is removed).
+  **Affected:** none · **Action:** none · **Data status:** none.
+
 - **`m3 doctor` warns when the secrets file can leave the machine.** The secrets
   file holds secrets in plain text, protected by its permissions. Doctor names it
   when it sits inside a git working tree or a synced folder (OneDrive, Dropbox,
-  iCloud Drive and other cloud folders), and says how to move it.
+  iCloud Drive and other cloud folders), and says how to move it. On Windows and
+  macOS it also says when the disk holding it is not encrypted (BitLocker or
+  FileVault off); `m3 doctor --verbose` lists the `m3 secret set NAME --keyring`
+  command for each secret.
   **Affected:** installs with a secrets file · **Action:** move the file if doctor
   names it · **Data status:** none.
 

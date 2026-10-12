@@ -893,7 +893,7 @@ def _git_tree_of(path: str) -> str | None:
         d = parent
 
 
-def _secrets_file_exposure_section() -> None:
+def _secrets_file_exposure_section(brief: bool = False) -> None:
     """Warn when the secrets file sits where it can leave this machine: inside a
     git working tree (a commit publishes it) or a synced folder (the sync client
     uploads it). The file is plaintext by decision (m3 c7082b20), protected only
@@ -928,6 +928,51 @@ def _secrets_file_exposure_section() -> None:
             "      fix: move it out, and point `secrets.file` in m3_config.toml at the new place "
             "(`m3 config set secrets.file <path> --yes`)."
         )
+    _secrets_file_disk_encryption(path, brief=brief)
+
+
+def _secrets_file_disk_encryption(path: str, *, brief: bool = False) -> None:
+    """Warn when the secrets file holds VALUES on a disk that is not encrypted
+    (BitLocker / FileVault off): anyone with the disk or a copy reads them. Names
+    each secret and the shell-independent command that moves it to the OS
+    keyring, never a value (user design, 2026-10-12). Silent when the disk is
+    encrypted, the file holds no values, or this OS is not checked."""
+    from m3_core.secret_store import SecretsFileError, read_secrets
+
+    from m3_memory._platform import volume_encryption
+
+    enc = volume_encryption(path)
+    if enc is None or enc.encrypted is True:
+        return
+    try:
+        names = sorted(read_secrets())  # entries holding a value, not keyring pointers
+    except SecretsFileError as e:
+        print()
+        print(f"  [!] could not read the secrets file to check its disk: {e}")
+        return
+    if not names:
+        return
+    count = f"{len(names)} secret{'s' if len(names) != 1 else ''}"
+    print()
+    if brief:  # doctor's default: the finding in one line, the detail under --verbose
+        # [i] for an unknown state: a warning for what was not observed is a false alarm (§3).
+        mark, state = ("[i]", "a disk m3 could not check") if enc.encrypted is None else ("[!]", "an unencrypted disk")
+        print(
+            f"  {mark} the secrets file holds {count} in plain text on {state} ({enc.detail}); "
+            "`m3 doctor --verbose` shows how to move them."
+        )
+        return
+    if enc.encrypted is None:
+        print(f"  [i] could not tell whether the disk holding the secrets file is encrypted ({enc.detail});")
+        print(f"      {path} holds {count} in plain text.")
+        return
+    print(f"  [!] the secrets file {path} holds {count} in plain text, and its disk is not")
+    print(f"      encrypted ({enc.detail}): anyone with the disk or a copy of it can read them.")
+    print(f"      Turn on disk encryption, or move them to {enc.keyring}. Type only the command")
+    print("      shown, NOT the secret: m3 then asks you for the value (nothing is shown as you")
+    print("      type). The same in any shell:")
+    for name in names:
+        print(f"        m3 secret set {name} --keyring")
 
 
 def _interrupted_rewrite_section() -> None:

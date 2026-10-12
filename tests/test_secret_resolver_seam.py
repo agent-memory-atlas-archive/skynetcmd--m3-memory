@@ -61,8 +61,10 @@ def test_extract_endpoint_falls_back_to_shared_resolver(monkeypatch):
     assert llm_available() is True
 
 
-def test_extract_endpoint_override_wins(monkeypatch):
-    monkeypatch.setenv("M3_FILES_EXTRACT_URL", "http://example.test:9/v1")
+def test_extract_endpoint_override_wins(m3_settings):
+    # A setting, not env: a setenv-then-read test races any thread that rebuilds
+    # the snapshot first (no-env plan, m3 9cbed0af).
+    m3_settings({"files.extract_url": "http://example.test:9/v1"})
     from files_memory.extract import _llm_endpoint
 
     assert _llm_endpoint() == "http://example.test:9/v1"
